@@ -487,6 +487,16 @@ pub(crate) fn exact_int(value: &Bound<'_, PyAny>) -> PyResult<i64> {
     number.extract().map_err(|_| Unsupported::new_err("an int is too large"))
 }
 
+/// An int of any size, as `str(int)` writes it. A Scenario's seed is an int from 0, past 64 bits
+/// too, and the Python rules write it as text (`CounterRNG` keys its draws with `str(seed)`), so it
+/// is never read as an i64.
+pub(crate) fn exact_int_text(value: &Bound<'_, PyAny>) -> PyResult<String> {
+    let Ok(number) = value.downcast_exact::<PyInt>() else {
+        return unsupported("a value is not an int");
+    };
+    Ok(number.str()?.to_str()?.to_owned())
+}
+
 /// A float and nothing else.
 pub(crate) fn exact_float(value: &Bound<'_, PyAny>) -> PyResult<f64> {
     match value.downcast_exact::<PyFloat>() {

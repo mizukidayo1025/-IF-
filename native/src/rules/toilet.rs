@@ -16,7 +16,7 @@ use sha2::{Digest, Sha256};
 use crate::core::errors;
 use crate::core::mathx::py_max;
 use crate::core::rng::{Key, KeyedDraws};
-use crate::core::row::{attribute, exact_dict, exact_int, exact_str, map_set, namespace_is_absent, unsupported};
+use crate::core::row::{attribute, exact_dict, exact_int, exact_int_text, exact_str, map_set, namespace_is_absent, unsupported};
 use crate::core::value::V;
 use crate::core::world_core::{mirror_of, raw_dict_get, NamespaceMirror};
 use crate::rules::facility_queues::{
@@ -358,8 +358,9 @@ fn start_one<'py>(
     let counter_rng = COUNTER_RNG
         .get_or_try_init(py, || -> PyResult<Py<PyAny>> { Ok(py.import("sheltersim.core.rng")?.getattr("CounterRNG")?.unbind()) })?
         .bind(py);
-    // The world's CounterRNG draws here; another KeyedRandom (a test's) is asked as the rule asks it.
-    let seed = if rng.get_type().is(counter_rng) { Some(exact_int(&attribute(rng, intern!(py, "seed"))?)?) } else { None };
+    // The world's CounterRNG draws here, keyed by `str(seed)` of a seed of any size; another
+    // KeyedRandom (a test's) is asked as the rule asks it.
+    let seed = if rng.get_type().is(counter_rng) { Some(exact_int_text(&attribute(rng, intern!(py, "seed"))?)?) } else { None };
     let lowest = exact_int(&attribute(manager, intern!(py, "min_service_minutes"))?)?;
     let highest = exact_int(&attribute(manager, intern!(py, "max_service_minutes"))?)?;
     let policy_object = attribute(manager, intern!(py, "policy_version"))?;
@@ -453,7 +454,7 @@ fn start_one<'py>(
     // The draw and its key, as `rng_key` holds them.
     let draw = match seed {
         Some(seed) => {
-            let draws = KeyedDraws::new(&seed.to_string());
+            let draws = KeyedDraws::new(&seed);
             let mut key = Key::labelled("toilet-service");
             key.text(facility_name).text(&agent_id).text("minute").int(minute_value).text(&policy).text("duration");
             if let Some(head) = &head {

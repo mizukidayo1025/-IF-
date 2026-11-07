@@ -27,7 +27,7 @@ use sha2::{Digest, Sha256};
 
 use crate::core::errors;
 use crate::core::mathx::py_min;
-use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, unsupported};
+use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_int_text, exact_str, unsupported};
 use crate::core::value::V;
 use crate::rules::movement::{mirror_held, Scene};
 use crate::rules::movement_geometry::Pt;
@@ -1530,7 +1530,10 @@ fn plan_arrivals<'py>(
     }
     let row = event_row(event)?;
     identifier(&row.event_id)?;
-    let seed = exact_int(&attribute(world, intern!(py, "seed"))?)?;
+    // `f"{world.seed}"` and the int itself: a seed of any size, past 64 bits too.
+    let seed_object = attribute(world, intern!(py, "seed"))?;
+    let seed = exact_int_text(&seed_object)?;
+    let seed_value = V::from_py(&seed_object)?;
     let schema_version = exact_int(&attribute(world, intern!(py, "schema_version"))?)?;
     let hydrated = schema_version == 6;
     let event_digest = sha_hex(&row.event_id);
@@ -1586,7 +1589,7 @@ fn plan_arrivals<'py>(
                 "source_type" => v_str("assumption"),
                 "source_id" => v_str(SOURCE_ID),
                 "event_id" => V::Str(row.event_id.clone()),
-                "seed" => V::Int(seed),
+                "seed" => seed_value.clone(),
             }),
         });
         let care_needs = care_by_index.get(&index).cloned().unwrap_or_default();

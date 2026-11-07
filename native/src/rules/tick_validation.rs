@@ -23,7 +23,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyDictMethods, PyInt, PyList, PyString, PyTuple};
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_list, exact_str, str_value, unsupported};
+use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_int_text, exact_list, exact_str, str_value, unsupported};
 use crate::core::tracked::as_readable_list;
 use crate::core::value::V;
 use crate::core::world_core::{raw_dict_get, NamespaceMirror};
@@ -275,7 +275,9 @@ pub(crate) fn entity_rules_watching<'py>(
     }
     let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
     let duration = exact_int(&attribute(world, intern!(py, "duration_minutes"))?)?;
-    if duration <= 0 || !(0..=duration).contains(&minute) || exact_int(&attribute(world, intern!(py, "seed"))?)? < 0 {
+    // A seed of any size, past 64 bits too: `self.seed < 0`.
+    let negative_seed = exact_int_text(&attribute(world, intern!(py, "seed"))?)?.starts_with('-');
+    if duration <= 0 || !(0..=duration).contains(&minute) || negative_seed {
         return unsupported("the clock or seed is the Python rule's");
     }
     let agents = map_of(world, intern!(py, "agents"))?;

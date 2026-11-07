@@ -580,6 +580,23 @@ def test_a_zone_over_its_capacity_is_left_to_the_python_rule(documents) -> None:
         world._validate_zone_capacity(*left[0])
 
 
+@pytest.mark.parametrize("seed", [2**63, 2**64 + 7, 10**30])
+def test_the_check_takes_a_seed_past_64_bits(documents, seed) -> None:
+    """A Scenario's seed is any int from 0; the kernel read it as an i64 and turned it down."""
+    world = _world(documents[0])
+    world.seed = seed
+    assert _python_error(world) is None
+    assert _accepts(world)
+
+
+@pytest.mark.parametrize("seed", [-1, -(2**70)])
+def test_a_negative_seed_is_left_to_the_python_rule(documents, seed) -> None:
+    world = _world(documents[0])
+    world.seed = seed
+    assert _python_error(world) == "scenario seed cannot be negative"
+    assert not _accepts(world)
+
+
 def test_an_event_queue_with_an_order_outside_i64_is_left_to_the_python_rules(documents) -> None:
     world = _world(documents[0])
     world.event_queue._leave_rust(list(world.event_queue.pending()))
