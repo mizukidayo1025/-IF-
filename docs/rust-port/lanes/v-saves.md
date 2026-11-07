@@ -19,7 +19,7 @@ Checkpoint の保存（`Checkpoint.capture` と `TimelineStore.record`）のう�
 - **実体のリストは `SavedItems`：** `Checkpoint.world_state["agents"]` などはリストではなく `SavedItems` です（読むたびに解析、`==` はリストとも比べられます）。`event_log` と同じ扱いです。
 - **chunk の鍵：** 実体のリストは追記専用ではありません（途中の依頼が変わります）。先頭と末尾の項目で chunk を見分ける `chunk_key` は使いません（`splice_rows`、`append_only`）。
 - **復元の確認：** 復元の結果は入力の byte 列だけで決まるので、前の確認で等しいと示した行と同じ bytes オブジェクトなら、復元も比較もしません。変わった行だけ、今までどおり `from_dict` の規則を通して比べます。確認の世界は `_bare_world` で、行を持ちません（前は確認のたびに `start_core` が全部の行を作っていました）。失敗した保存はこの記憶を捨てます。
-- **Rust が持つ名前空間の比較：** 行の byte 列から読んだ文書を、木と今までどおり比べます。小さく（1つ数十 µs）、省くと読み戻しの違いが見えなくなるので省きません。最初の版は省いて、`test_a_restored_world_that_differs_...` が失敗しました。切り離した名前空間はここで木を作り直すので、切り離すレーンは比べ方を決める必要があります。
+- **Rust が持つ名前空間の比較：** 行の byte 列から読んだ文書を、木と今までどおり比べます。小さく（1つ数十 µs）、省くと読み戻しの違いが見えなくなるので省きません。最初の版は省いて、`test_a_restored_world_that_differs_...` が失敗しました。切り離した名前空間は、L14 から行の bytes で比べ、違えば行から作った文書で比べます（`state_mirror.same_detached`。木は作りません）。
 - **変わらないフィールド：** Python の経路のフィールドも、前の保存と同じ byte 列なら文書を解析し直しません。
 - **`HistoryPins`：** 項目の中のすべてのオブジェクトへの参照を持ち、同じオブジェクトを同じ順で持っていれば変わっていないとします。文字列や数を読まないので、散らばったメモリを読みません。参照を持つので、同じアドレスに別の値は来ません。項目を最初に入れるときは文書と型まで比べ（`1` と `True`、タプルとリストを区別）、false は何も言わないので、呼ぶ側が今までどおり文書と比べます。順序だけ変わった項目（`--reversed-order`）はこの比較で通り、持ち直します。
 - **索引：** `entities` と `tokens` は主キーだけの表なので、rowid なしで作ります。前に作った索引はそのままで、同じ答えです。
@@ -93,4 +93,4 @@ Checkpoint の保存（`Checkpoint.capture` と `TimelineStore.record`）のう�
 - **Rust が持っていない大きな名前空間：** `social_network_v1.relationships`、`body_state_v1.relationships` は、保存のたびに符号化と解析をします。
 - **`world_frame`：** 2 MB の frame を毎回作ります。今回は手を付けていません（`geometry.model_dump` は小さく、まとめて省ける場所がありませんでした）。
 - **索引の SQLite：** 索引の CPU の大半は SQLite の挿入と commit です。`records` の6つの索引は検索が使っています。
-- **切り離し（`detach`）：** `_with_empty` は `dict(model_state)` で木を読むので、切り離した名前空間を毎回作り直します。切り離すレーンが直す必要があります。
+- **切り離し（`detach`）：** L14 で直しました。`documents()` は `plain_model_state` で、行が bytes を書いた名前空間を印のまま渡し、その bytes だけを読みます。

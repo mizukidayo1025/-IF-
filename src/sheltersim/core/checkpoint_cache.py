@@ -38,7 +38,7 @@ from sheltersim import native
 from sheltersim.contracts.policies import model_signatures
 from sheltersim.core.save_validation import SaveValidationMemo
 from sheltersim.core.saved_items import SavedItems, json_default
-from sheltersim.core.state_mirror import owned_row_bytes
+from sheltersim.core.state_mirror import owned_row_bytes, plain_model_state
 from sheltersim.core.world import WorldState
 from sheltersim.events.queue import EventLog
 from sheltersim.experiments.metrics import MetricsRecorder
@@ -575,8 +575,11 @@ class CheckpointHistoryCache:
             if name not in _WORLD_TREE["model_state"]
         }
         self._owned_rows = frozenset(namespace_rows) | frozenset(field_rows)
-        data = world._canonical_data(include_event_log=False, without_entities=bool(entity_rows))
-        data["model_state"] = _with_empty(world.model_state, histories)
+        # A detached namespace whose row wrote its bytes is read from those alone.
+        model_state = _with_empty(plain_model_state(world.model_state, namespace_rows), histories)
+        data = world._canonical_data(
+            include_event_log=False, without_entities=bool(entity_rows), model_state=model_state
+        )
         world_document = self._encoded_document(
             data, _WORLD_TREE, encoder, (), {(): field_rows, ("model_state",): namespace_rows}
         )

@@ -556,7 +556,9 @@ class WorldState:
         if psychology_model in MEAN_REVERTING_PSYCHOLOGY_POLICIES:
             try:
                 if not rust_validated(self, PSYCHOLOGICAL_STATE_KEY):
-                    validate_psychological_state(self.model_state.get(PSYCHOLOGICAL_STATE_KEY))
+                    validate_psychological_state(
+                        state_mirror.read_only_state(self, PSYCHOLOGICAL_STATE_KEY)
+                    )
             except ValueError as exc:
                 raise StateInvariantError(f"invalid psychological distress state: {exc}") from exc
         elif PSYCHOLOGICAL_STATE_KEY in self.model_state:
@@ -1508,14 +1510,22 @@ class WorldState:
         return self._canonical_text(self._canonical_data())
 
     def _canonical_data(
-        self, *, include_event_log: bool = True, without_entities: bool = False
+        self,
+        *,
+        include_event_log: bool = True,
+        without_entities: bool = False,
+        model_state: Any = None,
     ) -> dict[str, Any]:
         """The canonical_json() document before encoding; it shares live model state.
 
         Without the EventLog its "event_log" is empty, for a caller that adds
         records it already converted. without_entities leaves out what a caller holding
-        the rows' bytes takes from them (EntityStore.rows_json).
+        the rows' bytes takes from them (EntityStore.rows_json). model_state replaces the
+        world's, for a caller that reads the rows of the detached namespaces itself; by default
+        those are documents of their rows (state_mirror.plain_model_state).
         """
+        if model_state is None:
+            model_state = state_mirror.plain_model_state(self.model_state)
         if without_entities:
             return {
                 **self._canonical_scalars(),
@@ -1533,7 +1543,7 @@ class WorldState:
                 "id_counters": self.id_counters,
                 "metric_state": self.metric_state,
                 "model_configs": self.model_configs,
-                "model_state": self.model_state,
+                "model_state": model_state,
             }
         return {
             **self._canonical_scalars(),
@@ -1572,7 +1582,7 @@ class WorldState:
             "id_counters": self.id_counters,
             "metric_state": self.metric_state,
             "model_configs": self.model_configs,
-            "model_state": self.model_state,
+            "model_state": model_state,
         }
 
     def _canonical_scalars(self) -> dict[str, Any]:
@@ -2026,7 +2036,14 @@ def _same_model_state(
     fields_of = {}
     for name, field_name in known:
         fields_of.setdefault(name, set()).add(field_name)
-    for name, state in mine.items():
+    for name in mine:
+        # A detached namespace is compared by its row, building no tree (core/state_mirror.py).
+        detached = state_mirror.same_detached(mine, theirs, name)
+        if detached is not None:
+            if not detached:
+                return False
+            continue
+        state = mine[name]
         other = theirs[name]
         lists = fields_of.get(name)
         if lists is None or not isinstance(state, dict) or not isinstance(other, dict):

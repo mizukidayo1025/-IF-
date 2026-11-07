@@ -300,6 +300,7 @@ fn sheltersim_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(core::parallel::set_people_per_helper, module)?)?;
     module.add_function(wrap_pyfunction!(core::tracked::install_tracked_types, module)?)?;
     module.add_function(wrap_pyfunction!(core::tracked::install_id_map_type, module)?)?;
+    module.add_function(wrap_pyfunction!(core::tracked::install_detached_types, module)?)?;
     module.add_class::<core::world_core::WorldCore>()?;
     module.add_class::<core::world_core::NamespaceMirror>()?;
     module.add_class::<core::world_core::RowType>()?;

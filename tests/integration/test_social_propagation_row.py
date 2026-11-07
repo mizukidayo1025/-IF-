@@ -357,14 +357,17 @@ def test_records_change_keys_and_later_writes_reach_their_new_place(
 
 
 def test_a_restored_namespace_gets_the_order_of_the_python_rule(generated_scenario: Any) -> None:
-    """Keys sorted by the checkpoint's JSON, which a new dict of the rule does not have."""
+    """Keys sorted by the checkpoint's JSON, which a new dict of the rule does not have.
+
+    The namespace is detached (test_detached_namespaces.py): a restore loads its row, and a read
+    builds a tree in the row's order, which is the rule's."""
     world, controller, view, deltas, rng = _small(generated_scenario)
     _run_kernel(world, controller, view, deltas, rng)
     moved = replace(view, minute_index=1)
     shifted = tuple(replace(delta, minute_index=1) for delta in deltas)
     world.model_state[KEY] = json.loads(json.dumps(world.model_state[KEY], sort_keys=True))
     assert next(iter(next(iter(world.model_state[KEY]["contacts"].values())))) == (
-        "consecutive_minutes"
+        "last_seen_minute"
     )
     old_record = next(iter(world.model_state[KEY]["contacts"].values()))
     if _RECORD:

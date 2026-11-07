@@ -8,6 +8,13 @@ also tells the tree's sink, which keeps the row equal to the tree. A plain conta
 when it is inserted, so a write through a name it had before the insert reaches neither. See
 docs/rust-port/lanes/p4-world-core.md for what a lane does.
 
+A namespace in DETACHED_NAMESPACES has no tree: its row alone holds it, and model_state holds a
+placeholder under its name (_DetachingTable). Reading it from Python builds the tree again from
+the row, and writes through that tree reach the row as for any owned namespace; the next tick
+(core/engine.py, detach_unread) drops the tree again. Whole-world readers (WorldState's canonical
+JSON, same_state and validation, Checkpoint capture, deepcopy) read the row instead, through
+plain_model_state, read_only_state and the row's bytes, and build no tree.
+
 The maps of entities are IdMap, which keep the Rust rows of the entities equal to the objects
 (docs/rust-port/lanes/p6-entity-windows.md).
 
@@ -381,7 +388,7 @@ class NamespaceTable(dict):
         if mirror is None:
             dict.__setitem__(self, key, value)
         elif dict.get(self, key, _MISSING) is not value:
-            dict.__setitem__(self, key, mirror.replace_root(value))
+            _store_owned(self, key, mirror, value)
 
     def __delitem__(self, key: Any) -> None:
         dict.__delitem__(self, key)
@@ -447,10 +454,12 @@ class NamespaceTable(dict):
 class _DetachingTable(NamespaceTable):
     """model_state while a namespace is detached: its key stays, holding a placeholder.
 
-    Keys, len and `in` read the right thing as they are. Whatever reads a value builds it first, so
-    the placeholder never gets out. Kernels turn this class down, so the C API can't see it either
-    (core/tracked.rs), and json.dumps calls items(). The class goes back to NamespaceTable, with
-    C-speed reads, when nothing is detached any more.
+    Keys, len and `in` read the right thing as they are. A read of a value builds its tree first,
+    so the placeholder never gets out to Python. Comparing, copying and pickling the table read
+    the rows instead and build nothing. Kernels read the table through the C API and see the
+    placeholder: each one that reads a detached namespace reads its row, or asks for the tree
+    (core/tracked.rs). The class goes back to NamespaceTable, with C-speed reads, when nothing is
+    detached any more.
     """
 
     __slots__ = ()
@@ -496,21 +505,24 @@ class _DetachingTable(NamespaceTable):
         self._build(key)
         return NamespaceTable.setdefault(self, key, default)
 
+    # A whole write replaces the row, and a delete drops it: neither needs the old tree.
     def __setitem__(self, key: Any, value: Any) -> None:
-        self._build(key)
         NamespaceTable.__setitem__(self, key, value)
+        _settle(self)
 
     def __delitem__(self, key: Any) -> None:
-        self._build(key)
         NamespaceTable.__delitem__(self, key)
+        _settle(self)
 
     def __eq__(self, other: object) -> bool:
-        self._build_all()
-        return dict.__eq__(self, other)
+        if not isinstance(other, dict):
+            return NotImplemented
+        return _same_tables(self, other)
 
     def __ne__(self, other: object) -> bool:
-        self._build_all()
-        return dict.__ne__(self, other)
+        if not isinstance(other, dict):
+            return NotImplemented
+        return not _same_tables(self, other)
 
     __hash__ = None  # type: ignore[assignment]
 
@@ -523,9 +535,9 @@ class _DetachingTable(NamespaceTable):
         return dict.__ror__(self, other)
 
     def __repr__(self) -> str:
-        self._build_all()
-        return dict.__repr__(self)
+        return dict.__repr__(plain_model_state(self))
 
+    # A shallow copy shares the trees, so it needs them.
     def copy(self) -> dict[Any, Any]:
         self._build_all()
         return dict(dict.items(self))
@@ -533,21 +545,50 @@ class _DetachingTable(NamespaceTable):
     __copy__ = copy
 
     def __deepcopy__(self, memo: dict[int, Any]) -> dict[Any, Any]:
-        self._build_all()
-        return NamespaceTable.__deepcopy__(self, memo)
+        # A detached namespace's document is new already.
+        result: dict[Any, Any] = {}
+        memo[id(self)] = result
+        for key, value in dict.items(self):
+            result[copy.deepcopy(key, memo)] = (
+                self._mirrors[key].document() if value is _DETACHED else copy.deepcopy(value, memo)
+            )
+        return result
 
     def __reduce_ex__(self, _protocol: Any) -> tuple[Any, ...]:
-        self._build_all()
-        return (dict, (dict(dict.items(self)),))
+        return (dict, (plain_model_state(self),))
 
 
 _DETACHED = object()
 
+# The owned namespaces their rows alone hold (L14 stage 1, docs/rust-port/step4-plan.md section
+# 5). Nothing reads them outside the tick but whole-world readers, which read the rows, and inside
+# it only kernels, which read the rows too; so a world keeps no tree for them. A whole write loads
+# the row directly; a Python read builds a tree, which detach_unread drops at the next tick.
+DETACHED_NAMESPACES = frozenset(
+    {"psychological_distress_v1", "social_propagation_v1", "temporary_spaces_v1"}
+)
+
 
 def _rebuild(table: NamespaceTable, key: Any) -> None:
     dict.__setitem__(table, key, table._mirrors[key].rebuild())
-    if not any(value is _DETACHED for value in dict.values(table)):
-        table.__class__ = NamespaceTable
+    _settle(table)
+
+
+def _settle(table: NamespaceTable) -> None:
+    """Give the table the class that reads what it holds."""
+    detached = any(value is _DETACHED for value in dict.values(table))
+    table.__class__ = _DetachingTable if detached else NamespaceTable
+
+
+def _store_owned(table: NamespaceTable, key: Any, mirror: Any, value: Any) -> None:
+    """table[key] = value for an owned namespace: its row, and a tree unless it stays detached."""
+    if key in DETACHED_NAMESPACES and isinstance(value, dict):
+        if mirror.load_detached(value, _DEAD_SINK):
+            dict.__setitem__(table, key, _DETACHED)
+            table.__class__ = _DetachingTable
+            return
+    # A value that does not fit the row is a tree, and the namespace is tainted, as before.
+    dict.__setitem__(table, key, mirror.replace_root(value))
 
 
 def detach(world: Any, name: str) -> bool:
@@ -559,10 +600,102 @@ def detach(world: Any, name: str) -> bool:
     """
     table = world.model_state
     mirror = table._mirrors[name]
-    if dict.get(table, name, _MISSING) is _MISSING or not mirror.detach(_DEAD_SINK):
+    held = dict.get(table, name, _MISSING)
+    if held is _DETACHED:
+        return True
+    if held is _MISSING or not mirror.detach(_DEAD_SINK):
         return False
     dict.__setitem__(table, name, _DETACHED)
     table.__class__ = _DetachingTable
+    return True
+
+
+def detach_unread(world: Any) -> None:
+    """Drop the trees a read built again for the namespaces of DETACHED_NAMESPACES.
+
+    Called where a tick starts and ends (core/engine.py), so a read between ticks costs one
+    rebuild and the kernels of the next tick find the row alone. A tainted namespace keeps its tree.
+    """
+    table = world.__dict__.get("model_state")
+    if not isinstance(table, NamespaceTable):
+        return
+    for name in DETACHED_NAMESPACES:
+        held = dict.get(table, name, _MISSING)
+        if held is not _MISSING and held is not _DETACHED and name in table._mirrors:
+            detach(world, name)
+
+
+def _held_value(table: Any, key: Any, held: Any) -> Any:
+    """What a read of table[key] gives, without building a tree: a detached one's document."""
+    return table._mirrors[key].document() if held is _DETACHED else held
+
+
+def plain_model_state(table: Any, known: Any = ()) -> Any:
+    """model_state with each detached namespace's row as a plain document, building no tree.
+
+    The documents are new and nothing follows them: read them, never write. A name in known keeps
+    the placeholder, for a caller that has that namespace's bytes and reads nothing else of it
+    (checkpoint_cache.documents). Anything but a table with a detached namespace is returned as
+    it is.
+    """
+    if not isinstance(table, _DetachingTable):
+        return table
+    return {
+        key: held if key in known else _held_value(table, key, held)
+        for key, held in dict.items(table)
+    }
+
+
+def read_only_state(world: Any, name: str, default: Any = None) -> Any:
+    """world.model_state.get(name, default) for a reader that never writes to it.
+
+    A detached namespace comes back as a new document from its row, and no tree is built, so a
+    write to the result reaches nothing (decision D3 of step4-plan.md: the validators in Python
+    read the namespace this way).
+    """
+    table = world.model_state
+    if not isinstance(table, dict):
+        return table.get(name, default)
+    held = dict.get(table, name, _MISSING)
+    if held is _MISSING:
+        return default
+    return _held_value(table, name, held)
+
+
+def same_detached(mine: Any, theirs: Any, name: str) -> bool | None:
+    """Whether two tables hold the same value under name, if one of them holds it detached.
+
+    None if neither does: the caller compares the values as always. The same row bytes are the
+    same value; other bytes are compared as documents, as == compares the trees.
+    """
+    first = dict.get(mine, name, _MISSING)
+    second = dict.get(theirs, name, _MISSING)
+    if first is not _DETACHED and second is not _DETACHED:
+        return None
+    if first is _DETACHED and second is _DETACHED:
+        try:
+            if mine._mirrors[name].row_json() == theirs._mirrors[name].row_json():
+                return True
+        except native.Unsupported:
+            pass
+    if first is _MISSING or second is _MISSING:
+        return False
+    return bool(_held_value(mine, name, first) == _held_value(theirs, name, second))
+
+
+def _same_tables(mine: Any, theirs: Any) -> bool:
+    """mine == theirs for a table with a detached namespace, building no tree."""
+    if dict.__len__(mine) != dict.__len__(theirs):
+        return False
+    for key, held in dict.items(mine):
+        if not dict.__contains__(theirs, key):
+            return False
+        detached = same_detached(mine, theirs, key)
+        if detached is None:
+            if held != dict.__getitem__(theirs, key):
+                return False
+        elif not detached:
+            return False
     return True
 
 
@@ -850,7 +983,10 @@ def _fill_table(table: NamespaceTable, current: Any) -> None:
     # In the order of the document, so a world's order does not depend on what is owned.
     for key, value in current.items():
         mirror = table._mirrors.get(key)
-        dict.__setitem__(table, key, value if mirror is None else mirror.replace_root(value))
+        if mirror is None:
+            dict.__setitem__(table, key, value)
+        else:
+            _store_owned(table, key, mirror, value)
 
 
 def _attach_fields(world: Any, core: Any) -> None:
@@ -971,3 +1107,4 @@ def deepcopy_world(world: Any, memo: dict[int, Any]) -> Any:
 
 native.install_tracked_types(TrackedDict, TrackedList, NamespaceTable)
 native.install_id_map_type(IdMap)
+native.install_detached_types(_DetachingTable, _DETACHED)

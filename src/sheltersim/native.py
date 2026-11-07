@@ -51,6 +51,12 @@ def install_id_map_type(id_map: type) -> None:
     _native.install_id_map_type(id_map)
 
 
+def install_detached_types(table: type, placeholder: object) -> None:
+    """Tell the kernels the class of model_state while a namespace is detached, and the
+    placeholder it holds for that namespace (core/tracked.rs)."""
+    _native.install_detached_types(table, placeholder)
+
+
 def canonical_json(value: Any) -> bytes | None:
     """json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
     allow_nan=False).encode(), or None when the kernel leaves value to json."""

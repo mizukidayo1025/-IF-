@@ -1061,7 +1061,7 @@ L0 の前に文を読んで付けた分類です。到達は**推測で、上の
 
 ## 5. 木の切り離し
 
-**今、本番で切り離している名前空間はありません（grep）。** `state_mirror.detach` を呼ぶのはテストだけです（`test_world_core.py`、`test_psychology_row.py`、`test_staff_dynamics_row.py`）。つまり、行を持つ19の名前空間（2レーン込み）のすべてに木があります。行のない V の木は `operational_events_v1`、`infrastructure_v1`、`zone_environment_v1`、`social_runtime_v1`、`support_priority_runtime_v1` です。
+**（L14 の前の調べ。段階1の結果は下にあります。）今、本番で切り離している名前空間はありません（grep）。** `state_mirror.detach` を呼ぶのはテストだけです（`test_world_core.py`、`test_psychology_row.py`、`test_staff_dynamics_row.py`）。つまり、行を持つ19の名前空間（2レーン込み）のすべてに木があります。行のない V の木は `operational_events_v1`、`infrastructure_v1`、`zone_environment_v1`、`social_runtime_v1`、`support_priority_runtime_v1` です。
 
 **読み手（文字列とキーの定数を grep。外だけ抜き出し）：**
 
@@ -1104,6 +1104,31 @@ L0 の前に文を読んで付けた分類です。到達は**推測で、上の
 使うのは、frame の描画、指標と比較、`natural_language` と `llm/runtime` の文脈、`branch` のコマンド、Scenario からの世界の組み立てです。**どれも読むだけか、コマンドの境界です。**
 
 **提案：切り離しは手順4の必須にしません。** 利用者の決定にある完了の定義は「Python の規則を消す」で、切り離しは速さの最適化です（`b-social-propagation.md` も、切り離しで減るのは毎 tick の書き込み）。**並列に要るのは、並列の計算の段階が行だけを読むことです。** ミラーは `apply` の段階で GIL を取って書けばよいので、木があっても並列にできます（推測。測っていません）。切り離しは最後の別レーンにします。
+
+**L14 の段階1の結果（2026-11-08）：** 利用者の決定（2026-11-08）で、tick の外に読み手のない3つ、`psychological_distress_v1`、`social_propagation_v1`、`temporary_spaces_v1` を切り離しました（`core/state_mirror.py` の `DETACHED_NAMESPACES`）。`web`、`inspection`、`storage`、`llm`、`contracts`、`region` に読み手がないことを grep で確かめ直しました。tick の外で読むのは `events/effects.py` の EffectProgram の検査（臨時の場所の定員を読むだけ）で、行から作った文書を読むようにしました。
+- **しくみ：** 世界を作るとき、復元するとき、名前空間を丸ごと書くときに、値を直接行に読み込み、木を作りません（`NamespaceMirror.load_detached`）。`model_state` はその名前に印を持つ `_DetachingTable` になります。行に合わない値は今までどおり木になり、taint されます。Python から読むと行から木を作り直し（`_rebuild`）、その木への書き込みは行に届きます（**書き込みは転送する**と決めました）。作り直した木は `TickEngine` が tick の終わり（と作るとき）に捨てます（`detach_unread`）。捨てる前から持っていた節点への書き込みは `DetachedNodeError` です。切り離した名前空間の `taint`（テストの道具）は、行しかないので `RuntimeError` にしました。
+- **kernel：** `core/tracked.rs` が `_DetachingTable` も素の dict として読み、印を `is_detached` で見分けます。tick の中で3つを読む場所は、印なら行を読みます：`after_tick.rs`（表の型と `rows_hold`。`holds_state`）、`world_view.rs`（長期の苦痛があるか。`.get` は木を作るので C API で読む）、`tick_validation.rs`（臨時の場所が空か）、`overlay.rs`（`validate_spaces` と定員。`NamespaceMirror::with_value`）。社会の伝播と心理の kernel は前から木がなくても書けました（`Tree` の節点が None）。木を通して読み書きする、まれな規則（人口の出入りでの接触の保管と復元、臨時の場所の登録と終了）は `attached_state` で木を作り直させます。次の tick の終わりにまた捨てます。
+- **世界全体の読み手：** 正規の JSON（`_canonical_data`）は `plain_model_state` で行から作った文書を読みます。`same_state` と `_DetachingTable.__eq__` は行の bytes で比べ、違えば文書で比べます（`same_detached`）。Checkpoint の `documents()` は行の bytes だけを読みます（`owned_row_bytes`）。復元の確かめで作る世界も `load_detached` で行だけを作ります。fork の `deepcopy` は行から作った文書を写します。Python に残した検証（D3）は、kernel が受けないときだけ `read_only_state` で行から作った文書を読み、文は同じです。
+- **確かめたこと：** 全経路のゲート 0 problems。7日分（project の経路、生成 Scenario）のハッシュが同じで、保存した Checkpoint 674 個と frame 337 個のファイルが、変更の前と1バイトも違いません。1日分の project の経路で、木の作り直しは0回でした。
+
+**測った効果（7日分、project の経路、生成 Scenario、100人。変更の前後を交互に2回ずつ。CPU はほかの作業と共有）：**
+
+| | 前（2回） | 後（2回） |
+|---|---|---|
+| 7日目の1 tick（30分ごとの区間から保存を除く。平均） | 2.17、2.09 ms | 2.08、2.06 ms |
+| 7日目の1回の保存（frame、記録を含む。中央値） | 247、738 ms（2回目はCPUが混んだ） | 234、239 ms |
+| Run 全体の `Checkpoint.capture`（1回の平均） | 59.9、58.5 ms | 60.8、58.9 ms |
+| 最大 RSS（`/usr/bin/time -v`） | 4544、4570 MiB | 4509、4495 MiB |
+
+- **小さいです。** tick は 1〜4% 速く見えますが、揺れの中です。毎 tick 減ったのは、心理の100人分の記録と社会の接触の記録を木にも書く分だけです。保存は変わりません：7日目の世界で `documents()` を交互に8回ずつ測ると、切り離しても木があっても中央値 9.6 ms でした（行の bytes は前から使っていたため）。復元の確かめで木を作らない分（3つの木で約150 KiB、約400節点）も、7日目の世界の `from_dict` 全体（約10.8 s、EventLog を含む）の中では見えません。
+- **メモリ：** 3つの木は7日目で、心理 46 KiB（102節点）、社会 107 KiB（302節点）、臨時の場所 1 KiB（3節点）でした（tracemalloc）。世界1つにつき約150 KiB 減ります。RSS の差（約 −50 MiB）は、これより桁が大きく、揺れと見ます。
+- 段階1の価値は速さより、しくみ（kernel が `_DetachingTable` を読む、行を直接読み込む、世界全体の読み手が行を読む）が本番で動くことです。段階2で大きな名前空間（`body_state_v1`、`movement_v1`、`information_spread_v1`）を切り離すと、毎 tick の木への書き込みと保存の前の木の読みが減ります。
+
+**段階2に要るもの（別の Issue）：**
+- **名前空間ごとの読み手（上の表）：** `inspection/frames.py`（ほぼすべて。保存ごとに frame を作るので、`read_only_state` で文書を読むようにする。文書を作る費用を測る）、`storage/history_index.py`・`index_writer.py`（`body_state_v1`、`facility_queues_v1`、`staff_operations_v1`、`population_lifecycle_v1`）、`llm/natural_language.py`・`llm/runtime.py`（`llm/runtime.py` は `information_spread_v1` に書くので、転送か行への書き込みの口が要る）、`contracts/`（`population_presence_v1` は宣言された名前空間で、`validate_declared_states` と after_tick の宣言の検査が木を読む）、`web/project_queries.py`、`web/pdf_report.py`。
+- **kernel の側：** 木の同一性で確かめる関数が、印を断ります（大きな音で失敗するので、黙って違う結果にはなりません）：`movement.rs` と `staff.rs` の `mirror_held`、`resource_ledger.rs`・`resource_service.rs`・`facility_queues.rs` の `held_mirror`、`effects.rs` の `held_program_mirror`、`psychology.rs` の `body_mirror`、`after_tick.rs` の `seen`（memo の世代。切り離した名前空間の世代を印から引く口が要る）と宣言の検査。木を通して読み書きする規則（`population.rs`、`population_lifecycle.rs`、`world_view.rs` の `state_get`、`support.rs` の `namespace_of` など、`.get` や `get_item` で木を読むもの）は、行を読むようにするか `attached_state` で作り直させます。毎 tick 読むものを作り直させると、遅くなります。
+- **履歴の名前空間：** `body_state_v1`、`shared_operations_v1`、`resource_ledger_v1`、`resource_service_v1` は `_WORLD_TREE` で項目ごとにハッシュするので、`owned_row_bytes` に bytes がありません（`_HASHED_BY_PARTS`）。`_SealedItems` と `validation_memo` も木のリストを読みます。項目ごとの bytes を行から出す口が要ります。
+- **実体（dataclass）：** `world.agents` など（上の表）は `IdMap` と行のミラーで、名前空間の切り離しとは別のしくみです。web、inspection、llm、experiments の読み手が多く、読み取り専用の窓（行から作る読み取りの実体）を先に作る必要があります。
 
 ## 6. エラーの文
 
@@ -1214,7 +1239,7 @@ L0 の前に文を読んで付けた分類です。到達は**推測で、上の
 | **L11** | 版を上げる + libm + RNG | **ここで初めて結果が変わる。** 下 |  | L10 | なし | 中 |
 | **L12** | 並列 | `compute`、`apply` に分ける。`propose_due`、心理、接触、長期の状態。`RAYON_NUM_THREADS` の変種を全部の Scenario に |  | L11 | なし | 中。**直列とハッシュが同じ** を条件にする |
 | **L13** | 3つの OS | 9節。CI の変更 |  | L11（L12 と同時でよい） | L12 と | 中 |
-| **L14**（任意） | 木の切り離し | 5節 |  | L10 | L12 と調整 | 低〜中 |
+| **L14**（任意） | 木の切り離し（段階1済み。5節） | 5節 |  | L10 | L12 と調整 | 低〜中 |
 
 **L10 の進み：** 最初の部分（Rust の拡張を必須にし、`SHELTERSIM_NATIVE`、`native.available()`、CI の「Rust なし」の回を消す）は済みました。`_PythonEventLog` と、それだけが通る道（`keeps_saved_bytes`、`CheckpointHistoryCache` の記録を同一性で追う道）も消しました。`_PythonEventQueue` は残します。i64 に収まらない順序を持つキュー（`_LargeOrderEventQueue`）が中で使うからです。
 

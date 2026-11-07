@@ -32,7 +32,7 @@ use pyo3::PyTraverseError;
 use smallvec::SmallVec;
 
 use super::row::Scalar;
-use super::tracked::{tracked_dict_type, tracked_list_type};
+use super::tracked::{as_readable_dict, is_detached, tracked_dict_type, tracked_list_type};
 use super::value::V;
 use crate::{encode, Encoder, Unsupported, MAX_DEPTH};
 
@@ -962,6 +962,31 @@ impl NamespaceMirror {
     pub(crate) fn root_is(&self, value: &Bound<'_, PyAny>) -> bool {
         self.root.as_ref().is_some_and(|root| root.as_ptr() == value.as_ptr())
     }
+
+    /// Whether `held`, what `model_state` holds under this namespace, is the state the row
+    /// follows: the tree, or the placeholder while the namespace is detached and the row alone
+    /// holds it (`state_mirror._table_holds_row_of`).
+    pub(crate) fn holds_state(&self, held: &Bound<'_, PyAny>) -> bool {
+        self.root_is(held) || (self.detached && self.row.is_some() && is_detached(held))
+    }
+
+    /// Run f on the `V` of a namespace whose row is a `ValueRow`, for a kernel that reads a
+    /// detached one; Unsupported without such a row. f must not run Python code (`with_row`).
+    pub(crate) fn with_value<R>(slf: &Bound<'_, Self>, f: impl FnOnce(&V) -> PyResult<R>) -> PyResult<R> {
+        Self::with_row::<ValueRow, _>(slf, |row| f(&row.0))
+    }
+}
+
+/// `model_state.get(name)` through the C API, but a detached namespace comes back as its tree,
+/// which Python rebuilds from the row (`_DetachingTable.__getitem__`): for a kernel that writes
+/// through the tree, or reads it at an event. Unsupported for a `model_state` kernels don't read.
+pub(crate) fn attached_state<'py>(table: &Bound<'py, PyAny>, name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+    let dict = as_readable_dict(table).ok_or_else(|| Unsupported::new_err("model_state is not a plain dict"))?;
+    match dict.get_item(name)? {
+        // PyObject_GetItem runs the override, which builds the tree and stores it in the table.
+        Some(value) if is_detached(&value) => Ok(Some(table.get_item(name)?)),
+        held => Ok(held),
+    }
 }
 
 fn part_of<'a>(key: &'a Bound<'_, PyAny>) -> Result<Part<'a>, Misfit> {
@@ -1129,6 +1154,32 @@ impl NamespaceMirror {
         Ok(true)
     }
 
+    /// Load value into the row and keep no tree: what `replace_root` and then `detach` leave,
+    /// without building the tree. For a namespace that stays detached (`state_mirror.
+    /// DETACHED_NAMESPACES`). Returns false, changing nothing, for a value that does not fit the
+    /// row: the caller then stores it as a tree, which taints the namespace as before.
+    fn load_detached(slf: &Bound<'_, Self>, value: &Bound<'_, PyAny>, dead_sink: &Bound<'_, PyAny>) -> PyResult<bool> {
+        let py = slf.py();
+        let load = slf.try_borrow()?.row_type.get().load;
+        let Ok(row) = load(value) else {
+            return Ok(false);
+        };
+        let old = {
+            let mut this = slf.try_borrow_mut()?;
+            this.generation += 1;
+            this.root.take()
+        };
+        if let Some(old) = old {
+            Self::release_value(slf, old.bind(py), dead_sink)?;
+        }
+        let mut this = slf.try_borrow_mut()?;
+        this.row = Some(row);
+        this.taint = None;
+        this.detached = true;
+        this.whole_writes += 1;
+        Ok(true)
+    }
+
     /// A new tree from the row, after a detach.
     fn rebuild(slf: &Bound<'_, Self>) -> PyResult<Py<PyAny>> {
         let py = slf.py();
@@ -1148,10 +1199,21 @@ impl NamespaceMirror {
         Ok(root.unbind())
     }
 
-    /// Drop the row, as a write that does not fit does.
-    fn taint(&mut self, reason: String) {
+    /// The row as plain dicts and lists, which nothing follows: for a reader of a detached
+    /// namespace that must not rebuild its tree (`state_mirror.read_only_state`). None without a row.
+    fn document<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        self.row.as_ref().map(|row| row.to_py(py)).transpose()
+    }
+
+    /// Drop the row, as a write that does not fit does. Not for a detached namespace, whose row
+    /// is all there is of it: read it from Python first, which builds its tree.
+    fn taint(&mut self, reason: String) -> PyResult<()> {
+        if self.detached {
+            return Err(PyRuntimeError::new_err("a detached namespace has nothing but its row"));
+        }
         self.row = None;
         self.taint = Some(reason);
+        Ok(())
     }
 
     /// Why the namespace has no row, or None.

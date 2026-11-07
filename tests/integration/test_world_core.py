@@ -271,18 +271,32 @@ def test_no_read_of_a_detached_namespace_sees_a_placeholder(world: WorldState, r
     assert read(world.model_state)["total"] == 1.0
 
 
-def test_comparing_a_detached_table_builds_it(world: WorldState) -> None:
+def test_comparing_a_detached_table_reads_the_row_and_builds_nothing(world: WorldState) -> None:
     expected = {SAMPLE: _sample_state(), "other_v1": {"plain": True}}
     detach(world, SAMPLE)
     assert world.model_state == expected
-    detach(world, SAMPLE)
     assert expected == world.model_state
-    detach(world, SAMPLE)
     assert not world.model_state != expected
+    assert world.model_state != {**expected, "other_v1": {}}
+    expected[SAMPLE]["total"] = 2.0
+    assert world.model_state != expected and expected != world.model_state
+    other = WorldState("s", 1, 100)
+    other.model_state[SAMPLE] = _sample_state()
+    other.model_state["other_v1"] = {"plain": True}
+    assert world.model_state == other.model_state
+    detach(other, SAMPLE)
+    assert world.model_state == other.model_state
+    assert _mirror(world).is_detached and _mirror(world).stats()["rebuilds"] == 0
 
 
-def test_a_kernel_turns_a_detached_table_down(world: WorldState) -> None:
+def test_copies_and_whole_reads_of_a_detached_table_read_the_row(world: WorldState) -> None:
     detach(world, SAMPLE)
+    assert copy.deepcopy(world.model_state)[SAMPLE] == _sample_state()
+    assert state_mirror.plain_model_state(world.model_state)[SAMPLE] == _sample_state()
+    assert state_mirror.read_only_state(world, SAMPLE) == _sample_state()
+    assert SAMPLE in repr(world.model_state)
+    assert _mirror(world).is_detached and _mirror(world).stats()["rebuilds"] == 0
+    # A kernel reading the whole table sees the placeholder and leaves it to Python.
     assert native.canonical_json(world.model_state) is None
     assert _mirror(world).is_detached
 
@@ -566,7 +580,8 @@ def test_real_rules_on_owned_trees_give_the_same_world_and_the_row_follows(
         monkeypatch.setitem(state_mirror.OWNED_NAMESPACES, name, ("sample_namespace", "VALUE_ROW"))
 
     def check(world: WorldState) -> None:
-        assert type(world.model_state) is NamespaceTable
+        # _DetachingTable while state_mirror.DETACHED_NAMESPACES hold their rows alone.
+        assert isinstance(world.model_state, NamespaceTable)
         for name in world._core.owned_names():
             mirror = world._core.mirror(name)
             if name in world.model_state:

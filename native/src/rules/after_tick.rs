@@ -313,7 +313,7 @@ impl<'py> Check<'_, 'py> {
         let mirror = as_mirror(&mirror)?;
         match raw_dict_get(self.model_state.as_any(), name.as_any())? {
             None => Ok(mirror.call_method0(intern!(self.py(), "row_json"))?.is_none()),
-            Some(value) => Ok(mirror.try_borrow()?.root_is(&value)),
+            Some(value) => Ok(mirror.try_borrow()?.holds_state(&value)),
         }
     }
 
@@ -673,8 +673,8 @@ fn check(table: &Table, world: &Bound<'_, PyAny>, memo: &Bound<'_, TickMemo>) ->
     let Some(model_state) = raw_dict_get(&world_state, intern!(py, "model_state"))? else {
         return unsupported("the world has no model state");
     };
-    if model_state.get_type().as_ptr() != crate::core::tracked::namespace_table_type().cast() {
-        return unsupported("the model state is not the table, or a tree is detached");
+    if !crate::core::tracked::is_table_type(model_state.get_type().as_ptr().cast()) {
+        return unsupported("the model state is not the table");
     }
     let model_state = model_state.downcast::<PyDict>()?;
     let mirrors = attribute(model_state, intern!(py, "_mirrors"))?;

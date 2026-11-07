@@ -21,6 +21,7 @@ from typing import Any
 import pytest
 
 from sheltersim import native
+from sheltersim.core import state_mirror
 from sheltersim.core.engine import TickEngine
 from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.state_mirror import NamespaceTable, TrackedDict, detach, rust_validated
@@ -266,7 +267,8 @@ def test_an_int_metric_taints_metric_state_and_python_keeps_it() -> None:
 
 def test_a_world_owns_both_and_a_copy_owns_its_own(generated_scenario: Any) -> None:
     world = WorldState.from_scenario(generated_scenario)
-    assert type(world.model_state) is NamespaceTable
+    # The namespace is detached (test_detached_namespaces.py): a read builds its tree.
+    assert isinstance(world.model_state, NamespaceTable)
     assert type(world.metric_state) is TrackedDict
     assert type(world.model_state[PSYCHOLOGICAL_STATE_KEY]) is TrackedDict
     assert _mirror(world).has_row
@@ -287,21 +289,16 @@ def test_a_world_owns_both_and_a_copy_owns_its_own(generated_scenario: Any) -> N
 
 
 def test_ticks_write_values_in_place_and_never_the_whole_namespace(generated_scenario: Any) -> None:
-    seen: dict[int, tuple[Any, Any, int]] = {}
+    seen: dict[int, tuple[Any, int]] = {}
 
     def check(world: WorldState) -> None:
-        # A copy-and-swap moves the world to a new core and tree; a tick keeps them.
+        # A copy-and-swap moves the world to a new core; a tick keeps it. The namespace is
+        # detached (test_detached_namespaces.py), so the tick writes the row alone.
         mirror = _mirror(world)
-        first = seen.setdefault(
-            id(world._core),
-            (
-                world._core,
-                world.model_state[PSYCHOLOGICAL_STATE_KEY],
-                mirror.stats()["whole_writes"],
-            ),
-        )
-        assert world.model_state[PSYCHOLOGICAL_STATE_KEY] is first[1]
-        assert mirror.stats()["whole_writes"] == first[2]
+        first = seen.setdefault(id(world._core), (world._core, mirror.stats()["whole_writes"]))
+        assert dict.get(world.model_state, PSYCHOLOGICAL_STATE_KEY) is state_mirror._DETACHED
+        assert mirror.is_detached and mirror.stats()["rebuilds"] == 0
+        assert mirror.stats()["whole_writes"] == first[1]
         assert mirror.stats()["forwards"] == 0
         for name in (PSYCHOLOGICAL_STATE_KEY, METRIC):
             assert _mirror(world, name).tainted is None

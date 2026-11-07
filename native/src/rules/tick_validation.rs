@@ -24,9 +24,9 @@ use pyo3::types::{PyDict, PyDictMethods, PyInt, PyList, PyString, PyTuple};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_int_text, exact_list, exact_str, str_value, unsupported};
-use crate::core::tracked::as_readable_list;
+use crate::core::tracked::{as_readable_list, is_detached};
 use crate::core::value::V;
-use crate::core::world_core::{raw_dict_get, NamespaceMirror};
+use crate::core::world_core::{mirror_of, raw_dict_get, NamespaceMirror};
 use crate::state::entities::{Activity, RequestStatus};
 use crate::state::events::{EventWriter, PendingEvent, PendingSource};
 use crate::state::resource_ledger::{held_mirror, LedgerRow};
@@ -1040,8 +1040,8 @@ pub(crate) fn entity_rules_watching<'py>(
     }
 
     // ---- Zone capacity, last so a Python rule reads it after everything else passed.
-    let spaces_are_empty = namespace_part_is_empty(table, intern!(py, "temporary_spaces_v1").as_any(), intern!(py, "spaces").as_any())?
-        && namespace_part_is_empty(table, intern!(py, "geometry_overlay_v1").as_any(), intern!(py, "temporary_rooms").as_any())?;
+    let spaces_are_empty = namespace_part_is_empty(world, table, intern!(py, "temporary_spaces_v1"), intern!(py, "spaces"))?
+        && namespace_part_is_empty(world, table, intern!(py, "geometry_overlay_v1"), intern!(py, "temporary_rooms"))?;
     let left = PyList::empty(py);
     for (id, zone) in &zone_order {
         let capacity = attribute(zone, intern!(py, "capacity"))?;
@@ -1059,10 +1059,30 @@ pub(crate) fn entity_rules_watching<'py>(
 }
 
 /// Whether `model_state.get(name, {}).get(part, {})` is an empty dict.
-fn namespace_part_is_empty(table: &Bound<'_, PyDict>, name: &Bound<'_, PyAny>, part: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let Some(state) = raw_dict_get(table, name)? else {
+/// A detached namespace is read from its row, a `V`.
+fn namespace_part_is_empty(
+    world: &Bound<'_, PyAny>,
+    table: &Bound<'_, PyDict>,
+    name: &Bound<'_, PyString>,
+    part: &Bound<'_, PyString>,
+) -> PyResult<bool> {
+    let Some(state) = raw_dict_get(table, name.as_any())? else {
         return Ok(true);
     };
+    if is_detached(&state) {
+        let part = part.to_str()?;
+        return NamespaceMirror::with_value(&mirror_of(world, name.to_str()?)?, |state| {
+            let V::Map(state) = state else {
+                return Ok(false);
+            };
+            Ok(match state.get(part) {
+                None => true,
+                Some(V::Map(items)) => items.is_empty(),
+                Some(_) => false,
+            })
+        });
+    }
+    let part = part.as_any();
     let Ok(state) = exact_dict(&state) else {
         return Ok(false);
     };
