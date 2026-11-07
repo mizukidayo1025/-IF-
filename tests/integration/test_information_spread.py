@@ -46,6 +46,7 @@ def generated_information_scenario(
         correction: bool = True,
         origin: str = "A001",
         place: dict[str, str] | None = None,
+        config: dict[str, object] | None = None,
     ) -> ScenarioSpec:
         document = copy.deepcopy(generated_previews()["scenario"])
         events = information_spread_scenario(duration=duration, correction=correction)
@@ -53,7 +54,9 @@ def generated_information_scenario(
         document["scheduled_events"] = events.model_dump(mode="json")["scheduled_events"]
         document["scheduled_events"][0]["payload"]["origin_agent_id"] = origin
         configs = document["model_configs"]
-        configs["information_spread"] = configs["information_spread"] | information_spread_config()
+        configs["information_spread"] = configs["information_spread"] | information_spread_config(
+            **(config or {})
+        )
         configs["behavior"]["temperature"] = 0.01
         for profile in document["profiles"]:
             profile["support_need"] = 0.0
@@ -114,7 +117,15 @@ def test_rumor_spreads_only_through_local_contacts_and_correction_resolves_truth
     assert adjacent_contact["message_source_id"] == "scenario-rumor-source"
     assert adjacent_contact["causation_id"] == "rumor-event"
 
-    correction_scenario = generated_information_scenario(duration=6)
+    # Everyone accepts the correction: the evidence-aware model draws each acceptance.
+    correction_scenario = generated_information_scenario(
+        duration=6,
+        config={
+            "correction_acceptance_probability": 1.0,
+            "correction_trust_sensitivity": 0.0,
+            "correction_source_sensitivity": 0.0,
+        },
+    )
     corrected = run_scenario(
         correction_scenario,
         tmp_path / "correction-full",
