@@ -536,9 +536,8 @@ fn after_arrival<'py>(
 /// The attribute of an outcome `decide` raised: the rule's checks failed and nothing was written.
 const UNWRITTEN: &str = "_sheltersim_travel_unwritten";
 
-/// Whether this error is a text of the rule's checks, raised before any change. dispatch.rs shows
-/// these to text_check.py; a text raised after the walk's writes (from what the walk leads to) it
-/// does not.
+/// Whether this error is a text of the rule's checks, raised before any change, rather than one
+/// raised after the walk's writes (from what the walk leads to).
 pub(crate) fn raised_before_writing(py: Python<'_>, error: &PyErr) -> bool {
     error.value(py).hasattr(intern!(py, UNWRITTEN)).unwrap_or(false)
 }

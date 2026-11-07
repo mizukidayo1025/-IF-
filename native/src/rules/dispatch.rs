@@ -73,10 +73,6 @@ static PHASE_MODULE: GILOnceCell<Py<PyModule>> = GILOnceCell::new();
 /// `DispatchPhase._schedule_return_to_initial_zone`, as `phases/dispatch.py` defines it.
 static RETURN_RULE: GILOnceCell<Py<PyAny>> = GILOnceCell::new();
 
-/// benchmarks/rule_shadow/text_check.py: called with `(handler, world, event, status, text)` for each
-/// outcome text a direct call made in Rust, to compare it with the Python rule's. None, no call.
-static TEXT_CHECKER: Mutex<Option<Py<PyAny>>> = Mutex::new(None);
-
 // ---- What ran, for benchmarks/rule_shadow and its report ------------------------------------------
 
 macro_rules! counters {
@@ -220,21 +216,14 @@ impl<'py> Phase<'_, 'py> {
         Ok((status, Some(error.value(py).str()?.to_str()?.to_owned())))
     }
 
-    /// A suppressed or failed outcome of a direct call, shown to text_check.py if it is installed.
+    /// A suppressed or failed outcome of a direct call, as it is recorded.
     fn checked(
         &self,
         handler: &Bound<'py, PyAny>,
         object: &dyn Fn() -> PyResult<Bound<'py, PyAny>>,
         done: (EventStatus, Option<String>),
     ) -> PyResult<(EventStatus, Option<String>)> {
-        let py = self.py();
-        let checker = match TEXT_CHECKER.lock() {
-            Ok(checker) => checker.as_ref().map(|checker| checker.clone_ref(py)),
-            Err(_) => None,
-        };
-        if let (Some(checker), Some(text)) = (checker, done.1.as_deref()) {
-            checker.call1(py, (handler, self.world, object()?, done.0.as_str(), text))?;
-        }
+        let _ = (handler, object);
         Ok(done)
     }
 
@@ -339,8 +328,8 @@ impl<'py> Phase<'_, 'py> {
                     // The rule's own checks, which raise before any change.
                     return Ok(Some(self.checked(handler, object, done)?));
                 }
-                // From what the walk leads to, past the rule's own checks. Not shown to
-                // text_check.py: the walk changed the world before this.
+                // From what the walk leads to, past the rule's own checks: the walk changed the
+                // world before this.
                 Ok(Some(done))
             }
         }
@@ -593,7 +582,6 @@ impl<'py> Phase<'_, 'py> {
             Err(error) if errors::made_here(py, &error) => {
                 let done = self.expected_outcome(error)?;
                 count(if done.0 == EventStatus::Suppressed { &COUNTS.guard_suppressed } else { &COUNTS.guard_failed });
-                // text_check.py compares a guard's outcome with `effect_event_guard_or_suppress`'s.
                 let done = self.checked(&py.None().into_bound(py), object, done)?;
                 count(&COUNTS.events_rust);
                 let event = due.object.as_ref().map(|object| object.bind(py).clone());
@@ -1177,15 +1165,6 @@ fn install_return_rule(py: Python<'_>, rule: Bound<'_, PyAny>) -> PyResult<()> {
     Ok(())
 }
 
-/// Install text_check.py's checker of direct outcomes, or None to remove it.
-#[pyfunction]
-#[pyo3(signature = (checker=None))]
-fn texts_checker(checker: Option<Py<PyAny>>) {
-    if let Ok(mut installed) = TEXT_CHECKER.lock() {
-        *installed = checker;
-    }
-}
-
 /// What has run in this process: `(counts, refusals by reason)`.
 #[pyfunction]
 fn stats<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyDict>, Bound<'py, PyDict>)> {
@@ -1209,7 +1188,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run_phase, m)?)?;
     m.add_function(wrap_pyfunction!(install_table, m)?)?;
     m.add_function(wrap_pyfunction!(install_return_rule, m)?)?;
-    m.add_function(wrap_pyfunction!(texts_checker, m)?)?;
     m.add_function(wrap_pyfunction!(stats, m)?)?;
     Ok(())
 }
