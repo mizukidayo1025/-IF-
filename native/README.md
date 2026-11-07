@@ -100,15 +100,16 @@ Checkpoint document) and times them.
 ### Float rules
 
 Every float operation of a rule goes through `core::mathx`, and keeps the order of the Python
-expression. `tests/integration/test_native_parity.py` compares `mathx` with CPython.
+expression. `tests/integration/test_native_parity.py` compares `mathx` with CPython, and pins the
+bits of exp, expm1, pow and fma as fixed vectors.
 `cargo clippy --manifest-path native/Cargo.toml -- -A clippy::all -D clippy::disallowed_methods`
 enforces the bans in `native/clippy.toml`.
 
 | Python | Rust | Note |
 |---|---|---|
-| `math.exp(x)`, `math.expm1(x)` | `mathx::exp`, `mathx::expm1` | libm, as CPython. `None` where Python raises |
-| `x ** y`, `x ** 2`, `x ** 0.5` | `mathx::pow` | libm. Never `x * x` or `sqrt`: see below. `None` where Python raises or returns a complex, and for a subnormal result |
-| `math.hypot(*xs)` | `mathx::hypot` | CPython's algorithm |
+| `math.exp(x)`, `math.expm1(x)` | `mathx::exp`, `mathx::expm1` | the `libm` crate. `MathError` where Python raises, as Python's exception |
+| `x ** y`, `x ** 2`, `x ** 0.5` | `mathx::pow` | `float_pow`'s special cases, then the `libm` crate. Never `x * x` or `sqrt`: see below. `MathError` where Python raises or returns a complex |
+| `math.hypot(*xs)` | `mathx::hypot` | CPython's algorithm, with `libm::fma` |
 | `sum(xs)` | `mathx::py_sum`, `sum_nums` | compensated in 3.12. `sum([])` and a sum of ints are ints: `sum_nums` |
 | `math.fsum(xs)` | `mathx::py_fsum` | `None` for what is not finite |
 | `math.isclose(a, b)` | `mathx::py_is_close` | the default tolerances |
@@ -119,12 +120,13 @@ enforces the bans in `native/clippy.toml`.
 
 `None` means the rule raises `Unsupported`, and Python raises its error or computes the value.
 
-`f64::powf` and an `extern "C"` `pow` with a constant exponent are rewritten by LLVM: `powf(x, 2.0)`
-to `x * x`, `powf(x, 0.5)` to `sqrt`, and `pow(x, 2.0)` likewise (checked in the disassembly), and
-those give other bits than `x ** 2` (790 in a million values) and `x ** 0.5` (865 in a million).
-`mathx` passes its arguments through `black_box`, so libm is really called and constants are not
-folded at compile time with the build machine's libm. Until step 4 this keeps Python's result on
-each OS, because both call the same libm.
+Since model version 2, exp, expm1, pow and fma are the pure Rust `libm` crate at one version
+(`=0.2.16` and `Cargo.lock`), not the platform's libm CPython calls, so a rule gives the same bits on
+Linux, Windows and macOS. They are within one ulp of glibc's and differ from it in the last bit for
+some arguments (`exp(1.0)` among them). `f64::powf`, `f64::exp` and `f64::mul_add` would call the
+platform's libm, and LLVM rewrites `powf(x, 2.0)` to `x * x` and `powf(x, 0.5)` to `sqrt`;
+`native/clippy.toml` bans them. Python code outside the rules writes `x * x` and `math.sqrt`, which
+are correctly rounded everywhere, and not `**` with a float.
 
 ## Kernels
 
