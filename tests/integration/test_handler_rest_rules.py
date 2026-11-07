@@ -1039,17 +1039,19 @@ def test_many_draws_of_a_claim_and_a_correction_are_python_s(generated_scenario:
         correction_source_sensitivity=0.0,
     )
     rng = CounterRNG(world.seed)
+    # Model version 2 keys the draws by the minute and the people, the source and the message,
+    # without the event's ID.
     for number in range(4000):
-        event_id = f"event-{number}"
-        belief_draw = rng.random("rumor-belief-acceptance-v1", 7, event_id, agent_id, "claim-1")
+        message_id = f"claim-{number}"
+        belief_draw = rng.random("rumor-belief-acceptance-v1", 7, agent_id, message_id)
         python_strength = 1.0 if belief_draw < believing_probability else 0.0
         assert python_strength == rules.claim_strength_of(
-            world, believing, agent_id, "SRC-TEST", event_id, 7, "claim-1"
+            world, believing, agent_id, "SRC-TEST", 7, message_id
         )
         label = "correction-acceptance-v1"
-        drawn = rng.random(label, 7, event_id, agent_id, "claim-1")
+        drawn = rng.random(label, 7, "SRC-TEST", agent_id, message_id)
         assert (drawn < 0.95) == rules.acceptance_of(
-            world, accepting, label, 1.0, "SRC-TEST", event_id, 7, agent_id, "claim-1"
+            world, accepting, label, 1.0, "SRC-TEST", 7, ["SRC-TEST", agent_id, message_id]
         )
 
 
@@ -1065,11 +1067,11 @@ def test_a_claim_s_draw_keys_a_seed_past_64_bits_as_python_does(generated_scenar
     )
     rng = CounterRNG(world.seed)
     for number in range(200):
-        event_id = f"event-{number}"
-        drawn = rng.random("rumor-belief-acceptance-v1", 7, event_id, agent_id, "claim-1")
-        assert rules.claim_strength_of(
-            world, believing, agent_id, "SRC-TEST", event_id, 7, "claim-1"
-        ) == (1.0 if drawn < 0.5 else 0.0)
+        message_id = f"claim-{number}"
+        drawn = rng.random("rumor-belief-acceptance-v1", 7, agent_id, message_id)
+        assert rules.claim_strength_of(world, believing, agent_id, "SRC-TEST", 7, message_id) == (
+            1.0 if drawn < 0.5 else 0.0
+        )
 
 
 # What the Python rule gave without configured amounts, by kind: `_care_is_python_s`.

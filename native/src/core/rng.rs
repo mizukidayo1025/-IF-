@@ -1,5 +1,11 @@
-//! `CounterRNG` (`core/rng.py`). Every draw's key is written by `Key`, so the labels can be
-//! changed in one place at step 4.
+//! `CounterRNG` (`core/rng.py`). Every draw's key is written by `Key` and starts with one of
+//! the labels in `label`.
+//!
+//! A key holds the rule's label, the minute and stable domain IDs (people, messages, sources,
+//! facilities, queues), never an ID made from a counter: an event's ID holds its sequence
+//! number, which depends on the order the events were made in. Model version 2 took the event
+//! IDs out of the information events' keys (docs/rust-port/step4-plan.md, D5). SHA-256 and the
+//! seed's `str(seed)` are as `CounterRNG` has them, which the Scenario generators still use.
 
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -36,6 +42,28 @@ fn log_draw(key: &[u8], value: f64) {
             log.push((String::from_utf8_lossy(key).into_owned(), value));
         }
     });
+}
+
+/// The first part of each draw's key, one per kind of draw.
+pub(crate) mod label {
+    /// `propose`: the action a person chooses.
+    pub(crate) const BEHAVIOR: &str = "behavior";
+    /// The minutes a toilet visit takes.
+    pub(crate) const TOILET_SERVICE: &str = "toilet-service";
+    /// Whether a person forgets a message.
+    pub(crate) const INFORMATION_FORGETTING: &str = "information-forgetting-v1";
+    /// Whom a person talks to about information.
+    pub(crate) const INFORMATION_CONTACT_PARTNER: &str = "information-contact-partner-v1";
+    /// Whether a contact passes a message on.
+    pub(crate) const INFORMATION_CONTACT_TRANSFER: &str = "information-contact-transfer-v1";
+    /// Whom a person meets for the social propagation.
+    pub(crate) const SOCIAL_CONTACT_BUCKET: &str = "social-contact-bucket-v1";
+    /// Whether a person believes a claim they hear.
+    pub(crate) const RUMOR_BELIEF: &str = "rumor-belief-acceptance-v1";
+    /// Whether a person accepts an announced correction.
+    pub(crate) const CORRECTION_ACCEPTANCE: &str = "correction-acceptance-v1";
+    /// Whether a person accepts a correction another person tells them.
+    pub(crate) const CONTACT_CORRECTION_ACCEPTANCE: &str = "contact-correction-acceptance-v1";
 }
 
 /// `CounterRNG.random`: SHA-256 of the seed and the JSON key, the first eight bytes as a

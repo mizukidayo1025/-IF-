@@ -16,7 +16,7 @@ use pyo3::types::{PyDict, PyInt, PyString};
 
 use crate::core::errors;
 use crate::core::mathx::{py_max, py_min};
-use crate::core::rng::{Key, KeyedDraws};
+use crate::core::rng::{label, Key, KeyedDraws};
 use crate::core::row::{attribute, exact_float, exact_int, exact_str, unsupported};
 use crate::core::world_core::{mirror_of, NamespaceMirror};
 use crate::rules::handlers::{counted, fields_are, get, kind_is, number, text_is};
@@ -99,10 +99,15 @@ fn seed_of(world: &Bound<'_, PyAny>) -> PyResult<KeyedDraws> {
     Ok(KeyedDraws::new(seed.str()?.to_str()?))
 }
 
-/// `CounterRNG(world.seed).random(label, minute, event_id, agent_id, message_id)`.
-fn draw(draws: &KeyedDraws, label: &str, minute: i64, event_id: &str, agent_id: &str, message_id: &str) -> f64 {
+/// `CounterRNG(world.seed).random(label, minute, *ids)`. The IDs are the people's, the source's
+/// and the message's, which do not depend on the order events are made in; the event's own ID
+/// does (model version 2).
+fn draw(draws: &KeyedDraws, label: &str, minute: i64, ids: &[&str]) -> f64 {
     let mut key = Key::labelled(label);
-    key.int(minute).text(event_id).text(agent_id).text(message_id);
+    key.int(minute);
+    for id in ids {
+        key.text(id);
+    }
     key.draw(draws)
 }
 
@@ -122,8 +127,8 @@ fn setting(config: &Bound<'_, PyAny>, name: &Bound<'_, PyString>) -> PyResult<f6
     number(&config.getattr(name)?)
 }
 
-/// `_sample_claim_belief_strength`.
-fn sample_strength(world: &Bound<'_, PyAny>, config: &Bound<'_, PyAny>, agent_id: &str, source_id: &str, event_id: &str, minute: i64, message_id: &str) -> PyResult<f64> {
+/// `_sample_claim_belief_strength`: the draw is keyed by the minute, the person and the message.
+fn sample_strength(world: &Bound<'_, PyAny>, config: &Bound<'_, PyAny>, agent_id: &str, source_id: &str, minute: i64, message_id: &str) -> PyResult<f64> {
     let py = world.py();
     let reliability = reliability_of(config, source_id)?;
     let trust = trust_of(world, agent_id)?;
@@ -136,7 +141,7 @@ fn sample_strength(world: &Bound<'_, PyAny>, config: &Bound<'_, PyAny>, agent_id
                 + 2.0 * setting(config, intern!(py, "rumor_source_sensitivity"))? * (reliability - 0.5),
         ),
     );
-    let drawn = draw(&seed_of(world)?, "rumor-belief-acceptance-v1", minute, event_id, agent_id, message_id);
+    let drawn = draw(&seed_of(world)?, label::RUMOR_BELIEF, minute, &[agent_id, message_id]);
     Ok(if drawn < probability { 1.0 } else { 0.0 })
 }
 
@@ -294,7 +299,7 @@ fn rumor<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &B
         message.set_item("origin_event_id", &*event_id)?;
         message.set_item("origin_agent_id", &*origin)?;
         let strength = if evidence_aware(world)? {
-            sample_strength(world, &config, &origin, &source, &event_id, due, &message_id)?
+            sample_strength(world, &config, &origin, &source, due, &message_id)?
         } else {
             0.5
         };
@@ -422,7 +427,7 @@ fn correction<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, even
             let accepted = if aware {
                 let trust = exact_float(&attribute(agent, intern!(py, "trust"))?)?;
                 let probability = acceptance_probability(&config, trust, reliability)?;
-                draw(&draws, "correction-acceptance-v1", due, &event_id, agent_id, &message_id) < probability
+                draw(&draws, label::CORRECTION_ACCEPTANCE, due, &[&source, agent_id, &message_id]) < probability
             } else {
                 true
             };
@@ -649,10 +654,10 @@ fn contact<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: 
             let reliability = reliability_of(&config, &sender_source)?;
             let trust = trust_of(world, &recipient_id)?;
             let chance = acceptance_probability(&config, trust, reliability)?;
-            accepted = draw(&seed_of(world)?, "contact-correction-acceptance-v1", due, &event_id, &recipient_id, &message_id) < chance;
+            accepted = draw(&seed_of(world)?, label::CONTACT_CORRECTION_ACCEPTANCE, due, &[&sender_id, &recipient_id, &message_id]) < chance;
         }
         let strength = if aware && belief_text == "heard" {
-            sample_strength(world, &config, &recipient_id, &claim_source, &event_id, due, &message_id)?
+            sample_strength(world, &config, &recipient_id, &claim_source, due, &message_id)?
         } else {
             previous.as_ref().map_or(0.5, |prior| prior.belief_strength)
         };
@@ -711,17 +716,18 @@ fn contact<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: 
 
 /// `_sample_claim_belief_strength`, for the tests: a draw hides a small change in its probability.
 #[pyfunction]
-#[allow(clippy::too_many_arguments)]
-fn claim_strength_of(world: &Bound<'_, PyAny>, config: &Bound<'_, PyAny>, agent_id: &str, source_id: &str, event_id: &str, minute: i64, message_id: &str) -> PyResult<f64> {
-    sample_strength(world, config, agent_id, source_id, event_id, minute, message_id)
+fn claim_strength_of(world: &Bound<'_, PyAny>, config: &Bound<'_, PyAny>, agent_id: &str, source_id: &str, minute: i64, message_id: &str) -> PyResult<f64> {
+    sample_strength(world, config, agent_id, source_id, minute, message_id)
 }
 
-/// A correction's acceptance as the rules draw it, for the tests.
+/// A correction's acceptance as the rules draw it, for the tests: `ids` are the key's parts after
+/// the minute.
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
-fn acceptance_of(world: &Bound<'_, PyAny>, config: &Bound<'_, PyAny>, label: &str, trust: f64, source_id: &str, event_id: &str, minute: i64, agent_id: &str, message_id: &str) -> PyResult<bool> {
+fn acceptance_of(world: &Bound<'_, PyAny>, config: &Bound<'_, PyAny>, label: &str, trust: f64, source_id: &str, minute: i64, ids: Vec<String>) -> PyResult<bool> {
     let chance = acceptance_probability(config, trust, reliability_of(config, source_id)?)?;
-    Ok(draw(&seed_of(world)?, label, minute, event_id, agent_id, message_id) < chance)
+    let ids: Vec<&str> = ids.iter().map(String::as_str).collect();
+    Ok(draw(&seed_of(world)?, label, minute, &ids) < chance)
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
