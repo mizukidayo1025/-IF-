@@ -6,6 +6,10 @@ an ORDER BY of its own would read rowid order from the old form and key order fr
 the answers are compared as whole documents, in order, page by page, on the same Run: from an old
 file written by the same code, and from one whose rowids run against the keys, where anything
 leaning on rowid order shows.
+
+Since version 3 the payload of each new row is stored compressed (#80); a version 2 file holds it as
+text. The same Run with every payload as text, marked version 2, answers the same too, and so it
+does after a write has added compressed rows beside the text ones.
 """
 
 from __future__ import annotations
@@ -21,7 +25,7 @@ import pytest
 
 from sheltersim.contracts.workspace import HistoryQuery
 from sheltersim.experiments.scenario import ScenarioSpec
-from sheltersim.storage import history_index
+from sheltersim.storage import history_index, history_payloads
 from sheltersim.storage.history_index import HistoryIndex
 from sheltersim.storage.projects import ProjectStore, digest
 
@@ -107,7 +111,16 @@ def formats(tmp_path_factory, generated_previews, add_toilets_program, saved_tim
             db.execute(f"DELETE FROM {table}")
             marks = ",".join("?" * 5)
             db.executemany(f"INSERT INTO {table} VALUES({marks})", rows)
-    return {name: base / name for name in ("new", "old", "against")}
+    # The rows again with their payloads as text, as version 2 stored them.
+    shutil.copytree(base / "new", base / "text")
+    with sqlite3.connect(_index_of(base / "text").path) as db:
+        rows = db.execute("SELECT rowid,payload FROM records").fetchall()
+        db.executemany(
+            "UPDATE records SET payload=? WHERE rowid=?",
+            [(history_payloads.decode(payload), rowid) for rowid, payload in rows],
+        )
+        db.execute("PRAGMA user_version=2")
+    return {name: base / name for name in ("new", "old", "against", "text")}
 
 
 def _pages(index: HistoryIndex, branch: str, anchor: str, **fields: Any) -> list[dict[str, Any]]:
@@ -139,14 +152,16 @@ def _values(root: Path, branch: str) -> dict[str, Any]:
                 (branch,),
             )
         ]
-        staff = [
-            row[0]
-            for row in db.execute(
-                "SELECT DISTINCT e.entity FROM entities e JOIN records r ON r.branch=e.branch "
-                "AND r.kind=e.kind AND r.key=e.key WHERE json_extract(r.payload,'$.staff_id')"
-                "=e.entity ORDER BY 1"
-            )
-        ]
+        staff = sorted(
+            {
+                entity
+                for entity, payload in db.execute(
+                    "SELECT e.entity,r.payload FROM entities e JOIN records r ON "
+                    "r.branch=e.branch AND r.kind=e.kind AND r.key=e.key"
+                )
+                if json.loads(history_payloads.decode(payload)).get("staff_id") == entity
+            }
+        )
     return {
         "words": [token for token in tokens if not token.startswith("@event:")][:12],
         "agents": [item for item in entities if item.startswith("A0")][:6],
@@ -219,9 +234,14 @@ def test_the_two_forms_are_what_the_comparison_needs(formats) -> None:
         last = db.execute("SELECT key FROM entities ORDER BY rowid DESC LIMIT 1").fetchone()[0]
         assert first > last
         assert db.execute("PRAGMA user_version").fetchone()[0] == history_index._SCHEMA_VERSION
+    for name, form, version in (("new", "blob", 3), ("old", "blob", 3), ("text", "text", 2)):
+        with sqlite3.connect(_index_of(formats[name]).path) as db:
+            forms = db.execute("SELECT DISTINCT typeof(payload) FROM records").fetchall()
+            assert forms == [(form,)]
+            assert db.execute("PRAGMA user_version").fetchone()[0] == version
 
 
-@pytest.mark.parametrize("other", ["old", "against"])
+@pytest.mark.parametrize("other", ["old", "against", "text"])
 def test_every_query_answers_the_same_in_order_from_an_old_file(formats, other: str) -> None:
     values = {branch: _values(formats["new"], branch) for branch in BRANCHES}
     empty = [name for name, found in values["main"].items() if not found]
@@ -246,13 +266,20 @@ def test_every_query_answers_the_same_in_order_from_an_old_file(formats, other: 
 def test_each_table_holds_the_same_rows_in_each_form(formats) -> None:
     def rows(name: str) -> dict[str, list[Any]]:
         with sqlite3.connect(_index_of(formats[name]).path) as db:
-            return {
+            tables = {
                 table: sorted(db.execute(f"SELECT * FROM {table}").fetchall(), key=repr)
                 for table in ("records", *_KEY_ONLY, "heads", "checkpoints", "generations")
             }
+        # Payloads compare as text: compressed bytes may differ between zlib builds.
+        payload = 9
+        tables["records"] = [
+            (*row[:payload], history_payloads.decode(row[payload]), *row[payload + 1 :])
+            for row in tables["records"]
+        ]
+        return tables
 
     new = rows("new")
-    assert new == rows("old") == rows("against")
+    assert new == rows("old") == rows("against") == rows("text")
     assert new["entities"]
     assert new["tokens"]
 
@@ -289,3 +316,32 @@ def test_an_old_file_stays_old_and_takes_writes_and_a_rebuild(formats, tmp_path)
     assert results[0] == results[1]
     assert _has_rowids(_index_of(old_rebuilt).path)
     assert not _has_rowids(_index_of(rebuilt).path)
+
+
+def test_a_version_two_file_takes_compressed_rows_and_answers_the_same(formats, tmp_path) -> None:
+    """#80: a write to a version 2 file stores its new rows compressed beside the text ones
+    and marks the file version 3; every answer is the same as from a file of version 3."""
+    values = {branch: _values(formats["new"], branch) for branch in BRANCHES}
+    answers = {}
+    for name in ("new", "text"):
+        root = tmp_path / name
+        shutil.copytree(formats[name], root)
+        index = _index_of(root)
+        for branch in BRANCHES:
+            turn = {"turn_id": "turn-9", "conversation_id": "talk-0", "minute": 9}
+            index.add_turn(branch, turn)
+        answers[name] = _answers(root, values)
+        with sqlite3.connect(index.path) as db:
+            assert db.execute("PRAGMA user_version").fetchone()[0] == 3
+            forms = dict(
+                db.execute(
+                    "SELECT typeof(payload),COUNT(*) FROM records GROUP BY 1 ORDER BY 1"
+                ).fetchall()
+            )
+        if name == "text":
+            assert forms["blob"] == len(BRANCHES) and forms["text"] > 100
+    assert answers["text"]["tail talk-0 1"][0]["turn_id"] == "turn-9"
+    different = [
+        key for key in answers["new"] if _text(answers["new"][key]) != _text(answers["text"][key])
+    ]
+    assert different == []

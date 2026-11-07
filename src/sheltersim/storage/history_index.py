@@ -21,6 +21,7 @@ from sheltersim import native
 from sheltersim.core.saved_items import SavedItems
 from sheltersim.domain.social_dialogue import virtual_dialogue_example
 from sheltersim.events.queue import saved_realized_minute
+from sheltersim.storage import history_payloads
 from sheltersim.storage.projects import (
     ProjectStore,
     StorageError,
@@ -45,9 +46,9 @@ CREATE TABLE IF NOT EXISTS entities(branch TEXT NOT NULL, kind TEXT NOT NULL, ke
 CREATE INDEX IF NOT EXISTS entity_turn_order ON entities(branch,kind,entity,key) WHERE kind='conversations';
 CREATE TABLE IF NOT EXISTS tokens(branch TEXT NOT NULL, kind TEXT NOT NULL, token TEXT NOT NULL, minute INTEGER NOT NULL, key TEXT NOT NULL, PRIMARY KEY(branch,kind,token,minute,key)) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS lineage(branch TEXT PRIMARY KEY, parent TEXT NOT NULL, fork_minute INTEGER NOT NULL);
-PRAGMA user_version=2;
+PRAGMA user_version=3;
 """  # noqa: E501
-_SCHEMA_VERSION = 2
+_SCHEMA_VERSION = 3
 # entity_turn_order orders the turns of a conversation and is read only with that kind.
 # Over the other kinds its keys are hashes, so nearly every row would change another page
 # for each commit to journal and write. A file made before it was partial keeps its index
@@ -167,7 +168,10 @@ def _event_references(value: Any) -> set[str]:
 # Version 2 adds lineage: a branch forked from another reads the parent's rows before
 # its fork minute instead of copying them. Version 1 indexes have no lineage rows and
 # read the same; code that knows only version 1 refuses a version 2 index.
-_READABLE_VERSIONS = (1, 2)
+# Version 3 stores the payloads of new rows compressed, as BLOBs (storage/history_payloads.py,
+# #80). Rows stored as TEXT before read as they did, so a version 1 or 2 file is read as it is
+# and becomes version 3 when written; code that knows only version 2 refuses version 3.
+_READABLE_VERSIONS = (1, 2, 3)
 
 
 def _segments(db: sqlite3.Connection, branch: str) -> list[tuple[str, int | None]]:
@@ -346,7 +350,8 @@ class _RecordBatch:
                 "SELECT payload FROM records WHERE branch=? AND kind=? AND key=?",
                 (branch, kind, key),
             ).fetchone()
-            existing = stored[0] if stored is not None else None
+            # Compared as text: compressed bytes may differ between zlib builds (#80).
+            existing = history_payloads.decode(stored[0]) if stored is not None else None
         if existing is None and kind != "conversations":
             # An ancestor's rows before the fork minute are read as this branch's.
             for ancestor, limit in self.ancestors:
@@ -357,7 +362,7 @@ class _RecordBatch:
                     (ancestor, kind, key, limit),
                 ).fetchone()
                 if stored is not None:
-                    if stored[0] != encoded:
+                    if history_payloads.decode(stored[0]) != encoded:
                         raise StorageError("immutable_history_record_conflict")
                     return
         if existing is not None:
@@ -379,7 +384,7 @@ class _RecordBatch:
                 row.get("source_id"),
                 row.get("event_type", row.get("action", row.get("kind"))),
                 row.get("status"),
-                encoded,
+                history_payloads.encode(encoded),
                 payload_hash,
             )
         )
@@ -1088,9 +1093,12 @@ class HistoryIndex:
         ]
         counts = json.loads(head[0]) if head is not None else {}
         selected = rows[: query.limit]
+        items = []
         for row in selected:
-            if digest(json.loads(row["payload"])) != row["payload_hash"]:
+            payload = json.loads(history_payloads.decode(row["payload"]))
+            if digest(payload) != row["payload_hash"]:
                 raise StorageError("history_index_record_corrupt: rebuild from immutable source")
+            items.append({**payload, "record_kind": row["kind"]})
         following = (
             cursor_encode(
                 {
@@ -1105,9 +1113,7 @@ class HistoryIndex:
         )
         return {
             "schema_version": 1,
-            "items": [
-                {**json.loads(row["payload"]), "record_kind": row["kind"]} for row in selected
-            ],
+            "items": items,
             "next_cursor": following,
             "anchor_hash": anchor,
             "indexed_through_minute": indexed_minute,
@@ -1265,7 +1271,10 @@ class HistoryIndex:
                     "kind='conversations' ORDER BY key DESC LIMIT ?",
                     (branch, limit),
                 ).fetchall()
+        turns = []
         for row in rows:
-            if digest(json.loads(row["payload"])) != row["payload_hash"]:
+            turn = json.loads(history_payloads.decode(row["payload"]))
+            if digest(turn) != row["payload_hash"]:
                 raise StorageError("history_index_record_corrupt")
-        return [json.loads(row["payload"]) for row in reversed(rows)]
+            turns.append(turn)
+        return turns[::-1]

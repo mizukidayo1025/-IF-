@@ -39,6 +39,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "sheltersim.contracts" = ["*.json"]
+"sheltersim.storage" = ["*.zdict"]
 "sheltersim.web" = [
     "fonts/*.ttf", "fonts/OFL.txt",
     "static/*.html", "static/*.js", "static/*.css", "static/*.jpg", "examples/*.json",
