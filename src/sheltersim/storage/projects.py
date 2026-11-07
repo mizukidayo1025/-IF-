@@ -39,7 +39,6 @@ from sheltersim.core.model_version import (
 )
 from sheltersim.core.saved_items import SavedItems
 from sheltersim.core.world import WorldState
-from sheltersim.events.queue import keeps_saved_bytes
 from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.storage.checkpoints import ARCHIVE_STORAGE_TYPES, CheckpointArchive
@@ -185,10 +184,7 @@ def _copy_restored(
 ) -> tuple[WorldState, MetricsRecorder]:
     """An independent copy; EventLog records and scheduled events are frozen and shared."""
     # The Rust EventLog's copy shares its records already, made or not.
-    memo: dict[int, Any] = (
-        {} if keeps_saved_bytes(world.event_log) else {id(r): r for r in world.event_log.records}
-    )
-    memo.update({id(event): event for event in world.event_queue.pending()})
+    memo: dict[int, Any] = {id(event): event for event in world.event_queue.pending()}
     return deepcopy(world, memo), deepcopy(metrics)
 
 

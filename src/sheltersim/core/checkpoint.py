@@ -27,7 +27,6 @@ from sheltersim.core.model_version import (
 )
 from sheltersim.core.saved_items import SavedItems, json_default
 from sheltersim.core.world import StateInvariantError, WorldState
-from sheltersim.events.models import EventLogRecord
 from sheltersim.experiments.metrics import MetricsRecorder
 
 
@@ -154,7 +153,7 @@ class Checkpoint:
         # restored world equals the world validated above, or is validated itself.
         restored, restored_metrics = checkpoint._validate(
             hashes_verified=True,
-            restored_events=history_cache.restored_events(),
+            restore_check=True,
             restored_log=history_cache.restored_log(),
             restored_samples=history_cache.restored_metrics(),
             shared=encoder.spliced_lists(),
@@ -372,7 +371,7 @@ class Checkpoint:
         self,
         *,
         hashes_verified: bool = False,
-        restored_events: list[EventLogRecord] | None = None,
+        restore_check: bool = False,
         shared: Sequence[Any] = (),
         validate_world: bool = True,
         restored_log: Any = None,
@@ -407,7 +406,7 @@ class Checkpoint:
         if not hashes_verified:
             encoder = self._verified_world_encoder()
         try:
-            if restored_events is None:
+            if not restore_check:
                 # The document for restore is a new copy (its SavedItems are immutable),
                 # so the world keeps its objects.
                 document, status = self._world_document_for_restore(encoder=encoder, view=view)
@@ -421,7 +420,6 @@ class Checkpoint:
                 )
                 world = WorldState.from_dict(
                     document,
-                    _restored_events=restored_events,
                     _shared=shared,
                     _validate=validate_world,
                     _saved_json=True,
