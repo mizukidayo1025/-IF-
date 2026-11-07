@@ -173,8 +173,9 @@ fn prior_of(world: &Bound<'_, PyAny>, request_id: &str) -> PyResult<Option<(Opti
 
 /// `_record_request_interrupted`, of an applied `support_request_timeout`.
 pub(crate) fn record_interrupted(world: &Bound<'_, PyAny>, event: EventRef<'_, '_>) -> PyResult<()> {
+    // Without a request the Python rule finds none and records nothing.
     let Some(request_id) = event.text("request_id")? else {
-        return unsupported("a timeout without its request");
+        return Ok(());
     };
     let store = entities_of(world)?;
     let agent_id = EntityStore::with_rows(&store, |rows| {
@@ -207,8 +208,9 @@ pub(crate) fn record_interrupted(world: &Bound<'_, PyAny>, event: EventRef<'_, '
 
 /// `_record_staff_support_started`, of an applied `agent_travel_complete` of a staff trip.
 pub(crate) fn record_started(world: &Bound<'_, PyAny>, event: EventRef<'_, '_>) -> PyResult<()> {
+    // Without a request the Python rule finds none and records nothing.
     let Some(request_id) = event.text("request_id")? else {
-        return unsupported("a staff trip without its request");
+        return Ok(());
     };
     let staff_id = event.text("staff_id")?;
     let store = entities_of(world)?;

@@ -147,19 +147,16 @@ def test_runtime_placement_failure_fails_the_event_without_changes(
         program=program,
         approved_program_hash=digest(program.model_dump(mode="json")),
     )
-    # Something placed later (a partition, a room) can take the free point. This is the Python
-    # rule's text; tests/integration/test_overlay_rules.py has the kernel refusing the same.
+    # Something placed later (a partition, a room) can take the free point. The kernel then raises
+    # this text (tests/integration/test_overlay_rules.py). Both handlers call the rule by name.
     import sheltersim.domain.geometry_overlay as overlay
     from sheltersim.events import effects
 
-    monkeypatch.setattr(overlay, "installed_facility_point", lambda world, facility_id: None)
-    # Without the kernels these are the Python rules already.
-    place = overlay.place_installed_facility
-    monkeypatch.setattr(effects, "place_installed_facility", getattr(place, "__wrapped__", place))
-    apply = effects.EffectProgramStructureHandler.apply
-    monkeypatch.setattr(
-        effects.EffectProgramStructureHandler, "apply", getattr(apply, "__wrapped__", apply)
-    )
+    def no_free_point(world, facility_id, *, event_id, source_ids):
+        raise ValueError(f"no free floor-plan point for installed facility {facility_id!r}")
+
+    monkeypatch.setattr(overlay, "place_installed_facility", no_free_point)
+    monkeypatch.setattr(effects, "place_installed_facility", no_free_point)
     world = timeline.advance("child", _FORK_MINUTE + 1).world
     assert not _added_toilets(world)
     failed = [
@@ -168,3 +165,4 @@ def test_runtime_placement_failure_fails_the_event_without_changes(
         if record.event.event_type == "effect_program_structure"
     ]
     assert [record.status for record in failed] == [EventStatus.FAILED]
+    assert failed[0].detail.startswith("no free floor-plan point for installed facility ")

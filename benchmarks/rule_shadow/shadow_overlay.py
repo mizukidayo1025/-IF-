@@ -15,8 +15,9 @@ shadow_effects.py with this one, whose Python rule comes here (docs/rust-port/la
 SHELTERSIM_DISPATCH_COUNT_ONLY=1 only writes `overlay.stats()`, for a plain run.
 
 The rules of domain/temporary_spaces.py, those of domain/facility_queues.py but
-`queue_head_agent_ids`, and `prepare_independent_facility_queue` have no Python rule left to
-compare (`kernel_only`).
+`queue_head_agent_ids`, `prepare_independent_facility_queue`, and those of
+domain/geometry_overlay.py but `reserve_sleep_bed` and the check of the state have no Python rule
+left to compare (`kernel_only`).
 """
 
 from __future__ import annotations
@@ -39,28 +40,10 @@ OVERLAY_KEY = "geometry_overlay_v1"
 
 # (kernel, module of the rule, rule)
 READERS = {
-    "overlay": (
-        ("available_temporary_room", OVERLAY_MODULE, "available_temporary_room"),
-        ("room_admission_point", OVERLAY_MODULE, "room_admission_point"),
-        (
-            "installed_facility_placement_enabled",
-            OVERLAY_MODULE,
-            "installed_facility_placement_enabled",
-        ),
-        ("installed_facility_point", OVERLAY_MODULE, "installed_facility_point"),
-        ("validate_geometry_change", OVERLAY_MODULE, "validate_geometry_change"),
-    ),
     "facility_queues": (("queue_head_agent_ids", QUEUES_MODULE, "queue_head_agent_ids"),),
 }
 WRITERS = {
-    "overlay": (
-        ("release_sleep_bed", OVERLAY_MODULE, "release_sleep_bed"),
-        ("release_temporary_room_admission", OVERLAY_MODULE, "release_temporary_room_admission"),
-        ("admit_to_temporary_room", OVERLAY_MODULE, "admit_to_temporary_room"),
-        ("reserve_sleep_bed", OVERLAY_MODULE, "reserve_sleep_bed"),
-        ("place_installed_facility", OVERLAY_MODULE, "place_installed_facility"),
-        ("apply_geometry_change", OVERLAY_MODULE, "apply_geometry_change"),
-    ),
+    "overlay": (("reserve_sleep_bed", OVERLAY_MODULE, "reserve_sleep_bed"),),
 }
 # (rules module, kernel, module of the manager, its class, its method)
 SERVICE_WRITERS = (
@@ -91,11 +74,6 @@ VALIDATORS = (
     ("overlay", "validate_overlay", OVERLAY_MODULE, "validate_geometry_overlay_state"),
     ("facility_queues", "validate", QUEUES_MODULE, "validate_facility_queue_state"),
 )
-# When a writer has nothing to write there is no copy to pay for.
-EMPTY_RELEASE = {
-    "release_sleep_bed": "bed_reservations",
-    "release_temporary_room_admission": "room_admissions",
-}
 
 
 def _plain(value: Any) -> Any:
@@ -223,14 +201,10 @@ def prepare(output: str) -> None:
             if inside[0] or _on_copy(world):
                 raise unsupported("a shadow's Python rule")
             recorder.seen[f"{label}.calls"] += 1
-            part = EMPTY_RELEASE.get(label)
             overlay = world.model_state.get(OVERLAY_KEY)
-            trivial = (
-                part is not None
-                and not (isinstance(overlay, dict) and arguments[0] in overlay.get(part, ()))
-            ) or (
-                label == "reserve_sleep_bed"
-                and not (isinstance(overlay, dict) and overlay.get("temporary_rooms"))
+            # Without a room there is no bed to reserve, and no copy to pay for.
+            trivial = label == "reserve_sleep_bed" and not (
+                isinstance(overlay, dict) and overlay.get("temporary_rooms")
             )
             if not trivial:
                 try:
