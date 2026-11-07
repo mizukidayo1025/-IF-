@@ -1413,6 +1413,30 @@
       }
     }
   }
+  async function waitForked(child) {
+    // Other branches may compute meanwhile, so the fork has ended when its child is
+    // listed and does not compute, or the Run reports the fork failed (as /demo, #48).
+    for (;;) {
+      const scope = state.scope,
+        data = await api(runBase());
+      if (scope !== state.scope)
+        throw new Error("表示するRunが変更されました。");
+      state.data = data;
+      const created = data.branches.find((b) => b.branch_id === child),
+        computing = created?.status
+          ? created.status === "running"
+          : data.status === "running";
+      if (created && !computing) return;
+      if (
+        data.last_fork?.status === "failed" ||
+        (!created && data.status !== "running")
+      )
+        throw new Error(
+          `分岐を作成できませんでした: ${data.last_fork?.error || "理由を取得できませんでした"}`,
+        );
+      await new Promise((resolve) => setTimeout(resolve, 900));
+    }
+  }
   async function previewIntervention() {
     if (state.data.status === "running")
       throw new Error("計算を停止してから介入してください。");
@@ -1518,6 +1542,8 @@
       approved: true,
       child_id: child,
     });
+    // The server forks in its own process: the child is listed once that ends.
+    await waitForked(child);
     state.branch = child;
     state.scope++;
     state.comparison = null;
