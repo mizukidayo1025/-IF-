@@ -319,3 +319,75 @@ def test_bosse_trace_matches_normalized_weighted_synchrony_formula(
                     min(policy.parameters.max_pair_stress_increase, raw),
                 )
             )
+
+
+def _without_weight(scenario: ScenarioSpec, case: str) -> ScenarioSpec:
+    """The scenario with one factor of every contact weight set to 0, each a valid input."""
+    document = scenario.model_dump(mode="json")
+    social = document["model_configs"]["social_propagation"]
+    if case == "stress_sensitivity":
+        for profile in document["profiles"]:
+            profile["stress_sensitivity"] = 0.0
+    elif case == "source_expressiveness":
+        social["source_expressiveness_by_agent"] = {
+            profile["id"]: 0.0 for profile in document["profiles"]
+        }
+    else:
+        for basis in ("family", "same_zone", "nearby_zone"):
+            social[f"{basis}_channel_strength"] = 0.0
+    return ScenarioSpec.model_validate(document)
+
+
+class _KeepingRNG(CounterRNG):
+    def __init__(self, seed: int) -> None:
+        super().__init__(seed)
+        self.draws: list[tuple[object, ...]] = []
+
+    def random(self, *key_parts: object) -> float:
+        value = super().random(*key_parts)
+        self.draws.append((*key_parts, value))
+        return value
+
+
+@pytest.mark.parametrize(
+    "case", ["stress_sensitivity", "source_expressiveness", "channel_strength"]
+)
+def test_bosse_contacts_without_weight_shift_nothing_and_draw_as_weighted_ones(
+    research_psychology_scenario, stress_delta, case: str
+) -> None:
+    """#87 (元 #301): a total weight of 0 is no propagation, not a ValueError of the zip.
+
+    Each weight is expressiveness × channel strength × stress_sensitivity, so one factor of
+    0 makes every contribution 0. The contacts are recorded as a contact without a share
+    is, and the contact draws are the ones of the same contacts with weight.
+    """
+    weighted_scenario = research_psychology_scenario(social=True)
+    results = []
+    for scenario in (weighted_scenario, _without_weight(weighted_scenario, case)):
+        world = WorldState.from_scenario(scenario)
+        ids = sorted(world.agents)
+        world.agents[ids[0]].stress = 0.15
+        world.agents[ids[1]].stress = 0.85
+        view = WorldView.from_world(world)
+        deltas = tuple(stress_delta(agent_id, 0, view.agents[agent_id].stress) for agent_id in ids)
+        rng = _KeepingRNG(19)
+        result = create_social(world.model_configs).update(view, deltas, rng, zone_neighbors={})
+        results.append((result, deltas, rng.draws))
+    (weighted, _, weighted_draws), (unweighted, deltas, draws) = results
+
+    assert weighted.contributing_contact_count > 0
+    assert draws == weighted_draws
+    assert unweighted.deltas == deltas
+    assert unweighted.contributing_contact_count == 0
+    assert unweighted.total_stress_added == 0.0
+    assert unweighted.runtime_state["agent_cooldown_until"] == {}
+    assert [(item.recipient_id, item.source_id) for item in unweighted.contacts] == [
+        (item.recipient_id, item.source_id) for item in weighted.contacts
+    ]
+    for item in unweighted.contacts:
+        assert item.stress_contribution == 0.0
+        assert item.influence_weight == 0.0
+        assert item.aggregate_rate == 0.0
+        assert item.pre_pair_cap_contribution == 0.0
+        assert item.pair_cap_contribution == 0.0
+        assert item.aggregate_scale == 1.0

@@ -462,25 +462,32 @@ class ExpressivenessChannelOpennessPolicy(StressPropagationPolicy):
             if shift:
                 contributing += 1
                 cooldowns[agent_id] = view.minute_index + self.parameters.cooldown_minutes
-            eligible_contributions = {
-                (contact.source_id, contact.contact_basis): (
-                    contribution,
-                    weights[index],
-                    aggregate_rate,
-                    raw_pair_shifts[index],
-                    max(
-                        -self.parameters.max_pair_stress_increase,
-                        min(
-                            self.parameters.max_pair_stress_increase,
-                            raw_pair_shifts[index],
+            # Every weight is a product of factors in 0..1, so a total of 0 means every
+            # contribution is 0: the recipient gets nothing this tick, and its contacts are
+            # recorded as ones without a share (#87, 元 #301).
+            eligible_contributions = (
+                {
+                    (contact.source_id, contact.contact_basis): (
+                        contribution,
+                        weights[index],
+                        aggregate_rate,
+                        raw_pair_shifts[index],
+                        max(
+                            -self.parameters.max_pair_stress_increase,
+                            min(
+                                self.parameters.max_pair_stress_increase,
+                                raw_pair_shifts[index],
+                            ),
                         ),
-                    ),
-                    pair_cap_scale,
-                )
-                for index, (contact, contribution) in enumerate(
-                    zip(eligible, pair_shifts, strict=True)
-                )
-            }
+                        pair_cap_scale,
+                    )
+                    for index, (contact, contribution) in enumerate(
+                        zip(eligible, pair_shifts, strict=True)
+                    )
+                }
+                if weight_total > 0.0
+                else {}
+            )
             for contact in contacts:
                 source = view.agents[contact.source_id]
                 raw_difference = source.stress - recipient.stress
