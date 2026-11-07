@@ -1,8 +1,9 @@
 //! `domain/population.py`: who arrives, waits, is admitted and leaves. See
 //! docs/rust-port/lanes/m6-population-rules.md.
 //!
-//! Each kernel plans, refusing with `Unsupported` before its first write whatever the Python rule
-//! would raise on, and then writes. These rules run at a few events of a Run, so a write is the
+//! The Python rules are gone (`kernel_only`, lane L10): their docstrings state the contracts. Each
+//! kernel plans, refusing with `Unsupported` before its first write what no valid input holds (a
+//! `KernelRefusal` in Python), and then writes. These rules run at a few events of a Run, so a write is the
 //! same operation on the same container as in the Python rule, in the same order: the tracked
 //! containers forward it to the namespace's row, and no kernel keeps a row of its own here. An
 //! exception of such an operation is the one Python raises at that point.
@@ -11,8 +12,8 @@
 //! `core/errors.rs`, in the rule's order of checks (docs/rust-port/lanes/l8-texts-events.md). A
 //! rule that raises after some of its writes (`_state` making its state, a text of an arrival's
 //! item, a completion without its presence) makes the same writes first and then raises. What
-//! Rust can't decide as Python does (a subclass, an object whose `==` Python would call) is still
-//! refused, and the Python rule says it.
+//! Rust can't decide as Python did (a subclass, an object whose `==` Python would call) is still
+//! refused. The checks of the states raise the Python rules' ValueError texts in their order.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -1357,12 +1358,20 @@ fn alternate_zones(zones: &Bound<'_, PyAny>, zone: &str, given: Option<&Bound<'_
 const MOBILITIES: [&str; 3] = ["independent", "assisted", "wheelchair"];
 
 /// `Mobility(value)`: Some(the value) for a member's value, None where the enum raises ValueError. A
-/// value of another type than these, whose `==` or repr the enum would call, is the Python rule's.
+/// value of another type than these, whose `==` or repr the enum would call, is outside the contract.
 fn mobility_of<'a>(value: &'a Bound<'_, PyAny>) -> PyResult<Option<&'a str>> {
     if value.is_instance_of::<PyString>() {
         return errors::member_of(value, &MOBILITIES);
     }
-    if value.is_none() || value.is_exact_instance_of::<pyo3::types::PyBool>() || value.is_exact_instance_of::<PyInt>() || value.is_exact_instance_of::<PyFloat>() {
+    // A list, tuple or dict is no member either: the enum's lookup falls back to `==`, then raises.
+    if value.is_none()
+        || value.is_exact_instance_of::<pyo3::types::PyBool>()
+        || value.is_exact_instance_of::<PyInt>()
+        || value.is_exact_instance_of::<PyFloat>()
+        || value.is_exact_instance_of::<PyList>()
+        || value.is_exact_instance_of::<PyTuple>()
+        || value.is_exact_instance_of::<PyDict>()
+    {
         return Ok(None);
     }
     unsupported("a mobility of another type")
@@ -2744,7 +2753,42 @@ fn context_is_plain(value: &V) -> PyResult<(Option<Arc<str>>, Vec<Arc<str>>, Vec
     Ok((maybe_identifier(map, "household_id")?, related, identifiers(map.get("source_ids"))?))
 }
 
-/// `validate_population_dynamics_state`, of a state it certainly accepts.
+/// `raise ValueError(text)` of a validation, through `planning` (it is marked as made here).
+pub(crate) fn invalid<T>(text: &str) -> PyResult<T> {
+    Python::with_gil(|py| Err(errors::marked_value_error(py, text)))
+}
+
+/// A validation as a validator of `state_mirror._RUST_VALIDATORS`, which says yes or Unsupported:
+/// its ValueError is the validation's own to raise where it runs.
+pub(crate) fn as_refusal<T>(result: PyResult<T>) -> PyResult<T> {
+    result.map_err(|error| {
+        Python::with_gil(|py| {
+            if errors::made_here(py, &error) && error.is_instance_of::<pyo3::exceptions::PyValueError>(py) {
+                Unsupported::new_err(format!("the validation raises: {}", error.value(py)))
+            } else {
+                error
+            }
+        })
+    })
+}
+
+/// `value != 1` is false: 1, True or 1.0.
+pub(crate) fn is_one(value: Option<&V>) -> bool {
+    matches!(value, Some(V::Int(1) | V::Bool(true))) || matches!(value, Some(V::Float(number)) if *number == 1.0)
+}
+
+/// A value Python hashes without calling anything: what `value in mapping` reads.
+fn is_scalar(value: &V) -> bool {
+    !matches!(value, V::List(_) | V::Map(_))
+}
+
+const SCHEMA: &str = "population_dynamics_v1 has an invalid exact schema";
+const PENDING_INVALID: &str = "population_dynamics_v1 pending arrival is invalid";
+
+/// `validate_population_dynamics_state`: its ValueErrors in its order of checks. Unsupported, a
+/// `KernelRefusal` in Python, for what the Python rule's contracts decided (`PersonContext`,
+/// `PersonTraits`: the plain forms a generated arrival has are read here) and for values of other
+/// types than a run writes (an ID that is not a str, a mapping where a value was).
 #[pyfunction]
 pub(crate) fn validate_population_dynamics_state(world: &Bound<'_, PyAny>) -> PyResult<()> {
     let py = world.py();
@@ -2753,60 +2797,68 @@ pub(crate) fn validate_population_dynamics_state(world: &Bound<'_, PyAny>) -> Py
             return Ok(());
         };
         let V::Map(document) = V::from_py(&state)? else {
-            return unsupported("the population state is not a mapping");
+            return invalid(SCHEMA);
         };
-        let has_context = document.contains_key("profile_context");
         const FIELDS: [&str; 8] = ["schema_version", "policy_version", "source_id", "initial_agent_ids", "profile_traits", "pending_arrivals", "arrivals", "departures"];
+        let has_context = document.contains_key("profile_context");
         if document.len() != FIELDS.len() + usize::from(has_context) || FIELDS.iter().any(|key| !document.contains_key(*key)) {
-            return unsupported("the population state has other fields");
+            return invalid(SCHEMA);
         }
-        let good_header = matches!(document.get("schema_version"), Some(V::Int(1)))
+        let good_header = is_one(document.get("schema_version"))
             && matches!(document.get("policy_version"), Some(V::Str(text)) if &**text == POLICY_VERSION)
             && matches!(document.get("source_id"), Some(V::Str(text)) if &**text == SOURCE_ID);
-        let (Some(V::List(initial)), Some(V::Map(traits)), Some(V::List(pending)), Some(V::List(_)), Some(V::List(_))) =
-            (document.get("initial_agent_ids"), document.get("profile_traits"), document.get("pending_arrivals"), document.get("arrivals"), document.get("departures"))
-        else {
-            return unsupported("the population state's parts are something else");
-        };
-        if !good_header || pending.len() as i64 > MAX_PENDING_ARRIVALS {
-            return unsupported("the population state's header is other");
+        if !good_header {
+            return invalid(SCHEMA);
         }
-        let mut historical: HashSet<&str> = HashSet::with_capacity(initial.len() + traits.len());
+        let Some(V::List(initial)) = document.get("initial_agent_ids") else {
+            return invalid(SCHEMA);
+        };
+        let mut historical: HashSet<&str> = HashSet::with_capacity(initial.len());
         for id in initial {
             let V::Str(id) = id else {
                 return unsupported("an initial ID is not a str");
             };
             if !historical.insert(id) {
-                return unsupported("an initial ID repeats");
+                return invalid(SCHEMA);
             }
+        }
+        let (Some(V::Map(traits)), Some(V::List(pending)), Some(V::List(_)), Some(V::List(_))) =
+            (document.get("profile_traits"), document.get("pending_arrivals"), document.get("arrivals"), document.get("departures"))
+        else {
+            return invalid(SCHEMA);
+        };
+        if pending.len() as i64 > MAX_PENDING_ARRIVALS {
+            return invalid(SCHEMA);
         }
         historical.extend(traits.keys().map(|key| &**key));
         let agents = attribute(world, intern!(py, "agents"))?;
         for id in agents.try_iter()? {
             if !historical.contains(exact_str(&id?)?) {
-                return unsupported("an active agent has no profile");
+                return invalid("population_dynamics_v1 is missing an active profile");
             }
         }
         let empty = IndexMap::new();
         let contexts = match document.get("profile_context") {
             None => &empty,
-            Some(V::Map(contexts)) => contexts,
-            Some(_) => return unsupported("the contexts are something else"),
+            Some(V::Map(contexts)) if contexts.keys().all(|identity| historical.contains(&**identity)) => contexts,
+            Some(_) => return invalid("population_dynamics_v1 has an invalid dynamic context index"),
         };
         for (identity, context) in contexts {
-            if !historical.contains(&**identity) {
-                return unsupported("a context is of an unknown person");
-            }
             let (household, related, sources) = context_is_plain(context)?;
-            let Some(household) = household else {
-                return unsupported("a context has no household");
+            if related.iter().any(|id| id == identity || !historical.contains(&**id)) {
+                return invalid("dynamic household context references an unknown person");
+            }
+            let household_of = |id: &str| traits.get(id).and_then(|item| map_get(item, "household_id"));
+            let agrees = match &household {
+                None => false,
+                Some(household) => {
+                    sources.iter().any(|source| &**source == SOURCE_ID)
+                        && matches!(household_of(identity), Some(V::Str(text)) if text == household)
+                        && related.iter().all(|id| matches!(household_of(id), Some(V::Str(text)) if text == household))
+                }
             };
-            if related.iter().any(|id| id == identity || !historical.contains(&**id))
-                || !sources.iter().any(|source| &**source == SOURCE_ID)
-                || !matches!(traits.get(identity).and_then(|item| map_get(item, "household_id")), Some(V::Str(text)) if *text == household)
-                || related.iter().any(|id| !matches!(traits.get(id).and_then(|item| map_get(item, "household_id")), Some(V::Str(text)) if *text == household))
-            {
-                return unsupported("a context disagrees with its profile");
+            if !agrees {
+                return invalid("dynamic household context disagrees with generated profile provenance");
             }
         }
         if pending.is_empty() {
@@ -2830,47 +2882,60 @@ fn check_pending_items(world: &Bound<'_, PyAny>, pending: &[V], contexts: &Index
         Some(raw) if is_dict(raw) => Some(get_map(raw, "people")?),
         _ => None,
     };
+    let in_zones = |value: &V| -> PyResult<bool> {
+        match value {
+            V::Str(id) => zones.contains(&**id),
+            value if is_scalar(value) => Ok(false),
+            _ => unsupported("a zone ID is not hashable"),
+        }
+    };
     let mut seen: HashSet<&str> = HashSet::new();
     let mut routes = None;
     let mut events = None;
     for item in pending {
         let V::Map(fields) = item else {
-            return unsupported("a pending arrival is not a mapping");
+            return invalid(PENDING_INVALID);
         };
-        if BASE.iter().any(|key| !fields.contains_key(*key)) {
-            return unsupported("a pending arrival lacks a field");
-        }
+        let has_base = BASE.iter().all(|key| fields.contains_key(*key));
         let has_context = CONTEXT.iter().filter(|key| fields.contains_key(**key)).count();
         let has_approach = APPROACH.iter().filter(|key| fields.contains_key(**key)).count();
         let completion = fields.contains_key("approach_completion_event_id");
         let completed = fields.contains_key("approach_completed_minute");
         let alternates = fields.contains_key("admission_zone_ids");
         let expected = BASE.len() + has_context + has_approach + usize::from(completion) + usize::from(completed) + usize::from(alternates);
-        if fields.len() != expected
+        if !has_base
+            || fields.len() != expected
             || !(has_context == 0 || has_context == CONTEXT.len())
             || !(has_approach == 0 || has_approach == APPROACH.len())
             || (completion || completed) && has_approach == 0
             || completion && completed
         {
-            return unsupported("a pending arrival has another shape");
+            return invalid(PENDING_INVALID);
         }
-        let (Some(V::Str(zone)), Some(V::Str(agent_id))) = (fields.get("zone_id"), fields.get("profile").and_then(|profile| map_get(profile, "id"))) else {
-            return unsupported("a pending arrival's zone or ID is not a str");
+        let zone_value = fields.get("zone_id").ok_or_else(|| Unsupported::new_err("no zone"))?;
+        let Some(V::Str(agent_id)) = fields.get("profile").and_then(|profile| map_get(profile, "id")) else {
+            return unsupported("a pending arrival's ID is not a str");
         };
-        if !zones.contains(&**zone)? || !seen.insert(agent_id) || agents.contains(&**agent_id)? {
-            return unsupported("a pending arrival is invalid");
+        if !in_zones(zone_value)? || seen.contains(&**agent_id) || agents.contains(&**agent_id)? {
+            return invalid(PENDING_INVALID);
         }
         if let Some(value) = fields.get("admission_zone_ids") {
             let V::List(ids) = value else {
-                return unsupported("the alternate zones are not a list");
+                return invalid(PENDING_INVALID);
             };
             let mut unique = HashSet::new();
             for id in ids {
                 let V::Str(id) = id else {
-                    return unsupported("an alternate zone is not a str");
+                    return invalid(PENDING_INVALID);
                 };
-                if !unique.insert(id) || !zones.contains(&**id)? {
-                    return unsupported("an alternate zone is invalid");
+                unique.insert(id);
+            }
+            if unique.len() != ids.len() {
+                return invalid(PENDING_INVALID);
+            }
+            for id in unique {
+                if !zones.contains(&**id)? {
+                    return invalid(PENDING_INVALID);
                 }
             }
         }
@@ -2878,87 +2943,108 @@ fn check_pending_items(world: &Bound<'_, PyAny>, pending: &[V], contexts: &Index
             let good = matches!(fields.get("member_index"), Some(V::Int(index)) if (0..MAX_ARRIVALS_PER_EVENT).contains(index))
                 && matches!(fields.get("context_source_id"), Some(V::Str(_)));
             let Some(V::List(needs)) = fields.get("care_support_needs") else {
-                return unsupported("pending care needs are not a list");
+                return invalid("population_dynamics_v1 pending context is invalid");
             };
             let mut unique = HashSet::new();
             if !good || needs.iter().any(|need| !matches!(need, V::Str(_)) || !unique.insert(format!("{need:?}"))) {
-                return unsupported("a pending context is invalid");
+                return invalid("population_dynamics_v1 pending context is invalid");
             }
             let saved = contexts.get(agent_id).and_then(|context| map_get(context, "care_support_needs"));
             let same = match saved {
                 None => needs.is_empty(),
                 Some(V::List(saved)) => saved == needs,
-                Some(_) => false,
+                Some(_) => return unsupported("saved care needs are not a list"),
             };
             if !same {
-                return unsupported("a pending care context disagrees");
+                return invalid("pending care context disagrees with its persisted profile context");
             }
         }
         if has_approach > 0 {
-            let (Some(V::Str(route_id)), Some(V::Int(started)), Some(V::Int(due)), Some(created)) =
-                (fields.get("approach_route_id"), fields.get("approach_started_minute"), fields.get("approach_due_minute"), fields.get("created_minute"))
-            else {
-                return unsupported("an approach's fields are something else");
-            };
-            if !matches!(created, V::Int(created) if created == started) || due <= started {
-                return unsupported("an approach's timing is invalid");
-            }
+            const TIMING: &str = "pending arrival approach route/timing is invalid";
             if routes.is_none() {
                 routes = Some(approach_routes(world)?);
             }
+            let route_value = fields.get("approach_route_id").ok_or_else(|| Unsupported::new_err("no route"))?;
             let mut found = None;
-            for route in routes.iter().flatten() {
-                if attribute(route, intern!(py, "route_id"))?.eq(&**route_id)? {
-                    found = Some(route);
+            if let V::Str(route_id) = route_value {
+                for route in routes.iter().flatten() {
+                    if attribute(route, intern!(py, "route_id"))?.eq(&**route_id)? {
+                        found = Some(route);
+                    }
                 }
+            } else if !is_scalar(route_value) {
+                return unsupported("a route ID is not hashable");
             }
-            let Some(route) = found else {
-                return unsupported("an approach's route is unknown");
+            let (Some(route), Some(V::Int(started)), Some(V::Int(due))) =
+                (found, fields.get("approach_started_minute"), fields.get("approach_due_minute"))
+            else {
+                return invalid(TIMING);
+            };
+            match fields.get("created_minute") {
+                Some(V::Int(created)) if created == started => {}
+                Some(V::Int(_) | V::Null | V::Str(_) | V::List(_) | V::Map(_)) => return invalid(TIMING),
+                _ => return unsupported("a created minute is not an int"),
+            }
+            if due <= started {
+                return invalid(TIMING);
+            }
+            let zone = match zone_value {
+                V::Str(zone) => zone,
+                _ => return unsupported("a zone ID is not a str"),
             };
             if !attribute(route, intern!(py, "destination_zone_id"))?.eq(&**zone)? || *due != started + exact_int(&attribute(route, intern!(py, "travel_minutes"))?)? {
-                return unsupported("an approach disagrees with its route");
+                return invalid("pending arrival approach disagrees with its route contract");
             }
             let finished = match fields.get("approach_completed_minute") {
                 None | Some(V::Null) => None,
                 Some(V::Int(minute)) if minute >= due && *minute <= minute_index => Some(*minute),
-                Some(_) => return unsupported("an approach's completion minute is invalid"),
+                Some(_) => return invalid("pending arrival approach completion minute is invalid"),
             };
             let completion_id = match fields.get("approach_completion_event_id") {
                 None | Some(V::Null) => None,
-                Some(V::Str(id)) => Some(id.clone()),
-                Some(_) => return unsupported("an approach's completion event is not a str"),
+                Some(value) => Some(value),
             };
             if finished.is_none() && *due < duration {
+                const MISSING: &str = "pending arrival approach completion event is missing";
                 let Some(completion_id) = completion_id else {
-                    return unsupported("an approach's completion event is missing");
+                    return invalid(MISSING);
+                };
+                // `event.event_id == completion_event_id` of a value of another type is false.
+                let V::Str(completion_id) = completion_id else {
+                    return invalid(MISSING);
                 };
                 if events.is_none() {
                     events = Some(attribute(&attribute(world, intern!(py, "event_queue"))?, intern!(py, "_store"))?);
                 }
                 let store = events.as_ref().ok_or_else(|| Unsupported::new_err("no queue"))?;
                 let queue = store.downcast::<crate::state::events::QueueStore>().map_err(|_| Unsupported::new_err("the queue is not in Rust"))?;
-                let Some(event) = queue.borrow_mut().row(py, &completion_id)? else {
-                    return unsupported("an approach's completion event is missing");
+                let Some(event) = queue.borrow_mut().row(py, completion_id)? else {
+                    return invalid(MISSING);
                 };
-                if &*event.event_type != "population_approach_complete"
-                    || event.due_minute != *due
-                    || !matches!(payload(&event, "agent_id"), Some(V::Str(id)) if id == agent_id)
-                    || !matches!(payload(&event, "route_id"), Some(V::Str(id)) if id == route_id)
-                {
-                    return unsupported("an approach's completion event disagrees");
+                if &*event.event_type != "population_approach_complete" {
+                    return invalid(MISSING);
                 }
-            } else if completion_id.is_some() {
-                return unsupported("an approach has a completion event it should not");
+                if event.due_minute != *due
+                    || !matches!(payload(&event, "agent_id"), Some(V::Str(id)) if id == agent_id)
+                    || payload(&event, "route_id") != Some(route_value)
+                {
+                    return invalid("pending arrival approach completion event disagrees");
+                }
+            } else if finished.is_none() && completion_id.is_some() {
+                return invalid("out-of-horizon arrival approach has a completion event");
+            } else if finished.is_some() && completion_id.is_some() {
+                return invalid("completed arrival approach retains a pending event");
             }
             if let Some(people) = &people {
                 let person = get(people, agent_id)?;
-                let empty = person.is_none() || (is_dict(&person) && person.is_empty()?);
+                let empty = person.is_none() || !person.is_truthy()?;
                 let expected = if finished.is_none() { "approaching" } else { "awaiting_admission" };
                 if !empty && !get(&person, "status")?.eq(expected)? {
-                    return unsupported("an approach disagrees with the presence");
+                    return invalid("arrival approach disagrees with population presence");
                 }
             }
         }
+        seen.insert(agent_id);
         traits_are_plain(fields.get("traits").ok_or_else(|| Unsupported::new_err("no traits"))?)?;
     }
     Ok(())

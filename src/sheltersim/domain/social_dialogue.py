@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import math
-from collections.abc import Mapping
 from typing import Any
 
-from sheltersim.core.kernels import kernel_first
+from sheltersim.core.kernels import kernel_only
 from sheltersim.core.world import WorldState
 
 _NEEDS = ("toilet_urgency", "hunger", "fatigue", "hydration_need")
@@ -18,9 +16,6 @@ _AFFECT = (
     "uncertainty",
     "hygiene_need",
 )
-_NEED_FIELDS = frozenset(_NEEDS)
-_AFFECT_FIELDS = frozenset(_AFFECT)
-_STATE_FIELDS = frozenset({"stress", "trust", "needs", "affect"})
 _INTERACTION_LINES = {
     "reassurance_exchange": "今わかっていることを、一緒に確かめませんか。",
     "family_care": "必要なことを一緒に確認しよう。",
@@ -31,89 +26,38 @@ _INTERACTION_LINES = {
 }
 
 
-@kernel_first("social_dialogue", "capture_context")
+@kernel_only("social_dialogue", "capture_context")
 def capture_social_state_context(
     world: WorldState, participant_ids: tuple[str, ...] | list[str]
 ) -> dict[str, Any]:
-    """Capture anonymous modeled state at proposal time for an applied event's history."""
-    identities = sorted(set(participant_ids))
-    if (
-        not identities
-        or len(identities) > 2
-        or any(identity not in world.agents for identity in identities)
-    ):
-        raise ValueError("social dialogue context requires one or two current participants")
-    body_state = world.model_state.get("body_state_v1")
-    body_agents = body_state.get("agents", {}) if isinstance(body_state, dict) else {}
-    participants: dict[str, Any] = {}
-    for identity in identities:
-        agent = world.agents[identity]
-        body = body_agents.get(identity)
-        affect = (
-            {name: float(body[name]) for name in _AFFECT}
-            if isinstance(body, dict) and all(name in body for name in _AFFECT)
-            else None
-        )
-        participants[identity] = {
-            "stress": float(agent.stress),
-            "trust": float(agent.trust),
-            "needs": {name: float(getattr(agent.needs, name)) for name in _NEEDS},
-            "affect": affect,
-        }
-    context = {
-        "schema_version": 1,
-        "captured_minute": world.minute_index,
-        "participants": participants,
-    }
-    validate_social_state_context(context, identities, world.duration_minutes)
-    return context
+    """Capture anonymous modeled state at proposal time for an applied event's history.
+
+    Returns {"schema_version": 1, "captured_minute": world.minute_index, "participants": ...}: for
+    each of the sorted, distinct IDs, its stress, trust and needs (toilet_urgency, hunger, fatigue,
+    hydration_need) as floats, and as "affect" the float of each of positive_affect,
+    negative_affect, reassurance, discontent, uncertainty and hygiene_need of its body_state_v1
+    record, or None when the record lacks one. ValueError("social dialogue context requires one or
+    two current participants") for no ID, more than two or one not in world.agents; then the
+    ValueError of validate_social_state_context for the copy, with world.duration_minutes.
+    """
 
 
-@kernel_first("social_dialogue", "validate_context")
+@kernel_only("social_dialogue", "validate_context")
 def validate_social_state_context(
     context: Any, participant_ids: tuple[str, ...] | list[str], due_minute: int
 ) -> None:
-    """Reject malformed, future, or identity-mismatched model-state evidence."""
-    expected_ids = set(participant_ids)
-    if (
-        not isinstance(context, Mapping)
-        or set(context) != {"schema_version", "captured_minute", "participants"}
-        or context.get("schema_version") != 1
-        or type(context.get("captured_minute")) is not int
-        or not 0 <= context["captured_minute"] <= due_minute
-        or not isinstance(context.get("participants"), Mapping)
-        or set(context["participants"]) != expected_ids
-    ):
-        raise ValueError("social dialogue state context does not match its event")
-    for state in context["participants"].values():
-        if not isinstance(state, Mapping) or state.keys() != _STATE_FIELDS:
-            raise ValueError("social dialogue participant state has unsupported fields")
-        _validate_unit(state["stress"])
-        _validate_unit(state["trust"])
-        needs = state["needs"]
-        if not isinstance(needs, Mapping) or needs.keys() != _NEED_FIELDS:
-            raise ValueError("social dialogue needs context is invalid")
-        for value in needs.values():
-            # A float within bounds passes, and NaN fails the comparison.
-            if type(value) is not float or not 0.0 <= value <= 1.0:
-                _validate_unit(value)
-        affect = state["affect"]
-        if affect is not None:
-            if not isinstance(affect, Mapping) or affect.keys() != _AFFECT_FIELDS:
-                raise ValueError("social dialogue affect context is invalid")
-            for value in affect.values():
-                if type(value) is not float or not 0.0 <= value <= 1.0:
-                    _validate_unit(value)
+    """Reject malformed, future, or identity-mismatched model-state evidence.
 
-
-def _validate_unit(value: Any) -> None:
-    if (
-        not isinstance(value, (int, float))
-        or isinstance(value, bool)
-        or not math.isfinite(value)
-        or not 0.0 <= value <= 1.0
-    ):
-        raise ValueError("social dialogue state values must be finite and within 0..1")
+    ValueError, in this order: "social dialogue state context does not match its event" unless the
+    context is a mapping of exactly schema_version (== 1), captured_minute (an int within 0 and
+    due_minute) and participants (a mapping whose keys are the set of participant_ids); then for
+    each participant's state: "social dialogue participant state has unsupported fields" unless a
+    mapping of exactly stress, trust, needs and affect; "social dialogue needs context is invalid"
+    unless needs maps exactly the four needs; "social dialogue affect context is invalid" unless
+    affect is None or maps exactly the six affect fields; and "social dialogue state values must be
+    finite and within 0..1" for stress, trust, a need or an affect value that is not an int or
+    float (bool excluded) within 0 and 1.
+    """
 
 
 def _state_cues(state: dict[str, Any]) -> list[str]:

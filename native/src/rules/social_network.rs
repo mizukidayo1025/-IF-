@@ -1,6 +1,8 @@
-//! `domain/social_network.py`: what an applied event records in `social_network_v1`. The Python
-//! rules stay as the comparison base and for everything these kernels do not decide
-//! (docs/rust-port/lanes/m3-social-network.md).
+//! `domain/social_network.py`: what an applied event records in `social_network_v1`
+//! (docs/rust-port/lanes/m3-social-network.md). `observe_event` has no Python body left
+//! (`kernel_only`): it skips what the Python rule skipped and raises its ValueError at the bound
+//! itself. Unsupported, a `KernelRefusal` in Python, is left for what no applied event holds: an ID
+//! with a character JSON escapes, a str subclass, a tainted namespace, a count past i64.
 //!
 //! `observe_event` reads the event and `body_state_v1` first, which may give Unsupported, and only
 //! then writes the row and the tree, where nothing can refuse any more. Both still are Python
@@ -12,8 +14,9 @@ use std::sync::Arc;
 use pyo3::exceptions::PyKeyError;
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::PyString;
+use pyo3::types::{PyBool, PyFloat, PyInt, PyString};
 
+use crate::core::errors;
 use crate::core::mathx::{py_max, py_min};
 use crate::core::row::{attribute, exact_float, exact_int, exact_str, unsupported, Field};
 use crate::core::tracked::as_readable_dict;
@@ -189,12 +192,18 @@ struct NetworkWrite {
 impl NetworkWrite {
     fn apply(&self, mirror: &Bound<'_, NamespaceMirror>) -> PyResult<()> {
         let py = mirror.py();
-        // Says Unsupported for a tainted namespace, and for one that would pass the bound, whose
-        // error is the Python rule's: nothing is written before this.
+        // Says Unsupported for a tainted namespace. The Python rule's ValueError at the bound comes
+        // before anything is written here; the Python rule wrote the records before that one.
         let new_keys = NamespaceMirror::with_row::<SocialNetworkRow, _>(mirror, |row| {
             let relationships = &row.relationships.map;
-            if relationships.len() + self.records.len() > MAX_RELATIONSHIPS {
-                return unsupported("the relationships are near their bound");
+            let mut created: Vec<&str> = Vec::new();
+            for write in &self.records {
+                if !relationships.contains_key(write.key.as_str()) && !created.contains(&write.key.as_str()) {
+                    if relationships.len() + created.len() >= MAX_RELATIONSHIPS {
+                        return Err(errors::value_error("social_network_v1 reached the configured relationship bound"));
+                    }
+                    created.push(write.key.as_str());
+                }
             }
             if row.interaction_count > LAST_SAFE_COUNT - self.interactions
                 || row.information_transfer_count > LAST_SAFE_COUNT
@@ -333,24 +342,45 @@ pub(crate) fn record_observed_contacts(
     NetworkWrite { interactions: records.len() as i64, records, cooperation: false }.apply(&mirror)
 }
 
-/// `isinstance(message_id, str)`: None when the payload has none or says None.
-fn optional_message(value: Option<Bound<'_, PyAny>>) -> PyResult<Option<Arc<str>>> {
+/// `value if isinstance(value, str) else None` of a payload's value: None for an absent key or a
+/// value of another type. A str subclass is outside the contract.
+fn str_or_none<'py>(value: Option<Bound<'py, PyAny>>) -> PyResult<Option<Bound<'py, PyAny>>> {
     match value {
-        Some(value) if !value.is_none() => Ok(Some(Arc::from(exact_str(&value)?))),
+        Some(value) if value.is_exact_instance_of::<PyString>() => Ok(Some(value)),
+        Some(value) if value.is_instance_of::<PyString>() => unsupported("a value is a subclass of str"),
         _ => Ok(None),
     }
 }
 
-fn required<'py>(
+/// `isinstance(message_id, str)`: None when the payload has none or another value.
+fn optional_message(value: Option<Bound<'_, PyAny>>) -> PyResult<Option<Arc<str>>> {
+    match str_or_none(value)? {
+        Some(value) => Ok(Some(Arc::from(exact_str(&value)?))),
+        None => Ok(None),
+    }
+}
+
+/// `payload.get(key)` when it is a str: the rule records nothing without one.
+fn str_field<'py>(
     payload: &Bound<'py, PyAny>,
     key: &Bound<'py, PyString>,
-) -> PyResult<Bound<'py, PyAny>> {
-    mapping_get(payload, key)?.ok_or_else(|| Unsupported::new_err("the payload lacks an ID"))
+) -> PyResult<Option<Bound<'py, PyAny>>> {
+    str_or_none(mapping_get(payload, key)?)
+}
+
+/// `isinstance(observed_minute, int) and not isinstance(observed_minute, bool)`: the int, or None.
+fn int_field(value: Option<Bound<'_, PyAny>>) -> PyResult<Option<i64>> {
+    match value {
+        Some(value) if value.is_exact_instance_of::<PyInt>() => Ok(Some(exact_int(&value)?)),
+        Some(value) if value.is_exact_instance_of::<PyBool>() => Ok(None),
+        Some(value) if value.is_instance_of::<PyInt>() => unsupported("a minute is a subclass of int"),
+        _ => Ok(None),
+    }
 }
 
 /// `observe_event`: the event's contact or interaction, recorded, and the body's trust copied.
-/// Whatever the Python rule would skip or raise on, other than an event type it ignores, says
-/// Unsupported, and the Python rule runs. Nothing is written before that is known.
+/// What the Python rule skipped is skipped: an ID that is not a str, a minute that is not an int,
+/// one person with themselves. Nothing is written before an error or Unsupported is known.
 #[pyfunction]
 pub(crate) fn observe_event<'py>(
     world: &Bound<'py, PyAny>,
@@ -369,13 +399,17 @@ pub(crate) fn observe_event<'py>(
     let payload = attribute(event, intern!(py, "payload"))?;
     let write = match event_type {
         "information_contact_update" => {
-            let recipient = required(&payload, intern!(py, "recipient_agent_id"))?;
-            let sender = required(&payload, intern!(py, "sender_agent_id"))?;
-            let (recipient, sender) = (plain_id(&recipient)?, plain_id(&sender)?);
-            if recipient == sender {
-                return unsupported("a contact of a person with themselves");
-            }
+            let recipient = str_field(&payload, intern!(py, "recipient_agent_id"))?;
+            let sender = str_field(&payload, intern!(py, "sender_agent_id"))?;
             let message = optional_message(mapping_get(&payload, intern!(py, "message_id"))?)?;
+            let (Some(recipient), Some(sender)) = (recipient, sender) else {
+                return Ok(());
+            };
+            let (recipient, sender) = (plain_id(&recipient)?, plain_id(&sender)?);
+            // `record_contact` returns at once, and `_sync_body_trust` finds no such record.
+            if recipient == sender {
+                return Ok(());
+            }
             let body = body_state_of(world)?;
             let relationships = body_relationships(body.as_ref())?;
             let key = pair_key(recipient, sender);
@@ -395,12 +429,16 @@ pub(crate) fn observe_event<'py>(
             }
         }
         "proximity_contact_update" => {
-            let first = required(&payload, intern!(py, "first_agent_id"))?;
-            let second = required(&payload, intern!(py, "second_agent_id"))?;
-            let observed = required(&payload, intern!(py, "observed_minute"))?;
-            let (first, second, observed) = (plain_id(&first)?, plain_id(&second)?, exact_int(&observed)?);
+            let first = str_field(&payload, intern!(py, "first_agent_id"))?;
+            let second = str_field(&payload, intern!(py, "second_agent_id"))?;
+            let observed = int_field(mapping_get(&payload, intern!(py, "observed_minute"))?)?;
+            let (Some(first), Some(second), Some(observed)) = (first, second, observed) else {
+                return Ok(());
+            };
+            let (first, second) = (plain_id(&first)?, plain_id(&second)?);
+            // `record_observed_contact` returns at once, and `_sync_body_trust` finds no record.
             if first == second {
-                return unsupported("a contact of a person with themselves");
+                return Ok(());
             }
             let body = body_state_of(world)?;
             let relationships = body_relationships(body.as_ref())?;
@@ -424,7 +462,12 @@ pub(crate) fn observe_event<'py>(
             let Some(interaction) = mapping_get(&payload, intern!(py, "interaction_type"))? else {
                 return Ok(());
             };
-            if interaction.is_none() {
+            // `interaction in {...}`: a value of another type than a str is in no set of strs.
+            if interaction.is_none()
+                || interaction.is_exact_instance_of::<PyBool>()
+                || interaction.is_exact_instance_of::<PyInt>()
+                || interaction.is_exact_instance_of::<PyFloat>()
+            {
                 return Ok(());
             }
             let interaction = exact_str(&interaction)?;
@@ -433,11 +476,16 @@ pub(crate) fn observe_event<'py>(
             if !social_action && !matches!(interaction, "cooperation" | "information_reaction") {
                 return Ok(());
             }
-            let actor_object = required(&payload, intern!(py, "agent_id"))?;
-            let participant = required(&payload, intern!(py, "participant_agent_id"))?;
+            let actor_object = str_field(&payload, intern!(py, "agent_id"))?;
+            let participant = str_field(&payload, intern!(py, "participant_agent_id"))?;
+            let (Some(actor_object), Some(participant)) = (actor_object, participant) else {
+                return Ok(());
+            };
             let (actor, participant) = (plain_id(&actor_object)?, plain_id(&participant)?);
+            // `record_interaction` returns at once, and `_sync_body_trust` finds no record. The
+            // relief the rule computes before that is not written anywhere.
             if actor == participant {
-                return unsupported("an interaction of a person with themselves");
+                return Ok(());
             }
             let body = body_state_of(world)?;
             let deltas = if social_action {

@@ -1,11 +1,12 @@
 //! `record_social_event` of `domain/body_state.py`, with the affect operators of
-//! `policies/affect.py` and the trust operators of `policies/relationships.py`. The Python rule
-//! stays as the comparison base and for every value this kernel does not decide
-//! (docs/rust-port/lanes/m3-body-state.md).
+//! `policies/affect.py` and the trust operators of `policies/relationships.py`
+//! (docs/rust-port/lanes/m3-body-state.md). The Python rule's body is gone (`kernel_only`).
 //!
 //! One event is one plan: the inputs are read first, the plan is computed from the rows with no
-//! Python object in sight, and only then is anything written, so an Unsupported changes nothing and
-//! the Python rule then runs as if the kernel weren't there.
+//! Python object in sight, and only then is anything written, so an Unsupported changes nothing. It
+//! is a `KernelRefusal` in Python, left for what no applied event or valid state holds: an ID or a
+//! distance of another type, a person without a body record, a relationship without trust, a
+//! tainted namespace, a model this kernel doesn't know.
 
 use std::sync::Arc;
 

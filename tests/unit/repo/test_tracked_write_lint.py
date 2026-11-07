@@ -62,7 +62,6 @@ NOT_INSERTED_INTO_STATE: dict[tuple[str, str, str], str] = {
     ("core/checkpoint_cache.py", "_leaf", "raw"): "encoder memo; bytes",
     ("core/checkpoint_cache.py", "_tree_node", "node"): "encoder memo; a str",
     ("domain/geometry_overlay.py", "_parsed_config", "parsed"): "memo of parsed objects",
-    ("domain/population.py", "queue_arrivals", "admitted"): "an int",
     ("domain/staff_operations.py", "order_staff_operation", "task_id"): "a str",
     ("events/queue.py", "__deepcopy__", "copied"): "deepcopy's memo",
     ("experiments/metrics.py", "capture", "snapshot"): "a MetricSnapshot in MetricsRecorder",

@@ -2,10 +2,11 @@
 
 A rule's `EventSuppressed` and `EventApplicationError` texts go to the event's record as `detail`,
 so the kernel must raise what the rule raises, in the rule's order of checks, after the rule's
-writes and no others. Each case reaches one check: with the kernels, the outcome must be the
-kernel's own (not a refusal the Python rule then worded), and the rule on a copy made before must
-raise the same class and text and leave the same document. Without the kernels the rule alone
-must raise the text. docs/rust-port/lanes/l8-texts-events.md.
+writes and no others. Each case reaches one check: the outcome must be the kernel's own (not a
+refusal), with the rule's text. The Python rules are gone (lane L10, `kernel_only`): each case was
+run with them once (2d8fb46), and the class they raised and the world they left are pinned in
+PYTHON_GAVE, per test and in call order, as a digest compared on Linux (libm), as the gate's
+hashes are. docs/rust-port/lanes/l8-texts-events.md.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import sys
 from typing import Any
 
 import pytest
@@ -51,29 +53,147 @@ def _document(world: WorldState) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-def _copy(world: WorldState) -> WorldState:
-    try:
-        return copy.deepcopy(world)
-    except TypeError:
-        # Without the kernels a queued event's frozen payload does not deep-copy; its document does.
-        document = json.loads(world._canonical_text(world._canonical_data()))
-        return WorldState.from_dict(document, _validate=False)
+# ---- What the Python rules gave ---------------------------------------------------------------
+
+PYTHON_GAVE: dict[str, list[str]] = {
+    "test_a_command_outside_its_contract_or_minute_says_the_rule_s_text": [
+        "bbded8a4299217b9",
+        "330cb0ce4aca5606",
+        "a34be4debf2ed930",
+    ],
+    "test_a_command_the_contract_refuses_says_the_rule_s_text": [
+        "0717aceb0e0c255a",
+        "0717aceb0e0c255a",
+        "0717aceb0e0c255a",
+        "0717aceb0e0c255a",
+        "0717aceb0e0c255a",
+    ],
+    "test_a_departure_the_rule_refuses_says_its_text[0-0]": ["0717aceb0e0c255a"],
+    "test_a_departure_the_rule_refuses_says_its_text[1-1]": ["0717aceb0e0c255a"],
+    "test_a_departure_the_rule_refuses_says_its_text[2-2]": ["0717aceb0e0c255a"],
+    "test_a_departure_the_rule_refuses_says_its_text[3-3]": ["0717aceb0e0c255a"],
+    "test_a_departure_the_rule_refuses_says_its_text[4-4]": ["0717aceb0e0c255a"],
+    "test_a_departure_the_rule_refuses_says_its_text[5-5]": ["0717aceb0e0c255a"],
+    "test_a_departure_the_rule_refuses_says_its_text[6-6]": ["0717aceb0e0c255a"],
+    "test_a_first_departure_keeps_the_state_it_made_when_too_few_can_leave": ["0717aceb0e0c255a"],
+    "test_a_relocation_completion_without_its_route_says_the_rule_s_text": ["0717aceb0e0c255a"],
+    "test_a_relocation_of_someone_busy_says_the_rule_s_text": ["0717aceb0e0c255a"],
+    "test_a_relocation_the_rule_refuses_says_its_text": [
+        "0717aceb0e0c255a",
+        "0717aceb0e0c255a",
+        "62c908964806b306",
+        "1a2791ee21c6d1f5",
+    ],
+    "test_a_relocation_without_a_route_says_the_rule_s_text": ["1ebe95b9e59bbd40"],
+    "test_a_return_the_rule_refuses_says_its_text": [
+        "0717aceb0e0c255a",
+        "0717aceb0e0c255a",
+        "1f944ffd14f66dcd",
+        "1f944ffd14f66dcd",
+    ],
+    "test_a_reunion_the_rule_refuses_says_its_text": ["0717aceb0e0c255a", "6416570b8ed318d5"],
+    "test_a_route_into_another_zone_says_the_rule_s_text": ["75e22870dd41adf1"],
+    "test_a_waiting_approach_with_a_record_stops_after_it_joins_the_waiting": ["868d27782577864d"],
+    "test_a_waiting_arrival_with_a_record_stops_after_it_joins_the_waiting": ["96d651595c7e09bf"],
+    "test_alternate_zones_the_rule_refuses_say_its_texts": [
+        "0717aceb0e0c255a",
+        "0717aceb0e0c255a",
+        "0717aceb0e0c255a",
+        "f51474277b1eedfb",
+    ],
+    "test_an_approach_completion_the_rule_refuses_says_its_text": [
+        "41712a52628b2785",
+        "41712a52628b2785",
+        "41712a52628b2785",
+        "41712a52628b2785",
+        "41712a52628b2785",
+        "41712a52628b2785",
+        "41712a52628b2785",
+        "5f7a1afad2f1df22",
+    ],
+    "test_an_approach_completion_without_its_presence_stops_after_two_writes": ["b17ba2fd2b969f08"],
+    "test_an_approach_outside_an_approved_program_stops_after_the_first_writes": [
+        "0459e0eae290c15a"
+    ],
+    "test_an_approach_without_its_program_s_provenance_stops_after_its_sequence": [
+        "eb2e36d9115c46a1"
+    ],
+    "test_an_arrival_the_rule_refuses_says_its_text[0-0]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[1-1]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[10-10]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[11-11]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[12-12]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[13-13]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[14-14]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[15-15]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[16-16]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[17-17]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[18-18]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[19-19]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[2-2]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[20-20]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[21-21]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[22-22]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[23-23]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[24-24]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[25-25]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[3-3]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[4-4]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[5-5]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[6-6]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[7-7]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[8-8]": ["0717aceb0e0c255a"],
+    "test_an_arrival_the_rule_refuses_says_its_text[9-9]": ["0717aceb0e0c255a"],
+    "test_an_exit_or_transfer_of_someone_absent_says_the_rule_s_text": [
+        "0717aceb0e0c255a",
+        "0717aceb0e0c255a",
+    ],
+    "test_the_bounds_say_the_rule_s_texts": [
+        "2f8abb4cf454e76a",
+        "86452fe232195d46",
+        "2adaba550e488fa6",
+    ],
+    "test_the_same_arrival_again_says_the_rule_s_text": ["b111d5818c2946b7"],
+}
+_SCOPE: list[Any] = ["", 0]
+
+
+@pytest.fixture(autouse=True)
+def _pinned_scope(request: Any) -> None:
+    """The test's name, with the index of each parameter: its key in PYTHON_GAVE."""
+    name = request.node.originalname
+    callspec = getattr(request.node, "callspec", None)
+    if callspec is not None:
+        name += "[" + "-".join(str(index) for index in callspec.indices.values()) + "]"
+    _SCOPE[:] = [name, 0]
+
+
+def _digest(*values: Any) -> str:
+    parts = [
+        _document(value)
+        if isinstance(value, WorldState)
+        else json.dumps(value, sort_keys=True, default=repr)
+        for value in values
+    ]
+    return hashlib.sha256("\n".join(parts).encode()).hexdigest()[:16]
+
+
+def _python_gave(*values: Any) -> None:
+    """These values (an outcome's class, worlds) are what the Python rule gave at this call."""
+    name, index = _SCOPE
+    _SCOPE[1] += 1
+    if sys.platform == "linux":
+        assert _digest(*values) == PYTHON_GAVE[name][index]
 
 
 def _says(rule: Any, world: WorldState, text: str, *arguments: Any, **options: Any) -> None:
-    """The rule (its kernel first) raises `text`; the Python rule on a copy says the same and
-    leaves the same document, so the writes before the raise are the rule's too."""
-    python_rule = getattr(rule, "__wrapped__", rule)
-    twin = _copy(world)
+    """The rule raises `text`, its kernel's own outcome, of the class the Python rule raised and
+    after the writes it made: the class and the world it left are pinned."""
     with pytest.raises((EventSuppressed, EventApplicationError)) as made:
         rule(world, *arguments, **options)
     assert str(made.value) == text
+    _python_gave(type(made.value).__name__, world)
     assert getattr(made.value, NATIVE_OUTCOME, False), f"the kernel refused: {made.value}"
-    with pytest.raises((EventSuppressed, EventApplicationError)) as said:
-        python_rule(twin, *arguments, **options)
-    assert type(made.value) is type(said.value)
-    assert str(made.value) == str(said.value)
-    assert _document(world) == _document(twin)
 
 
 def _unchanged(rule: Any, world: WorldState, text: str, *arguments: Any, **options: Any) -> None:
@@ -807,9 +927,9 @@ def test_a_primitive_s_argument_the_rule_turns_into_its_text(world) -> None:
     )
 
 
-def test_what_a_population_rule_s_kernel_leaves_goes_to_that_rule_s_python(world) -> None:
-    """A mobility of a type the kernel of `queue_arrivals` doesn't read: the handler's kernel calls
-    the function of domain/population.py, whose Python rule words it, as the handler's rule did."""
+def test_a_mobility_of_another_type_is_invalid_as_the_enum_says(world) -> None:
+    """A list is no Mobility: the enum raised ValueError, which the rule worded. The kernel of
+    `queue_arrivals` used to leave it to that rule; now it says the same itself."""
     zone = _zone(world)
     event = _arrival_program(world, zone)
     changed = _changed(event, payload={**event.payload, "mobility": [1]})

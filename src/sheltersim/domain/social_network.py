@@ -8,7 +8,7 @@ import math
 from typing import Any, Mapping
 
 from sheltersim import native
-from sheltersim.core.kernels import kernel_first
+from sheltersim.core.kernels import kernel_only
 from sheltersim.core.state_mirror import register_rust_validator
 from sheltersim.core.world import WorldState
 from sheltersim.domain.models import ordered_pair_key
@@ -175,30 +175,6 @@ def validate_social_network_state(world: WorldState) -> None:
             raise ValueError("social_network_v1 contact time is invalid")
 
 
-def record_contact(
-    world: WorldState,
-    *,
-    recipient_id: str,
-    sender_id: str,
-    minute: int,
-    message_id: str | None = None,
-) -> None:
-    """Record a local directed conversation and its information exchange."""
-    if recipient_id == sender_id:
-        return
-    state = _state(world)
-    record = _relationship(state, recipient_id, sender_id)
-    record["contact_count"] += 1
-    record["conversation_count"] += 1
-    record["last_contact_minute"] = minute
-    if message_id is not None and message_id not in record["shared_message_ids"]:
-        if len(record["shared_message_ids"]) >= 64:
-            record["shared_message_ids"].pop(0)
-        record["shared_message_ids"].append(message_id)
-        state["information_transfer_count"] += 1
-    state["interaction_count"] += 1
-
-
 def record_observed_contact(
     world: WorldState, *, recipient_id: str, source_id: str, minute: int
 ) -> None:
@@ -220,129 +196,29 @@ def record_observed_contacts(world: WorldState, pairs: list[tuple[str, str]], mi
         )
 
 
-def record_interaction(
-    world: WorldState,
-    *,
-    actor_id: str,
-    participant_id: str,
-    minute: int,
-    interaction: str,
-    trust_delta: float | None = None,
-    directed_trust_deltas: tuple[float | None, float | None] | None = None,
-) -> None:
-    """Record a typed social action and its existing policy trust adjustment."""
-    if actor_id == participant_id:
-        return
-    state = _state(world)
-    for index, (recipient, source) in enumerate(
-        ((actor_id, participant_id), (participant_id, actor_id))
-    ):
-        record = _relationship(state, recipient, source)
-        record["conversation_count"] += 1
-        record["last_contact_minute"] = minute
-        record["last_interaction"] = interaction
-        if interaction == "cooperation":
-            record["cooperation_count"] += 1
-        directional_delta = (
-            directed_trust_deltas[index] if directed_trust_deltas is not None else trust_delta
-        )
-        if directional_delta is not None:
-            current = record["trust"]
-            record["trust"] = min(
-                1.0, max(0.0, (0.5 if current is None else current) + directional_delta)
-            )
-    state["interaction_count"] += 1
-
-
-@kernel_first("social_network", "observe_event")
+@kernel_only("social_network", "observe_event")
 def observe_event(world: WorldState, event: ScheduledEvent, minute: int) -> None:
-    """Extract only allowlisted, structured contact data from an applied event."""
-    payload = event.payload
-    if event.event_type == "information_contact_update":
-        recipient_id = payload.get("recipient_agent_id")
-        sender_id = payload.get("sender_agent_id")
-        message_id = payload.get("message_id")
-        if isinstance(recipient_id, str) and isinstance(sender_id, str):
-            record_contact(
-                world,
-                recipient_id=recipient_id,
-                sender_id=sender_id,
-                minute=minute,
-                message_id=message_id if isinstance(message_id, str) else None,
-            )
-            _sync_body_trust(world, recipient_id, sender_id)
-        return
-    if event.event_type == "proximity_contact_update":
-        first_id = payload.get("first_agent_id")
-        second_id = payload.get("second_agent_id")
-        observed_minute = payload.get("observed_minute")
-        if (
-            isinstance(first_id, str)
-            and isinstance(second_id, str)
-            and isinstance(observed_minute, int)
-            and not isinstance(observed_minute, bool)
-        ):
-            for recipient_id, source_id in ((first_id, second_id), (second_id, first_id)):
-                record_observed_contact(
-                    world,
-                    recipient_id=recipient_id,
-                    source_id=source_id,
-                    minute=observed_minute,
-                )
-                _sync_body_trust(world, recipient_id, source_id)
-        return
-    if event.event_type != "social_interaction":
-        return
-    interaction = payload.get("interaction_type")
-    actor_id = payload.get("agent_id")
-    participant_id = payload.get("participant_agent_id")
-    if (
-        interaction
-        in {
-            "cooperation",
-            "information_reaction",
-            "reassurance_exchange",
-            "family_care",
-            "voluntary_support",
-        }
-        and isinstance(actor_id, str)
-        and isinstance(participant_id, str)
-    ):
-        # Cooperation applies the existing +0.01 per-Agent trust update in its
-        # handler; the graph mirrors that established effect without a second model.
-        directed_deltas = None
-        delta = 0.01 if interaction == "cooperation" else None
-        if interaction in {"reassurance_exchange", "family_care", "voluntary_support"}:
-            body_state = world.model_state.get("body_state_v1", {})
-            body_records = body_state.get("agents", {}) if isinstance(body_state, dict) else {}
-            actor_record = body_records.get(actor_id, {})
-            config = body_state.get("config", {}) if isinstance(body_state, dict) else {}
-            signal = min(
-                1.0,
-                max(
-                    -1.0,
-                    actor_record.get("positive_affect", 0.5)
-                    - actor_record.get("negative_affect", 0.0),
-                ),
-            )
-            relief = config.get("social_action_affect_transfer", 0.02) * signal
-            actor_delta = (
-                max(0.0, relief * 0.25)
-                if interaction in {"family_care", "voluntary_support"}
-                else 0.0
-            )
-            directed_deltas = (actor_delta, relief * 0.5)
-        record_interaction(
-            world,
-            actor_id=actor_id,
-            participant_id=participant_id,
-            minute=minute,
-            interaction=interaction,
-            trust_delta=delta,
-            directed_trust_deltas=directed_deltas,
-        )
-        _sync_body_trust(world, actor_id, participant_id)
-        _sync_body_trust(world, participant_id, actor_id)
+    """Extract only allowlisted, structured contact data from an applied event.
+
+    information_contact_update with str recipient_agent_id and sender_agent_id: the directed record
+    (recipient, sender) counts a contact and a conversation, takes last_contact_minute = minute,
+    and keeps a str message_id among its last 64 shared_message_ids (a new one counts an
+    information transfer); the interaction count grows by 1. proximity_contact_update with str
+    first_agent_id and second_agent_id and an int observed_minute (bool excluded): both directed
+    records count a contact at observed_minute, and the interaction count grows by 1 each.
+    social_interaction of cooperation, information_reaction, reassurance_exchange, family_care or
+    voluntary_support with str agent_id and participant_agent_id: both directed records count a
+    conversation at minute with last_interaction (cooperation also counts a cooperation) and move
+    trust (None counting as 0.5) by the delta, clamped to 0..1: none for information_reaction,
+    0.01 each for cooperation; for the
+    three social actions, with relief = social_action_affect_transfer (0.02) of body_state_v1's
+    config times the actor's clamped positive_affect (0.5) - negative_affect (0.0), the actor's
+    record by max(0, relief * 0.25) (0 for reassurance_exchange) and the participant's by
+    relief * 0.5; the interaction count grows by 1. Each written record then takes the trust of
+    body_state_v1's record of the same key, if it has one. One person with themselves records
+    nothing. ValueError("social_network_v1 reached the configured relationship bound") when a new
+    record would pass MAX_RELATIONSHIPS.
+    """
 
 
 def add_agent(world: WorldState, agent_id: str) -> None:
@@ -385,22 +261,6 @@ def _relationship(state: dict[str, Any], recipient_id: str, sender_id: str) -> d
             "last_interaction": None,
         }
     return relationships[key]
-
-
-def _sync_body_trust(world: WorldState, recipient_id: str, source_id: str) -> None:
-    """Mirror the body policy's one computed directed trust value into the graph."""
-    body = world.model_state.get("body_state_v1", {})
-    body_relationships = body.get("relationships", {}) if isinstance(body, dict) else {}
-    key = ordered_pair_key(recipient_id, source_id)
-    body_record = body_relationships.get(key) if isinstance(body_relationships, dict) else None
-    social = world.model_state.get(SOCIAL_NETWORK_STATE_KEY)
-    social_record = (
-        social.get("relationships", {}).get(key)
-        if isinstance(social, dict) and isinstance(social.get("relationships"), dict)
-        else None
-    )
-    if body_record is not None and social_record is not None:
-        social_record["trust"] = body_record["trust"]
 
 
 register_rust_validator(SOCIAL_NETWORK_STATE_KEY, native.state("social_network").validate)

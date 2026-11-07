@@ -1,6 +1,7 @@
 //! `domain/social_dialogue.py`: the participants' modeled state a social event carries. Both
-//! kernels only read and build. Anything but what the Python rules accept without a question says
-//! Unsupported, and they then accept it or raise their own text.
+//! kernels only read and build, and raise the Python rules' ValueError texts themselves (their Python
+//! bodies are gone: `kernel_only`). Unsupported, a `KernelRefusal` in Python, is left only for a value
+//! outside the contract: a participant ID that is not a str, an affect value that is not a number.
 //!
 //! `virtual_dialogue_example` stays in Python: it runs when a history is read, not in a tick.
 
@@ -13,6 +14,7 @@ use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple, PyType};
 use pyo3::IntoPyObjectExt;
 
+use crate::core::errors;
 use crate::core::row::{attribute, exact_int, exact_str, unsupported};
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::V;
@@ -154,14 +156,17 @@ fn validate_context(
 ) -> PyResult<()> {
     let ids = id_set(participant_ids)?;
     let ids: Vec<&Bound<'_, PyString>> = ids.iter().collect();
-    if context_is_valid(context, &ids, exact_int(due_minute)?)? {
-        Ok(())
-    } else {
-        unsupported("the context is for the Python rule to judge")
+    let due_minute = exact_int(due_minute)?;
+    if context_is_valid(context, &ids, due_minute)? {
+        return Ok(());
+    }
+    match context_problem(context, &ids, due_minute)? {
+        None => Ok(()),
+        Some(text) => Err(errors::value_error(text)),
     }
 }
 
-/// A person's values in a row, which `capture_context` copies: each must pass the validation.
+/// A person's values in a row, which `capture_context` copies; the validation then reads them.
 struct Captured {
     stress: f64,
     trust: f64,
@@ -169,17 +174,16 @@ struct Captured {
 }
 
 impl Captured {
-    fn of(row: &AgentRow) -> PyResult<Self> {
-        let captured = Self {
+    fn of(row: &AgentRow) -> Self {
+        Self {
             stress: row.stress,
             trust: row.trust,
             needs: [row.needs.toilet_urgency, row.needs.hunger, row.needs.fatigue, row.needs.hydration_need],
-        };
-        let unit = |value: f64| (0.0..=1.0).contains(&value);
-        if !unit(captured.stress) || !unit(captured.trust) || !captured.needs.iter().copied().all(unit) {
-            return unsupported("a person's value is out of bounds");
         }
-        Ok(captured)
+    }
+
+    fn in_bounds(&self) -> bool {
+        [self.stress, self.trust].iter().chain(&self.needs).all(|value| (0.0..=1.0).contains(value))
     }
 }
 
@@ -188,6 +192,8 @@ struct Capture {
     minute: i64,
     people: Vec<Captured>,
     affects: Vec<Option<[f64; 6]>>,
+    /// What `validate_social_state_context` then raises for the copy, or None.
+    problem: Option<&'static str>,
 }
 
 /// `capture_social_state_context`, for one or two IDs of no repeats in sorted order.
@@ -195,16 +201,13 @@ fn read_capture(world: &Bound<'_, PyAny>, ids: &[&str]) -> PyResult<Capture> {
     let py = world.py();
     let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
     let duration = exact_int(&attribute(world, intern!(py, "duration_minutes"))?)?;
-    if !(0..=duration).contains(&minute) {
-        return unsupported("the minute is outside the run");
-    }
     let mut people = Vec::with_capacity(ids.len());
     EntityStore::with_rows(&entities_of(world)?, |rows| {
         for id in ids {
             let Some(row) = rows.agents.get(id) else {
                 return unsupported("a participant is not in the world");
             };
-            people.push(Captured::of(row)?);
+            people.push(Captured::of(row));
         }
         Ok(())
     })?;
@@ -225,7 +228,16 @@ fn read_capture(world: &Bound<'_, PyAny>, ids: &[&str]) -> PyResult<Capture> {
         };
         affects.push(affect_of(py, record.as_ref())?);
     }
-    Ok(Capture { minute, people, affects })
+    // The validation's order: the minute, then each participant's values.
+    let unit = |value: &f64| (0.0..=1.0).contains(value);
+    let problem = if !(0..=duration).contains(&minute) {
+        Some(NOT_ITS_EVENT)
+    } else if !people.iter().all(Captured::in_bounds) || !affects.iter().flatten().all(|values| values.iter().all(unit)) {
+        Some(NOT_UNIT)
+    } else {
+        None
+    };
+    Ok(Capture { minute, people, affects, problem })
 }
 
 /// `capture_social_state_context`: one or two current participants' state, as JSON values.
@@ -236,8 +248,14 @@ fn capture_context<'py>(
 ) -> PyResult<Bound<'py, PyAny>> {
     let py = world.py();
     let mut ids = id_set(participant_ids)?;
+    let agents = attribute(world, intern!(py, "agents"))?;
     if ids.is_empty() || ids.len() > 2 {
-        return unsupported("not one or two participants");
+        return Err(errors::value_error(NOT_ONE_OR_TWO));
+    }
+    for id in &ids {
+        if !agents.contains(id)? {
+            return Err(errors::value_error(NOT_ONE_OR_TWO));
+        }
     }
     // sorted(): Python orders str by code point, the same as UTF-8 bytes.
     if ids.len() == 2 && ids[0].to_str()?.as_bytes() > ids[1].to_str()?.as_bytes() {
@@ -245,6 +263,9 @@ fn capture_context<'py>(
     }
     let names = ids.iter().map(|id| id.to_str()).collect::<PyResult<Vec<_>>>()?;
     let capture = read_capture(world, &names)?;
+    if let Some(text) = capture.problem {
+        return Err(errors::value_error(text));
+    }
     let participants = PyDict::new(py);
     for ((id, person), affect) in ids.iter().zip(&capture.people).zip(&capture.affects) {
         let state = PyDict::new(py);
@@ -303,6 +324,9 @@ pub(crate) fn context_value(world: &Bound<'_, PyAny>, first: &str, second: &str)
     let (low, high) = if first.as_bytes() <= second.as_bytes() { (first, second) } else { (second, first) };
     let ids = [low, high];
     let capture = read_capture(world, &ids)?;
+    if capture.problem.is_some() {
+        return unsupported("a participant's value is out of bounds");
+    }
     let names = &*NAMES;
     let mut participants = IndexMap::with_capacity(2);
     for ((id, person), affect) in ids.iter().zip(&capture.people).zip(&capture.affects) {
@@ -327,7 +351,8 @@ pub(crate) fn context_value(world: &Bound<'_, PyAny>, first: &str, second: &str)
     Ok(V::Map(context))
 }
 
-/// The affect of a body record: the values of `AFFECT`, or None without a record that has them all.
+/// The affect of a body record: `float()` of the values of `AFFECT`, or None without a record that
+/// has them all. A value of a type other than a float, an int or a bool is outside the contract.
 fn affect_of<'py>(py: Python<'py>, record: Option<&Bound<'py, PyAny>>) -> PyResult<Option<[f64; 6]>> {
     let Some(record) = record else {
         return Ok(None);
@@ -338,16 +363,27 @@ fn affect_of<'py>(py: Python<'py>, record: Option<&Bound<'py, PyAny>>) -> PyResu
         }
         return Ok(None);
     };
-    let mut affect = [0.0; 6];
-    for (slot, name) in affect.iter_mut().zip(AFFECT) {
-        let key = PyString::intern(py, name);
-        let Some(value) = fields.get_item(&key)? else {
+    let mut values = Vec::with_capacity(AFFECT.len());
+    for name in AFFECT {
+        let Some(value) = fields.get_item(PyString::intern(py, name))? else {
             return Ok(None);
         };
-        if !is_unit(&value) {
-            return unsupported("an affect value is for the Python rule to judge");
-        }
-        *slot = value.extract()?;
+        values.push(value);
+    }
+    let mut affect = [0.0; 6];
+    for (slot, value) in affect.iter_mut().zip(values) {
+        *slot = if let Ok(number) = value.downcast_exact::<PyFloat>() {
+            number.value()
+        } else if let Ok(flag) = value.downcast_exact::<PyBool>() {
+            f64::from(u8::from(flag.is_true()))
+        } else if let Ok(number) = value.downcast_exact::<PyInt>() {
+            match number.extract::<i64>() {
+                Ok(number) => number as f64,
+                Err(_) => return unsupported("an affect value is an int past 64 bits"),
+            }
+        } else {
+            return unsupported("an affect value is not a number");
+        };
     }
     Ok(Some(affect))
 }
@@ -431,48 +467,62 @@ fn is_version_one(value: &Bound<'_, PyAny>) -> PyResult<bool> {
     unsupported("a value of another type is for the Python rule to judge")
 }
 
+/// The texts of `validate_social_state_context`, in its order of checks.
+const NOT_ITS_EVENT: &str = "social dialogue state context does not match its event";
+const STATE_FIELDS: &str = "social dialogue participant state has unsupported fields";
+const NEEDS_INVALID: &str = "social dialogue needs context is invalid";
+const AFFECT_INVALID: &str = "social dialogue affect context is invalid";
+const NOT_UNIT: &str = "social dialogue state values must be finite and within 0..1";
+const NOT_ONE_OR_TWO: &str = "social dialogue context requires one or two current participants";
+
 /// `validate_social_state_context(context, ids, due_minute)` returns (true) or raises its ValueError
 /// (false). `ids` have no repeats.
 pub(crate) fn context_verdict(context: &Bound<'_, PyAny>, ids: &[&Bound<'_, PyString>], due_minute: i64) -> PyResult<bool> {
+    Ok(context_problem(context, ids, due_minute)?.is_none())
+}
+
+/// The text `validate_social_state_context(context, ids, due_minute)` raises, or None where it
+/// returns. `ids` have no repeats.
+fn context_problem(context: &Bound<'_, PyAny>, ids: &[&Bound<'_, PyString>], due_minute: i64) -> PyResult<Option<&'static str>> {
     let py = context.py();
     if !is_mapping(context)? || !keys_are(context, &["schema_version", "captured_minute", "participants"])? {
-        return Ok(false);
+        return Ok(Some(NOT_ITS_EVENT));
     }
     if !is_version_one(&context.get_item(intern!(py, "schema_version"))?)? {
-        return Ok(false);
+        return Ok(Some(NOT_ITS_EVENT));
     }
     // `type(captured) is not int or not 0 <= captured <= due_minute`: an int past 64 bits is outside.
     let captured = context.get_item(intern!(py, "captured_minute"))?;
     let Ok(captured) = captured.downcast_exact::<PyInt>() else {
-        return Ok(false);
+        return Ok(Some(NOT_ITS_EVENT));
     };
     if !captured.extract::<i64>().is_ok_and(|minute| (0..=due_minute).contains(&minute)) {
-        return Ok(false);
+        return Ok(Some(NOT_ITS_EVENT));
     }
     let participants = context.get_item(intern!(py, "participants"))?;
     if !is_mapping(&participants)? || participants.len()? != ids.len() {
-        return Ok(false);
+        return Ok(Some(NOT_ITS_EVENT));
     }
     for id in ids {
         if !participants.contains(*id)? {
-            return Ok(false);
+            return Ok(Some(NOT_ITS_EVENT));
         }
     }
     for state in participants.call_method0(intern!(py, "values"))?.try_iter()? {
         let state = state?;
         if !is_mapping(&state)? || !keys_are(&state, &["stress", "trust", "needs", "affect"])? {
-            return Ok(false);
+            return Ok(Some(STATE_FIELDS));
         }
         if !unit_verdict(&state.get_item(intern!(py, "stress"))?)? || !unit_verdict(&state.get_item(intern!(py, "trust"))?)? {
-            return Ok(false);
+            return Ok(Some(NOT_UNIT));
         }
         let needs = state.get_item(intern!(py, "needs"))?;
         if !is_mapping(&needs)? || !keys_are(&needs, &NEEDS)? {
-            return Ok(false);
+            return Ok(Some(NEEDS_INVALID));
         }
         for value in needs.call_method0(intern!(py, "values"))?.try_iter()? {
             if !unit_verdict(&value?)? {
-                return Ok(false);
+                return Ok(Some(NOT_UNIT));
             }
         }
         let affect = state.get_item(intern!(py, "affect"))?;
@@ -480,15 +530,15 @@ pub(crate) fn context_verdict(context: &Bound<'_, PyAny>, ids: &[&Bound<'_, PySt
             continue;
         }
         if !is_mapping(&affect)? || !keys_are(&affect, &AFFECT)? {
-            return Ok(false);
+            return Ok(Some(AFFECT_INVALID));
         }
         for value in affect.call_method0(intern!(py, "values"))?.try_iter()? {
             if !unit_verdict(&value?)? {
-                return Ok(false);
+                return Ok(Some(NOT_UNIT));
             }
         }
     }
-    Ok(true)
+    Ok(None)
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

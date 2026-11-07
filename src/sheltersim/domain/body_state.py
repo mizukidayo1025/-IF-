@@ -10,10 +10,9 @@ from typing import Any
 
 from sheltersim import native
 from sheltersim.core.history import records_since_previous_tick
-from sheltersim.core.kernels import kernel_first
+from sheltersim.core.kernels import kernel_only
 from sheltersim.core.state_mirror import rust_accepts
 from sheltersim.core.world import WorldState
-from sheltersim.domain.models import ordered_pair_key
 from sheltersim.policies.affect import create_affect_policy
 
 BODY_STATE_KEY = "body_state_v1"
@@ -467,387 +466,37 @@ def remove_body_agent(world: WorldState, agent_id: str) -> dict[str, Any] | None
     return removed
 
 
-@kernel_first("body_state", "record_social_event")
+@kernel_only("body_state", "record_social_event")
 def record_social_event(world: WorldState, event: Any, minute: int) -> None:
-    """Apply bounded affect and trust changes only from typed, applied simulation events."""
-    state = world.model_state.get(BODY_STATE_KEY)
-    if state is None:
-        return
-    payload = event.payload
-    transfers: list[tuple[str, str, str, dict[str, float]]] = []
-    if event.event_type == "proximity_contact_update":
-        first, second = payload.get("first_agent_id"), payload.get("second_agent_id")
-        observed_minute = payload.get("observed_minute")
-        distance = payload.get("distance_m")
-        duration = payload.get("contact_minutes")
-        if (
-            first in world.agents
-            and second in world.agents
-            and first != second
-            and isinstance(observed_minute, int)
-            and not isinstance(observed_minute, bool)
-        ):
-            for recipient, sender in ((first, second), (second, first)):
-                _record_relationship(
-                    state,
-                    recipient,
-                    sender,
-                    observed_minute,
-                    "observed_proximity_contact",
-                    None,
-                    duration,
-                    distance_m=distance,
-                    event_id=event.event_id,
-                    causation_id=event.causation_id,
-                    model_configs=world.model_configs,
-                )
-    elif event.event_type == "information_contact_update":
-        sender, recipient = payload.get("sender_agent_id"), payload.get("recipient_agent_id")
-        if sender in world.agents and recipient in world.agents and sender != recipient:
-            source = state["agents"][sender]
-            target = state["agents"][recipient]
-            before = dict(target)
-            rate = state["config"]["affect_transfer_rate"]
-            from sheltersim.policies.registry import create_affect
+    """Apply bounded affect and trust changes only from typed, applied simulation events.
 
-            policy = create_affect(world.model_configs)
-            contribution = policy.contact(
-                source,
-                target,
-                rate=rate,
-                relationship_trust=_relationship_trust(state, recipient, sender),
-            )
-            _apply_affect_contribution(target, contribution)
-            transfers.append(
-                (recipient, sender, "information_contact", _body_deltas(before, target))
-            )
-            _record_relationship(
-                state,
-                recipient,
-                sender,
-                minute,
-                "information_contact",
-                payload.get("message_id"),
-                payload.get("contact_minutes", 1),
-                distance_m=_recorded_contact_distance(world, recipient, sender),
-                event_id=event.event_id,
-                causation_id=event.causation_id,
-                model_configs=world.model_configs,
-            )
-    elif event.event_type == "social_interaction":
-        interaction = payload.get("interaction_type")
-        actor = payload.get("agent_id")
-        participant = payload.get("participant_agent_id")
-        if interaction == "cooperation" and actor in world.agents and participant in world.agents:
-            config = state["config"]
-            from sheltersim.policies.registry import create_affect
+    Nothing without body_state_v1. Each change below is clamped to 0..1 and its history item (kind,
+    sorted actor_ids, the str message_id or topic_id, causation_id, the changed fields' deltas, the
+    contact distance of two people with positions, a positive finite
+    interaction_duration_minutes or contact_minutes) joins the last MAX_SOCIAL_HISTORY items:
 
-            policy = create_affect(world.model_configs)
-            for agent_id in (actor, participant):
-                record = state["agents"][agent_id]
-                before = dict(record)
-                other_id = participant if agent_id == actor else actor
-                trust_scale = policy.social_action(
-                    1.0,
-                    rate=1.0,
-                    relationship_trust=_relationship_trust(state, agent_id, other_id),
-                ).positive_affect
-                record["positive_affect"] = _unit(
-                    record["positive_affect"] + config["cooperation_positive_gain"] * trust_scale
-                )
-                record["negative_affect"] = _unit(
-                    record["negative_affect"]
-                    - config["cooperation_negative_reduction"] * trust_scale
-                )
-                record["reassurance"] = _unit(
-                    record["reassurance"] + config["cooperation_reassurance_gain"] * trust_scale
-                )
-                record["discontent"] = _unit(
-                    record["discontent"] - config["cooperation_discontent_reduction"] * trust_scale
-                )
-                transfers.append((actor, agent_id, "cooperation", _body_deltas(before, record)))
-            duration = payload.get("interaction_duration_minutes", 1)
-            _record_relationship(
-                state,
-                actor,
-                participant,
-                minute,
-                "cooperation",
-                payload.get("topic_id"),
-                duration,
-                distance_m=_recorded_contact_distance(world, actor, participant),
-                event_id=event.event_id,
-                causation_id=event.causation_id,
-                model_configs=world.model_configs,
-            )
-            _record_relationship(
-                state,
-                participant,
-                actor,
-                minute,
-                "cooperation",
-                payload.get("topic_id"),
-                duration,
-                distance_m=_recorded_contact_distance(world, participant, actor),
-                event_id=event.event_id,
-                causation_id=event.causation_id,
-                model_configs=world.model_configs,
-            )
-        elif (
-            interaction in {"reassurance_exchange", "family_care", "voluntary_support"}
-            and actor in world.agents
-            and participant in world.agents
-        ):
-            actor_record = state["agents"][actor]
-            target_record = state["agents"][participant]
-            before = dict(target_record)
-            signal = _unit(actor_record["positive_affect"] - actor_record["negative_affect"])
-            if actor_record["positive_affect"] < actor_record["negative_affect"]:
-                signal = -_unit(actor_record["negative_affect"] - actor_record["positive_affect"])
-            from sheltersim.policies.registry import create_affect
+    - proximity_contact_update of two different current Agents with an int observed_minute: each
+      directed relationship is recorded ("observed_proximity_contact", the payload's distance_m
+      and contact_minutes), with no affect change.
+    - information_contact_update of two different current Agents: the selected affect policy's
+      contact contribution of the sender to the recipient (affect_transfer_rate, the directed
+      relationship's trust or 0.5), and the relationship recorded ("information_contact").
+    - social_interaction "cooperation" of two current Agents: for each, the policy's social-action
+      scale of the relationship's trust times the cooperation gains and reductions of the config;
+      both relationships recorded. "reassurance_exchange", "family_care", "voluntary_support":
+      the actor's signed positive - negative affect through the policy's social action
+      (social_action_affect_transfer) on the participant (uncertainty only for
+      reassurance_exchange); the participant's relationship recorded. "complaint_response" of a
+      current actor: the complaint gains, and negative_affect - 0.01.
+    - information_correction: each Agent in the zone (under evidence-aware-rumor-v1 only those whose
+      belief of the message was last corrected and accepted by this event) loses
+      correction_uncertainty_reduction of uncertainty, gains correction_reassurance_gain and loses
+      0.01 of negative_affect.
 
-            policy = create_affect(world.model_configs)
-            contribution = policy.social_action(
-                signal,
-                rate=state["config"]["social_action_affect_transfer"],
-                relationship_trust=_relationship_trust(state, participant, actor),
-            )
-            _apply_affect_contribution(
-                target_record,
-                contribution,
-                include_uncertainty=interaction == "reassurance_exchange",
-            )
-            transfers.append((actor, participant, interaction, _body_deltas(before, target_record)))
-            _record_relationship(
-                state,
-                participant,
-                actor,
-                minute,
-                interaction,
-                payload.get("topic_id"),
-                payload.get("interaction_duration_minutes", 1),
-                distance_m=_recorded_contact_distance(world, participant, actor),
-                event_id=event.event_id,
-                causation_id=event.causation_id,
-                model_configs=world.model_configs,
-            )
-        elif interaction == "complaint_response" and actor in world.agents:
-            record = state["agents"][actor]
-            config = state["config"]
-            before = dict(record)
-            record["reassurance"] = _unit(
-                record["reassurance"] + config["complaint_reassurance_gain"]
-            )
-            record["discontent"] = _unit(
-                record["discontent"] - config["complaint_discontent_reduction"]
-            )
-            record["negative_affect"] = _unit(record["negative_affect"] - 0.01)
-            transfers.append((actor, actor, "complaint_response", _body_deltas(before, record)))
-    elif event.event_type == "information_correction":
-        zone_id = payload.get("zone_id")
-        from sheltersim.contracts.policies import selected_models
-
-        evidence_aware = (
-            selected_models(world.model_configs)["information"] == "evidence-aware-rumor-v1"
-        )
-        information_state = world.model_state.get("information_spread_v1", {})
-        message_id = payload.get("message_id")
-        for actor in sorted(
-            agent_id for agent_id, agent in world.agents.items() if agent.zone_id == zone_id
-        ):
-            if evidence_aware:
-                raw = information_state.get("beliefs", {}).get(actor, {}).get(message_id)
-                if (
-                    raw is None
-                    or raw.get("last_event_id") != event.event_id
-                    or not raw.get("last_correction_accepted", False)
-                ):
-                    continue
-            record = state["agents"][actor]
-            before = dict(record)
-            record["uncertainty"] = _unit(
-                record["uncertainty"] - state["config"]["correction_uncertainty_reduction"]
-            )
-            record["reassurance"] = _unit(
-                record["reassurance"] + state["config"]["correction_reassurance_gain"]
-            )
-            record["negative_affect"] = _unit(record["negative_affect"] - 0.01)
-            transfers.append((actor, actor, "information_correction", _body_deltas(before, record)))
-    for actor, other, kind, deltas in transfers:
-        distance = _recorded_contact_distance(world, actor, other) if actor != other else None
-        if distance is not None:
-            deltas["contact_distance_m"] = distance
-        duration = payload.get("interaction_duration_minutes", payload.get("contact_minutes"))
-        if (
-            isinstance(duration, (int, float))
-            and not isinstance(duration, bool)
-            and math.isfinite(duration)
-            and duration > 0
-        ):
-            deltas["contact_duration_minutes"] = float(duration)
-        history = state["history"]
-        history.append(
-            {
-                "event_id": event.event_id,
-                "minute": minute,
-                "kind": kind,
-                "actor_ids": sorted({actor, other}),
-                "topic_id": (
-                    payload.get("message_id")
-                    if isinstance(payload.get("message_id"), str)
-                    else payload.get("topic_id")
-                    if isinstance(payload.get("topic_id"), str)
-                    else None
-                ),
-                "causation_id": event.causation_id,
-                "deltas": deltas,
-            }
-        )
-        if len(history) > MAX_SOCIAL_HISTORY:
-            del history[: len(history) - MAX_SOCIAL_HISTORY]
-
-
-def _body_deltas(before: dict[str, Any], after: dict[str, Any]) -> dict[str, float]:
-    """Record only measured changes to fields that the typed event actually modified."""
-    return {
-        field: after[field] - before[field]
-        for field in sorted(set(before) & set(after))
-        if isinstance(before[field], (int, float))
-        and isinstance(after[field], (int, float))
-        and after[field] != before[field]
-    }
-
-
-def _recorded_contact_distance(world: WorldState, first_id: str, second_id: str) -> float | None:
-    """Return observed coordinate distance only when both runtime positions exist."""
-    movement = world.model_state.get("movement_v1")
-    positions = movement.get("positions", {}) if isinstance(movement, dict) else {}
-    first_record = positions.get(first_id, {}) if isinstance(positions, dict) else {}
-    second_record = positions.get(second_id, {}) if isinstance(positions, dict) else {}
-    first, second = first_record.get("point"), second_record.get("point")
-    if (
-        not isinstance(first, dict)
-        or not isinstance(second, dict)
-        or not all(
-            isinstance(value, (int, float)) and not isinstance(value, bool)
-            for value in (*first.values(), *second.values())
-        )
-        or set(first) != {"x", "y"}
-        or set(second) != {"x", "y"}
-    ):
-        return None
-    return math.hypot(
-        float(second["x"]) - float(first["x"]), float(second["y"]) - float(first["y"])
-    )
-
-
-def _relationship_trust(state: dict[str, Any], recipient: str, sender: str) -> float:
-    key = ordered_pair_key(recipient, sender)
-    record = state["relationships"].get(key)
-    value = record.get("trust") if isinstance(record, dict) else None
-    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0.5
-
-
-def _apply_affect_contribution(
-    record: dict[str, Any], contribution: Any, *, include_uncertainty: bool = True
-) -> None:
-    for field in ("positive_affect", "negative_affect", "reassurance", "discontent"):
-        record[field] = _unit(record[field] + getattr(contribution, field))
-    if include_uncertainty:
-        record["uncertainty"] = _unit(record["uncertainty"] + contribution.uncertainty)
-
-
-def _record_relationship(
-    state: dict[str, Any],
-    recipient: str,
-    sender: str,
-    minute: int,
-    kind: str,
-    topic: Any,
-    duration_minutes: Any = 1,
-    *,
-    distance_m: float | None = None,
-    event_id: str | None = None,
-    causation_id: str | None = None,
-    model_configs: dict[str, dict[str, Any]] | None = None,
-) -> None:
-    key = ordered_pair_key(recipient, sender)
-    relationships = state["relationships"]
-    record = relationships.get(key)
-    if record is None:
-        if len(relationships) >= MAX_SOCIAL_RELATIONSHIPS:
-            return
-        relationships[key] = {
-            "contact_count": 0,
-            "trust": 0.5,
-            "contact_minutes": 0,
-            "last_contact_minute": None,
-            "last_interaction": None,
-            "topic_ids": [],
-        }
-        record = relationships[key]
-    previous_minute = record["last_contact_minute"]
-    elapsed = 0 if previous_minute is None else max(0, minute - previous_minute)
-    gain = state["config"]["relationship_trust_gain"]
-    scale = max(1, state["config"].get("social_interaction_minutes", 5))
-    duration = (
-        float(duration_minutes)
-        if isinstance(duration_minutes, (int, float))
-        and not isinstance(duration_minutes, bool)
-        and math.isfinite(duration_minutes)
-        and duration_minutes >= 0
-        else 1.0
-    )
-    from sheltersim.policies.relationships import create_relationship_policy
-
-    policy = create_relationship_policy(model_configs or {})
-    before_trust = float(record["trust"])
-    record["trust"] = policy.update_trust(
-        before_trust,
-        duration_minutes=duration,
-        interaction_scale_minutes=scale,
-        prior_contact_count=record["contact_count"],
-        elapsed_minutes=elapsed,
-        trust_gain=gain,
-        trust_decay_per_day=state["config"]["relationship_trust_decay_per_day"],
-        distance_m=distance_m,
-    )
-    record["contact_count"] += 1
-    record["contact_minutes"] += int(math.ceil(duration))
-    record["last_contact_minute"] = minute
-    record["last_interaction"] = kind
-    if isinstance(topic, str) and topic not in record["topic_ids"]:
-        record["topic_ids"] = (record["topic_ids"] + [topic])[-32:]
-    history = state["history"]
-    if event_id is not None:
-        deltas: dict[str, Any] = {
-            "relationship_trust_before": before_trust,
-            "relationship_trust_after": record["trust"],
-            "relationship_trust_delta": record["trust"] - before_trust,
-            "contact_duration_minutes": duration,
-            "relationship_policy_id": policy.model_id,
-            "relationship_policy_version": policy.implementation_version,
-            "relationship_policy_source_id": policy.source_id,
-        }
-        if distance_m is not None and math.isfinite(distance_m) and distance_m >= 0:
-            deltas["contact_distance_m"] = distance_m
-        history.append(
-            {
-                "event_id": event_id,
-                "minute": minute,
-                "kind": "relationship_update",
-                "actor_ids": sorted({recipient, sender}),
-                "topic_id": topic if isinstance(topic, str) else None,
-                "causation_id": causation_id,
-                "deltas": deltas,
-            }
-        )
-        if len(history) > MAX_SOCIAL_HISTORY:
-            del history[: len(history) - MAX_SOCIAL_HISTORY]
-
-
-def _unit(value: float) -> float:
-    return min(1.0, max(0.0, value))
+    Recording a relationship creates it (trust 0.5) unless MAX_SOCIAL_RELATIONSHIPS are held, moves
+    its trust by the selected relationship policy, counts the contact and its minutes, and appends
+    a "relationship_update" history item.
+    """
 
 
 def _registry_affect_model(world: WorldState) -> str | None:

@@ -23,7 +23,7 @@ use crate::rules::movement_geometry::{Geo, Pt};
 use crate::rules::population::{
     schedule_population_retry, cancel_agent_events, check_admission_paths, check_information, check_queue_rows, check_relationship_keys, drop_support_requests, event_row,
     filter_support_requests, get, get_map, has_namespace, identifier, is_dict, namespace, optional_identifier, optional_text, pair_of,
-    payload, person_in, place_in_room, planning, presence_is_plain, presence_state, profile_object, record_hash, release_room, reset_position,
+    payload, person_in, place_in_room, planning, invalid, as_refusal, is_one, presence_is_plain, presence_state, profile_object, record_hash, release_room, reset_position,
     sha_hex, sorted_keys, sorted_set, strings, text, v_map, write_presence, write_room_admission, writing, Person, Places, Transition, AGENT_DYNAMICS,
     BODY, INFORMATION, MOVEMENT, PRESENCE, SOCIAL_NETWORK, SOCIAL_RUNTIME,
 };
@@ -1424,58 +1424,95 @@ fn zone_has_room(world: &Bound<'_, PyAny>, zone_id: &Bound<'_, PyAny>, excluding
 
 // ---- `validate_population_lifecycle_state` -------------------------------------------------------
 
-fn snapshot_is_plain(raw: &V, expected_id: &str) -> PyResult<()> {
-    let V::Map(fields) = raw else {
-        return unsupported("a snapshot is not a mapping");
-    };
-    const FIELDS: [&str; 10] = ["profile", "zone_id", "activity", "target_id", "needs", "stress", "trust", "next_decision_at", "support_request_id", "support_cooldown_until"];
-    if fields.len() != FIELDS.len() || FIELDS.iter().any(|key| !fields.contains_key(*key)) {
-        return unsupported("a snapshot has other fields");
+/// `_validate_json(value)`: `json.dumps(value, allow_nan=False, sort_keys=True)`, whose ValueError
+/// for a value that is not finite is Python's own text. A value read into `V` holds nothing else
+/// `json.dumps` refuses.
+fn json_checked(value: &V) -> PyResult<()> {
+    if all_finite(value) {
+        return Ok(());
     }
-    let Some(V::Map(profile)) = fields.get("profile") else {
-        return unsupported("a snapshot's profile is not a mapping");
-    };
-    const PROFILE: [&str; 9] = ["id", "group_id", "initial_zone_id", "mobility", "support_need", "stress_sensitivity", "rng_key", "initial_needs", "provenance"];
-    if profile.len() != PROFILE.len() || PROFILE.iter().any(|key| !profile.contains_key(*key)) || !matches!(profile.get("id"), Some(V::Str(id)) if &**id == expected_id) || !matches!(profile.get("initial_needs"), Some(V::Map(_))) {
-        return unsupported("a snapshot's profile is other");
-    }
-    let py_ok = Python::with_gil(|py| -> PyResult<bool> {
-        let models = py.import("sheltersim.domain.models")?;
-        let activity = fields.get("activity").ok_or_else(|| Unsupported::new_err("no activity"))?.to_py(py)?;
-        let mobility = profile.get("mobility").ok_or_else(|| Unsupported::new_err("no mobility"))?.to_py(py)?;
-        Ok(models.getattr("Activity")?.call1((activity,)).is_ok() && models.getattr("Mobility")?.call1((mobility,)).is_ok())
-    })?;
-    if !py_ok {
-        return unsupported("a snapshot's enum is another value");
-    }
-    for value in [fields.get("stress"), fields.get("trust"), profile.get("support_need"), profile.get("stress_sensitivity")] {
-        let number = match value {
-            Some(V::Float(number)) => *number,
-            Some(V::Int(number)) => *number as f64,
-            _ => return unsupported("a snapshot's value is not a number"),
-        };
-        if !number.is_finite() || !(0.0..=1.0).contains(&number) {
-            return unsupported("a snapshot's value is out of range");
+    Python::with_gil(|py| {
+        let keywords = PyDict::new(py);
+        keywords.set_item("allow_nan", false)?;
+        keywords.set_item("sort_keys", true)?;
+        match py.import("json")?.getattr("dumps")?.call((value.to_py(py)?,), Some(&keywords)) {
+            Ok(_) => unsupported("json.dumps took a value that is not finite"),
+            Err(error) if error.is_instance_of::<PyValueError>(py) => invalid(&error.value(py).str()?.to_string_lossy()),
+            Err(error) => Err(error),
         }
-    }
-    Ok(())
+    })
 }
 
-/// `validate_population_lifecycle_state`, of a state it certainly accepts: Unsupported otherwise.
-/// `leaving` is a person whose finished relocation is about to be dropped.
+/// `Activity(value)` or `Mobility(value)`: the enum's ValueError, as a validation's.
+fn enum_checked(py: Python<'_>, name: &str, value: &V) -> PyResult<()> {
+    let models = py.import("sheltersim.domain.models")?;
+    match models.getattr(name)?.call1((value.to_py(py)?,)) {
+        Ok(_) => Ok(()),
+        Err(error) if error.is_instance_of::<PyValueError>(py) => invalid(&error.value(py).str()?.to_string_lossy()),
+        Err(error) => Err(error),
+    }
+}
+
+/// `_validate_agent_snapshot`.
+fn snapshot_checked(raw: &V, expected_id: &str) -> PyResult<()> {
+    const FIELDS: [&str; 10] = ["profile", "zone_id", "activity", "target_id", "needs", "stress", "trust", "next_decision_at", "support_request_id", "support_cooldown_until"];
+    let fields = match raw {
+        V::Map(fields) if fields.len() == FIELDS.len() && FIELDS.iter().all(|key| fields.contains_key(*key)) => fields,
+        _ => return invalid("population lifecycle Agent snapshot has an invalid schema"),
+    };
+    let profile = match fields.get("profile") {
+        Some(V::Map(profile)) if matches!(profile.get("id"), Some(V::Str(id)) if &**id == expected_id) => profile,
+        _ => return invalid("population lifecycle Agent snapshot identity is invalid"),
+    };
+    const PROFILE: [&str; 9] = ["id", "group_id", "initial_zone_id", "mobility", "support_need", "stress_sensitivity", "rng_key", "initial_needs", "provenance"];
+    if profile.len() != PROFILE.len() || PROFILE.iter().any(|key| !profile.contains_key(*key)) || !matches!(profile.get("initial_needs"), Some(V::Map(_))) {
+        return invalid("population lifecycle profile snapshot is invalid");
+    }
+    Python::with_gil(|py| -> PyResult<()> {
+        enum_checked(py, "Activity", fields.get("activity").ok_or_else(|| Unsupported::new_err("no activity"))?)?;
+        enum_checked(py, "Mobility", profile.get("mobility").ok_or_else(|| Unsupported::new_err("no mobility"))?)
+    })?;
+    for value in [fields.get("stress"), fields.get("trust"), profile.get("support_need"), profile.get("stress_sensitivity")] {
+        let good = match value {
+            Some(V::Float(number)) => number.is_finite() && (0.0..=1.0).contains(number),
+            Some(V::Int(number)) => (0..=1).contains(number),
+            _ => false,
+        };
+        if !good {
+            return invalid("population lifecycle normalized Agent value is invalid");
+        }
+    }
+    json_checked(raw)
+}
+
+/// `value in mapping` of a value Python hashes as it is: false for a scalar that is not a str.
+fn scalar_in(value: &V, contains: impl FnOnce(&str) -> PyResult<bool>) -> PyResult<bool> {
+    match value {
+        V::Str(text) => contains(text),
+        V::List(_) | V::Map(_) => unsupported("a key is not hashable"),
+        _ => Ok(false),
+    }
+}
+
+const LIFECYCLE_SCHEMA: &str = "population_lifecycle_v1 has an invalid exact schema";
+
+/// `validate_population_lifecycle_state`: its ValueErrors in its order of checks. Unsupported, a
+/// `KernelRefusal` in Python, for what `PresenceState` decided (its plain form is read here) and for
+/// a key that is not hashable. `leaving` is a person whose finished relocation is about to be
+/// dropped.
 fn check_lifecycle(world: &Bound<'_, PyAny>, leaving: Option<&str>) -> PyResult<()> {
     let py = world.py();
     let Some(state) = namespace(world, KEY)? else {
         return Ok(());
     };
     let V::Map(document) = V::from_py(&state)? else {
-        return unsupported("the lifecycle state is not a mapping");
+        return invalid(LIFECYCLE_SCHEMA);
     };
     const FIELDS: [&str; 10] = ["schema_version", "policy_version", "source_id", "people", "relationship_archive", "messages", "deferred_beliefs", "pending_returns", "pending_relocations", "history"];
     if document.len() != FIELDS.len() || FIELDS.iter().any(|key| !document.contains_key(*key)) {
-        return unsupported("the lifecycle state has other fields");
+        return invalid(LIFECYCLE_SCHEMA);
     }
-    let header = matches!(document.get("schema_version"), Some(V::Int(1)))
+    let header = is_one(document.get("schema_version"))
         && matches!(document.get("policy_version"), Some(V::Str(text)) if &**text == POLICY_VERSION)
         && matches!(document.get("source_id"), Some(V::Str(text)) if &**text == SOURCE_ID);
     let (Some(V::Map(people)), Some(V::List(archive)), Some(V::Map(messages)), Some(V::Map(deferred)), Some(V::List(returns)), Some(V::Map(relocations)), Some(V::List(history_rows))) = (
@@ -1487,80 +1524,118 @@ fn check_lifecycle(world: &Bound<'_, PyAny>, leaving: Option<&str>) -> PyResult<
         document.get("pending_relocations"),
         document.get("history"),
     ) else {
-        return unsupported("the lifecycle state's parts are something else");
+        return invalid(LIFECYCLE_SCHEMA);
     };
     if !header || people.len() > MAX_RETAINED_PEOPLE || archive.len() > MAX_RELATIONSHIP_ARCHIVE || history_rows.len() > MAX_HISTORY {
-        return unsupported("the lifecycle state's header is other");
-    }
-    if !all_finite(&V::Map(document.clone())) {
-        return unsupported("the lifecycle state holds a value that is not finite");
+        return invalid(LIFECYCLE_SCHEMA);
     }
     let agents = attribute(world, intern!(py, "agents"))?;
     let zones = attribute(world, intern!(py, "zones"))?;
+    const PERSON: &str = "population_lifecycle_v1 archived person is invalid";
     const RECORD: [&str; 6] = ["agent", "agent_dynamics", "body_agent", "information", "since_minute", "source_event_ids"];
     for (agent_id, record) in people {
         let V::Map(fields) = record else {
-            return unsupported("an archived person is not a mapping");
+            return invalid(PERSON);
         };
         if agents.contains(&**agent_id)? || fields.len() != RECORD.len() || RECORD.iter().any(|key| !fields.contains_key(*key)) {
-            return unsupported("an archived person is invalid");
+            return invalid(PERSON);
         }
         if !matches!(fields.get("since_minute"), Some(V::Int(minute)) if *minute >= 0) || !matches!(fields.get("source_event_ids"), Some(V::List(_))) {
-            return unsupported("an archived person's fields are other");
+            return invalid(PERSON);
         }
         let Some(V::Map(information)) = fields.get("information") else {
-            return unsupported("an archived person's information is other");
+            return invalid(PERSON);
         };
         if information.len() != 2 || !matches!(information.get("beliefs"), Some(V::Map(_))) || !information.contains_key("query_pressure") {
-            return unsupported("an archived person's information is other");
+            return invalid(PERSON);
         }
-        snapshot_is_plain(fields.get("agent").ok_or_else(|| Unsupported::new_err("no agent"))?, agent_id)?;
+        snapshot_checked(fields.get("agent").ok_or_else(|| Unsupported::new_err("no agent"))?, agent_id)?;
+        json_checked(record)?;
     }
     let mut pending_ids: Vec<&str> = Vec::with_capacity(returns.len());
+    const RETURN_INVALID: &str = "population_lifecycle_v1 pending return is invalid";
     const RETURN: [&str; 6] = ["agent_id", "zone_id", "event_id", "minute", "household_id", "source_ids"];
     for item in returns {
         let V::Map(fields) = item else {
-            return unsupported("a pending return is not a mapping");
+            return invalid(RETURN_INVALID);
         };
         if fields.len() != RETURN.len() || RETURN.iter().any(|key| !fields.contains_key(*key)) {
-            return unsupported("a pending return has other fields");
+            return invalid(RETURN_INVALID);
         }
-        let (Some(V::Str(agent_id)), Some(V::Str(zone)), Some(V::Str(_)), Some(V::Int(minute)), Some(V::List(_))) =
-            (fields.get("agent_id"), fields.get("zone_id"), fields.get("event_id"), fields.get("minute"), fields.get("source_ids"))
-        else {
-            return unsupported("a pending return's fields are other");
+        let (Some(agent_value), Some(zone_value)) = (fields.get("agent_id"), fields.get("zone_id")) else {
+            return invalid(RETURN_INVALID);
         };
-        if !people.contains_key(agent_id) || agents.contains(&**agent_id)? || !zones.contains(&**zone)? || pending_ids.contains(&&**agent_id) || *minute < 0 {
-            return unsupported("a pending return is invalid");
+        if !scalar_in(agent_value, |id| Ok(people.contains_key(id)))? {
+            return invalid(RETURN_INVALID);
+        }
+        let V::Str(agent_id) = agent_value else {
+            return unsupported("a returning ID is not a str");
+        };
+        if agents.contains(&**agent_id)? || !scalar_in(zone_value, |zone| zones.contains(zone))? || pending_ids.contains(&&**agent_id) {
+            return invalid(RETURN_INVALID);
+        }
+        if !matches!(fields.get("minute"), Some(V::Int(minute)) if *minute >= 0) || !matches!(fields.get("event_id"), Some(V::Str(_))) || !matches!(fields.get("source_ids"), Some(V::List(_))) {
+            return invalid(RETURN_INVALID);
         }
         pending_ids.push(agent_id);
     }
+    const RELOCATION_INVALID: &str = "population_lifecycle_v1 pending relocation is invalid";
     const RELOCATION: [&str; 8] = ["task_id", "event_id", "from_zone_id", "to_zone_id", "household_id", "source_ids", "started_minute", "due_minute"];
+    for (agent_id, relocation) in relocations {
+        if !agents.contains(&**agent_id)? {
+            return invalid(RELOCATION_INVALID);
+        }
+        let V::Map(fields) = relocation else {
+            return invalid(RELOCATION_INVALID);
+        };
+        if fields.len() != RELOCATION.len() || RELOCATION.iter().any(|key| !fields.contains_key(*key)) {
+            return invalid(RELOCATION_INVALID);
+        }
+        let (Some(from), Some(to)) = (fields.get("from_zone_id"), fields.get("to_zone_id")) else {
+            return invalid(RELOCATION_INVALID);
+        };
+        if !scalar_in(from, |zone| zones.contains(zone))? || !scalar_in(to, |zone| zones.contains(zone))? {
+            return invalid(RELOCATION_INVALID);
+        }
+        let (Some(V::Int(started)), Some(V::Int(due)), Some(V::List(_))) = (fields.get("started_minute"), fields.get("due_minute"), fields.get("source_ids")) else {
+            return invalid(RELOCATION_INVALID);
+        };
+        if due <= started {
+            return invalid(RELOCATION_INVALID);
+        }
+    }
+    const ARCHIVE_INVALID: &str = "population_lifecycle_v1 relationship archive is invalid";
+    const NAMES: [&str; 4] = [BODY, SOCIAL_NETWORK, INFORMATION, SOCIAL_RUNTIME];
+    const ARCHIVE: [&str; 5] = ["namespace", "pair_key", "agent_ids", "value", "restore_when_both_active"];
+    for item in archive {
+        let V::Map(fields) = item else {
+            return invalid(ARCHIVE_INVALID);
+        };
+        if fields.len() != ARCHIVE.len() || ARCHIVE.iter().any(|key| !fields.contains_key(*key)) {
+            return invalid(ARCHIVE_INVALID);
+        }
+        let namespace_value = fields.get("namespace").ok_or_else(|| Unsupported::new_err("no namespace"))?;
+        let good = scalar_in(namespace_value, |name| Ok(NAMES.contains(&name)))?
+            && matches!(fields.get("pair_key"), Some(V::Str(_)))
+            && matches!(fields.get("agent_ids"), Some(V::List(ids)) if ids.len() == 2 && ids[0] != ids[1])
+            && matches!(fields.get("restore_when_both_active"), Some(V::Bool(_)));
+        if !good {
+            return invalid(ARCHIVE_INVALID);
+        }
+        json_checked(fields.get("value").ok_or_else(|| Unsupported::new_err("no value"))?)?;
+    }
     let queue = attribute(&attribute(world, intern!(py, "event_queue"))?, intern!(py, "_store")).ok().and_then(|store| store.downcast_into::<QueueStore>().ok());
     for (agent_id, relocation) in relocations {
-        let V::Map(fields) = relocation else {
-            return unsupported("a pending relocation is not a mapping");
-        };
-        if !agents.contains(&**agent_id)? || fields.len() != RELOCATION.len() || RELOCATION.iter().any(|key| !fields.contains_key(*key)) {
-            return unsupported("a pending relocation is invalid");
-        }
-        let (Some(V::Str(task_id)), Some(V::Str(event_id)), Some(V::Str(from)), Some(V::Str(to)), Some(V::List(_)), Some(V::Int(started)), Some(V::Int(due))) = (
-            fields.get("task_id"),
-            fields.get("event_id"),
-            fields.get("from_zone_id"),
-            fields.get("to_zone_id"),
-            fields.get("source_ids"),
-            fields.get("started_minute"),
-            fields.get("due_minute"),
-        ) else {
-            return unsupported("a pending relocation's fields are other");
-        };
-        if !zones.contains(&**from)? || !zones.contains(&**to)? || due <= started {
-            return unsupported("a pending relocation is invalid");
-        }
+        const INCONSISTENT: &str = "population_lifecycle_v1 relocation task/event is inconsistent";
         if leaving == Some(&**agent_id) {
             continue;
         }
+        let V::Map(fields) = relocation else {
+            return unsupported("a relocation is not a mapping");
+        };
+        let (Some(V::Str(task_id)), Some(V::Str(event_id)), Some(V::Int(due))) = (fields.get("task_id"), fields.get("event_id"), fields.get("due_minute")) else {
+            return invalid(INCONSISTENT);
+        };
         // The objects, as the rule reads them: `task.__dict__[...] = ...` reaches no row
         // (docs/rust-port/lanes/t-tick-validation.md).
         let mut matching = Vec::new();
@@ -1584,42 +1659,21 @@ fn check_lifecycle(world: &Bound<'_, PyAny>, leaving: Option<&str>) -> PyResult<
         };
         let event = queue.borrow_mut().row(py, event_id)?;
         let event_fits = event.is_some_and(|event| &*event.event_type == "agent_travel_complete" && matches!(payload(&event, "purpose"), Some(V::Str(purpose)) if &**purpose == "presence_relocation"));
-        if !task_fits {
-            return unsupported("a pending relocation's task disagrees");
-        }
-        if !event_fits {
-            return unsupported("a pending relocation's event disagrees");
-        }
-    }
-    const NAMES: [&str; 4] = [BODY, SOCIAL_NETWORK, INFORMATION, SOCIAL_RUNTIME];
-    const ARCHIVE: [&str; 5] = ["namespace", "pair_key", "agent_ids", "value", "restore_when_both_active"];
-    for item in archive {
-        let V::Map(fields) = item else {
-            return unsupported("an archived tie is not a mapping");
-        };
-        if fields.len() != ARCHIVE.len() || ARCHIVE.iter().any(|key| !fields.contains_key(*key)) {
-            return unsupported("an archived tie has other fields");
-        }
-        let good = matches!(fields.get("namespace"), Some(V::Str(name)) if NAMES.contains(&&**name))
-            && matches!(fields.get("pair_key"), Some(V::Str(_)))
-            && matches!(fields.get("agent_ids"), Some(V::List(ids)) if ids.len() == 2 && ids[0] != ids[1])
-            && matches!(fields.get("restore_when_both_active"), Some(V::Bool(_)));
-        if !good {
-            return unsupported("an archived tie is invalid");
+        if !task_fits || !event_fits {
+            return invalid(INCONSISTENT);
         }
     }
     for (message_id, message) in messages {
-        let V::Map(fields) = message else {
-            return unsupported("a retained message is not a mapping");
-        };
-        if !matches!(fields.get("id"), Some(V::Str(id)) if id == message_id) {
-            return unsupported("a retained message is invalid");
+        match message {
+            V::Map(fields) if matches!(fields.get("id"), Some(V::Str(id)) if id == message_id) => json_checked(message)?,
+            _ => return invalid("population_lifecycle_v1 retained message is invalid"),
         }
     }
     for beliefs in deferred.values() {
         if !matches!(beliefs, V::Map(_)) {
-            return unsupported("deferred beliefs are not a mapping");
+            return invalid("population_lifecycle_v1 deferred beliefs are invalid");
         }
+        json_checked(beliefs)?;
     }
     if has_namespace(world, PRESENCE)? {
         let raw = namespace(world, PRESENCE)?.ok_or_else(|| Unsupported::new_err("no presence"))?;
@@ -1627,7 +1681,7 @@ fn check_lifecycle(world: &Bound<'_, PyAny>, leaving: Option<&str>) -> PyResult<
         for agent_id in pending_ids {
             let record = person_in(&raw, agent_id)?;
             if !record.is_some_and(|person| &*person.status == "awaiting_admission") {
-                return unsupported("a pending return disagrees with the presence");
+                return invalid("pending return is inconsistent with population_presence_v1");
             }
         }
     }
@@ -1640,10 +1694,10 @@ fn validate_population_lifecycle_state(world: &Bound<'_, PyAny>) -> PyResult<()>
 }
 
 /// `validate_population_lifecycle_state` as a validator of `state_mirror._RUST_VALIDATORS`: true, or
-/// Unsupported for the Python rule to say.
+/// Unsupported, and the validation where it runs then raises its own text.
 #[pyfunction]
 fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    planning(check_lifecycle(world, None)).map(|()| true)
+    as_refusal(planning(check_lifecycle(world, None))).map(|()| true)
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

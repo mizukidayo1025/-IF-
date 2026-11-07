@@ -115,6 +115,7 @@ def test_structured_interaction_is_indexed_without_utterance_and_restores_social
             sequence=sequence,
             event_type="population_presence",
             payload={},
+            source_id="ASM-TEST-POPULATION-PRESENCE",
         ),
         PopulationPresenceCommand(
             action="temporary_exit", agent_id=actor, expected_return_minute=5
@@ -138,6 +139,7 @@ def test_structured_interaction_is_indexed_without_utterance_and_restores_social
             sequence=sequence,
             event_type="population_presence",
             payload={},
+            source_id="ASM-TEST-POPULATION-PRESENCE",
         ),
         PopulationPresenceCommand(action="return", agent_id=actor, zone_id="sleeping"),
     )

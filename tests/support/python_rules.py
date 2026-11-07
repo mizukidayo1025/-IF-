@@ -177,7 +177,7 @@ PORTED_NAMES = frozenset(
         "resource_metric_values",
         "_validate_audit_record",
         # domain/population.py, domain/population_lifecycle.py: rules/population.rs,
-        # rules/population_lifecycle.rs, of `kernel_first`: a test reaches a rule by `__wrapped__`.
+        # rules/population_lifecycle.rs, of `kernel_only`.
         "queue_arrivals",
         "queue_departures",
         "admit_pending_arrivals",
@@ -191,12 +191,6 @@ PORTED_NAMES = frozenset(
         "_zone_has_room",
         "_choose_admission_target",
         "_apply_presence_action",
-        "_admit_profile",
-        "_depart_agent",
-        "_archive_person",
-        "_restore_person",
-        "_schedule_relocation",
-        "_set_presence",
         # policies/psychology.py, inspection/traces.py: rules/trace.rs, rules/decisions.rs
         "explain_update",
         "_decision_document",
