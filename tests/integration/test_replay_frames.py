@@ -77,7 +77,7 @@ def test_batch_rejects_a_head_changed_during_read(replay, monkeypatch):
     store, _, workspace = replay
     original = store.branch_reference
     finished = False
-    original_iter = TimelineStore.iter_worlds
+    original_iter = TimelineStore.read_worlds
 
     def changed_after_replay(*args, **kwargs):
         nonlocal finished
@@ -91,7 +91,7 @@ def test_batch_rejects_a_head_changed_during_read(replay, monkeypatch):
         return result
 
     monkeypatch.setattr(store, "branch_reference", changing)
-    monkeypatch.setattr(TimelineStore, "iter_worlds", changed_after_replay)
+    monkeypatch.setattr(TimelineStore, "read_worlds", changed_after_replay)
     with pytest.raises(StorageError, match="heads changed"):
         replay_frames(store, workspace, "p", "r", ["main"], FORK, FORK + 1)
 

@@ -3,7 +3,6 @@
 from copy import deepcopy
 from typing import Any
 
-from sheltersim.core.checkpoint_cache import CheckpointHistoryCache
 from sheltersim.core.model_version import saved_point_view
 from sheltersim.experiments.timeline import TimelineStore
 from sheltersim.inspection.frames import world_frame
@@ -42,11 +41,11 @@ def _branch_frames(
 ) -> list[dict[str, Any]]:
     # Each replayed minute's state hash is world.state_digest(). The history cache of
     # Checkpoint saves (#44), seeded with the EventLog of the Checkpoint the replay
-    # starts from, gives the same bytes and converts only the history added since
-    # instead of encoding the whole world each minute.
-    history = CheckpointHistoryCache()
+    # started from, gives the same bytes and converts only the history added since
+    # instead of encoding the whole world each minute. read_worlds() ticks on from the
+    # world the previous window of the branch ended with, when it can.
     frames = []
-    for world in timeline.iter_worlds(ref.branch_id, start, end, history_cache=history):
+    for world, history in timeline.read_worlds(ref.branch_id, start, end):
         world.validate()
         document, _, encoder = history.documents(world, None)
         frame = deepcopy(

@@ -43,6 +43,7 @@ from sheltersim.events.queue import keeps_saved_bytes
 from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.storage.checkpoints import ARCHIVE_STORAGE_TYPES, CheckpointArchive
+from sheltersim.storage.read_worlds import ReadWorldCache
 
 _ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$")
 _PRIVATE = re.compile(
@@ -242,6 +243,9 @@ class ProjectStore:
         self._restored_used = 0.0
         self._restored_timer: threading.Timer | None = None
         self._checkpoint_write_bytes: dict[tuple[str, str], int] = {}
+        # Worlds that reads computed past a saved Checkpoint, for the next read of the
+        # same branch to tick on from (TimelineStore, storage/read_worlds.py).
+        self.read_worlds = ReadWorldCache()
 
     @contextmanager
     def transaction(self) -> Iterator[None]:
@@ -554,6 +558,7 @@ class ProjectStore:
         pointer would name a branch the index lacks and block a retry under its ID.
         Checkpoint chunks and manifests are shared by content and stay.
         """
+        self.read_worlds.drop(project_id, run_id, branch_id)
         with self.transaction():
             directory = self._path(project_id, "runs", run_id, "branches", branch_id)
             pointer = directory / "branch.json"
@@ -767,6 +772,8 @@ class ProjectStore:
         expected_checkpoint_hash: str | None,
         encoder: CanonicalEncoder | None = None,
     ) -> None:
+        # A read of the branch under its new head must not tick on from the old one.
+        self.read_worlds.drop(project_id, reference.run_id, reference.branch_id)
         with self.transaction(), self._usage_measured_once():
             # A Run's Scenario is immutable, so one writer reads it once.
             inputs = {} if encoder is None else encoder.run_inputs
@@ -1365,6 +1372,7 @@ class ProjectStore:
         import shutil
 
         directory = self._path(project_id, "runs", run_id)
+        self.read_worlds.drop(project_id, run_id)
         lease = self.claim_run(project_id, run_id)
         try:
             with self.transaction():
