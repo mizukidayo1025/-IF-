@@ -337,6 +337,49 @@ def compatible_router_settings(router: LLMRouter, recorded: dict[str, Any]) -> b
     return all(current.get(key) == value for key, value in recorded.items())
 
 
+# A kept read world this many minutes before a save is ticked on across it, as one
+# browser replay window (web/replay.py) may be, instead of restoring that save.
+READ_TICKS_BEFORE_SAVE = 8
+
+
+class _ReadCursor:
+    """A world a read restored from a saved Checkpoint and ticks forward, never saved.
+
+    It is what one long iter_worlds() call holds between its yields: the runtime, the
+    recorded router, one controller and engine, and the history cache seeded with the
+    EventLog of the Checkpoint. ProjectStore.read_worlds keeps it between reads; one
+    reader at a time holds it (storage/read_worlds.py).
+    """
+
+    def __init__(
+        self, runtime: BranchRuntime, router: LLMRouter | None, history: CheckpointHistoryCache
+    ) -> None:
+        self.runtime, self.router, self.history = runtime, router, history
+        self.engine: TickEngine | None = None
+        # Why the saved minute can be read but not ticked from, as _seek() refuses it.
+        self.refusal: str | None = None
+
+    @property
+    def world(self) -> WorldState:
+        return self.runtime.world
+
+    def advance_to(self, minute: int) -> None:
+        world = self.runtime.world
+        if world.minute_index >= minute:
+            return
+        if self.refusal is not None:
+            raise TimelineError(self.refusal)
+        if self.engine is None:
+            # Made only to tick: the exact saved boundary is observed before controller
+            # initialization can install any missing optional state.
+            controller = OfflineSimulationController(
+                world, _MetricSink(self.runtime.metrics), llm_router=self.router
+            )
+            self.engine = TickEngine(world, phase_handler=controller)
+        while world.minute_index < minute:
+            self.engine.step()
+
+
 # A computation with at least this many saves indexes them in another process
 # (storage/index_writer.py); a shorter one indexes each save before computing on.
 BACKGROUND_INDEX_MIN_SAVES = 8
@@ -626,6 +669,90 @@ class TimelineStore:
         while runtime.world.minute_index < end:
             engine.step()
             yield runtime.world
+
+    def read_worlds(self, branch_id: str, start: int, end: int) -> Any:
+        """(world, history cache) at each minute from start to end, for reading only.
+
+        Like iter_worlds(), for a Run of the installed model, but the world it ends with
+        is kept (ProjectStore.read_worlds) and the next read of the branch under the same
+        head ticks on from it when it is at or after the save before the minute asked
+        for (or at most READ_TICKS_BEFORE_SAVE minutes before that minute) and not after
+        it, instead of restoring that save again. The worlds and the
+        history cache are reused; the caller must not change them and must consume each
+        before the next. A reader that stops early leaves nothing to reuse.
+        """
+        reference = self.store.branch_reference(self.project_id, self.run_id, branch_id)
+        if (
+            type(start) is not int
+            or type(end) is not int
+            or not reference.fork_minute <= start <= end <= reference.computed_until
+        ):
+            raise TimelineError("minute is outside this branch's computed range")
+        status = self.store.checkpoint_model_status(
+            self.project_id, self.run_id, reference.checkpoint_hash
+        )
+        if not status.current:
+            # Saved points only (D2), as iter_worlds() reads them; nothing is kept.
+            history = CheckpointHistoryCache()
+            for world in self._saved_points(branch_id, start, end, reference):
+                yield world, history
+            return
+        saved_minute, checkpoint_hash = self._nearest_checkpoint(branch_id, start, reference)
+        key = (self.project_id, self.run_id, branch_id)
+        cache = self.store.read_worlds
+        # From the save before start, or from up to a replay window before it, the
+        # ticks are fewer than a restore costs.
+        lowest = min(saved_minute, start - READ_TICKS_BEFORE_SAVE)
+        taken = cache.take(key, reference.checkpoint_hash, lowest, start)
+        if taken is None:
+            cursor = self._open_cursor(branch_id, checkpoint_hash, reference)
+        else:
+            cursor = taken[1]
+        finished = False
+        try:
+            for minute in range(start, end + 1):
+                cursor.advance_to(minute)
+                yield cursor.world, cursor.history
+            finished = True
+        finally:
+            if finished:
+                cache.put(key, reference.checkpoint_hash, cursor.world.minute_index, cursor)
+
+    def _open_cursor(
+        self, branch_id: str, checkpoint_hash: str, reference: BranchReference
+    ) -> _ReadCursor:
+        """A cursor at the saved Checkpoint, restored as _seek() restores it."""
+        checkpoint, restored = self.store.load_restored_checkpoint(
+            self.project_id, self.run_id, checkpoint_hash
+        )
+        if checkpoint.checkpoint_hash != checkpoint_hash:
+            raise TimelineError("timeline checkpoint hash mismatch")
+        runtime = BranchRuntime.from_checkpoint(
+            checkpoint,
+            branch_id=branch_id,
+            parent_branch_id=reference.parent_branch_id,
+            _restored=restored,
+        )
+        start = checkpoint.runtime_state.get("llm")
+        head_fields = self.store.checkpoint_fields(
+            self.project_id, self.run_id, reference.checkpoint_hash, ("runtime_state",)
+        )
+        complete = head_fields["runtime_state"].get("llm")
+        router, refusal = None, None
+        if start is not None:
+            if complete is None:
+                refusal = "continuation response tape is missing"
+            else:
+                router = RecordedRouter(
+                    start, complete, checkpoint.runtime_state.get("llm_settings", {})
+                )
+        elif complete is not None:
+            refusal = "LLM routing changed within history without a checkpoint"
+        history = CheckpointHistoryCache()
+        history.seed_events(runtime.world.event_log, checkpoint.world_state["event_log"])
+        cursor = _ReadCursor(runtime, router, history)
+        cursor.refusal = refusal
+        return cursor
 
     def _saved_points(
         self, branch_id: str, start: int, end: int, reference: BranchReference
@@ -939,13 +1066,16 @@ class TimelineStore:
                 == identity
             ):
                 return {**cached, "computed_until": reference.computed_until}
-        runtime = self.seek(branch_id, minute)
         from sheltersim.inspection.frames import world_frame
 
-        reference = self.store.branch_reference(self.project_id, self.run_id, branch_id)
-        return world_frame(
-            runtime.world,
-            run_id=self.run_id,
-            branch_id=branch_id,
-            computed_until=reference.computed_until,
-        )
+        if type(minute) is not int:
+            raise TimelineError("minute is outside this branch's computed range")
+        for world, _ in self.read_worlds(branch_id, minute, minute):
+            reference = self.store.branch_reference(self.project_id, self.run_id, branch_id)
+            frame = world_frame(
+                world,
+                run_id=self.run_id,
+                branch_id=branch_id,
+                computed_until=reference.computed_until,
+            )
+        return frame
