@@ -5,6 +5,10 @@ Python bodies are gone (lane L10, `kernel_only`): a run of a rule is checked aga
 rule gave, written down from it before it went (the rule's formula, or a digest of its answers on
 the same random inputs), and a value the kernels refuse is KernelRefusal. The checks of a config, of
 an override and of a saved namespace stay in Python and are the reference for the Rust ones.
+
+Model version 2 (step 4, L11: the pinned libm crate and the information events' draw keys)
+changed some of these results: those digests were re-recorded from the kernels of that model
+and are no longer the deleted Python rules'.
 """
 
 from __future__ import annotations
@@ -279,7 +283,7 @@ UPDATE_DIGESTS = {
     0: "eec89a7a17e1ad1f",
     1: "0f784670ff938487",
     2: "c0d429b464a37812",
-    3: "463a9147fa747d9e",
+    3: "8805af4803453dab",
     4: "303fc713c0b14fc7",
     5: "0fc54bc9fad202df",
     6: "77117a11a74284e6",
@@ -291,8 +295,8 @@ UPDATE_DIGESTS = {
     12: "5599c4a498120dd9",
     13: "588bef82ab3c19de",
     14: "b289b355c894cd4f",
-    15: "14100b62c635a78d",
-    16: "16400d4588f9ce5a",
+    15: "225fc9df1f9e2720",
+    16: "3c896621f6b98952",
     17: "a712b1f1ebe95ef1",
     18: "cf42c9342b71e104",
     19: "0f13a2ccafa59e68",
@@ -303,13 +307,13 @@ UPDATE_DIGESTS = {
     24: "903db27c64a6d0cc",
     25: "2c80af006a9a3081",
     26: "7b145ad176bd8daa",
-    27: "c57a59c8a8f15a8d",
+    27: "6a7ca81c6a5c56bd",
     28: "a29cdb887c0666cc",
-    29: "022d27ac1850fe16",
+    29: "bf0bd1b86ab22f2f",
     30: "f242001e3056f4ef",
-    31: "e9c29278b8a0a675",
+    31: "64779e02d4f0d275",
     32: "8cc685b38c281b73",
-    33: "8c365486bef77dc4",
+    33: "e56069c170d5493c",
     34: "673e093662a1851a",
     35: "38fd495096b7580d",
     36: "62d505f4312dcaa6",

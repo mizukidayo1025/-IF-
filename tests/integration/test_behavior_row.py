@@ -5,6 +5,10 @@ The Python rules of `UtilityBehaviorPolicy.propose`, `PriorityRuleBehaviorPolicy
 bits (`_exact`) of everything the kernel made, in order, and compares the digest with the one of
 what the Python rules made from the same inputs, recorded from them on 45a9bc9 before they went
 (`_Bits`, pinned on Linux, as the gate's hashes are). Here, on values no scenario reaches.
+
+Model version 2 (step 4, L11: the pinned libm crate and the information events' draw keys)
+changed some of these results: those digests were re-recorded from the kernels of that model
+and are no longer the deleted Python rules'.
 """
 
 from __future__ import annotations
@@ -224,36 +228,36 @@ def _draw_policy(draws: random.Random, ids: list[str]) -> Any:
 
 # What the Python rules made of each drawn world below, by its seed.
 DRAWN_WORLDS = {
-    0: "a75e1a0b843d604a",
-    1: "54127aaab126522e",
-    2: "03aa74930a83c477",
-    3: "01480b250c183998",
-    4: "759c84469f622373",
-    5: "3305b723004d415f",
-    6: "1f6885babce7be2f",
-    7: "c6131cbffafe1736",
-    8: "07df3b459896e7c8",
-    9: "a5da201dbec9e7c6",
-    10: "005a1312c8eaa02c",
-    11: "7d7c54b6570dd895",
-    12: "ff19950581f34bf8",
-    13: "ebcaa1fc952a9536",
-    14: "ca9f1824c96a0c56",
-    15: "d3b411379a675edb",
-    16: "8326b30f4e9b8567",
-    17: "c993f584194cea48",
-    18: "646303d00d5210d5",
-    19: "de4bc552c13d7a26",
-    20: "51de621c56b08f2d",
-    21: "4e0ad16f618d176b",
-    22: "28743f221a57460d",
-    23: "a79f0c44cce24aae",
-    24: "c8dcda460a94d64f",
-    25: "ab3c2120559e30ed",
-    26: "ef0a7cf53d30932b",
+    0: "2fae7a31edbc3c16",
+    1: "fd8741e8bc7a3693",
+    2: "4156e098c70b0e82",
+    3: "b84771aeec0cadd1",
+    4: "31140fd72ef0f3a3",
+    5: "69f5cb1c3f6cd3f6",
+    6: "758fadbbe877fb40",
+    7: "f365645fc57ad062",
+    8: "45a72a5cec4be3f5",
+    9: "015eba747f860aa6",
+    10: "295a09cee324245d",
+    11: "98b947d8e7144135",
+    12: "287fd8ba0f8f7cd0",
+    13: "34e963c729fc7d55",
+    14: "cfdcc5e644625650",
+    15: "57c04f8a579696f7",
+    16: "681c23730e464b81",
+    17: "8356521e966b2ce0",
+    18: "ed29383f6605becb",
+    19: "499c3c2d73cf4264",
+    20: "09f53e4bfb031ffb",
+    21: "89dc8cbe38936da4",
+    22: "96db2d073a3665a0",
+    23: "edcc9b9e0b1303c1",
+    24: "2e11073734139790",
+    25: "8339df839444504d",
+    26: "78447961a6b236d2",
     27: "530c552f9d011ce4",
-    28: "66cf9034e9ddb225",
-    29: "f92a3ff0d47d666a",
+    28: "e535c9405f0e2425",
+    29: "da5ecfb298102457",
 }
 
 
@@ -277,7 +281,7 @@ def test_each_proposal_of_a_drawn_world_has_the_bits_of_python(
 
 @pytest.mark.parametrize(
     ("seed", "digest"),
-    [(2**63, "887ea0bd5b3db33a"), (2**64 + 7, "94f7011b95b88590"), (10**30, "7141d443e2c65a86")],
+    [(2**63, "4eeb7955eaf7a746"), (2**64 + 7, "b05281eb8a1f1846"), (10**30, "09fcdfd963ea511b")],
 )
 def test_a_seed_past_64_bits_has_the_bits_of_python(
     seed: int, digest: str, generated_scenario: Any
@@ -323,7 +327,7 @@ def test_requests_cooldowns_and_queued_tasks_are_read_as_python_reads_them(
     snapshots = {}
     for agent_id in people:
         snapshots[agent_id] = _observed(bits, view, agent_id)
-    bits.check("40bb5ee46bae6762")
+    bits.check("58c69158d7eb36d8")
     assert snapshots[people[0]]["support"]["status"] == "pending"
     assert snapshots[people[0]]["support"]["wait_minutes"] == 35
     assert snapshots[people[4]]["support"]["request_id"] == "nothing"
@@ -371,7 +375,7 @@ def test_drawn_worlds_reach_what_they_are_for(generated_scenario: Any) -> None:
     }
     assert with_target == {"socialize", "care_family", "help_others"}
     assert ties > 0 and demand > 0
-    bits.check("bfd3d87d2183d49e")
+    bits.check("6057d790ccb496c7")
 
 
 def test_each_proposal_of_a_run_has_the_bits_of_python(
@@ -398,7 +402,7 @@ def test_each_proposal_of_a_run_has_the_bits_of_python(
     run_scenario(ScenarioSpec.model_validate(document), tmp_path, trace_level=TraceLevel.OFF)
     assert counts["calls"] == 90
     assert counts["proposals"] == counts["observed"] > 0
-    bits.check("5c03bfd5f0e95882")
+    bits.check("39e0d6ea65c6015b")
 
 
 def test_a_tick_makes_no_python_view_of_the_people(

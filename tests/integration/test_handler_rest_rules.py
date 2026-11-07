@@ -7,6 +7,10 @@ may not reach and the values that change a result (docs/rust-port/lanes/m6-handl
 None of these handlers has its Python rule left (lane L10, `kernel_only`). A run or a case is
 checked against what the Python rule gave, written down from it before it went: the outcome's class
 and text, the amounts it wrote, or a digest of the world and records (`_digest`).
+
+Model version 2 (step 4, L11: the pinned libm crate and the information events' draw keys)
+changed some of these results: those digests were re-recorded from the kernels of that model
+and are no longer the deleted Python rules'.
 """
 
 from __future__ import annotations
@@ -248,7 +252,7 @@ def test_rumors_and_corrections_are_python_s() -> None:
     gate = _gate()
     seen: Counter[str] = Counter()
     world = _run_comparing(gate.with_rumors(gate.generated(evacuees=20, minutes=120)), seen)
-    _is_the_python_rules_run(world, "502f082a25d11b0b")
+    _is_the_python_rules_run(world, "44de998728962e5d")
     for event_type in ("information_rumor", "information_correction", "information_contact_update"):
         assert seen[f"{event_type}.applied"] > 0, (event_type, seen)
 

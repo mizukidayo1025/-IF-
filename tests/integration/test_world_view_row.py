@@ -6,6 +6,10 @@ body (lane L10): what the kernel refuses is a KernelRefusal. The Python rule `Wo
 went too: the views of whole Runs are compared with digests written down from it (on Linux, as the
 gate's hashes: the floats come from libm), and a view the kernel kept, refreshed or read before a
 change with a new view of the same world (`support.world.view_of`).
+
+Model version 2 (step 4, L11: the pinned libm crate and the information events' draw keys)
+changed some of these results: those digests were re-recorded from the kernels of that model
+and are no longer the deleted Python rules'.
 """
 
 from __future__ import annotations
@@ -132,7 +136,7 @@ def test_views_with_false_claims_have_the_bits_of_the_python_rule(
     digest, count = _views_of_a_run(ScenarioSpec.model_validate(document))
     assert count == 120
     if sys.platform == "linux":
-        assert digest == "af6e005c1f288fcf"
+        assert digest == "77460590f6646c41"
 
 
 def _world_with_views(scenario: Any) -> tuple[WorldState, OfflineSimulationController]:

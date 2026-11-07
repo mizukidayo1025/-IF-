@@ -3,6 +3,10 @@
 The step is the kernel alone: the Python rules of policies/information.py and
 policies/alternatives.py are gone. What they answered, on small worlds and on values no scenario
 reaches, was recorded once as digests (ANSWERS), which the kernel's answers must equal on Linux.
+
+Model version 2 (step 4, L11: the pinned libm crate and the information events' draw keys)
+changed some of these results: those digests were re-recorded from the kernels of that model
+and are no longer the deleted Python rules'.
 """
 
 from __future__ import annotations
@@ -100,9 +104,9 @@ ANSWERS: dict[str, str] = {
     "claims-InformationSpreadPolicy": (
         "950769ea58b9c61423b630b0b92245baa6534be789f95d1ed7ed23aa8c338be6"
     ),
-    "escapes": ("fc71532c0c071b4cf7032b0ee9565de1d3015efd22ed3421f321d78a8ddb34cd"),
+    "escapes": ("8e4d189e658c89306cd9b9ec67cf2e74abc14a8249d69474818c6309af23ab63"),
     "fewer": ("1e3044e56f64470972105590940135dc1bbdcc93993a34012e62da3f18dadf24"),
-    "probability": ("17c22820e4988c21f1c9339953c7462be9936ff2facf80acaf0d065c523f738d"),
+    "probability": ("b4a9dfa29e64cd80bc648b338f68108391249fae87cf68e6f1c6bb45682e8dba"),
     "random": ("31d66819725fb4d71435209ee29031af6c1ea99b4028133c2c521ee11ed2e4df"),
     "seed-18446744073709551623": (
         "dd2527a47cd6e7a981e2e309af5e6c1bf1375e0ef86d4727cd3a3e2988390b8e"
@@ -111,7 +115,7 @@ ANSWERS: dict[str, str] = {
         "cfa1e5f6a6f20cc215da760e12079e097cd02c07c59e48f8609a6c5208b45cf8"
     ),
     "ticks-evidence-aware-rumor-v1": (
-        "11daf0bb7e33bfc0873996665ba29a6f009f19a9dbbdeb1c721154854528d166"
+        "0cb22fbfe15ed9e5c35f66b51267b238244c4ca1e5a33752cd8db5dd10e3d692"
     ),
     "ticks-sparse-information-contact-v1": (
         "c7d18637982b41ef90b56ecb2626932fc8f7683fe10b3c244ef9176c6e9af7f7"
