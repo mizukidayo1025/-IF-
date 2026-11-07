@@ -183,7 +183,7 @@ fn polygon_of(value: Option<&V>) -> PyResult<Vec<Pt>> {
 }
 
 fn square(value: f64) -> PyResult<f64> {
-    pow(value, 2.0).ok_or_else(|| Unsupported::new_err("a square Python decides"))
+    Ok(pow(value, 2.0)?)
 }
 
 /// `(x - a) ** 2 + (y - b) ** 2`.
@@ -1155,7 +1155,7 @@ pub(crate) fn plan_bed(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Opt
             };
             let mut lengths = Vec::with_capacity(path.len());
             for pair in path.windows(2) {
-                let length = pow(squared_distance(pair[1], pair[0])?, 0.5).ok_or_else(|| Unsupported::new_err("a root Python decides"))?;
+                let length = pow(squared_distance(pair[1], pair[0])?, 0.5)?;
                 lengths.push(length);
             }
             let travel = if py_sum(&lengths) <= 1e-8 {

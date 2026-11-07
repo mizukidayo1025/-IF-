@@ -732,18 +732,18 @@ fn clamp(value: f64) -> f64 {
 
 /// `_mean_reverting_terms(value, baseline, kappa, 1.0)`, whose checks the caller has done.
 #[inline]
-fn mean_reverting_terms(value: f64, baseline: f64, kappa: f64) -> Option<(f64, f64)> {
+fn mean_reverting_terms(value: f64, baseline: f64, kappa: f64) -> PyResult<(f64, f64)> {
     let decay = mathx::exp(-kappa * 1.0)?;
     let natural = (baseline - value) * (1.0 - decay);
     if kappa == 0.0 {
-        return Some((natural, 1.0));
+        return Ok((natural, 1.0));
     }
-    Some((natural, -mathx::expm1(-kappa * 1.0)? / kappa))
+    Ok((natural, -mathx::expm1(-kappa * 1.0)? / kappa))
 }
 
-/// One person's next minute. `None` where a math function raises in Python. Every float operation
+/// One person's next minute. A math function raises as Python did. Every float operation
 /// keeps the order of `policies/psychology.py`, and `py_max`/`py_min` return the first on a tie.
-fn step(model: Model, rates: &Rates, body: Option<&BodyRates>, a: &Input, mut stages: Option<&mut Stages>) -> Option<Next> {
+fn step(model: Model, rates: &Rates, body: Option<&BodyRates>, a: &Input, mut stages: Option<&mut Stages>) -> PyResult<Next> {
     // SimplePsychologyPolicy.explain_update
     let (fatigue_delta, stress_recovery) = match a.activity {
         Activity::Sleeping => (
@@ -793,7 +793,7 @@ fn step(model: Model, rates: &Rates, body: Option<&BodyRates>, a: &Input, mut st
         body,
     };
     match model {
-        Model::Simple => return Some(needs(simple_stress, None)),
+        Model::Simple => return Ok(needs(simple_stress, None)),
         // BoundedStressPolicy.explain_update
         Model::Bounded => {
             let pressure = py_sum(&[
@@ -808,7 +808,7 @@ fn step(model: Model, rates: &Rates, body: Option<&BodyRates>, a: &Input, mut st
                 stages.added = added;
                 stages.recovery = recovery;
             }
-            return Some(needs(py_min(1.0, py_max(0.0, a.stress + added - recovery)), None));
+            return Ok(needs(py_min(1.0, py_max(0.0, a.stress + added - recovery)), None));
         }
         // MeanRevertingDistressPolicy.explain_update
         Model::MeanReverting => {
@@ -825,13 +825,15 @@ fn step(model: Model, rates: &Rates, body: Option<&BodyRates>, a: &Input, mut st
                 -stress_recovery * multiplier,
                 0.0 * multiplier,
             ]);
-            return Some(needs(clamp(a.stress + (natural + forced)), None));
+            return Ok(needs(clamp(a.stress + (natural + forced)), None));
         }
         Model::LifeState | Model::Integrated => {}
     }
 
     // LifeStatePsychologyPolicy.explain_update and sleep_debt_step
-    let g = body?;
+    let Some(g) = body else {
+        return unsupported("the model has no body rates");
+    };
     let life = &a.life;
     let family_pressure = if life.family_separated { g.discontent_stress } else { 0.0 };
     let effective_awake = match life.required_sleep {
@@ -921,7 +923,7 @@ fn step(model: Model, rates: &Rates, body: Option<&BodyRates>, a: &Input, mut st
             stages.feedback = feedback;
             stages.information_feedback = feedback - feedback_with(uncertainty_without);
         }
-        return Some(needs(py_min(1.0, py_max(0.0, simple_stress + feedback)), body_values));
+        return Ok(needs(py_min(1.0, py_max(0.0, simple_stress + feedback)), body_values));
     }
 
     // IntegratedDistressLifeStatePolicy.explain_update
@@ -944,7 +946,7 @@ fn step(model: Model, rates: &Rates, body: Option<&BodyRates>, a: &Input, mut st
         life_feedback * multiplier,
         information_feedback * multiplier,
     ]);
-    Some(needs(clamp(a.stress + (natural + forced)), body_values))
+    Ok(needs(clamp(a.stress + (natural + forced)), body_values))
 }
 
 /// What `step` knows on the way, which only a trace reads.
@@ -1477,9 +1479,7 @@ pub(crate) fn update_psychology<'py>(
     let mut traces = Vec::with_capacity(if traced { inputs.len() } else { 0 });
     let mut stages = Stages::default();
     for (index, ((input, trust), person)) in inputs.iter().zip(&trusts).zip(&viewed).enumerate() {
-        let Some(next) = step(model, &rates, body.as_ref(), input, traced.then_some(&mut stages)) else {
-            return unsupported("a math function would raise");
-        };
+        let next = step(model, &rates, body.as_ref(), input, traced.then_some(&mut stages))?;
         // Values outside AgentStateDelta's bounds raise in its Python checks.
         if !within_bounds(&next) {
             return unsupported("a new value is out of bounds");

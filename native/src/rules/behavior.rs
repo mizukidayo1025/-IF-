@@ -473,7 +473,7 @@ fn score(candidates: &[Candidate], modifiers: &[DemandModifier], temperature: f6
             weights.push(0.0);
             continue;
         }
-        let Some(weight) = exp((*total - maximum) / temperature) else {
+        let Ok(weight) = exp((*total - maximum) / temperature) else {
             return Err("an exponent is out of range");
         };
         let multiplier = demand_of(modifiers, candidate.action).map_or(1.0, |modifier| modifier.probability_multiplier);

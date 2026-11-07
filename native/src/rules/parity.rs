@@ -10,22 +10,41 @@ use crate::core::rng::{Key, KeyedDraws};
 use crate::core::value::V;
 use crate::{Encoder, Unsupported};
 
-#[pyfunction]
-fn exp(values: Vec<f64>) -> Vec<Option<f64>> {
-    values.into_iter().map(mathx::exp).collect()
-}
-
-#[pyfunction]
-fn expm1(values: Vec<f64>) -> Vec<Option<f64>> {
-    values.into_iter().map(mathx::expm1).collect()
-}
-
-#[pyfunction]
-fn pow(pairs: Vec<(f64, f64)>) -> Vec<Option<f64>> {
-    pairs
-        .into_iter()
-        .map(|(base, exponent)| mathx::pow(base, exponent))
+/// Each value as a float, or what Python raises as `(class name, text)`.
+fn results<'py>(
+    py: Python<'py>,
+    values: impl Iterator<Item = Result<f64, mathx::MathError>>,
+) -> PyResult<Vec<Bound<'py, PyAny>>> {
+    use pyo3::IntoPyObjectExt;
+    values
+        .map(|value| match value {
+            Ok(value) => value.into_bound_py_any(py),
+            Err(error) => {
+                let raised = PyErr::from(error);
+                (raised.get_type(py).name()?, error.text()).into_bound_py_any(py)
+            }
+        })
         .collect()
+}
+
+#[pyfunction]
+fn exp(py: Python<'_>, values: Vec<f64>) -> PyResult<Vec<Bound<'_, PyAny>>> {
+    results(py, values.into_iter().map(mathx::exp))
+}
+
+#[pyfunction]
+fn expm1(py: Python<'_>, values: Vec<f64>) -> PyResult<Vec<Bound<'_, PyAny>>> {
+    results(py, values.into_iter().map(mathx::expm1))
+}
+
+#[pyfunction]
+fn pow(py: Python<'_>, pairs: Vec<(f64, f64)>) -> PyResult<Vec<Bound<'_, PyAny>>> {
+    results(py, pairs.into_iter().map(|(base, exponent)| mathx::pow(base, exponent)))
+}
+
+#[pyfunction]
+fn fma(triples: Vec<(f64, f64, f64)>) -> Vec<f64> {
+    triples.into_iter().map(|(x, y, z)| mathx::fma(x, y, z)).collect()
 }
 
 #[pyfunction]
@@ -193,6 +212,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(exp, m)?)?;
     m.add_function(wrap_pyfunction!(expm1, m)?)?;
     m.add_function(wrap_pyfunction!(pow, m)?)?;
+    m.add_function(wrap_pyfunction!(fma, m)?)?;
     m.add_function(wrap_pyfunction!(hypot, m)?)?;
     m.add_function(wrap_pyfunction!(fsum, m)?)?;
     m.add_function(wrap_pyfunction!(round_digits, m)?)?;

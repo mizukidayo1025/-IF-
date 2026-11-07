@@ -144,7 +144,7 @@ fn fatigue_of(saturating: bool, consecutive: i64, maximum: i64) -> Option<f64> {
     }
     let fraction = consecutive as f64 / maximum as f64;
     if saturating {
-        return Some(1.0 - exp(-fraction)?);
+        return Some(1.0 - exp(-fraction).ok()?);
     }
     Some(py_min(1.0, fraction))
 }

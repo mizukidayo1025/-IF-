@@ -125,10 +125,7 @@ impl Settings {
         let read = |name: &Bound<'_, PyString>| number(&config.getattr(name)?);
         let forgetting = read(intern!(py, "forgetting_rate_per_minute"))?;
         let forget_probability = if model == Model::EvidenceAware {
-            let Some(result) = expm1(-forgetting) else {
-                return unsupported("the forgetting rate is out of range");
-            };
-            -result
+            -expm1(-forgetting)?
         } else {
             0.0
         };
@@ -312,10 +309,7 @@ fn transmission_probability(
     if model != Model::Hazard {
         return Ok(propensity);
     }
-    match expm1(-propensity) {
-        Some(result) => Ok(-result),
-        None => unsupported("the hazard is out of range"),
-    }
+    Ok(-expm1(-propensity)?)
 }
 
 /// `_sender_sharing_factor`.

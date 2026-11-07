@@ -1,10 +1,11 @@
 # Run with `cargo clippy --manifest-path native/Cargo.toml -- -D clippy::disallowed_methods`.
-# Float results must stay the bits CPython computes, and dict order must never move.
+# Float results must be the same bits on every OS, and dict order must never move.
 disallowed-methods = [
-    { path = "f64::exp", reason = "use core::mathx::exp, which calls the libm CPython calls" },
-    { path = "f64::exp_m1", reason = "use core::mathx::expm1, which calls the libm CPython calls" },
-    { path = "f64::powf", reason = "use core::mathx::pow; LLVM folds powf(x, 2.0) to x * x" },
-    { path = "f64::powi", reason = "use core::mathx::pow; CPython's ** always calls libm pow" },
+    { path = "f64::exp", reason = "use core::mathx::exp: the pinned libm crate, the same bits on every OS" },
+    { path = "f64::exp_m1", reason = "use core::mathx::expm1: the pinned libm crate, the same bits on every OS" },
+    { path = "f64::powf", reason = "use core::mathx::pow: the pinned libm crate, the same bits on every OS" },
+    { path = "f64::powi", reason = "use core::mathx::pow; powi is not correctly rounded and LLVM may rewrite it" },
+    { path = "f64::mul_add", reason = "use core::mathx::fma; mul_add calls the platform's fma where the CPU has none" },
     { path = "f64::hypot", reason = "use core::mathx::hypot, CPython's own algorithm" },
     { path = "f64::max", reason = "use core::mathx::py_max: first argument on a tie, NaN as Python" },
     { path = "f64::min", reason = "use core::mathx::py_min: first argument on a tie, NaN as Python" },

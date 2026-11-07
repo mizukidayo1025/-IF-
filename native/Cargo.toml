@@ -13,6 +13,8 @@ crate-type = ["cdylib"]
 pyo3 = { version = "0.23", features = ["extension-module", "abi3-py312"] }
 indexmap = "2"
 itoa = "1"
+# Pure Rust exp, expm1, pow and fma: the same bits on every OS (docs/rust-port/step4-plan.md, section 9).
+libm = "=0.2.16"
 rayon = "1.10"
 rustc-hash = "2"
 smallvec = "1"
