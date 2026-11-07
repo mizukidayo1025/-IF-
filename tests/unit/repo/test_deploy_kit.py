@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import html
+import json
 import runpy
 import shlex
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -59,3 +62,95 @@ def test_the_landing_page_escapes_the_domain(
     page = capsys.readouterr().out
     assert "https://s2.a&lt;b&gt;.example/demo-v2" in page
     assert "<b>" not in page
+
+
+def _builder() -> dict[str, Any]:
+    return runpy.run_path(str(ROOT / "scripts" / "build_project_sample.py"))
+
+
+def _landing(
+    argv: list[str], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> str:
+    monkeypatch.setattr(sys, "argv", ["render_landing.py", *argv])
+    runpy.run_path(str(KIT / "render_landing.py"), run_name="__main__")
+    return capsys.readouterr().out
+
+
+def _setup_paths() -> dict[str, str]:
+    """setup.sh's path variables, expanded."""
+    values: dict[str, str] = {}
+    for line in (KIT / "setup.sh").read_text(encoding="utf-8").splitlines():
+        name, _, value = line.partition("=")
+        if name in {"APP", "DATA", "SAMPLE_DIR"}:
+            for known, path in values.items():
+                value = value.replace(f"${known}", path)
+            values[name] = value
+    return values
+
+
+def test_the_landing_page_links_each_slot_to_the_sample_the_builder_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The summary's shape here is the builder's (integration/test_project_sample.py
+    renders the page from a real build's summary)."""
+    builder = _builder()
+    project, run, child = builder["PROJECT_ID"], builder["RUN_ID"], builder["CHILD_ID"]
+    opened = builder["OPEN_BRANCH_ID"]
+    summary = tmp_path / "sample-build.json"
+    summary.write_text(
+        json.dumps(
+            {
+                "project_id": project,
+                "run_id": run,
+                "open_branch_id": opened,
+                "agent_count": 100,
+                "duration_minutes": 10080,
+                "fork_minute": builder["FORK_MINUTE"],
+                "intervention": {"text": builder["intervention_text"](builder["FORK_MINUTE"])},
+                "branches": [
+                    {"branch_id": "main", "parent_branch_id": None},
+                    {"branch_id": child, "parent_branch_id": "main"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    page = _landing(["a<b>.example", "2", str(summary)], monkeypatch, capsys)
+    path = builder["open_path"](project, run, opened)
+    for n in (1, 2):
+        href = html.escape(f"https://s{n}.a<b>.example{path}")
+        assert f'<a href="{href}">計算済みの例をすぐ見る</a>' in page
+    assert "4日目14:00" in page
+    assert "計算済みの例" not in _landing(["example", "2"], monkeypatch, capsys)
+
+
+def test_setup_builds_the_sample_where_reset_slot_and_the_slots_read_it() -> None:
+    builder = _builder()
+    setup = (KIT / "setup.sh").read_text(encoding="utf-8")
+    reset = (KIT / "reset-slot.sh").read_text(encoding="utf-8")
+    paths = _setup_paths()
+    assert paths["APP"] + "/" == APP
+    assert '"$APP/scripts/build_project_sample.py" "$SAMPLE_DIR.new/projects"' in setup
+    # The build directory becomes SAMPLE_DIR; its Project is what both scripts copy.
+    template = f"{paths['SAMPLE_DIR']}/projects/{builder['PROJECT_ID']}"
+    assert f"sample={template}\n" in reset
+    assert f'cp -a "$SAMPLE_DIR/projects/{builder["PROJECT_ID"]}"' in setup
+    assert '--summary "$SAMPLE_DIR.new/sample-build.json"' in setup
+    assert 'SAMPLE_SUMMARY=("$SAMPLE_DIR/sample-build.json")' in setup
+    # Both copy into the store that each slot's service opens.
+    unit = (KIT / "sheltersim@.service").read_text(encoding="utf-8")
+    store = next(
+        line.split("SHELTERSIM_PROJECTS_DIR=", 1)[1]
+        for line in unit.splitlines()
+        if "SHELTERSIM_PROJECTS_DIR=" in line
+    )
+    assert store == f"{paths['DATA']}/slot%i/demo_replay/runs/.projects"
+    assert "projects=$DATA/slot$n/demo_replay/runs/.projects\n" in setup
+    assert "slot=/var/lib/sheltersim/slot$n\n" in reset
+    assert 'cp -a "$sample" "$slot/demo_replay/runs/.projects/sample"' in reset
+
+
+def test_the_redirects_to_the_new_screen_keep_the_query() -> None:
+    setup = (KIT / "setup.sh").read_text(encoding="utf-8")
+    redirect = next(line for line in setup.splitlines() if "redir @older" in line)
+    assert "/demo-v2{?query}" in redirect
