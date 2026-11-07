@@ -8,32 +8,43 @@
 //! seed's `str(seed)` are as `CounterRNG` has them, which the Scenario generators still use.
 
 use std::cell::RefCell;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use pyo3::prelude::*;
 use sha2::{Digest, Sha256};
 
 use crate::write_json_string;
 
-/// Whether a thread somewhere keeps its draws, for benchmarks/rule_shadow. Python sees the draws
-/// its own rules make; this shows those made in Rust, to compare each with its key and its bits.
-static DRAW_LOG_ON: AtomicBool = AtomicBool::new(false);
+/// How many threads keep their draws, for the tests and benchmarks/rule_shadow. Python sees the
+/// draws its own rules make; this shows those made in Rust, to compare each with its key and its
+/// bits. While a thread keeps them, the per-person compute stays on it (core/parallel.rs).
+static DRAW_LOGS: AtomicUsize = AtomicUsize::new(0);
 
 thread_local! {
     static DRAW_LOG: RefCell<Option<Vec<(String, f64)>>> = const { RefCell::new(None) };
 }
 
+pub(crate) fn draw_log_is_on() -> bool {
+    DRAW_LOGS.load(Ordering::Relaxed) != 0
+}
+
 /// Keep the draws this thread makes from now on, until `take_draw_log`.
 #[pyfunction]
 pub(crate) fn start_draw_log() {
-    DRAW_LOG_ON.store(true, Ordering::Relaxed);
-    DRAW_LOG.with(|log| *log.borrow_mut() = Some(Vec::new()));
+    let before = DRAW_LOG.with(|log| log.borrow_mut().replace(Vec::new()));
+    if before.is_none() {
+        DRAW_LOGS.fetch_add(1, Ordering::Relaxed);
+    }
 }
 
 /// The (key as JSON, value) of each draw this thread made since `start_draw_log`, in order.
 #[pyfunction]
 pub(crate) fn take_draw_log() -> Vec<(String, f64)> {
-    DRAW_LOG.with(|log| log.borrow_mut().take()).unwrap_or_default()
+    let taken = DRAW_LOG.with(|log| log.borrow_mut().take());
+    if taken.is_some() {
+        DRAW_LOGS.fetch_sub(1, Ordering::Relaxed);
+    }
+    taken.unwrap_or_default()
 }
 
 fn log_draw(key: &[u8], value: f64) {
@@ -89,7 +100,7 @@ impl KeyedDraws {
         // u64 to f64 and int / int both round to nearest, ties to even, and the division by a
         // power of two is exact.
         let value = u64::from_be_bytes(first) as f64 / 18_446_744_073_709_551_616.0;
-        if DRAW_LOG_ON.load(Ordering::Relaxed) {
+        if draw_log_is_on() {
             log_draw(key, value);
         }
         value

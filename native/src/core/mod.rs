@@ -5,6 +5,7 @@ pub(crate) mod census;
 pub(crate) mod errors;
 pub(crate) mod interner;
 pub(crate) mod mathx;
+pub(crate) mod parallel;
 pub(crate) mod rng;
 pub(crate) mod row;
 pub(crate) mod tracked;
