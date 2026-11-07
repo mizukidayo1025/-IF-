@@ -170,6 +170,27 @@ def kernel_says_python_s_text(
     return type(made.value).__name__, str(made.value)
 
 
+def view_of(world: Any, *, include_state_hash: bool = True) -> Any:
+    """The `WorldView` a phase makes of the world, by native/src/rules/world_view.rs.
+
+    With `include_state_hash` it is the propose phase's view (`_view_for_proposals`), with its
+    audit hash; without, the update phase's (`_view_after_movement`), whose `state_hash` is None.
+    Nothing of an earlier view is kept, and nothing changes. A world the kernel can't read raises
+    `native.Unsupported`.
+    """
+    from types import SimpleNamespace
+
+    from sheltersim import native
+
+    holder = SimpleNamespace(
+        _view_before_proposals=None, _rust_view_cache=None, _zone_environments={}
+    )
+    rules = native.rules("world_view")
+    if include_state_hash:
+        return rules.view_for_proposals(holder, world, world.minute_index)
+    return rules.view_after_movement(holder, world)
+
+
 def decisions_of(world: Any, policy: Any = None, *, rng: Any = None) -> dict[str, Any]:
     """The `ActionProposal` of each person due at the world's minute, by ID, as the propose phase
     makes them: native/src/rules/world_view.rs's view, then native/src/rules/behavior.rs.

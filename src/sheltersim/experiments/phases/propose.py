@@ -33,8 +33,8 @@ class ProposePhase:
         When `_view_before_proposals` is the update phase's view of `minute`, that view with what
         the update phase writes read again (each person's needs, stress, trust, body state and
         long-term distress); otherwise a new view of `world`. Either has the audit hash of what a
-        decision observed, as `WorldView.from_world` computes it. The step empties
-        `_view_before_proposals`.
+        decision observed (the SHA-256 of the view's canonical document, native/src/records.rs).
+        The step empties `_view_before_proposals`.
 
         The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
         raises KernelRefusal: a prior view no kernel made, a person of the prior view who has left,

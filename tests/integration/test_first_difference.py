@@ -20,8 +20,6 @@ from support.paths import BENCHMARKS, GATE_ALL_PATHS
 from sheltersim.core.engine import TickEngine, TickPhase
 from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
-from sheltersim.experiments.runner import OfflineSimulationController
-from sheltersim.inspection.traces import RunArtifactWriter
 
 sys.path.insert(0, str(BENCHMARKS))
 import first_difference  # noqa: E402
@@ -29,44 +27,35 @@ import tick_probe  # noqa: E402
 
 TOOL = BENCHMARKS / "first_difference.py"
 SOURCE = BENCHMARKS.parent / "src"
-TESTS = BENCHMARKS.parent / "tests"
-# Put on PYTHONPATH, it runs the recorded process on the Python rules, whose draws the recorder logs
-# and which _patched_source can edit: the `python_rules` mark. (The contact handler's Python rule,
-# whose correction draw a second case edited, the information rule, which the other cases edited,
-# and the behavior rule, whose choice the probability case edited, are gone: lane L10. A bug in a
-# step only Rust runs is put in by a patch of the step; the draws Python still makes are the
-# profiles' of the Scenario, before the first tick.)
-PYTHON_RULES_SITE = f"""\
-import sys
-
-import pytest
-
-sys.path.insert(0, {str(TESTS)!r})
-from support.python_rules import without_kernels
-
-without_kernels(pytest.MonkeyPatch())
-"""
 # Rumors, corrections and the information model, in a few seconds.
 RUMORS = "model__information__evidence-aware-rumor-v1"
 # A profile's mobility, a draw times the sum of the weights, which a later draw is compared with.
+# The draws Python still makes are the profiles' of the Scenario, before the first tick: the rules
+# whose draws other cases edited went with lane L10.
 MOBILITY = '        threshold = rng.random("profile", agent_id, "mobility") * sum(\n'
-# A bug a lane might make in the information step: a bigger decay of the query pressure, put after
-# the kernel's step since only Rust has the rule.
+# A bug a lane might make in the information step: a bigger decay of the query pressure. Only Rust
+# has the rule, so the bug is written at the end of the step's phase, through the engine's observer
+# (the recorder's own observers come after it). The site's sitecustomize.py runs it.
 DECAY_BUG = """
+from sheltersim.core.engine import TickEngine, TickPhase
 from sheltersim.domain.information import INFORMATION_SPREAD_STATE_KEY
-from sheltersim.experiments.runner import OfflineSimulationController
 
-_step = OfflineSimulationController._sample_information_contacts
-
-
-def _with_a_bug(self, minute, rng):
-    _step(self, minute, rng)
-    pressure = self.world.model_state[INFORMATION_SPREAD_STATE_KEY]["query_pressure"]
-    for agent_id in pressure:
-        pressure[agent_id] = max(0.0, pressure[agent_id] - 0.001)
+_built = TickEngine.__init__
 
 
-OfflineSimulationController._sample_information_contacts = _with_a_bug
+def _with_a_bug(self, *args, **kwargs):
+    _built(self, *args, **kwargs)
+
+    def after(phase, before):
+        if phase is TickPhase.SAMPLE_ENDOGENOUS_EVENTS and not before:
+            pressure = self.world.model_state[INFORMATION_SPREAD_STATE_KEY]["query_pressure"]
+            for agent_id in pressure:
+                pressure[agent_id] = max(0.0, pressure[agent_id] - 0.001)
+
+    self.phase_observer = after
+
+
+TickEngine.__init__ = _with_a_bug
 """
 LINUX_ONLY = pytest.mark.skipif(sys.platform != "linux", reason="hashes are pinned on Linux")
 
@@ -100,12 +89,14 @@ def _patched_source(directory: Path, relative: str, before: str, after: str) -> 
 
 
 def _recorded(output: Path, *arguments: object, path: Path | None = None, patch: str = "") -> Path:
-    """A stream of the Python rules, which are what _patched_source edits: Rust moved the rest.
-    `patch` is more of the site's code, run after the mark's change."""
-    site = output.parent / f"python_rules_{output.name}"
-    site.mkdir(parents=True, exist_ok=True)
-    (site / "sitecustomize.py").write_text(PYTHON_RULES_SITE + patch, encoding="utf-8")
-    paths = (site,) if path is None else (site, path)
+    """A stream of RUMORS with its draws, on `path` (a copy of src/ from _patched_source) if given.
+    `patch` is the code of a sitecustomize.py the recorded process runs first."""
+    paths: tuple[Path, ...] = () if path is None else (path,)
+    if patch:
+        site = output.parent / f"site_{output.name}"
+        site.mkdir(parents=True, exist_ok=True)
+        (site / "sitecustomize.py").write_text(patch, encoding="utf-8")
+        paths = (site, *paths)
     done = _tool("--record", RUMORS, "--output", output, "--draws", *arguments, paths=paths)
     assert done.returncode == 0, done.stdout + done.stderr
     return output
@@ -275,14 +266,6 @@ def test_the_recorder_gives_the_same_draws_and_undoes_its_patch(tmp_path: Path) 
 # Order -----------------------------------------------------------------------------------
 
 
-def _engine(scenario: object, directory: Path) -> TickEngine:
-    world = WorldState.from_scenario(scenario)
-    artifacts = RunArtifactWriter(scenario, directory)
-    artifacts.write_initial(world, execution_mode="offline")
-    controller = OfflineSimulationController(world, artifacts)
-    return TickEngine(world, phase_handler=controller)
-
-
 def test_reversing_keeps_every_object_and_value_and_reverses_each_dict(generated_scenario) -> None:
     world = WorldState.from_scenario(generated_scenario)
     inner = {"a": 1, "b": {"c": 2, "d": 3}}
@@ -320,31 +303,6 @@ def test_the_reversed_order_shows_a_rule_that_reads_the_first_agent(
     assert probe.reversals == 14
 
 
-def test_the_order_changes_inside_phases_at_each_named_place(
-    generated_scenario, tmp_path: Path
-) -> None:
-    """A rule that moves must take its place in tick_probe.WITHIN_PHASE along."""
-    probe = tick_probe.ReversedOrder(within_phase=True)
-    undo = tick_probe.install([probe])
-    try:
-        _engine(generated_scenario, tmp_path / "run").run(10)
-    finally:
-        undo()
-        probe.close()
-
-    assert {
-        "EventDispatcher.dispatch_one",
-        "OfflineSimulationController._run_dispatch_phase",
-    } & set(probe.fired)
-    assert {
-        "ProposePhase._apply_proposal",
-        "ToiletServiceManager.arbitrate",
-        "StaffService.assign_pending",
-    } <= set(probe.fired)
-    assert "OfflineSimulationController._view_after_movement" in probe.fired
-    assert probe.reversals > 70
-
-
 def test_the_gate_flag_compares_the_reversed_orders_with_the_base_run(tmp_path: Path) -> None:
     done = subprocess.run(
         [
@@ -365,7 +323,4 @@ def test_the_gate_flag_compares_the_reversed_orders_with_the_base_run(tmp_path: 
 
     assert done.returncode == 0, done.stdout + done.stderr
     summary = json.loads((tmp_path / "run" / "summary.json").read_text(encoding="utf-8"))
-    assert summary["determinism"]["branch_commands"] == {
-        "reversed_order": "same",
-        "reversed_within_phase": "same",
-    }
+    assert summary["determinism"]["branch_commands"] == {"reversed_order": "same"}

@@ -15,6 +15,7 @@ import json
 import pytest
 from support.paths import SCENARIO_100_AGENTS, SMALL_REPLAY, SOURCE_MANIFEST
 from support.psychology import psychology_step
+from support.world import view_of
 
 from sheltersim.contracts.policies import (
     CORE_MODEL_SUITE_MODELS,
@@ -37,7 +38,6 @@ from sheltersim.domain.psychological_state import INTEGRATED_PSYCHOLOGY_POLICY_V
 from sheltersim.domain.simulator_state import initialize_simulator_extensions
 from sheltersim.experiments.model_suite import install_default_model_suite
 from sheltersim.experiments.scenario import ScenarioSpec
-from sheltersim.policies.behavior import WorldView
 from sheltersim.policies.psychology import (
     IntegratedDistressLifeStatePolicy,
     LifeStatePsychologyPolicy,
@@ -319,7 +319,7 @@ def test_a_suite_runs_the_models_it_leaves_implicit():
             ).to_dict()
         }
     }
-    view = WorldView.from_world(world)
+    view = view_of(world)
     assert view.agents[agent_id].misinformation_belief_pressure == pytest.approx(0.8)
 
 

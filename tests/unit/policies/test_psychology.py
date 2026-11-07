@@ -25,6 +25,7 @@ import pytest
 from pydantic import ValidationError
 from support.paths import BASELINE_100_7D, SCENARIO_100_AGENTS
 from support.psychology import apply_deltas, psychology_step
+from support.world import view_of
 
 from sheltersim.core.engine import TraceLevel
 from sheltersim.core.kernels import KernelRefusal
@@ -47,7 +48,6 @@ from sheltersim.events.models import EventKind, ScheduledEvent
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import PsychologyModelConfig, ScenarioSpec
 from sheltersim.inspection.traces import RunArtifactWriter
-from sheltersim.policies.behavior import WorldView
 from sheltersim.policies.psychology import (
     AgentStateDelta,
     IntegratedDistressLifeStatePolicy,
@@ -115,7 +115,7 @@ class _SleepDebt:
                 "sleep_sleep_debt_recovery_per_minute": sleep_recovery_rate,
             },
         )
-        view = WorldView.from_world(self.world, include_state_hash=False)
+        view = view_of(self.world, include_state_hash=False)
         self.viewed = replace(
             view.agents[self.agent.id],
             required_sleep_minutes=required_sleep_minutes,
@@ -613,8 +613,8 @@ def test_scenario_psychology_coefficients_are_validated_and_source_tagged(
 def test_psychology_view_skips_audit_hash_without_changing_inputs() -> None:
     world = WorldState.from_scenario(ScenarioSpec.load(BASELINE_100_7D))
     before = world.canonical_json()
-    hashed = WorldView.from_world(world)
-    psychology_view = WorldView.from_world(world, include_state_hash=False)
+    hashed = view_of(world)
+    psychology_view = view_of(world, include_state_hash=False)
 
     assert hashed.state_hash is not None
     assert psychology_view.state_hash is None

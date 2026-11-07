@@ -19,6 +19,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from support.world import view_of
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine, TraceLevel
@@ -30,7 +31,6 @@ from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
 from sheltersim.policies.alternatives import BoundedStressPolicy
-from sheltersim.policies.behavior import WorldView
 from sheltersim.policies.psychology import (
     AgentStateDelta,
     IntegratedDistressLifeStatePolicy,
@@ -197,7 +197,7 @@ def test_every_model_gives_the_bits_of_the_deleted_rules(
 ) -> None:
     draws = random.Random(seed)
     world = _shuffled_world(generated_scenario, draws)
-    view = WorldView.from_world(world, include_state_hash=False)
+    view = view_of(world, include_state_hash=False)
     for agent in world.agents.values():
         assert view.agents[agent.id].needs.hunger == agent.needs.hunger
     policies = _draw_policies(draws, sorted(world.agents))
@@ -209,7 +209,7 @@ def test_people_of_a_group_are_separated_as_the_deleted_rule_said(
 ) -> None:
     draws = random.Random(5)
     world = _shuffled_world(generated_scenario, draws)
-    view = WorldView.from_world(world, include_state_hash=False)
+    view = view_of(world, include_state_hash=False)
     separated = {
         agent.id
         for agent in view.agents.values()
@@ -226,7 +226,7 @@ def test_people_of_a_group_are_separated_as_the_deleted_rule_said(
 def test_a_one_percent_change_shows(generated_scenario: Any) -> None:
     draws = random.Random(1)
     world = _shuffled_world(generated_scenario, draws)
-    view = WorldView.from_world(world, include_state_hash=False)
+    view = view_of(world, include_state_hash=False)
     parameters = PsychologyParameters()
     changed = replace(parameters, stress_pressure=parameters.stress_pressure * 1.01)
     same = _texts_of_models(
@@ -271,7 +271,7 @@ def test_what_the_deleted_checks_turned_down_is_refused(
     view of a Run holds them."""
     world = _shuffled_world(generated_scenario, random.Random(2))
     before = _people_text(world)
-    view = WorldView.from_world(world, include_state_hash=False)
+    view = view_of(world, include_state_hash=False)
     first = next(iter(view.agents))
     policy = IntegratedDistressLifeStatePolicy(PsychologyParameters(), body_formula=FULL)
     with pytest.raises(native.Unsupported, match=reason):
@@ -299,7 +299,10 @@ def test_what_the_kernel_does_not_handle_is_refused(
     generated_scenario: Any, policy: Any, trace: TraceLevel, minute: int, reason: str
 ) -> None:
     world = WorldState.from_scenario(generated_scenario)
-    view = WorldView.from_world(world, include_state_hash=False)
+    view = view_of(world, include_state_hash=False)
+    if reason == "a view Python made":
+        # A copy of the kernel's view, without its snapshot.
+        view = replace(view)
     with pytest.raises(native.Unsupported, match=reason):
         _rules().update_psychology(_controller(world, policy, trace), view, minute)
     # The step of a tick raises it as KernelRefusal.
@@ -354,13 +357,13 @@ def test_int_values_of_a_scenario_give_the_bits_of_the_deleted_rules(
     separated household's int pressure stays an int (tests/integration/test_trace_documents.py)."""
     draws = random.Random(seed)
     world = _shuffled_world(generated_scenario, draws)
-    view = WorldView.from_world(world, include_state_hash=False)
+    view = view_of(world, include_state_hash=False)
     _answers(f"ints-{seed}", _texts_of_models(world, _int_policies(sorted(world.agents)), view))
 
 
 def test_a_tainted_store_is_refused(generated_scenario: Any) -> None:
     world = WorldState.from_scenario(generated_scenario)
-    view = WorldView.from_world(world, include_state_hash=False)
+    view = view_of(world, include_state_hash=False)
     deltas = (
         _rules().update_psychology(_controller(world, SimplePsychologyPolicy()), view, 0).deltas
     )
@@ -378,7 +381,7 @@ def test_a_trust_out_of_bounds_is_refused(generated_scenario: Any) -> None:
     """The deleted rule raised AgentStateDelta's error; no Run writes such a trust."""
     world = WorldState.from_scenario(generated_scenario)
     next(iter(world.agents.values())).trust = 1.5
-    view = WorldView.from_world(world, include_state_hash=False)
+    view = view_of(world, include_state_hash=False)
     with pytest.raises(KernelRefusal, match="trust"):
         OfflineSimulationController._psychology_update(
             _controller(world, SimplePsychologyPolicy()), view, 0
@@ -529,21 +532,6 @@ def test_a_body_namespace_without_a_row_is_refused(generated_scenario: Any) -> N
     deltas = _deltas_of(world, random.Random(4), body=True)
     with pytest.raises(native.Unsupported, match="no row"):
         _rules().apply_deltas(None, world, deltas)
-
-
-def test_the_tracked_session_keeps_the_rows_of_a_whole_assignment(generated_scenario: Any) -> None:
-    from support.tracked_mirror import Session
-
-    with Session(tracked=True):
-        world = WorldState.from_scenario(generated_scenario)
-        agent = next(iter(world.agents.values()))
-        request = SupportRequestState("R", agent.id, 0, 10)
-        world.support_requests = {"R": request}
-        store = world._core.entities()
-        assert store.keys("support_requests") == ["R"]
-        world.support_requests = {}
-        assert store.keys("support_requests") == []
-        assert store.verify(world) is None
 
 
 # ---- Whole ticks ---------------------------------------------------------------------------------

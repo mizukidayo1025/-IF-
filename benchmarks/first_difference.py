@@ -10,8 +10,9 @@ values it runs the scenario again up to that phase on each side; no state is sto
 NAME is a gate scenario or generated:MINUTES:EVACUEES. For A and B, change PYTHONPATH or
 the environment between the recordings: each stream remembers how to run itself again.
 --draws also logs each random draw of the Python code and what it was compared with, which
-finds a probability that changed without flipping any comparison; the Rust kernels' draws are
-not logged. Exit status: 0 no difference, 1 a difference, 2 could not compare.
+finds a probability that changed without flipping any comparison. The Rust kernels' draws are
+not logged: since lane L10 that leaves the Scenario's profiles, drawn before the first tick.
+Exit status: 0 no difference, 1 a difference, 2 could not compare.
 
 Run from the repository root with src on PYTHONPATH. Output belongs outside the repository.
 """
@@ -93,7 +94,7 @@ def record(args: argparse.Namespace) -> int:
     )
     observers: list[Any] = []
     if args.reverse:
-        observers.append(tick_probe.ReversedOrder(within_phase=args.reverse == "within_phase"))
+        observers.append(tick_probe.ReversedOrder())
     recorder = tick_probe.DrawRecorder(output / DRAWS) if args.draws else None
     if recorder is not None:
         observers.append(recorder)
@@ -436,7 +437,7 @@ def main() -> int:
     parser.add_argument("--draws", action="store_true", help="also log random draws and uses")
     parser.add_argument(
         "--reverse",
-        choices=("phase", "within_phase"),
+        choices=("phase",),
         help="reverse the order of dicts, to place a finding of the gate's --reversed-order",
     )
     parser.add_argument(

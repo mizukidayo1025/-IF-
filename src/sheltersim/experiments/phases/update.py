@@ -27,11 +27,11 @@ class UpdatePhase:
     def _view_after_movement(self, world: WorldState) -> WorldView:
         """The view the update phase reads, which native/src/rules/world_view.rs makes.
 
-        A `WorldView` of `world` at its minute, without an audit hash (`state_hash` None): what
-        `WorldView.from_world(world, include_state_hash=False)` holds, read from the rows and the
-        namespaces. Its `agents`, `facilities`, `zone_members` and `group_members` are made when a
-        Python reader first asks for them. Parsed person contexts and zone conditions are kept for
-        the controller while their documents stay the same; `_zone_environments` is the zones'.
+        A `WorldView` of `world` at its minute, without an audit hash (`state_hash` None), read
+        from the rows and the namespaces. Its `agents`, `facilities`, `zone_members` and
+        `group_members` are made when a Python reader first asks for them. Parsed person contexts
+        and zone conditions are kept for the controller while their documents stay the same;
+        `_zone_environments` is the zones'.
 
         The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
         raises KernelRefusal: a value of another type than its typed field holds, a person in an

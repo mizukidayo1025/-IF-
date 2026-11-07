@@ -13,10 +13,12 @@ import copy
 import hashlib
 import json
 import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
+from support.world import view_of
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine, TraceLevel
@@ -28,7 +30,7 @@ from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.runner import OfflineSimulationController, run_scenario
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _IndexedMetricSink, _MetricSink
-from sheltersim.policies.behavior import ActionProposal, WorldView
+from sheltersim.policies.behavior import ActionProposal
 from sheltersim.storage import history_payloads
 from sheltersim.storage.history_index import HistoryIndex
 
@@ -192,7 +194,8 @@ def test_a_sink_in_python_gets_a_dict_and_a_silent_one_nothing(generated_scenari
 def test_a_view_python_made_is_refused(generated_scenario: Any) -> None:
     world, controller, _sink = _indexed_controller(generated_scenario)
     _step_until_due(world, controller)
-    view = WorldView.from_world(world)
+    # A copy of the kernel's view, without its snapshot.
+    view = replace(view_of(world))
     assert "_rust_view" not in view.__dict__
     with pytest.raises(native.Unsupported, match="Python's"):
         _rules().propose_rows(controller, view, CounterRNG(1))

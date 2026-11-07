@@ -24,6 +24,7 @@ from typing import Any, get_args
 
 import pytest
 from pydantic import ValidationError
+from support.world import view_of
 
 from sheltersim import native
 from sheltersim.contracts.operations import SupportKind
@@ -44,7 +45,7 @@ from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
 from sheltersim.policies.proximity import DistanceSampledProximityPolicy
-from sheltersim.policies.world_view import WorldView, _fields_of_person
+from sheltersim.policies.world_view import WorldView
 
 PROXIMITY = "distance-sampled-proximity-v1"
 FORMULAS = {
@@ -504,7 +505,7 @@ def test_a_view_reads_the_selected_formulas_and_sees_each_change(generated_scena
     controller = _controller(world)
     rules = _rules("world_view")
     made = rules.view_after_movement(controller, world)
-    assert _view_fields(made) == _view_fields(WorldView.from_world(world, include_state_hash=False))
+    assert _view_fields(made) == _view_fields(view_of(world, include_state_hash=False))
     agent = next(iter(made.agents.values()))
     assert agent.privacy_discontent_per_minute > 0.0
 
@@ -512,27 +513,22 @@ def test_a_view_reads_the_selected_formulas_and_sees_each_change(generated_scena
     state["modifiers"]["m"] = _condition("set_privacy", "level", 0.125) | {"zone_id": agent.zone_id}
     made = rules.view_after_movement(controller, world)
     assert made.agents[agent.id].privacy_level == 0.125
-    assert _view_fields(made) == _view_fields(WorldView.from_world(world, include_state_hash=False))
+    assert _view_fields(made) == _view_fields(view_of(world, include_state_hash=False))
 
     # What the runner does when the configs changed in place.
     world.model_configs["zone_environment"]["privacy_discontent_per_minute"] = 0.005
     controller._zone_environments = {}
     made = rules.view_after_movement(controller, world)
     assert made.agents[agent.id].privacy_discontent_per_minute == (1.0 - 0.125) * 0.005
-    assert _view_fields(made) == _view_fields(WorldView.from_world(world, include_state_hash=False))
+    assert _view_fields(made) == _view_fields(view_of(world, include_state_hash=False))
 
-    # A view of Python's replaces what is kept, and the next view is still right.
-    WorldView.from_world(world, person_cache={}, environment_cache=controller._zone_environments)
+    # A modifier changed in place is seen too.
     state["modifiers"]["m"]["parameters"]["level"] = 0.25
-    python = WorldView.from_world(
-        world, person_cache={}, environment_cache=controller._zone_environments
-    )
-    assert python.agents[agent.id].privacy_level == 0.25
     made = rules.view_after_movement(controller, world)
     assert made.agents[agent.id].privacy_level == 0.25
 
 
-def test_a_bad_modifier_is_the_python_rules_to_raise_on(generated_scenario: Any) -> None:
+def test_a_bad_modifier_is_refused(generated_scenario: Any) -> None:
     world = WorldState.from_scenario(generated_scenario)
     controller = _controller(world)
     agent = next(iter(world.agents.values()))
@@ -542,8 +538,6 @@ def test_a_bad_modifier_is_the_python_rules_to_raise_on(generated_scenario: Any)
     }
     with pytest.raises(native.Unsupported, match="zone modifier"):
         _rules("world_view").view_after_movement(controller, world)
-    with pytest.raises(KeyError):
-        WorldView.from_world(world, include_state_hash=False)
 
 
 @pytest.mark.parametrize("model", sorted(LIFE_STATE_PSYCHOLOGY_POLICIES) + ["causal-stress-v1"])
@@ -583,14 +577,14 @@ def test_only_a_life_state_psychology_reads_beliefs_in_false_claims(
         "ever_forgotten": False,
         "last_correction_accepted": False,
     }
-    python = WorldView.from_world(world, include_state_hash=False)
     made = _rules("world_view").view_after_movement(controller, world)
     pressure = made.agents["A001"].misinformation_belief_pressure
-    assert pressure.hex() == python.agents["A001"].misinformation_belief_pressure.hex()
-    assert (pressure > 0.0) == (model in LIFE_STATE_PSYCHOLOGY_POLICIES)
+    # The Python rule's: min(1.0, 2.0 * (belief_strength - 0.5)) for a life-state psychology.
+    assert pressure == (0.5 if model in LIFE_STATE_PSYCHOLOGY_POLICIES else 0.0)
+    assert type(pressure) is float
 
 
-def test_a_selection_the_contract_refuses_is_the_python_rules_to_raise_on(
+def test_a_selection_the_contract_refuses_is_refused(
     generated_scenario: Any,
 ) -> None:
     world = WorldState.from_scenario(generated_scenario)
@@ -599,8 +593,6 @@ def test_a_selection_the_contract_refuses_is_the_python_rules_to_raise_on(
     world.model_configs["policy_registry"]["psychology"] = "someone-elses-v1"
     with pytest.raises(native.Unsupported, match="Python rule"):
         _rules("world_view").view_after_movement(controller, world)
-    with pytest.raises(ValueError, match="psychology"):
-        WorldView.from_world(world, include_state_hash=False)
 
 
 # ---- People ----
@@ -667,6 +659,20 @@ def _person(rng: random.Random, *, broken: bool) -> dict[str, Any]:
     if broken and rng.random() < 0.05:
         record["other_field"] = 1
     return record
+
+
+def _fields_of_person(context: PersonContext) -> dict[str, Any]:
+    """The fields of a view the Python rule read from a parsed context (`from_world`, lane L10)."""
+    return {
+        "caregiver_ids": tuple(context.caregiver_ids),
+        "care_for_ids": tuple(context.care_for_ids),
+        "parent_ids": tuple(context.parent_ids),
+        "roles": tuple(context.roles),
+        "usual_wake_minute": context.usual_wake_minute,
+        "usual_sleep_minute": context.usual_sleep_minute,
+        "required_sleep_minutes": context.required_sleep_minutes,
+        "personal_context_present": True,
+    }
 
 
 @pytest.mark.parametrize("seed", range(4))
@@ -745,15 +751,11 @@ def test_a_view_keeps_a_context_while_it_stays_equal(generated_scenario: Any) ->
     people["A001"]["parent_ids"].append("A003")
     second = rules.view_after_movement(controller, world)
     assert second.agents["A001"].parent_ids == ("A002", "A003")
-    assert _view_fields(second) == _view_fields(
-        WorldView.from_world(world, include_state_hash=False)
-    )
+    assert _view_fields(second) == _view_fields(view_of(world, include_state_hash=False))
     del people["A001"]
     third = rules.view_after_movement(controller, world)
     assert third.agents["A001"].personal_context_present is False
-    assert _view_fields(third) == _view_fields(
-        WorldView.from_world(world, include_state_hash=False)
-    )
+    assert _view_fields(third) == _view_fields(view_of(world, include_state_hash=False))
 
 
 # ---- Proximity ----

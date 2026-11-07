@@ -10,14 +10,12 @@ from typing import Any, Mapping, Protocol
 
 from sheltersim.core.rng import RNGKeyPart
 
-# Re-exported: importers name these here. Patch them in world_view, where they are read.
+# Re-exported: importers name these here.
 from sheltersim.policies.world_view import (  # noqa: F401
     AgentView,
     FacilityView,
     NeedView,
     WorldView,
-    _view_state_hash,
-    _zone_environment,
 )
 
 

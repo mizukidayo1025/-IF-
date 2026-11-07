@@ -9,6 +9,7 @@ import pytest
 from pydantic import ValidationError
 from support.paths import SMALL_REPLAY
 from support.psychology import psychology_step
+from support.world import view_of
 
 from sheltersim.core.checkpoint import Checkpoint
 from sheltersim.core.engine import TraceLevel
@@ -29,7 +30,6 @@ from sheltersim.events.handlers import (
 from sheltersim.events.models import EventKind, EventStatus, ScheduledEvent
 from sheltersim.experiments.branch import BranchRuntime
 from sheltersim.experiments.scenario import ScenarioSpec
-from sheltersim.policies.behavior import WorldView
 from sheltersim.policies.psychology import PsychologyParameters, SimplePsychologyPolicy
 
 SOURCE_ID = "SCN-A03-TEST"
@@ -320,7 +320,7 @@ def test_environmental_stressor_is_zone_scoped_bounded_and_expires_with_provenan
     world = WorldState.from_scenario(scenario)
     _dispatcher().dispatch_due(world, 0)
 
-    view = WorldView.from_world(world)
+    view = view_of(world)
     assert view.agents["A001"].environmental_stress_per_minute == pytest.approx(0.002)
     assert view.agents["A001"].environmental_stressor_event_ids == ("heat-wave",)
     assert view.agents["A002"].environmental_stress_per_minute == 0.0
@@ -354,7 +354,7 @@ def test_environmental_stressor_is_zone_scoped_bounded_and_expires_with_provenan
 
     _set_minute(world, 3)
     _dispatcher().dispatch_due(world, 3)
-    assert WorldView.from_world(world).agents["A001"].environmental_stress_per_minute == 0.0
+    assert view_of(world).agents["A001"].environmental_stress_per_minute == 0.0
 
 
 def test_staff_shift_change_reuses_h03_task_safe_unavailability_lifecycle() -> None:
@@ -530,9 +530,7 @@ def test_compound_supply_outage_and_heat_chain_survives_checkpoint_restore() -> 
     assert (
         world.model_state["operational_events_v1"]["shipments"]["water-shipment"]["due_minute"] == 5
     )
-    assert WorldView.from_world(world).agents[
-        "A001"
-    ].environmental_stress_per_minute == pytest.approx(0.002)
+    assert view_of(world).agents["A001"].environmental_stress_per_minute == pytest.approx(0.002)
 
     checkpoint = Checkpoint.capture(world)
     resumed = checkpoint.restore_world()
@@ -550,7 +548,7 @@ def test_compound_supply_outage_and_heat_chain_survives_checkpoint_restore() -> 
     _set_minute(resumed, 5)
     dispatcher.dispatch_due(resumed, 5)
     assert resumed.resources["water_ml"] == 1500
-    assert WorldView.from_world(resumed).agents["A001"].environmental_stress_per_minute == 0.0
+    assert view_of(resumed).agents["A001"].environmental_stress_per_minute == 0.0
     _set_minute(resumed, 6)
     dispatcher.dispatch_due(resumed, 6)
     assert resumed.facilities["toilet_1"].working_units == 1

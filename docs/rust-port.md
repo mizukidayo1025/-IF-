@@ -395,9 +395,10 @@ EventLog の比較の保証：`same_saved_records` は保存した bytes を読�
 | 確かめること | 方法 |
 |---|---|
 | 計算の結果 | 7日分の world・events・KPI のハッシュ（`--expect`）。1日分・短い Run は各 PR で、7日分は段階ごとに測る |
-| 移したまとまりの値 | 毎 tick、Python の実装と Rust の値をビット単位で比べる（`tests/integration/test_native_kernels.py`） |
+| 移したまとまりの値 | 毎 tick、Python の規則を消す前に書き写した値（digest。Linux）と Rust の値をビット単位で比べる（`tests/integration/test_native_kernels.py`、`test_*_row.py`） |
+| kernel が断らないこと | 断った場所と理由を数える（`benchmarks/rule_shadow/refusal_census.py`）。有効な Run では0件 |
 | 毎 tick の検証 | 壊した状態を tick で止めること、止めるエラーが省かない検証と同じこと（`tests/integration/test_tick_validation.py`） |
-| tick の中で作り直さないもの | 毎 tick、世界から読み直した値とビット単位で比べる（`tests/integration/test_tick_views.py`） |
+| tick の中で作り直さないもの | 毎 tick、世界から新しく作った値とビット単位で比べる（`tests/integration/test_tick_views.py`） |
 
 | 保存の前の完全検証 | 古い項目と規則が読むものを壊すと同じ保存で止まること、止めるエラーが省かない検証と同じこと（`tests/integration/test_save_validation.py`） |
 | 保存の形 | Rust が作る正規化した JSON・chunk・目録が、Python のものと1バイト違わないこと（B3 までは目録・ハッシュも同じ） |
@@ -478,7 +479,7 @@ EventLog の比較の保証：`same_saved_records` は保存した bytes を読�
 | 噂を忘れる確率を1%増 | **検出されない** |
 | 訂正を受け入れる確率を1%減 | **検出されない** |
 
-確率のわずかな違いは、乱数との比較の結果が変わらない限りハッシュに現れません。短い Scenario では抽選の回数が少ないためです。確率の式を移すときは、ハッシュだけでなく、毎 tick のビット単位の比較テストも使います。この2件は `benchmarks/first_difference.py --draws` で検出できます。Rust に移した式のテストの足し方は [lanes/p0-digest.md](rust-port/lanes/p0-digest.md) にあります。
+確率のわずかな違いは、乱数との比較の結果が変わらない限りハッシュに現れません。短い Scenario では抽選の回数が少ないためです。確率の式を移すときは、ハッシュだけでなく、毎 tick のビット単位の比較テストも使います。この2件は、規則が Python にあった間は `benchmarks/first_difference.py --draws` で検出できました（Rust の中の抽選は記録しません）。Rust に移した式のテストの足し方は [lanes/p0-digest.md](rust-port/lanes/p0-digest.md) にあります。
 
 ### 決定性
 

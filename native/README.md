@@ -41,8 +41,8 @@ Checkpoint document) and times them.
   `EventApplicationError` itself, with the Python rule's text and in the rule's order of checks,
   through `src/core/errors.rs` (`errors::suppressed`, `errors::failed`; the type tests of a check,
   such as `errors::int_not_bool`, say Unsupported only where Rust can't tell). The text is saved, as
-  the event record's `detail`. `benchmarks/rule_shadow/text_check.py` compares each one with the
-  Python rule's while that exists (docs/rust-port/lanes/l8-texts-events.md).
+  the event record's `detail`. Tests compare each one with the class and text written down from
+  the Python rule before it went (docs/rust-port/lanes/l8-texts-events.md).
   The same file has the exits for the rules' other errors: where the Python rule raises a
   `ValueError`, a `StateInvariantError` or a class of a contract, a kernel raises that class with
   that text, in the rule's order of checks and before any
@@ -216,11 +216,12 @@ each OS, because both call the same libm.
   `view_for_proposals(controller, world, minute)` are the two steps of the phases that make a
   `WorldView`, which have no Python body (`KERNEL_ONLY_SEGMENTS`). A snapshot of plain Rust values (`ViewData`) is built from the entity rows, the rows of
   `information_spread_v1` and `psychological_distress_v1`, and a read of the namespaces Python still
-  owns. It is what `WorldView.from_world` provides, with the same audit hash
+  owns. It is what the Python rule `WorldView.from_world` provided before it went (lane L10), with
+  the same audit hash
   (`state_hash`, which writes the canonical document from the snapshot). The returned `WorldView`
   makes `agents`, `facilities`, `zone_members` and `group_members` when a Python reader first asks
   (`RustView.python_fields`, through `WorldView.__getattr__`). A person's context comes from
-  `rules/person_context.rs` (`PersonContext` and `_fields_of_person`) and a zone's conditions from
+  `rules/person_context.rs` (`PersonContext`) and a zone's conditions from
   `rules/zone_environment.rs` (`zone_environment_view` and its 8 formulas), each kept while its
   document stays equal. `selected_models` stays the Python contract. A value a typed field can't hold, or anything Python would raise on, says
   `Unsupported`, and the step raises KernelRefusal. `view_of(view)` gives a kernel the snapshot; for a view Python
@@ -236,7 +237,7 @@ each OS, because both call the same libm.
   and float order are those of Python. A trace's document comes from `rules/trace.rs`. Another RNG, a
   policy's subclass, and what the
   Python rule turns down give `Unsupported`, and the Python step runs. `core::rng` can keep each
-  draw of a thread for the comparison of `benchmarks/rule_shadow` (`start_draw_log`, `take_draw_log`).
+  draw of a thread for the tests' comparisons (`start_draw_log`, `take_draw_log`).
 
 - `state.social_network.ROW`, `validate`: Rust owns `social_network_v1`
   (`src/state/social_network.rs`). The row lists the records written since the last check, whichever
@@ -367,7 +368,7 @@ each OS, because both call the same libm.
   (`EventWriter` of `src/state/events.rs`), with the errors of `ScheduledEvent` for what a row
   refuses. A trace's document is written here. Another RNG, a policy's subclass and whatever the Python
   rule might raise on give `Unsupported`, and the Python step runs. `planned_contacts` returns the
-  same tick's draws and contacts without changing anything, for `benchmarks/rule_shadow`.
+  same tick's draws and contacts without changing anything, for the tests.
 
   Seven days, run beside the previous commit: `update_agent_state` 76.4 s -> 26.1 s,
   `sample_endogenous_events` 38.6 s -> 1.8 s, with the other changes of this step

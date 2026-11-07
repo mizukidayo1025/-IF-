@@ -11,9 +11,9 @@ docs/rust-port/lanes/p4-world-core.md for what a lane does.
 The maps of entities are IdMap, which keep the Rust rows of the entities equal to the objects
 (docs/rust-port/lanes/p6-entity-windows.md).
 
-A sink is sheltersim_native.NamespaceMirror, or a test's object with the same methods
-(tests/support/tracked_mirror.py). A node's _sink is None out of any tree: it then behaves as the
-plain container, like the value `pop` returns, and an insert moves it in as itself.
+A sink is sheltersim_native.NamespaceMirror, or a test's object with the same methods. A node's
+_sink is None out of any tree: it then behaves as the plain container, like the value `pop`
+returns, and an insert moves it in as itself.
 """
 
 from __future__ import annotations
