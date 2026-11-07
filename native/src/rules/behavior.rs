@@ -25,7 +25,7 @@ use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple, PyT
 use pyo3::IntoPyObjectExt;
 
 use crate::core::mathx::{exp, py_fsum, py_is_close, py_max, py_round_int, py_sum};
-use crate::core::rng::{Key, KeyedDraws};
+use crate::core::rng::{label, Key, KeyedDraws};
 use crate::core::tracked::as_readable_dict;
 use crate::core::world_core::{raw_dict_get, raw_dict_set};
 use crate::rules::world_view::{DemandModifier, RustView, ViewAgent, ViewData};
@@ -473,7 +473,7 @@ fn score(candidates: &[Candidate], modifiers: &[DemandModifier], temperature: f6
             weights.push(0.0);
             continue;
         }
-        let Some(weight) = exp((*total - maximum) / temperature) else {
+        let Ok(weight) = exp((*total - maximum) / temperature) else {
             return Err("an exponent is out of range");
         };
         let multiplier = demand_of(modifiers, candidate.action).map_or(1.0, |modifier| modifier.probability_multiplier);
@@ -518,7 +518,7 @@ fn compute(frozen: &Frozen<'_>, index: usize, temperature: f64, base_minutes: i6
     let candidates = candidates_of(frozen, index);
     let mut evidence = score(&candidates, modifiers, temperature)?;
 
-    let mut key = Key::labelled("behavior");
+    let mut key = Key::labelled(label::BEHAVIOR);
     key.text(&agent.rng_key).text(&agent.id).text("minute").int(minute);
     key.text("policy").text(frozen.settings.version).text("choice");
     let mut choice_value = key.draw(frozen.draws);
@@ -794,7 +794,7 @@ pub(crate) fn proposal_of<'py>(
     }
     let minute = data.minute_index.into_bound_py_any(py)?;
     let mut key: Vec<Bound<'py, PyAny>> = vec![
-        intern!(py, "behavior").clone().into_any(),
+        PyString::new(py, label::BEHAVIOR).into_any(),
         PyString::new(py, &agent.rng_key).into_any(),
         id.clone().into_any(),
         intern!(py, "minute").clone().into_any(),

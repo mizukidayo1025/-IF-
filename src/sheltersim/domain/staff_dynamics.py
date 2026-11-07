@@ -80,6 +80,8 @@ def canonical_staff_dynamics_config(raw: Any) -> dict[str, Any]:
         or not config["source_id"]
     ):
         raise ValueError("unsupported staff_dynamics policy or source")
+    # 1.0 and true equal 1; the canonical config holds the int (model version 2).
+    config["schema_version"] = 1
     if config["policy_version"] == STAFF_DYNAMICS_POLICY_VERSION and (
         config["shift_windows_by_staff"] or config["off_shift_fatigue_recovery_per_minute"] != 0.0
     ):
@@ -196,8 +198,8 @@ def create_staff_dynamics_state(world: WorldState) -> dict[str, Any]:
     `canonical_staff_dynamics_config` of `model_configs["staff_dynamics"]`, without
     `max_continuous_work_minutes_by_staff` when that is empty; each staff member, in ID order,
     starts with no work or rest minutes, fatigue 0.0, `rest_until_minute` 0 and "off_duty". The
-    config's ValueError, in its words; a config of a type the kernel does not take (a
-    `schema_version` that is not an int, a source of a str subclass) is KernelRefusal.
+    config's ValueError, in its words; a config of a type the kernel does not take (a source of a
+    str subclass) is KernelRefusal. A `schema_version` of 1.0 or true is written as 1.
     """
 
 

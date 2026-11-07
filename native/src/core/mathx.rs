@@ -1,74 +1,104 @@
-//! Float operations with the bits CPython 3.12 computes. This file is the only caller of
-//! exp, expm1 and pow; `native/clippy.toml` bans the `f64` methods elsewhere.
+//! Float operations of the model. This file is the only caller of exp, expm1, pow and fma;
+//! `native/clippy.toml` bans the `f64` methods elsewhere.
 //!
-//! exp, expm1 and pow call the platform's libm through `black_box`ed arguments, as CPython
-//! does: until step 4 they must match Python on each OS. Without `black_box` LLVM rewrites
-//! `pow(x, 2.0)` to `x * x` and folds constant arguments at compile time; `x * x` differs
-//! from glibc's `pow` for some x. hypot and fsum are CPython's own algorithms.
+//! exp, expm1, pow and fma come from the `libm` crate, pure Rust pinned to one version, so they
+//! give the same bits on Linux, Windows and macOS (docs/rust-port/step4-plan.md, section 9).
+//! Before the model's version 2 they called the platform's libm, as CPython does. hypot, fsum,
+//! sum and round are CPython 3.12's own algorithms; of libm they use only `fma`.
 //!
-//! A function returning `None` leaves the value to Python, which raises its error or decides
-//! a case that depends on `errno`; the caller raises `Unsupported`.
+//! Where CPython raised, exp, expm1 and pow return a `MathError`, which becomes Python's
+//! exception with Python's text.
 
-use std::os::raw::c_long;
 use std::cmp::Ordering;
-use std::hint::black_box;
 
+use pyo3::exceptions::{PyOverflowError, PyValueError, PyZeroDivisionError};
 use pyo3::prelude::*;
 use pyo3::types::{PyFloat, PyInt};
 
-mod libm {
-    extern "C" {
-        pub fn exp(x: f64) -> f64;
-        pub fn expm1(x: f64) -> f64;
-        pub fn pow(x: f64, y: f64) -> f64;
+/// Where `math.exp`, `math.expm1` or `float ** float` raised in CPython 3.12 on Linux.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MathError {
+    /// `math_1` of mathmodule.c: an infinity from a finite argument.
+    Range,
+    /// `float_pow`: the result overflowed, which CPython reports from errno.
+    PowerRange,
+    /// `float_pow`: `0.0 ** negative`.
+    ZeroToNegative,
+    /// `float_pow`: a negative base and a fractional exponent. CPython returns a complex here,
+    /// which no rule can use; this is the ValueError Python 2 raised.
+    NegativeToFraction,
+}
+
+impl MathError {
+    /// `str()` of the exception CPython raised.
+    pub(crate) fn text(self) -> &'static str {
+        match self {
+            MathError::Range => "math range error",
+            MathError::PowerRange => "(34, 'Numerical result out of range')",
+            MathError::ZeroToNegative => "0.0 cannot be raised to a negative power",
+            MathError::NegativeToFraction => "negative number cannot be raised to a fractional power",
+        }
     }
 }
 
-/// `math_1` of mathmodule.c: a NaN from a non-NaN argument or an infinity from a finite one
-/// raises. An underflow to zero or a subnormal does not.
-fn math_1(x: f64, result: f64) -> Option<f64> {
-    if (result.is_nan() && !x.is_nan()) || (result.is_infinite() && x.is_finite()) {
-        return None;
+impl From<MathError> for PyErr {
+    fn from(error: MathError) -> Self {
+        let text = error.text();
+        match error {
+            MathError::Range | MathError::PowerRange => PyOverflowError::new_err(text),
+            MathError::ZeroToNegative => PyZeroDivisionError::new_err(text),
+            MathError::NegativeToFraction => PyValueError::new_err(text),
+        }
     }
-    Some(result)
 }
 
-/// `math.exp`, or `None` where it raises.
-#[inline]
-pub(crate) fn exp(x: f64) -> Option<f64> {
-    // SAFETY: exp only reads its argument (and may set errno).
-    math_1(x, unsafe { libm::exp(black_box(x)) })
+/// `math_1` of mathmodule.c for exp and expm1, which give no NaN from a non-NaN: an infinity
+/// from a finite argument raises. An underflow to zero or a subnormal does not.
+fn math_1(x: f64, result: f64) -> Result<f64, MathError> {
+    if result.is_infinite() && x.is_finite() {
+        return Err(MathError::Range);
+    }
+    Ok(result)
 }
 
-/// `math.expm1`, or `None` where it raises.
+/// `math.exp`.
 #[inline]
-pub(crate) fn expm1(x: f64) -> Option<f64> {
-    // SAFETY: expm1 only reads its argument (and may set errno).
-    math_1(x, unsafe { libm::expm1(black_box(x)) })
+pub(crate) fn exp(x: f64) -> Result<f64, MathError> {
+    math_1(x, libm::exp(x))
+}
+
+/// `math.expm1`.
+#[inline]
+pub(crate) fn expm1(x: f64) -> Result<f64, MathError> {
+    math_1(x, libm::expm1(x))
+}
+
+/// `x * y + z` rounded once. `f64::mul_add` calls the platform's `fma` where the CPU has none.
+#[inline]
+pub(crate) fn fma(x: f64, y: f64, z: f64) -> f64 {
+    libm::fma(x, y, z)
 }
 
 fn is_odd_integer(value: f64) -> bool {
     (value.abs() % 2.0) == 1.0
 }
 
-/// `base ** exponent` of two floats (an int operand is converted first), as `float_pow`
-/// computes it, or `None` where Python raises, returns a complex, or looks at `errno`.
-///
-/// `None` covers a subnormal result: glibc may set ERANGE for one, and CPython then raises
-/// OverflowError. Python decides those.
-pub(crate) fn pow(base: f64, exponent: f64) -> Option<f64> {
+/// `base ** exponent` of two floats (an int operand is converted first), with the special cases
+/// of `float_pow`. A subnormal result is kept: CPython raised OverflowError for one where glibc
+/// set ERANGE, which depends on the platform.
+pub(crate) fn pow(base: f64, exponent: f64) -> Result<f64, MathError> {
     if exponent == 0.0 {
-        return Some(1.0);
+        return Ok(1.0);
     }
     if base.is_nan() {
-        return Some(base);
+        return Ok(base);
     }
     if exponent.is_nan() {
-        return Some(if base == 1.0 { 1.0 } else { exponent });
+        return Ok(if base == 1.0 { 1.0 } else { exponent });
     }
     if exponent.is_infinite() {
         let size = base.abs();
-        return Some(if size == 1.0 {
+        return Ok(if size == 1.0 {
             1.0
         } else if (exponent > 0.0) == (size > 1.0) {
             exponent.abs()
@@ -78,7 +108,7 @@ pub(crate) fn pow(base: f64, exponent: f64) -> Option<f64> {
     }
     if base.is_infinite() {
         let odd = is_odd_integer(exponent);
-        return Some(if exponent > 0.0 {
+        return Ok(if exponent > 0.0 {
             if odd {
                 base
             } else {
@@ -92,28 +122,27 @@ pub(crate) fn pow(base: f64, exponent: f64) -> Option<f64> {
     }
     if base == 0.0 {
         if exponent < 0.0 {
-            return None;
+            return Err(MathError::ZeroToNegative);
         }
-        return Some(if is_odd_integer(exponent) { base } else { 0.0 });
+        return Ok(if is_odd_integer(exponent) { base } else { 0.0 });
     }
     let mut size = base;
     let mut negate = false;
     if base < 0.0 {
         if exponent != exponent.floor() {
-            return None;
+            return Err(MathError::NegativeToFraction);
         }
         size = -base;
         negate = is_odd_integer(exponent);
     }
     if size == 1.0 {
-        return Some(if negate { -1.0 } else { 1.0 });
+        return Ok(if negate { -1.0 } else { 1.0 });
     }
-    // SAFETY: pow only reads its arguments (and may set errno).
-    let result = unsafe { libm::pow(black_box(size), black_box(exponent)) };
-    if result.is_infinite() || result.is_nan() || result.is_subnormal() {
-        return None;
+    let result = libm::pow(size, exponent);
+    if result.is_infinite() {
+        return Err(MathError::PowerRange);
     }
-    Some(if negate { -result } else { result })
+    Ok(if negate { -result } else { result })
 }
 
 /// `max(first, second)` of floats: the first on a tie or when a NaN makes the comparison false.
@@ -273,17 +302,11 @@ pub(crate) fn py_sum(values: &[f64]) -> f64 {
     total
 }
 
-/// Whether CPython's sum() fast paths read this int: PyLong_AsLongAndOverflow, so the range of
-/// C long, which is 32 bits on Windows.
-fn fits_c_long(value: i64) -> bool {
-    c_long::try_from(value).is_ok()
-}
-
-/// `sum(values)` of ints and floats, as CPython 3.12 computes it. Ints add exactly until the
-/// first float, whose addition converts the total; later floats are compensated and later
-/// ints added without compensation. An int outside C long, or a running int total leaving
-/// it, ends the fast paths: what is left is plain `+`. `None` when ints leave i64, which
-/// Python carries on with as big ints.
+/// `sum(values)` of ints and floats, as CPython 3.12 computes it where C long has 64 bits (Linux
+/// and macOS; on Windows it has 32, and the model takes 64 on every OS). Ints add exactly until
+/// the first float, whose addition converts the total; later floats are compensated and later
+/// ints added without compensation. `None` when ints leave i64, which Python carries on with as
+/// big ints.
 pub(crate) fn sum_nums(values: &[Num]) -> Option<Num> {
     let mut exact: i64 = 0;
     let mut items = values.iter();
@@ -291,17 +314,13 @@ pub(crate) fn sum_nums(values: &[Num]) -> Option<Num> {
         match items.next() {
             None => return Some(Num::Int(exact)),
             Some(Num::Int(value)) => {
-                let next = exact.checked_add(*value)?;
-                exact = next;
-                if !fits_c_long(*value) || !fits_c_long(next) {
-                    return plain_sum(Num::Int(exact), items.as_slice());
-                }
+                exact = exact.checked_add(*value)?;
             }
             Some(Num::Float(value)) => break exact as f64 + value,
         }
     };
     let mut compensation = 0.0;
-    while let Some(item) = items.next() {
+    for item in items {
         match *item {
             Num::Float(value) => {
                 let next = total + value;
@@ -312,32 +331,13 @@ pub(crate) fn sum_nums(values: &[Num]) -> Option<Num> {
                 }
                 total = next;
             }
-            Num::Int(value) if fits_c_long(value) => total += value as f64,
-            Num::Int(value) => {
-                if compensation != 0.0 && compensation.is_finite() {
-                    total += compensation;
-                }
-                return plain_sum(Num::Float(total + value as f64), items.as_slice());
-            }
+            Num::Int(value) => total += value as f64,
         }
     }
     if compensation != 0.0 && compensation.is_finite() {
         total += compensation;
     }
     Some(Num::Float(total))
-}
-
-/// The rest of sum() once its fast paths have ended: `total + item` for each item.
-fn plain_sum(mut total: Num, items: &[Num]) -> Option<Num> {
-    for item in items {
-        total = match (total, *item) {
-            (Num::Int(left), Num::Int(right)) => Num::Int(left.checked_add(right)?),
-            (Num::Int(left), Num::Float(right)) => Num::Float(left as f64 + right),
-            (Num::Float(left), Num::Int(right)) => Num::Float(left + right as f64),
-            (Num::Float(left), Num::Float(right)) => Num::Float(left + right),
-        };
-    }
-    Some(total)
 }
 
 /// math.fsum as CPython 3.12 computes it (Shewchuk's partials with its half-even correction
@@ -476,11 +476,11 @@ fn vector_norm(values: &mut [f64], largest: f64, found_nan: bool) -> f64 {
     for &value in values.iter() {
         let scaled = value * scale;
         let square = scaled * scaled;
-        approximate = add(square, scaled.mul_add(scaled, -square));
+        approximate = add(square, fma(scaled, scaled, -square));
     }
     let mut root = approximate.sqrt();
     let square = -root * root;
-    let correction = add(square, (-root).mul_add(root, -square));
+    let correction = add(square, fma(-root, root, -square));
     root += correction / (2.0 * root);
     root / scale
 }

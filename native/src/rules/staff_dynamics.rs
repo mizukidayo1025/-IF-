@@ -144,7 +144,7 @@ fn fatigue_of(saturating: bool, consecutive: i64, maximum: i64) -> Option<f64> {
     }
     let fraction = consecutive as f64 / maximum as f64;
     if saturating {
-        return Some(1.0 - exp(-fraction)?);
+        return Some(1.0 - exp(-fraction).ok()?);
     }
     Some(py_min(1.0, fraction))
 }
@@ -487,7 +487,8 @@ fn recovery_in_range(value: &Bound<'_, PyAny>) -> PyResult<bool> {
 
 /// `canonical_staff_dynamics_config`, which `domain/staff_dynamics.py` keeps for a Scenario's
 /// check: the new dict, or its ValueError in its order, or Unsupported for a value of a type it
-/// takes that the rows do not (`schema_version: 1.0`, a str subclass).
+/// takes that the rows do not (a str subclass). A `schema_version` equal to 1 (`1.0`, `True`) is
+/// written as the int 1, as the Python check writes it since model version 2.
 fn canonical_config<'py>(raw: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>> {
     let py = raw.py();
     let empty;
@@ -520,6 +521,7 @@ fn canonical_config<'py>(raw: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>
         None => windows.is_none() && recovery.is_none(),
     };
     // One text for the schema, the policy and the source: any that fails raises it.
+    // `schema_version != 1`, for what a Scenario's JSON holds.
     let schema = match raw.get_item(intern!(py, "schema_version"))? {
         None => Verdict::Passes,
         Some(schema) if schema.is_exact_instance_of::<pyo3::types::PyInt>() => {
@@ -528,6 +530,28 @@ fn canonical_config<'py>(raw: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>
             } else {
                 Verdict::Fails
             }
+        }
+        Some(schema) if schema.is_exact_instance_of::<PyBool>() => {
+            if schema.is_truthy()? {
+                Verdict::Passes
+            } else {
+                Verdict::Fails
+            }
+        }
+        Some(schema) if schema.is_exact_instance_of::<PyFloat>() => {
+            if schema.downcast_exact::<PyFloat>()?.value() == 1.0 {
+                Verdict::Passes
+            } else {
+                Verdict::Fails
+            }
+        }
+        Some(schema)
+            if schema.is_none()
+                || schema.is_exact_instance_of::<PyString>()
+                || schema.is_exact_instance_of::<PyList>()
+                || schema.is_exact_instance_of::<PyDict>() =>
+        {
+            Verdict::Fails
         }
         Some(_) => Verdict::Unknown,
     };
@@ -662,7 +686,8 @@ fn canonical_config<'py>(raw: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>
             None => config.set_item(name, default),
         }
     };
-    take(intern!(py, "schema_version"), 1_i64.into_pyobject(py)?.into_any())?;
+    // The schema passed, so it equals 1: always the int.
+    config.set_item(intern!(py, "schema_version"), 1_i64)?;
     take(intern!(py, "policy_version"), PyString::new(py, policy).into_any())?;
     take(
         intern!(py, "source_id"),

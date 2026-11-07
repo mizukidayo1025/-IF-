@@ -149,7 +149,13 @@ class StaffOperationsFormula:
 
 @dataclass(frozen=True)
 class StaffFatigueFormula:
-    """Installed duty-duration to normalized fatigue equation."""
+    """Installed duty-duration to normalized fatigue equation.
+
+    The equation itself is the staff-dynamics kernel's (`fatigue_of` in
+    native/src/rules/staff_dynamics.rs): with fraction = consecutive work minutes / maximum
+    minutes, `min(1.0, fraction)` for staff-fatigue-linear-v1 and `1.0 - exp(-fraction)` for
+    staff-fatigue-saturating-v1, with the pinned libm's exp.
+    """
 
     model_id: str
     source_id: str
@@ -157,14 +163,6 @@ class StaffFatigueFormula:
 
     def maximum_minutes(self, default_minutes: int, staff_id: str) -> int:
         return self.max_work_minutes_by_staff.get(staff_id, default_minutes)
-
-    def fatigue(self, consecutive_work_minutes: int, maximum_minutes: int) -> float:
-        fraction = consecutive_work_minutes / maximum_minutes
-        if self.model_id == "staff-fatigue-saturating-v1":
-            import math
-
-            return 1.0 - math.exp(-fraction)
-        return min(1.0, fraction)
 
 
 @dataclass(frozen=True)

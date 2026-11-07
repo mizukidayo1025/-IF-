@@ -5,6 +5,10 @@ Python bodies are gone (lane L10, `kernel_only`): a run of a rule is checked aga
 rule gave, written down from it before it went (the rule's formula, or a digest of its answers on
 the same random inputs), and a value the kernels refuse is KernelRefusal. The checks of a config, of
 an override and of a saved namespace stay in Python and are the reference for the Rust ones.
+
+Model version 2 (step 4, L11: the pinned libm crate and the information events' draw keys)
+changed some of these results: those digests were re-recorded from the kernels of that model
+and are no longer the deleted Python rules'.
 """
 
 from __future__ import annotations
@@ -42,7 +46,6 @@ from sheltersim.domain.staff_dynamics import (
 from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
-from sheltersim.policies.registry import StaffFatigueFormula
 
 KEY = STAFF_DYNAMICS_STATE_KEY
 IDS = ("S01", "S02", "S03")
@@ -280,7 +283,7 @@ UPDATE_DIGESTS = {
     0: "eec89a7a17e1ad1f",
     1: "0f784670ff938487",
     2: "c0d429b464a37812",
-    3: "463a9147fa747d9e",
+    3: "8805af4803453dab",
     4: "303fc713c0b14fc7",
     5: "0fc54bc9fad202df",
     6: "77117a11a74284e6",
@@ -292,8 +295,8 @@ UPDATE_DIGESTS = {
     12: "5599c4a498120dd9",
     13: "588bef82ab3c19de",
     14: "b289b355c894cd4f",
-    15: "14100b62c635a78d",
-    16: "16400d4588f9ce5a",
+    15: "225fc9df1f9e2720",
+    16: "3c896621f6b98952",
     17: "a712b1f1ebe95ef1",
     18: "cf42c9342b71e104",
     19: "0f13a2ccafa59e68",
@@ -304,13 +307,13 @@ UPDATE_DIGESTS = {
     24: "903db27c64a6d0cc",
     25: "2c80af006a9a3081",
     26: "7b145ad176bd8daa",
-    27: "c57a59c8a8f15a8d",
+    27: "6a7ca81c6a5c56bd",
     28: "a29cdb887c0666cc",
-    29: "022d27ac1850fe16",
+    29: "bf0bd1b86ab22f2f",
     30: "f242001e3056f4ef",
-    31: "e9c29278b8a0a675",
+    31: "64779e02d4f0d275",
     32: "8cc685b38c281b73",
-    33: "8c365486bef77dc4",
+    33: "e56069c170d5493c",
     34: "673e093662a1851a",
     35: "38fd495096b7580d",
     36: "62d505f4312dcaa6",
@@ -343,17 +346,17 @@ def test_a_working_minute_is_the_formula_s_fatigue() -> None:
     assert _state(world)["staff"]["S02"] == {**_new_record(), "total_rest_minutes": 0}
 
 
-@pytest.mark.parametrize("model_id", ["staff-fatigue-linear-v1", "staff-fatigue-saturating-v1"])
-def test_a_fatigue_value_has_the_bits_of_the_python_formula(model_id: str) -> None:
-    formula = StaffFatigueFormula(model_id, "x", {})
+@pytest.mark.parametrize("saturating", [False, True])
+def test_a_fatigue_value_has_the_bits_of_the_formula(saturating: bool) -> None:
+    """`min(1.0, c / m)`, or `1.0 - exp(-c / m)` with the model's exp (the pinned libm)."""
+    exp = native.rules("parity").exp
     rng = random.Random(1)
     for _ in range(20_000):
         consecutive = rng.randrange(-5, 3_000)
         maximum = rng.randrange(1, 1_441)
-        expected = formula.fatigue(consecutive, maximum)
-        actual = _kernels().fatigue_value(
-            model_id == "staff-fatigue-saturating-v1", consecutive, maximum
-        )
+        fraction = consecutive / maximum
+        expected = 1.0 - exp([-fraction])[0] if saturating else min(1.0, fraction)
+        actual = _kernels().fatigue_value(saturating, consecutive, maximum)
         assert math.copysign(1.0, actual) == math.copysign(1.0, expected)
         assert actual.hex() == expected.hex()
 
@@ -688,8 +691,9 @@ def _outcome(rule: Any, *arguments: Any, **options: Any) -> tuple[str, str]:
 
 
 # The configs the kernel's canonical config does not take, of types the rows do not hold, and the
-# ones whose `in` raises TypeError in Python (an unhashable policy).
-REFUSED_CONFIGS = {9, 10}
+# ones whose `in` raises TypeError in Python (an unhashable policy). Since model version 2 a
+# `schema_version` of 1.0 or true (configs 9 and 10) is taken and written as the int 1.
+REFUSED_CONFIGS: set[int] = set()
 
 
 @pytest.mark.parametrize(
@@ -698,8 +702,7 @@ REFUSED_CONFIGS = {9, 10}
 def test_a_new_namespace_has_the_config_of_the_python_check(index: int) -> None:
     """`create_staff_dynamics_state` makes its config in Rust: what
     `canonical_staff_dynamics_config` gives, which a Scenario's check keeps in Python, or its
-    ValueError's text, or KernelRefusal for a value of a type the rows do not hold
-    (`schema_version: 1.0`, `True`)."""
+    ValueError's text, or KernelRefusal for a value of a type the rows do not hold."""
     raw = CONFIGS[index]
     world = WorldState("s", 1, 100, staff={"S01": StaffState("S01", "z", ())})
     world.model_configs["staff_dynamics"] = copy.deepcopy(raw)
@@ -719,6 +722,7 @@ def test_a_new_namespace_has_the_config_of_the_python_check(index: int) -> None:
         config.pop("max_continuous_work_minutes_by_staff")
     assert expected[0] == "value"
     assert _text(state["config"]) == _text(config)
+    assert type(state["config"]["schema_version"]) is int
 
 
 def test_a_new_namespace_shares_the_config_s_windows_as_the_python_rule_did() -> None:

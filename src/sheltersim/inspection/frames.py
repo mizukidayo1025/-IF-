@@ -402,8 +402,10 @@ def world_frame(
                 nearby = []
                 for agent_id in occupants:
                     position = Point2D.model_validate(positions[agent_id]["point"])
-                    distance_squared = (position.x - bed.x) ** 2 + (position.y - bed.y) ** 2
-                    if distance_squared <= 0.75**2 and agent_id not in claimed_agents:
+                    # Products, not `** 2`, which calls the platform's pow.
+                    dx, dy = position.x - bed.x, position.y - bed.y
+                    distance_squared = dx * dx + dy * dy
+                    if distance_squared <= 0.75 * 0.75 and agent_id not in claimed_agents:
                         nearby.append(agent_id)
                 if nearby:
                     agent_id = min(nearby)

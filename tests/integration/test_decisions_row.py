@@ -5,6 +5,10 @@ docs/rust-port/lanes/j-decisions.md). What a Run records is compared with what t
 recorded of the same Run, written down from them on 45a9bc9 before they went (digests, pinned on
 Linux as the gate's hashes are). What the rows don't take goes to the sink's own `record_decision`
 and the domain rules, as the Python step called them.
+
+Model version 2 (step 4, L11: the pinned libm crate and the information events' draw keys)
+changed some of these results: those digests were re-recorded from the kernels of that model
+and are no longer the deleted Python rules'.
 """
 
 from __future__ import annotations
@@ -103,7 +107,7 @@ def test_a_run_gives_the_rows_and_world_of_python(generated_scenario: Any) -> No
     rows = list(sink.observations)
     assert any(type(row) is bytes for row in rows)
     assert all(type(row) is bytes for row in rows if type(row) is not dict)
-    _python_s([_exact(_as_dict(row)) for row in rows], "041cedeba15f763c")
+    _python_s([_exact(_as_dict(row)) for row in rows], "33be50e2458c9bf3")
     _python_s(world.canonical_json(), "9a356ae3bed7843c")
 
 
@@ -356,7 +360,7 @@ def test_an_uncommitted_decision_opens_nothing(generated_scenario: Any) -> None:
 
 @pytest.mark.parametrize(
     ("level", "digest"),
-    [(TraceLevel.SUMMARY, "84635ff5444c28a7"), (TraceLevel.FULL, "020e1ef476d9609b")],
+    [(TraceLevel.SUMMARY, "ebcad2fa3d47d1cd"), (TraceLevel.FULL, "2553c70c92c803d8")],
 )
 def test_a_trace_keeps_the_documents_of_python(
     generated_scenario: Any, tmp_path: Path, level: TraceLevel, digest: str
@@ -385,4 +389,4 @@ def test_an_index_reads_a_row_of_bytes_as_its_dict(
             )
         ]
     assert records and any(row[0] == "actions" for row in records)
-    _python_s(records, "eb1066951e153d83")
+    _python_s(records, "8c860d77903353f7")

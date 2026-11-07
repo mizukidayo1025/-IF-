@@ -5,6 +5,10 @@ driver and with the kernels removed, and random worlds reach values no scenario 
 docs/rust-port/step4-plan.md: the documents keep their shape. See docs/rust-port/lanes/l6-trace.md.
 The psychology, contact and information steps have no Python rule left (lane L10): what the
 deleted rules wrote was recorded once as digests (ANSWERS), which the kernels' must equal on Linux.
+
+Model version 2 (step 4, L11: the pinned libm crate and the information events' draw keys)
+changed some of these results: those digests were re-recorded from the kernels of that model
+and are no longer the deleted Python rules'.
 """
 
 from __future__ import annotations
@@ -74,7 +78,7 @@ MODELS = (
 # policies/psychology.py and alternatives.py) are in PSYCHOLOGY_ANSWERS.
 ANSWERS: dict[str, str] = {
     "information-evidence-aware-rumor-v1-full": (
-        "fb778b1f2efe73f30f329d7c607ad89e7525e49b953a07efd276b28a543940e7"
+        "91d8f118da069b5cf6c6e49ae7a3893dde42d9643bcfec74b8026fe2c2e03312"
     ),
     "information-hazard-information-v1-full": (
         "d12a6e4ef3f0e6b6e88ae908236c824753cab76b5dbfcd95188c3a56c1ee2bae"
@@ -101,28 +105,28 @@ ANSWERS: dict[str, str] = {
         "e18873bd88512855e5ad8605bdac008b00e135f767e9a9235fb8d9ed41e2c486"
     ),
     "psychology-mean-reverting-life-state-v1-full": (
-        "fb778b1f2efe73f30f329d7c607ad89e7525e49b953a07efd276b28a543940e7"
+        "91d8f118da069b5cf6c6e49ae7a3893dde42d9643bcfec74b8026fe2c2e03312"
     ),
     "psychology-mean-reverting-life-state-v1-summary": (
-        "b3b45b0cd5f92ac8a47ef4978ef1996eae73cf0f4dc8842e7e5294aec751d25a"
+        "3364324ebbffb532ae89cdfd667900f3f780cc3c5a08f3041154d178ec2beb32"
     ),
     "social-degroot-contact-v1-full": (
-        "45bd3d00cc58361b56656cf994cbafc1b3c8717ce8d147cf56344888a3955c6e"
+        "d46c4311c3f14eeff494de4075be821334d572a7ea2706d42f6668a716cacb7c"
     ),
     "social-degroot-contact-v1-summary": (
-        "cf9a42ccbbfcac3504ca23786a829a1e2d0086a25c13ee78f69b7cbeb676b1b3"
+        "170267ecc4338ee8c605fd1ca74b2e405b01e54857384bf286924503348b3d71"
     ),
     "social-expressiveness-channel-openness-v1-full": (
-        "fb778b1f2efe73f30f329d7c607ad89e7525e49b953a07efd276b28a543940e7"
+        "91d8f118da069b5cf6c6e49ae7a3893dde42d9643bcfec74b8026fe2c2e03312"
     ),
     "social-sparse-family-zone-contact-v1-full": (
-        "405482147be37d931f2ceadbc3b887a59da7ad0c6b7498ad04a143b5b2c6d688"
+        "a0b6387140df3ebe9cfc641f7792062c9d84b877e1147a8f7261c40ccd99517c"
     ),
 }
 _RECORD = os.environ.get("SHELTERSIM_RECORD_CONTACT_RUNS")
 PSYCHOLOGY_ANSWERS: dict[str, str] = {
     "information-evidence-aware-rumor-v1-full": (
-        "48f99bbe27eadd8107164069b4b7a54e7a327696f916e6966294c6eee7d74a23"
+        "67c58f9b0ec9d181559d236c0b5798526509426d7067ad2ae5c94710a9e603dc"
     ),
     "information-hazard-information-v1-full": (
         "cc56c5df0fedfeed07d18da6accf33f3812fe5cb592d806d62a7e5d039221da5"
@@ -163,22 +167,22 @@ PSYCHOLOGY_ANSWERS: dict[str, str] = {
         "1ced8a5fd869b4f02716b6249857e89094293e4cdf5f79d38c983771286a0d36"
     ),
     "psychology-mean-reverting-life-state-v1-full": (
-        "48f99bbe27eadd8107164069b4b7a54e7a327696f916e6966294c6eee7d74a23"
+        "67c58f9b0ec9d181559d236c0b5798526509426d7067ad2ae5c94710a9e603dc"
     ),
     "psychology-mean-reverting-life-state-v1-summary": (
-        "48f99bbe27eadd8107164069b4b7a54e7a327696f916e6966294c6eee7d74a23"
+        "67c58f9b0ec9d181559d236c0b5798526509426d7067ad2ae5c94710a9e603dc"
     ),
     "social-degroot-contact-v1-full": (
-        "ea9bea375767d9717591c58ebaee32fab78bfbc9746d01c9f247cb0806a7536d"
+        "8c3eeec771be56bebfd68ad2cc5ccc31fff88477d7a84d717f156018166d01d6"
     ),
     "social-degroot-contact-v1-summary": (
-        "ea9bea375767d9717591c58ebaee32fab78bfbc9746d01c9f247cb0806a7536d"
+        "8c3eeec771be56bebfd68ad2cc5ccc31fff88477d7a84d717f156018166d01d6"
     ),
     "social-expressiveness-channel-openness-v1-full": (
-        "48f99bbe27eadd8107164069b4b7a54e7a327696f916e6966294c6eee7d74a23"
+        "67c58f9b0ec9d181559d236c0b5798526509426d7067ad2ae5c94710a9e603dc"
     ),
     "social-sparse-family-zone-contact-v1-full": (
-        "0ef79df752ad8be7cb2401ae7833d110320b97e4d0a85e484bb2af53408a8f55"
+        "41b28283442422e6792230377e316ec955e7429df6c2ce1d2e8f42d914728c5b"
     ),
 }
 

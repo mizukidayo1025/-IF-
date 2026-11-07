@@ -543,7 +543,7 @@ fn decision_document<'py>(
     document.set_item("selected_probability", row.outcome.selection_probability)?;
     document.set_item("choice_value", row.outcome.choice_value)?;
     let key = PyList::empty(py);
-    key.append("behavior")?;
+    key.append(crate::core::rng::label::BEHAVIOR)?;
     key.append(&*agent.rng_key)?;
     key.append(id)?;
     key.append("minute")?;

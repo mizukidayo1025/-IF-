@@ -15,7 +15,7 @@ use sha2::{Digest, Sha256};
 
 use crate::core::errors;
 use crate::core::mathx::py_max;
-use crate::core::rng::{Key, KeyedDraws};
+use crate::core::rng::{label, Key, KeyedDraws};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_int_text, exact_str, map_set, namespace_is_absent, unsupported};
 use crate::core::value::V;
 use crate::core::world_core::{mirror_of, raw_dict_get, NamespaceMirror};
@@ -455,7 +455,7 @@ fn start_one<'py>(
     let draw = match seed {
         Some(seed) => {
             let draws = KeyedDraws::new(&seed);
-            let mut key = Key::labelled("toilet-service");
+            let mut key = Key::labelled(label::TOILET_SERVICE);
             key.text(facility_name).text(&agent_id).text("minute").int(minute_value).text(&policy).text("duration");
             if let Some(head) = &head {
                 key.text(&head.queue_id);
@@ -464,7 +464,7 @@ fn start_one<'py>(
         }
         None => {
             let mut parts: Vec<Bound<'py, PyAny>> = vec![
-                PyString::new(py, "toilet-service").into_any(),
+                PyString::new(py, label::TOILET_SERVICE).into_any(),
                 facility_id.clone(),
                 PyString::new(py, &agent_id).into_any(),
                 PyString::new(py, "minute").into_any(),
@@ -564,7 +564,7 @@ fn start_one<'py>(
     provenance.insert(Arc::from("requested_at"), V::Int(queue_start));
     provenance.insert(Arc::from("service_started_at"), V::Int(minute_value));
     let mut rng_key = vec![
-        text("toilet-service"),
+        text(label::TOILET_SERVICE),
         V::Str(facility_arc.clone()),
         V::Str(agent_id.clone()),
         text("minute"),

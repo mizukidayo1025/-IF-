@@ -201,8 +201,8 @@ class InformationRumorHandler:
         `upgrade_information_runtime_state` does. EventApplicationError when the model is off or its
         config or state is invalid, and for the payload fields, a missing source_id, IDs that are
         not str, a truth status that is not one, a message ID that exists, 1024 messages, or an
-        unknown Agent. The belief strength is 0.5, or a CounterRNG draw
-        ("rumor-belief-acceptance-v1") under evidence-aware-rumor-v1.
+        unknown Agent. The belief strength is 0.5, or under evidence-aware-rumor-v1 a CounterRNG
+        draw keyed ("rumor-belief-acceptance-v1", minute, agent, message).
         """
 
 
@@ -220,8 +220,8 @@ class InformationCorrectionHandler:
         causation that is not the rumor, a belief against the message's truth, or an Agent already
         holding the other correction ("conflicting verified information state"). An unknown truth
         status takes the correction's. Under evidence-aware-rumor-v1 each Agent accepts by a
-        CounterRNG draw ("correction-acceptance-v1"); an accepted correction relieves query pressure
-        and is counted.
+        CounterRNG draw keyed ("correction-acceptance-v1", minute, source, agent, message); an
+        accepted correction relieves query pressure and is counted.
         """
 
 
@@ -240,8 +240,10 @@ class InformationContactHandler:
         or a correction against the message's truth. EventSuppressed when the sender no longer knows
         the message or holds another belief, when the two are no longer in the same, an adjacent or
         a family contact (or not that basis), or when the recipient's belief is as strong (unless a
-        correction under evidence-aware-rumor-v1). Draws: "contact-correction-acceptance-v1" for a
-        correction and "rumor-belief-acceptance-v1" for a heard claim under evidence-aware-rumor-v1.
+        correction under evidence-aware-rumor-v1). Draws under evidence-aware-rumor-v1, keyed
+        without the event's ID: ("contact-correction-acceptance-v1", minute, sender, recipient,
+        message) for a correction and ("rumor-belief-acceptance-v1", minute, recipient, message)
+        for a heard claim.
         """
 
 

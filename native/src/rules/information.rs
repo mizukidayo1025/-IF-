@@ -23,7 +23,7 @@ use crate::contacts::{
     Bucket,
 };
 use crate::core::mathx::{expm1, py_max, py_min};
-use crate::core::rng::{start_draw_log, take_draw_log, Key, KeyedDraws};
+use crate::core::rng::{label, start_draw_log, take_draw_log, Key, KeyedDraws};
 use crate::core::row::{map_set, Field};
 use crate::core::value::V;
 use crate::core::world_core::{mirror_of, NamespaceMirror};
@@ -125,10 +125,7 @@ impl Settings {
         let read = |name: &Bound<'_, PyString>| number(&config.getattr(name)?);
         let forgetting = read(intern!(py, "forgetting_rate_per_minute"))?;
         let forget_probability = if model == Model::EvidenceAware {
-            let Some(result) = expm1(-forgetting) else {
-                return unsupported("the forgetting rate is out of range");
-            };
-            -result
+            -expm1(-forgetting)?
         } else {
             0.0
         };
@@ -312,10 +309,7 @@ fn transmission_probability(
     if model != Model::Hazard {
         return Ok(propensity);
     }
-    match expm1(-propensity) {
-        Some(result) => Ok(-result),
-        None => unsupported("the hazard is out of range"),
-    }
+    Ok(-expm1(-propensity)?)
 }
 
 /// `_sender_sharing_factor`.
@@ -353,7 +347,7 @@ fn forget<'a>(
                     }
                     // A draw is never below 0.0, so a zero probability needs none.
                     let forgotten = (settings.forget_probability > 0.0 || recording) && {
-                        let mut key = Key::labelled("information-forgetting-v1");
+                        let mut key = Key::labelled(label::INFORMATION_FORGETTING);
                         key.int(minute).text(agent_id).text(message_id);
                         key.draw(draws) < settings.forget_probability
                     };
@@ -448,7 +442,7 @@ fn plan(
         for neighbors in nearby_buckets(zone, &inputs.neighbors, &members) {
             buckets.push(Bucket { basis: Basis::Nearby, members: neighbors, includes_self: false });
         }
-        let mut head = key_head("information-contact-partner-v1", minute, &quoted[me]);
+        let mut head = key_head(label::INFORMATION_CONTACT_PARTNER, minute, &quoted[me]);
         select_contacts(draws, &mut head, me, &buckets, settings.maximum_contacts, false, &mut selected);
         for &(source, drawn_basis) in &selected {
             let sender = &people[source];
@@ -545,7 +539,7 @@ fn plan(
                 1.0,
                 propensity * sharing_factor(settings, inputs.model, belief.share, sender.stress),
             );
-            let mut key = Key::labelled("information-contact-transfer-v1");
+            let mut key = Key::labelled(label::INFORMATION_CONTACT_TRANSFER);
             key.int(minute).quoted(&quoted[me]).quoted(&quoted[source]).text(message_id).text(belief.status);
             let transfers = key.draw(draws) < probability;
             if recording {

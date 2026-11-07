@@ -58,7 +58,7 @@
 
 | # | 確かめること | 今の案 |
 |---|---|---|
-| **D6** | **Scenario の int の係数（`0`、`1`）。** 有効な入力で、今は kernel が断り Python が動きます。**どの Run でもテストでも届いていません（実測：`a policy value is not an int`、`a flag is not a bool`）。** Python を消すと動かなくなります | Scenario を読むときに float にそろえます。保存の JSON が `0` から `0.0` に変わるので、版を上げる L11 に合わせます。**係数の値は変えません** |
+| **D6** | **Scenario の int の係数（`0`、`1`）。** 有効な入力で、今は kernel が断り Python が動きます。**どの Run でもテストでも届いていません（実測：`a policy value is not an int`、`a flag is not a bool`）。** Python を消すと動かなくなります | **L11 で決めました：そろえません。** L10 の各レーンで kernel が int の係数を Python と同じに受けるようになったので、保存の Scenario の JSON は変えません。生成 Scenario の整数の float 29 個を int に書いた Run は最後まで通り、イベントと KPI のハッシュは同じでした（世界の違いは設定の写しの int と float だけ）。**係数の値は変えません** |
 | **D11** | **非 ASCII の設備の種類。** `casefold` が変えるかもしれないので断っています | 契約で ASCII に制限するか確認します。`to_lowercase` は `casefold` と違います |
 | **D13** | **見ていただくコードの一覧。** L5 の式、L2 と L3 で移す枝、libm の前後の KPI の差 | **新しい係数がないことをレーンごとに書きます** |
 | **既知の不具合** | **`validate_geometry_change` の `transfer_equipment`：** 足跡のある設備で障害物が1つでもあると、`item.facility_id` が `SpatialObstacle` にないので `AttributeError` になります（`m6-overlay.md`）。kernel は断るので Python と同じ例外です。変えていません | Python を消す前に、直すか、この例外の文のまま移すかを決めていただきます |
@@ -1250,6 +1250,24 @@ L0 の前に文を読んで付けた分類です。到達は**推測で、上の
 - `id_counters["event"]` の並列の問題は L12。
 - **確かめ方：** libm だけ、RNG だけ、の2回に分けて `compare_behaviour.py`（100人、2日、10 seed）で KPI の分布の差を出す。**差が seed の揺れの中か**を担当の方に見てもらう。`first_difference.py` で `libm` の前後の最初の違いを見て、期待どおり `exp`、`expm1`、`pow` の下流であることを確かめる。
 
+**L11 の結果（2026-11-08）：** モデル全体の版を2に上げました（`ENGINE_VERSION`、`core/model_version.py`）。**係数と式の意味は変えていません。** 変えたものは次のとおりです。
+- **libm：** `exp`、`expm1`、`pow` と、`hypot` の中の `fma` を、版を固定した純 Rust の `libm` crate（`=0.2.16`、`Cargo.lock`）にしました。crate の `arch` 機能が差し替えるのは、正しく丸める `sqrt` と `fma` だけです（crate を読んで確かめた）。glibc との差は最大 1 ulp です（exp は乱数の入力の約8%、`exp(1.0)` も最後のビットが違う）。`test_native_parity.py` が固定のビットのベクトルで確かめます。CPython が例外を出していた入力は `MathError` にして、Python と同じクラスと文で出します（あふれは `OverflowError`、`0.0 ** 負` は `ZeroDivisionError`）。負の数の小数乗は CPython では complex なので `ValueError` にしました。pow の非正規化数の結果は errno に頼らず、そのまま返します。`sum` の int は Windows でも 64 ビットとして扱います（9節の4）。`clippy.toml` で `f64::mul_add` も禁じました。
+- **RNG のキー（D5）：** 情報のイベントの3つの抽選から `event_id` を外しました。キーは、うわさの受け入れが (分, 人, メッセージ)、訂正が (分, 出典, 人, メッセージ)、接触での訂正が (分, 送り手, 受け手, メッセージ) です。ラベルは `native/src/core/rng.rs` の `label` の1か所です。SHA-256、`str(seed)`、Scenario を作る抽選は変えていません。**`CounterRNG.algorithm_id`（`sha256-keyed-v1`）は上げません。** seed とキーから値を引く方法は同じで、Scenario を作る抽選と共有するからです。キーの変更は `engine:model` で表します。
+- **Python に残る float（9節の5）：** `** 2` を積に、`** 0.5` を `math.sqrt` にしました。使われていなかった `StaffFatigueFormula.fatigue` は消しました。
+- **入力（L10 から持ち越したもの）：** staff_dynamics の `schema_version` は、1.0 や true でも int の 1 として通します。資源の数量は、Scenario の検証で `MAX_RESOURCE_QUANTITY`（10^15）までにしました（台帳の行は i64 です。入力の上限で、係数ではありません）。D6 はそろえないことにしました（1節）。
+
+**KPI の差（Linux。基準は L10 の途中の `dd2b8b8`）：**
+
+| 確かめたもの | libm だけ | RNG だけ | 両方 |
+|---|---|---|---|
+| `compare_behaviour.py`（100人、2日、10 seed） | ハッシュまで同じ | ハッシュまで同じ | ハッシュまで同じ |
+| 同じ Scenario にゲートのうわさと訂正を足したもの（10 seed） | ハッシュまで同じ | 約30の KPI のうち2つが揺れより大きい（給水待ちの回数 +0.5%、残り水量 −0.2%。どちらも seed のばらつきより小さい） | RNG だけと同じ |
+| 全経路のゲート（55 Scenario） | 変化なし | 37 Scenario（50 の Run） | RNG だけと同じ |
+
+seed だけを変えた比較では、すべての KPI が揺れの範囲でした。既定の生成 Scenario にはうわさと訂正がないので、変えた抽選に届きません。`first_difference.py` で見た最初の違いは、libm では saturating の疲労の Scenario の5分目の1値でした（`1 - exp(-5/240)` の最後のビット。期待どおり exp の下流で、最後のハッシュは同じ）。RNG では訂正の分の `information_spread_v1` の受け入れと、その下流の `body_state_v1` でした。100人2日の生成 Scenario では、libm で 20161 の段階のすべてが同じでした。数は Issue #90 に書きます。
+
+**記録し直したもの：** `fixtures/gate-all-paths.json`、テストの固定のダイジェスト（`test_behavior_row.py`、`test_decisions_row.py`、`test_handler_rest_rules.py`、`test_information_row.py`、`test_scenario_seeds.py`、`test_staff_dynamics_row.py`、`test_trace_documents.py`、`test_world_view_row.py`）、7日分の基準（project の経路、生成 Scenario、10080 分。ハッシュは L10 の基準と同じでした：world `69aba659…`、events `5e4c7645…`、metrics `94c8cbb2…`。生成 Scenario にうわさと訂正がなく、libm の違いも世界に届かないため）。`fixtures/saved_runs/engine-v1-small` は版1のまま残し、閲覧のみで開くことを確かめます。`fixtures/regression-contract.json` の Run は変わりませんでした。**`fixtures/demo_replay/` は作り直していません（D4）。** 10月24日に取り込んだままの古い形（成果物の版1）で、テストは計算し直した結果と比べません。作り直すと 48 MB の大半が変わるので、リポジトリの増え方を見てから決めます。
+
 **削除の前に打つタグ：**
 1. **`rust-identical-final-YYYY-MM-DD`：** L8 の後。Python と1バイト同じ最後の点。`first_difference.py --both` 全 Scenario、7日分、全部の shadow の結果を Issue に。
 2. **`rust-python-deleted-YYYY-MM-DD`：** L10 の後。ハッシュは 1 と同じ。
@@ -1263,9 +1281,9 @@ L0 の前に文を読んで付けた分類です。到達は**推測で、上の
 
 1. **`exp`、`expm1`、`pow` は crate の純 Rust のコード。** `libm` をバイナリに静的に入れる。**同じバージョン（`=`）と `Cargo.lock`。**
 2. **LLVM が式を変えない。** Rust は既定で fast-math も FMA の融合もしません。`-C target-cpu=native` はありません（`native/.cargo` がないことを確かめた）。**x86_64（ubuntu、windows）と arm64（`macos-latest`）で同じ IEEE の演算です**（推測。L13 のベクトルで確かめる）。`libm` の `arch` 機能は `sqrt` など正確に丸まるものだけのはずですが、固定するときに crate を読んで確かめます。
-3. **`f64::mul_add` が残っています（`mathx.rs:463,467`、`hypot`）。** ハードの FMA がない既定のターゲットでは、プラットフォームの `fma` を呼びます（glibc、UCRT、libSystem）。**正しく丸めていない実装があると OS で変わります。** `libm::fma` にします。`hypot` は約 15 か所から使います。**読んで見つけました。一番静かに残りそうな穴です。**
-4. **`c_long` が OS で変わります（読んで確かめた）。** `mathx.rs:262` の `fits_c_long`（Windows は 32 ビット）が `sum_nums` の途中で分岐します。CPython に合わせたものです。**手順4では i64 に固定しないと、int の合計が 2^31 を超える `sum` で Windows だけ違います。** 実際に届くかは確かめていません。`world_core.rs:321` は ID の比較で、切り詰めの問題だけです。
-5. **Python に残る float の計算。** libm に依存する Python のコードを AST で探しました。
+3. **（L11 で `libm::fma` にしました。）** **`f64::mul_add` が残っています（`mathx.rs:463,467`、`hypot`）。** ハードの FMA がない既定のターゲットでは、プラットフォームの `fma` を呼びます（glibc、UCRT、libSystem）。**正しく丸めていない実装があると OS で変わります。** `libm::fma` にします。`hypot` は約 15 か所から使います。**読んで見つけました。一番静かに残りそうな穴です。**
+4. **（L11 で i64 に固定しました。）** **`c_long` が OS で変わります（読んで確かめた）。** `mathx.rs:262` の `fits_c_long`（Windows は 32 ビット）が `sum_nums` の途中で分岐します。CPython に合わせたものです。**手順4では i64 に固定しないと、int の合計が 2^31 を超える `sum` で Windows だけ違います。** 実際に届くかは確かめていません。`world_core.rs:321` は ID の比較で、切り詰めの問題だけです。
+5. **（L11 で書き換えました。）** **Python に残る float の計算。** libm に依存する Python のコードを AST で探しました。
    - **残るコードの中：** `inspection/frames.py:405-406`（`** 2`、ベッドからの距離の判定。frame は表示用ですが保存のキャッシュと比較に出る）、`contracts/spatial.py:181`（`** 0.5`、検証）、`storage/experiments.py:80`（校正の得点）、`policies/registry.py:194`（`StaffFatigueFormula.fatigue` の `math.exp`。Rust に同じものがあるので、Python の呼び手を確かめて消す）。
    - **`math.exp` 以外は `** 2` か `** 0.5` です。** `x * x` と `math.sqrt` に書き換えれば libm から外れます。**結果が変わり得るので L11 に入れます。**
    - **消すコードの中：** `policies/*` の `exp`、`expm1`、`geometry_overlay.py` の `**`。消えれば問題なし。

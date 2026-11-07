@@ -90,7 +90,7 @@ Scenario profiles、容量、route、施設、予定event、policy versions、se
 
 ## 再現性・互換性
 
-同seed・同Scenario・同モデル設定はkeyed RNGと安定した順序により再現します。Trace ON/OFFは状態更新や乱数消費を変えません。model ID、設定、seed、source provenance、signatureはrun artifactへ記録します。従来の `stress` APIと旧policy IDを保持します。情報runtime stateはv1入力を検証でき、更新時のv2移行を用意します。
+同seed・同Scenario・同モデル設定はkeyed RNGと安定した順序により再現します。抽選のキーは規則のラベル、分、人やメッセージなどの安定したIDで作り、作られた順で変わるイベントのIDは入れません。指数関数とべき乗は版を固定した純Rustの`libm`で計算するので、OSによらず同じ値です（モデル全体の版2から。係数と式は変わっていません）。Trace ON/OFFは状態更新や乱数消費を変えません。model ID、設定、seed、source provenance、signatureはrun artifactへ記録します。従来の `stress` APIと旧policy IDを保持します。情報runtime stateはv1入力を検証でき、更新時のv2移行を用意します。
 
 施設認知は心理Policyとは別のScenarioモデルです。明示設定があると、入所案内と到着後のzone内発見を施設ID単位でcheckpointに保持し、設定signatureもRunへ記録します。設定のない旧Scenarioは旧来の全施設候補動作を維持します。Summary Traceでは `psychology_contributions_hourly.jsonl` にAgent×時刻（UTCではなくシミュレーション時間）の平均stress、閾値以上の分数、自然回復・need・待機・環境・life-state等の寄与合計を記録します。分単位の因果Traceは既存 `psychology_contributions.jsonl` に残し、時間集計のために元Traceを削りません。
 

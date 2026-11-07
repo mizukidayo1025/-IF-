@@ -1,17 +1,22 @@
-"""native/src/core gives CPython's results, bit for bit: floats (exp, expm1, **, hypot, sum,
-fsum, max, min, round), CounterRNG draws, and the bytes and types of JSON values.
+"""native/src/core gives CPython's results, bit for bit: floats (hypot, sum, fsum, max, min,
+round), CounterRNG draws, and the bytes and types of JSON values.
 
-Each case is drawn from a fixed seed. SHELTERSIM_PARITY_CASES runs more of them. Skipped
-without the sheltersim_native extension, except what native.py does without it.
+exp, expm1, ** and fma are the libm crate pinned in native/Cargo.toml since model version 2, not
+the platform's libm CPython calls: their bits are pinned here as fixed vectors, the same on every
+OS, and compared with CPython only for where it raises and for a distance of one ulp.
+
+Each case is drawn from a fixed seed. SHELTERSIM_PARITY_CASES runs more of the CPython cases.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
 import random
 import struct
+import sys
 from enum import StrEnum
 
 import pytest
@@ -97,12 +102,186 @@ def _raising_to_none(function, *arguments):
         return None
 
 
+# ---- exp, expm1, ** and fma: the pinned libm crate ----------------------------------------------
+
+
+def _portable_floats(rng: random.Random, count: int) -> list[float]:
+    """Like _floats, but made without libm (`10.0 ** k` calls the platform's pow): the same
+    inputs on every OS."""
+    values = list(EDGES)
+    while len(values) < count:
+        kind = rng.randrange(5)
+        if kind == 0:
+            values.append(struct.unpack("<d", struct.pack("<Q", rng.getrandbits(64)))[0])
+        elif kind == 1:
+            values.append(rng.random())
+        elif kind == 2:
+            values.append(rng.uniform(-50.0, 50.0))
+        elif kind == 3:
+            values.append(rng.random() * float(f"1e{rng.randint(-320, 300)}"))
+        else:
+            values.append(round(rng.uniform(-2.0, 2.0), rng.randint(0, 10)))
+    return values
+
+
+def _digest(results: list) -> str:
+    """The bits of each result, or what it raises; a NaN as one token, since its sign and
+    payload are the CPU's."""
+    digest = hashlib.sha256()
+    for result in results:
+        if isinstance(result, float) and math.isnan(result):
+            digest.update(b"nan;")
+        elif isinstance(result, float):
+            digest.update(struct.pack("<d", result).hex().encode() + b";")
+        else:
+            digest.update(repr(tuple(result)).encode() + b";")
+    return digest.hexdigest()[:16]
+
+
+def _exp_inputs() -> list[float]:
+    rng = random.Random(1)
+    return _portable_floats(rng, 4000) + [rng.uniform(-1.0, 0.0) for _ in range(4000)]
+
+
+def _power_inputs() -> list[tuple[float, float]]:
+    rng = random.Random(2)
+    values = _portable_floats(rng, 2000)
+    pairs = [(value, exponent) for exponent in (2.0, 0.5, 3.0, -1.0, 0.25, 1.5) for value in values]
+    bases = _portable_floats(rng, 2000)
+    exponents = _portable_floats(rng, 2000)
+    rng.shuffle(exponents)
+    pairs += list(zip(bases, exponents, strict=True))
+    pairs += [(rng.uniform(-20.0, 20.0), 2.0) for _ in range(2000)]
+    return pairs + [(base, exponent) for base in EDGES for exponent in EDGES]
+
+
+# A few results by hand: (input, bits). Where CPython on glibc gives another last bit, it says so.
+EXP_VECTORS = [
+    (1.0, "4005bf0a8b14576a"),  # glibc: 4005bf0a8b145769
+    (-1.0, "3fd78b56362cef38"),
+    (0.5, "3ffa61298e1e069c"),
+    (-0.5, "3fe368b2fc6f960a"),
+    (1e-10, "3ff000000006df38"),
+    (-0.001, "3feff7cfe56f1a9e"),
+    (0.1, "3ff1aec7b35a00d4"),
+    (-2.0, "3fc152aaa3bf81cc"),
+    (5.0, "40628d389970338f"),
+    (-30.0, "3d3a56e0c2ac7f75"),
+    (100.0, "48f3494a9b171bf5"),
+    (-700.0, "00d14f2b0fb9307f"),
+    (-745.0, "0000000000000001"),
+    (-41.35324102717517, "3c34401f7fd4326e"),  # glibc: 3c34401f7fd4326f
+    (0.493957811, "3ffa387b415db56e"),  # glibc: 3ffa387b415db56d
+    (0.4456685163423838, "3ff8fc0ad2565e82"),  # glibc: 3ff8fc0ad2565e83
+]
+EXPM1_VECTORS = [
+    (1.0, "3ffb7e151628aed2"),
+    (-1.0, "bfe43a54e4e98864"),
+    (1e-10, "3ddb7cdfd9dda4e3"),
+    (-1e-05, "bee4f8aea9acf2c9"),
+    (0.1, "3fbaec7b35a00d3a"),
+    (-0.3, "bfd0966f2c7907f6"),
+    (-2.0, "bfebab5557101f8d"),
+    (5.0, "40626d389970338f"),
+    (-40.0, "bff0000000000000"),
+    (100.0, "48f3494a9b171bf5"),
+    (0.9820766375385342, "3ffab84cc86cf9e7"),  # glibc: 3ffab84cc86cf9e8
+    (0.42463793426560636, "3fe0edde63b50fc7"),  # glibc: 3fe0edde63b50fc6
+    (-0.8358092180524663, "bfe22093461664b8"),  # glibc: bfe22093461664b9
+    (-0.3357286480574361, "bfd2407000ab4f22"),  # glibc: bfd2407000ab4f23
+]
+POW_VECTORS = [
+    ((3.0, 2.0), "4022000000000000"),
+    ((0.7, 0.5), "3feac5eb3f7ab2f8"),
+    ((1.1, 3.0), "3ff54bc6a7ef9db4"),
+    ((7.0, -1.0), "3fc2492492492492"),
+    ((0.3, 0.25), "3fe7aec222340adf"),
+    ((2.5, 1.5), "400f9f6e4990f227"),
+    ((10.0, -3.0), "3f50624dd2f1a9fc"),
+    ((-2.0, 3.0), "c020000000000000"),
+    ((0.9, 100.5), "3efa6c21cdecf184"),
+    ((1.6658, 2.0), "400632f956ee7945"),  # glibc: 400632f956ee7944
+    ((9.99695801291439e-05, 2.0), "3e457636c5425285"),  # glibc: 3e457636c5425284
+    ((5.008410626306549e41, 3.0), "59e7c182f1b390ac"),  # glibc: 59e7c182f1b390ab
+    ((1.52828, 3.0), "400c8e5c0f9f3e98"),  # glibc: 400c8e5c0f9f3e97
+]
+FMA_VECTORS = [
+    ((0.1, 10.0, -1.0), "3c90000000000000"),
+    ((1.0000000000000002, 0.9999999999999998, -1.0), "b970000000000000"),
+    ((3.0, 0.3333333333333333, -1.0), "bc90000000000000"),
+    ((1e308, 10.0, -1e308), "7ff0000000000000"),
+    ((2.0, 3.0, 4.0), "4024000000000000"),
+    ((-0.0, 0.0, 0.0), "0000000000000000"),
+]
+# What the libm crate raises, as Python raised it: (class name, text).
+RANGE_ERROR = ("OverflowError", "math range error")
+
+
+def _bits(value: float) -> str:
+    return struct.pack(">d", value).hex()
+
+
+def test_exp_and_expm1_are_the_pinned_bits(parity) -> None:
+    for value, bits in EXP_VECTORS:
+        assert _bits(parity.exp([value])[0]) == bits, value
+    for value, bits in EXPM1_VECTORS:
+        assert _bits(parity.expm1([value])[0]) == bits, value
+    assert parity.exp([709.7827128933841, 1e300, -math.inf]) == [RANGE_ERROR, RANGE_ERROR, 0.0]
+    assert parity.expm1([709.7827128933841, -1e300]) == [RANGE_ERROR, -1.0]
+    values = _exp_inputs()
+    assert _digest(parity.exp(values)) == "095d49fb13350259"
+    assert _digest(parity.expm1(values)) == "1114bc8319a1b677"
+
+
+def test_power_is_the_pinned_bits(parity) -> None:
+    for (base, exponent), bits in POW_VECTORS:
+        assert _bits(parity.pow([(base, exponent)])[0]) == bits, (base, exponent)
+    assert parity.pow([(0.0, -1.0), (-8.0, 0.5), (10.0, 400.0), (-10.0, 401.0)]) == [
+        ("ZeroDivisionError", "0.0 cannot be raised to a negative power"),
+        ("ValueError", "negative number cannot be raised to a fractional power"),
+        ("OverflowError", "(34, 'Numerical result out of range')"),
+        ("OverflowError", "(34, 'Numerical result out of range')"),
+    ]
+    # A subnormal result is kept; CPython raised where glibc set ERANGE.
+    assert parity.pow([(2.0, -1074.0)]) == [5e-324]
+    assert _digest(parity.pow(_power_inputs())) == "169b17e183ada608"
+
+
+def test_fma_rounds_once(parity) -> None:
+    for (x, y, z), bits in FMA_VECTORS:
+        assert _bits(parity.fma([(x, y, z)])[0]) == bits, (x, y, z)
+
+
+def _ulps(first: float, second: float) -> int:
+    def ordered(value: float) -> int:
+        bits = struct.unpack("<q", struct.pack("<d", value))[0]
+        return bits if bits >= 0 else -(bits & 0x7FFFFFFFFFFFFFFF)
+
+    return abs(ordered(first) - ordered(second))
+
+
+def _near_cpython(inputs: list, rust: list, python: list) -> None:
+    """Where CPython raises the crate does, and elsewhere the two are at most one ulp apart."""
+    wrong = []
+    for given, ours, theirs in zip(inputs, rust, python, strict=True):
+        if theirs is None or isinstance(ours, tuple):
+            if not (theirs is None and isinstance(ours, tuple)):
+                wrong.append((given, ours, theirs))
+        elif math.isnan(theirs):
+            if not math.isnan(ours):
+                wrong.append((given, ours, theirs))
+        elif _ulps(ours, theirs) > 1 or (ours == 0.0 and _bits(ours) != _bits(theirs)):
+            wrong.append((given, ours, theirs))
+    assert not wrong, f"{len(wrong)} of {len(inputs)} differ, first: {wrong[:5]}"
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="measured against glibc only")
 @pytest.mark.parametrize("name", ["exp", "expm1"])
-def test_exp_and_expm1_give_math_results_and_none_where_math_raises(parity, name) -> None:
+def test_exp_and_expm1_are_within_one_ulp_of_cpython(parity, name) -> None:
     rng = random.Random(1)
     values = _floats(rng, CASES) + [rng.uniform(-1.0, 0.0) for _ in range(CASES)]
     python = [_raising_to_none(getattr(math, name), value) for value in values]
-    _assert_all_same(values, getattr(parity, name)(values), python)
+    _near_cpython(values, getattr(parity, name)(values), python)
 
 
 def _power(base: float, exponent: float) -> float | None:
@@ -110,41 +289,28 @@ def _power(base: float, exponent: float) -> float | None:
     return None if isinstance(result, complex) else result
 
 
-def _assert_powers_same(pairs: list[tuple[float, float]], rust: list) -> None:
-    python = [_power(*pair) for pair in pairs]
-    # A subnormal result is left to Python, which looks at errno.
-    expected = [
-        None if value is not None and abs(value) < 2.2250738585072014e-308 and value else value
-        for value in python
-    ]
-    _assert_all_same(pairs, rust, expected)
-
-
-def test_power_gives_float_pow_for_every_exponent_the_models_use(parity) -> None:
-    rng = random.Random(2)
-    values = _floats(rng, CASES)
-    for exponent in (2.0, 0.5, 3.0, -1.0, 0.25, 1.5):
-        pairs = [(value, exponent) for value in values]
-        _assert_powers_same(pairs, parity.pow(pairs))
-
-
-def test_power_of_two_is_libm_pow_and_not_the_product_llvm_would_write(parity) -> None:
-    rng = random.Random(3)
-    values = [rng.uniform(-20.0, 20.0) for _ in range(max(CASES, 100_000))]
-    pairs = [(value, 2.0) for value in values]
-    rust = parity.pow(pairs)
-    # The int exponent of `x ** 2` becomes this same float.
-    _assert_all_same(pairs, rust, [value**2 for value in values])
-
-
-def test_power_of_any_two_floats_matches_or_is_left_to_python(parity) -> None:
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="measured against glibc only")
+def test_power_is_within_one_ulp_of_cpython(parity) -> None:
     rng = random.Random(4)
-    bases = _floats(rng, CASES)
+    values = _floats(rng, CASES)
+    pairs = [(value, exponent) for exponent in (2.0, 0.5, 3.0, -1.0, 0.25, 1.5) for value in values]
     exponents = _floats(rng, CASES)
     rng.shuffle(exponents)
-    pairs = list(zip(bases, exponents, strict=True))
+    pairs += list(zip(values, exponents, strict=True))
     pairs += [(base, exponent) for base in EDGES for exponent in EDGES]
-    _assert_powers_same(pairs, parity.pow(pairs))
+    rust = parity.pow(pairs)
+    python = [_power(*pair) for pair in pairs]
+    # glibc set ERANGE for some subnormal results and CPython raised; the crate keeps them.
+    kept = [
+        index
+        for index, value in enumerate(rust)
+        if not (isinstance(value, float) and 0.0 < abs(value) < 2.2250738585072014e-308)
+    ]
+    _near_cpython(
+        [pairs[index] for index in kept],
+        [rust[index] for index in kept],
+        [python[index] for index in kept],
+    )
 
 
 def test_hypot_is_cpythons_algorithm(parity) -> None:
@@ -247,7 +413,22 @@ def test_sum_of_ints_and_floats_keeps_python_types(parity) -> None:
                 for _ in range(rng.randint(0, 7))
             ]
         )
+    if sys.platform == "win32":
+        # CPython's sum() leaves its fast path for an int past C long, 32 bits on Windows; the
+        # model takes 64 bits on every OS (test_sum_takes_64_bit_ints_on_every_os).
+        rows = [
+            row
+            for row in rows
+            if all(type(item) is not int or -(2**31) <= item < 2**31 for item in row)
+            and -(2**31) <= sum(item for item in row if type(item) is int) < 2**31
+        ]
     _assert_all_same(rows, [parity.sum_nums(row) for row in rows], [sum(row) for row in rows])
+
+
+def test_sum_takes_64_bit_ints_on_every_os(parity) -> None:
+    # As CPython on Linux and macOS. On Windows the int ends CPython's compensated sum, which
+    # gives 1.0001099511627776e16.
+    assert parity.sum_nums([1e16, 1.0, 2**40, 1.0]) == 1.0001099511627778e16
 
 
 def test_sum_leaving_i64_is_left_to_python(parity) -> None:

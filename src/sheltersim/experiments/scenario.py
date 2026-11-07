@@ -50,6 +50,11 @@ _BEHAVIOR_POLICY_SOURCE_IDS = {
     "priority-rule-v1": "ASM-PRIORITY-RULE-BEHAVIOR-V1",
 }
 RESOURCE_SERVICE_POLICY_ID = "resource-service-v1"
+# The most of one resource a Scenario's initial stock and scheduled deliveries may hold together,
+# and so any one quantity. The ledger's kernel holds 64-bit ints; this leaves room below 2**63 for
+# intervention deliveries (at most 10**9 each) and is exact as a float, below 2**53. A bound on
+# input, not a model coefficient (model version 2).
+MAX_RESOURCE_QUANTITY = 10**15
 TOILET_SERVICE_SOURCE_ID = "ASM-TOILET-SERVICE-DURATION-V1"
 
 _PSYCHOLOGY_AGENT_RATE_FIELDS = (
@@ -135,8 +140,8 @@ class InitialStockSpec(ContractModel):
     schema_version: Literal[1]
     warehouse_id: StableId
     zone_id: StableId | None = None
-    water_ml: int = Field(default=0, ge=0)
-    food_meal_units: int = Field(default=0, ge=0)
+    water_ml: int = Field(default=0, ge=0, le=MAX_RESOURCE_QUANTITY)
+    food_meal_units: int = Field(default=0, ge=0, le=MAX_RESOURCE_QUANTITY)
     source_ids: tuple[StableId, ...] = ()
 
     @model_validator(mode="after")
@@ -585,6 +590,10 @@ class ScenarioSpec(ContractModel):
                     quantity = payload.get("quantity")
                     if not isinstance(quantity, int) or isinstance(quantity, bool) or quantity <= 0:
                         raise ValueError(f"event {event.id!r} quantity must be a positive integer")
+                    if quantity > MAX_RESOURCE_QUANTITY:
+                        raise ValueError(
+                            f"event {event.id!r} quantity exceeds {MAX_RESOURCE_QUANTITY}"
+                        )
                 if event.event_type == "resource_delivery" and "shipment_id" in payload:
                     if event.kind not in (EventKind.EXOGENOUS, EventKind.INTERVENTION):
                         raise ValueError(
@@ -806,6 +815,19 @@ class ScenarioSpec(ContractModel):
                     or until_minute > self.duration_minutes
                 ):
                     raise ValueError(f"event {event.id!r} has an invalid until_minute")
+        if self.initial_stock is not None:
+            for resource_id in ("water_ml", "food_meal_units"):
+                total = getattr(self.initial_stock, resource_id) + sum(
+                    event.payload["quantity"]
+                    for event in self.scheduled_events
+                    if event.event_type == "resource_delivery"
+                    and event.payload["resource_id"] == resource_id
+                )
+                if total > MAX_RESOURCE_QUANTITY:
+                    raise ValueError(
+                        f"initial stock and scheduled deliveries of {resource_id} exceed "
+                        f"{MAX_RESOURCE_QUANTITY}"
+                    )
 
         rumor_by_message = {message_id: event for message_id, event in information_rumors.items()}
         correction_beliefs: dict[str, str] = {}

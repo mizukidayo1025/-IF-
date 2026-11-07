@@ -30,7 +30,7 @@ use crate::contacts::{
 };
 use crate::core::mathx::{max_num, min_num, py_fsum, py_max, py_min, sum_nums, Num};
 use crate::core::row::{namespace_is_absent, Field, IdMap};
-use crate::core::rng::{start_draw_log, take_draw_log, KeyedDraws};
+use crate::core::rng::{label, start_draw_log, take_draw_log, KeyedDraws};
 use crate::core::tracked::{as_readable_dict, as_readable_list};
 use crate::core::world_core::{mirror_of, NamespaceMirror};
 use crate::rules::social_network::record_observed_contacts;
@@ -192,7 +192,7 @@ fn plan(
         for &nearby in &nearby_of_zone[person.zone] {
             buckets.push(Bucket { basis: Basis::Nearby, members: nearby, includes_self: false });
         }
-        let mut head = key_head("social-contact-bucket-v1", minute, &quoted[me]);
+        let mut head = key_head(label::SOCIAL_CONTACT_BUCKET, minute, &quoted[me]);
         select_contacts(&draws, &mut head, me, &buckets, settings.maximum, true, &mut selected);
 
         lasting.clear();

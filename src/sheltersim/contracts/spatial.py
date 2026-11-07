@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 from typing import Any, Literal
 
 from pydantic import Field
@@ -178,7 +179,7 @@ def validate_spatial_constraints(scenario: Any) -> None:
             raise ValueError("opening references missing wall or route")
         wall = walls[opening.wall_id]
         dx, dy = wall.end.x - wall.start.x, wall.end.y - wall.start.y
-        length = (dx * dx + dy * dy) ** 0.5
+        length = math.sqrt(dx * dx + dy * dy)
         px, py = opening.center.x - wall.start.x, opening.center.y - wall.start.y
         distance = (px * dx + py * dy) / length
         if (
