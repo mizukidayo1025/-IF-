@@ -5,9 +5,7 @@ import sys
 
 domain, slots = sys.argv[1], int(sys.argv[2])
 links = "\n".join(
-    f'<li><a href="https://s{n}.{html.escape(domain)}/demo-v2">環境 {n}</a>'
-    f' <span class="sub">(<a href="https://s{n}.{html.escape(domain)}/demo">'
-    "Project workspace</a>)</span></li>"
+    f'<li><a href="https://s{n}.{html.escape(domain)}/demo-v2">環境 {n}</a></li>'
     for n in range(1, slots + 1)
 )
 print(f"""<!doctype html>
@@ -21,7 +19,7 @@ print(f"""<!doctype html>
 }}
 body {{ background:var(--bg); color:var(--fg); font:16px/1.7 system-ui, sans-serif;
        max-width:44rem; margin:2rem auto; padding:0 16px; }}
-a {{ color:var(--accent); }} .sub, .note {{ color:var(--muted); font-size:.9rem; }}
+a {{ color:var(--accent); }} .note {{ color:var(--muted); font-size:.9rem; }}
 li {{ margin:.4rem 0; }}
 </style></head><body>
 <h1>避難所IF！ 審査用環境</h1>

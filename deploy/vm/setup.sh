@@ -146,6 +146,10 @@ python3 "$HERE/render_landing.py" "$DOMAIN" "$SLOTS" > /opt/sheltersim/landing/i
   for n in $(seq 1 "$SLOTS"); do
     echo "s$n.$DOMAIN {"
     echo "  import auth"
+    # Judges use the new screen only: the app's / and the older screens (/demo, /admin)
+    # all go to /demo-v2. The API and the new screen's files pass through.
+    echo "  @older path / /demo /admin /index.html"
+    echo "  redir @older /demo-v2 302"
     echo "  reverse_proxy 127.0.0.1:$((8800 + n))"
     echo "}"
   done
