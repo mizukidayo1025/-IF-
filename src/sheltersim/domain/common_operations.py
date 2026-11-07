@@ -43,6 +43,28 @@ _CARE_TRANSITIONS = {
 }
 
 
+def _care_interruption_due(
+    world: WorldState, request_id: str, head_status: str, request_status: str
+) -> bool:
+    """A request timed out in this minute's batch of due events, before its care record.
+
+    SupportRequestTimeoutHandler closes the request inside the batch, and the dispatch phase
+    records the care interruption after the batch (`_record_request_interrupted`, and
+    native/src/rules/dispatch.rs in the same order). An event later in the batch whose handler
+    validates the world sees the request closed and its care head still requested (#88).
+    Only this minute's applied timeout of the request allows it: once the minute has moved on,
+    validate_after_tick finds a missing interruption.
+    """
+    if head_status != "requested" or request_status != "unresolved":
+        return False
+    return any(
+        record.status is EventStatus.APPLIED
+        and record.event.event_type == "support_request_timeout"
+        and record.event.payload.get("request_id") == request_id
+        for record in world.event_log.at_minute(world.minute_index)
+    )
+
+
 def create_shared_operations_state() -> dict[str, Any]:
     return {
         "schema_version": 1,
@@ -201,7 +223,9 @@ def validate_shared_operations_state(
                 "shared_operations_v1 care head has no matching persisted support request"
             )
         expected_status = "pending" if head.status == "requested" else "assigned"
-        if request.status.value != expected_status:
+        if request.status.value != expected_status and not _care_interruption_due(
+            world, request_id, head.status, request.status.value
+        ):
             raise ValueError(
                 "shared_operations_v1 care status disagrees with the persisted support request"
             )

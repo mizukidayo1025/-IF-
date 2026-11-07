@@ -162,7 +162,7 @@ python benchmarks/gate_all_paths.py --output 出力先 --coverage
 - 分岐・再開・Checkpointの往復は、1つのScenarioの中でまっすぐのRunと比べます（`must_match`）。tickの順序に効くものを省いて同じになることは、この比較で確かめます。
 - `--coverage`：tick側のコード（`core`、`domain`、`events`、`policies`、`experiments/runner.py`、`experiments/phases/`）のどの行に届いたかを、ファイルごとに`coverage-native.md`（Rustのkernelあり）と`coverage-both.md`（なしの回も合わせたもの）に書きます。
 - `policies`のモデルや、EffectProgramの操作を足したら、ここにもScenarioを足します。`tests/integration/test_all_paths_gate.py`は、モデルの一覧がここに入っていないと失敗します。
-- 介入が拒否された結果と、有効な入力でRunが止まる結果（`known_stops`のScenario）も、期待値に入れます。直したら期待値が変わるので気づけます。止まるものは、見つけたときにIssueにします。
+- 介入が拒否された結果と、有効な入力でRunが止まる結果（`run_stops`のScenario）も、期待値に入れます。直したら期待値が変わるので気づけます。止まるものは、見つけたときにIssueにします。直したものは`run_stops`にRunとして残し、再発に気づけるようにします。
 - `--reversed-order`：`world.agents`と`model_state`のすべてのdictの順序を、各段階の終わりに逆にする回（`reversed_order`）と、段階の途中でも逆にする回（`reversed_within_phase`）を動かして、1回目と比べます。結果が変わったScenarioは、dictの順序に頼る処理があるということです。途中で逆にする場所は`benchmarks/tick_probe.py`の`WITHIN_PHASE`にあり、処理を移したら一緒に直します。
 - 全件を動かすテストには`long_simulation`の印を付けます。通常のpytestは、1つの小さなScenarioだけを動かします。
 

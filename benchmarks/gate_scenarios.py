@@ -1081,16 +1081,16 @@ def _geometry(directory: Path) -> Outcome:
     return outcome
 
 
-def _known_stops(directory: Path) -> Outcome:
-    """Valid interventions that stopped the Run; the ones that still do are in docs/rust-port.md.
+def _run_stops(directory: Path) -> Outcome:
+    """Valid interventions that stopped the Run, listed in docs/rust-port.md.
 
-    A stop is the expected result, so that a fix or another stop shows up in the gate. A fixed
-    one stays as a Run, so that it doesn't come back.
+    A stop found here is pinned as the expected result, so that a fix or another stop shows up
+    in the gate. A fixed one stays as a Run, so that it doesn't come back.
     """
     outcome = Outcome()
-    # The closure's expiry is due in the minute a support request times out. That request's
-    # shared operations record is written after the batch of due events, and the expiry
-    # validates the world inside the batch.
+    # The closure's expiry is due in the minute support requests time out, after them in the
+    # batch of due events. Their care interruptions are recorded after the batch, and the
+    # expiry's copy of the world used to fail its validation in between (#88, 元 #309).
     scenario = generated(evacuees=30, minutes=180)
     store, timeline = open_timeline(directory / "expiry", scenario)
     timeline.advance("main", 30, checkpoint_interval=30)
@@ -1761,7 +1761,10 @@ def all_scenarios() -> dict[str, GateScenario]:
         GateScenario("arrivals", "外から歩いて来る到着と受け入れ", _arrivals, reads_saves=True),
         GateScenario("scarcity", "在庫切れとケアの必要", _scarcity),
         GateScenario(
-            "known_stops", "今はRunが止まる有効な介入（不具合）", _known_stops, reads_saves=True
+            "run_stops",
+            "Runを止めた有効な介入（直したものは再発の確認）",
+            _run_stops,
+            reads_saves=True,
         ),
     ]
     for domain, model_id in selectable_models():
