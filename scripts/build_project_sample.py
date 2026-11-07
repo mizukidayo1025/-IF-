@@ -25,6 +25,16 @@ The same text, seed and model give the same hashes on every build. A JSON summar
 (ids, Scenario, minutes, hashes, size) is printed and written to
 `<OUTPUT>/../sample-build.json` unless --summary names another file. Open the result
 with `/demo-v2?project=sample&run=<run_id>&branch=<branch_id>` (docs/demo-guide.md).
+
+    python scripts/build_project_sample.py OUTPUT_PROJECTS_DIR --check
+
+answers, without computing, whether a sample built earlier in OUTPUT_PROJECTS_DIR is what a
+build now would give: exit 0 if so, 3 with the reason if not. A build gives the same
+result when its plan (text, ids, fork minute, intervention) is the same, the Scenario the
+preview makes from the text has the same hash, and the installed model signatures equal
+the ones its Checkpoints recorded (core/model_version.py), as a Run is continued only
+then. How the offline parser reads the intervention is not compared; rebuild after
+changing it.
 """
 
 from __future__ import annotations
@@ -114,16 +124,7 @@ def build_sample(
     api = ProjectAPI(store, recover=False)
     api.workspace.research.research = _no_research
     try:
-        api.post([], {"project_id": PROJECT_ID})
-        draft = api.post(
-            [PROJECT_ID, "scenario-preview"],
-            {"text": text, **({"request": request} if request is not None else {})},
-        )
-        if not draft.get("can_start"):
-            raise RuntimeError(f"the Scenario preview cannot start: {draft.get('missing_fields')}")
-        if draft["llm_usage"]["api_request_count"] != 0:
-            raise RuntimeError("the Scenario preview called a Provider")
-        scenario = ScenarioSpec.model_validate(draft["scenario"])
+        draft, scenario = _preview(api, text, request)
         end = scenario.duration_minutes
         if not 0 < fork_minute < end:
             raise ValueError("the fork minute must fall inside the Scenario")
@@ -200,6 +201,82 @@ def build_sample(
     }
 
 
+def _preview(
+    api: Any, text: str, request: dict[str, Any] | None
+) -> tuple[dict[str, Any], ScenarioSpec]:
+    """Create Project `sample` and preview its Scenario from the text, offline."""
+    api.post([], {"project_id": PROJECT_ID})
+    draft = api.post(
+        [PROJECT_ID, "scenario-preview"],
+        {"text": text, **({"request": request} if request is not None else {})},
+    )
+    if not draft.get("can_start"):
+        raise RuntimeError(f"the Scenario preview cannot start: {draft.get('missing_fields')}")
+    if draft["llm_usage"]["api_request_count"] != 0:
+        raise RuntimeError("the Scenario preview called a Provider")
+    return draft, ScenarioSpec.model_validate(draft["scenario"])
+
+
+def sample_difference(
+    projects_dir: Path,
+    summary: dict[str, Any],
+    *,
+    text: str = TEXT,
+    request: dict[str, Any] | None = None,
+    fork_minute: int = FORK_MINUTE,
+) -> str | None:
+    """None if the sample in projects_dir is what a build now would give, else why not.
+
+    Nothing is computed: the plan is compared, the Scenario is previewed into a
+    temporary store, and the installed model signatures are compared with those the
+    branches' head Checkpoints recorded.
+    """
+    from sheltersim.web.projects import ProjectAPI
+
+    if LLMSettings.from_env().effective_mode is not LLMMode.OFFLINE:
+        raise RuntimeError("the sample is checked offline only; set SHELTERSIM_LLM_MODE=offline")
+    plan = {
+        "kind": "precomputed_project_sample",
+        "run_id": RUN_ID,
+        "branch_ids": ["main", CHILD_ID],
+        "text": text,
+        "fork_minute": fork_minute,
+        "intervention": intervention_text(fork_minute),
+        "open_branch_id": OPEN_BRANCH_ID,
+    }
+    built = {
+        "kind": summary.get("kind"),
+        "run_id": summary.get("run_id"),
+        "branch_ids": [branch.get("branch_id") for branch in summary.get("branches", [])],
+        "text": summary.get("scenario", {}).get("text"),
+        "fork_minute": summary.get("fork_minute"),
+        "intervention": summary.get("intervention", {}).get("text"),
+        "open_branch_id": summary.get("open_branch_id"),
+    }
+    changed = sorted(key for key in plan if plan[key] != built[key])
+    if changed:
+        return "the plan changed: " + ", ".join(changed)
+    with tempfile.TemporaryDirectory(prefix="sheltersim-sample-check-") as scratch:
+        api = ProjectAPI(ProjectStore(Path(scratch)), recover=False)
+        api.workspace.research.research = _no_research
+        try:
+            draft, _ = _preview(api, text, request)
+        finally:
+            api.close()
+    if draft["approved_hash"] != summary["scenario"].get("scenario_hash"):
+        return "the Scenario the preview makes from the text changed"
+    store = ProjectStore(projects_dir)
+    for branch_id in plan["branch_ids"]:
+        try:
+            reference = store.branch_reference(PROJECT_ID, RUN_ID, branch_id)
+            status = store.checkpoint_model_status(PROJECT_ID, RUN_ID, reference.checkpoint_hash)
+        except Exception as exc:  # A missing or unreadable sample is rebuilt.
+            return f"branch {branch_id} cannot be read: {exc}"
+        if not status.current:
+            return f"the model changed for branch {branch_id}: {', '.join(status.differences)}"
+    return None
+
+
 def _compute(api: Any, branch_id: str, end: int) -> None:
     """Resume a branch to the end, as the new UI's compute button does, and wait for it."""
     api.post([PROJECT_ID, "runs", RUN_ID, "resume"], {"branch_id": branch_id, "target_minute": end})
@@ -244,6 +321,11 @@ def main() -> int:
         type=Path,
         help="where to write the JSON summary (default: sample-build.json next to OUTPUT)",
     )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="compute nothing; exit 0 if the sample in OUTPUT is what a build now would give",
+    )
     arguments = parser.parse_args()
     output = arguments.output.resolve()
     summary_path = (arguments.summary or output.parent / "sample-build.json").resolve()
@@ -254,6 +336,15 @@ def main() -> int:
         os.environ["XDG_STATE_HOME"] = str(Path(scratch) / "state")
         os.environ["SHELTERSIM_LLM_CACHE_PATH"] = str(Path(scratch) / "llm-tape.json")
         os.environ["SHELTERSIM_PROJECTS_DIR"] = str(output)
+        if arguments.check:
+            try:
+                built = json.loads(summary_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                print(f"rebuild: no readable summary ({exc})")
+                return 3
+            reason = sample_difference(output, built)
+            print("current" if reason is None else f"rebuild: {reason}")
+            return 0 if reason is None else 3
         summary = build_sample(output)
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.write_text(

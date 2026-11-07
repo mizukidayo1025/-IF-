@@ -13,9 +13,10 @@
 # LLM usage ledger (XDG_STATE_HOME), so the default $50 cap holds for the whole VM.
 # Re-running the script is safe: it keeps the API key, the password and slot data.
 #
-# The precomputed sample Project (scripts/build_project_sample.py) is built once per app
-# commit into /var/lib/sheltersim/sample and copied into each slot that lacks it.
-# SAMPLE=0 skips it.
+# The precomputed sample Project (scripts/build_project_sample.py) is built into
+# /var/lib/sheltersim/sample, again only when its result would change, and copied into
+# each slot that lacks it.
+# SAMPLE=0 skips it; SAMPLE=rebuild builds it again even when it is current.
 set -euo pipefail
 
 METADATA=http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0
@@ -125,25 +126,35 @@ BASIC_HASH="$(caddy hash-password --plaintext "$BASIC_PASS")"
 
 # The precomputed sample: a 7-day Run of the new screen's example Scenario and its
 # Day 4 toilet outage branch, which the new screen opens without computing. It is built as the sheltersim user,
-# offline, without the API key and away from the shared usage ledger, and again only
-# when the app commit has changed since the last build (docs/vm-deploy.md).
+# offline, without the API key and away from the shared usage ledger, and built again only
+# when a build now would give another result (the builder's --check: plan, Scenario hash,
+# model signatures), or with SAMPLE=rebuild (docs/vm-deploy.md).
 SAMPLE_DIR=$DATA/sample
+sample_builder() {
+  local dir=$1
+  shift
+  runuser -u sheltersim -- env -i -C "$dir" PATH=/usr/bin:/bin HOME="$DATA" \
+    PYTHONUNBUFFERED=1 SHELTERSIM_LLM_MODE=offline XDG_STATE_HOME="$dir/state" \
+    SHELTERSIM_PROJECTS_DIR="$dir/projects" SHELTERSIM_LLM_CACHE_PATH="$dir/llm-tape.json" \
+    "$VENV/bin/python" "$APP/scripts/build_project_sample.py" "$dir/projects" \
+    --summary "$dir/sample-build.json" "$@"
+}
 if [[ $SAMPLE == 0 ]]; then
   rm -rf "$SAMPLE_DIR"
 else
-  COMMIT="$(git -C "$APP" rev-parse HEAD)"
-  if [[ "$(cat "$SAMPLE_DIR/app-commit" 2>/dev/null || true)" != "$COMMIT" ]]; then
+  SAMPLE_STATE=missing
+  if [[ $SAMPLE != rebuild && -d $SAMPLE_DIR ]]; then
+    SAMPLE_STATE="$(sample_builder "$SAMPLE_DIR" --check || true)"
+    SAMPLE_STATE="${SAMPLE_STATE:-rebuild: the check failed}"
+    rm -f "$SAMPLE_DIR/app-commit"
+  fi
+  echo "== precomputed sample: ${SAMPLE_STATE}"
+  if [[ $SAMPLE_STATE != current ]]; then
     echo "== precomputed sample (about 5 minutes, 4 GB of memory)"
     rm -rf "$SAMPLE_DIR.new"
     install -d -o sheltersim -g sheltersim "$SAMPLE_DIR.new"
-    runuser -u sheltersim -- env -i -C "$SAMPLE_DIR.new" PATH=/usr/bin:/bin HOME="$DATA" \
-      PYTHONUNBUFFERED=1 SHELTERSIM_LLM_MODE=offline XDG_STATE_HOME="$SAMPLE_DIR.new/state" \
-      SHELTERSIM_PROJECTS_DIR="$SAMPLE_DIR.new/projects" \
-      SHELTERSIM_LLM_CACHE_PATH="$SAMPLE_DIR.new/llm-tape.json" \
-      "$VENV/bin/python" "$APP/scripts/build_project_sample.py" "$SAMPLE_DIR.new/projects" \
-      --summary "$SAMPLE_DIR.new/sample-build.json" >/dev/null
+    sample_builder "$SAMPLE_DIR.new" >/dev/null
     rm -rf "$SAMPLE_DIR.new/state" "$SAMPLE_DIR.new/llm-tape.json"
-    echo "$COMMIT" > "$SAMPLE_DIR.new/app-commit"
     rm -rf "$SAMPLE_DIR"
     mv "$SAMPLE_DIR.new" "$SAMPLE_DIR"
   fi
