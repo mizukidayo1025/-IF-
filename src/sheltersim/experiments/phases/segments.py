@@ -4,8 +4,11 @@ A phase's `_run_*_phase` lists its steps, each a method. A lane adds one line to
 controller's step tries the kernel first. A kernel gets the controller and the step's arguments,
 and returns what the step returns. Unsupported, raised before it has changed anything, runs the
 Python step, so it says what the kernel doesn't handle: a tainted namespace, a policy it doesn't
-know. Without the Rust kernels, or with nothing listed, the steps stay the plain methods
-and a tick has nothing to pay. See docs/rust-port/lanes/p4-world-core.md.
+know. See docs/rust-port/lanes/p4-world-core.md.
+
+A step in KERNEL_ONLY_SEGMENTS has no Python step left (lane L10, docs/rust-port/step4-plan.md):
+the phase's method only raises KernelRefusal, and the kernel's Unsupported becomes KernelRefusal,
+as `kernel_only` of core/kernels.py does for a rule.
 """
 
 from __future__ import annotations
@@ -35,23 +38,63 @@ SEGMENTS: dict[str, tuple[str, str]] = {
     "_psychology_update": ("psychology", "update_psychology"),
     "_update_long_term_psychology": ("psychology", "update_long_term"),
     "_apply_state_deltas": ("psychology", "apply_deltas"),
-    "_sample_information_contacts": ("information", "sample_contacts"),
     "_sample_proximity_contacts": ("proximity", "sample_contacts"),
-    "_social_propagation": ("social_propagation", "update_social_propagation"),
     "_record_psychology_trace": ("trace", "record_psychology_trace"),
 }
 
+# Steps whose kernel alone runs them, in the same form.
+KERNEL_ONLY_SEGMENTS: dict[str, tuple[str, str]] = {
+    "_social_propagation": ("social_propagation", "update_social_propagation"),
+    "_sample_information_contacts": ("information", "sample_contacts"),
+}
+
+
+def no_python_step(step: str) -> kernels.KernelRefusal:
+    """What a phase's method of a KERNEL_ONLY_SEGMENTS step raises: it has no Python step.
+
+    The controller's step is the kernel. The phase's method is reached only past it: through
+    `super()`, which the tick's driver does after the kernel said Unsupported.
+    """
+    module, name = KERNEL_ONLY_SEGMENTS[step]
+    return kernels.KernelRefusal(f"{module}.{name} refused, and {step} has no Python step")
+
 
 def install_segments(
-    controller: type, segments: Mapping[str, tuple[str, str] | Callable[..., Any]] = SEGMENTS
+    controller: type,
+    segments: Mapping[str, tuple[str, str] | Callable[..., Any]] = SEGMENTS,
+    kernel_only: Mapping[str, tuple[str, str] | Callable[..., Any]] = KERNEL_ONLY_SEGMENTS,
 ) -> None:
-    """Replace each listed step of this class. Its bases keep the Python step."""
+    """Replace each listed step of this class. Its bases keep the Python step, or for a step of
+    `kernel_only`, a method that has none."""
     for step, kernel in segments.items():
         if not callable(getattr(controller, step, None)):
             raise ValueError(f"the controller has no step {step}")
         if not callable(kernel):
             kernel = getattr(native.rules(kernel[0]), kernel[1])
         setattr(controller, step, _with_kernel(controller, step, kernel))
+    for step, kernel in kernel_only.items():
+        if not callable(getattr(controller, step, None)):
+            raise ValueError(f"the controller has no step {step}")
+        label = step
+        if not callable(kernel):
+            label = f"{kernel[0]}.{kernel[1]}"
+            kernel = getattr(native.rules(kernel[0]), kernel[1])
+        setattr(controller, step, _only_kernel(controller, step, kernel, label))
+
+
+def _only_kernel(
+    controller: type, step: str, kernel: Callable[..., Any], label: str
+) -> Callable[..., Any]:
+    unsupported = native.Unsupported
+
+    @wraps(getattr(controller, step))
+    def run(self: Any, *arguments: Any, **options: Any) -> Any:
+        try:
+            return kernel(self, *arguments, **options)
+        except unsupported as refusal:
+            raise kernels.KernelRefusal(f"{label} refused: {refusal}") from refusal
+
+    return run
 
 
 def _with_kernel(controller: type, step: str, kernel: Callable[..., Any]) -> Callable[..., Any]:

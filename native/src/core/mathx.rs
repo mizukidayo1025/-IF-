@@ -178,6 +178,22 @@ impl Num {
             Num::Float(value) => value.into_bound_py_any(py),
         }
     }
+
+    /// The float Python converts it to where it meets a float: exact for an int within 2**53.
+    pub(crate) fn value(self) -> f64 {
+        match self {
+            Num::Int(value) => value as f64,
+            Num::Float(value) => value,
+        }
+    }
+
+    /// `-x`: an int stays an int, so `-0` is the int 0 and not the float -0.0.
+    pub(crate) fn neg(self) -> Num {
+        match self {
+            Num::Int(value) => Num::Int(-value),
+            Num::Float(value) => Num::Float(-value),
+        }
+    }
 }
 
 /// An int against a float by exact value, as `float_richcompare` does; `None` with a NaN.

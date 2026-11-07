@@ -7,7 +7,9 @@ coefficient are chosen so a change of 1% shows.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import sys
 from copy import deepcopy
 from typing import Any
 
@@ -83,6 +85,47 @@ def _plain(value: Any) -> Any:
     if isinstance(value, dict):
         return {key: _plain(item) for key, item in value.items()}
     return value
+
+
+# Digests of what the deleted Python rules of `kernel_only` kernels answered and left, recorded once
+# from them (2d8fb46) on Linux: route points and lengths are floats of the platform's libm. Lane L13
+# pins them on every OS; until then the plain checks next to each are what macOS and Windows check.
+RECORDED = {
+    "bed": "b440c65f6d9298df3e2fce977042b27f157b5f63c9c5158f71cdfbdbdef112b9",
+    "bed again": "bb5a2af0d667ae832e0c38f384480b82a31f3c1cb59cb955da9c2063f26d29dc",
+    "bed beside 0.7500001": "991c0f10289e5c54bf9d805b5f601a8250ac52769b46b78ba0c20397d588b75a",
+    "bed beside 1.2": "1c3bde66032b641be28d36ae4e4483ec0ebe620c74a15a1f3ef2d353b56b09fc",
+    "bed passed by": "be2a03926e1dfd151da266455b8f1164f5db1775de0bc27ef316ff5ffbfe5b83",
+    "bed routes 255": "af665afe748029472ed589fac67e451bba2dfbfa812a1adc6b17a4840bd33ac7",
+    "walk toilet_01-left-fifo": "723961dac125c409eaa43b22c60ded783d384b6f2257dc5e7f68c840dc7fc7b8",
+    "walk toilet_01-right-fifo": "a39a0e59ab284d406c24446027b37d51bc0d29584aadb83fa31fc9954e45fb0c",
+    "toilet request queue": "97b1cc3a6a8b952097a1aba419e725f3b8ad036ad9e8c6f8153ce26f28998fc0",
+    "toilet request": "97b1cc3a6a8b952097a1aba419e725f3b8ad036ad9e8c6f8153ce26f28998fc0",
+    "toilet head": "98f439dc7b6571d37a8ef60ffa986f53a6c5a973178c820749048dcec5bad3a4",
+    "toilet head full": "93af0a1e78f20e992a02da663d492bd862b17ca5fa28a5192e589dd20b48378a",
+    "toilet head late": "91a51ba00edae35d60c6c286b9b1bcc74a013f58a7b53d136626876b6631819b",
+    "toilet head unskilled": "1f74acc396e1a4dbc25d967d18898b5872956a8b53e2259268c79aa105ab658f",
+    "toilet head staffed": "5508059c468028e6e62f649129e486e874bf243daca667c7ea13495235ec839e",
+}
+
+
+def _answer(world: WorldState, call: Any, *arguments: Any, **options: Any) -> tuple[Any, Any]:
+    """The call on a copy of the world: what it returned, and the copy it left."""
+    ours = _copy(world)
+    result = call(ours, *arguments, **options)
+    for name in ("geometry_overlay_v1", "temporary_spaces_v1", "facility_queues_v1"):
+        mirror = ours.model_state._mirrors.get(name)
+        if mirror is not None and name in ours.model_state:
+            assert mirror.tainted is None
+            assert mirror.verify()
+    return result, ours
+
+
+def _recorded(name: str, result: Any, after: WorldState) -> None:
+    """The result and the world after it are the deleted rule's (RECORDED)."""
+    text = json.dumps(_plain(result)) + "\n" + _bytes(after)
+    if sys.platform == "linux":
+        assert hashlib.sha256(text.encode()).hexdigest() == RECORDED[name], name
 
 
 def _same(world: WorldState, kernel: Any, rule: Any, *arguments: Any, **options: Any) -> Any:
@@ -454,30 +497,69 @@ def _person_in_room_zone(world: WorldState) -> str:
     return next(key for key, agent in world.agents.items() if agent.zone_id == ROOM_ZONE)
 
 
-def test_a_bed_is_reserved_as_the_python_rule_does(world: WorldState) -> None:
+def _bed(world: WorldState, agent_id: str, name: str | None) -> Any:
+    """The kernel's bed for the person, on a copy: None (nothing written but the empty map of
+    reservations) or the reservation it writes, the deleted rule's (RECORDED[name])."""
+    held = world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["bed_reservations"].get(
+        agent_id
+    )
+    result, after = _answer(world, _rules().reserve_sleep_bed, agent_id)
+    reservations = after.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["bed_reservations"]
+    if name is None:
+        assert result is None
+        _same_world(after, _copy(world))
+        return None
+    room_id, bed_index = result["room_id"], result["bed_index"]
+    target = geometry_overlay._bed_target_id(room_id, bed_index)
+    reservation = held or {
+        "agent_id": agent_id,
+        "room_id": room_id,
+        "bed_index": bed_index,
+        "target_id": target,
+        "reserved_minute": world.minute_index,
+    }
+    assert reservations[agent_id] == reservation
+    assert result["target_id"] == target
+    assert result["reserved_minute"] == reservation["reserved_minute"]
+    assert result["route_points"][-1] == result["point"]
+    _recorded(name, result, after)
+    return result
+
+
+def test_a_bed_is_reserved_in_the_person_s_zone(world: WorldState) -> None:
     _room_world(world, people=4, beds=3)
     agent_id = _person_in_room_zone(world)
-    rule = geometry_overlay.reserve_sleep_bed.__wrapped__
-    result = _same(world, _rules().reserve_sleep_bed, rule, agent_id)
-    assert result is not None and result["room_id"] == "room"
+    result = _bed(world, agent_id, "bed")
+    assert result["room_id"] == "room"
     # Who holds a bed keeps it, with the minute it was reserved.
-    rule(world, agent_id)
+    geometry_overlay.reserve_sleep_bed(world, agent_id)
     world.minute_index = 3
-    again = _same(world, _rules().reserve_sleep_bed, rule, agent_id)
-    assert again["reserved_minute"] == 0
+    again = _bed(world, agent_id, "bed again")
+    assert (again["bed_index"], again["reserved_minute"]) == (result["bed_index"], 0)
 
 
-def test_no_bed_is_none_as_the_python_rule_says(world: WorldState) -> None:
+def test_a_state_saved_before_beds_were_reserved_gets_an_empty_map_first(world: WorldState) -> None:
+    """The rule's `state.setdefault("bed_reservations", {})` comes before the floor plan's check:
+    a state saved without the map gets it even when no bed follows."""
+    state = world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]
+    del state["bed_reservations"]
     agent_id = _person_in_room_zone(world)
-    rule = geometry_overlay.reserve_sleep_bed.__wrapped__
-    assert _same(world, _rules().reserve_sleep_bed, rule, agent_id) is None
+    del world.model_configs["facility_geometry"]
+    assert geometry_overlay.reserve_sleep_bed(world, agent_id) is None
+    assert world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["bed_reservations"] == {}
+
+
+def test_no_bed_is_none(world: WorldState) -> None:
+    agent_id = _person_in_room_zone(world)
+    # No room, no room in the person's zone, an overlay before schema_version 2.
+    _bed(world, agent_id, None)
     _room_world(world, people=2, beds=1)
     other = next(key for key, agent in world.agents.items() if key != agent_id)
     world.agents[other].zone_id = "corridor"
     world.model_state["movement_v1"]["positions"][other]["zone_id"] = "corridor"
-    assert _same(world, _rules().reserve_sleep_bed, rule, other) is None
+    _bed(world, other, None)
     world.model_configs["geometry_overlay"]["schema_version"] = 1
-    assert _same(world, _rules().reserve_sleep_bed, rule, agent_id) is None
+    _bed(world, agent_id, None)
 
 
 @pytest.mark.parametrize(
@@ -495,8 +577,7 @@ def test_someone_at_a_bed_is_using_it_within_its_radius(
         "x": bed["x"] + offset,
         "y": bed["y"],
     }
-    rule = geometry_overlay.reserve_sleep_bed.__wrapped__
-    result = _same(world, _rules().reserve_sleep_bed, rule, first)
+    result = _bed(world, first, None if taken else f"bed beside {offset}")
     assert (result is None) is taken
 
 
@@ -504,10 +585,9 @@ def test_a_reservation_taken_by_another_is_passed_by(world: WorldState) -> None:
     _room_world(world, people=4, beds=2)
     state = world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]
     people = [key for key, agent in world.agents.items() if agent.zone_id == ROOM_ZONE]
-    geometry_overlay.reserve_sleep_bed.__wrapped__(world, people[0])
+    geometry_overlay.reserve_sleep_bed(world, people[0])
     held = state["bed_reservations"][people[0]]["bed_index"]
-    rule = geometry_overlay.reserve_sleep_bed.__wrapped__
-    result = _same(world, _rules().reserve_sleep_bed, rule, people[1])
+    result = _bed(world, people[1], "bed passed by")
     assert result["bed_index"] != held
 
 
@@ -1088,7 +1168,7 @@ def _sweep_worlds(world: WorldState) -> list[WorldState]:
     worlds = [world]
     roomy = _copy(world)
     _room_world(roomy)
-    geometry_overlay.reserve_sleep_bed.__wrapped__(roomy, _person_in_room_zone(roomy))
+    geometry_overlay.reserve_sleep_bed(roomy, _person_in_room_zone(roomy))
     worlds.append(roomy)
     busy = _copy(world)
     for facility in busy.facilities.values():
@@ -1330,7 +1410,7 @@ def test_the_check_of_the_overlay_takes_nothing_the_python_rule_refuses(
 def test_a_bed_is_checked_against_its_target(world: WorldState) -> None:
     _room_world(world, people=4, beds=2)
     agent_id = _person_in_room_zone(world)
-    geometry_overlay.reserve_sleep_bed.__wrapped__(world, agent_id)
+    geometry_overlay.reserve_sleep_bed(world, agent_id)
     assert _rules().validate_overlay(world) is True
     state = world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]
     state["bed_reservations"][agent_id]["target_id"] = "bed-000000000000000000000000"
@@ -1398,7 +1478,7 @@ def test_sleep_past_the_run_s_end_releases_the_bed(world: WorldState) -> None:
     _room_world(world)
     agent_id = _person_in_room_zone(world)
     # The walk would end after the Run: no trip, and what the person held is gone.
-    geometry_overlay.reserve_sleep_bed.__wrapped__(world, agent_id)
+    geometry_overlay.reserve_sleep_bed(world, agent_id)
     world.minute_index = world.duration_minutes - 1
     ours, theirs = _copy(world), _copy(world)
     expected = ProposePhase._apply_effect(_controller(theirs), _sleep_proposal(theirs, agent_id))
@@ -1868,13 +1948,8 @@ def test_walks_of_a_fifo_are_the_python_rule_s(queued: WorldState, queue_id: str
     _line_up(queued, "toilet_01", queue_id, ["A001", "A002", "A003"])
     minute = queued.minute_index
     options = {"resource": False, "minute": minute, "queue_id": queue_id}
-    first = _same(
-        queued,
-        queues.progress_physical_queue_positions,
-        movement.progress_physical_queue_positions.__wrapped__,
-        "toilet_01",
-        **options,
-    )
+    first, after = _answer(queued, queues.progress_physical_queue_positions, "toilet_01", **options)
+    _recorded(f"walk {queue_id}", first, after)
     journey_world = _copy(queued)
     queues.progress_physical_queue_positions(journey_world, "toilet_01", **options)
     journeys = journey_world.model_state["movement_v1"]["journeys"]
@@ -1911,6 +1986,37 @@ def _resource_queues(world: WorldState) -> tuple[str, str] | None:
     return None
 
 
+# The water and meal service has no Python rule left (lane L10, `kernel_only`). What its rules
+# made of each case, recorded from them: the results and worlds, by sha256 (Linux: the worlds hold
+# floats of libm, as the gate's hashes do).
+RESOURCE_FIFO = {
+    "serves": "ae7d2fe0bddcb8cd",
+    "interrupted": "0a0181bb6cbb94b8",
+    "cancelled-operator_cancelled": "41226e92a37ea317",
+    "cancelled-facility_stopped": "41226e92a37ea317",
+    "cancelled-staff_unavailable": "1820a6203f51d466",
+    "cancelled-place": "272f389bc92cfc29",
+    "completed": "74ebe88f8e58b979",
+}
+
+
+def _is_the_python_rules(answers: list[str], case: str) -> None:
+    import hashlib
+    import sys
+
+    if sys.platform == "linux":
+        digest = hashlib.sha256("\n".join(answers).encode()).hexdigest()[:16]
+        assert digest == RESOURCE_FIFO[case]
+
+
+def _rows_follow(world: WorldState) -> None:
+    for name in ("resource_service_v1", "resource_ledger_v1", "facility_queues_v1"):
+        mirror = world.model_state._mirrors.get(name)
+        if mirror is not None and name in world.model_state:
+            assert mirror.tainted is None
+            assert mirror.verify()
+
+
 def test_a_resource_fifo_serves_as_the_python_rule_does(queued: WorldState) -> None:
     found = _resource_queues(queued)
     assert found is not None
@@ -1923,56 +2029,53 @@ def test_a_resource_fifo_serves_as_the_python_rule_does(queued: WorldState) -> N
     queued.agents[agent_id].zone_id = zone
     queued.model_state["movement_v1"]["positions"][agent_id]["zone_id"] = zone
     kernel = _rules("service")
+    answers: list[str] = []
     # The request.
-    ours, theirs = _copy(queued), _copy(queued)
-    theirs_receipt = ResourceServiceManager.request.__wrapped__(
-        ResourceServiceManager(theirs), agent_id, facility_id, validate_state=False
-    )
+    ours = _copy(queued)
     our_receipt = kernel.request(
         ResourceServiceManager(ours), agent_id, facility_id, validate_state=False
     )
-    assert repr(our_receipt) == repr(theirs_receipt)
-    _same_world(ours, theirs)
+    assert (our_receipt.agent_id, our_receipt.facility_id, our_receipt.queue_position) == (
+        agent_id,
+        facility_id,
+        1,
+    )
+    answers += [repr(our_receipt), _bytes(ours)]
+    _rows_follow(ours)
     manager.request(agent_id, facility_id, validate_state=False)
     # Each stop and the start of a service, on a world that walks no further.
     queued.model_state["movement_v1"]["positions"][agent_id]["point"] = queued.model_configs[
         "facility_geometry"
     ]["facility_points"][facility_id]
-    method = ResourceServiceManager._serve_independent_head.__wrapped__
     minute = queued.minute_index
 
-    def compare(world: WorldState, quantity: int | None = None) -> Any:
-        ours, theirs = _copy(world), _copy(world)
-        managers = ResourceServiceManager(ours), ResourceServiceManager(theirs)
+    def serve(world: WorldState, quantity: int | None = None) -> Any:
+        ours = _copy(world)
+        each = ResourceServiceManager(ours)
         if quantity is not None:
             key = (
                 "water_ml_per_service" if resource == "water_ml" else "food_meal_units_per_service"
             )
-            for each in managers:
-                each.config[key] = quantity
-        expected = method(managers[1], facility_id, resource, queue_id, minute)
-        result = kernel.serve_independent_head(managers[0], facility_id, resource, queue_id, minute)
-        assert tuple(result) == tuple(expected)
-        _same_world(ours, theirs)
-        assert [repr(event) for event in ours.event_queue.pending()] == [
-            repr(event) for event in theirs.event_queue.pending()
-        ]
+            each.config[key] = quantity
+        result = kernel.serve_independent_head(each, facility_id, resource, queue_id, minute)
+        answers.extend([repr(tuple(result)), _bytes(ours)])
+        _rows_follow(ours)
         return result
 
-    started = compare(queued)
+    started = serve(queued)
     assert started[0] is not None or started[1] is None or started[1][1]
     # No staff.
     without = _copy(queued)
     for staff in without.staff.values():
         staff.zone_id = "corridor"
-    assert compare(without)[1][1] == "staff"
+    assert serve(without)[1][1] == "staff"
     # No stock.
-    assert compare(queued, quantity=10**12)[1][1] == "stock"
+    assert serve(queued, quantity=10**12)[1][1] == "stock"
     # The Run's end.
     late = _copy(queued)
     late.minute_index = late.duration_minutes - 1
     minute = late.minute_index
-    assert compare(late)[1][1] == "run_end"
+    assert serve(late)[1][1] == "run_end"
     minute = queued.minute_index
     # Its stall records: the head's kept, or the first queue's new.
     stalls = [(agent_id, "staff")]
@@ -1983,14 +2086,13 @@ def test_a_resource_fifo_serves_as_the_python_rule_does(queued: WorldState) -> N
         ([], None),
         (stalls, {"agent_id": "A", "reason": "stock"}),
     ):
-        ours, theirs = _copy(queued), _copy(queued)
-        ResourceServiceManager._record_independent_queue_stall.__wrapped__(
-            ResourceServiceManager(theirs), facility_id, list(wanted), known
-        )
+        ours = _copy(queued)
         kernel.record_independent_stall(
             ResourceServiceManager(ours), facility_id, list(wanted), known
         )
-        _same_world(ours, theirs)
+        answers.append(_bytes(ours))
+        _rows_follow(ours)
+    _is_the_python_rules(answers, "serves")
 
 
 def _serving(queued: WorldState) -> tuple[str, str]:
@@ -2038,15 +2140,12 @@ def test_a_service_interrupted_goes_back_first_in_its_fifo_as_the_python_rule_sa
         payload={"staff_id": staff_id},
         source_id="ASM-TEST",
     )
-    ours, theirs = _copy(queued), _copy(queued)
-    ResourceServiceManager.interrupt_for_staff.__wrapped__(
-        ResourceServiceManager(theirs), staff_id, causation_event=cause
-    )
+    ours = _copy(queued)
     _rules("handlers").interrupt_for_staff(
         ResourceServiceManager(ours), staff_id, causation_event=cause
     )
-    _same_world(ours, theirs)
-    assert ours.id_counters == theirs.id_counters
+    _rows_follow(ours)
+    _is_the_python_rules([_bytes(ours)], "interrupted")
     records = [
         record.event.payload
         for record in ours.event_log.records
@@ -2069,11 +2168,12 @@ def test_a_cancelled_service_is_the_python_rule_s(queued: WorldState, reason: st
         payload={"task_id": task_id, "reason": reason},
         source_id="ASM-TEST",
     )
-    ours, theirs = _copy(queued), _copy(queued)
-    ResourceServiceManager.cancel.__wrapped__(ResourceServiceManager(theirs), event)
+    ours = _copy(queued)
     _rules("handlers").cancel(ResourceServiceManager(ours), event)
-    _same_world(ours, theirs)
+    _rows_follow(ours)
+    _is_the_python_rules([_bytes(ours)], f"cancelled-{reason}")
     assert task_id in ours.model_state["resource_service_v1"]["cancelled_task_ids"]
+    assert task_id not in ours.active_tasks
 
 
 def test_a_cancelled_place_in_a_queue_is_the_python_rule_s(queued: WorldState) -> None:
@@ -2092,10 +2192,11 @@ def test_a_cancelled_place_in_a_queue_is_the_python_rule_s(queued: WorldState) -
         payload={"task_id": receipt.queue_task_id, "reason": "operator_cancelled"},
         source_id="ASM-TEST",
     )
-    ours, theirs = _copy(queued), _copy(queued)
-    ResourceServiceManager.cancel.__wrapped__(ResourceServiceManager(theirs), event)
+    ours = _copy(queued)
     _rules("handlers").cancel(ResourceServiceManager(ours), event)
-    _same_world(ours, theirs)
+    _rows_follow(ours)
+    _is_the_python_rules([_bytes(ours)], "cancelled-place")
+    assert "A001" not in ours.facilities[facility_id].resource_queue_agent_ids
 
 
 def test_a_completed_service_leaves_its_fifo_as_the_python_rule_does(queued: WorldState) -> None:
@@ -2131,10 +2232,10 @@ def test_a_completed_service_leaves_its_fifo_as_the_python_rule_does(queued: Wor
     assert pending, "the service never started"
     event = pending[0]
     queued.minute_index = event.due_minute
-    ours, theirs = _copy(queued), _copy(queued)
-    ResourceServiceManager.complete.__wrapped__(ResourceServiceManager(theirs), event)
+    ours = _copy(queued)
     _rules("service").complete(ResourceServiceManager(ours), event)
-    _same_world(ours, theirs)
+    _rows_follow(ours)
+    _is_the_python_rules([_bytes(ours)], "completed")
     assert not ours.model_state[facility_queues.FACILITY_QUEUES_STATE_KEY]["requests"]
 
 
@@ -2152,34 +2253,39 @@ def test_a_toilet_fifo_is_the_python_rule_s(queued: WorldState) -> None:
         queued.agents[agent_id].zone_id = zone
         queued.model_state["movement_v1"]["positions"][agent_id]["zone_id"] = zone
 
-    def same_request(world: WorldState, agent_id: str, **options: Any) -> None:
-        ours, theirs = _copy(world), _copy(world)
-        expected = ToiletServiceManager.request.__wrapped__(
-            _toilet(theirs), agent_id, "toilet_01", validate_state=False, **options
-        )
-        result = kernel.request(
-            _toilet(ours), agent_id, "toilet_01", validate_state=False, **options
-        )
-        assert repr(result) == repr(expected)
-        _same_world(ours, theirs)
+    def same_request(name: str, world: WorldState, agent_id: str, **options: Any) -> None:
+        def request(ours: WorldState) -> Any:
+            receipt = kernel.request(
+                _toilet(ours), agent_id, "toilet_01", validate_state=False, **options
+            )
+            return repr(receipt)
 
-    same_request(queued, "A001", queue_id=queue)
-    same_request(queued, "A001")
+        result, after = _answer(world, request)
+        # In the given queue, else the shortest accessible one: last in it, queued there.
+        requests = after.model_state["facility_queues_v1"]["requests"]
+        (task_id,) = [key for key, row in requests.items() if row["agent_id"] == agent_id]
+        if "queue_id" in options:
+            assert requests[task_id]["queue_id"] == options["queue_id"]
+        assert after.agents[agent_id].activity is Activity.QUEUED
+        _recorded(name, result, after)
+
+    same_request("toilet request queue", queued, "A001", queue_id=queue)
+    same_request("toilet request", queued, "A001")
     _toilet(queued).request("A001", "toilet_01", queue_id=queue, validate_state=False)
     _toilet(queued).request("A002", "toilet_01", queue_id=queue, validate_state=False)
-    method = ToiletServiceManager._serve_independent_head.__wrapped__
     rng = CounterRNG(queued.seed)
 
-    def same_head(world: WorldState, minute: int) -> Any:
-        ours, theirs = _copy(world), _copy(world)
-        expected = method(_toilet(theirs), "toilet_01", queue, minute, rng)
-        result = kernel.serve_independent_head(_toilet(ours), "toilet_01", queue, minute, rng)
-        assert result == expected
-        _same_world(ours, theirs)
-        return ours, result
+    def same_head(name: str, world: WorldState, minute: int) -> Any:
+        def serve(ours: WorldState) -> Any:
+            return kernel.serve_independent_head(_toilet(ours), "toilet_01", queue, minute, rng)
 
-    # Each stop: the walk, a point with no place, the Run's end, no skilled staff.
-    same_head(queued, queued.minute_index)
+        result, after = _answer(world, serve)
+        _recorded(name, result, after)
+        return after, result
+
+    # Each stop: the walk, a point with no place, the Run's end, no skilled staff; a stop marks
+    # its stall on the head's request.
+    same_head("toilet head", queued, queued.minute_index)
     point = next(
         item
         for item in queued.model_configs["facility_geometry"]["service_points"]
@@ -2188,10 +2294,11 @@ def test_a_toilet_fifo_is_the_python_rule_s(queued: WorldState) -> None:
     queued.model_state["movement_v1"]["positions"]["A001"]["point"] = dict(point["point_m"])
     full = _copy(queued)
     full.facilities["toilet_01"].working_units = 0
-    assert same_head(full, full.minute_index)[1] is None
+    stopped, result = same_head("toilet head full", full, full.minute_index)
+    assert result is None
     late = _copy(queued)
     late.minute_index = late.duration_minutes - 1
-    assert same_head(late, late.minute_index)[1] is None
+    assert same_head("toilet head late", late, late.minute_index)[1] is None
     skilled = _copy(queued)
     for item in skilled.model_configs["facility_geometry"]["service_points"]:
         if item["queue_id"] == queue:
@@ -2200,19 +2307,18 @@ def test_a_toilet_fifo_is_the_python_rule_s(queued: WorldState) -> None:
                 "required_access_tags": [],
                 "required_staff_skills": ["no_such_skill"],
             }
-    assert same_head(skilled, skilled.minute_index)[1] is None
+    assert same_head("toilet head unskilled", skilled, skilled.minute_index)[1] is None
     # With skilled staff here the service starts and holds the person.
     staffed = _copy(skilled)
     member = next(iter(staffed.staff.values()))
     member.zone_id = zone
     member.skills = [*member.skills, "no_such_skill"]
-    served, started = same_head(staffed, staffed.minute_index)
+    served, started = same_head("toilet head staffed", staffed, staffed.minute_index)
     assert started is not None
     # And the completion lets them go.
     event = served.event_queue.find(started)
     assert event.payload["staff_id"] == member.id
     served.minute_index = event.due_minute
-    from sheltersim.domain.models import Activity
     from sheltersim.events.handlers import ToiletServiceCompletionHandler
 
     ours = _copy(served)
@@ -2422,11 +2528,10 @@ def test_a_bed_s_routes_end_where_the_python_rule_s_do(
         }
     )
     agent_id = _person_in_room_zone(world)
-    rule = geometry_overlay.reserve_sleep_bed.__wrapped__
-    kernel = _rules().reserve_sleep_bed
-    ours, theirs = deepcopy(world), deepcopy(world)
-    assert json.dumps(_plain(kernel(ours, agent_id))) == json.dumps(_plain(rule(theirs, agent_id)))
-    assert (rule(deepcopy(world), agent_id) is not None) is found
+    # The rule routes at most 256 beds: the free bed after 256 others is never tried.
+    result = _bed(world, agent_id, f"bed routes {blocked}" if found else None)
+    if found:
+        assert result["bed_index"] == blocked
 
 
 @pytest.mark.parametrize(("free", "found"), [(250, True), (256, False)])

@@ -50,7 +50,6 @@ from sheltersim.domain.environment import (
     VentilationParameters,
 )
 from sheltersim.events.models import (
-    EventApplicationError,
     EventKind,
     EventSuppressed,
     ScheduledEvent,
@@ -68,14 +67,11 @@ from sheltersim.domain.geometry_overlay import (
     installed_facility_placement_enabled,
     installed_facility_point,
     parsed_facility_geometry,
-    place_installed_facility,
     validate_geometry_change,
 )
 from sheltersim.domain.infrastructure import active_facility_outage
 from sheltersim.domain.temporary_spaces import (
     TEMPORARY_SPACES_STATE_KEY,
-    expire_temporary_space,
-    register_temporary_space,
 )
 
 StableId = Annotated[
@@ -2073,109 +2069,24 @@ class EffectProgramTemporarySpaceHandler:
     def __init__(self, *, expire: bool = False) -> None:
         self.expire = expire
 
-    @kernel_first("effects", "temporary_space")
+    @kernel_only("effects", "temporary_space")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        candidate = _effect_candidate(world)
-        self._apply(candidate, event)
-        candidate.validate()
-        world.__dict__.clear()
-        world.__dict__.update(candidate.__dict__)
+        """Start or expire an approved temporary space, on a copy that takes the world's place once
+        it validates.
 
-    def _apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        state = world.model_state.get(TEMPORARY_SPACES_STATE_KEY)
-        marker = event.provenance.get("effect_program_v1")
-        program_id = event.payload.get("program_id")
-        effect_id = event.payload.get("effect_id")
-        modifier_id = event.payload.get("modifier_id")
-        zone_id = event.payload.get("zone_id")
-        # Approved programs live in the EffectProgram state, like every other
-        # operator's; temporary_spaces_v1 holds only the spaces themselves (#80).
-        programs = world.model_state.get(EFFECT_PROGRAM_STATE_KEY, {}).get("programs", {})
-        program = programs.get(program_id) if isinstance(program_id, str) else None
-        if (
-            not isinstance(state, dict)
-            or not isinstance(program, dict)
-            or effect_id not in program.get("effect_ids", [])
-            or program.get("operators", {}).get(effect_id) != "add_temporary_space"
-            or modifier_id != _modifier_id(program_id, effect_id)
-            or not isinstance(marker, Mapping)
-            or TEMPORARY_SPACES_STATE_KEY not in marker.get("policy_dependencies", [])
-            or zone_id not in world.zones
-        ):
-            raise EventApplicationError(
-                "temporary-space event does not reference an approved installed effect"
-            )
-        if self.expire:
-            if set(event.payload) != {"program_id", "effect_id", "modifier_id", "zone_id"}:
-                raise EventApplicationError("temporary-space expiry payload fields do not match")
-            space = state["spaces"].get(modifier_id)
-            if (
-                not isinstance(space, dict)
-                or not space["active"]
-                or space["zone_id"] != zone_id
-                or space["program_id"] != program_id
-                or space["effect_id"] != effect_id
-                or event.causation_id != space["start_event_id"]
-                or event.due_minute != space["end_minute"]
-            ):
-                raise EventSuppressed(
-                    "temporary-space effect did not start or does not match its expiry"
-                )
-            if not expire_temporary_space(
-                world, modifier_id, event_id=event.event_id, causation_id=event.causation_id
-            ):
-                raise EventSuppressed("temporary-space effect is already expired")
-            return
-        expected = {
-            "program_id",
-            "effect_id",
-            "modifier_id",
-            "op",
-            "zone_id",
-            "parameters",
-            "end_minute",
-        }
-        if set(event.payload) != expected or event.payload.get("op") != "add_temporary_space":
-            raise EventApplicationError("temporary-space event payload fields do not match")
-        if program.get("operators", {}).get(effect_id) != event.payload.get("op"):
-            raise EventApplicationError(
-                "temporary-space operator differs from its approved program"
-            )
-        if not should_apply_effect_guard(world, event):
-            raise EventSuppressed("EffectProgram guard evaluated false")
-        try:
-            parameters = _TemporarySpaceParameters.model_validate(event.payload["parameters"])
-        except ValueError as exc:
-            raise EventApplicationError(f"temporary-space parameters are invalid: {exc}") from exc
-        end_minute = event.payload.get("end_minute")
-        if (
-            type(end_minute) is not int
-            or not event.due_minute < end_minute < world.duration_minutes
-        ):
-            raise EventApplicationError(
-                "temporary-space end minute is outside its approved interval"
-            )
-        source_ids = [event.source_id]
-        source_ids.extend(marker.get("assumption_ids", []))
-        record = {
-            "space_id": modifier_id,
-            "zone_id": zone_id,
-            "people_capacity": parameters.people_capacity,
-            "sleeping_capacity": parameters.sleeping_capacity,
-            "start_minute": event.due_minute,
-            "end_minute": end_minute,
-            "active": True,
-            "start_event_id": event.event_id,
-            "end_event_id": None,
-            "program_id": program_id,
-            "effect_id": effect_id,
-            "source_ids": sorted(set(source_ids)),
-            "geometry_status": "zone_only_capacity",
-        }
-        try:
-            register_temporary_space(world, record, event_id=event.event_id)
-        except ValueError as exc:
-            raise EventApplicationError(str(exc)) from exc
+        EventApplicationError "temporary-space event does not reference an approved installed
+        effect" without temporary_spaces_v1, an approved add_temporary_space effect of the program
+        in effect_program_v1 with its modifier ID, a marker that lists temporary_spaces_v1, or a
+        known zone. An expiry needs exactly program_id, effect_id, modifier_id and zone_id; a space
+        that is not active, or not this start's with this end minute, is EventSuppressed, as is one
+        `expire_temporary_space` finds already expired. A start needs its payload fields and op
+        (and the program's operator), then the guard ("EffectProgram guard evaluated false"),
+        parameters that validate ("temporary-space parameters are invalid: ..."), and an int
+        end_minute after the start and before the Run's end. It registers the space (zone-only
+        capacity, its people and sleeping capacity, the event's source and the marker's
+        assumptions as sources) with `register_temporary_space`, whose ValueError is an
+        EventApplicationError with its text.
+        """
 
 
 class EffectProgramFacilityHandler:
@@ -2184,527 +2095,54 @@ class EffectProgramFacilityHandler:
     def __init__(self, *, expire: bool = False) -> None:
         self.expire = expire
 
-    @kernel_first("effects", "facility")
+    @kernel_only("effects", "facility")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        candidate = _effect_candidate(world)
-        self._apply(candidate, event)
-        candidate.validate()
-        world.__dict__.clear()
-        world.__dict__.update(candidate.__dict__)
+        """Start or expire a facility availability modifier, on a copy that takes the world's place
+        once it validates (the validation's error is raised as it is, the world unchanged).
 
-    def _apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        action = "expire" if self.expire else "apply"
-        expected = (
-            {"program_id", "effect_id", "modifier_id", "facility_id"}
-            if self.expire
-            else {"program_id", "effect_id", "modifier_id", "facility_id", "working_units"}
-        )
-        if set(event.payload) != expected:
-            raise EventApplicationError(f"effect program {action} payload fields do not match")
-        state = world.model_state.get(EFFECT_PROGRAM_STATE_KEY)
-        program_id = event.payload.get("program_id")
-        effect_id = event.payload.get("effect_id")
-        modifier_id = event.payload.get("modifier_id")
-        program = state.get("programs", {}).get(program_id) if isinstance(state, dict) else None
-        if not isinstance(program, dict) or effect_id not in program.get("effect_ids", []):
-            raise EventApplicationError(
-                "effect program event does not reference a scheduled effect"
-            )
-        facility_id = event.payload.get("facility_id")
-        facility = world.facilities.get(facility_id)
-        if facility is None:
-            raise EventApplicationError("effect program references an unknown facility")
-        if active_facility_outage(world, facility_id):
-            raise EventApplicationError(
-                "facility availability modifier conflicts with an active infrastructure outage"
-            )
-        modifier_id = event.payload.get("modifier_id")
-        records = state["active_facility_modifiers"]
-        current = records.get(facility_id)
-        if not self.expire:
-            target_units = event.payload.get("working_units")
-            if not isinstance(target_units, int) or isinstance(target_units, bool):
-                raise EventApplicationError("working_units must be an integer")
-            occupancy = len(facility.active_agent_ids)
-            if world.schema_version == 6:
-                occupancy += len(facility.resource_active_agent_ids)
-            current_units = facility.working_units
-            if (
-                target_units < occupancy
-                or target_units < 0
-                or target_units > current_units
-                or target_units > facility.capacity
-            ):
-                raise EventApplicationError(
-                    "facility availability modifier violates capacity or occupancy"
-                )
-            if current is None:
-                current = {
-                    "baseline_working_units": facility.working_units,
-                    "modifiers": [],
-                }
-                records[facility_id] = current
-                current = records[facility_id]
-            if any(item["modifier_id"] == modifier_id for item in current["modifiers"]):
-                raise EventSuppressed("facility availability modifier is already active")
-            current["modifiers"].append(
-                {
-                    "modifier_id": modifier_id,
-                    "program_id": program_id,
-                    "effect_id": effect_id,
-                    "working_units": target_units,
-                    "start_minute": event.due_minute,
-                    "sequence": event.sequence,
-                }
-            )
-            facility.working_units = min(
-                current["baseline_working_units"],
-                *(item["working_units"] for item in current["modifiers"]),
-            )
-            return
-
-        if not isinstance(current, dict):
-            raise EventSuppressed("facility availability modifier is not active")
-        modifiers = current["modifiers"]
-        remaining = [item for item in modifiers if item["modifier_id"] != modifier_id]
-        if len(remaining) == len(modifiers):
-            raise EventSuppressed("facility availability modifier already expired or never started")
-        target_units = min(
-            [current["baseline_working_units"], *(item["working_units"] for item in remaining)]
-        )
-        occupancy = len(facility.active_agent_ids)
-        if world.schema_version == 6:
-            occupancy += len(facility.resource_active_agent_ids)
-        if target_units < occupancy:
-            raise EventApplicationError(
-                "modifier expiry would reduce capacity below active occupancy"
-            )
-        facility.working_units = target_units
-        if remaining:
-            current["modifiers"] = remaining
-        else:
-            records.pop(facility_id)
+        EventApplicationError when the payload fields are not the start's (with working_units) or
+        the expiry's ("effect program apply/expire payload fields do not match"), when the effect
+        is not one of its program's, for an unknown facility, and under an active infrastructure
+        outage of it. A start needs an int working_units of at least the occupancy (and resource
+        occupancy in WorldState v6), at most the facility's working units and capacity; the first
+        modifier captures the baseline working units, a modifier already active is EventSuppressed,
+        and the facility works the lowest of its baseline and its modifiers. An expiry of a modifier
+        not active is EventSuppressed; the facility returns to the lowest of the baseline and the
+        others, unless that is below its occupancy (EventApplicationError), and the stack goes with
+        its last modifier.
+        """
 
 
 class EffectProgramStructureHandler:
     """Apply typed structural primitives using existing WorldState domain records."""
 
-    @kernel_first("effects", "structure")
+    @kernel_only("effects", "structure")
     def apply(self, world: WorldState, event: ScheduledEvent) -> tuple[Any, ...] | None:
-        from sheltersim.domain.models import FacilityState, StaffState
+        """Apply a structural primitive of an approved program, by its payload's fields.
 
-        staff_order_fields = {
-            "program_id",
-            "effect_id",
-            "modifier_id",
-            "op",
-            "staff_id",
-            "parameters",
-        }
-        if (
-            set(event.payload) == staff_order_fields
-            and event.payload.get("op") == "staff_task_order"
-        ):
-            marker = event.provenance.get("effect_program_v1")
-            program_id = event.payload.get("program_id")
-            effect_id = event.payload.get("effect_id")
-            staff_id = event.payload.get("staff_id")
-            state = world.model_state.get(EFFECT_PROGRAM_STATE_KEY)
-            program = state.get("programs", {}).get(program_id) if isinstance(state, dict) else None
-            if (
-                not isinstance(marker, Mapping)
-                or marker.get("program_id") != program_id
-                or marker.get("effect_id") != effect_id
-                or marker.get("op") != "staff_task_order"
-                or marker.get("phase") != "start"
-                or not isinstance(program, dict)
-                or effect_id not in program.get("effect_ids", [])
-                or program.get("operators", {}).get(effect_id) != "staff_task_order"
-                or event.event_id not in program.get("scheduled_event_ids", [])
-                or event.payload.get("modifier_id") != _modifier_id(program_id, effect_id)
-                or not isinstance(staff_id, str)
-                or event.due_minute != world.minute_index
-            ):
-                raise EventApplicationError(
-                    "staff task order does not reference a current approved program"
-                )
-            try:
-                parameters = StaffTaskOrderParameters.model_validate(
-                    event.payload.get("parameters")
-                )
-            except (TypeError, ValueError) as exc:
-                raise EventApplicationError(
-                    f"staff task order parameters are invalid: {exc}"
-                ) from exc
-            effect_event_guard_or_suppress(world, event)
-            candidate = _effect_candidate(world)
-            from sheltersim.domain.staff_operations import order_staff_operation
+        - staff_task_order: a current start of the approved program for a str staff member, due
+          now; valid StaffTaskOrderParameters; the guard; then `order_staff_operation` on a copy.
+        - staff_handoff: an approved start with valid StaffHandoffParameters for known staff, a
+          known task and shared_operations_v1; the guard; then, on a copy, the working operation
+          and its one pending completion go to a qualified, idle, available replacement at the
+          work, the previous member is idle. Returns the handoff receipt.
+        - facility_repair: an approved start with valid FacilityRepairParameters for a known
+          facility and shared_operations_v1; the guard; the facility's working units must still be
+          the expected ones, below the restored ones and with no outage or modifier. The facility
+          (and the infrastructure baseline) gets the restored units in place. Returns the facility
+          recovery receipt.
+        - set_staff_role: valid skills for known staff with no active work, set sorted on a copy.
+        - add_staff and add_toilet: a positive int count for a known zone, on a copy, within 100
+          staff and 200 facilities: new support staff "effect-staff-<modifier>-<n>" with their
+          operational, dynamics and operations records (and staff positions with movement_v1), or
+          new one-place toilets "effect-toilet-<modifier>-<n>", placed on the floor plan when
+          installed facility placement is on (its ValueError is an EventApplicationError with its
+          text) and announced.
 
-            order_staff_operation(
-                candidate,
-                staff_id=staff_id,
-                task_kind=parameters.task_kind,
-                target_zone_id=parameters.target_zone_id,
-                target_id=parameters.target_id,
-                reason=parameters.reason,
-                causation_event_id=event.event_id,
-                source_id=event.source_id,
-            )
-            candidate.validate()
-            world.__dict__.clear()
-            world.__dict__.update(candidate.__dict__)
-            return None
-
-        if set(event.payload) == {
-            "program_id",
-            "effect_id",
-            "modifier_id",
-            "op",
-            "staff_id",
-            "parameters",
-        }:
-            marker = event.provenance.get("effect_program_v1")
-            program_id = event.payload.get("program_id")
-            effect_id = event.payload.get("effect_id")
-            staff_id = event.payload.get("staff_id")
-            state = world.model_state.get(EFFECT_PROGRAM_STATE_KEY)
-            program = state.get("programs", {}).get(program_id) if isinstance(state, dict) else None
-            if (
-                not isinstance(marker, Mapping)
-                or marker.get("program_id") != program_id
-                or marker.get("effect_id") != effect_id
-                or marker.get("op") != "staff_handoff"
-                or marker.get("phase") != "start"
-                or not isinstance(program, dict)
-                or effect_id not in program.get("effect_ids", [])
-                or program.get("operators", {}).get(effect_id) != "staff_handoff"
-                or event.event_id not in program.get("scheduled_event_ids", [])
-                or event.payload.get("modifier_id") != _modifier_id(program_id, effect_id)
-                or event.payload.get("op") != "staff_handoff"
-                or not isinstance(staff_id, str)
-            ):
-                raise EventApplicationError("staff handoff does not reference an approved program")
-            try:
-                handoff = StaffHandoffParameters.model_validate(event.payload.get("parameters"))
-            except (TypeError, ValueError) as exc:
-                raise EventApplicationError(f"staff handoff parameters are invalid: {exc}") from exc
-            replacement_id = handoff.replacement_staff_id
-            if (
-                handoff.staff_id != staff_id
-                or replacement_id is None
-                or staff_id not in world.staff
-                or replacement_id not in world.staff
-                or handoff.task_id not in world.active_tasks
-                or SHARED_OPERATIONS_KEY not in world.model_state
-            ):
-                raise EventApplicationError("staff handoff participants or task are invalid")
-            effect_event_guard_or_suppress(world, event)
-            candidate = _effect_candidate(world)
-            operations = candidate.model_state.get("staff_operations_v1")
-            task = candidate.active_tasks[handoff.task_id]
-            old_record = (
-                operations.get("staff", {}).get(staff_id) if isinstance(operations, dict) else None
-            )
-            replacement_record = (
-                operations.get("staff", {}).get(replacement_id)
-                if isinstance(operations, dict)
-                else None
-            )
-            old_staff = candidate.staff[staff_id]
-            replacement = candidate.staff[replacement_id]
-            if (
-                task.kind != "staff_operation"
-                or task.staff_id != staff_id
-                or task.due_minute <= candidate.minute_index
-                or not isinstance(old_record, dict)
-                or old_record.get("phase") != "working"
-                or old_record.get("task_id") != task.id
-                or not isinstance(replacement_record, dict)
-                or replacement_record.get("phase") != "idle"
-                or replacement.active_task_id is not None
-                or old_staff.zone_id != old_record.get("target_zone_id")
-                or replacement.zone_id != old_record.get("target_zone_id")
-                or not _staff_has_task_skill(replacement.skills, old_record.get("task_kind"))
-            ):
-                raise EventApplicationError(
-                    "staff handoff requires a qualified idle replacement already at active work"
-                )
-            from sheltersim.domain.operational import staff_is_available
-            from sheltersim.domain.staff_dynamics import staff_dynamics_is_available
-
-            if not staff_is_available(candidate, replacement_id) or not staff_dynamics_is_available(
-                candidate, replacement_id, candidate.minute_index
-            ):
-                raise EventApplicationError("staff handoff replacement is unavailable")
-            completion_events = [
-                pending
-                for pending in candidate.event_queue.pending()
-                if pending.event_type == "staff_operation_complete"
-                and pending.payload.get("task_id") == task.id
-                and pending.payload.get("staff_id") == staff_id
-                and pending.due_minute == task.due_minute
-            ]
-            if len(completion_events) != 1:
-                raise EventApplicationError(
-                    "staff handoff requires one matching pending completion"
-                )
-            completion = completion_events[0]
-            candidate.event_queue.replace(
-                completion.event_id,
-                ScheduledEvent(
-                    event_id=completion.event_id,
-                    kind=completion.kind,
-                    due_minute=completion.due_minute,
-                    priority=completion.priority,
-                    sequence=completion.sequence,
-                    event_type=completion.event_type,
-                    payload={**completion.to_dict()["payload"], "staff_id": replacement_id},
-                    source_id=completion.source_id,
-                    causation_id=completion.causation_id,
-                    provenance=completion.to_dict()["provenance"],
-                ),
-            )
-            task.staff_id = replacement_id
-            old_staff.work_queue.clear()
-            old_staff.active_task_id = None
-            old_staff.busy_until = 0
-            from sheltersim.domain.staff_operations import _idle_record
-
-            operations["staff"][staff_id] = _idle_record()
-            replacement.active_task_id = task.id
-            replacement.work_queue[:] = [task.id]
-            replacement.busy_until = task.due_minute
-            handed_off = dict(old_record)
-            handed_off["reason"] = handoff.reason_code
-            handed_off["causation_event_ids"] = sorted(
-                set(handed_off["causation_event_ids"] + [event.event_id])
-            )
-            operations["staff"][replacement_id] = handed_off
-            candidate.validate()
-            world.__dict__.clear()
-            world.__dict__.update(candidate.__dict__)
-            from sheltersim.domain.care_receipts import make_staff_handoff_record
-
-            receipt = make_staff_handoff_record(
-                world,
-                task_id=task.id,
-                previous_staff_id=staff_id,
-                replacement_staff_id=replacement_id,
-                reason_code=handoff.reason_code,
-                causation_id=event.event_id,
-                source_ids=tuple(marker.get("assumption_ids", ())),
-            )
-            return (receipt[0],) if receipt is not None else None
-
-        if set(event.payload) == {
-            "program_id",
-            "effect_id",
-            "modifier_id",
-            "op",
-            "facility_id",
-            "parameters",
-        }:
-            marker = event.provenance.get("effect_program_v1")
-            state = world.model_state.get(EFFECT_PROGRAM_STATE_KEY)
-            program_id = event.payload.get("program_id")
-            effect_id = event.payload.get("effect_id")
-            op = event.payload.get("op")
-            facility_id = event.payload.get("facility_id")
-            program = state.get("programs", {}).get(program_id) if isinstance(state, dict) else None
-            if (
-                not isinstance(marker, Mapping)
-                or marker.get("program_id") != program_id
-                or marker.get("effect_id") != effect_id
-                or marker.get("op") != "facility_repair"
-                or marker.get("phase") != "start"
-                or not isinstance(program, dict)
-                or effect_id not in program.get("effect_ids", [])
-                or program.get("operators", {}).get(effect_id) != "facility_repair"
-                or event.event_id not in program.get("scheduled_event_ids", [])
-                or op != "facility_repair"
-                or event.payload.get("modifier_id") != _modifier_id(program_id, effect_id)
-                or not isinstance(facility_id, str)
-            ):
-                raise EventApplicationError(
-                    "facility repair does not reference an approved program"
-                )
-            try:
-                repair = FacilityRepairParameters.model_validate(event.payload.get("parameters"))
-            except (TypeError, ValueError) as exc:
-                raise EventApplicationError(
-                    f"facility repair parameters are invalid: {exc}"
-                ) from exc
-            if repair.facility_id != facility_id or facility_id not in world.facilities:
-                raise EventApplicationError(
-                    "facility repair target does not match a known facility"
-                )
-            if SHARED_OPERATIONS_KEY not in world.model_state:
-                raise EventApplicationError("facility repair requires shared receipt state")
-            effect_event_guard_or_suppress(world, event)
-            facility = world.facilities[facility_id]
-            if (
-                facility.working_units != repair.expected_working_units
-                or not facility.working_units < repair.restored_working_units <= facility.capacity
-                or active_facility_outage(world, facility_id)
-                or has_active_facility_modifier(world, facility_id)
-            ):
-                raise EventApplicationError(
-                    "facility repair preconditions no longer match the live facility state"
-                )
-            previous_working_units = facility.working_units
-            facility.working_units = repair.restored_working_units
-            infrastructure = world.model_state.get("infrastructure_v1")
-            if isinstance(infrastructure, dict):
-                infrastructure["base_working_units"][facility_id] = repair.restored_working_units
-            world.validate()
-            from sheltersim.domain.care_receipts import make_facility_recovery_record
-
-            receipt = make_facility_recovery_record(
-                world,
-                facility_id=facility_id,
-                component_id=repair.component_id,
-                status="repaired",
-                previous_working_units=previous_working_units,
-                working_units=facility.working_units,
-                causation_id=event.event_id,
-                source_ids=tuple(sorted({event.source_id or "", *repair.source_ids} - {""})),
-            )
-            return (receipt[0],) if receipt is not None else None
-
-        if set(event.payload) == {
-            "program_id",
-            "effect_id",
-            "modifier_id",
-            "op",
-            "staff_id",
-            "skills",
-        }:
-            state = world.model_state.get(EFFECT_PROGRAM_STATE_KEY)
-            program = (
-                state.get("programs", {}).get(event.payload.get("program_id"))
-                if isinstance(state, dict)
-                else None
-            )
-            staff_id = event.payload.get("staff_id")
-            if (
-                not isinstance(program, dict)
-                or event.payload.get("effect_id") not in program.get("effect_ids", [])
-                or event.payload.get("op") != "set_staff_role"
-                or not isinstance(staff_id, str)
-                or staff_id not in world.staff
-            ):
-                raise EventApplicationError(
-                    "staff-role event does not reference an approved staff target"
-                )
-            try:
-                role = _StaffRoleParameters.model_validate({"skills": event.payload.get("skills")})
-            except ValueError as exc:
-                raise EventApplicationError(f"staff-role event skills are invalid: {exc}") from exc
-            candidate = _effect_candidate(world)
-            staff = candidate.staff[staff_id]
-            operations = (
-                candidate.model_state.get("staff_operations_v1", {}).get("staff", {}).get(staff_id)
-            )
-            if staff.active_task_id is not None or (
-                isinstance(operations, dict) and operations.get("phase") != "idle"
-            ):
-                raise EventApplicationError("staff role cannot change while work is active")
-            staff.skills = tuple(sorted(role.skills))
-            candidate.validate()
-            world.__dict__.clear()
-            world.__dict__.update(candidate.__dict__)
-            return
-
-        if set(event.payload) != {
-            "program_id",
-            "effect_id",
-            "modifier_id",
-            "op",
-            "zone_id",
-            "count",
-        }:
-            raise EventApplicationError("structural primitive payload fields do not match")
-        op = event.payload.get("op")
-        count = event.payload.get("count")
-        zone_id = event.payload.get("zone_id")
-        state = world.model_state.get(EFFECT_PROGRAM_STATE_KEY)
-        program = (
-            state.get("programs", {}).get(event.payload.get("program_id"))
-            if isinstance(state, dict)
-            else None
-        )
-        effect_id = event.payload.get("effect_id")
-        if (
-            not isinstance(program, dict)
-            or effect_id not in program.get("effect_ids", [])
-            or op not in {"add_staff", "add_toilet"}
-            or not isinstance(count, int)
-            or isinstance(count, bool)
-            or count <= 0
-            or zone_id not in world.zones
-        ):
-            raise EventApplicationError("structural primitive target or operation is invalid")
-        candidate = _effect_candidate(world)
-        suffix = event.payload["modifier_id"].removeprefix("modifier-")
-        if op == "add_staff":
-            if len(candidate.staff) + count > 100:
-                raise EventApplicationError("adding staff would exceed the 100-staff runtime bound")
-            from sheltersim.domain.staff_dynamics import add_staff as add_staff_dynamics
-            from sheltersim.domain.staff_operations import add_staff_operations_agent
-
-            for index in range(count):
-                staff_id = f"effect-staff-{suffix}-{index + 1}"
-                if staff_id in candidate.staff:
-                    raise EventApplicationError("generated staff ID already exists")
-                candidate.staff[staff_id] = StaffState(
-                    id=staff_id,
-                    zone_id=zone_id,
-                    skills=("support",),
-                )
-                operational = candidate.model_state.get("operational_events_v1")
-                if operational is not None:
-                    operational["staff_status"][staff_id] = {
-                        "available": True,
-                        "unavailability_event_id": None,
-                        "until_minute": None,
-                        "restore_event_id": None,
-                    }
-                add_staff_dynamics(candidate, staff_id)
-                add_staff_operations_agent(candidate, staff_id)
-            if "movement_v1" in candidate.model_state:
-                from sheltersim.domain.movement import staff_position_snapshots
-
-                staff_position_snapshots(candidate)
-        else:
-            if len(candidate.facilities) + count > 200:
-                raise EventApplicationError("adding toilets would exceed the 200-facility bound")
-            from sheltersim.domain.agent_dynamics import announce_installed_facility
-
-            for index in range(count):
-                facility_id = f"effect-toilet-{suffix}-{index + 1}"
-                if facility_id in candidate.facilities:
-                    raise EventApplicationError("generated toilet ID already exists")
-                candidate.facilities[facility_id] = FacilityState(
-                    id=facility_id,
-                    kind="toilet",
-                    zone_id=zone_id,
-                    capacity=1,
-                    working_units=1,
-                )
-                if installed_facility_placement_enabled(candidate):
-                    try:
-                        place_installed_facility(
-                            candidate,
-                            facility_id,
-                            event_id=event.event_id,
-                            source_ids=(event.source_id,) if event.source_id else (),
-                        )
-                    except ValueError as exc:
-                        raise EventApplicationError(str(exc)) from exc
-                announce_installed_facility(candidate, facility_id)
-        candidate.validate()
-        world.__dict__.clear()
-        world.__dict__.update(candidate.__dict__)
+        Each mismatch is an EventApplicationError with its own text, the parameters' ValueError or
+        TypeError with theirs; a guard that holds false is EventSuppressed. A copy takes the world's
+        place once it validates.
+        """
 
 
 class EffectProgramEnvironmentHandler:

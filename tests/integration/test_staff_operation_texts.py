@@ -3,8 +3,11 @@
 `order_staff_operation` and its checks (`validate_staff_operation_order`) run in
 rules/staff_order.rs for an EffectProgram's `staff_task_order`: each failed check has the Python
 rule's text, raised before any change, and an order that passes writes what the Python rule
-writes. The arrival and the completion of a task whose worker became unavailable stop the
-operation and then are suppressed, as the Python rules do (docs/rust-port/lanes/l8-texts-events.md).
+writes. `EffectProgramStructureHandler` has no Python rule left (`kernel_only`): its outcomes are
+compared with the class and text that rule gave, written down from it, and its order with the
+order the rule made on a copy of the world. The arrival and the completion of a task whose worker
+became unavailable stop the operation and then are suppressed, as the Python rules do
+(docs/rust-port/lanes/l8-texts-events.md).
 """
 
 from __future__ import annotations
@@ -21,6 +24,7 @@ from sheltersim import native
 from sheltersim.core.world import WorldState
 from sheltersim.domain.staff_operations import interrupt_staff_operation, order_staff_operation
 from sheltersim.events.effects import (
+    _PARAMETER_MODELS,
     DEFAULT_PRIMITIVE_REGISTRY,
     EffectProgram,
     EffectProgramStructureHandler,
@@ -314,11 +318,11 @@ def test_an_order_that_went_stale_fails_in_the_handler_with_python_s_text(
 ) -> None:
     event = _ordered_program(world)
     world.duration_minutes = world.minute_index + 3
-    said = kernel_says_python_s_text(EffectProgramStructureHandler(), world, event)
-    assert said == (
-        "EventApplicationError",
-        "staff task order would finish beyond the Run boundary",
+    text = "staff task order would finish beyond the Run boundary"
+    said = kernel_says_python_s_text(
+        EffectProgramStructureHandler(), world, event, (EventApplicationError, text)
     )
+    assert said == ("EventApplicationError", text)
 
 
 def _changed(event: Any, **changes: Any) -> Any:
@@ -379,7 +383,10 @@ def test_an_order_the_handler_turns_down_is_python_s_text(
     event = _changed(_ordered_program(world), **changes)
     if "due_minute" in changes:
         event = _changed(event, due_minute=world.minute_index + changes["due_minute"])
-    assert kernel_says_python_s_text(EffectProgramStructureHandler(), world, event) == expected
+    classes = {"EventApplicationError": EventApplicationError, "EventSuppressed": EventSuppressed}
+    outcome = (classes[expected[0]], expected[1])
+    handler = EffectProgramStructureHandler()
+    assert kernel_says_python_s_text(handler, world, event, outcome) == expected
 
 
 def test_an_order_whose_parameters_the_contract_turns_down_is_python_s_text(
@@ -387,20 +394,36 @@ def test_an_order_whose_parameters_the_contract_turns_down_is_python_s_text(
 ) -> None:
     event = _ordered_program(world)
     parameters = {**event.payload["parameters"], "task_kind": "juggling"}
-    kind, text = kernel_says_python_s_text(
-        EffectProgramStructureHandler(), world, _changed(event, payload={"parameters": parameters})
+    changed = _changed(event, payload={"parameters": parameters})
+    # The contract's own text, as the rule wrapped its error.
+    with pytest.raises((TypeError, ValueError)) as contract:
+        _PARAMETER_MODELS["staff_task_order"].model_validate(changed.payload.get("parameters"))
+    text = f"staff task order parameters are invalid: {contract.value}"
+    said = kernel_says_python_s_text(
+        EffectProgramStructureHandler(), world, changed, (EventApplicationError, text)
     )
-    assert kind == "EventApplicationError"
-    assert text.startswith("staff task order parameters are invalid: ")
+    assert said == ("EventApplicationError", text)
 
 
-def test_an_order_through_the_handler_is_the_same_in_both(world: WorldState) -> None:
+def test_an_order_through_the_handler_is_the_order_of_its_parameters(world: WorldState) -> None:
+    """The handler's rule, after its checks and the guard, ordered the operation on a copy of the
+    world with the event's parameters, its ID as the cause and its source."""
     event = _ordered_program(world)
-    by_python, by_rust = _copy(world), _copy(world)
-    handler = EffectProgramStructureHandler()
-    type(handler).apply.__wrapped__(handler, by_python, event)
-    handler.apply(by_rust, event)
-    assert _text(by_rust) == _text(by_python)
+    expected, by_rust = _copy(world), _copy(world)
+    parameters = _PARAMETER_MODELS["staff_task_order"].model_validate(event.payload["parameters"])
+    order_staff_operation(
+        expected,
+        staff_id=event.payload["staff_id"],
+        task_kind=parameters.task_kind,
+        target_zone_id=parameters.target_zone_id,
+        target_id=parameters.target_id,
+        reason=parameters.reason,
+        causation_event_id=event.event_id,
+        source_id=event.source_id,
+    )
+    EffectProgramStructureHandler().apply(by_rust, event)
+    assert by_rust.staff["staff_001"].active_task_id is not None
+    assert _text(by_rust) == _text(expected)
 
 
 # ---- A worker who became unavailable ------------------------------------------------------------

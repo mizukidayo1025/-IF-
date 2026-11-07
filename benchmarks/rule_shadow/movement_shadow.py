@@ -1,4 +1,4 @@
-"""Compare the row of movement_v1 with its tree at every tick, and reverse advance_movement's order.
+"""Compare the row of movement_v1 with its tree at every tick.
 
 sitecustomize.py installs this with the others; `summary.py DIR` adds up what it saw. The movement
 rules are still Python (docs/rust-port/lanes/i-movement.md), so what moved is the state: after the
@@ -9,17 +9,12 @@ which ran without the Rust extension; that mode went when the extension became r
 `seen` has how many values were compared, how many writes were forwarded, and which branches were
 reached, since a branch no scenario takes is not compared.
 
-With SHELTERSIM_MOVEMENT_REVERSED=1 advance_movement goes through people and staff in the reverse
-of its order and hands back the replans in its own order, so what the step does next is the same.
-The hashes of such a run then say whether one person's result depends on who went before: the
-question for running it in parallel (docs/rust-port/step3-design.md).
+Reversing `advance_movement`'s order (SHELTERSIM_MOVEMENT_REVERSED) went with its Python rule (lane
+L10): the kernel plans from what the tick started with, so it has no order of people.
 """
 
 from __future__ import annotations
 
-import builtins
-import os
-import sys
 from collections import Counter
 from typing import Any
 
@@ -32,52 +27,13 @@ def _leaves(value: Any) -> int:
     return 1
 
 
-def reverse_advance_movement() -> Any:
-    """Make advance_movement walk in reverse; returns what undoes it. For this tool and its test."""
-    from sheltersim.domain import movement
-    from sheltersim.experiments.phases import update
-
-    active = [False]
-    # Only these two walk over people or staff in a tick. The others sort for a result.
-    walkers = {"advance_movement", "staff_position_snapshots"}
-
-    def walking_sorted(items: Any, **options: Any) -> list[Any]:
-        result = builtins.sorted(items, **options)
-        if active[0] and sys._getframe(1).f_code.co_name in walkers:
-            result.reverse()
-        return result
-
-    # The Python rule: the kernel's plan reads only what the tick started with, so it has no order.
-    python_advance = movement.advance_movement
-    python_rule = getattr(python_advance, "__wrapped__", python_advance)
-
-    def advance(world: Any, minute: int) -> tuple[str, ...]:
-        active[0] = True
-        try:
-            return tuple(builtins.sorted(python_rule(world, minute)))
-        finally:
-            active[0] = False
-
-    movement.sorted = walking_sorted  # type: ignore[attr-defined]
-    update.advance_movement = advance
-
-    def undo() -> None:
-        del movement.sorted
-        update.advance_movement = python_advance
-
-    return undo
-
-
 def install(seen: Counter[str], reasons: Counter[str], differences: list[str]) -> None:
     from sheltersim import native
     from sheltersim.core.engine import TickEngine
-    from sheltersim.domain import movement
     from sheltersim.domain.movement import MOVEMENT_STATE_KEY as KEY
     from sheltersim.experiments.phases import update
     from sheltersim.experiments.phases.update import UpdatePhase
 
-    if os.environ.get("SHELTERSIM_MOVEMENT_REVERSED"):
-        reverse_advance_movement()
     # The one kernel that reads this tree. Refusing it costs time and changes no hash.
     positions_valid = native.movement_positions_valid
 
@@ -139,13 +95,6 @@ def install(seen: Counter[str], reasons: Counter[str], differences: list[str]) -
         return result
 
     TickEngine.step = step  # type: ignore[method-assign]
-    python_replan = movement._replan_physical_queue_trip
-
-    def replan_physical(*arguments: Any, **options: Any) -> None:
-        seen["movement_physical_queue_replans"] += 1
-        python_replan(*arguments, **options)
-
-    movement._replan_physical_queue_trip = replan_physical
     advance = update.advance_movement
 
     def counted_advance(world: Any, minute: int) -> tuple[str, ...]:

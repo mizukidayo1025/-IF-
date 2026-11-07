@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from sheltersim.core.engine import TraceLevel
 from sheltersim.core.rng import KeyedRandom
-from sheltersim.domain.information import INFORMATION_SPREAD_STATE_KEY
 from sheltersim.domain.social_network import PROXIMITY_CONTACT_SOURCE_ID
 from sheltersim.events.models import EventKind, ScheduledEvent
-from sheltersim.policies.world_view import WorldView
+from sheltersim.experiments.phases.segments import no_python_step
 
 
 class SamplePhase:
@@ -18,46 +16,21 @@ class SamplePhase:
         self._sample_proximity_contacts(minute)
 
     def _sample_information_contacts(self, minute: int, rng: KeyedRandom) -> None:
-        """The Python rule; the kernel of rules/information.rs replaces this step (segments.py)."""
-        if self.information_policy is None:
-            return
-        result = self.information_policy.update(
-            # Information policies read the people and the minute, never the audit hash.
-            WorldView.from_world(
-                self.world,
-                include_state_hash=False,
-                person_cache=self._person_contexts,
-                environment_cache=self._zone_environments,
-            ),
-            self.world.model_state[INFORMATION_SPREAD_STATE_KEY],
-            rng,
-            zone_neighbors=self.zone_neighbors,
-        )
-        self.world.model_state[INFORMATION_SPREAD_STATE_KEY] = result.runtime_state
-        for proposal in result.proposals:
-            self._schedule_information_contact(
-                minute,
-                proposal.message_id,
-                proposal.sender_agent_id,
-                proposal.recipient_agent_id,
-                proposal.belief.value,
-                proposal.contact_basis,
-                proposal.contact_minutes,
-                proposal.probability,
-                proposal.message_source_id,
-                proposal.causation_id,
-            )
-        if self.artifacts.trace_level is not TraceLevel.OFF:
-            self.artifacts.record_information_spread_trace(
-                result.trace_document(
-                    minute,
-                    maximum_contacts=(
-                        len(result.contacts)
-                        if self.artifacts.trace_level is TraceLevel.FULL
-                        else 20
-                    ),
-                )
-            )
+        """Next minute's information contacts, which native/src/rules/information.rs samples.
+
+        Nothing without `information_policy`. Otherwise the model's contacts of this minute,
+        drawn from `rng` among each person's zone and `zone_neighbors`, decide which claims pass;
+        the step writes `world.model_state["information_spread_v1"]` (query pressure, contacts,
+        counters, and the forgetting of `evidence-aware-rumor-v1`), schedules each transfer with
+        `_schedule_information_contact`, and gives the contact trace to
+        `artifacts.record_information_spread_trace` when the Run keeps a trace (every contact with
+        a full trace, 20 with a summary).
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        raises KernelRefusal: a model off or of a class it does not know, an RNG other than
+        CounterRNG, a world at another minute, claims or beliefs that do not parse.
+        """
+        raise no_python_step("_sample_information_contacts")
 
     def _schedule_information_contact(
         self,

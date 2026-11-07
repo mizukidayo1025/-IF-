@@ -343,25 +343,29 @@ impl Source {
     }
 }
 
-/// `_audit_event` of the sequence given: the row, or Unsupported when its identity is taken, for
-/// the Python rule's search for a free one.
+/// `_audit_event` from the sequence given: the row of the first sequence whose identity is free.
+/// The Python rule allocates each sequence it tries, so the caller allocates up to the row's. A
+/// pending event's sequence is below the counter (`schedule_event` keeps it so), so only the IDs and
+/// the log's sequences can be taken.
 #[allow(clippy::too_many_arguments)]
 fn audit_row(
     writer: &EventWriter<'_>,
     source: &Source,
     operation: &'static str,
-    sequence: i64,
+    first: i64,
     minute: i64,
     payload: IndexMap<Arc<str>, V>,
     causation_id: Arc<str>,
 ) -> PyResult<EventRow> {
-    let event_id: Arc<str> = Arc::from(format!("resource-{operation}-{sequence}"));
-    {
+    let mut sequence = first;
+    let event_id: Arc<str> = loop {
+        let event_id: Arc<str> = Arc::from(format!("resource-{operation}-{sequence}"));
         let past = writer.log().borrow();
-        if past.has_event_id(&event_id) || past.has_sequence(sequence) || writer.queue().borrow().has_event(&event_id) {
-            return unsupported("the event's identity is taken");
+        if !(past.has_event_id(&event_id) || past.has_sequence(sequence) || writer.queue().borrow().has_event(&event_id)) {
+            break event_id;
         }
-    }
+        sequence = sequence.checked_add(1).ok_or_else(|| Unsupported::new_err("a sequence past 64 bits"))?;
+    };
     let provenance = source.provenance(V::Str(Arc::from(operation)));
     let Some(row) = EventRow::new(
         event_id,
@@ -616,7 +620,7 @@ fn serve_one<'py>(
             Some(head) => {
                 // `world.active_tasks.get(request["queue_task_id"])`, of the queue's kind.
                 let Some(task) = rows.active_tasks.get(&*head.request.queue_task_id).filter(|task| &*task.kind == "resource_service_queue") else {
-                    return unsupported("a queue's request lost its task");
+                    return Err(errors::invariant("independent resource queue lost its active task"));
                 };
                 if !facility.resource_queue_agent_ids.contains(&head.request.agent_id) {
                     return unsupported("a request is missing from the facility's list");
@@ -627,17 +631,21 @@ fn serve_one<'py>(
                 let Some(agent_id) = facility.resource_queue_agent_ids.first() else {
                     return unsupported("the queue is empty");
                 };
+                // `_queue_task`.
                 let mut found = None;
+                let mut count = 0;
                 for (_, task) in rows.active_tasks.iter() {
                     if &*task.kind == "resource_service_queue"
                         && task.agent_id.as_deref() == Some(&**agent_id)
                         && task.resource_id.as_deref() == Some(facility_name)
                     {
-                        if found.is_some() {
-                            return unsupported("a person with two queue tasks");
-                        }
+                        count += 1;
                         found = Some((task.id.clone(), task.start_minute));
                     }
+                }
+                if count != 1 {
+                    let agent = errors::repr_str(py, agent_id)?;
+                    return Err(errors::invariant(format!("queued Agent {agent} needs exactly one resource queue task")));
                 }
                 (agent_id, found)
             }
@@ -665,8 +673,15 @@ fn serve_one<'py>(
             account.remaining.checked_sub(account.reserved).ok_or_else(|| Unsupported::new_err("a balance past 64 bits"))?,
         ))
     })?;
-    if used || pending_reserves(&writer, &task_id)? {
-        return unsupported("the task's ID is a reservation's");
+    // `_assert_service_task_id_available`: at once for a facility's own queue, and just before the
+    // completion's identity for an independent one, as the Python rules check it.
+    let taken_id = used || pending_reserves(&writer, &task_id)?;
+    let id_is_taken = || -> PyResult<PyErr> {
+        let task = errors::repr_str(py, &task_id)?;
+        Ok(errors::invariant(format!("resource service task ID {task} conflicts with an H01 reservation")))
+    };
+    if taken_id && head.is_none() {
+        return Err(id_is_taken()?);
     }
 
     let stop = |reason: &'static str| -> PyResult<(Option<Bound<'py, PyString>>, Option<(Arc<str>, &'static str)>)> {
@@ -748,11 +763,17 @@ fn serve_one<'py>(
     let resource_arc = if is_water { names.water.clone() } else { names.food.clone() };
     let completion_sequence = writer.next_sequence()?;
     let completion_id: Arc<str> = Arc::from(format!("resource-service-complete-{completion_sequence}"));
-    {
+    if taken_id {
+        return Err(id_is_taken()?);
+    }
+    // `_ensure_event_identity_free`.
+    let identity_taken = {
         let past = writer.log().borrow();
-        if past.has_event_id(&completion_id) || past.has_sequence(completion_sequence) || writer.queue().borrow().has_event(&completion_id) {
-            return unsupported("the event's identity is taken");
-        }
+        past.has_event_id(&completion_id) || past.has_sequence(completion_sequence) || writer.queue().borrow().has_event(&completion_id)
+    };
+    if identity_taken {
+        let event = errors::repr_str(py, &completion_id)?;
+        return Err(errors::invariant(format!("resource event identity {event} is not unique")));
     }
     let facility_arc: Arc<str> = Arc::from(facility_name);
     let mut payload = IndexMap::with_capacity(7);
@@ -817,14 +838,15 @@ fn serve_one<'py>(
             Some(&completion_id),
             None,
             Some(head.point_capacity),
-            completion_sequence + 2,
+            audit.sequence + 1,
             minute_value,
         )?),
         None => None,
     };
 
-    // The ledger says last whether it takes it. It changes nothing when it doesn't.
-    apply_planned(
+    // The ledger says last whether it takes it. It changes nothing when it doesn't, and the Python
+    // rule had taken the completion's and the audit's sequences then.
+    let reserved = apply_planned(
         world,
         &ledger,
         &Operation {
@@ -833,16 +855,23 @@ fn serve_one<'py>(
             resource_id: resource_name,
             index,
             quantity,
+            beyond: false,
             reservation_id: Some(&task_id),
             agent_id: Some(&agent_id),
             source_id: &source.source_id,
             event_id: &audit.event_id,
         },
-    )?;
+    );
+    if let Err(error) = reserved {
+        return Err(ledger_wrapped(py, &writer, completion_sequence..=audit.sequence, error, |text| {
+            errors::invariant(format!("resource reservation failed atomically: {text}"))
+        }));
+    }
 
     // Write.
-    writer.allocate_sequence()?;
-    writer.allocate_sequence()?;
+    for _ in completion_sequence..=audit.sequence {
+        writer.allocate_sequence()?;
+    }
     writer.record(&audit, minute_value, EventStatus::Applied, None)?;
     let task_text = PyString::new(py, &task_id);
     reservation_ids.call_method1(intern!(py, "append"), (&task_text,))?;
@@ -1114,7 +1143,7 @@ pub(crate) fn complete_event<'py>(manager: &Bound<'py, PyAny>, event: EventRef<'
             })?;
             let wait = task_start.checked_sub(request.requested_minute).ok_or_else(|| Unsupported::new_err("a wait out of range"))?;
             let capacity = point_of(&*Geo::of(world)?, &request.queue_id).map(|point| point.service_capacity);
-            let row = transition_row(py, &writer, &request, "completed", task_id, Some(wait), Some(&event_id), position, capacity, consume_sequence + 1, minute)?;
+            let row = transition_row(py, &writer, &request, "completed", task_id, Some(wait), Some(&event_id), position, capacity, audit.sequence + 1, minute)?;
             Some((request, row))
         }
         None => None,
@@ -1137,7 +1166,7 @@ pub(crate) fn complete_event<'py>(manager: &Bound<'py, PyAny>, event: EventRef<'
     let active_tasks = attribute(world, intern!(py, "active_tasks"))?;
     let needs = attribute(&agent, intern!(py, "needs"))?;
 
-    apply_planned(
+    let consumed = apply_planned(
         world,
         &ledger,
         &Operation {
@@ -1146,15 +1175,23 @@ pub(crate) fn complete_event<'py>(manager: &Bound<'py, PyAny>, event: EventRef<'
             resource_id,
             index,
             quantity,
+            beyond: false,
             reservation_id: Some(task_id),
             agent_id: Some(agent_id),
             source_id: &source.source_id,
             event_id: &audit.event_id,
         },
-    )?;
+    );
+    if let Err(error) = consumed {
+        return Err(ledger_wrapped(py, &writer, consume_sequence..=audit.sequence, error, |text| {
+            errors::error(py, errors::Outcome::Failed, format!("resource consume rejected: {text}"))
+        }));
+    }
 
     // Write.
-    writer.allocate_sequence()?;
+    for _ in consume_sequence..=audit.sequence {
+        writer.allocate_sequence()?;
+    }
     writer.record(&audit, minute, EventStatus::Applied, None)?;
     reservation_ids.call_method1(intern!(py, "remove"), (&task_object,))?;
     let relieved = py_max(0.0, need - relief);
@@ -1244,20 +1281,6 @@ fn record_request_outcome<'py>(
         detail: optional(detail)?,
     };
     append_outcome(py, &mirror, record)
-}
-
-/// `ResourceServiceManager.request`, without the world's whole validation. A request the queue turns
-/// down is Unsupported, with nothing written.
-pub(crate) fn queue_up<'py>(
-    manager: &Bound<'py, PyAny>,
-    agent_id: &Bound<'py, PyAny>,
-    facility_id: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyAny>> {
-    let py = manager.py();
-    match request_with(manager, agent_id, facility_id, None, Some(PyBool::new(py, false).as_any()), None, false)? {
-        Ok(receipt) => Ok(receipt),
-        Err(_) => unsupported("the queue turns the request down"),
-    }
 }
 
 /// `ResourceServiceManager.request`, without the world's whole validation: the receipt, or the text
@@ -1503,6 +1526,8 @@ struct Releasing {
     index: usize,
     staff_id: Arc<str>,
     warehouse: Arc<str>,
+    /// The first sequence `_audit_event` tried: it took each one up to the audit's.
+    first: i64,
     audit: EventRow,
 }
 
@@ -1622,8 +1647,9 @@ fn plan_cancel(manager: &Manager<'_>, event_id: &Arc<str>, task_id: &str, interr
             payload.insert(NAMES.reservation_id.clone(), V::Str(task_arc.clone()));
             payload.insert(NAMES.agent_id.clone(), V::Str(agent_id.clone()));
             let audit = audit_row(&writer, &source, "release", next, minute, payload, event_id.clone())?;
-            next += 1;
-            Some(Releasing { resource_id, index, staff_id, warehouse, audit })
+            let first = next;
+            next = audit.sequence + 1;
+            Some(Releasing { resource_id, index, staff_id, warehouse, first, audit })
         }
     };
     let found = with_queues(world, |row| {
@@ -1650,14 +1676,17 @@ fn plan_cancel(manager: &Manager<'_>, event_id: &Arc<str>, task_id: &str, interr
     Ok(CancelPlan { task_id: task_arc, agent_id, facility_id, releasing, finishing, sequences: next - sequence })
 }
 
-/// `cancel`'s writes, after the plan: the ledger first, which alone can still say no.
-fn apply_release(manager: &Manager<'_>, plan: &CancelPlan) -> PyResult<()> {
+/// `cancel`'s writes, after the plan: the ledger first, which alone can still say no. `taken` is
+/// the first sequence the Python rule had taken by then: the interruption's cancellation, or the
+/// first the audit tried.
+fn apply_release(manager: &Manager<'_>, plan: &CancelPlan, taken: Option<i64>) -> PyResult<()> {
     let Some(releasing) = &plan.releasing else {
         return Ok(());
     };
     let world = &manager.world;
+    let py = world.py();
     let source = Source::of(manager)?;
-    apply_planned(
+    let released = apply_planned(
         world,
         &ledger_mirror(world)?,
         &Operation {
@@ -1666,12 +1695,43 @@ fn apply_release(manager: &Manager<'_>, plan: &CancelPlan) -> PyResult<()> {
             resource_id: releasing.resource_id,
             index: releasing.index,
             quantity: 0,
+            beyond: false,
             reservation_id: Some(&plan.task_id),
             agent_id: Some(&plan.agent_id),
             source_id: &source.source_id,
             event_id: &releasing.audit.event_id,
         },
-    )
+    );
+    match released {
+        Ok(()) => Ok(()),
+        Err(error) => Err(ledger_wrapped(py, &EventWriter::of(world)?, taken.unwrap_or(releasing.first)..=releasing.audit.sequence, error, |text| {
+            errors::error(py, errors::Outcome::Failed, format!("resource reservation release rejected: {text}"))
+        })),
+    }
+}
+
+/// The ledger's `ResourceLedgerError` inside the Python rule's `except ValueError as exc` and its own
+/// text, after taking the sequences the Python rule had taken by then. Anything else, a refusal
+/// included, goes on as it is, with nothing taken.
+fn ledger_wrapped(
+    py: Python<'_>,
+    writer: &EventWriter<'_>,
+    taken: std::ops::RangeInclusive<i64>,
+    error: PyErr,
+    wrap: impl FnOnce(&str) -> PyErr,
+) -> PyErr {
+    if !error.is_instance_of::<errors::ResourceLedgerError>(py) {
+        return error;
+    }
+    for _ in taken {
+        if let Err(failure) = writer.allocate_sequence() {
+            return failure;
+        }
+    }
+    match error.value(py).str() {
+        Ok(text) => wrap(&text.to_string_lossy()),
+        Err(failure) => failure,
+    }
 }
 
 fn write_cancel(manager: &Manager<'_>, plan: &CancelPlan) -> PyResult<()> {
@@ -1693,7 +1753,9 @@ fn write_cancel(manager: &Manager<'_>, plan: &CancelPlan) -> PyResult<()> {
             clear_stall(&mirror, &plan.facility_id)?;
         }
         Some(releasing) => {
-            writer.allocate_sequence()?;
+            for _ in releasing.first..=releasing.audit.sequence {
+                writer.allocate_sequence()?;
+            }
             writer.record(&releasing.audit, minute, EventStatus::Applied, None)?;
             service_list(&manager.table, intern!(py, "active_reservation_ids"))?.call_method1(intern!(py, "remove"), (&task_text,))?;
             attribute(&facility, intern!(py, "resource_active_agent_ids"))?.call_method1(intern!(py, "remove"), (&agent_text,))?;
@@ -1754,7 +1816,7 @@ pub(crate) fn cancel_service<'py>(manager: &Bound<'py, PyAny>, event: &Bound<'py
     let event_id: Arc<str> = Arc::from(exact_str(&attribute(event, intern!(py, "event_id"))?)?);
     let sequence = EventWriter::of(&manager.world)?.next_sequence()?;
     let plan = plan_cancel(&manager, &event_id, task_id, interrupted, sequence)?;
-    apply_release(&manager, &plan)?;
+    apply_release(&manager, &plan, None)?;
     write_cancel(&manager, &plan)
 }
 
@@ -1926,7 +1988,7 @@ fn interrupt_with<'py>(manager: &Manager<'py>, staff_id: &Bound<'py, PyAny>, cau
             Some((point, record))
         }
     };
-    apply_release(manager, &plan)?;
+    apply_release(manager, &plan, Some(sequence))?;
 
     // Write.
     writer.allocate_sequence()?;

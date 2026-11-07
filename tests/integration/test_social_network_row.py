@@ -2,7 +2,9 @@
 
 Here: what taints the row, each way into it that the per-tick check must see now that it reads
 only the written records, what the kernels refuse, and random inputs, whose results are the bits
-the Python rules gave (PYTHON_GAVE).
+the Python rules gave (PYTHON_GAVE). The social action of `SocialInteractionHandler` has no Python
+rule left (lane L10, `kernel_only`): it is compared with the rule's formula, written down from it
+(`_apply_formula`), and its texts with the rule's.
 """
 
 from __future__ import annotations
@@ -16,7 +18,6 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from support.paths import BENCHMARKS
 from support.world import kernel_says_python_s_text
 
 from sheltersim import native
@@ -27,8 +28,13 @@ from sheltersim.domain import social_dialogue, social_network
 from sheltersim.domain.models import ordered_pair_key
 from sheltersim.domain.simulator_state import validate_simulator_extensions
 from sheltersim.domain.social_network import SOCIAL_NETWORK_STATE_KEY as KEY
-from sheltersim.events.handlers import EventSuppressed, SocialInteractionHandler
-from sheltersim.events.models import EventKind, ScheduledEvent
+from sheltersim.events.handlers import SocialInteractionHandler
+from sheltersim.events.models import (
+    EventApplicationError,
+    EventKind,
+    EventSuppressed,
+    ScheduledEvent,
+)
 from sheltersim.experiments.runner import run_scenario
 from sheltersim.experiments.scenario import ScenarioSpec
 
@@ -660,12 +666,31 @@ def _apply_kernel(world: Any, event: Any) -> None:
     native.rules("social_interaction").apply(SocialInteractionHandler(), world, event)
 
 
-def _apply_python(world: Any, event: Any) -> None:
-    SocialInteractionHandler.apply.__wrapped__(SocialInteractionHandler(), world, event)
+def _apply_formula(world: Any, event: Any) -> None:
+    """The deleted Python rule's writes of a social action whose checks all pass.
+
+    The participant is relieved by the transfer times the actor's affect signal, clipped to -1..1:
+    stress down by it, trust up by half of it, both within 0..1. Except in a reassurance exchange,
+    the actor gains 0.002 fatigue and a quarter of a positive relief as trust.
+    """
+    payload = event.payload
+    actor = world.agents[payload["agent_id"]]
+    participant = world.agents[payload["participant_agent_id"]]
+    state = world.model_state.get("body_state_v1", {})
+    body = state.get("agents", {}).get(actor.id, {})
+    signal = min(
+        1.0, max(-1.0, body.get("positive_affect", 0.5) - body.get("negative_affect", 0.0))
+    )
+    relief = state.get("config", {}).get("social_action_affect_transfer", 0.02) * signal
+    participant.stress = min(1.0, max(0.0, participant.stress - relief))
+    participant.trust = min(1.0, max(0.0, participant.trust + relief * 0.5))
+    if payload["interaction_type"] != "reassurance_exchange":
+        actor.needs.fatigue = min(1.0, actor.needs.fatigue + 0.002)
+        actor.trust = min(1.0, actor.trust + max(0.0, relief * 0.25))
 
 
 @pytest.mark.parametrize("kind", ["reassurance_exchange", "voluntary_support", "family_care"])
-def test_a_social_action_gives_the_bits_of_the_python_rule(world: Any, kind: str) -> None:
+def test_a_social_action_gives_the_bits_of_the_rule_s_formula(world: Any, kind: str) -> None:
     ids = _people(world)
     _colocate(world, ids)
     actor, participant = ids
@@ -695,7 +720,7 @@ def test_a_social_action_gives_the_bits_of_the_python_rule(world: Any, kind: str
             record["positive_affect"], record["negative_affect"] = positive, negative
         event = _action(world, kind, actor, participant, number + 1)
         _apply_kernel(world, event)
-        _apply_python(other, event)
+        _apply_formula(other, event)
         ran += 1
         assert _values(world, ids) == _values(other, ids)
     assert ran == 400
@@ -714,19 +739,20 @@ def test_a_1_percent_change_of_the_transfer_shows_in_the_action(world: Any) -> N
     for each in (world, other):
         each.agents[ids[1]].stress = 0.5
     event = _action(world, "reassurance_exchange", *ids)
-    _apply_kernel(world, event)
-    _apply_python(other, event)
+    # Each is the formula's with its own transfer, and the two differ.
+    for each in (world, other):
+        expected = copy.deepcopy(each)
+        _apply_kernel(each, event)
+        _apply_formula(expected, event)
+        assert _values(each, ids) == _values(expected, ids)
     assert _values(world, ids) != _values(other, ids)
 
 
-def _says_what_python_says(world: Any, event: Any) -> str:
-    """The kernel and the Python rule suppress with one text."""
+def _suppresses(world: Any, event: Any, text: str) -> None:
+    """The kernel suppresses the action with the Python rule's text, written down from it."""
     with pytest.raises(EventSuppressed) as by_kernel:
         _apply_kernel(world, event)
-    with pytest.raises(EventSuppressed) as by_python:
-        SocialInteractionHandler.apply.__wrapped__(SocialInteractionHandler(), world, event)
-    assert str(by_kernel.value) == str(by_python.value)
-    return str(by_kernel.value)
+    assert str(by_kernel.value) == text
 
 
 def test_a_suppressed_action_says_python_s_text_with_nothing_written(world: Any) -> None:
@@ -736,7 +762,7 @@ def test_a_suppressed_action_says_python_s_text_with_nothing_written(world: Any)
     others = [name for name in world.zones if name != zone]
     world.agents[ids[1]].zone_id = others[0]
     before = _values(world, ids)
-    assert "no longer co-located" in _says_what_python_says(world, event)
+    _suppresses(world, event, "social action participants are no longer co-located")
     assert _values(world, ids) == before
 
 
@@ -749,7 +775,7 @@ def test_a_helper_who_needs_more_than_the_target_is_suppressed(world: Any) -> No
         setattr(world.agents[ids[1]].needs, name, 0.1)
     event = _action(world, "voluntary_support", *ids)
     before = _values(world, ids)
-    assert "higher immediate need" in _says_what_python_says(world, event)
+    _suppresses(world, event, "the selected person no longer has a higher immediate need")
     assert _values(world, ids) == before
 
 
@@ -764,18 +790,24 @@ def test_a_different_household_is_suppressed(world: Any) -> None:
         world.agents[ids[0]].profile.group_id = "h1"
         world.agents[ids[1]].profile.group_id = "h2"
     event = _action(world, "family_care", *ids)
-    assert "same household" in _says_what_python_says(world, event)
+    _suppresses(world, event, "family support target is no longer in the same household")
+
+
+DURATION = "social action duration must be within 1..1440 minutes"
 
 
 @pytest.mark.parametrize(
     ("more", "text"),
     [
-        ({"interaction_duration_minutes": 0}, "within 1..1440 minutes"),
-        ({"interaction_duration_minutes": True}, "within 1..1440 minutes"),
-        ({"reason_short": "other"}, "reason code is not allowed"),
-        ({"action": "other"}, "does not match its typed topic"),
-        ({"extra": 1}, "payload fields do not match"),
-        ({"conversation_state_context": {"schema_version": 2}}, "state context is invalid"),
+        ({"interaction_duration_minutes": 0}, DURATION),
+        ({"interaction_duration_minutes": True}, DURATION),
+        ({"reason_short": "other"}, "social action reason code is not allowed"),
+        ({"action": "other"}, "social action does not match its typed topic"),
+        ({"extra": 1}, "autonomous social action payload fields do not match"),
+        (
+            {"conversation_state_context": {"schema_version": 2}},
+            "social dialogue state context is invalid",
+        ),
     ],
 )
 def test_a_bad_payload_is_failed_by_the_kernel_in_python_s_text(
@@ -785,20 +817,6 @@ def test_a_bad_payload_is_failed_by_the_kernel_in_python_s_text(
     _colocate(world, ids)
     event = _action(world, "reassurance_exchange", *ids, **more)
     before = _values(world, ids)
-    _, said = kernel_says_python_s_text(SocialInteractionHandler(), world, event)
-    assert text in said
+    expected = (EventApplicationError, text)
+    kernel_says_python_s_text(SocialInteractionHandler(), world, event, expected)
     assert _values(world, ids) == before
-
-
-def test_the_social_shadow_ignores_key_order_only_in_a_run_that_reverses_dicts(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.syspath_prepend(str(BENCHMARKS / "rule_shadow"))
-    from social_propagation_shadow import _text
-
-    first, second = {"a": 1, "b": 2}, {"b": 2, "a": 1}
-    monkeypatch.delenv("SHELTERSIM_GATE_REVERSE", raising=False)
-    assert _text(first) != _text(second)
-    monkeypatch.setenv("SHELTERSIM_GATE_REVERSE", "phase")
-    assert _text(first) == _text(second)
-    assert _text({"a": 1.0}) != _text({"a": 1})

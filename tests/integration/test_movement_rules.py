@@ -1,13 +1,10 @@
-"""The kernels of native/src/rules/movement.rs against the Python rules of domain/movement.py.
+"""The kernels of native/src/rules/movement.rs, the rules of domain/movement.py.
 
-For `advance_movement` and `staff_position_snapshots`, each case runs the kernel on a world and the
-Python rule on a copy of that world made before it, and compares the whole world in canonical JSON,
-which keeps a float's bits. The state of a tick the gate reaches is
-benchmarks/rule_shadow/shadow_movement.py; here, the branches it doesn't reach, and the branches the
-kernel refuses because they depend on the order of the walk.
-
-The other rules of domain/movement.py have no Python rule left (`kernel_only`). Their cases compare
-with values written out from the deleted rule, or with digests of its answers recorded once.
+The rules have no Python rule left (`kernel_only`). Their cases compare with values written out
+from the deleted rule, or with digests of its answers recorded once. For `advance_movement`, each
+test's results and whole worlds after each call, in canonical JSON (which keeps a float's bits),
+are chained into one digest and compared with the deleted Python rule's (ANSWERS, at the end).
+test_movement_walk_order.py has the branches that depend on the order of the walk.
 """
 
 from __future__ import annotations
@@ -17,6 +14,7 @@ import hashlib
 import math
 import random
 import sys
+from collections.abc import Iterator
 from dataclasses import replace
 from typing import Any
 
@@ -43,10 +41,6 @@ def _rules() -> Any:
     return native.rules("movement")
 
 
-def _rule(name: str) -> Any:
-    return getattr(movement, name).__wrapped__
-
-
 def _run(scenario: Any, minutes: int) -> WorldState:
     world = WorldState.from_scenario(scenario)
     controller = OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
@@ -65,13 +59,35 @@ def _mirror(world: WorldState) -> Any:
     return world._core.mirror(KEY)
 
 
+def _answer(world: WorldState, result: Any) -> bytes:
+    """What the rule returned and left, as the deleted rule's answers were recorded."""
+    return repr((repr(result), _bytes(world))).encode()
+
+
+# Each test's answers, chained in the order of its calls of `_same_after`.
+_CHAINS: dict[str, Any] = {}
+_NODE = [""]
+
+
+@pytest.fixture(autouse=True)
+def _answers_are_the_deleted_rule_s(request: pytest.FixtureRequest) -> Iterator[None]:
+    """After each test, its chained answers against the deleted Python rule's (ANSWERS).
+
+    The worlds hold floats of the platform's libm (the floor plan's lengths and points), recorded
+    on Linux. Lane L13 pins them on every OS; until then the checks in each test are what macOS
+    and Windows check.
+    """
+    _NODE[0] = request.node.name
+    yield
+    chain = _CHAINS.pop(request.node.name, None)
+    if chain is not None and sys.platform == "linux":
+        assert chain.hexdigest() == ANSWERS[request.node.name]
+
+
 def _same_after(world: WorldState, name: str, *arguments: Any, **options: Any) -> Any:
-    """The kernel on the world, the rule on a copy: the same result and the same world."""
-    twin = copy.deepcopy(world)
-    result = getattr(_rules(), name)(world, *arguments, **options)
-    expected = _rule(name)(twin, *arguments, **options)
-    assert repr(result) == repr(expected)
-    assert _bytes(world) == _bytes(twin)
+    """The rule on the world, its answer chained for the test's check, the row still the tree's."""
+    result = getattr(movement, name)(world, *arguments, **options)
+    _CHAINS.setdefault(_NODE[0], hashlib.sha256()).update(_answer(world, result) + b"\n")
     assert _mirror(world).tainted is None
     assert _mirror(world).verify()
     assert _mirror(world).row_json() == native.canonical_json(world.model_state[KEY])
@@ -253,10 +269,7 @@ def test_a_person_who_left_loses_their_journey_and_position(generated_scenario: 
     state["journeys"]["gone"] = _plain(extra)
     state["positions"]["gone"] = _plain(state["positions"][agent_id])
     state["last_updated_minute"] = world.minute_index - 1
-    twin = copy.deepcopy(world)
-    assert _rules().advance_movement(world, world.minute_index) == ()
-    assert _rule("advance_movement")(twin, world.minute_index) == ()
-    assert _bytes(world) == _bytes(twin)
+    assert _same_after(world, "advance_movement", world.minute_index) == ()
     assert "gone" not in state["journeys"] and "gone" not in state["positions"]
     assert _mirror(world).verify()
 
@@ -328,10 +341,13 @@ def test_in_service_and_sleeping_stand_at_their_places(generated_scenario: Any) 
     state["last_updated_minute"] = world.minute_index - 1
     _same_after(world, "advance_movement", world.minute_index)
     assert state["positions"][ids[2]]["point"] == {"x": 3.25, "y": 4.125}
-    # A bed that isn't two floats is the Python rule's to take or refuse.
+    # A bed that isn't two floats is refused, with nothing changed: a room's bed points are
+    # Point2D's floats, so only a hand-made state has one.
     overlay["temporary_rooms"]["room"]["bed_points_m"][1] = {"x": 3, "y": 4}
     state["last_updated_minute"] = world.minute_index - 1
     _refuses(world, "advance_movement", world.minute_index)
+    with pytest.raises(KernelRefusal):
+        movement.advance_movement(world, world.minute_index)
 
 
 def test_without_a_floor_plan_people_have_display_points(generated_scenario: Any) -> None:
@@ -527,17 +543,16 @@ def test_finishing_one_trip_may_read_the_slots(generated_scenario: Any) -> None:
 # ---- What the kernels take ----------------------------------------------------------------------
 
 
-def test_int_coordinates_taint_and_go_to_the_python_rule(generated_scenario: Any) -> None:
+def test_int_coordinates_taint_and_are_a_kernel_refusal(generated_scenario: Any) -> None:
+    """An int where the row has a float: only a hand-made state has one, and nothing changes."""
     world = _run(generated_scenario, 5)
     state = world.model_state[KEY]
     state["positions"][sorted(world.agents)[0]]["progress"] = 0
     assert _mirror(world).tainted
-    twin = copy.deepcopy(world)
-    with pytest.raises(native.Unsupported):
-        _rules().advance_movement(world, world.minute_index + 1)
-    assert movement.advance_movement(world, world.minute_index + 1) == ()
-    assert _rule("advance_movement")(twin, world.minute_index + 1) == ()
-    assert _bytes(world) == _bytes(twin)
+    before = _bytes(world)
+    with pytest.raises(KernelRefusal, match="the namespace has no row"):
+        movement.advance_movement(world, world.minute_index + 1)
+    assert _bytes(world) == before
 
 
 def test_a_state_past_the_table_is_not_the_row_s(generated_scenario: Any) -> None:
@@ -547,16 +562,17 @@ def test_a_state_past_the_table_is_not_the_row_s(generated_scenario: Any) -> Non
         _rules().advance_movement(world, world.minute_index + 1)
 
 
-def test_an_edge_the_state_does_not_know_is_python_s_error(generated_scenario: Any) -> None:
+def test_an_edge_the_state_does_not_know_is_a_kernel_refusal(generated_scenario: Any) -> None:
+    """The deleted rule's KeyError: a journey on an edge the world lacks, which no Run makes."""
     world = _run(generated_scenario, 5)
     agent_id = _walker(world)
     state = world.model_state[KEY]
     state["journeys"][agent_id]["route_edge_ids"][0] = "no-such-edge"
     state["last_updated_minute"] = world.minute_index - 1
-    with pytest.raises(native.Unsupported):
-        _rules().advance_movement(world, world.minute_index)
-    with pytest.raises(KeyError, match="no-such-edge"):
+    before = _bytes(world)
+    with pytest.raises(KernelRefusal, match="a journey's edge is unknown"):
         movement.advance_movement(world, world.minute_index)
+    assert _bytes(world) == before
 
 
 def test_a_config_edited_outside_a_scope_is_seen_at_the_next_call(generated_scenario: Any) -> None:
@@ -670,7 +686,7 @@ def test_start_movement_writes_the_journey_and_the_first_position(
             point = Point2D(x=1.0, y=2.0)
         position = _record(origin, point, "physical", progress=progress)
     elif route.edge_ids:
-        point = movement._route_point(geometry, edge.id, progress, origin, world)
+        point = _route_point(geometry, edge.id, progress, origin, world)
         kind_of = "physical" if point is not None else "unavailable"
         position = _record(origin, point, kind_of, edge.id, progress)
     else:
@@ -692,6 +708,42 @@ def test_start_movement_writes_the_journey_and_the_first_position(
         **options,
     )
     assert native.canonical_json(state) == native.canonical_json(expected)
+
+
+def _route_point(
+    geometry: FacilityGeometry | None,
+    edge_id: str,
+    progress: float,
+    current_zone_id: str,
+    world: WorldState,
+) -> Point2D | None:
+    """The deleted rule's point along an edge's surveyed route, from the zone the walk left."""
+    if geometry is None:
+        return None
+    route = next((item for item in geometry.routes if item.edge_id == edge_id), None)
+    if route is None:
+        return movement._zone_center(geometry, current_zone_id)
+    edge = world.zone_edges[edge_id]
+    points = list(route.points)
+    if edge.from_zone_id != current_zone_id:
+        points.reverse()
+    lengths = [
+        math.hypot(second.x - first.x, second.y - first.y)
+        for first, second in zip(points, points[1:])
+    ]
+    total = sum(lengths)
+    if total <= 0:
+        return points[0]
+    remaining = min(1.0, max(0.0, progress)) * total
+    for index, (first, second, length) in enumerate(zip(points, points[1:], lengths)):
+        if remaining <= length or index == len(lengths) - 1:
+            ratio = 0.0 if length == 0 else min(1.0, max(0.0, remaining / length))
+            return Point2D(
+                x=first.x + (second.x - first.x) * ratio,
+                y=first.y + (second.y - first.y) * ratio,
+            )
+        remaining -= length
+    return points[-1]
 
 
 def test_start_movement_with_only_half_of_the_support_writes_neither(
@@ -1193,3 +1245,48 @@ def test_the_walk_to_a_facility_with_a_footprint_is_the_deleted_rule_s(
                 assert not (abs(end.x - point.x) < half and abs(end.y - point.y) < half)
     assert found
     assert _digest(walks) == FOOTPRINT_WALKS
+
+
+# The deleted Python rule's answers of each test, chained in the order of its calls: recorded
+# once from the Python rule at 2d8fb46, on Linux.
+ANSWERS = {
+    "test_a_closed_edge_replans_what_is_walking_it": (
+        "d1a2bcc1a117ac16a7add3aafb384ee3c2eb867ecf0f1068ff7dcc4e51a5b626"
+    ),
+    "test_a_minute_already_done_does_nothing_but_the_records": (
+        "a8fe4f09577676627c8244562ee242605e6c485f7c3625759ef38a11008017d4"
+    ),
+    "test_a_person_in_a_slot_in_the_walk_is_python_s": (
+        "823a82d3efe864b8721687d06cef576cc472e4193e7b67527bc29accdaee0caf"
+    ),
+    "test_a_person_who_left_loses_their_journey_and_position": (
+        "32dbd2aaa216d1a40ef8da112d4bb41824de5010d95612fb77bc889fc03ce151"
+    ),
+    "test_a_room_walk_follows_its_points_and_stops_at_what_blocks_them": (
+        "81736be1ce8354132ebf10a4d571cca4d79a0ad491fabdeb4c52c6c6a1af3b15"
+    ),
+    "test_a_trip_whose_event_or_task_went_ends_there": (
+        "f17b9a198f9ea3c0da28ed161a60b17a09b4d7be0ddad4b79fe935e221af5326"
+    ),
+    "test_a_walk_along_two_edges_both_ways": (
+        "37fd3fbb3bf785624478a4b238341349db6c3be79ec4ba9b8411841af35876b3"
+    ),
+    "test_each_tick_of_a_run_is_python_s_bit_for_bit": (
+        "c07261ceec95d56c03e8db39d52d994e92e09e711c71a35dab25a17540610392"
+    ),
+    "test_in_service_and_sleeping_stand_at_their_places": (
+        "ced987274e0d7f9d89e200f0965233e271e767bf0a14dff85b00d3856c174652"
+    ),
+    "test_someone_with_no_position_gets_one_first": (
+        "bcfb106dc3bed35f887ee4b78c19849d89905d98789402852e7f205cb681e1f5"
+    ),
+    "test_staff_on_their_way_are_placed_along_their_route": (
+        "2b6d27020ee8ea0d1e4a8fea960a380eb31be450f7f096b4186fa28ea26c7dec"
+    ),
+    "test_two_queue_replans_keep_their_order": (
+        "7c6a95e4d6fef24fe99348dcc69857407851f9ec1aa1fb63a1033bf9dea86c7a"
+    ),
+    "test_without_a_floor_plan_people_have_display_points": (
+        "34d3e98ffbbe62e67b577785e1a84981ad37d4efb316b5f3affb2b026c81346c"
+    ),
+}

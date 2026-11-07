@@ -511,6 +511,9 @@ def test_no_relief_for_a_worker_still_on_shift_or_too_near_the_end() -> None:
 
 
 # ---- What the metrics read, with routes ----
+#
+# `_support_wait_snapshot` has no Python rule left (lane L10, `kernel_only`). The reasons below
+# are the Python rule's, and so is the digest of the many worlds' answers, recorded from it.
 
 
 def _both_snapshots(world: WorldState, minute: int) -> dict[str, Any]:
@@ -522,11 +525,7 @@ def _both_snapshots(world: WorldState, minute: int) -> dict[str, Any]:
         ),
         key=lambda request: request.id,
     )
-    answer = native.rules("staff").wait_snapshot(world, active, minute)
-    assert json.dumps(answer) == json.dumps(
-        metrics._support_wait_snapshot.__wrapped__(world, active, minute)
-    )
-    return answer[0]
+    return metrics._support_wait_snapshot(world, active, minute)[0]
 
 
 def _pending(world: WorldState, number: int, agent_id: str, minute: int = 0) -> SupportRequestState:
@@ -639,6 +638,7 @@ def _trip(world: WorldState, edge_id: str) -> Any:
 def test_many_worlds_read_the_same_reasons_with_free_and_busy_workers() -> None:
     generator = random.Random(2615)
     seen: set[str] = set()
+    answers: list[str] = []
     for _ in range(120):
         world = _world(
             staff=[
@@ -665,8 +665,11 @@ def test_many_worlds_read_the_same_reasons_with_free_and_busy_workers() -> None:
             world.metric_state["support_assignment_metrics_minute"] = 0.0
         if generator.random() < 0.3:
             world.zones[generator.choice(_zones(world))].capacity = generator.choice([0, 1, 300])
+        answers.append(json.dumps(_both_snapshots(world, 0)))
         for reasons in _reasons(world):
             seen.update(reasons)
+    digest = hashlib.sha256("\n".join(answers).encode("utf-8")).hexdigest()[:16]
+    assert digest == "886f522f9c88ebae"
     assert {
         "staff_busy",
         "assignment_not_attempted_at_sampled_minute",

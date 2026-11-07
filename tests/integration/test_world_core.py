@@ -19,6 +19,7 @@ import pytest
 from sheltersim import native
 from sheltersim.core import state_mirror
 from sheltersim.core.engine import TickEngine
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.state_mirror import (
     DetachedNodeError,
     NamespaceTable,
@@ -523,14 +524,36 @@ def test_a_segment_replaces_a_step_and_unsupported_runs_the_python_step() -> Non
             raise native.Unsupported("not this one")
         return f"{answer} {value}"
 
-    install_segments(Controller, {"step": kernel})
+    install_segments(Controller, {"step": kernel}, {})
     assert Controller().step(1) == "rust 1"
     answers[0] = None
     assert Controller().step(2) == "python 2"
     Base.step = lambda _self, value: f"patched {value}"  # type: ignore[method-assign]
     assert Controller().step(3) == "patched 3"
     with pytest.raises(ValueError, match="no step"):
-        install_segments(Controller, {"nope": kernel})
+        install_segments(Controller, {"nope": kernel}, {})
+
+
+def test_a_kernel_only_segment_turns_unsupported_into_a_kernel_refusal() -> None:
+    class Controller:
+        def step(self, value: int) -> str:
+            raise AssertionError("a step of kernel_only has no Python step to run")
+
+    answers: list[Any] = ["rust"]
+
+    def kernel(_controller: Any, value: int) -> str:
+        answer = answers[0]
+        if answer is None:
+            raise native.Unsupported("not this one")
+        return f"{answer} {value}"
+
+    install_segments(Controller, {}, {"step": kernel})
+    assert Controller().step(1) == "rust 1"
+    answers[0] = None
+    with pytest.raises(KernelRefusal, match="step refused: not this one"):
+        Controller().step(2)
+    with pytest.raises(ValueError, match="no step"):
+        install_segments(Controller, {}, {"nope": kernel})
 
 
 # ---- Real rules on a tree -------------------------------------------------------------------
@@ -548,16 +571,16 @@ def _run_world(scenario: Any, minutes: int, check: Any = None) -> WorldState:
 
 
 # Every namespace of the first ticks that the ledger's size doesn't make slow here, but
-# shared_operations_v1, movement_v1, body_state_v1, agent_dynamics_v1 and staff_operations_v1:
-# `prepare_facility_queue`, the steps of experiments/phases/dispatch.py that follow an event
-# (`_record_staff_support_started`, `_schedule_return_to_initial_zone`), a toilet completion, the
-# decision memory and the staff's tasks read their own typed rows and have no Python rule left to
-# run on a generic one (`kernel_only`, lane L10).
+# shared_operations_v1, movement_v1, body_state_v1, agent_dynamics_v1, staff_operations_v1,
+# information_spread_v1 and social_propagation_v1: `prepare_facility_queue`, the steps of
+# experiments/phases/dispatch.py that follow an event (`_record_staff_support_started`,
+# `_schedule_return_to_initial_zone`), a toilet completion, the decision memory, the staff's tasks,
+# the metrics' wait of each support request (`_support_wait_snapshot`) and the social and
+# information steps read their own typed rows and have no Python rule left to run on a generic one
+# (`kernel_only`, KERNEL_ONLY_SEGMENTS, lane L10).
 REAL_NAMESPACES = (
-    "information_spread_v1",
     "psychological_distress_v1",
     "social_network_v1",
-    "social_propagation_v1",
 )
 
 

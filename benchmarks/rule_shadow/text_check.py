@@ -170,8 +170,11 @@ class _Check:
             return
         if type(handler).__name__ == "ResourceServiceCompletionHandler":
             # Its apply has no kernel of its own: the kernel is its manager's `complete`. Its own
-            # check runs, with the manager's Python rule behind it.
+            # check runs, with the manager's Python rule behind it, which `complete` has no more
+            # (`kernel_only`, lane L10).
             complete = type(handler.service).complete.__wrapped__
+            if not _has_python_rule(complete):
+                return
             service = handler.service
 
             def python_rule(handler: Any, world: Any, event: Any) -> None:

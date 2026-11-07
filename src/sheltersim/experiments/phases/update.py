@@ -17,10 +17,9 @@ from sheltersim.domain.geometry_overlay import release_sleep_bed, reserve_sleep_
 from sheltersim.domain.models import Activity, SupportRequestStatus
 from sheltersim.domain.movement import MOVEMENT_STATE_KEY, advance_movement, finish_movement
 from sheltersim.domain.psychological_state import PSYCHOLOGICAL_STATE_KEY
-from sheltersim.domain.social_network import record_observed_contact
 from sheltersim.events.models import EventKind, EventLogRecord, EventStatus, ScheduledEvent
+from sheltersim.experiments.phases.segments import no_python_step
 from sheltersim.policies.psychology import PsychologyUpdateResult, apply_state_deltas
-from sheltersim.policies.social import SOCIAL_RUNTIME_STATE_KEY
 from sheltersim.policies.space import ZoneRoute
 from sheltersim.policies.world_view import WorldView
 
@@ -58,30 +57,21 @@ class UpdatePhase:
     def _social_propagation(
         self, world: WorldState, view: WorldView, base_deltas: Any, minute: int, rng: KeyedRandom
     ) -> Any:
-        if self.stress_policy.parameters.enabled:
-            # With the Rust kernels this step is rules/social_propagation.rs (segments.py), and
-            # runs here for what the kernel leaves to these rules.
-            result = self.stress_policy.update(
-                view,
-                base_deltas,
-                rng,
-                zone_neighbors=self.zone_neighbors,
-                runtime_state=world.model_state.get(SOCIAL_RUNTIME_STATE_KEY),
-            )
-            final_deltas = result.deltas
-            world.model_state[SOCIAL_RUNTIME_STATE_KEY] = result.runtime_state
-            for contact in result.contacts if "social_network_v1" in world.model_state else ():
-                record_observed_contact(
-                    world,
-                    recipient_id=contact.recipient_id,
-                    source_id=contact.source_id,
-                    minute=minute,
-                )
-            if self.artifacts.trace_level is not TraceLevel.OFF:
-                self.artifacts.record_social_contact_trace(result.trace_document(minute))
-        else:
-            final_deltas = base_deltas
-        return final_deltas
+        """The deltas after the social model, which is native/src/rules/social_propagation.rs.
+
+        With `stress_policy.parameters.enabled` false, `base_deltas` themselves. Otherwise the
+        model's contacts of this minute (drawn from `rng` per person, from household, zone and
+        `zone_neighbors`) move each person's stress, and the step writes the new contacts and
+        cooldowns to `world.model_state["social_propagation_v1"]`, records each contact in
+        `social_network_v1` when that namespace exists, and gives the contact trace to
+        `artifacts.record_social_contact_trace` when the Run keeps a trace. The deltas are new
+        AgentStateDelta objects, in ID order.
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        raises KernelRefusal: a namespace of another schema or with negative minutes, deltas or a
+        view of another minute, an RNG other than CounterRNG, a policy class it does not know.
+        """
+        raise no_python_step("_social_propagation")
 
     def _record_psychology_trace(
         self, psychology_result: PsychologyUpdateResult, final_deltas: Any, minute: int

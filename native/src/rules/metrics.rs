@@ -1,9 +1,9 @@
 //! `experiments/metrics.py` and `experiments/operational_kpis.py`: the KPI columns of a minute, read
 //! from the rows in one call. They only read, so a call changes nothing.
 //!
-//! Anything the Python rule would read differently says Unsupported, and it runs and gives the same
-//! columns or its own error: a tainted row, a kind that is not ASCII (`str.casefold`), a pending
-//! request with a free qualified worker (`rules/staff.rs`), a staff queue naming no task (KeyError).
+//! The Python rules' errors are raised with their classes and texts. What only a state the checks of
+//! the Python rules never let through reaches is Unsupported, which the entries raise as
+//! `KernelRefusal`: a tainted row, a staff queue naming no task (a KeyError of the Python rule).
 //!
 //! The ID lists and the JSON are written by byte order, which is the code point order of Python's
 //! `sorted` and of `canonical_json`.
@@ -13,6 +13,7 @@ use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 
+use crate::core::errors;
 use crate::core::mathx::py_sum;
 use crate::core::row::{attribute, exact_dict, exact_int, exact_list, exact_str, namespace_is_absent, unsupported};
 use crate::core::world_core::{field_mirror_of, NamespaceMirror};
@@ -27,10 +28,14 @@ const HIGH_STRESS_AT_LEAST: f64 = 0.7;
 const EXPOSURE_SEMANTICS: &str = "per-minute observed request exposure by blocker; reason totals may overlap \
                                   and are not exclusive causal attribution";
 
-/// `"toilet" in kind.casefold()`. Only for ASCII, where casefold is lower.
+/// `"toilet" in kind.casefold()`. A kind that isn't ASCII (a Scenario's kind is any str) goes to
+/// Python's own `str.casefold`, whose folding Rust doesn't have.
 fn is_toilet(kind: &str) -> PyResult<bool> {
     if !kind.is_ascii() {
-        return unsupported("a facility kind is not ASCII");
+        return Python::with_gil(|py| {
+            let folded = PyString::new(py, kind).call_method0(intern!(py, "casefold"))?;
+            Ok(exact_str(&folded)?.contains("toilet"))
+        });
     }
     Ok(kind.as_bytes().windows(6).any(|part| part.eq_ignore_ascii_case(b"toilet")))
 }
@@ -226,18 +231,19 @@ fn kpi_values<'py>(world: &Bound<'py, PyAny>, snapshot: &Bound<'py, PyAny>) -> P
     if exact_int(&attribute(world, intern!(py, "schema_version"))?)? != 6
         || namespace_is_absent(world, intern!(py, "resource_service_v1"))?
     {
-        return unsupported("the Python rule says what is wrong with this world");
+        return Err(errors::value_error("operational KPIs require resource-service WorldState v6"));
     }
     let minute = attribute(world, intern!(py, "minute_index"))?;
     if exact_int(&attribute(snapshot, intern!(py, "minute_index"))?)? != exact_int(&minute)? {
-        return unsupported("the Python rule says what is wrong with this minute");
+        return Err(errors::value_error("operational KPI minute must match WorldState"));
     }
     let store = entities_of(world)?;
     let (toilet, hunger, hydration, water_queue, meal_queue, water_active, meal_active) =
         EntityStore::with_rows(&store, |rows| {
             let count = rows.agents.len();
             if count == 0 {
-                return unsupported("no agents: the Python rule divides by zero");
+                // The Python rule's mean of no one.
+                return Err(pyo3::exceptions::PyZeroDivisionError::new_err("division by zero"));
             }
             let mean = |need: fn(&crate::state::entities::NeedRow) -> f64| {
                 let values: Vec<f64> = rows.agents.iter().map(|(_, agent)| need(&agent.needs)).collect();

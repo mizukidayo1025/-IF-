@@ -1,11 +1,11 @@
-"""A walk that does not fit fails with the travel rule's own text, the same with or without Rust.
+"""A walk that does not fit fails with the travel rule's own text, before any change.
 
 `AgentTravelCompletionHandler.apply` raises `EventApplicationError` when a walk's event does not
 match its task, its person, or what its purpose needs; the dispatcher saves the text as the event's
 `detail`. Every check comes before the rule's first write, so a failed walk changes nothing.
-With the Rust kernels, rules/travel_completion.rs raises each of these texts itself, before any
-change, and support/world.py `kernel_says_python_s_text` checks that it did and that the Python rule
-on a copy says the same; without them, the Python rule raises it and the world is as it was
+rules/travel_completion.rs raises each of these texts itself, before any change, and
+support/world.py `kernel_says_python_s_text` checks that it did. The Python rule is gone (lane L10,
+`kernel_only`): each text here is written down from it, in its order of checks
 (docs/rust-port/lanes/l8-texts-events.md).
 """
 
@@ -21,7 +21,7 @@ from sheltersim.core.engine import TickEngine
 from sheltersim.core.world import WorldState
 from sheltersim.domain.models import Activity
 from sheltersim.events.handlers import AgentTravelCompletionHandler
-from sheltersim.events.models import EventStatus, ScheduledEvent
+from sheltersim.events.models import EventApplicationError, EventStatus, ScheduledEvent
 from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.phases.dispatch import DispatchPhase
 from sheltersim.experiments.runner import OfflineSimulationController
@@ -111,7 +111,11 @@ def _text(world: WorldState) -> str:
 
 def _says(handler: Any, world: WorldState, event: Any, text: str) -> None:
     """The handler fails the walk with `text` and changes nothing: the kernel says it."""
-    assert kernel_says_python_s_text(handler, world, event) == ("EventApplicationError", text)
+    expected = (EventApplicationError, text)
+    assert kernel_says_python_s_text(handler, world, event, expected) == (
+        "EventApplicationError",
+        text,
+    )
 
 
 def _handler(controller: OfflineSimulationController) -> Any:

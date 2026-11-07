@@ -113,6 +113,15 @@ pub(crate) fn marked_value_error(py: Python<'_>, text: &str) -> PyErr {
     made.unwrap_or_else(|error| error)
 }
 
+/// The exception of a Python call that the rule makes at the same point and lets go as it is (the
+/// validation of a changed copy before it takes the world's place): marked like an outcome made
+/// here, so that a step which turns a call's exception into Unsupported lets it through.
+pub(crate) fn passed_on(py: Python<'_>, error: PyErr) -> PyErr {
+    // An exception that takes no attribute stays as it is, and is then refused as before.
+    let _ = error.value(py).setattr(intern!(py, MARK), true);
+    error
+}
+
 /// Whether this error is an outcome made here, rather than one a Python call raised: a step that
 /// turns any exception of a call into Unsupported lets these through.
 pub(crate) fn made_here(py: Python<'_>, error: &PyErr) -> bool {
@@ -354,6 +363,19 @@ mod invariant_class {
 }
 #[allow(unused_imports)]
 pub(crate) use invariant_class::StateInvariantError;
+
+mod ledger_class {
+    use super::*;
+    python_class!(ResourceLedgerError, "sheltersim.domain.resources", "ResourceLedgerError");
+}
+pub(crate) use ledger_class::ResourceLedgerError;
+
+/// `raise ResourceLedgerError(text)` of `domain/resources.py`'s operation: a ValueError whose text
+/// the ledger's handler and the water and meal service save inside their own.
+#[track_caller]
+pub(crate) fn ledger_error(text: impl Into<String>) -> PyErr {
+    ResourceLedgerError::new_err(text)
+}
 
 /// `raise ValueError(text)` of a Python rule.
 #[track_caller]

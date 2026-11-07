@@ -1,15 +1,19 @@
 """information_spread_v1 owned by Rust, and its sample step in native/src/rules/information.rs.
 
-policies/information.py stays the comparison base. benchmarks/rule_shadow compares every draw and
-probability on the gate; here, on small worlds and on values no scenario reaches.
+The step is the kernel alone: the Python rules of policies/information.py and
+policies/alternatives.py are gone. What they answered, on small worlds and on values no scenario
+reaches, was recorded once as digests (ANSWERS), which the kernel's answers must equal on Linux.
 """
 
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import math
+import os
 import random
+import sys
 from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any
@@ -18,6 +22,7 @@ import pytest
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine, TraceLevel
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.rng import CounterRNG
 from sheltersim.core.state_mirror import rust_validated
 from sheltersim.core.world import StateInvariantError, WorldState
@@ -30,7 +35,6 @@ from sheltersim.domain.information import (
 )
 from sheltersim.domain.models import InformationSpreadConfig
 from sheltersim.experiments.metrics import MetricsRecorder
-from sheltersim.experiments.phases.sample import SamplePhase
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _MetricSink
@@ -82,8 +86,54 @@ def _run_ticks(scenario: Any, minutes: int, check: Any = None) -> WorldState:
     return world
 
 
+# What the deleted Python rules answered (policies/information.py and policies/alternatives.py at
+# 2d8fb46), as sha256 of the answers' texts, recorded once on Linux. With
+# SHELTERSIM_RECORD_INFORMATION set, the tests wrote these digests of the Python rules' answers to
+# that file instead.
+ANSWERS: dict[str, str] = {
+    "claims-EvidenceAwareInformationPolicy": (
+        "7e17a31e26288bf5119da239fa024163dd67d7ad4a4fc8f90664d23dd75c2605"
+    ),
+    "claims-HazardInformationPolicy": (
+        "b8f50d81a075e2def89cdd61b085f16c64ed2a1cf6f5ff6bd3d1a74f73fe5f77"
+    ),
+    "claims-InformationSpreadPolicy": (
+        "950769ea58b9c61423b630b0b92245baa6534be789f95d1ed7ed23aa8c338be6"
+    ),
+    "escapes": ("fc71532c0c071b4cf7032b0ee9565de1d3015efd22ed3421f321d78a8ddb34cd"),
+    "fewer": ("1e3044e56f64470972105590940135dc1bbdcc93993a34012e62da3f18dadf24"),
+    "probability": ("17c22820e4988c21f1c9339953c7462be9936ff2facf80acaf0d065c523f738d"),
+    "random": ("31d66819725fb4d71435209ee29031af6c1ea99b4028133c2c521ee11ed2e4df"),
+    "seed-18446744073709551623": (
+        "dd2527a47cd6e7a981e2e309af5e6c1bf1375e0ef86d4727cd3a3e2988390b8e"
+    ),
+    "seed-9223372036854775808": (
+        "cfa1e5f6a6f20cc215da760e12079e097cd02c07c59e48f8609a6c5208b45cf8"
+    ),
+    "ticks-evidence-aware-rumor-v1": (
+        "11daf0bb7e33bfc0873996665ba29a6f009f19a9dbbdeb1c721154854528d166"
+    ),
+    "ticks-sparse-information-contact-v1": (
+        "c7d18637982b41ef90b56ecb2626932fc8f7683fe10b3c244ef9176c6e9af7f7"
+    ),
+}
+_RECORD = os.environ.get("SHELTERSIM_RECORD_INFORMATION")
+
+
+def _answers(name: str, texts: list[str]) -> None:
+    digest = hashlib.sha256()
+    for text in texts:
+        digest.update(text.encode() + b"\n")
+    if _RECORD:
+        with open(_RECORD, "a", encoding="utf-8") as file:
+            file.write(json.dumps({name: digest.hexdigest()}) + "\n")
+        return
+    if sys.platform == "linux":
+        assert digest.hexdigest() == ANSWERS[name], name
+
+
 class _Recording(CounterRNG):
-    """The Python rule's draws, as text in which a float keeps its bits."""
+    """Only while recording: the Python rule's draws, as text in which a float keeps its bits."""
 
     def __init__(self, seed: int) -> None:
         super().__init__(seed)
@@ -141,60 +191,85 @@ def _view_of(world: WorldState) -> Any:
     )
 
 
-def _python_rule(
-    world: WorldState,
-    policy: Any,
-    neighbors: dict[str, tuple[str, ...]],
-    seed: int,
-    view: Any = None,
-) -> tuple[Any, list[tuple[str, str]]]:
+def _python_answer(
+    world: WorldState, policy: Any, neighbors: dict[str, tuple[str, ...]], seed: int, view: Any
+) -> tuple[str, list[Any], dict[str, Any]]:
+    """Only while recording: the deleted Python rule's answer, in the kernel's terms."""
     rng = _Recording(seed)
     state = json.loads(json.dumps(world.model_state[KEY]))
     view = view or WorldView.from_world(world, include_state_hash=False)
-    return policy.update(view, state, rng, zone_neighbors=neighbors), rng.made
+    python = policy.update(view, state, rng, zone_neighbors=neighbors)
+    contacts = [
+        [
+            item.sender_agent_id,
+            item.recipient_agent_id,
+            item.contact_basis,
+            item.contact_minutes,
+            item.message_id,
+            item.belief,
+            item.transmission_probability,
+            item.transmission_selected,
+            item.message_source_id,
+            item.causation_id,
+        ]
+        for item in python.contacts
+    ]
+    forget = (
+        (-math.expm1(-policy.config.forgetting_rate_per_minute)).hex()
+        if isinstance(policy, EvidenceAwareInformationPolicy)
+        else None
+    )
+    proposals = [
+        [
+            world.minute_index,
+            item.message_id,
+            item.sender_agent_id,
+            item.recipient_agent_id,
+            item.belief.value,
+            item.contact_basis,
+            item.contact_minutes,
+            item.probability,
+            item.message_source_id,
+            item.causation_id,
+        ]
+        for item in python.proposals
+    ]
+    answer = [
+        sorted(rng.made),
+        contacts,
+        python.policy_version,
+        forget,
+        proposals,
+        json.loads(json.dumps(python.runtime_state, sort_keys=True)),
+        list(python.runtime_state["contacts"]),
+    ]
+    return json.dumps(answer), contacts, python.runtime_state
 
 
-def _assert_same_as_python(
+def _answer(
     world: WorldState,
     policy: Any,
     neighbors: dict[str, tuple[str, ...]],
     seed: int,
     view: Any = None,
-) -> Any:
-    """Every draw, probability and event, and then the namespace, as the Python rule makes them."""
-    python, python_draws = _python_rule(world, policy, neighbors, seed, view)
+) -> tuple[str, list[Any], dict[str, Any]]:
+    """Every draw, probability and event, and then the namespace: the text of the kernel's answer,
+    its contacts and the new namespace."""
+    if _RECORD:
+        return _python_answer(world, policy, neighbors, seed, view)
     controller = _controller(world, policy, neighbors)
     minute, rng = world.minute_index, CounterRNG(seed)
-
     planned = _kernels().planned_contacts(controller, minute, rng)
     draws = sorted((key, value.hex()) for key, value in planned["draws"])
-    assert draws == sorted(python_draws)
     contacts = sorted(
-        (tuple(item) for item in planned["contacts"]),
+        (list(item) for item in planned["contacts"]),
         key=lambda item: (item[1], item[0], item[4] or ""),
     )
-    assert json.dumps(contacts) == json.dumps(
-        [
-            (
-                item.sender_agent_id,
-                item.recipient_agent_id,
-                item.contact_basis,
-                item.contact_minutes,
-                item.message_id,
-                item.belief,
-                item.transmission_probability,
-                item.transmission_selected,
-                item.message_source_id,
-                item.causation_id,
-            )
-            for item in python.contacts
-        ]
+    forget = (
+        planned["forget_probability"].hex()
+        if isinstance(policy, EvidenceAwareInformationPolicy)
+        else None
     )
-    assert planned["policy_version"] == python.policy_version
-    if isinstance(policy, EvidenceAwareInformationPolicy):
-        forget = -math.expm1(-policy.config.forgetting_rate_per_minute)
-        assert planned["forget_probability"].hex() == forget.hex()
-
     pending = {event.event_id for event in world.event_queue.pending()}
     _kernels().sample_contacts(controller, minute, rng)
     assert controller.calls == []
@@ -202,29 +277,18 @@ def _assert_same_as_python(
         (event for event in world.event_queue.pending() if event.event_id not in pending),
         key=lambda event: event.sequence,
     )
-    assert json.dumps([_proposal_of(event, minute) for event in scheduled]) == json.dumps(
-        [
-            (
-                minute,
-                item.message_id,
-                item.sender_agent_id,
-                item.recipient_agent_id,
-                item.belief.value,
-                item.contact_basis,
-                item.contact_minutes,
-                item.probability,
-                item.message_source_id,
-                item.causation_id,
-            )
-            for item in python.proposals
-        ]
-    )
     state = world.model_state[KEY]
-    assert json.dumps(state, sort_keys=True) == json.dumps(python.runtime_state, sort_keys=True)
-    # Contacts in the rule's order too: nothing depends on it, and it costs nothing to keep.
-    assert list(state["contacts"]) == list(python.runtime_state["contacts"])
     assert _mirror(world).verify()
-    return python
+    answer = [
+        draws,
+        contacts,
+        planned["policy_version"],
+        forget,
+        [list(_proposal_of(event, minute)) for event in scheduled],
+        json.loads(json.dumps(state, sort_keys=True)),
+        list(state["contacts"]),
+    ]
+    return json.dumps(answer), contacts, state
 
 
 def _belief(message: str, belief: str, **fields: Any) -> dict[str, Any]:
@@ -377,40 +441,44 @@ def test_fewer_contacts_release_the_nodes_left_over(generated_scenario: Any) -> 
     next(iter(left_over.values()))["consecutive_minutes"] = 7
     assert _mirror(world).tainted is None
     assert _mirror(world).verify()
-    _assert_same_as_python(world, policy, neighbors, 1)
+    _answers("fewer", [_answer(world, policy, neighbors, 1)[0]])
 
 
 @pytest.mark.parametrize("model", ["evidence-aware-rumor-v1", "sparse-information-contact-v1"])
-def test_the_rust_step_and_the_python_step_make_the_same_world(
-    rumors: Any, monkeypatch: pytest.MonkeyPatch, model: str
-) -> None:
+def test_ninety_ticks_make_the_world_the_python_step_made(rumors: Any, model: str) -> None:
     scenario = rumors(duration=90)
     document = scenario.model_dump(mode="json")
     document["model_configs"]["policy_registry"]["information"] = model
     # A suite fixes its members, and this selection replaces a member.
     document["model_configs"]["policy_registry"].pop("suite_id", None)
     scenario = ScenarioSpec.model_validate(document)
-    fast = _run_ticks(scenario, 90)
-    monkeypatch.setattr(
-        OfflineSimulationController,
-        "_sample_information_contacts",
-        SamplePhase._sample_information_contacts,
+    if _RECORD:
+        from sheltersim.experiments.phases.sample import SamplePhase
+
+        with pytest.MonkeyPatch.context() as patch:
+            patch.setattr(
+                OfflineSimulationController,
+                "_sample_information_contacts",
+                SamplePhase._sample_information_contacts,
+            )
+            world = _run_ticks(scenario, 90)
+    else:
+        world = _run_ticks(scenario, 90)
+        assert _mirror(world).verify()
+    _answers(
+        f"ticks-{model}",
+        [
+            world.canonical_json(),
+            json.dumps([record.event.event_id for record in world.event_log.records]),
+        ],
     )
-    slow = _run_ticks(scenario, 90)
-    assert slow.canonical_json() == fast.canonical_json()
-    assert [record.event.event_id for record in slow.event_log.records] == [
-        record.event.event_id for record in fast.event_log.records
-    ]
-    # The Python step wrote the namespace whole, and the row followed.
-    assert _mirror(slow).stats()["whole_writes"] > 1
-    assert _mirror(slow).verify()
 
 
-# ---- Identity of the rule with the Python rule --------------------------------------------------
+# ---- What the deleted Python rule answered ------------------------------------------------------
 
 
 @pytest.mark.parametrize("model", MODELS)
-def test_claims_pass_as_the_python_rule_passes_them(generated_scenario: Any, model: Any) -> None:
+def test_claims_pass_as_the_python_rule_passed_them(generated_scenario: Any, model: Any) -> None:
     config = InformationSpreadConfig(
         enabled=True,
         minimum_contact_minutes=1,
@@ -418,20 +486,45 @@ def test_claims_pass_as_the_python_rule_passes_them(generated_scenario: Any, mod
         base_transmission_probability=0.5,
         forgetting_rate_per_minute=0.2,
     )
+    texts = []
     proposals = 0
     for seed in range(8):
         world = _world_with_claims(generated_scenario, believers=5)
         neighbors = {zone: tuple(sorted(set(world.zones) - {zone})) for zone in world.zones}
-        python = _assert_same_as_python(world, model(config), neighbors, seed)
-        assert python.contacts
-        proposals += len(python.proposals)
+        text, contacts, _state = _answer(world, model(config), neighbors, seed)
+        texts.append(text)
+        assert contacts
+        proposals += len(json.loads(text)[4])
     assert proposals > 0
+    _answers(f"claims-{model.__name__}", texts)
+
+
+@pytest.mark.parametrize("seed", [2**64 + 7, 2**63])
+def test_a_seed_past_64_bits_gives_the_python_rule_s_answers(
+    generated_scenario: Any, seed: int
+) -> None:
+    """A Scenario's seed is any int from 0. CounterRNG keys its draws with `str(seed)`, and the
+    kernel turned such a seed down before, so the Python rule ran."""
+    config = InformationSpreadConfig(
+        enabled=True,
+        minimum_contact_minutes=1,
+        contact_duration_scale_minutes=1,
+        base_transmission_probability=0.5,
+        forgetting_rate_per_minute=0.2,
+    )
+    texts = []
+    for model in MODELS:
+        world = _world_with_claims(generated_scenario, believers=5)
+        neighbors = {zone: tuple(sorted(set(world.zones) - {zone})) for zone in world.zones}
+        texts.append(_answer(world, model(config), neighbors, seed)[0])
+    _answers(f"seed-{seed}", texts)
 
 
 def test_random_states_have_the_python_rules_bits(generated_scenario: Any) -> None:
     """Models, settings, beliefs, zones, households and last tick's contacts no gate has."""
     draw = random.Random(20261031)
     transfers = forgotten = 0
+    texts = []
     for _ in range(60):
         world = WorldState.from_scenario(generated_scenario)
         agents = sorted(world.agents)
@@ -489,14 +582,16 @@ def test_random_states_have_the_python_rules_bits(generated_scenario: Any) -> No
             if draw.random() < 0.8
         }
         policy = draw.choice(MODELS)(config)
-        python = _assert_same_as_python(world, policy, neighbors, draw.randrange(0, 2**62))
-        transfers += sum(item.transmission_probability > 0.0 for item in python.contacts)
+        text, contacts, new_state = _answer(world, policy, neighbors, draw.randrange(0, 2**62))
+        texts.append(text)
+        transfers += sum(item[6] > 0.0 for item in contacts)
         forgotten += sum(
             record["belief"] == "unknown"
-            for records in python.runtime_state["beliefs"].values()
+            for records in new_state["beliefs"].values()
             for record in records.values()
         )
     assert transfers > 100 and forgotten > 100
+    _answers("random", texts)
 
 
 def test_ids_json_escapes_and_a_zone_next_to_itself_have_the_python_rules_bits(
@@ -507,6 +602,7 @@ def test_ids_json_escapes_and_a_zone_next_to_itself_have_the_python_rules_bits(
     zones = ["z1", "z2", "zé", 'z"4']
     draw = random.Random(2615)
     transfers = 0
+    texts = []
     for _ in range(120):
         world = WorldState.from_scenario(generated_scenario)
         minute = draw.randrange(0, 50)
@@ -552,19 +648,22 @@ def test_ids_json_escapes_and_a_zone_next_to_itself_have_the_python_rules_bits(
             minimum_contact_minutes=draw.randrange(1, 3),
             query_pressure_decay_per_minute=draw.choice((0.0, 0.25, draw.random() / 4)),
         )
-        python = _assert_same_as_python(
+        text, contacts, _state = _answer(
             world,
             draw.choice(MODELS)(config),
             neighbors,
             draw.randrange(0, 2**62),
             _view_of(world),
         )
-        transfers += sum(item.transmission_probability > 0.0 for item in python.contacts)
+        texts.append(text)
+        transfers += sum(item[6] > 0.0 for item in contacts)
     assert transfers > 50
+    _answers("escapes", texts)
 
 
-def test_a_probability_has_the_bits_of_the_python_rule_and_one_percent_shows() -> None:
+def test_a_probability_has_the_bits_of_the_python_rule() -> None:
     draw = random.Random(5)
+    texts = []
     for _ in range(2000):
         config = InformationSpreadConfig(
             enabled=True,
@@ -580,8 +679,11 @@ def test_a_probability_has_the_bits_of_the_python_rule_and_one_percent_shows() -
         minutes = draw.randrange(1, 40)
         correction = draw.random() < 0.5
         hazard = draw.random() < 0.5
-        policy = (HazardInformationPolicy if hazard else InformationSpreadPolicy)(config)
-        python = policy._transmission_probability(trust, basis, minutes, correction=correction)
+        if _RECORD:
+            policy = (HazardInformationPolicy if hazard else InformationSpreadPolicy)(config)
+            python = policy._transmission_probability(trust, basis, minutes, correction=correction)
+            texts.append(python.hex())
+            continue
         rust = _kernels().transmission_probability_of(
             hazard,
             trust,
@@ -596,11 +698,11 @@ def test_a_probability_has_the_bits_of_the_python_rule_and_one_percent_shows() -
             config.family_contact_multiplier,
             config.adjacent_zone_contact_multiplier,
         )
-        assert rust.hex() == python.hex()
-        assert python == 0.0 or (rust * 1.01).hex() != python.hex()
+        texts.append(rust.hex())
+    _answers("probability", texts)
 
 
-# ---- What the kernel leaves to the Python rule --------------------------------------------------
+# ---- What the kernel turns down -----------------------------------------------------------------
 
 
 def test_what_the_kernel_does_not_handle_changes_nothing(generated_scenario: Any) -> None:
@@ -657,7 +759,7 @@ def _unparsable_states() -> list[Any]:
 
 
 @pytest.mark.parametrize("corrupt", _unparsable_states())
-def test_a_state_the_python_rule_may_raise_on_goes_to_it(
+def test_a_state_no_run_writes_is_turned_down_and_changes_nothing(
     generated_scenario: Any, corrupt: Any
 ) -> None:
     world = _world_with_claims(generated_scenario)
@@ -673,7 +775,9 @@ def test_a_state_the_python_rule_may_raise_on_goes_to_it(
     assert not rust_validated(world, KEY)
 
 
-def test_a_tainted_namespace_runs_the_python_step(generated_scenario: Any) -> None:
+def test_a_tainted_namespace_is_a_refusal_of_the_step(generated_scenario: Any) -> None:
+    """An int where the row holds a float: no rule of a Run writes one. The step of a controller
+    raises KernelRefusal, as for every input the kernel turns down."""
     world = _run_ticks(generated_scenario, 2)
     state = world.model_state[KEY]
     state["query_pressure"][sorted(state["query_pressure"])[0]] = 0
@@ -681,6 +785,11 @@ def test_a_tainted_namespace_runs_the_python_step(generated_scenario: Any) -> No
     controller.information_policy = InformationSpreadPolicy(InformationSpreadConfig(enabled=True))
     with pytest.raises(native.Unsupported, match="no row"):
         _kernels().sample_contacts(controller, world.minute_index, CounterRNG(1))
+    before = json.dumps(world.model_state[KEY])
+    step = OfflineSimulationController._sample_information_contacts
+    with pytest.raises(KernelRefusal, match="information.sample_contacts refused: .*no row"):
+        step(controller, world.minute_index, CounterRNG(1))
+    assert json.dumps(world.model_state[KEY]) == before
 
 
 # ---- The validator ------------------------------------------------------------------------------

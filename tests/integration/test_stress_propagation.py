@@ -12,17 +12,64 @@ The policy itself is checked in tests/unit/policies/test_social.py.
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
+import os
+import sys
 from pathlib import Path
 
 import pytest
 from support.paths import SCENARIO_100_AGENTS
-from support.python_rules import without_kernels
 
 from sheltersim.core.checkpoint import Checkpoint
 from sheltersim.core.engine import TraceLevel
 from sheltersim.experiments.runner import run_scenario
 from sheltersim.experiments.scenario import ScenarioSpec
+
+# What the deleted Python steps wrote (`_social_propagation` and `_sample_information_contacts` of
+# experiments/phases at 2d8fb46, on policies/social.py, information.py and alternatives.py), as
+# sha256 of the files, recorded once on Linux. With SHELTERSIM_RECORD_CONTACT_RUNS set, the tests
+# ran those Python steps and wrote their digests to that file instead.
+ANSWERS: dict[str, str] = {
+    "no-weight-channel_strength": (
+        "5ec6d91e11f3631f0244f2033c3dc6c9abf9863a62c05e12eabcd48d42ddfb78"
+    ),
+    "no-weight-source_expressiveness": (
+        "30565ddfd5debd74f6e623e8650c07d6003c2ec53da669f342a6a7fd622feb8b"
+    ),
+    "no-weight-stress_sensitivity": (
+        "97a7979480990b8511a722764d4d623ae35ffac38bcfeb12806b50d62955f13e"
+    ),
+}
+_RECORD = os.environ.get("SHELTERSIM_RECORD_CONTACT_RUNS")
+
+
+def _answers(name: str, texts: list[str]) -> None:
+    digest = hashlib.sha256()
+    for text in texts:
+        digest.update(text.encode() + b"\n")
+    if _RECORD:
+        with open(_RECORD, "a", encoding="utf-8") as file:
+            file.write(json.dumps({name: digest.hexdigest()}) + "\n")
+        return
+    if sys.platform == "linux":
+        assert digest.hexdigest() == ANSWERS[name], name
+
+
+def _python_contact_steps(patch: pytest.MonkeyPatch) -> None:
+    """Only while recording: the deleted Python steps of the contact models."""
+    from sheltersim.experiments.phases.sample import SamplePhase
+    from sheltersim.experiments.phases.update import UpdatePhase
+    from sheltersim.experiments.runner import OfflineSimulationController
+
+    patch.setattr(
+        OfflineSimulationController, "_social_propagation", UpdatePhase._social_propagation
+    )
+    patch.setattr(
+        OfflineSimulationController,
+        "_sample_information_contacts",
+        SamplePhase._sample_information_contacts,
+    )
 
 
 def test_enabled_policy_is_checkpointable_and_writes_compact_contact_trace(
@@ -123,7 +170,7 @@ def test_generated_scenario_propagation_is_checkpointable_and_writes_compact_con
 @pytest.mark.parametrize(
     "case", ["stress_sensitivity", "source_expressiveness", "channel_strength"]
 )
-def test_generated_scenario_without_contact_weight_runs_without_propagation_on_both_rules(
+def test_generated_scenario_without_contact_weight_runs_without_propagation(
     tmp_path: Path, generated_previews, case: str
 ) -> None:
     """#87 (元 #301): every contact weight is 0, so no stress moves, and the Run goes on.
@@ -131,7 +178,7 @@ def test_generated_scenario_without_contact_weight_runs_without_propagation_on_b
     Each case sets one factor of the weight (expressiveness × channel strength ×
     stress_sensitivity) to 0 through valid Scenario values. Before, the Run stopped with the
     ValueError of the Python rule's strict zip, and the Rust kernel handed the tick to it.
-    The kernel and the Python rules write the same world and the same contact trace.
+    The kernel writes the world and the contact trace the Python rules wrote.
     """
     document = copy.deepcopy(generated_previews()["scenario"])
     document["duration_minutes"] = GENERATED_MINUTES
@@ -149,18 +196,13 @@ def test_generated_scenario_without_contact_weight_runs_without_propagation_on_b
             social[f"{basis}_channel_strength"] = 0.0
     scenario = ScenarioSpec.model_validate(document)
 
-    kernel_world = run_scenario(scenario, tmp_path / "kernel")
     with pytest.MonkeyPatch.context() as patch:
-        without_kernels(patch)
-        python_world = run_scenario(scenario, tmp_path / "python")
-
-    assert kernel_world.canonical_json() == python_world.canonical_json()
-    written = [
-        (tmp_path / run / "social_contacts.jsonl").read_text(encoding="utf-8")
-        for run in ("kernel", "python")
-    ]
-    assert written[0] == written[1]
-    traces = [json.loads(line) for line in written[0].splitlines()]
+        if _RECORD:
+            _python_contact_steps(patch)
+        world = run_scenario(scenario, tmp_path / "run")
+    written = (tmp_path / "run" / "social_contacts.jsonl").read_text(encoding="utf-8")
+    _answers(f"no-weight-{case}", [world.canonical_json(), written])
+    traces = [json.loads(line) for line in written.splitlines()]
     assert len(traces) == GENERATED_MINUTES
     assert any(item["selected_contact_count"] for item in traces)
     assert all(item["contributing_contact_count"] == 0 for item in traces)

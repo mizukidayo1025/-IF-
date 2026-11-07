@@ -1025,8 +1025,11 @@ pub(crate) fn plan_bed(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Opt
     let Some(zone_id) = known else {
         return Ok(None);
     };
-    let Some(reservations) = child(&state, "bed_reservations")? else {
-        return unsupported("the reservations are still to be made");
+    // `state.setdefault("bed_reservations", {})`, through the map's own method: a state saved before
+    // beds were reserved has none, and the rule writes the empty map even when no bed follows.
+    let reservations = match child(&state, "bed_reservations")? {
+        Some(reservations) => reservations,
+        None => state.call_method1(intern!(py, "setdefault"), ("bed_reservations", PyDict::new(py)))?,
     };
     let geo = Geo::of(world)?;
     if geo.layout.is_none() {

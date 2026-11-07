@@ -1,12 +1,12 @@
-"""The rest of events/handlers.py's kernels against their Python rules, on copies of a world.
+"""The rest of events/handlers.py's kernels against what their Python rules gave.
 
 benchmarks/rule_shadow/shadow_handlers_rest.py does this on the gate's runs; 7 days hold almost none
 of these events, so here each rule also runs on Scenarios made to reach it, with the branches those
 may not reach and the values that change a result (docs/rust-port/lanes/m6-handlers-rest.md).
 
-Most of these handlers have no Python rule left (lane L10, `kernel_only`). For them a run or a case
-is checked against what the Python rule gave, written down from it before it went: the outcome's
-class and text, or a digest of the world and records (`_digest`).
+None of these handlers has its Python rule left (lane L10, `kernel_only`). A run or a case is
+checked against what the Python rule gave, written down from it before it went: the outcome's class
+and text, the amounts it wrote, or a digest of the world and records (`_digest`).
 """
 
 from __future__ import annotations
@@ -62,6 +62,7 @@ from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _MetricSink
 
+# The handlers whose outcomes a run counts, with their kernels.
 KERNELS = {
     "ProximityContactHandler": ("handlers", "proximity"),
     "InformationRumorHandler": ("information_events", "rumor"),
@@ -81,15 +82,6 @@ KERNELS = {
     "StaffOperationCompletionHandler": ("staff_operation_events", "complete"),
     "SocialInteractionHandler": ("social_interaction", "apply"),
     "AgentTravelCompletionHandler": ("travel_completion", "apply"),
-}
-# The handlers whose Python rule is left to compare with; the others are counted by outcome.
-WITH_PYTHON_RULE = {"SocialInteractionHandler", "AgentTravelCompletionHandler"}
-# These two take other events, compared with the shadow's rule only for these.
-ONLY = {
-    "SocialInteractionHandler": lambda event: event.payload.get("interaction_type")
-    in {"complaint_response", "cooperation", "information_reaction", None},
-    "AgentTravelCompletionHandler": lambda event: event.payload.get("purpose")
-    in {"sleep_bed", "presence_relocation"},
 }
 
 
@@ -130,49 +122,28 @@ def _copies(world: WorldState) -> tuple[WorldState, WorldState]:
 
 
 class _Comparing:
-    """A handler that compares the kernel with the Python rule, then runs the real one.
+    """A handler that counts the outcomes of the real one, which it runs.
 
-    A handler with no Python rule left only counts its outcomes.
+    No handler here has its Python rule left (lane L10, `kernel_only`): a run is compared with the
+    Python rules' run by the digest of its world (`_is_the_python_rules_run`).
     """
 
     def __init__(self, handler: Any, seen: Counter[str]) -> None:
         self.handler = handler
         self.seen = seen
-        name = type(handler).__name__
-        self.name = name
-        self.kernel = getattr(native.rules(KERNELS[name][0]), KERNELS[name][1])
-        self.rule = type(handler).apply.__wrapped__ if name in WITH_PYTHON_RULE else None
-        self.only = ONLY.get(name, lambda _event: True)
 
     def apply(self, world: WorldState, event: ScheduledEvent) -> Any:
-        if self.rule is None:
-            outcome = "applied"
-            try:
-                return self.handler.apply(world, event)
-            except EventSuppressed:
-                outcome = "suppressed"
-                raise
-            except EventApplicationError:
-                outcome = "failed"
-                raise
-            finally:
-                self.seen[f"{event.event_type}.{outcome}"] += 1
-        if self.only(event):
-            python_world, kernel_world = _copies(world)
-            expected = _outcome(lambda: self.rule(self.handler, python_world, event))
-            actual = _outcome(lambda: self.kernel(self.handler, kernel_world, event))
-            label = f"{event.event_type}.{expected[0]}"
-            if actual[0] == "refused":
-                assert expected[0] != "applied", f"{label}: {actual}"
-                self.seen[f"{label}.refused"] += 1
-            else:
-                assert actual == expected, label
-                assert _bytes(kernel_world) == _bytes(python_world), label
-                for name, mirror in kernel_world.model_state._mirrors.items():
-                    if name in kernel_world.model_state:
-                        assert mirror.verify(), name
-                self.seen[label] += 1
-        return self.handler.apply(world, event)
+        outcome = "applied"
+        try:
+            return self.handler.apply(world, event)
+        except EventSuppressed:
+            outcome = "suppressed"
+            raise
+        except EventApplicationError:
+            outcome = "failed"
+            raise
+        finally:
+            self.seen[f"{event.event_type}.{outcome}"] += 1
 
 
 def _run_comparing(scenario: Any, seen: Counter[str]) -> WorldState:
@@ -527,15 +498,18 @@ def _assigned_care(world: WorldState, kind: str) -> tuple[ScheduledEvent, str]:
     )
 
 
-def _care_is_python_s(world: WorldState, kind: str) -> dict[str, Any]:
+def _care_is_python_s(world: WorldState, kind: str, digest: str) -> dict[str, Any]:
+    """The kernel's care: its records and world are the deleted Python rule's, by the digest of
+    what that rule returned and left, recorded once. Pinned on Linux (floats of the platform's
+    libm); lane L13 pins them on every OS."""
     event, _ = _assigned_care(world, kind)
-    twin = copy.deepcopy(world)
     handler = StaffSupportCompletionHandler(cooldown_minutes=30, require_colocated=True)
     records = native.rules("support").complete_support(handler, world, event)
-    expected = StaffSupportCompletionHandler.apply.__wrapped__(handler, twin, event)
-    assert [item.to_dict() for item in records] == [item.to_dict() for item in expected]
-    assert _bytes(world) == _bytes(twin)
     assert world._core.mirror("body_state_v1").verify()
+    assert len(records) == 1
+    if sys.platform == "linux":
+        found = {"records": [item.to_dict() for item in records], "world": _bytes(world)}
+        assert _digest(found) == digest
     return records[0].event.payload
 
 
@@ -551,6 +525,35 @@ TYPED_KINDS = (
 )
 
 
+# What the Python rule gave, by care outcome formula and kind: `_care_is_python_s`.
+CARE_DIGESTS = {
+    ("hygiene-support-fixed-relief-v1", "caregiver_assistance"): "1987d4097e4710cb",
+    ("hygiene-support-fixed-relief-v1", "dependent_assistance"): "1a9d433c78951f5e",
+    ("hygiene-support-fixed-relief-v1", "hygiene_support"): "2f3da6602096c23d",
+    ("hygiene-support-fixed-relief-v1", "language_access"): "4e7fe34cefd5355c",
+    ("hygiene-support-fixed-relief-v1", "medical_assessment"): "18337c9a5f235364",
+    ("hygiene-support-fixed-relief-v1", "medication_support"): "f1d13d0f64c9e3f4",
+    ("hygiene-support-fixed-relief-v1", "mobility_assistance"): "46b1d42c482cbf2a",
+    ("hygiene-support-fixed-relief-v1", "privacy_accommodation"): "f419db9fdea9a452",
+    ("hygiene-support-proportional-relief-v1", "caregiver_assistance"): "a32a24f02bf6a57a",
+    ("hygiene-support-proportional-relief-v1", "dependent_assistance"): "505ac668012822d4",
+    ("hygiene-support-proportional-relief-v1", "hygiene_support"): "4dad6e5e9970edb5",
+    ("hygiene-support-proportional-relief-v1", "language_access"): "a4561ca27263e9fb",
+    ("hygiene-support-proportional-relief-v1", "medical_assessment"): "7d60a45dcdf111e4",
+    ("hygiene-support-proportional-relief-v1", "medication_support"): "a75e3bbdb4ec6f29",
+    ("hygiene-support-proportional-relief-v1", "mobility_assistance"): "ad8fbf05cf6cdd6b",
+    ("hygiene-support-proportional-relief-v1", "privacy_accommodation"): "c34fce4f7dffd6a5",
+    ("typed-care-support-response-v1", "caregiver_assistance"): "0d9431b83fb0297e",
+    ("typed-care-support-response-v1", "dependent_assistance"): "ed8fe5ca10c1ecff",
+    ("typed-care-support-response-v1", "hygiene_support"): "17f03d8a675567de",
+    ("typed-care-support-response-v1", "language_access"): "099cf836befe8471",
+    ("typed-care-support-response-v1", "medical_assessment"): "e09dc238d5b650a6",
+    ("typed-care-support-response-v1", "medication_support"): "4e2c51f45b6a1a39",
+    ("typed-care-support-response-v1", "mobility_assistance"): "cee9ead6f200553d",
+    ("typed-care-support-response-v1", "privacy_accommodation"): "1b9bcc532e3e0b13",
+}
+
+
 @pytest.mark.parametrize("kind", TYPED_KINDS)
 @pytest.mark.parametrize(
     "model_id", [model for domain, model in _gate().selectable_models() if domain == "care_outcome"]
@@ -562,7 +565,7 @@ def test_a_kind_a_selected_formula_decides_is_python_s(
     registry.pop("suite_id", None)
     registry["care_outcome"] = model_id
     world, _ = _small_world(generated_scenario)
-    payload = _care_is_python_s(world, kind)
+    payload = _care_is_python_s(world, kind, CARE_DIGESTS[(model_id, kind)])
     assert payload["status"] == "completed"
 
 
@@ -587,7 +590,7 @@ def test_care_with_a_dependent_is_python_s(generated_scenario: Any) -> None:
     world.model_configs["population_context"] = {
         "people": {caregiver: context["caregiver"], dependent: context["dependent"]}
     }
-    payload = _care_is_python_s(world, "caregiver_assistance")
+    payload = _care_is_python_s(world, "caregiver_assistance", "db56eb17db46e325")
     assert payload["outcome_observation"] == "observed_change"
     assert {change["entity_id"] for change in payload["state_changes"]} == {caregiver, dependent}
     assert "SRC-DEPENDENT" in payload["source_ids"]
@@ -603,7 +606,7 @@ def test_a_care_delta_1_percent_off_shows(generated_scenario: Any) -> None:
     twin.model_configs["body_dynamics"]["mobility_assistance_stress_relief"] = 0.03 * 1.01
     handler = StaffSupportCompletionHandler(cooldown_minutes=30, require_colocated=True)
     native.rules("support").complete_support(handler, world, event)
-    StaffSupportCompletionHandler.apply.__wrapped__(handler, twin, event)
+    native.rules("support").complete_support(handler, twin, event)
     assert world.agents[agent_id].stress != twin.agents[agent_id].stress
 
 
@@ -766,13 +769,15 @@ def test_ingest_of_a_record_of_this_tick_is_python_s(generated_scenario: Any) ->
         causation_id="cause-1",
     )[0]
     world.event_log.append(record)
-    twin = copy.deepcopy(world)
-    native.rules("care_receipts").ingest(world, (record,))
-    care_receipts.ingest_applied_shared_operation_records.__wrapped__(twin, (record,))
-    assert _bytes(world) == _bytes(twin)
+    care_receipts.ingest_applied_shared_operation_records(world, (record,))
+    history = world.model_state["shared_operations_v1"]["history"]
+    assert history[-1]["event_id"] == record.event.event_id
+    # What the Python rule made of it (it has none left, lane L10), by the digest of the world.
+    once = _bytes(world)
+    _is_the_python_rules_run(world, "9d84ddda5f8d0fd2")
     # Recorded once: the second time it is found.
-    native.rules("care_receipts").ingest(world, (record,))
-    assert _bytes(world) == _bytes(twin)
+    care_receipts.ingest_applied_shared_operation_records(world, (record,))
+    assert _bytes(world) == once
 
 
 def test_the_kernels_are_what_ran(generated_scenario: Any) -> None:
@@ -808,13 +813,18 @@ def _social_event(world: WorldState, payload: dict[str, Any], **fields: Any) -> 
     )
 
 
-def _social_is_python_s(world: WorldState, event: ScheduledEvent) -> WorldState:
+def _social_is_python_s(world: WorldState, event: ScheduledEvent) -> None:
+    """The kernel applies the event and writes only the stress and trust of the people it names,
+    whose values each test writes down from the deleted Python rule."""
     twin = copy.deepcopy(world)
     handler = SocialInteractionHandler()
     assert native.rules("social_interaction").apply(handler, world, event) is None
-    type(handler).apply.__wrapped__(handler, twin, event)
+    for key in ("agent_id", "participant_agent_id"):
+        agent_id = event.payload.get(key)
+        if agent_id is not None:
+            twin.agents[agent_id].stress = world.agents[agent_id].stress
+            twin.agents[agent_id].trust = world.agents[agent_id].trust
     assert _bytes(world) == _bytes(twin)
-    return twin
 
 
 @pytest.mark.parametrize(
@@ -1064,6 +1074,19 @@ def test_a_claim_s_draw_keys_a_seed_past_64_bits_as_python_does(generated_scenar
         ) == (1.0 if drawn < 0.5 else 0.0)
 
 
+# What the Python rule gave without configured amounts, by kind: `_care_is_python_s`.
+DEFAULT_CARE_DIGESTS = {
+    "caregiver_assistance": "6782c3b5aa910906",
+    "dependent_assistance": "2b5392f76fd1210e",
+    "hygiene_support": "dd9fad59b0f334ee",
+    "language_access": "8528e38368e870f6",
+    "medical_assessment": "76cc3b0c71350b04",
+    "medication_support": "ea57248cd1f89cb5",
+    "mobility_assistance": "6694a4446d3f747b",
+    "privacy_accommodation": "80b5e9af9dd35591",
+}
+
+
 @pytest.mark.parametrize("kind", TYPED_KINDS)
 def test_care_without_configured_amounts_uses_the_formula_s_defaults(
     generated_scenario: Any, kind: str
@@ -1075,4 +1098,4 @@ def test_care_without_configured_amounts_uses_the_formula_s_defaults(
     configs = world.model_configs["body_dynamics"]
     for name in [key for key in configs if key.startswith(kind) or "assistance" in key]:
         configs.pop(name)
-    _care_is_python_s(world, kind)
+    _care_is_python_s(world, kind, DEFAULT_CARE_DIGESTS[kind])

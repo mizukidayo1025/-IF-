@@ -88,8 +88,10 @@ def test_appending_an_operation_parses_only_the_records_since_the_previous_tick(
     finished_world, recent
 ) -> None:
     """Before an append, the shared operations state is checked as the per-tick check
-    does: a bad recent record stops it, an old one is left to the full check."""
+    does: a bad recent record stops it with the Python rule's text. An old one, which the Python
+    rule left to the full check, taints the row the kernel reads, which then refuses."""
     from sheltersim.contracts.operations import SharedOperationsState
+    from sheltersim.core.kernels import KernelRefusal
     from sheltersim.domain.common_operations import record_shared_operation
 
     world = WorldState.from_dict(copy.deepcopy(finished_world))
@@ -104,6 +106,10 @@ def test_appending_an_operation_parses_only_the_records_since_the_previous_tick(
         history.append(newest)
     else:
         history[0]["event_type"] = "not-an-operation"
-    expected = "invalid before operation append" if recent else "current simulation boundary minute"
-    with pytest.raises(ValueError, match=expected):
-        record_shared_operation(world, receipt)
+    if recent:
+        with pytest.raises(ValueError) as raised:
+            record_shared_operation(world, receipt)
+        assert str(raised.value) == "shared_operations_v1 state is invalid before operation append"
+    else:
+        with pytest.raises(KernelRefusal):
+            record_shared_operation(world, receipt)

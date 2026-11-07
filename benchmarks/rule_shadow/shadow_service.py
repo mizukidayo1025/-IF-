@@ -10,7 +10,6 @@ Python rule runs on the world then. Whatever the validator accepts must pass the
 
 from __future__ import annotations
 
-import importlib
 import json
 from types import SimpleNamespace
 from typing import Any
@@ -293,9 +292,6 @@ def prepare(output: str) -> None:
             if callable(kernel) and not name.startswith("_") and not isinstance(kernel, type):
                 setattr(rules, name, guarded(kernel))
 
-    def manager_class() -> Any:
-        return importlib.import_module("sheltersim.domain.resource_service").ResourceServiceManager
-
     def row_check(world: Any, where: str) -> None:
         recorder.seen["row_checks.due"] += 1
         if recorder.seen["row_checks.due"] % ROW_CHECK_EVERY:
@@ -311,85 +307,9 @@ def prepare(output: str) -> None:
             recorder.differ(f"{where}: the rows and the objects: {problem}")
         recorder.seen["row_checks.made"] += 1
 
-    def writer(name: str, method: str, count: Any = None) -> None:
-        rules = native.rules("service")
-        kernel = getattr(rules, name)
-
-        def run(manager: Any, *arguments: Any, **options: Any) -> Any:
-            if on_copy(manager):
-                raise unsupported("a shadow's copy")
-            recorder.seen[f"{name}.calls"] += 1
-            world = manager.world
-            twin = _ServiceTwin(world)
-            pending_before = len(world.event_queue.pending())
-            stand_in = manager_stand_in(manager, twin)
-            error = None
-            expected = None
-            try:
-                expected = getattr(manager_class(), method).__wrapped__(
-                    stand_in, *arguments, **options
-                )
-            except Exception as raised:  # noqa: BLE001 - only compared with what the kernel does
-                error = raised
-            try:
-                result = kernel(manager, *arguments, **options)
-            except unsupported as reason:
-                recorder.reasons[f"{name}: {reason}"] += 1
-                recorder.seen[f"{name}.unsupported_python_{'raised' if error else 'accepted'}"] += 1
-                raise
-            recorder.seen[f"{name}.kernel_ran"] += 1
-            where = f"{name} {arguments!r:.120} {options!r:.100} at {world.minute_index}"
-            if error is not None:
-                recorder.differ(f"{where}: the kernel took what Python turned down: {error!r:.300}")
-                return result
-            if repr(result) != repr(expected):
-                recorder.differ(f"{where}: returned {result!r:.200}, not {expected!r:.200}")
-            _compare(recorder, where, world, twin, pending_before)
-            if count is not None:
-                count(result, arguments, options)
-            row_check(world, where)
-            return result
-
-        setattr(rules, name, run)
-
-    def count_head(result: Any, _arguments: Any, _options: Any) -> None:
-        recorder.seen[f"serve_head.{'started' if result else 'stopped'}"] += 1
-
-    writer("serve_head", "_serve_head", count_head)
-    writer("complete", "complete")
-    writer("request", "request")
-    writer(
-        "record_request_outcome",
-        "record_request_outcome",
-        lambda _result, _arguments, options: recorder.seen.update(
-            {f"record_request_outcome.{options['outcome']}": 1}
-        ),
-    )
-
-    # Stands beside the rule's list: what it leaves out, an empty queue, does nothing in Python.
-    rules = native.rules("service")
-    list_kernel = rules.facilities_to_serve
-
-    def facilities_to_serve(manager: Any) -> Any:
-        recorder.seen["facilities_to_serve.calls"] += 1
-        try:
-            result = list_kernel(manager)
-        except unsupported as reason:
-            recorder.reasons[f"facilities_to_serve: {reason}"] += 1
-            raise
-        recorder.seen["facilities_to_serve.kernel_ran"] += 1
-        expected = [
-            item
-            for item in getattr(manager_class(), "_facilities_to_serve").__wrapped__(manager)
-            if item[0].resource_queue_agent_ids
-        ]
-        if result != expected:
-            recorder.differ(f"facilities_to_serve: {result!r:.200} not {expected!r:.200}")
-        recorder.seen["facilities_to_serve.returned"] += len(result)
-        return result
-
-    rules.facilities_to_serve = facilities_to_serve
-
+    # The water and meal service's kernels (serve_head, complete, request,
+    # record_request_outcome, facilities_to_serve) have no Python rule left to compare
+    # (`kernel_only`, lane L10).
     travel = native.rules("travel")
     schedule_kernel = travel.schedule_travel
 

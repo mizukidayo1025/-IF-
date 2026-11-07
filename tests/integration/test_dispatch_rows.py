@@ -6,7 +6,6 @@ the Python step, and compares everything saved. See docs/rust-port/lanes/m3-disp
 
 from __future__ import annotations
 
-import copy
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -16,6 +15,7 @@ from support.paths import SCENARIO_100_AGENTS
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.world import WorldState
 from sheltersim.events.handlers import (
     AgentTravelCompletionHandler,
@@ -342,22 +342,25 @@ def test_a_failed_social_action_has_python_s_detail_from_the_kernel() -> None:
 
 
 class _Code(str):
-    """A str whose comparison the kernel leaves to Python."""
+    """A str whose comparison the kernel doesn't make: a payload is JSON, so no Run holds one."""
 
 
-def test_a_social_event_the_kernel_refuses_goes_to_python_and_fails_with_its_text() -> None:
-    def arrange(controller: OfflineSimulationController) -> None:
+def test_a_social_event_the_kernel_refuses_stops_the_phase_with_kernel_refusal() -> None:
+    """With no Python rule behind the kernel (lane L10), a value outside the contract is refused:
+    the handler raises KernelRefusal, which no dispatch phase takes as an outcome."""
+    for run in (
+        OfflineSimulationController._run_dispatch_phase,
+        DispatchPhase._run_dispatch_phase,
+    ):
+        controller = _new_controller()
         event = _social_action_with(controller, reason_short=_Code("other"))
         controller.world.schedule_event(event)
-
-    before = _counts()
-    by_kernel, _ = _both_ways(arrange)
-    after = _counts()
-    assert after["social_refused"] == before["social_refused"] + 1
-    assert after["events_python"] == before["events_python"] + 1
-    record = by_kernel.world.event_log.find("social-901")
-    assert record.status is EventStatus.FAILED
-    assert record.detail == "social action reason code is not allowed"
+        before = _counts()
+        with pytest.raises(KernelRefusal, match="social_interaction.apply refused"):
+            run(controller, controller.world, 0)
+        assert controller.world.event_log.find("social-901") is None
+        if run is OfflineSimulationController._run_dispatch_phase:
+            assert _counts()["social_refused"] == before["social_refused"] + 1
 
 
 def test_a_patch_of_a_table_handler_s_apply_is_called(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -523,20 +526,27 @@ def _stop_walking(world: Any, event: Any) -> None:
     agent.activity = type(agent.activity).IDLE
 
 
+# Each spoiled walk with the deleted Python rule's text, written down from it.
 SPOILED_WALKS: list[tuple[Callable[[Any, Any], None], str]] = [
-    (lambda world, event: world.active_tasks.pop(event.payload["task_id"]), "active task"),
-    (lambda world, event: setattr(world.agents["A001"], "target_id", "x"), "its target"),
+    (
+        lambda world, event: world.active_tasks.pop(event.payload["task_id"]),
+        "travel completion does not match an active task",
+    ),
+    (
+        lambda world, event: setattr(world.agents["A001"], "target_id", "x"),
+        "return travel completion does not match its target",
+    ),
     (
         lambda world, event: setattr(
             world.agents["A001"], "activity", type(world.agents["A001"].activity).IDLE
         ),
-        "active task",
+        "travel completion Agent does not match its active task",
     ),
 ]
 
 
 @pytest.mark.parametrize(("spoil", "text"), SPOILED_WALKS)
-def test_a_walk_that_does_not_fit_changes_nothing_and_python_says_why(
+def test_a_walk_that_does_not_fit_changes_nothing_and_says_the_rule_s_text(
     spoil: Callable[[Any, Any], None], text: str
 ) -> None:
     controller = _new_controller()
@@ -545,27 +555,27 @@ def test_a_walk_that_does_not_fit_changes_nothing_and_python_says_why(
     world.minute_index = event.due_minute
     spoil(world, event)
     handler = controller.event_dispatcher.handlers["agent_travel_complete"]
-    twin = copy.deepcopy(world)
     before = _document(world)
-    with pytest.raises(EventApplicationError, match=text) as said:
-        AgentTravelCompletionHandler.apply.__wrapped__(handler, twin, event)
-    # The kernel says the Python rule's text itself, or leaves the walk to the Python rule.
-    try:
+    with pytest.raises(EventApplicationError) as made:
         native.rules("travel_completion").apply(handler, world, event)
-    except native.Unsupported:
-        pass
-    except EventApplicationError as made:
-        assert str(made) == str(said.value)
-    else:
-        pytest.fail("the walk was applied")
+    assert str(made.value) == text
     assert _document(world) == before
-    with pytest.raises(EventApplicationError, match=text):
+    with pytest.raises(EventApplicationError) as made:
         AgentTravelCompletionHandler.apply(handler, world, event)
+    assert str(made.value) == text
+    assert _document(world) == before
 
 
-@pytest.mark.parametrize("purpose", ["sleep_bed", "presence_relocation", "another"])
-def test_a_walk_home_named_for_another_purpose_fails_with_python_s_text_before_any_change(
-    purpose: str,
+@pytest.mark.parametrize(
+    ("purpose", "text"),
+    [
+        ("sleep_bed", "sleep-bed travel does not match its live reservation"),
+        ("presence_relocation", "presence relocation completion does not match its route"),
+        ("another", "unsupported travel purpose 'another'"),
+    ],
+)
+def test_a_walk_home_named_for_another_purpose_fails_with_the_rule_s_text_before_any_change(
+    purpose: str, text: str
 ) -> None:
     controller = _new_controller()
     world = controller.world
@@ -580,47 +590,65 @@ def test_a_walk_home_named_for_another_purpose_fails_with_python_s_text_before_a
     )
     handler = controller.event_dispatcher.handlers["agent_travel_complete"]
     world.minute_index = event.due_minute
-    twin = copy.deepcopy(world)
     before = _document(world)
     with pytest.raises(EventApplicationError) as made:
         native.rules("travel_completion").apply(handler, world, other)
     assert _document(world) == before
-    with pytest.raises(EventApplicationError) as said:
-        AgentTravelCompletionHandler.apply.__wrapped__(handler, twin, other)
-    assert str(made.value) == str(said.value)
+    assert str(made.value) == text
 
 
-def test_a_walk_with_a_value_the_writer_refuses_is_recorded_by_python() -> None:
+def test_a_walk_with_a_value_the_writer_refuses_is_applied_by_the_phase_but_not_alone() -> None:
+    """A payload value the event writer refuses (a str subclass: no JSON payload holds one). The
+    phase reads the walk from the event object and applies it, settling its record in Python; the
+    handler's own entry, with no Python rule behind it (lane L10), refuses it with nothing changed.
+    """
+
     class Text(str):
         pass
 
-    def arrange(controller: OfflineSimulationController) -> None:
+    def noted(controller: OfflineSimulationController) -> ScheduledEvent:
         event = _return_walk(controller)
         world = controller.world
         world.event_queue.remove(event.event_id)
-        world.schedule_event(
-            ScheduledEvent(
-                event_id=event.event_id,
-                kind=event.kind,
-                due_minute=event.due_minute,
-                priority=event.priority,
-                sequence=event.sequence,
-                event_type=event.event_type,
-                payload={**event.payload_dict(), "note": Text("a")},
-                source_id=event.source_id,
-                causation_id=event.causation_id,
-                provenance=dict(event.provenance),
-            )
+        noted = ScheduledEvent(
+            event_id=event.event_id,
+            kind=event.kind,
+            due_minute=event.due_minute,
+            priority=event.priority,
+            sequence=event.sequence,
+            event_type=event.event_type,
+            payload={**event.payload_dict(), "note": Text("a")},
+            source_id=event.source_id,
+            causation_id=event.causation_id,
+            provenance=dict(event.provenance),
         )
+        world.schedule_event(noted)
+        world.minute_index = event.due_minute
+        return noted
+
+    alone = _new_controller()
+    event = noted(alone)
+    handler = alone.event_dispatcher.handlers["agent_travel_complete"]
+    before = _document(alone.world)
+    with pytest.raises(KernelRefusal, match="the event has no row"):
+        AgentTravelCompletionHandler.apply(handler, alone.world, event)
+    assert _document(alone.world) == before
 
     controller = _new_controller()
-    due = _return_walk(controller).due_minute
-    before = _counts()
-    by_kernel, _ = _both_ways(arrange, minute=due)
+    event = noted(controller)
+    destination = event.payload["destination_zone_id"]
+    counted = _counts()
+    controller._run_dispatch_phase(controller.world, event.due_minute)
     after = _counts()
-    assert after["travel_ran"] == before["travel_ran"] + 1
-    assert after["settled_python"] == before["settled_python"] + 1
-    assert not by_kernel.world.event_log.all_encoded()
+    assert after["travel_ran"] == counted["travel_ran"] + 1
+    assert after["settled_python"] == counted["settled_python"] + 1
+    world = controller.world
+    assert not world.event_log.all_encoded()
+    record = world.event_log.find(event.event_id)
+    assert (record.status, record.detail) == (EventStatus.APPLIED, None)
+    agent = world.agents["A001"]
+    assert (agent.zone_id, agent.activity.value, agent.target_id) == (destination, "idle", None)
+    assert event.payload["task_id"] not in world.active_tasks
 
 
 def test_a_walk_that_has_only_a_row_gets_its_object_only_if_python_reads_it() -> None:

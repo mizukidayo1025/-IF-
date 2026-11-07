@@ -770,35 +770,39 @@ def _outage_due() -> tuple[WorldState, ScheduledEvent]:
     return world, event
 
 
-def _facility_rule(rule: str) -> Any:
-    """The facility start as the tick calls it (kernel first), or its Python rule alone."""
-    handler = EffectProgramFacilityHandler()
-    if rule == "kernel":
-        return handler.apply
-    python_rule = getattr(type(handler).apply, "__wrapped__", type(handler).apply)
-    return lambda world, event: python_rule(handler, world, event)
-
-
-@pytest.mark.parametrize("rule", ["kernel", "python"])
-def test_an_effect_start_keeps_the_event_log_and_equals_the_full_copy_result(rule: str) -> None:
+def test_an_effect_start_keeps_the_event_log_and_equals_the_full_copy_result() -> None:
     """The copy an effect changes holds the world's EventLog instead of rebuilding it from its
     documents, which took ~20 s at day 4 of a 7-day Run; the result is the full copy's."""
     world, event = _outage_due()
     log = world.event_log
+    # What the rule writes, on a full copy: the first modifier of toilet_2 captures its working
+    # units as the baseline, and the facility works the lowest of the stack.
     expected = WorldState.from_dict(world.to_dict())
-    EffectProgramFacilityHandler()._apply(expected, event)
+    expected.model_state["effect_program_v1"]["active_facility_modifiers"]["toilet_2"] = {
+        "baseline_working_units": expected.facilities["toilet_2"].working_units,
+        "modifiers": [
+            {
+                "modifier_id": event.payload["modifier_id"],
+                "program_id": event.payload["program_id"],
+                "effect_id": event.payload["effect_id"],
+                "working_units": 0,
+                "start_minute": event.due_minute,
+                "sequence": event.sequence,
+            }
+        ],
+    }
+    expected.facilities["toilet_2"].working_units = 0
     expected.validate()
 
-    _facility_rule(rule)(world, event)
+    EffectProgramFacilityHandler().apply(world, event)
 
     assert world.event_log is log
     assert world.facilities["toilet_2"].working_units == 0
     assert world.canonical_json() == expected.canonical_json()
 
 
-@pytest.mark.parametrize("rule", ["kernel", "python"])
 def test_an_effect_whose_result_fails_validation_leaves_the_world_unchanged(
-    rule: str, monkeypatch: pytest.MonkeyPatch
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The changed copy is still checked before it takes the world's place: a broken result
     raises, and the world, its entities and its EventLog stay as they were."""
@@ -815,7 +819,7 @@ def test_an_effect_whose_result_fails_validation_leaves_the_world_unchanged(
 
     monkeypatch.setattr(WorldState, "validate", refuse_closed_toilet)
     with pytest.raises(StateInvariantError, match="toilet_2 must stay open"):
-        _facility_rule(rule)(world, event)
+        EffectProgramFacilityHandler().apply(world, event)
     monkeypatch.undo()
 
     assert world.canonical_json() == before

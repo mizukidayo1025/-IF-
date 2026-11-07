@@ -8,6 +8,7 @@ tests/integration/test_intervention_outcomes.py.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -285,6 +286,37 @@ def test_dynamic_arrival_household_context_reaches_behavior_frames_and_checkpoin
     legacy.validate()
     restored_legacy = Checkpoint.from_json(Checkpoint.capture(legacy).to_json()).restore_world()
     assert "profile_context" not in restored_legacy.model_state["population_dynamics_v1"]
+
+
+@pytest.mark.parametrize("seed", [2**63, 2**64 + 7, 10**30])
+def test_an_arrival_s_id_and_provenance_hold_a_seed_past_64_bits(generated_scenario, seed) -> None:
+    """A Scenario's seed is any int from 0. An arrival's ID is the SHA-256 of
+    `f"{world.seed}\\0{event_id}\\0{index}"`, and its profile's provenance keeps the int."""
+    world = WorldState.from_scenario(generated_scenario)
+    world.seed = seed
+    _population_change(world, op="add_evacuees", count=3, start_minute=1, zone_id="quiet")
+    [event] = world.event_queue.pending()
+    dispatcher = EventDispatcher({"effect_program_population": EffectProgramPopulationHandler()})
+    world.minute_index = 1
+    outcome = dispatcher.dispatch_due(world, 1)
+    assert [row.status.value for row in outcome] == ["applied"]
+
+    expected = [
+        "arrival-" + hashlib.sha256(f"{seed}\0{event.event_id}\0{index}".encode()).hexdigest()[:28]
+        for index in range(3)
+    ]
+    population = world.model_state["population_dynamics_v1"]
+    arrived = [item["profile"] for item in population["pending_arrivals"]]
+    arrived += [
+        {"id": agent.id, "provenance": agent.profile.provenance}
+        for agent in world.agents.values()
+        if agent.id.startswith("arrival-")
+    ]
+    assert sorted(profile["id"] for profile in arrived) == sorted(expected)
+    for profile in arrived:
+        assert type(profile["provenance"]["seed"]) is int
+        assert profile["provenance"]["seed"] == seed
+    world.validate()
 
 
 def test_departure_retains_identity_and_admits_next_waiting_household_member(

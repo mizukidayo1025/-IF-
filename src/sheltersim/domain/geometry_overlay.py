@@ -7,7 +7,6 @@ geometry operator; zone-only capacity never pretends to be a surveyed room.
 
 from __future__ import annotations
 
-import math
 from contextlib import AbstractContextManager, nullcontext
 from contextvars import ContextVar
 from typing import Any, Literal
@@ -24,7 +23,7 @@ from sheltersim.contracts.extensions import (
 )
 from sheltersim.contracts.spatial import SpatialConstraints, SpatialObstacle
 from sheltersim.core.context import ContextScope
-from sheltersim.core.kernels import kernel_first, kernel_only
+from sheltersim.core.kernels import kernel_only
 from sheltersim.core.state_mirror import register_rust_validator
 
 GEOMETRY_OVERLAY_KEY = "geometry_overlay_v1"
@@ -244,135 +243,21 @@ def create_geometry_overlay_state(world: Any) -> dict[str, Any]:
     }
 
 
-@kernel_first("overlay", "reserve_sleep_bed")
+@kernel_only("overlay", "reserve_sleep_bed")
 def reserve_sleep_bed(world: Any, agent_id: str) -> dict[str, Any] | None:
-    """Reserve a free bed in the Agent's current zone and return a measured route."""
-    from sheltersim.domain.movement import (
-        MOVEMENT_STATE_KEY,
-        in_room_travel_minutes,
-        plan_in_room_route,
-    )
+    """Reserve a free bed in the Agent's current zone and return a measured route.
 
-    state = world.model_state.get(GEOMETRY_OVERLAY_KEY)
-    agent = world.agents.get(agent_id)
-    movement = world.model_state.get(MOVEMENT_STATE_KEY, {})
-    overlay_config = world.model_configs.get("geometry_overlay", {})
-    if (
-        not isinstance(state, dict)
-        or agent is None
-        or not isinstance(movement, dict)
-        or not isinstance(overlay_config, dict)
-        or overlay_config.get("schema_version") not in {2, 3, 4}
-    ):
-        return None
-    reservations = state.setdefault("bed_reservations", {})
-    geometry = effective_geometry(world)
-    if geometry is None:
-        return None
-    raw_position = movement.get("positions", {}).get(agent_id, {})
-    raw_start = raw_position.get("point") if isinstance(raw_position, dict) else None
-    start = Point2D.model_validate(raw_start) if isinstance(raw_start, dict) else None
-    points_by_cell: dict[tuple[int, int], list[tuple[float, float]]] = {}
-    for other_id, other in world.agents.items():
-        if other_id == agent_id or other.zone_id != agent.zone_id:
-            continue
-        other_record = movement.get("positions", {}).get(other_id)
-        other_raw_point = other_record.get("point") if isinstance(other_record, dict) else None
-        if not isinstance(other_raw_point, dict):
-            continue
-        other_x, other_y = other_raw_point.get("x"), other_raw_point.get("y")
-        # Only a position Point2D would not take as it is needs parsing, or raises.
-        if (
-            type(other_x) is not float
-            or type(other_y) is not float
-            or len(other_raw_point) != 2
-            or not math.isfinite(other_x)
-            or not math.isfinite(other_y)
-        ):
-            parsed_point = Point2D.model_validate(other_raw_point)
-            other_x, other_y = parsed_point.x, parsed_point.y
-        cell = (math.floor(other_x / 0.75), math.floor(other_y / 0.75))
-        points_by_cell.setdefault(cell, []).append((other_x, other_y))
-    occupied = {
-        (row["room_id"], row["bed_index"]) for row in reservations.values() if isinstance(row, dict)
-    }
-    existing = reservations.get(agent_id)
-    candidates = []
-    route_attempts = 0
-    for room_id, room in sorted(state.get("temporary_rooms", {}).items()):
-        if route_attempts >= MAX_BED_ROUTE_CANDIDATES:
-            break
-        if room.get("zone_id") != agent.zone_id:
-            continue
-        if existing is None and not room.get("active"):
-            continue
-        if existing is not None and room_id != existing.get("room_id"):
-            continue
-        for index, raw_bed in enumerate(room.get("bed_points_m", [])):
-            if route_attempts >= MAX_BED_ROUTE_CANDIDATES:
-                break
-            if existing is None and (room_id, index) in occupied:
-                continue
-            if existing is not None and index != existing.get("bed_index"):
-                continue
-            bed = Point2D.model_validate(raw_bed)
-            cell = (math.floor(bed.x / 0.75), math.floor(bed.y / 0.75))
-            neighboring_positions = (
-                point
-                for dx in (-1, 0, 1)
-                for dy in (-1, 0, 1)
-                for point in points_by_cell.get((cell[0] + dx, cell[1] + dy), ())
-            )
-            another_person_is_using_bed = any(
-                (point[0] - bed.x) ** 2 + (point[1] - bed.y) ** 2 <= 0.75**2
-                for point in neighboring_positions
-            )
-            if another_person_is_using_bed:
-                continue
-            route_attempts += 1
-            path = plan_in_room_route(
-                world,
-                zone_id=room["zone_id"],
-                start=start,
-                destination=bed,
-                mobility=agent.profile.mobility,
-            )
-            if path is None:
-                continue
-            distance = sum(
-                ((second.x - first.x) ** 2 + (second.y - first.y) ** 2) ** 0.5
-                for first, second in zip(path, path[1:])
-            )
-            travel_minutes = (
-                0 if distance <= 1e-8 else in_room_travel_minutes(world, agent_id, path)
-            )
-            candidates.append((travel_minutes, room_id, index, bed, path))
-            if route_attempts >= MAX_BED_ROUTE_CANDIDATES:
-                break
-    if not candidates:
-        return None
-    travel_minutes, room_id, bed_index, bed, path = min(
-        candidates, key=lambda item: (item[0], item[1], item[2])
-    )
-    target_id = _bed_target_id(room_id, bed_index)
-    if existing is None:
-        reservations[agent_id] = {
-            "agent_id": agent_id,
-            "room_id": room_id,
-            "bed_index": bed_index,
-            "target_id": target_id,
-            "reserved_minute": world.minute_index,
-        }
-    return {
-        "agent_id": agent_id,
-        "room_id": room_id,
-        "bed_index": bed_index,
-        "target_id": target_id,
-        "reserved_minute": reservations[agent_id]["reserved_minute"],
-        "point": bed,
-        "route_points": path,
-        "travel_minutes": travel_minutes,
-    }
+    None without the overlay state, for an unknown Agent, and before geometry_overlay
+    schema_version 2. A state without bed_reservations gets an empty one first (a state saved
+    before beds were reserved), even when no bed follows. None without a floor plan. The person's
+    own reservation is the only candidate while they hold one; else each bed of an active room of
+    the zone, in room ID and bed order, that nobody has reserved. A bed within 0.75 m of another
+    person of the zone is in use and passed by. At most MAX_BED_ROUTE_CANDIDATES beds get a route
+    (`plan_in_room_route` from the person's position, for their mobility); the bed of the fewest
+    in-room minutes wins, then room ID, then bed index (0 minutes for a path shorter than 1e-8 m).
+    A new reservation records the Agent, room, bed index, target ID and the minute. Returns them
+    with the bed's point, the route points and the travel minutes; None when no bed has a route.
+    """
 
 
 @kernel_only("overlay", "release_sleep_bed")

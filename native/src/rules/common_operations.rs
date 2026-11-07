@@ -1,7 +1,8 @@
-//! `domain/common_operations.py`: `record_shared_operation`. The plan makes every
-//! check of the Python rule, and says Unsupported before it changes anything for what fails one or
-//! for any other kind of receipt, so the Python rule then runs and raises its own text. The Python
-//! rule stays as the comparison base (docs/rust-port/lanes/m4-staff.md).
+//! `domain/common_operations.py`: `record_shared_operation`. The plan makes every check of the
+//! Python rule, in its order, and raises its `ValueError` with its text before it changes anything
+//! (docs/rust-port/lanes/m4-staff.md). What only a state the rule's own checks never let through, or
+//! a receipt the contract's types turn down, reaches is Unsupported, which the entry raises as
+//! `KernelRefusal`: a row that isn't the tree's, a pydantic error of a care head, a large int.
 
 use std::sync::Arc;
 
@@ -11,6 +12,7 @@ use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PySlice, PyString, PyTuple, PyType};
 
+use crate::core::errors::value_error;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, unsupported, Field};
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::V;
@@ -79,10 +81,10 @@ fn observed_value<'py>(
     let (row, path): (Option<Bound<'py, PyAny>>, &[&str]) = match kind {
         "model_state" => {
             let [namespace, collection, path @ ..] = parts.as_slice() else {
-                return unsupported("a state change's path is too short");
+                return Err(value_error("model_state change needs namespace, collection and field path"));
             };
             if path.is_empty() {
-                return unsupported("a state change's path is too short");
+                return Err(value_error("model_state change needs namespace, collection and field path"));
             }
             let table = attribute(world, intern!(py, "model_state"))?;
             let Some(state) = exact_dict(&table)?.get_item(*namespace)? else {
@@ -98,7 +100,7 @@ fn observed_value<'py>(
         }
         "resource" => {
             if parts != ["value"] {
-                return unsupported("a resource's change is not of its value");
+                return Err(value_error("resource state changes use field_path='value'"));
             }
             (map_item(&attribute(world, intern!(py, "resources"))?)?, &[])
         }
@@ -124,8 +126,11 @@ fn observed_value<'py>(
     Ok(current)
 }
 
-/// The state changes as the receipt dumps them, after they pass `_validate_observed_state_changes`.
-fn state_changes(world: &Bound<'_, PyAny>, changes: &Bound<'_, PyAny>) -> PyResult<V> {
+const AFTER_VALUE: &str = "care receipt after-value does not match the current saved world state";
+
+/// The state changes as the receipt dumps them. With `check`, after they pass
+/// `_validate_observed_state_changes`, whose texts are raised.
+fn state_changes(world: &Bound<'_, PyAny>, changes: &Bound<'_, PyAny>, check: bool) -> PyResult<V> {
     let py = world.py();
     let changes = changes.downcast_exact::<PyTuple>().map_err(|_| Unsupported::new_err("the changes are not a tuple"))?;
     let mut dumped = Vec::with_capacity(changes.len());
@@ -138,23 +143,25 @@ fn state_changes(world: &Bound<'_, PyAny>, changes: &Bound<'_, PyAny>) -> PyResu
         let unit = attribute(&change, intern!(py, "unit"))?;
         let (entity, kind, field_path, unit) =
             (exact_str(&entity)?, exact_str(&kind)?, exact_str(&field_path)?, exact_str(&unit)?);
-        let Some(current) = observed_value(world, kind, entity, field_path)? else {
-            return unsupported("a state change reads nothing");
-        };
-        // `type(current) in (int, float) and current == change.after`.
-        let same = if let Ok(number) = current.downcast_exact::<PyFloat>() {
-            number.value() == after
-        } else if current.downcast_exact::<PyInt>().is_ok() {
-            let number = exact_int(&current)?;
-            if number.unsigned_abs() >= 1 << 53 {
-                return unsupported("a state change reads a large int");
+        if check {
+            // `type(current) in (int, float) and current == change.after`; None is neither.
+            let Some(current) = observed_value(world, kind, entity, field_path)? else {
+                return Err(value_error(AFTER_VALUE));
+            };
+            let same = if let Ok(number) = current.downcast_exact::<PyFloat>() {
+                number.value() == after
+            } else if current.downcast_exact::<PyInt>().is_ok() {
+                let number = exact_int(&current)?;
+                if number.unsigned_abs() >= 1 << 53 {
+                    return unsupported("a state change reads a large int");
+                }
+                number as f64 == after
+            } else {
+                false
+            };
+            if !same || current.is_instance_of::<PyBool>() {
+                return Err(value_error(AFTER_VALUE));
             }
-            number as f64 == after
-        } else {
-            false
-        };
-        if !same || current.is_instance_of::<PyBool>() {
-            return unsupported("a state change does not match the world");
         }
         let mut document: IndexMap<Arc<str>, V> = IndexMap::with_capacity(6);
         document.insert(Arc::from("entity_id"), V::Str(Arc::from(entity)));
@@ -176,17 +183,13 @@ pub(crate) fn record_shared_operation<'py>(world: &Bound<'py, PyAny>, record: &B
         return record_other(world, record);
     }
     let writer = EventWriter::of(world)?;
-    let mirror = mirror_of(world, NAME)?;
-    let table = attribute(world, intern!(py, "model_state"))?;
-    match exact_dict(&table)?.get_item(NAME)? {
-        Some(state) if mirror.try_borrow()?.root_is(&state) => {}
-        _ => return unsupported("the world holds another document than the row's"),
-    }
+    let mirror = held(world)?;
     let world_minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
+    state_holds(world, &mirror, world_minute)?;
     let field = |name: &Bound<'py, PyString>| attribute(record, name);
     let minute = exact_int(&field(intern!(py, "minute"))?)?;
     if minute != world_minute {
-        return unsupported("the receipt's minute is not the world's");
+        return Err(value_error(MINUTE));
     }
     let event_id: Arc<str> = Arc::from(exact_str(&field(intern!(py, "event_id"))?)?);
     let request_id: Arc<str> = Arc::from(exact_str(&field(intern!(py, "request_id"))?)?);
@@ -216,7 +219,8 @@ pub(crate) fn record_shared_operation<'py>(world: &Bound<'py, PyAny>, record: &B
     let record_type = field(intern!(py, "record_type"))?;
     let event_type = field(intern!(py, "event_type"))?;
     let (record_type, event_type) = (exact_str(&record_type)?, exact_str(&event_type)?);
-    let changes = state_changes(world, &field(intern!(py, "state_changes"))?)?;
+    let changes_object = field(intern!(py, "state_changes"))?;
+    let changes = state_changes(world, &changes_object, false)?;
 
     let record = CareRecord {
         record_type: Arc::from(record_type),
@@ -241,29 +245,69 @@ pub(crate) fn record_shared_operation<'py>(world: &Bound<'py, PyAny>, record: &B
     // The event of the receipt: applied at this minute, of this type, with this payload.
     let log = world.getattr(intern!(py, "event_log"))?;
     let event_record = log.call_method1(intern!(py, "find"), (&*record.event_id,))?;
-    if event_record.is_none() {
-        return unsupported("the receipt has no event");
-    }
-    if exact_int(&attribute(&event_record, intern!(py, "realized_minute"))?)? != minute
+    if event_record.is_none()
         || attribute(&event_record, intern!(py, "status"))?.getattr(intern!(py, "_value_"))?.extract::<String>()?
             != "applied"
+        || exact_int(&attribute(&event_record, intern!(py, "realized_minute"))?)? != minute
     {
-        return unsupported("the receipt's event is not applied at this minute");
+        return Err(value_error(NO_EVENT));
     }
     let event = attribute(&event_record, intern!(py, "event"))?;
     let Some(row) = EventRow::from_event(&event)? else {
         return unsupported("the receipt's event has no row");
     };
-    if *row.event_type != *record.event_type
-        || row.payload != document
+    if *row.event_type != *record.event_type {
+        return Err(value_error(NO_EVENT));
+    }
+    if is_recorded(&mirror, &record.event_id, minute)? {
+        return Err(value_error(RECORDED));
+    }
+    if row.payload != document
         || row.causation_id != record.causation_id
         || !row.source_id.as_ref().is_none_or(|source| record.sources.contains(source))
     {
-        return unsupported("the receipt does not match its event");
+        return Err(value_error(NOT_THE_PAYLOAD));
     }
 
     let plan = plan_record(world, &writer, &mirror, &record)?;
+    state_changes(world, &changes_object, true)?;
     write_record(py, &mirror, &record, &document, plan)
+}
+
+const MINUTE: &str = "shared operation receipt must use the current simulation boundary minute";
+const NO_EVENT: &str = "shared operation receipt requires a matching realized applied event";
+const RECORDED: &str = "shared operation event ID has already been recorded";
+const NOT_THE_PAYLOAD: &str = "shared operation receipt must exactly match the applied event payload";
+const STATE_INVALID: &str = "shared_operations_v1 state is invalid before operation append";
+
+/// The namespace's mirror, when the world holds a dict there: else the Python rule's first error. A
+/// dict that isn't the row's tree is Unsupported.
+fn held<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, NamespaceMirror>> {
+    let py = world.py();
+    let mirror = mirror_of(world, NAME)?;
+    let table = attribute(world, intern!(py, "model_state"))?;
+    match exact_dict(&table)?.get_item(NAME)? {
+        Some(state) if mirror.try_borrow()?.root_is(&state) => Ok(mirror),
+        Some(state) if state.is_instance_of::<PyDict>() => unsupported("the world holds another document than the row's"),
+        _ => Err(value_error("shared_operations_v1 must be selected in the immutable Scenario")),
+    }
+}
+
+/// `SharedOperationsState.model_validate({**state, "history": recent})` of the world's minute.
+fn state_holds(world: &Bound<'_, PyAny>, mirror: &Bound<'_, NamespaceMirror>, minute: i64) -> PyResult<()> {
+    recent_receipts_hold(world, mirror, minute)?;
+    if !NamespaceMirror::with_row::<SharedOperationsRow, _>(mirror, |row| Ok(row.header_is_valid()))? {
+        return Err(value_error(STATE_INVALID));
+    }
+    Ok(())
+}
+
+/// Whether a receipt of this event is among the records since the previous tick.
+fn is_recorded(mirror: &Bound<'_, NamespaceMirror>, event_id: &str, minute: i64) -> PyResult<bool> {
+    NamespaceMirror::with_row::<SharedOperationsRow, _>(mirror, |row| {
+        let start = row.history.recent_start(minute);
+        Ok(row.history.items.iter().skip(start).any(|item| item.event_id.as_deref() == Some(event_id)))
+    })
 }
 
 /// What the contract says of the recent receipts when some were not checked here: a restored or
@@ -285,11 +329,15 @@ fn recent_receipts_hold(world: &Bound<'_, PyAny>, mirror: &Bound<'_, NamespaceMi
     let document = PyDict::new(py);
     document.call_method1(intern!(py, "update"), (&state,))?;
     document.set_item("history", recent)?;
-    py.import(intern!(py, "sheltersim.contracts.operations"))?
-        .getattr("SharedOperationsState")?
-        .call_method1("model_validate", (document,))
-        .map_err(|_| Unsupported::new_err("the recent receipts are not what the contract takes"))?;
-    Ok(())
+    let contract = py.import(intern!(py, "sheltersim.contracts.operations"))?.getattr("SharedOperationsState")?;
+    match contract.call_method1("model_validate", (document,)) {
+        Ok(_) => Ok(()),
+        // `except (TypeError, ValueError)`: a pydantic ValidationError is a ValueError.
+        Err(error) if error.is_instance_of::<pyo3::exceptions::PyTypeError>(py) || error.is_instance_of::<pyo3::exceptions::PyValueError>(py) => {
+            Err(value_error(STATE_INVALID))
+        }
+        Err(error) => Err(error),
+    }
 }
 
 /// `record_shared_operation` of what isn't a care receipt. These are few in a Run, so the checks
@@ -303,37 +351,32 @@ fn record_other<'py>(world: &Bound<'py, PyAny>, record: &Bound<'py, PyAny>) -> P
     if !(continuity || handoff || recovery || operation) {
         return unsupported("an unknown kind of receipt");
     }
-    let mirror = mirror_of(world, NAME)?;
+    let mirror = held(world)?;
     let table = attribute(world, intern!(py, "model_state"))?;
-    let state = match exact_dict(&table)?.get_item(NAME)? {
-        Some(state) if mirror.try_borrow()?.root_is(&state) => state,
-        _ => return unsupported("the world holds another document than the row's"),
+    let Some(state) = exact_dict(&table)?.get_item(NAME)? else {
+        return unsupported("no shared operations");
     };
     let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
+    state_holds(world, &mirror, minute)?;
     let field = |name: &Bound<'py, PyString>| attribute(record, name);
     if exact_int(&field(intern!(py, "minute"))?)? != minute {
-        return unsupported("the receipt's minute is not the world's");
+        return Err(value_error(MINUTE));
     }
     let event_id_object = field(intern!(py, "event_id"))?;
     let event_id = exact_str(&event_id_object)?;
-    recent_receipts_hold(world, &mirror, minute)?;
     let log = attribute(world, intern!(py, "event_log"))?;
     let event_record = log.call_method1(intern!(py, "find"), (event_id,))?;
     if event_record.is_none() || !event_is(&event_record, "applied")? || exact_int(&attribute(&event_record, intern!(py, "realized_minute"))?)? != minute {
-        return unsupported("the receipt's event is not applied at this minute");
+        return Err(value_error(NO_EVENT));
     }
     let event = attribute(&event_record, intern!(py, "event"))?;
     if !attribute(&event, intern!(py, "event_type"))?.eq(field(intern!(py, "event_type"))?)? {
-        return unsupported("the receipt's event is of another type");
+        return Err(value_error(NO_EVENT));
     }
-    let (over_limit, recorded, valid) = NamespaceMirror::with_row::<SharedOperationsRow, _>(&mirror, |row| {
-        let start = row.history.recent_start(minute);
-        let recorded = row.history.items.iter().skip(start).any(|item| item.event_id.as_deref() == Some(event_id));
-        Ok((row.history.items.len() + 1 > MAX_HISTORY, recorded, row.header_is_valid()))
-    })?;
-    if recorded || !valid {
-        return unsupported("the event already has a receipt, or the state is not one the contract takes");
+    if is_recorded(&mirror, event_id, minute)? {
+        return Err(value_error(RECORDED));
     }
+    let over_limit = NamespaceMirror::with_row::<SharedOperationsRow, _>(&mirror, |row| Ok(row.history.items.len() + 1 > MAX_HISTORY))?;
     let options = PyDict::new(py);
     options.set_item("mode", "json")?;
     let common = record.call_method("model_dump", (), Some(&options))?;
@@ -349,7 +392,7 @@ fn record_other<'py>(world: &Bound<'py, PyAny>, record: &Bound<'py, PyAny>) -> P
         || !attribute(&event, intern!(py, "causation_id"))?.eq(field(intern!(py, "causation_id"))?)?
         || !(source.is_none() || field(intern!(py, "source_ids"))?.contains(&source)?)
     {
-        return unsupported("the receipt does not match its event");
+        return Err(value_error(NOT_THE_PAYLOAD));
     }
     let heads = state.get_item("support_requests")?;
     let new_head = if continuity {
@@ -383,12 +426,12 @@ fn record_other<'py>(world: &Bound<'py, PyAny>, record: &Bound<'py, PyAny>) -> P
         let facility = get_of(&attribute(world, intern!(py, "facilities"))?, &field(intern!(py, "facility_id"))?)?;
         let units = exact_int(&field(intern!(py, "working_units"))?)?;
         if facility.is_none() || units > exact_int(&attribute(&facility, intern!(py, "capacity"))?)? || exact_int(&attribute(&facility, intern!(py, "working_units"))?)? != units {
-            return unsupported("the facility recovery does not match the facility");
+            return Err(value_error("facility recovery receipt does not match the applied facility state"));
         }
     }
     if operation {
         check_staff_operation(world, record, state.get_item("history_truncated")?.is_truthy()?)?;
-        state_changes(world, &field(intern!(py, "state_changes"))?)?;
+        state_changes(world, &field(intern!(py, "state_changes"))?, true)?;
     }
 
     // Write.
@@ -432,7 +475,7 @@ fn event_is(record: &Bound<'_, PyAny>, wanted: &str) -> PyResult<bool> {
 fn check_continuity<'py>(world: &Bound<'py, PyAny>, record: &Bound<'py, PyAny>, prior: &Bound<'py, PyAny>, request_id: &Bound<'py, PyAny>) -> PyResult<()> {
     let py = world.py();
     let field = |name: &Bound<'py, PyString>| attribute(record, name);
-    let refused = || unsupported("the continuity receipt does not match the interrupted request");
+    let refused = || Err(value_error("support continuity receipt does not match the interrupted request"));
     if prior.is_none() {
         return refused();
     }
@@ -476,11 +519,11 @@ fn check_continuity<'py>(world: &Bound<'py, PyAny>, record: &Bound<'py, PyAny>, 
     }
     let expected = if text_of(&field(intern!(py, "status"))?).as_deref() == Some("requeued") { "pending" } else { "unresolved" };
     if text_of(&attribute(&request, intern!(py, "status"))?.getattr(intern!(py, "value"))?).as_deref() != Some(expected) {
-        return unsupported("the continuity receipt's status disagrees with the request");
+        return Err(value_error("support continuity receipt status disagrees with the resident request"));
     }
     let prior_event = log.call_method1(intern!(py, "find"), (prior.get_item("latest_event_id")?,))?;
     if prior_event.is_none() || !attribute(&attribute(&prior_event, intern!(py, "event"))?, intern!(py, "payload"))?.call_method1(intern!(py, "get"), ("staff_id",))?.eq(&previous_staff)? {
-        return unsupported("the continuity receipt does not match its previous assignment");
+        return Err(value_error("support continuity receipt does not match its previous staff assignment"));
     }
     Ok(())
 }
@@ -492,16 +535,19 @@ fn check_handoff<'py>(world: &Bound<'py, PyAny>, record: &Bound<'py, PyAny>) -> 
     let task = get_of(&attribute(world, intern!(py, "active_tasks"))?, &field(intern!(py, "task_id"))?)?;
     let status = text_of(&field(intern!(py, "status"))?);
     let holds = |wanted: &Bound<'py, PyAny>| -> PyResult<bool> { Ok(!task.is_none() && attribute(&task, intern!(py, "staff_id"))?.eq(wanted)?) };
-    let fits = match status.as_deref() {
-        Some("reassigned") => holds(&field(intern!(py, "replacement_staff_id"))?)?,
-        Some("unfilled") => !task.is_none() && attribute(&task, intern!(py, "staff_id"))?.is_none(),
-        Some("rejected") => holds(&field(intern!(py, "previous_staff_id"))?)?,
-        _ => true,
+    let refused = match status.as_deref() {
+        Some("reassigned") if !holds(&field(intern!(py, "replacement_staff_id"))?)? => {
+            "staff handoff receipt does not match the active task assignment"
+        }
+        Some("unfilled") if task.is_none() || !attribute(&task, intern!(py, "staff_id"))?.is_none() => {
+            "unfilled staff handoff must leave an active task unassigned"
+        }
+        Some("rejected") if !holds(&field(intern!(py, "previous_staff_id"))?)? => {
+            "rejected staff handoff must preserve the previous active assignment"
+        }
+        _ => return Ok(()),
     };
-    if !fits {
-        return unsupported("the handoff does not match the active task");
-    }
-    Ok(())
+    Err(value_error(refused))
 }
 
 /// `_validate_staff_operation_receipt`.
@@ -535,10 +581,10 @@ fn check_staff_operation<'py>(world: &Bound<'py, PyAny>, record: &Bound<'py, PyA
         if history_truncated && all_later {
             return Ok(());
         }
-        return unsupported("the receipt has no matching retained completion");
+        return Err(value_error("staff operation receipt has no matching retained completion"));
     };
     if matches.len() != 1 {
-        return unsupported("the receipt matches duplicate completion history");
+        return Err(value_error("staff operation receipt matches duplicate completion history"));
     }
     for (key, name) in [
         ("staff_id", intern!(py, "staff_id")),
@@ -552,15 +598,17 @@ fn check_staff_operation<'py>(world: &Bound<'py, PyAny>, record: &Bound<'py, PyA
         ("travel_minutes", intern!(py, "travel_minutes")),
     ] {
         if !of(row, key)?.eq(field(name)?)? {
-            return unsupported("the receipt disagrees with retained completion history");
+            return Err(value_error(DISAGREES));
         }
     }
     let causes = row.call_method1(intern!(py, "get"), ("causation_event_ids", PyTuple::empty(py)))?;
     if !causes.contains(field(intern!(py, "causation_id"))?)? {
-        return unsupported("the receipt disagrees with retained completion history");
+        return Err(value_error(DISAGREES));
     }
     Ok(())
 }
+
+const DISAGREES: &str = "staff operation receipt disagrees with retained completion history";
 
 /// What `record_shared_operation` holds of a care receipt, as `model_dump(mode="json")` gives it.
 pub(crate) struct CareRecord {
@@ -613,7 +661,7 @@ pub(crate) struct PlannedRecord {
     overflow: bool,
 }
 
-/// The checks of `record_shared_operation` on the row. Unsupported for what fails one; nothing changes.
+/// The checks of `record_shared_operation` on the row, with the rule's texts; nothing changes.
 pub(crate) fn plan_record(
     world: &Bound<'_, PyAny>,
     writer: &EventWriter<'_>,
@@ -621,37 +669,34 @@ pub(crate) fn plan_record(
     record: &CareRecord,
 ) -> PyResult<PlannedRecord> {
     let (event_id, request_id, minute) = (&record.event_id, &record.request_id, record.minute);
-    recent_receipts_hold(world, mirror, minute)?;
+    state_holds(world, mirror, minute)?;
     let first_request = if record.status == CareStatus::Requested {
         writer.log().borrow().first_care_request_event_of(request_id).map(Arc::<str>::from)
     } else {
         None
     };
     NamespaceMirror::with_row::<SharedOperationsRow, _>(mirror, |row| {
-        if !row.header_is_valid() {
-            return unsupported("the state is not one the contract takes");
-        }
         let start = row.history.recent_start(minute);
         if row.history.items.iter().skip(start).any(|item| item.event_id.as_deref() == Some(&**event_id)) {
-            return unsupported("the event already has a receipt");
+            return Err(value_error(RECORDED));
         }
         let prior = row.support_requests.map.get(request_id);
         if !transition_is_allowed(prior.map(|head| head.status), record.status) {
-            return unsupported("the transition is out of order");
+            return Err(value_error("support lifecycle transition is out of order"));
         }
         if let Some(prior) = prior {
             if prior.agent_id != record.agent_id
                 || prior.household_id != record.household_id
                 || prior.support_kind != record.support_kind
             {
-                return unsupported("the request's identity changed");
+                return Err(value_error("support request identity changed during its lifecycle"));
             }
         } else {
             if first_request.as_ref().is_some_and(|first| first != event_id) {
-                return unsupported("the request ID was used before");
+                return Err(value_error("support request IDs cannot be reused across Run history"));
             }
             if row.support_requests.map.len() >= MAX_REQUESTS {
-                return unsupported("too many requests");
+                return Err(value_error("shared_operations_v1 support request capacity exceeded"));
             }
         }
         let created_minute = prior.map_or(minute, |head| head.created_minute);

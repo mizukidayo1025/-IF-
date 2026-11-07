@@ -1,12 +1,14 @@
 //! The rules of `domain/resources.py` that run in a tick: one inventory operation, the KPI columns,
 //! and whether a reservation ID was used. Each reads the event and the row, checks what the Python
-//! rule checks, and then writes the row and the tree in place. It calls no Python.
+//! rule checked, and then writes the row and the tree in place. It calls no Python.
 //!
-//! Anything the Python rule would turn down, or that this rule isn't certain about, says
-//! Unsupported before any change, and the Python rule runs and raises its text. Its whole write of
-//! the namespace then reads the row again.
+//! What the Python rule turned down with a `ResourceLedgerError` an operation raises with the same
+//! text, in the same order of checks, before any change: the ledger's handler and the water and
+//! meal service save it inside their own texts. A state the Python rule's check of the ledger turned
+//! down (a write past the table, a row that isn't the tree's), and IDs `ScheduledEvent` itself turns
+//! down, are Unsupported, which the entry raises as `KernelRefusal`.
 //!
-//! The Python rule checks the state after an operation too. Here that follows from the checks
+//! The Python rule checked the state after an operation too. Here that follows from the checks
 //! before it: the new record's IDs are checked below, its sources were checked with the account,
 //! each operation keeps `remaining - reserved >= 0` and the reservation total, and the row's minute
 //! order is kept by turning down an older minute (docs/rust-port/lanes/m4-resources.md).
@@ -17,6 +19,7 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString};
 
+use crate::core::errors::{self, ledger_error, Wide};
 use crate::core::row::{attribute, exact_int, exact_str, namespace_is_absent, unsupported, Field};
 use crate::core::tracked::as_readable_dict;
 use crate::core::world_core::{raw_dict_get, NamespaceMirror};
@@ -52,10 +55,6 @@ fn taken(first: i64, second: i64) -> PyResult<i64> {
     first.checked_sub(second).map_or_else(|| unsupported("a quantity past 64 bits"), Ok)
 }
 
-fn required_field<'py>(payload: &Bound<'py, PyAny>, name: &Bound<'py, PyString>) -> PyResult<Bound<'py, PyAny>> {
-    mapping_get(payload, name)?.map_or_else(|| unsupported("the payload lacks a field"), Ok)
-}
-
 fn valid_id<'a>(value: &'a Bound<'_, PyAny>) -> PyResult<&'a str> {
     let id = exact_str(value)?;
     if is_valid_id(id) {
@@ -65,20 +64,27 @@ fn valid_id<'a>(value: &'a Bound<'_, PyAny>) -> PyResult<&'a str> {
     }
 }
 
+/// `_valid_id(value)`: Some(the ID), None when it isn't a str that is one. A str subclass is refused.
+fn stable_id<'a>(value: &'a Bound<'_, PyAny>) -> PyResult<Option<&'a str>> {
+    Ok(errors::str_of(value)?.filter(|id| is_valid_id(id)))
+}
+
 /// One operation's values, read from its event or given by a rule that hasn't made the event.
 pub(crate) struct Operation<'a> {
     pub(crate) operation: &'a str,
     pub(crate) warehouse_id: &'a str,
     pub(crate) resource_id: &'a str,
     pub(crate) index: usize,
+    /// A positive quantity. With `beyond`, an int past 64 bits, which only turns the operation down.
     pub(crate) quantity: i64,
+    pub(crate) beyond: bool,
     pub(crate) reservation_id: Option<&'a str>,
     pub(crate) agent_id: Option<&'a str>,
     pub(crate) source_id: &'a str,
     pub(crate) event_id: &'a str,
 }
 
-/// `apply_resource_operation`.
+/// `apply_resource_operation`. Its checks are the Python rule's, in its order, with its texts.
 #[pyfunction]
 pub(crate) fn apply_operation<'py>(
     world: &Bound<'py, PyAny>,
@@ -86,50 +92,98 @@ pub(crate) fn apply_operation<'py>(
     operation: &Bound<'py, PyAny>,
 ) -> PyResult<()> {
     let py = world.py();
+    let table = attribute(world, intern!(py, "model_state"))?;
+    let Some(table) = as_readable_dict(&table) else {
+        return unsupported("model_state is another kind of mapping");
+    };
+    if table.get_item(intern!(py, "resource_ledger_v1"))?.is_none() {
+        return Err(ledger_error("resource ledger is not enabled for this scenario"));
+    }
+    // `validate_resource_ledger_state` of the ledger as it is: what it turns down is Unsupported.
     let mirror = held_mirror(world)?;
-    let operation_text = exact_str(operation)?;
+    let (resources, agents, zones) = world_inputs(world)?;
+    let ledger_warehouse = NamespaceMirror::with_row::<LedgerRow, _>(&mirror, |row| {
+        if !row.passes_rules(&resources, &agents, &zones)? {
+            return unsupported("the state is one the Python rule's check turned down");
+        }
+        Ok(row.warehouse_id.clone())
+    })?;
+
+    let known = errors::str_of(operation)?.filter(|text| matches!(*text, "delivery" | "loss" | "reserve" | "release" | "consume"));
+    let Some(operation_text) = known else {
+        return Err(ledger_error(format!("unknown resource operation {}", errors::repr(operation)?)));
+    };
     let (has_reservation, has_quantity) = match operation_text {
         "delivery" | "loss" => (false, true),
         "reserve" | "consume" => (true, true),
-        "release" => (true, false),
-        _ => return unsupported("an unknown operation"),
+        _ => (true, false),
     };
 
     // set(payload) is exactly the required fields.
     let payload = attribute(event, intern!(py, "payload"))?;
     let field_count = 2 + usize::from(has_quantity) + if has_reservation { 2 } else { 0 };
-    if payload.len().map_or(true, |count| count != field_count) {
-        return unsupported("the payload has other fields");
+    let mut names = vec![intern!(py, "warehouse_id"), intern!(py, "resource_id")];
+    if has_quantity {
+        names.push(intern!(py, "quantity"));
     }
-    let warehouse = required_field(&payload, intern!(py, "warehouse_id"))?;
-    let warehouse_id = valid_id(&warehouse)?;
-    let resource = required_field(&payload, intern!(py, "resource_id"))?;
-    let resource_id = exact_str(&resource)?;
-    let Some(index) = resource_index(resource_id) else {
-        return unsupported("an unknown resource");
-    };
-    let quantity = if has_quantity {
-        let quantity = exact_int(&required_field(&payload, intern!(py, "quantity"))?)?;
-        if quantity <= 0 {
-            return unsupported("a quantity that is not positive");
+    if has_reservation {
+        names.push(intern!(py, "reservation_id"));
+        names.push(intern!(py, "agent_id"));
+    }
+    let mut fields = Vec::with_capacity(names.len());
+    if payload.len()? == field_count {
+        for name in &names {
+            match mapping_get(&payload, name)? {
+                Some(value) => fields.push(value),
+                None => break,
+            }
         }
-        quantity
-    } else {
-        0
+    }
+    if fields.len() != field_count {
+        return Err(ledger_error(format!("resource {operation_text} payload fields do not match")));
+    }
+    let (warehouse, resource) = (&fields[0], &fields[1]);
+    let warehouse_id = match stable_id(warehouse)? {
+        Some(id) if *id == *ledger_warehouse => id,
+        _ => return Err(ledger_error(format!("unknown resource warehouse ID {}", errors::repr(warehouse)?))),
     };
-
-    let (reservation_object, agent_object) = if has_reservation {
-        (
-            Some(required_field(&payload, intern!(py, "reservation_id"))?),
-            Some(required_field(&payload, intern!(py, "agent_id"))?),
-        )
+    let found = errors::str_of(resource)?.and_then(|id| resource_index(id).map(|index| (id, index)));
+    let Some((resource_id, index)) = found else {
+        return Err(ledger_error(format!("unknown resource ID {}", errors::repr(resource)?)));
+    };
+    let source_object = attribute(event, intern!(py, "source_id"))?;
+    if source_object.is_none() {
+        return Err(ledger_error("resource events require a source_id"));
+    }
+    let (quantity, beyond) = if has_quantity {
+        match errors::wide_int_not_bool(&fields[2])? {
+            Some(Wide::Int(quantity)) if quantity > 0 => (quantity, false),
+            // Past 64 bits: a delivery would leave the row's ints; anything else is turned down below.
+            Some(Wide::Above) if operation_text == "delivery" => return unsupported("a quantity past 64 bits"),
+            Some(Wide::Above) => (i64::MAX, true),
+            _ => return Err(ledger_error("resource quantity must be a positive integer")),
+        }
+    } else {
+        (0, false)
+    };
+    let (reservation_id, agent_id) = if has_reservation {
+        let (reservation, agent) = (&fields[field_count - 2], &fields[field_count - 1]);
+        let known = match stable_id(agent)? {
+            Some(id) => raw_dict_get(&agents, agent)?.is_some().then_some(id),
+            None => None,
+        };
+        let Some(agent_id) = known else {
+            return Err(ledger_error(format!("unknown resource Agent ID {}", errors::repr(agent)?)));
+        };
+        let Some(reservation_id) = stable_id(reservation)? else {
+            return Err(ledger_error("resource reservation_id must be a stable ID"));
+        };
+        (Some(reservation_id), Some(agent_id))
     } else {
         (None, None)
     };
-    let reservation_id = reservation_object.as_ref().map(valid_id).transpose()?;
-    let agent_id = agent_object.as_ref().map(valid_id).transpose()?;
 
-    let source_object = attribute(event, intern!(py, "source_id"))?;
+    // `ScheduledEvent` takes only stable IDs for these.
     let source_id = valid_id(&source_object)?;
     let event_object = attribute(event, intern!(py, "event_id"))?;
     let event_id = valid_id(&event_object)?;
@@ -142,6 +196,7 @@ pub(crate) fn apply_operation<'py>(
             resource_id,
             index,
             quantity,
+            beyond,
             reservation_id,
             agent_id,
             source_id,
@@ -150,8 +205,9 @@ pub(crate) fn apply_operation<'py>(
     )
 }
 
-/// The operation on the row and the tree; Unsupported, with nothing changed, for what the Python
-/// rule turns down. Every ID is checked by the caller to be a stable ID.
+/// The operation on the row and the tree. What the Python rule turned down after its checks of the
+/// payload is its `ResourceLedgerError`, and a state its check of the ledger turned down is
+/// Unsupported, both with nothing changed. Every ID is checked by the caller to be a stable ID.
 pub(crate) fn apply_planned<'py>(
     world: &Bound<'py, PyAny>,
     mirror: &Bound<'py, NamespaceMirror>,
@@ -164,6 +220,7 @@ pub(crate) fn apply_planned<'py>(
         resource_id,
         index,
         quantity,
+        beyond,
         reservation_id,
         agent_id,
         source_id,
@@ -172,7 +229,7 @@ pub(crate) fn apply_planned<'py>(
     let (resources, agents, zones) = world_inputs(world)?;
     if let Some(agent) = agent_id {
         if raw_dict_get(&agents, PyString::new(py, agent).as_any())?.is_none() {
-            return unsupported("an unknown person");
+            return Err(ledger_error(format!("unknown resource Agent ID {}", errors::repr_str(py, agent)?)));
         }
     }
     let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
@@ -182,11 +239,11 @@ pub(crate) fn apply_planned<'py>(
 
     let (record, change) = NamespaceMirror::with_row_tree::<LedgerRow, _>(mirror, |row, tree| {
         // Plan: nothing changes until the record is known.
-        if &*row.warehouse_id != warehouse_id
-            || minute < row.audit.last_minute
-            || !row.passes_rules(&resources, &agents, &zones)?
-        {
-            return unsupported("the state or the warehouse is for the Python rule to judge");
+        if minute < row.audit.last_minute || !row.passes_rules(&resources, &agents, &zones)? {
+            return unsupported("the state is one the Python rule's check turned down");
+        }
+        if &*row.warehouse_id != warehouse_id {
+            return Err(ledger_error(format!("unknown resource warehouse ID {}", errors::repr_str(py, warehouse_id)?)));
         }
         let account = row.accounts.of(index);
         let mut next = Balances {
@@ -204,8 +261,8 @@ pub(crate) fn apply_planned<'py>(
                 next.remaining = added(next.remaining, quantity)?;
             }
             "loss" => {
-                if quantity > taken(next.remaining, next.reserved)? {
-                    return unsupported("the loss exceeds the inventory");
+                if beyond || quantity > taken(next.remaining, next.reserved)? {
+                    return Err(ledger_error("resource loss exceeds unreserved remaining inventory"));
                 }
                 next.losses = added(next.losses, quantity)?;
                 next.remaining = taken(next.remaining, quantity)?;
@@ -213,10 +270,10 @@ pub(crate) fn apply_planned<'py>(
             "reserve" => {
                 let id = reservation_id.unwrap_or_default();
                 if row.used_reservation_ids.contains(id) {
-                    return unsupported("the reservation ID was used");
+                    return Err(ledger_error(format!("resource reservation ID {} was already used", errors::repr_str(py, id)?)));
                 }
-                if quantity > taken(next.remaining, next.reserved)? {
-                    return unsupported("the reservation exceeds the inventory");
+                if beyond || quantity > taken(next.remaining, next.reserved)? {
+                    return Err(ledger_error("resource reservation exceeds available inventory"));
                 }
                 next.reserved = added(next.reserved, quantity)?;
                 change = ReservationChange::Insert(Reservation {
@@ -227,19 +284,20 @@ pub(crate) fn apply_planned<'py>(
                 });
             }
             _ => {
-                let Some(found) = account.reservations.get(reservation_id.unwrap_or_default()) else {
-                    return unsupported("an unknown reservation");
+                let id = reservation_id.unwrap_or_default();
+                let Some(found) = account.reservations.get(id) else {
+                    return Err(ledger_error(format!("unknown resource reservation {}", errors::repr_str(py, id)?)));
                 };
                 if Some(&*found.agent_id) != agent_id {
-                    return unsupported("the reservation is someone else's");
+                    return Err(ledger_error("resource reservation belongs to a different Agent"));
                 }
                 if operation_text == "release" {
                     record_quantity = found.quantity;
                     next.reserved = taken(next.reserved, found.quantity)?;
                     change = ReservationChange::Remove;
                 } else {
-                    if quantity > found.quantity {
-                        return unsupported("the consume exceeds the reservation");
+                    if beyond || quantity > found.quantity {
+                        return Err(ledger_error("resource consume exceeds the reservation"));
                     }
                     next.served = added(next.served, quantity)?;
                     next.remaining = taken(next.remaining, quantity)?;
@@ -379,11 +437,14 @@ pub(crate) fn metric_values<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<B
     Ok(Some(result))
 }
 
-/// `reservation_id in ledger["used_reservation_ids"]`, without reading the list.
+/// `reservation_id in ledger["used_reservation_ids"]`, without reading the list. The list holds only
+/// str, so anything else was never used.
 #[pyfunction]
 fn reservation_id_was_used(world: &Bound<'_, PyAny>, reservation_id: &Bound<'_, PyAny>) -> PyResult<bool> {
     let mirror = held_mirror(world)?;
-    let id = exact_str(reservation_id)?;
+    let Some(id) = errors::str_of(reservation_id)? else {
+        return Ok(false);
+    };
     NamespaceMirror::with_row::<LedgerRow, _>(&mirror, |row| Ok(row.used_reservation_ids.contains(id)))
 }
 

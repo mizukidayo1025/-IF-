@@ -72,16 +72,9 @@ PORTED_NAMES = frozenset(
         "plan_in_room_route",
         "facility_approach_route",
         "_queue_slot_position",
-        "_set_stationary_position",
-        "_room_path_is_clear",
-        "_route_point",
-        "_point_along_polyline",
-        "_reserved_bed_point",
-        "_facility_move_invalidated_journey",
         "_zone_center",
         # domain/staff.py, domain/staff_operations.py, experiments/metrics.py: rules/staff.rs.
-        # The mark runs `_support_wait_snapshot`'s Python rule; the others have kernels of
-        # `kernel_first` that a test reaches through `__wrapped__`.
+        # These have kernels of `kernel_first` that a test reaches through `__wrapped__`.
         "support_wait_reason_codes",
         "support_waited_minutes",
         "support_required_skills",
@@ -97,7 +90,6 @@ PORTED_NAMES = frozenset(
         "_current_journey_edge",
         # domain/common_operations.py: rules/common_operations.rs, likewise.
         "_event_payload_matches",
-        "_validate_observed_state_changes",
         # experiments/metrics.py: rules/metrics.rs. core/world.py: rules/tick_validation.rs.
         "_snapshot_fields",
         "_validate_entity_rules",
@@ -130,12 +122,6 @@ PORTED_NAMES = frozenset(
         "update_long_term_state",
         "record_distress_monitor_tick",
         "update_psychological_state",
-        # policies/social.py, policies/alternatives.py: rules/social_propagation.rs
-        "_contact_buckets",
-        "_select_contacts",
-        # policies/information.py: rules/information.rs
-        "_transmission_probability",
-        "_sender_sharing_factor",
         # experiments/phases/dispatch.py, the rules it calls: rules/dispatch.rs. An event type's
         # handler is read at each event, and a patch of a class's `apply` shows there.
         "_dispatch_due_events",
@@ -157,7 +143,6 @@ PORTED_NAMES = frozenset(
         "support_kind_for_agent",
         "complete_support_task",
         "_finish_stopped_journey",
-        "_schedule_room_approach",
         "_reject_room_approach",
         # events/handlers.py, domain/care_receipts.py, domain/staff_operations.py: through
         # `kernel_first`, rules/handlers.rs, information_events.rs, staff_operation_events.rs.
@@ -210,14 +195,6 @@ PORTED_METHODS = frozenset(
         ("UtilityBehaviorPolicy", "propose"),
         ("PriorityRuleBehaviorPolicy", "propose"),
         ("PsychologyUpdateResult", "trace_document"),
-        ("SocialPropagationResult", "trace_document"),
-        ("InformationSpreadResult", "trace_document"),
-        ("StressPropagationPolicy", "update"),
-        ("ExpressivenessChannelOpennessPolicy", "update"),
-        ("DeGrootContactPolicy", "update"),
-        ("InformationSpreadPolicy", "update"),
-        ("HazardInformationPolicy", "update"),
-        ("EvidenceAwareInformationPolicy", "update"),
         ("EventDispatcher", "dispatch_due"),
         ("EventDispatcher", "settle"),
         ("ResourceServiceManager", "_serve_head"),
@@ -253,7 +230,6 @@ def without_kernels(monkeypatch: pytest.MonkeyPatch) -> None:
     """The mark's change, for a test that compares both within one test."""
     from sheltersim.core import state_mirror
     from sheltersim.core import world as world_module
-    from sheltersim.experiments import metrics
     from sheltersim.experiments.phases.segments import SEGMENTS
     from sheltersim.experiments.runner import OfflineSimulationController
 
@@ -261,8 +237,4 @@ def without_kernels(monkeypatch: pytest.MonkeyPatch) -> None:
         # install_segments set it on this class, and the phases' mixins keep the Python step.
         monkeypatch.delattr(OfflineSimulationController, step)
     monkeypatch.setattr(state_mirror, "_RUST_VALIDATORS", {})
-    monkeypatch.setattr(
-        metrics, "_support_wait_snapshot", metrics._support_wait_snapshot.__wrapped__
-    )
-    monkeypatch.setattr(metrics, "_snapshot_fields", metrics._snapshot_fields.__wrapped__)
     monkeypatch.setattr(world_module, "_entity_rules_kernel", None)

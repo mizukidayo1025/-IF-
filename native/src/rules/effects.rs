@@ -288,8 +288,10 @@ pub(crate) fn effect_copy_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'
     py.import(intern!(py, "sheltersim.events.effects"))?.getattr(intern!(py, "_effect_candidate"))?.call1((world,))
 }
 
+/// `candidate.validate()`, whose error the rule raises as it is, with the world unchanged.
 fn validate(candidate: &Bound<'_, PyAny>) -> PyResult<()> {
-    candidate.call_method0(intern!(candidate.py(), "validate"))?;
+    let py = candidate.py();
+    candidate.call_method0(intern!(py, "validate")).map_err(|error| errors::passed_on(py, error))?;
     Ok(())
 }
 

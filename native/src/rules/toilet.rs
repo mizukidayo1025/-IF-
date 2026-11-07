@@ -10,13 +10,13 @@ use indexmap::IndexMap;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
-use pyo3::types::{PyBool, PyList, PySlice, PyString};
+use pyo3::types::{PyBool, PyFloat, PyList, PySlice, PyString, PyTuple};
 use sha2::{Digest, Sha256};
 
 use crate::core::errors;
 use crate::core::mathx::py_max;
 use crate::core::rng::{Key, KeyedDraws};
-use crate::core::row::{attribute, exact_dict, exact_int, exact_str, map_set, namespace_is_absent, unsupported};
+use crate::core::row::{attribute, exact_dict, exact_int, exact_int_text, exact_str, map_set, namespace_is_absent, unsupported};
 use crate::core::value::V;
 use crate::core::world_core::{mirror_of, raw_dict_get, NamespaceMirror};
 use crate::rules::facility_queues::{
@@ -87,23 +87,55 @@ pub(crate) fn queue_up<'py>(
     let py = world.py();
     let (agent_name, facility_name) = (exact_str(agent_id)?, exact_str(facility_id)?);
     let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
+    let store = entities_of(world)?;
+    let task_id = queue_task_id(facility_name, agent_name, minute);
+    // The Python rule's checks, in its order and with its texts: a refused request at the end of a
+    // walk is saved as the event's detail (`_after_arrival`).
+    let refused = EntityStore::with_rows(&store, |rows| {
+        let Some(agent) = rows.agents.get(agent_name) else {
+            return Ok(Some(format!("unknown Agent {}", errors::repr_str(py, agent_name)?)));
+        };
+        let is_a_toilet = match rows.facilities.get(facility_name) {
+            Some(facility) => is_toilet(&facility.kind)?,
+            None => false,
+        };
+        if !is_a_toilet {
+            return Ok(Some(format!("{} is not a toilet Facility", errors::repr_str(py, facility_name)?)));
+        }
+        if !matches!(agent.activity, Activity::Idle | Activity::Resting | Activity::Sleeping) {
+            return Ok(Some(format!("Agent {} cannot request a toilet while active", errors::repr_str(py, agent_name)?)));
+        }
+        for (_, other) in rows.facilities.iter() {
+            if other.queue_agent_ids.iter().chain(&other.active_agent_ids).any(|id| &**id == agent_name) {
+                return Ok(Some(format!("Agent {} already has an active toilet request", errors::repr_str(py, agent_name)?)));
+            }
+        }
+        if rows.active_tasks.get(&*task_id).is_some() {
+            return Err(errors::invariant(format!("duplicate toilet queue task ID {}", errors::repr_str(py, &task_id)?)));
+        }
+        Ok(None)
+    })?;
+    if let Some(text) = refused {
+        return Err(errors::value_error(text));
+    }
     let independent = has_independent(world, facility_name)?;
     if queue_id.is_some() && !independent {
         return unsupported("a queue ID of a facility without independent queues");
     }
+    const NO_QUEUE: &str = "no accessible independent toilet service queue is available";
     let chosen_queue = match (independent, queue_id) {
         (false, _) => None,
         (true, Some(queue)) if !queue.is_empty() => Some(queue.to_owned()),
         (true, _) => choose_queue_id(world, facility_id, agent_id)?,
     };
     if independent && chosen_queue.is_none() {
-        return unsupported("no accessible independent queue");
+        return Err(errors::value_error(NO_QUEUE));
     }
     let geo = Geo::of(world)?;
     let point = match &chosen_queue {
         Some(queue) => match point_of(&geo, queue) {
             Some(point) if &*point.facility_id == facility_name => Some(point),
-            _ => return unsupported("no accessible independent queue"),
+            _ => return Err(errors::value_error(NO_QUEUE)),
         },
         None => None,
     };
@@ -114,8 +146,6 @@ pub(crate) fn queue_up<'py>(
         })?,
         None => None,
     };
-    let store = entities_of(world)?;
-    let task_id = queue_task_id(facility_name, agent_name, minute);
     let position = EntityStore::with_rows(&store, |rows| {
         let (Some(agent), Some(facility)) = (rows.agents.get(agent_name), rows.facilities.get(facility_name)) else {
             return unsupported("no such agent or facility");
@@ -197,10 +227,13 @@ fn request<'py>(
     let validates = !validate_state.is_some_and(|validate| validate.downcast_exact::<PyBool>().is_ok_and(|validate| !validate.is_true()));
     let queue_name = queue_id.filter(|queue| !queue.is_none()).map(exact_str).transpose()?;
     let world = attribute(manager, intern!(py, "world"))?;
-    if let Some(minute) = minute {
+    if let Some(minute) = minute.filter(|minute| !minute.is_none()) {
         let now = exact_int(&attribute(&world, intern!(py, "minute_index"))?)?;
-        if !minute.is_none() && exact_int(minute)? != now {
-            return unsupported("another minute");
+        let Some(minute) = errors::int_not_bool(minute)? else {
+            return Err(errors::value_error("toilet request minute must be an integer"));
+        };
+        if minute != now {
+            return Err(errors::value_error("toilet request minute must match WorldState"));
         }
     }
     // `world.validate()` stays Python's (D3). What it raises, it raises here too.
@@ -325,10 +358,9 @@ fn start_one<'py>(
     let counter_rng = COUNTER_RNG
         .get_or_try_init(py, || -> PyResult<Py<PyAny>> { Ok(py.import("sheltersim.core.rng")?.getattr("CounterRNG")?.unbind()) })?
         .bind(py);
-    if !rng.get_type().is(counter_rng) {
-        return unsupported("the RNG is not a CounterRNG");
-    }
-    let seed = exact_int(&attribute(rng, intern!(py, "seed"))?)?;
+    // The world's CounterRNG draws here, keyed by `str(seed)` of a seed of any size; another
+    // KeyedRandom (a test's) is asked as the rule asks it.
+    let seed = if rng.get_type().is(counter_rng) { Some(exact_int_text(&attribute(rng, intern!(py, "seed"))?)?) } else { None };
     let lowest = exact_int(&attribute(manager, intern!(py, "min_service_minutes"))?)?;
     let highest = exact_int(&attribute(manager, intern!(py, "max_service_minutes"))?)?;
     let policy_object = attribute(manager, intern!(py, "policy_version"))?;
@@ -420,13 +452,40 @@ fn start_one<'py>(
         return unsupported("a wait for the Python rule to judge");
     }
     // The draw and its key, as `rng_key` holds them.
-    let draws = KeyedDraws::new(&seed.to_string());
-    let mut key = Key::labelled("toilet-service");
-    key.text(facility_name).text(&agent_id).text("minute").int(minute_value).text(&policy).text("duration");
-    if let Some(head) = &head {
-        key.text(&head.queue_id);
-    }
-    let draw = key.draw(&draws);
+    let draw = match seed {
+        Some(seed) => {
+            let draws = KeyedDraws::new(&seed);
+            let mut key = Key::labelled("toilet-service");
+            key.text(facility_name).text(&agent_id).text("minute").int(minute_value).text(&policy).text("duration");
+            if let Some(head) = &head {
+                key.text(&head.queue_id);
+            }
+            key.draw(&draws)
+        }
+        None => {
+            let mut parts: Vec<Bound<'py, PyAny>> = vec![
+                PyString::new(py, "toilet-service").into_any(),
+                facility_id.clone(),
+                PyString::new(py, &agent_id).into_any(),
+                PyString::new(py, "minute").into_any(),
+                minute.clone(),
+                policy_object.clone(),
+                PyString::new(py, "duration").into_any(),
+            ];
+            if let Some(head) = &head {
+                parts.push(PyString::new(py, &head.queue_id).into_any());
+            }
+            let drawn = rng.call_method1(intern!(py, "random"), PyTuple::new(py, parts)?)?;
+            let Ok(drawn) = drawn.downcast_exact::<PyFloat>() else {
+                return unsupported("a draw that is not a float");
+            };
+            let draw = drawn.value();
+            if !(0.0..1.0).contains(&draw) {
+                return Err(errors::value_error("keyed RNG draw must be between zero and one"));
+            }
+            draw
+        }
+    };
     let span = highest - lowest + 1;
     let service_minutes = (lowest + (draw * span as f64) as i64).min(highest);
     let Some(due) = minute_value.checked_add(service_minutes) else {

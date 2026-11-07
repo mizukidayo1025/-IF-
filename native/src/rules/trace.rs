@@ -20,9 +20,10 @@ use std::sync::Arc;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyList, PyString, PyTuple};
+use pyo3::IntoPyObjectExt;
 
 use crate::contacts::Basis;
-use crate::core::mathx::py_fsum;
+use crate::core::mathx::{py_fsum, Num};
 use crate::core::row::{exact_float, exact_str, unsupported};
 use crate::rules::world_view::{status_text, RustView, ViewAgent, ViewData};
 
@@ -124,6 +125,9 @@ pub(crate) struct PersonTrace {
     pub(crate) information_uncertainty_stress: f64,
     /// `life_state_before` and `life_state_after`, of the life-state models.
     pub(crate) life_state: Option<(LifeStateTrace, LifeStateTrace)>,
+    /// Whether `family_separation_pressure` there is the int `discontent_stress_rate` of the
+    /// config (a separated family), which Python keeps as an int.
+    pub(crate) family_pressure_int: bool,
     pub(crate) components: Vec<(&'static str, f64)>,
     pub(crate) raw_stress_delta: f64,
     pub(crate) candidate_before_clip: f64,
@@ -132,6 +136,9 @@ pub(crate) struct PersonTrace {
 
 /// The values of `LIFE_STATE_NAMES`.
 pub(crate) type LifeStateTrace = [f64; 9];
+
+/// The place of `family_separation_pressure` in `LIFE_STATE_NAMES`.
+const FAMILY_PRESSURE: usize = 7;
 
 const LIFE_STATE_NAMES: [&str; 9] = [
     "sleep_debt_minutes",
@@ -321,6 +328,15 @@ fn person_document<'py>(
     if let Some((before, after)) = &row.life_state {
         let item = PyDict::new(py);
         for (place, name) in LIFE_STATE_NAMES.into_iter().enumerate() {
+            if place == FAMILY_PRESSURE && row.family_pressure_int {
+                // `after - before` of two equal ints: the int 0.
+                let entry = PyDict::new(py);
+                entry.set_item("before", before[place] as i64)?;
+                entry.set_item("after", after[place] as i64)?;
+                entry.set_item("delta", after[place] as i64 - before[place] as i64)?;
+                item.set_item(name, entry)?;
+                continue;
+            }
             item.set_item(name, before_after(before[place], after[place])?)?;
         }
         document.set_item("life_state", item)?;
@@ -414,8 +430,17 @@ impl TraceRows {
         fields.set_item("life_state_feedback_stress", row.life_state_feedback_stress)?;
         fields.set_item("natural_recovery_stress", row.natural_recovery_stress)?;
         if let Some((before, after)) = &row.life_state {
-            let named = |values: &LifeStateTrace| {
-                PyTuple::new(py, LIFE_STATE_NAMES.iter().copied().zip(values.iter().copied()))
+            let named = |values: &LifeStateTrace| -> PyResult<Bound<'py, PyTuple>> {
+                let mut items = Vec::with_capacity(LIFE_STATE_NAMES.len());
+                for (place, (&name, &value)) in LIFE_STATE_NAMES.iter().zip(values).enumerate() {
+                    let value = if place == FAMILY_PRESSURE && row.family_pressure_int {
+                        (value as i64).into_bound_py_any(py)?
+                    } else {
+                        value.into_bound_py_any(py)?
+                    };
+                    items.push((name, value));
+                }
+                PyTuple::new(py, items)
             };
             fields.set_item("life_state_before", named(before)?)?;
             fields.set_item("life_state_after", named(after)?)?;
@@ -581,11 +606,12 @@ pub(crate) struct SocialContact {
     pub(crate) minutes: i64,
     pub(crate) cooldown_remaining: i64,
     pub(crate) difference: f64,
-    pub(crate) contribution: f64,
+    /// An int where the Python rule's `min` returned an int cap (see rules/social_propagation.rs).
+    pub(crate) contribution: Num,
     pub(crate) weight: f64,
     pub(crate) aggregate_rate: f64,
     pub(crate) pre_pair_cap: f64,
-    pub(crate) pair_cap: f64,
+    pub(crate) pair_cap: Num,
     pub(crate) aggregate_scale: f64,
 }
 
@@ -616,11 +642,11 @@ pub(crate) fn social_document<'py>(
         item.set_item("consecutive_contact_minutes", contact.minutes)?;
         item.set_item("cooldown_remaining_minutes", contact.cooldown_remaining)?;
         item.set_item("stress_difference", contact.difference)?;
-        item.set_item("stress_contribution", contact.contribution)?;
+        item.set_item("stress_contribution", contact.contribution.to_py(py)?)?;
         item.set_item("influence_weight", contact.weight)?;
         item.set_item("aggregate_rate", contact.aggregate_rate)?;
         item.set_item("pre_pair_cap_contribution", contact.pre_pair_cap)?;
-        item.set_item("pair_cap_contribution", contact.pair_cap)?;
+        item.set_item("pair_cap_contribution", contact.pair_cap.to_py(py)?)?;
         item.set_item("aggregate_scale", contact.aggregate_scale)?;
         Ok(item)
     };
@@ -630,7 +656,7 @@ pub(crate) fn social_document<'py>(
         sample.append(contact_of(contact)?)?;
     }
     let contributions = PyList::empty(py);
-    for contact in contacts.iter().filter(|contact| contact.contribution != 0.0) {
+    for contact in contacts.iter().filter(|contact| contact.contribution.value() != 0.0) {
         contributions.append(contact_of(contact)?)?;
     }
     let document = PyDict::new(py);

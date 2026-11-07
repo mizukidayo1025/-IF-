@@ -13,16 +13,14 @@ from sheltersim.contracts.operations import (
     SHARED_OPERATIONS_POLICY,
     CareRequestState,
     CareTransitionReceipt,
-    FacilityRecoveryReceipt,
     OperationalDemandSnapshot,
     OperationHistoryRecord,
     SharedOperationsState,
-    StaffHandoffReceipt,
     StaffOperationReceipt,
     StaffSupportContinuityReceipt,
 )
 from sheltersim.core.history import records_since_previous_tick
-from sheltersim.core.kernels import kernel_first
+from sheltersim.core.kernels import kernel_only
 from sheltersim.core.state_mirror import rust_accepts
 from sheltersim.core.tick_validation import saved_json
 from sheltersim.core.world import WorldState
@@ -314,166 +312,27 @@ def _staff_operations_json(world: WorldState) -> bytes | None:
     return saved_json(operations.get("history", ()) if isinstance(operations, dict) else ())
 
 
-@kernel_first("common_operations", "record_shared_operation")
+@kernel_only("common_operations", "record_shared_operation")
 def record_shared_operation(world: WorldState, record: OperationHistoryRecord) -> None:
-    """Append a receipt only after its matching state-changing event is applied."""
-    state = world.model_state.get(SHARED_OPERATIONS_KEY)
-    if not isinstance(state, dict):
-        raise ValueError("shared_operations_v1 must be selected in the immutable Scenario")
-    # As in per-tick validation, only records since the previous tick are parsed:
-    # earlier ones passed that validation, and the run-boundary validation replays
-    # the whole history.
-    history = state.get("history")
-    recent = (
-        records_since_previous_tick(history, world.minute_index)
-        if isinstance(history, list)
-        else history
-    )
-    try:
-        SharedOperationsState.model_validate({**state, "history": recent})
-    except (TypeError, ValueError) as exc:
-        raise ValueError("shared_operations_v1 state is invalid before operation append") from exc
-    if record.minute != world.minute_index:
-        raise ValueError("shared operation receipt must use the current simulation boundary minute")
-    event_record = world.event_log.find(record.event_id)
-    if (
-        event_record is None
-        or event_record.status is not EventStatus.APPLIED
-        or event_record.realized_minute != record.minute
-        or event_record.event.event_type != record.event_type
-    ):
-        raise ValueError("shared operation receipt requires a matching realized applied event")
-    # A record carries its event's realized minute, here the current one, so an
-    # earlier record of the same event is among the recent ones.
-    if any(row.get("event_id") == record.event_id for row in recent):
-        raise ValueError("shared operation event ID has already been recorded")
-    common = record.model_dump(mode="json")
-    if not _event_payload_matches(event_record, record):
-        raise ValueError("shared operation receipt must exactly match the applied event payload")
-    # Validate every dependency against the post-operation world before changing
-    # the checkpoint projection. A rejected receipt must not partially mutate it.
-    if isinstance(record, CareTransitionReceipt):
-        prior = state["support_requests"].get(record.request_id)
-        prior_status = prior.get("status") if prior else None
-        if record.status not in _CARE_TRANSITIONS.get(prior_status, set()):
-            raise ValueError("support lifecycle transition is out of order")
-        if prior and (prior["agent_id"], prior.get("household_id"), prior["support_kind"]) != (
-            record.agent_id,
-            record.household_id,
-            record.support_kind,
-        ):
-            raise ValueError("support request identity changed during its lifecycle")
-        if (
-            prior is None
-            and record.status == "requested"
-            and world.event_log.has_prior_care_request(record.request_id, record.event_id)
-        ):
-            raise ValueError("support request IDs cannot be reused across Run history")
-        if prior is None and len(state["support_requests"]) >= 100_000:
-            raise ValueError("shared_operations_v1 support request capacity exceeded")
-    elif isinstance(record, StaffSupportContinuityReceipt):
-        prior = state["support_requests"].get(record.request_id)
-        request = world.support_requests.get(record.request_id)
-        cause = world.event_log.find(record.causation_id)
-        cause_matches = cause is not None and (
-            (
-                record.cause_type == "route_unreachable"
-                and cause.status is EventStatus.SUPPRESSED
-                and cause.event.event_type == "agent_travel_complete"
-                and cause.event.payload.get("purpose") == "staff_support_travel"
-                and cause.event.payload.get("request_id") == record.request_id
-                and cause.event.payload.get("staff_id") == record.previous_staff_id
-            )
-            or (
-                record.cause_type in {"staff_unavailable", "staff_shift_change"}
-                and cause.status is EventStatus.APPLIED
-                and cause.event.event_type == record.cause_type
-                and cause.event.payload.get("staff_id") == record.previous_staff_id
-            )
-        )
-        if (
-            prior is None
-            or prior["status"] not in {"assigned", "started"}
-            or prior["agent_id"] != record.agent_id
-            or request is None
-            or request.agent_id != record.agent_id
-            or request.assigned_staff_id is not None
-            or request.task_id is not None
-            or not cause_matches
-            or record.task_id in world.active_tasks
-        ):
-            raise ValueError("support continuity receipt does not match the interrupted request")
-        expected_status = "pending" if record.status == "requeued" else "unresolved"
-        if request.status.value != expected_status:
-            raise ValueError(
-                "support continuity receipt status disagrees with the resident request"
-            )
-        prior_event = world.event_log.find(prior["latest_event_id"])
-        if (
-            prior_event is None
-            or prior_event.event.payload.get("staff_id") != record.previous_staff_id
-        ):
-            raise ValueError(
-                "support continuity receipt does not match its previous staff assignment"
-            )
-    elif isinstance(record, StaffHandoffReceipt):
-        task = world.active_tasks.get(record.task_id)
-        if record.status == "reassigned":
-            if task is None or task.staff_id != record.replacement_staff_id:
-                raise ValueError("staff handoff receipt does not match the active task assignment")
-        elif record.status == "unfilled" and (task is None or task.staff_id is not None):
-            raise ValueError("unfilled staff handoff must leave an active task unassigned")
-        elif record.status == "rejected" and (
-            task is None or task.staff_id != record.previous_staff_id
-        ):
-            raise ValueError("rejected staff handoff must preserve the previous active assignment")
-    elif isinstance(record, FacilityRecoveryReceipt):
-        facility = world.facilities.get(record.facility_id)
-        if (
-            facility is None
-            or record.working_units > facility.capacity
-            or facility.working_units != record.working_units
-        ):
-            raise ValueError("facility recovery receipt does not match the applied facility state")
-    elif isinstance(record, StaffOperationReceipt):
-        _validate_staff_operation_receipt(
-            world, record, history_truncated=state.get("history_truncated", False)
-        )
-    _validate_observed_state_changes(world, record)
-    if isinstance(record, CareTransitionReceipt):
-        prior = state["support_requests"].get(record.request_id)
-        if record.status in {"completed", "interrupted", "declined"}:
-            state["support_requests"].pop(record.request_id, None)
-        else:
-            state["support_requests"][record.request_id] = CareRequestState(
-                request_id=record.request_id,
-                agent_id=record.agent_id,
-                household_id=record.household_id,
-                support_kind=record.support_kind,
-                status=record.status,
-                created_minute=prior["created_minute"] if prior else record.minute,
-                updated_minute=record.minute,
-                latest_event_id=record.event_id,
-            ).model_dump(mode="json")
-    elif isinstance(record, StaffSupportContinuityReceipt):
-        prior = state["support_requests"][record.request_id]
-        if record.status == "requeued":
-            state["support_requests"][record.request_id] = CareRequestState(
-                request_id=record.request_id,
-                agent_id=record.agent_id,
-                household_id=prior.get("household_id"),
-                support_kind=prior["support_kind"],
-                status="requested",
-                created_minute=prior["created_minute"],
-                updated_minute=record.minute,
-                latest_event_id=record.event_id,
-            ).model_dump(mode="json")
-        else:
-            state["support_requests"].pop(record.request_id, None)
-    state["history"].append(common)
-    if len(state["history"]) > MAX_SHARED_OPERATION_HISTORY:
-        state["history_truncated"] = True
-    del state["history"][:-MAX_SHARED_OPERATION_HISTORY]
+    """Append a receipt only after its matching state-changing event is applied.
+
+    The receipt's `model_dump(mode="json")` goes to the history, which keeps the newest
+    MAX_SHARED_OPERATION_HISTORY (then history_truncated is True). A care transition updates its
+    request's head in support_requests (dropped when completed, interrupted or declined), and a
+    continuity receipt requeues the request or drops it.
+
+    ValueError, before any change, in this order: no shared_operations_v1 dict; the state with the
+    records since the previous tick not passing SharedOperationsState; a receipt minute that is not
+    the world's; no applied event of the receipt's ID and type realized at that minute; an event
+    already recorded since the previous tick; an event payload, causation or source that is not
+    the receipt's (`_event_payload_matches`); then the receipt's own checks (a care transition out
+    of `_CARE_TRANSITIONS`' order, a changed request identity, a request ID used before, too many
+    requests; a continuity receipt that does not match the interrupted request, its status or its
+    previous assignment; a handoff that does not match the active task; a facility recovery that
+    does not match the facility; a staff operation receipt without its one retained completion);
+    and last a state change (care and staff operation receipts) whose after-value is not the
+    world's.
+    """
 
 
 def _event_payload_matches(event_record: Any, record: OperationHistoryRecord) -> bool:
@@ -493,49 +352,6 @@ def _event_payload_matches(event_record: Any, record: OperationHistoryRecord) ->
         and event.causation_id == record.causation_id
         and (event.source_id is None or event.source_id in record.source_ids)
     )
-
-
-def _validate_observed_state_changes(world: WorldState, record: OperationHistoryRecord) -> None:
-    if (
-        not isinstance(record, (CareTransitionReceipt, StaffOperationReceipt))
-        or not record.state_changes
-    ):
-        return
-    collections = {
-        "agent": world.agents,
-        "staff": world.staff,
-        "facility": world.facilities,
-        "zone": world.zones,
-        "resource": world.resources,
-    }
-    for change in record.state_changes:
-        parts = change.field_path.split(".")
-        if change.entity_kind == "model_state":
-            if len(parts) < 3:
-                raise ValueError("model_state change needs namespace, collection and field path")
-            namespace, collection, *path = parts
-            row = (
-                world.model_state.get(namespace, {}).get(collection, {}).get(change.entity_id)
-                if isinstance(world.model_state.get(namespace), dict)
-                else None
-            )
-        elif change.entity_kind == "resource":
-            if parts != ["value"]:
-                raise ValueError("resource state changes use field_path='value'")
-            row, path = collections["resource"].get(change.entity_id), []
-        else:
-            row = collections[change.entity_kind].get(change.entity_id)
-            path = parts
-        current = row
-        for part in path:
-            if isinstance(current, dict):
-                current = current.get(part)
-            else:
-                current = getattr(current, part, None)
-        if type(current) not in (int, float) or current != change.after:
-            raise ValueError(
-                "care receipt after-value does not match the current saved world state"
-            )
 
 
 def _validate_staff_operation_receipt(

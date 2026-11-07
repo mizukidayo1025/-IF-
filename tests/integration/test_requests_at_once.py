@@ -333,13 +333,28 @@ def test_having_arrived_with_an_independent_queue(
 def test_the_staff_positions_asked_from_outside_the_walk(
     generated_scenario: Any, boundary: int | None
 ) -> None:
+    """Nobody travels at the start: each staff member stands at the centre of their zone."""
     world = WorldState.from_scenario(generated_scenario)
-    twin = copy.deepcopy(world)
-    answer = native.rules("movement").staff_position_snapshots(world, boundary_minute=boundary)
-    expected = movement.staff_position_snapshots.__wrapped__(twin, boundary_minute=boundary)
-    assert repr(answer) == repr(expected)
+    geometry = movement._geometry(world)
+    expected = {}
+    for staff_id in sorted(world.staff):
+        zone_id = world.staff[staff_id].zone_id
+        center = movement._zone_center(geometry, zone_id)
+        assert center is not None
+        expected[staff_id] = {
+            "zone_id": zone_id,
+            "point": {"x": center.x, "y": center.y},
+            "edge_id": None,
+            "progress": 0.0,
+            "position_kind": "physical",
+        }
+    answer = movement.staff_position_snapshots(world, boundary_minute=boundary)
+    assert answer == expected
     assert list(answer) == sorted(world.staff)
-    assert _bytes(world) == _bytes(twin)
+    # The records are written, and the answer holds copies of them.
+    state = world.model_state[KEY]["staff_positions"]
+    assert dict(state) == expected
+    assert all(answer[key] is not state[key] for key in answer)
 
 
 def test_without_the_movement_state_or_a_floor_plan() -> None:

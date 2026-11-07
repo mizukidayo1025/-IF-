@@ -29,7 +29,7 @@ p_{accept}=\operatorname{clip}_{[0,0.95]}\{p_b+2\eta_t(T_i-0.5)+2\eta_s(R_m-0.5)
 ## 実装・連携
 
 - `src/sheltersim/domain/models.py`: claim・belief・exposure/share/correction stateと設定
-- `src/sheltersim/policies/information.py`: 疎接触候補、hazard、共有傾向減衰、忘却
+- `native/src/rules/information.rs`: 疎接触候補、hazard、共有傾向減衰、忘却（モデルのクラスと設定は`src/sheltersim/policies/information.py`、`alternatives.py`）
 - `src/sheltersim/events/handlers.py`: 噂開始、確率的訂正受容、次tick接触反映
 - `src/sheltersim/domain/body_state.py`: 研究variantでは受容された訂正だけを安心・不確実性へ反映
 - version: `evidence-aware-rumor-v1`; legacy comparator: `sparse-information-contact-v1`

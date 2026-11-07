@@ -212,6 +212,16 @@ def test_each_proposal_of_a_drawn_world_has_the_bits_of_python(
         assert _exact(rust) == _exact(_agent_view_snapshot(view.agents[agent_id]))
 
 
+@pytest.mark.parametrize("seed", [2**63, 2**64 + 7, 10**30])
+def test_a_seed_past_64_bits_has_the_bits_of_python(seed: int, generated_scenario: Any) -> None:
+    """A Scenario's seed is any int from 0, and CounterRNG keys its draws with `str(seed)`. The
+    kernel turned such a seed down before, and the Python rule made the proposals."""
+    draws = random.Random(5)
+    world, view = _draw_world(draws, generated_scenario)
+    policy = _draw_policy(draws, sorted(world.agents))
+    assert _both(policy, view, seed=seed)
+
+
 def test_requests_cooldowns_and_queued_tasks_are_read_as_python_reads_them(
     generated_scenario: Any,
 ) -> None:

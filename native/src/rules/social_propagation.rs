@@ -28,7 +28,7 @@ use crate::contacts::{
     exact_float, exact_int, key_head, nearby_buckets, pair_key, quoted_ids, select_contacts, zone_members,
     Basis, Bucket,
 };
-use crate::core::mathx::{py_fsum, py_max, py_min, py_sum};
+use crate::core::mathx::{max_num, min_num, py_fsum, py_max, py_min, sum_nums, Num};
 use crate::core::row::{namespace_is_absent, Field, IdMap};
 use crate::core::rng::{start_draw_log, take_draw_log, KeyedDraws};
 use crate::core::tracked::{as_readable_dict, as_readable_list};
@@ -52,7 +52,9 @@ enum Policy {
     DeGroot,
 }
 
-/// `SocialPropagationParameters`, each of its exact type.
+/// `SocialPropagationParameters`. A rate or a strength may be an int (the config's `0` or `1`):
+/// where it meets a float it is the same f64, and the two caps keep their type, because
+/// `min(cap, x)` returns the int itself, which the trace writes as `0` and not `0.0`.
 struct Settings {
     policy: Policy,
     maximum: i64,
@@ -60,8 +62,8 @@ struct Settings {
     cooldown_minutes: i64,
     spread: f64,
     recovery: f64,
-    pair_cap: f64,
-    agent_cap: f64,
+    pair_cap: Num,
+    agent_cap: Num,
     family_strength: f64,
     zone_strength: f64,
     nearby_strength: f64,
@@ -106,14 +108,14 @@ struct ChannelDetails {
     weights: Vec<f64>,
     rate: f64,
     raw: Vec<f64>,
-    capped: Vec<f64>,
+    capped: Vec<Num>,
     scale: f64,
 }
 
 /// What `DeGrootContactPolicy.update` finds of each neighbor.
 #[derive(Default)]
 struct DeGrootDetails {
-    contributions: Vec<f64>,
+    contributions: Vec<Num>,
     scale: f64,
     applied: f64,
 }
@@ -209,7 +211,7 @@ fn plan(
                 Arc::from(key),
                 ContactRecord { last_seen_minute: minute, consecutive_minutes: duration },
             );
-            let mut sparse_contribution = 0.0;
+            let mut sparse_contribution = Num::Float(0.0);
             if duration >= settings.minimum_contact_minutes {
                 lasting.push((source, basis));
                 if trace.is_some() {
@@ -219,17 +221,20 @@ fn plan(
                     && minute >= cooldowns.get(person.id).copied().unwrap_or(0)
                 {
                     let difference = py_max(0.0, people[source].stress - person.stress);
-                    let contribution =
-                        py_min(settings.pair_cap, difference * settings.spread * duration as f64);
+                    let contribution = min_num(
+                        settings.pair_cap,
+                        Num::Float(difference * settings.spread * duration as f64),
+                    );
                     let remaining = py_max(
                         0.0,
                         py_min(
-                            settings.agent_cap - additions,
+                            settings.agent_cap.value() - additions,
                             1.0 - py_max(0.0, person.base - settings.recovery) - additions,
                         ),
                     );
-                    let contribution = py_min(contribution, remaining);
-                    sparse_contribution = contribution;
+                    let kept = min_num(contribution, Num::Float(remaining));
+                    sparse_contribution = kept;
+                    let contribution = kept.value();
                     if contribution > 0.0 {
                         cooldowns.insert(person.id, cooldown_after);
                         additions += contribution;
@@ -252,7 +257,7 @@ fn plan(
                     weight: 0.0,
                     aggregate_rate: 0.0,
                     pre_pair_cap: 0.0,
-                    pair_cap: 0.0,
+                    pair_cap: Num::Float(0.0),
                     aggregate_scale: 1.0,
                 });
             }
@@ -282,17 +287,17 @@ fn plan(
                     if can_contribute { &lasting } else { &[] },
                     details.as_mut(),
                 )?;
-                if shift != 0.0 {
+                if shift.value() != 0.0 {
                     cooldowns.insert(person.id, cooldown_after);
                 }
                 if let (Some(trace), Some(details)) = (&mut trace, &details) {
-                    trace.total_added += shift;
-                    trace.contributing += i64::from(shift != 0.0);
+                    trace.total_added += shift.value();
+                    trace.contributing += i64::from(shift.value() != 0.0);
                     let cooldown_remaining = (cooldowns.get(person.id).copied().unwrap_or(0) - minute).max(0);
                     for (place, &(source, basis)) in lasting.iter().enumerate() {
                         let eligible = can_contribute && !details.weights.is_empty();
                         let raw = if eligible { details.raw[place] } else { 0.0 };
-                        let capped = if eligible { details.capped[place] } else { 0.0 };
+                        let capped = if eligible { details.capped[place] } else { Num::Float(0.0) };
                         trace.contacts.push(SocialContact {
                             recipient: me,
                             source,
@@ -300,7 +305,7 @@ fn plan(
                             minutes: minutes_of.iter().find(|item| item.0 == source).map_or(0, |item| item.1),
                             cooldown_remaining,
                             difference: people[source].stress - person.stress,
-                            contribution: if eligible { capped * details.scale } else { 0.0 },
+                            contribution: Num::Float(if eligible { capped.value() * details.scale } else { 0.0 }),
                             weight: if eligible { details.weights[place] } else { 0.0 },
                             aggregate_rate: if eligible { details.rate } else { 0.0 },
                             pre_pair_cap: raw,
@@ -319,7 +324,7 @@ fn plan(
                 if let (Some(trace), Some(details)) = (&mut trace, &details) {
                     trace.total_added += details.applied;
                     for (place, &(source, basis)) in lasting.iter().enumerate() {
-                        let contribution = details.contributions[place] * details.scale;
+                        let contribution = details.contributions[place].value() * details.scale;
                         trace.contributing += i64::from(contribution != 0.0);
                         trace.contacts.push(SocialContact {
                             recipient: me,
@@ -328,11 +333,11 @@ fn plan(
                             minutes: minutes_of.iter().find(|item| item.0 == source).map_or(0, |item| item.1),
                             cooldown_remaining: 0,
                             difference: people[source].stress - person.stress,
-                            contribution,
+                            contribution: Num::Float(contribution),
                             weight: 0.0,
                             aggregate_rate: 0.0,
                             pre_pair_cap: 0.0,
-                            pair_cap: 0.0,
+                            pair_cap: Num::Float(0.0),
                             aggregate_scale: 1.0,
                         });
                     }
@@ -368,7 +373,7 @@ fn channel_stress(
     person: &Person<'_>,
     eligible: &[(usize, Basis)],
     details: Option<&mut ChannelDetails>,
-) -> PyResult<(f64, f64)> {
+) -> PyResult<(f64, Num)> {
     let weights: Vec<f64> = eligible
         .iter()
         .map(|&(source, basis)| {
@@ -385,7 +390,7 @@ fn channel_stress(
     // Weights are products of factors in 0..1, so a total of 0 means every contribution is 0:
     // no shift, and `details` keep no weights, so the trace has each contact as one without a
     // share, as the Python rule has it (#87, 元 #301).
-    let mut shift = 0.0;
+    let mut shift = Num::Float(0.0);
     if weight_total > 0.0 {
         let gamma = py_min(1.0, settings.spread * weight_total);
         let raw: Vec<f64> = eligible
@@ -393,21 +398,25 @@ fn channel_stress(
             .zip(&weights)
             .map(|(&(source, _), &weight)| gamma * weight / weight_total * (people[source].stress - person.stress))
             .collect();
-        let pair_shifts: Vec<f64> =
-            raw.iter().map(|&value| py_max(-settings.pair_cap, py_min(settings.pair_cap, value))).collect();
+        let pair_shifts: Vec<Num> = raw
+            .iter()
+            .map(|&value| max_num(settings.pair_cap.neg(), min_num(settings.pair_cap, Num::Float(value))))
+            .collect();
+        // math.fsum reads an int as its float.
+        let pair_values: Vec<f64> = pair_shifts.iter().map(|value| value.value()).collect();
         let raw_shift =
-            py_fsum(&pair_shifts).ok_or_else(|| Unsupported::new_err("shifts are not finite"))?;
-        shift = py_max(-settings.agent_cap, py_min(settings.agent_cap, raw_shift));
-        shift = py_max(-person.base, py_min(1.0 - person.base, shift));
+            py_fsum(&pair_values).ok_or_else(|| Unsupported::new_err("shifts are not finite"))?;
+        shift = max_num(settings.agent_cap.neg(), min_num(settings.agent_cap, Num::Float(raw_shift)));
+        shift = max_num(Num::Float(-person.base), min_num(Num::Float(1.0 - person.base), shift));
         if let Some(details) = details {
-            details.scale = if raw_shift != 0.0 { shift / raw_shift } else { 0.0 };
+            details.scale = if raw_shift != 0.0 { shift.value() / raw_shift } else { 0.0 };
             details.rate = gamma;
             details.weights = weights;
             details.raw = raw;
             details.capped = pair_shifts;
         }
     }
-    Ok((py_min(1.0, py_max(0.0, person.base + shift)), shift))
+    Ok((py_min(1.0, py_max(0.0, person.base + shift.value())), shift))
 }
 
 /// The new stress of `DeGrootContactPolicy.update`. `neighbors` are by source.
@@ -420,20 +429,21 @@ fn degroot_stress(
 ) -> f64 {
     let alpha = py_min(1.0, settings.spread);
     let count = neighbors.len().max(1) as f64;
-    let contributions: Vec<f64> = neighbors
+    let contributions: Vec<Num> = neighbors
         .iter()
         .map(|&(source, _)| {
             let value = alpha * (people[source].stress - person.stress) / count;
-            py_max(-settings.pair_cap, py_min(settings.pair_cap, value))
+            max_num(settings.pair_cap.neg(), min_num(settings.pair_cap, Num::Float(value)))
         })
         .collect();
-    // An empty sum is the int 0 in Python, which every use below treats as 0.0.
-    let raw_shift = py_sum(&contributions);
-    let shift = py_max(-settings.agent_cap, py_min(settings.agent_cap, raw_shift));
+    // `sum` from the int 0: an empty sum, or one of int caps, stays the int 0. The caps are at
+    // most 0.25, so no int leaves i64.
+    let raw_shift = sum_nums(&contributions).unwrap_or(Num::Float(f64::NAN));
+    let shift = max_num(settings.agent_cap.neg(), min_num(settings.agent_cap, raw_shift));
     let recovered = py_max(0.0, person.base - settings.recovery);
-    let applied = py_min(1.0, py_max(0.0, recovered + shift)) - recovered;
+    let applied = py_min(1.0, py_max(0.0, recovered + shift.value())) - recovered;
     if let Some(details) = details {
-        details.scale = if raw_shift != 0.0 { applied / raw_shift } else { 1.0 };
+        details.scale = if raw_shift.value() != 0.0 { applied / raw_shift.value() } else { 1.0 };
         details.applied = applied;
         details.contributions = contributions;
     }
@@ -480,7 +490,8 @@ fn settings_of(policy: &Bound<'_, PyAny>, parameters: &Bound<'_, PyAny>, known: 
         return unsupported("a policy this kernel does not know");
     };
     let int = |name: &Bound<'_, PyString>| exact_int(&parameters.getattr(name)?);
-    let float = |name: &Bound<'_, PyString>| exact_float(&parameters.getattr(name)?);
+    let float = |name: &Bound<'_, PyString>| number(&parameters.getattr(name)?).map(Num::value);
+    let cap = |name: &Bound<'_, PyString>| number(&parameters.getattr(name)?);
     Ok(Settings {
         policy,
         maximum: int(intern!(py, "max_contacts_per_agent"))?,
@@ -488,12 +499,23 @@ fn settings_of(policy: &Bound<'_, PyAny>, parameters: &Bound<'_, PyAny>, known: 
         cooldown_minutes: int(intern!(py, "cooldown_minutes"))?,
         spread: float(intern!(py, "stress_spread_per_minute"))?,
         recovery: float(intern!(py, "natural_recovery_per_minute"))?,
-        pair_cap: float(intern!(py, "max_pair_stress_increase"))?,
-        agent_cap: float(intern!(py, "max_agent_stress_increase_per_minute"))?,
+        pair_cap: cap(intern!(py, "max_pair_stress_increase"))?,
+        agent_cap: cap(intern!(py, "max_agent_stress_increase_per_minute"))?,
         family_strength: float(intern!(py, "family_channel_strength"))?,
         zone_strength: float(intern!(py, "same_zone_channel_strength"))?,
         nearby_strength: float(intern!(py, "nearby_zone_channel_strength"))?,
     })
+}
+
+/// A float, or an int that `SocialPropagationParameters` allows (within 0..1, so `0` or `1`).
+fn number(value: &Bound<'_, PyAny>) -> PyResult<Num> {
+    if value.downcast_exact::<pyo3::types::PyFloat>().is_ok() {
+        return exact_float(value).map(Num::Float);
+    }
+    match exact_int(value)? {
+        whole @ 0..=1 => Ok(Num::Int(whole)),
+        _ => unsupported("an int coefficient is outside 0..1"),
+    }
 }
 
 fn unit_stress(value: &Bound<'_, PyAny>) -> PyResult<f64> {
@@ -613,7 +635,7 @@ pub(crate) fn update_social_propagation<'py>(
         let group = view_data.agents[agent].group_id.clone();
         let source_value = if settings.policy == Policy::Channel && !expressiveness.is_empty() {
             match expressiveness.get_item(&id)? {
-                Some(value) => exact_float(&value)?,
+                Some(value) => number(&value)?.value(),
                 None => 1.0,
             }
         } else {
@@ -820,8 +842,8 @@ fn plan_of_values(
         cooldown_minutes: ints[2],
         spread: floats[0],
         recovery: floats[1],
-        pair_cap: floats[2],
-        agent_cap: floats[3],
+        pair_cap: Num::Float(floats[2]),
+        agent_cap: Num::Float(floats[3]),
         family_strength: floats[4],
         zone_strength: floats[5],
         nearby_strength: floats[6],

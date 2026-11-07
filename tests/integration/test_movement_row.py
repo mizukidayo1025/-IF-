@@ -1,35 +1,29 @@
 """movement_v1 owned by Rust (docs/rust-port/lanes/i-movement.md, m4-movement.md).
 
 The row against the tree at every tick of the gate is benchmarks/rule_shadow/movement_shadow.py;
-here, the shapes of its records, what taints it, the steps that hold the tree, and what the Python
-rule does that depends on its order. The kernels are tests/integration/test_movement_rules.py.
+here, the shapes of its records, what taints it, and the steps that hold the tree. The kernels are
+tests/integration/test_movement_rules.py; what depends on the order of the walk,
+tests/integration/test_movement_walk_order.py.
 """
 
 from __future__ import annotations
 
 import copy
 import json
-import sys
-from pathlib import Path
 from typing import Any
 
 import pytest
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine
-from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.domain import movement
-from sheltersim.domain.facilities import ToiletServiceManager
 from sheltersim.domain.movement import MOVEMENT_STATE_KEY as KEY
 from sheltersim.domain.movement import validate_movement_runtime_state
 from sheltersim.experiments.metrics import MetricsRecorder
-from sheltersim.experiments.phases import update
 from sheltersim.experiments.phases.update import UpdatePhase
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
-
-ROOT = Path(__file__).resolve().parents[2]
 
 
 def _position(point: dict[str, float] | None = None) -> dict[str, Any]:
@@ -238,182 +232,3 @@ def test_restore_and_copy_read_the_row_again(generated_scenario: Any) -> None:
     assert copied.canonical_json() == expected
     assert _mirror(copied).tainted is None
     assert _mirror(copied).verify()
-
-
-# ---- Order: what running advance_movement in parallel would have to keep ------------------------
-
-
-def _reverse() -> Any:
-    sys.path.insert(0, str(ROOT / "benchmarks" / "rule_shadow"))
-    try:
-        from movement_shadow import reverse_advance_movement
-    finally:
-        sys.path.pop(0)
-    return reverse_advance_movement()
-
-
-@pytest.mark.python_rules
-def test_reversed_order_reverses_the_walk(generated_scenario: Any) -> None:
-    """The test below means nothing if the walk did not turn around."""
-    world = _run(generated_scenario, 3)
-    written: list[str] = []
-    positions = world.model_state[KEY]["positions"]
-    python_stationary = movement._set_stationary_position
-
-    def stationary(_world: WorldState, agent_id: str, *rest: Any) -> None:
-        written.append(agent_id)
-        python_stationary(_world, agent_id, *rest)
-
-    movement._set_stationary_position = stationary
-    undo = _reverse()
-    try:
-        update.advance_movement(world, world.minute_index)
-    finally:
-        undo()
-        movement._set_stationary_position = python_stationary
-    assert len(written) > 2
-    assert written == sorted(written, reverse=True)
-    assert positions
-
-
-def test_advance_movement_gives_the_same_world_in_reverse(generated_scenario: Any) -> None:
-    plain = _run(generated_scenario, 240)
-    undo = _reverse()
-    try:
-        reversed_world = _run(generated_scenario, 240)
-    finally:
-        undo()
-    assert reversed_world.canonical_json() == plain.canonical_json()
-
-
-def _two_queue_trips(scenario: Any) -> WorldState:
-    """Two people walking to the two queues of one toilet, one per queue."""
-    world = WorldState.from_scenario(scenario)
-    speeds = world.model_configs["movement_model"]["speed_m_per_minute_by_mobility"]
-    for mobility in speeds:
-        speeds[mobility] = 0.2
-    routes = world.model_configs["facility_geometry"]["routes"]
-    entrance = next(route for route in routes if route["edge_id"] == "route_corridor_toilet")
-    for agent_id in ("A001", "A002"):
-        world.agents[agent_id].zone_id = "toilet"
-        world.agents[agent_id].next_decision_at = 100
-        world.model_state[KEY]["positions"][agent_id].update(
-            zone_id="toilet", point=dict(entrance["points"][-1]), position_kind="physical"
-        )
-    queues = sorted(
-        queue_id
-        for queue_id, row in world.model_state["facility_queues_v1"]["queues"].items()
-        if row["facility_id"] == "toilet_01"
-    )
-    service = ToiletServiceManager(world, min_service_minutes=2, max_service_minutes=2)
-    service.request("A001", "toilet_01", queue_id=queues[0])
-    service.request("A002", "toilet_01", queue_id=queues[1])
-    service.arbitrate(0, CounterRNG(world.seed))
-    assert set(world.model_state[KEY]["journeys"]) == {"A001", "A002"}
-    world.minute_index = 1
-    return world
-
-
-@pytest.mark.python_rules
-def test_two_queue_replans_in_one_tick_depend_on_the_order_only_through_their_event_ids(
-    generated_scenario_with_split_queues: Any, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The dependence on order this rule has: each replan takes the next event number.
-
-    What running advance_movement in parallel must solve (id_counters["event"]). If this test
-    starts to find no difference, or another one, the design's list of blockers has changed.
-    """
-    monkeypatch.setattr(movement, "_room_path_is_clear", lambda *_a, **_k: False)
-    # The patch reaches the Python rule only: the kernel leaves such a tick to it.
-    monkeypatch.setattr(update, "advance_movement", movement.advance_movement.__wrapped__)
-    forward = _two_queue_trips(generated_scenario_with_split_queues)
-    assert update.advance_movement(forward, 1) == ()
-    backward = _two_queue_trips(generated_scenario_with_split_queues)
-    undo = _reverse()
-    try:
-        assert update.advance_movement(backward, 1) == ()
-    finally:
-        undo()
-    first = json.loads(json.dumps(forward.model_state[KEY]))
-    second = json.loads(json.dumps(backward.model_state[KEY]))
-    ids = {agent_id: first["journeys"][agent_id].pop("event_id") for agent_id in first["journeys"]}
-    other = {
-        agent_id: second["journeys"][agent_id].pop("event_id") for agent_id in second["journeys"]
-    }
-    assert ids != other
-    assert ids == {"A001": other["A002"], "A002": other["A001"]}
-    assert first == second
-    assert forward.metric_state == backward.metric_state
-
-
-def _two_trips_in_one_queue(scenario: Any) -> tuple[WorldState, dict[str, float]]:
-    """The head walks to the service point and the follower to its slot, in one queue.
-
-    The head stands on the slot the follower would take, and walks off it in the next tick.
-    """
-    world = WorldState.from_scenario(scenario)
-    speeds = world.model_configs["movement_model"]["speed_m_per_minute_by_mobility"]
-    for mobility in speeds:
-        speeds[mobility] = 0.2
-    routes = world.model_configs["facility_geometry"]["routes"]
-    entrance = next(route for route in routes if route["edge_id"] == "route_corridor_toilet")
-    for agent_id in ("A001", "A002"):
-        world.agents[agent_id].zone_id = "toilet"
-        world.agents[agent_id].next_decision_at = 100
-        world.model_state[KEY]["positions"][agent_id].update(
-            zone_id="toilet", point=dict(entrance["points"][-1]), position_kind="physical"
-        )
-    queue_id = min(
-        queue_id
-        for queue_id, row in world.model_state["facility_queues_v1"]["queues"].items()
-        if row["facility_id"] == "toilet_01"
-    )
-    service = ToiletServiceManager(world, min_service_minutes=2, max_service_minutes=2)
-    service.request("A001", "toilet_01", queue_id=queue_id)
-    service.request("A002", "toilet_01", queue_id=queue_id)
-    service.arbitrate(0, CounterRNG(world.seed))
-    head = world.model_state[KEY]["journeys"]["A001"]
-    assert head["purpose"].endswith("_position")
-    head["purpose"] = head["purpose"].removesuffix("_position") + "_service"
-    # What the next tick's arbitration does for the follower, with the head still walking.
-    assert not movement.progress_physical_queue_positions(
-        world, facility_id="toilet_01", resource=False, minute=0, queue_id=queue_id
-    )
-    assert set(world.model_state[KEY]["journeys"]) == {"A001", "A002"}
-    slot = world.model_state[KEY]["journeys"]["A002"]["route_points"][-1]
-    world.model_state[KEY]["positions"]["A001"]["point"] = dict(slot)
-    world.minute_index = 1
-    return world, dict(slot)
-
-
-@pytest.mark.python_rules
-def test_a_slot_replanned_in_a_tick_depends_on_whether_the_one_ahead_has_walked(
-    generated_scenario_with_split_queues: Any, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The second dependence on order: _queue_slot_position reads the positions of those ahead.
-
-    The one ahead walks off the slot in the walk. In order the follower then takes that slot, and
-    in reverse it takes the next one, so this is another destination and not only another number.
-    The state is made by hand: the follower's first route was planned before the head stood there.
-    """
-    python_clear = movement._room_path_is_clear
-
-    def clear(world: WorldState, agent_id: str, *rest: Any) -> bool:
-        return agent_id != "A002" and python_clear(world, agent_id, *rest)
-
-    monkeypatch.setattr(movement, "_room_path_is_clear", clear)
-    # The patch reaches the Python rule only: the kernel leaves such a tick to it.
-    monkeypatch.setattr(update, "advance_movement", movement.advance_movement.__wrapped__)
-    forward, slot = _two_trips_in_one_queue(generated_scenario_with_split_queues)
-    assert update.advance_movement(forward, 1) == ()
-    backward, _ = _two_trips_in_one_queue(generated_scenario_with_split_queues)
-    undo = _reverse()
-    try:
-        assert update.advance_movement(backward, 1) == ()
-    finally:
-        undo()
-    ahead = forward.model_state[KEY]["positions"]["A001"]
-    assert ahead == backward.model_state[KEY]["positions"]["A001"]
-    assert ahead["point"] != slot
-    assert forward.model_state[KEY]["journeys"]["A002"]["route_points"][-1] == slot
-    assert backward.model_state[KEY]["journeys"]["A002"]["route_points"][-1] != slot
