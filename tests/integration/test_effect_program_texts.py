@@ -2,17 +2,19 @@
 
 The environment, temporary-space, geometry and structure handlers of events/effects.py
 (native/src/rules/effects.rs). These texts are saved: the dispatcher writes them to the event's
-record as `detail`. Each case checks that the kernel raises the outcome itself (not a refusal the
-Python rule then words), that nothing changed, and that the Python rule on a copy raises the same
-class with the same text (support/world.py `kernel_says_python_s_text`). The environment and
-geometry handlers have no Python rule left (`kernel_only`): their cases check the class and text
-that rule gave, written down from it. A handoff needs a staff operation under way, so its world is
-run with TickEngine to that point (docs/rust-port/lanes/l8-texts-events.md).
+record as `detail`. Each case checks that the kernel raises the outcome itself, that nothing
+changed, and the class and text the deleted Python rule gave, written down from it
+(support/world.py `kernel_says_python_s_text`); a contract's text is the contract's own, as the
+rule wrapped it. A handoff needs a staff operation under way, so its world is run with TickEngine
+to that point (docs/rust-port/lanes/l8-texts-events.md).
 """
 
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
+import sys
 from typing import Any
 
 import pytest
@@ -130,18 +132,21 @@ def _marker(event: ScheduledEvent, **fields: Any) -> dict[str, Any]:
     return provenance
 
 
-def _says(
-    handler: Any, world: WorldState, event: Any, outcome: str, text: str, *, prefix: bool = False
-) -> None:
-    """The handler's outcome is `outcome` with `text` (or a text starting with it), the kernel's."""
+def _says(handler: Any, world: WorldState, event: Any, outcome: str, text: str) -> None:
+    """The handler's outcome is `outcome` with `text`, the kernel's."""
     classes = {FAILED: EventApplicationError, SUPPRESSED: EventSuppressed}
-    expected = None if prefix else (classes[outcome], text)
-    said = kernel_says_python_s_text(handler, world, event, expected)
-    assert said[0] == outcome, said
-    if prefix:
-        assert said[1].startswith(text) and len(said[1]) > len(text), said
-    else:
-        assert said[1] == text, said
+    said = kernel_says_python_s_text(handler, world, event, (classes[outcome], text))
+    assert said == (outcome, text), said
+
+
+def _says_the_contract_s(
+    handler: Any, world: WorldState, event: Any, head: str, op: str, raw: Any
+) -> None:
+    """The failure is `head` and the text of the contract's error for `raw`, as the rule wrote it
+    (`f"{head}{exc}"` of the TypeError or ValueError of `model_validate`)."""
+    with pytest.raises((TypeError, ValueError)) as contract:
+        _PARAMETER_MODELS[op].model_validate(raw)
+    _says(handler, world, event, FAILED, f"{head}{contract.value}")
 
 
 def _a_zone(world: WorldState) -> str:
@@ -324,13 +329,14 @@ def test_a_temporary_space_event_s_texts_are_python_s(world: WorldState) -> None
         (apply, _changed(start, {"end_minute": None}), FAILED, interval),
     ):
         _says(handler, world, event, outcome, text)
-    _says(
+    invalid = _changed(start, {"parameters": {"people_capacity": 0}})
+    _says_the_contract_s(
         apply,
         world,
-        _changed(start, {"parameters": {"people_capacity": 0}}),
-        FAILED,
+        invalid,
         "temporary-space parameters are invalid: ",
-        prefix=True,
+        "add_temporary_space",
+        invalid.payload["parameters"],
     )
 
     apply.apply(world, start)
@@ -451,14 +457,11 @@ def test_a_toilet_without_a_free_point_is_python_s_text(world: WorldState) -> No
     )
     event = _event(world, "effect_program_structure", "add_toilet")
     many = _changed(event, {"count": 200 - len(world.facilities)})
-    _says(
-        EffectProgramStructureHandler(),
-        world,
-        many,
-        FAILED,
-        "no free floor-plan point for installed facility ",
-        prefix=True,
-    )
+    # The first toilet the floor plan has no free point for, as the Python rule named it.
+    suffix = event.payload["modifier_id"].removeprefix("modifier-")
+    assert suffix == "1a1febf9fee93453e26e19f2ed94ab22"
+    text = f"no free floor-plan point for installed facility 'effect-toilet-{suffix}-16'"
+    _says(EffectProgramStructureHandler(), world, many, FAILED, text)
 
 
 def test_a_role_change_s_texts_are_python_s(world: WorldState) -> None:
@@ -479,13 +482,14 @@ def test_a_role_change_s_texts_are_python_s(world: WorldState) -> None:
         {"staff_id": 1},
     ):
         _says(handler, world, _changed(event, change), FAILED, target)
-    _says(
+    twice = _changed(event, {"skills": ["same", "same"]})
+    _says_the_contract_s(
         handler,
         world,
-        _changed(event, {"skills": ["same", "same"]}),
-        FAILED,
+        twice,
         "staff-role event skills are invalid: ",
-        prefix=True,
+        "set_staff_role",
+        {"skills": twice.payload["skills"]},
     )
 
 
@@ -524,13 +528,14 @@ def test_a_repair_s_texts_are_python_s(world: WorldState) -> None:
         provenance = _marker(event, **marker)
         _says(handler, world, _changed(event, provenance=provenance), FAILED, approved)
     _says(handler, world, _changed(event, event_id="another-event"), FAILED, approved)
-    _says(
+    partial = _changed(event, {"parameters": {"facility_id": facility}})
+    _says_the_contract_s(
         handler,
         world,
-        _changed(event, {"parameters": {"facility_id": facility}}),
-        FAILED,
+        partial,
         "facility repair parameters are invalid: ",
-        prefix=True,
+        "facility_repair",
+        partial.payload["parameters"],
     )
     other = sorted(set(world.facilities) - {facility})[0]
     _says(
@@ -687,12 +692,41 @@ def test_a_handoff_s_texts_are_python_s(
         return WorldState.from_dict(base.to_dict())
 
     # The handoff itself is the Python rule's, receipt and all.
-    python_world, kernel_world = fresh(), fresh()
-    expected = type(handler).apply.__wrapped__(handler, python_world, event)
+    kernel_world = fresh()
+    task_id = parameters["task_id"]
     made = native.rules("effects").structure(handler, kernel_world, event)
-    assert [item.to_dict() for item in made] == [item.to_dict() for item in expected]
-    assert kernel_world.to_dict() == python_world.to_dict()
-    assert kernel_world.staff[replacement].active_task_id is not None
+    receipt = made[0].to_dict()
+    assert len(made) == 1
+    assert (receipt["status"], receipt["detail"]) == (
+        "applied",
+        "staff task assignment updated before handoff receipt",
+    )
+    assert {
+        name: receipt["event"]["payload"][name]
+        for name in ("task_id", "previous_staff_id", "replacement_staff_id", "status")
+    } == {
+        "task_id": task_id,
+        "previous_staff_id": worker,
+        "replacement_staff_id": replacement,
+        "status": "reassigned",
+    }
+    assert kernel_world.staff[replacement].active_task_id == task_id
+    assert kernel_world.staff[worker].active_task_id is None
+    assert kernel_world.active_tasks[task_id].staff_id == replacement
+    operations = kernel_world.model_state["staff_operations_v1"]["staff"]
+    assert (operations[worker]["phase"], operations[replacement]["phase"]) == ("idle", "working")
+    # The whole world and the receipt as the Python rule left them, recorded once from it
+    # (2d8fb46). Floats of the platform's libm, recorded on Linux; lane L13 pins other OSes.
+    if sys.platform == "linux":
+        documents = (
+            json.dumps(kernel_world.to_dict(), ensure_ascii=False)
+            + "\n"
+            + json.dumps([item.to_dict() for item in made], ensure_ascii=False)
+        )
+        assert (
+            hashlib.sha256(documents.encode()).hexdigest()
+            == "b2c8d110332d533d9bdfed71f81b3b614ddcf4427b52e91e989a5f7b10a14d41"
+        )
 
     approved = "staff handoff does not reference an approved program"
     for change in (
@@ -703,13 +737,14 @@ def test_a_handoff_s_texts_are_python_s(
     ):
         _says(handler, fresh(), _changed(event, change), FAILED, approved)
     _says(handler, fresh(), _changed(event, provenance={}), FAILED, approved)
-    _says(
+    partial = _changed(event, {"parameters": {"staff_id": worker}})
+    _says_the_contract_s(
         handler,
         fresh(),
-        _changed(event, {"parameters": {"staff_id": worker}}),
-        FAILED,
+        partial,
         "staff handoff parameters are invalid: ",
-        prefix=True,
+        "staff_handoff",
+        partial.payload["parameters"],
     )
     participants = "staff handoff participants or task are invalid"
     for change in (

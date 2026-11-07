@@ -72,12 +72,6 @@ PORTED_NAMES = frozenset(
         "plan_in_room_route",
         "facility_approach_route",
         "_queue_slot_position",
-        "_set_stationary_position",
-        "_room_path_is_clear",
-        "_route_point",
-        "_point_along_polyline",
-        "_reserved_bed_point",
-        "_facility_move_invalidated_journey",
         "_zone_center",
         # domain/staff.py, domain/staff_operations.py, experiments/metrics.py: rules/staff.rs.
         # The mark runs `_support_wait_snapshot`'s Python rule; the others have kernels of
@@ -157,7 +151,6 @@ PORTED_NAMES = frozenset(
         "support_kind_for_agent",
         "complete_support_task",
         "_finish_stopped_journey",
-        "_schedule_room_approach",
         "_reject_room_approach",
         # events/handlers.py, domain/care_receipts.py, domain/staff_operations.py: through
         # `kernel_first`, rules/handlers.rs, information_events.rs, staff_operation_events.rs.

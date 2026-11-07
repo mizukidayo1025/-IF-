@@ -1246,20 +1246,6 @@ fn record_request_outcome<'py>(
     append_outcome(py, &mirror, record)
 }
 
-/// `ResourceServiceManager.request`, without the world's whole validation. A request the queue turns
-/// down is Unsupported, with nothing written.
-pub(crate) fn queue_up<'py>(
-    manager: &Bound<'py, PyAny>,
-    agent_id: &Bound<'py, PyAny>,
-    facility_id: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyAny>> {
-    let py = manager.py();
-    match request_with(manager, agent_id, facility_id, None, Some(PyBool::new(py, false).as_any()), None, false)? {
-        Ok(receipt) => Ok(receipt),
-        Err(_) => unsupported("the queue turns the request down"),
-    }
-}
-
 /// `ResourceServiceManager.request`, without the world's whole validation: the receipt, or the text
 /// of the `ValueError` the Python rule raises when the queue turns the request down, having written
 /// what it writes before that (the task counter, when no independent queue takes the person).

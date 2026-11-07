@@ -1,20 +1,23 @@
-"""The rules of events/effects.py in Rust give what the Python rules give, and refuse the rest.
+"""The rules of events/effects.py in Rust give what the deleted Python rules gave.
 
 native/src/rules/effects.rs (docs/rust-port/lanes/m6-effects.md). An effect's events are rare, and
-7 simulated days have none, so this file and the gate are all that compares them. Each handler runs
-on two copies of one world, and the whole documents must be the same text of JSON. Anything but a
-success must leave the world as it was: an expected outcome is the Python rule's class and text,
-raised by the kernel (more cases in test_effect_program_texts.py), and a value the kernel is unsure
-of says Unsupported, so the Python rule decides. The environment and geometry handlers, the guard
-and the modifier checks have no Python rule left (`kernel_only`): their cases compare with what that
-rule gave, written down from it, and the guard's with `_guard_answer` below, the rule restated.
+7 simulated days have none, so this file and the gate are all that checks them. The handlers, the
+guard and the modifier checks have no Python rule left (`kernel_only`). A handler's success is
+compared with the digest of the whole world and its receipts that the Python rule gave, recorded
+once from it (2d8fb46), next to what the case checks by name; an outcome with the class and text it
+raised, written down from it (more cases in test_effect_program_texts.py); the guard with
+`_guard_answer` below, the rule restated. Anything but a success leaves the world as it was, and a
+value outside the contract is refused (KernelRefusal). `validate_effect_program_state` keeps its
+Python rule, the full check of a loaded state (decision D3), and is still compared with it.
 """
 
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import random
+import sys
 from collections.abc import Mapping
 from typing import Any
 
@@ -120,25 +123,36 @@ def _text(world: WorldState) -> str:
     return json.dumps(world.to_dict(), ensure_ascii=False)
 
 
-def _same_in_both(
-    kernel: Any, handler: Any, world: WorldState, event: ScheduledEvent
+def _digest(world: WorldState, result: Any) -> str:
+    """The whole world's JSON and the receipts' documents, as one SHA-256."""
+    receipts = json.dumps([item.to_dict() for item in result or ()], ensure_ascii=False)
+    return hashlib.sha256((_text(world) + "\n" + receipts).encode()).hexdigest()
+
+
+def _as_recorded(
+    kernel: Any, handler: Any, world: WorldState, event: ScheduledEvent, digest: str
 ) -> WorldState:
-    """The kernel's result on a copy, after the Python rule's on another gave the same."""
-    python_world = _copy(world)
+    """The kernel's result on a copy, whose rows still read as its tree.
+
+    The world and the receipts must be the deleted Python rule's: `digest` was recorded once from
+    that rule on the same world (2d8fb46). The documents hold floats of the platform's libm,
+    recorded on Linux; lane L13 pins them on every OS, and until then the case's own checks are
+    what macOS and Windows run.
+    """
     kernel_world = _copy(world)
-    expected = type(handler).apply.__wrapped__(handler, python_world, event)
     result = kernel(handler, kernel_world, event)
-    assert [item.to_dict() for item in result or ()] == [item.to_dict() for item in expected or ()]
-    assert _text(kernel_world) == _text(python_world)
     if KEY in kernel_world.model_state:
         assert kernel_world.model_state._mirrors[KEY].verify()
+    if sys.platform == "linux":
+        assert _digest(kernel_world, result) == digest
     return kernel_world
 
 
-def _refused(kernel: Any, handler: Any, world: WorldState, event: ScheduledEvent) -> None:
+def _refused(handler: Any, world: WorldState, event: ScheduledEvent) -> None:
+    """A value outside the contract: KernelRefusal, with nothing changed."""
     before = _text(world)
-    with pytest.raises(native.Unsupported):
-        kernel(handler, world, event)
+    with pytest.raises(KernelRefusal):
+        handler.apply(world, event)
     assert _text(world) == before
 
 
@@ -147,29 +161,17 @@ def _python_s_outcome(
     handler: Any,
     world: WorldState,
     event: ScheduledEvent,
-    expected: tuple[type, str] | None = None,
+    expected: tuple[type, str],
 ) -> str:
-    """The kernel raises the Python rule's outcome itself, same class and text, changing nothing.
+    """The kernel raises the deleted Python rule's outcome itself, changing nothing.
 
-    A handler with no Python rule left (`kernel_only`) is compared with `expected`, that rule's
-    outcome written down from it; given, it is checked in either case.
+    `expected` is that rule's class and text, written down from it.
     """
     before = _text(world)
-    python_world = _copy(world)
     with pytest.raises((EventSuppressed, EventApplicationError)) as made:
         kernel(handler, world, event)
     assert _text(world) == before
-    outcome = (type(made.value), str(made.value))
-    if expected is not None:
-        assert outcome == expected
-    try:
-        type(handler).apply.__wrapped__(handler, python_world, event)
-    except KernelRefusal:
-        assert expected is not None, "a handler with no Python rule needs its outcome"
-    except (EventSuppressed, EventApplicationError) as said:
-        assert outcome == (type(said), str(said))
-    else:
-        pytest.fail("the Python rule raised nothing")
+    assert (type(made.value), str(made.value)) == expected
     return str(made.value)
 
 
@@ -233,17 +235,62 @@ def test_a_facility_modifier_starts_stacks_and_expires(world: WorldState, rules:
     starts = [e for e in world.event_queue.pending() if e.event_type == "effect_program_apply"]
     expiries = [e for e in world.event_queue.pending() if e.event_type == "effect_program_expire"]
     apply, expire = EffectProgramFacilityHandler(), EffectProgramFacilityHandler(expire=True)
+    baseline = world.facilities[facility].working_units
     # Expiring what did not start is suppressed, with the Python rule's text.
-    _python_s_outcome(rules.facility, expire, world, expiries[0])
-    state = _same_in_both(rules.facility, apply, world, starts[0])
-    state = _same_in_both(rules.facility, apply, state, starts[1])
+    not_active = (EventSuppressed, "facility availability modifier is not active")
+    _python_s_outcome(rules.facility, expire, world, expiries[0], not_active)
+    state = _as_recorded(
+        rules.facility,
+        apply,
+        world,
+        starts[0],
+        "7eafd5f13bd83a551a877ee177decea242fa9dabe55a6bbf0a7a8495fafaa3d5",
+    )
+    # The first modifier captures the baseline; the facility works the lowest of the stack.
+    assert state.model_state[KEY]["active_facility_modifiers"][facility] == {
+        "baseline_working_units": baseline,
+        "modifiers": [
+            {
+                "modifier_id": starts[0].payload["modifier_id"],
+                "program_id": "program-1",
+                "effect_id": "first",
+                "working_units": 0,
+                "start_minute": START,
+                "sequence": starts[0].sequence,
+            }
+        ],
+    }
+    assert state.facilities[facility].working_units == 0
+    state = _as_recorded(
+        rules.facility,
+        apply,
+        state,
+        starts[1],
+        "f28c32edc5754809c824fc1ff6eb439e0626ef94a91a5d873bd96d305836dab0",
+    )
     # A modifier already active is suppressed, with the Python rule's text.
-    _python_s_outcome(rules.facility, apply, state, starts[1])
+    already = (EventSuppressed, "facility availability modifier is already active")
+    _python_s_outcome(rules.facility, apply, state, starts[1], already)
     assert len(state.model_state[KEY]["active_facility_modifiers"][facility]["modifiers"]) == 2
     assert has_active_facility_modifier(state, facility)
-    state = _same_in_both(rules.facility, expire, state, expiries[0])
+    state = _as_recorded(
+        rules.facility,
+        expire,
+        state,
+        expiries[0],
+        "fc8c8d9822a1bc6bbb4e28e5fd5cb38e23e472e521f10fe8b26fb540dac64805",
+    )
     assert len(state.model_state[KEY]["active_facility_modifiers"][facility]["modifiers"]) == 1
-    state = _same_in_both(rules.facility, expire, state, expiries[1])
+    assert state.facilities[facility].working_units == 0
+    state = _as_recorded(
+        rules.facility,
+        expire,
+        state,
+        expiries[1],
+        "733a34c00d68bd5539452e3ca4314d4f7ccdcb60a2fbcdee554e48b5168828db",
+    )
+    # The last expiry takes the stack away and gives back the baseline.
+    assert state.facilities[facility].working_units == baseline
     assert facility not in state.model_state[KEY]["active_facility_modifiers"]
     assert not has_active_facility_modifier(state, facility)
 
@@ -272,10 +319,10 @@ def test_a_facility_modifier_starts_stacks_and_expires(world: WorldState, rules:
         ("unknown_field", 1, "effect program apply payload fields do not match"),
     ],
 )
-def test_a_facility_event_that_fails_says_python_s_text_or_goes_to_python(
+def test_a_facility_event_that_fails_says_python_s_text_or_is_refused(
     world: WorldState, rules: Any, change: str, value: Any, text: str | None
 ) -> None:
-    """A value the rule turns down is its text; one the kernel is unsure of is the Python rule's."""
+    """A value the rule turns down is its text; an ID that is not a str is outside the contract."""
     facility = _a_facility(world)
     schedule_effect_program(
         world,
@@ -286,12 +333,10 @@ def test_a_facility_event_that_fails_says_python_s_text_or_goes_to_python(
     document["payload"][change] = value
     changed = ScheduledEvent(**document)
     if text is None:
-        _refused(rules.facility, EffectProgramFacilityHandler(), world, changed)
+        _refused(EffectProgramFacilityHandler(), world, changed)
     else:
-        assert (
-            _python_s_outcome(rules.facility, EffectProgramFacilityHandler(), world, changed)
-            == text
-        )
+        handler = EffectProgramFacilityHandler()
+        _python_s_outcome(rules.facility, handler, world, changed, (EventApplicationError, text))
 
 
 ZONE_OPERATORS = {
@@ -380,11 +425,52 @@ def test_a_temporary_space_starts_and_expires(world: WorldState, rules: Any) -> 
     expiry = _event(world, "effect_program_temporary_space_expire")
     apply = EffectProgramTemporarySpaceHandler()
     expire = EffectProgramTemporarySpaceHandler(expire=True)
-    _python_s_outcome(rules.temporary_space, expire, world, expiry)
-    state = _same_in_both(rules.temporary_space, apply, world, start)
+    not_started = (
+        EventSuppressed,
+        "temporary-space effect did not start or does not match its expiry",
+    )
+    _python_s_outcome(rules.temporary_space, expire, world, expiry, not_started)
+    state = _as_recorded(
+        rules.temporary_space,
+        apply,
+        world,
+        start,
+        "00662fd40043afad03f6710cba6ceb0b6db71ddbdf7531e9000583a88b272d09",
+    )
+    space = state.model_state["temporary_spaces_v1"]["spaces"][start.payload["modifier_id"]]
+    assert {
+        name: space[name]
+        for name in (
+            "zone_id",
+            "people_capacity",
+            "sleeping_capacity",
+            "start_minute",
+            "end_minute",
+            "active",
+            "start_event_id",
+            "end_event_id",
+            "geometry_status",
+        )
+    } == {
+        "zone_id": _a_zone(world),
+        "people_capacity": 5,
+        "sleeping_capacity": 2,
+        "start_minute": START,
+        "end_minute": END,
+        "active": True,
+        "start_event_id": start.event_id,
+        "end_event_id": None,
+        "geometry_status": "zone_only_capacity",
+    }
     document = expiry.to_dict()
     document["causation_id"] = start.event_id
-    state = _same_in_both(rules.temporary_space, expire, state, ScheduledEvent(**document))
+    state = _as_recorded(
+        rules.temporary_space,
+        expire,
+        state,
+        ScheduledEvent(**document),
+        "a113537dbdfe64c6339452a27cbdcac5219d9b0459d5e4fefa693d1ce9c237b5",
+    )
     space = next(iter(state.model_state["temporary_spaces_v1"]["spaces"].values()))
     assert space["active"] is False
 
@@ -400,25 +486,45 @@ def _structure_event(world: WorldState, op: str) -> ScheduledEvent:
 
 
 @pytest.mark.parametrize(
-    ("op", "kind", "parameters"),
+    ("op", "kind", "parameters", "digest"),
     [
-        ("add_staff", "staff_member", {"count": 2}),
-        ("add_toilet", "toilet_stall", {"count": 2}),
+        (
+            "add_staff",
+            "staff_member",
+            {"count": 2},
+            "b36fac765c95084722f19f5adbb5ac7ae63512ee36634d5f396a75861d01f3dc",
+        ),
+        (
+            "add_toilet",
+            "toilet_stall",
+            {"count": 2},
+            "47fc03365bbcc2a9ede3d04d93d6f286c0161bafdf7a8e6655b6b6608aac222a",
+        ),
     ],
 )
-def test_a_new_member_or_toilet_is_the_same(
-    world: WorldState, rules: Any, op: str, kind: str, parameters: dict[str, Any]
+def test_a_new_member_or_toilet_is_the_python_rule_s(
+    world: WorldState, rules: Any, op: str, kind: str, parameters: dict[str, Any], digest: str
 ) -> None:
-    schedule_effect_program(
-        world, _program(_action(op, "zone", _a_zone(world), parameters, end=None))
-    )
-    state = _same_in_both(
-        rules.structure, EffectProgramStructureHandler(), world, _structure_event(world, op)
-    )
+    zone = _a_zone(world)
+    schedule_effect_program(world, _program(_action(op, "zone", zone, parameters, end=None)))
+    event = _structure_event(world, op)
+    state = _as_recorded(rules.structure, EffectProgramStructureHandler(), world, event, digest)
+    suffix = event.payload["modifier_id"].removeprefix("modifier-")
     if op == "add_staff":
-        assert len(state.staff) == len(world.staff) + 2
+        added = {f"effect-staff-{suffix}-{index}" for index in (1, 2)}
+        assert set(state.staff) == set(world.staff) | added
+        for staff_id in added:
+            assert (state.staff[staff_id].zone_id, state.staff[staff_id].skills) == (
+                zone,
+                ("support",),
+            )
     else:
-        assert len(state.facilities) == len(world.facilities) + 2
+        added = {f"effect-toilet-{suffix}-{index}" for index in (1, 2)}
+        assert set(state.facilities) == set(world.facilities) | added
+        for facility_id in added:
+            facility = state.facilities[facility_id]
+            assert (facility.kind, facility.zone_id, facility.capacity) == ("toilet", zone, 1)
+            assert facility.working_units == 1
 
 
 def test_past_the_bound_of_members_is_the_rule_s_text(world: WorldState, rules: Any) -> None:
@@ -428,14 +534,28 @@ def test_past_the_bound_of_members_is_the_rule_s_text(world: WorldState, rules: 
     document = _structure_event(world, "add_staff").to_dict()
     document["payload"]["count"] = 1000
     event = ScheduledEvent(**document)
-    assert (
-        _python_s_outcome(rules.structure, EffectProgramStructureHandler(), world, event)
-        == "adding staff would exceed the 100-staff runtime bound"
-    )
+    bound = (EventApplicationError, "adding staff would exceed the 100-staff runtime bound")
+    _python_s_outcome(rules.structure, EffectProgramStructureHandler(), world, event, bound)
 
 
 @pytest.mark.parametrize(
-    ("op", "field", "bound"), [("add_staff", "staff", 100), ("add_toilet", "facilities", 200)]
+    ("op", "field", "bound", "text", "digest"),
+    [
+        (
+            "add_staff",
+            "staff",
+            100,
+            "adding staff would exceed the 100-staff runtime bound",
+            "73dfcd9ed2b1ba64adb633f9b4570a29cdfbf430c20de2192ca1c5868dd038f4",
+        ),
+        (
+            "add_toilet",
+            "facilities",
+            200,
+            "adding toilets would exceed the 200-facility bound",
+            "3f29f03a3ff75d789b45c8965349607c8577d1dbd77f993e106062ab208063ff",
+        ),
+    ],
 )
 def test_the_bound_of_an_addition_is_the_python_rule_s(
     world: WorldState,
@@ -443,7 +563,8 @@ def test_the_bound_of_an_addition_is_the_python_rule_s(
     op: str,
     field: str,
     bound: int,
-    monkeypatch: pytest.MonkeyPatch,
+    text: str,
+    digest: str,
 ) -> None:
     schedule_effect_program(
         world, _program(_action(op, "zone", _a_zone(world), {"count": 1}, end=None))
@@ -454,11 +575,11 @@ def test_the_bound_of_an_addition_is_the_python_rule_s(
     room = bound - len(getattr(world, field))
     handler = EffectProgramStructureHandler()
     document["payload"]["count"] = room
-    _same_in_both(rules.structure, handler, world, ScheduledEvent(**document))
+    state = _as_recorded(rules.structure, handler, world, ScheduledEvent(**document), digest)
+    assert len(getattr(state, field)) == bound
     document["payload"]["count"] = room + 1
-    assert _python_s_outcome(
-        rules.structure, handler, world, ScheduledEvent(**document)
-    ).startswith("adding ")
+    changed = ScheduledEvent(**document)
+    _python_s_outcome(rules.structure, handler, world, changed, (EventApplicationError, text))
 
 
 def test_a_role_change_is_the_same_and_its_contract_stays_python_s(
@@ -473,12 +594,23 @@ def test_a_role_change_is_the_same_and_its_contract_stays_python_s(
     )
     event = _structure_event(world, "set_staff_role")
     handler = EffectProgramStructureHandler()
-    state = _same_in_both(rules.structure, handler, world, event)
+    state = _as_recorded(
+        rules.structure,
+        handler,
+        world,
+        event,
+        "605a5afbb9340c967b8db3612564f51c5ded739a8598416d0477c93a9f19c77b",
+    )
     assert state.staff[staff_id].skills == ("alpha", "zeta")
     document = event.to_dict()
     document["payload"]["skills"] = ["same", "same"]
-    text = _python_s_outcome(rules.structure, handler, world, ScheduledEvent(**document))
-    assert text.startswith("staff-role event skills are invalid: ")
+    changed = ScheduledEvent(**document)
+    # The contract's own text, as the rule wrapped its ValueError.
+    with pytest.raises(ValueError) as contract:
+        _PARAMETER_MODELS["set_staff_role"].model_validate({"skills": changed.payload["skills"]})
+    text = f"staff-role event skills are invalid: {contract.value}"
+    _python_s_outcome(rules.structure, handler, world, changed, (EventApplicationError, text))
+    assert "staff role skills must be unique" in text
 
 
 def test_a_repair_is_the_same_and_checks_what_it_expects(world: WorldState, rules: Any) -> None:
@@ -506,13 +638,20 @@ def test_a_repair_is_the_same_and_checks_what_it_expects(world: WorldState, rule
     )
     event = _structure_event(world, "facility_repair")
     handler = EffectProgramStructureHandler()
-    state = _same_in_both(rules.structure, handler, world, event)
+    state = _as_recorded(
+        rules.structure,
+        handler,
+        world,
+        event,
+        "0d3e34f6f0c3c218a8c32418f27a30840698c152ffb6568a93cbd6686239e110",
+    )
     assert state.facilities[facility].working_units == capacity
     world.facilities[facility].working_units = capacity
-    assert (
-        _python_s_outcome(rules.structure, handler, world, event)
-        == "facility repair preconditions no longer match the live facility state"
+    stale = (
+        EventApplicationError,
+        "facility repair preconditions no longer match the live facility state",
     )
+    _python_s_outcome(rules.structure, handler, world, event, stale)
 
 
 def test_an_order_is_the_same_and_only_for_its_minute(world: WorldState, rules: Any) -> None:
@@ -533,14 +672,21 @@ def test_an_order_is_the_same_and_only_for_its_minute(world: WorldState, rules: 
     )
     event = _structure_event(world, "staff_task_order")
     handler = EffectProgramStructureHandler()
-    state = _same_in_both(rules.structure, handler, world, event)
+    state = _as_recorded(
+        rules.structure,
+        handler,
+        world,
+        event,
+        "89422db606468a30a48534938041c3e721afb9b7941eba1d7ccbc2fbe427aa48",
+    )
     assert state.staff[staff_id].active_task_id is not None
     document = event.to_dict()
     document["due_minute"] = world.minute_index + 1
-    assert (
-        _python_s_outcome(rules.structure, handler, world, ScheduledEvent(**document))
-        == "staff task order does not reference a current approved program"
+    stale = (
+        EventApplicationError,
+        "staff task order does not reference a current approved program",
     )
+    _python_s_outcome(rules.structure, handler, world, ScheduledEvent(**document), stale)
 
 
 def test_a_handoff_without_its_program_is_the_rule_s_text(world: WorldState, rules: Any) -> None:
@@ -567,10 +713,8 @@ def test_a_handoff_without_its_program_is_the_rule_s_text(world: WorldState, rul
         provenance={KEY: {"program_id": "program-1", "effect_id": "effect-1"}},
     )
     handler = EffectProgramStructureHandler()
-    assert (
-        _python_s_outcome(rules.structure, handler, world, event)
-        == "staff handoff does not reference an approved program"
-    )
+    text = "staff handoff does not reference an approved program"
+    _python_s_outcome(rules.structure, handler, world, event, (EventApplicationError, text))
 
 
 def test_a_structure_event_with_other_fields_is_the_rule_s_text(
@@ -581,11 +725,13 @@ def test_a_structure_event_with_other_fields_is_the_rule_s_text(
     )
     document = _structure_event(world, "add_staff").to_dict()
     document["payload"]["other"] = 1
-    assert (
-        _python_s_outcome(
-            rules.structure, EffectProgramStructureHandler(), world, ScheduledEvent(**document)
-        )
-        == "structural primitive payload fields do not match"
+    text = "structural primitive payload fields do not match"
+    _python_s_outcome(
+        rules.structure,
+        EffectProgramStructureHandler(),
+        world,
+        ScheduledEvent(**document),
+        (EventApplicationError, text),
     )
 
 

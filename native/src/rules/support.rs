@@ -419,21 +419,23 @@ pub(crate) fn complete_support_event<'py>(
             } else {
             let mut outcome = ("not_measured", V::List(Vec::new()));
             let mut source_ids = vec![NAMES.source.clone()];
-            if emotional || hygiene {
-                let names = &*CHANGE_NAMES;
-                if namespace_is_absent(world, intern!(py, BODY))? {
-                    return unsupported("the body state is for the Python rule");
-                }
+            // Without the body state, or without the person's record in it, nothing is measured and
+            // nothing changes: the rule reads and writes the body only when it is a dict.
+            let found = if (emotional || hygiene) && !namespace_is_absent(world, intern!(py, BODY))? {
                 let mirror = mirror_of(world, BODY)?;
-                let found = NamespaceMirror::with_row::<BodyRow, _>(&mirror, |row| {
+                NamespaceMirror::with_row::<BodyRow, _>(&mirror, |row| {
                     let Some(record) = row.agents.get(&*agent_id).copied() else {
-                        return unsupported("the person has no body record");
+                        return Ok(None);
                     };
                     let name = if emotional { "complaint_reassurance_gain" } else { "hygiene_support_relief" };
                     let by_agent = if emotional { "complaint_reassurance_gain_by_agent" } else { "hygiene_support_relief_by_agent" };
-                    Ok((record, config_float(&row.config, by_agent, name, &agent_id)?))
-                })?;
-                let (record, relief) = found;
+                    Ok(Some((record, config_float(&row.config, by_agent, name, &agent_id)?)))
+                })?
+            } else {
+                None
+            };
+            if let Some((record, relief)) = found {
+                let names = &*CHANGE_NAMES;
                 let mut next = record;
                 let mut changes = Vec::with_capacity(5);
                 let mut changed = false;

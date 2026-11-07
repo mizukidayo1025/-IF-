@@ -15,9 +15,9 @@ shadow_effects.py with this one, whose Python rule comes here (docs/rust-port/la
 SHELTERSIM_DISPATCH_COUNT_ONLY=1 only writes `overlay.stats()`, for a plain run.
 
 The rules of domain/temporary_spaces.py, those of domain/facility_queues.py but
-`queue_head_agent_ids`, `prepare_independent_facility_queue`, and those of
-domain/geometry_overlay.py but `reserve_sleep_bed` and the check of the state have no Python rule
-left to compare (`kernel_only`).
+`queue_head_agent_ids`, `prepare_independent_facility_queue`, those of domain/geometry_overlay.py
+but the check of the state, and the toilet's independent FIFO have no Python rule left to compare
+(`kernel_only`).
 """
 
 from __future__ import annotations
@@ -34,16 +34,12 @@ OVERLAY_MODULE = "sheltersim.domain.geometry_overlay"
 SPACES_MODULE = "sheltersim.domain.temporary_spaces"
 QUEUES_MODULE = "sheltersim.domain.facility_queues"
 SERVICE_MODULE = "sheltersim.domain.resource_service"
-TOILET_MODULE = "sheltersim.domain.facilities"
 QUEUES_KEY = "facility_queues_v1"
 OVERLAY_KEY = "geometry_overlay_v1"
 
 # (kernel, module of the rule, rule)
 READERS = {
     "facility_queues": (("queue_head_agent_ids", QUEUES_MODULE, "queue_head_agent_ids"),),
-}
-WRITERS = {
-    "overlay": (("reserve_sleep_bed", OVERLAY_MODULE, "reserve_sleep_bed"),),
 }
 # (rules module, kernel, module of the manager, its class, its method)
 SERVICE_WRITERS = (
@@ -60,13 +56,6 @@ SERVICE_WRITERS = (
         SERVICE_MODULE,
         "ResourceServiceManager",
         "_record_independent_queue_stall",
-    ),
-    (
-        "toilet",
-        "serve_independent_head",
-        TOILET_MODULE,
-        "ToiletServiceManager",
-        "_serve_independent_head",
     ),
 )
 VALIDATORS = (
@@ -196,40 +185,6 @@ def prepare(output: str) -> None:
             recorder.seen[f"{label}.values_compared"] += values_in(python_after)
         _verify(recorder, kernel_world, where)
 
-    def writer(label: str, kernel: Any, module: str, name: str) -> Any:
-        def run(world: Any, *arguments: Any, **options: Any) -> Any:
-            if inside[0] or _on_copy(world):
-                raise unsupported("a shadow's Python rule")
-            recorder.seen[f"{label}.calls"] += 1
-            overlay = world.model_state.get(OVERLAY_KEY)
-            # Without a room there is no bed to reserve, and no copy to pay for.
-            trivial = label == "reserve_sleep_bed" and not (
-                isinstance(overlay, dict) and overlay.get("temporary_rooms")
-            )
-            if not trivial:
-                try:
-                    on_copies(
-                        label,
-                        kernel,
-                        _unwrapped(_rule(module, name)),
-                        world,
-                        lambda copy: copy,
-                        arguments,
-                        options,
-                    )
-                except unsupported as reason:
-                    recorder.reasons[f"{label}: {reason}"] += 1
-                    raise
-            try:
-                result = kernel(world, *arguments, **options)
-            except unsupported as reason:
-                recorder.reasons[f"{label}: {reason}"] += 1
-                raise
-            recorder.seen[f"{label}.kernel_ran"] += 1
-            return result
-
-        return run
-
     def service_writer(label: str, kernel: Any, module: str, class_name: str, method: str) -> Any:
         def run(manager: Any, *arguments: Any, **options: Any) -> Any:
             if inside[0] or _on_copy(manager):
@@ -289,14 +244,6 @@ def prepare(output: str) -> None:
                 rules,
                 kernel_name,
                 reader(kernel_name, getattr(rules, kernel_name), rule_module, rule_name),
-            )
-    for module, entries in WRITERS.items():
-        rules = native.rules(module)
-        for kernel_name, rule_module, rule_name in entries:
-            setattr(
-                rules,
-                kernel_name,
-                writer(kernel_name, getattr(rules, kernel_name), rule_module, rule_name),
             )
     for rules_module, kernel_name, module, class_name, method in SERVICE_WRITERS:
         rules = native.rules(rules_module)

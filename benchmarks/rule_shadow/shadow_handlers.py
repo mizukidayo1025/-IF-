@@ -1,7 +1,6 @@
 """Compare the kernels of the handlers' rules with their Python rules at each call.
 
-rules/care_receipts.rs, rules/toilet.rs, rules/support.rs and `after_arrival` of
-rules/travel_completion.rs. The Python rule runs first on a
+rules/care_receipts.rs and the seeks of rules/proposals.rs. The Python rule runs first on a
 copy of everything it writes (shadow_service.py's, with the receipts, the requests and the body
 state too), and the kernel then runs on the world. All of it must come out the same, floats by their
 bits, with each event's repr and each record. What the kernel refuses isn't compared: the Python
@@ -21,7 +20,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from shadow_kit import Recorder, text, values_in
-from shadow_service import _Log, _ServiceTwin, compare_after, controller_stand_in, manager_stand_in
+from shadow_service import _Log, _ServiceTwin, compare_after, controller_stand_in
 
 SHARED = "shared_operations_v1"
 BODY = "body_state_v1"
@@ -231,123 +230,10 @@ def prepare(output: str) -> None:
         detail=care_detail,
     )
 
-    toilet = native.rules("toilet")
-    request_kernel = toilet.request
-
-    def toilet_stand_in(manager: Any, twin: Any) -> Any:
-        stand_in = type(manager).__new__(type(manager))
-        stand_in.__dict__.update(manager.__dict__)
-        stand_in.world = twin
-        return stand_in
-
-    def request_rule(twin: Any, manager: Any, *arguments: Any, **options: Any) -> Any:
-        return type(manager).request.__wrapped__(
-            toilet_stand_in(manager, twin), *arguments, **options
-        )
-
-    toilet.request = compared(
-        "toilet_request", request_kernel, request_rule, lambda manager, *_: manager.world, repr
-    )
-    # `toilet.complete` has no Python rule left to compare (`kernel_only`, lane L10).
-    list_kernel = toilet.facilities_to_serve
-
-    def facilities_to_serve(manager: Any) -> Any:
-        recorder.seen["toilet_facilities.calls"] += 1
-        if _is_copy((manager,)):
-            raise unsupported("a shadow's copy")
-        try:
-            result = list_kernel(manager)
-        except unsupported as reason:
-            recorder.reasons[f"toilet_facilities: {reason}"] += 1
-            raise
-        recorder.seen["toilet_facilities.kernel_ran"] += 1
-        expected = [
-            item
-            for item in type(manager)._facilities_to_serve.__wrapped__(manager)
-            if item.queue_agent_ids
-        ]
-        if result != expected:
-            recorder.differ(f"toilet_facilities: {result!r:.200} not {expected!r:.200}")
-        recorder.seen["toilet_facilities.returned"] += len(result)
-        return result
-
-    toilet.facilities_to_serve = facilities_to_serve
-    room_kernel = toilet.has_room
-
-    def has_room(manager: Any, facility_id: Any) -> Any:
-        if _is_copy((manager,)):
-            raise unsupported("a shadow's copy")
-        recorder.seen["toilet_has_room.calls"] += 1
-        try:
-            result = room_kernel(manager, facility_id)
-        except unsupported as reason:
-            recorder.reasons[f"toilet_has_room: {reason}"] += 1
-            raise
-        recorder.seen["toilet_has_room.kernel_ran"] += 1
-        if result is not type(manager)._has_room.__wrapped__(manager, facility_id):
-            recorder.differ(f"toilet_has_room {facility_id}: {result!r}")
-        return result
-
-    toilet.has_room = has_room
-
-    def start_rule(twin: Any, manager: Any, *arguments: Any) -> Any:
-        return type(manager)._start_head.__wrapped__(toilet_stand_in(manager, twin), *arguments)
-
-    def start_detail(result: Any, _arguments: Any, _options: Any) -> None:
-        recorder.seen[f"toilet_start.{'started' if result else 'run_end'}"] += 1
-
-    toilet.start_head = compared(
-        "toilet_start",
-        toilet.start_head,
-        start_rule,
-        lambda manager, *_: manager.world,
-        detail=start_detail,
-    )
-
-    # `support.timeout` has no Python rule left to compare (`kernel_only`, lane L10).
-    support = native.rules("support")
-
-    def support_rule(twin: Any, handler: Any, _world: Any, event: Any) -> Any:
-        return type(handler).apply.__wrapped__(handler, twin, event)
-
-    def records(result: Any) -> str:
-        return text(None if result is None else [record.to_dict() for record in result])
-
-    support.complete_support = compared(
-        "staff_support_complete",
-        support.complete_support,
-        support_rule,
-        lambda _handler, world, _event: world,
-        records,
-    )
-
-    # The steps of experiments/phases/dispatch.py that follow an event (`record_interrupted`,
-    # `record_started`, `schedule_return`) have no Python rule left to compare (`kernel_only`).
-
-    walks = native.rules("travel_completion")
-
-    def arrival_rule(twin: Any, handler: Any, _world: Any, event: Any, *rest: Any) -> None:
-        copy = type(handler)(
-            toilet_stand_in(handler.toilet_service, twin),
-            resource_service=(
-                None
-                if handler.resource_service is None
-                else manager_stand_in(handler.resource_service, twin)
-            ),
-            validate_request_state=handler.validate_request_state,
-        )
-        type(handler)._after_arrival.__wrapped__(copy, twin, event, *rest)
-
-    def arrival_detail(_result: Any, arguments: Any, _options: Any) -> None:
-        recorder.seen[f"after_arrival.{arguments[4]}"] += 1
-
-    walks.after_arrival = compared(
-        "after_arrival",
-        walks.after_arrival,
-        arrival_rule,
-        lambda _handler, world, *_: world,
-        detail=arrival_detail,
-    )
+    # rules/toilet.rs (the request, the facilities to serve, the room, the head's start and the
+    # completion), rules/support.rs (the end and the timeout of support) and `after_arrival` of
+    # rules/travel_completion.rs have no Python rule left to compare (`kernel_only`, lane L10), nor
+    # have the steps of experiments/phases/dispatch.py that follow an event.
 
     def seek_rule(twin: Any, controller: Any, proposal: Any) -> Any:
         stand_in = controller_stand_in(controller, twin)

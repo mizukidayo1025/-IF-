@@ -9,6 +9,7 @@ and the values that change the result (docs/rust-port/lanes/m6-handlers.md).
 from __future__ import annotations
 
 import copy
+import hashlib
 from typing import Any
 
 import pytest
@@ -17,9 +18,10 @@ from support.world import kernel_says_python_s_text
 from sheltersim import native
 from sheltersim.core.engine import TickEngine
 from sheltersim.core.rng import CounterRNG
-from sheltersim.core.world import WorldState
+from sheltersim.core.world import StateInvariantError, WorldState
 from sheltersim.domain import care_receipts
-from sheltersim.domain.facilities import ToiletServiceManager
+from sheltersim.domain.facilities import ToiletRequestReceipt, ToiletServiceManager
+from sheltersim.domain.facility_queues import facility_has_independent_queues
 from sheltersim.domain.models import ActiveTask, Activity, SupportRequestState, SupportRequestStatus
 from sheltersim.domain.staff import StaffService
 from sheltersim.events.handlers import (
@@ -109,42 +111,119 @@ def _manager_on(controller: Any, world: WorldState) -> ToiletServiceManager:
 # ---- ToiletServiceManager.request ----------------------------------------------------------------
 
 
-def test_a_toilet_request_is_python_s(generated_scenario: Any) -> None:
+def _queue_task_id(facility_id: str, agent_id: str, minute: int) -> str:
+    """The deleted rule's ID of a queue task: its SHA-256 of the three, joined by NUL."""
+    text = f"{facility_id}\0{agent_id}\0{minute}".encode()
+    return "toilet-queue-" + hashlib.sha256(text).hexdigest()[:24]
+
+
+def test_a_toilet_request_puts_the_person_last_in_the_queue(generated_scenario: Any) -> None:
     world, controller = _run(generated_scenario, 5)
     twin = copy.deepcopy(world)
     agent_id = _idle_person(world)
     facility_id = _toilet(world)
+    assert not facility_has_independent_queues(world, facility_id)
+    minute = world.minute_index
     kernel = native.rules("toilet").request
     receipt = kernel(controller.toilet_service, agent_id, facility_id, validate_state=False)
-    expected = ToiletServiceManager.request.__wrapped__(
-        _manager_on(controller, twin), agent_id, facility_id, validate_state=False
+    # The deleted rule: a queue task of the request's minute, the person last in the facility's
+    # list, queued with the facility as target; the receipt has the place.
+    task_id = _queue_task_id(facility_id, agent_id, minute)
+    place = len(twin.facilities[facility_id].queue_agent_ids) + 1
+    assert receipt == ToiletRequestReceipt(agent_id, facility_id, minute, task_id, place)
+    twin.facilities[facility_id].queue_agent_ids.append(agent_id)
+    twin.active_tasks[task_id] = ActiveTask(
+        id=task_id,
+        kind="toilet_queue",
+        agent_id=agent_id,
+        resource_id=facility_id,
+        start_minute=minute,
+        due_minute=minute,
     )
-    assert repr(receipt) == repr(expected)
+    twin.agents[agent_id].activity = Activity.QUEUED
+    twin.agents[agent_id].target_id = facility_id
     assert world.agents[agent_id].activity is Activity.QUEUED
     _same_world(world, twin)
 
 
-@pytest.mark.parametrize(
-    "spoil",
-    [
+# What the request refuses, in the rule's order and with its texts: a walk's arrival saves the
+# text as its event's detail (`_after_arrival`).
+REFUSED_REQUESTS: list[tuple[Any, str]] = [
+    (lambda world, agent_id: "nobody", "unknown Agent 'nobody'"),
+    (
         lambda world, agent_id: setattr(world.agents[agent_id], "activity", Activity.MOVING),
+        "Agent '{agent}' cannot request a toilet while active",
+    ),
+    (
         lambda world, agent_id: world.facilities[_toilet(world)].queue_agent_ids.append(agent_id),
-    ],
-)
+        "Agent '{agent}' already has an active toilet request",
+    ),
+    (
+        lambda world, agent_id: setattr(world.facilities[_toilet(world)], "kind", "water_station"),
+        "'{facility}' is not a toilet Facility",
+    ),
+]
+
+
+@pytest.mark.parametrize(("spoil", "text"), REFUSED_REQUESTS)
 def test_what_a_toilet_request_refuses_is_python_s_text(
-    generated_scenario: Any, spoil: Any
+    generated_scenario: Any, spoil: Any, text: str
 ) -> None:
     world, controller = _run(generated_scenario, 5)
     agent_id = _idle_person(world)
-    spoil(world, agent_id)
+    facility_id = _toilet(world)
+    agent_id = spoil(world, agent_id) or agent_id
+    said = text.format(agent=agent_id, facility=facility_id)
     before = _bytes(world)
-    with pytest.raises(native.Unsupported):
+    with pytest.raises(ValueError) as made:
         native.rules("toilet").request(
-            controller.toilet_service, agent_id, _toilet(world), validate_state=False
+            controller.toilet_service, agent_id, facility_id, validate_state=False
         )
+    assert type(made.value) is ValueError
+    assert str(made.value) == said
     assert _bytes(world) == before
-    with pytest.raises(ValueError, match="toilet"):
-        controller.toilet_service.request(agent_id, _toilet(world), validate_state=False)
+    with pytest.raises(ValueError) as made:
+        controller.toilet_service.request(agent_id, facility_id, validate_state=False)
+    assert str(made.value) == said
+
+
+@pytest.mark.parametrize(
+    ("minute", "text"),
+    [
+        ("5", "toilet request minute must be an integer"),
+        (True, "toilet request minute must be an integer"),
+        (6, "toilet request minute must match WorldState"),
+    ],
+)
+def test_a_request_s_minute_is_the_world_s(generated_scenario: Any, minute: Any, text: str) -> None:
+    world, controller = _run(generated_scenario, 5)
+    assert world.minute_index == 5
+    before = _bytes(world)
+    with pytest.raises(ValueError) as made:
+        controller.toilet_service.request(
+            _idle_person(world), _toilet(world), minute=minute, validate_state=False
+        )
+    assert (type(made.value), str(made.value)) == (ValueError, text)
+    assert _bytes(world) == before
+
+
+def test_a_queue_task_id_in_use_is_an_invariant_error(generated_scenario: Any) -> None:
+    world, controller = _run(generated_scenario, 5)
+    agent_id, facility_id = _idle_person(world), _toilet(world)
+    task_id = _queue_task_id(facility_id, agent_id, world.minute_index)
+    world.active_tasks[task_id] = ActiveTask(
+        id=task_id,
+        kind="toilet_queue",
+        agent_id="somebody",
+        resource_id=facility_id,
+        start_minute=0,
+        due_minute=0,
+    )
+    before = _bytes(world)
+    with pytest.raises(StateInvariantError) as made:
+        controller.toilet_service.request(agent_id, facility_id, validate_state=False)
+    assert str(made.value) == f"duplicate toilet queue task ID {task_id!r}"
+    assert _bytes(world) == before
 
 
 def test_a_request_with_the_world_s_validation_validates_it(
@@ -174,8 +253,6 @@ def test_the_facilities_to_serve_leave_out_only_an_empty_queue(generated_scenari
     facility_id = _toilet(world)
     world.facilities[facility_id].queue_agent_ids.append(_idle_person(world))
     assert native.rules("toilet").facilities_to_serve(manager) == [world.facilities[facility_id]]
-    python_rule = ToiletServiceManager._facilities_to_serve.__wrapped__(manager)
-    assert world.facilities[facility_id] in python_rule
 
 
 def _queued(world: WorldState, controller: Any) -> tuple[str, str]:
@@ -189,19 +266,75 @@ def _queued(world: WorldState, controller: Any) -> tuple[str, str]:
     return agent_id, facility_id
 
 
-def test_the_head_s_start_is_python_s(generated_scenario: Any) -> None:
+def test_the_head_starts_its_service(generated_scenario: Any) -> None:
     world, controller = _run(generated_scenario, 5)
     agent_id, facility_id = _queued(world, controller)
+    queue_task = next(task for task in world.active_tasks.values() if task.agent_id == agent_id)
     world.minute_index += 3
+    minute = world.minute_index
     twin = copy.deepcopy(world)
     rng = CounterRNG(world.seed)
     manager = controller.toilet_service
     assert native.rules("toilet").has_room(manager, facility_id) is True
-    event_id = native.rules("toilet").start_head(manager, facility_id, world.minute_index, rng)
-    expected = ToiletServiceManager._start_head.__wrapped__(
-        _manager_on(controller, twin), facility_id, twin.minute_index, rng
+    event_id = native.rules("toilet").start_head(manager, facility_id, minute, rng)
+    # The deleted rule: a uniform duration of whole minutes drawn at the head's key, a service
+    # task and its completion of the next sequence, the person in service, and the wait counted.
+    key = ("toilet-service", facility_id, agent_id, "minute", minute, manager.policy_version)
+    key += ("duration",)
+    draw = rng.random(*key)
+    span = manager.max_service_minutes - manager.min_service_minutes + 1
+    service = min(manager.min_service_minutes + int(draw * span), manager.max_service_minutes)
+    sequence = twin.allocate_event_sequence()
+    assert event_id == f"toilet-complete-{sequence}"
+    task_id = f"toilet-service-{sequence}"
+    wait = minute - queue_task.start_minute
+    facility = twin.facilities[facility_id]
+    facility.queue_agent_ids.pop(0)
+    facility.active_agent_ids.append(agent_id)
+    del twin.active_tasks[queue_task.id]
+    twin.active_tasks[task_id] = ActiveTask(
+        id=task_id,
+        kind="toilet_service",
+        agent_id=agent_id,
+        resource_id=facility_id,
+        start_minute=minute,
+        due_minute=minute + service,
     )
-    assert event_id == expected
+    twin.agents[agent_id].activity = Activity.IN_SERVICE
+    twin.agents[agent_id].target_id = facility_id
+    twin.schedule_event(
+        ScheduledEvent(
+            event_id=event_id,
+            kind=EventKind.COMPLETION,
+            due_minute=minute + service,
+            priority=0,
+            sequence=sequence,
+            event_type="toilet_service_complete",
+            payload={"facility_id": facility_id, "agent_id": agent_id, "task_id": task_id},
+            source_id=task_id,
+            causation_id=queue_task.id,
+            provenance={
+                "source_type": "assumption",
+                "source_id": "ASM-TOILET-SERVICE-DURATION-V1",
+                "policy_version": manager.policy_version,
+                "duration_distribution": "discrete_uniform_inclusive",
+                "minimum_minutes": manager.min_service_minutes,
+                "maximum_minutes": manager.max_service_minutes,
+                "service_minutes": service,
+                "queue_wait_minutes": wait,
+                "requested_at": queue_task.start_minute,
+                "service_started_at": minute,
+                "rng_key": list(key),
+                "rng_draw": draw,
+            },
+        )
+    )
+    metrics = twin.metric_state
+    metrics["toilet_wait_count"] = metrics.get("toilet_wait_count", 0.0) + 1.0
+    metrics["toilet_wait_total_minutes"] = metrics.get("toilet_wait_total_minutes", 0.0) + wait
+    metrics["toilet_wait_max_minutes"] = max(
+        metrics.get("toilet_wait_max_minutes", 0.0), float(wait)
+    )
     assert world.agents[agent_id].activity is Activity.IN_SERVICE
     assert world.metric_state["toilet_wait_max_minutes"] >= 3.0
     _same_world(world, twin)
@@ -221,17 +354,40 @@ def test_a_head_that_cannot_finish_stays_in_line(generated_scenario: Any) -> Non
     assert _bytes(world) == before
 
 
-def test_another_random_source_is_python_s(generated_scenario: Any) -> None:
+def test_another_random_source_is_asked_with_the_head_s_key(generated_scenario: Any) -> None:
+    """A KeyedRandom that is not the world's CounterRNG is asked as the rule asked it: `random`
+    with the head's key, whose draw must lie in 0..1."""
     world, controller = _run(generated_scenario, 5)
-    _, facility_id = _queued(world, controller)
+    agent_id, facility_id = _queued(world, controller)
+    twin = copy.deepcopy(world)
+    manager, minute = controller.toilet_service, world.minute_index
+    asked: list[tuple[Any, ...]] = []
 
     class Other(CounterRNG):
-        pass
+        def random(self, *key: Any) -> float:
+            asked.append(key)
+            return super().random(*key)
 
-    with pytest.raises(native.Unsupported, match="CounterRNG"):
-        native.rules("toilet").start_head(
-            controller.toilet_service, facility_id, world.minute_index, Other(1)
-        )
+    start = native.rules("toilet").start_head
+    event_id = start(manager, facility_id, minute, Other(world.seed))
+    key = ("toilet-service", facility_id, agent_id, "minute", minute, manager.policy_version)
+    assert asked == [(*key, "duration")]
+    # The same draw as the CounterRNG's, so the same service.
+    same = start(_manager_on(controller, twin), facility_id, minute, CounterRNG(world.seed))
+    assert event_id == same
+    _same_world(world, twin)
+
+    class Broken(CounterRNG):
+        def random(self, *key: Any) -> float:
+            return 1.0
+
+    world, controller = _run(generated_scenario, 5)
+    _, facility_id = _queued(world, controller)
+    before = _bytes(world)
+    with pytest.raises(ValueError) as made:
+        start(controller.toilet_service, facility_id, world.minute_index, Broken(1))
+    assert str(made.value) == "keyed RNG draw must be between zero and one"
+    assert _bytes(world) == before
 
 
 # ---- ToiletServiceCompletionHandler --------------------------------------------------------------
@@ -642,31 +798,124 @@ def _assigned(world: WorldState, kind: str) -> tuple[Any, str]:
     return event, agent_id
 
 
+def _change(entity_kind: str, agent_id: str, path: str, before: float, after: float) -> dict:
+    return {
+        "entity_id": agent_id,
+        "entity_kind": entity_kind,
+        "field_path": path,
+        "before": before,
+        "after": after,
+        "unit": "normalized_0_1",
+    }
+
+
+def _resolved(world: WorldState, event: ScheduledEvent, before: dict[str, Any]) -> None:
+    """What `complete_support_task` did: the task gone, the staff member free, the request
+    resolved with the cooldown, the person idle, and one more resolved request."""
+    minute = world.minute_index
+    agent_id, staff_id = event.payload["agent_id"], event.payload["staff_id"]
+    assert "staff-support-test" not in world.active_tasks
+    staff = world.staff[staff_id]
+    assert (staff.active_task_id, staff.busy_until, list(staff.work_queue)) == (None, 0, [])
+    request = world.support_requests["support-t1"]
+    assert request.status is SupportRequestStatus.RESOLVED
+    assert (request.resolved_minute, request.cooldown_until) == (minute, minute + 30)
+    agent = world.agents[agent_id]
+    assert (agent.activity, agent.target_id) == (Activity.IDLE, None)
+    assert (agent.support_request_id, agent.support_cooldown_until) == (None, minute + 30)
+    resolved = before.get("support_resolved_count", 0.0) + 1.0
+    assert world.metric_state["support_resolved_count"] == resolved
+    assert world._core.entities().verify(world) is None
+    for name in ("shared_operations_v1", "body_state_v1"):
+        if name in world.model_state:
+            assert world._core.mirror(name).verify()
+
+
 @pytest.mark.parametrize("kind", ["emotional_support", "hygiene_support", "language_access"])
-def test_the_end_of_support_is_python_s(generated_scenario: Any, kind: str) -> None:
+def test_the_end_of_support_resolves_and_records_the_care(
+    generated_scenario: Any, kind: str
+) -> None:
     world, _ = _run(generated_scenario, 5)
     if kind != "emotional_support":
         # The selected formula's tables decide these kinds.
         world.model_configs.get("policy_registry", {}).pop("care_outcome", None)
     event, agent_id = _assigned(world, kind)
-    record = world.model_state["body_state_v1"]["agents"][agent_id]
-    record["hygiene_need"] = 0.5
-    record["reassurance"] = 0.5
-    record["positive_affect"] = 0.5
-    record["negative_affect"] = 0.5
+    body = world.model_state["body_state_v1"]
+    record = body["agents"][agent_id]
+    for field in ("hygiene_need", "reassurance", "positive_affect", "negative_affect"):
+        record[field] = 0.5
     world.agents[agent_id].stress = 0.5
-    twin = copy.deepcopy(world)
+    world.agents[agent_id].trust = 0.5
+    metrics = dict(world.metric_state)
     handler = StaffSupportCompletionHandler(cooldown_minutes=30, require_colocated=True)
     records = native.rules("support").complete_support(handler, world, event)
-    expected = StaffSupportCompletionHandler.apply.__wrapped__(handler, twin, event)
-    assert [item.to_dict() for item in records] == [item.to_dict() for item in expected]
-    assert records[0].status is EventStatus.APPLIED
-    _same_world(world, twin)
-    payload = records[0].event.payload
-    if kind == "language_access":
-        assert payload["outcome_observation"] == "not_measured"
+    assert [item.status for item in records] == [EventStatus.APPLIED]
+    _resolved(world, event, metrics)
+    # The deleted rule, with the body state's configured amounts.
+    agent = world.agents[agent_id]
+    sources = ["ASM-CARE-TRANSITION-PRODUCER-V1", "ASM-LIFE-STATE-FEEDBACK-V1"]
+    if kind == "emotional_support":
+        relief = body["config"]["complaint_reassurance_gain"]
+        assert agent_id not in body["config"].get("complaint_reassurance_gain_by_agent", {})
+        after = {
+            ("agent", "stress"): max(0.0, 0.5 - relief),
+            ("agent", "trust"): min(1.0, 0.5 + relief * 0.25),
+            ("model_state", "reassurance"): min(1.0, 0.5 + relief),
+            ("model_state", "positive_affect"): min(1.0, 0.5 + relief * 0.5),
+            ("model_state", "negative_affect"): max(0.0, 0.5 - relief * 0.5),
+        }
+    elif kind == "hygiene_support":
+        relief = body["config"]["hygiene_support_relief"]
+        assert agent_id not in body["config"].get("hygiene_support_relief_by_agent", {})
+        after = {("model_state", "hygiene_need"): max(0.0, 0.5 - relief)}
     else:
-        assert payload["outcome_observation"] == "observed_change"
+        after = {}
+        sources = ["ASM-CARE-TRANSITION-PRODUCER-V1"]
+    changes = [
+        _change(
+            entity,
+            agent_id,
+            field if entity == "agent" else f"body_state_v1.agents.{field}",
+            0.5,
+            value,
+        )
+        for (entity, field), value in after.items()
+    ]
+    for (entity, field), value in after.items():
+        assert (getattr(agent, field) if entity == "agent" else record[field]) == value
+    if kind != "emotional_support":
+        assert (agent.stress, agent.trust) == (0.5, 0.5)
+    payload = records[0].to_dict()["event"]["payload"]
+    assert payload["support_kind"] == kind
+    assert (payload["status"], payload["staff_id"]) == ("completed", event.payload["staff_id"])
+    assert payload["state_changes"] == changes
+    assert payload["outcome_observation"] == ("observed_change" if after else "not_measured")
+    assert payload["source_ids"] == [*sources, "ASM-STAFF-SUPPORT-LIFECYCLE-V1"]
+    assert payload["causation_id"] == event.event_id
+
+
+def test_the_end_of_support_without_a_body_state_measures_nothing(generated_scenario: Any) -> None:
+    """The rule read and wrote the body only when it was a dict: without the body state (a Run of
+    no body model), emotional support relieves nothing and its care is not measured. Recorded
+    once from the deleted rule, which the kernel then left to it."""
+    world, _ = _run(generated_scenario, 5)
+    event, agent_id = _assigned(world, "emotional_support")
+    del world.model_state["body_state_v1"]
+    world.agents[agent_id].stress = 0.5
+    world.agents[agent_id].trust = 0.5
+    metrics = dict(world.metric_state)
+    handler = StaffSupportCompletionHandler(cooldown_minutes=30, require_colocated=True)
+    records = native.rules("support").complete_support(handler, world, event)
+    assert [item.status for item in records] == [EventStatus.APPLIED]
+    _resolved(world, event, metrics)
+    assert (world.agents[agent_id].stress, world.agents[agent_id].trust) == (0.5, 0.5)
+    payload = records[0].to_dict()["event"]["payload"]
+    assert payload["outcome_observation"] == "not_measured"
+    assert payload["state_changes"] == []
+    assert payload["source_ids"] == [
+        "ASM-CARE-TRANSITION-PRODUCER-V1",
+        "ASM-STAFF-SUPPORT-LIFECYCLE-V1",
+    ]
 
 
 def test_the_end_of_support_that_does_not_fit_is_python_s(generated_scenario: Any) -> None:
@@ -674,8 +923,8 @@ def test_the_end_of_support_that_does_not_fit_is_python_s(generated_scenario: An
     event, agent_id = _assigned(world, "emotional_support")
     world.agents[agent_id].activity = Activity.IDLE
     handler = StaffSupportCompletionHandler(cooldown_minutes=30, require_colocated=True)
-    _, said = kernel_says_python_s_text(handler, world, event)
-    assert said == "support completion does not match its assigned task"
+    expected = (EventApplicationError, "support completion does not match its assigned task")
+    kernel_says_python_s_text(handler, world, event, expected)
 
 
 # ---- what follows in the dispatch phase ----------------------------------------------------------
@@ -816,21 +1065,53 @@ def test_a_patched_handler_of_the_table_goes_to_python(
 
 
 def test_a_manager_s_own_request_is_what_an_arrival_calls(generated_scenario: Any) -> None:
+    """A `request` set on the manager itself (a test's) is what the arrival calls, with the rule's
+    arguments; its ValueError is the walk's EventApplicationError with the same text."""
     world, controller = _run(generated_scenario, 5)
     world.model_configs.pop("facility_geometry", None)
     handler = AgentTravelCompletionHandler(controller.toilet_service, validate_request_state=False)
-    controller.toilet_service.request = lambda *_args, **_options: None  # type: ignore[method-assign]
-    with pytest.raises(native.Unsupported):
+    calls: list[tuple[Any, ...]] = []
+
+    def request(*arguments: Any, **options: Any) -> None:
+        calls.append((arguments, options))
+
+    controller.toilet_service.request = request  # type: ignore[method-assign]
+    person, toilet = _idle_person(world), _toilet(world)
+    zone = world.facilities[toilet].zone_id
+    arrive = native.rules("travel_completion").after_arrival
+    arrive(handler, world, None, person, "toilet_request", toilet, zone, None)
+    assert calls == [((person, toilet), {"minute": world.minute_index, "validate_state": False})]
+
+    def refuse(*_arguments: Any, **_options: Any) -> None:
+        raise ValueError("the toilet refuses")
+
+    controller.toilet_service.request = refuse  # type: ignore[method-assign]
+    with pytest.raises(EventApplicationError) as made:
+        arrive(handler, world, None, person, "toilet_request", toilet, zone, None)
+    assert str(made.value) == "the toilet refuses"
+
+
+def test_an_arrival_s_refused_toilet_request_is_its_text(generated_scenario: Any) -> None:
+    """The request's own ValueError, as #90 saves it: the walk fails with the request's text."""
+    world, controller = _run(generated_scenario, 5)
+    world.model_configs.pop("facility_geometry", None)
+    handler = AgentTravelCompletionHandler(controller.toilet_service, validate_request_state=False)
+    person, toilet = _idle_person(world), _toilet(world)
+    world.facilities[toilet].queue_agent_ids.append(person)
+    before = _bytes(world)
+    with pytest.raises(EventApplicationError) as made:
         native.rules("travel_completion").after_arrival(
             handler,
             world,
             None,
-            _idle_person(world),
+            person,
             "toilet_request",
-            _toilet(world),
-            world.facilities[_toilet(world)].zone_id,
+            toilet,
+            world.facilities[toilet].zone_id,
             None,
         )
+    assert str(made.value) == f"Agent {person!r} already has an active toilet request"
+    assert _bytes(world) == before
 
 
 def test_the_journey_home_after_a_toilet_is_a_return_trip(generated_scenario: Any) -> None:

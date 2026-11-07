@@ -1031,7 +1031,7 @@ pub(crate) fn plan_trip(
             .map(|(_, task)| task),
     };
     let Some(task) = task else {
-        return unsupported("a queue reservation has no matching task");
+        return Err(errors::value_error("physical queue reservation has no matching active queue task"));
     };
     let fifo_position = match queue_request {
         Some((fifo, request)) => match fifo.queued_request_ids.iter().position(|id| *id == request.request_id) {

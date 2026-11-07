@@ -1,24 +1,25 @@
-"""The kernels of native/src/rules/queues.rs against the Python rules they stand beside.
+"""The kernels of native/src/rules/queues.rs, rules of domain/queueing.py and domain/movement.py.
 
-Each case runs the kernel on a world and the Python rule on a copy made before it, and compares the
-whole world in canonical JSON, which keeps a float's bits. benchmarks/rule_shadow/shadow_queues.py
-does this on the runs of the gate; here, the values those runs don't decide: each coefficient at
-the two sides of where it changes the result, and each branch the kernel refuses.
-
-`prepare_facility_queue` and `progress_physical_queue_head_to_service` have no Python rule left
-(`kernel_only`): their cases check what the rule returned and wrote, values derived from the
-deleted Python rules.
+They have no Python rule left (`kernel_only`). The cases check what the rule returned and wrote,
+values derived from the deleted Python rules: each coefficient at the two sides of where it changes
+the result, and each branch the kernel refuses. For `progress_physical_queue_positions` each test's
+results and whole worlds after each call, in canonical JSON (which keeps a float's bits), are
+chained into one digest and compared with the deleted Python rule's (ANSWERS, at the end).
 """
 
 from __future__ import annotations
 
 import copy
+import hashlib
 import math
+import sys
+from collections.abc import Iterator
 from typing import Any
 
 import pytest
 
 from sheltersim import native
+from sheltersim.contracts.extensions import Point2D
 from sheltersim.core.engine import TickEngine
 from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.world import WorldState
@@ -29,18 +30,11 @@ from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
 
-MODULES = {
-    "progress_physical_queue_positions": movement,
-}
 QUEUE_POLICY = "need-weighted-physical-queue-v1"
 
 
 def _kernel(name: str) -> Any:
     return getattr(native.rules("queues"), name)
-
-
-def _rule(name: str) -> Any:
-    return getattr(MODULES[name], name).__wrapped__
 
 
 def _run(scenario: Any, minutes: int) -> WorldState:
@@ -56,17 +50,42 @@ def _bytes(world: WorldState) -> str:
     return world._canonical_text(world._canonical_data())
 
 
+def _answer(world: WorldState, result: Any) -> bytes:
+    """What the rule returned and left, as the deleted rule's answers were recorded."""
+    return repr(
+        (
+            repr(result),
+            _bytes(world),
+            sorted(world.id_counters.items()),
+            [repr(event) for event in world.event_queue.pending()],
+        )
+    ).encode()
+
+
+# Each test's answers, chained in the order of its calls of `_same_after`.
+_CHAINS: dict[str, Any] = {}
+_NODE = [""]
+
+
+@pytest.fixture(autouse=True)
+def _answers_are_the_deleted_rule_s(request: pytest.FixtureRequest) -> Iterator[None]:
+    """After each test, its chained answers against the deleted Python rule's (ANSWERS).
+
+    The worlds hold floats of the platform's libm (the floor plan's lengths and points), recorded
+    on Linux. Lane L13 pins them on every OS; until then the checks in each test are what macOS
+    and Windows check.
+    """
+    _NODE[0] = request.node.name
+    yield
+    chain = _CHAINS.pop(request.node.name, None)
+    if chain is not None and sys.platform == "linux":
+        assert chain.hexdigest() == ANSWERS[request.node.name]
+
+
 def _same_after(world: WorldState, name: str, *arguments: Any, **options: Any) -> Any:
-    """The kernel on the world, the rule on a copy: the same result and the same world."""
-    twin = copy.deepcopy(world)
-    result = _kernel(name)(world, *arguments, **options)
-    expected = _rule(name)(twin, *arguments, **options)
-    assert repr(result) == repr(expected)
-    assert _bytes(world) == _bytes(twin)
-    assert world.id_counters == twin.id_counters
-    assert [repr(event) for event in world.event_queue.pending()] == [
-        repr(event) for event in twin.event_queue.pending()
-    ]
+    """The rule on the world, its answer chained for the test's check, the row still the tree's."""
+    result = getattr(movement, name)(world, *arguments, **options)
+    _CHAINS.setdefault(_NODE[0], hashlib.sha256()).update(_answer(world, result) + b"\n")
     mirror = world._core.mirror(KEY)
     assert mirror.tainted is None
     assert mirror.verify()
@@ -94,15 +113,6 @@ def _row_is_tree(world: WorldState) -> None:
     assert mirror.tainted is None
     assert mirror.verify()
     assert mirror.row_json() == native.canonical_json(world.model_state[KEY])
-
-
-def _refuses(world: WorldState, name: str, *arguments: Any, **options: Any) -> str:
-    """Unsupported, with nothing changed; then the name every caller has runs the Python rule."""
-    before = _bytes(world)
-    with pytest.raises(native.Unsupported) as refused:
-        _kernel(name)(world, *arguments, **options)
-    assert _bytes(world) == before
-    return str(refused.value)
 
 
 def _facility(world: WorldState, kind: str) -> str:
@@ -790,6 +800,22 @@ def test_a_head_with_no_route_holds_the_queue_and_a_follower_only_those_behind(
     assert first not in world.model_state[KEY]["journeys"]
 
 
+def _slot_path(world: WorldState, agent_id: str, facility_id: str) -> tuple[Any, ...]:
+    """The deleted rule's walk in the room to the person's slot, from where they stand."""
+    geometry = movement._geometry(world)
+    slot = movement._queue_slot_position(world, geometry, agent_id, facility_id)
+    raw = world.model_state[KEY]["positions"][agent_id]["point"]
+    path = movement.plan_in_room_route(
+        world,
+        zone_id=world.facilities[facility_id].zone_id,
+        start=Point2D.model_validate(raw),
+        destination=slot,
+        mobility=world.agents[agent_id].profile.mobility.value,
+    )
+    assert path is not None
+    return path
+
+
 @pytest.mark.parametrize("phase", ["position", "service"])
 def test_a_walk_s_minutes_turn_over_where_python_s_do(generated_scenario: Any, phase: str) -> None:
     """A speed that puts the walk just under 5 minutes: 1% more length would make it 6."""
@@ -799,7 +825,7 @@ def test_a_walk_s_minutes_turn_over_where_python_s_do(generated_scenario: Any, p
     _line_up(world, toilet, [person])
     agent = world.agents[person]
     if phase == "position":
-        path = movement.facility_queue_slot_route(world, person, toilet)[1]
+        path = _slot_path(world, person, toilet)
         name = "progress_physical_queue_positions"
     else:
         path = movement.facility_approach_route(world, person, toilet)[1]
@@ -887,29 +913,33 @@ def test_an_empty_queue_and_a_missing_facility(generated_scenario: Any) -> None:
     assert _to_service(world, "nowhere", changes=False, resource=False, minute=minute) is True
 
 
-def test_without_a_task_python_raises_its_own_error(generated_scenario: Any) -> None:
+def test_without_a_task_the_rule_raises_its_own_error(generated_scenario: Any) -> None:
+    """The deleted rule's ValueError, which the kernel raises before it writes anything."""
     world = _world(generated_scenario)
     toilet = _facility(world, "toilet")
     person = _people(world, 1)[0]
     _line_up(world, toilet, [person])
     del world.active_tasks[f"queue-task-{person}"]
     minute = world.minute_index
-    assert "no matching task" in _refuses(
-        world, "progress_physical_queue_positions", toilet, resource=False, minute=minute
-    )
-    with pytest.raises(ValueError, match="no matching active queue task"):
+    before = _bytes(world)
+    with pytest.raises(ValueError) as raised:
         movement.progress_physical_queue_positions(world, toilet, resource=False, minute=minute)
+    assert str(raised.value) == "physical queue reservation has no matching active queue task"
+    assert _bytes(world) == before
 
 
-def test_int_coordinates_taint_and_go_to_python(generated_scenario: Any) -> None:
+def test_int_coordinates_taint_and_are_a_kernel_refusal(generated_scenario: Any) -> None:
+    """An int where the row has a float: only a hand-made state has one, and nothing changes."""
     world = _world(generated_scenario)
     toilet = _facility(world, "toilet")
     person = _people(world, 1)[0]
     _line_up(world, toilet, [person])
     world.model_state[KEY]["positions"][person]["point"] = {"x": 1, "y": 1}
     minute = world.minute_index
-    with pytest.raises(native.Unsupported):
-        _kernel("progress_physical_queue_positions")(world, toilet, resource=False, minute=minute)
+    before = _bytes(world)
+    with pytest.raises(KernelRefusal):
+        movement.progress_physical_queue_positions(world, toilet, resource=False, minute=minute)
+    assert _bytes(world) == before
 
 
 def test_a_tick_of_a_queue_forwards_no_whole_namespace(generated_scenario: Any) -> None:
@@ -947,3 +977,39 @@ def test_each_tick_of_a_run_is_python_s_at_every_facility(generated_scenario: An
             _same_after(world, "progress_physical_queue_positions", facility, **options)
             _prepared(world, facility, **options)
     assert reached
+
+
+# The deleted Python rule's answers of each test, chained in the order of its calls: recorded
+# once from the Python rule at 2d8fb46, on Linux.
+ANSWERS = {
+    "test_a_follower_within_the_tolerance_stands_in_their_slot[0.0499-False]": (
+        "f972edadbc0ca2e55e182cef93825b2cf70d27cfcae4b6f63e317287946dcf57"
+    ),
+    "test_a_follower_within_the_tolerance_stands_in_their_slot[0.0501-True]": (
+        "3de0a726d52c6e39c98ef235c66f455caf21646b3a741efba2094e2b75caff04"
+    ),
+    "test_a_walk_past_the_end_of_the_run_is_counted_and_not_started": (
+        "24f43e263bc52703e3c9f459026d8cba8f0d26dc90a404a478b0e3ee46f06500"
+    ),
+    "test_a_walk_s_minutes_turn_over_where_python_s_do[position]": (
+        "af7e67cc53d2a4f7af592b7205a1674839f1e4156fc2c715701055aa16087cdf"
+    ),
+    "test_an_empty_queue_and_a_missing_facility": (
+        "1081e598c3d49c567dbb7adcca026cd9ea4ff239532db8acfd731a83a0ac02a0"
+    ),
+    "test_each_tick_of_a_run_is_python_s_at_every_facility": (
+        "be75b1c0e1fdaf61b30e96ad3b3ec0fbe1b8f74751d64c914476aded32034d05"
+    ),
+    "test_someone_who_is_moved_from_another_activity_is_queued_by_the_walk": (
+        "845e8b40162e1f507d430253d46882c629abfc628e9ac4f5eb8b14f0fc12ab70"
+    ),
+    "test_the_first_who_is_not_in_their_place_walks_there": (
+        "25917c5cddb3a15c7332ab486b6e4a664e3136d8bc1e613fbbeb03d7fb1704f3"
+    ),
+    "test_the_head_walks_from_its_slot_to_the_service_point": (
+        "f18ab419ea389faa3e3ca8f9175c31151cb36f134c8da45c0b0632042c0be45f"
+    ),
+    "test_the_list_is_left_alone_while_someone_walks_in_it": (
+        "5a930920ab0ec29b30458a8c916c244349dce7cc95bfc75215360cbf4e3769a5"
+    ),
+}

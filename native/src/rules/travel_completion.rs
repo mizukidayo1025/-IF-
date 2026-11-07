@@ -301,27 +301,87 @@ fn arrive<'py>(
         }
     }
     let (agent, facility) = (PyString::new(py, agent_id), PyString::new(py, facility_id));
-    // A method set on the manager (a test's patch) is the Python rule's to call.
-    let own_request = |manager: &Bound<'py, PyAny>| -> PyResult<()> {
-        if raw_dict_get(&manager.getattr(intern!(py, "__dict__"))?, intern!(py, "request").as_any())?.is_some() {
-            return unsupported("the manager's request is another function");
+    let minute = attribute(world, intern!(py, "minute_index"))?;
+    // A method set on the manager itself (a test's) is what the rule calls, as Python would.
+    let own_request = |manager: &Bound<'py, PyAny>| -> PyResult<Option<Bound<'py, PyAny>>> {
+        raw_dict_get(&manager.getattr(intern!(py, "__dict__"))?, intern!(py, "request").as_any())
+    };
+    let call_own = |request: &Bound<'py, PyAny>, validate: &Bound<'py, PyAny>| -> PyResult<Option<String>> {
+        let options = PyDict::new(py);
+        options.set_item(intern!(py, "minute"), &minute)?;
+        options.set_item(intern!(py, "validate_state"), validate)?;
+        match request.call((&agent, &facility), Some(&options)) {
+            Ok(_) => Ok(None),
+            Err(error) if error.is_instance_of::<pyo3::exceptions::PyValueError>(py) => Ok(Some(error.value(py).str()?.to_string())),
+            Err(error) => Err(error),
         }
-        Ok(())
     };
     if is_toilet {
-        // `validate_request_state`: only the False that the controller gives.
+        // `except ValueError as exc: raise EventApplicationError(str(exc))`, also for the world's
+        // validation that `validate_request_state` asks before and after the request.
         let validate = attribute(handler, intern!(py, "validate_request_state"))?;
-        if !validate.is(PyBool::new(py, false).as_any()) {
-            return unsupported("the world's whole validation is Python's");
+        let manager = attribute(handler, intern!(py, "toilet_service"))?;
+        let refused = match own_request(&manager)? {
+            Some(request) => call_own(&request, &validate)?,
+            None => {
+                let validates = validate.is_truthy()?;
+                let requested = (|| -> PyResult<()> {
+                    if validates {
+                        world.call_method0(intern!(py, "validate"))?;
+                    }
+                    toilet::queue_up(world, agent.as_any(), facility.as_any(), None)?;
+                    if validates {
+                        world.call_method0(intern!(py, "validate"))?;
+                    }
+                    Ok(())
+                })();
+                match requested {
+                    Ok(()) => None,
+                    Err(error) if error.is_instance_of::<pyo3::exceptions::PyValueError>(py) => Some(error.value(py).str()?.to_string()),
+                    Err(error) => return Err(error),
+                }
+            }
+        };
+        if let Some(text) = refused {
+            return errors::failed(py, text);
         }
-        own_request(&attribute(handler, intern!(py, "toilet_service"))?)?;
-        toilet::queue_up(world, agent.as_any(), facility.as_any(), None)?;
-    } else {
-        let manager = attribute(handler, intern!(py, "resource_service"))?;
-        own_request(&manager)?;
-        service::queue_up(&manager, agent.as_any(), facility.as_any())?;
+        return Ok(());
     }
-    Ok(())
+    let manager = attribute(handler, intern!(py, "resource_service"))?;
+    // Read before the request, which may write the task counter and then turn the person down.
+    let rows = (crate::state::resource_service::held_mirror(world)?, service::metrics_of(world)?);
+    let refused = match own_request(&manager)? {
+        Some(request) => call_own(&request, PyBool::new(py, false).as_any())?,
+        None => service::queue_up_or_refusal(&manager, agent.as_any(), facility.as_any())?.err(),
+    };
+    let Some(text) = refused else {
+        return Ok(());
+    };
+    // The arrival stands; the record says why the person is not in the queue, with `str(exc)`.
+    let Some(origin) = origin else {
+        return unsupported("a resource walk's origin is not a str");
+    };
+    let store = entities_of(world)?;
+    let kind = EntityStore::with_rows(&store, |rows| Ok(rows.facilities.get(facility_id).map(|facility| facility.kind.clone())))?;
+    let Some(kind) = kind else {
+        return unsupported("no such facility");
+    };
+    let action = if service::resource_of(&kind) == Some("water_ml") { "fetch_water" } else { "collect_meal" };
+    service::append_outcome(
+        py,
+        &rows.0,
+        RequestRecord {
+            minute: exact_int(&minute)?,
+            agent_id: Arc::from(agent_id),
+            action: Arc::from(action),
+            outcome: Arc::from("rejected"),
+            reason: Arc::from("request_rejected"),
+            facility_id: Some(Arc::from(facility_id)),
+            origin_zone_id: Arc::from(origin),
+            detail: Some(Arc::from(text)),
+        },
+    )?;
+    service::add_one(&rows.1, "resource_service_request_rejected_count")
 }
 
 /// `_reject_room_approach`. `origin` is the event's origin when a str.
@@ -466,7 +526,12 @@ fn after_arrival<'py>(
     origin_zone_id: &Bound<'py, PyAny>,
 ) -> PyResult<()> {
     let _ = event;
-    arrive(handler, world, exact_str(agent_id)?, exact_str(purpose)?, exact_str(facility_id)?, exact_str(destination_zone_id)?, str_value(origin_zone_id))
+    let purpose = exact_str(purpose)?;
+    // Only a walk to a toilet or a resource leads anywhere.
+    if !matches!(purpose, "toilet_request" | "resource_request") {
+        return Ok(());
+    }
+    arrive(handler, world, exact_str(agent_id)?, purpose, exact_str(facility_id)?, exact_str(destination_zone_id)?, str_value(origin_zone_id))
 }
 
 /// The attribute of an outcome `decide` raised: the rule's checks failed and nothing was written.

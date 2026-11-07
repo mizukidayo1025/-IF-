@@ -1,17 +1,19 @@
-"""The branches of `advance_movement` that depend on the walk's order, against the Python rule.
+"""The branches of `advance_movement` that depend on the walk's order.
 
 The gate and the 7-day run never reach them (docs/rust-port/lanes/l3-movement.md), so these tests
-are all that compares them: a queue trip that replans, and a person placed in a slot in the walk.
-Each runs the kernel on the world and the Python rule on a copy, and the whole worlds must be the
-same, floats by their bits, with the event numbers, the suppressed records and the metrics.
-
-A case the Python rule raises on is refused by the kernel with nothing changed.
+are all that checks them: a queue trip that replans, and a person placed in a slot in the walk.
+`advance_movement` has no Python rule left (`kernel_only`). Each test's answers, the result and
+the whole world after each call (floats by their bits, with the event numbers, the suppressed
+records and the metrics), are chained into one digest and compared with the deleted Python rule's,
+recorded once from it at 2d8fb46 (ANSWERS, at the end).
 """
 
 from __future__ import annotations
 
-import copy
+import hashlib
 import random
+import sys
+from collections.abc import Iterator
 from typing import Any
 
 import pytest
@@ -27,10 +29,6 @@ from sheltersim.events.models import EventKind, EventStatus, ScheduledEvent
 
 TOILET = "toilet_01"
 SLOW = 0.2
-
-
-def _python_rule() -> Any:
-    return movement.advance_movement.__wrapped__
 
 
 def _bytes(world: WorldState) -> str:
@@ -61,25 +59,50 @@ def _order_of_maps(world: WorldState) -> list[list[str]]:
     return [list(state[name]) for name in ("positions", "journeys", "edge_usage_minutes")]
 
 
+def _answer(world: WorldState, result: tuple[str, ...]) -> bytes:
+    """What the rule returned and left, as the deleted rule's answers were recorded."""
+    return repr(
+        (
+            result,
+            _bytes(world),
+            sorted(world.id_counters.items()),
+            sorted(world.metric_state.items()),
+            _pending(world),
+            _records(world),
+            _order_of_maps(world),
+            sorted((key, agent.activity, agent.target_id) for key, agent in world.agents.items()),
+        )
+    ).encode()
+
+
+# Each test's answers, chained in the order of its calls of `_same_after`.
+_CHAINS: dict[str, Any] = {}
+_NODE = [""]
+
+
+@pytest.fixture(autouse=True)
+def _answers_are_the_deleted_rule_s(request: pytest.FixtureRequest) -> Iterator[None]:
+    """After each test, its chained answers against the deleted Python rule's (ANSWERS).
+
+    The worlds hold floats of the platform's libm (the floor plan's lengths and points), recorded
+    on Linux. Lane L13 pins them on every OS; until then the checks in each test are what macOS
+    and Windows check.
+    """
+    _NODE[0] = request.node.name
+    yield
+    chain = _CHAINS.pop(request.node.name, None)
+    if chain is not None and sys.platform == "linux":
+        assert chain.hexdigest() == ANSWERS[request.node.name]
+
+
 def _same_after(world: WorldState, minute: int) -> tuple[str, ...]:
-    """The kernel on the world, the Python rule on a copy. Both must have done the same."""
-    twin = copy.deepcopy(world)
-    result = native.rules("movement").advance_movement(world, minute)
-    expected = _python_rule()(twin, minute)
-    assert result == expected
-    assert _bytes(world) == _bytes(twin)
-    assert world.id_counters == twin.id_counters
-    assert world.metric_state == twin.metric_state
-    assert _pending(world) == _pending(twin)
-    assert _records(world) == _records(twin)
-    assert _order_of_maps(world) == _order_of_maps(twin)
+    """The rule on the world, its answer chained for the test's check, the row still the tree's."""
+    result = movement.advance_movement(world, minute)
+    _CHAINS.setdefault(_NODE[0], hashlib.sha256()).update(_answer(world, result) + b"\n")
     mirror = world._core.mirror(KEY)
     assert mirror.tainted is None
     assert mirror.verify()
     assert mirror.row_json() == native.canonical_json(world.model_state[KEY])
-    for agent_id, agent in world.agents.items():
-        other = twin.agents[agent_id]
-        assert (agent.activity, agent.target_id) == (other.activity, other.target_id), agent_id
     return result
 
 
@@ -521,17 +544,16 @@ def test_a_queue_replan_and_a_walker_who_must_replan_in_one_walk(
 def test_a_trip_with_no_queue_task_is_python_s_error_before_any_change(
     generated_scenario: Any,
 ) -> None:
+    """The deleted rule's ValueError, which the kernel raises before it writes anything."""
     world = _own_queue_with_trips(generated_scenario, ("A001", "A002"))
     state = world.model_state[KEY]
     task_id = state["journeys"]["A001"]["task_id"]
     world.active_tasks[task_id].resource_id = "another"
     _move_the_toilet(world)
-    twin = copy.deepcopy(world)
-    with pytest.raises(ValueError, match="no matching active queue task"):
-        _python_rule()(twin, 1)
     before = _bytes(world)
-    with pytest.raises(native.Unsupported):
-        native.rules("movement").advance_movement(world, 1)
+    with pytest.raises(ValueError) as raised:
+        movement.advance_movement(world, 1)
+    assert str(raised.value) == "physical queue reservation has no matching active queue task"
     assert _bytes(world) == before
 
 
@@ -656,3 +678,189 @@ def test_the_random_walks_reach_the_branches(generated_scenario: Any) -> None:
             counts[name] = counts.get(name, 0.0) + world.metric_state.get(name, 0.0)
     assert counts["physical_queue_replan_count"] > 0
     assert counts["physical_queue_replan_blocked_count"] > 0
+
+
+# The deleted Python rule's answers of each test, chained in the order of its calls: recorded
+# once from the Python rule at 2d8fb46, on Linux.
+ANSWERS = {
+    "test_a_queue_replan_and_a_walker_who_must_replan_in_one_walk": (
+        "dbd027987b782fe7b335db4a66ad06a64a090e63ad931dfb3aeb62d4bff39a26"
+    ),
+    "test_a_queued_person_past_their_trip_keeps_their_arrival": (
+        "c1e3a73b53bbff45afb0e2f91329434f67ab4b0e0fa251fc377d17ab2bd852f1"
+    ),
+    "test_a_replan_for_a_facility_that_changed_zone": (
+        "b7315fc57f7560c1a721cfceec20aede946a0b79f1f9184f2007643c89fb6f7c"
+    ),
+    "test_a_replan_for_a_wall_on_the_walk": (
+        "fd6ba4178a7121170be3ae1105b5d61db80ae48ddc34dfbe99ee01adf6255c53"
+    ),
+    "test_a_replan_of_the_facility_s_own_queue": (
+        "ff6a37ca560d199a1314a703f81b5481761fec6bb605428a74b12769b2aad304"
+    ),
+    "test_a_replan_past_the_end_of_the_run_is_blocked_in_its_schedule": (
+        "c63af15a6ee52ce0d69818f5b51e6ef82a7527d20e2de8da48be464c2a00d3a3"
+    ),
+    "test_a_replan_seen_by_the_slot_of_someone_later_in_the_walk": (
+        "6eb1ed14a325123f25fbcd4cfdc085db21c0baeb94c9163dc28afff96c2b4419"
+    ),
+    "test_a_replan_to_where_the_person_stands_takes_no_trip": (
+        "d7a46d640910241b232e56200c6564ad1df8df136f5a438a57cc44db98b966ee"
+    ),
+    "test_a_replan_when_the_facility_is_gone_only_ends_the_trip": (
+        "e38534325228edf42453d58d35fd4c14e7a7c80cc0feee0bd0aee33c0ecaaf8a"
+    ),
+    "test_a_replan_with_no_room_route_is_blocked_and_counted": (
+        "964f0525338befd392753aca62e48496ee07dff59c155f96198bc3d87cc1e02f"
+    ),
+    "test_a_slot_read_with_the_one_ahead_before_or_after_their_walk[people0]": (
+        "a7b6df0115fe8b80e9fe523093b424ea436b642c5f2151baa5a5e185345619a4"
+    ),
+    "test_a_slot_read_with_the_one_ahead_before_or_after_their_walk[people1]": (
+        "93004fcf3e625ef5c417fd0b628bf112ace6468b38cb4162a154aaba6e7f528f"
+    ),
+    "test_one_person_replans_in_two_ticks_running": (
+        "88d59727ec86dfd525037157fd09a8fc5f5af44679bc4331ec8fdcfe83acde43"
+    ),
+    "test_people_placed_in_slots_read_who_has_walked[queue_order0]": (
+        "660dd9e12fd09c0568a89c14cc31cb130a8910688a3bc895a931dea1ef0eb00f"
+    ),
+    "test_people_placed_in_slots_read_who_has_walked[queue_order1]": (
+        "85b36c90eab3d90c218f8ad0d6039481d0a9dec709b0da4fdc5e7cfb69215f56"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[0]": (
+        "e9d4ef400329a888a7114dd91f166d4f35ab039cd8684ca90fd81e4d8b471861"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[10]": (
+        "41a29120050a35086846e504893b2d93c3a8b870c20a77b87b2103395a9d7d12"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[11]": (
+        "afba7b48474a5c2c4089f3102d10146839145f854a6cfe769a692c1831e57310"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[12]": (
+        "5222b0dde2605e22dad2b104456874e37b130154b48d24eb8be0fda7daee3523"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[13]": (
+        "576fced6fdb71527e0910fcc1aa4f3ebb2ad78e73d706b06dde3692949696e7b"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[14]": (
+        "af6d3f9fc3b254102ccafdf332ca4f1701d21cd6ef4454f5a98a318dbdcacdbb"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[15]": (
+        "dafe25035bd94d22292227bba35ac99fc13728b157fd09c53817b9a2bd67bd66"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[16]": (
+        "448ab96cfcfc2adb3e96d169503671601734ebf03077e4f2eda22f42e7f1e18c"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[17]": (
+        "40099415f018c7eb115effd54bb919d2f71937c380538a6c73c7dce37a1af89e"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[18]": (
+        "88b55191ac1ca920159f181aed9834d9267a811d155cea1f0fdab7eb3f43b26f"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[19]": (
+        "204b2d9d6b2e3dd0c3929aa2a7337baf9e4e29f20dea5f6ca49ea1d9f3f530a6"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[1]": (
+        "d9cc5928b92ee549cc6e0fae6921ddeb0b5b6613fc7c248cc1738604b3cbd152"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[20]": (
+        "c0e9fe977196d02a7041f8f5c0c825907b32bbcadccec8c1f4c84ca7546eb579"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[21]": (
+        "f0b4bb8f44fadcd975b87312e6ff43a9232b63e7d93abdd1ed49644a7e1c615e"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[22]": (
+        "6df12f936985a435d8833555c28233a969588938e8cc715d3df4ffb61d36ad9f"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[23]": (
+        "1151817dfde20df79ef213239f43d954ab93bb3a48134567295b41d9cdaf66b4"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[24]": (
+        "c89c30b48fcc981f5a1ee16365ff8a613c3b007bccb6cd872f7a1f3d6f27f874"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[25]": (
+        "4150b2a3cf2df1fe845ede054a6fa97047a44455b4499ae0277de9c62c8e19f0"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[26]": (
+        "db7e90da71b47baccfbf90cedea30c421ba25967bd2f91cc79d6af98722c69a5"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[27]": (
+        "7b5e4f0f8a4129064c83a3f03ef866a799199719695b61fccaae3660bcfbfde9"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[28]": (
+        "7402de92d046ae586656b0fae89d5e688f244545f724ba033e25f794557c7563"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[29]": (
+        "207f03e80db3befcb0aab2897c75ba0d9fdfc14c0cef0b595b42afed8e27f2d6"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[2]": (
+        "5126596a7f18bce3cd934226ecb5688d4b0b80ed3e1ff4d7bef73572485ce5c6"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[30]": (
+        "016d7e72a6c825ea562fb9eee65bfbd3047652c9370bfbbe55da0fba14350054"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[31]": (
+        "1eaea0056d3cf6d609b86e711c3c055bee66c08a4d0bd1693ccea133e201cde9"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[32]": (
+        "872a83a5ef21504539415ef05fe1542d8bfe10fc9cb8f67893447a2107039e57"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[33]": (
+        "4facff7c31c5a58b81fa55cad55df077e58119056c685d27f3ce74ad84f82957"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[34]": (
+        "fcfac9525839b7471b616f9e94b08cc73c13ede02807399bc33e8bd65c959978"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[35]": (
+        "69bfaa1957d8f79ee55c402902a8db8c020c26a0b12748be5be96cc2b48e564d"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[36]": (
+        "b5e3a1fb3623d630a25d804bd9d81011aa3597d5293b86f71ea5fc493b40b7ec"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[37]": (
+        "9c3916e7d636737f0eb42c1d81dce25a4c4d2312754fdae7812fa9043fd20cdc"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[38]": (
+        "04d6806f8a192a59f1bafc1ef3eae2222b835c96d8b23fab4cdd897f93c9d54c"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[39]": (
+        "2e2501024a9bab81e0c0bbce98c43b544c5b3e75d5393be7b14957c48bb853bc"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[3]": (
+        "46a41a0fc0c74b77898cd7eab677df0a50b374876fe09205535b7dc5a2dc6c5b"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[4]": (
+        "cedcc8a93dc4127d3647b7ad39304c4ff1fe67455acf40ba1d1b7c0424bc6315"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[5]": (
+        "c555e309667ec6658d4502eaed664254097e769b2c39f97072bdcda97fa47db6"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[6]": (
+        "f0c69e33592db044fe0304d650a9f938cbf14e776aa36b16303178e9ef64d08e"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[7]": (
+        "9f23142f43447c157d89fc70e139a49e544333d92917a951c988d3281a7f2567"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[8]": (
+        "9bf6510a56e69ebee18829dd0bf99cb034987f4f0d005a4e1124b5c22eae385f"
+    ),
+    "test_random_walks_are_python_s_bit_for_bit[9]": (
+        "bc5fda3f7f9842b5de54f599f4da3f0a117287ea5195530176446fdc36774074"
+    ),
+    "test_someone_on_their_way_on_a_queue_trip_is_queued_by_the_replan": (
+        "ff6a37ca560d199a1314a703f81b5481761fec6bb605428a74b12769b2aad304"
+    ),
+    "test_someone_on_their_way_whose_replan_is_blocked_stands_still": (
+        "f1ea36b5ff324391edeaa2eca3a4a65494ea3ea5993a7695b42e29227285dbd1"
+    ),
+    "test_the_one_ahead_moving_changes_the_follower_s_destination": (
+        "79d8fef9bb8afad8067aadc169f257880d1f1c2446aee46aa550aeeae17eaf76"
+    ),
+    "test_the_random_walks_reach_the_branches": (
+        "e645a90957f99fdd442d5bffa517e0dee590fdbfe96a60ec741e5e432ac85363"
+    ),
+    "test_two_replans_take_their_event_numbers_in_the_order_of_the_walk": (
+        "ef386ff9e30219c0d309b514aa9a8069920b6d57ef263795f49c49e4f39a1c05"
+    ),
+}

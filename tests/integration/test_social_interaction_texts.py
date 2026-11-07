@@ -2,11 +2,12 @@
 
 These texts are saved: the dispatcher writes them to the event's record as `detail`. Each case
 gives an event that fails one check, often together with later ones, and checks the text of the
-first check that fails. With the kernels, the kernel must raise it itself, change nothing, and
-match the Python rule on a copy (support/world.py `kernel_says_python_s_text`); without them, the
-Python rule must raise it. A social action between two people runs every tick, so its kernel checks
-in its own order on the way to an applied action and finds Python's first failing check only when
-one fails (docs/rust-port/lanes/l8-texts-events.md).
+first check that fails. The kernel must raise it itself and change nothing (support/world.py
+`kernel_says_python_s_text`). The Python rule is gone (lane L10, `kernel_only`): the texts and
+their classes here are written down from it, as are the writes of an applied interaction
+(`_applies`). A social action between two people runs every tick, so its kernel checks in its own
+order on the way to an applied action and finds Python's first failing check only when one fails
+(docs/rust-port/lanes/l8-texts-events.md).
 """
 
 from __future__ import annotations
@@ -22,13 +23,20 @@ from support.world import kernel_says_python_s_text
 
 from sheltersim.core.engine import TickEngine
 from sheltersim.core.world import WorldState
-from sheltersim.domain.models import Activity, SupportRequestState, SupportRequestStatus
+from sheltersim.domain.models import (
+    Activity,
+    InformationSpreadConfig,
+    SupportRequestState,
+    SupportRequestStatus,
+)
 from sheltersim.domain.social_dialogue import capture_social_state_context
 from sheltersim.events.handlers import SocialInteractionHandler
 from sheltersim.events.models import (
+    EventApplicationError,
     EventKind,
     EventLogRecord,
     EventStatus,
+    EventSuppressed,
     ScheduledEvent,
 )
 from sheltersim.experiments.metrics import MetricsRecorder
@@ -98,25 +106,70 @@ def _social(world: WorldState, payload: dict[str, Any], **fields: Any) -> Schedu
     )
 
 
+# The texts the Python rule raised as EventSuppressed; every other text here was a failure.
+SUPPRESSED = {
+    "social action participants are no longer co-located",
+    "family support target is no longer in the same household",
+    "the selected person no longer has a higher immediate need",
+    "complaint response context is no longer current",
+    "complaint response stress candidate is no longer current",
+    "cooperation participants or relationship changed",
+    "cooperation stress candidate is no longer current",
+    "information reaction contact is no longer local",
+    "information state is no longer enabled",
+    "information claim is no longer current",
+    "information claim has already been verified or rejected",
+}
+
+
 def _says(world: WorldState, event: ScheduledEvent, text: str) -> None:
-    """The first failing check's text, the kernel's own."""
+    """The first failing check's text and class, the kernel's own."""
     world = _copy(world)
     handler = SocialInteractionHandler()
-    _, said = kernel_says_python_s_text(handler, world, event)
-    assert said == text, (event.payload, said)
+    outcome = EventSuppressed if text in SUPPRESSED else EventApplicationError
+    try:
+        kernel_says_python_s_text(handler, world, event, (outcome, text))
+    except AssertionError as error:
+        raise AssertionError((event.payload, text)) from error
 
 
-def _applies_as_python(world: WorldState, event: ScheduledEvent) -> WorldState:
-    """The event applies, and it writes what the Python rule writes."""
+def _bytes(world: WorldState) -> str:
+    return world._canonical_text(world._canonical_data())
+
+
+def _applies(world: WorldState, event: ScheduledEvent, writes: Any) -> WorldState:
+    """The event applies, and it writes what the Python rule wrote: `writes(twin)` makes those
+    writes on a copy made before, and the two worlds must be the same."""
     handler = SocialInteractionHandler()
     world = copy.deepcopy(world)
     twin = copy.deepcopy(world)
     handler.apply(world, event)
-    type(handler).apply.__wrapped__(handler, twin, event)
-    assert world._canonical_text(world._canonical_data()) == twin._canonical_text(
-        twin._canonical_data()
-    )
+    writes(twin)
+    assert _bytes(world) == _bytes(twin)
     return world
+
+
+def _relief(world: WorldState, actor: str) -> float:
+    """The Python rule's relief of a social action: the transfer times the actor's affect signal."""
+    state = world.model_state.get("body_state_v1", {})
+    body = state.get("agents", {}).get(actor, {})
+    signal = min(
+        1.0, max(-1.0, body.get("positive_affect", 0.5) - body.get("negative_affect", 0.0))
+    )
+    transfer = state.get("config", {}).get("social_action_affect_transfer", 0.02)
+    return transfer * signal
+
+
+def _reassured(actor: str, participant: str) -> Any:
+    """The writes of a reassurance exchange: the participant is relieved."""
+
+    def writes(twin: WorldState) -> None:
+        relief = _relief(twin, actor)
+        person = twin.agents[participant]
+        person.stress = min(1.0, max(0.0, person.stress - relief))
+        person.trust = min(1.0, max(0.0, person.trust + relief * 0.5))
+
+    return writes
 
 
 def _pair(world: WorldState) -> tuple[str, str]:
@@ -333,10 +386,13 @@ def test_a_social_action_s_texts_come_in_python_s_order(small_world: WorldState)
     ]
     for change, text in cases:
         _says(world, _action(world, "reassurance_exchange", actor, participant, **change), text)
-    _applies_as_python(world, _action(world, "reassurance_exchange", actor, participant))
-    _applies_as_python(
+    assert _relief(world, actor) != 0.0
+    writes = _reassured(actor, participant)
+    _applies(world, _action(world, "reassurance_exchange", actor, participant), writes)
+    _applies(
         world,
         _action(world, "reassurance_exchange", actor, participant, conversation_state_context=both),
+        writes,
     )
 
 
@@ -496,7 +552,13 @@ def test_cooperation_texts_are_python_s(small_world: WorldState) -> None:
     _household(world, participant, "h2")
     _says(world, _social(world, base, causation_id=trigger), changed)
     _household(world, participant, "h1")
-    _applies_as_python(world, _social(world, base, causation_id=trigger))
+
+    def cooperated(twin: WorldState) -> None:
+        for person in (twin.agents[actor], twin.agents[participant]):
+            person.stress = max(0.0, person.stress - 0.02)
+            person.trust = min(1.0, person.trust + 0.01)
+
+    _applies(world, _social(world, base, causation_id=trigger), cooperated)
 
 
 # ---- Reactions to a heard claim -----------------------------------------------------------------
@@ -584,7 +646,14 @@ def test_information_reaction_texts_are_python_s(rumor_world: WorldState) -> Non
     world.agents[speaker].zone_id = _other_zone(world, zone)
     _says(world, _social(world, base, causation_id=trigger), local)
     world.agents[speaker].zone_id = zone
-    _applies_as_python(world, _social(world, base, causation_id=trigger))
+
+    def asked(twin: WorldState) -> None:
+        config = InformationSpreadConfig.from_mapping(twin.model_configs["information_spread"])
+        pressure = twin.model_state["information_spread_v1"]["query_pressure"]
+        pressure[listener] = min(1.0, pressure[listener] + config.query_pressure_per_claim)
+
+    assert state["query_pressure"][listener] < 1.0
+    _applies(world, _social(world, base, causation_id=trigger), asked)
 
 
 def test_a_reaction_without_the_information_state_is_suppressed(small_world: WorldState) -> None:
