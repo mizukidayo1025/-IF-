@@ -2341,12 +2341,14 @@ fn remove_information_state(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResul
             withdrawn.insert(text(&message_id)?);
         }
     }
+    #[allow(clippy::iter_over_hash_type, reason = "pops each id from a dict; the dict ends the same in any order")]
     for message_id in &withdrawn {
         messages.call_method1(intern!(py, "pop"), (&**message_id, py.None()))?;
     }
     if !withdrawn.is_empty() {
         for held in beliefs.call_method0(intern!(py, "values"))?.try_iter()? {
             let held = held?;
+            #[allow(clippy::iter_over_hash_type, reason = "pops each id from a dict; the dict ends the same in any order")]
             for message_id in &withdrawn {
                 held.call_method1(intern!(py, "pop"), (&**message_id, py.None()))?;
             }
@@ -2936,6 +2938,7 @@ fn check_pending_items(world: &Bound<'_, PyAny>, pending: &[V], contexts: &Index
             if unique.len() != ids.len() {
                 return invalid(PENDING_INVALID);
             }
+            #[allow(clippy::iter_over_hash_type, reason = "only checks membership, with one text for any id")]
             for id in unique {
                 if !zones.contains(&**id)? {
                     return invalid(PENDING_INVALID);

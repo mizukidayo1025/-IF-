@@ -30,6 +30,7 @@ use rustc_hash::FxHashMap;
 use sha2::{Digest, Sha256};
 
 use crate::core::mathx::{py_fsum, py_min};
+use crate::core::parallel::parts_in_order;
 use crate::core::tracked::as_readable_dict;
 use crate::core::world_core::{mirror_of, raw_dict_get, raw_dict_set, NamespaceMirror};
 use crate::rules::person_context::{self, plain_copy};
@@ -511,6 +512,7 @@ fn active_stressors(
             source_id: optional_text(&field(record, intern!(py, "source_id"))?)?,
         });
     }
+    #[allow(clippy::iter_over_hash_type, reason = "sorts each list in place")]
     for entries in found.values_mut() {
         entries.sort_unstable_by(|first, second| first.id.cmp(&second.id));
     }
@@ -1142,6 +1144,159 @@ fn hashed_config<'py>(configs: &Bound<'py, PyAny>, name: &Bound<'py, PyString>) 
     Ok(value)
 }
 
+/// The people of the view hash go to the threads in runs of this many.
+const AGENTS_PER_PART: usize = 64;
+
+/// A person's entry of `agent_life_context`, after a comma if it is not the first.
+fn write_life(encoder: &mut Encoder, index: usize, agent: &ViewAgent) -> PyResult<()> {
+    if index > 0 {
+        encoder.out.push(b',');
+    }
+    let person = &agent.person;
+    let out = &mut encoder.out;
+    out.extend_from_slice(b"{\"agent_id\":");
+    write_text(out, &agent.id);
+    key(out, false, "care_for_ids");
+    write_texts(out, &person.care_for_ids);
+    key(out, false, "caregiver_ids");
+    write_texts(out, &person.caregiver_ids);
+    key(out, false, "discontent");
+    encoder.float(agent.body.discontent)?;
+    key(&mut encoder.out, false, "hygiene_need");
+    encoder.float(agent.body.hygiene_need)?;
+    key(&mut encoder.out, false, "negative_affect");
+    encoder.float(agent.body.negative_affect)?;
+    let out = &mut encoder.out;
+    key(out, false, "parent_ids");
+    write_texts(out, &person.parent_ids);
+    key(out, false, "personal_context_present");
+    out.extend_from_slice(if person.personal_context_present { b"true" } else { b"false" });
+    key(out, false, "positive_affect");
+    encoder.float(agent.body.positive_affect)?;
+    key(&mut encoder.out, false, "reassurance");
+    encoder.float(agent.body.reassurance)?;
+    let out = &mut encoder.out;
+    key(out, false, "required_sleep_minutes");
+    write_optional_int(out, person.required_sleep_minutes);
+    key(out, false, "roles");
+    write_texts(out, &person.roles);
+    key(out, false, "sleep_debt_minutes");
+    encoder.float(agent.body.sleep_debt_minutes)?;
+    key(&mut encoder.out, false, "uncertainty");
+    encoder.float(agent.body.uncertainty)?;
+    let out = &mut encoder.out;
+    key(out, false, "usual_sleep_minute");
+    write_optional_int(out, person.usual_sleep_minute);
+    key(out, false, "usual_wake_minute");
+    write_optional_int(out, person.usual_wake_minute);
+    out.push(b'}');
+    Ok(())
+}
+
+/// A person's entry of `agents`, after a comma if it is not the first.
+fn write_agent(encoder: &mut Encoder, index: usize, agent: &ViewAgent, data: &ViewData, information: bool, resource: bool) -> PyResult<()> {
+    if index > 0 {
+        encoder.out.push(b',');
+    }
+    let out = &mut encoder.out;
+    out.push(b'{');
+    key(out, true, "activity");
+    write_text(out, activity_text(agent.activity));
+    key(out, false, "group_id");
+    write_option(out, &agent.group_id);
+    key(out, false, "id");
+    write_text(out, &agent.id);
+    if information {
+        key(out, false, "information_query_pressure");
+        encoder.float(agent.information_query_pressure)?;
+    }
+    let out = &mut encoder.out;
+    key(out, false, "mobility");
+    write_text(out, mobility_text(agent.mobility));
+    key(out, false, "needs");
+    out.extend_from_slice(b"{\"fatigue\":");
+    encoder.float(agent.needs.fatigue)?;
+    encoder.out.extend_from_slice(b",\"hunger\":");
+    encoder.float(agent.needs.hunger)?;
+    if resource {
+        encoder.out.extend_from_slice(b",\"hydration_need\":");
+        encoder.float(agent.needs.hydration_need)?;
+    }
+    encoder.out.extend_from_slice(b",\"toilet_urgency\":");
+    encoder.float(agent.needs.toilet_urgency)?;
+    let out = &mut encoder.out;
+    out.push(b'}');
+    key(out, false, "next_decision_at");
+    write_int(out, agent.next_decision_at);
+    key(out, false, "queue_kind");
+    write_option(out, &agent.queue_kind);
+    key(out, false, "queue_target_id");
+    write_option(out, &agent.queue_target_id);
+    key(out, false, "queue_task_id");
+    write_option(out, &agent.queue_task_id);
+    key(out, false, "queue_wait_minutes");
+    write_int(out, agent.queue_wait_minutes);
+    key(out, false, "rng_key");
+    write_text(out, &agent.rng_key);
+    key(out, false, "stress");
+    encoder.float(agent.stress)?;
+    key(&mut encoder.out, false, "stress_sensitivity");
+    encoder.float(agent.stress_sensitivity)?;
+    let out = &mut encoder.out;
+    key(out, false, "support_assigned_staff_id");
+    write_option(out, &agent.support_assigned_staff_id);
+    key(out, false, "support_cooldown_remaining_minutes");
+    write_int(out, agent.support_cooldown_remaining_minutes);
+    key(out, false, "support_need");
+    encoder.float(agent.support_need)?;
+    let out = &mut encoder.out;
+    key(out, false, "support_request_id");
+    write_option(out, &agent.support_request_id);
+    key(out, false, "support_request_status");
+    match agent.support_request_status {
+        Some(status) => write_text(out, status_text(status)),
+        None => out.extend_from_slice(b"null"),
+    }
+    key(out, false, "support_wait_minutes");
+    write_int(out, agent.support_wait_minutes);
+    key(out, false, "target_id");
+    write_option(out, &agent.target_id);
+    key(out, false, "trust");
+    encoder.float(agent.trust)?;
+    let out = &mut encoder.out;
+    key(out, false, "zone_id");
+    write_text(out, &data.zones[agent.zone].id);
+    out.push(b'}');
+    Ok(())
+}
+
+/// The entries of `agent_life_context` (if `life`) and of `agents`, in runs, in the people's order,
+/// written by the threads together. The first error is the one the sections written one after the
+/// other would stop at: the life context's first, then the agents'.
+fn agent_parts(data: &ViewData, life: bool, information: bool, resource: bool) -> PyResult<(Vec<Vec<u8>>, Vec<Vec<u8>>)> {
+    let parts = parts_in_order(data.agents.len(), AGENTS_PER_PART, |run| {
+        let mut life_part = Encoder { out: Vec::new() };
+        let mut agents_part = Encoder { out: Vec::with_capacity(run.len() * 640) };
+        let life_written = if life {
+            life_part.out.reserve(run.len() * 512);
+            run.clone().try_for_each(|index| write_life(&mut life_part, index, &data.agents[index]))
+        } else {
+            Ok(())
+        };
+        let agents_written =
+            run.into_iter().try_for_each(|index| write_agent(&mut agents_part, index, &data.agents[index], data, information, resource));
+        (life_written.map(|()| life_part.out), agents_written.map(|()| agents_part.out))
+    });
+    let mut life_parts = Vec::with_capacity(parts.len());
+    let mut agents_parts = Vec::with_capacity(parts.len());
+    for (life_part, agents_part) in parts {
+        life_parts.push(life_part?);
+        agents_parts.push(agents_part);
+    }
+    let agents_parts = agents_parts.into_iter().collect::<PyResult<Vec<_>>>()?;
+    Ok((if life { life_parts } else { Vec::new() }, agents_parts))
+}
+
 /// `canonical_sha256` of the document `_view_state_hash` builds. Keys are written sorted. A float
 /// the canonical form does not hold says Unsupported, and the Python rule raises its own text.
 fn state_hash(data: &ViewData, world: &Bound<'_, PyAny>) -> PyResult<String> {
@@ -1157,6 +1312,10 @@ fn state_hash(data: &ViewData, world: &Bound<'_, PyAny>) -> PyResult<String> {
     let body_state = state_get(&model_state, intern!(py, "body_state_v1"))?;
     let life_context = data.has_population_context || (!body_state.is_none() && body_state.is_truthy()?);
 
+    // The document goes to the hash in pieces: what is written here, and each run of people, which
+    // the threads write (core/parallel.rs). The bytes are the same as in one piece.
+    let (life_parts, agent_parts) = agent_parts(data, life_context, information, resource)?;
+    let mut hasher = Sha256::new();
     let mut encoder = Encoder { out: Vec::with_capacity(32 * 1024) };
     encoder.out.push(b'{');
     let mut first = true;
@@ -1164,126 +1323,19 @@ fn state_hash(data: &ViewData, world: &Bound<'_, PyAny>) -> PyResult<String> {
         key(&mut encoder.out, true, "agent_life_context");
         first = false;
         encoder.out.push(b'[');
-        for (index, agent) in data.agents.iter().enumerate() {
-            if index > 0 {
-                encoder.out.push(b',');
-            }
-            let person = &agent.person;
-            let out = &mut encoder.out;
-            out.extend_from_slice(b"{\"agent_id\":");
-            write_text(out, &agent.id);
-            key(out, false, "care_for_ids");
-            write_texts(out, &person.care_for_ids);
-            key(out, false, "caregiver_ids");
-            write_texts(out, &person.caregiver_ids);
-            key(out, false, "discontent");
-            encoder.float(agent.body.discontent)?;
-            key(&mut encoder.out, false, "hygiene_need");
-            encoder.float(agent.body.hygiene_need)?;
-            key(&mut encoder.out, false, "negative_affect");
-            encoder.float(agent.body.negative_affect)?;
-            let out = &mut encoder.out;
-            key(out, false, "parent_ids");
-            write_texts(out, &person.parent_ids);
-            key(out, false, "personal_context_present");
-            out.extend_from_slice(if person.personal_context_present { b"true" } else { b"false" });
-            key(out, false, "positive_affect");
-            encoder.float(agent.body.positive_affect)?;
-            key(&mut encoder.out, false, "reassurance");
-            encoder.float(agent.body.reassurance)?;
-            let out = &mut encoder.out;
-            key(out, false, "required_sleep_minutes");
-            write_optional_int(out, person.required_sleep_minutes);
-            key(out, false, "roles");
-            write_texts(out, &person.roles);
-            key(out, false, "sleep_debt_minutes");
-            encoder.float(agent.body.sleep_debt_minutes)?;
-            key(&mut encoder.out, false, "uncertainty");
-            encoder.float(agent.body.uncertainty)?;
-            let out = &mut encoder.out;
-            key(out, false, "usual_sleep_minute");
-            write_optional_int(out, person.usual_sleep_minute);
-            key(out, false, "usual_wake_minute");
-            write_optional_int(out, person.usual_wake_minute);
-            out.push(b'}');
+        hasher.update(&encoder.out);
+        encoder.out.clear();
+        for part in &life_parts {
+            hasher.update(part);
         }
         encoder.out.push(b']');
     }
     key(&mut encoder.out, first, "agents");
     encoder.out.push(b'[');
-    for (index, agent) in data.agents.iter().enumerate() {
-        if index > 0 {
-            encoder.out.push(b',');
-        }
-        let out = &mut encoder.out;
-        out.push(b'{');
-        key(out, true, "activity");
-        write_text(out, activity_text(agent.activity));
-        key(out, false, "group_id");
-        write_option(out, &agent.group_id);
-        key(out, false, "id");
-        write_text(out, &agent.id);
-        if information {
-            key(out, false, "information_query_pressure");
-            encoder.float(agent.information_query_pressure)?;
-        }
-        let out = &mut encoder.out;
-        key(out, false, "mobility");
-        write_text(out, mobility_text(agent.mobility));
-        key(out, false, "needs");
-        out.extend_from_slice(b"{\"fatigue\":");
-        encoder.float(agent.needs.fatigue)?;
-        encoder.out.extend_from_slice(b",\"hunger\":");
-        encoder.float(agent.needs.hunger)?;
-        if resource {
-            encoder.out.extend_from_slice(b",\"hydration_need\":");
-            encoder.float(agent.needs.hydration_need)?;
-        }
-        encoder.out.extend_from_slice(b",\"toilet_urgency\":");
-        encoder.float(agent.needs.toilet_urgency)?;
-        let out = &mut encoder.out;
-        out.push(b'}');
-        key(out, false, "next_decision_at");
-        write_int(out, agent.next_decision_at);
-        key(out, false, "queue_kind");
-        write_option(out, &agent.queue_kind);
-        key(out, false, "queue_target_id");
-        write_option(out, &agent.queue_target_id);
-        key(out, false, "queue_task_id");
-        write_option(out, &agent.queue_task_id);
-        key(out, false, "queue_wait_minutes");
-        write_int(out, agent.queue_wait_minutes);
-        key(out, false, "rng_key");
-        write_text(out, &agent.rng_key);
-        key(out, false, "stress");
-        encoder.float(agent.stress)?;
-        key(&mut encoder.out, false, "stress_sensitivity");
-        encoder.float(agent.stress_sensitivity)?;
-        let out = &mut encoder.out;
-        key(out, false, "support_assigned_staff_id");
-        write_option(out, &agent.support_assigned_staff_id);
-        key(out, false, "support_cooldown_remaining_minutes");
-        write_int(out, agent.support_cooldown_remaining_minutes);
-        key(out, false, "support_need");
-        encoder.float(agent.support_need)?;
-        let out = &mut encoder.out;
-        key(out, false, "support_request_id");
-        write_option(out, &agent.support_request_id);
-        key(out, false, "support_request_status");
-        match agent.support_request_status {
-            Some(status) => write_text(out, status_text(status)),
-            None => out.extend_from_slice(b"null"),
-        }
-        key(out, false, "support_wait_minutes");
-        write_int(out, agent.support_wait_minutes);
-        key(out, false, "target_id");
-        write_option(out, &agent.target_id);
-        key(out, false, "trust");
-        encoder.float(agent.trust)?;
-        let out = &mut encoder.out;
-        key(out, false, "zone_id");
-        write_text(out, &data.zones[agent.zone].id);
-        out.push(b'}');
+    hasher.update(&encoder.out);
+    encoder.out.clear();
+    for part in &agent_parts {
+        hasher.update(part);
     }
     encoder.out.push(b']');
     let out = &mut encoder.out;
@@ -1329,7 +1381,8 @@ fn state_hash(data: &ViewData, world: &Bound<'_, PyAny>) -> PyResult<String> {
         encoder.value(config, 1)?;
     }
     encoder.out.push(b'}');
-    let digest = Sha256::digest(&encoder.out);
+    hasher.update(&encoder.out);
+    let digest = hasher.finalize();
     Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
 }
 

@@ -691,6 +691,7 @@ pub(crate) fn entity_rules_watching<'py>(
         }
     }
     let place_of = |id: &str| place_at.get(id).map(|index| &places[*index]);
+    #[allow(clippy::iter_over_hash_type, reason = "read-only checks; a refusal here hands the world to the Python check, which says its own text")]
     for (facility, agent) in &toilet_queue {
         if !place_of(facility).is_some_and(|place| place.queue.contains(agent))
             || person(agent).is_none_or(|who| who.activity != Activity::Queued)
@@ -698,6 +699,7 @@ pub(crate) fn entity_rules_watching<'py>(
             return unsupported("a toilet queue task has no entry");
         }
     }
+    #[allow(clippy::iter_over_hash_type, reason = "read-only checks; a refusal here hands the world to the Python check, which says its own text")]
     for ((facility, agent), index) in &toilet_service {
         let work = &works[*index];
         if !place_of(facility).is_some_and(|place| place.active.contains(agent))
@@ -718,6 +720,7 @@ pub(crate) fn entity_rules_watching<'py>(
             return unsupported("a toilet service task's completion is the Python rule's");
         }
     }
+    #[allow(clippy::iter_over_hash_type, reason = "read-only checks; a refusal here hands the world to the Python check, which says its own text")]
     for (facility, agent) in &resource_queue {
         if !place_of(facility).is_some_and(|place| place.resource_queue.contains(agent))
             || person(agent).is_none_or(|who| who.activity != Activity::Queued)
@@ -733,6 +736,7 @@ pub(crate) fn entity_rules_watching<'py>(
         let meal_skill = attribute(resource_config, intern!(py, "meal_staff_skill"))?;
         let water_skill = held.text(water_skill)?;
         let meal_skill = held.text(meal_skill)?;
+        #[allow(clippy::iter_over_hash_type, reason = "read-only checks and a set of ids; a refusal hands the world to the Python check")]
         for ((facility, agent), index) in &resource_service {
             let work = &works[*index];
             let Some(place) = place_of(facility) else {
@@ -798,6 +802,7 @@ pub(crate) fn entity_rules_watching<'py>(
             return unsupported("the resource service state lacks a field");
         };
         let cancelled = held.ids(cancelled)?;
+        #[allow(clippy::iter_over_hash_type, reason = "read-only checks; a refusal here hands the world to the Python check, which says its own text")]
         for (task_id, _) in resource_events.iter() {
             if !work_at.contains_key(task_id) && !cancelled.contains(task_id) {
                 return unsupported("a resource completion names an inactive task");
@@ -815,6 +820,7 @@ pub(crate) fn entity_rules_watching<'py>(
     }
 
     // ---- Travel.
+    #[allow(clippy::iter_over_hash_type, reason = "read-only checks; a refusal here hands the world to the Python check, which says its own text")]
     for (agent_id, index) in &travel_by_agent {
         let work = &works[*index];
         let Some(who) = person(agent_id).filter(|who| who.activity == Activity::Moving) else {

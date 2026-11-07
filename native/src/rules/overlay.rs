@@ -1687,6 +1687,7 @@ fn zones_connected(edges: &HashMap<Arc<str>, Edge>, source: &str, destination: &
         return false;
     }
     let mut next: HashMap<&str, Vec<&str>> = HashMap::new();
+    #[allow(clippy::iter_over_hash_type, reason = "only builds adjacency lists; reachability does not depend on their order")]
     for edge in edges.values() {
         if !edge.closed {
             next.entry(&edge.from).or_default().push(&edge.to);

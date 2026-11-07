@@ -22,6 +22,11 @@ ryu = "1.0"
 sha2 = "0.10"
 serde_json = { version = "1.0", features = ["arbitrary_precision"] }
 
+[lints.clippy]
+# A loop over a HashMap or HashSet goes in an order that changes from process to process. Each one
+# left is allowed where it is, with why its order reaches no result (docs/rust-port/step4-plan.md 9).
+iter_over_hash_type = "deny"
+
 [profile.release]
 lto = true
 codegen-units = 1

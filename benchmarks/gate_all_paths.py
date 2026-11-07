@@ -47,19 +47,21 @@ class Variant:
 
     name: str
     env: dict[str, str]
-    # Only worth running where Rust's parallel code runs.
-    only_with_saves: bool = False
 
 
-# PYTHONHASHSEED varies set and str-hash order; RAYON_NUM_THREADS varies the parallel parse
-# of saved records.
+# Each person's compute of a tick goes to helper threads from this many people on
+# (native/src/core/parallel.rs); a gate Scenario has fewer, so a variant sets 1 to send everyone.
+PEOPLE_PER_HELPER_VARIABLE = "SHELTERSIM_GATE_PEOPLE_PER_HELPER"
+# PYTHONHASHSEED varies set and str-hash order; RAYON_NUM_THREADS varies the parallel parse of
+# saved records and the helpers of the tick: one thread has none, four have three.
 BASE = Variant("base", {"PYTHONHASHSEED": "1"})
 VARIANTS = (
     Variant("second_process", {"PYTHONHASHSEED": "1"}),
     Variant("hash_seed", {"PYTHONHASHSEED": "271828"}),
-    Variant("one_worker", {"PYTHONHASHSEED": "2", "RAYON_NUM_THREADS": "1"}, only_with_saves=True),
+    Variant("one_worker", {"PYTHONHASHSEED": "2", "RAYON_NUM_THREADS": "1"}),
     Variant(
-        "four_workers", {"PYTHONHASHSEED": "3", "RAYON_NUM_THREADS": "4"}, only_with_saves=True
+        "four_workers",
+        {"PYTHONHASHSEED": "3", "RAYON_NUM_THREADS": "4", PEOPLE_PER_HELPER_VARIABLE: "1"},
     ),
 )
 # With the base run's hash seed, so that only the order of the dicts differs from it.
@@ -89,6 +91,11 @@ def run_one(name: str, output: Path, chosen: Any = None) -> None:
     from gate_scenarios import all_scenarios
 
     scenario = chosen or all_scenarios()[name]
+    people_per_helper = os.environ.get(PEOPLE_PER_HELPER_VARIABLE)
+    if people_per_helper:
+        import sheltersim_native
+
+        sheltersim_native.set_people_per_helper(int(people_per_helper))
     order = os.environ.get(ORDER_VARIABLE)
     if order:
         from tick_probe import ReversedOrder, install
@@ -322,15 +329,13 @@ def main() -> int:
 
     if args.determinism or args.reversed_order:
         table: dict[str, dict[str, Any]] = {name: {} for name in names}
-        reads_saves = _reads_saves(names)
         variants = list(VARIANTS) if args.determinism else []
         if args.reversed_order:
             variants += ORDER_VARIANTS
         for variant in variants:
-            chosen = [n for n in names if reads_saves[n] or not variant.only_with_saves]
-            other = _run_all(chosen, args.output, variant, args.jobs, coverage_dir)
+            other = _run_all(names, args.output, variant, args.jobs, coverage_dir)
             problems.extend(_problems_within(other))
-            for name in chosen:
+            for name in names:
                 differences = _differences(f"{variant.name} {name}", results[name], other[name])
                 problems.extend(differences)
                 table[name][variant.name] = "same" if not differences else "DIFFERENT"
@@ -358,13 +363,6 @@ def main() -> int:
     for problem in problems:
         print(f"PROBLEM {problem}")
     return 1 if problems else 0
-
-
-def _reads_saves(names: list[str]) -> dict[str, bool]:
-    from gate_scenarios import all_scenarios
-
-    scenarios = all_scenarios()
-    return {name: scenarios[name].reads_saves for name in names}
 
 
 if __name__ == "__main__":

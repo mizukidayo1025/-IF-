@@ -77,6 +77,10 @@ pub(crate) fn caught(py: Python<'_>, by: &str, error: &PyErr) {
     }
 }
 
+pub(crate) fn is_on() -> bool {
+    ON.load(Ordering::Relaxed)
+}
+
 /// Turn the census on or off for this process.
 #[pyfunction]
 pub(crate) fn census_switch(on: bool) {

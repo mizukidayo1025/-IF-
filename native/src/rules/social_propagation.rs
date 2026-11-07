@@ -29,6 +29,7 @@ use crate::contacts::{
     Basis, Bucket,
 };
 use crate::core::mathx::{max_num, min_num, py_fsum, py_max, py_min, sum_nums, Num};
+use crate::core::parallel::in_order;
 use crate::core::row::{namespace_is_absent, Field, IdMap};
 use crate::core::rng::{label, start_draw_log, take_draw_log, KeyedDraws};
 use crate::core::tracked::{as_readable_dict, as_readable_list};
@@ -124,6 +125,229 @@ fn checked<T>(value: Option<T>) -> PyResult<T> {
     value.ok_or_else(|| Unsupported::new_err("a minute does not fit"))
 }
 
+/// What `plan` reads for every person, shared by the threads of its compute.
+struct Shared<'a> {
+    minute: i64,
+    last_minute: i64,
+    cooldown_after: i64,
+    settings: &'a Settings,
+    people: &'a [Person<'a>],
+    quoted: &'a [Vec<u8>],
+    members: &'a HashMap<&'a str, Vec<usize>>,
+    group_members: &'a HashMap<&'a str, Vec<usize>>,
+    nearby_of_zone: &'a HashMap<&'a str, Vec<&'a [usize]>>,
+    previous: &'a IdMap<ContactRecord>,
+    cooldowns_before: &'a IdMap<i64>,
+    /// The cooldowns as the step starts from them: each person reads and writes only their own.
+    cooldowns: &'a BTreeMap<&'a str, i64>,
+    draws: &'a KeyedDraws,
+    traced: bool,
+}
+
+/// One person's part of the plan, which `plan` applies in the people's order.
+struct PersonPlan {
+    stress: f64,
+    /// The new contacts of this recipient, in the order of Python's new dict.
+    contacts: Vec<(String, ContactRecord)>,
+    /// (recipient, source) of what the step records in `social_network_v1`.
+    observed: Vec<(usize, usize)>,
+    /// The person's cooldown, if the step sets it.
+    cooldown: Option<i64>,
+    /// The trace's contacts of this recipient, sorted by source.
+    trace_contacts: Vec<SocialContact>,
+    /// What goes to the trace's total, in the order the Python rule adds it.
+    added: Vec<f64>,
+    contributing: i64,
+}
+
+/// The compute of one recipient: their contacts and new stress. It reads only `shared`.
+fn plan_person(shared: &Shared<'_>, me: usize) -> PyResult<PersonPlan> {
+    let Shared { minute, last_minute, cooldown_after, settings, people, quoted, .. } = *shared;
+    let person = &people[me];
+    let mut buckets = Vec::new();
+    if let Some(group) = person.group {
+        let family = &shared.group_members[group];
+        if family.len() > 1 {
+            buckets.push(Bucket { basis: Basis::Family, members: family, includes_self: true });
+        }
+    }
+    let same_zone = &shared.members[person.zone];
+    if same_zone.len() > 1 {
+        buckets.push(Bucket { basis: Basis::SameZone, members: same_zone, includes_self: true });
+    }
+    for &nearby in &shared.nearby_of_zone[person.zone] {
+        buckets.push(Bucket { basis: Basis::Nearby, members: nearby, includes_self: false });
+    }
+    let mut selected = Vec::new();
+    let mut head = key_head(label::SOCIAL_CONTACT_BUCKET, minute, &quoted[me]);
+    select_contacts(shared.draws, &mut head, me, &buckets, settings.maximum, true, &mut selected);
+
+    let traced = shared.traced;
+    let mut cooldown = shared.cooldowns.get(person.id).copied();
+    let mut set_cooldown = None;
+    let mut out = PersonPlan {
+        stress: 0.0,
+        contacts: Vec::with_capacity(selected.len()),
+        observed: Vec::new(),
+        cooldown: None,
+        trace_contacts: Vec::new(),
+        added: Vec::new(),
+        contributing: 0,
+    };
+    let mut lasting: Vec<(usize, Basis)> = Vec::new();
+    let mut minutes_of: Vec<(usize, i64)> = Vec::new();
+    let mut additions = 0.0;
+    for &(source, basis) in &selected {
+        let key = pair_key(&quoted[me], &quoted[source])?;
+        let duration = match shared.previous.get(key.as_str()) {
+            Some(record) if record.last_seen_minute == last_minute => {
+                checked(record.consecutive_minutes.checked_add(1))?
+            }
+            _ => 1,
+        };
+        out.contacts.push((key, ContactRecord { last_seen_minute: minute, consecutive_minutes: duration }));
+        let mut sparse_contribution = Num::Float(0.0);
+        if duration >= settings.minimum_contact_minutes {
+            lasting.push((source, basis));
+            if traced {
+                minutes_of.push((source, duration));
+            }
+            if settings.policy == Policy::Sparse && minute >= cooldown.unwrap_or(0) {
+                let difference = py_max(0.0, people[source].stress - person.stress);
+                let contribution = min_num(
+                    settings.pair_cap,
+                    Num::Float(difference * settings.spread * duration as f64),
+                );
+                let remaining = py_max(
+                    0.0,
+                    py_min(
+                        settings.agent_cap.value() - additions,
+                        1.0 - py_max(0.0, person.base - settings.recovery) - additions,
+                    ),
+                );
+                let kept = min_num(contribution, Num::Float(remaining));
+                sparse_contribution = kept;
+                let contribution = kept.value();
+                if contribution > 0.0 {
+                    cooldown = Some(cooldown_after);
+                    set_cooldown = Some(cooldown_after);
+                    additions += contribution;
+                    if traced {
+                        out.added.push(contribution);
+                        out.contributing += 1;
+                    }
+                }
+            }
+        }
+        if traced && settings.policy == Policy::Sparse {
+            out.trace_contacts.push(SocialContact {
+                recipient: me,
+                source,
+                basis,
+                minutes: duration,
+                cooldown_remaining: (cooldown.unwrap_or(0) - minute).max(0),
+                difference: py_max(0.0, people[source].stress - person.stress),
+                contribution: sparse_contribution,
+                weight: 0.0,
+                aggregate_rate: 0.0,
+                pre_pair_cap: 0.0,
+                pair_cap: Num::Float(0.0),
+                aggregate_scale: 1.0,
+            });
+        }
+    }
+    // Selected sources differ, and people are indexed in ID order: `contacts.sort`.
+    if traced && settings.policy == Policy::Sparse {
+        out.trace_contacts.sort_by_key(|contact| contact.source);
+    }
+
+    let stress = match settings.policy {
+        Policy::Sparse => {
+            // Every selected contact, by source (people are indexed in ID order).
+            out.observed.extend(selected.iter().map(|&(source, _)| (me, source)));
+            out.observed.sort_unstable();
+            py_min(1.0, py_max(0.0, person.base - settings.recovery + additions))
+        }
+        Policy::Channel => {
+            lasting.sort_unstable_by_key(|contact| contact.0);
+            out.observed.extend(lasting.iter().map(|&(source, _)| (me, source)));
+            let can_contribute = minute >= shared.cooldowns_before.get(person.id).copied().unwrap_or(0);
+            let mut details = traced.then(ChannelDetails::default);
+            let (stress, shift) = channel_stress(
+                settings,
+                people,
+                person,
+                if can_contribute { &lasting } else { &[] },
+                details.as_mut(),
+            )?;
+            if shift.value() != 0.0 {
+                cooldown = Some(cooldown_after);
+                set_cooldown = Some(cooldown_after);
+            }
+            if let Some(details) = &details {
+                out.added.push(shift.value());
+                out.contributing += i64::from(shift.value() != 0.0);
+                let cooldown_remaining = (cooldown.unwrap_or(0) - minute).max(0);
+                for (place, &(source, basis)) in lasting.iter().enumerate() {
+                    let eligible = can_contribute && !details.weights.is_empty();
+                    let raw = if eligible { details.raw[place] } else { 0.0 };
+                    let capped = if eligible { details.capped[place] } else { Num::Float(0.0) };
+                    out.trace_contacts.push(SocialContact {
+                        recipient: me,
+                        source,
+                        basis,
+                        minutes: minutes_of.iter().find(|item| item.0 == source).map_or(0, |item| item.1),
+                        cooldown_remaining,
+                        difference: people[source].stress - person.stress,
+                        contribution: Num::Float(if eligible { capped.value() * details.scale } else { 0.0 }),
+                        weight: if eligible { details.weights[place] } else { 0.0 },
+                        aggregate_rate: if eligible { details.rate } else { 0.0 },
+                        pre_pair_cap: raw,
+                        pair_cap: capped,
+                        aggregate_scale: if eligible { details.scale } else { 1.0 },
+                    });
+                }
+            }
+            stress
+        }
+        Policy::DeGroot => {
+            lasting.sort_unstable_by_key(|contact| contact.0);
+            out.observed.extend(lasting.iter().map(|&(source, _)| (me, source)));
+            let mut details = traced.then(DeGrootDetails::default);
+            let stress = degroot_stress(settings, people, person, &lasting, details.as_mut());
+            if let Some(details) = &details {
+                out.added.push(details.applied);
+                for (place, &(source, basis)) in lasting.iter().enumerate() {
+                    let contribution = details.contributions[place].value() * details.scale;
+                    out.contributing += i64::from(contribution != 0.0);
+                    out.trace_contacts.push(SocialContact {
+                        recipient: me,
+                        source,
+                        basis,
+                        minutes: minutes_of.iter().find(|item| item.0 == source).map_or(0, |item| item.1),
+                        cooldown_remaining: 0,
+                        difference: people[source].stress - person.stress,
+                        contribution: Num::Float(contribution),
+                        weight: 0.0,
+                        aggregate_rate: 0.0,
+                        pre_pair_cap: 0.0,
+                        pair_cap: Num::Float(0.0),
+                        aggregate_scale: 1.0,
+                    });
+                }
+            }
+            stress
+        }
+    };
+    // `replace` of the Python rule checks the value it stores.
+    if !(0.0..=1.0).contains(&stress) {
+        return unsupported("a new stress is outside 0..1");
+    }
+    out.stress = stress;
+    out.cooldown = set_cooldown;
+    Ok(out)
+}
+
 fn plan(
     seed: &str,
     minute: i64,
@@ -168,189 +392,50 @@ fn plan(
         cooldowns.clear();
     }
 
+    // The compute, each person on any thread; then the plan, in the people's order.
     let draws = KeyedDraws::new(seed);
+    let shared = Shared {
+        minute,
+        last_minute,
+        cooldown_after,
+        settings,
+        people,
+        quoted: &quoted,
+        members: &members,
+        group_members: &group_members,
+        nearby_of_zone: &nearby_of_zone,
+        previous,
+        cooldowns_before,
+        cooldowns: &cooldowns,
+        draws: &draws,
+        traced,
+    };
+    let planned = in_order(people.len(), |me| plan_person(&shared, me));
     let mut stresses = Vec::with_capacity(people.len());
     let mut contacts = IdMap::with_capacity_and_hasher(people.len() * 3, FxBuildHasher);
     let mut observed = Vec::with_capacity(people.len() * 3);
-    let mut selected = Vec::new();
-    let mut buckets = Vec::new();
-    let mut lasting: Vec<(usize, Basis)> = Vec::new();
     let mut trace = traced.then(PlanTrace::default);
-    let mut minutes_of: Vec<(usize, i64)> = Vec::new();
-    for (me, person) in people.iter().enumerate() {
-        buckets.clear();
-        if let Some(group) = person.group {
-            let family = &group_members[group];
-            if family.len() > 1 {
-                buckets.push(Bucket { basis: Basis::Family, members: family, includes_self: true });
-            }
+    let mut new_cooldowns = Vec::new();
+    for (person, planned) in people.iter().zip(planned) {
+        let planned = planned?;
+        if let Some(due) = planned.cooldown {
+            new_cooldowns.push((person.id, due));
         }
-        let same_zone = &members[person.zone];
-        if same_zone.len() > 1 {
-            buckets.push(Bucket { basis: Basis::SameZone, members: same_zone, includes_self: true });
+        for (key, record) in planned.contacts {
+            contacts.insert(Arc::from(key), record);
         }
-        for &nearby in &nearby_of_zone[person.zone] {
-            buckets.push(Bucket { basis: Basis::Nearby, members: nearby, includes_self: false });
+        observed.extend(planned.observed);
+        if let Some(trace) = &mut trace {
+            trace.contacts.extend(planned.trace_contacts);
+            for added in planned.added {
+                trace.total_added += added;
+            }
+            trace.contributing += planned.contributing;
         }
-        let mut head = key_head(label::SOCIAL_CONTACT_BUCKET, minute, &quoted[me]);
-        select_contacts(&draws, &mut head, me, &buckets, settings.maximum, true, &mut selected);
-
-        lasting.clear();
-        minutes_of.clear();
-        let contacts_before = trace.as_ref().map_or(0, |trace| trace.contacts.len());
-        let mut additions = 0.0;
-        for &(source, basis) in &selected {
-            let key = pair_key(&quoted[me], &quoted[source])?;
-            let duration = match previous.get(key.as_str()) {
-                Some(record) if record.last_seen_minute == last_minute => {
-                    checked(record.consecutive_minutes.checked_add(1))?
-                }
-                _ => 1,
-            };
-            contacts.insert(
-                Arc::from(key),
-                ContactRecord { last_seen_minute: minute, consecutive_minutes: duration },
-            );
-            let mut sparse_contribution = Num::Float(0.0);
-            if duration >= settings.minimum_contact_minutes {
-                lasting.push((source, basis));
-                if trace.is_some() {
-                    minutes_of.push((source, duration));
-                }
-                if settings.policy == Policy::Sparse
-                    && minute >= cooldowns.get(person.id).copied().unwrap_or(0)
-                {
-                    let difference = py_max(0.0, people[source].stress - person.stress);
-                    let contribution = min_num(
-                        settings.pair_cap,
-                        Num::Float(difference * settings.spread * duration as f64),
-                    );
-                    let remaining = py_max(
-                        0.0,
-                        py_min(
-                            settings.agent_cap.value() - additions,
-                            1.0 - py_max(0.0, person.base - settings.recovery) - additions,
-                        ),
-                    );
-                    let kept = min_num(contribution, Num::Float(remaining));
-                    sparse_contribution = kept;
-                    let contribution = kept.value();
-                    if contribution > 0.0 {
-                        cooldowns.insert(person.id, cooldown_after);
-                        additions += contribution;
-                        if let Some(trace) = &mut trace {
-                            trace.total_added += contribution;
-                            trace.contributing += 1;
-                        }
-                    }
-                }
-            }
-            if let Some(trace) = trace.as_mut().filter(|_| settings.policy == Policy::Sparse) {
-                trace.contacts.push(SocialContact {
-                    recipient: me,
-                    source,
-                    basis,
-                    minutes: duration,
-                    cooldown_remaining: (cooldowns.get(person.id).copied().unwrap_or(0) - minute).max(0),
-                    difference: py_max(0.0, people[source].stress - person.stress),
-                    contribution: sparse_contribution,
-                    weight: 0.0,
-                    aggregate_rate: 0.0,
-                    pre_pair_cap: 0.0,
-                    pair_cap: Num::Float(0.0),
-                    aggregate_scale: 1.0,
-                });
-            }
-        }
-        // Selected sources differ, and people are indexed in ID order: `contacts.sort`.
-        if let Some(trace) = trace.as_mut().filter(|_| settings.policy == Policy::Sparse) {
-            trace.contacts[contacts_before..].sort_by_key(|contact| contact.source);
-        }
-
-        let stress = match settings.policy {
-            Policy::Sparse => {
-                // Every selected contact, by source (people are indexed in ID order).
-                let start = observed.len();
-                observed.extend(selected.iter().map(|&(source, _)| (me, source)));
-                observed[start..].sort_unstable();
-                py_min(1.0, py_max(0.0, person.base - settings.recovery + additions))
-            }
-            Policy::Channel => {
-                lasting.sort_unstable_by_key(|contact| contact.0);
-                observed.extend(lasting.iter().map(|&(source, _)| (me, source)));
-                let can_contribute = minute >= cooldowns_before.get(person.id).copied().unwrap_or(0);
-                let mut details = trace.as_ref().map(|_| ChannelDetails::default());
-                let (stress, shift) = channel_stress(
-                    settings,
-                    people,
-                    person,
-                    if can_contribute { &lasting } else { &[] },
-                    details.as_mut(),
-                )?;
-                if shift.value() != 0.0 {
-                    cooldowns.insert(person.id, cooldown_after);
-                }
-                if let (Some(trace), Some(details)) = (&mut trace, &details) {
-                    trace.total_added += shift.value();
-                    trace.contributing += i64::from(shift.value() != 0.0);
-                    let cooldown_remaining = (cooldowns.get(person.id).copied().unwrap_or(0) - minute).max(0);
-                    for (place, &(source, basis)) in lasting.iter().enumerate() {
-                        let eligible = can_contribute && !details.weights.is_empty();
-                        let raw = if eligible { details.raw[place] } else { 0.0 };
-                        let capped = if eligible { details.capped[place] } else { Num::Float(0.0) };
-                        trace.contacts.push(SocialContact {
-                            recipient: me,
-                            source,
-                            basis,
-                            minutes: minutes_of.iter().find(|item| item.0 == source).map_or(0, |item| item.1),
-                            cooldown_remaining,
-                            difference: people[source].stress - person.stress,
-                            contribution: Num::Float(if eligible { capped.value() * details.scale } else { 0.0 }),
-                            weight: if eligible { details.weights[place] } else { 0.0 },
-                            aggregate_rate: if eligible { details.rate } else { 0.0 },
-                            pre_pair_cap: raw,
-                            pair_cap: capped,
-                            aggregate_scale: if eligible { details.scale } else { 1.0 },
-                        });
-                    }
-                }
-                stress
-            }
-            Policy::DeGroot => {
-                lasting.sort_unstable_by_key(|contact| contact.0);
-                observed.extend(lasting.iter().map(|&(source, _)| (me, source)));
-                let mut details = trace.as_ref().map(|_| DeGrootDetails::default());
-                let stress = degroot_stress(settings, people, person, &lasting, details.as_mut());
-                if let (Some(trace), Some(details)) = (&mut trace, &details) {
-                    trace.total_added += details.applied;
-                    for (place, &(source, basis)) in lasting.iter().enumerate() {
-                        let contribution = details.contributions[place].value() * details.scale;
-                        trace.contributing += i64::from(contribution != 0.0);
-                        trace.contacts.push(SocialContact {
-                            recipient: me,
-                            source,
-                            basis,
-                            minutes: minutes_of.iter().find(|item| item.0 == source).map_or(0, |item| item.1),
-                            cooldown_remaining: 0,
-                            difference: people[source].stress - person.stress,
-                            contribution: Num::Float(contribution),
-                            weight: 0.0,
-                            aggregate_rate: 0.0,
-                            pre_pair_cap: 0.0,
-                            pair_cap: Num::Float(0.0),
-                            aggregate_scale: 1.0,
-                        });
-                    }
-                }
-                stress
-            }
-        };
-        // `replace` of the Python rule checks the value it stores.
-        if !(0.0..=1.0).contains(&stress) {
-            return unsupported("a new stress is outside 0..1");
-        }
-        stresses.push(stress);
+        stresses.push(planned.stress);
     }
+    drop(shared);
+    cooldowns.extend(new_cooldowns);
 
     let new_cooldowns: Vec<(&str, i64)> =
         cooldowns.into_iter().filter(|&(_, due)| due > minute).collect();

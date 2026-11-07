@@ -86,8 +86,6 @@ class GateScenario:
     name: str
     what: str
     run: Callable[[Path], Outcome]
-    # Whether Rust's parallel parsing of saved records runs: only saved Runs read them.
-    reads_saves: bool = False
 
 
 # Scenario builders -----------------------------------------------------------------------
@@ -1730,41 +1728,32 @@ def all_scenarios() -> dict[str, GateScenario]:
             "generated_project",
             "100人の生成Scenarioを画面の経路で12時間（今の7日分の確認の短縮形）",
             _generated_project,
-            reads_saves=True,
         ),
         GateScenario(
             "long_generated", "少人数の2日間（日付をまたぐ処理、配給、シフト）", _long_generated
         ),
         GateScenario("trace_levels", "すべてのtrace level（新旧のScenarioの形）", _trace_levels),
-        GateScenario(
-            "fork_resume", "途中からの分岐・再開・Checkpointの往復", _fork_resume, reads_saves=True
-        ),
-        GateScenario(
-            "llm_tape", "記録した応答（台本のProvider）とその再生", _llm_tape, reads_saves=True
-        ),
+        GateScenario("fork_resume", "途中からの分岐・再開・Checkpointの往復", _fork_resume),
+        GateScenario("llm_tape", "記録した応答（台本のProvider）とその再生", _llm_tape),
         GateScenario(
             "interventions",
             "床図以外のEffectProgramのすべての操作",
             _interventions,
-            reads_saves=True,
         ),
-        GateScenario("geometry", "床図を変える操作と迂回", _geometry, reads_saves=True),
-        GateScenario(
-            "population", "人の出入りとpopulation_presence", _population, reads_saves=True
-        ),
+        GateScenario("geometry", "床図を変える操作と迂回", _geometry),
+        GateScenario("population", "人の出入りとpopulation_presence", _population),
         GateScenario(
             "operational", "fixtureの運営Scenario（在庫・配送・断水・故障）", _operational
         ),
         GateScenario("conditions", "入力できるすべての運営条件とインフラの依存", _conditions),
         GateScenario("split_queues", "1つの設備に複数の列", _split_queues),
         GateScenario("branch_commands", "旧demoの配置コマンド", _branch_commands),
-        GateScenario("arrivals", "外から歩いて来る到着と受け入れ", _arrivals, reads_saves=True),
+        GateScenario("arrivals", "外から歩いて来る到着と受け入れ", _arrivals),
         GateScenario("scarcity", "在庫切れとケアの必要", _scarcity),
         GateScenario(
             "run_stops",
             "Runを止めた有効な介入（直したものは再発の確認）",
             _run_stops,
-            reads_saves=True,
         ),
     ]
     for domain, model_id in selectable_models():

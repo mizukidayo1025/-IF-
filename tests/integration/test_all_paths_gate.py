@@ -65,8 +65,14 @@ def test_the_determinism_check_runs_each_variant_in_a_process_of_its_own(tmp_pat
 
     assert done.returncode == 0, done.stdout + done.stderr
     summary = json.loads((tmp_path / "run" / "summary.json").read_text(encoding="utf-8"))
-    # This scenario saves nothing, so the worker counts of the saved-record parser do not apply.
-    assert summary["determinism"][SMALL] == {"second_process": "same", "hash_seed": "same"}
+    # The worker counts vary the helpers of the tick too (native/src/core/parallel.rs), so every
+    # scenario runs them, saved or not.
+    assert summary["determinism"][SMALL] == {
+        "second_process": "same",
+        "hash_seed": "same",
+        "one_worker": "same",
+        "four_workers": "same",
+    }
 
 
 def test_the_expected_hashes_list_every_scenario_and_every_selectable_model(tmp_path: Path):
