@@ -118,11 +118,21 @@ BASIC_USER="$(sed -n 1p "$ETC/basic-auth")"
 BASIC_PASS="$(sed -n 2p "$ETC/basic-auth")"
 BASIC_HASH="$(caddy hash-password --plaintext "$BASIC_PASS")"
 
-echo "== slots 1..$SLOTS"
+# Each slot may keep this much saved data, so that all slots together cannot fill the disk:
+# the disk less a reserve for the system, the app and its build, shared by the slots.
+# Set STORAGE_GB=<n> to choose it; run setup.sh again after resizing the disk.
+DISK_GB="$(df --output=size -B 1000000000 "$DATA" | tail -n 1 | tr -d ' ')"
+STORAGE_GB="${STORAGE_GB:-$(( (DISK_GB - 15) / SLOTS ))}"
+[[ $STORAGE_GB =~ ^[0-9]+$ && $STORAGE_GB -ge 1 ]] || {
+  echo "not enough disk for $SLOTS slots (${DISK_GB} GB); set STORAGE_GB or use fewer slots" >&2
+  exit 1
+}
+
+echo "== slots 1..$SLOTS (${STORAGE_GB} GB of saved data each, disk ${DISK_GB} GB)"
 install -m 755 "$HERE/reset-slot.sh" /opt/sheltersim/reset-slot.sh
 install -m 644 "$HERE/sheltersim@.service" /etc/systemd/system/sheltersim@.service
 for n in $(seq 1 "$SLOTS"); do
-  echo "PORT=$((8800 + n))" > "$ETC/slot$n.env"
+  printf 'PORT=%s\nSTORAGE_GB=%s\n' "$((8800 + n))" "$STORAGE_GB" > "$ETC/slot$n.env"
   if [[ ! -d $DATA/slot$n/demo_replay ]]; then
     /opt/sheltersim/reset-slot.sh "$n" --no-restart
   fi

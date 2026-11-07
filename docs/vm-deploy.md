@@ -7,6 +7,7 @@
 - Webサーバーは認証を持たず、同じプロセスを開いた人どうしで状態を共有します。そのため、利用者ごとに分ける「環境」（slot）を用意します。slotごとに`sheltersim web`のプロセス（systemdの`sheltersim@<n>`）と、`fixtures/demo_replay`をコピーしたデータ（`/var/lib/sheltersim/slot<n>`）を分けます。既定は6つです。
 - Caddyが`https://s<n>.<IPのドットをハイフンにしたもの>.sslip.io`を各slotへ中継し、証明書を自動で取ります。審査では新しい画面（`/demo-v2`）だけを使うため、slotの`/`と従来の画面（`/demo`、`/admin`、`/index.html`）は、Caddyが`/demo-v2`へ転送します。APIと新しい画面のファイルはそのまま通します。入口のページ（`https://<IP>.sslip.io/`）とすべてのslotに、共通のBasic認証を1つかけます。
 - アプリは、`setup.sh`を取り出したcommitから`/opt/sheltersim/app`へcloneし、`/opt/sheltersim/venv`へ入れます。Rustのkernel（`native/`）もVM上で作って入れます。そのcommitはGitHubへpush済みである必要があります。別のcommitを入れるときは`sudo REF=<commit> bash deploy/vm/setup.sh`のように実行します。
+- slotごとの保存データの上限（`sheltersim web --project-storage-gb`）は、ディスクの容量から15 GBを引いてslotの数で割った値です。すべてのslotが上限まで使ってもディスクがあふれません。`STORAGE_GB=<GB>`で指定することもできます。ディスクを増やした後は、`setup.sh`を実行し直すと上限も増えます。
 - LLMの利用台帳（`XDG_STATE_HOME`）は全slotで1つを共有するため、既定50ドルの上限がVM全体にかかります。応答テープ（`SHELTERSIM_LLM_CACHE_PATH`）はslotごとです。
 
 ## VMを作る（Cloud Shell）

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlsplit
 
-from sheltersim.storage.projects import ProjectStore, StorageError
+from sheltersim.storage.projects import DEFAULT_MAX_BYTES, ProjectStore, StorageError
 from sheltersim.web.demo import DemoConflictError, DemoError, DemoService, load_demo_scenario
 from sheltersim.web.inspector import InspectorService, WebQueryError
 from sheltersim.web.jobs import DemoJobError, DemoJobManager
@@ -50,14 +50,19 @@ def serve_inspector(
     port: int = 8765,
     demo_scenario: str | Path | None = None,
     max_parallel_runs: int = 2,
+    project_storage_bytes: int = DEFAULT_MAX_BYTES,
 ) -> None:
     """Serve the saved-run Inspector and packaged offline demo until interrupted.
 
-    Up to max_parallel_runs Runs compute or fork at once, each in its own process.
+    Up to max_parallel_runs Runs compute or fork at once, each in its own process. The
+    projects directory holds at most project_storage_bytes of saved data; the computing
+    and indexing processes get the same limit from the store.
     """
     service = InspectorService(runs_directory)
     frozen_scenario_path = Path(runs_directory) / ".demo-scenarios" / "frozen.json"
-    project_store = ProjectStore(Path(runs_directory) / ".projects")
+    project_store = ProjectStore(
+        Path(runs_directory) / ".projects", max_bytes=project_storage_bytes
+    )
     demo = (
         DemoService(scenario_storage_path=frozen_scenario_path, usage_store=project_store)
         if demo_scenario is None
