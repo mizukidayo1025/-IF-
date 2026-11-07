@@ -1574,6 +1574,18 @@ def validate_effect_program(
     return tuple(dict.fromkeys(issues))
 
 
+def derived_effect_marker(marker: Mapping[str, Any]) -> dict[str, Any]:
+    """The marker of an event that a program's event schedules: phase `derived`, no guard.
+
+    A guard decides whether its start event applies. What that event then schedules (a staff
+    member's return, a delayed delivery, an arrival's approach) ends or continues what started,
+    as an expiry does, so the guard is not copied and not evaluated again (#89).
+    """
+    derived = {key: value for key, value in marker.items() if key != "guard"}
+    derived["phase"] = "derived"
+    return derived
+
+
 def schedule_effect_program(
     world: WorldState,
     program: EffectProgram,

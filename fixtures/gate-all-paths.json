@@ -334,10 +334,15 @@
    }
   },
   "known_stops": {
-   "runs": {},
+   "runs": {
+    "guarded-absence": {
+     "world_hash": "c0b7bffbb6d5ba2d7936977a03fe84726d0cf39cb1ec256373fd70a2ff3a699a",
+     "events_hash": "8882b8930f86a96d0a586a9ca9a9ca681eb0e43ba2a3de2fdae34fca10a56c3d",
+     "metrics_hash": "b00d05c8acd3326312b7af2b7239efa7d2729cdbdfbd4d97cde5b3dac9947ee9"
+    }
+   },
    "refused": {
-    "expiry-at-a-timeout": "stopped: invalid simulator extension state: shared_operations_v1 care status disagrees with the persisted support request",
-    "guarded-absence": "stopped: invalid EffectProgram state: only a start event may store a guard: only a start event may store a guard"
+    "expiry-at-a-timeout": "stopped: invalid simulator extension state: shared_operations_v1 care status disagrees with the persisted support request"
    }
   },
   "llm_tape": {

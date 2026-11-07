@@ -1082,9 +1082,10 @@ def _geometry(directory: Path) -> Outcome:
 
 
 def _known_stops(directory: Path) -> Outcome:
-    """Valid interventions that stop the Run today; each is listed in docs/rust-port.md.
+    """Valid interventions that stopped the Run; the ones that still do are in docs/rust-port.md.
 
-    The stop is the expected result, so that a fix or another stop shows up in the gate.
+    A stop is the expected result, so that a fix or another stop shows up in the gate. A fixed
+    one stays as a Run, so that it doesn't come back.
     """
     outcome = Outcome()
     # The closure's expiry is due in the minute a support request times out. That request's
@@ -1103,7 +1104,8 @@ def _known_stops(directory: Path) -> Outcome:
         end=90,
     )
     _fork_with(outcome, store, timeline, "main", "expiry-at-a-timeout", _program("c", closure), 180)
-    # A guard on an absence with an end: the restoration event inherits the guard.
+    # A guard on an absence with an end. The restoration event used to inherit the guard and stop
+    # the Run (#89, 元 #310); now the guard is only the start's and staff_003 comes back at 120.
     scenario = generated(evacuees=30, minutes=180)
     store, timeline = open_timeline(directory / "guard", scenario)
     timeline.advance("main", 60, checkpoint_interval=60)

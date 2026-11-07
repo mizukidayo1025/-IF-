@@ -59,6 +59,7 @@ from sheltersim.domain.staff import (
     timeout_support_request,
 )
 from sheltersim.events.effects import (
+    derived_effect_marker,
     effect_event_guard_or_suppress,
     has_active_facility_modifier,
 )
@@ -2420,10 +2421,7 @@ class DeliveryDelayHandler:
             replacement_provenance["last_delay_event_id"] = event.event_id
             effect_marker = event.to_dict()["provenance"].get("effect_program_v1")
             if isinstance(effect_marker, Mapping):
-                replacement_provenance["effect_program_v1"] = {
-                    **dict(effect_marker),
-                    "phase": "derived",
-                }
+                replacement_provenance["effect_program_v1"] = derived_effect_marker(effect_marker)
             replacement = ScheduledEvent(
                 event_id=target.event_id,
                 kind=target.kind,
@@ -2557,10 +2555,9 @@ class StaffUnavailabilityHandler:
                         "policy_version": "operational-events-v1",
                         **(
                             {
-                                "effect_program_v1": {
-                                    **event.to_dict()["provenance"]["effect_program_v1"],
-                                    "phase": "derived",
-                                }
+                                "effect_program_v1": derived_effect_marker(
+                                    event.to_dict()["provenance"]["effect_program_v1"]
+                                )
                             }
                             if isinstance(event.provenance.get("effect_program_v1"), Mapping)
                             else {}

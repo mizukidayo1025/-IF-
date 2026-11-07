@@ -532,7 +532,9 @@ def _schedule_arrival_approach_completion(
     marker = arrival_event.to_dict()["provenance"].get("effect_program_v1")
     if not isinstance(marker, Mapping):
         raise EventApplicationError("arrival event lacks its approved EffectProgram provenance")
-    derived_marker = {**dict(marker), "phase": "derived"}
+    from sheltersim.events.effects import derived_effect_marker
+
+    derived_marker = derived_effect_marker(marker)
     completion = ScheduledEvent(
         event_id=completion_event_id,
         kind=EventKind.COMPLETION,
