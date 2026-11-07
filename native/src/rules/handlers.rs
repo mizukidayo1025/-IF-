@@ -641,10 +641,7 @@ fn delivery_delay_on(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyRe
         let event_provenance = event.call_method0(intern!(py, "to_dict"))?.get_item("provenance")?;
         let marker = get(&event_provenance, "effect_program_v1")?;
         if is_mapping(&marker) {
-            let derived = PyDict::new(py);
-            derived.update(marker.downcast::<PyMapping>()?)?;
-            derived.set_item("phase", "derived")?;
-            provenance.set_item("effect_program_v1", derived)?;
+            provenance.set_item("effect_program_v1", derived_of(&marker)?)?;
         }
         let kwargs = PyDict::new(py);
         for name in ["event_id", "kind", "priority", "sequence", "event_type", "source_id"] {
@@ -749,17 +746,26 @@ fn water_restoration(_handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, even
 
 // ---- Staff unavailable and restored -----------------------------------------------------------------
 
-/// `{**event.to_dict()["provenance"]["effect_program_v1"], "phase": "derived"}` if the event has a marker.
+/// `derived_effect_marker(event.to_dict()["provenance"]["effect_program_v1"])` if the event has a marker.
 pub(crate) fn derived_marker<'py>(event: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyDict>>> {
     let py = event.py();
     if !is_mapping(&get(&attribute(event, intern!(py, "provenance"))?, "effect_program_v1")?) {
         return Ok(None);
     }
     let marker = event.call_method0(intern!(py, "to_dict"))?.get_item("provenance")?.get_item("effect_program_v1")?;
-    let derived = PyDict::new(py);
+    derived_of(&marker).map(Some)
+}
+
+/// `derived_effect_marker` (events/effects.py): a copy in the same order, phase `derived` and no
+/// guard. The guard decides whether the start applies; what the start schedules isn't guarded again (#89).
+fn derived_of<'py>(marker: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>> {
+    let derived = PyDict::new(marker.py());
     derived.update(marker.downcast::<PyMapping>()?)?;
+    if derived.contains("guard")? {
+        derived.del_item("guard")?;
+    }
     derived.set_item("phase", "derived")?;
-    Ok(Some(derived))
+    Ok(derived)
 }
 
 fn task_is(task: &Bound<'_, PyAny>, staff_id: &str, kinds: &[&str]) -> PyResult<bool> {

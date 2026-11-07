@@ -487,10 +487,13 @@ Linux で確かめた結果です。Windows と macOS では実行していま�
 
 ### 有効な入力で Run が止まるもの
 
-どちらも main にもあります（`known_stops` の Scenario が今の結果として固定しています）。
+main にもあります（`known_stops` の Scenario が今の結果として固定しています）。
 
 1. **介入の終わりと支援の時間切れが同じ分：** `set_route_access` の期限切れと `support_request_timeout` が同じ分に来ると、`StateInvariantError`（`shared_operations_v1 care status disagrees with the persisted support request`）で止まります。共有の運営の記録は due のイベントのまとまりの後で書かれ、効果の処理はまとまりの途中で `world.to_dict()` を呼んで検証するためです。
-2. **期限のある職員の不在の guard：** `set_staff_availability` に `end_minute` と guard があると、`StateInvariantError`（`only a start event may store a guard`）で止まります。`StaffUnavailabilityHandler` が復帰のイベントに `effect_program_v1` を写すときに、guard も写すためです（`events/handlers.py`）。
+
+直したものは、`known_stops` の Scenario に Run として残し、ハッシュで固定します。
+
+- **期限のある職員の不在の guard（#89、元 #310）：** `set_staff_availability` に `end_minute` と guard があると、復帰のイベントが guard を写して `only a start event may store a guard` で止まっていました。guard は始まりのイベントだけが持ち、始まりが予定に入れるイベント（職員の復帰、遅らせた配送、到着の歩きの終わり）は写しません（`events/effects.py` の `derived_effect_marker`）。`modify_supply_schedule` と、歩いて来る `add_evacuees` も同じ理由で止まっていました。
 
 ### 時間
 

@@ -1752,7 +1752,9 @@ fn plan_completion(world: &Bound<'_, PyAny>, arrival: &EventRow, item: &Prepared
     let Some(V::Map(marker)) = provenance(arrival, "effect_program_v1") else {
         return Ok(Err((Stop::AfterSequence, "arrival event lacks its approved EffectProgram provenance")));
     };
+    // `derived_effect_marker`: the arrival's guard is not the approach's (#89).
     let mut derived = marker.clone();
+    derived.shift_remove("guard");
     derived.insert(Arc::from("phase"), v_str("derived"));
     let completion_id: Arc<str> = Arc::from(format!("arrival-approach-complete-{sequence}"));
     let source = route.source_ids.first().cloned().ok_or_else(|| Unsupported::new_err("a route has no sources"))?;
