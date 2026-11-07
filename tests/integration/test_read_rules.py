@@ -2,8 +2,8 @@
 zone_environment_view and its formulas, PersonContext, the proximity sampling of
 DistanceSampledProximityPolicy, the step that schedules what it finds, and the error of a contact
 that is not an event. The proximity sampling and its step have no Python rule left (lane L10):
-what that rule found is a digest of its answers, taken once from it (45a9bc9), pinned on Linux, as
-the gate's hashes are.
+what that rule found is a digest of its answers, taken once from it (45a9bc9), pinned on every OS,
+as the gate's hashes are.
 
 Most of these are selected by the Scenario, so a Run reaches few of them. These tests make the
 inputs, which is how a change of 1% in any of the coefficients is seen: every default of a contract

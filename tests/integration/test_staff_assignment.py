@@ -4,9 +4,9 @@ native/src/rules/staff.rs and travel.rs on what the gate reaches rarely or never
 (docs/rust-port/lanes/l2-staff.md). `assign_staff_operations`, `schedule_staff_operation_relief`
 and the controller's `_route` have no Python body left (lane L10): what they start is checked
 against a digest of what the Python rule started on the same world (its answer, the world, its
-records and events),
-taken before it went, pinned on Linux as the gate's hashes are. No Run reaches the preemption of a
-background task, so a Run here does, through the driver and through the phases.
+records and events), taken before it went, pinned on every OS as the gate's hashes are. No Run
+reaches the preemption of a background task, so a Run here does, through the driver and through
+the phases.
 """
 
 from __future__ import annotations

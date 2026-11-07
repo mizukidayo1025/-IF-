@@ -3,8 +3,8 @@ asks.
 
 The phases' steps `_view_after_movement` and `_view_for_proposals` make them, and have no Python
 body (lane L10): what the kernel refuses is a KernelRefusal. The Python rule `WorldView.from_world`
-went too: the views of whole Runs are compared with digests written down from it (on Linux, as the
-gate's hashes: the floats come from libm), and a view the kernel kept, refreshed or read before a
+went too: the views of whole Runs are compared with digests written down from it (on every OS, as
+the gate's hashes), and a view the kernel kept, refreshed or read before a
 change with a new view of the same world (`support.world.view_of`).
 
 Model version 2 (step 4, L11: the pinned libm crate and the information events' draw keys)

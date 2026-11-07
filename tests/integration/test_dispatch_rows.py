@@ -2,7 +2,7 @@
 
 The phase has no Python step left (lane L10). Each case runs events through rules/dispatch.rs and
 compares everything saved with what the Python step saved from the same events: a digest of it,
-taken once from that step (45a9bc9) before it went, pinned on Linux, as the gate's hashes are.
+taken once from that step (45a9bc9) before it went, pinned on every OS, as the gate's hashes are.
 See docs/rust-port/lanes/m3-dispatch.md.
 """
 

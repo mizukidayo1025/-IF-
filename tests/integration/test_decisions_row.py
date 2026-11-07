@@ -59,7 +59,7 @@ def _digest(value: Any) -> str:
 
 def _python_s(value: Any, digest: str) -> None:
     """`value`'s digest is the one of what the Python steps made, recorded from them on 45a9bc9.
-    Pinned on Linux (libm), as the gate's hashes are."""
+    Pinned on every OS, as the gate's hashes are."""
     assert _digest(value) == digest
 
 

@@ -134,9 +134,8 @@ def _as_recorded(
     """The kernel's result on a copy, whose rows still read as its tree.
 
     The world and the receipts must be the deleted Python rule's: `digest` was recorded once from
-    that rule on the same world (2d8fb46). The documents hold floats of the platform's libm,
-    recorded on Linux; lane L13 pins them on every OS, and until then the case's own checks are
-    what macOS and Windows run.
+    that rule on the same world (2d8fb46). The documents hold floats, recorded
+    on Linux and the same bits on every OS.
     """
     kernel_world = _copy(world)
     result = kernel(handler, kernel_world, event)

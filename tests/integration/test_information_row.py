@@ -2,7 +2,7 @@
 
 The step is the kernel alone: the Python rules of policies/information.py and
 policies/alternatives.py are gone. What they answered, on small worlds and on values no scenario
-reaches, was recorded once as digests (ANSWERS), which the kernel's answers must equal on Linux.
+reaches, was recorded once as digests (ANSWERS), which the kernel's answers must equal on every OS.
 
 Model version 2 (step 4, L11: the pinned libm crate and the information events' draw keys)
 changed some of these results: those digests were re-recorded from the kernels of that model

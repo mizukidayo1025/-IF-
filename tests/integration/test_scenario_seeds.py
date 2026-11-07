@@ -38,7 +38,7 @@ SCENARIOS = (
 SEEDS = (2**64 + 7, 2**63, 10**30)
 
 # The first 16 hex digits of the SHA-256 of each Scenario's `{"refused": ..., "runs": ...}`
-# (`_digest`), from the Python rules. Pinned on Linux only: other systems have other math libraries.
+# (`_digest`), from the Python rules. The same on every OS, as the gate's hashes.
 PYTHON_RULES_DIGESTS: dict[int, dict[str, str]] = {
     2**64 + 7: {
         "model__behavior__sleep-aware-utility-softmax-v2": "6ba0ad6bb25a5cdb",

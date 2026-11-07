@@ -372,7 +372,7 @@ def test_a_walk_that_does_not_fit_is_saved_with_its_text_as_the_python_phase_sav
     """A walk event of another purpose, before the real one in the same minute, fails alone.
 
     The records and the world are what the Python step saved, written down from it (45a9bc9)
-    before it went (lane L10): the world as a digest, pinned on Linux as the gate's hashes are.
+    before it went (lane L10): the world as a digest, pinned on every OS as the gate's hashes are.
     """
     controller = _hundred()
     world = controller.world

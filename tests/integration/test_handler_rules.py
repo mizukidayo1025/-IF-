@@ -625,7 +625,7 @@ def _seek(
     world: WorldState, controller: Any, proposal: Any, expected: tuple[Any, ...], digest: str
 ) -> Any:
     """The kernel on the world: the result and the world (`world_digest`) of the Python step,
-    recorded from it on 45a9bc9 before it went (lane L10), pinned on Linux."""
+    recorded from it on 45a9bc9 before it went (lane L10), pinned on every OS."""
     result = native.rules("proposals").apply_effect(controller, proposal)
     assert tuple(result) == expected
     assert type(result[2]) is bool

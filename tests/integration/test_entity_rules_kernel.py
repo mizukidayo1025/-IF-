@@ -646,7 +646,7 @@ def test_the_population_kernel_leaves_someone_pending_to_the_rule(documents) -> 
 
 # `_snapshot_fields` and `operational_kpi_values` have no Python rule left (lane L10,
 # `kernel_only`). What they gave on the worlds of the run, recorded from them: a digest of the
-# columns (Linux: they hold floats of libm, as the gate's hashes do), and the order of the KPIs.
+# columns (on every OS, as the gate's hashes), and the order of the KPIs.
 SNAPSHOTS_OF_THE_RUN = "b486e7a17d3d3943"
 KPIS_OF_THE_RUN = "e5d613691486b7e3"
 KPI_ORDER = "1f099193412561a6"

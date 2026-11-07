@@ -3,7 +3,7 @@
 A person who asks a queue at once and a request closed at once, on a world with a floor plan and on
 one without, and `agent_is_at_*`: each kernel on the world, against what the Python rule gave,
 recorded from it on 45a9bc9 before it went (lane L10): the result, and the world's `world_digest`,
-pinned on Linux as the gate's hashes are.
+pinned on every OS as the gate's hashes are.
 """
 
 from __future__ import annotations

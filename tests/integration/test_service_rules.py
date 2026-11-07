@@ -7,7 +7,7 @@ what changes the result, and the state of resource_service_v1 (docs/rust-port/la
 The water and meal service, `_route`, `_schedule_travel` and `_apply_effect` have no Python rule
 left (lane L10, `kernel_only` and KERNEL_ONLY_SEGMENTS): their cases compare the world with what the
 Python rule made, written down from it before it went (`_is_python_s` and `world_digest`, digests
-of the world, pinned on Linux as the gate's hashes are), and with what the rule says it writes.
+of the world, pinned on every OS as the gate's hashes are), and with what the rule says it writes.
 """
 
 from __future__ import annotations
@@ -66,7 +66,7 @@ def _row_follows(world: WorldState) -> None:
 
 def _is_python_s(world: WorldState, digest: str) -> None:
     """The world, its counters and its pending events are what the Python rule made: their digest,
-    taken from that rule. Pinned on Linux (libm), as the gate's hashes are."""
+    taken from that rule. Pinned on every OS, as the gate's hashes are."""
     _row_follows(world)
     text = json.dumps(
         [
@@ -459,7 +459,7 @@ def test_a_request_of_the_run_s_last_minute_is_closed_at_once(
 
 def test_every_route_is_python_s_for_every_mobility(generated_scenario: Any) -> None:
     """From each zone to each, for each mobility: the routes the Python rule found, their digest
-    taken from it (45a9bc9), pinned on Linux."""
+    taken from it (45a9bc9), pinned on every OS."""
     world, controller = _run(generated_scenario, 5)
     seen = set()
     found = []

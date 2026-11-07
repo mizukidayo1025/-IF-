@@ -83,9 +83,8 @@ _NODE = [""]
 def _answers_are_the_deleted_rule_s(request: pytest.FixtureRequest) -> Iterator[None]:
     """After each test, its chained answers against the deleted Python rule's (ANSWERS).
 
-    The worlds hold floats of the platform's libm (the floor plan's lengths and points), recorded
-    on Linux. Lane L13 pins them on every OS; until then the checks in each test are what macOS
-    and Windows check.
+    The worlds hold floats (the floor plan's lengths and points), recorded on Linux; they are the
+    same bits on every OS, as the gate's hashes are (lane L13).
     """
     _NODE[0] = request.node.name
     yield

@@ -4,7 +4,7 @@ The Python rules of `UtilityBehaviorPolicy.propose`, `PriorityRuleBehaviorPolicy
 `_agent_view_snapshot` are gone (lane L10; docs/rust-port/lanes/h-behavior.md). Each case hashes the
 bits (`_exact`) of everything the kernel made, in order, and compares the digest with the one of
 what the Python rules made from the same inputs, recorded from them on 45a9bc9 before they went
-(`_Bits`, pinned on Linux, as the gate's hashes are). Here, on values no scenario reaches.
+(`_Bits`, pinned on every OS, as the gate's hashes are). Here, on values no scenario reaches.
 
 Model version 2 (step 4, L11: the pinned libm crate and the information events' draw keys)
 changed some of these results: those digests were re-recorded from the kernels of that model
@@ -85,7 +85,7 @@ def _view(world: WorldState, controller: Any = None) -> WorldView:
 
 class _Bits:
     """The bits of each value the kernel made, in order, as one digest; `check` compares it with
-    the digest of the Python rules' values, recorded from them on 45a9bc9 (Linux only: libm)."""
+    the digest of the Python rules' values, recorded from them on 45a9bc9 (on Linux)."""
 
     def __init__(self) -> None:
         self._hash = hashlib.sha256()

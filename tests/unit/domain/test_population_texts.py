@@ -5,7 +5,7 @@ so the kernel must raise what the rule raises, in the rule's order of checks, af
 writes and no others. Each case reaches one check: the outcome must be the kernel's own (not a
 refusal), with the rule's text. The Python rules are gone (lane L10, `kernel_only`): each case was
 run with them once (2d8fb46), and the class they raised and the world they left are pinned in
-PYTHON_GAVE, per test and in call order, as a digest compared on Linux (libm), as the gate's
+PYTHON_GAVE, per test and in call order, as a digest compared on every OS, as the gate's
 hashes are. docs/rust-port/lanes/l8-texts-events.md.
 """
 

@@ -2,8 +2,8 @@
 
 (docs/rust-port/lanes/m3-body-state.md). The Python rule is gone (lane L10, `kernel_only`): each
 case of small worlds and values no scenario reaches was run with it once (2d8fb46), and the tree it
-left is pinned in PYTHON_GAVE, per test and in call order, as a digest compared on Linux (libm), as
-the gate's hashes are.
+left is pinned in PYTHON_GAVE, per test and in call order, as a digest compared on every OS, as the
+gate's hashes are.
 """
 
 from __future__ import annotations

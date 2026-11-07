@@ -3,7 +3,7 @@
 The gate reaches these rules at a few events, so what it can't reach is checked here. Their Python
 rules are gone (lane L10, `kernel_only`): each case was run with them once (2d8fb46), and what they
 returned and the world they left is pinned in PYTHON_GAVE, per test and in call order, as a digest
-compared on Linux (libm), as the gate's hashes are. A kernel raises the rule's own saved text where
+compared on every OS, as the gate's hashes are. A kernel raises the rule's own saved text where
 the rule raised one (tests/unit/domain/test_population_texts.py); an input outside the rule's
 contract is a KernelRefusal, with nothing changed.
 """

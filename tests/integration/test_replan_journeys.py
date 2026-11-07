@@ -3,7 +3,8 @@
 A replan is rare: one call in the gate and none in the 7-day run, so these tests are what checks
 most of its branches. Each runs the step and compares the whole world, its counters, metrics,
 pending events, log and journeys with what the Python step made on the same world: their digest,
-taken once from that step (45a9bc9) before it went, and pinned on Linux, as the gate's hashes are.
+taken once from that step (45a9bc9) before it went, and pinned on every OS, as the gate's hashes
+are.
 """
 
 from __future__ import annotations

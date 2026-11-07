@@ -4,7 +4,8 @@ A Run with a trace goes through the driver and its kernels. Here each model writ
 driver and with the kernels removed, and random worlds reach values no scenario does. Decision D1 of
 docs/rust-port/step4-plan.md: the documents keep their shape. See docs/rust-port/lanes/l6-trace.md.
 The psychology, contact and information steps have no Python rule left (lane L10): what the
-deleted rules wrote was recorded once as digests (ANSWERS), which the kernels' must equal on Linux.
+deleted rules wrote was recorded once as digests (ANSWERS), which the kernels' must equal on every
+OS.
 
 Model version 2 (step 4, L11: the pinned libm crate and the information events' draw keys)
 changed some of these results: those digests were re-recorded from the kernels of that model

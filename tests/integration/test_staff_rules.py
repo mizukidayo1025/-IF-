@@ -722,7 +722,7 @@ def test_a_request_s_receipts_are_the_python_rules_and_kept_in_the_row() -> None
         assert (head or {}).get("status") == (None if status == "completed" else status)
     assert world.model_state[SHARED]["support_requests"] == {}
     assert len(world.model_state[SHARED]["history"]) == 4
-    # The stress after it is a float of the run (libm), as the gate's hashes are.
+    # The stress after it is a float of the run, pinned as the gate's hashes are.
     assert _digest("\n".join(states)) == "39e19ebf3cd90657"
 
 

@@ -5,7 +5,7 @@ Each model's rules are native/src/rules/psychology.rs: a test runs the steps of 
 (support/psychology.py) and reads the deltas and the trace document the Run's sink is given. The
 sleep debt and the mean reversion were also Python functions (sleep_debt_step and
 mean_reverting_step of policies/psychology.py), deleted in lane L10; what they answered here was
-recorded once as digests (ANSWERS), which the kernel's values must equal on Linux.
+recorded once as digests (ANSWERS), which the kernel's values must equal on every OS.
 
 The research social operator is checked in tests/unit/policies/test_social.py, and
 full Runs with these policies in tests/integration/test_research_psychology.py.

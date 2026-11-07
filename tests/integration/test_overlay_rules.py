@@ -88,8 +88,7 @@ def _plain(value: Any) -> Any:
 
 
 # Digests of what the deleted Python rules of `kernel_only` kernels answered and left, recorded once
-# from them (2d8fb46) on Linux: route points and lengths are floats of the platform's libm. Lane L13
-# pins them on every OS; until then the plain checks next to each are what macOS and Windows check.
+# from them (2d8fb46) on Linux: route points and lengths are floats, the same bits on every OS.
 RECORDED = {
     "bed": "b440c65f6d9298df3e2fce977042b27f157b5f63c9c5158f71cdfbdbdef112b9",
     "bed again": "bb5a2af0d667ae832e0c38f384480b82a31f3c1cb59cb955da9c2063f26d29dc",
@@ -1452,7 +1451,7 @@ def _sleep_proposal(world: WorldState, agent_id: str) -> Any:
 )
 def test_sleep_in_a_room_is_the_python_step_s(world: WorldState, at_bed: bool, digest: str) -> None:
     """The result and the world (`world_digest`) of the Python step, recorded from it on 45a9bc9
-    before it went (lane L10), pinned on Linux."""
+    before it went (lane L10), pinned on every OS."""
     room = _room_record(world, "room")
     world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["temporary_rooms"]["room"] = room
     agent_id = _person_in_room_zone(world)
@@ -1981,8 +1980,8 @@ def _resource_queues(world: WorldState) -> tuple[str, str] | None:
 
 
 # The water and meal service has no Python rule left (lane L10, `kernel_only`). What its rules
-# made of each case, recorded from them: the results and worlds, by sha256 (Linux: the worlds hold
-# floats of libm, as the gate's hashes do).
+# made of each case, recorded from them: the results and worlds, by sha256 (on every OS, as the
+# gate's hashes).
 RESOURCE_FIFO = {
     "serves": "ae7d2fe0bddcb8cd",
     "interrupted": "0a0181bb6cbb94b8",

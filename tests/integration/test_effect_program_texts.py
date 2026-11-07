@@ -715,7 +715,7 @@ def test_a_handoff_s_texts_are_python_s(
     operations = kernel_world.model_state["staff_operations_v1"]["staff"]
     assert (operations[worker]["phase"], operations[replacement]["phase"]) == ("idle", "working")
     # The whole world and the receipt as the Python rule left them, recorded once from it
-    # (2d8fb46). Floats of the platform's libm, recorded on Linux; lane L13 pins other OSes.
+    # (2d8fb46) on Linux; the same bits on every OS.
     documents = (
         json.dumps(kernel_world.to_dict(), ensure_ascii=False)
         + "\n"
