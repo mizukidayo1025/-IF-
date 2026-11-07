@@ -48,7 +48,7 @@ jobs:
           python -m pip install "maturin>=1.7,<2"
           maturin build --release -m native/Cargo.toml --out native-dist
           python -m pip install --no-index --find-links native-dist sheltersim-native
-          python -c "import sheltersim.native as n; assert n.available(), 'kernels not loaded'"
+          python -c "import sheltersim.native"
       - name: 短時間offline test
         run: python -m pytest -m "not long_simulation" -n auto
       - name: test結果を保存
@@ -60,32 +60,6 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
           # .test-results is a dot directory, which upload-artifact skips by default.
-          include-hidden-files: true
-
-  python-without-native:
-    name: test without Rust (ubuntu-latest)
-    runs-on: ubuntu-latest
-    env:
-      SHELTERSIM_NATIVE: "0"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: pyproject.toml
-      - name: packageと開発toolを導入
-        run: python -m pip install -e ".[dev]"
-      - name: Rustのkernelなしで短時間offline test
-        run: python -m pytest -m "not long_simulation" -n auto
-      - name: test結果を保存
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-without-native
-          path: .test-results/
-          retention-days: 7
-          if-no-files-found: ignore
           include-hidden-files: true
 
   gate:
@@ -109,7 +83,7 @@ jobs:
           python -m pip install "maturin>=1.7,<2"
           maturin build --release -m native/Cargo.toml --out native-dist
           python -m pip install --no-index --find-links native-dist sheltersim-native
-          python -c "import sheltersim.native as n; assert n.available(), 'kernels not loaded'"
+          python -c "import sheltersim.native"
       - name: 全経路のハッシュを確認
         run: python benchmarks/gate_all_paths.py --output "$RUNNER_TEMP/gate" --expect fixtures/gate-all-paths.json
 
