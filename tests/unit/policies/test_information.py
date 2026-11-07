@@ -12,14 +12,14 @@ import json
 import pytest
 from pydantic import ValidationError
 from support.paths import SCENARIO_100_AGENTS
+from support.world import decisions_of
 
 from sheltersim import native
-from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import StateInvariantError, WorldState
 from sheltersim.domain.information import INFORMATION_SPREAD_STATE_KEY
 from sheltersim.domain.models import InformationSpreadConfig
 from sheltersim.experiments.scenario import ScenarioSpec
-from sheltersim.policies.behavior import UtilityBehaviorPolicy, WorldView
+from sheltersim.policies.behavior import UtilityBehaviorPolicy
 
 
 def test_information_config_is_strict_and_off_by_default() -> None:
@@ -33,9 +33,7 @@ def test_information_config_is_strict_and_off_by_default() -> None:
         InformationSpreadConfig.from_mapping({"max_contacts_per_agent": 17})
 
     baseline_world = WorldState.from_scenario(ScenarioSpec.load(SCENARIO_100_AGENTS))
-    proposal = UtilityBehaviorPolicy().propose(
-        WorldView.from_world(baseline_world), "A001", CounterRNG(baseline_world.seed)
-    )
+    proposal = decisions_of(baseline_world, UtilityBehaviorPolicy())["A001"]
     help_candidate = next(
         candidate for candidate in proposal.candidates if candidate.action.value == "seek_help"
     )

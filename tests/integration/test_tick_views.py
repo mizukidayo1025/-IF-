@@ -1,17 +1,15 @@
 """The proposal view made from the update phase's view equals a view read from the world.
 
-These tests read Python's two ways of making a view, so they run with the Python rules. The views
-of rules/world_view.rs are compared with them in tests/integration/test_world_view_row.py. They
+The proposal view is rules/world_view.rs's refresh of the update phase's (`_view_for_proposals`,
+which has no Python body since lane L10); `WorldView.from_world` reads the world anew. These tests
 check both the values and the audit hash, bit for bit, at every tick of Scenarios with and without
-messages and beliefs.
+messages and beliefs, and with a full trace.
 """
 
 from __future__ import annotations
 
 import copy
 import struct
-
-import pytest
 
 from sheltersim.core.engine import TraceLevel
 from sheltersim.domain.information import INFORMATION_SPREAD_STATE_KEY
@@ -46,21 +44,28 @@ def _assert_same_views(made: WorldView, read: WorldView) -> None:
                 assert _same_bits(value, getattr(other, name)), (agent_id, name)
 
 
-def _compared_ticks(monkeypatch) -> list[WorldView]:
-    original = WorldView.after_state_update.__func__
+def _compared_ticks(monkeypatch, worlds: list | None = None) -> list[WorldView]:
+    """Each proposal view a Run makes from the update phase's, compared with `from_world`; the
+    world of each goes to `worlds`."""
+    from sheltersim.experiments.runner import OfflineSimulationController
+
+    original = OfflineSimulationController._view_for_proposals
     views: list[WorldView] = []
 
-    def checked(cls, prior, world):
-        made = original(cls, prior, world)
+    def checked(self, world, minute):
+        refreshed = self._view_before_proposals is not None
+        made = original(self, world, minute)
         _assert_same_views(made, WorldView.from_world(world))
-        views.append(made)
+        if refreshed:
+            views.append(made)
+        if worlds is not None:
+            worlds.append(world)
         return made
 
-    monkeypatch.setattr(WorldView, "after_state_update", classmethod(checked))
+    monkeypatch.setattr(OfflineSimulationController, "_view_for_proposals", checked)
     return views
 
 
-@pytest.mark.python_rules
 def test_the_proposal_view_equals_a_read_view_at_every_tick(
     generated_scenario, tmp_path, monkeypatch
 ) -> None:
@@ -71,7 +76,6 @@ def test_the_proposal_view_equals_a_read_view_at_every_tick(
     assert [view.minute_index for view in views] == list(range(240))
 
 
-@pytest.mark.python_rules
 def test_the_proposal_view_equals_a_read_view_with_messages_and_beliefs(
     generated_previews,
     information_spread_scenario,
@@ -86,15 +90,8 @@ def test_the_proposal_view_equals_a_read_view_with_messages_and_beliefs(
     document["scheduled_events"][0]["payload"]["origin_agent_id"] = "A001"
     configs = document["model_configs"]
     configs["information_spread"] = configs["information_spread"] | information_spread_config()
-    views = _compared_ticks(monkeypatch)
-    worlds = []
-    original = WorldView.from_world.__func__
-
-    def remember(cls, world, **options):
-        worlds.append(world)
-        return original(cls, world, **options)
-
-    monkeypatch.setattr(WorldView, "from_world", classmethod(remember))
+    worlds: list = []
+    views = _compared_ticks(monkeypatch, worlds)
     run_scenario(ScenarioSpec.model_validate(document), tmp_path, trace_level=TraceLevel.OFF)
     assert len(views) == 60
     state = worlds[-1].model_state[INFORMATION_SPREAD_STATE_KEY]
@@ -107,18 +104,24 @@ def test_a_change_after_the_update_phase_would_be_seen_only_through_a_read_view(
     """The proposal view takes the fields the update phase writes from the world."""
     from sheltersim.core.world import WorldState
     from sheltersim.domain.body_state import create_body_state
+    from sheltersim.experiments.metrics import MetricsRecorder
+    from sheltersim.experiments.runner import OfflineSimulationController
+    from sheltersim.experiments.timeline import _MetricSink
 
     world = WorldState.from_scenario(generated_scenario)
     world.model_state.setdefault("body_state_v1", create_body_state(world))
-    prior = WorldView.from_world(world)
+    controller = OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
+    before = WorldView.from_world(world).state_hash
+    controller._view_before_proposals = controller._view_after_movement(world)
     agent_id = next(iter(world.agents))
     agent = world.agents[agent_id]
     agent.stress = 0.5 if agent.stress != 0.5 else 0.25
     agent.trust = 0.75 if agent.trust != 0.75 else 0.25
     agent.needs.hunger = 0.5 if agent.needs.hunger != 0.5 else 0.25
     world.model_state["body_state_v1"]["agents"][agent_id]["uncertainty"] = 0.625
-    _assert_same_views(WorldView.after_state_update(prior, world), WorldView.from_world(world))
-    assert WorldView.after_state_update(prior, world).state_hash != prior.state_hash
+    refreshed = controller._view_for_proposals(world, world.minute_index)
+    _assert_same_views(refreshed, WorldView.from_world(world))
+    assert refreshed.state_hash != before
 
 
 def test_a_config_edited_between_ticks_is_seen_by_the_next_phases(generated_scenario) -> None:

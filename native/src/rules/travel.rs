@@ -1220,12 +1220,9 @@ fn select(
         for (id, facility) in rows.facilities.iter() {
             let takes = match resource_kind {
                 Some(kind) => &*facility.kind == kind,
-                None => {
-                    if !facility.kind.is_ascii() {
-                        return unsupported("a facility kind that casefold may change");
-                    }
-                    facility.kind.to_ascii_lowercase().contains("toilet")
-                }
+                // `"toilet" in kind.casefold()`; a kind that isn't ASCII is folded by Python's own
+                // `str.casefold`, which reads no state.
+                None => crate::rules::toilet::is_toilet(&facility.kind)?,
             };
             if takes && queue_has_capacity(world, rows, id, facility, resource)? {
                 let load = if resource {

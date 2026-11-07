@@ -114,7 +114,6 @@ class OfflineSimulationController(
         # Initialization may install state; a world restored for viewing gets none.
         require_tickable(world, "simulated")
         self.world = world
-        self._person_contexts: dict[str, Any] = {}
         self.active_actions = active_action_store(world)
         # The update phase's view, from which the next phase's view is made.
         self._view_before_proposals: WorldView | None = None

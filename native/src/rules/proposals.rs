@@ -1,14 +1,15 @@
 //! `_apply_effect` (`experiments/phases/propose.py`): what a decision does to the world before it is
 //! recorded.
 //!
-//! One call plans with nothing changed and then writes. What it doesn't take goes to the Python step
-//! before any write, which is also how a bad value gets its error text
-//! (docs/rust-port/lanes/m4-service.md): anything that isn't plainly what the Python step accepts.
+//! One call plans with nothing changed and then writes. The step has no Python body any more
+//! (segments.py, KERNEL_ONLY_SEGMENTS): what it doesn't take is refused before any write and becomes
+//! KernelRefusal, anything that isn't plainly what the Python step accepted
+//! (docs/rust-port/lanes/m4-service.md).
 //!
 //! A person who asks a queue at once (no trip to make, or an independent FIFO at their facility) goes
 //! through the queue's own kernel, which plans and writes in one and refuses before its first write:
-//! it runs last in the plan, so its refusal still leaves everything unchanged. A person the queue
-//! turns down is such a refusal, and the Python step writes the text it gives.
+//! it runs last in the plan, after only the capacity waits the choice of the facility recorded. A
+//! person the water or meal queue turns down is recorded with the text the queue gives.
 
 use std::sync::{Arc, LazyLock};
 
@@ -236,7 +237,7 @@ fn plan_resource<'py>(
     Ok(effect)
 }
 
-/// A method set on the manager (a test's patch) is the Python step's to call.
+/// A method set on the manager (a test's patch) is not the queue's kernel: refused.
 fn own_request(manager: &Bound<'_, PyAny>) -> PyResult<()> {
     let py = manager.py();
     if raw_dict_get(&manager.getattr(intern!(py, "__dict__"))?, intern!(py, "request").as_any())?.is_some() {
@@ -628,11 +629,15 @@ pub(crate) fn apply_effect<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound
         let metrics = if planned.rejected { Some(metrics_of(&world)?) } else { None };
         trip_effect = Some((planned, writer, held, metrics, minute));
     }
-    // A capacity wait comes before the queue's own events, and its sequence is only reserved here:
-    // the queue's kernel below would take the next one first.
-    if let Some((TripEffect { at_once: true, waits, .. }, ..)) = &trip_effect {
-        if !waits.is_empty() {
-            return unsupported("a capacity wait comes before a request at once");
+    // A capacity wait comes before the queue's own events: `_route` recorded it while the facility
+    // was chosen, and its sequence is only reserved. Before a request at once it is written here,
+    // so the queue's kernel takes the next sequences. That kernel's refusal then leaves the wait
+    // written, which no Python step could undo; the step has none (segments.py), so it fails.
+    if let Some((planned, writer, ..)) = trip_effect.as_mut() {
+        if planned.at_once {
+            for wait in planned.waits.drain(..) {
+                write_capacity_wait(&world, writer, wait)?;
+            }
         }
     }
     // The queue's kernel, which writes all it does or refuses having written nothing. It reads

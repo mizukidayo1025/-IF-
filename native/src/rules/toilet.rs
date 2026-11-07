@@ -42,7 +42,7 @@ static COUNTER_RNG: GILOnceCell<Py<PyAny>> = GILOnceCell::new();
 
 /// `"toilet" in kind.casefold()`. A kind that isn't ASCII (a Scenario's kind is any str) goes to
 /// Python's own `str.casefold`, whose folding Rust doesn't have.
-fn is_toilet(kind: &str) -> PyResult<bool> {
+pub(crate) fn is_toilet(kind: &str) -> PyResult<bool> {
     if !kind.is_ascii() {
         return Python::with_gil(|py| {
             let folded = PyString::new(py, kind).call_method0(intern!(py, "casefold"))?;

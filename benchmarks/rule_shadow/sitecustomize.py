@@ -1,9 +1,8 @@
 """Compare the Rust steps with their Python rules at every call, in any process.
 
 This file has the validator of psychological_distress_v1, movement_shadow.py the state of
-movement_v1, world_view_shadow.py the views, in DIR/world_view, and behavior_shadow.py the
-proposals, in DIR/behavior. The psychology, social and information steps have no Python rule left
-to compare with (lane L10).
+movement_v1. The psychology, social and information steps, the views, the decisions and their
+effects have no Python rule left to compare with (lane L10).
 
 Hashes do not see a 1% change in a value that doesn't reach them yet, and a kernel may never run if
 it always says Unsupported. Put this directory first on PYTHONPATH and run anything:
@@ -118,9 +117,3 @@ elif OUTPUT:
     import events_shadow
 
     events_shadow.install(OUTPUT)
-    from world_view_shadow import install as _install_world_view
-
-    _install_world_view(OUTPUT)
-    from behavior_shadow import install as _install_behavior
-
-    _install_behavior(OUTPUT)

@@ -32,8 +32,10 @@ SOURCE = BENCHMARKS.parent / "src"
 TESTS = BENCHMARKS.parent / "tests"
 # Put on PYTHONPATH, it runs the recorded process on the Python rules, whose draws the recorder logs
 # and which _patched_source can edit: the `python_rules` mark. (The contact handler's Python rule,
-# whose correction draw a second case edited, and the information rule, which the other cases
-# edited, are gone: lane L10. A bug in a step only Rust runs is put in by a patch of the step.)
+# whose correction draw a second case edited, the information rule, which the other cases edited,
+# and the behavior rule, whose choice the probability case edited, are gone: lane L10. A bug in a
+# step only Rust runs is put in by a patch of the step; the draws Python still makes are the
+# profiles' of the Scenario, before the first tick.)
 PYTHON_RULES_SITE = f"""\
 import sys
 
@@ -46,8 +48,8 @@ without_kernels(pytest.MonkeyPatch())
 """
 # Rumors, corrections and the information model, in a few seconds.
 RUMORS = "model__information__evidence-aware-rumor-v1"
-# The behavior rule's choice, a draw against the cumulative probabilities, in Python under the mark.
-CHOICE = "            cumulative += candidate.probability\n"
+# A profile's mobility, a draw times the sum of the weights, which a later draw is compared with.
+MOBILITY = '        threshold = rng.random("profile", agent_id, "mobility") * sum(\n'
 # A bug a lane might make in the information step: a bigger decay of the query pressure, put after
 # the kernel's step since only Rust has the rule.
 DECAY_BUG = """
@@ -151,13 +153,13 @@ def test_an_injected_bug_is_named_by_minute_phase_part_path_and_hex(
     ("label", "relative", "before", "after"),
     [
         (
-            "behavior",
-            "sheltersim/policies/behavior.py",
-            CHOICE,
-            CHOICE.replace("candidate.probability", "candidate.probability * (1 + 2**-40)"),
+            "profile",
+            "sheltersim/experiments/profiles.py",
+            MOBILITY,
+            MOBILITY.replace("* sum(", "* (1 + 2**-40) * sum("),
         ),
     ],
-    ids=["choice_plus_two_to_the_minus_forty"],
+    ids=["mobility_plus_two_to_the_minus_forty"],
 )
 def test_a_small_change_of_a_probability_is_caught_though_no_comparison_flips(
     base_stream: Path, tmp_path: Path, label: str, relative: str, before: str, after: str
@@ -339,9 +341,7 @@ def test_the_order_changes_inside_phases_at_each_named_place(
         "ToiletServiceManager.arbitrate",
         "StaffService.assign_pending",
     } <= set(probe.fired)
-    assert {"WorldView.from_world", "OfflineSimulationController._view_after_movement"} & set(
-        probe.fired
-    )
+    assert "OfflineSimulationController._view_after_movement" in probe.fired
     assert probe.reversals > 70
 
 

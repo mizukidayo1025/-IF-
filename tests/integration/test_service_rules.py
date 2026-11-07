@@ -1,14 +1,13 @@
 """The kernels of rules/proposals.rs, rules/service.rs and rules/travel.rs against the Python rules.
 
 Each case runs the kernel on a world and the Python rule on a copy made before it, and compares the
-whole world in canonical JSON. benchmarks/rule_shadow/shadow_proposals.py does this on the runs of
-the gate; here, the branches those runs may not reach, the configured values at what changes the
-result, and the state of resource_service_v1 (docs/rust-port/lanes/m4-service.md).
+whole world in canonical JSON: the branches the gate's runs may not reach, the configured values at
+what changes the result, and the state of resource_service_v1 (docs/rust-port/lanes/m4-service.md).
 
-The water and meal service, `_route` and `_schedule_travel` have no Python rule left (lane L10,
-`kernel_only` and KERNEL_ONLY_SEGMENTS): their cases compare the world with what the Python rule
-made, written down from it before it went (`_is_python_s`, a digest of the world, pinned on Linux as
-the gate's hashes are), and with what the rule says it writes.
+The water and meal service, `_route`, `_schedule_travel` and `_apply_effect` have no Python rule
+left (lane L10, `kernel_only` and KERNEL_ONLY_SEGMENTS): their cases compare the world with what the
+Python rule made, written down from it before it went (`_is_python_s` and `world_digest`, digests
+of the world, pinned on Linux as the gate's hashes are), and with what the rule says it writes.
 """
 
 from __future__ import annotations
@@ -21,6 +20,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from support.world import world_digest
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine
@@ -28,13 +28,13 @@ from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.state_mirror import rust_validated
 from sheltersim.core.world import StateInvariantError, WorldState
 from sheltersim.domain import movement
+from sheltersim.domain.agent_dynamics import learn_facility
 from sheltersim.domain.models import ActiveTask, Activity
 from sheltersim.domain.movement import MOVEMENT_STATE_KEY
 from sheltersim.domain.resource_service import SERVICE_STATE_KEY as KEY
 from sheltersim.domain.resource_service import ResourceServiceManager
 from sheltersim.events.models import EventApplicationError
 from sheltersim.experiments.metrics import MetricsRecorder
-from sheltersim.experiments.phases.propose import ProposePhase
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
 from sheltersim.policies.behavior import ActionKind
@@ -127,15 +127,17 @@ def _proposal(
     )
 
 
-def _effect(world: WorldState, controller: Any, proposal: Any) -> Any:
-    """The kernel on the world, the Python step on a copy: the same result and the same world."""
-    twin = copy.deepcopy(world)
-    python_controller = _controller(twin)
+def _effect(
+    world: WorldState, controller: Any, proposal: Any, expected: tuple[Any, ...], digest: str
+) -> Any:
+    """The kernel on the world: the result and the world (`world_digest`) of the Python step,
+    recorded from it on 45a9bc9 before it went."""
     result = native.rules("proposals").apply_effect(controller, proposal)
-    expected = ProposePhase._apply_effect(python_controller, proposal)
-    assert list(result) == list(expected)
-    assert type(result[2]) is type(expected[2])
-    _same_world(world, twin)
+    assert tuple(result) == expected
+    assert type(result[2]) is bool
+    _row_follows(world)
+    if sys.platform == "linux":
+        assert world_digest(world) == digest
     return result
 
 
@@ -151,26 +153,40 @@ def _same_zone_pair(world: WorldState) -> tuple[str, str]:
 # ---- _apply_effect ------------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("action", [ActionKind.WAIT, ActionKind.REST, ActionKind.SLEEP])
-def test_a_still_action_is_python_s(generated_scenario: Any, action: ActionKind) -> None:
+@pytest.mark.parametrize(
+    ("action", "digest"),
+    [
+        (ActionKind.WAIT, "1fecc84b22ca7b75"),
+        (ActionKind.REST, "8dba68cbcb659dc2"),
+        (ActionKind.SLEEP, "9dd05aad2d72d58b"),
+    ],
+)
+def test_a_still_action_is_python_s(
+    generated_scenario: Any, action: ActionKind, digest: str
+) -> None:
     world, controller = _run(generated_scenario, 5)
     agent_id = _idle_people(world, 1)[0]
     world.agents[agent_id].activity = Activity.RESTING
     world.agents[agent_id].target_id = "kitchen"
-    _effect(world, controller, _proposal(action, agent_id, world))
+    _effect(world, controller, _proposal(action, agent_id, world), (None, 12, True), digest)
 
 
 @pytest.mark.parametrize(
-    "action", [ActionKind.SOCIALIZE, ActionKind.CARE_FAMILY, ActionKind.HELP_OTHERS]
+    ("action", "digest"),
+    [
+        (ActionKind.SOCIALIZE, "4a0541d31b600176"),
+        (ActionKind.CARE_FAMILY, "2861f4df8b51b5a8"),
+        (ActionKind.HELP_OTHERS, "7ba195e90b4e41d3"),
+    ],
 )
 def test_a_social_action_schedules_python_s_event(
-    generated_scenario: Any, action: ActionKind
+    generated_scenario: Any, action: ActionKind, digest: str
 ) -> None:
     world, controller = _run(generated_scenario, 5)
     first, second = _same_zone_pair(world)
     pending = len(world.event_queue.pending())
     target, next_decision, committed = _effect(
-        world, controller, _proposal(action, first, world, second)
+        world, controller, _proposal(action, first, world, second), ("A006", 10, True), digest
     )
     assert (target, committed) == (second, True)
     assert next_decision == world.minute_index + 5
@@ -182,16 +198,22 @@ def test_the_config_s_minutes_and_their_end_of_the_run(generated_scenario: Any) 
     first, second = _same_zone_pair(world)
     world.model_configs["body_dynamics"]["social_interaction_minutes"] = 11
     _, next_decision, _ = _effect(
-        world, controller, _proposal(ActionKind.SOCIALIZE, first, world, second)
+        world,
+        controller,
+        _proposal(ActionKind.SOCIALIZE, first, world, second),
+        ("A006", 16, True),
+        "de59a5ea0e95b1e8",
     )
     assert next_decision == world.minute_index + 11
     first, second = _same_zone_pair(world)
     # Past the last minute there is no event, and the planned decision stands.
     world.model_configs["body_dynamics"]["social_interaction_minutes"] = world.duration_minutes
-    assert _effect(world, controller, _proposal(ActionKind.SOCIALIZE, first, world, second)) == (
-        None,
-        world.minute_index + 7,
-        False,
+    _effect(
+        world,
+        controller,
+        _proposal(ActionKind.SOCIALIZE, first, world, second),
+        (None, world.minute_index + 7, False),
+        "72fe8db9763f1642",
     )
 
 
@@ -199,10 +221,13 @@ def test_without_a_config_the_default_minutes_are_python_s(generated_scenario: A
     world, controller = _run(generated_scenario, 5)
     first, second = _same_zone_pair(world)
     del world.model_configs["body_dynamics"]["social_interaction_minutes"]
-    twin_minutes = _effect(
-        world, controller, _proposal(ActionKind.SOCIALIZE, first, world, second)
-    )[1]
-    assert twin_minutes == world.minute_index + 5
+    _effect(
+        world,
+        controller,
+        _proposal(ActionKind.SOCIALIZE, first, world, second),
+        ("A006", world.minute_index + 5, True),
+        "50325313983b94ac",
+    )
 
 
 def test_a_social_action_needs_someone_else_in_the_zone(generated_scenario: Any) -> None:
@@ -212,12 +237,12 @@ def test_a_social_action_needs_someone_else_in_the_zone(generated_scenario: Any)
         item for item in world.agents.values() if item.zone_id != world.agents[first].zone_id
     )
     for target in (None, first, "nobody", other_zone.id):
-        assert _effect(
-            world, controller, _proposal(ActionKind.HELP_OTHERS, first, world, target)
-        ) == (
-            None,
-            world.minute_index + 7,
-            False,
+        _effect(
+            world,
+            controller,
+            _proposal(ActionKind.HELP_OTHERS, first, world, target),
+            (None, world.minute_index + 7, False),
+            "a8a42ffe67df1a3a",
         )
 
 
@@ -251,30 +276,64 @@ def test_a_position_point2d_refuses_is_python_s_error(generated_scenario: Any) -
         )
 
 
+# The target and the world of each trip the Python step made, in the order of the case below.
+PYTHON_TRIPS = {
+    ActionKind.REQUEST_TOILET: [
+        ("toilet_01", "ef35babb922449d7"),
+        ("accessible_toilet_01", "3f4544a1805474c0"),
+        ("toilet_01", "a53264f9443095ee"),
+        ("accessible_toilet_01", "ca1d6a34ff6a5042"),
+        ("toilet_01", "c6caf11c2796f45e"),
+        ("accessible_toilet_01", "a1a54fbf6f3273c2"),
+        ("toilet_01", "f9aa5d9f595842a4"),
+        ("accessible_toilet_01", "1b18a106bdf97c9b"),
+    ],
+    ActionKind.FETCH_WATER: [
+        ("water_station_main", "380f95b1a0afe0d6"),
+        ("water_station_main", "5c9ee603c1513077"),
+        ("water_station_main", "c3df9235a07ce17f"),
+        ("water_station_main", "39f5a9ebc440cda6"),
+        ("water_station_main", "4d9328ad35356386"),
+        ("water_station_main", "f3e18579c9b1d399"),
+        ("water_station_main", "0def5e0b9c6b62b9"),
+        ("water_station_main", "b14fe3a6f2f63df7"),
+    ],
+    ActionKind.COLLECT_MEAL: [
+        ("meal_distribution_main", "a127fd3634a648c6"),
+        ("meal_distribution_main", "ad282e6c278f6615"),
+        ("meal_distribution_main", "0783ea8604e643ac"),
+        ("meal_distribution_main", "ac22643c67fbb4b6"),
+        ("meal_distribution_main", "12ccc9cb0954bb01"),
+        ("meal_distribution_main", "b5a6c9e54f256e49"),
+        ("meal_distribution_main", "5304e0060d6c4432"),
+        ("meal_distribution_main", "5e54d657a219eea9"),
+    ],
+}
+
+
 @pytest.mark.parametrize(
     "action",
     [ActionKind.REQUEST_TOILET, ActionKind.FETCH_WATER, ActionKind.COLLECT_MEAL],
 )
 def test_each_trip_action_from_each_zone(generated_scenario: Any, action: ActionKind) -> None:
     world, controller = _run(generated_scenario, 5)
+    expected = iter(PYTHON_TRIPS[action])
     ran = 0
     for agent_id in _idle_people(world, 100):
         for zone_id in sorted(world.zones):
             agent = world.agents[agent_id]
             agent.zone_id = zone_id
             world.model_state[MOVEMENT_STATE_KEY]["positions"][agent_id]["zone_id"] = zone_id
-            # A person at their facility asks its queue at once, which Python does.
-            try:
-                _effect(world, controller, _proposal(action, agent_id, world))
-            except native.Unsupported as refused:
-                assert "at once" in str(refused)
-            else:
-                ran += 1
+            target, digest = next(expected)
+            _effect(
+                world, controller, _proposal(action, agent_id, world), (target, 12, True), digest
+            )
+            ran += 1
             if agent.activity is Activity.MOVING:
                 break
         if ran >= 12:
             break
-    assert ran
+    assert next(expected, None) is None
 
 
 def test_a_trip_past_the_end_of_the_run_is_refused_as_python_refuses(
@@ -282,14 +341,13 @@ def test_a_trip_past_the_end_of_the_run_is_refused_as_python_refuses(
 ) -> None:
     world, controller = _run(generated_scenario, 5)
     world.duration_minutes = world.minute_index + 1
-    for action in (ActionKind.FETCH_WATER, ActionKind.REQUEST_TOILET, ActionKind.COLLECT_MEAL):
+    for action, digest in (
+        (ActionKind.FETCH_WATER, "7e223ff83025985b"),
+        (ActionKind.REQUEST_TOILET, "7e223ff83025985b"),
+        (ActionKind.COLLECT_MEAL, "49966c9a404bdcb4"),
+    ):
         agent_id = _idle_people(world, 100)[0]
-        try:
-            result = _effect(world, controller, _proposal(action, agent_id, world))
-        except native.Unsupported as refused:
-            assert "at once" in str(refused)
-        else:
-            assert result[0] is None
+        _effect(world, controller, _proposal(action, agent_id, world), (None, 12, False), digest)
 
 
 def test_no_known_facility_is_recorded_as_python_records(generated_scenario: Any) -> None:
@@ -297,8 +355,12 @@ def test_no_known_facility_is_recorded_as_python_records(generated_scenario: Any
     agent_id = _idle_people(world, 1)[0]
     known = world.model_state["agent_dynamics_v1"]["agents"][agent_id]["known_facility_ids"]
     known[:] = []
-    for action in (ActionKind.FETCH_WATER, ActionKind.COLLECT_MEAL, ActionKind.REQUEST_TOILET):
-        assert _effect(world, controller, _proposal(action, agent_id, world))[0] is None
+    for action, digest in (
+        (ActionKind.FETCH_WATER, "de420a4402712c0d"),
+        (ActionKind.COLLECT_MEAL, "67380efd43798097"),
+        (ActionKind.REQUEST_TOILET, "67380efd43798097"),
+    ):
+        _effect(world, controller, _proposal(action, agent_id, world), (None, 12, False), digest)
     history = world.model_state[KEY]["request_history"]
     assert [record["reason"] for record in history[-2:]] == ["no_facility", "no_facility"]
     assert world.metric_state["resource_service_request_rejected_count"] >= 2.0
@@ -336,17 +398,47 @@ def test_the_lower_load_goes_before_the_shorter_walk(generated_scenario: Any) ->
     world.agents[walker].zone_id = start
     world.model_state[MOVEMENT_STATE_KEY]["positions"][walker]["zone_id"] = start
     near.queue_agent_ids.append(waiter)
-    python_choice = ProposePhase._select_toilet(controller, walker)
-    assert python_choice == far.id
+    # The least load, then the shortest walk, then the least ID (`_select_toilet` of 45a9bc9).
     target, *_ = native.rules("proposals").apply_effect(
         controller, _proposal(ActionKind.REQUEST_TOILET, walker, world)
     )
     assert target == far.id
 
 
-@pytest.mark.parametrize("action", [ActionKind.SEEK_HELP, ActionKind.SEEK_INFORMATION])
+def test_a_toilet_kind_beyond_ascii_is_folded_as_python_folds_it(generated_scenario: Any) -> None:
+    """`"toilet" in kind.casefold()`: a Scenario's kind is any text. The kernel refused one that
+    isn't ASCII, and the Python step chose by `str.casefold`; now the kernel asks it too."""
+    world, controller = _run(generated_scenario, 5)
+    world.facilities["toilet_01"].kind = "多目的toilet"
+    # Full-width letters fold to full-width ones: no toilet.
+    world.facilities["accessible_toilet_01"].kind = "ＴＯＩＬＥＴ"
+    agent_id = next(
+        key
+        for key in sorted(world.agents)
+        if world.agents[key].zone_id != "toilet"
+        and key not in world.model_state[MOVEMENT_STATE_KEY]["journeys"]
+        and not any(task.agent_id == key for task in world.active_tasks.values())
+    )
+    for facility_id in ("toilet_01", "accessible_toilet_01"):
+        learn_facility(world, agent_id, facility_id)
+    _effect(
+        world,
+        controller,
+        _proposal(ActionKind.REQUEST_TOILET, agent_id, world),
+        ("toilet_01", 12, True),
+        "068b0babfdc6141d",
+    )
+
+
+@pytest.mark.parametrize(
+    ("action", "digest"),
+    [
+        (ActionKind.SEEK_HELP, "66c8a5870bf1b6f4"),
+        (ActionKind.SEEK_INFORMATION, "32f0d7926c7ef2c5"),
+    ],
+)
 def test_a_request_of_the_run_s_last_minute_is_closed_at_once(
-    generated_scenario: Any, action: ActionKind
+    generated_scenario: Any, action: ActionKind, digest: str
 ) -> None:
     world, controller = _run(generated_scenario, 5)
     agent_id = _idle_people(world, 1)[0]
@@ -354,7 +446,13 @@ def test_a_request_of_the_run_s_last_minute_is_closed_at_once(
     world.agents[agent_id].support_cooldown_until = 0
     world.agents[agent_id].support_request_id = None
     world.duration_minutes = world.minute_index + 1
-    target, _, committed = _effect(world, controller, _proposal(action, agent_id, world))
+    target, _, committed = _effect(
+        world,
+        controller,
+        _proposal(action, agent_id, world),
+        ("support-5d7322b2c209034dac8ce21e", 12, False),
+        digest,
+    )
     assert committed is False
     assert world.support_requests[target].resolved_minute == world.minute_index
 

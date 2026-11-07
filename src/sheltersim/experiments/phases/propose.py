@@ -10,35 +10,15 @@ from typing import Any
 
 from sheltersim.core.rng import KeyedRandom
 from sheltersim.core.world import WorldState
-from sheltersim.domain.action_lifecycle import record_action_proposal
-from sheltersim.domain.agent_dynamics import agent_knows_facility
-from sheltersim.domain.agent_dynamics import record_proposal as record_agent_proposal
-from sheltersim.domain.care_receipts import (
-    append_applied_care_transition,
-    care_source_ids_for_agent,
-    support_kind_for_agent,
-)
-from sheltersim.domain.facility_queues import facility_has_independent_queues
-from sheltersim.domain.geometry_overlay import (
-    release_sleep_bed,
-    reserve_sleep_bed,
-)
-from sheltersim.domain.information import INFORMATION_SPREAD_STATE_KEY
-from sheltersim.domain.models import Activity, SupportRequestStatus
 from sheltersim.domain.movement import (
-    MOVEMENT_STATE_KEY,
     facility_approach_route,
 )
-from sheltersim.domain.population_lifecycle import current_household_id
-from sheltersim.domain.social_dialogue import capture_social_state_context
-from sheltersim.events.models import EventKind, ScheduledEvent
 from sheltersim.experiments.phases.segments import no_python_step
 from sheltersim.llm.contracts import LLMStage, LLMTask
 from sheltersim.llm.runtime import LEGACY_SUPPORT_PRIORITY_POLICY_VERSION, support_priority_runtime
 from sheltersim.llm.schemas import SUPPORT_ADVICE_SCHEMA
-from sheltersim.policies.behavior import ActionKind
 from sheltersim.policies.space import ZoneRoute
-from sheltersim.policies.world_view import AgentView, WorldView
+from sheltersim.policies.world_view import WorldView
 
 
 class ProposePhase:
@@ -49,16 +29,19 @@ class ProposePhase:
         self._apply_due_proposals(view, rng)
 
     def _view_for_proposals(self, world: WorldState, minute: int) -> WorldView:
-        prior, self._view_before_proposals = self._view_before_proposals, None
-        return (
-            WorldView.after_state_update(prior, world)
-            if prior is not None and prior.minute_index == minute
-            else WorldView.from_world(
-                world,
-                person_cache=self._person_contexts,
-                environment_cache=self._zone_environments,
-            )
-        )
+        """The view the decisions read, which native/src/rules/world_view.rs makes.
+
+        When `_view_before_proposals` is the update phase's view of `minute`, that view with what
+        the update phase writes read again (each person's needs, stress, trust, body state and
+        long-term distress); otherwise a new view of `world`. Either has the audit hash of what a
+        decision observed, as `WorldView.from_world` computes it. The step empties
+        `_view_before_proposals`.
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        raises KernelRefusal: a prior view no kernel made, a person of the prior view who has left,
+        and what `_view_after_movement` turns down.
+        """
+        raise no_python_step("_view_for_proposals")
 
     def _apply_due_proposals(self, view: WorldView, rng: KeyedRandom) -> None:
         for proposal in self._propose_due(view, rng):
@@ -68,10 +51,35 @@ class ProposePhase:
             )
 
     def _propose_due(self, view: WorldView, rng: KeyedRandom) -> tuple[Any, ...]:
-        return self.decisions.propose_due(view, rng)
+        """The proposals of everyone due, which native/src/rules/behavior.rs and decisions.rs make.
 
-    def _observed_state(self, view: WorldView, agent_id: str) -> dict[str, Any]:
-        return _agent_view_snapshot(view.agents[agent_id])
+        In ID order, one for each person whose `next_decision_at` has come and who is idle,
+        resting or sleeping. `decisions.policy` (`UtilityBehaviorPolicy`, or a
+        `PriorityRuleBehaviorPolicy` around one) scores the candidate actions (`ActionKind`) and
+        draws the choice from `rng`, keyed by the person, the minute and the policy version. Each
+        is a `ProposalRow` that reads as the `ActionProposal` it stands for (`materialize()` makes
+        that). Nothing changes.
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        raises KernelRefusal: a runner, policy or scorer of another class, an RNG other than
+        CounterRNG or with a negative seed, a view no kernel made or without its audit hash, and
+        values on which `ActionCandidate` or `ActionProposal` would raise (a bad temperature or
+        decision interval).
+        """
+        raise no_python_step("_propose_due")
+
+    def _observed_state(self, view: WorldView, agent_id: str) -> Any:
+        """What a decision records it observed of the person, made by native/src/rules/decisions.rs.
+
+        The person's ID, zone, activity and target, needs (with `hydration_need` when the resource
+        service is on), psychological values, the zone's sanitation, stress, trust, queue and
+        support request, and the zone's environment when it has modifiers. An `ObservedRow` that
+        `dict()` makes the document of; a dict itself for a sink that reads it in Python.
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); a view no kernel made
+        or a person not in it raises KernelRefusal.
+        """
+        raise no_python_step("_observed_state")
 
     def _apply_proposal(
         self,
@@ -89,380 +97,30 @@ class ProposePhase:
         )
 
     def _apply_effect(self, proposal: Any) -> tuple[str | None, int, bool]:
-        """What the decision does to the world: target, next decision, whether it committed."""
-        agent = self.world.agents[proposal.agent_id]
-        prior_activity = agent.activity
-        agent.next_decision_at = proposal.next_decision_at
-        target_id: str | None = None
+        """What the decision does to the world, which native/src/rules/proposals.rs does.
 
-        if proposal.action is not ActionKind.SLEEP:
-            release_sleep_bed(self.world, agent.id)
+        The person's `next_decision_at` becomes the proposal's, and a bed they hold is given up
+        unless they sleep. `wait` and `rest` make them idle or resting. `sleep` reserves a bed: they
+        walk to it (a `sleep_bed` trip) or lie down there, or sleep where they are without one.
+        `seek_help` and `seek_information` ask `staff_service` for support, with the care receipts
+        of a `seek_help`, the information model's record, the Provider's priority
+        (`_prioritize_support_request`) and `social_policy.consider_support_request` for a pending
+        request; a refused request adds to `support_request_rejected_count`. `socialize`,
+        `care_family` and `help_others` schedule a `social_interaction` event with a co-located
+        participant, which holds the next decision until it. `request_toilet`, `fetch_water` and
+        `collect_meal` choose the known facility with the least load, then the shortest trip, then
+        the least ID, and queue there at once or start the trip; the resource service records each
+        outcome and counts rejections in `resource_service_request_rejected_count`.
 
-        if proposal.action is ActionKind.WAIT:
-            agent.activity = Activity.IDLE
-            agent.target_id = None
-        elif proposal.action is ActionKind.REST:
-            agent.activity = Activity.RESTING
-            agent.target_id = None
-        elif proposal.action is ActionKind.SLEEP:
-            reservation = reserve_sleep_bed(self.world, agent.id)
-            if reservation is not None and reservation["travel_minutes"] > 0:
-                zone_id = agent.zone_id
-                route = ZoneRoute(
-                    origin_zone_id=zone_id,
-                    destination_zone_id=zone_id,
-                    zone_ids=(zone_id, zone_id),
-                    edge_ids=(),
-                    travel_minutes=reservation["travel_minutes"],
-                )
-                scheduled = self._schedule_travel(
-                    agent_id=agent.id,
-                    route=route,
-                    route_points=reservation["route_points"],
-                    purpose="sleep_bed",
-                    facility_id=None,
-                    minute=self.world.minute_index,
-                    validate_state=False,
-                )
-                if scheduled:
-                    target_id = reservation["target_id"]
-                else:
-                    release_sleep_bed(self.world, agent.id)
-                    agent.activity = Activity.SLEEPING
-                    agent.target_id = None
-            else:
-                if reservation is not None:
-                    movement = self.world.model_state.get(MOVEMENT_STATE_KEY, {})
-                    position = movement.get("positions", {}).get(agent.id)
-                    if isinstance(position, dict):
-                        position.update(
-                            {
-                                "zone_id": agent.zone_id,
-                                "point": reservation["point"].model_dump(mode="json"),
-                                "edge_id": None,
-                                "progress": 1.0,
-                                "position_kind": "physical",
-                            }
-                        )
-                    target_id = reservation["target_id"]
-                agent.activity = Activity.SLEEPING
-                agent.target_id = None
-        elif proposal.action in (ActionKind.SEEK_HELP, ActionKind.SEEK_INFORMATION):
-            try:
-                receipt = self.staff_service.request(
-                    agent.id,
-                    minute=self.world.minute_index,
-                    validate_state=False,
-                )
-                target_id = receipt.request_id
-                request = self.world.support_requests[receipt.request_id]
-                if proposal.action is ActionKind.SEEK_HELP:
-                    append_applied_care_transition(
-                        self.world,
-                        request_id=request.id,
-                        agent_id=agent.id,
-                        household_id=current_household_id(self.world, agent.id),
-                        support_kind=support_kind_for_agent(self.world, agent.id),
-                        status="requested",
-                        causation_id=None,
-                        source_ids=care_source_ids_for_agent(self.world, agent.id),
-                    )
-                    if request.status is SupportRequestStatus.UNRESOLVED:
-                        append_applied_care_transition(
-                            self.world,
-                            request_id=request.id,
-                            agent_id=agent.id,
-                            household_id=current_household_id(self.world, agent.id),
-                            support_kind=support_kind_for_agent(self.world, agent.id),
-                            status="interrupted",
-                            source_ids=care_source_ids_for_agent(self.world, agent.id),
-                        )
-                if self.information_policy is not None and (
-                    proposal.action is ActionKind.SEEK_INFORMATION
-                    or self.world.model_state[INFORMATION_SPREAD_STATE_KEY]["query_pressure"][
-                        agent.id
-                    ]
-                    >= self.information_policy.config.query_threshold
-                ):
-                    self.information_policy.record_support_request(
-                        self.world.model_state[INFORMATION_SPREAD_STATE_KEY],
-                        agent_id=agent.id,
-                        request_id=receipt.request_id,
-                        minute=self.world.minute_index,
-                    )
-                if self.llm_router is not None and request.status.value == "pending":
-                    self._prioritize_support_request(receipt.request_id, proposal)
-                if self.social_policy is not None and request.status.value == "pending":
-                    self.social_policy.consider_support_request(
-                        self.world,
-                        agent_id=agent.id,
-                        request_id=receipt.request_id,
-                    )
-            except ValueError:
-                self.world.metric_state["support_request_rejected_count"] = (
-                    self.world.metric_state.get("support_request_rejected_count", 0.0) + 1.0
-                )
-        elif proposal.action in (
-            ActionKind.SOCIALIZE,
-            ActionKind.CARE_FAMILY,
-            ActionKind.HELP_OTHERS,
-        ):
-            participant_id = proposal.target_id
-            participant = self.world.agents.get(participant_id or "")
-            interaction_minutes = self.world.model_configs.get("body_dynamics", {}).get(
-                "social_interaction_minutes", 5
-            )
-            due_minute = self.world.minute_index + interaction_minutes
-            interaction_data = {
-                ActionKind.SOCIALIZE: (
-                    "reassurance_exchange",
-                    "offer_reassurance",
-                    "emotional_check_in",
-                ),
-                ActionKind.CARE_FAMILY: ("family_care", "provide_family_support", "family_care"),
-                ActionKind.HELP_OTHERS: ("voluntary_support", "offer_practical_help", "mutual_aid"),
-            }[proposal.action]
-            if (
-                participant is not None
-                and participant.id != agent.id
-                and participant.zone_id == agent.zone_id
-                and due_minute < self.world.duration_minutes
-            ):
-                interaction_type, action, topic_id = interaction_data
-                sequence = self.world.allocate_event_sequence()
-                self.world.schedule_event(
-                    ScheduledEvent(
-                        event_id=f"autonomous-social-action-{sequence}",
-                        kind=EventKind.ENDOGENOUS,
-                        due_minute=due_minute,
-                        priority=35,
-                        sequence=sequence,
-                        event_type="social_interaction",
-                        payload={
-                            "interaction_type": interaction_type,
-                            "agent_id": agent.id,
-                            "participant_agent_id": participant.id,
-                            "conversation_state_context": capture_social_state_context(
-                                self.world, (agent.id, participant.id)
-                            ),
-                            "zone_id": agent.zone_id,
-                            "topic_id": topic_id,
-                            "action": action,
-                            "reason_short": "autonomous_need_choice",
-                            "interaction_duration_minutes": interaction_minutes,
-                        },
-                        source_id="event-triggered-social-v2",
-                        provenance={
-                            "source_type": "assumption",
-                            "source_id": "ASM-EVENT-TRIGGERED-SOCIAL-INTERACTIONS-V1",
-                            "policy_version": "event-triggered-social-v2",
-                        },
-                    )
-                )
-                target_id = participant.id
-                # A social/care action occupies this decision slot until its
-                # typed completion event. The actor can reconsider immediately
-                # after the interaction is applied at that boundary.
-                agent.next_decision_at = due_minute
-        elif proposal.action is ActionKind.REQUEST_TOILET:
-            facility_id = self._select_toilet(agent.id)
-            if facility_id is not None:
-                facility = self.world.facilities[facility_id]
-                if agent.zone_id == facility.zone_id:
-                    if facility_has_independent_queues(self.world, facility_id):
-                        self.toilet_service.request(agent.id, facility_id, validate_state=False)
-                        target_id = facility_id
-                    else:
-                        room_route = self._facility_approach(agent.id, facility_id)
-                        if room_route is not None:
-                            route, route_points = room_route
-                        else:
-                            route, route_points = None, ()
-                        if route is not None and route.travel_minutes > 0:
-                            if self._schedule_travel(
-                                agent_id=agent.id,
-                                route=route,
-                                route_points=route_points,
-                                purpose="toilet_request",
-                                facility_id=facility_id,
-                                minute=self.world.minute_index,
-                                validate_state=False,
-                            ):
-                                target_id = facility_id
-                        elif route is not None:
-                            self.toilet_service.request(agent.id, facility_id, validate_state=False)
-                            target_id = facility_id
-                else:
-                    route = self._route(agent.zone_id, facility.zone_id, agent.id)
-                    if route is not None and self._schedule_travel(
-                        agent_id=agent.id,
-                        route=route,
-                        purpose="toilet_request",
-                        facility_id=facility_id,
-                        minute=self.world.minute_index,
-                        validate_state=False,
-                    ):
-                        target_id = facility_id
+        Returns the target (participant, request, bed or facility), the next decision minute, and
+        whether the decision committed: a target, an activity of its own, or a changed activity,
+        but not a request closed at once.
 
-        elif proposal.action in (ActionKind.FETCH_WATER, ActionKind.COLLECT_MEAL):
-            if self.resource_service is None:
-                self.world.metric_state["resource_service_request_rejected_count"] = (
-                    self.world.metric_state.get("resource_service_request_rejected_count", 0.0)
-                    + 1.0
-                )
-            else:
-                resource_id = (
-                    "water_ml" if proposal.action is ActionKind.FETCH_WATER else "food_meal_units"
-                )
-                action = (
-                    "fetch_water" if proposal.action is ActionKind.FETCH_WATER else "collect_meal"
-                )
-                facility_id, route, rejection_reason = self._select_resource_facility(
-                    agent.id, resource_id
-                )
-                if rejection_reason is not None:
-                    self.resource_service.record_request_outcome(
-                        agent_id=agent.id,
-                        action=action,
-                        outcome="rejected",
-                        reason=rejection_reason,
-                        facility_id=facility_id,
-                        origin_zone_id=agent.zone_id,
-                    )
-                    self.world.metric_state["resource_service_request_rejected_count"] = (
-                        self.world.metric_state.get("resource_service_request_rejected_count", 0.0)
-                        + 1.0
-                    )
-                elif facility_id is not None and route is not None:
-                    facility = self.world.facilities[facility_id]
-                    if agent.zone_id == facility.zone_id:
-                        if facility_has_independent_queues(self.world, facility_id):
-                            try:
-                                self.resource_service.request(
-                                    agent.id, facility_id, validate_state=False
-                                )
-                                target_id = facility_id
-                            except ValueError as exc:
-                                self.resource_service.record_request_outcome(
-                                    agent_id=agent.id,
-                                    action=action,
-                                    outcome="rejected",
-                                    reason="request_rejected",
-                                    facility_id=facility_id,
-                                    origin_zone_id=agent.zone_id,
-                                    detail=str(exc),
-                                )
-                                self.world.metric_state[
-                                    "resource_service_request_rejected_count"
-                                ] = (
-                                    self.world.metric_state.get(
-                                        "resource_service_request_rejected_count", 0.0
-                                    )
-                                    + 1.0
-                                )
-                        else:
-                            room_route = self._facility_approach(agent.id, facility_id)
-                            if room_route is None:
-                                self.resource_service.record_request_outcome(
-                                    agent_id=agent.id,
-                                    action=action,
-                                    outcome="rejected",
-                                    reason="room_route_blocked",
-                                    facility_id=facility_id,
-                                    origin_zone_id=agent.zone_id,
-                                )
-                            else:
-                                local_route, route_points = room_route
-                                if local_route.travel_minutes > 0:
-                                    if self._schedule_travel(
-                                        agent_id=agent.id,
-                                        route=local_route,
-                                        route_points=route_points,
-                                        purpose="resource_request",
-                                        facility_id=facility_id,
-                                        minute=self.world.minute_index,
-                                        validate_state=False,
-                                    ):
-                                        target_id = facility_id
-                                        self.resource_service.record_request_outcome(
-                                            agent_id=agent.id,
-                                            action=action,
-                                            outcome="travel_scheduled",
-                                            reason="in_room_route_available",
-                                            facility_id=facility_id,
-                                            origin_zone_id=agent.zone_id,
-                                        )
-                                else:
-                                    try:
-                                        self.resource_service.request(
-                                            agent.id,
-                                            facility_id,
-                                            validate_state=False,
-                                        )
-                                        target_id = facility_id
-                                    except ValueError as exc:
-                                        self.resource_service.record_request_outcome(
-                                            agent_id=agent.id,
-                                            action=action,
-                                            outcome="rejected",
-                                            reason="request_rejected",
-                                            facility_id=facility_id,
-                                            origin_zone_id=agent.zone_id,
-                                            detail=str(exc),
-                                        )
-                                        self.world.metric_state[
-                                            "resource_service_request_rejected_count"
-                                        ] = (
-                                            self.world.metric_state.get(
-                                                "resource_service_request_rejected_count", 0.0
-                                            )
-                                            + 1.0
-                                        )
-                    else:
-                        if self._schedule_travel(
-                            agent_id=agent.id,
-                            route=route,
-                            purpose="resource_request",
-                            facility_id=facility_id,
-                            minute=self.world.minute_index,
-                            validate_state=False,
-                        ):
-                            target_id = facility_id
-                            self.resource_service.record_request_outcome(
-                                agent_id=agent.id,
-                                action=action,
-                                outcome="travel_scheduled",
-                                reason="route_available",
-                                facility_id=facility_id,
-                                origin_zone_id=agent.zone_id,
-                            )
-                        else:
-                            self.resource_service.record_request_outcome(
-                                agent_id=agent.id,
-                                action=action,
-                                outcome="rejected",
-                                reason="travel_rejected",
-                                facility_id=facility_id,
-                                origin_zone_id=agent.zone_id,
-                                detail="travel could not be scheduled within current limits",
-                            )
-                            self.world.metric_state["resource_service_request_rejected_count"] = (
-                                self.world.metric_state.get(
-                                    "resource_service_request_rejected_count", 0.0
-                                )
-                                + 1.0
-                            )
-
-        committed = (
-            target_id is not None
-            or proposal.action in {ActionKind.WAIT, ActionKind.REST, ActionKind.SLEEP}
-            or agent.activity is not prior_activity
-        ) and not (
-            proposal.action in {ActionKind.SEEK_HELP, ActionKind.SEEK_INFORMATION}
-            and target_id in self.world.support_requests
-            and self.world.support_requests[target_id].status is SupportRequestStatus.UNRESOLVED
-        )
-        return target_id, agent.next_decision_at, committed
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        raises KernelRefusal: an action it does not know, a person not in the world, state of
+        another type than the rows hold, a service manager whose `request` was replaced.
+        """
+        raise no_python_step("_apply_effect")
 
     def _record_outcome(
         self,
@@ -473,20 +131,20 @@ class ProposePhase:
         committed: bool,
         observed_state: Any,
     ) -> None:
-        recorded_proposal = proposal.with_outcome(target_id, next_decision_at)
-        self.artifacts.record_decision(
-            recorded_proposal,
-            observed_state=observed_state,
-        )
-        record_action_proposal(
-            self.world,
-            recorded_proposal,
-            target_id=target_id,
-            committed=committed,
-            active_actions=self.active_actions,
-        )
-        if "agent_dynamics_v1" in self.world.model_state:
-            record_agent_proposal(self.world, recorded_proposal, target_id=target_id)
+        """Record the decision with its outcome, which native/src/rules/decisions.rs does.
+
+        In this order: `artifacts.record_decision(proposal.with_outcome(target_id,
+        next_decision_at), observed_state=observed_state)`, which the kernel writes itself for a
+        sink that declares `decision_sink` (the same record, or a trace's document); the action's
+        lifecycle (`record_action_proposal` with `committed` and `active_actions`); and, when
+        `agent_dynamics_v1` exists, the person's intention (`record_proposal`). A proposal
+        `with_outcome` refuses (a next decision not after its minute) raises its ValueError before
+        anything is recorded.
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what the rules it
+        calls turn down raises KernelRefusal.
+        """
+        raise no_python_step("_record_outcome")
 
     def _prioritize_support_request(self, request_id: str, proposal: Any) -> None:
         if self.llm_router is None or self.llm_router.mode.value == "offline":
@@ -556,64 +214,6 @@ class ProposePhase:
             request_id
         ] = result["priority"]
 
-    def _select_toilet(self, agent_id: str) -> str | None:
-        agent = self.world.agents[agent_id]
-        candidates: list[tuple[int, int, str]] = []
-        for facility in self.world.facilities.values():
-            if "toilet" not in facility.kind.casefold():
-                continue
-            if not agent_knows_facility(self.world, agent_id, facility.id):
-                continue
-            if not self._facility_queue_has_capacity(facility.id):
-                continue
-            route = self._route(agent.zone_id, facility.zone_id, agent_id)
-            if route is None:
-                continue
-            in_transit = sum(
-                1
-                for other in self.world.agents.values()
-                if other.activity is Activity.MOVING and other.target_id == facility.id
-            )
-            load = len(facility.queue_agent_ids) + len(facility.active_agent_ids) + in_transit
-            candidates.append((load, route.travel_minutes, facility.id))
-        return min(candidates)[2] if candidates else None
-
-    def _select_resource_facility(
-        self, agent_id: str, resource_id: str
-    ) -> tuple[str | None, ZoneRoute | None, str | None]:
-        agent = self.world.agents[agent_id]
-        facilities = [
-            facility
-            for facility in self.world.facilities.values()
-            if self.resource_service is not None
-            and self.resource_service.resource_for_facility(facility.kind) == resource_id
-            and agent_knows_facility(self.world, agent_id, facility.id)
-            and self._facility_queue_has_capacity(facility.id, resource=True)
-        ]
-        if not facilities:
-            return None, None, "no_facility"
-
-        candidates: list[tuple[int, int, str, ZoneRoute]] = []
-        for facility in facilities:
-            route = self._route(agent.zone_id, facility.zone_id, agent_id)
-            if route is None:
-                continue
-            in_transit = sum(
-                1
-                for other in self.world.agents.values()
-                if other.activity is Activity.MOVING and other.target_id == facility.id
-            )
-            load = (
-                len(facility.resource_queue_agent_ids)
-                + len(facility.resource_active_agent_ids)
-                + in_transit
-            )
-            candidates.append((load, route.travel_minutes, facility.id, route))
-        if not candidates:
-            return min(facility.id for facility in facilities), None, "no_route"
-        selected = min(candidates, key=lambda item: item[:3])
-        return selected[2], selected[3], None
-
     def _schedule_travel(
         self,
         *,
@@ -665,31 +265,6 @@ class ProposePhase:
         """
         raise no_python_step("_schedule_staff_support_travel")
 
-    def _facility_queue_has_capacity(self, facility_id: str, *, resource: bool = False) -> bool:
-        """Apply an explicit optional queue bound while leaving legacy queues unlimited."""
-        config = self.world.model_configs.get("facility_queues")
-        if config is None:
-            return True
-        if not isinstance(config, dict) or config.get("schema_version") != 1:
-            raise ValueError("facility_queues config must use schema_version 1")
-        capacities = config.get("queue_capacity_by_facility", {})
-        if not isinstance(capacities, dict):
-            raise ValueError("facility_queues queue_capacity_by_facility must be an object")
-        maximum = capacities.get(facility_id)
-        if maximum is None:
-            return True
-        if not isinstance(maximum, int) or isinstance(maximum, bool) or maximum < 0:
-            raise ValueError("facility queue capacity must be a non-negative integer")
-        facility = self.world.facilities[facility_id]
-        queued = facility.resource_queue_agent_ids if resource else facility.queue_agent_ids
-        active = facility.resource_active_agent_ids if resource else facility.active_agent_ids
-        transit = sum(
-            1
-            for agent in self.world.agents.values()
-            if agent.activity is Activity.MOVING and agent.target_id == facility_id
-        )
-        return len(queued) + len(active) + transit < maximum
-
     def _route(
         self, origin_zone_id: str, destination_zone_id: str, agent_id: str
     ) -> ZoneRoute | None:
@@ -714,63 +289,3 @@ class ProposePhase:
     ) -> tuple[ZoneRoute, tuple[Any, ...]] | None:
         """Plan the wall-aware, mobility-specific room path to the service point."""
         return facility_approach_route(self.world, agent_id, facility_id)
-
-
-def _agent_view_snapshot(agent: AgentView) -> dict[str, Any]:
-    """Copy the pre-decision state into an inspectable, identifier-only record."""
-    snapshot = {
-        "agent_id": agent.id,
-        "zone_id": agent.zone_id,
-        "activity": agent.activity.value,
-        "target_id": agent.target_id,
-        "needs": {
-            "toilet_urgency": agent.needs.toilet_urgency,
-            "hunger": agent.needs.hunger,
-            "fatigue": agent.needs.fatigue,
-            "hygiene_need": agent.hygiene_need,
-        },
-        "psychological": {
-            "sleep_debt_minutes": agent.sleep_debt_minutes,
-            "uncertainty": agent.uncertainty,
-            "reassurance": agent.reassurance,
-            "discontent": agent.discontent,
-            "positive_affect": agent.positive_affect,
-            "negative_affect": agent.negative_affect,
-        },
-        "sanitation_level": agent.sanitation_level,
-        "stress": agent.stress,
-        "trust": agent.trust,
-        "queue": {
-            "task_id": agent.queue_task_id,
-            "kind": agent.queue_kind,
-            "target_id": agent.queue_target_id,
-            "wait_minutes": agent.queue_wait_minutes,
-        },
-        "support": {
-            "request_id": agent.support_request_id,
-            "status": agent.support_request_status,
-            "assigned_staff_id": agent.support_assigned_staff_id,
-            "wait_minutes": agent.support_wait_minutes,
-            "cooldown_remaining_minutes": agent.support_cooldown_remaining_minutes,
-        },
-    }
-    if agent.resource_service_enabled:
-        snapshot["needs"]["hydration_need"] = agent.needs.hydration_need
-    if agent.zone_environment_modifier_event_ids or agent.demand_modifiers:
-        snapshot["zone_environment"] = {
-            "ambient_noise_level": agent.ambient_noise_level,
-            "rest_efficiency_multiplier": agent.rest_efficiency_multiplier,
-            "modifier_event_ids": list(agent.zone_environment_modifier_event_ids),
-            "assumption_ids": list(agent.zone_environment_assumption_ids),
-            "demand_modifiers": [
-                {
-                    "action": item.action,
-                    "probability_multiplier": item.probability_multiplier,
-                    "duration_multiplier": item.duration_multiplier,
-                    "event_ids": list(item.modifier_event_ids),
-                    "assumption_ids": list(item.assumption_ids),
-                }
-                for item in agent.demand_modifiers
-            ],
-        }
-    return snapshot

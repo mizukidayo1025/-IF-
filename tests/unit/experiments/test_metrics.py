@@ -12,9 +12,9 @@ from dataclasses import asdict
 from pathlib import Path
 
 from support.paths import BASELINE_100_7D, SCENARIO_100_AGENTS
+from support.world import decisions_of
 
 from sheltersim.core.engine import TraceLevel
-from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.domain.staff import StaffService
 from sheltersim.events.handlers import EventDispatcher
@@ -24,7 +24,7 @@ from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.inspection.traces import RunArtifactWriter, _decision_document, _sanitize
 from sheltersim.llm.report import _ASSUMPTION_LABELS, scenario_assumption_ids
-from sheltersim.policies.behavior import UtilityBehaviorPolicy, WorldView
+from sheltersim.policies.behavior import UtilityBehaviorPolicy
 from sheltersim.policies.social import SocialPropagationParameters
 
 
@@ -217,9 +217,9 @@ def test_run_manifest_and_decision_trace_include_source_ids(tmp_path: Path) -> N
     }
     assert assumption_ids <= _ASSUMPTION_LABELS.keys()
 
-    proposal = UtilityBehaviorPolicy(temperature=0.2, decision_interval_minutes=60).propose(
-        WorldView.from_world(world), "A001", CounterRNG(world.seed)
-    )
+    proposal = decisions_of(
+        world, UtilityBehaviorPolicy(temperature=0.2, decision_interval_minutes=60)
+    )["A001"]
     trace = _decision_document(proposal, full=False)
     assert trace["source_type"] == "assumption"
     assert trace["source_id"] == "ASM-UTILITY-BEHAVIOR-V1"

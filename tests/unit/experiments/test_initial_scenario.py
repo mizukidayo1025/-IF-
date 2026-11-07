@@ -14,6 +14,7 @@ from copy import deepcopy
 
 import pytest
 from support.psychology import psychology_step
+from support.world import decisions_of
 
 from sheltersim.contracts.extensions import Point2D
 from sheltersim.contracts.policies import model_catalog, model_signatures
@@ -48,7 +49,6 @@ from sheltersim.policies.alternatives import DeGrootContactPolicy, HazardInforma
 from sheltersim.policies.behavior import (
     PriorityRuleBehaviorPolicy,
     UtilityBehaviorPolicy,
-    WorldView,
 )
 from sheltersim.policies.psychology import LifeStatePsychologyPolicy, PsychologyParameters
 from sheltersim.policies.queueing import create_queue_policy
@@ -447,22 +447,14 @@ def test_resident_specific_behavior_cadence_reaches_policy_and_checkpoint() -> N
     assert policy.temperature_by_agent == {agent_id: 0.35}
     customized_world_json = customized_world.canonical_json()
     customized_world.agents[agent_id].next_decision_at = 0
-    view = WorldView.from_world(customized_world)
-
-    class FixedRandom:
-        def random(self, *_parts: object) -> float:
-            return 0.0
-
-    proposal = policy.propose(view, agent_id, FixedRandom())
-    assert proposal.next_decision_at == 30
     other_agent_id = customized.scenario.profiles[1].id
     customized_world.agents[other_agent_id].next_decision_at = 0
-    other_proposal = policy.propose(
-        WorldView.from_world(customized_world), other_agent_id, FixedRandom()
-    )
+    proposals = decisions_of(customized_world, policy)
+    # No zone scales a decision interval here, so every action keeps the person's own.
+    assert proposals[agent_id].next_decision_at == 30
     # The unmodified resident keeps the suite's shared 15-minute decision
     # interval; resident-specific overrides apply only to A001.
-    assert other_proposal.next_decision_at == 15
+    assert proposals[other_agent_id].next_decision_at == 15
     restored = Checkpoint.from_json(customized_checkpoint.to_json()).restore_world()
     assert restored.canonical_json() == customized_world_json
 

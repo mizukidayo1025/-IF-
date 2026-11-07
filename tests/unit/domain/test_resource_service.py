@@ -659,13 +659,15 @@ def test_arrival_admission_rejection_is_saved_with_origin_and_detail(
 def test_behavior_view_exposes_resource_actions_only_for_opted_in_v6(
     resource_service_scenario,
 ) -> None:
+    from support.world import decisions_of
+
     from sheltersim.core.rng import CounterRNG
     from sheltersim.policies.behavior import ActionKind, UtilityBehaviorPolicy, WorldView
 
     baseline = WorldState.from_scenario(ScenarioSpec.load(SMALL_REPLAY))
     baseline.agents["A001"].next_decision_at = 0
     old_view = WorldView.from_world(baseline)
-    old_proposal = UtilityBehaviorPolicy().propose(old_view, "A001", CounterRNG(3))
+    old_proposal = decisions_of(baseline, UtilityBehaviorPolicy(), rng=CounterRNG(3))["A001"]
     assert not old_view.resource_service_enabled
     assert ActionKind.FETCH_WATER not in {item.action for item in old_proposal.candidates}
 
@@ -673,10 +675,14 @@ def test_behavior_view_exposes_resource_actions_only_for_opted_in_v6(
     world.agents["A001"].next_decision_at = 0
     world.agents["A001"].needs.hydration_need = 0.9
     view = WorldView.from_world(world)
-    proposal = UtilityBehaviorPolicy(
-        resource_service_enabled=True,
-        policy_version="utility-softmax-resource-service-v1",
-    ).propose(view, "A001", CounterRNG(3))
+    proposal = decisions_of(
+        world,
+        UtilityBehaviorPolicy(
+            resource_service_enabled=True,
+            policy_version="utility-softmax-resource-service-v1",
+        ),
+        rng=CounterRNG(3),
+    )["A001"]
     assert view.resource_service_enabled
     assert ActionKind.FETCH_WATER in {item.action for item in proposal.candidates}
     assert proposal.policy_version == "utility-softmax-resource-service-v1"

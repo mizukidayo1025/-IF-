@@ -183,3 +183,54 @@ def kernel_says_python_s_text(
     else:
         pytest.fail("the Python rule raised nothing")
     return type(made.value).__name__, str(made.value)
+
+
+def decisions_of(world: Any, policy: Any = None, *, rng: Any = None) -> dict[str, Any]:
+    """The `ActionProposal` of each person due at the world's minute, by ID, as the propose phase
+    makes them: native/src/rules/world_view.rs's view, then native/src/rules/behavior.rs.
+
+    `policy` is the runner's default (`UtilityBehaviorPolicy()`) when None, `rng` CounterRNG of
+    the world's seed. Nothing of an earlier view is kept, and nothing changes.
+    """
+    from types import SimpleNamespace
+
+    from sheltersim import native
+    from sheltersim.core.rng import CounterRNG
+    from sheltersim.policies.behavior import BehaviorDecisionRunner
+
+    holder = SimpleNamespace(
+        decisions=BehaviorDecisionRunner(policy),
+        _view_before_proposals=None,
+        _rust_view_cache=None,
+        _zone_environments={},
+    )
+    view = native.rules("world_view").view_for_proposals(holder, world, world.minute_index)
+    proposals = native.rules("behavior").propose_due(
+        holder, view, CounterRNG(world.seed) if rng is None else rng
+    )
+    return {proposal.agent_id: proposal for proposal in proposals}
+
+
+def world_digest(world: Any) -> str:
+    """16 hex digits of the world as a step left it: its canonical JSON, counters, pending events,
+    metric state, the number of log records and the open tasks' IDs.
+
+    For a step whose Python rule is gone (`kernel_only`): the digest that rule's world had, written
+    down from it before it went, against the kernel's world. Floats come from libm, so a test
+    compares it on Linux only, as the gate's hashes are pinned.
+    """
+    import hashlib
+    import json
+
+    text = json.dumps(
+        [
+            world._canonical_text(world._canonical_data()),
+            world.id_counters,
+            [repr(event) for event in world.event_queue.pending()],
+            world.metric_state,
+            len(world.event_log.records),
+            list(world.active_tasks),
+        ],
+        sort_keys=True,
+    )
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]

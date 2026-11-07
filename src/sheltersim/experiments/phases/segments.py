@@ -21,14 +21,7 @@ from sheltersim import native
 from sheltersim.core import kernels
 
 # Name of a step's method -> (the module of native/src/rules/, the name of its kernel).
-SEGMENTS: dict[str, tuple[str, str]] = {
-    "_view_after_movement": ("world_view", "view_after_movement"),
-    "_view_for_proposals": ("world_view", "view_for_proposals"),
-    "_propose_due": ("decisions", "propose_rows"),
-    "_observed_state": ("decisions", "observed_row"),
-    "_record_outcome": ("decisions", "record_outcome"),
-    "_apply_effect": ("proposals", "apply_effect"),
-}
+SEGMENTS: dict[str, tuple[str, str]] = {}
 
 # Steps whose kernel alone runs them, in the same form.
 KERNEL_ONLY_SEGMENTS: dict[str, tuple[str, str]] = {
@@ -46,6 +39,12 @@ KERNEL_ONLY_SEGMENTS: dict[str, tuple[str, str]] = {
     "_record_psychology_trace": ("trace", "record_psychology_trace"),
     "_update_long_term_psychology": ("psychology", "update_long_term"),
     "_apply_state_deltas": ("psychology", "apply_deltas"),
+    "_view_after_movement": ("world_view", "view_after_movement"),
+    "_view_for_proposals": ("world_view", "view_for_proposals"),
+    "_propose_due": ("decisions", "propose_rows"),
+    "_observed_state": ("decisions", "observed_row"),
+    "_record_outcome": ("decisions", "record_outcome"),
+    "_apply_effect": ("proposals", "apply_effect"),
 }
 
 

@@ -737,8 +737,6 @@ def test_a_view_keeps_a_context_while_it_stays_equal(generated_scenario: Any) ->
     people = world.model_configs["population_context"]["people"]
     rules = _rules("world_view")
     assert rules.view_after_movement(controller, world).agents["A001"].roles == ("alone",)
-    # The kernel does not fill Python's cache: `from_world` parses what it needs for itself.
-    assert controller._person_contexts == {}
     people["A001"] = {"roles": ["child"], "parent_ids": ["A002"]}
     first = rules.view_after_movement(controller, world)
     assert first.agents["A001"].roles == ("child",)

@@ -1,13 +1,18 @@
-"""What rules/decisions.rs records of a decision: the rows of `_record_outcome` in Python.
+"""What rules/decisions.rs records of a decision: the rows of `_record_outcome`.
 
-The Python step stays the reference (docs/rust-port/lanes/j-decisions.md). The bits over whole
-scenarios are compared by benchmarks/rule_shadow; here, on values no scenario reaches.
+The steps `_propose_due`, `_observed_state` and `_record_outcome` have no Python body (lane L10;
+docs/rust-port/lanes/j-decisions.md). What a Run records is compared with what the Python steps
+recorded of the same Run, written down from them on 45a9bc9 before they went (digests, pinned on
+Linux as the gate's hashes are). What the rows don't take goes to the sink's own `record_decision`
+and the domain rules, as the Python step called them.
 """
 
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +25,6 @@ from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.domain.population_lifecycle import current_household_id
 from sheltersim.experiments.metrics import MetricsRecorder
-from sheltersim.experiments.phases.propose import ProposePhase, _agent_view_snapshot
 from sheltersim.experiments.runner import OfflineSimulationController, run_scenario
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _IndexedMetricSink, _MetricSink
@@ -28,16 +32,9 @@ from sheltersim.policies.behavior import ActionProposal, WorldView
 from sheltersim.storage import history_payloads
 from sheltersim.storage.history_index import HistoryIndex
 
-STEPS = ("_propose_due", "_observed_state", "_record_outcome")
-
 
 def _rules() -> Any:
     return native.rules("decisions")
-
-
-def _without_kernels(monkeypatch: pytest.MonkeyPatch) -> None:
-    for step in STEPS:
-        monkeypatch.delattr(OfflineSimulationController, step)
 
 
 def _exact(value: Any) -> Any:
@@ -49,6 +46,17 @@ def _exact(value: Any) -> Any:
     if isinstance(value, dict):
         return [[key, _exact(item)] for key, item in value.items()]
     return [type(value).__name__, value]
+
+
+def _digest(value: Any) -> str:
+    return hashlib.sha256(json.dumps(value, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+
+
+def _python_s(value: Any, digest: str) -> None:
+    """`value`'s digest is the one of what the Python steps made, recorded from them on 45a9bc9.
+    Pinned on Linux (libm), as the gate's hashes are."""
+    if sys.platform == "linux":
+        assert _digest(value) == digest
 
 
 def _indexed_controller(scenario: Any) -> tuple[WorldState, OfflineSimulationController, Any]:
@@ -83,24 +91,18 @@ def _record(
     )
 
 
-def test_a_run_gives_the_rows_and_world_of_python(
-    generated_scenario: Any, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def _as_dict(row: Any) -> Any:
+    return json.loads(row) if type(row) is bytes else row
+
+
+def test_a_run_gives_the_rows_and_world_of_python(generated_scenario: Any) -> None:
     world, controller, sink = _indexed_controller(generated_scenario)
     TickEngine(world, phase_handler=controller).run(steps=90)
     rows = list(sink.observations)
     assert any(type(row) is bytes for row in rows)
     assert all(type(row) is bytes for row in rows if type(row) is not dict)
-
-    with monkeypatch.context() as patch:
-        _without_kernels(patch)
-        other, python, other_sink = _indexed_controller(generated_scenario)
-        TickEngine(other, phase_handler=python).run(steps=90)
-    assert all(type(row) is dict for row in other_sink.observations)
-    assert [_exact(json.loads(row) if type(row) is bytes else row) for row in rows] == [
-        _exact(row) for row in other_sink.observations
-    ]
-    assert world.canonical_json() == other.canonical_json()
+    _python_s([_exact(_as_dict(row)) for row in rows], "041cedeba15f763c")
+    _python_s(world.canonical_json(), "9a356ae3bed7843c")
 
 
 def test_a_tick_makes_no_proposal_object(
@@ -125,9 +127,10 @@ def test_a_tick_makes_no_proposal_object(
 def test_a_row_answers_as_its_proposal_and_makes_it_once(generated_scenario: Any) -> None:
     world, controller, _sink = _indexed_controller(generated_scenario)
     view, rows = _step_until_due(world, controller)
-    python = controller.decisions.propose_due(view, CounterRNG(world.seed))
+    # The same proposals as Python objects (rules/behavior.rs).
+    made_objects = native.rules("behavior").propose_due(controller, view, CounterRNG(world.seed))
     row = rows[0]
-    proposal = python[0]
+    proposal = made_objects[0]
     assert not row.has_object
     for name in (
         "agent_id",
@@ -154,23 +157,29 @@ def test_an_observed_row_reads_as_the_snapshot(generated_scenario: Any) -> None:
     world, controller, _sink = _indexed_controller(generated_scenario)
     view, rows = _step_until_due(world, controller)
     observed = _rules().observed_row(controller, view, rows[0].agent_id)
-    expected = _agent_view_snapshot(view.agents[rows[0].agent_id])
+    expected = native.rules("behavior").observed_state(controller, view, rows[0].agent_id)
+    assert type(expected) is dict
     assert _exact(dict(observed)) == _exact(expected)
     assert observed["agent_id"] == rows[0].agent_id
 
 
 def test_a_sink_in_python_gets_a_dict_and_a_silent_one_nothing(generated_scenario: Any) -> None:
+    """A sink that declares no `decision_sink` of its own: its `record_decision` keeps the
+    record, the same one the kernel writes as bytes for the indexed sink."""
+
     class Other(_IndexedMetricSink):
         pass
 
-    world = WorldState.from_scenario(generated_scenario)
+    world, controller, sink = _indexed_controller(generated_scenario)
     other = Other(MetricsRecorder(), world)
-    controller = OfflineSimulationController(world, other)
+    other_controller = OfflineSimulationController(world, other)
     view, rows = _step_until_due(world, controller)
-    assert type(_rules().observed_row(controller, view, rows[0].agent_id)) is dict
-    with pytest.raises(native.Unsupported, match="sink"):
-        _record(controller, rows[0], {})
-    assert other.observations == []
+    observed = _rules().observed_row(other_controller, view, rows[0].agent_id)
+    assert type(observed) is dict
+    _record(other_controller, rows[0], observed, committed=False)
+    _record(controller, rows[0], _rules().observed_row(controller, view, rows[0].agent_id))
+    assert type(other.observations[-1]) is dict and type(sink.observations[-1]) is bytes
+    assert _exact(other.observations[-1]) == _exact(json.loads(sink.observations[-1]))
 
     silent = OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
     assert type(_rules().observed_row(silent, view, rows[0].agent_id)) is not dict
@@ -180,7 +189,7 @@ def test_a_sink_in_python_gets_a_dict_and_a_silent_one_nothing(generated_scenari
     )
 
 
-def test_a_view_python_made_is_left_to_python(generated_scenario: Any) -> None:
+def test_a_view_python_made_is_refused(generated_scenario: Any) -> None:
     world, controller, _sink = _indexed_controller(generated_scenario)
     _step_until_due(world, controller)
     view = WorldView.from_world(world)
@@ -189,72 +198,54 @@ def test_a_view_python_made_is_left_to_python(generated_scenario: Any) -> None:
         _rules().propose_rows(controller, view, CounterRNG(1))
     with pytest.raises(native.Unsupported, match="Python's"):
         _rules().observed_row(controller, view, "A001")
+    with pytest.raises(KernelRefusal, match="Python's"):
+        controller._propose_due(view, CounterRNG(1))
 
 
-def test_what_the_kernel_refuses_appends_nothing(generated_scenario: Any) -> None:
+def test_what_the_rows_do_not_take_goes_to_the_sink_s_own_record(generated_scenario: Any) -> None:
+    """A proposal Python made, an observed state of a dict, a policy's source the sink keeps as
+    another type: the sink's `record_decision` writes what the kernel would have, as a dict."""
     world, controller, sink = _indexed_controller(generated_scenario)
     view, rows = _step_until_due(world, controller)
     row = rows[0]
     observed = _rules().observed_row(controller, view, row.agent_id)
-    version = row.policy_version
-    with pytest.raises(native.Unsupported, match="Python object"):
-        _record(controller, row.materialize(), observed)
-    with pytest.raises(native.Unsupported, match="Python object"):
-        _record(controller, row, dict(observed))
-    with pytest.raises(native.Unsupported):
-        _rules().record_outcome(
-            controller,
-            row,
-            target_id=None,
-            next_decision_at=row.minute_index,
-            committed=True,
-            observed_state=observed,
-        )
-    with pytest.raises(native.Unsupported):
-        _rules().record_outcome(
-            controller,
-            row,
-            target_id=None,
-            next_decision_at=row.next_decision_at,
-            committed=1,
-            observed_state=observed,
-        )
-    sink.policy_sources[version] = 1
-    with pytest.raises(native.Unsupported):
-        _record(controller, row, observed)
-    del sink.policy_sources[version]
-    world.agents[row.agent_id].needs.fatigue = 1
-    with pytest.raises(native.Unsupported):
-        _record(controller, row, observed)
-    assert sink.observations == []
+    _record(controller, row, observed, committed=False)
+    written = json.loads(sink.observations[-1])
+    for proposal, state in ((row.materialize(), observed), (row, dict(observed))):
+        _record(controller, proposal, state, committed=False)
+        assert type(sink.observations[-1]) is dict
+        assert _exact(sink.observations[-1]) == _exact(written)
+    sink.policy_sources[row.policy_version] = 1
+    _record(controller, row, observed, committed=False)
+    assert sink.observations[-1]["source_id"] == 1
+    assert len(sink.observations) == 4
 
 
-def test_the_python_step_takes_rows_with_the_same_outcome_and_error(
+def test_a_next_decision_not_after_the_minute_is_with_outcome_s_error(
     generated_scenario: Any,
 ) -> None:
     world, controller, sink = _indexed_controller(generated_scenario)
     view, rows = _step_until_due(world, controller)
     row = rows[0]
     observed = _rules().observed_row(controller, view, row.agent_id)
+    before = len(world.event_log)
     with pytest.raises(ValueError, match="invalid decision timing"):
-        ProposePhase._record_outcome(
-            controller,
+        controller._record_outcome(
             row,
             target_id=None,
             next_decision_at=row.minute_index,
             committed=True,
             observed_state=observed,
         )
-    ProposePhase._record_outcome(
-        controller,
+    assert sink.observations == [] and len(world.event_log) == before
+    controller._record_outcome(
         row,
         target_id=None,
         next_decision_at=row.next_decision_at,
         committed=True,
         observed_state=observed,
     )
-    assert type(sink.observations[-1]) is dict
-    assert _exact(sink.observations[-1]["observed_state"]) == _exact(dict(observed))
+    assert type(sink.observations[-1]) is bytes
 
 
 @pytest.mark.parametrize(
@@ -284,21 +275,23 @@ def test_the_household_is_the_python_rules(generated_scenario: Any, presence: An
 @pytest.mark.parametrize(
     "presence", [{"people": ["a list"]}, {"people": {"@": {"household_id": 3}}}]
 )
-def test_a_household_only_python_can_read_is_left_to_it(
+def test_a_household_no_rule_reads_is_a_kernel_refusal(
     generated_scenario: Any, presence: Any
 ) -> None:
+    """A presence record of another type than its rows hold: the rows leave it to the sink, whose
+    `current_household_id` (`kernel_only`) refuses it before anything is recorded."""
     world, controller, sink = _indexed_controller(generated_scenario)
     view, rows = _step_until_due(world, controller)
     row = rows[0]
     text = json.dumps(presence).replace("@", row.agent_id)
     world.model_state["population_presence_v1"] = json.loads(text)
-    with pytest.raises(native.Unsupported):
+    with pytest.raises(KernelRefusal, match="current_household_id"):
         _record(controller, row, _rules().observed_row(controller, view, row.agent_id))
     assert sink.observations == []
 
 
 @pytest.mark.parametrize(("size", "status"), [(9000, "recorded"), (20000, "omitted_size_limit")])
-def test_a_long_observed_state_is_measured_by_python(
+def test_a_long_observed_state_is_measured_by_the_sink(
     generated_scenario: Any, size: int, status: str
 ) -> None:
     world, controller, sink = _indexed_controller(generated_scenario)
@@ -306,22 +299,10 @@ def test_a_long_observed_state_is_measured_by_python(
     agent = next(iter(world.agents.values()))
     agent.target_id = "x" * size
     view = native.rules("world_view").view_for_proposals(controller, world, world.minute_index)
-    observed = _rules().observed_row(controller, view, agent.id)
     rows = _rules().propose_rows(controller, view, CounterRNG(world.seed))
     assert rows
     row = rows[0]
-    long_view = _rules().observed_row(controller, view, agent.id)
-    with pytest.raises(native.Unsupported, match="long"):
-        _record(controller, row, long_view)
-    assert sink.observations == []
-    ProposePhase._record_outcome(
-        controller,
-        row,
-        target_id=None,
-        next_decision_at=row.next_decision_at,
-        committed=True,
-        observed_state=observed,
-    )
+    _record(controller, row, _rules().observed_row(controller, view, agent.id))
     assert sink.observations[-1]["observed_state_status"] == status
 
 
@@ -370,46 +351,35 @@ def test_an_uncommitted_decision_opens_nothing(generated_scenario: Any) -> None:
     assert len(world.event_log) == before and len(sink.observations) == 1
 
 
+@pytest.mark.parametrize(
+    ("level", "digest"),
+    [(TraceLevel.SUMMARY, "84635ff5444c28a7"), (TraceLevel.FULL, "020e1ef476d9609b")],
+)
 def test_a_trace_keeps_the_documents_of_python(
-    generated_scenario: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    generated_scenario: Any, tmp_path: Path, level: TraceLevel, digest: str
 ) -> None:
     document = copy.deepcopy(generated_scenario.model_dump(mode="json"))
     document["duration_minutes"] = 60
-    scenario = ScenarioSpec.model_validate(document)
-    for level in (TraceLevel.SUMMARY, TraceLevel.FULL):
-        run_scenario(scenario, tmp_path / f"rust-{level.value}", trace_level=level)
-        with monkeypatch.context() as patch:
-            _without_kernels(patch)
-            run_scenario(scenario, tmp_path / f"python-{level.value}", trace_level=level)
-        rust = (tmp_path / f"rust-{level.value}" / "decisions.jsonl").read_bytes()
-        assert (
-            rust and rust == (tmp_path / f"python-{level.value}" / "decisions.jsonl").read_bytes()
-        )
+    run_scenario(ScenarioSpec.model_validate(document), tmp_path, trace_level=level)
+    written = (tmp_path / "decisions.jsonl").read_bytes()
+    assert written
+    _python_s(written.decode("utf-8"), digest)
 
 
 def test_an_index_reads_a_row_of_bytes_as_its_dict(
-    generated_scenario: Any,
-    tmp_path: Path,
-    saved_timeline: Any,
-    monkeypatch: pytest.MonkeyPatch,
+    generated_scenario: Any, tmp_path: Path, saved_timeline: Any
 ) -> None:
-    def records(store_path: Path) -> list[Any]:
-        store, timeline = saved_timeline(store_path, generated_scenario)
-        timeline.advance("main", 30, checkpoint_interval=15)
-        index = HistoryIndex(store, "p", "r")
-        with index.connect() as db:
-            # Payloads compare as text: compressed bytes may differ between zlib builds.
-            return [
-                (*row[:-1], history_payloads.decode(row[-1]))
-                for row in db.execute(
-                    "SELECT kind, key, minute, event_id, cause, source, event_type, status, payload"
-                    " FROM records ORDER BY kind, key"
-                )
-            ]
-
-    rust = records(tmp_path / "rust")
-    with monkeypatch.context() as patch:
-        _without_kernels(patch)
-        python = records(tmp_path / "python")
-    assert rust and any(row[0] == "actions" for row in rust)
-    assert rust == python
+    store, timeline = saved_timeline(tmp_path, generated_scenario)
+    timeline.advance("main", 30, checkpoint_interval=15)
+    index = HistoryIndex(store, "p", "r")
+    with index.connect() as db:
+        # Payloads compare as text: compressed bytes may differ between zlib builds.
+        records = [
+            [*row[:-1], history_payloads.decode(row[-1])]
+            for row in db.execute(
+                "SELECT kind, key, minute, event_id, cause, source, event_type, status, payload"
+                " FROM records ORDER BY kind, key"
+            )
+        ]
+    assert records and any(row[0] == "actions" for row in records)
+    _python_s(records, "eb1066951e153d83")

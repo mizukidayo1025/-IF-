@@ -104,14 +104,6 @@ PORTED_NAMES = frozenset(
         "active_environmental_stress",
         "infrastructure_event_context_ids",
         "population_context_people",
-        # policies/behavior.py, experiments/phases/propose.py: rules/behavior.rs
-        "propose_due",
-        "_candidate",
-        "_demand_trigger",
-        "_decision_interval_minutes",
-        "_sleep_debt_utility",
-        "_target_for_action",
-        "_agent_view_snapshot",
         # experiments/phases/dispatch.py, the rules it calls: rules/dispatch.rs. An event type's
         # handler is read at each event, and a patch of a class's `apply` shows there.
         "effect_event_guard_or_suppress",
@@ -174,10 +166,7 @@ PORTED_NAMES = frozenset(
 PORTED_METHODS = frozenset(
     {
         ("WorldView", "from_world"),
-        ("WorldView", "after_state_update"),
         ("_IndexedMetricSink", "record_decision"),
-        ("UtilityBehaviorPolicy", "propose"),
-        ("PriorityRuleBehaviorPolicy", "propose"),
         ("EventDispatcher", "dispatch_due"),
         ("EventDispatcher", "settle"),
         ("ResourceServiceManager", "_serve_head"),

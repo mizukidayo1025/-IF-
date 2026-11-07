@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 from support.paths import FIXTURES, SMALL_REPLAY
 from support.psychology import psychology_step
+from support.world import decisions_of
 
 from sheltersim import native
 from sheltersim.core.checkpoint import Checkpoint, CheckpointError
@@ -52,7 +53,7 @@ from sheltersim.llm.natural_language import (
 )
 from sheltersim.llm.provider import LLMRouter
 from sheltersim.llm.schemas import ParseRequest
-from sheltersim.policies.behavior import ActionKind, UtilityBehaviorPolicy, WorldView
+from sheltersim.policies.behavior import ActionKind, UtilityBehaviorPolicy
 from sheltersim.policies.psychology import SimplePsychologyPolicy
 
 ENVIRONMENT_SOURCE = "ASM-H19-ZONE-ENVIRONMENT-V1"
@@ -206,12 +207,12 @@ def test_demand_odds_are_action_and_zone_scoped_and_rest_duration_is_clamped() -
         ),
     )
     policy = UtilityBehaviorPolicy(decision_interval_minutes=15)
-    baseline_view = WorldView.from_world(baseline)
-    modified_view = WorldView.from_world(modified)
-    base_target = policy.propose(baseline_view, "A001", CounterRNG(3))
-    modified_target = policy.propose(modified_view, "A001", CounterRNG(3))
-    base_other = policy.propose(baseline_view, "A004", CounterRNG(3))
-    modified_other = policy.propose(modified_view, "A004", CounterRNG(3))
+    base_proposals = decisions_of(baseline, policy, rng=CounterRNG(3))
+    modified_proposals = decisions_of(modified, policy, rng=CounterRNG(3))
+    base_target = base_proposals["A001"]
+    modified_target = modified_proposals["A001"]
+    base_other = base_proposals["A004"]
+    modified_other = modified_proposals["A004"]
     base_target_sleep = next(
         item for item in base_target.candidates if item.action is ActionKind.SLEEP
     )
@@ -238,7 +239,7 @@ def test_demand_odds_are_action_and_zone_scoped_and_rest_duration_is_clamped() -
     selected_sleep = next(
         proposal
         for seed in range(100)
-        if (proposal := policy.propose(modified_view, "A001", CounterRNG(seed))).action
+        if (proposal := decisions_of(modified, policy, rng=CounterRNG(seed))["A001"]).action
         is ActionKind.SLEEP
     )
     assert selected_sleep.next_decision_at == 21

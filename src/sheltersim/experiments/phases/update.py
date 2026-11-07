@@ -26,12 +26,20 @@ class UpdatePhase:
         self._view_before_proposals = view
 
     def _view_after_movement(self, world: WorldState) -> WorldView:
-        return WorldView.from_world(
-            world,
-            include_state_hash=False,
-            person_cache=self._person_contexts,
-            environment_cache=self._zone_environments,
-        )
+        """The view the update phase reads, which native/src/rules/world_view.rs makes.
+
+        A `WorldView` of `world` at its minute, without an audit hash (`state_hash` None): what
+        `WorldView.from_world(world, include_state_hash=False)` holds, read from the rows and the
+        namespaces. Its `agents`, `facilities`, `zone_members` and `group_members` are made when a
+        Python reader first asks for them. Parsed person contexts and zone conditions are kept for
+        the controller while their documents stay the same; `_zone_environments` is the zones'.
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        raises KernelRefusal: a value of another type than its typed field holds, a person in an
+        unknown zone, a person context or a zone modifier that does not parse, a selection of
+        models the contract refuses.
+        """
+        raise no_python_step("_view_after_movement")
 
     def _psychology_update(self, view: WorldView, minute: int) -> PsychologyUpdateResult:
         """Each person's values of the next minute, which native/src/rules/psychology.rs computes.

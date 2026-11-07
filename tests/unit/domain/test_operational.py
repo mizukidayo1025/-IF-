@@ -9,6 +9,7 @@ import pytest
 from pydantic import ValidationError
 from support.paths import SMALL_REPLAY
 from support.psychology import apply_deltas, psychology_step
+from support.world import decisions_of
 
 from sheltersim.contracts.operations import StaffSupportContinuityReceipt
 from sheltersim.contracts.workspace import HistoryQuery
@@ -49,7 +50,7 @@ from sheltersim.experiments.branch import BranchRuntime
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.inspection.frames import person_projection
 from sheltersim.inspection.traces import RunArtifactWriter
-from sheltersim.policies.behavior import ActionKind, UtilityBehaviorPolicy, WorldView
+from sheltersim.policies.behavior import ActionKind, UtilityBehaviorPolicy
 from sheltersim.policies.psychology import PsychologyParameters, SimplePsychologyPolicy
 from sheltersim.storage.history_index import HistoryIndex
 from sheltersim.storage.projects import ProjectStore
@@ -559,7 +560,7 @@ def test_water_outage_unmet_need_changes_water_action_without_direct_stress_over
         temperature=0.01,
         resource_service_enabled=True,
     )
-    before = decision_policy.propose(WorldView.from_world(world), agent.id, CounterRNG(2026))
+    before = decisions_of(world, decision_policy, rng=CounterRNG(2026))[agent.id]
     before_candidates = {candidate.action: candidate for candidate in before.candidates}
     assert not before_candidates[ActionKind.FETCH_WATER].eligible
 
@@ -581,7 +582,7 @@ def test_water_outage_unmet_need_changes_water_action_without_direct_stress_over
         )
     )
     apply_deltas(world, psychology_step(world, psychology).deltas)
-    after = decision_policy.propose(WorldView.from_world(world), agent.id, CounterRNG(2026))
+    after = decisions_of(world, decision_policy, rng=CounterRNG(2026))[agent.id]
     after_candidates = {candidate.action: candidate for candidate in after.candidates}
     assert agent.needs.hydration_need == pytest.approx(0.26)
     assert after_candidates[ActionKind.FETCH_WATER].eligible

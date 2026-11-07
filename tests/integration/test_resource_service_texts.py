@@ -13,11 +13,12 @@ toilet completion's and the ledger handler's wraps of their rules' `ValueError` 
 from __future__ import annotations
 
 import copy
+import sys
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from support.world import NATIVE_OUTCOME
+from support.world import NATIVE_OUTCOME, world_digest
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine
@@ -36,7 +37,6 @@ from sheltersim.events.models import (
     ScheduledEvent,
 )
 from sheltersim.experiments.metrics import MetricsRecorder
-from sheltersim.experiments.phases.propose import ProposePhase
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
 from sheltersim.policies.behavior import ActionKind
@@ -599,11 +599,19 @@ def _controller(world: WorldState) -> OfflineSimulationController:
     return OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
 
 
-@pytest.mark.parametrize("why", ["queue", "active", "exclusive"])
+@pytest.mark.parametrize(
+    ("why", "digest"),
+    [
+        ("queue", "3a9569d6ad20ffc0"),
+        ("active", "4a025222d590125b"),
+        ("exclusive", "8074303070235945"),
+    ],
+)
 def test_a_request_at_once_the_queue_turns_down_keeps_python_s_text(
-    generated_scenario_with_split_queues: Any, why: str
+    generated_scenario_with_split_queues: Any, why: str, digest: str
 ) -> None:
-    """The propose step records `str(exc)` as the request's detail, and counts the rejection."""
+    """The propose step records `str(exc)` as the request's detail, and counts the rejection: the
+    world of the Python step (`world_digest`, recorded from it on 45a9bc9 before it went)."""
     world = _restricted(generated_scenario_with_split_queues)
     _place_at(world, "A001", "water_station_main")
     texts = {
@@ -619,26 +627,21 @@ def test_a_request_at_once_the_queue_turns_down_keeps_python_s_text(
         world = WorldState.from_scenario(generated_scenario_with_split_queues)
         _place_at(world, "A001", "water_station_main")
         world.facilities["toilet_01"].queue_agent_ids.append("A001")
-    twin = copy.deepcopy(world)
     proposal = SimpleNamespace(
         action=ActionKind.FETCH_WATER,
         agent_id="A001",
         next_decision_at=world.minute_index + 7,
         target_id=None,
     )
-    expected = ProposePhase._apply_effect(_controller(twin), proposal)
-    history = twin.model_state[SERVICE]["request_history"]
+    result = native.rules("proposals").apply_effect(_controller(world), proposal)
+    assert list(result) == [None, 7, False]
+    history = world.model_state[SERVICE]["request_history"]
     assert history[-1]["outcome"] == "rejected"
     assert history[-1]["reason"] == "request_rejected"
     assert history[-1]["detail"] == texts[why]
-    assert twin.metric_state["resource_service_request_rejected_count"] == 1.0
-    assert expected[0] is None
-    result = native.rules("proposals").apply_effect(_controller(world), proposal)
-    assert list(result) == list(expected)
-    assert _bytes(world) == _bytes(twin)
-    assert world.id_counters == twin.id_counters
-    assert world.metric_state == twin.metric_state
-    assert world.model_state[SERVICE] == twin.model_state[SERVICE]
+    assert world.metric_state["resource_service_request_rejected_count"] == 1.0
+    if sys.platform == "linux":
+        assert world_digest(world) == digest
 
 
 # ---- The wraps: a toilet visit's completion, and the ledger --------------------------------------

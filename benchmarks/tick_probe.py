@@ -471,10 +471,7 @@ WITHIN_PHASE = (
     ("sheltersim.experiments.runner", "OfflineSimulationController", "_run_dispatch_phase"),
     ("sheltersim.events.handlers", "AgentTravelCompletionHandler", "_after_arrival"),
     ("sheltersim.experiments.phases.propose", "ProposePhase", "_apply_proposal"),
-    ("sheltersim.policies.world_view", "WorldView", "from_world"),
-    ("sheltersim.policies.world_view", "WorldView", "after_state_update"),
-    # With the Rust kernels these make the views, and the two above don't run. Only then do they
-    # exist on this class (phases/segments.py).
+    # rules/world_view.rs makes the views. These exist on this class only (phases/segments.py).
     ("sheltersim.experiments.runner", "OfflineSimulationController", "_view_after_movement"),
     ("sheltersim.experiments.runner", "OfflineSimulationController", "_view_for_proposals"),
     ("sheltersim.domain.facilities", "ToiletServiceManager", "arbitrate"),
