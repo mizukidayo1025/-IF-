@@ -9,8 +9,11 @@ A refusal of what the Python rule applied is a difference: the world's validatio
 wrong result, and the Python rule then quietly gets it right, which no hash would ever see.
 
 Also here: the other social events (`complaint_response`, `cooperation`, `information_reaction`, an
-untyped one), the walks to a bed and of a relocation, `_reject_room_approach`, `ingest`, and which
-requests `_consider_due_complaints` asks the policy about.
+untyped one), the walks to a bed and of a relocation, `ingest`, and which requests
+`_consider_due_complaints` asks the policy about.
+
+The handlers of rules/handlers.rs, information_events.rs and staff_operation_events.rs and
+`_reject_room_approach` have no Python rule left to compare (`kernel_only`, lane L10).
 """
 
 from __future__ import annotations
@@ -24,26 +27,6 @@ from typing import Any
 from shadow_effects import report_stats
 from shadow_kit import Recorder, text, values_in
 
-HANDLERS = (
-    ("handlers", "proximity", "ProximityContactHandler"),
-    ("information_events", "rumor", "InformationRumorHandler"),
-    ("information_events", "correction", "InformationCorrectionHandler"),
-    ("information_events", "contact", "InformationContactHandler"),
-    ("handlers", "resource_ledger", "ResourceLedgerHandler"),
-    ("handlers", "facility_outage", "FacilityOutageHandler"),
-    ("handlers", "facility_recovery", "FacilityRecoveryHandler"),
-    ("handlers", "infrastructure", "InfrastructureEventHandler"),
-    ("handlers", "service_cancellation", "ResourceServiceCancellationHandler"),
-    ("handlers", "population", "EffectProgramPopulationHandler"),
-    ("handlers", "delivery_delay", "DeliveryDelayHandler"),
-    ("handlers", "water_outage", "WaterOutageHandler"),
-    ("handlers", "water_restoration", "WaterRestorationHandler"),
-    ("handlers", "staff_unavailable", "StaffUnavailabilityHandler"),
-    ("handlers", "staff_restoration", "StaffRestorationHandler"),
-    ("staff_operation_events", "arrive", "StaffOperationArrivalHandler"),
-    ("staff_operation_events", "relief", "StaffOperationReliefHandler"),
-    ("staff_operation_events", "complete", "StaffOperationCompletionHandler"),
-)
 SOCIAL_KINDS = frozenset({"complaint_response", "cooperation", "information_reaction", None})
 WALK_KINDS = frozenset({"sleep_bed", "presence_relocation"})
 RECEIPT_TYPES = frozenset(
@@ -161,19 +144,6 @@ def prepare(output: str) -> None:
 
         return loaded
 
-    for module, name, class_name in HANDLERS:
-        rules = native.rules(module)
-        setattr(
-            rules,
-            name,
-            _shadow(
-                recorder,
-                lambda event, name=name: f"{name}.{event.event_type}",
-                getattr(rules, name),
-                lambda class_name=class_name: getattr(handlers(), class_name).apply.__wrapped__,
-            ),
-        )
-
     social = native.rules("social_interaction")
     social.apply = _shadow(
         recorder,
@@ -195,12 +165,6 @@ def prepare(output: str) -> None:
         ),
         walks.apply,
         lambda: handlers().AgentTravelCompletionHandler.apply.__wrapped__,
-    )
-    walks.reject_room_approach = _shadow(
-        recorder,
-        lambda event: "reject_room_approach",
-        walks.reject_room_approach,
-        lambda: handlers().AgentTravelCompletionHandler._reject_room_approach.__wrapped__,
     )
 
     closures = native.rules("staff_operation_events")

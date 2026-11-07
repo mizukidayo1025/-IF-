@@ -2212,14 +2212,21 @@ def test_a_toilet_fifo_is_the_python_rule_s(queued: WorldState) -> None:
     event = served.event_queue.find(started)
     assert event.payload["staff_id"] == member.id
     served.minute_index = event.due_minute
+    from sheltersim.domain.models import Activity
     from sheltersim.events.handlers import ToiletServiceCompletionHandler
 
-    ours, theirs = _copy(served), _copy(served)
-    handler = ToiletServiceCompletionHandler()
-    ToiletServiceCompletionHandler.apply.__wrapped__(handler, theirs, event)
-    kernel.complete(handler, ours, event)
-    _same_world(ours, theirs)
+    ours = _copy(served)
+    kernel.complete(ToiletServiceCompletionHandler(), ours, event)
+    # What the completion's Python rule did (gone in lane L10): the slot, the task and the staff
+    # member's reservation are freed, and the person is done.
+    person = event.payload["agent_id"]
     assert ours.staff[member.id].active_task_id is None
+    assert ours.staff[member.id].work_queue == []
+    assert ours.staff[member.id].busy_until == 0
+    assert event.payload["task_id"] not in ours.active_tasks
+    assert person not in ours.facilities["toilet_01"].active_agent_ids
+    assert ours.agents[person].activity is Activity.IDLE
+    assert ours.agents[person].needs.toilet_urgency == 0.0
 
 
 # ---- Next to a coefficient or a limit ------------------------------------------------------------

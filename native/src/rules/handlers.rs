@@ -20,7 +20,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyList, PyMapping, PyString, PyTuple};
 
 use crate::core::mathx::{hypot, py_is_close};
-use crate::core::errors;
+use crate::core::errors::{self, Wide};
 use crate::core::row::{attribute, exact_int, exact_str, str_value, unsupported};
 use crate::rules::care_receipts::{continuity_record, facility_recovery_record};
 use crate::rules::effects::{active_outage, copy_of, has_active_modifier, refused_by_python, swap};
@@ -30,6 +30,8 @@ use crate::rules::staff_operation_events::interrupt_operation;
 use crate::Unsupported;
 
 const OPERATIONAL: &str = "operational_events_v1";
+const POPULATION: &str = "sheltersim.domain.population";
+const LIFECYCLE: &str = "sheltersim.domain.population_lifecycle";
 const INFRASTRUCTURE: &str = "infrastructure_v1";
 const MOVEMENT: &str = "movement_v1";
 const PROXIMITY_SOURCE: &str = "ASM-PROXIMITY-CONTACT-V1";
@@ -518,11 +520,11 @@ fn facility_units<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>, fie
         let Some(id) = errors::nonempty_str(&facility_id)? else {
             return errors::failed(py, format!("{what} requires a facility_id"));
         };
-        let units = errors::int_not_bool(&payload.get_item(field)?)?;
+        let units = errors::wide_int_not_bool(&payload.get_item(field)?)?;
         let Some(units) = units else {
             return errors::failed(py, format!("{what} {field} must be an integer"));
         };
-        if units < 0 {
+        if matches!(units, Wide::Below) || matches!(units, Wide::Int(units) if units < 0) {
             return errors::failed(py, format!("{what} {field} cannot be negative"));
         }
         let facility = get(&attribute(world, intern!(py, "facilities"))?, id)?;
@@ -535,20 +537,28 @@ fn facility_units<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>, fie
         if has_active_modifier(world, &facility_id)? {
             return errors::failed(py, format!("{what} conflicts with an active EffectProgram availability modifier"));
         }
-        if units == 0 {
+        if units == Wide::Int(0) {
             return errors::suppressed(py, format!("zero-unit {what} has no effect"));
         }
         let previous = exact_int(&attribute(&facility, intern!(py, "working_units"))?)?;
-        let next = if restores { previous.checked_add(units) } else { previous.checked_sub(units) };
-        let Some(next) = next else {
-            return unsupported("the units are past 64 bits");
+        // Units past 64 bits, or a sum past them, are past either bound: Python's ints don't wrap.
+        let next = match units {
+            Wide::Int(units) if restores => previous.checked_add(units),
+            Wide::Int(units) => previous.checked_sub(units),
+            _ => None,
         };
-        if !restores && next < 0 {
-            return errors::failed(py, "facility outage exceeds currently working capacity");
-        }
-        if restores && next > exact_int(&attribute(&facility, intern!(py, "capacity"))?)? {
-            return errors::failed(py, "facility recovery exceeds installed capacity");
-        }
+        let next = if restores {
+            let capacity = exact_int(&attribute(&facility, intern!(py, "capacity"))?)?;
+            match next.filter(|next| *next <= capacity) {
+                Some(next) => next,
+                None => return errors::failed(py, "facility recovery exceeds installed capacity"),
+            }
+        } else {
+            match next.filter(|next| *next >= 0) {
+                Some(next) => next,
+                None => return errors::failed(py, "facility outage exceeds currently working capacity"),
+            }
+        };
         Ok((facility_id, facility, previous, next))
     })();
     let (facility_id, facility, previous, next) = refused_by_python(py, plan)?;
@@ -631,8 +641,9 @@ fn delivery_delay_on(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyRe
         }
         let target_due = exact_int(&target_due_value)?;
         let now = minute_of(candidate)?;
-        let to_minute = match errors::int_not_bool(&payload.get_item("to_minute")?)? {
-            Some(to_minute) if !(target_due <= now || to_minute <= target_due || to_minute <= now || to_minute >= duration_of(candidate)?) => to_minute,
+        // An int past 64 bits is at or past the Run's end, or before the delivery: the same text.
+        let to_minute = match errors::wide_int_not_bool(&payload.get_item("to_minute")?)? {
+            Some(Wide::Int(to_minute)) if !(target_due <= now || to_minute <= target_due || to_minute <= now || to_minute >= duration_of(candidate)?) => to_minute,
             _ => return errors::failed(py, "shipment delay must move a not-yet-due delivery forward"),
         };
         let target_document = target.call_method0(intern!(py, "to_dict"))?;
@@ -794,8 +805,8 @@ fn staff_unavailable_on<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny
             return errors::failed(py, "staff unavailability references unknown staff");
         }
         let duration = duration_of(candidate)?;
-        let until = match errors::int_not_bool(&payload.get_item("until_minute")?)? {
-            Some(until) if until > minute_of(candidate)? && until <= duration => until,
+        let until = match errors::wide_int_not_bool(&payload.get_item("until_minute")?)? {
+            Some(Wide::Int(until)) if until > minute_of(candidate)? && until <= duration => until,
             _ => return errors::failed(py, "staff unavailable until_minute is invalid"),
         };
         let status = operational.get_item("staff_status")?.get_item(staff_id)?;
@@ -1178,12 +1189,31 @@ fn wrapped(py: Python<'_>, error: PyErr) -> PyErr {
     }
 }
 
+/// A population rule's kernel, as the handler's Python rule called that rule: where the kernel
+/// refuses (it changed nothing), the function of `domain/` itself, whose Python rule decides and
+/// raises its own. The handler has no Python rule of its own left (`kernel_only`), but these do.
+fn rule_or_python<'py>(
+    py: Python<'py>,
+    kernel: PyResult<()>,
+    module: &str,
+    name: &str,
+    arguments: Bound<'py, PyTuple>,
+    keywords: Option<&Bound<'py, PyDict>>,
+) -> PyResult<()> {
+    match kernel {
+        Err(error) if error.is_instance_of::<Unsupported>(py) => py.import(module)?.getattr(name)?.call(arguments, keywords).map(|_| ()),
+        done => done,
+    }
+}
+
 /// `EffectProgramPopulationHandler.apply`.
 #[pyfunction]
 fn population<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>) -> PyResult<()> {
     let py = world.py();
     if text_is(&attribute(event, intern!(py, "event_type"))?, "population_approach_complete") {
-        return counted(py, "population.approach", population_rules::apply_arrival_approach_completion(world, event));
+        let kernel = population_rules::apply_arrival_approach_completion(world, event);
+        let done = rule_or_python(py, kernel, POPULATION, "apply_arrival_approach_completion", PyTuple::new(py, [world, event])?, None);
+        return counted(py, "population.approach", done);
     }
     let checked = (|| -> PyResult<_> {
         let payload = attribute(event, intern!(py, "payload"))?;
@@ -1219,8 +1249,10 @@ fn population<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, even
     let (payload, op) = counted(py, "population.checks", refused_by_python(py, checked))?;
     if op == "population_presence" {
         // Past its checks the Python rule lets this rule's exceptions go, as this does.
-        population_lifecycle::apply_presence_command(world, event, &payload.get_item("command")?)?;
-        return Ok(());
+        let command = payload.get_item("command")?;
+        let kernel = population_lifecycle::apply_presence_command(world, event, &command).map(|_| ());
+        let arguments = PyTuple::new(py, [world, event, &command])?;
+        return rule_or_python(py, kernel, LIFECYCLE, "apply_population_presence_command", arguments, None);
     }
     // A deferral: the copy with its retry takes the world's place, and the event is suppressed.
     let changed = (|| -> PyResult<Option<PyErr>> {
@@ -1242,24 +1274,50 @@ fn population<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, even
                 approach_route_id: Some(get(&payload, "approach_route_id")?),
                 person_context_overrides: Some(as_tuple("person_context_overrides")?),
             };
-            population_rules::arrivals(&candidate, event, &zone, &count, &options).map(|_| ())
+            let kernel = population_rules::arrivals(&candidate, event, &zone, &count, &options).map(|_| ());
+            let keywords = PyDict::new(py);
+            keywords.set_item("event", event)?;
+            keywords.set_item("zone_id", &zone)?;
+            keywords.set_item("count", &count)?;
+            for (name, value) in [
+                ("household_size", &options.household_size),
+                ("mobility", &options.mobility),
+                ("language", &options.language),
+                ("admission_zone_ids", &options.admission_zone_ids),
+                ("approach_route_id", &options.approach_route_id),
+                ("person_context_overrides", &options.person_context_overrides),
+            ] {
+                keywords.set_item(name, value)?;
+            }
+            rule_or_python(py, kernel, POPULATION, "queue_arrivals", PyTuple::new(py, [&candidate])?, Some(&keywords))
         } else {
             let include = payload.call_method1(intern!(py, "get"), ("include_initial", false))?;
-            population_rules::departures(&candidate, event, &zone, &count, Some(&include)).and_then(|_| {
-                population_lifecycle::admit_pending_returns(&candidate, &attribute(event, intern!(py, "due_minute"))?).map(|_| ())
+            let kernel = population_rules::departures(&candidate, event, &zone, &count, Some(&include)).map(|_| ());
+            let keywords = PyDict::new(py);
+            keywords.set_item("event", event)?;
+            keywords.set_item("zone_id", &zone)?;
+            keywords.set_item("count", &count)?;
+            keywords.set_item("include_initial", &include)?;
+            rule_or_python(py, kernel, POPULATION, "queue_departures", PyTuple::new(py, [&candidate])?, Some(&keywords)).and_then(|_| {
+                let minute = attribute(event, intern!(py, "due_minute"))?;
+                let kernel = population_lifecycle::admit_pending_returns(&candidate, &minute).map(|_| ());
+                rule_or_python(py, kernel, LIFECYCLE, "admit_pending_returns", PyTuple::new(py, [&candidate, &minute])?, None)
             })
         };
+        // The rule's `try`: a deferral swaps its copy in and is the outcome; its own failures go on;
+        // `except (TypeError, ValueError) as exc: raise EventApplicationError(str(exc))`.
         let deferred = match done {
             Ok(()) => None,
             Err(error) if error.is_instance(py, &models(py)?.getattr(intern!(py, "EventSuppressed"))?) => Some(error),
-            Err(error) => return Err(error),
+            Err(error) => return Err(wrapped(py, error)),
         };
         candidate.call_method0(intern!(py, "validate"))?;
         py.import("sheltersim.domain.simulator_state")?.getattr("validate_simulator_extensions")?.call1((&candidate,))?;
         swap(world, &candidate)?;
         Ok(deferred)
     })();
-    match counted(py, "population.copy", refused_by_python(py, changed))? {
+    // Past the checks a call's exception is the Python rule's own: it made the same calls.
+    match counted(py, "population.copy", changed)? {
         Some(deferred) => Err(deferred),
         None => Ok(()),
     }
@@ -1431,7 +1489,8 @@ fn schedule_completion<'py>(
 /// Run; None where the Python rule's check says it is invalid.
 fn until_of(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<Option<i64>> {
     let py = world.py();
-    let Some(until) = errors::int_not_bool(&get(&attribute(event, intern!(py, "payload"))?, "until_minute")?)? else {
+    // An int past 64 bits is before the event or past the Run.
+    let Some(Wide::Int(until)) = errors::wide_int_not_bool(&get(&attribute(event, intern!(py, "payload"))?, "until_minute")?)? else {
         return Ok(None);
     };
     if attribute(event, intern!(py, "due_minute"))?.ge(until)? || until > duration_of(world)? {

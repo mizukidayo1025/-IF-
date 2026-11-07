@@ -274,7 +274,18 @@ def test_a_toilet_completion_is_python_s(generated_scenario: Any, hygiene: float
     world.model_state["body_state_v1"]["agents"][agent_id]["hygiene_need"] = hygiene
     twin = copy.deepcopy(world)
     native.rules("toilet").complete(ToiletServiceCompletionHandler(), world, event)
-    ToiletServiceCompletionHandler.apply.__wrapped__(ToiletServiceCompletionHandler(), twin, event)
+    # The Python rule (`complete_toilet_service` and the handler, gone in lane L10): the slot, the
+    # task, the person and the count; a person not in a queue has no queue record to finish.
+    facility_id, task_id = event.payload["facility_id"], event.payload["task_id"]
+    twin.facilities[facility_id].active_agent_ids.remove(agent_id)
+    del twin.active_tasks[task_id]
+    twin.agents[agent_id].activity = Activity.IDLE
+    twin.agents[agent_id].target_id = None
+    twin.agents[agent_id].needs.toilet_urgency = 0.0
+    twin.metric_state["toilet_service_completed_count"] = (
+        twin.metric_state.get("toilet_service_completed_count", 0.0) + 1.0
+    )
+    twin.model_state["body_state_v1"]["agents"][agent_id]["hygiene_need"] = max(0.0, hygiene - 0.2)
     assert world.agents[agent_id].activity is Activity.IDLE
     assert world.agents[agent_id].needs.toilet_urgency == 0.0
     # 0.2 is the model's relief: a change of 1% shows here.
@@ -282,6 +293,24 @@ def test_a_toilet_completion_is_python_s(generated_scenario: Any, hygiene: float
         0.0, hygiene - 0.2
     )
     _same_world(world, twin)
+
+
+@pytest.mark.parametrize(("kind", "is_toilet"), [("TOILET_和式", True), ("給水所", False)])
+def test_a_facility_kind_beyond_ascii_is_folded_as_python_folds_it(
+    generated_scenario: Any, kind: str, is_toilet: bool
+) -> None:
+    """A Scenario's facility kind is any str: `"toilet" in kind.casefold()`, Python's own fold."""
+    world, _ = _run(generated_scenario, 5)
+    event = _in_service(world, world.minute_index)
+    facility_id, agent_id = event.payload["facility_id"], event.payload["agent_id"]
+    world.facilities[facility_id].kind = kind
+    handler = ToiletServiceCompletionHandler()
+    if is_toilet:
+        handler.apply(world, event)
+        assert world.agents[agent_id].activity is Activity.IDLE
+        return
+    expected = (EventApplicationError, f"{facility_id!r} is not a toilet Facility")
+    kernel_says_python_s_text(handler, world, event, expected)
 
 
 def test_a_toilet_completion_that_does_not_fit_is_python_s(generated_scenario: Any) -> None:
@@ -503,7 +532,20 @@ def test_a_timeout_is_python_s(generated_scenario: Any) -> None:
     twin = copy.deepcopy(world)
     handler = SupportRequestTimeoutHandler(cooldown_minutes=30)
     native.rules("support").timeout(handler, world, event)
-    SupportRequestTimeoutHandler.apply.__wrapped__(handler, twin, event)
+    # The Python rule (`timeout_support_request`, gone in lane L10): unresolved, with a cooldown.
+    minute = twin.minute_index
+    pending = twin.support_requests["support-t1"]
+    pending.status = SupportRequestStatus.UNRESOLVED
+    pending.resolved_minute = minute
+    pending.cooldown_until = minute + 30
+    person = twin.agents[agent_id]
+    person.support_request_id = None
+    person.support_cooldown_until = minute + 30
+    person.activity = Activity.IDLE
+    person.target_id = None
+    twin.metric_state["support_unresolved_count"] = (
+        twin.metric_state.get("support_unresolved_count", 0.0) + 1.0
+    )
     request = world.support_requests["support-t1"]
     assert request.status is SupportRequestStatus.UNRESOLVED
     assert request.cooldown_until == world.minute_index + 30
@@ -519,11 +561,10 @@ def test_a_timeout_of_what_has_left_pending_says_python_s_text(generated_scenari
     event = _timeout_event(world, agent_id)
     handler = SupportRequestTimeoutHandler(cooldown_minutes=30)
     before = _bytes(world)
-    with pytest.raises(EventSuppressed) as by_python:
-        SupportRequestTimeoutHandler.apply.__wrapped__(handler, world, event)
+    # An assigned request goes on in service: the Python rule's suppression.
     with pytest.raises(EventSuppressed) as by_kernel:
         native.rules("support").timeout(handler, world, event)
-    assert str(by_kernel.value) == str(by_python.value)
+    assert str(by_kernel.value) == "support request is no longer pending"
     assert _bytes(world) == before
 
 
@@ -545,8 +586,9 @@ def test_a_timeout_of_another_person_s_request_is_python_s_error(generated_scena
     _open_request(world, agent_id)
     other = next(key for key in sorted(world.agents) if key != agent_id)
     handler = SupportRequestTimeoutHandler(cooldown_minutes=30)
-    _, said = kernel_says_python_s_text(handler, world, _timeout_event(world, other))
-    assert said == "support request 'support-t1' does not match its Agent"
+    text = "support request 'support-t1' does not match its Agent"
+    expected = (EventApplicationError, text)
+    kernel_says_python_s_text(handler, world, _timeout_event(world, other), expected)
 
 
 # ---- a staff member's support ends ---------------------------------------------------------------

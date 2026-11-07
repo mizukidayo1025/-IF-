@@ -144,16 +144,22 @@ def live_checkpoint_world() -> Any:
 NATIVE_OUTCOME = "_sheltersim_native_outcome"
 
 
-def kernel_says_python_s_text(handler: Any, world: Any, event: Any) -> tuple[str, str]:
+def kernel_says_python_s_text(
+    handler: Any, world: Any, event: Any, expected: tuple[type, str] | None = None
+) -> tuple[str, str]:
     """The handler's kernel raises its Python rule's outcome itself, with the same class and text.
 
     `handler.apply` runs the kernel first; the outcome must be the kernel's own (not a refusal the
-    Python rule then worded), the world must be as it was, and the Python rule on a copy made
-    before must raise the same class with the same text. The class name and text, for the caller.
+    Python rule then worded) and the world must be as it was. Where the handler still has its
+    Python rule (`kernel_first`), that rule on a copy made before must raise the same class with the
+    same text. Where it has none (`kernel_only`: its `__wrapped__` raises KernelRefusal), `expected`
+    is the Python rule's outcome, written down from it: (EventSuppressed or EventApplicationError,
+    text). Given, it is checked in either case. The class name and text, for the caller.
     (docs/rust-port/lanes/l8-texts-events.md)
     """
     import copy
 
+    from sheltersim.core.kernels import KernelRefusal
     from sheltersim.events.models import EventApplicationError, EventSuppressed
 
     def text(state: Any) -> str:
@@ -165,8 +171,15 @@ def kernel_says_python_s_text(handler: Any, world: Any, event: Any) -> tuple[str
         handler.apply(world, event)
     assert getattr(made.value, NATIVE_OUTCOME, False), f"the kernel refused: {made.value}"
     assert text(world) == before
-    with pytest.raises((EventSuppressed, EventApplicationError)) as said:
+    if expected is not None:
+        assert (type(made.value), str(made.value)) == expected
+    try:
         type(handler).apply.__wrapped__(handler, twin, event)
-    assert type(made.value) is type(said.value)
-    assert str(made.value) == str(said.value)
+    except KernelRefusal:
+        assert expected is not None, "a handler with no Python rule needs the outcome it raised"
+    except (EventSuppressed, EventApplicationError) as said:
+        assert type(made.value) is type(said)
+        assert str(made.value) == str(said)
+    else:
+        pytest.fail("the Python rule raised nothing")
     return type(made.value).__name__, str(made.value)

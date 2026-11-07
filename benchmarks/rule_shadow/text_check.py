@@ -18,6 +18,9 @@ With SHELTERSIM_TEXT_CHECK_STRICT=1 a difference raises AssertionError at once, 
 
 It also counts where Python raised one of the two (a frame on a `raise` line of src/): with the
 kernels on, a site moved to Rust is then reached only inside a comparison.
+
+A kernel with no Python rule left (`kernel_only`, lane L10: the handlers of rules/handlers.rs and
+the guard among them) has nothing to compare with, and is skipped.
 """
 
 from __future__ import annotations
@@ -38,6 +41,11 @@ from typing import Any
 
 CHECK: Any = None
 CLASS_NAMES = ("EventSuppressed", "EventApplicationError")
+
+
+def _has_python_rule(function: Any) -> bool:
+    """Whether a rule's `__wrapped__` is a Python rule: `kernel_only`'s raises KernelRefusal."""
+    return not getattr(function, "__qualname__", "").startswith("kernel_only.")
 
 
 class _Check:
@@ -156,10 +164,15 @@ class _Check:
         name = {"suppressed": "EventSuppressed", "failed": "EventApplicationError"}[status]
         if handler is None:
             # An EffectProgram marker's guard, which the dispatch loop asks before the handler.
-            self.compare("direct guard", name, text, lambda: _python_guard(world, event))
+            from sheltersim.events import effects
+
+            if _has_python_rule(getattr(effects.should_apply_effect_guard, "__wrapped__", None)):
+                self.compare("direct guard", name, text, lambda: _python_guard(world, event))
             return
         apply = type(handler).apply
         python_rule = getattr(apply, "__wrapped__", apply)
+        if not _has_python_rule(python_rule):
+            return
         if type(handler).__name__ == "ResourceServiceCompletionHandler":
             # Its apply has no kernel of its own: the kernel is its manager's `complete`. Its own
             # check runs, with the manager's Python rule behind it.

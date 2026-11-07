@@ -37,7 +37,7 @@ from sheltersim.contracts.operations import (
     TemporaryRoomGeometry,
 )
 from sheltersim.contracts.population import DynamicArrivalPersonContext
-from sheltersim.core.kernels import kernel_first
+from sheltersim.core.kernels import kernel_first, kernel_only
 from sheltersim.domain.environment import (
     ZONE_ENVIRONMENT_POLICY,
     ZONE_ENVIRONMENT_STATE_KEY,
@@ -2016,18 +2016,20 @@ def schedule_effect_program(
     return ScheduledEffectProgram(program.program_id, program_hash, tuple(event_ids))
 
 
-@kernel_first("effects", "should_apply_guard")
+@kernel_only("effects", "should_apply_guard")
 def should_apply_effect_guard(world: WorldState, event: ScheduledEvent) -> bool:
-    """Evaluate a compiled guard against fixed state fields; no dynamic evaluation."""
-    marker = event.provenance.get("effect_program_v1")
-    guard = marker.get("guard") if isinstance(marker, Mapping) else None
-    if guard is None:
-        return True
-    try:
-        expression = GuardExpression.model_validate(guard)
-    except ValueError as exc:
-        raise EventApplicationError(f"EffectProgram guard is invalid: {exc}") from exc
-    return _evaluate_guard_node(world, event, expression)
+    """Evaluate a compiled guard against fixed state fields; no dynamic evaluation.
+
+    True for an event without an EffectProgram marker or guard. A guard the GuardExpression contract
+    turns down is an EventApplicationError ("EffectProgram guard is invalid: ..."); "and" and "or"
+    stop at the first answer. A leaf reads simulation.minute, the target facility's capacity,
+    working_units or queue length, the zone's occupancy, the resource's available quantity or the
+    staff member's availability; the target is the payload's first str of facility_id, staff_id,
+    zone_id, resource_id, target_id (a single-effect program's shipment_id otherwise), and a missing
+    one is an EventApplicationError of its field. Numbers compare by value (a count equals 0.0,
+    #196), exactly at any size; a bool never equals a number; an ordered comparison of a bool is
+    false.
+    """
 
 
 def _guard_fields(guard: GuardExpression) -> set[str]:
@@ -2036,111 +2038,14 @@ def _guard_fields(guard: GuardExpression) -> set[str]:
     return set().union(*(_guard_fields(item) for item in guard.operands))
 
 
-def _evaluate_guard_node(world: WorldState, event: ScheduledEvent, guard: GuardExpression) -> bool:
-    if guard.operator == "and":
-        return all(_evaluate_guard_node(world, event, item) for item in guard.operands)
-    if guard.operator == "or":
-        return any(_evaluate_guard_node(world, event, item) for item in guard.operands)
-    field_name = guard.field
-    # Floor plan changes keep their facility or zone target in target_id (#194).
-    target_id = next(
-        (
-            event.payload.get(name)
-            for name in ("facility_id", "staff_id", "zone_id", "resource_id", "target_id")
-            if isinstance(event.payload.get(name), str)
-        ),
-        None,
-    )
-    if target_id is None:
-        marker = event.provenance.get("effect_program_v1", {})
-        program_id = marker.get("program_id")
-        program = (
-            world.model_state.get(EFFECT_PROGRAM_STATE_KEY, {}).get("programs", {}).get(program_id)
-        )
-        if program and len(program.get("effect_ids", [])) == 1:
-            # Prefer typed event payloads; non-resource operations always carry a direct target.
-            target_id = event.payload.get("shipment_id")
-    if field_name == "simulation.minute":
-        actual: Any = world.minute_index
-    elif field_name in {"target.capacity", "target.working_units", "target.queue_length"}:
-        facility = world.facilities.get(target_id or "")
-        if facility is None:
-            raise EventApplicationError(f"guard field {field_name!r} has no facility target")
-        if field_name == "target.capacity":
-            actual = facility.capacity
-        elif field_name == "target.working_units":
-            actual = facility.working_units
-        else:
-            actual = len(facility.queue_agent_ids) + len(facility.resource_queue_agent_ids)
-    elif field_name == "zone.occupancy":
-        zone_id = event.payload.get("zone_id") or (
-            world.facilities.get(target_id or "").zone_id
-            if target_id in world.facilities
-            else target_id
-        )
-        if zone_id not in world.zones:
-            raise EventApplicationError("guard zone.occupancy has no known zone target")
-        actual = sum(agent.zone_id == zone_id for agent in world.agents.values())
-    elif field_name == "resource.available_quantity":
-        from sheltersim.domain.resources import RESOURCE_LEDGER_KEY
-
-        ledger = world.model_state.get(RESOURCE_LEDGER_KEY)
-        resource_id = event.payload.get("resource_id")
-        if not isinstance(ledger, dict) or resource_id not in ledger["accounts"]:
-            raise EventApplicationError("guard resource.available_quantity has no ledger target")
-        account = ledger["accounts"][resource_id]
-        actual = account["remaining"] - account["reserved"]
-    elif field_name == "staff.available":
-        from sheltersim.domain.operational import staff_is_available
-
-        staff_id = event.payload.get("staff_id") or target_id
-        if staff_id not in world.staff:
-            raise EventApplicationError("guard staff.available has no known staff target")
-        actual = staff_is_available(world, staff_id)
-    else:
-        raise EventApplicationError(f"guard field {field_name!r} is not implemented")
-    expected = guard.value
-    # Numbers compare by value, so a count equals 0.0 (#196); a boolean never equals a number.
-    numeric = all(
-        isinstance(item, (int, float)) and not isinstance(item, bool) for item in (actual, expected)
-    )
-    if guard.operator == "eq":
-        return (
-            actual == expected if numeric else type(actual) is type(expected) and actual == expected
-        )
-    if guard.operator == "ne":
-        return (
-            actual != expected
-            if numeric
-            else type(actual) is not type(expected) or actual != expected
-        )
-    if not isinstance(actual, (int, float)) or isinstance(actual, bool):
-        return False
-    if guard.operator == "gt":
-        return actual > expected
-    if guard.operator == "gte":
-        return actual >= expected
-    if guard.operator == "lt":
-        return actual < expected
-    return actual <= expected
-
-
-@kernel_first("effects", "has_active_modifier")
+@kernel_only("effects", "has_active_modifier")
 def has_active_facility_modifier(world: WorldState, facility_id: str) -> bool:
-    state = world.model_state.get(EFFECT_PROGRAM_STATE_KEY)
-    if not isinstance(state, dict):
-        return False
-    record = state.get("active_facility_modifiers", {}).get(facility_id)
-    return isinstance(record, dict) and bool(record.get("modifiers"))
+    """Whether effect_program_v1 holds active availability modifiers for the facility."""
 
 
-@kernel_first("effects", "has_pending_modifier")
+@kernel_only("effects", "has_pending_modifier")
 def has_pending_facility_modifier(world: WorldState, facility_id: str) -> bool:
-    return any(
-        event.event_type in {"effect_program_apply", "effect_program_expire"}
-        and event.payload.get("facility_id") == facility_id
-        for event in world.event_queue.pending()
-    )
+    """Whether a pending effect_program_apply or _expire event targets the facility."""
 
 
 class EffectProgramGeometryHandler:
@@ -2149,56 +2054,17 @@ class EffectProgramGeometryHandler:
     def __init__(self, *, expire: bool = False) -> None:
         self.expire = expire
 
-    @kernel_first("effects", "geometry")
+    @kernel_only("effects", "geometry")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        from sheltersim.domain.geometry_overlay import apply_geometry_change
+        """Apply or expire an approved geometry effect through `apply_geometry_change`, on a copy.
 
-        payload = event.payload
-        expected = {
-            "program_id",
-            "effect_id",
-            "modifier_id",
-            "target_id",
-            "op",
-            "parameters",
-            "end_minute",
-        }
-        if set(payload) != expected or payload.get("op") not in GEOMETRY_OPERATORS:
-            raise EventApplicationError("geometry effect has invalid fields or operator")
-        state = world.model_state.get(EFFECT_PROGRAM_STATE_KEY, {})
-        program = state.get("programs", {}).get(payload["program_id"], {})
-        if program.get("operators", {}).get(payload["effect_id"]) != payload["op"] or payload[
-            "modifier_id"
-        ] != _modifier_id(payload["program_id"], payload["effect_id"]):
-            raise EventApplicationError("geometry effect does not reference its approved program")
-        effect_event_guard_or_suppress(world, event)
-        overlay = world.model_state.get(GEOMETRY_OVERLAY_KEY, {})
-        if self.expire:
-            if payload["op"] == "set_partition":
-                active = payload["modifier_id"] in overlay.get("partitions", {})
-            elif payload["op"] == "temporary_room_geometry":
-                room_id = payload.get("parameters", {}).get("room_id")
-                room = overlay.get("temporary_rooms", {}).get(room_id)
-                active = isinstance(room, dict) and room.get("active") is True
-                if active and (
-                    room.get("start_event_id") != event.causation_id
-                    or room.get("end_minute") != event.due_minute
-                ):
-                    active = False
-            else:
-                active = payload["modifier_id"] in overlay.get("route_modifiers", {}).get(
-                    payload["target_id"], {}
-                ).get("modifiers", {})
-            if not active:
-                raise EventSuppressed("geometry modifier was not applied or already expired")
-        candidate = _effect_candidate(world)
-        try:
-            apply_geometry_change(candidate, event, expire=self.expire)
-            candidate.validate()
-        except (ValueError, KeyError, TypeError) as exc:
-            raise EventApplicationError(str(exc)) from exc
-        world.__dict__.clear()
-        world.__dict__.update(candidate.__dict__)
+        EventApplicationError when the payload fields or the operator are not a geometry effect's,
+        or the effect and modifier ID are not its approved program's; then the guard
+        (`effect_event_guard_or_suppress`). An expiry of a partition, route modifier or temporary
+        room that is not active (a room: not this start's or end) is EventSuppressed. The
+        ValueError, KeyError or TypeError of `apply_geometry_change` or of the copy's validation is
+        the EventApplicationError's text.
+        """
 
 
 class EffectProgramTemporarySpaceHandler:
@@ -2847,150 +2713,19 @@ class EffectProgramEnvironmentHandler:
     def __init__(self, *, expire: bool = False) -> None:
         self.expire = expire
 
-    @kernel_first("effects", "environment")
+    @kernel_only("effects", "environment")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        candidate = _effect_candidate(world)
-        try:
-            self._apply(candidate, event)
-            candidate.validate()
-        except (EventApplicationError, EventSuppressed):
-            # EventSuppressed is a ValueError; an expiry after a start its guard suppressed
-            # must stay suppressed, not become a failure (#195).
-            raise
-        except ValueError as exc:
-            raise EventApplicationError(f"zone environment modifier is invalid: {exc}") from exc
-        world.__dict__.clear()
-        world.__dict__.update(candidate.__dict__)
+        """Start or expire a zone environment modifier of an approved program, on a copy.
 
-    def _apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        expected = (
-            {"program_id", "effect_id", "modifier_id", "zone_id"}
-            if self.expire
-            else {
-                "program_id",
-                "effect_id",
-                "modifier_id",
-                "zone_id",
-                "op",
-                "parameters",
-                "end_minute",
-            }
-        )
-        if set(event.payload) != expected:
-            raise EventApplicationError("zone environment event payload fields do not match")
-        state = world.model_state.get(EFFECT_PROGRAM_STATE_KEY)
-        environment = world.model_state.get(ZONE_ENVIRONMENT_STATE_KEY)
-        marker = event.provenance.get("effect_program_v1")
-        program_id = event.payload.get("program_id")
-        effect_id = event.payload.get("effect_id")
-        modifier_id = event.payload.get("modifier_id")
-        zone_id = event.payload.get("zone_id")
-        if any(
-            not isinstance(value, str) for value in (program_id, effect_id, modifier_id, zone_id)
-        ):
-            raise EventApplicationError("zone environment event IDs must be strings")
-        program = state.get("programs", {}).get(program_id) if isinstance(state, dict) else None
-        if (
-            not isinstance(program, dict)
-            or effect_id not in program.get("effect_ids", [])
-            or not isinstance(marker, Mapping)
-            or ZONE_ENVIRONMENT_POLICY not in marker.get("policy_dependencies", [])
-            or not isinstance(environment, dict)
-        ):
-            raise EventApplicationError("zone environment event has no installed program policy")
-        expected_modifier_id = _modifier_id(program_id, effect_id)
-        if modifier_id != expected_modifier_id:
-            raise EventApplicationError("zone environment modifier ID does not match its effect")
-        modifiers = environment["modifiers"]
-        if self.expire:
-            record = modifiers.get(modifier_id)
-            if record is None:
-                raise EventSuppressed("zone environment modifier is not active")
-            if (
-                record["program_id"] != program_id
-                or record["effect_id"] != effect_id
-                or record["zone_id"] != event.payload.get("zone_id")
-                or record["end_event_id"] != event.event_id
-                or event.causation_id != record["start_event_id"]
-            ):
-                raise EventApplicationError("zone environment expiry does not match its start")
-            modifiers.pop(modifier_id)
-            return
-
-        op = event.payload.get("op")
-        if op not in {
-            "set_ambient_noise",
-            "modify_demand_rate",
-            "set_ventilation",
-            "set_lighting",
-            "set_privacy",
-            "set_temperature",
-        }:
-            raise EventApplicationError("zone environment operator is unsupported")
-        if program["operators"].get(effect_id) != op:
-            raise EventApplicationError("zone environment operator does not match its program")
-        if zone_id not in world.zones:
-            raise EventApplicationError("zone environment target does not exist")
-        if modifier_id in modifiers:
-            raise EventSuppressed("zone environment modifier is already active")
-        assert isinstance(marker, Mapping)
-        try:
-            parameters = _PARAMETER_MODELS[op].model_validate(event.payload["parameters"])
-        except ValueError as exc:
-            raise EventApplicationError(f"zone environment parameters are invalid: {exc}") from exc
-        if (
-            op == "modify_demand_rate"
-            and parameters.action
-            in {
-                "fetch_water",
-                "collect_meal",
-            }
-            and "resource_service_v1" not in world.model_state
-        ):
-            raise EventApplicationError("zone demand action requires resource-service policy")
-        end_minute = event.payload.get("end_minute")
-        if (
-            not isinstance(end_minute, int)
-            or isinstance(end_minute, bool)
-            or end_minute <= event.due_minute
-            or end_minute >= world.duration_minutes
-        ):
-            raise EventApplicationError("zone environment modifier expiry minute is invalid")
-        expiry_events = [
-            pending
-            for pending in world.event_queue.pending()
-            if pending.event_type == "effect_program_environment_expire"
-            and pending.payload.get("modifier_id") == modifier_id
-        ]
-        if len(expiry_events) != 1 or expiry_events[0].due_minute != end_minute:
-            raise EventApplicationError("zone environment modifier has no unique expiry event")
-        config = ScenarioZoneEnvironmentConfig.model_validate(
-            world.model_configs["zone_environment"]
-        )
-        if (
-            op in {"set_ventilation", "set_lighting", "set_privacy", "set_temperature"}
-            and config.policy_version != "zone-environment-v2"
-        ):
-            raise EventApplicationError("condition modifier requires zone-environment-v2")
-        assumption_ids = marker.get("assumption_ids")
-        if not isinstance(assumption_ids, (list, tuple)) or any(
-            not isinstance(value, str) for value in assumption_ids
-        ):
-            raise EventApplicationError("zone environment assumption provenance is invalid")
-        modifiers[modifier_id] = {
-            "modifier_id": modifier_id,
-            "program_id": program_id,
-            "effect_id": effect_id,
-            "op": op,
-            "zone_id": zone_id,
-            "parameters": parameters.model_dump(mode="json"),
-            "start_event_id": event.event_id,
-            "end_event_id": expiry_events[0].event_id,
-            "start_minute": event.due_minute,
-            "end_minute": end_minute,
-            "source_id": config.source_id,
-            "assumption_ids": sorted(set(assumption_ids)),
-        }
+        EventApplicationError, in this order: payload fields, IDs that are not str, no installed
+        program policy, a modifier ID that is not its effect's; for an expiry, a record that doesn't
+        match its start (EventSuppressed when none is active); for a start, an unknown operator or
+        one that is not the program's, an unknown zone, invalid parameters, a demand action without
+        the resource service, an expiry minute out of the Run, no unique expiry event, a condition
+        operator before zone-environment-v2, invalid assumption provenance (EventSuppressed when it
+        is already active). A ValueError of the copy's validation is "zone environment modifier is
+        invalid: ...".
+        """
 
 
 # The event type of an operator's event, by the phase in its marker.

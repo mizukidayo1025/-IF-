@@ -3,11 +3,16 @@
 benchmarks/rule_shadow/shadow_handlers_rest.py does this on the gate's runs; 7 days hold almost none
 of these events, so here each rule also runs on Scenarios made to reach it, with the branches those
 may not reach and the values that change a result (docs/rust-port/lanes/m6-handlers-rest.md).
+
+Most of these handlers have no Python rule left (lane L10, `kernel_only`). For them a run or a case
+is checked against what the Python rule gave, written down from it before it went: the outcome's
+class and text, or a digest of the world and records (`_digest`).
 """
 
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import sys
 from collections import Counter
@@ -23,6 +28,7 @@ from sheltersim import native
 from sheltersim.core.engine import TickEngine
 from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
+from sheltersim.domain.information import upgrade_information_runtime_state
 from sheltersim.domain.models import (
     ActiveTask,
     Activity,
@@ -32,7 +38,6 @@ from sheltersim.domain.models import (
 )
 from sheltersim.domain.simulator_state import initialize_simulator_extensions
 from sheltersim.domain.staff import StaffService
-from sheltersim.events import handlers as module
 from sheltersim.events.handlers import (
     FacilityOutageHandler,
     InformationContactHandler,
@@ -77,6 +82,8 @@ KERNELS = {
     "SocialInteractionHandler": ("social_interaction", "apply"),
     "AgentTravelCompletionHandler": ("travel_completion", "apply"),
 }
+# The handlers whose Python rule is left to compare with; the others are counted by outcome.
+WITH_PYTHON_RULE = {"SocialInteractionHandler", "AgentTravelCompletionHandler"}
 # These two take other events, compared with the shadow's rule only for these.
 ONLY = {
     "SocialInteractionHandler": lambda event: event.payload.get("interaction_type")
@@ -111,13 +118,22 @@ def _outcome(call: Any) -> tuple[str, Any]:
     return "applied", [record.to_dict() for record in result or ()]
 
 
+def _digest(value: Any) -> str:
+    """A digest of a JSON value, to pin what the Python rule gave."""
+    text = json.dumps(value, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
 def _copies(world: WorldState) -> tuple[WorldState, WorldState]:
     document = world.to_dict()
     return WorldState.from_dict(document), WorldState.from_dict(document)
 
 
 class _Comparing:
-    """A handler that compares the kernel with the Python rule, then runs the real one."""
+    """A handler that compares the kernel with the Python rule, then runs the real one.
+
+    A handler with no Python rule left only counts its outcomes.
+    """
 
     def __init__(self, handler: Any, seen: Counter[str]) -> None:
         self.handler = handler
@@ -125,10 +141,22 @@ class _Comparing:
         name = type(handler).__name__
         self.name = name
         self.kernel = getattr(native.rules(KERNELS[name][0]), KERNELS[name][1])
-        self.rule = type(handler).apply.__wrapped__
+        self.rule = type(handler).apply.__wrapped__ if name in WITH_PYTHON_RULE else None
         self.only = ONLY.get(name, lambda _event: True)
 
     def apply(self, world: WorldState, event: ScheduledEvent) -> Any:
+        if self.rule is None:
+            outcome = "applied"
+            try:
+                return self.handler.apply(world, event)
+            except EventSuppressed:
+                outcome = "suppressed"
+                raise
+            except EventApplicationError:
+                outcome = "failed"
+                raise
+            finally:
+                self.seen[f"{event.event_type}.{outcome}"] += 1
         if self.only(event):
             python_world, kernel_world = _copies(world)
             expected = _outcome(lambda: self.rule(self.handler, python_world, event))
@@ -158,6 +186,15 @@ def _run_comparing(scenario: Any, seen: Counter[str]) -> WorldState:
     for _ in range(world.duration_minutes):
         engine.step()
     return world
+
+
+def _is_the_python_rules_run(world: WorldState, digest: str) -> None:
+    """The world at the end is the one the Python rules made: its digest, taken from that run.
+
+    Pinned on Linux, as the gate's hashes are (libm).
+    """
+    if sys.platform == "linux":
+        assert _digest(_bytes(world)) == digest
 
 
 def test_conditions_of_the_form_are_python_s() -> None:
@@ -217,9 +254,10 @@ def test_conditions_of_the_form_are_python_s() -> None:
         },
     }
     seen: Counter[str] = Counter()
-    _run_comparing(
+    world = _run_comparing(
         gate.generated(evacuees=20, minutes=120, operational_conditions=conditions), seen
     )
+    _is_the_python_rules_run(world, "f5758af05264f6df")
     for event_type in (
         "power_outage",
         "power_restored",
@@ -239,16 +277,58 @@ def test_conditions_of_the_form_are_python_s() -> None:
 def test_rumors_and_corrections_are_python_s() -> None:
     gate = _gate()
     seen: Counter[str] = Counter()
-    _run_comparing(gate.with_rumors(gate.generated(evacuees=20, minutes=120)), seen)
+    world = _run_comparing(gate.with_rumors(gate.generated(evacuees=20, minutes=120)), seen)
+    _is_the_python_rules_run(world, "502f082a25d11b0b")
     for event_type in ("information_rumor", "information_correction", "information_contact_update"):
         assert seen[f"{event_type}.applied"] > 0, (event_type, seen)
 
 
+def _schema_1(state: dict[str, Any]) -> None:
+    """The information state as a save of schema 1 holds it: beliefs without the summary fields."""
+    state["schema_version"] = 1
+    for beliefs in state["beliefs"].values():
+        for record in beliefs.values():
+            for name in ("ever_misbelieved", "ever_forgotten", "last_correction_accepted"):
+                del record[name]
+
+
+def test_an_information_event_upgrades_a_state_of_schema_1_first() -> None:
+    """A save of schema 1 still ticks (core/model_version.py `LEGACY_SHAPES_TICKABLE`).
+
+    The handlers' Python rule upgraded it in place before the event's checks; the kernels do the
+    same: the tick is the one of a state upgraded before it.
+    """
+    gate = _gate()
+    scenario = gate.with_rumors(gate.generated(evacuees=20, minutes=120))
+    worlds = []
+    for upgraded_before in (False, True):
+        world = WorldState.from_scenario(scenario)
+        controller = OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
+        engine = TickEngine(world, phase_handler=controller)
+        for _ in range(60):
+            engine.step()
+        state = world.model_state["information_spread_v1"]
+        _schema_1(state)
+        if upgraded_before:
+            upgrade_information_runtime_state(state)
+        engine.step()
+        corrected = world.event_log.find("correction-false")
+        assert corrected is not None and corrected.status is EventStatus.APPLIED
+        assert world.model_state["information_spread_v1"]["schema_version"] == 2
+        worlds.append(world)
+    assert _bytes(worlds[0]) == _bytes(worlds[1])
+
+
 @pytest.mark.parametrize(
-    "name",
-    ["multi_operational", "water_intervention", "failure_day3", "delivery_intervention"],
+    ("name", "digest"),
+    [
+        ("multi_operational", "666880beb4cb8d08"),
+        ("water_intervention", "26726ee9ede8b09d"),
+        ("failure_day3", "7228ef1bb1598fdc"),
+        ("delivery_intervention", "00f630574725b910"),
+    ],
 )
-def test_the_operational_fixtures_are_python_s(name: str) -> None:
+def test_the_operational_fixtures_are_python_s(name: str, digest: str) -> None:
     gate = _gate()
     moved = {
         "resource_delivery": 20,
@@ -259,7 +339,8 @@ def test_the_operational_fixtures_are_python_s(name: str) -> None:
         "facility_restored": 60,
     }
     seen: Counter[str] = Counter()
-    _run_comparing(gate.fixture_short(name, minutes=100, agents=20, remap=moved), seen)
+    world = _run_comparing(gate.fixture_short(name, minutes=100, agents=20, remap=moved), seen)
+    _is_the_python_rules_run(world, digest)
     assert sum(seen.values()) > 0
 
 
@@ -296,34 +377,58 @@ def test_a_failed_outage_changes_nothing_and_says_python_s_text(generated_scenar
     world, _ = _small_world(generated_scenario)
     facility_id = sorted(world.facilities)[0]
     handler = FacilityOutageHandler()
-    for payload, text in (
-        ({"facility_id": facility_id}, "payload fields"),
-        ({"facility_id": facility_id, "units_out": 0}, "zero-unit"),
-        ({"facility_id": facility_id, "units_out": -1}, "negative"),
-        ({"facility_id": "nowhere", "units_out": 1}, "does not exist"),
-        ({"facility_id": facility_id, "units_out": 10_000}, "exceeds"),
+    failed, suppressed = EventApplicationError, EventSuppressed
+    for payload, expected in (
+        ({"facility_id": facility_id}, (failed, "facility outage payload fields do not match")),
+        (
+            {"facility_id": facility_id, "units_out": 0},
+            (suppressed, "zero-unit facility outage has no effect"),
+        ),
+        (
+            {"facility_id": facility_id, "units_out": -1},
+            (failed, "facility outage units_out cannot be negative"),
+        ),
+        ({"facility_id": "nowhere", "units_out": 1}, (failed, "facility 'nowhere' does not exist")),
+        (
+            {"facility_id": facility_id, "units_out": 10_000},
+            (failed, "facility outage exceeds currently working capacity"),
+        ),
+        # A Scenario's units are any non-negative int: past 64 bits too, as Python compares them.
+        (
+            {"facility_id": facility_id, "units_out": 10**20},
+            (failed, "facility outage exceeds currently working capacity"),
+        ),
+        (
+            {"facility_id": facility_id, "units_out": -(10**20)},
+            (failed, "facility outage units_out cannot be negative"),
+        ),
     ):
         event = _event(world, "facility_outage", payload)
-        _, said = kernel_says_python_s_text(handler, world, event)
-        assert text in said
+        kernel_says_python_s_text(handler, world, event, expected)
 
 
 def test_a_stale_proximity_sample_is_failed_in_python_s_text(generated_scenario: Any) -> None:
     world, _ = _small_world(generated_scenario)
     event = _event(world, "proximity_contact_update", {})
-    kernel_says_python_s_text(ProximityContactHandler(), world, event)
+    text = "proximity contact provenance or time is invalid"
+    kernel_says_python_s_text(
+        ProximityContactHandler(), world, event, (EventApplicationError, text)
+    )
 
 
 def test_a_contact_that_no_longer_applies_says_python_s_text(generated_scenario: Any) -> None:
     world, _ = _small_world(generated_scenario)
     event = _event(world, "information_contact_update", {"message_id": "nothing"})
-    kernel_says_python_s_text(InformationContactHandler(), world, event)
+    text = "information_contact_update payload fields do not match"
+    expected = (EventApplicationError, text)
+    kernel_says_python_s_text(InformationContactHandler(), world, event, expected)
 
 
 def test_a_restoration_of_no_outage_says_python_s_text(generated_scenario: Any) -> None:
     world, _ = _small_world(generated_scenario)
     event = _event(world, "water_restored", {"outage_id": "nothing"})
-    kernel_says_python_s_text(WaterRestorationHandler(), world, event)
+    expected = (EventApplicationError, "water restoration does not match its outage")
+    kernel_says_python_s_text(WaterRestorationHandler(), world, event, expected)
 
 
 def test_a_patched_handler_is_what_the_loop_calls(
@@ -874,17 +979,26 @@ def _operation_world(kind: str, zone_id: str) -> tuple[WorldState, ScheduledEven
     return world, event, staff_id
 
 
-@pytest.mark.parametrize("kind", ["cleaning", "information_outreach", "patrol"])
-def test_a_finished_operation_is_python_s(kind: str) -> None:
+@pytest.mark.parametrize(
+    ("kind", "digest", "changed"),
+    [
+        # The zone is as clean as it gets already: the receipt measures, and nothing changed.
+        ("cleaning", "7bb434e07202a409", set()),
+        ("information_outreach", "989b5abd395d3d49", {"trust"}),
+        ("patrol", "dc462459ee25cdcf", {"trust"}),
+    ],
+)
+def test_a_finished_operation_is_python_s(kind: str, digest: str, changed: set[str]) -> None:
+    """The receipt and the world are the Python rule's: the digest of what it gave (lane L10)."""
     probe = WorldState.from_scenario(ScenarioSpec.model_validate(_small_replay_document()))
     zone_id = next(iter(sorted(agent.zone_id for agent in probe.agents.values())))
     world, event, _ = _operation_world(kind, zone_id)
-    twin = copy.deepcopy(world)
     handler = StaffOperationCompletionHandler()
-    actual = native.rules("staff_operation_events").complete(handler, world, event)
-    expected = StaffOperationCompletionHandler.apply.__wrapped__(handler, twin, event)
-    assert [item.to_dict() for item in actual or ()] == [item.to_dict() for item in expected or ()]
-    assert _bytes(world) == _bytes(twin)
+    records = handler.apply(world, event)
+    documents = [item.to_dict() for item in records or ()]
+    assert _digest({"records": documents, "world": _bytes(world)}) == digest
+    changes = documents[0]["event"]["payload"]["state_changes"]
+    assert {change["field_path"] for change in changes} == changed
     assert world._core.mirror("staff_operations_v1").verify()
 
 
@@ -904,6 +1018,8 @@ def test_many_draws_of_a_claim_and_a_correction_are_python_s(generated_scenario:
     agent_id = sorted(world.agents)[0]
     world.agents[agent_id].trust = 1.0
     rules = native.rules("information_events")
+    # The belief's Python rule: 1.0 when the draw is below the clamped probability, else 0.0.
+    believing_probability = min(1.0, max(0.0, 0.0 + 2.0 * 0.5 * (1.0 - 0.5) + 0.0))
     believing = InformationSpreadConfig(
         rumor_belief_probability=0.0, rumor_trust_sensitivity=0.5, rumor_source_sensitivity=0.0
     )
@@ -915,15 +1031,8 @@ def test_many_draws_of_a_claim_and_a_correction_are_python_s(generated_scenario:
     rng = CounterRNG(world.seed)
     for number in range(4000):
         event_id = f"event-{number}"
-        python_strength = module._sample_claim_belief_strength(
-            world,
-            believing,
-            agent_id=agent_id,
-            source_id="SRC-TEST",
-            event_id=event_id,
-            minute=7,
-            message_id="claim-1",
-        )
+        belief_draw = rng.random("rumor-belief-acceptance-v1", 7, event_id, agent_id, "claim-1")
+        python_strength = 1.0 if belief_draw < believing_probability else 0.0
         assert python_strength == rules.claim_strength_of(
             world, believing, agent_id, "SRC-TEST", event_id, 7, "claim-1"
         )
@@ -932,6 +1041,25 @@ def test_many_draws_of_a_claim_and_a_correction_are_python_s(generated_scenario:
         assert (drawn < 0.95) == rules.acceptance_of(
             world, accepting, label, 1.0, "SRC-TEST", event_id, 7, agent_id, "claim-1"
         )
+
+
+def test_a_claim_s_draw_keys_a_seed_past_64_bits_as_python_does(generated_scenario: Any) -> None:
+    """A Scenario's seed is any int from 0; CounterRNG keys its draws by `str(seed)`."""
+    world, _ = _small_world(generated_scenario)
+    agent_id = sorted(world.agents)[0]
+    world.agents[agent_id].trust = 1.0
+    world.seed = 2**70 + 3
+    rules = native.rules("information_events")
+    believing = InformationSpreadConfig(
+        rumor_belief_probability=0.0, rumor_trust_sensitivity=0.5, rumor_source_sensitivity=0.0
+    )
+    rng = CounterRNG(world.seed)
+    for number in range(200):
+        event_id = f"event-{number}"
+        drawn = rng.random("rumor-belief-acceptance-v1", 7, event_id, agent_id, "claim-1")
+        assert rules.claim_strength_of(
+            world, believing, agent_id, "SRC-TEST", event_id, 7, "claim-1"
+        ) == (1.0 if drawn < 0.5 else 0.0)
 
 
 @pytest.mark.parametrize("kind", TYPED_KINDS)

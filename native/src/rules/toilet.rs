@@ -40,10 +40,14 @@ const COMPLETED_METRIC: &str = "toilet_service_completed_count";
 const DURATION_SOURCE: &str = "ASM-TOILET-SERVICE-DURATION-V1";
 static COUNTER_RNG: GILOnceCell<Py<PyAny>> = GILOnceCell::new();
 
-/// `"toilet" in kind.casefold()`. Only ASCII: casefold changes others in ways for the Python rule.
+/// `"toilet" in kind.casefold()`. A kind that isn't ASCII (a Scenario's kind is any str) goes to
+/// Python's own `str.casefold`, whose folding Rust doesn't have.
 fn is_toilet(kind: &str) -> PyResult<bool> {
     if !kind.is_ascii() {
-        return unsupported("a facility kind that casefold may change");
+        return Python::with_gil(|py| {
+            let folded = PyString::new(py, kind).call_method0(intern!(py, "casefold"))?;
+            Ok(exact_str(&folded)?.contains("toilet"))
+        });
     }
     Ok(kind.to_ascii_lowercase().contains("toilet"))
 }

@@ -19,7 +19,7 @@ from support.world import NATIVE_OUTCOME, kernel_says_python_s_text
 
 from sheltersim import native
 from sheltersim.core.world import WorldState
-from sheltersim.domain.staff_operations import order_staff_operation
+from sheltersim.domain.staff_operations import interrupt_staff_operation, order_staff_operation
 from sheltersim.events.effects import (
     DEFAULT_PRIMITIVE_REGISTRY,
     EffectProgram,
@@ -415,16 +415,19 @@ def _pending(world: WorldState, event_type: str) -> Any:
 
 
 def _stops_and_suppresses(handler: Any, world: WorldState, event: Any, text: str) -> None:
-    """Rust's own outcome, after the stop the Python rule makes on a copy made before."""
+    """Rust's own outcome, after the stop the Python rule made, here on a copy made before.
+
+    The rule (`arrive_staff_operation`, `complete_staff_operation`, gone in lane L10) stopped the
+    operation with `interrupt_staff_operation` and then suppressed the event with `text`.
+    """
     twin = copy.deepcopy(world)
     before = _canonical(world)
     with pytest.raises(EventSuppressed) as made:
         handler.apply(world, event)
     assert getattr(made.value, NATIVE_OUTCOME, False), f"the kernel refused: {made.value}"
     assert str(made.value) == text
-    with pytest.raises(EventSuppressed) as said:
-        type(handler).apply.__wrapped__(handler, twin, event)
-    assert str(said.value) == text
+    staff_id = event.payload["staff_id"]
+    assert interrupt_staff_operation(twin, staff_id, event, current_event_id=event.event_id)
     assert _canonical(world) != before
     assert _canonical(world) == _canonical(twin)
     record = world.model_state["staff_operations_v1"]["staff"]["staff_001"]

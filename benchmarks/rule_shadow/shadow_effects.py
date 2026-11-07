@@ -5,9 +5,11 @@ Python rule on one copy and the kernel on another, with their outcomes and `to_d
 in which a float keeps its bits, 1 differs from 1.0 and the key order shows. The row of
 `effect_program_v1` must write the bytes of its tree. Then the kernel runs on the real world.
 
-`should_apply_guard`, `has_active_modifier`, `has_pending_modifier` and `validate_state` only read,
-and go through shadow_kit.pure_shadow. When Python turns down what `validate_state` accepts, that is
-a difference: a check that takes a bad state is what a hash cannot see.
+`validate_state` only reads, and goes through shadow_kit.pure_shadow. When Python turns down what
+it accepts, that is a difference: a check that takes a bad state is what a hash cannot see.
+
+The guard, the two modifier checks and the environment and geometry handlers have no Python rule
+left to compare (`kernel_only`, lane L10).
 
 Plain runs of the gate or of 7 days say what ran: put SHELTERSIM_RULE_SHADOW and
 SHELTERSIM_DISPATCH_COUNT_ONLY=1 in the environment, and this only writes `effects.stats()`.
@@ -21,17 +23,10 @@ from typing import Any
 
 from shadow_kit import Recorder, pure_shadow, text, values_in
 
-PURE = (
-    ("should_apply_guard", "should_apply_effect_guard"),
-    ("has_active_modifier", "has_active_facility_modifier"),
-    ("has_pending_modifier", "has_pending_facility_modifier"),
-    ("validate_state", "validate_effect_program_state"),
-)
+PURE = (("validate_state", "validate_effect_program_state"),)
 HANDLERS = {
     "facility": "EffectProgramFacilityHandler",
-    "environment": "EffectProgramEnvironmentHandler",
     "temporary_space": "EffectProgramTemporarySpaceHandler",
-    "geometry": "EffectProgramGeometryHandler",
     "structure": "EffectProgramStructureHandler",
 }
 

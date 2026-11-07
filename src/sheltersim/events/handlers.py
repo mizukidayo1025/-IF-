@@ -3,33 +3,16 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Protocol
 
 from sheltersim import native
 from sheltersim.contracts.operations import NumericStateChange
-from sheltersim.core.kernels import kernel_first
-from sheltersim.core.rng import CounterRNG
+from sheltersim.core.kernels import kernel_first, kernel_only
 from sheltersim.core.world import WorldState
-from sheltersim.domain.care_receipts import (
-    care_receipt_for_request,
-    make_care_transition_record,
-    make_facility_recovery_record,
-    make_staff_operation_record,
-    make_staff_support_continuity_record,
-)
-from sheltersim.domain.facilities import ToiletServiceManager, complete_toilet_service
-from sheltersim.domain.information import (
-    INFORMATION_SPREAD_STATE_KEY,
-    upgrade_information_runtime_state,
-)
-from sheltersim.domain.infrastructure import (
-    INFRASTRUCTURE_STATE_KEY,
-    ScenarioInfrastructureSpec,
-    active_facility_outage,
-    dependent_facilities,
-    effective_facility_capacities,
-)
+from sheltersim.domain.care_receipts import care_receipt_for_request, make_care_transition_record
+from sheltersim.domain.facilities import ToiletServiceManager
+from sheltersim.domain.information import INFORMATION_SPREAD_STATE_KEY
 from sheltersim.domain.models import (
     ActiveTask,
     Activity,
@@ -46,27 +29,19 @@ from sheltersim.domain.movement import (
     agent_is_at_queue_slot,
     agent_is_at_queue_trip_destination,
     facility_approach_route,
-    finish_movement,
     start_movement,
 )
 from sheltersim.domain.operational import OPERATIONAL_EVENTS_KEY
 from sheltersim.domain.resource_service import ResourceServiceManager
-from sheltersim.domain.resources import ResourceLedgerError, apply_resource_operation
 from sheltersim.domain.social_dialogue import validate_social_state_context
-from sheltersim.domain.staff import (
-    STAFF_SUPPORT_POLICY_VERSION,
-    complete_support_task,
-    timeout_support_request,
-)
+from sheltersim.domain.staff import complete_support_task
 from sheltersim.events.effects import (
     EffectProgramEnvironmentHandler,
     EffectProgramFacilityHandler,
     EffectProgramGeometryHandler,
     EffectProgramStructureHandler,
     EffectProgramTemporarySpaceHandler,
-    derived_effect_marker,
     effect_event_guard_or_suppress,
-    has_active_facility_modifier,
 )
 from sheltersim.events.models import (
     EventApplicationError,
@@ -237,602 +212,74 @@ class EventDispatcher:
 class ProximityContactHandler:
     """Accept a sampled physical encounter without asserting a conversation."""
 
-    @kernel_first("handlers", "proximity")
+    @kernel_only("handlers", "proximity")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        import math
+        """Check a sampled encounter against the current positions; it changes nothing.
 
-        from sheltersim.domain.social_network import (
-            PROXIMITY_CONTACT_SOURCE_ID,
-            canonical_proximity_contact_config,
-        )
-
-        config = canonical_proximity_contact_config(world.model_configs.get("social_proximity"))
-        expected_provenance = {
-            "source_type",
-            "source_id",
-            "policy_version",
-            "observed_minute",
-        }
-        payload = event.payload
-        if (
-            config is None
-            or event.kind is not EventKind.ENDOGENOUS
-            or event.due_minute != world.minute_index
-            or event.source_id != PROXIMITY_CONTACT_SOURCE_ID
-            or set(event.provenance) != expected_provenance
-            or event.provenance.get("source_type") != "assumption"
-            or event.provenance.get("source_id") != PROXIMITY_CONTACT_SOURCE_ID
-            or event.provenance.get("policy_version") != config["policy_version"]
-        ):
-            raise EventApplicationError("proximity contact provenance or time is invalid")
-        if set(payload) != {
-            "first_agent_id",
-            "second_agent_id",
-            "zone_id",
-            "observed_minute",
-            "contact_minutes",
-            "distance_m",
-            "first_point",
-            "second_point",
-        }:
-            raise EventApplicationError("proximity contact payload fields do not match")
-        first_id, second_id = payload["first_agent_id"], payload["second_agent_id"]
-        observed_minute = payload["observed_minute"]
-        zone_id = payload["zone_id"]
-        duration = payload["contact_minutes"]
-        distance = payload["distance_m"]
-        if (
-            not isinstance(first_id, str)
-            or not first_id
-            or not isinstance(second_id, str)
-            or not second_id
-            or first_id == second_id
-            or first_id not in world.agents
-            or second_id not in world.agents
-            or not isinstance(zone_id, str)
-            or zone_id not in world.zones
-            or type(observed_minute) is not int
-            or observed_minute != event.due_minute
-            or type(event.provenance.get("observed_minute")) is not int
-            or event.provenance.get("observed_minute") != observed_minute
-            or type(duration) is not int
-            or duration != 0
-            or isinstance(distance, bool)
-            or not isinstance(distance, (int, float))
-            or not math.isfinite(float(distance))
-            or distance < 0
-            or distance > config["max_distance_m"]
-        ):
-            raise EventApplicationError("proximity contact participants or measurement are invalid")
-        points = (payload["first_point"], payload["second_point"])
-        if any(
-            not isinstance(point, Mapping)
-            or set(point) != {"x", "y"}
-            or any(
-                isinstance(point[key], bool)
-                or not isinstance(point[key], (int, float))
-                or not math.isfinite(float(point[key]))
-                for key in ("x", "y")
-            )
-            for point in points
-        ):
-            raise EventApplicationError("proximity contact coordinates are invalid")
-        measured = math.hypot(
-            float(points[1]["x"]) - float(points[0]["x"]),
-            float(points[1]["y"]) - float(points[0]["y"]),
-        )
-        if not math.isclose(float(distance), measured, rel_tol=1e-9, abs_tol=1e-9):
-            raise EventApplicationError("proximity contact distance does not match coordinates")
-        movement = world.model_state.get(MOVEMENT_STATE_KEY)
-        positions = movement.get("positions", {}) if isinstance(movement, dict) else {}
-        for agent_id, point in ((first_id, points[0]), (second_id, points[1])):
-            position = positions.get(agent_id) if isinstance(positions, dict) else None
-            if (
-                not isinstance(position, dict)
-                or position.get("position_kind") != "physical"
-                or position.get("zone_id") != zone_id
-                or position.get("point") != point
-            ):
-                raise EventSuppressed("proximity contact sample is stale")
+        EventApplicationError, in this order, when the social_proximity config is absent or the
+        event is not the endogenous ASM-PROXIMITY-CONTACT-V1 sample of this minute with its four
+        provenance fields; when the payload fields differ; when the two Agents, the zone, the
+        observed minute, `contact_minutes` (0) or the distance (finite, 0 to max_distance_m) are
+        invalid; when a point is not finite {x, y}; when the distance is not the points' hypot.
+        EventSuppressed ("proximity contact sample is stale") when either Agent's physical position
+        is no longer that point in that zone.
+        """
 
 
 @dataclass(frozen=True)
 class InformationRumorHandler:
     """Seed one local Agent with a typed, provenance-linked claim."""
 
-    @kernel_first("information_events", "rumor")
+    @kernel_only("information_events", "rumor")
     def apply(self, world: WorldState, event: ScheduledEvent) -> tuple[EventLogRecord, ...] | None:
-        state = _information_runtime_state(world)
-        from sheltersim.contracts.policies import selected_models
+        """Seed the origin Agent with a typed claim: the message, a "heard" belief, query pressure.
 
-        if set(event.payload) != {"message_id", "truth_status", "origin_agent_id"}:
-            raise EventApplicationError("information_rumor payload fields do not match")
-        if event.source_id is None:
-            raise EventApplicationError("information_rumor requires a source_id")
-        message_id = event.payload.get("message_id")
-        origin_agent_id = event.payload.get("origin_agent_id")
-        if not isinstance(message_id, str) or not isinstance(origin_agent_id, str):
-            raise EventApplicationError("information_rumor requires stable message and Agent IDs")
-        try:
-            truth_status = InformationTruthStatus(event.payload.get("truth_status"))
-        except (TypeError, ValueError) as exc:
-            raise EventApplicationError("information_rumor truth_status is invalid") from exc
-        if message_id in state["messages"]:
-            raise EventApplicationError("information message ID already exists")
-        if len(state["messages"]) >= 1024:
-            raise EventApplicationError("information-spread message limit was reached")
-        agent = world.agents.get(origin_agent_id)
-        if agent is None:
-            raise EventApplicationError("information_rumor references an unknown Agent")
-        message = TypedMessage(
-            id=message_id,
-            truth_status=truth_status,
-            source_id=event.source_id,
-            zone_id=agent.zone_id,
-            time=event.due_minute,
-            origin_event_id=event.event_id,
-            origin_agent_id=origin_agent_id,
-        )
-        state["messages"][message.id] = message.to_dict()
-        config = InformationSpreadConfig.from_mapping(world.model_configs["information_spread"])
-        belief_strength = 0.5
-        if selected_models(world.model_configs)["information"] == "evidence-aware-rumor-v1":
-            belief_strength = _sample_claim_belief_strength(
-                world,
-                config,
-                agent_id=origin_agent_id,
-                source_id=message.source_id,
-                event_id=event.event_id,
-                minute=event.due_minute,
-                message_id=message.id,
-            )
-        state["beliefs"][origin_agent_id][message.id] = AgentInformationState(
-            message_id=message.id,
-            belief=InformationBeliefStatus.HEARD,
-            source=origin_agent_id,
-            last_contact=event.due_minute,
-            last_event_id=event.event_id,
-            belief_strength=belief_strength,
-            ever_misbelieved=_claim_is_misbelieved(message.truth_status, belief_strength),
-        ).to_dict()
-        state["query_pressure"][origin_agent_id] = min(
-            1.0,
-            state["query_pressure"][origin_agent_id] + config.query_pressure_per_claim,
-        )
+        The information-spread state is upgraded from schema 1 first, as
+        `upgrade_information_runtime_state` does. EventApplicationError when the model is off or its
+        config or state is invalid, and for the payload fields, a missing source_id, IDs that are
+        not str, a truth status that is not one, a message ID that exists, 1024 messages, or an
+        unknown Agent. The belief strength is 0.5, or a CounterRNG draw
+        ("rumor-belief-acceptance-v1") under evidence-aware-rumor-v1.
+        """
 
 
 @dataclass(frozen=True)
 class InformationCorrectionHandler:
     """Publish a zone-scoped, source-linked correction to one existing claim."""
 
-    @kernel_first("information_events", "correction")
+    @kernel_only("information_events", "correction")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        state = _information_runtime_state(world)
-        from sheltersim.contracts.policies import selected_models
+        """Publish a verified or rejected correction to everyone in the zone.
 
-        if set(event.payload) != {"message_id", "zone_id", "belief"}:
-            raise EventApplicationError("information_correction payload fields do not match")
-        if event.source_id is None:
-            raise EventApplicationError("information_correction requires a source_id")
-        message_id = event.payload.get("message_id")
-        zone_id = event.payload.get("zone_id")
-        if not isinstance(message_id, str) or not isinstance(zone_id, str):
-            raise EventApplicationError(
-                "information_correction requires stable message and Zone IDs"
-            )
-        try:
-            belief = InformationBeliefStatus(event.payload.get("belief"))
-        except (TypeError, ValueError) as exc:
-            raise EventApplicationError("information_correction belief is invalid") from exc
-        if belief not in (InformationBeliefStatus.VERIFIED, InformationBeliefStatus.REJECTED):
-            raise EventApplicationError("information_correction must verify or reject a claim")
-        if zone_id not in world.zones:
-            raise EventApplicationError("information_correction references an unknown Zone")
-        raw_message = state["messages"].get(message_id)
-        if raw_message is None:
-            raise EventApplicationError("information_correction references an unknown message")
-        message = TypedMessage.from_dict(raw_message)
-        if event.causation_id != message.origin_event_id:
-            raise EventApplicationError("information_correction must reference its rumor event")
-        truth_belief = {
-            InformationTruthStatus.TRUE: InformationBeliefStatus.VERIFIED,
-            InformationTruthStatus.FALSE: InformationBeliefStatus.REJECTED,
-        }.get(message.truth_status)
-        if truth_belief is not None and truth_belief is not belief:
-            raise EventApplicationError("information correction conflicts with message truth")
-
-        config = InformationSpreadConfig.from_mapping(world.model_configs["information_spread"])
-        evidence_aware = (
-            selected_models(world.model_configs)["information"] == "evidence-aware-rumor-v1"
-        )
-        source_reliability = config.correction_source_reliability_by_id.get(
-            event.source_id, config.default_source_reliability
-        )
-        targets = sorted(agent.id for agent in world.agents.values() if agent.zone_id == zone_id)
-        changes: list[str] = []
-        acceptances: dict[str, bool] = {}
-        for agent_id in targets:
-            previous = state["beliefs"][agent_id].get(message_id)
-            prior_state = (
-                AgentInformationState.from_dict(previous) if previous is not None else None
-            )
-            if evidence_aware:
-                trust = world.agents[agent_id].trust
-                probability = min(
-                    0.95,
-                    max(
-                        0.0,
-                        config.correction_acceptance_probability
-                        + 2.0 * config.correction_trust_sensitivity * (trust - 0.5)
-                        + 2.0 * config.correction_source_sensitivity * (source_reliability - 0.5),
-                    ),
-                )
-                acceptances[agent_id] = (
-                    CounterRNG(world.seed).random(
-                        "correction-acceptance-v1",
-                        event.due_minute,
-                        event.event_id,
-                        agent_id,
-                        message_id,
-                    )
-                    < probability
-                )
-            if previous is not None:
-                old_belief = prior_state.belief
-                if old_belief in (
-                    InformationBeliefStatus.VERIFIED,
-                    InformationBeliefStatus.REJECTED,
-                ):
-                    if old_belief is not belief:
-                        raise EventApplicationError("conflicting verified information state")
-                    if not evidence_aware:
-                        continue
-            changes.append(agent_id)
-        if message.truth_status is InformationTruthStatus.UNKNOWN:
-            truth_status = {
-                InformationBeliefStatus.VERIFIED: InformationTruthStatus.TRUE,
-                InformationBeliefStatus.REJECTED: InformationTruthStatus.FALSE,
-            }[belief]
-            state["messages"][message_id] = replace(message, truth_status=truth_status).to_dict()
-        for agent_id in changes:
-            previous = state["beliefs"][agent_id].get(message_id)
-            previous_state = (
-                AgentInformationState.from_dict(previous) if previous is not None else None
-            )
-            accepted = acceptances.get(agent_id, True)
-            state["beliefs"][agent_id][message_id] = AgentInformationState(
-                message_id=message_id,
-                belief=(
-                    belief
-                    if accepted
-                    else previous_state.belief
-                    if previous_state is not None
-                    else InformationBeliefStatus.HEARD
-                ),
-                source=event.source_id,
-                last_contact=event.due_minute,
-                last_event_id=event.event_id,
-                exposed=True,
-                belief_strength=(
-                    (1.0 if belief is InformationBeliefStatus.VERIFIED else 0.0)
-                    if accepted
-                    else previous_state.belief_strength
-                    if previous_state is not None
-                    else 0.5
-                ),
-                share_propensity=(
-                    previous_state.share_propensity if previous_state is not None else 0.5
-                ),
-                correction_exposed=True,
-                correction_accepted=accepted
-                or bool(previous_state is not None and previous_state.correction_accepted),
-                last_correction_accepted=accepted,
-                ever_misbelieved=(
-                    bool(previous_state and previous_state.ever_misbelieved)
-                    or (
-                        not accepted
-                        and _claim_is_misbelieved(
-                            message.truth_status,
-                            previous_state.belief_strength if previous_state else 0.5,
-                        )
-                    )
-                ),
-                ever_forgotten=bool(previous_state and previous_state.ever_forgotten),
-            ).to_dict()
-            if accepted:
-                state["query_pressure"][agent_id] = max(
-                    0.0,
-                    state["query_pressure"][agent_id] - config.query_pressure_relief_per_correction,
-                )
-                state["counters"]["correction_deliveries"] += 1
+        The information-spread state is upgraded from schema 1 first. EventApplicationError when the
+        model is off, and for the payload fields, a missing source_id, IDs that are not str, a
+        belief that is not one or neither verifies nor rejects, an unknown zone or message, a
+        causation that is not the rumor, a belief against the message's truth, or an Agent already
+        holding the other correction ("conflicting verified information state"). An unknown truth
+        status takes the correction's. Under evidence-aware-rumor-v1 each Agent accepts by a
+        CounterRNG draw ("correction-acceptance-v1"); an accepted correction relieves query pressure
+        and is counted.
+        """
 
 
 @dataclass(frozen=True)
 class InformationContactHandler:
     """Apply one sampled, still-local contact at the next tick boundary."""
 
-    @kernel_first("information_events", "contact")
+    @kernel_only("information_events", "contact")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        state = _information_runtime_state(world)
-        expected = {
-            "message_id",
-            "sender_agent_id",
-            "recipient_agent_id",
-            "belief",
-            "contact_basis",
-            "contact_minutes",
-        }
-        if set(event.payload) != expected:
-            raise EventApplicationError("information_contact_update payload fields do not match")
-        if event.kind is not EventKind.ENDOGENOUS:
-            raise EventApplicationError("information contact updates must be endogenous")
-        if event.due_minute != world.minute_index:
-            raise EventApplicationError("information contact update must run at its due minute")
-        from sheltersim.contracts.policies import selected_models
+        """Apply a sampled contact that still holds: the recipient's belief, pressure, counters.
 
-        if (
-            event.provenance.get("source_type") != "assumption"
-            or event.provenance.get("source_id") != "ASM-INFORMATION-SPREAD-V1"
-            or event.provenance.get("policy_version")
-            != selected_models(world.model_configs)["information"]
-        ):
-            raise EventApplicationError(
-                "information contact provenance is missing its assumption ID"
-            )
-        message_id = event.payload.get("message_id")
-        sender_id = event.payload.get("sender_agent_id")
-        recipient_id = event.payload.get("recipient_agent_id")
-        if not all(isinstance(value, str) for value in (message_id, sender_id, recipient_id)):
-            raise EventApplicationError("information contact requires stable claim and Agent IDs")
-        if sender_id == recipient_id:
-            raise EventApplicationError("information contact requires two different Agents")
-        sender = world.agents.get(sender_id)
-        recipient = world.agents.get(recipient_id)
-        raw_message = state["messages"].get(message_id)
-        if sender is None or recipient is None or raw_message is None:
-            raise EventApplicationError("information contact references unknown state")
-        message = TypedMessage.from_dict(raw_message)
-        sender_raw = state["beliefs"][sender_id].get(message_id)
-        if sender_raw is None:
-            raise EventSuppressed("contact sender no longer knows the message")
-        sender_belief = AgentInformationState.from_dict(sender_raw)
-        try:
-            belief = InformationBeliefStatus(event.payload.get("belief"))
-        except (TypeError, ValueError) as exc:
-            raise EventApplicationError("information contact belief is invalid") from exc
-        if sender_belief.belief is not belief:
-            raise EventSuppressed("contact sender belief changed before transmission")
-        basis = _current_information_contact_basis(world, sender_id, recipient_id)
-        if basis is None:
-            raise EventSuppressed("Agents are no longer in a modeled contact zone")
-        if event.payload.get("contact_basis") != basis:
-            raise EventSuppressed("sampled contact basis is no longer current")
-        contact_minutes = event.payload.get("contact_minutes")
-        config = InformationSpreadConfig.from_mapping(world.model_configs["information_spread"])
-        transmission_probability = event.provenance.get("transmission_probability")
-        if (
-            not isinstance(contact_minutes, int)
-            or isinstance(contact_minutes, bool)
-            or contact_minutes < config.minimum_contact_minutes
-        ):
-            raise EventApplicationError(
-                "information contact duration is below its configured minimum"
-            )
-        if (
-            not isinstance(transmission_probability, (int, float))
-            or isinstance(transmission_probability, bool)
-            or not 0.0 < transmission_probability <= 1.0
-        ):
-            raise EventApplicationError("information contact probability is invalid")
-        if (
-            event.source_id != message.source_id
-            or event.causation_id != sender_belief.last_event_id
-        ):
-            raise EventApplicationError(
-                "information contact provenance does not match sender state"
-            )
-        truth_belief = {
-            InformationTruthStatus.TRUE: InformationBeliefStatus.VERIFIED,
-            InformationTruthStatus.FALSE: InformationBeliefStatus.REJECTED,
-        }.get(message.truth_status)
-        if belief in (InformationBeliefStatus.VERIFIED, InformationBeliefStatus.REJECTED):
-            if truth_belief is not belief:
-                raise EventApplicationError("transmitted correction conflicts with message truth")
-
-        evidence_aware = (
-            selected_models(world.model_configs)["information"] == "evidence-aware-rumor-v1"
-        )
-        previous = state["beliefs"][recipient_id].get(message_id)
-        if previous is not None:
-            previous_belief = AgentInformationState.from_dict(previous).belief
-            rank = {
-                InformationBeliefStatus.UNKNOWN: 0,
-                InformationBeliefStatus.HEARD: 1,
-                InformationBeliefStatus.VERIFIED: 2,
-                InformationBeliefStatus.REJECTED: 2,
-            }
-            if rank[previous_belief] >= rank[belief] and not (
-                evidence_aware
-                and belief in (InformationBeliefStatus.VERIFIED, InformationBeliefStatus.REJECTED)
-            ):
-                raise EventSuppressed("recipient already has an equally strong belief")
-        accepted = True
-        if evidence_aware and belief in (
-            InformationBeliefStatus.VERIFIED,
-            InformationBeliefStatus.REJECTED,
-        ):
-            sender_reliability = config.correction_source_reliability_by_id.get(
-                sender_belief.source, config.default_source_reliability
-            )
-            probability = min(
-                0.95,
-                max(
-                    0.0,
-                    config.correction_acceptance_probability
-                    + 2.0 * config.correction_trust_sensitivity * (recipient.trust - 0.5)
-                    + 2.0 * config.correction_source_sensitivity * (sender_reliability - 0.5),
-                ),
-            )
-            accepted = (
-                CounterRNG(world.seed).random(
-                    "contact-correction-acceptance-v1",
-                    event.due_minute,
-                    event.event_id,
-                    recipient_id,
-                    message_id,
-                )
-                < probability
-            )
-        previous_state = AgentInformationState.from_dict(previous) if previous is not None else None
-        belief_strength = (
-            _sample_claim_belief_strength(
-                world,
-                config,
-                agent_id=recipient_id,
-                source_id=message.source_id,
-                event_id=event.event_id,
-                minute=event.due_minute,
-                message_id=message_id,
-            )
-            if evidence_aware and belief is InformationBeliefStatus.HEARD
-            else previous_state.belief_strength
-            if previous_state
-            else 0.5
-        )
-        state["beliefs"][recipient_id][message_id] = AgentInformationState(
-            message_id=message_id,
-            belief=(
-                belief
-                if accepted
-                else previous_state.belief
-                if previous_state
-                else InformationBeliefStatus.HEARD
-            ),
-            source=sender_id,
-            last_contact=event.due_minute,
-            last_event_id=event.event_id,
-            exposed=True,
-            belief_strength=(
-                (1.0 if belief is InformationBeliefStatus.VERIFIED else 0.0)
-                if accepted
-                and belief in (InformationBeliefStatus.VERIFIED, InformationBeliefStatus.REJECTED)
-                else belief_strength
-            ),
-            share_propensity=(previous_state.share_propensity if previous_state else 0.5),
-            correction_exposed=(
-                belief in (InformationBeliefStatus.VERIFIED, InformationBeliefStatus.REJECTED)
-                or bool(previous_state and previous_state.correction_exposed)
-            ),
-            correction_accepted=(
-                accepted
-                and belief in (InformationBeliefStatus.VERIFIED, InformationBeliefStatus.REJECTED)
-                or bool(previous_state and previous_state.correction_accepted)
-            ),
-            last_correction_accepted=(
-                accepted
-                if belief
-                in (
-                    InformationBeliefStatus.VERIFIED,
-                    InformationBeliefStatus.REJECTED,
-                )
-                else bool(previous_state and previous_state.last_correction_accepted)
-            ),
-            ever_misbelieved=(
-                bool(previous_state and previous_state.ever_misbelieved)
-                or _claim_is_misbelieved(message.truth_status, belief_strength)
-            ),
-            ever_forgotten=bool(previous_state and previous_state.ever_forgotten),
-        ).to_dict()
-        if belief is InformationBeliefStatus.HEARD:
-            state["query_pressure"][recipient_id] = min(
-                1.0,
-                state["query_pressure"][recipient_id] + config.query_pressure_per_claim,
-            )
-        elif accepted:
-            state["query_pressure"][recipient_id] = max(
-                0.0,
-                state["query_pressure"][recipient_id] - config.query_pressure_relief_per_correction,
-            )
-            state["counters"]["correction_deliveries"] += 1
-        state["counters"]["contact_deliveries"] += 1
-
-
-def _information_runtime_state(world: WorldState) -> dict[str, Any]:
-    try:
-        config = InformationSpreadConfig.from_mapping(world.model_configs.get("information_spread"))
-    except ValueError as exc:
-        raise EventApplicationError(f"invalid information_spread config: {exc}") from exc
-    state = world.model_state.get(INFORMATION_SPREAD_STATE_KEY)
-    if not config.enabled or not isinstance(state, dict):
-        raise EventApplicationError("information spread is not enabled for this run")
-    try:
-        return upgrade_information_runtime_state(state)
-    except ValueError as exc:
-        raise EventApplicationError(f"invalid information-spread state: {exc}") from exc
-
-
-def _claim_is_misbelieved(truth_status: Any, belief_strength: float) -> bool:
-    from sheltersim.domain.models import InformationTruthStatus
-
-    return (truth_status is InformationTruthStatus.TRUE and belief_strength < 0.5) or (
-        truth_status is InformationTruthStatus.FALSE and belief_strength > 0.5
-    )
-
-
-def _sample_claim_belief_strength(
-    world: WorldState,
-    config: InformationSpreadConfig,
-    *,
-    agent_id: str,
-    source_id: str,
-    event_id: str,
-    minute: int,
-    message_id: str,
-) -> float:
-    """Sample claimed-true belief independently from exposure and sharing."""
-    reliability = config.correction_source_reliability_by_id.get(
-        source_id, config.default_source_reliability
-    )
-    trust = world.agents[agent_id].trust
-    probability = min(
-        1.0,
-        max(
-            0.0,
-            config.rumor_belief_probability
-            + 2.0 * config.rumor_trust_sensitivity * (trust - 0.5)
-            + 2.0 * config.rumor_source_sensitivity * (reliability - 0.5),
-        ),
-    )
-    draw = CounterRNG(world.seed).random(
-        "rumor-belief-acceptance-v1", minute, event_id, agent_id, message_id
-    )
-    return 1.0 if draw < probability else 0.0
-
-
-def _current_information_contact_basis(
-    world: WorldState,
-    sender_id: str,
-    recipient_id: str,
-) -> str | None:
-    sender = world.agents[sender_id]
-    recipient = world.agents[recipient_id]
-    same_zone = sender.zone_id == recipient.zone_id
-    adjacent = any(
-        not edge.closed
-        and {
-            edge.from_zone_id,
-            edge.to_zone_id,
-        }
-        == {sender.zone_id, recipient.zone_id}
-        for edge in world.zone_edges.values()
-    )
-    if not same_zone and not adjacent:
-        return None
-    if _current_household_id(world, sender.id) is not None and _current_household_id(
-        world, sender.id
-    ) == _current_household_id(world, recipient.id):
-        return "family"
-    return "same_zone" if same_zone else "adjacent_zone"
+        The information-spread state is upgraded from schema 1 first. EventApplicationError when the
+        model is off, and for the payload fields, a kind other than endogenous, another minute, the
+        provenance, the IDs, one Agent twice, unknown state, an invalid belief, a duration below the
+        configured minimum, an invalid probability, a source or causation that is not the sender's,
+        or a correction against the message's truth. EventSuppressed when the sender no longer knows
+        the message or holds another belief, when the two are no longer in the same, an adjacent or
+        a family contact (or not that basis), or when the recipient's belief is as strong (unless a
+        correction under evidence-aware-rumor-v1). Draws: "contact-correction-acceptance-v1" for a
+        correction and "rumor-belief-acceptance-v1" for a heard claim under evidence-aware-rumor-v1.
+        """
 
 
 @dataclass(frozen=True)
@@ -841,555 +288,67 @@ class ResourceLedgerHandler:
 
     operation: str
 
-    @kernel_first("handlers", "resource_ledger")
+    @kernel_only("handlers", "resource_ledger")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        ledger_event = event
-        if self.operation == "delivery" and "shipment_id" in event.payload:
-            operational = world.model_state.get(OPERATIONAL_EVENTS_KEY)
-            shipment_id = event.payload.get("shipment_id")
-            shipment = operational.get("shipments", {}).get(shipment_id) if operational else None
-            if (
-                set(event.payload) != {"warehouse_id", "resource_id", "quantity", "shipment_id"}
-                or not isinstance(shipment, dict)
-                or shipment.get("event_id") != event.event_id
-                or shipment.get("resource_id") != event.payload.get("resource_id")
-                or shipment.get("due_minute") != event.due_minute
-            ):
-                raise EventApplicationError("shipment delivery does not match operational state")
-            ledger_event = ScheduledEvent(
-                event_id=event.event_id,
-                kind=event.kind,
-                due_minute=event.due_minute,
-                priority=event.priority,
-                sequence=event.sequence,
-                event_type=event.event_type,
-                payload={
-                    key: value for key, value in event.payload.items() if key != "shipment_id"
-                },
-                source_id=event.source_id,
-                causation_id=event.causation_id,
-                provenance=dict(event.provenance),
-            )
-        if world.schema_version == 6 and "resource_service_v1" in world.model_state:
-            service_state = world.model_state["resource_service_v1"]
-            reservation_id = event.payload.get("reservation_id")
-            if (
-                self.operation in {"release", "consume"}
-                and isinstance(reservation_id, str)
-                and reservation_id in service_state["active_reservation_ids"]
-            ):
-                raise EventApplicationError(
-                    "service-owned resource reservations must be completed or cancelled by "
-                    "ResourceServiceManager"
-                )
-            if self.operation == "reserve" and any(
-                task.id == reservation_id and task.kind == "resource_service_queue"
-                for task in world.active_tasks.values()
-            ):
-                raise EventApplicationError(
-                    "resource reservation ID conflicts with a queued resource service task"
-                )
-        try:
-            apply_resource_operation(world, ledger_event, self.operation)
-        except ResourceLedgerError as exc:
-            raise EventApplicationError(str(exc)) from exc
+        """Apply one inventory operation (`self.operation`) to the resource ledger.
+
+        A delivery with a shipment_id must match its operational shipment record (else
+        EventApplicationError), and the ledger sees it without that field. On WorldState v6 with a
+        resource service, a release or consume of a service-owned reservation, or a reserve whose ID
+        is a queued service task, is an EventApplicationError. `apply_resource_operation` does the
+        rest; its ResourceLedgerError is the EventApplicationError's text.
+        """
 
 
 @dataclass(frozen=True)
 class FacilityOutageHandler:
     """Reduce a facility's working capacity after validating the full change."""
 
-    @kernel_first("handlers", "facility_outage")
+    @kernel_only("handlers", "facility_outage")
     def apply(self, world: WorldState, event: ScheduledEvent) -> tuple[EventLogRecord, ...] | None:
-        if set(event.payload) != {"facility_id", "units_out"}:
-            raise EventApplicationError("facility outage payload fields do not match")
-        facility_id = event.payload.get("facility_id")
-        units_out = event.payload.get("units_out")
-        if not isinstance(facility_id, str) or not facility_id:
-            raise EventApplicationError("facility outage requires a facility_id")
-        if not isinstance(units_out, int) or isinstance(units_out, bool):
-            raise EventApplicationError("facility outage units_out must be an integer")
-        if units_out < 0:
-            raise EventApplicationError("facility outage units_out cannot be negative")
-        facility = world.facilities.get(facility_id)
-        if facility is None:
-            raise EventApplicationError(f"facility {facility_id!r} does not exist")
-        if active_facility_outage(world, facility_id):
-            raise EventApplicationError(
-                "facility outage conflicts with an active infrastructure outage"
-            )
-        if has_active_facility_modifier(world, facility_id):
-            raise EventApplicationError(
-                "facility outage conflicts with an active EffectProgram availability modifier"
-            )
-        if units_out == 0:
-            raise EventSuppressed("zero-unit facility outage has no effect")
-        previous_working_units = facility.working_units
-        new_working_units = facility.working_units - units_out
-        if new_working_units < 0:
-            raise EventApplicationError("facility outage exceeds currently working capacity")
-        # People already being served finish; no new service starts on the units out (#188).
-        facility.working_units = new_working_units
-        infrastructure = world.model_state.get(INFRASTRUCTURE_STATE_KEY)
-        if isinstance(infrastructure, dict):
-            infrastructure["base_working_units"][facility_id] = new_working_units
-        recovery_record = make_facility_recovery_record(
-            world,
-            facility_id=facility_id,
-            component_id=event.event_id,
-            status="degraded",
-            previous_working_units=previous_working_units,
-            working_units=new_working_units,
-            causation_id=event.event_id,
-            source_ids=tuple(value for value in (event.source_id,) if value),
-        )
-        return (recovery_record[0],) if recovery_record is not None else None
+        """Take `units_out` working units out of a facility, and record the change.
+
+        EventApplicationError, in this order: payload fields other than facility_id and units_out, a
+        facility_id that is not a non-empty str, units that are not an int or are negative, an
+        unknown facility, an active infrastructure outage or EffectProgram availability modifier on
+        it, more units than are working. EventSuppressed for zero units. People being served finish
+        (#188). The infrastructure state's base units follow. Returns the facility recovery receipt,
+        if any.
+        """
 
 
 @dataclass(frozen=True)
 class FacilityRecoveryHandler:
     """Restore operational units without exceeding installed capacity."""
 
-    @kernel_first("handlers", "facility_recovery")
+    @kernel_only("handlers", "facility_recovery")
     def apply(self, world: WorldState, event: ScheduledEvent) -> tuple[EventLogRecord, ...] | None:
-        if set(event.payload) != {"facility_id", "units_restored"}:
-            raise EventApplicationError("facility recovery payload fields do not match")
-        facility_id = event.payload.get("facility_id")
-        units_restored = event.payload.get("units_restored")
-        if not isinstance(facility_id, str) or not facility_id:
-            raise EventApplicationError("facility recovery requires a facility_id")
-        if not isinstance(units_restored, int) or isinstance(units_restored, bool):
-            raise EventApplicationError("facility recovery units_restored must be an integer")
-        if units_restored < 0:
-            raise EventApplicationError("facility recovery units_restored cannot be negative")
-        facility = world.facilities.get(facility_id)
-        if facility is None:
-            raise EventApplicationError(f"facility {facility_id!r} does not exist")
-        if active_facility_outage(world, facility_id):
-            raise EventApplicationError(
-                "facility recovery conflicts with an active infrastructure outage"
-            )
-        if has_active_facility_modifier(world, facility_id):
-            raise EventApplicationError(
-                "facility recovery conflicts with an active EffectProgram availability modifier"
-            )
-        if units_restored == 0:
-            raise EventSuppressed("zero-unit facility recovery has no effect")
-        previous_working_units = facility.working_units
-        new_working_units = facility.working_units + units_restored
-        if new_working_units > facility.capacity:
-            raise EventApplicationError("facility recovery exceeds installed capacity")
-        facility.working_units = new_working_units
-        infrastructure = world.model_state.get(INFRASTRUCTURE_STATE_KEY)
-        if isinstance(infrastructure, dict):
-            infrastructure["base_working_units"][facility_id] = new_working_units
-        recovery_record = make_facility_recovery_record(
-            world,
-            facility_id=facility_id,
-            component_id=event.event_id,
-            status="restored",
-            previous_working_units=previous_working_units,
-            working_units=new_working_units,
-            causation_id=event.event_id,
-            source_ids=tuple(value for value in (event.source_id,) if value),
-        )
-        return (recovery_record[0],) if recovery_record is not None else None
+        """Restore `units_restored` working units of a facility, up to its capacity, and record it.
+
+        EventApplicationError, in this order: payload fields other than facility_id and
+        units_restored, a facility_id that is not a non-empty str, units that are not an int or are
+        negative, an unknown facility, an active infrastructure outage or EffectProgram availability
+        modifier on it, more units than the capacity holds. EventSuppressed for zero units. The
+        infrastructure state's base units follow. Returns the facility recovery receipt, if any.
+        """
 
 
 class InfrastructureEventHandler:
     """Apply versioned outages, time-bounded environment stress, and route disruptions."""
 
-    @kernel_first("handlers", "infrastructure")
+    @kernel_only("handlers", "infrastructure")
     def apply(self, world: WorldState, event: ScheduledEvent) -> tuple[EventLogRecord, ...] | None:
-        previous_units = {
-            facility_id: facility.working_units
-            for facility_id, facility in world.facilities.items()
-        }
-        additional_records: list[EventLogRecord] = []
-        if event.event_type in {"power_outage", "equipment_failure"}:
-            _apply_operational_transaction(
-                world, event, lambda candidate: self._start_outage(candidate, event)
-            )
-        elif event.event_type in {"power_restored", "equipment_repaired"}:
-            _apply_operational_transaction(
-                world, event, lambda candidate: self._restore_outage(candidate, event)
-            )
-        elif event.event_type in {"extreme_heat", "extreme_cold"}:
-            _apply_operational_transaction(
-                world, event, lambda candidate: self._start_stressor(candidate, event)
-            )
-        elif event.event_type == "environmental_stressor_end":
-            _apply_operational_transaction(
-                world, event, lambda candidate: self._end_stressor(candidate, event)
-            )
-        elif event.event_type == "supply_route_interruption":
-            _apply_operational_transaction(
-                world,
-                event,
-                lambda candidate: additional_records.extend(
-                    self._interrupt_route(candidate, event)
-                ),
-            )
-        elif event.event_type == "supply_route_restored":
-            _apply_operational_transaction(
-                world, event, lambda candidate: self._restore_route(candidate, event)
-            )
-        else:
-            raise EventApplicationError(
-                f"unsupported infrastructure event type {event.event_type!r}"
-            )
-        component_id = next(
-            (
-                value
-                for value in (
-                    event.payload.get("component_id"),
-                    event.payload.get("outage_id"),
-                    event.payload.get("facility_id"),
-                )
-                if isinstance(value, str) and value
-            ),
-            event.event_id,
-        )
-        source_ids = tuple(
-            sorted(
-                {
-                    value
-                    for value in (
-                        event.source_id,
-                        event.provenance.get("source_id"),
-                    )
-                    if isinstance(value, str) and value
-                }
-            )
-        )
-        for facility_id, facility in sorted(world.facilities.items()):
-            previous = previous_units.get(facility_id)
-            current = facility.working_units
-            if previous is None or current == previous:
-                continue
-            receipt = make_facility_recovery_record(
-                world,
-                facility_id=facility_id,
-                component_id=component_id,
-                status="degraded" if current < previous else "restored",
-                previous_working_units=previous,
-                working_units=current,
-                causation_id=event.event_id,
-                source_ids=source_ids,
-            )
-            if receipt is not None:
-                additional_records.append(receipt[0])
-        return tuple(additional_records) if additional_records else None
+        """Apply an infrastructure event on a copy of the world, committed only once it validates.
 
-    def _start_outage(self, world: WorldState, event: ScheduledEvent) -> None:
-        state = _infrastructure_state(world, event)
-        record = _outage_for_start(state, event)
-        if record["active"] or event.source_id is None:
-            raise EventApplicationError("infrastructure outage is already active or lacks source")
-        if event.event_type == "power_outage":
-            expected = {"outage_id", "component_id", "until_minute"}
-            target = event.payload.get("component_id")
-            units_out = None
-            completion_type = "power_restored"
-        else:
-            expected = {"outage_id", "facility_id", "units_out", "until_minute"}
-            target = event.payload.get("facility_id")
-            units_out = event.payload.get("units_out")
-            completion_type = "equipment_repaired"
-        until_minute = event.payload.get("until_minute")
-        if (
-            set(event.payload) != expected
-            or not isinstance(until_minute, int)
-            or isinstance(until_minute, bool)
-            or until_minute <= event.due_minute
-            or until_minute > world.duration_minutes
-        ):
-            raise EventApplicationError("infrastructure outage payload or duration is invalid")
-        config = ScenarioInfrastructureSpec.model_validate(world.model_configs["infrastructure"])
-        affected = dependent_facilities(
-            config.model_dump(mode="json"), target, set(world.facilities)
-        )
-        if not affected or list(affected) != record["affected_facility_ids"]:
-            raise EventApplicationError("infrastructure outage has no valid affected facilities")
-        for facility_id in affected:
-            if has_active_facility_modifier(world, facility_id):
-                raise EventApplicationError(
-                    "infrastructure outage conflicts with an active facility modifier"
-                )
-        record["active"] = True
-        record["until_minute"] = until_minute
-        record["units_out"] = units_out
-        restore_id = _schedule_infrastructure_completion(
-            world,
-            event,
-            completion_type,
-            {"outage_id": event.payload["outage_id"]},
-            due_minute=until_minute,
-        )
-        record["restore_event_id"] = restore_id
-        _recalculate_infrastructure_capacity(world, event)
-
-    def _restore_outage(self, world: WorldState, event: ScheduledEvent) -> None:
-        state = _infrastructure_state(world, event)
-        outage_id = event.payload.get("outage_id")
-        record = state["outages"].get(outage_id)
-        if (
-            set(event.payload) != {"outage_id"}
-            or record is None
-            or not record["active"]
-            or record["restore_event_id"] != event.event_id
-            or record["start_event_id"] != event.causation_id
-            or event.source_id is None
-        ):
-            raise EventApplicationError(
-                "infrastructure restoration does not match an active outage"
-            )
-        expected_type = (
-            "power_restored" if record["event_type"] == "power_outage" else "equipment_repaired"
-        )
-        if event.event_type != expected_type:
-            raise EventApplicationError("infrastructure restoration type does not match its cause")
-        record["active"] = False
-        _recalculate_infrastructure_capacity(world, event)
-
-    def _start_stressor(self, world: WorldState, event: ScheduledEvent) -> None:
-        state = _infrastructure_state(world, event)
-        stressor_id = event.payload.get("stressor_id")
-        record = state["environmental_stressors"].get(stressor_id)
-        until_minute = event.payload.get("until_minute")
-        if (
-            set(event.payload) != {"stressor_id", "zone_id", "until_minute"}
-            or record is None
-            or record["start_event_id"] != event.event_id
-            or record["active"]
-            or event.payload.get("zone_id") not in world.zones
-            or event.source_id is None
-            or not isinstance(until_minute, int)
-            or isinstance(until_minute, bool)
-            or until_minute <= event.due_minute
-            or until_minute > world.duration_minutes
-        ):
-            raise EventApplicationError("environmental stressor payload or duration is invalid")
-        active_count = sum(
-            other["active"] and other["zone_id"] == record["zone_id"]
-            for other in state["environmental_stressors"].values()
-        )
-        if active_count >= 16:
-            raise EventApplicationError("zone environmental stressor limit was reached")
-        record["active"] = True
-        end_id = _schedule_infrastructure_completion(
-            world,
-            event,
-            "environmental_stressor_end",
-            {"stressor_id": stressor_id, "zone_id": record["zone_id"]},
-            due_minute=until_minute,
-        )
-        record["end_event_id"] = end_id
-        record["until_minute"] = until_minute
-
-    def _end_stressor(self, world: WorldState, event: ScheduledEvent) -> None:
-        state = _infrastructure_state(world, event)
-        stressor_id = event.payload.get("stressor_id")
-        record = state["environmental_stressors"].get(stressor_id)
-        if (
-            set(event.payload) != {"stressor_id", "zone_id"}
-            or record is None
-            or not record["active"]
-            or record["end_event_id"] != event.event_id
-            or record["start_event_id"] != event.causation_id
-            or record["zone_id"] != event.payload.get("zone_id")
-            or event.source_id is None
-        ):
-            raise EventApplicationError("environmental end event does not match an active stressor")
-        record["active"] = False
-
-    def _interrupt_route(
-        self, world: WorldState, event: ScheduledEvent
-    ) -> tuple[EventLogRecord, ...]:
-        state = _infrastructure_state(world, event)
-        outage_id = event.payload.get("outage_id")
-        record = state["route_interruptions"].get(outage_id)
-        until_minute = event.payload.get("until_minute")
-        if (
-            set(event.payload) != {"outage_id", "route_id", "shipment_ids", "until_minute"}
-            or record is None
-            or record["start_event_id"] != event.event_id
-            or record["active"]
-            or not isinstance(until_minute, int)
-            or isinstance(until_minute, bool)
-            or until_minute <= event.due_minute
-            or until_minute > world.duration_minutes
-            or event.source_id is None
-        ):
-            raise EventApplicationError("supply route interruption payload or duration is invalid")
-        if any(
-            other["active"] and other["route_id"] == record["route_id"]
-            for other in state["route_interruptions"].values()
-        ):
-            raise EventApplicationError("supply route already has an active interruption")
-        operational = world.model_state.get(OPERATIONAL_EVENTS_KEY)
-        if operational is None:
-            raise EventApplicationError("supply route interruption requires shipment records")
-        delay = until_minute - event.due_minute
-        delivery_delays: list[tuple[str, int]] = []
-        for shipment_id in record["shipment_ids"]:
-            shipment = operational["shipments"].get(shipment_id)
-            delivery = next(
-                (
-                    pending
-                    for pending in world.event_queue.pending()
-                    if shipment is not None and pending.event_id == shipment["event_id"]
-                ),
-                None,
-            )
-            if (
-                delivery is None
-                or delivery.event_type != "resource_delivery"
-                or delivery.due_minute <= event.due_minute
-                or delivery.due_minute != shipment["due_minute"]
-                or delivery.due_minute + delay >= world.duration_minutes
-            ):
-                raise EventApplicationError(
-                    f"shipment {shipment_id!r} cannot be safely delayed by this route event"
-                )
-            delivery_delays.append((shipment_id, delivery.due_minute + delay))
-        delayed_records: list[EventLogRecord] = []
-        for shipment_id, new_due_minute in delivery_delays:
-            sequence = world.allocate_event_sequence()
-            delayed = ScheduledEvent(
-                event_id=f"route-delay-{sequence}",
-                kind=EventKind.COMPLETION,
-                due_minute=event.due_minute,
-                priority=-10,
-                sequence=sequence,
-                event_type="delivery_delayed",
-                payload={"shipment_id": shipment_id, "to_minute": new_due_minute},
-                source_id=event.source_id,
-                causation_id=event.event_id,
-                provenance={
-                    "source_type": "assumption",
-                    "source_id": ScenarioInfrastructureSpec.model_validate(
-                        world.model_configs["infrastructure"]
-                    ).source_id,
-                    "policy_version": "infrastructure-events-v1",
-                    "route_id": record["route_id"],
-                },
-            )
-            _ensure_event_identity_free(world, delayed)
-            world.schedule_event(delayed)
-            DeliveryDelayHandler().apply(world, delayed)
-            world.event_queue.remove(delayed.event_id)
-            delayed_records.append(
-                EventLogRecord(
-                    event=delayed,
-                    realized_minute=world.minute_index,
-                    status=EventStatus.APPLIED,
-                )
-            )
-            record = world.model_state[INFRASTRUCTURE_STATE_KEY]["route_interruptions"][outage_id]
-        record["active"] = True
-        record["until_minute"] = until_minute
-        restore_id = _schedule_infrastructure_completion(
-            world,
-            event,
-            "supply_route_restored",
-            {"outage_id": outage_id, "route_id": record["route_id"]},
-            due_minute=until_minute,
-        )
-        record["restore_event_id"] = restore_id
-        return tuple(delayed_records)
-
-    def _restore_route(self, world: WorldState, event: ScheduledEvent) -> None:
-        state = _infrastructure_state(world, event)
-        outage_id = event.payload.get("outage_id")
-        record = state["route_interruptions"].get(outage_id)
-        if (
-            set(event.payload) != {"outage_id", "route_id"}
-            or record is None
-            or not record["active"]
-            or record["restore_event_id"] != event.event_id
-            or record["start_event_id"] != event.causation_id
-            or record["route_id"] != event.payload.get("route_id")
-            or event.source_id is None
-        ):
-            raise EventApplicationError("route restoration does not match an active interruption")
-        record["active"] = False
-
-
-def _infrastructure_state(world: WorldState, event: ScheduledEvent) -> dict[str, Any]:
-    state = world.model_state.get(INFRASTRUCTURE_STATE_KEY)
-    if not isinstance(state, dict):
-        raise EventApplicationError(
-            f"{event.event_type} requires the opted-in infrastructure model"
-        )
-    return state
-
-
-def _outage_for_start(state: dict[str, Any], event: ScheduledEvent) -> dict[str, Any]:
-    outage_id = event.payload.get("outage_id")
-    record = state["outages"].get(outage_id)
-    if record is None or record["start_event_id"] != event.event_id:
-        raise EventApplicationError("infrastructure outage does not match scenario state")
-    if record["event_type"] != event.event_type:
-        raise EventApplicationError(
-            "infrastructure outage event type does not match scenario state"
-        )
-    return record
-
-
-def _schedule_infrastructure_completion(
-    world: WorldState,
-    cause: ScheduledEvent,
-    event_type: str,
-    payload: dict[str, Any],
-    *,
-    due_minute: int,
-) -> str | None:
-    if due_minute >= world.duration_minutes:
-        return None
-    sequence = world.allocate_event_sequence()
-    event = ScheduledEvent(
-        event_id=f"{event_type.replace('_', '-')}-{sequence}",
-        kind=EventKind.COMPLETION,
-        due_minute=due_minute,
-        priority=10,
-        sequence=sequence,
-        event_type=event_type,
-        payload=payload,
-        source_id=cause.source_id,
-        causation_id=cause.event_id,
-        provenance={
-            "source_type": "assumption",
-            "source_id": ScenarioInfrastructureSpec.model_validate(
-                world.model_configs["infrastructure"]
-            ).source_id,
-            "policy_version": "infrastructure-events-v1",
-        },
-    )
-    _ensure_event_identity_free(world, event)
-    world.schedule_event(event)
-    return event.event_id
-
-
-def _recalculate_infrastructure_capacity(world: WorldState, cause: ScheduledEvent) -> None:
-    state = _infrastructure_state(world, cause)
-    outage_id = cause.payload.get("outage_id")
-    changed_outage = state["outages"].get(outage_id)
-    if changed_outage is None:
-        raise EventApplicationError("infrastructure capacity update references an unknown outage")
-    changed_facility_ids = set(changed_outage["affected_facility_ids"])
-    try:
-        capacities = effective_facility_capacities(
-            state["base_working_units"],
-            state["outages"],
-            world.model_configs["infrastructure"],
-            set(world.facilities),
-        )
-    except ValueError as exc:
-        raise EventApplicationError(str(exc)) from exc
-    for facility_id in sorted(changed_facility_ids):
-        # As with a facility outage, current users finish (#188).
-        world.facilities[facility_id].working_units = capacities[facility_id]
+        power_outage and equipment_failure start their scenario outage and schedule its restoration;
+        power_restored and equipment_repaired end it; working units are then recalculated from every
+        active cause. extreme_heat and extreme_cold start a zone stressor (16 per zone) and schedule
+        its end; environmental_stressor_end ends it. supply_route_interruption delays its pending
+        shipments by the interruption (each a recorded delivery_delayed) and schedules the
+        restoration; supply_route_restored ends it. Each mismatch with the infrastructure state is
+        an EventApplicationError with its own text, as is another event type. Returns the delays'
+        records and a facility recovery receipt for each facility whose working units changed.
+        """
 
 
 @dataclass(frozen=True)
@@ -1859,34 +818,17 @@ class ToiletServiceCompletionHandler:
 
     after_complete: Callable[[WorldState, ScheduledEvent], None] | None = None
 
-    @kernel_first("toilet", "complete")
+    @kernel_only("toilet", "complete")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        facility_id = event.payload.get("facility_id")
-        agent_id = event.payload.get("agent_id")
-        task_id = event.payload.get("task_id")
-        if not all(isinstance(item, str) and item for item in (facility_id, agent_id, task_id)):
-            raise EventApplicationError(
-                "toilet completion requires facility_id, agent_id, and task_id"
-            )
-        task = world.active_tasks.get(task_id)
-        if task is None or task.due_minute != event.due_minute:
-            raise EventApplicationError("toilet completion does not match an active due task")
-        try:
-            complete_toilet_service(
-                world,
-                facility_id=facility_id,
-                agent_id=agent_id,
-                task_id=task_id,
-            )
-        except ValueError as exc:
-            raise EventApplicationError(str(exc)) from exc
-        body = world.model_state.get("body_state_v1", {}).get("agents", {})
-        if agent_id in body:
-            # A completed sanitation visit can reduce hygiene pressure; it does
-            # not erase the need when the facility itself is poorly maintained.
-            body[agent_id]["hygiene_need"] = max(0.0, body[agent_id]["hygiene_need"] - 0.2)
-        if self.after_complete is not None:
-            self.after_complete(world, event)
+        """Complete a due toilet service: release its slot, then `self.after_complete`, if set.
+
+        EventApplicationError when facility_id, agent_id or task_id is not a non-empty str, when the
+        task is not active and due now, and when the facility is not a toilet, the person is
+        unknown, the task is not this person's active toilet service there, the person is not in
+        service there or doesn't hold exactly one slot. The queue's record finishes, the slot and a
+        reserved staff member are freed, the person is idle with no toilet urgency, and a completed
+        visit takes 0.2 off the person's hygiene need (not below 0).
+        """
 
 
 @dataclass(frozen=True)
@@ -2319,7 +1261,7 @@ class AgentTravelCompletionHandler:
             )
         return True
 
-    @kernel_first("travel_completion", "reject_room_approach")
+    @kernel_only("travel_completion", "reject_room_approach")
     def _reject_room_approach(
         self,
         world: WorldState,
@@ -2328,30 +1270,13 @@ class AgentTravelCompletionHandler:
         facility_id: str,
         origin_zone_id: Any,
     ) -> None:
-        if self.resource_service is not None and event.payload.get("purpose") == "resource_request":
-            facility = world.facilities.get(facility_id)
-            resource_id = (
-                ResourceServiceManager.resource_for_facility(facility.kind)
-                if facility is not None
-                else None
-            )
-            action = "fetch_water" if resource_id == "water_ml" else "collect_meal"
-            self.resource_service.record_request_outcome(
-                agent_id=agent_id,
-                action=action,
-                outcome="rejected",
-                reason="room_route_blocked",
-                facility_id=facility_id,
-                origin_zone_id=origin_zone_id
-                if isinstance(origin_zone_id, str)
-                else world.agents[agent_id].zone_id,
-            )
-            world.metric_state["resource_service_request_rejected_count"] = (
-                world.metric_state.get("resource_service_request_rejected_count", 0.0) + 1.0
-            )
-        world.metric_state["facility_approach_rejected_count"] = (
-            world.metric_state.get("facility_approach_rejected_count", 0.0) + 1.0
-        )
+        """Count a room approach that was turned away.
+
+        For a resource request with a resource service, the request's outcome is recorded as
+        rejected ("room_route_blocked"; fetch_water at a water facility, else collect_meal), from
+        the event's origin zone when it is a str, else the person's zone, and counted. Always
+        counted as facility_approach_rejected_count.
+        """
 
 
 @dataclass(frozen=True)
@@ -2372,466 +1297,85 @@ class ResourceServiceCancellationHandler:
 
     service: ResourceServiceManager
 
-    @kernel_first("handlers", "service_cancellation")
+    @kernel_only("handlers", "service_cancellation")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        if world.schema_version != 6:
-            raise EventApplicationError("resource service cancellation requires WorldState v6")
-        self.service.cancel(event)
+        """`self.service.cancel(event)`; EventApplicationError before WorldState v6."""
 
 
 @dataclass(frozen=True)
 class DeliveryDelayHandler:
     """Reschedule one pending shipment without changing its stable identity."""
 
-    @kernel_first("handlers", "delivery_delay")
+    @kernel_only("handlers", "delivery_delay")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        def apply(candidate: WorldState) -> None:
-            if set(event.payload) != {"shipment_id", "to_minute"} or event.source_id is None:
-                raise EventApplicationError("delivery delay payload fields or source are invalid")
-            operational = candidate.model_state.get(OPERATIONAL_EVENTS_KEY)
-            if operational is None:
-                raise EventApplicationError("delivery delay requires operational_events_v1 state")
-            shipment_id = event.payload.get("shipment_id")
-            record = operational["shipments"].get(shipment_id)
-            if record is None:
-                raise EventApplicationError("delivery delay references an unknown shipment")
-            target = next(
-                (
-                    pending
-                    for pending in candidate.event_queue.pending()
-                    if pending.event_id == record["event_id"]
-                ),
-                None,
-            )
-            to_minute = event.payload.get("to_minute")
-            if (
-                target is None
-                or target.event_type != "resource_delivery"
-                or target.payload.get("shipment_id") != shipment_id
-                or target.due_minute != record["due_minute"]
-            ):
-                raise EventApplicationError("shipment is no longer pending for delay")
-            if (
-                not isinstance(to_minute, int)
-                or isinstance(to_minute, bool)
-                or target.due_minute <= candidate.minute_index
-                or to_minute <= target.due_minute
-                or to_minute <= candidate.minute_index
-                or to_minute >= candidate.duration_minutes
-            ):
-                raise EventApplicationError(
-                    "shipment delay must move a not-yet-due delivery forward"
-                )
-            replacement_provenance = target.to_dict()["provenance"]
-            replacement_provenance["last_delay_event_id"] = event.event_id
-            effect_marker = event.to_dict()["provenance"].get("effect_program_v1")
-            if isinstance(effect_marker, Mapping):
-                replacement_provenance["effect_program_v1"] = derived_effect_marker(effect_marker)
-            replacement = ScheduledEvent(
-                event_id=target.event_id,
-                kind=target.kind,
-                due_minute=to_minute,
-                priority=target.priority,
-                sequence=target.sequence,
-                event_type=target.event_type,
-                payload=target.to_dict()["payload"],
-                source_id=target.source_id,
-                causation_id=event.event_id,
-                provenance=replacement_provenance,
-            )
-            candidate.event_queue.replace(target.event_id, replacement)
-            record["due_minute"] = to_minute
+        """Move a pending shipment's delivery to `to_minute`, on a copy of the world.
 
-        _apply_operational_transaction(world, event, apply)
+        EventApplicationError when the payload is not shipment_id and to_minute or there is no
+        source, without operational_events_v1, for an unknown shipment, when its delivery is no
+        longer pending as recorded, and unless the delivery is not yet due and to_minute is a later
+        int before the Run's end. The delivery keeps its identity, notes the delay event and takes a
+        derived EffectProgram marker.
+        """
 
 
 @dataclass(frozen=True)
 class WaterOutageHandler:
     """Block new staffed water service at an explicitly named target."""
 
-    @kernel_first("handlers", "water_outage")
+    @kernel_only("handlers", "water_outage")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        def apply(candidate: WorldState) -> None:
-            if event.source_id is None or set(event.payload) not in (
-                {"outage_id", "zone_id"},
-                {"outage_id", "facility_id"},
-            ):
-                raise EventApplicationError("water outage payload fields or source are invalid")
-            operational = candidate.model_state.get(OPERATIONAL_EVENTS_KEY)
-            outage_id = event.payload.get("outage_id")
-            record = operational["water_outages"].get(outage_id) if operational else None
-            if record is None or record["outage_event_id"] != event.event_id:
-                raise EventApplicationError("water outage does not match operational state")
-            target_kind = "zone" if "zone_id" in event.payload else "facility"
-            target_id = event.payload.get("zone_id", event.payload.get("facility_id"))
-            if record["target_kind"] != target_kind or record["target_id"] != target_id:
-                raise EventApplicationError("water outage target does not match operational state")
-            if target_kind == "zone":
-                if not any(
-                    facility.kind == "water_station" and facility.zone_id == target_id
-                    for facility in candidate.facilities.values()
-                ):
-                    raise EventApplicationError("water outage zone has no water_station")
-            else:
-                facility = candidate.facilities.get(target_id)
-                if facility is None or facility.kind != "water_station":
-                    raise EventApplicationError("water outage must target a water_station")
-            if record["active"]:
-                raise EventSuppressed("water outage is already active")
-            record["active"] = True
+        """Start a recorded water outage of a zone's or a facility's water station, on a copy.
 
-        _apply_operational_transaction(world, event, apply)
+        EventApplicationError for the payload fields or a missing source, an outage that is not this
+        event's in the operational state, another target, a zone without a water_station or a
+        facility that isn't one. EventSuppressed when it is already active.
+        """
 
 
 @dataclass(frozen=True)
 class WaterRestorationHandler:
     """Restore new water service starts for one correlated outage."""
 
-    @kernel_first("handlers", "water_restoration")
+    @kernel_only("handlers", "water_restoration")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        def apply(candidate: WorldState) -> None:
-            if event.source_id is None or set(event.payload) != {"outage_id"}:
-                raise EventApplicationError(
-                    "water restoration payload fields or source are invalid"
-                )
-            operational = candidate.model_state.get(OPERATIONAL_EVENTS_KEY)
-            outage_id = event.payload.get("outage_id")
-            record = operational["water_outages"].get(outage_id) if operational else None
-            if record is None or record["restore_event_id"] != event.event_id:
-                raise EventApplicationError("water restoration does not match its outage")
-            if not record["active"]:
-                raise EventSuppressed("water outage is not active")
-            record["active"] = False
+        """End a recorded water outage, on a copy.
 
-        _apply_operational_transaction(world, event, apply)
+        EventApplicationError for the payload fields, a missing source, or an outage whose
+        restoration is not this event. EventSuppressed when it is not active.
+        """
 
 
 @dataclass(frozen=True)
 class StaffUnavailabilityHandler:
     """Remove one staff member from assignment and safely interrupt active work."""
 
-    @kernel_first("handlers", "staff_unavailable")
+    @kernel_only("handlers", "staff_unavailable")
     def apply(self, world: WorldState, event: ScheduledEvent) -> tuple[EventLogRecord, ...]:
-        def apply(candidate: WorldState) -> tuple[EventLogRecord, ...]:
-            additional_records: list[EventLogRecord] = []
-            if event.source_id is None or set(event.payload) != {"staff_id", "until_minute"}:
-                raise EventApplicationError(
-                    "staff unavailability payload fields or source are invalid"
-                )
-            operational = candidate.model_state.get(OPERATIONAL_EVENTS_KEY)
-            if operational is None:
-                raise EventApplicationError("staff unavailability requires operational event state")
-            staff_id = event.payload.get("staff_id")
-            staff_member = candidate.staff.get(staff_id)
-            until_minute = event.payload.get("until_minute")
-            if staff_member is None:
-                raise EventApplicationError("staff unavailability references unknown staff")
-            if (
-                not isinstance(until_minute, int)
-                or isinstance(until_minute, bool)
-                or until_minute <= candidate.minute_index
-                or until_minute > candidate.duration_minutes
-            ):
-                raise EventApplicationError("staff unavailable until_minute is invalid")
-            status = operational["staff_status"][staff_id]
-            if status["unavailability_event_id"] == event.event_id:
-                raise EventSuppressed("staff unavailability was already applied")
+        """Take one staff member out of assignment until `until_minute`, on a copy of the world.
 
-            restore_event_id: str | None = None
-            if until_minute < candidate.duration_minutes:
-                sequence = candidate.id_counters.get("event", 0)
-                restore_event_id = f"staff-restored-{sequence}"
-                restore = ScheduledEvent(
-                    event_id=restore_event_id,
-                    kind=EventKind.COMPLETION,
-                    due_minute=until_minute,
-                    priority=10,
-                    sequence=sequence,
-                    event_type="staff_restored",
-                    payload={
-                        "staff_id": staff_id,
-                        "unavailability_event_id": event.event_id,
-                    },
-                    source_id=event.source_id,
-                    causation_id=event.event_id,
-                    provenance={
-                        "source_type": "assumption",
-                        "source_id": "ASM-H03-OPERATIONAL-EVENTS-V1",
-                        "policy_version": "operational-events-v1",
-                        **(
-                            {
-                                "effect_program_v1": derived_effect_marker(
-                                    event.to_dict()["provenance"]["effect_program_v1"]
-                                )
-                            }
-                            if isinstance(event.provenance.get("effect_program_v1"), Mapping)
-                            else {}
-                        ),
-                    },
-                )
-                _ensure_event_identity_free(candidate, restore)
-                if candidate.allocate_event_sequence() != sequence:
-                    raise EventApplicationError("event sequence changed during staff preflight")
-                candidate.schedule_event(restore)
-
-            support_tasks = [
-                task
-                for task in candidate.active_tasks.values()
-                if task.staff_id == staff_id and task.kind == "staff_support"
-            ]
-            resource_tasks = [
-                task
-                for task in candidate.active_tasks.values()
-                if task.staff_id == staff_id
-                and task.kind in ("resource_service_water", "resource_service_food")
-            ]
-            operations = candidate.model_state.get("staff_operations_v1", {})
-            operation_record = (
-                operations.get("staff", {}).get(staff_id) if isinstance(operations, dict) else None
-            )
-            autonomous_operation = (
-                operation_record is not None and operation_record.get("phase") != "idle"
-            )
-            if len(support_tasks) + len(resource_tasks) + int(autonomous_operation) > 1:
-                raise EventApplicationError("staff owns multiple active service tasks")
-            if resource_tasks:
-                from sheltersim.domain.resource_service import ResourceServiceManager
-
-                ResourceServiceManager(candidate).interrupt_for_staff(
-                    staff_id, causation_event=event
-                )
-            elif support_tasks:
-                additional_records.append(
-                    _interrupt_support_task(candidate, support_tasks[0], staff_member, event)
-                )
-            elif autonomous_operation:
-                from sheltersim.domain.staff_operations import interrupt_staff_operation
-
-                interrupt_staff_operation(candidate, staff_id, event)
-
-            status["available"] = False
-            status["unavailability_event_id"] = event.event_id
-            status["until_minute"] = until_minute
-            status["restore_event_id"] = restore_event_id
-            return tuple(additional_records)
-
-        return _apply_operational_transaction(world, event, apply)
+        EventApplicationError for the payload fields or a missing source, without operational event
+        state, for unknown staff or an until_minute that is not an int after now within the Run, and
+        when the staff member holds more than one of a support task, a resource service task and an
+        autonomous operation. EventSuppressed when this absence was already applied. Schedules
+        staff_restored (with a derived EffectProgram marker) unless the absence lasts to the end. A
+        resource service is interrupted by its manager, an operation by `interrupt_staff_operation`,
+        and a support task is requeued or left unresolved (its resident's trip suppressed, a timeout
+        rescheduled), with its continuity record: the records returned.
+        """
 
 
 @dataclass(frozen=True)
 class StaffRestorationHandler:
     """Restore staff only when the event still matches the latest absence token."""
 
-    @kernel_first("handlers", "staff_restoration")
+    @kernel_only("handlers", "staff_restoration")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        def apply(candidate: WorldState) -> None:
-            if event.source_id is None or set(event.payload) != {
-                "staff_id",
-                "unavailability_event_id",
-            }:
-                raise EventApplicationError(
-                    "staff restoration payload fields or source are invalid"
-                )
-            operational = candidate.model_state.get(OPERATIONAL_EVENTS_KEY)
-            staff_id = event.payload.get("staff_id")
-            unavailable_id = event.payload.get("unavailability_event_id")
-            record = operational["staff_status"].get(staff_id) if operational else None
-            if record is None:
-                raise EventApplicationError("staff restoration references unknown staff")
-            if record["unavailability_event_id"] != unavailable_id:
-                raise EventSuppressed("staff restoration belongs to an older unavailability")
-            if record["restore_event_id"] != event.event_id:
-                raise EventApplicationError("staff restoration event ID does not match its token")
-            if record["available"]:
-                raise EventSuppressed("staff is already available")
-            record["available"] = True
+        """Make a staff member available again if this still matches the latest absence, on a copy.
 
-        _apply_operational_transaction(world, event, apply)
-
-
-def _interrupt_support_task(
-    world: WorldState,
-    task: object,
-    staff_member: object,
-    causation_event: ScheduledEvent,
-) -> EventLogRecord:
-    task_id = task.id
-    request = next(
-        (
-            request
-            for request in world.unsettled_support_requests()
-            if request.status is SupportRequestStatus.ASSIGNED and request.task_id == task_id
-        ),
-        None,
-    )
-    agent = world.agents.get(task.agent_id or "")
-    completions = [
-        pending
-        for pending in world.event_queue.pending()
-        if pending.event_type == "staff_support_complete"
-        and pending.payload.get("task_id") == task_id
-    ]
-    if (
-        request is None
-        or agent is None
-        or staff_member.active_task_id != task_id
-        or staff_member.work_queue != [task_id]
-        or len(completions) != 1
-        or completions[0].due_minute != task.due_minute
-    ):
-        raise EventApplicationError("interrupted support task has inconsistent ownership")
-    timeout_events = [
-        pending
-        for pending in world.event_queue.pending()
-        if pending.event_type == "support_request_timeout"
-        and pending.payload.get("request_id") == request.id
-    ]
-    if len(timeout_events) > 1 or (
-        timeout_events and timeout_events[0].due_minute != request.timeout_minute
-    ):
-        raise EventApplicationError("support timeout state is inconsistent")
-    if request.timeout_minute > world.minute_index and not timeout_events:
-        sequence = world.id_counters.get("event", 0)
-        timeout = ScheduledEvent(
-            event_id=f"support-timeout-rescheduled-{sequence}",
-            kind=EventKind.COMPLETION,
-            due_minute=request.timeout_minute,
-            priority=20,
-            sequence=sequence,
-            event_type="support_request_timeout",
-            payload={"request_id": request.id, "agent_id": request.agent_id},
-            source_id=request.id,
-            causation_id=causation_event.event_id,
-            provenance={
-                "source_type": "assumption",
-                "source_id": "ASM-STAFF-SUPPORT-LIFECYCLE-V1",
-                "policy_version": STAFF_SUPPORT_POLICY_VERSION,
-                "rescheduled_after_staff_unavailable": True,
-            },
-        )
-        _ensure_event_identity_free(world, timeout)
-        if world.allocate_event_sequence() != sequence:
-            raise EventApplicationError("event sequence changed during support preflight")
-        world.schedule_event(timeout)
-
-    support_trips = [
-        candidate
-        for candidate in world.active_tasks.values()
-        if candidate.kind == "staff_support_travel" and candidate.agent_id == agent.id
-    ]
-    if len(support_trips) > 1:
-        raise EventApplicationError("resident has duplicate trips to assigned support")
-    if support_trips:
-        travel_task = support_trips[0]
-        travel_events = [
-            pending
-            for pending in world.event_queue.pending()
-            if pending.event_type == "agent_travel_complete"
-            and pending.payload.get("task_id") == travel_task.id
-            and pending.payload.get("purpose") == "staff_support_travel"
-            and pending.payload.get("request_id") == request.id
-        ]
-        if len(travel_events) != 1 or travel_events[0].due_minute != travel_task.due_minute:
-            raise EventApplicationError("resident support trip has inconsistent travel ownership")
-        travel_event = world.event_queue.remove(travel_events[0].event_id)
-        world.event_log.append(
-            EventLogRecord(
-                event=travel_event,
-                realized_minute=world.minute_index,
-                status=EventStatus.SUPPRESSED,
-                detail="assigned staff became unavailable before resident arrival",
-            )
-        )
-        del world.active_tasks[travel_task.id]
-        movement = world.model_state.get(MOVEMENT_STATE_KEY)
-        position = (
-            movement.get("positions", {}).get(agent.id) if isinstance(movement, dict) else None
-        )
-        if isinstance(position, dict) and position.get("zone_id") in world.zones:
-            agent.zone_id = position["zone_id"]
-        finish_movement(world, agent.id)
-
-    del world.active_tasks[task_id]
-    staff_member.work_queue.clear()
-    staff_member.active_task_id = None
-    staff_member.busy_until = 0
-    world.model_state[OPERATIONAL_EVENTS_KEY]["cancelled_staff_task_ids"].append(task_id)
-    request.assigned_staff_id = None
-    request.task_id = None
-    if request.timeout_minute <= world.minute_index:
-        cooldown = world.model_configs.get("staff", {}).get("support_cooldown_minutes", 30)
-        request.status = SupportRequestStatus.UNRESOLVED
-        request.resolved_minute = world.minute_index
-        request.cooldown_until = world.minute_index + cooldown
-        agent.activity = Activity.IDLE
-        agent.target_id = None
-        agent.support_request_id = None
-        agent.support_cooldown_until = request.cooldown_until
-        world.metric_state["support_unresolved_count"] = (
-            world.metric_state.get("support_unresolved_count", 0.0) + 1.0
-        )
-    else:
-        request.status = SupportRequestStatus.PENDING
-        agent.activity = Activity.SEEKING_HELP
-        agent.target_id = None
-        agent.support_request_id = request.id
-    return make_staff_support_continuity_record(
-        world,
-        request_id=request.id,
-        agent_id=request.agent_id,
-        task_id=task_id,
-        previous_staff_id=staff_member.id,
-        status=("requeued" if request.status is SupportRequestStatus.PENDING else "unresolved"),
-        causation_id=causation_event.event_id,
-        cause_type=(
-            "staff_shift_change"
-            if causation_event.event_type == "staff_shift_change"
-            else "staff_unavailable"
-        ),
-    )
-
-
-def _apply_operational_transaction(
-    world: WorldState,
-    event: ScheduledEvent,
-    operation: Callable[[WorldState], Any],
-) -> Any:
-    """Run an H03 handler on a detached state and commit only after validation."""
-    candidate = WorldState.from_dict(world.to_dict())
-    result = operation(candidate)
-    if isinstance(result, tuple) and result:
-        if any(not isinstance(record, EventLogRecord) for record in result):
-            raise EventApplicationError(
-                "transactional follow-up records must be EventLogRecord values"
-            )
-        candidate.event_queue.remove(event.event_id)
-        candidate.event_log.append(
-            EventLogRecord(
-                event=event,
-                realized_minute=candidate.minute_index,
-                status=EventStatus.APPLIED,
-            )
-        )
-        for record in result:
-            candidate.event_log.append(record)
-        if "shared_operations" in candidate.model_configs:
-            from pydantic import TypeAdapter
-
-            from sheltersim.contracts.operations import StaffSupportContinuityReceipt
-            from sheltersim.domain.common_operations import record_shared_operation
-
-            for record in result:
-                if record.event.event_type == "staff_support_continuity":
-                    receipt = TypeAdapter(StaffSupportContinuityReceipt).validate_python(
-                        record.event.payload
-                    )
-                    record_shared_operation(candidate, receipt)
-        candidate.validate()
-    else:
-        candidate.validate(_in_flight_event=event)
-    world.__dict__.clear()
-    world.__dict__.update(candidate.__dict__)
-    return result
+        EventApplicationError for the payload fields, a missing source, unknown staff, or a token
+        that is not this event's. EventSuppressed when it belongs to an older absence or the staff
+        member is available.
+        """
 
 
 def _ensure_event_identity_free(world: WorldState, event: ScheduledEvent) -> None:
@@ -3144,137 +1688,52 @@ class StaffSupportCompletionHandler:
 class StaffOperationArrivalHandler:
     """Move a staff member to the assigned task after its actual route time."""
 
-    @kernel_first("staff_operation_events", "arrive")
+    @kernel_only("staff_operation_events", "arrive")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        from sheltersim.domain.staff_operations import arrive_staff_operation
+        """The travelling staff member reaches the task: the operation's phase becomes working.
 
-        if event.event_type != "staff_operation_arrive":
-            raise EventApplicationError("staff operation arrival handler received another event")
-        arrive_staff_operation(world, event)
+        EventApplicationError for another event type, and when the event doesn't match the staff
+        member's travelling operation (task, staff, due minute, target zone). When the staff member
+        is no longer available, `interrupt_staff_operation` stops the task and the event is
+        EventSuppressed ("staff became unavailable before reaching the assigned task").
+        """
 
 
 @dataclass(frozen=True)
 class StaffOperationReliefHandler:
     """Transfer an in-flight staff operation at an applied relief boundary."""
 
-    @kernel_first("staff_operation_events", "relief")
+    @kernel_only("staff_operation_events", "relief")
     def apply(self, world: WorldState, event: ScheduledEvent) -> tuple[EventLogRecord, ...] | None:
-        from sheltersim.domain.staff_operations import handoff_staff_operation
+        """An in-flight operation goes to a qualified co-located relief; the handoff receipt.
 
-        receipt = handoff_staff_operation(world, event)
-        return (receipt,) if receipt is not None else None
+        EventApplicationError for a relief whose provenance or payload is not the relief policy's,
+        and when the task has no pending completion. EventSuppressed when the relief is stale or the
+        replacement is no longer free and available, or lacks the task's skill. The task's pending
+        arrival and completion are recorded as suppressed, the replacement works the task from now
+        for its configured minutes, the previous member is idle, and a new completion is scheduled.
+        """
 
 
 @dataclass(frozen=True)
 class StaffOperationCompletionHandler:
     """Apply routed cleaning, repair, intake, outreach or patrol work."""
 
-    @kernel_first("staff_operation_events", "complete")
+    @kernel_only("staff_operation_events", "complete")
     def apply(self, world: WorldState, event: ScheduledEvent) -> tuple[EventLogRecord, ...] | None:
-        task_kind = event.payload.get("task_kind")
-        target_id = event.payload.get("target_id")
-        target_zone_id = event.payload.get("target_zone_id")
-        facility = world.facilities.get(target_id) if isinstance(target_id, str) else None
-        previous_working_units = (
-            facility.working_units if task_kind == "maintenance" and facility is not None else None
-        )
-        before = _staff_operation_measurements(
-            world, task_kind=task_kind, target_id=target_id, target_zone_id=target_zone_id
-        )
-        from sheltersim.domain.staff_operations import complete_staff_operation
+        """A staff operation's work is done: its effect, its history row and its receipt.
 
-        if event.event_type != "staff_operation_complete":
-            raise EventApplicationError("staff operation completion handler received another event")
-        operation = complete_staff_operation(world, event)
-        after = _staff_operation_measurements(
-            world, task_kind=task_kind, target_id=target_id, target_zone_id=target_zone_id
-        )
-        state_changes = tuple(
-            NumericStateChange(
-                entity_kind=entity_kind,
-                entity_id=entity_id,
-                field_path=field_path,
-                before=before[(entity_kind, entity_id, field_path)][0],
-                after=value,
-                unit=unit,
-            )
-            for (entity_kind, entity_id, field_path), (value, unit) in sorted(after.items())
-            if (entity_kind, entity_id, field_path) in before
-            and before[(entity_kind, entity_id, field_path)][0] != value
-        )
-        operation_event = make_staff_operation_record(
-            world,
-            operation=operation,
-            state_changes=state_changes,
-            outcome_measured=bool(before),
-            causation_id=event.event_id,
-        )
-        followups = [operation_event[0]] if operation_event is not None else []
-        if (
-            previous_working_units is not None
-            and facility is not None
-            and facility.working_units != previous_working_units
-        ):
-            recovery_record = make_facility_recovery_record(
-                world,
-                facility_id=facility.id,
-                component_id=event.payload["task_id"],
-                status="restored",
-                previous_working_units=previous_working_units,
-                working_units=facility.working_units,
-                causation_id=event.event_id,
-                source_ids=tuple(value for value in (event.source_id,) if value),
-            )
-            if recovery_record is not None:
-                followups.append(recovery_record[0])
-        return tuple(followups) or None
-
-
-def _staff_operation_measurements(
-    world: WorldState,
-    *,
-    task_kind: Any,
-    target_id: Any,
-    target_zone_id: Any,
-) -> dict[tuple[str, str, str], tuple[int | float, str]]:
-    """Capture numeric outcome fields touched by one supported staff operation."""
-    values: dict[tuple[str, str, str], tuple[int | float, str]] = {}
-
-    def add(kind: str, entity_id: str, path: str, value: Any, unit: str) -> None:
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
-            values[(kind, entity_id, path)] = (value, unit)
-
-    if task_kind == "cleaning" and isinstance(target_zone_id, str):
-        zone = world.model_state.get("staff_operations_v1", {}).get("zones", {}).get(target_zone_id)
-        if isinstance(zone, dict):
-            add(
-                "model_state",
-                target_zone_id,
-                "staff_operations_v1.zones.sanitation",
-                zone.get("sanitation"),
-                "normalized_0_1",
-            )
-    elif task_kind == "maintenance" and isinstance(target_id, str):
-        facility = world.facilities.get(target_id)
-        if facility is not None:
-            add("facility", facility.id, "working_units", facility.working_units, "facility_unit")
-    elif task_kind in {"information_outreach", "patrol"} and isinstance(target_zone_id, str):
-        body_agents = world.model_state.get("body_state_v1", {}).get("agents", {})
-        for agent in sorted(world.agents.values(), key=lambda row: row.id):
-            if agent.zone_id != target_zone_id:
-                continue
-            add("agent", agent.id, "trust", agent.trust, "normalized_0_1")
-            body = body_agents.get(agent.id)
-            if isinstance(body, dict):
-                for field in ("uncertainty", "reassurance", "positive_affect"):
-                    add(
-                        "model_state",
-                        agent.id,
-                        f"body_state_v1.agents.{field}",
-                        body.get(field),
-                        "normalized_0_1",
-                    )
-    return values
+        EventApplicationError for another event type, and when the event doesn't match the staff
+        member's working operation. When the staff member is no longer available,
+        `interrupt_staff_operation` stops the task and the event is EventSuppressed ("staff became
+        unavailable before completing the assigned task"). Cleaning raises the zone's sanitation,
+        maintenance restores one working unit (blocked at capacity or under an outage or modifier),
+        outreach and patrol relieve the zone's people, intake admits pending arrivals. The staff
+        member is idle again. The receipt lists the numeric fields the task changed: a cleaned
+        zone's sanitation, a maintained facility's working units, and in an outreach or patrol zone
+        each person's trust, uncertainty, reassurance and positive affect. A maintenance that
+        changed working units also gives a facility recovery receipt.
+        """
 
 
 @dataclass(frozen=True)
@@ -3283,24 +1742,14 @@ class SupportRequestTimeoutHandler:
 
     cooldown_minutes: int = 30
 
-    @kernel_first("support", "timeout")
+    @kernel_only("support", "timeout")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        request_id = event.payload.get("request_id")
-        agent_id = event.payload.get("agent_id")
-        if not isinstance(request_id, str) or not isinstance(agent_id, str):
-            raise EventApplicationError("support timeout requires request_id and agent_id")
-        try:
-            changed = timeout_support_request(
-                world,
-                request_id=request_id,
-                agent_id=agent_id,
-                minute=world.minute_index,
-                cooldown_minutes=self.cooldown_minutes,
-            )
-        except ValueError as exc:
-            raise EventApplicationError(str(exc)) from exc
-        if not changed:
-            raise EventSuppressed("support request is no longer pending")
+        """Close a pending support request at its deadline; assigned work goes on.
+
+        EventApplicationError when request_id or agent_id is not a str, and when the request is not
+        the Agent's. EventSuppressed when it is no longer pending. Otherwise it is unresolved, with
+        a cooldown of `self.cooldown_minutes`, and the person is idle.
+        """
 
 
 # The event types with a Rust function in rules/dispatch.rs. A patch of `apply` shows here, and the

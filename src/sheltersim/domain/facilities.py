@@ -22,9 +22,6 @@ from sheltersim.domain.facility_queues import (
     enqueue as enqueue_facility_queue,
 )
 from sheltersim.domain.facility_queues import (
-    finish_service as finish_facility_queue_service,
-)
-from sheltersim.domain.facility_queues import (
     start_service as start_facility_queue_service,
 )
 from sheltersim.domain.models import ActiveTask, Activity
@@ -514,59 +511,3 @@ class ToiletServiceManager:
         metrics["toilet_wait_max_minutes"] = max(
             metrics.get("toilet_wait_max_minutes", 0.0), float(wait_minutes)
         )
-
-
-def complete_toilet_service(
-    world: WorldState,
-    *,
-    facility_id: str,
-    agent_id: str,
-    task_id: str,
-) -> None:
-    """Release one matching service slot after its typed completion event."""
-    facility = world.facilities.get(facility_id)
-    agent = world.agents.get(agent_id)
-    task = world.active_tasks.get(task_id)
-    if facility is None or "toilet" not in facility.kind.casefold():
-        raise ValueError(f"{facility_id!r} is not a toilet Facility")
-    if agent is None:
-        raise ValueError(f"Agent {agent_id!r} does not exist")
-    if task is None or task.kind != "toilet_service":
-        raise ValueError(f"toilet service task {task_id!r} is not active")
-    if task.agent_id != agent_id or task.resource_id != facility_id:
-        raise ValueError("toilet completion payload does not match its active task")
-    if agent.activity is not Activity.IN_SERVICE or agent.target_id != facility_id:
-        raise ValueError(f"Agent {agent_id!r} is not using Facility {facility_id!r}")
-    if facility.active_agent_ids.count(agent_id) != 1:
-        raise ValueError(f"Agent {agent_id!r} must occupy exactly one toilet service slot")
-
-    queue_request = finish_facility_queue_service(world, task_id, status="completed")
-    if queue_request is not None:
-        record_queue_transition(
-            world,
-            queue_request,
-            transition="completed",
-            task_id=task_id,
-            wait_minutes=task.start_minute - queue_request["requested_minute"],
-            causation_id=task_id,
-        )
-    facility.active_agent_ids.remove(agent_id)
-    if task.staff_id is not None:
-        staff_member = world.staff.get(task.staff_id)
-        if (
-            staff_member is None
-            or staff_member.active_task_id != task.id
-            or staff_member.work_queue != [task.id]
-            or staff_member.busy_until != task.due_minute
-        ):
-            raise StateInvariantError("toilet service staff reservation is inconsistent")
-        staff_member.active_task_id = None
-        staff_member.work_queue.clear()
-        staff_member.busy_until = 0
-    del world.active_tasks[task_id]
-    agent.activity = Activity.IDLE
-    agent.target_id = None
-    agent.needs.toilet_urgency = 0.0
-    world.metric_state["toilet_service_completed_count"] = (
-        world.metric_state.get("toilet_service_completed_count", 0.0) + 1.0
-    )

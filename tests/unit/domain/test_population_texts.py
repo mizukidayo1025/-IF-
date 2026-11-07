@@ -83,23 +83,18 @@ def _unchanged(rule: Any, world: WorldState, text: str, *arguments: Any, **optio
     assert _document(world) == before
 
 
-def _handler_says(world: WorldState, event: ScheduledEvent, text: str) -> None:
-    """The population handler (its kernel first) raises `text` with the world unchanged, as its
-    Python rule does on a copy."""
+def _handler_says(
+    world: WorldState, event: ScheduledEvent, text: str, kind: type = EventApplicationError
+) -> None:
+    """The population handler's kernel raises `kind` with `text`, its Python rule's outcome
+    (written down from it: the rule is gone, lane L10), with the world unchanged."""
     handler = EffectProgramPopulationHandler()
-    apply = type(handler).apply
-    python_rule = getattr(apply, "__wrapped__", apply)
-    twin = _copy(world)
     before = _document(world)
     with pytest.raises((EventSuppressed, EventApplicationError)) as made:
         handler.apply(world, event)
-    assert str(made.value) == text
+    assert (type(made.value), str(made.value)) == (kind, text)
     assert getattr(made.value, NATIVE_OUTCOME, False), f"the kernel refused: {made.value}"
     assert _document(world) == before
-    with pytest.raises((EventSuppressed, EventApplicationError)) as said:
-        python_rule(handler, twin, event)
-    assert type(made.value) is type(said.value)
-    assert str(made.value) == str(said.value)
 
 
 def _event(
@@ -810,6 +805,15 @@ def test_a_primitive_s_argument_the_rule_turns_into_its_text(world) -> None:
         _changed(event, payload={**payload, "household_size": None}),
         "population arrival household_size is outside its supported range",
     )
+
+
+def test_what_a_population_rule_s_kernel_leaves_goes_to_that_rule_s_python(world) -> None:
+    """A mobility of a type the kernel of `queue_arrivals` doesn't read: the handler's kernel calls
+    the function of domain/population.py, whose Python rule words it, as the handler's rule did."""
+    zone = _zone(world)
+    event = _arrival_program(world, zone)
+    changed = _changed(event, payload={**event.payload, "mobility": [1]})
+    _handler_says(world, changed, "population arrival mobility is invalid")
 
 
 def test_a_departure_primitive_the_rule_refuses_says_its_text(world) -> None:
