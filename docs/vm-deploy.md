@@ -61,7 +61,7 @@ sudo systemctl restart 'sheltersim@*'
 - Scenarioは、新しい画面の「例文を使う」が入れる文章（墨田区、地震、避難者100人、7日間）から、画面と同じ`scenario-preview`（offline parser）で作った合成のScenarioです。標準の合成施設（トイレ`toilet_01`〜`toilet_03`と`accessible_toilet_01`など）と人の座標を持つため、地図に人が表示されます。seedは2026です。地域の公開データの調べは、結果が日によって変わるため行いません（Scenarioの記録にその旨が残ります）。
 - そのRunを最後まで計算した`main`と、4日目14:00（5160分）に「Day 4 14:00 toilet_01 outage」を承認して分岐し、最後まで計算した分岐です。従来の画面の事前計算replay（`fixtures/demo_replay`）と同じ種類の比較を、新しい画面が読めるProjectの形で保存したものです。実際の避難所の記録や予測ではありません。
 - 新しい画面と同じProjectAPIの操作（Scenarioのプレビューと承認、終わりまでの計算、offline parserでの介入プレビュー、明示承認での適用、分岐の計算）で作ります。LLMはofflineに固定し、APIキーを渡さず、共有の利用台帳（`XDG_STATE_HOME`）にも触れません。同じアプリのcommitなら、何度作っても結果のhashは同じです。
-- `setup.sh`は、アプリのcommitが前回作ったときと違うときだけ、`sheltersim`利用者として`/var/lib/sheltersim/sample`に作り直します（`app-commit`にcommit、`sample-build.json`にRun ID・分岐・hash・大きさを残します）。その後、`sample`のないslotにだけコピーします。すでにあるslotの`sample`は、審査員が足した分岐を消さないよう置き換えません。新しいcommitの例に替えるときは、そのslotを`reset-slot.sh`で戻します。作らないときは`sudo SAMPLE=0 bash sheltersim-kit/deploy/vm/setup.sh`のように実行します（元も消します。slotのコピーは残ります）。
+- `setup.sh`は、`sheltersim`利用者として`/var/lib/sheltersim/sample`に作ります（`sample-build.json`にRun ID・分岐・hash・大きさを残します）。作り直すのは、今作ると結果が変わるときだけです。`build_project_sample.py --check`が計算せずに、作り方（文章・ID・分岐の時刻・介入）、文章から作るシナリオのhash、導入済みのモデルの署名とCheckpointに記録した署名を比べます。アプリを更新しても結果が変わらなければ、作り直しません。介入の文章をオフラインで読む規則を変えたときは比べないので、`SAMPLE=rebuild`を付けて作り直します。その後、`sample`のないslotにだけコピーします。すでにあるslotの`sample`は、審査員が足した分岐を消さないよう置き換えません。作り直した例に替えるときは、そのslotを`reset-slot.sh`で戻します。作らないときは`sudo SAMPLE=0 bash sheltersim-kit/deploy/vm/setup.sh`のように実行します（元も消します。slotのコピーは残ります）。
 - 入口のページは、各slotの「環境 n」の隣に「計算済みの例をすぐ見る」を置きます。リンク先は`/demo-v2?project=sample&run=<Run ID>&branch=main#simulation`（`sample-build.json`の`open_path`）で、元のシナリオの1日目00:00の画面が開きます。比較の画面で「比較を更新」を押すと、トイレが故障した分岐との比較が出ます。
 - 70783d6（履歴の索引の圧縮の後）で作ったときは、大きさ約3.6 GB（履歴の索引`history.sqlite`が約2.8 GB、Checkpointが約0.6 GB）、計算に約4分、メモリーは最大約3.5 GBでした。元と6つのslotのコピーで、ディスクを約25 GB使います。たとえば100 GBのディスクでは、slotの上限は(100−15−4)/6 = 13 GBになり、そのうち約3.6 GBを例のコピーが使います。上の手順どおり50 GBのディスクで作ると、slotの上限は5 GBで、例のほかに新しい7日分のRunを計算する余裕がありません。ディスクを増やすか、`SAMPLE=0`にします。slotごとにコピーするのは、計算や分岐で書き換わるファイル（履歴の索引、lock）をslotの間で共有しないためです。
 
@@ -72,7 +72,7 @@ sudo systemctl restart 'sheltersim@*'
 | slotの状態を見る | `systemctl status 'sheltersim@*'` |
 | slotのログを見る | `journalctl -u sheltersim@1 -f` |
 | slotを配布時のデータ（計算済みの例を含む）に戻す | `sudo /opt/sheltersim/reset-slot.sh 1` |
-| 計算済みの例を作り直す | `sudo rm -rf /var/lib/sheltersim/sample && sudo bash sheltersim-kit/deploy/vm/setup.sh`（slotへは`reset-slot.sh`で入れ直します） |
+| 計算済みの例を作り直す | `sudo SAMPLE=rebuild bash sheltersim-kit/deploy/vm/setup.sh`（slotへは`reset-slot.sh`で入れ直します） |
 | アプリを別のcommitに更新する | `cd sheltersim-kit && git pull && sudo bash deploy/vm/setup.sh` |
 | 使わない間に費用を止める | Cloud Shellで`gcloud compute instances stop sheltersim --zone=asia-northeast1-b`（固定IPとディスクの費用は残ります） |
 | すべて消す | `gcloud compute instances delete sheltersim --zone=asia-northeast1-b`、`gcloud compute addresses delete sheltersim-ip --region=asia-northeast1`、`gcloud compute firewall-rules delete sheltersim-web` |

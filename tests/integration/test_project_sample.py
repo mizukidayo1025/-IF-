@@ -153,3 +153,63 @@ def test_the_vm_landing_page_links_to_the_built_sample(
     page = capsys.readouterr().out
     href = html.escape(f"https://s1.example{summary['open_path']}")
     assert f'<a href="{href}">計算済みの例をすぐ見る</a>' in page
+
+
+def test_a_sample_is_rebuilt_only_when_a_build_now_would_give_another_result(
+    builder: dict[str, Any],
+    build: Callable[[str], dict[str, Any]],
+    generated_request: Callable[..., dict[str, Any]],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The VM's setup.sh asks --check before it rebuilds (docs/vm-deploy.md)."""
+    summary = build("sample")
+    differ = builder["sample_difference"]
+
+    def check(built: dict[str, Any], **plan: Any) -> str | None:
+        return differ(
+            tmp_path / "sample",
+            built,
+            **{
+                "text": "",
+                "request": generated_request(duration_days=END / 1440),
+                "fork_minute": FORK,
+                **plan,
+            },
+        )
+
+    # Another app commit with the same plan, Scenario and model: nothing to rebuild.
+    assert check(summary) is None
+    assert check(summary, fork_minute=FORK + 1) == "the plan changed: fork_minute, intervention"
+    other = json.loads(json.dumps(summary))
+    other["scenario"]["scenario_hash"] = "0" * 64
+    assert check(other) == "the Scenario the preview makes from the text changed"
+    # A model version the saved Checkpoints did not record makes the sample view-only.
+    from sheltersim.core import model_version
+
+    monkeypatch.setattr(model_version, "ENGINE_VERSION", "test-next")
+    assert check(summary).startswith("the model changed for branch main: engine:model")
+    monkeypatch.undo()
+    shutil.rmtree(tmp_path / "sample" / "sample")
+    monkeypatch.setenv("SHELTERSIM_LLM_MODE", "offline")
+    assert check(summary).startswith("branch main cannot be read")
+
+
+def test_the_check_command_answers_setup_sh_with_its_first_line_and_status(
+    builder: dict[str, Any],
+    build: Callable[[str], dict[str, Any]],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """setup.sh rebuilds unless --check prints `current`; this short sample was built from
+    another text than the example the command plans with."""
+    summary = build("sample")
+    path = tmp_path / "sample-build.json"
+    path.write_text(json.dumps(summary), encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["build", str(tmp_path / "sample"), "--check"])
+    assert builder["main"]() == 3
+    assert capsys.readouterr().out == "rebuild: the plan changed: fork_minute, intervention, text\n"
+    path.unlink()
+    assert builder["main"]() == 3
+    assert capsys.readouterr().out.startswith("rebuild: no readable summary")

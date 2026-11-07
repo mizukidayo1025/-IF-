@@ -130,12 +130,17 @@ def test_setup_builds_the_sample_where_reset_slot_and_the_slots_read_it() -> Non
     reset = (KIT / "reset-slot.sh").read_text(encoding="utf-8")
     paths = _setup_paths()
     assert paths["APP"] + "/" == APP
-    assert '"$APP/scripts/build_project_sample.py" "$SAMPLE_DIR.new/projects"' in setup
+    # One function runs the builder for the build and for --check, on a sample directory.
+    assert '"$VENV/bin/python" "$APP/scripts/build_project_sample.py" "$dir/projects"' in setup
+    assert '--summary "$dir/sample-build.json" "$@"' in setup
+    assert 'sample_builder "$SAMPLE_DIR.new" >/dev/null' in setup
+    # It is rebuilt only when --check does not answer current (or with SAMPLE=rebuild).
+    assert 'SAMPLE_STATE="$(sample_builder "$SAMPLE_DIR" --check || true)"' in setup
+    assert "if [[ $SAMPLE_STATE != current ]]; then" in setup
     # The build directory becomes SAMPLE_DIR; its Project is what both scripts copy.
     template = f"{paths['SAMPLE_DIR']}/projects/{builder['PROJECT_ID']}"
     assert f"sample={template}\n" in reset
     assert f'cp -a "$SAMPLE_DIR/projects/{builder["PROJECT_ID"]}"' in setup
-    assert '--summary "$SAMPLE_DIR.new/sample-build.json"' in setup
     assert 'SAMPLE_SUMMARY=("$SAMPLE_DIR/sample-build.json")' in setup
     # Both copy into the store that each slot's service opens.
     unit = (KIT / "sheltersim@.service").read_text(encoding="utf-8")
