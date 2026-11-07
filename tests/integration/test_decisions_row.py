@@ -24,6 +24,7 @@ from sheltersim.experiments.runner import OfflineSimulationController, run_scena
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _IndexedMetricSink, _MetricSink
 from sheltersim.policies.behavior import ActionProposal, WorldView
+from sheltersim.storage import history_payloads
 from sheltersim.storage.history_index import HistoryIndex
 
 pytestmark = pytest.mark.skipif(not native.available(), reason="only with the Rust kernels")
@@ -394,8 +395,9 @@ def test_an_index_reads_a_row_of_bytes_as_its_dict(
         timeline.advance("main", 30, checkpoint_interval=15)
         index = HistoryIndex(store, "p", "r")
         with index.connect() as db:
+            # Payloads compare as text: compressed bytes may differ between zlib builds.
             return [
-                tuple(row)
+                (*row[:-1], history_payloads.decode(row[-1]))
                 for row in db.execute(
                     "SELECT kind, key, minute, event_id, cause, source, event_type, status, payload"
                     " FROM records ORDER BY kind, key"

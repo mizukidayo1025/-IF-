@@ -120,6 +120,7 @@ def test_a_forked_branch_reads_the_rows_a_fresh_ingest_derives(
     parent's instead; what it reads equals the rows derived from its head from scratch."""
     import sqlite3
 
+    from sheltersim.storage import history_payloads
     from sheltersim.storage.history_index import HistoryIndex, _scope, _segments
 
     store, timeline = saved_timeline(tmp_path, generated_scenario)
@@ -132,9 +133,11 @@ def test_a_forked_branch_reads_the_rows_a_fresh_ingest_derives(
 
     def rows(branch):
         scope, args = _scope(_segments(db, branch))
+        # Payloads compare as text: compressed bytes may differ between zlib builds (#80).
         tables = {
             "records": sorted(
-                db.execute(
+                (kind, key, minute, history_payloads.decode(payload))
+                for kind, key, minute, payload in db.execute(
                     f"SELECT r.kind,r.key,r.minute,r.payload FROM records r WHERE {scope}", args
                 )
             )
