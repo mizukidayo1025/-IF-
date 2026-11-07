@@ -1,17 +1,42 @@
 """Print the judges' landing page: python3 render_landing.py <domain> <slots> [sample-build.json].
 
 With the summary that scripts/build_project_sample.py wrote, each slot also links to the
-precomputed sample in the new screen.
+precomputed sample in the new screen, and the page gives the computing time per day measured
+on this VM by that build: its build_seconds over the minutes it computed (the main branch and
+the branch from its fork minute). Without it, the page gives a time measured elsewhere.
 """
 
 import html
 import json
+import math
 import sys
 from pathlib import Path
 from urllib.parse import urlencode
 
+# Without a build on this VM: a 100-person generated Scenario on a 16-thread PC took about
+# 11 s a day and 93 s for 7 days (#80); a VM's vCPUs are slower, so twice that.
+FALLBACK_SECONDS_PER_DAY = 25.0
+
+
+def duration_text(seconds: float) -> str:
+    # Rounded up, so that the page does not promise less than it takes.
+    if seconds < 90:
+        return f"約{max(5, math.ceil(seconds / 5) * 5)}秒"
+    return f"約{math.ceil(seconds / 60)}分"
+
+
+def compute_note(seconds_per_day: float, measured: bool) -> str:
+    where = "（この環境で計測した目安）" if measured else "（目安）"
+    return (
+        f"新しく計算する場合、1日分は{duration_text(seconds_per_day)}、"
+        f"7日分は{duration_text(seconds_per_day * 7)}程度かかります{where}。"
+        "ほかの環境で同時に計算していると、長くなることがあります。"
+    )
+
+
 domain, slots = sys.argv[1], int(sys.argv[2])
 sample_path, sample_note = None, ""
+seconds_per_day, measured = FALLBACK_SECONDS_PER_DAY, False
 if len(sys.argv) > 3:
     sample = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
     query = urlencode(
@@ -30,6 +55,9 @@ if len(sys.argv) > 3:
         "を承認した分岐を、あらかじめ計算した結果です。計算を待たずに再生でき、"
         "分岐比較の画面で「比較を更新」を押すと2つを比べられます。"
     )
+    computed = 2 * sample["duration_minutes"] - fork
+    if sample.get("build_seconds") and computed > 0:
+        seconds_per_day, measured = sample["build_seconds"] * 1440 / computed, True
 
 
 def slot_item(n: int) -> str:
@@ -62,7 +90,7 @@ li {{ margin:.4rem 0; }}
 <ol>
 {links}
 </ol>
-<p class="note">{sample_note}新しく計算する場合、
-7日分は数分かかります。AI機能の利用額には上限があり、上限に達すると
+<p class="note">{sample_note}{html.escape(compute_note(seconds_per_day, measured))}
+AI機能の利用額には上限があり、上限に達すると
 AIを使わない処理に切り替わります。表示されるデータはすべて合成データです。</p>
 </body></html>""")

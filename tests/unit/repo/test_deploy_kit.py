@@ -159,3 +159,33 @@ def test_the_redirects_to_the_new_screen_keep_the_query() -> None:
     setup = (KIT / "setup.sh").read_text(encoding="utf-8")
     redirect = next(line for line in setup.splitlines() if "redir @older" in line)
     assert "/demo-v2{?query}" in redirect
+
+
+def test_the_landing_page_gives_the_computing_time_this_vm_measured(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The sample build on the VM computed 7 days and the branch from its fork minute; its
+    build_seconds give the time per day, rounded up. Without a build, a fixed estimate."""
+    builder = _builder()
+    summary = tmp_path / "sample-build.json"
+    summary.write_text(
+        json.dumps(
+            {
+                "project_id": builder["PROJECT_ID"],
+                "run_id": builder["RUN_ID"],
+                "open_branch_id": builder["OPEN_BRANCH_ID"],
+                "agent_count": 100,
+                "duration_minutes": 10080,
+                "fork_minute": 5160,
+                "intervention": {"text": "Day 4 14:00 toilet_01 outage"},
+                # 15000 computed minutes: 432 s is 41.5 s a day and 290 s for 7 days.
+                "build_seconds": 432.0,
+            }
+        ),
+        encoding="utf-8",
+    )
+    page = _landing(["d.example", "1", str(summary)], monkeypatch, capsys)
+    assert "1日分は約45秒、7日分は約5分程度かかります（この環境で計測した目安）" in page
+    assert "数分" not in page
+    page = _landing(["d.example", "1"], monkeypatch, capsys)
+    assert "1日分は約25秒、7日分は約3分程度かかります（目安）" in page
