@@ -42,7 +42,6 @@ from sheltersim.domain.staff_dynamics import (
 from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
-from sheltersim.policies.registry import StaffFatigueFormula
 
 KEY = STAFF_DYNAMICS_STATE_KEY
 IDS = ("S01", "S02", "S03")
@@ -343,17 +342,17 @@ def test_a_working_minute_is_the_formula_s_fatigue() -> None:
     assert _state(world)["staff"]["S02"] == {**_new_record(), "total_rest_minutes": 0}
 
 
-@pytest.mark.parametrize("model_id", ["staff-fatigue-linear-v1", "staff-fatigue-saturating-v1"])
-def test_a_fatigue_value_has_the_bits_of_the_python_formula(model_id: str) -> None:
-    formula = StaffFatigueFormula(model_id, "x", {})
+@pytest.mark.parametrize("saturating", [False, True])
+def test_a_fatigue_value_has_the_bits_of_the_formula(saturating: bool) -> None:
+    """`min(1.0, c / m)`, or `1.0 - exp(-c / m)` with the model's exp (the pinned libm)."""
+    exp = native.rules("parity").exp
     rng = random.Random(1)
     for _ in range(20_000):
         consecutive = rng.randrange(-5, 3_000)
         maximum = rng.randrange(1, 1_441)
-        expected = formula.fatigue(consecutive, maximum)
-        actual = _kernels().fatigue_value(
-            model_id == "staff-fatigue-saturating-v1", consecutive, maximum
-        )
+        fraction = consecutive / maximum
+        expected = 1.0 - exp([-fraction])[0] if saturating else min(1.0, fraction)
+        actual = _kernels().fatigue_value(saturating, consecutive, maximum)
         assert math.copysign(1.0, actual) == math.copysign(1.0, expected)
         assert actual.hex() == expected.hex()
 

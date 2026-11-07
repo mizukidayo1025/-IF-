@@ -74,10 +74,15 @@ class ExperimentInput(ExtensionModel):
 def _score(rows: list[dict[str, Any]], targets: list[ObservationTarget]) -> list[float]:
     if not targets:
         return []
+
+    def squared(value: float) -> float:
+        # A product, not `** 2`, which calls the platform's pow; an overflow is inf.
+        return value * value
+
     try:
         result = [
             sum(
-                obs.weight * ((row["metrics"][obs.metric] - obs.value) / obs.scale) ** 2
+                obs.weight * squared((row["metrics"][obs.metric] - obs.value) / obs.scale)
                 for obs in targets
             )
             / sum(obs.weight for obs in targets)

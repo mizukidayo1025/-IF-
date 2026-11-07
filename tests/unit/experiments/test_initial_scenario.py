@@ -16,6 +16,7 @@ import pytest
 from support.psychology import psychology_step
 from support.world import decisions_of
 
+from sheltersim import native
 from sheltersim.contracts.extensions import Point2D
 from sheltersim.contracts.policies import model_catalog, model_signatures
 from sheltersim.core.checkpoint import Checkpoint
@@ -71,6 +72,13 @@ from sheltersim.region.population import (
     OPERATOR_POPULATION_SOURCE_ID,
     SYNTHETIC_HOUSEHOLD_TEMPLATE_ID,
 )
+
+
+def _fatigue(configs: dict, consecutive: int, maximum: int) -> float:
+    """The selected staff fatigue equation, as the staff-dynamics kernel computes it."""
+    formula = create_staff_fatigue_formula(configs)
+    saturating = formula.model_id == "staff-fatigue-saturating-v1"
+    return native.rules("staff_dynamics").fatigue_value(saturating, consecutive, maximum)
 
 
 def _request(**policies: str) -> InitialScenarioRequest:
@@ -225,12 +233,12 @@ def test_selected_formula_overrides_reach_runtime_config_and_checkpoint_signatur
     changed_output = feedback(config["body_dynamics"])
     assert base_output > 0.0
     assert changed_output == pytest.approx(base_output * 4)
-    baseline_fatigue = create_staff_fatigue_formula(baseline.scenario.model_configs).fatigue(
-        150, baseline.scenario.model_configs["staff_dynamics"]["max_continuous_work_minutes"]
+    baseline_fatigue = _fatigue(
+        baseline.scenario.model_configs,
+        150,
+        baseline.scenario.model_configs["staff_dynamics"]["max_continuous_work_minutes"],
     )
-    changed_fatigue = create_staff_fatigue_formula(config).fatigue(
-        150, config["staff_dynamics"]["max_continuous_work_minutes"]
-    )
+    changed_fatigue = _fatigue(config, 150, config["staff_dynamics"]["max_continuous_work_minutes"])
     assert baseline_fatigue == pytest.approx(150 / 240)
     assert changed_fatigue == pytest.approx(150 / 300)
 
@@ -333,7 +341,7 @@ def test_per_staff_fatigue_parameter_is_typed_applied_and_checkpoint_signed() ->
     formula = create_staff_fatigue_formula(config)
     assert formula.maximum_minutes(240, staff_id) == 120
     assert formula.maximum_minutes(240, "other-staff") == 240
-    assert formula.fatigue(60, formula.maximum_minutes(240, staff_id)) == pytest.approx(0.5)
+    assert _fatigue(config, 60, formula.maximum_minutes(240, staff_id)) == pytest.approx(0.5)
 
     running_world = WorldState.from_scenario(customized.scenario)
     running_world.staff[staff_id].active_task_id = "synthetic-active-task"
