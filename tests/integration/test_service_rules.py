@@ -5,9 +5,10 @@ whole world in canonical JSON. benchmarks/rule_shadow/shadow_proposals.py does t
 the gate; here, the branches those runs may not reach, the configured values at what changes the
 result, and the state of resource_service_v1 (docs/rust-port/lanes/m4-service.md).
 
-The water and meal service has no Python rule left (lane L10, `kernel_only`): its cases compare the
-world with what the Python rule made, written down from it before it went (`_is_python_s`, a digest
-of the world, pinned on Linux as the gate's hashes are), and with what the rule says it writes.
+The water and meal service, `_route` and `_schedule_travel` have no Python rule left (lane L10,
+`kernel_only` and KERNEL_ONLY_SEGMENTS): their cases compare the world with what the Python rule
+made, written down from it before it went (`_is_python_s`, a digest of the world, pinned on Linux as
+the gate's hashes are), and with what the rule says it writes.
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ import pytest
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.state_mirror import rust_validated
 from sheltersim.core.world import StateInvariantError, WorldState
 from sheltersim.domain import movement
@@ -361,9 +363,11 @@ def test_a_request_of_the_run_s_last_minute_is_closed_at_once(
 
 
 def test_every_route_is_python_s_for_every_mobility(generated_scenario: Any) -> None:
+    """From each zone to each, for each mobility: the routes the Python rule found, their digest
+    taken from it (45a9bc9), pinned on Linux."""
     world, controller = _run(generated_scenario, 5)
-    kernel = native.rules("travel").route
     seen = set()
+    found = []
     for agent_id in sorted(world.agents):
         mobility = world.agents[agent_id].profile.mobility
         if mobility in seen:
@@ -371,10 +375,12 @@ def test_every_route_is_python_s_for_every_mobility(generated_scenario: Any) -> 
         seen.add(mobility)
         for origin in sorted(world.zones):
             for destination in sorted(world.zones):
-                result = kernel(controller, origin, destination, agent_id)
-                expected = ProposePhase._route(controller, origin, destination, agent_id)
-                assert repr(result) == repr(expected)
+                found.append(repr(controller._route(origin, destination, agent_id)))
     assert seen
+    assert len(found) == 192 and "None" not in found
+    if sys.platform == "linux":
+        digest = hashlib.sha256(json.dumps(found).encode("utf-8")).hexdigest()[:16]
+        assert digest == "c5d1362fa0212f15"
 
 
 def test_an_equal_time_goes_to_the_lower_edge_id(generated_scenario: Any) -> None:
@@ -399,7 +405,8 @@ def test_an_equal_time_goes_to_the_lower_edge_id(generated_scenario: Any) -> Non
     )
     route = kernel(controller, zones[0], zones[3], agent_id)
     assert route.edge_ids == ("a-c", "n-d")
-    assert repr(route) == repr(ProposePhase._route(controller, zones[0], zones[3], agent_id))
+    # As the Python rule found it.
+    assert (route.zone_ids, route.travel_minutes) == ((zones[0], zones[2], zones[3]), 4)
 
 
 def test_an_edge_capacity_is_counted_and_another_policy_goes_to_python(
@@ -423,13 +430,10 @@ def test_an_edge_capacity_is_counted_and_another_policy_goes_to_python(
         kernel(controller, zone, zone, agent_id)
 
 
-def _travel_same(world: WorldState, controller: Any, **options: Any) -> Any:
-    twin = copy.deepcopy(world)
-    python_controller = _controller(twin)
-    result = native.rules("travel").schedule_travel(controller, **options)
-    expected = ProposePhase._schedule_travel(python_controller, **options)
-    assert result is expected
-    _same_world(world, twin)
+def _travel(world: WorldState, controller: Any, digest: str, **options: Any) -> Any:
+    """`_schedule_travel`, which leaves the world the Python rule left: `digest`."""
+    result = controller._schedule_travel(**options)
+    _is_python_s(world, digest)
     return result
 
 
@@ -454,18 +458,20 @@ def test_a_trip_and_each_limit_are_python_s(generated_scenario: Any) -> None:
     # The zone is full, counting who walks there.
     capacity = world.zones[destination].capacity
     world.zones[destination].capacity = 0
-    assert _travel_same(world, controller, **common) is False
+    assert _travel(world, controller, "167bbd68b5a94255", **common) is False
     world.zones[destination].capacity = capacity
     # It ends past the run.
     saved = world.duration_minutes
     world.duration_minutes = world.minute_index + route.travel_minutes
-    assert _travel_same(world, controller, **common) is False
+    assert _travel(world, controller, "623e47f172d00aff", **common) is False
     world.duration_minutes = saved
-    assert _travel_same(world, controller, **common) is True
+    assert _travel(world, controller, "80054702e0e729ce", **common) is True
     assert world.agents[first].activity is Activity.MOVING
 
 
 def test_a_trip_refused_writes_nothing(generated_scenario: Any) -> None:
+    """The Python rule's errors, raised before anything is written (that rule allocated a sequence
+    before the second; the kernel does not)."""
     world, controller = _run(generated_scenario, 5)
     first = _idle_people(world, 1)[0]
     origin = world.agents[first].zone_id
@@ -475,23 +481,62 @@ def test_a_trip_refused_writes_nothing(generated_scenario: Any) -> None:
         if zone != origin and controller._route(origin, zone, first)
     )
     route = controller._route(origin, destination, first)
-    before = _bytes(world)
-    kernel = native.rules("travel").schedule_travel
+    before = (_bytes(world), dict(world.id_counters))
     options = {
         "agent_id": first,
         "route": route,
         "purpose": "return",
         "facility_id": None,
         "minute": world.minute_index,
+        "validate_state": False,
     }
-    with pytest.raises(native.Unsupported, match="whole validation"):
-        kernel(controller, **options, validate_state=True)
-    with pytest.raises(native.Unsupported, match="support trip"):
-        kernel(controller, **{**options, "purpose": "staff_support_travel"}, validate_state=False)
+    with pytest.raises(
+        ValueError, match="^staff support travel requires request and staff IDs$"
+    ) as made:
+        controller._schedule_travel(**{**options, "purpose": "staff_support_travel"})
+    assert type(made.value) is ValueError
     other = next(item for item in sorted(world.agents) if world.agents[item].zone_id != origin)
-    with pytest.raises(native.Unsupported, match="starts elsewhere"):
-        kernel(controller, **{**options, "agent_id": other}, validate_state=False)
-    assert _bytes(world) == before
+    with pytest.raises(ValueError, match="^travel route origin does not match Agent zone$") as made:
+        controller._schedule_travel(**{**options, "agent_id": other})
+    assert type(made.value) is ValueError
+    with pytest.raises(KernelRefusal, match="^travel.schedule_travel refused: "):
+        controller._schedule_travel(**{**options, "agent_id": "nobody"})
+    assert (_bytes(world), dict(world.id_counters)) == before
+
+
+def test_a_trip_validates_the_whole_world_when_asked_to(generated_scenario: Any) -> None:
+    """With `validate_state`, as by default, `world.validate()` after the trip is written."""
+    world, controller = _run(generated_scenario, 5)
+    first, moved, second = _idle_people(world, 3)
+    origin = world.agents[first].zone_id
+    destination = next(
+        zone
+        for zone in sorted(world.zones)
+        if zone != origin and controller._route(origin, zone, first)
+    )
+    options = {
+        "route": controller._route(origin, destination, first),
+        "purpose": "return",
+        "facility_id": None,
+        "minute": world.minute_index,
+    }
+    assert controller._schedule_travel(agent_id=first, **options) is True
+    assert world.agents[first].activity is Activity.MOVING
+    # Someone moved by hand, which the whole validation turns down.
+    assert _at_facility(world)[1] == moved
+    with pytest.raises(StateInvariantError) as validated:
+        world.validate()
+    origin = world.agents[second].zone_id
+    destination = next(
+        zone
+        for zone in sorted(world.zones)
+        if zone != origin and controller._route(origin, zone, second)
+    )
+    options["route"] = controller._route(origin, destination, second)
+    with pytest.raises(StateInvariantError) as ours:
+        controller._schedule_travel(agent_id=second, **options, validate_state=True)
+    assert str(ours.value) == str(validated.value)
+    assert world.agents[second].activity is Activity.MOVING
 
 
 # ---- arbitrate ----------------------------------------------------------------------------------

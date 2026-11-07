@@ -8,19 +8,11 @@ from typing import Any
 from sheltersim.core.engine import TraceLevel
 from sheltersim.core.rng import KeyedRandom
 from sheltersim.core.world import WorldState
-from sheltersim.domain.care_receipts import (
-    ingest_applied_shared_operation_records,
-    make_staff_support_continuity_record,
-)
 from sheltersim.domain.distress_monitor import record_distress_monitor_tick
-from sheltersim.domain.geometry_overlay import release_sleep_bed, reserve_sleep_bed
-from sheltersim.domain.models import Activity, SupportRequestStatus
-from sheltersim.domain.movement import MOVEMENT_STATE_KEY, advance_movement, finish_movement
+from sheltersim.domain.movement import MOVEMENT_STATE_KEY, advance_movement
 from sheltersim.domain.psychological_state import PSYCHOLOGICAL_STATE_KEY
-from sheltersim.events.models import EventKind, EventLogRecord, EventStatus, ScheduledEvent
 from sheltersim.experiments.phases.segments import no_python_step
 from sheltersim.policies.psychology import PsychologyUpdateResult, apply_state_deltas
-from sheltersim.policies.space import ZoneRoute
 from sheltersim.policies.world_view import WorldView
 
 
@@ -147,289 +139,31 @@ class UpdatePhase:
         self._replan_journeys(state, advance_movement(self.world, minute), minute)
 
     def _replan_journeys(self, state: Any, agent_ids: Any, minute: int) -> None:
-        """The people whose route changed, from the state read before it advanced."""
-        self._replan_in_python(state, agent_ids, minute)
+        """New routes for the people whose route changed, which native/src/rules/replan.rs plans.
 
-    def _replan_in_python(self, state: Any, agent_ids: Any, minute: int) -> None:
-        """The whole of `_replan_journeys`, for those its kernel has not started on."""
-        for agent_id in agent_ids:
-            journey = dict(state["journeys"].get(agent_id, {}))
-            agent = self.world.agents.get(agent_id)
-            if not journey or agent is None:
-                continue
-            old_event = next(
-                (
-                    event
-                    for event in self.world.event_queue.pending()
-                    if event.event_id == journey["event_id"]
-                ),
-                None,
-            )
-            if old_event is not None:
-                self.world.event_queue.remove(old_event.event_id)
-                self.world.event_log.append(
-                    EventLogRecord(
-                        event=old_event,
-                        realized_minute=minute,
-                        status=EventStatus.SUPPRESSED,
-                        detail="the route changed before travel completion",
-                    )
-                )
-            self.world.active_tasks.pop(journey["task_id"], None)
-            old_position = state["positions"].get(agent_id, {})
-            agent.zone_id = old_position.get("zone_id", agent.zone_id)
-            agent.activity = Activity.IDLE
-            agent.target_id = None
-            # Keep the last applied physical point while planning the replacement path.
-            # For a same-zone facility move, the new in-room route therefore begins
-            # at the stopped actor position instead of a zone-centre placeholder.
-            state["journeys"].pop(agent_id, None)
-            self._replan_stopped(state, agent_id, journey, minute)
+        `agent_ids` are those `advance_movement` returned, in that order; `state` is
+        `world.model_state["movement_v1"]`. For each one with a journey: the old trip stops (its
+        pending event SUPPRESSED with "the route changed before travel completion", its task gone,
+        the person IDLE at the zone of their position with no target, the journey removed), and
+        then, from where that left them:
 
-    def _replan_stopped(
-        self, state: Any, agent_id: str, journey: dict[str, Any], minute: int
-    ) -> None:
-        """A new route for one person, whose old trip has just been stopped."""
-        agent = self.world.agents[agent_id]
-        target_zone = journey["destination_zone_id"]
-        facility_id = journey.get("facility_id")
-        if journey.get("purpose") == "staff_support_travel":
-            if not self._replan_staff_support_trip(agent_id, journey, minute):
-                self.world.metric_state["movement_replan_blocked_count"] = (
-                    self.world.metric_state.get("movement_replan_blocked_count", 0.0) + 1.0
-                )
-            self.world.metric_state["movement_replan_count"] = (
-                self.world.metric_state.get("movement_replan_count", 0.0) + 1.0
-            )
-            return
-        if journey.get("purpose") == "sleep_bed":
-            reservation = reserve_sleep_bed(self.world, agent_id)
-            if reservation is not None and reservation["travel_minutes"] > 0:
-                route = ZoneRoute(
-                    origin_zone_id=agent.zone_id,
-                    destination_zone_id=agent.zone_id,
-                    zone_ids=(agent.zone_id, agent.zone_id),
-                    edge_ids=(),
-                    travel_minutes=reservation["travel_minutes"],
-                )
-                scheduled = self._schedule_travel(
-                    agent_id=agent.id,
-                    route=route,
-                    route_points=reservation["route_points"],
-                    purpose="sleep_bed",
-                    facility_id=None,
-                    minute=minute,
-                    causation_id=journey["event_id"],
-                    validate_state=False,
-                )
-                if scheduled:
-                    self.world.metric_state["movement_replan_count"] = (
-                        self.world.metric_state.get("movement_replan_count", 0.0) + 1.0
-                    )
-                    return
-            if reservation is None or reservation["travel_minutes"] > 0:
-                self.world.metric_state["movement_replan_blocked_count"] = (
-                    self.world.metric_state.get("movement_replan_blocked_count", 0.0) + 1.0
-                )
-                release_sleep_bed(self.world, agent_id)
-            else:
-                state["positions"][agent_id].update(
-                    {
-                        "zone_id": agent.zone_id,
-                        "point": reservation["point"].model_dump(mode="json"),
-                        "edge_id": None,
-                        "progress": 1.0,
-                        "position_kind": "physical",
-                    }
-                )
-            agent.activity = Activity.SLEEPING
-            agent.target_id = None
-            self.world.metric_state["movement_replan_count"] = (
-                self.world.metric_state.get("movement_replan_count", 0.0) + 1.0
-            )
-            return
-        if facility_id in self.world.facilities:
-            target_zone = self.world.facilities[facility_id].zone_id
-            if agent.zone_id == target_zone:
-                room_route = self._facility_approach(agent_id, facility_id)
-                if room_route is not None and room_route[1]:
-                    if room_route[0].travel_minutes > 0 and len(room_route[1]) > 1:
-                        self._schedule_travel(
-                            agent_id=agent_id,
-                            route=room_route[0],
-                            route_points=room_route[1],
-                            purpose=journey["purpose"],
-                            facility_id=facility_id,
-                            minute=minute,
-                            causation_id=journey["event_id"],
-                            validate_state=False,
-                        )
-                    else:
-                        state["positions"][agent_id] = {
-                            "zone_id": agent.zone_id,
-                            "point": room_route[1][-1].model_dump(mode="json"),
-                            "edge_id": None,
-                            "progress": 0.0,
-                            "position_kind": "physical",
-                        }
-                else:
-                    self.world.metric_state["movement_replan_blocked_count"] = (
-                        self.world.metric_state.get("movement_replan_blocked_count", 0.0) + 1.0
-                    )
-                self.world.metric_state["movement_replan_count"] = (
-                    self.world.metric_state.get("movement_replan_count", 0.0) + 1.0
-                )
-                return
-        route = self._route(agent.zone_id, target_zone, agent_id)
-        if route is not None and route.edge_ids:
-            self._schedule_travel(
-                agent_id=agent_id,
-                route=route,
-                purpose=journey["purpose"],
-                facility_id=facility_id,
-                minute=minute,
-                causation_id=journey["event_id"],
-                validate_state=False,
-            )
-        else:
-            self.world.metric_state["movement_replan_blocked_count"] = (
-                self.world.metric_state.get("movement_replan_blocked_count", 0.0) + 1.0
-            )
-        self.world.metric_state["movement_replan_count"] = (
-            self.world.metric_state.get("movement_replan_count", 0.0) + 1.0
-        )
+        - a `staff_support_travel` trip walks again to the assigned staff (`_route`,
+          `_schedule_travel`) and the support's completion moves after it, or, with no route or no
+          time left, the completion is SUPPRESSED, the staff member freed, and the request
+          UNRESOLVED (at its timeout) or PENDING again, with a continuity record
+          "route_unreachable"; a request no longer ASSIGNED with its task raises
+          ValueError("replanned resident trip lost its assigned support task"), a completion not
+          the task's one ValueError("replanned resident trip has inconsistent support completion");
+        - a `sleep_bed` trip reserves a bed again and walks there, or lies down where it is, or,
+          with no bed, releases it; the person is SLEEPING;
+        - a trip to a facility in the person's zone takes the room's approach path, and any
+          other trip a new route of `_route` to the facility's or destination zone.
 
-    def _replan_staff_support_trip(
-        self, agent_id: str, journey: dict[str, Any], minute: int
-    ) -> bool:
-        """Re-route an assigned resident or requeue support if its route closed."""
-        world = self.world
-        request_id = journey.get("support_request_id")
-        request = world.support_requests.get(request_id) if isinstance(request_id, str) else None
-        agent = world.agents.get(agent_id)
-        staff = world.staff.get(request.assigned_staff_id or "") if request is not None else None
-        task = world.active_tasks.get(request.task_id or "") if request is not None else None
-        if (
-            request is None
-            or request.status is not SupportRequestStatus.ASSIGNED
-            or agent is None
-            or staff is None
-            or task is None
-            or task.kind != "staff_support"
-        ):
-            raise ValueError("replanned resident trip lost its assigned support task")
-        completions = [
-            event
-            for event in world.event_queue.pending()
-            if event.event_type == "staff_support_complete"
-            and event.payload.get("task_id") == task.id
-        ]
-        if len(completions) != 1 or completions[0].due_minute != task.due_minute:
-            raise ValueError("replanned resident trip has inconsistent support completion")
-        previous_completion = completions[0]
-        service_minutes = task.due_minute - task.start_minute
-        route = self._route(agent.zone_id, staff.zone_id, agent.id)
-        due_minute = minute + (route.travel_minutes if route is not None else 0) + service_minutes
-        can_schedule = route is not None and due_minute < world.duration_minutes
-        if can_schedule and route is not None and route.travel_minutes > 0:
-            can_schedule = self._schedule_travel(
-                agent_id=agent.id,
-                route=route,
-                purpose="staff_support_travel",
-                facility_id=None,
-                minute=minute,
-                causation_id=journey.get("event_id"),
-                support_request_id=request.id,
-                support_staff_id=staff.id,
-                validate_state=False,
-            )
-        elif can_schedule:
-            agent.activity = Activity.SEEKING_HELP
-            agent.target_id = None
-        if can_schedule:
-            world.event_queue.remove(previous_completion.event_id)
-            world.event_log.append(
-                EventLogRecord(
-                    event=previous_completion,
-                    realized_minute=minute,
-                    status=EventStatus.SUPPRESSED,
-                    detail="support completion was rescheduled after a route change",
-                )
-            )
-            sequence = world.allocate_event_sequence()
-            task.start_minute = minute + (route.travel_minutes if route is not None else 0)
-            task.due_minute = due_minute
-            staff.busy_until = due_minute
-            world.schedule_event(
-                ScheduledEvent(
-                    event_id=f"staff-support-complete-{sequence}",
-                    kind=EventKind.COMPLETION,
-                    due_minute=due_minute,
-                    priority=0,
-                    sequence=sequence,
-                    event_type="staff_support_complete",
-                    payload={
-                        "request_id": request.id,
-                        "agent_id": agent.id,
-                        "staff_id": staff.id,
-                        "task_id": task.id,
-                        "support_duration_minutes": service_minutes,
-                    },
-                    source_id=task.id,
-                    causation_id=journey.get("event_id"),
-                    provenance={
-                        "source_type": "assumption",
-                        "source_id": "ASM-STAFF-SUPPORT-LIFECYCLE-V1",
-                        "policy_version": self.staff_service.policy_version,
-                        "rescheduled_after_route_change": True,
-                    },
-                )
-            )
-            return True
+        Each person adds 1 to `movement_replan_count`, and 1 to `movement_replan_blocked_count`
+        when no route or bed was found.
 
-        world.event_queue.remove(previous_completion.event_id)
-        world.event_log.append(
-            EventLogRecord(
-                event=previous_completion,
-                realized_minute=minute,
-                status=EventStatus.SUPPRESSED,
-                detail="support completion was cancelled because the staff route is unavailable",
-            )
-        )
-        del world.active_tasks[task.id]
-        staff.work_queue.clear()
-        staff.active_task_id = None
-        staff.busy_until = 0
-        request.assigned_staff_id = None
-        request.task_id = None
-        agent.target_id = None
-        if request.timeout_minute <= minute:
-            request.status = SupportRequestStatus.UNRESOLVED
-            request.resolved_minute = minute
-            request.cooldown_until = minute + self.staff_service.cooldown_minutes
-            agent.activity = Activity.IDLE
-            agent.support_request_id = None
-            agent.support_cooldown_until = request.cooldown_until
-            world.metric_state["support_unresolved_count"] = (
-                world.metric_state.get("support_unresolved_count", 0.0) + 1.0
-            )
-            continuity_status = "unresolved"
-        else:
-            request.status = SupportRequestStatus.PENDING
-            agent.activity = Activity.SEEKING_HELP
-            agent.support_request_id = request.id
-            continuity_status = "requeued"
-        continuity = make_staff_support_continuity_record(
-            world,
-            request_id=request.id,
-            agent_id=agent.id,
-            task_id=task.id,
-            previous_staff_id=staff.id,
-            status=continuity_status,
-            causation_id=journey.get("event_id") or task.id,
-            cause_type="route_unreachable",
-        )
-        world.event_log.append(continuity)
-        ingest_applied_shared_operation_records(world, (continuity,))
-        finish_movement(world, agent.id)
-        return False
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        before the first stop raises KernelRefusal, and after it a RuntimeError, since a stop
+        is written.
+        """
+        raise no_python_step("_replan_journeys")

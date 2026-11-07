@@ -65,11 +65,6 @@ NOT_INSERTED_INTO_STATE: dict[tuple[str, str, str], str] = {
     ("domain/staff_operations.py", "order_staff_operation", "task_id"): "a str",
     ("events/queue.py", "__deepcopy__", "copied"): "deepcopy's memo",
     ("experiments/metrics.py", "capture", "snapshot"): "a MetricSnapshot in MetricsRecorder",
-    (
-        "experiments/phases/propose.py",
-        "_physically_closed_edges",
-        "closed",
-    ): "memo of the controller",
     ("policies/world_view.py", "_zone_environment", "view"): "memo of a parsed view",
 }
 # Not state either: a validation memo in __dict__, and memos of parsed views and of people's

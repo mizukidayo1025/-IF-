@@ -4,7 +4,8 @@ The kernel runs on the world first, and the Python step then runs on a copy made
 copies of the people, the bed reservations and the event counter, and a list of what it schedules.
 The result, what those hold and each event's repr must come out the same. What the kernel refuses
 isn't compared: the Python step runs on the world then. A trip, and sleep where a room may have a
-bed, run the Python step first, since the kernel changes the movement state it reads.
+bed, are not compared: their Python step goes through `_route` and `_schedule_travel`, which have
+no Python step left (lane L10).
 """
 
 from __future__ import annotations
@@ -14,7 +15,6 @@ from typing import Any
 
 from shadow_handlers import seek_shadow
 from shadow_kit import Recorder, text, values_in
-from shadow_service import _ServiceTwin, compare_after, controller_stand_in
 
 TRIPS = {"request_toilet", "fetch_water", "collect_meal"}
 SEEKS = {"seek_help", "seek_information"}
@@ -64,17 +64,8 @@ def prepare(output: str) -> None:
     seek = seek_shadow(kernel)
 
     def trip(controller: Any, proposal: Any, action: str) -> Any:
-        """The Python step first, on a copy of all that a trip or its refusal writes."""
-        world = controller.world
-        twin = _ServiceTwin(world)
-        pending_before = len(world.event_queue.pending())
-        stand_in = controller_stand_in(controller, twin)
-        error = None
-        expected = None
-        try:
-            expected = stand_in._apply_effect(proposal)
-        except Exception as raised:  # noqa: BLE001 - only compared with what the kernel does
-            error = raised
+        """The kernel alone: a trip's Python step goes through `_route` and `_schedule_travel`,
+        which have no Python step left to run on a copy (KERNEL_ONLY_SEGMENTS, lane L10)."""
         try:
             result = kernel(controller, proposal)
         except unsupported as reason:
@@ -83,22 +74,6 @@ def prepare(output: str) -> None:
         recorder.seen["kernel_ran"] += 1
         recorder.seen[f"action.{action}"] += 1
         recorder.seen[f"action.{action}.{'moves' if result[0] else 'stays'}"] += 1
-        where = f"{action} of {proposal.agent_id} at {world.minute_index}"
-        if error is not None:
-            recorder.differ(f"{where}: the kernel took what Python turned down: {error!r:.300}")
-            return result
-        if text(list(result)) != text(list(expected)):
-            recorder.differ(f"{where}: returned {result!r:.100}, not {expected!r:.100}")
-        for key, agent in world.agents.items():
-            if agent.next_decision_at != twin.__dict__["agents"][key].next_decision_at:
-                recorder.differ(f"{where}: {key}'s next decision")
-        compare_after(recorder, where, world, twin, pending_before)
-        overlay = world.model_state.get(OVERLAY)
-        if isinstance(overlay, dict):
-            mine = text(overlay.get("bed_reservations"))
-            if mine != text(twin.__dict__["model_state"][OVERLAY].get("bed_reservations")):
-                recorder.differ(f"{where}: the bed reservations")
-            recorder.seen["beds_compared"] += 1
         return result
 
     def apply_effect(controller: Any, proposal: Any) -> Any:

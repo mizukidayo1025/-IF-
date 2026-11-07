@@ -8,11 +8,13 @@ from typing import Any
 from sheltersim import native
 from sheltersim.core.kernels import kernel_only
 from sheltersim.core.world import WorldState
-from sheltersim.domain.action_lifecycle import (
+
+# native/src/rules/dispatch.rs calls these four through this module, so a test's patch here shows.
+from sheltersim.domain.action_lifecycle import (  # noqa: F401
     record_applied_action_completion,
     record_applied_population_exit,
 )
-from sheltersim.domain.agent_dynamics import learn_facility
+from sheltersim.domain.agent_dynamics import learn_facility  # noqa: F401
 from sheltersim.domain.care_receipts import ingest_applied_shared_operation_records
 from sheltersim.domain.information import INFORMATION_SPREAD_STATE_KEY
 from sheltersim.domain.models import (
@@ -23,31 +25,36 @@ from sheltersim.domain.models import (
     TypedMessage,
 )
 from sheltersim.domain.movement import MOVEMENT_STATE_KEY, finish_movement
-from sheltersim.domain.population import admit_pending_arrivals
+from sheltersim.domain.population import admit_pending_arrivals  # noqa: F401
 from sheltersim.domain.population_lifecycle import current_household_id
 from sheltersim.domain.staff_operations import interrupt_staff_trips_on_closed_routes
-from sheltersim.events.models import EventStatus, ScheduledEvent
+from sheltersim.events.models import ScheduledEvent
+from sheltersim.experiments.phases.segments import no_python_step
 
 
 class DispatchPhase:
     """Steps of TickPhase.DISPATCH_DUE_EVENTS, a mixin of OfflineSimulationController."""
 
     def _run_dispatch_phase(self, world: WorldState, minute: int) -> None:
-        outcomes = self._dispatch_due_events(world, minute)
-        self._record_applied_outcomes(world, outcomes, minute)
-        self._refresh_space_after_geometry_change(outcomes)
-        self._interrupt_trips_on_closed_routes(world, outcomes)
-        self._admit_pending_returns(world, minute)
-        self._sync_movement_after_events()
-        admit_pending_arrivals(world, minute)
-        self._consider_social_contact_events(outcomes)
+        """Apply what is due at `minute` and what follows: native/src/rules/dispatch.rs.
 
-    def _dispatch_due_events(self, world: WorldState, minute: int) -> tuple[Any, ...]:
-        return self.event_dispatcher.dispatch_due(
-            world,
-            minute,
-            after_event=lambda records: ingest_applied_shared_operation_records(world, records),
-        )
+        Each event due now goes through `event_dispatcher` in queue order, the shared operation
+        records of each one to `ingest_applied_shared_operation_records`; an event the table of
+        dispatch.rs has no Rust function for, or that changed in the queue, through
+        `_dispatch_one_event`. Then, for each APPLIED event: `record_applied_action_completion` and
+        `record_applied_population_exit`; for `agent_travel_complete`, `learn_facility` of its
+        person and facility when both are str, and `_record_staff_support_started` for a
+        `staff_support_travel` trip; for `support_request_timeout`, `_record_request_interrupted`.
+        `_refresh_space` once if a geometry or structure event applied, `_interrupt_trips_of_event`
+        for each applied geometry event, `_admit_pending_returns`, `_sync_movement_after_events`,
+        `admit_pending_arrivals`, and `_consider_social_contact_event` for each applied
+        `information_contact_update`.
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        before the first event raises KernelRefusal: a dispatcher of another class, a negative
+        minute, an event queue or counters it cannot read. Past that, a refusal is a RuntimeError.
+        """
+        raise no_python_step("_run_dispatch_phase")
 
     def _dispatch_one_event(
         self, world: WorldState, event: ScheduledEvent, minute: int
@@ -59,27 +66,6 @@ class DispatchPhase:
             minute,
             after_event=lambda records: ingest_applied_shared_operation_records(world, records),
         )
-
-    def _record_applied_outcomes(
-        self, world: WorldState, outcomes: tuple[Any, ...], minute: int
-    ) -> None:
-        for outcome in outcomes:
-            if outcome.status is EventStatus.APPLIED:
-                record_applied_action_completion(
-                    world, outcome.event, minute, active_actions=self.active_actions
-                )
-                record_applied_population_exit(
-                    world, outcome.event, minute, active_actions=self.active_actions
-                )
-                if outcome.event.event_type == "agent_travel_complete":
-                    agent_id = outcome.event.payload.get("agent_id")
-                    facility_id = outcome.event.payload.get("facility_id")
-                    if isinstance(agent_id, str) and isinstance(facility_id, str):
-                        learn_facility(world, agent_id, facility_id)
-                    if outcome.event.payload.get("purpose") == "staff_support_travel":
-                        self._record_staff_support_started(world, outcome.event)
-                if outcome.event.event_type == "support_request_timeout":
-                    self._record_request_interrupted(world, outcome.event)
 
     @kernel_only("support", "record_started")
     def _record_staff_support_started(self, world: WorldState, event: ScheduledEvent) -> None:
@@ -100,27 +86,6 @@ class DispatchPhase:
         timeout event as the causation, and the person's sources. Nothing for an event without a
         request.
         """
-
-    def _refresh_space_after_geometry_change(self, outcomes: tuple[Any, ...]) -> None:
-        geometry_changed = any(
-            outcome.status is EventStatus.APPLIED
-            and outcome.event.event_type
-            in {
-                "effect_program_geometry",
-                "effect_program_geometry_expire",
-                "effect_program_structure",
-            }
-            for outcome in outcomes
-        )
-        if geometry_changed:
-            self._refresh_space()
-
-    def _interrupt_trips_on_closed_routes(
-        self, world: WorldState, outcomes: tuple[Any, ...]
-    ) -> None:
-        for outcome in outcomes:
-            if outcome.status is EventStatus.APPLIED:
-                self._interrupt_trips_of_event(world, outcome.event)
 
     def _interrupt_trips_of_event(self, world: WorldState, event: ScheduledEvent) -> None:
         parameters = event.payload.get("parameters", {})
@@ -185,12 +150,6 @@ class DispatchPhase:
                     "position_kind": "physical",
                 }
             )
-
-    def _consider_social_contact_events(self, outcomes: tuple[Any, ...]) -> None:
-        """Use only successfully applied local contacts as social interaction triggers."""
-        for outcome in outcomes:
-            if outcome.status is EventStatus.APPLIED:
-                self._consider_social_contact_event(outcome.event)
 
     def _consider_social_contact_event(self, event: ScheduledEvent) -> None:
         if self.social_policy is None or event.event_type != "information_contact_update":

@@ -115,7 +115,6 @@ class OfflineSimulationController(
         require_tickable(world, "simulated")
         self.world = world
         self._person_contexts: dict[str, Any] = {}
-        self._closed_edges: dict[str, tuple[Any, set[str]]] = {}
         self.active_actions = active_action_store(world)
         # The update phase's view, from which the next phase's view is made.
         self._view_before_proposals: WorldView | None = None

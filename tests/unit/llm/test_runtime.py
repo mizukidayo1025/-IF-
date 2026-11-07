@@ -333,7 +333,7 @@ def test_information_reaction_records_verification_request_without_rewriting_bel
     router = make_router("seek_claim_verification")
     controller = OfflineSimulationController(world, artifacts, llm_router=router)
 
-    controller._consider_social_contact_events((contact_record,))
+    controller._consider_social_contact_event(contact_record.event)
 
     proposal_event = next(
         item for item in world.event_queue.pending() if item.event_type == "social_interaction"

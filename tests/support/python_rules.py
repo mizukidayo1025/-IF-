@@ -85,8 +85,6 @@ PORTED_NAMES = frozenset(
         # travel.rs, support.rs. A test reaches a `kernel_first` rule through `__wrapped__`.
         "_maintenance_blocked",
         "shared_passage_edge_loads",
-        "_active_route_edge_loads",
-        "_record_route_capacity_wait",
         "_current_journey_edge",
         # domain/common_operations.py: rules/common_operations.rs, likewise.
         "_event_payload_matches",
@@ -124,11 +122,6 @@ PORTED_NAMES = frozenset(
         "update_psychological_state",
         # experiments/phases/dispatch.py, the rules it calls: rules/dispatch.rs. An event type's
         # handler is read at each event, and a patch of a class's `apply` shows there.
-        "_dispatch_due_events",
-        "_record_applied_outcomes",
-        "_refresh_space_after_geometry_change",
-        "_interrupt_trips_on_closed_routes",
-        "_consider_social_contact_events",
         "effect_event_guard_or_suppress",
         "should_apply_effect_guard",
         "record_social_event",

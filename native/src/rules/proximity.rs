@@ -1,5 +1,6 @@
-//! `DistanceSampledProximityPolicy.sample` (`policies/proximity.py`) and the step that schedules what
-//! it finds, `_sample_proximity_contacts` (`experiments/phases/sample.py`). The positions come from the
+//! The sampling of `DistanceSampledProximityPolicy` (`policies/proximity.py`) and the step that
+//! schedules what it finds, `_sample_proximity_contacts` (`experiments/phases/sample.py`), which have no
+//! Python rule left (lane L10). The positions come from the
 //! row of `movement_v1`; a tainted row (an int coordinate, which validation accepts) from its tree.
 //! A coordinate whose cell does not fit an i64 says `Unsupported`, as `math.floor` gives an exact int
 //! of any size. Validation does not bound coordinates, but no floor plan reaches them.

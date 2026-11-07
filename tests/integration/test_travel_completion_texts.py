@@ -11,6 +11,8 @@ support/world.py `kernel_says_python_s_text` checks that it did. The Python rule
 
 from __future__ import annotations
 
+import hashlib
+import sys
 from typing import Any
 
 import pytest
@@ -23,7 +25,6 @@ from sheltersim.domain.models import Activity
 from sheltersim.events.handlers import AgentTravelCompletionHandler
 from sheltersim.events.models import EventApplicationError, EventStatus, ScheduledEvent
 from sheltersim.experiments.metrics import MetricsRecorder
-from sheltersim.experiments.phases.dispatch import DispatchPhase
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _MetricSink
@@ -369,37 +370,32 @@ def test_a_queue_walk_that_left_its_reservation_fails_its_fifo_check(
 
 
 def test_a_walk_that_does_not_fit_is_saved_with_its_text_as_the_python_phase_saves_it() -> None:
-    """A walk event of another purpose, before the real one in the same minute, fails alone."""
+    """A walk event of another purpose, before the real one in the same minute, fails alone.
 
-    def arrange() -> tuple[OfflineSimulationController, int]:
-        controller = _hundred()
-        world = controller.world
-        event = _walk(controller, "return", None, _zone_elsewhere(world))
-        world.schedule_event(
-            _variant(
-                event,
-                {"purpose": "another"},
-                event_id="walk-of-another-purpose",
-                priority=event.priority - 1,
-                sequence=world.allocate_event_sequence(),
-            )
+    The records and the world are what the Python step saved, written down from it (45a9bc9)
+    before it went (lane L10): the world as a digest, pinned on Linux as the gate's hashes are.
+    """
+    controller = _hundred()
+    world = controller.world
+    event = _walk(controller, "return", None, _zone_elsewhere(world))
+    world.schedule_event(
+        _variant(
+            event,
+            {"purpose": "another"},
+            event_id="walk-of-another-purpose",
+            priority=event.priority - 1,
+            sequence=world.allocate_event_sequence(),
         )
-        return controller, event.due_minute
-
-    (by_dispatch, minute), (by_python, _) = arrange(), arrange()
-    by_dispatch._run_dispatch_phase(by_dispatch.world, minute)
-    DispatchPhase._run_dispatch_phase(by_python, by_python.world, minute)
-
-    def saved(controller: OfflineSimulationController) -> list[tuple[str, Any, Any]]:
-        return [
-            (record.event.event_id, record.status, record.detail)
-            for record in controller.world.event_log.records
-            if record.event.event_type == "agent_travel_complete"
-        ]
-
-    assert saved(by_dispatch) == saved(by_python)
-    assert [(status, detail) for _, status, detail in saved(by_dispatch)] == [
-        (EventStatus.FAILED, "unsupported travel purpose 'another'"),
-        (EventStatus.APPLIED, None),
+    )
+    controller._run_dispatch_phase(world, event.due_minute)
+    assert [
+        (record.event.event_id, record.status, record.detail)
+        for record in world.event_log.records
+        if record.event.event_type == "agent_travel_complete"
+    ] == [
+        ("walk-of-another-purpose", EventStatus.FAILED, "unsupported travel purpose 'another'"),
+        (event.event_id, EventStatus.APPLIED, None),
     ]
-    assert by_dispatch.world.canonical_json() == by_python.world.canonical_json()
+    if sys.platform == "linux":
+        digest = hashlib.sha256(world.canonical_json().encode("utf-8")).hexdigest()[:16]
+        assert digest == "4ffcda3a4d1d53c0"

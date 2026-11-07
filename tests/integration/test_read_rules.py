@@ -1,6 +1,9 @@
 """The read-only rules that moved to Rust last, against the Python rules they stay compared with:
-zone_environment_view and its formulas, PersonContext, DistanceSampledProximityPolicy.sample,
-the step that schedules what it finds, and the error of a contact that is not an event.
+zone_environment_view and its formulas, PersonContext, the proximity sampling of
+DistanceSampledProximityPolicy, the step that schedules what it finds, and the error of a contact
+that is not an event. The proximity sampling and its step have no Python rule left (lane L10):
+what that rule found is a digest of its answers, taken once from it (45a9bc9), pinned on Linux, as
+the gate's hashes are.
 
 Most of these are selected by the Scenario, so a Run reaches few of them. These tests make the
 inputs, which is how a change of 1% in any of the coefficients is seen: every default of a contract
@@ -11,8 +14,10 @@ branches.
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import random
+import sys
 from collections.abc import Mapping
 from types import SimpleNamespace
 from typing import Any, get_args
@@ -25,6 +30,7 @@ from sheltersim.contracts.operations import SupportKind
 from sheltersim.contracts.policies import MODEL_DEFINITIONS
 from sheltersim.contracts.population import PersonContext
 from sheltersim.core.engine import TickEngine
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.domain.environment import (
@@ -35,10 +41,9 @@ from sheltersim.domain.environment import (
 from sheltersim.domain.psychological_state import LIFE_STATE_PSYCHOLOGY_POLICIES
 from sheltersim.domain.social_network import PROXIMITY_CONTACT_SOURCE_ID
 from sheltersim.experiments.metrics import MetricsRecorder
-from sheltersim.experiments.phases.sample import SamplePhase
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
-from sheltersim.policies.proximity import DistanceSampledProximityPolicy, ProximityPair
+from sheltersim.policies.proximity import DistanceSampledProximityPolicy
 from sheltersim.policies.world_view import WorldView, _fields_of_person
 
 PROXIMITY = "distance-sampled-proximity-v1"
@@ -761,29 +766,34 @@ def _proximity_world(scenario_with: Any, **options: Any) -> WorldState:
     return WorldState.from_scenario(scenario)
 
 
-def _pair_fields(pair: ProximityPair) -> tuple[Any, ...]:
-    return (
-        pair.distance_m,
-        pair.first_agent_id,
-        pair.second_agent_id,
-        pair.zone_id,
-        pair.first_point,
-        pair.second_point,
-    )
+def _is_python_s(answers: list[str], digest: str) -> None:
+    """The answers, each as JSON, are what the Python rule gave: `digest` of them all."""
+    if sys.platform == "linux":
+        text = "\n".join(answers)
+        assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == digest
 
 
-def _assert_sample_same(world: WorldState, config: dict[str, Any]) -> list[Any]:
-    python = [_pair_fields(pair) for pair in DistanceSampledProximityPolicy(config).sample(world)]
-    rust = _rules("proximity").sample_of(world, config)
-    assert json.dumps(rust) == json.dumps(python)
-    return rust
+def _sample(world: WorldState, config: dict[str, Any], answers: list[str]) -> list[Any]:
+    """The pairs `(distance, first, second, zone, first point, second point)` of a sample."""
+    pairs = _rules("proximity").sample_of(world, config)
+    answers.append(json.dumps(pairs))
+    return pairs
 
 
-@pytest.mark.parametrize("radius", [0.25, 1.5, 2, 10.0])
+@pytest.mark.parametrize(
+    ("radius", "digest"),
+    [
+        (0.25, "e0a1057cd2ac16bd"),
+        (1.5, "37315c7ce0bf997c"),
+        (2, "e2a86b4db6b2805e"),
+        (10.0, "9a06c87007643049"),
+    ],
+)
 def test_the_pairs_of_a_sample_are_the_python_rules_from_the_row(
-    generated_scenario_with: Any, radius: float
+    generated_scenario_with: Any, radius: float, digest: str
 ) -> None:
     world = _proximity_world(generated_scenario_with)
+    answers: list[str] = []
     positions = world.model_state["movement_v1"]["positions"]
     zones = sorted(world.zones)
     rng = random.Random(7)
@@ -798,9 +808,10 @@ def test_the_pairs_of_a_sample_are_the_python_rules_from_the_row(
                 record["point"]["y"] = rng.uniform(-3.0, 3.0)
                 record["zone_id"] = rng.choice(zones[:2])
             config = {"max_distance_m": radius, "max_pairs_per_sample": limit}
-            found += len(_assert_sample_same(world, config))
+            found += len(_sample(world, config, answers))
     assert world._core.mirror("movement_v1").tainted is None
     assert found > 100
+    _is_python_s(answers, digest)
 
 
 def test_a_pair_at_nearly_the_radius_across_two_cells_is_found(
@@ -817,32 +828,34 @@ def test_a_pair_at_nearly_the_radius_across_two_cells_is_found(
     radius = 1.5
     placed[0]["point"]["x"], placed[0]["point"]["y"] = 0.985 * radius, 0.0
     placed[1]["point"]["x"], placed[1]["point"]["y"] = 1.984 * radius, 0.0
-    pairs = _assert_sample_same(world, {"max_distance_m": radius, "max_pairs_per_sample": 10})
+    answers: list[str] = []
+    pairs = _sample(world, {"max_distance_m": radius, "max_pairs_per_sample": 10}, answers)
     assert len(pairs) == 1
+    _is_python_s(answers, "c94a22af8cb63695")
 
 
 @pytest.mark.parametrize(
-    "change",
+    ("change", "digest"),
     [
-        lambda record, world: record["point"].__setitem__("x", 1),
-        lambda record, world: record["point"].__setitem__("x", True),
-        lambda record, world: record["point"].__setitem__("x", "1"),
-        lambda record, world: record["point"].__setitem__("x", float("nan")),
-        lambda record, world: record["point"].__setitem__("y", float("inf")),
-        lambda record, world: record["point"].pop("y"),
-        lambda record, world: record["point"].__setitem__("z", 0.0),
-        lambda record, world: record.__setitem__("point", None),
-        lambda record, world: record.__setitem__("point", [1.0, 2.0]),
-        lambda record, world: record.__setitem__("position_kind", "edge"),
-        lambda record, world: record.pop("position_kind"),
-        lambda record, world: record.__setitem__("zone_id", "nowhere"),
-        lambda record, world: record.__setitem__("zone_id", None),
-        lambda record, world: record.__setitem__("zone_id", 3),
-        lambda record, world: record.clear(),
+        (lambda record, world: record["point"].__setitem__("x", 1), "aaf4c7e8ba1f2b11"),
+        (lambda record, world: record["point"].__setitem__("x", True), "1e8c8a88054f414b"),
+        (lambda record, world: record["point"].__setitem__("x", "1"), "1e8c8a88054f414b"),
+        (lambda record, world: record["point"].__setitem__("x", float("nan")), "1e8c8a88054f414b"),
+        (lambda record, world: record["point"].__setitem__("y", float("inf")), "1e8c8a88054f414b"),
+        (lambda record, world: record["point"].pop("y"), "1e8c8a88054f414b"),
+        (lambda record, world: record["point"].__setitem__("z", 0.0), "1e8c8a88054f414b"),
+        (lambda record, world: record.__setitem__("point", None), "1e8c8a88054f414b"),
+        (lambda record, world: record.__setitem__("point", [1.0, 2.0]), "1e8c8a88054f414b"),
+        (lambda record, world: record.__setitem__("position_kind", "edge"), "1e8c8a88054f414b"),
+        (lambda record, world: record.pop("position_kind"), "1e8c8a88054f414b"),
+        (lambda record, world: record.__setitem__("zone_id", "nowhere"), "1e8c8a88054f414b"),
+        (lambda record, world: record.__setitem__("zone_id", None), "1e8c8a88054f414b"),
+        (lambda record, world: record.__setitem__("zone_id", 3), "1e8c8a88054f414b"),
+        (lambda record, world: record.clear(), "1e8c8a88054f414b"),
     ],
 )
 def test_what_the_sampler_skips_it_skips_from_the_tree_of_a_tainted_row(
-    generated_scenario_with: Any, change: Any
+    generated_scenario_with: Any, change: Any, digest: str
 ) -> None:
     world = _proximity_world(generated_scenario_with)
     positions = world.model_state["movement_v1"]["positions"]
@@ -852,11 +865,13 @@ def test_what_the_sampler_skips_it_skips_from_the_tree_of_a_tainted_row(
         record["point"]["x"], record["point"]["y"] = 1.0, 1.0
         record["zone_id"] = placed[0]["zone_id"]
     config = {"max_distance_m": 1.5, "max_pairs_per_sample": 10_000}
-    before = _assert_sample_same(world, config)
+    answers: list[str] = []
+    before = _sample(world, config, answers)
     change(placed[0], world)
-    after = _assert_sample_same(world, config)
+    after = _sample(world, config, answers)
     assert before
     assert len(after) <= len(before)
+    _is_python_s(answers, digest)
 
 
 def test_a_person_who_is_gone_and_a_position_that_is_no_dict_are_skipped(
@@ -867,13 +882,17 @@ def test_a_person_who_is_gone_and_a_position_that_is_no_dict_are_skipped(
     first = next(record for record in positions.values() if record["point"] is not None)
     positions["nobody"] = copy.deepcopy(first)
     config = {"max_distance_m": 10.0, "max_pairs_per_sample": 10_000}
-    pairs = _assert_sample_same(world, config)
+    answers: list[str] = []
+    pairs = _sample(world, config, answers)
     assert all("nobody" not in pair[1:3] for pair in pairs)
     positions["nobody"] = 7
-    _assert_sample_same(world, config)
+    _sample(world, config, answers)
+    _is_python_s(answers, "cd176d20b6ff252c")
 
 
-def test_a_coordinate_too_large_for_a_cell_is_left_to_python(generated_scenario_with: Any) -> None:
+def test_a_coordinate_too_large_for_a_cell_is_refused(generated_scenario_with: Any) -> None:
+    """No floor plan reaches such a coordinate (the Python rule gave an OverflowError for the
+    second): the step raises KernelRefusal and schedules nothing."""
     world = _proximity_world(generated_scenario_with)
     positions = world.model_state["movement_v1"]["positions"]
     record = next(record for record in positions.values() if record["point"] is not None)
@@ -881,11 +900,14 @@ def test_a_coordinate_too_large_for_a_cell_is_left_to_python(generated_scenario_
     config = {"max_distance_m": 1.5, "max_pairs_per_sample": 10}
     with pytest.raises(native.Unsupported, match="does not fit"):
         _rules("proximity").sample_of(world, config)
+    controller = _controller(world)
+    pending = [event.event_id for event in world.event_queue.pending()]
+    with pytest.raises(KernelRefusal, match="^proximity.sample_contacts refused: .*does not fit"):
+        controller._sample_proximity_contacts(0)
+    assert [event.event_id for event in world.event_queue.pending()] == pending
     record["point"]["x"] = 10**400
     with pytest.raises(native.Unsupported, match="too large"):
         _rules("proximity").sample_of(world, config)
-    with pytest.raises(OverflowError):
-        DistanceSampledProximityPolicy(config).sample(world)
 
 
 def _stand_in(world: WorldState, config: dict[str, Any] | None = None) -> Any:
@@ -911,18 +933,18 @@ def _new_events(world: WorldState, seen: set[str]) -> list[dict[str, Any]]:
     )
 
 
-def _run_step_both_ways(
-    world: WorldState, minute: int, config: dict[str, Any] | None = None
+def _run_step(
+    world: WorldState,
+    minute: int,
+    answers: list[str],
+    config: dict[str, Any] | None = None,
 ) -> Any:
-    """The Python rule on a copy, the kernel on the world: same events, same counter."""
-    copied = WorldState.from_dict(world.to_dict())
+    """The step's new events; each, with the counters, kept in `answers`."""
     seen = {event.event_id for event in world.event_queue.pending()}
-    SamplePhase._sample_proximity_contacts(_stand_in(copied, config), minute)
     _rules("proximity").sample_contacts(_stand_in(world, config), minute)
-    python, rust = _new_events(copied, seen), _new_events(world, seen)
-    assert json.dumps(rust) == json.dumps(python)
-    assert world.id_counters == copied.id_counters
-    return rust
+    events = _new_events(world, seen)
+    answers.append(json.dumps([events, world.id_counters]))
+    return events
 
 
 def test_the_step_schedules_the_events_of_the_python_rule(generated_scenario_with: Any) -> None:
@@ -938,7 +960,9 @@ def test_the_step_schedules_the_events_of_the_python_rule(generated_scenario_wit
             record["zone_id"] = zone
             record["point"]["x"] = 0.125 * number
             record["point"]["y"] = 0.0
-    events = _run_step_both_ways(world, 30)
+    answers: list[str] = []
+    events = _run_step(world, 30, answers)
+    _is_python_s(answers, "079b3c75a9d8ef83")
     assert len(events) > 3
     first = events[0]
     assert first["event_type"] == "proximity_contact_update"
@@ -952,8 +976,9 @@ def test_a_minute_off_the_interval_or_at_the_end_schedules_nothing(
     generated_scenario_with: Any,
 ) -> None:
     world = _proximity_world(generated_scenario_with)
-    assert _run_step_both_ways(world, 7) == []
-    assert _run_step_both_ways(world, world.duration_minutes - 1) == []
+    answers: list[str] = []
+    assert _run_step(world, 7, answers) == []
+    assert _run_step(world, world.duration_minutes - 1, answers) == []
     every_minute = {
         "schema_version": 1,
         "enabled": True,
@@ -962,7 +987,7 @@ def test_a_minute_off_the_interval_or_at_the_end_schedules_nothing(
         "max_distance_m": 10.0,
         "max_pairs_per_sample": 2,
     }
-    assert _run_step_both_ways(world, world.duration_minutes - 1, every_minute) == []
+    assert _run_step(world, world.duration_minutes - 1, answers, every_minute) == []
     config = {
         "schema_version": 1,
         "enabled": True,
@@ -971,30 +996,30 @@ def test_a_minute_off_the_interval_or_at_the_end_schedules_nothing(
         "max_distance_m": 10.0,
         "max_pairs_per_sample": 2,
     }
-    assert len(_run_step_both_ways(world, 7, config)) == 2
+    assert len(_run_step(world, 7, answers, config)) == 2
+    _is_python_s(answers, "1422d1ce681fb0d7")
 
 
-def test_a_policy_this_kernel_does_not_know_runs_in_python(generated_scenario_with: Any) -> None:
+def test_a_policy_this_kernel_does_not_know_is_refused(generated_scenario_with: Any) -> None:
+    """The controller makes DistanceSampledProximityPolicy, or a disabled one with no config."""
+
     class Other(DistanceSampledProximityPolicy):
-        def sample(self, world: WorldState) -> list[ProximityPair]:
-            return []
+        pass
 
     world = _proximity_world(generated_scenario_with)
     stand_in = _stand_in(world)
     stand_in.proximity_policy = Other(stand_in.proximity_contact_config)
     with pytest.raises(native.Unsupported, match="another proximity policy"):
         _rules("proximity").sample_contacts(stand_in, 0)
+    controller = _controller(world)
+    controller.proximity_policy = Other(controller.proximity_contact_config)
+    with pytest.raises(KernelRefusal, match="^proximity.sample_contacts refused: another"):
+        controller._sample_proximity_contacts(0)
     stand_in.proximity_contact_config = None
     assert _rules("proximity").sample_contacts(stand_in, 0) is None
 
 
-def test_the_ticks_run_the_kernel_rather_than_the_python_rule(
-    generated_scenario_with: Any, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    def not_called(self: Any, world: Any) -> list[Any]:
-        raise AssertionError("the Python rule ran")
-
-    monkeypatch.setattr(DistanceSampledProximityPolicy, "sample", not_called)
+def test_the_ticks_schedule_proximity_contacts(generated_scenario_with: Any) -> None:
     world = _proximity_world(generated_scenario_with)
     controller = _controller(world)
     engine = TickEngine(world, phase_handler=controller)

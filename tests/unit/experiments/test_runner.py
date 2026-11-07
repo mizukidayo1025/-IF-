@@ -197,26 +197,33 @@ def _with_alternate_route(world: WorldState, edge_id: str, travel_minutes: int) 
 
 
 def test_closed_routes_follow_each_input_they_depend_on(generated_scenario) -> None:
-    """The kept answer must be replaced by any edit, also one inside a kept object."""
+    """`_route` must see any edit that closes or opens a passage, also one inside a kept object.
+
+    native/src/rules/travel.rs keeps the edges a floor plan closes to each mobility while the plan
+    is the same; each route here is the one through what is open now.
+    """
     world = WorldState.from_scenario(generated_scenario)
     controller = OfflineSimulationController(world, ArtifactSink())
     geometry = world.model_configs["facility_geometry"]
-
-    def fresh(mobility: str) -> set[str]:
-        return {
-            route["edge_id"]
-            for route in geometry["routes"]
-            if not route_is_physically_clear(world, route["edge_id"], mobility=mobility)
-        }
+    people: dict[str, str] = {}
+    for agent_id in sorted(world.agents):
+        people.setdefault(world.agents[agent_id].profile.mobility, agent_id)
+    route = geometry["routes"][0]
+    edge = world.zone_edges[route["edge_id"]]
 
     def assert_current() -> None:
-        for mobility in ("independent", "assisted", "wheelchair"):
-            first = controller._physically_closed_edges(geometry, mobility)
-            assert first == fresh(mobility)
-            assert controller._physically_closed_edges(geometry, mobility) is first
+        for mobility, agent_id in people.items():
+            found = controller._route(edge.from_zone_id, edge.to_zone_id, agent_id)
+            passes = found is not None and edge.id in found.edge_ids
+            assert passes is route_is_physically_clear(world, edge.id, mobility=mobility)
 
+    def passes(agent_id: str) -> bool:
+        found = controller._route(edge.from_zone_id, edge.to_zone_id, agent_id)
+        return found is not None and edge.id in found.edge_ids
+
+    independent = people["independent"]
     assert_current()
-    route = geometry["routes"][0]
+    assert passes(independent)
     start, end = route["points"][0], route["points"][1]
     x = (start["x"] + end["x"]) / 2.0
     y = (start["y"] + end["y"]) / 2.0
@@ -230,13 +237,13 @@ def test_closed_routes_follow_each_input_they_depend_on(generated_scenario) -> N
         "source_ids": ["ASM-TEST-PARTITION"],
     }
     assert_current()
-    assert route["edge_id"] in controller._physically_closed_edges(geometry, "independent")
+    assert not passes(independent)
     del overlay["partitions"]["partition-test"]
     assert_current()
-    assert route["edge_id"] not in controller._physically_closed_edges(geometry, "independent")
+    assert passes(independent)
     route["width_m"] = 0.1
     assert_current()
-    assert route["edge_id"] in controller._physically_closed_edges(geometry, "independent")
+    assert not passes(independent)
 
 
 def test_equipment_transfer_replans_resident_trip_to_moved_facility(generated_scenario) -> None:

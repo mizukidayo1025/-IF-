@@ -2,22 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from sheltersim.core.rng import KeyedRandom
 from sheltersim.core.world import WorldState
-from sheltersim.domain.care_receipts import (
-    append_applied_care_transition,
-    care_receipt_for_request,
-    care_source_ids_for_agent,
-)
-from sheltersim.domain.models import Activity, SupportRequestStatus
 from sheltersim.domain.staff_dynamics import update_staff_dynamics
 from sheltersim.domain.staff_operations import (
     assign_staff_operations,
     schedule_staff_operation_relief,
     update_staff_operations,
 )
+from sheltersim.experiments.phases.segments import no_python_step
 
 
 class ArbitratePhase:
@@ -40,61 +33,31 @@ class ArbitratePhase:
             self.resource_service.arbitrate(minute, rng, validate_state=False)
 
     def _assign_staff_support(self, world: WorldState, minute: int) -> None:
-        self._record_assigned_support(
-            world, self.staff_service.assign_pending(minute, validate_state=False)
-        )
+        """`staff_service.assign_pending(minute, validate_state=False)`, then the care receipts of
+        what it assigned, which native/src/rules/support.rs writes.
 
-    def _record_assigned_support(self, world: WorldState, assigned_requests: Any) -> None:
-        for request_id in assigned_requests:
-            prior = care_receipt_for_request(world, request_id)
-            request = world.support_requests.get(request_id)
-            if prior is None or request is None or request.assigned_staff_id is None:
-                continue
-            # Recorded with the request's household, not the current one (#179).
-            append_applied_care_transition(
-                world,
-                request_id=request.id,
-                agent_id=request.agent_id,
-                household_id=prior.get("household_id"),
-                support_kind=prior["support_kind"],
-                status="assigned",
-                staff_id=request.assigned_staff_id,
-                causation_id=request.task_id,
-                source_ids=care_source_ids_for_agent(world, request.agent_id),
-            )
-            if world.agents[request.agent_id].activity is Activity.SEEKING_HELP:
-                append_applied_care_transition(
-                    world,
-                    request_id=request.id,
-                    agent_id=request.agent_id,
-                    household_id=prior.get("household_id"),
-                    support_kind=prior["support_kind"],
-                    status="started",
-                    staff_id=request.assigned_staff_id,
-                    causation_id=request.task_id,
-                    source_ids=care_source_ids_for_agent(world, request.agent_id),
-                )
+        For each request assigned whose care receipt exists and that has a staff member, an
+        "assigned" care transition, and a "started" one when its person is SEEKING_HELP: with the
+        receipt's household, not the current one (#179), the receipt's kind, the request's task as
+        the causation, the assigned staff, and the person's sources.
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS). A receipt it cannot
+        write after the service has assigned is a RuntimeError.
+        """
+        raise no_python_step("_assign_staff_support")
 
     def _consider_due_complaints(self, minute: int) -> None:
-        """Evaluate one request exactly when it reaches the modeled wait threshold."""
-        if self.social_policy is None:
-            return
-        threshold = self.social_policy.limits.complaint_wait_minutes
-        # A complaint decision does not make a request pending, so only requests pending
-        # now can qualify below.
-        due = [
-            (request.id, request)
-            for request in self.world.unsettled_support_requests()
-            if request.status is SupportRequestStatus.PENDING
-            and request.requested_minute + threshold == minute
-        ]
-        for request_id, request in sorted(due):
-            if (
-                request.status is SupportRequestStatus.PENDING
-                and request.requested_minute + threshold == minute
-            ):
-                self.social_policy.consider_complaint_response(
-                    self.world,
-                    agent_id=request.agent_id,
-                    request_id=request_id,
-                )
+        """Ask `social_policy` about each request at the minute its wait reaches the threshold,
+        which native/src/rules/staff.rs does.
+
+        Nothing without `social_policy`. Otherwise the requests of
+        `world.unsettled_support_requests()` that are PENDING and whose `requested_minute` plus
+        `social_policy.limits.complaint_wait_minutes` is `minute`, in ID order: each one still so
+        when its turn comes (a decision before it may have settled it) goes to
+        `social_policy.consider_complaint_response(world, agent_id=..., request_id=...)`, which
+        stays Python (the LLM boundary).
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        raises KernelRefusal: a threshold or minute that is not an int, a request with no row.
+        """
+        raise no_python_step("_consider_due_complaints")

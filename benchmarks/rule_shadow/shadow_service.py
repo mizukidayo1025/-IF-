@@ -309,64 +309,8 @@ def prepare(output: str) -> None:
 
     # The water and meal service's kernels (serve_head, complete, request,
     # record_request_outcome, facilities_to_serve) have no Python rule left to compare
-    # (`kernel_only`, lane L10).
-    travel = native.rules("travel")
-    schedule_kernel = travel.schedule_travel
-
-    def schedule_travel(controller: Any, **options: Any) -> Any:
-        if on_copy(controller):
-            raise unsupported("a shadow's copy")
-        recorder.seen["schedule_travel.calls"] += 1
-        world = controller.world
-        twin = _ServiceTwin(world)
-        pending_before = len(world.event_queue.pending())
-        stand_in = controller_stand_in(controller, twin)
-        error = None
-        expected = None
-        try:
-            expected = stand_in._schedule_travel(**options)
-        except Exception as raised:  # noqa: BLE001 - only compared with what the kernel does
-            error = raised
-        try:
-            result = schedule_kernel(controller, **options)
-        except unsupported as reason:
-            recorder.reasons[f"schedule_travel: {reason}"] += 1
-            raise
-        recorder.seen["schedule_travel.kernel_ran"] += 1
-        recorder.seen[f"schedule_travel.{options['purpose']}.{result}"] += 1
-        where = f"schedule_travel {options!r:.200} at {world.minute_index}"
-        if error is not None:
-            recorder.differ(f"{where}: the kernel took what Python turned down: {error!r:.300}")
-            return result
-        if result != expected:
-            recorder.differ(f"{where}: returned {result!r}, not {expected!r}")
-        _compare(recorder, where, world, twin, pending_before)
-        row_check(world, where)
-        return result
-
-    travel.schedule_travel = schedule_travel
-    route_kernel = travel.route
-
-    def route(controller: Any, *arguments: Any) -> Any:
-        if on_copy(controller):
-            raise unsupported("a shadow's copy")
-        recorder.seen["route.calls"] += 1
-        # Reads only, without edge capacities, which the kernel refuses.
-        stand_in = controller_stand_in(controller, controller.world)
-        try:
-            result = route_kernel(controller, *arguments)
-        except unsupported as reason:
-            recorder.reasons[f"route: {reason}"] += 1
-            raise
-        recorder.seen["route.kernel_ran"] += 1
-        expected = stand_in._route(*arguments)
-        recorder.seen[f"route.{'none' if expected is None else 'found'}"] += 1
-        if repr(result) != repr(expected):
-            recorder.differ(f"route {arguments!r}: {result!r:.300} not {expected!r:.300}")
-        recorder.seen["route.values_compared"] += 5
-        return result
-
-    travel.route = route
+    # (`kernel_only`, lane L10), and `_schedule_travel` and `_route` of travel.rs no Python step
+    # (KERNEL_ONLY_SEGMENTS).
 
     state = native.state("resource_service")
     validate_kernel = state.validate

@@ -6,7 +6,6 @@ The other phases plan and schedule trips with the route and travel methods here 
 from __future__ import annotations
 
 import json
-from copy import deepcopy
 from typing import Any
 
 from sheltersim.core.rng import KeyedRandom
@@ -21,30 +20,24 @@ from sheltersim.domain.care_receipts import (
 )
 from sheltersim.domain.facility_queues import facility_has_independent_queues
 from sheltersim.domain.geometry_overlay import (
-    GEOMETRY_OVERLAY_KEY,
-    parsed_facility_geometry,
     release_sleep_bed,
     reserve_sleep_bed,
 )
 from sheltersim.domain.information import INFORMATION_SPREAD_STATE_KEY
-from sheltersim.domain.models import ActiveTask, Activity, SupportRequestStatus
+from sheltersim.domain.models import Activity, SupportRequestStatus
 from sheltersim.domain.movement import (
     MOVEMENT_STATE_KEY,
     facility_approach_route,
-    route_is_physically_clear,
-    route_with_movement_time,
-    start_movement,
 )
 from sheltersim.domain.population_lifecycle import current_household_id
 from sheltersim.domain.social_dialogue import capture_social_state_context
-from sheltersim.domain.temporary_spaces import incoming_travelers
-from sheltersim.domain.zones import ZoneGraph
-from sheltersim.events.models import EventKind, EventLogRecord, EventStatus, ScheduledEvent
+from sheltersim.events.models import EventKind, ScheduledEvent
+from sheltersim.experiments.phases.segments import no_python_step
 from sheltersim.llm.contracts import LLMStage, LLMTask
 from sheltersim.llm.runtime import LEGACY_SUPPORT_PRIORITY_POLICY_VERSION, support_priority_runtime
 from sheltersim.llm.schemas import SUPPORT_ADVICE_SCHEMA
 from sheltersim.policies.behavior import ActionKind
-from sheltersim.policies.space import SpaceRouter, ZoneRoute
+from sheltersim.policies.space import ZoneRoute
 from sheltersim.policies.world_view import AgentView, WorldView
 
 
@@ -635,122 +628,26 @@ class ProposePhase:
         support_staff_id: str | None = None,
         validate_state: bool = True,
     ) -> bool:
-        agent = self.world.agents[agent_id]
-        if route.origin_zone_id != agent.zone_id:
-            raise ValueError("travel route origin does not match Agent zone")
-        if route.travel_minutes <= 0:
-            return False
-        due_minute = minute + route.travel_minutes
-        if due_minute >= self.world.duration_minutes:
-            return False
-        zone_capacity = self.world.zones[route.destination_zone_id].capacity
-        if zone_capacity is not None and route.origin_zone_id != route.destination_zone_id:
-            occupancy = sum(
-                1
-                for other in self.world.agents.values()
-                if other.zone_id == route.destination_zone_id
-            )
-            incoming = incoming_travelers(self.world, route.destination_zone_id)
-            if occupancy + incoming >= zone_capacity:
-                return False
+        """Start one trip along `route`, which native/src/rules/travel.rs plans and writes.
 
-        pending_event_ids = {event.event_id for event in self.world.event_queue.pending()}
-        while True:
-            sequence = self.world.allocate_event_sequence()
-            event_id = f"agent-travel-complete-{sequence}"
-            task_id = f"agent-travel-{sequence}"
-            if (
-                event_id not in pending_event_ids
-                and not self.world.event_log.contains_id(event_id)
-                and task_id not in self.world.active_tasks
-            ):
-                break
+        ValueError("travel route origin does not match Agent zone") when the route does not start
+        in the person's zone. False, with nothing changed, for a route of no minutes, one that
+        ends at or past the Run's end, or one into another zone whose capacity its occupants and
+        those walking to it already fill. Otherwise True: an `agent_travel_complete` event
+        `agent-travel-complete-<sequence>` due at `minute + route.travel_minutes` (the payload
+        with the route, `origin_zone_id` for a resource trip, `request_id` and `staff_id` for a
+        support trip; the source of `layout_routing` or ASM-ZONE-ROUTING-V1), its task
+        `agent-travel-<sequence>` (travel_to_toilet, travel_to_resource, staff_support_travel or
+        travel_return), the person MOVING to the facility of a toilet or resource trip or else
+        the destination zone, and with `movement_v1` the journey and its `route_points`. A
+        `staff_support_travel` trip without both IDs raises ValueError("staff support travel
+        requires request and staff IDs"). With `validate_state`, `world.validate()` after.
 
-        target_id = (
-            facility_id
-            if purpose in ("toilet_request", "resource_request")
-            else route.destination_zone_id
-        )
-        task = ActiveTask(
-            id=task_id,
-            kind=(
-                "travel_to_toilet"
-                if purpose == "toilet_request"
-                else (
-                    "travel_to_resource"
-                    if purpose == "resource_request"
-                    else (
-                        "staff_support_travel"
-                        if purpose == "staff_support_travel"
-                        else "travel_return"
-                    )
-                )
-            ),
-            agent_id=agent_id,
-            resource_id=None,
-            start_minute=minute,
-            due_minute=due_minute,
-        )
-        travel_payload = {
-            "agent_id": agent_id,
-            "task_id": task_id,
-            "purpose": purpose,
-            "destination_zone_id": route.destination_zone_id,
-            "facility_id": facility_id,
-            "route_zone_ids": list(route.zone_ids),
-            "route_edge_ids": list(route.edge_ids),
-            "travel_minutes": route.travel_minutes,
-        }
-        if purpose == "resource_request":
-            # Preserve the pre-travel location for an arrival admission rejection record.
-            travel_payload["origin_zone_id"] = route.origin_zone_id
-        if purpose == "staff_support_travel":
-            if not all(
-                isinstance(value, str) and value for value in (support_request_id, support_staff_id)
-            ):
-                raise ValueError("staff support travel requires request and staff IDs")
-            travel_payload["request_id"] = support_request_id
-            travel_payload["staff_id"] = support_staff_id
-        event = ScheduledEvent(
-            event_id=event_id,
-            kind=EventKind.COMPLETION,
-            due_minute=due_minute,
-            priority=0,
-            sequence=sequence,
-            event_type="agent_travel_complete",
-            payload=travel_payload,
-            source_id=task_id,
-            causation_id=causation_id,
-            provenance={
-                "source_type": "assumption",
-                "source_id": self.world.model_configs.get("layout_routing", {}).get(
-                    "source_id", "ASM-ZONE-ROUTING-V1"
-                ),
-                "policy_version": "shortest-travel-time-v1",
-            },
-        )
-        self.world.active_tasks[task.id] = task
-        agent.activity = Activity.MOVING
-        agent.target_id = target_id
-        self.world.schedule_event(event)
-        if MOVEMENT_STATE_KEY in self.world.model_state:
-            start_movement(
-                self.world,
-                agent_id=agent_id,
-                route=route,
-                purpose=purpose,
-                facility_id=facility_id,
-                started_minute=minute,
-                due_minute=due_minute,
-                event_id=event_id,
-                task_id=task_id,
-                route_points=route_points,
-                support_request_id=support_request_id,
-                support_staff_id=support_staff_id,
-            )
-        if validate_state:
-            self.world.validate()
-        return True
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        raises KernelRefusal, with nothing changed: an unknown person or zone, a toilet or
+        resource trip without a facility, a sequence whose IDs are taken.
+        """
+        raise no_python_step("_schedule_travel")
 
     def _schedule_staff_support_travel(
         self,
@@ -760,17 +657,13 @@ class ProposePhase:
         staff_id: str,
         minute: int,
     ) -> bool:
-        return self._schedule_travel(
-            agent_id=agent_id,
-            route=route,
-            purpose="staff_support_travel",
-            facility_id=None,
-            minute=minute,
-            causation_id=request_id,
-            support_request_id=request_id,
-            support_staff_id=staff_id,
-            validate_state=False,
-        )
+        """`_schedule_travel` of a `staff_support_travel` trip caused by the request, without
+        validating the whole state: native/src/rules/travel.rs. StaffService's
+        `travel_scheduler`.
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS).
+        """
+        raise no_python_step("_schedule_staff_support_travel")
 
     def _facility_queue_has_capacity(self, facility_id: str, *, resource: bool = False) -> bool:
         """Apply an explicit optional queue bound while leaving legacy queues unlimited."""
@@ -797,152 +690,30 @@ class ProposePhase:
         )
         return len(queued) + len(active) + transit < maximum
 
-    def _physically_closed_edges(self, geometry_raw: Any, mobility: str) -> set[str]:
-        """The surveyed routes that a person of this mobility cannot pass.
-
-        They depend only on the geometry and constraint configs and the overlay's
-        partitions and moved facilities, and are computed again when any of these differ
-        from the copies kept with the answer. Every trip plan asks, for every route.
-        """
-        world = self.world
-        overlay = world.model_state.get(GEOMETRY_OVERLAY_KEY)
-        inputs = (
-            geometry_raw,
-            world.model_configs.get("spatial_constraints"),
-            overlay is None,
-            None if overlay is None else overlay.get("partitions"),
-            None if overlay is None else overlay.get("facility_points"),
-        )
-        known = self._closed_edges.get(mobility)
-        if known is not None and known[0] == inputs:
-            return known[1]
-        closed = {
-            route.edge_id
-            for route in parsed_facility_geometry(geometry_raw).routes
-            if not route_is_physically_clear(world, route.edge_id, mobility=mobility)
-        }
-        self._closed_edges[mobility] = (deepcopy(inputs), closed)
-        return closed
-
     def _route(
         self, origin_zone_id: str, destination_zone_id: str, agent_id: str
     ) -> ZoneRoute | None:
-        """Route around full modeled passages and record capacity waits as audit events."""
-        agent = self.world.agents.get(agent_id)
-        space = self.space
-        geometry_raw = self.world.model_configs.get("facility_geometry")
-        if agent is not None and geometry_raw is not None:
-            inaccessible = self._physically_closed_edges(geometry_raw, agent.profile.mobility)
-            if inaccessible:
-                graph = ZoneGraph(
-                    zones=self.space.graph.zones,
-                    edges=tuple(
-                        edge for edge in self.space.graph.edges if edge.id not in inaccessible
-                    ),
-                )
-                space = SpaceRouter(graph, self.space.policy)
-        if not self.route_capacities:
-            route = space.route(origin_zone_id, destination_zone_id, agent_id)
-            return (
-                route_with_movement_time(self.world, agent_id, route)
-                if route is not None and agent_id in self.world.agents
-                else route
-            )
-        loads = self._active_route_edge_loads()
-        route = space.route(origin_zone_id, destination_zone_id, agent_id, edge_loads=loads)
-        if route is None:
-            unconstrained = space.route(
-                origin_zone_id, destination_zone_id, agent_id, edge_loads={}
-            )
-            if unconstrained is not None:
-                edge_by_id = {edge.id: edge for edge in self.space.graph.edges}
-                for edge_id in unconstrained.edge_ids:
-                    capacity = self.route_capacities.get(edge_id)
-                    active = loads.get(edge_id, 0)
-                    if capacity is not None and active >= capacity:
-                        self._record_route_capacity_wait(
-                            agent_id,
-                            origin_zone_id,
-                            destination_zone_id,
-                            edge_id,
-                            capacity,
-                            active,
-                        )
-                        break
-                    if edge_id not in edge_by_id:
-                        break
-        return (
-            route_with_movement_time(self.world, agent_id, route)
-            if route is not None and agent_id in self.world.agents
-            else route
-        )
+        """The shortest route for this person, or None: native/src/rules/travel.rs.
+
+        Over `space`'s graph without the edges a floor plan closes to the person's mobility.
+        With `route_capacities`, an edge whose trips under way (pending `agent_travel_complete`
+        events not yet due, staff operation trips) reach its capacity is avoided; when that
+        leaves no route but a free graph has one, the first full edge of it is recorded as a
+        SUPPRESSED `zone_edge_capacity_wait` event ("route edge capacity is full; the Agent
+        remains at its origin"). The route's minutes are those of `route_with_movement_time`.
+        StaffService's `route_resolver`.
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        raises KernelRefusal: an unknown person or zone, a route policy other than
+        ShortestTravelTimePolicy.
+        """
+        raise no_python_step("_route")
 
     def _facility_approach(
         self, agent_id: str, facility_id: str
     ) -> tuple[ZoneRoute, tuple[Any, ...]] | None:
         """Plan the wall-aware, mobility-specific room path to the service point."""
         return facility_approach_route(self.world, agent_id, facility_id)
-
-    def _active_route_edge_loads(self) -> dict[str, int]:
-        loads: dict[str, int] = {}
-        for event in self.world.event_queue.pending():
-            if (
-                event.event_type != "agent_travel_complete"
-                or event.due_minute <= self.world.minute_index
-            ):
-                continue
-            edge_ids = event.payload.get("route_edge_ids", [])
-            if not isinstance(edge_ids, (list, tuple)):
-                continue
-            for edge_id in edge_ids:
-                if isinstance(edge_id, str):
-                    loads[edge_id] = loads.get(edge_id, 0) + 1
-        operations = self.world.model_state.get("staff_operations_v1", {})
-        if isinstance(operations, dict):
-            for record in operations.get("staff", {}).values():
-                if isinstance(record, dict) and record.get("phase") == "travel":
-                    for edge_id in record.get("route_edge_ids", ()):
-                        if isinstance(edge_id, str):
-                            loads[edge_id] = loads.get(edge_id, 0) + 1
-        return loads
-
-    def _record_route_capacity_wait(
-        self,
-        agent_id: str,
-        origin_zone_id: str,
-        destination_zone_id: str,
-        edge_id: str,
-        capacity: int,
-        active_travelers: int,
-    ) -> None:
-        sequence = self.world.allocate_event_sequence()
-        source_id = "ASM-A05-ROUTE-EDIT-V1"
-        event = ScheduledEvent(
-            event_id=f"zone-edge-capacity-wait-{sequence}",
-            kind=EventKind.ENDOGENOUS,
-            due_minute=self.world.minute_index,
-            priority=0,
-            sequence=sequence,
-            event_type="zone_edge_capacity_wait",
-            payload={
-                "agent_id": agent_id,
-                "origin_zone_id": origin_zone_id,
-                "destination_zone_id": destination_zone_id,
-                "edge_id": edge_id,
-                "capacity": capacity,
-                "active_travelers": active_travelers,
-            },
-            source_id=source_id,
-            provenance={"source_type": "assumption", "source_id": source_id},
-        )
-        self.world.event_log.append(
-            EventLogRecord(
-                event=event,
-                realized_minute=self.world.minute_index,
-                status=EventStatus.SUPPRESSED,
-                detail="route edge capacity is full; the Agent remains at its origin",
-            )
-        )
 
 
 def _agent_view_snapshot(agent: AgentView) -> dict[str, Any]:

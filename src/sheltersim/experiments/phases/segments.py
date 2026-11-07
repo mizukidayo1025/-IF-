@@ -22,23 +22,15 @@ from sheltersim.core import kernels
 
 # Name of a step's method -> (the module of native/src/rules/, the name of its kernel).
 SEGMENTS: dict[str, tuple[str, str]] = {
-    "_run_dispatch_phase": ("dispatch", "run_phase"),
     "_view_after_movement": ("world_view", "view_after_movement"),
     "_view_for_proposals": ("world_view", "view_for_proposals"),
     "_propose_due": ("decisions", "propose_rows"),
     "_observed_state": ("decisions", "observed_row"),
     "_record_outcome": ("decisions", "record_outcome"),
     "_apply_effect": ("proposals", "apply_effect"),
-    "_assign_staff_support": ("support", "assign_staff_support"),
-    "_consider_due_complaints": ("staff", "consider_due_complaints"),
-    "_replan_journeys": ("replan", "replan_journeys"),
-    "_route": ("travel", "route"),
-    "_schedule_travel": ("travel", "schedule_travel"),
-    "_schedule_staff_support_travel": ("travel", "schedule_support_travel"),
     "_psychology_update": ("psychology", "update_psychology"),
     "_update_long_term_psychology": ("psychology", "update_long_term"),
     "_apply_state_deltas": ("psychology", "apply_deltas"),
-    "_sample_proximity_contacts": ("proximity", "sample_contacts"),
     "_record_psychology_trace": ("trace", "record_psychology_trace"),
 }
 
@@ -46,6 +38,14 @@ SEGMENTS: dict[str, tuple[str, str]] = {
 KERNEL_ONLY_SEGMENTS: dict[str, tuple[str, str]] = {
     "_social_propagation": ("social_propagation", "update_social_propagation"),
     "_sample_information_contacts": ("information", "sample_contacts"),
+    "_run_dispatch_phase": ("dispatch", "run_phase"),
+    "_assign_staff_support": ("support", "assign_staff_support"),
+    "_consider_due_complaints": ("staff", "consider_due_complaints"),
+    "_replan_journeys": ("replan", "replan_journeys"),
+    "_route": ("travel", "route"),
+    "_schedule_travel": ("travel", "schedule_travel"),
+    "_schedule_staff_support_travel": ("travel", "schedule_support_travel"),
+    "_sample_proximity_contacts": ("proximity", "sample_contacts"),
 }
 
 
