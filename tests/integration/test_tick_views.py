@@ -1,7 +1,7 @@
 """The proposal view made from the update phase's view equals a view read from the world.
 
 The proposal view is rules/world_view.rs's refresh of the update phase's (`_view_for_proposals`,
-which has no Python body since lane L10); `WorldView.from_world` reads the world anew. These tests
+which has no Python body since lane L10); `support.world.view_of` reads the world anew. These tests
 check both the values and the audit hash, bit for bit, at every tick of Scenarios with and without
 messages and beliefs, and with a full trace.
 """
@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import copy
 import struct
+
+from support.world import view_of
 
 from sheltersim.core.engine import TraceLevel
 from sheltersim.domain.information import INFORMATION_SPREAD_STATE_KEY
@@ -45,7 +47,7 @@ def _assert_same_views(made: WorldView, read: WorldView) -> None:
 
 
 def _compared_ticks(monkeypatch, worlds: list | None = None) -> list[WorldView]:
-    """Each proposal view a Run makes from the update phase's, compared with `from_world`; the
+    """Each proposal view a Run makes from the update phase's, compared with a new view; the
     world of each goes to `worlds`."""
     from sheltersim.experiments.runner import OfflineSimulationController
 
@@ -55,7 +57,7 @@ def _compared_ticks(monkeypatch, worlds: list | None = None) -> list[WorldView]:
     def checked(self, world, minute):
         refreshed = self._view_before_proposals is not None
         made = original(self, world, minute)
-        _assert_same_views(made, WorldView.from_world(world))
+        _assert_same_views(made, view_of(world))
         if refreshed:
             views.append(made)
         if worlds is not None:
@@ -111,7 +113,7 @@ def test_a_change_after_the_update_phase_would_be_seen_only_through_a_read_view(
     world = WorldState.from_scenario(generated_scenario)
     world.model_state.setdefault("body_state_v1", create_body_state(world))
     controller = OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
-    before = WorldView.from_world(world).state_hash
+    before = view_of(world).state_hash
     controller._view_before_proposals = controller._view_after_movement(world)
     agent_id = next(iter(world.agents))
     agent = world.agents[agent_id]
@@ -120,7 +122,7 @@ def test_a_change_after_the_update_phase_would_be_seen_only_through_a_read_view(
     agent.needs.hunger = 0.5 if agent.needs.hunger != 0.5 else 0.25
     world.model_state["body_state_v1"]["agents"][agent_id]["uncertainty"] = 0.625
     refreshed = controller._view_for_proposals(world, world.minute_index)
-    _assert_same_views(refreshed, WorldView.from_world(world))
+    _assert_same_views(refreshed, view_of(world))
     assert refreshed.state_hash != before
 
 

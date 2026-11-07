@@ -15,6 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 from support.paths import SMALL_REPLAY
+from support.world import view_of
 
 from sheltersim.core.checkpoint import Checkpoint
 from sheltersim.core.engine import TickPhase, TraceLevel
@@ -37,7 +38,7 @@ from sheltersim.events.models import EventKind, EventSuppressed, ScheduledEvent
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.inspection.frames import person_projection, world_frame
-from sheltersim.policies.behavior import ActionKind, WorldView
+from sheltersim.policies.behavior import ActionKind
 
 
 def _departure(retry_count: int | None) -> ScheduledEvent:
@@ -264,7 +265,7 @@ def test_dynamic_arrival_household_context_reaches_behavior_frames_and_checkpoin
     assert support_kind_for_agent(world, dependent_id) == "hygiene_support"
     assert "ASM-TEST-DYNAMIC-ARRIVAL-V1" in care_source_ids_for_agent(world, dependent_id)
 
-    view = WorldView.from_world(world)
+    view = view_of(world)
     assert view.agents[dependent_id].caregiver_ids == (caregiver_id,)
     assert view.agents[caregiver_id].care_for_ids == (dependent_id,)
     projected = next(

@@ -1044,17 +1044,12 @@ fn check(table: &Table, world: &Bound<'_, PyAny>, memo: &Bound<'_, TickMemo>) ->
 }
 
 /// The check, with the memo moved on, or Unsupported with the memo as it was but for the configs'
-/// plan. `shadow` is for `benchmarks/rule_shadow/shadow_after_tick.py`, the one caller that runs this
-/// while the shadows keep the rest of the tick on the Python path.
+/// plan.
 #[pyfunction]
-#[pyo3(signature = (world, memo, shadow=false))]
-fn after_tick(world: &Bound<'_, PyAny>, memo: &Bound<'_, TickMemo>, shadow: bool) -> PyResult<()> {
+fn after_tick(world: &Bound<'_, PyAny>, memo: &Bound<'_, TickMemo>) -> PyResult<()> {
     let py = world.py();
     let answer = match TABLE.get(py) {
         None => unsupported("domain/simulator_state.py has not installed the table"),
-        Some(_) if !shadow && (crate::rules::tick::path_is_python_only() || crate::rules::dispatch::python_entries()) => {
-            unsupported("a benchmark's shadow is installed")
-        }
         Some(table) => check(table, world, memo),
     };
     match answer {

@@ -16,7 +16,7 @@ use crate::core::mathx::{py_max, py_min};
 use crate::core::row::{attribute, exact_float, exact_int, exact_str, unsupported};
 use crate::rules::care_receipts::{facility_recovery_record, handoff_record, staff_operation_record, OperationOutcome};
 use crate::core::errors;
-use crate::rules::effects::{active_outage, has_active_modifier, refused_by_python};
+use crate::rules::effects::{active_outage, has_active_modifier};
 use crate::rules::handlers::{
     assumption, counted, fields_are, get, get_is, kind_is, log_record, new_event, number, pending_of, text_is, NewEvent,
 };
@@ -265,7 +265,7 @@ fn arrive<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &
         }
         Ok(Planned::Go((record.clone(), staff, record.get_item("target_zone_id")?, due)))
     })();
-    let (record, staff, zone, due) = match counted(py, "arrive", refused_by_python(py, plan))? {
+    let (record, staff, zone, due) = match counted(py, "arrive", plan)? {
         Planned::Go(plan) => plan,
         Planned::Unavailable(id) => {
             return stop_and_suppress(world, &id, event, "staff became unavailable before reaching the assigned task");
@@ -429,7 +429,7 @@ fn relief<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &
             event_source,
         })
     })();
-    let plan = counted(py, "relief", refused_by_python(py, plan))?;
+    let plan = counted(py, "relief", plan)?;
     let Plan { state, operation, task, task_id, previous_id, replacement_id, previous, replacement, pending, work_minutes, causation, formula_source, formula_policy, event_source } = plan;
     let now_object = attribute(world, intern!(py, "minute_index"))?;
     let now = exact_int(&now_object)?;
@@ -760,7 +760,7 @@ fn complete<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event:
             previous_units,
         }))
     })();
-    let plan = match counted(py, "complete", refused_by_python(py, plan))? {
+    let plan = match counted(py, "complete", plan)? {
         Planned::Go(plan) => plan,
         Planned::Unavailable(id) => {
             return stop_and_suppress(world, &id, event, "staff became unavailable before completing the assigned task");

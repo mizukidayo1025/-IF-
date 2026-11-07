@@ -21,9 +21,8 @@ use crate::core::value::V;
 use crate::core::world_core::{mirror_of, raw_dict_get, NamespaceMirror};
 use crate::core::mathx::{py_max, py_min};
 use crate::rules::care_receipts::{
-    allocate_transition, append, person_context, plan_transition, source_ids_of, transition_record, PlannedTransition, Transition,
+    allocate_transition, append, append_applied, person_context, plan_transition, source_ids_of, transition_record, PlannedTransition, Transition,
 };
-use crate::rules::effects::refused_by_python;
 use crate::rules::handlers::{get, number, text_is};
 use crate::rules::service::{add_one, metrics_of, set_agent};
 use crate::state::body_state::{BodyRecord, BodyRow, NAME as BODY};
@@ -913,7 +912,7 @@ fn formula_care(
             source_ids,
         ))
     })();
-    refused_by_python(py, result)
+    result
 }
 
 /// `StaffSupportCompletionHandler.apply`, called from Python: its records, which the dispatcher
@@ -1178,27 +1177,6 @@ fn sources_or_python(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Vec<A
     }
 }
 
-/// `append_applied_care_transition`, past a step's first change: refused here, Python appends it.
-pub(crate) fn append_or_python(world: &Bound<'_, PyAny>, transition: Transition) -> PyResult<()> {
-    let py = world.py();
-    let kwargs = PyDict::new(py);
-    kwargs.set_item("request_id", &*transition.request_id)?;
-    kwargs.set_item("agent_id", &*transition.agent_id)?;
-    kwargs.set_item("household_id", transition.household_id.as_deref())?;
-    kwargs.set_item("support_kind", &*transition.support_kind)?;
-    kwargs.set_item("status", transition.status)?;
-    kwargs.set_item("staff_id", transition.staff_id.as_deref())?;
-    kwargs.set_item("causation_id", transition.causation_id.as_deref())?;
-    kwargs.set_item("source_ids", PyTuple::new(py, transition.source_ids.iter().map(|source| &**source))?)?;
-    match append(world, transition) {
-        Err(error) if error.is_instance_of::<Unsupported>(py) => {
-            py.import("sheltersim.domain.care_receipts")?.getattr("append_applied_care_transition")?.call((world,), Some(&kwargs))?;
-            Ok(())
-        }
-        other => other,
-    }
-}
-
 /// `_assign_staff_support`: the service's assignment, then the receipts of what it assigned. `prior`
 /// and the rest are read on the objects, as what the service called may have written them.
 #[pyfunction]
@@ -1250,7 +1228,7 @@ pub(crate) fn record_assigned<'py>(world: &Bound<'py, PyAny>, assigned: &Bound<'
                 outcome: None,
             })
         };
-        append_or_python(world, transition("assigned")?)?;
+        append_applied(world, transition("assigned")?)?;
         let seeking = EntityStore::with_rows(&entities_of(world)?, |rows| {
             Ok(rows.agents.get(agent_id.as_str()).map(|agent| agent.activity == Activity::SeekingHelp))
         })?;
@@ -1258,7 +1236,7 @@ pub(crate) fn record_assigned<'py>(world: &Bound<'py, PyAny>, assigned: &Bound<'
             return Err(pyo3::exceptions::PyKeyError::new_err(agent_id.clone()));
         };
         if seeking {
-            append_or_python(world, transition("started")?)?;
+            append_applied(world, transition("started")?)?;
         }
     }
     Ok(())

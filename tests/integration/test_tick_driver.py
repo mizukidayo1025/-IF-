@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 from support.paths import BENCHMARKS
+from support.world import on_the_phases
 
 from sheltersim import native
 from sheltersim.core.engine import (
@@ -78,17 +79,6 @@ def _saved(world: WorldState, controller: OfflineSimulationController) -> dict[s
     }
 
 
-def _on_the_phases() -> Any:
-    class Python:
-        def __enter__(self) -> None:
-            native.rules("tick").python_path_only(True)
-
-        def __exit__(self, *_exception: object) -> None:
-            native.rules("tick").python_path_only(False)
-
-    return Python()
-
-
 def _run(scenario: Any, directory: Path, minutes: int, **options: Any) -> dict[str, Any]:
     world, controller, engine = _build(scenario, directory, **options)
     engine.run(minutes)
@@ -112,7 +102,7 @@ def test_a_whole_run_is_the_same_through_the_driver_and_through_the_phases(
     before = _ticks()
     driven = _run(short_scenario, tmp_path / "driven", minutes)
     assert _ticks() - before == minutes
-    with _on_the_phases():
+    with on_the_phases():
         phases = _run(short_scenario, tmp_path / "phases", minutes)
     assert _ticks() - before == minutes, "the phases' run went through the driver"
     assert driven == phases
@@ -139,7 +129,7 @@ def test_each_phase_ends_in_the_same_state_through_the_driver_and_the_phases(
     before = _ticks()
     driven = digests(tmp_path / "driven")
     assert _ticks() - before == 90
-    with _on_the_phases():
+    with on_the_phases():
         phases = digests(tmp_path / "phases")
     assert driven == phases
     assert len(driven) == 90 * 2 * len(TICK_PHASE_ORDER)
@@ -180,7 +170,7 @@ def test_the_driver_serves_independent_queues_itself_as_the_phases_do(
     driven, loops = _whole_run(generated_scenario_with_split_queues, tmp_path / "driver")
     assert _ticks() == before + 180
     assert loops == set()
-    with _on_the_phases():
+    with on_the_phases():
         phases, loops = _whole_run(generated_scenario_with_split_queues, tmp_path / "phases")
     assert "_arbitrate_independent_facility" in loops
     assert driven == phases
@@ -224,15 +214,15 @@ def _without_contact_models(scenario: Any) -> Any:
     return type(scenario).model_validate(document)
 
 
-@pytest.mark.parametrize("on_the_phases", [False, True])
+@pytest.mark.parametrize("phases", [False, True])
 def test_without_the_contact_models_the_decisions_refuse_another_rng(
-    generated_scenario: Any, tmp_path: Path, on_the_phases: bool
+    generated_scenario: Any, tmp_path: Path, phases: bool
 ) -> None:
     """The decisions are the kernel alone too (lane L10): with the social and information models
     off, an RNG no Run has fails the tick at `_propose_due`, not in a Python rule."""
     scenario = _without_contact_models(generated_scenario)
     world, controller, engine = _build(scenario, tmp_path, rng=_OtherRng(scenario.seed))
-    with _on_the_phases() if on_the_phases else contextlib.nullcontext():
+    with on_the_phases() if phases else contextlib.nullcontext():
         with pytest.raises(Exception) as raised:
             engine.step()
     chain = []
@@ -244,16 +234,16 @@ def test_without_the_contact_models_the_decisions_refuse_another_rng(
     assert any("propose_rows" in str(item) for item in chain), chain
 
 
-@pytest.mark.parametrize("on_the_phases", [False, True])
+@pytest.mark.parametrize("phases", [False, True])
 def test_a_refusal_of_a_step_without_a_python_rule_fails_the_tick(
-    generated_scenario: Any, tmp_path: Path, on_the_phases: bool
+    generated_scenario: Any, tmp_path: Path, phases: bool
 ) -> None:
     """The social step is the kernel alone (segments.py, KERNEL_ONLY_SEGMENTS). An RNG no Run has
     is turned down, and neither the driver nor the phases have a Python rule to run instead."""
     world, controller, engine = _build(
         generated_scenario, tmp_path, rng=_OtherRng(generated_scenario.seed)
     )
-    with _on_the_phases() if on_the_phases else contextlib.nullcontext():
+    with on_the_phases() if phases else contextlib.nullcontext():
         with pytest.raises(Exception) as raised:
             engine.step()
     chain = []
@@ -322,7 +312,7 @@ def test_a_trace_runs_on_the_driver_and_keeps_its_files(
     before = _ticks()
     driven = _run(generated_scenario, tmp_path / "driven", 3, trace=level)
     assert _ticks() - before == 3
-    with _on_the_phases():
+    with on_the_phases():
         phases = _run(generated_scenario, tmp_path / "phases", 3, trace=level)
     assert driven == phases
     assert (tmp_path / "driven/psychology_contributions.jsonl").read_bytes() == (
@@ -403,7 +393,7 @@ def test_a_router_that_can_call_a_provider_runs_on_the_driver_as_through_the_pha
     assert provider.asked, "no Provider call was reached"
 
     phase_provider = _KeepingProvider()
-    with _on_the_phases():
+    with on_the_phases():
         phases, phases_calls = run(
             tmp_path / "phases",
             LLMRouter(_llm_settings(LLMMode.RECORD), provider=phase_provider, tape=ResponseTape()),
@@ -446,7 +436,7 @@ def test_an_answer_the_schema_refuses_falls_back_on_the_driver_as_through_the_ph
     driven, asked = run(tmp_path / "driven")
     assert asked
     assert "run this code" not in driven["world"]
-    with _on_the_phases():
+    with on_the_phases():
         phases, phases_asked = run(tmp_path / "phases")
     assert driven == phases
     assert asked == phases_asked
@@ -481,7 +471,7 @@ def test_the_hooks_of_an_offline_router_run_where_they_run_through_the_phases(
     before = _ticks()
     driven, driven_calls = run(tmp_path / "driven")
     assert _ticks() - before == minutes
-    with _on_the_phases():
+    with on_the_phases():
         phases, phases_calls = run(tmp_path / "phases")
     assert driven == phases
     assert driven_calls == phases_calls
@@ -518,7 +508,7 @@ def test_a_tick_probe_watches_the_driver_and_a_patch_s_phases_alike(
         before = _ticks()
         try:
             if patched:
-                with _on_the_phases():
+                with on_the_phases():
                     results[patched] = _run(generated_scenario, tmp_path / str(patched), 2)
             else:
                 results[patched] = _run(generated_scenario, tmp_path / str(patched), 2)
@@ -605,7 +595,7 @@ _PHASE_STEPS = {
         "_arbitrate_services": "// `_arbitrate_services`.",
         "_assign_staff_support": "// `_assign_staff_support`.",
         "assign_staff_operations": "staff::assign_operations(",
-        "_consider_due_complaints": '"_consider_due_complaints"',
+        "_consider_due_complaints": "staff::consider_due_complaints(",
         "schedule_staff_operation_relief": "staff::relief(",
     },
     ("sample", "SamplePhase", "_run_sample_phase", "fn sample(&self)"): {

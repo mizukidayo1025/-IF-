@@ -37,7 +37,7 @@ from sheltersim.contracts.operations import (
     TemporaryRoomGeometry,
 )
 from sheltersim.contracts.population import DynamicArrivalPersonContext
-from sheltersim.core.kernels import kernel_first, kernel_only
+from sheltersim.core.kernels import kernel_only
 from sheltersim.domain.environment import (
     ZONE_ENVIRONMENT_POLICY,
     ZONE_ENVIRONMENT_STATE_KEY,
@@ -2222,7 +2222,6 @@ EFFECT_EVENT_TYPES: Mapping[str, Mapping[str, str]] = MappingProxyType(
 )
 
 
-@kernel_first("effects", "validate_state")
 def validate_effect_program_state(
     world: WorldState,
     *,

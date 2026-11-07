@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from sheltersim.core.rng import KeyedRandom
 from sheltersim.events.models import EventKind, ScheduledEvent
-from sheltersim.experiments.phases.segments import no_python_step
 
 
 class SamplePhase:
@@ -29,7 +28,6 @@ class SamplePhase:
         raises KernelRefusal: a model off or of a class it does not know, an RNG other than
         CounterRNG, a world at another minute, claims or beliefs that do not parse.
         """
-        raise no_python_step("_sample_information_contacts")
 
     def _schedule_information_contact(
         self,
@@ -92,4 +90,3 @@ class SamplePhase:
         raises KernelRefusal: a policy of another class, a minute or interval that is not an int,
         a coordinate whose grid cell does not fit 64 bits.
         """
-        raise no_python_step("_sample_proximity_contacts")

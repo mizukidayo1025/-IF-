@@ -90,8 +90,7 @@ def _event_from_document(document: dict[str, Any]) -> ScheduledEvent:
 
 
 # native/src/rules/after_tick.rs: validate_after_tick in one call, with its memo. The entity rules
-# it calls are native/src/rules/tick_validation.rs; benchmarks/rule_shadow and the python_rules mark
-# replace this one.
+# it calls are native/src/rules/tick_validation.rs; the python_rules mark replaces this one.
 _entity_rules_kernel = native.rules("tick_validation").entity_rules
 _after_tick_kernel = native.rules("after_tick").after_tick
 _TickMemo = native.rules("after_tick").TickMemo

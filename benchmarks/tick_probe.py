@@ -461,80 +461,22 @@ def reverse_order(world: WorldState) -> None:
             stack.extend(value)
 
 
-# Where a rule has finished with its iterators, so the order can change in the middle of a
-# phase: (module, class, method). A method with an after_event callback changes it after each
-# event too. Name the new place when a rule moves; ReversedOrder fails if one is missing.
-WITHIN_PHASE = (
-    ("sheltersim.events.handlers", "EventDispatcher", "dispatch_one"),
-    # With the Rust kernels the phase is rules/dispatch.rs, which calls these two between events.
-    # Its Rust functions read people by ID, and hold no order across them.
-    ("sheltersim.experiments.runner", "OfflineSimulationController", "_run_dispatch_phase"),
-    ("sheltersim.events.handlers", "AgentTravelCompletionHandler", "_after_arrival"),
-    ("sheltersim.experiments.phases.propose", "ProposePhase", "_apply_proposal"),
-    # rules/world_view.rs makes the views. These exist on this class only (phases/segments.py).
-    ("sheltersim.experiments.runner", "OfflineSimulationController", "_view_after_movement"),
-    ("sheltersim.experiments.runner", "OfflineSimulationController", "_view_for_proposals"),
-    ("sheltersim.domain.facilities", "ToiletServiceManager", "arbitrate"),
-    ("sheltersim.domain.resource_service", "ResourceServiceManager", "arbitrate"),
-    ("sheltersim.domain.staff", "StaffService", "assign_pending"),
-)
-
-
 class ReversedOrder:
-    """Reverses the order at every phase's end and, ``within_phase``, inside phases too."""
+    """Reverses the order at the end of every phase.
 
-    def __init__(self, *, within_phase: bool = False) -> None:
+    Reversing inside phases too went with lane L10: it wrapped the Python methods of the phases,
+    which no Run calls any more.
+    """
+
+    def __init__(self) -> None:
         self.reversals = 0
-        self.fired: dict[str, int] = {}
-        self._undo: list[Callable[[], None]] = []
-        self._world: WorldState | None = None
-        if within_phase:
-            for module, owner, method in WITHIN_PHASE:
-                self._wrap(module, owner, method)
-
-    def _reverse(self, world: WorldState | None) -> None:
-        if world is not None:
-            reverse_order(world)
-            self.reversals += 1
-
-    def _wrap(self, module: str, owner: str, method: str) -> None:
-        holder = getattr(__import__(module, fromlist=[owner]), owner)
-        raw = holder.__dict__.get(method)
-        if raw is None:
-            return
-        is_class_method = isinstance(raw, classmethod)
-        original = raw.__func__ if is_class_method else raw
-        label = f"{owner}.{method}"
-
-        def wrapped(*args: Any, **kwargs: Any) -> Any:
-            self.fired[label] = self.fired.get(label, 0) + 1
-            self._reverse(self._world)
-            if "after_event" in kwargs:
-                after_event = kwargs["after_event"]
-
-                def after_each(records: Any) -> None:
-                    if after_event is not None:
-                        after_event(records)
-                    self._reverse(self._world)
-
-                kwargs["after_event"] = after_each
-            return original(*args, **kwargs)
-
-        # A shadow reaches the Python rule of a kernel_first method through this.
-        wrapped.__wrapped__ = getattr(original, "__wrapped__", original)  # type: ignore[attr-defined]
-        setattr(holder, method, classmethod(wrapped) if is_class_method else wrapped)
-        self._undo.append(lambda: setattr(holder, method, raw))
 
     def engine_started(self, engine: int, world: WorldState) -> None:
         pass
 
     def before_phase(self, engine: int, world: WorldState, minute: int, phase: TickPhase) -> None:
-        self._world = world
+        pass
 
     def after_phase(self, engine: int, world: WorldState, minute: int, phase: TickPhase) -> None:
-        self._world = None
-        self._reverse(world)
-
-    def close(self) -> None:
-        for undo in self._undo:
-            undo()
+        reverse_order(world)
+        self.reversals += 1

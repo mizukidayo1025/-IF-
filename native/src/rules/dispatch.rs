@@ -5,16 +5,17 @@
 //! and `apply` they stand for. An event of another type, or whose handler is not that class with that
 //! `apply` (a test's fake or patch), goes to `controller._dispatch_one_event`, which is the Python
 //! dispatcher for one event: its `ScheduledEvent` is made then and not before. So is an event that a
-//! Rust function refuses: Unsupported means nothing changed, and the Python rule runs and says why.
+//! Rust function refuses: Unsupported means nothing changed, and the handler's `apply` (its kernel)
+//! says why. What follows the events is the kernels' too: a refusal there is `KernelRefusal`, which
+//! names the kernel (`errors::kernel_refusal`), as its Python entry raises it.
 //!
 //! No borrow is held across a call into Python. The writer is asked for again after each one, as it
 //! may find another queue. This takes Unsupported only before its first change.
 
 use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
-use pyo3::exceptions::PyRuntimeError;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
@@ -72,14 +73,6 @@ static PHASE_MODULE: GILOnceCell<Py<PyModule>> = GILOnceCell::new();
 /// `DispatchPhase._schedule_return_to_initial_zone`, as `phases/dispatch.py` defines it.
 static RETURN_RULE: GILOnceCell<Py<PyAny>> = GILOnceCell::new();
 
-/// Each call goes through the Python entry of its rule, for benchmarks/rule_shadow, which replaces
-/// those. Then the same kernels run, and a shadow sees each call.
-static PYTHON_ENTRIES: AtomicBool = AtomicBool::new(false);
-
-/// benchmarks/rule_shadow/text_check.py: called with `(handler, world, event, status, text)` for each
-/// outcome text a direct call made in Rust, to compare it with the Python rule's. None, no call.
-static TEXT_CHECKER: Mutex<Option<Py<PyAny>>> = Mutex::new(None);
-
 // ---- What ran, for benchmarks/rule_shadow and its report ------------------------------------------
 
 macro_rules! counters {
@@ -111,7 +104,7 @@ counters!(
     toilet_ran,
     toilet_refused,
     toilet_return_ran,
-    toilet_return_python,
+    toilet_return_refused,
     resource_ran,
     resource_refused,
     timeout_ran,
@@ -197,7 +190,6 @@ struct Phase<'a, 'py> {
     dispatcher: Bound<'py, PyAny>,
     table: &'static Table,
     module: Bound<'py, PyModule>,
-    direct: bool,
     /// The driver has checked that nothing the phase calls is patched, so it calls the kernels of
     /// what follows the events without their Python entries.
     driver: bool,
@@ -224,21 +216,14 @@ impl<'py> Phase<'_, 'py> {
         Ok((status, Some(error.value(py).str()?.to_str()?.to_owned())))
     }
 
-    /// A suppressed or failed outcome of a direct call, shown to text_check.py if it is installed.
+    /// A suppressed or failed outcome of a direct call, as it is recorded.
     fn checked(
         &self,
         handler: &Bound<'py, PyAny>,
         object: &dyn Fn() -> PyResult<Bound<'py, PyAny>>,
         done: (EventStatus, Option<String>),
     ) -> PyResult<(EventStatus, Option<String>)> {
-        let py = self.py();
-        let checker = match TEXT_CHECKER.lock() {
-            Ok(checker) => checker.as_ref().map(|checker| checker.clone_ref(py)),
-            Err(_) => None,
-        };
-        if let (Some(checker), Some(text)) = (checker, done.1.as_deref()) {
-            checker.call1(py, (handler, self.world, object()?, done.0.as_str(), text))?;
-        }
+        let _ = (handler, object);
         Ok(done)
     }
 
@@ -259,36 +244,29 @@ impl<'py> Phase<'_, 'py> {
     fn social(&self, handler: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>) -> PyResult<Handled> {
         let py = self.py();
         let world = self.world;
-        let done = if self.direct {
-            match apply_event(world, event) {
-                Ok(text) => {
-                    count(&COUNTS.social_ran);
-                    match text {
-                        Some((outcome, text)) => {
-                            let status = match outcome {
-                                crate::core::errors::Outcome::Suppressed => {
-                                    count(&COUNTS.social_suppressed);
-                                    EventStatus::Suppressed
-                                }
-                                crate::core::errors::Outcome::Failed => EventStatus::Failed,
-                            };
-                            let object = || Ok(event.clone());
-                            Some(self.checked(handler, &object, (status, Some(text.to_owned())))?)
-                        }
-                        None => None,
+        let done = match apply_event(world, event) {
+            Ok(text) => {
+                count(&COUNTS.social_ran);
+                match text {
+                    Some((outcome, text)) => {
+                        let status = match outcome {
+                            crate::core::errors::Outcome::Suppressed => {
+                                count(&COUNTS.social_suppressed);
+                                EventStatus::Suppressed
+                            }
+                            crate::core::errors::Outcome::Failed => EventStatus::Failed,
+                        };
+                        let object = || Ok(event.clone());
+                        Some(self.checked(handler, &object, (status, Some(text.to_owned())))?)
                     }
+                    None => None,
                 }
-                Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                    refused(py, "social_interaction", &COUNTS.social_refused, &error);
-                    return Ok(None);
-                }
-                Err(error) => return Err(error),
             }
-        } else {
-            match handler.call_method1(intern!(py, "apply"), (world, event)) {
-                Ok(_) => None,
-                Err(error) => Some(self.expected_outcome(error)?),
+            Err(error) if error.is_instance_of::<Unsupported>(py) => {
+                refused(py, "social_interaction", &COUNTS.social_refused, &error);
+                return Ok(None);
             }
+            Err(error) => return Err(error),
         };
         if let Some(done) = done {
             return Ok(Some(done));
@@ -302,40 +280,24 @@ impl<'py> Phase<'_, 'py> {
         let py = self.py();
         let world = self.world;
         let minute = self.minute;
-        let python_rule = |module: &Bound<'py, PyString>, name: &Bound<'py, PyString>| -> PyResult<()> {
-            py.import(module)?.getattr(name)?.call1((world, event, minute))?;
-            Ok(())
-        };
-        let body = intern!(py, "sheltersim.domain.body_state");
-        let network = intern!(py, "sheltersim.domain.social_network");
-        let record = intern!(py, "record_social_event");
-        let observe = intern!(py, "observe_event");
-        if self.direct {
-            match record_social_event(world, event, minute) {
-                Ok(()) => count(&COUNTS.record_social_ran),
-                Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                    refused(py, "record_social_event", &COUNTS.record_social_refused, &error);
-                    python_rule(body, record)?;
-                }
-                Err(error) => return Err(error),
+        match record_social_event(world, event, minute) {
+            Ok(()) => count(&COUNTS.record_social_ran),
+            Err(error) if error.is_instance_of::<Unsupported>(py) => {
+                refused(py, "record_social_event", &COUNTS.record_social_refused, &error);
+                return Err(errors::kernel_refusal(py, "body_state.record_social_event", error));
             }
-        } else {
-            python_rule(body, record)?;
+            Err(error) => return Err(error),
         }
         if !attribute(world, intern!(py, "model_state"))?.contains(intern!(py, SOCIAL_NETWORK))? {
             return Ok(());
         }
-        if self.direct {
-            match observe_event(world, event, minute) {
-                Ok(()) => count(&COUNTS.observe_ran),
-                Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                    refused(py, "observe_event", &COUNTS.observe_refused, &error);
-                    python_rule(network, observe)?;
-                }
-                Err(error) => return Err(error),
+        match observe_event(world, event, minute) {
+            Ok(()) => count(&COUNTS.observe_ran),
+            Err(error) if error.is_instance_of::<Unsupported>(py) => {
+                refused(py, "observe_event", &COUNTS.observe_refused, &error);
+                return Err(errors::kernel_refusal(py, "social_network.observe_event", error));
             }
-        } else {
-            python_rule(network, observe)?;
+            Err(error) => return Err(error),
         }
         Ok(())
     }
@@ -347,12 +309,6 @@ impl<'py> Phase<'_, 'py> {
         object: &dyn Fn() -> PyResult<Bound<'py, PyAny>>,
     ) -> PyResult<Handled> {
         let py = self.py();
-        if !self.direct {
-            return match handler.call_method1(intern!(py, "apply"), (self.world, object()?)) {
-                Ok(_) => Ok(Some((EventStatus::Applied, None))),
-                Err(error) => self.expected_outcome(error).map(Some),
-            };
-        }
         let table = self.table;
         let direct = handler.get_type().getattr(intern!(py, "_after_arrival"))?.is(table.after_arrival.bind(py));
         match travel_completion::apply_event(handler, self.world, event, object, direct) {
@@ -372,8 +328,8 @@ impl<'py> Phase<'_, 'py> {
                     // The rule's own checks, which raise before any change.
                     return Ok(Some(self.checked(handler, object, done)?));
                 }
-                // From what the walk leads to, past the rule's own checks. Not shown to
-                // text_check.py: the walk changed the world before this.
+                // From what the walk leads to, past the rule's own checks: the walk changed the
+                // world before this.
                 Ok(Some(done))
             }
         }
@@ -394,12 +350,6 @@ impl<'py> Phase<'_, 'py> {
                 (Ok(owner), Ok(rule), Some(known)) if owner.is(self.controller) && rule.is(known.bind(py)) => true,
                 _ => return Ok(None),
             };
-        if !self.direct {
-            return match handler.call_method1(intern!(py, "apply"), (self.world, object()?)) {
-                Ok(_) => Ok(Some((EventStatus::Applied, None))),
-                Err(error) => self.expected_outcome(error).map(Some),
-            };
-        }
         match toilet::complete_event(self.world, event) {
             Ok(()) => count(&COUNTS.toilet_ran),
             Err(error) if error.is_instance_of::<Unsupported>(py) => {
@@ -418,10 +368,8 @@ impl<'py> Phase<'_, 'py> {
             match schedule_return(self.controller, self.world, event) {
                 Ok(()) => count(&COUNTS.toilet_return_ran),
                 Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                    count(&COUNTS.toilet_return_python);
-                    if let Err(error) = after.call1((self.world, object()?)) {
-                        return self.expected_outcome(error).map(Some);
-                    }
+                    count(&COUNTS.toilet_return_refused);
+                    return Err(errors::kernel_refusal(py, "travel.schedule_return", error));
                 }
                 Err(error) => return Err(error),
             }
@@ -436,12 +384,6 @@ impl<'py> Phase<'_, 'py> {
         object: &dyn Fn() -> PyResult<Bound<'py, PyAny>>,
     ) -> PyResult<Handled> {
         let py = self.py();
-        if !self.direct {
-            return match handler.call_method1(intern!(py, "apply"), (self.world, object()?)) {
-                Ok(_) => Ok(Some((EventStatus::Applied, None))),
-                Err(error) => self.expected_outcome(error).map(Some),
-            };
-        }
         // `ResourceServiceCompletionHandler.apply`'s check, before its manager's `complete`.
         if attribute(self.world, intern!(py, "schema_version"))?.ne(6)? {
             let error = errors::error(py, errors::Outcome::Failed, "resource service completion requires WorldState v6");
@@ -474,12 +416,6 @@ impl<'py> Phase<'_, 'py> {
         object: &dyn Fn() -> PyResult<Bound<'py, PyAny>>,
     ) -> PyResult<Handled> {
         let py = self.py();
-        if !self.direct {
-            return match handler.call_method1(intern!(py, "apply"), (self.world, object()?)) {
-                Ok(_) => Ok(Some((EventStatus::Applied, None))),
-                Err(error) => self.expected_outcome(error).map(Some),
-            };
-        }
         let cooldown = exact_int(&attribute(handler, intern!(py, "cooldown_minutes"))?)?;
         match support::timeout_event(self.world, event, cooldown) {
             Ok(None) => {
@@ -549,8 +485,8 @@ impl<'py> Phase<'_, 'py> {
         Ok(None)
     }
 
-    /// `dispatch_one` for a handler of `others`: its `apply` runs its kernel, or the Python rule if the
-    /// kernel refuses, so the event's text is the Python rule's.
+    /// `dispatch_one` for a handler of `others`: its `apply` runs its kernel (`kernel_only`), whose
+    /// outcome texts are the deleted Python rule's.
     fn other_event(
         &self,
         due: &DueEvent,
@@ -646,7 +582,6 @@ impl<'py> Phase<'_, 'py> {
             Err(error) if errors::made_here(py, &error) => {
                 let done = self.expected_outcome(error)?;
                 count(if done.0 == EventStatus::Suppressed { &COUNTS.guard_suppressed } else { &COUNTS.guard_failed });
-                // text_check.py compares a guard's outcome with `effect_event_guard_or_suppress`'s.
                 let done = self.checked(&py.None().into_bound(py), object, done)?;
                 count(&COUNTS.events_rust);
                 let event = due.object.as_ref().map(|object| object.bind(py).clone());
@@ -786,7 +721,7 @@ impl<'py> Phase<'_, 'py> {
             RESOURCE_COMPLETE => self.table_handler(RESOURCE_COMPLETE, &table.resource)?,
             SUPPORT_TIMEOUT => self.table_handler(SUPPORT_TIMEOUT, &table.timeout)?,
             // In Python it returns a record, for the dispatcher to append: only the direct call.
-            SUPPORT_COMPLETE if self.direct => self.table_handler(SUPPORT_COMPLETE, &table.support)?,
+            SUPPORT_COMPLETE => self.table_handler(SUPPORT_COMPLETE, &table.support)?,
             _ => None,
         };
         drop(writer);
@@ -843,43 +778,27 @@ impl<'py> Phase<'_, 'py> {
         let py = self.py();
         let world = self.world;
         let event_type = outcome.event_type.clone();
-        let active_keyword = |active: &Bound<'py, PyAny>| -> PyResult<Bound<'py, PyDict>> {
-            let kwargs = PyDict::new(py);
-            kwargs.set_item(intern!(py, "active_actions"), active)?;
-            Ok(kwargs)
-        };
         if ends_any_action(&event_type) {
             let active = attribute(self.controller, intern!(py, "active_actions"))?;
-            let done = if self.direct {
-                let writer = EventWriter::of(world).and_then(|writer| {
-                    complete_for_event(world, &writer, &active, outcome.reference(), self.minute_value)
-                });
-                match writer {
-                    Ok(()) => {
-                        count(&COUNTS.completion_ran);
-                        true
-                    }
-                    Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                        refused(py, "record_applied_action_completion", &COUNTS.completion_refused, &error);
-                        false
-                    }
-                    Err(error) => return Err(error),
+            let writer = EventWriter::of(world).and_then(|writer| {
+                complete_for_event(world, &writer, &active, outcome.reference(), self.minute_value)
+            });
+            match writer {
+                Ok(()) => count(&COUNTS.completion_ran),
+                Err(error) if error.is_instance_of::<Unsupported>(py) => {
+                    refused(py, "record_applied_action_completion", &COUNTS.completion_refused, &error);
+                    return Err(errors::kernel_refusal(py, "action_lifecycle.record_applied_action_completion", error));
                 }
-            } else {
-                false
-            };
-            if !done {
-                self.module.getattr(intern!(py, "record_applied_action_completion"))?.call(
-                    (world, outcome.event(py)?, self.minute),
-                    Some(&active_keyword(&active)?),
-                )?;
+                Err(error) => return Err(error),
             }
         }
         if &*event_type == "effect_program_population" {
             let active = attribute(self.controller, intern!(py, "active_actions"))?;
+            let kwargs = PyDict::new(py);
+            kwargs.set_item(intern!(py, "active_actions"), &active)?;
             self.module.getattr(intern!(py, "record_applied_population_exit"))?.call(
                 (world, outcome.event(py)?, self.minute),
-                Some(&active_keyword(&active)?),
+                Some(&kwargs),
             )?;
         }
         if &*event_type == AGENT_TRAVEL_COMPLETE {
@@ -895,40 +814,24 @@ impl<'py> Phase<'_, 'py> {
                 Err(error) => return Err(error),
             };
             if staff_travel {
-                let done = self.direct
-                    && match support::record_started(world, outcome.reference()) {
-                        Ok(()) => {
-                            count(&COUNTS.started_ran);
-                            true
-                        }
-                        Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                            refused(py, "_record_staff_support_started", &COUNTS.started_refused, &error);
-                            false
-                        }
-                        Err(error) => return Err(error),
-                    };
-                if !done {
-                    self.controller
-                        .call_method1(intern!(py, "_record_staff_support_started"), (world, outcome.event(py)?))?;
+                match support::record_started(world, outcome.reference()) {
+                    Ok(()) => count(&COUNTS.started_ran),
+                    Err(error) if error.is_instance_of::<Unsupported>(py) => {
+                        refused(py, "_record_staff_support_started", &COUNTS.started_refused, &error);
+                        return Err(errors::kernel_refusal(py, "support.record_started", error));
+                    }
+                    Err(error) => return Err(error),
                 }
             }
         }
         if &*event_type == SUPPORT_TIMEOUT {
-            let done = self.direct
-                && match support::record_interrupted(world, outcome.reference()) {
-                    Ok(()) => {
-                        count(&COUNTS.interrupted_ran);
-                        true
-                    }
-                    Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                        refused(py, "_record_request_interrupted", &COUNTS.interrupted_refused, &error);
-                        false
-                    }
-                    Err(error) => return Err(error),
-                };
-            if !done {
-                self.controller
-                    .call_method1(intern!(py, "_record_request_interrupted"), (world, outcome.event(py)?))?;
+            match support::record_interrupted(world, outcome.reference()) {
+                Ok(()) => count(&COUNTS.interrupted_ran),
+                Err(error) if error.is_instance_of::<Unsupported>(py) => {
+                    refused(py, "_record_request_interrupted", &COUNTS.interrupted_refused, &error);
+                    return Err(errors::kernel_refusal(py, "support.record_interrupted", error));
+                }
+                Err(error) => return Err(error),
             }
         }
         Ok(())
@@ -937,6 +840,7 @@ impl<'py> Phase<'_, 'py> {
     fn learn(&self, outcome: &mut Outcome<'py>) -> PyResult<()> {
         let py = self.py();
         let world = self.world;
+        // The step's reading of IDs a row can't hold: `isinstance(..., str)`, then the rule.
         let python_rule = |outcome: &mut Outcome<'py>| -> PyResult<()> {
             let event = outcome.event(py)?;
             let payload = attribute(&event, intern!(py, "payload"))?;
@@ -947,9 +851,6 @@ impl<'py> Phase<'_, 'py> {
             }
             Ok(())
         };
-        if !self.direct {
-            return python_rule(outcome);
-        }
         let ids = (|| Ok::<_, PyErr>((outcome.reference().text("agent_id")?, outcome.reference().text("facility_id")?)))();
         let ids = match ids {
             Ok(ids) => ids,
@@ -966,7 +867,7 @@ impl<'py> Phase<'_, 'py> {
             }
             Err(error) if error.is_instance_of::<Unsupported>(py) => {
                 refused(py, "learn_facility", &COUNTS.learn_refused, &error);
-                python_rule(outcome)
+                Err(errors::kernel_refusal(py, "agent_dynamics.learn_facility", error))
             }
             Err(error) => Err(error),
         }
@@ -1051,40 +952,31 @@ impl<'py> Phase<'_, 'py> {
     fn finish_journey(&self, id: &Arc<str>, purpose: Option<&str>) -> PyResult<()> {
         let py = self.py();
         let key = PyString::new(py, id);
-        if self.direct {
-            let bed = if purpose == Some("sleep_bed") {
-                match self.bed_point_of(&key) {
-                    Ok(bed) => Ok(bed),
-                    Err(error) => Err(error),
-                }
-            } else {
-                Ok(None)
-            };
-            if let Ok(bed) = bed {
-                match finish_movement(self.world, key.as_any()) {
-                    Ok(()) => {
-                        count(&COUNTS.finished_direct);
-                        if let Some(bed) = bed {
-                            let agent = raw_dict_get(&attribute(self.world, intern!(py, "agents"))?, key.as_any())?;
-                            if let Some(agent) = agent {
-                                let update = PyDict::new(py);
-                                update.set_item("zone_id", attribute(&agent, intern!(py, "zone_id"))?)?;
-                                update.set_item("point", bed)?;
-                                update.set_item("edge_id", py.None())?;
-                                update.set_item("progress", 1.0)?;
-                                update.set_item("position_kind", "physical")?;
-                                attribute(self.world, intern!(py, "model_state"))?
-                                    .get_item(MOVEMENT)?
-                                    .get_item("positions")?
-                                    .get_item(key.as_any())?
-                                    .call_method1(intern!(py, "update"), (update,))?;
-                            }
+        let bed = if purpose == Some("sleep_bed") { self.bed_point_of(&key) } else { Ok(None) };
+        // An overlay the reading above can't take is the Python step's to read, and to say why.
+        if let Ok(bed) = bed {
+            match finish_movement(self.world, key.as_any()) {
+                Ok(()) => {
+                    count(&COUNTS.finished_direct);
+                    if let Some(bed) = bed {
+                        let agent = raw_dict_get(&attribute(self.world, intern!(py, "agents"))?, key.as_any())?;
+                        if let Some(agent) = agent {
+                            let update = PyDict::new(py);
+                            update.set_item("zone_id", attribute(&agent, intern!(py, "zone_id"))?)?;
+                            update.set_item("point", bed)?;
+                            update.set_item("edge_id", py.None())?;
+                            update.set_item("progress", 1.0)?;
+                            update.set_item("position_kind", "physical")?;
+                            attribute(self.world, intern!(py, "model_state"))?
+                                .get_item(MOVEMENT)?
+                                .get_item("positions")?
+                                .get_item(key.as_any())?
+                                .call_method1(intern!(py, "update"), (update,))?;
                         }
-                        return Ok(());
                     }
-                    Err(error) if error.is_instance_of::<Unsupported>(py) => {}
-                    Err(error) => return Err(error),
+                    return Ok(());
                 }
+                Err(error) => return Err(errors::kernel_refusal(py, "movement.finish_movement", error)),
             }
         }
         count(&COUNTS.finished_python);
@@ -1095,11 +987,9 @@ impl<'py> Phase<'_, 'py> {
     fn admit_returns(&self) -> PyResult<()> {
         let py = self.py();
         if self.driver {
-            match admit_pending_returns(self.world, self.minute) {
-                Ok(_) => return Ok(()),
-                Err(error) if error.is_instance_of::<Unsupported>(py) => {}
-                Err(error) => return Err(error),
-            }
+            return admit_pending_returns(self.world, self.minute)
+                .map(|_| ())
+                .map_err(|error| errors::kernel_refusal(py, "population_lifecycle.admit_pending_returns", error));
         }
         self.controller.call_method1(intern!(py, "_admit_pending_returns"), (self.world, self.minute))?;
         Ok(())
@@ -1108,11 +998,9 @@ impl<'py> Phase<'_, 'py> {
     fn admit_arrivals(&self) -> PyResult<()> {
         let py = self.py();
         if self.driver {
-            match admit_pending_arrivals(self.world, self.minute) {
-                Ok(_) => return Ok(()),
-                Err(error) if error.is_instance_of::<Unsupported>(py) => {}
-                Err(error) => return Err(error),
-            }
+            return admit_pending_arrivals(self.world, self.minute)
+                .map(|_| ())
+                .map_err(|error| errors::kernel_refusal(py, "population.admit_pending_arrivals", error));
         }
         self.module.getattr(intern!(py, "admit_pending_arrivals"))?.call1((self.world, self.minute))?;
         Ok(())
@@ -1143,13 +1031,12 @@ impl<'py> Phase<'_, 'py> {
         for outcome in outcomes.iter_mut().filter(applied) {
             if &*outcome.event_type == "effect_program_geometry" {
                 let event = outcome.event(py)?;
-                let done = self.direct
-                    && match crate::rules::staff_operation_events::interrupt_trips_of_event(world, &event) {
-                        Ok(()) => true,
-                        // Those already stopped are idle, and the rule passes over them.
-                        Err(error) if error.is_instance_of::<Unsupported>(py) => false,
-                        Err(error) => return Err(error),
-                    };
+                let done = match crate::rules::staff_operation_events::interrupt_trips_of_event(world, &event) {
+                    Ok(()) => true,
+                    // Those already stopped are idle, and the step's own checks pass over them.
+                    Err(error) if error.is_instance_of::<Unsupported>(py) => false,
+                    Err(error) => return Err(error),
+                };
                 if !done {
                     controller.call_method1(intern!(py, "_interrupt_trips_of_event"), (world, event))?;
                 }
@@ -1184,11 +1071,6 @@ pub(crate) fn run_for_driver<'py>(
     minute: &Bound<'py, PyAny>,
 ) -> PyResult<()> {
     run_inner(controller, world, minute, true)
-}
-
-/// Whether a benchmark's shadow has asked for the rules' Python entries.
-pub(crate) fn python_entries() -> bool {
-    PYTHON_ENTRIES.load(Ordering::Relaxed)
 }
 
 fn run_inner<'py>(
@@ -1228,18 +1110,11 @@ fn run_inner<'py>(
         dispatcher,
         table,
         module,
-        direct: !PYTHON_ENTRIES.load(Ordering::Relaxed),
         driver,
     };
     count(&COUNTS.phases_ran);
-    phase.run().map_err(|error| {
-        // The phase has begun, so the Python step must not run over it.
-        if error.is_instance_of::<Unsupported>(py) {
-            PyRuntimeError::new_err(format!("a rule refused in the dispatch phase past its checks: {}", error.value(py)))
-        } else {
-            error
-        }
-    })
+    // The phase has begun: a refusal past its checks is KernelRefusal too.
+    phase.run().map_err(|error| errors::kernel_refusal(py, "dispatch.run_phase", error))
 }
 
 /// What `events/handlers.py` gives once: the handlers the table stands for, as defined.
@@ -1290,21 +1165,6 @@ fn install_return_rule(py: Python<'_>, rule: Bound<'_, PyAny>) -> PyResult<()> {
     Ok(())
 }
 
-/// Call each rule through its Python entry, for benchmarks/rule_shadow.
-#[pyfunction]
-fn use_python_entries(value: bool) {
-    PYTHON_ENTRIES.store(value, Ordering::Relaxed);
-}
-
-/// Install text_check.py's checker of direct outcomes, or None to remove it.
-#[pyfunction]
-#[pyo3(signature = (checker=None))]
-fn texts_checker(checker: Option<Py<PyAny>>) {
-    if let Ok(mut installed) = TEXT_CHECKER.lock() {
-        *installed = checker;
-    }
-}
-
 /// What has run in this process: `(counts, refusals by reason)`.
 #[pyfunction]
 fn stats<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyDict>, Bound<'py, PyDict>)> {
@@ -1328,8 +1188,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run_phase, m)?)?;
     m.add_function(wrap_pyfunction!(install_table, m)?)?;
     m.add_function(wrap_pyfunction!(install_return_rule, m)?)?;
-    m.add_function(wrap_pyfunction!(use_python_entries, m)?)?;
-    m.add_function(wrap_pyfunction!(texts_checker, m)?)?;
     m.add_function(wrap_pyfunction!(stats, m)?)?;
     Ok(())
 }

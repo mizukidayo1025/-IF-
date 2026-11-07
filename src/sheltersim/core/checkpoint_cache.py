@@ -749,8 +749,8 @@ class CheckpointHistoryCache:
 
         A log that wrote each of its records' bytes is what restoring them gives: reading
         those bytes gives the frozen values they were written from, by the writer's exact
-        types (native/src/checkpoint.rs, tried at every save by benchmarks/rule_shadow). The
-        restore check then reads the live log, and only reads it. No restored log is built.
+        types (native/src/checkpoint.rs). The restore check then reads the live log, and only
+        reads it. No restored log is built.
         """
         if self._live_log is not None:
             return self._live_log

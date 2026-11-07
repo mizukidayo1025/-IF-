@@ -707,11 +707,11 @@ def _run(scenario: Any, directory: Path, minutes: int) -> dict[str, Any]:
     }
 
 
-def test_a_run_is_the_same_in_rust_through_python_entries_and_in_python(
+def test_a_run_through_the_kernel_is_what_the_python_step_made(
     generated_scenario: Any, tmp_path: Path
 ) -> None:
-    """240 minutes through the kernel, and through the rules' Python entries: both are what the
-    Python step made of them, its digest taken from that step."""
+    """240 minutes through the kernel: what the Python step made of them, its digest taken from
+    that step."""
     before = _counts()
     direct = _run(generated_scenario, tmp_path / "direct", 240)
     after = _counts()
@@ -720,13 +720,6 @@ def test_a_run_is_the_same_in_rust_through_python_entries_and_in_python(
     assert after["travel_refused"] == before["travel_refused"]
     assert after["completion_refused"] == before["completion_refused"]
     assert after["sync_refused"] == before["sync_refused"]
-    module = native.rules("dispatch")
-    module.use_python_entries(True)
-    try:
-        entries = _run(generated_scenario, tmp_path / "entries", 240)
-    finally:
-        module.use_python_entries(False)
-    assert entries == direct
     if sys.platform == "linux":
         text = json.dumps(direct, sort_keys=True)
         assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == "9bea40ea3b5cd8b4"

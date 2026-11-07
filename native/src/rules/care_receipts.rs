@@ -10,6 +10,7 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 
+use crate::core::errors;
 use crate::core::row::{attribute, exact_int, exact_str, str_value, namespace_is_absent, unsupported};
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::V;
@@ -232,6 +233,32 @@ pub(crate) fn append(world: &Bound<'_, PyAny>, transition: Transition) -> PyResu
     write_transition(world, &writer, planned)
 }
 
+/// Whether `append_applied_care_transition` has nothing to append to: no namespace. One that is None
+/// is refused.
+fn absent(world: &Bound<'_, PyAny>) -> PyResult<bool> {
+    let py = world.py();
+    if !namespace_is_absent(world, intern!(py, NAME))? {
+        return Ok(false);
+    }
+    let table = attribute(world, intern!(py, "model_state"))?;
+    if crate::core::row::exact_dict(&table)?.contains(intern!(py, NAME))? {
+        return unsupported("the namespace is None");
+    }
+    Ok(true)
+}
+
+/// `append_applied_care_transition` of a step past its first change, as its Python entry does it:
+/// nothing without the namespace, and a refusal is that entry's KernelRefusal.
+pub(crate) fn append_applied(world: &Bound<'_, PyAny>, transition: Transition) -> PyResult<()> {
+    let py = world.py();
+    let done = match absent(world) {
+        Ok(true) => Ok(()),
+        Ok(false) => append(world, transition),
+        Err(error) => Err(error),
+    };
+    done.map_err(|error| errors::kernel_refusal(py, "care_receipts.append_transition", error))
+}
+
 fn optional_text(value: Option<&Bound<'_, PyAny>>) -> PyResult<Option<Arc<str>>> {
     match value {
         Some(value) if !value.is_none() => Ok(Some(Arc::from(exact_str(value)?))),
@@ -254,12 +281,7 @@ fn append_transition<'py>(
     causation_id: Option<&Bound<'py, PyAny>>,
     source_ids: Option<&Bound<'py, PyAny>>,
 ) -> PyResult<()> {
-    let py = world.py();
-    if namespace_is_absent(world, intern!(py, NAME))? {
-        let table = attribute(world, intern!(py, "model_state"))?;
-        if crate::core::row::exact_dict(&table)?.contains(intern!(py, NAME))? {
-            return unsupported("the namespace is None");
-        }
+    if absent(world)? {
         return Ok(());
     }
     let mut sources = Vec::new();

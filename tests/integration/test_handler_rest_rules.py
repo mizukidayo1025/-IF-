@@ -263,10 +263,11 @@ def _schema_1(state: dict[str, Any]) -> None:
 
 
 def test_an_information_event_upgrades_a_state_of_schema_1_first() -> None:
-    """A save of schema 1 still ticks (core/model_version.py `LEGACY_SHAPES_TICKABLE`).
+    """A state of schema 1 in memory is upgraded in place before the event's checks.
 
-    The handlers' Python rule upgraded it in place before the event's checks; the kernels do the
-    same: the tick is the one of a state upgraded before it.
+    A save of schema 1 is view-only (core/model_version.py `LEGACY_SHAPES_TICKABLE` is false), so
+    no restored Run reaches this. The handlers' Python rule upgraded such a state in place; the
+    kernels do the same: the tick is the one of a state upgraded before it.
     """
     gate = _gate()
     scenario = gate.with_rumors(gate.generated(evacuees=20, minutes=120))

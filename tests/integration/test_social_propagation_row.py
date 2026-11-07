@@ -18,6 +18,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from support.world import view_of
 
 from sheltersim import native
 from sheltersim.core.engine import TraceLevel
@@ -221,7 +222,7 @@ def _small(
     world.model_state[KEY] = {"schema_version": 1, "contacts": {}, "agent_cooldown_until": {}}
     for index, agent in enumerate(world.agents.values()):
         agent.stress = (index % 10) / 10.0
-    view = WorldView.from_world(world, include_state_hash=False)
+    view = view_of(world, include_state_hash=False)
     kind, source = POLICIES[policy]
     settings = SocialPropagationParameters(
         enabled=True, stress_spread_per_minute=0.2, minimum_contact_minutes=1, source_id=source
@@ -316,7 +317,7 @@ def test_the_document_of_a_trace_is_the_python_rule_s(
         world.minute_index = minute
         for agent in world.agents.values():
             agent.stress = draws.choice((0.0, 1.0, draws.random()))
-        view = WorldView.from_world(world, include_state_hash=False)
+        view = view_of(world, include_state_hash=False)
         base = tuple(
             replace(delta, minute_index=minute, stress=draws.choice((0.0, 1.0, draws.random())))
             for delta in deltas
@@ -682,7 +683,7 @@ def test_int_coefficients_of_a_scenario_give_the_python_rule_s_answers(
         world.minute_index = minute
         for agent in world.agents.values():
             agent.stress = draws.choice((0.0, 1.0, draws.random()))
-        view = WorldView.from_world(world, include_state_hash=False)
+        view = view_of(world, include_state_hash=False)
         base = tuple(
             replace(delta, minute_index=minute, stress=draws.choice((0.0, 1.0, draws.random())))
             for delta in deltas
@@ -833,7 +834,7 @@ def _random_case(draw: random.Random, template: Any, policy: str) -> tuple[Any, 
 
 def _template(generated_scenario: Any) -> Any:
     world = WorldState.from_scenario(generated_scenario)
-    return next(iter(WorldView.from_world(world, include_state_hash=False).agents.values()))
+    return next(iter(view_of(world, include_state_hash=False).agents.values()))
 
 
 @pytest.mark.parametrize("policy", POLICIES)

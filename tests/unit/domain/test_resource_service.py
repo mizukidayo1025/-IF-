@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 from support.paths import SMALL_REPLAY, SOURCE_MANIFEST
+from support.world import view_of
 
 from sheltersim.core.checkpoint import Checkpoint
 from sheltersim.core.engine import TraceLevel
@@ -662,11 +663,11 @@ def test_behavior_view_exposes_resource_actions_only_for_opted_in_v6(
     from support.world import decisions_of
 
     from sheltersim.core.rng import CounterRNG
-    from sheltersim.policies.behavior import ActionKind, UtilityBehaviorPolicy, WorldView
+    from sheltersim.policies.behavior import ActionKind, UtilityBehaviorPolicy
 
     baseline = WorldState.from_scenario(ScenarioSpec.load(SMALL_REPLAY))
     baseline.agents["A001"].next_decision_at = 0
-    old_view = WorldView.from_world(baseline)
+    old_view = view_of(baseline)
     old_proposal = decisions_of(baseline, UtilityBehaviorPolicy(), rng=CounterRNG(3))["A001"]
     assert not old_view.resource_service_enabled
     assert ActionKind.FETCH_WATER not in {item.action for item in old_proposal.candidates}
@@ -674,7 +675,7 @@ def test_behavior_view_exposes_resource_actions_only_for_opted_in_v6(
     world = WorldState.from_scenario(resource_service_scenario())
     world.agents["A001"].next_decision_at = 0
     world.agents["A001"].needs.hydration_need = 0.9
-    view = WorldView.from_world(world)
+    view = view_of(world)
     proposal = decisions_of(
         world,
         UtilityBehaviorPolicy(

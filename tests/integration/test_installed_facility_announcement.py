@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import math
 
-import pytest
-
 from sheltersim.contracts.extensions import point_in_polygon
 from sheltersim.core.world import WorldState
 from sheltersim.domain.agent_dynamics import (
@@ -134,7 +132,6 @@ def test_v2_histories_keep_installed_facilities_unknown(
         assert _knowers(child.world, facility_id) == 0
 
 
-@pytest.mark.python_rules
 def test_runtime_placement_failure_fails_the_event_without_changes(
     tmp_path, monkeypatch, generated_scenario, add_toilets_program, saved_timeline
 ) -> None:

@@ -19,6 +19,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from support.world import view_of
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine, TraceLevel
@@ -43,7 +44,6 @@ from sheltersim.policies.information import (
     EvidenceAwareInformationPolicy,
     InformationSpreadPolicy,
 )
-from sheltersim.policies.world_view import WorldView
 
 MODELS = (InformationSpreadPolicy, HazardInformationPolicy, EvidenceAwareInformationPolicy)
 
@@ -175,7 +175,7 @@ def _proposal_of(event: Any, minute: int) -> tuple[Any, ...]:
 
 
 def _view_of(world: WorldState) -> Any:
-    """What the rule reads of a view, for IDs and zones WorldView.from_world can't take."""
+    """What the rule reads of a view, for IDs and zones the view kernel can't take."""
     return SimpleNamespace(
         minute_index=world.minute_index,
         agents={
@@ -197,7 +197,7 @@ def _python_answer(
     """Only while recording: the deleted Python rule's answer, in the kernel's terms."""
     rng = _Recording(seed)
     state = json.loads(json.dumps(world.model_state[KEY]))
-    view = view or WorldView.from_world(world, include_state_hash=False)
+    view = view or view_of(world, include_state_hash=False)
     python = policy.update(view, state, rng, zone_neighbors=neighbors)
     contacts = [
         [

@@ -41,17 +41,17 @@ Checkpoint document) and times them.
   `EventApplicationError` itself, with the Python rule's text and in the rule's order of checks,
   through `src/core/errors.rs` (`errors::suppressed`, `errors::failed`; the type tests of a check,
   such as `errors::int_not_bool`, say Unsupported only where Rust can't tell). The text is saved, as
-  the event record's `detail`. `benchmarks/rule_shadow/text_check.py` compares each one with the
-  Python rule's while that exists (docs/rust-port/lanes/l8-texts-events.md).
+  the event record's `detail`. Tests compare each one with the class and text written down from
+  the Python rule before it went (docs/rust-port/lanes/l8-texts-events.md).
   The same file has the exits for the rules' other errors: where the Python rule raises a
   `ValueError`, a `StateInvariantError` or a class of a contract, a kernel raises that class with
   that text, in the rule's order of checks and before any
   change, instead of `Unsupported`. A Python call the rule makes too (a contract's
-  `model_validate`) has its error relayed as it is. With `errors_switch(True)`
-  (`benchmarks/rule_shadow/error_compare.py`) the entries that fall back to a Python rule also run
-  it after such an error and count whether it raised the same class and text
-  (`docs/rust-port/lanes/l8-texts-rest.md`). `corrupt(namespace, check)` is the one exit for a
-  state the Python rules' checks never let through; its text is not Python's.
+  `model_validate`) has its error relayed as it is (`docs/rust-port/lanes/l8-texts-rest.md`).
+  `corrupt(namespace, check)` is the one exit for a state the Python rules' checks never let
+  through; its text is not Python's. `kernel_refusal(label, error)` is the one exit of a refusal no
+  Python rule stands behind (lane L10): `KernelRefusal` of `core/kernels.py`, whose text names the
+  kernel and gives its reason, as `kernel_only` raises it.
   `rules/parity.rs` is the example and exposes `core` to the tests. `rules/social_propagation.rs`
   and `rules/information.rs` hold the contact kernels; what they share is in `contacts.rs`.
 - `src/core/world_core.rs`: `WorldCore`, one per world, in `world.__dict__["_core"]`, and a
@@ -69,8 +69,8 @@ Checkpoint document) and times them.
 - `src/state/facility_queues.rs`: the typed row of `facility_queues_v1`. The rules read it and write
   through the tree (`docs/rust-port/lanes/m6-overlay.md`).
 - `src/rules/population.rs`, `src/rules/population_lifecycle.rs`: the rules of `domain/population.py`
-  and `domain/population_lifecycle.py`, each behind `kernel_first`. A kernel plans, refuses before
-  its first write what the Python rule raises on, then writes with the rule's operations on the
+  and `domain/population_lifecycle.py`, each `kernel_only`. A kernel plans, refuses before
+  its first write what the Python rule raised on, then writes with the rule's operations on the
   tracked containers, which forward them to the rows. `rules/population.rs` also reads what admission
   needs of `temporary_spaces.py` and `geometry_overlay.py`
   (`docs/rust-port/lanes/m6-population-rules.md`).
@@ -81,7 +81,7 @@ Checkpoint document) and times them.
   them value by value. Start a namespace from `docs/rust-port/lanes/p5-template-namespace.md`.
   `row.rs` also has `Maybe<T>` (a key a record may not have), `str_enum!`, `set_all`,
   `namespace_is_absent` and the `exact_*` readers of a kernel's inputs. A rule other modules call as
-  a function uses `core/kernels.py`'s `kernel_first`; `src/state/staff_dynamics.rs` and
+  a function uses `core/kernels.py`'s `kernel_only`; `src/state/staff_dynamics.rs` and
   `src/rules/staff_dynamics.rs` are the example of a whole module
   (`docs/rust-port/lanes/s-staff-dynamics.md`).
 - `src/state/entities.rs`: `EntityStore`, the typed rows of a world's agents, facilities, staff,
@@ -169,8 +169,9 @@ each OS, because both call the same libm.
   through `controller.run_tick` (`experiments/phases/driver.py`). Unsupported before anything changes
   for a tick that a hook changes (a shadow, a patched step or rule in the table of `install`). A trace
   and a Provider stay on the driver: the Provider's hooks are the same Python, called from the kernels
-  at the same places. After that a kernel's Unsupported runs that step's Python rule.
-  `python_path_only(True)` sends every tick to `phase_handler`; `stats()` says what ran.
+  at the same places. After that each step is its kernel, and a kernel's Unsupported is
+  `KernelRefusal` naming it (`only`); no Python rule stands behind one. Only the metrics' sample
+  goes to `MetricsRecorder.capture` on a refusal. `stats()` says what ran.
 
 - `rules/dispatch.rs`: `run_phase(controller, world, minute)`, the dispatch phase. An event type with
   a Rust function (`social_interaction`, `agent_travel_complete`, `toilet_service_complete`,
@@ -178,7 +179,7 @@ each OS, because both call the same libm.
   is that class with its `apply` as defined. The loop calls the other handlers' `apply`, listed in
   `install_table`, with the Python dispatcher's steps around it: that runs their kernels
   (`rules/handlers.rs`, `rules/information_events.rs`, `rules/staff_operation_events.rs`,
-  `docs/rust-port/lanes/m6-handlers-rest.md`), or their Python rule on a refusal. An EffectProgram's
+  `docs/rust-port/lanes/m6-handlers-rest.md`); a refusal is their `KernelRefusal`. An EffectProgram's
   marked event has its guard asked in Rust first (`effects::guard_or_suppress`; a false or failing
   guard is recorded with the Python rule's text), then goes on as an unmarked one; a marked event of
   a type with a Rust function, a patched handler and any other event a Rust function refused calls
@@ -186,8 +187,9 @@ each OS, because both call the same libm.
   is the walk's handler, with `_after_arrival`'s kernel, and `rules/toilet.rs`, `rules/support.rs` and
   `rules/care_receipts.rs` the toilet's service, the support requests and the care receipts
   (`docs/rust-port/lanes/m6-handlers.md`). No borrow is held
-  across a Python call. `use_python_entries(True)` makes it call each rule through its Python entry,
-  for `benchmarks/rule_shadow`, and `stats()` says what ran and why anything was refused.
+  across a Python call. What follows the events is the kernels', called directly; a refusal there
+  is the `KernelRefusal` of the rule's Python entry. `stats()` says what ran and why anything was
+  refused.
 - `rules/decisions.rs`: `propose_rows(controller, view, rng)`, `observed_row(controller, view,
   agent_id)` and `record_outcome(controller, proposal, *, target_id, next_decision_at, committed,
   observed_state)` are the steps `_propose_due`, `_observed_state` and `_record_outcome`, which have
@@ -214,11 +216,12 @@ each OS, because both call the same libm.
   `view_for_proposals(controller, world, minute)` are the two steps of the phases that make a
   `WorldView`, which have no Python body (`KERNEL_ONLY_SEGMENTS`). A snapshot of plain Rust values (`ViewData`) is built from the entity rows, the rows of
   `information_spread_v1` and `psychological_distress_v1`, and a read of the namespaces Python still
-  owns. It is what `WorldView.from_world` provides, with the same audit hash
+  owns. It is what the Python rule `WorldView.from_world` provided before it went (lane L10), with
+  the same audit hash
   (`state_hash`, which writes the canonical document from the snapshot). The returned `WorldView`
   makes `agents`, `facilities`, `zone_members` and `group_members` when a Python reader first asks
   (`RustView.python_fields`, through `WorldView.__getattr__`). A person's context comes from
-  `rules/person_context.rs` (`PersonContext` and `_fields_of_person`) and a zone's conditions from
+  `rules/person_context.rs` (`PersonContext`) and a zone's conditions from
   `rules/zone_environment.rs` (`zone_environment_view` and its 8 formulas), each kept while its
   document stays equal. `selected_models` stays the Python contract. A value a typed field can't hold, or anything Python would raise on, says
   `Unsupported`, and the step raises KernelRefusal. `view_of(view)` gives a kernel the snapshot; for a view Python
@@ -234,7 +237,7 @@ each OS, because both call the same libm.
   and float order are those of Python. A trace's document comes from `rules/trace.rs`. Another RNG, a
   policy's subclass, and what the
   Python rule turns down give `Unsupported`, and the Python step runs. `core::rng` can keep each
-  draw of a thread for the comparison of `benchmarks/rule_shadow` (`start_draw_log`, `take_draw_log`).
+  draw of a thread for the tests' comparisons (`start_draw_log`, `take_draw_log`).
 
 - `state.social_network.ROW`, `validate`: Rust owns `social_network_v1`
   (`src/state/social_network.rs`). The row lists the records written since the last check, whichever
@@ -244,7 +247,7 @@ each OS, because both call the same libm.
   body's trust copied (`domain/social_network.py`). `rules/social_propagation.rs` records its observed
   contacts through the same code, with no Python call. `rules.social_dialogue.capture_context`,
   `validate_context`: the state context of a social event, read from the rows. Each is
-  `kernel_first`: what the Python rule would refuse, or a value of another type, gives `Unsupported`
+  `kernel_only`: what the Python rule refused, or a value of another type, gives `Unsupported`
   before any change.
 
 - `rules.social_interaction.apply(handler, world, event)`: `SocialInteractionHandler.apply` for a
@@ -259,19 +262,19 @@ each OS, because both call the same libm.
   `plan_in_room_route`, `queue_slot_position`, `facility_approach_route`,
   `staff_position_snapshots`, `agent_is_at_queue_slot`, `agent_is_at_queue_trip_destination`,
   `agent_is_at_facility_service_point`, and `validate(world)` for `register_rust_validator`.
-  `domain/movement.py` calls them through `kernel_first`. A queue trip's replan and a person placed
+  `domain/movement.py` calls them through `kernel_only`. A queue trip's replan and a person placed
   in a queue slot depend on the order of the walk: `advance_movement` then plans a second walk that
   reads the positions as it leaves them. `zone_center` is for the tests.
   See `docs/rust-port/lanes/m4-movement.md` and `docs/rust-port/lanes/l3-movement.md`.
 - `rules.replan.replan_journeys(controller, state, agent_ids, minute)`: `_replan_journeys` and
   `_replan_staff_support_trip` (`src/rules/replan.rs`). It writes each person's stop before it plans
-  their new route, so `Unsupported` comes only before the first person's stop; a later refusal goes
-  to `_replan_in_python` or `_replan_stopped` on the controller, from where it got to.
+  their new route, so `Unsupported` comes only before the first person's stop (lane L10: the step
+  has no Python body, so any refusal is `KernelRefusal`).
 - `rules.queues`: a facility's physical queue (`src/rules/queues.rs`):
   `prepare_facility_queue(world, facility_id, *, resource, minute)`,
   `progress_physical_queue_positions` and `progress_physical_queue_head_to_service` (same
   arguments, optional `queue_id`). `domain/queueing.py` and `domain/movement.py` call them through
-  `kernel_first`. Each plans and then writes, in one call.
+  `kernel_only`. Each plans and then writes, in one call.
   A person who gives up on the queue leaves it here too (`_abandon_and_retry`), with the walk
   back and, for an independent FIFO, the queue's record (lane L4).
   See `docs/rust-port/lanes/m4-queues.md`.
@@ -326,7 +329,7 @@ each OS, because both call the same libm.
   down, or a write into a record already there, taints the namespace. `validate` answers for the
   check of a tick; the replay of a save stays in Python. `rules.resources.apply_operation(world,
   event, operation)`, `metric_values(world, *, tick_memo=None)` and `reservation_id_was_used(world,
-  id)` are `kernel_first` (`docs/rust-port/lanes/m4-resources.md`).
+  id)` are `kernel_only` (`docs/rust-port/lanes/m4-resources.md`).
 
 - `state.resource_service.ROW`, `validate`: Rust owns `resource_service_v1`
   (`src/state/resource_service.rs`): typed, with the two histories as lists of records. `validate`
@@ -334,7 +337,7 @@ each OS, because both call the same libm.
   `rules.service` (`src/rules/service.rs`): `facilities_to_serve(manager)`, `serve_head(manager,
   facility_id, resource_id, minute)`, `complete(manager, event)`, `request(manager, agent_id,
   facility_id, *, minute=None, validate_state=None, queue_id=None)` and
-  `record_request_outcome(manager, *, ...)`, each `kernel_first` on `ResourceServiceManager`.
+  `record_request_outcome(manager, *, ...)`, each `kernel_only` on `ResourceServiceManager`.
   `serve_head` is one pass of `arbitrate`'s loop after the positions; it returns the started event's
   ID, or None to stop. `serve_independent_head` is the same pass of one independent queue.
 - `rules.proposals.apply_effect(controller, proposal)`: `_apply_effect` (`src/rules/proposals.rs`),
@@ -365,7 +368,7 @@ each OS, because both call the same libm.
   (`EventWriter` of `src/state/events.rs`), with the errors of `ScheduledEvent` for what a row
   refuses. A trace's document is written here. Another RNG, a policy's subclass and whatever the Python
   rule might raise on give `Unsupported`, and the Python step runs. `planned_contacts` returns the
-  same tick's draws and contacts without changing anything, for `benchmarks/rule_shadow`.
+  same tick's draws and contacts without changing anything, for the tests.
 
   Seven days, run beside the previous commit: `update_agent_state` 76.4 s -> 26.1 s,
   `sample_endogenous_events` 38.6 s -> 1.8 s, with the other changes of this step

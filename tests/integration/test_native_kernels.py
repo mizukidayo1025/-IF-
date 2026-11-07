@@ -492,46 +492,35 @@ def test_the_event_kernel_leaves_frozen_values_and_subclasses_to_python() -> Non
     assert event.to_dict()["payload"] == {"a": {"a": [1, 2]}, "b": "x"}
 
 
-def test_the_view_hash_kernel_gives_the_python_hash_at_every_tick(
-    generated_scenario, tmp_path, monkeypatch
-) -> None:
-    """Each proposal view's audit hash (rules/world_view.rs) against `from_world`'s, hashed by
-    Python's json alone."""
-    from sheltersim.experiments.runner import OfflineSimulationController
-    from sheltersim.policies.world_view import WorldView
-
-    document = generated_scenario.model_dump(mode="json")
-    document["duration_minutes"] = 240
-    step = OfflineSimulationController._view_for_proposals
-    compared = []
-
-    def checked(self, world, minute):
-        made = step(self, world, minute)
-        with monkeypatch.context() as python_only:
-            python_only.setattr(native, "view_state_hash", lambda *_: None)
-            python_only.setattr(native, "canonical_sha256", lambda _value: None)
-            python = WorldView.from_world(world).state_hash
-        assert made.state_hash == python
-        compared.append(python)
-        return made
-
-    monkeypatch.setattr(OfflineSimulationController, "_view_for_proposals", checked)
-    run_scenario(ScenarioSpec.model_validate(document), tmp_path, trace_level=TraceLevel.OFF)
-    assert len(compared) == 240
+# The Python rule's audit hashes of the document below (`_view_state_hash`, hashed by Python's json
+# alone), by (information, schema_version, life context). The hashes of whole Runs' views are in
+# tests/integration/test_world_view_row.py.
+_VIEW_HASHES = {
+    (False, None, False): "75bd1cd6b1339ab4c7da06461b83e85939b8c9fc411ba246493a69f713baa25d",
+    (False, None, True): "2e835b4ae34c71bc05bf044b5ed06b33f25c7da14c28b8bddaddf691e222559b",
+    (False, 6, False): "75bd1cd6b1339ab4c7da06461b83e85939b8c9fc411ba246493a69f713baa25d",
+    (False, 6, True): "2e835b4ae34c71bc05bf044b5ed06b33f25c7da14c28b8bddaddf691e222559b",
+    (True, None, False): "f15964168c5cafee101b738cfc823215e2e096906b705283bb2de827ab467926",
+    (True, None, True): "f91c8f26ea6a492b8e5cacdcda3d0aa11021d85d68337a7445ead5dd8ac6b60c",
+    (True, 6, False): "f15964168c5cafee101b738cfc823215e2e096906b705283bb2de827ab467926",
+    (True, 6, True): "f91c8f26ea6a492b8e5cacdcda3d0aa11021d85d68337a7445ead5dd8ac6b60c",
+}
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="the people's floats come from libm")
 @pytest.mark.parametrize("information", [False, True])
 @pytest.mark.parametrize("schema_version", [None, 6])
 @pytest.mark.parametrize("life_context", [False, True])
 def test_the_view_hash_kernel_covers_each_form_of_the_document(
-    generated_scenario, monkeypatch, information, schema_version, life_context
+    generated_scenario, information, schema_version, life_context
 ) -> None:
     """The document's optional parts, with unusual but valid values in the people's fields."""
     from dataclasses import replace
 
+    from support.world import view_of
+
     from sheltersim.core.world import WorldState
     from sheltersim.domain.information import INFORMATION_SPREAD_STATE_KEY
-    from sheltersim.policies import behavior
 
     world = WorldState.from_scenario(generated_scenario)
     if schema_version is not None:
@@ -539,13 +528,12 @@ def test_the_view_hash_kernel_covers_each_form_of_the_document(
         world.model_configs.setdefault("resource_service", {"x": [1.5, None]})
     if not information:
         world.model_state.pop(INFORMATION_SPREAD_STATE_KEY, None)
-        state = None
     else:
         state = world.model_state.setdefault(INFORMATION_SPREAD_STATE_KEY, {"query_pressure": {}})
         state["query_pressure"] = {agent_id: 0.25 for agent_id in world.agents}
         world.model_configs.setdefault("information_spread", {"y": True})
     world.model_state.pop("body_state_v1", None)
-    view = behavior.WorldView.from_world(world, include_state_hash=False)
+    view = view_of(world, include_state_hash=False)
     first = next(iter(view.agents))
     agents = {
         **view.agents,
@@ -559,24 +547,33 @@ def test_the_view_hash_kernel_covers_each_form_of_the_document(
             usual_wake_minute=None,
         ),
     }
-    arguments = (world, agents, view.facilities, state, life_context)
-    rust = behavior._view_state_hash(*arguments)
-    monkeypatch.setattr(native, "view_state_hash", lambda *_: None)
-    assert rust == behavior._view_state_hash(*arguments)
+    state_hash = native.view_state_hash(
+        world.minute_index,
+        [agent.__dict__ for agent in agents.values()],
+        [facility.__dict__ for facility in view.facilities.values()],
+        world.model_configs["resource_service"] if world.schema_version == 6 else None,
+        world.model_configs["information_spread"] if information else None,
+        life_context,
+    )
+    assert state_hash == _VIEW_HASHES[information, schema_version, life_context]
 
 
-def test_the_view_hash_kernel_leaves_values_json_rejects_to_python(generated_scenario) -> None:
+def test_the_view_hash_kernel_leaves_values_json_rejects(generated_scenario) -> None:
+    """NaN has no canonical JSON: the hash isn't made, and the view is refused."""
     from dataclasses import replace
 
+    from support.world import view_of
+
     from sheltersim.core.world import WorldState
-    from sheltersim.policies import behavior
 
     world = WorldState.from_scenario(generated_scenario)
-    view = behavior.WorldView.from_world(world, include_state_hash=False)
+    view = view_of(world, include_state_hash=False)
     first = next(iter(view.agents))
-    agents = {**view.agents, first: replace(view.agents[first], stress=float("nan"))}
-    with pytest.raises(ValueError):
-        behavior._view_state_hash(world, agents, view.facilities, None, False)
+    agent = replace(view.agents[first], stress=float("nan"))
+    assert native.view_state_hash(0, [agent.__dict__], [], None, None, False) is None
+    world.agents[first].stress = float("nan")
+    with pytest.raises(native.Unsupported, match="NaN"):
+        view_of(world)
 
 
 def test_the_encoder_writes_floats_as_repr_does() -> None:

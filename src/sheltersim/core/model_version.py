@@ -19,9 +19,9 @@ continuing, forking, submitting or applying an EffectProgram fails with
 ViewOnlyRunError. Nothing is computed again with the installed model.
 
 Saves of older shapes that the installed code still migrates when it restores them (the
-pre-queue FIFO mode and information state schema 1) are continued today. With
-LEGACY_SHAPES_TICKABLE false they are view-only too, so no tick reaches them: the
-switch for the change that removes their Python migrations (step 4, L10).
+pre-queue FIFO mode and information state schema 1) are view-only too, as
+LEGACY_SHAPES_TICKABLE is false since step 4's L10 removed their Python rules: viewing
+migrates them as before, and no tick reaches them.
 
 A world restored for viewing carries a SavedPointView mark. TickEngine, the controller,
 BranchRuntime and Checkpoint.capture refuse a marked world, so a view can't be ticked,
@@ -44,7 +44,7 @@ ENGINE_VERSION = "1"
 UNRECORDED_ENGINE = {ENGINE_VERSION_KEY: "1", RNG_ALGORITHM_KEY: "sha256-keyed-v1"}
 VIEW_ONLY_CODE = "run_model_view_only"
 # Whether saves of older shapes may still be continued (see the module docstring).
-LEGACY_SHAPES_TICKABLE = True
+LEGACY_SHAPES_TICKABLE = False
 
 _MODEL_PREFIXES = ("policy:", "simulator:", "state:", "operator:")
 _QUEUE_SIGNATURE = "simulator:facility_queues_v1"

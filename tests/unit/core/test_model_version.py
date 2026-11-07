@@ -116,7 +116,7 @@ def test_configs_the_installed_code_cannot_sign_are_viewed_as_another_model(
     assert not status.current and status.differences == ("model_signatures",)
 
 
-def test_the_legacy_queue_migration_is_continued_today_and_viewed_after_a_bump(
+def test_the_legacy_queue_migration_is_view_only_and_viewed_after_a_bump(
     generated_scenario_with_split_queues, monkeypatch
 ) -> None:
     from sheltersim.domain.facility_queues import (
@@ -131,24 +131,24 @@ def test_the_legacy_queue_migration_is_continued_today_and_viewed_after_a_bump(
     document = _before_the_version_was_recorded(document)
     monkeypatch.setattr(model_version, "ENGINE_VERSION", "1")
 
-    # Unchanged for a Run of the installed version: migrated and continued.
-    checkpoint = Checkpoint.from_dict(deepcopy(document))
-    assert checkpoint.model_status().migration == "legacy_queue"
-    restored = checkpoint.restore_world()
-    assert FACILITY_QUEUES_LEGACY_MODE_KEY in restored.model_state
+    # Older shapes are off the tick path since step 4's L10: view-only, migrated for viewing.
+    with pytest.raises(ViewOnlyRunError) as refused:
+        Checkpoint.from_dict(deepcopy(document))
+    assert refused.value.status.differences == ("legacy:facility_queues_fifo",)
+    assert "以前の保存の形（facility_queues_fifo）" in refused.value.status.message()
+    _, (viewed, _) = Checkpoint._load(deepcopy(document), view=True)
+    assert FACILITY_QUEUES_LEGACY_MODE_KEY in viewed.model_state
 
-    # The switch that takes older shapes off the tick path (step 4, L10).
-    with monkeypatch.context() as off:
-        off.setattr(model_version, "LEGACY_SHAPES_TICKABLE", False)
-        with pytest.raises(ViewOnlyRunError) as refused:
-            Checkpoint.from_dict(deepcopy(document))
-        assert refused.value.status.differences == ("legacy:facility_queues_fifo",)
-        assert "以前の保存の形（facility_queues_fifo）" in refused.value.status.message()
-        _, (viewed, _) = Checkpoint._load(deepcopy(document), view=True)
-        assert FACILITY_QUEUES_LEGACY_MODE_KEY in viewed.model_state
-        # A continued legacy Run keeps the FIFO mode in its later saves.
-        with pytest.raises(ViewOnlyRunError):
-            Checkpoint.capture(restored)
+    # With the switch on, as before L10, it is migrated and continued.
+    with monkeypatch.context() as on:
+        on.setattr(model_version, "LEGACY_SHAPES_TICKABLE", True)
+        checkpoint = Checkpoint.from_dict(deepcopy(document))
+        assert checkpoint.model_status().migration == "legacy_queue"
+        restored = checkpoint.restore_world()
+        assert FACILITY_QUEUES_LEGACY_MODE_KEY in restored.model_state
+    # A legacy Run continued then keeps the FIFO mode in its later saves, which are view-only now.
+    with pytest.raises(ViewOnlyRunError):
+        Checkpoint.capture(restored)
 
     # After the engine version is raised it is view-only, still migrated for viewing.
     monkeypatch.setattr(model_version, "ENGINE_VERSION", "2")
@@ -167,10 +167,11 @@ def test_information_state_schema_1_is_an_older_shape_only_with_the_switch_off(
     installed = model_version.engine_signatures()
     recorded = dict(installed)
     state = {"information_spread_v1": {"schema_version": 1}}
-    assert model_version_status(recorded, {}, state, installed).current
-    monkeypatch.setattr(model_version, "LEGACY_SHAPES_TICKABLE", False)
     status = model_version_status(recorded, {}, state, installed)
     assert status.differences == ("legacy:information_schema_1",)
+    with monkeypatch.context() as on:
+        on.setattr(model_version, "LEGACY_SHAPES_TICKABLE", True)
+        assert model_version_status(recorded, {}, state, installed).current
     assert model_version_status(
         recorded, {}, {"information_spread_v1": {"schema_version": 2}}, installed
     ).current

@@ -31,7 +31,8 @@ use crate::rules::overlay;
 use crate::rules::service::{self, add_one, append_outcome, metrics_of};
 use crate::rules::toilet;
 use crate::rules::social_dialogue::context_value;
-use crate::rules::support::{PlannedRequest, add_rejected, append_or_python, household_of, plan_request, support_kind_of, write_closed_request, write_request};
+use crate::rules::care_receipts::append_applied;
+use crate::rules::support::{PlannedRequest, add_rejected, household_of, plan_request, support_kind_of, write_closed_request, write_request};
 use crate::rules::travel::{CapacityWait, PlannedTrip, Route, Selected, Trip, approach_route, plan_travel, rows_of, select_resource, select_toilet, write_capacity_wait, write_travel};
 use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore};
 use crate::state::events::{EventKind, EventRow, EventWriter};
@@ -439,7 +440,7 @@ fn apply_seek<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound<'py, PyAny>,
     let request_text = PyString::new(py, &request_id);
     let after = (|| -> PyResult<()> {
         if let Some(interrupted) = interrupted {
-            append_or_python(&world, interrupted)?;
+            append_applied(&world, interrupted)?;
         }
         if pressure_due {
             let kwargs = PyDict::new(py);

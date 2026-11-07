@@ -29,7 +29,6 @@ from sheltersim.domain.population import admit_pending_arrivals  # noqa: F401
 from sheltersim.domain.population_lifecycle import current_household_id
 from sheltersim.domain.staff_operations import interrupt_staff_trips_on_closed_routes
 from sheltersim.events.models import ScheduledEvent
-from sheltersim.experiments.phases.segments import no_python_step
 
 
 class DispatchPhase:
@@ -54,7 +53,6 @@ class DispatchPhase:
         before the first event raises KernelRefusal: a dispatcher of another class, a negative
         minute, an event queue or counters it cannot read. Past that, a refusal is a RuntimeError.
         """
-        raise no_python_step("_run_dispatch_phase")
 
     def _dispatch_one_event(
         self, world: WorldState, event: ScheduledEvent, minute: int

@@ -64,10 +64,7 @@ VARIANTS = (
 )
 # With the base run's hash seed, so that only the order of the dicts differs from it.
 ORDER_VARIABLE = "SHELTERSIM_GATE_REVERSE"
-ORDER_VARIANTS = (
-    Variant("reversed_order", {"PYTHONHASHSEED": "1", ORDER_VARIABLE: "phase"}),
-    Variant("reversed_within_phase", {"PYTHONHASHSEED": "1", ORDER_VARIABLE: "within_phase"}),
-)
+ORDER_VARIANTS = (Variant("reversed_order", {"PYTHONHASHSEED": "1", ORDER_VARIABLE: "phase"}),)
 
 
 def run_one(name: str, output: Path, chosen: Any = None) -> None:
@@ -96,7 +93,7 @@ def run_one(name: str, output: Path, chosen: Any = None) -> None:
     if order:
         from tick_probe import ReversedOrder, install
 
-        install([ReversedOrder(within_phase=order == "within_phase")])
+        install([ReversedOrder()])
     started = time.perf_counter()
     outcome = scenario.run(output / "work")
     mismatched = [
@@ -277,7 +274,7 @@ def main() -> int:
     parser.add_argument(
         "--reversed-order",
         action="store_true",
-        help="also reverse model_state's dicts and world.agents at each phase's end, and in phases",
+        help="also reverse model_state's dicts and world.agents at each phase's end",
     )
     parser.add_argument(
         "--coverage",

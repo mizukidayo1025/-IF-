@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 from support.paths import SCENARIO_100_AGENTS
+from support.world import view_of
 
 from sheltersim import native
 from sheltersim.core.engine import TraceLevel
@@ -97,7 +98,7 @@ def _propagate(
 
 def test_disabled_model_preserves_the_rule_baseline_exactly() -> None:
     world = _two_agent_world()
-    view = WorldView.from_world(world)
+    view = view_of(world)
     baseline = _base_deltas(world, view, 0)
 
     result = _propagate(
@@ -116,7 +117,7 @@ def test_disabled_model_preserves_the_rule_baseline_exactly() -> None:
 
 def test_family_contact_propagates_stress_and_records_contribution() -> None:
     world = _two_agent_world()
-    view = WorldView.from_world(world)
+    view = view_of(world)
     policy = StressPropagationPolicy(
         SocialPropagationParameters(
             enabled=True,
@@ -156,7 +157,7 @@ def test_agent_cooldown_suppresses_repeated_influence_until_it_expires() -> None
     first_result = None
     for minute in range(6):
         world.minute_index = minute
-        view = WorldView.from_world(world)
+        view = view_of(world)
         deltas = _base_deltas(world, view, minute)
         result = _propagate(world, policy, view, deltas, CounterRNG(world.seed), zone_neighbors={})
         if minute == 0:
@@ -172,7 +173,7 @@ def test_nearby_zone_contacts_are_selected_without_family_membership() -> None:
     world = _two_agent_world()
     for index, agent_id in enumerate(sorted(world.agents)):
         world.agents[agent_id].zone_id = "sleeping" if index == 0 else "corridor"
-    original = WorldView.from_world(world)
+    original = view_of(world)
     agents = {
         agent_id: replace(agent, group_id=None) for agent_id, agent in original.agents.items()
     }
@@ -224,7 +225,7 @@ def test_contact_graph_is_seed_reproducible_and_bounded_for_1000_agents() -> Non
     world = _crowd(1000)
     zone = next(iter(world.agents.values())).zone_id
     assert all(agent.zone_id == zone for agent in world.agents.values())
-    view = WorldView.from_world(world)
+    view = view_of(world)
     deltas = tuple(
         AgentStateDelta(
             agent_id=agent_id,
@@ -243,9 +244,7 @@ def test_contact_graph_is_seed_reproducible_and_bounded_for_1000_agents() -> Non
     again = copy.deepcopy(world)
 
     first = _propagate(world, policy, view, deltas, CounterRNG(2026), zone_neighbors={})
-    second = _propagate(
-        again, policy, WorldView.from_world(again), deltas, CounterRNG(2026), zone_neighbors={}
-    )
+    second = _propagate(again, policy, view_of(again), deltas, CounterRNG(2026), zone_neighbors={})
 
     assert first.deltas == second.deltas
     assert first.runtime_state == second.runtime_state
@@ -275,7 +274,7 @@ def test_bosse_operator_is_bidirectional_and_bounded_and_reads_people_in_id_orde
     world.agents[ordered[0]].stress = 0.1
     world.agents[ordered[1]].stress = 0.9
     other = copy.deepcopy(world)
-    view = WorldView.from_world(world)
+    view = view_of(world)
     policy = create_social(world.model_configs)
     assert policy.parameters.natural_recovery_per_minute == 0.0
     deltas = tuple(stress_delta(agent_id, 0, view.agents[agent_id].stress) for agent_id in ordered)
@@ -304,7 +303,7 @@ def test_bosse_operator_has_no_effect_without_a_local_contact_and_caps_each_tick
     for index, agent_id in enumerate(ordered):
         world.agents[agent_id].zone_id = sorted(world.zones)[index]
         world.agents[agent_id].stress = 0.2 + 0.6 * index
-    original = WorldView.from_world(world)
+    original = view_of(world)
     view = replace(
         original,
         agents={
@@ -320,7 +319,7 @@ def test_bosse_operator_has_no_effect_without_a_local_contact_and_caps_each_tick
     equal = WorldState.from_scenario(research_psychology_scenario(social=True))
     for agent_id in ordered:
         equal.agents[agent_id].stress = 0.6
-    equal_stress_view = WorldView.from_world(equal)
+    equal_stress_view = view_of(equal)
     equal_stress_deltas = tuple(stress_delta(agent_id, 0, 0.6) for agent_id in ordered)
     equal_state = _propagate(
         equal, policy, equal_stress_view, equal_stress_deltas, CounterRNG(5), zone_neighbors={}
@@ -331,7 +330,7 @@ def test_bosse_operator_has_no_effect_without_a_local_contact_and_caps_each_tick
     ids = sorted(together.agents)
     together.agents[ids[0]].stress = 0.0
     together.agents[ids[1]].stress = 1.0
-    contact_view = WorldView.from_world(together)
+    contact_view = view_of(together)
     contact_deltas = tuple(
         stress_delta(agent_id, 0, contact_view.agents[agent_id].stress) for agent_id in ids
     )
@@ -350,7 +349,7 @@ def test_bosse_trace_matches_normalized_weighted_synchrony_formula(
     ids = sorted(world.agents)
     world.agents[ids[0]].stress = 0.15
     world.agents[ids[1]].stress = 0.85
-    view = WorldView.from_world(world)
+    view = view_of(world)
     policy = create_social(world.model_configs)
     deltas = tuple(stress_delta(agent_id, 0, view.agents[agent_id].stress) for agent_id in ids)
     result = _propagate(world, policy, view, deltas, CounterRNG(19), zone_neighbors={})
@@ -412,7 +411,7 @@ def test_bosse_contacts_without_weight_shift_nothing_and_draw_as_weighted_ones(
         ids = sorted(world.agents)
         world.agents[ids[0]].stress = 0.15
         world.agents[ids[1]].stress = 0.85
-        view = WorldView.from_world(world)
+        view = view_of(world)
         deltas = tuple(stress_delta(agent_id, 0, view.agents[agent_id].stress) for agent_id in ids)
         native.rules("social_propagation").start_draw_log()
         try:

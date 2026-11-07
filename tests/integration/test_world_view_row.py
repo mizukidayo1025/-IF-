@@ -1,30 +1,35 @@
-"""The views of rules/world_view.rs: every field the bits of Python's, made when a reader asks.
+"""The views of rules/world_view.rs: every field the bits the Python rule gave, made when a reader
+asks.
 
 The phases' steps `_view_after_movement` and `_view_for_proposals` make them, and have no Python
-body (lane L10): what the kernel refuses is a KernelRefusal. `WorldView.from_world`, which tests
-keep for the Python policies, is the comparison base; `after_state_update`, the proposal view's
-refresh, is gone, and the refreshed view is compared with a new `from_world`.
+body (lane L10): what the kernel refuses is a KernelRefusal. The Python rule `WorldView.from_world`
+went too: the views of whole Runs are compared with digests written down from it (on Linux, as the
+gate's hashes: the floats come from libm), and a view the kernel kept, refreshed or read before a
+change with a new view of the same world (`support.world.view_of`).
 """
 
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
+import sys
 from collections.abc import Mapping
 from dataclasses import replace
-from pathlib import Path
 from typing import Any
 
 import pytest
+from support.world import view_of
 
 from sheltersim import native
-from sheltersim.core.engine import TickEngine, TraceLevel
+from sheltersim.core.engine import TickEngine, TickPhase
 from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.world import WorldState
 from sheltersim.domain.body_state import create_body_state
 from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.phases.propose import ProposePhase
 from sheltersim.experiments.phases.update import UpdatePhase
-from sheltersim.experiments.runner import OfflineSimulationController, run_scenario
+from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _MetricSink
 from sheltersim.policies.world_view import WorldView
@@ -49,15 +54,31 @@ def _exact(value: Any) -> Any:
     raise TypeError(type(value))
 
 
-def _assert_same(rust: WorldView, python: WorldView) -> None:
-    assert rust.minute_index == python.minute_index
-    assert rust.state_hash == python.state_hash
-    assert rust.resource_service_enabled is python.resource_service_enabled
-    assert rust.autonomy_enabled is python.autonomy_enabled
-    assert rust._has_population_context is python._has_population_context
-    for name in ("agents", "facilities", "zone_members", "group_members"):
-        assert _exact(getattr(rust, name)) == _exact(getattr(python, name)), name
-    assert rust.immediate_needs() == python.immediate_needs()
+_PARTS = ("agents", "facilities", "zone_members", "group_members")
+
+
+def _fields(view: WorldView) -> list[Any]:
+    """Everything a reader of the view gets, each value by its type and bits."""
+    return [
+        view.minute_index,
+        view.state_hash,
+        view.resource_service_enabled,
+        view.autonomy_enabled,
+        view._has_population_context,
+        *(_exact(getattr(view, name)) for name in _PARTS),
+        _exact(view.immediate_needs()),
+    ]
+
+
+def _assert_same(made: WorldView, other: WorldView) -> None:
+    assert made.minute_index == other.minute_index
+    assert made.state_hash == other.state_hash
+    assert made.resource_service_enabled is other.resource_service_enabled
+    assert made.autonomy_enabled is other.autonomy_enabled
+    assert made._has_population_context is other._has_population_context
+    for name in _PARTS:
+        assert _exact(getattr(made, name)) == _exact(getattr(other, name)), name
+    assert made.immediate_needs() == other.immediate_needs()
 
 
 def _rules() -> Any:
@@ -68,53 +89,38 @@ def _controller(world: WorldState) -> OfflineSimulationController:
     return OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
 
 
-def _run_comparing(
-    scenario: ScenarioSpec, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, **options: Any
-) -> dict[str, int]:
-    """Run, comparing each view with Python's `from_world` of the same world."""
-    counts = {"update": 0, "propose": 0}
-    after_movement = OfflineSimulationController._view_after_movement
-    for_proposals = OfflineSimulationController._view_for_proposals
-    chain: list[WorldView] = []
+def _views_of_a_run(scenario: ScenarioSpec) -> tuple[str, int]:
+    """A digest of the views of a Run, in order: each update phase's, which the controller keeps
+    for the propose phase, and a new view of the world as the propose phase starts. The count."""
+    world = WorldState.from_scenario(scenario)
+    controller = _controller(world)
+    engine = TickEngine(world, phase_handler=controller)
+    texts: list[str] = []
 
-    def checked_after_movement(self: Any, world: WorldState) -> WorldView:
-        made = after_movement(self, world)
-        assert "_rust_view" in made.__dict__
-        chain[:] = [WorldView.from_world(world, include_state_hash=False)]
-        _assert_same(made, chain[0])
-        counts["update"] += 1
-        return made
+    def watch(phase: TickPhase, before: bool) -> None:
+        if phase is TickPhase.UPDATE_AGENT_STATE and not before:
+            made = controller._view_before_proposals
+            assert "_rust_view" in made.__dict__
+            texts.append(json.dumps(_fields(made)))
+        elif phase is TickPhase.PROPOSE_ACTIONS and before:
+            texts.append(json.dumps(_fields(view_of(world))))
 
-    def checked_for_proposals(self: Any, world: WorldState, minute: int) -> WorldView:
-        made = for_proposals(self, world, minute)
-        assert "_rust_view" in made.__dict__
-        _assert_same(made, WorldView.from_world(world))
-        counts["propose"] += 1
-        return made
-
-    monkeypatch.setattr(OfflineSimulationController, "_view_after_movement", checked_after_movement)
-    monkeypatch.setattr(OfflineSimulationController, "_view_for_proposals", checked_for_proposals)
-    run_scenario(scenario, tmp_path, **options)
-    return counts
+    engine.phase_observer = watch
+    engine.run(scenario.duration_minutes)
+    return hashlib.sha256("\n".join(texts).encode("utf-8")).hexdigest()[:16], len(texts)
 
 
-def test_each_view_of_a_run_has_the_bits_of_python(
-    generated_scenario: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_each_view_of_a_run_has_the_bits_of_the_python_rule(generated_scenario: Any) -> None:
     document = generated_scenario.model_dump(mode="json")
     document["duration_minutes"] = 120
-    counts = _run_comparing(
-        ScenarioSpec.model_validate(document), tmp_path, monkeypatch, trace_level=TraceLevel.OFF
-    )
-    assert counts == {"update": 120, "propose": 120}
+    digest, count = _views_of_a_run(ScenarioSpec.model_validate(document))
+    assert count == 240
+    if sys.platform == "linux":
+        assert digest == "f1bc3977da991e96"
 
 
-def test_views_with_false_claims_have_the_bits_of_python(
-    generated_previews: Any,
-    information_spread_scenario: Any,
-    information_spread_config: Any,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
+def test_views_with_false_claims_have_the_bits_of_the_python_rule(
+    generated_previews: Any, information_spread_scenario: Any, information_spread_config: Any
 ) -> None:
     document = copy.deepcopy(generated_previews()["scenario"])
     events = information_spread_scenario(duration=60, correction=True)
@@ -123,19 +129,10 @@ def test_views_with_false_claims_have_the_bits_of_python(
     document["scheduled_events"][0]["payload"]["origin_agent_id"] = "A001"
     configs = document["model_configs"]
     configs["information_spread"] = configs["information_spread"] | information_spread_config()
-    misinformed: list[int] = []
-    python_rule = OfflineSimulationController._apply_due_proposals
-
-    def counting(self: Any, view: WorldView, rng: Any) -> None:
-        misinformed.append(sum(bool(a.misinformation_effect_sources) for a in view.agents.values()))
-        python_rule(self, view, rng)
-
-    monkeypatch.setattr(OfflineSimulationController, "_apply_due_proposals", counting)
-    counts = _run_comparing(
-        ScenarioSpec.model_validate(document), tmp_path, monkeypatch, trace_level=TraceLevel.OFF
-    )
-    assert counts == {"update": 60, "propose": 60}
-    assert len(misinformed) == 60
+    digest, count = _views_of_a_run(ScenarioSpec.model_validate(document))
+    assert count == 120
+    if sys.platform == "linux":
+        assert digest == "af6e005c1f288fcf"
 
 
 def _world_with_views(scenario: Any) -> tuple[WorldState, OfflineSimulationController]:
@@ -151,8 +148,6 @@ def test_a_household_overrides_the_profile_group(generated_scenario: Any) -> Non
     people[third] = {"household_id": None}
     world.model_state["population_presence_v1"] = {"people": people}
     made = _rules().view_after_movement(controller, world)
-    python = WorldView.from_world(world, include_state_hash=False)
-    _assert_same(made, python)
     assert made.agents[list(world.agents)[0]].group_id == "H"
     assert made.agents[third].group_id is None
     assert made.group_members["H"] == tuple(sorted(people))[:2]
@@ -202,11 +197,12 @@ def test_a_tick_with_the_kernels_makes_no_python_view_in_the_update_phase(
 def test_a_snapshot_stays_as_it_was_read(generated_scenario: Any) -> None:
     world, controller = _world_with_views(generated_scenario)
     made = _rules().view_after_movement(controller, world)
-    python = WorldView.from_world(world, include_state_hash=False)
+    expected = _fields(view_of(world, include_state_hash=False))
     agent = next(iter(world.agents.values()))
     agent.stress = 0.5 if agent.stress != 0.5 else 0.25
     world.model_state["body_state_v1"]["agents"][agent.id]["uncertainty"] = 0.625
-    _assert_same(made, python)
+    assert "agents" not in made.__dict__
+    assert _fields(made) == expected
 
 
 def test_the_proposal_view_reads_again_what_the_update_phase_writes(
@@ -214,7 +210,7 @@ def test_the_proposal_view_reads_again_what_the_update_phase_writes(
 ) -> None:
     world, controller = _world_with_views(generated_scenario)
     controller._view_before_proposals = _rules().view_after_movement(controller, world)
-    python_prior = WorldView.from_world(world, include_state_hash=False)
+    prior = view_of(world, include_state_hash=False)
     agent = next(iter(world.agents.values()))
     agent.stress = 0.5 if agent.stress != 0.5 else 0.25
     agent.trust = 0.75 if agent.trust != 0.75 else 0.25
@@ -222,13 +218,15 @@ def test_the_proposal_view_reads_again_what_the_update_phase_writes(
     world.model_state["body_state_v1"]["agents"][agent.id]["uncertainty"] = 0.625
     made = _rules().view_for_proposals(controller, world, world.minute_index)
     assert controller._view_before_proposals is None
-    _assert_same(made, WorldView.from_world(world))
-    assert made.agents[agent.id].stress != python_prior.agents[agent.id].stress
+    _assert_same(made, view_of(world))
+    assert made.agents[agent.id].stress != prior.agents[agent.id].stress
 
 
 def test_a_python_prior_of_a_proposal_view_is_a_kernel_refusal(generated_scenario: Any) -> None:
     world, controller = _world_with_views(generated_scenario)
-    prior = WorldView.from_world(world, include_state_hash=False)
+    # A view Python made: a copy of the kernel's, without its snapshot.
+    prior = replace(view_of(world, include_state_hash=False))
+    assert "_rust_view" not in prior.__dict__
     controller._view_before_proposals = prior
     with pytest.raises(KernelRefusal, match="prior view"):
         controller._view_for_proposals(world, world.minute_index)
@@ -274,14 +272,12 @@ def test_what_a_typed_field_cannot_hold_is_a_kernel_refusal(
 
 
 def test_a_context_that_does_not_parse_is_a_kernel_refusal(generated_scenario: Any) -> None:
-    """A Scenario's contexts are validated when it is made; the view no longer raises the
-    contract's own error (`from_world` still does, for a Python policy's test)."""
+    """A Scenario's contexts are validated when it is made; the view doesn't raise the contract's
+    own error, as the Python rule did."""
     world, controller = _world_with_views(generated_scenario)
     world.model_configs["population_context"] = {"people": {"A001": {"pet_count": -1}}}
     with pytest.raises(KernelRefusal, match="does not parse"):
         controller._view_after_movement(world)
-    with pytest.raises(ValueError, match="pet_count"):
-        WorldView.from_world(world, include_state_hash=False)
 
 
 def test_a_changed_context_is_seen_at_the_next_view(generated_scenario: Any) -> None:
@@ -294,7 +290,7 @@ def test_a_changed_context_is_seen_at_the_next_view(generated_scenario: Any) -> 
     record["roles"] = ["child"]
     third = _rules().view_after_movement(controller, world)
     assert third.agents["A001"].roles == ("child",)
-    _assert_same(third, WorldView.from_world(world, include_state_hash=False))
+    _assert_same(third, view_of(world, include_state_hash=False))
 
 
 def test_a_changed_zone_modifier_or_a_new_cache_is_seen_at_the_next_view(
@@ -313,14 +309,14 @@ def test_a_changed_zone_modifier_or_a_new_cache_is_seen_at_the_next_view(
         "assumption_ids": [],
     }
     made = _rules().view_after_movement(controller, world)
-    _assert_same(made, WorldView.from_world(world, include_state_hash=False))
+    _assert_same(made, view_of(world, include_state_hash=False))
     agent = next(a for a in made.agents.values() if a.zone_id == zone)
     assert agent.lighting_level == 0.25 and agent.condition_modifier_event_ids == ("e",)
     # What the runner does when model_configs changed.
     world.model_configs["zone_environment"]["noise_rest_efficiency_loss"] = 0.25
     controller._zone_environments = {}
     made = _rules().view_after_movement(controller, world)
-    _assert_same(made, WorldView.from_world(world, include_state_hash=False))
+    _assert_same(made, view_of(world, include_state_hash=False))
 
 
 def test_stressors_outages_and_sanitation_are_read_as_python_reads_them(
@@ -328,7 +324,8 @@ def test_stressors_outages_and_sanitation_are_read_as_python_reads_them(
 ) -> None:
     world, controller = _world_with_views(generated_scenario)
     facility = next(iter(world.facilities.values()))
-    zones = sorted(world.zones)
+    zone = next(iter(world.agents.values())).zone_id
+    zones = [zone, *sorted(set(world.zones) - {zone})]
     world.model_state["infrastructure_v1"] = {
         "environmental_stressors": {
             "b": {
@@ -391,12 +388,32 @@ def test_stressors_outages_and_sanitation_are_read_as_python_reads_them(
     staff = world.model_state.setdefault("staff_operations_v1", {})
     staff.setdefault("zones", {}).setdefault(zones[0], {})["sanitation"] = 0.25
     made = _rules().view_after_movement(controller, world)
-    _assert_same(made, WorldView.from_world(world, include_state_hash=False))
-    assert made.facilities[facility.id].facility_event_context_ids == ("o0", "o2", "o3")
-    in_first_zone = [a for a in made.agents.values() if a.zone_id == zones[0]]
-    assert not in_first_zone or in_first_zone[0].environmental_assumption_source_id == "first"
+    # What the Python rule gave.
+    assert {key: value.facility_event_context_ids for key, value in made.facilities.items()} == {
+        key: ("o0", "o2", "o3") if key == facility.id else () for key in world.facilities
+    }
+    for agent in made.agents.values():
+        assert agent.zone_id == zone
+        assert agent.environmental_stress_per_minute == float.fromhex("0x1.3333333333334p-2")
+        assert agent.environmental_stressor_event_ids == ("y", "z")
+        assert agent.environmental_assumption_source_id == "first"
+        assert agent.sanitation_level == 0.25
 
 
+# The Python rule's audit hashes, by (schema_version, information, life context).
+_HASHES = {
+    (None, False, False): "5dd4adee1a9ebcf1f2f194a859e16be0e40c4e854ae5ba07f8cabeddf27e9302",
+    (None, False, True): "0ec91f0ca399ce626a6e54bf11fb93068fcb9fc3c65e15aded1e7ea0dcb26883",
+    (None, True, False): "17d67b8e26a07746c88b42d7f4783e74d195c2c0b09a6643783fb7bce14561e5",
+    (None, True, True): "e62b2a7a8153dc40eb2f4dbf478018e7aa9d9a84d175eb412cf64cb25d3f4fc4",
+    (6, False, False): "5dd4adee1a9ebcf1f2f194a859e16be0e40c4e854ae5ba07f8cabeddf27e9302",
+    (6, False, True): "0ec91f0ca399ce626a6e54bf11fb93068fcb9fc3c65e15aded1e7ea0dcb26883",
+    (6, True, False): "17d67b8e26a07746c88b42d7f4783e74d195c2c0b09a6643783fb7bce14561e5",
+    (6, True, True): "e62b2a7a8153dc40eb2f4dbf478018e7aa9d9a84d175eb412cf64cb25d3f4fc4",
+}
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="the people's floats come from libm")
 def test_the_rust_view_hash_covers_each_form_of_the_document(generated_scenario: Any) -> None:
     for schema_version in (None, 6):
         for information in (False, True):
@@ -410,13 +427,11 @@ def test_the_rust_view_hash_covers_each_form_of_the_document(generated_scenario:
                     world.model_state.pop("body_state_v1", None)
                     world.model_configs.pop("population_context", None)
                     world.model_state.pop("population_context_v1", None)
-                if information and "information_spread_v1" not in world.model_state:
-                    continue
+                assert "information_spread_v1" in world.model_state
                 if not information:
                     world.model_state.pop("information_spread_v1", None)
                 made = _rules().view_for_proposals(controller, world, world.minute_index)
-                python = WorldView.from_world(world)
-                assert made.state_hash == python.state_hash
+                assert made.state_hash == _HASHES[schema_version, information, life_context]
 
 
 @pytest.mark.python_rules
@@ -427,8 +442,12 @@ def test_the_mark_keeps_the_kernels_of_steps_without_a_python_body(
     assert OfflineSimulationController._view_for_proposals is not ProposePhase._view_for_proposals
     world, controller = _world_with_views(generated_scenario)
     assert "_rust_view" in controller._view_after_movement(world).__dict__
-    with pytest.raises(KernelRefusal, match="no Python step"):
-        UpdatePhase._view_after_movement(controller, world)
+    # The mixin keeps the step's contract, which the controller's kernel carries.
+    assert UpdatePhase._view_after_movement.__doc__
+    assert (
+        OfflineSimulationController._view_after_movement.__doc__
+        == UpdatePhase._view_after_movement.__doc__
+    )
 
 
 def test_without_the_mark_the_kernels_run() -> None:

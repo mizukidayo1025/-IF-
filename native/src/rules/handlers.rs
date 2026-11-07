@@ -3,10 +3,10 @@
 //! These events are rare, and each kernel is the Python rule's steps in order, on the same Python
 //! containers: `model_state` writes are single items, which reach Rust's rows as forwarded writes.
 //!
-//! Anything but a success says Unsupported with the world as it was: a suppressed event, a failed one,
-//! a value the rule isn't sure of, and any exception before the first change. The Python rule then runs
-//! from the start and says it in its own words. So the error texts stay Python's until step 4
-//! (docs/rust-port/lanes/m6-handlers-rest.md).
+//! A suppressed or failed event raises the Python rule's text itself (`core/errors.rs`), with the world
+//! as it was. The Python rules are gone (lane L10, `kernel_only`): a value the kernel isn't sure of
+//! says Unsupported, which the handler's entry raises as KernelRefusal, and a Python call's own
+//! exception before the first change goes on as it is (docs/rust-port/lanes/m6-handlers-rest.md).
 //!
 //! A handler whose Python rule copies the world does the same here (`transaction`): that flow stays
 //! until `core.fork()` (docs/rust-port/step3-design.md).
@@ -23,15 +23,13 @@ use crate::core::mathx::{hypot, py_is_close};
 use crate::core::errors::{self, Wide};
 use crate::core::row::{attribute, exact_int, exact_str, str_value, unsupported};
 use crate::rules::care_receipts::{continuity_record, facility_recovery_record};
-use crate::rules::effects::{active_outage, copy_of, has_active_modifier, refused_by_python, swap};
+use crate::rules::effects::{active_outage, copy_of, has_active_modifier, swap};
 use crate::rules::population as population_rules;
 use crate::rules::{population_lifecycle, service};
 use crate::rules::staff_operation_events::interrupt_operation;
 use crate::Unsupported;
 
 const OPERATIONAL: &str = "operational_events_v1";
-const POPULATION: &str = "sheltersim.domain.population";
-const LIFECYCLE: &str = "sheltersim.domain.population_lifecycle";
 const INFRASTRUCTURE: &str = "infrastructure_v1";
 const MOVEMENT: &str = "movement_v1";
 const PROXIMITY_SOURCE: &str = "ASM-PROXIMITY-CONTACT-V1";
@@ -405,7 +403,7 @@ fn proximity_on(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<
 #[pyfunction]
 fn proximity(_handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
     let py = world.py();
-    counted(py, "proximity", refused_by_python(py, proximity_on(world, event)))
+    counted(py, "proximity", proximity_on(world, event))
 }
 
 // ---- ResourceLedgerHandler -------------------------------------------------------------------------
@@ -483,7 +481,7 @@ fn resource_ledger(handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: 
     let py = world.py();
     let result = (|| {
         let operation = attribute(handler, intern!(py, "operation"))?;
-        let ledger_event = refused_by_python(py, ledger_event_of(world, event, exact_str(&operation)?))?;
+        let ledger_event = ledger_event_of(world, event, exact_str(&operation)?)?;
         match crate::rules::resources::apply_operation(world, &ledger_event, &operation) {
             // The handler's `except ResourceLedgerError as exc: raise EventApplicationError(str(exc))`.
             // The operation changed nothing when it turned the event down.
@@ -553,7 +551,7 @@ fn facility_units<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>, fie
         };
         Ok((facility_id, facility, previous, next))
     })();
-    let (facility_id, facility, previous, next) = refused_by_python(py, plan)?;
+    let (facility_id, facility, previous, next) = plan?;
     let id = exact_str(&facility_id)?;
 
     // Write. As with an outage's Python rule, those being served finish.
@@ -666,7 +664,7 @@ fn delivery_delay_on(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyRe
 #[pyfunction]
 fn delivery_delay(_handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
     let py = world.py();
-    counted(py, "delivery_delay", refused_by_python(py, delivery_delay_on(world, event)))
+    counted(py, "delivery_delay", delivery_delay_on(world, event))
 }
 
 #[pyfunction]
@@ -718,7 +716,7 @@ fn water_outage(_handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &B
         record.set_item("active", true)?;
         Ok(Vec::new())
     });
-    counted(py, "water_outage", refused_by_python(py, result).map(|_| ()))
+    counted(py, "water_outage", result.map(|_| ()))
 }
 
 #[pyfunction]
@@ -744,7 +742,7 @@ fn water_restoration(_handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, even
         record.set_item("active", false)?;
         Ok(Vec::new())
     });
-    counted(py, "water_restoration", refused_by_python(py, result).map(|_| ()))
+    counted(py, "water_restoration", result.map(|_| ()))
 }
 
 // ---- Staff unavailable and restored -----------------------------------------------------------------
@@ -878,7 +876,7 @@ fn staff_unavailable_on<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny
 #[pyfunction]
 fn staff_unavailable<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyTuple>> {
     let py = world.py();
-    let records = counted(py, "staff_unavailable", refused_by_python(py, staff_unavailable_on(world, event)))?;
+    let records = counted(py, "staff_unavailable", staff_unavailable_on(world, event))?;
     PyTuple::new(py, records)
 }
 
@@ -911,7 +909,7 @@ fn staff_restoration(_handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, even
         record.set_item("available", true)?;
         Ok(Vec::new())
     });
-    counted(py, "staff_restoration", refused_by_python(py, result).map(|_| ()))
+    counted(py, "staff_restoration", result.map(|_| ()))
 }
 
 /// `_interrupt_support_task`, on a copy of the world. Its record.
@@ -1181,21 +1179,11 @@ fn wrapped(py: Python<'_>, error: PyErr) -> PyErr {
     }
 }
 
-/// A population rule's kernel, as the handler's Python rule called that rule: where the kernel
-/// refuses (it changed nothing), the function of `domain/` itself, whose Python rule decides and
-/// raises its own. The handler has no Python rule of its own left (`kernel_only`), but these do.
-fn rule_or_python<'py>(
-    py: Python<'py>,
-    kernel: PyResult<()>,
-    module: &str,
-    name: &str,
-    arguments: Bound<'py, PyTuple>,
-    keywords: Option<&Bound<'py, PyDict>>,
-) -> PyResult<()> {
-    match kernel {
-        Err(error) if error.is_instance_of::<Unsupported>(py) => py.import(module)?.getattr(name)?.call(arguments, keywords).map(|_| ()),
-        done => done,
-    }
+/// A population rule's kernel, as the handler's Python rule called that rule of `domain/`: its
+/// refusal is that rule's KernelRefusal (`kernel_only` of `label`), which the rule's own `try` then
+/// takes as any other ValueError.
+fn population_rule(py: Python<'_>, kernel: PyResult<()>, label: &str) -> PyResult<()> {
+    kernel.map_err(|error| errors::kernel_refusal(py, label, error))
 }
 
 /// `EffectProgramPopulationHandler.apply`.
@@ -1204,7 +1192,7 @@ fn population<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, even
     let py = world.py();
     if text_is(&attribute(event, intern!(py, "event_type"))?, "population_approach_complete") {
         let kernel = population_rules::apply_arrival_approach_completion(world, event);
-        let done = rule_or_python(py, kernel, POPULATION, "apply_arrival_approach_completion", PyTuple::new(py, [world, event])?, None);
+        let done = population_rule(py, kernel, "population.apply_arrival_approach_completion");
         return counted(py, "population.approach", done);
     }
     let checked = (|| -> PyResult<_> {
@@ -1238,13 +1226,12 @@ fn population<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, even
         }
         Ok((payload, op))
     })();
-    let (payload, op) = counted(py, "population.checks", refused_by_python(py, checked))?;
+    let (payload, op) = counted(py, "population.checks", checked)?;
     if op == "population_presence" {
         // Past its checks the Python rule lets this rule's exceptions go, as this does.
         let command = payload.get_item("command")?;
         let kernel = population_lifecycle::apply_presence_command(world, event, &command).map(|_| ());
-        let arguments = PyTuple::new(py, [world, event, &command])?;
-        return rule_or_python(py, kernel, LIFECYCLE, "apply_population_presence_command", arguments, None);
+        return population_rule(py, kernel, "population_lifecycle.apply_presence_command");
     }
     // A deferral: the copy with its retry takes the world's place, and the event is suppressed.
     let changed = (|| -> PyResult<Option<PyErr>> {
@@ -1267,33 +1254,14 @@ fn population<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, even
                 person_context_overrides: Some(as_tuple("person_context_overrides")?),
             };
             let kernel = population_rules::arrivals(&candidate, event, &zone, &count, &options).map(|_| ());
-            let keywords = PyDict::new(py);
-            keywords.set_item("event", event)?;
-            keywords.set_item("zone_id", &zone)?;
-            keywords.set_item("count", &count)?;
-            for (name, value) in [
-                ("household_size", &options.household_size),
-                ("mobility", &options.mobility),
-                ("language", &options.language),
-                ("admission_zone_ids", &options.admission_zone_ids),
-                ("approach_route_id", &options.approach_route_id),
-                ("person_context_overrides", &options.person_context_overrides),
-            ] {
-                keywords.set_item(name, value)?;
-            }
-            rule_or_python(py, kernel, POPULATION, "queue_arrivals", PyTuple::new(py, [&candidate])?, Some(&keywords))
+            population_rule(py, kernel, "population.queue_arrivals")
         } else {
             let include = payload.call_method1(intern!(py, "get"), ("include_initial", false))?;
             let kernel = population_rules::departures(&candidate, event, &zone, &count, Some(&include)).map(|_| ());
-            let keywords = PyDict::new(py);
-            keywords.set_item("event", event)?;
-            keywords.set_item("zone_id", &zone)?;
-            keywords.set_item("count", &count)?;
-            keywords.set_item("include_initial", &include)?;
-            rule_or_python(py, kernel, POPULATION, "queue_departures", PyTuple::new(py, [&candidate])?, Some(&keywords)).and_then(|_| {
+            population_rule(py, kernel, "population.queue_departures").and_then(|_| {
                 let minute = attribute(event, intern!(py, "due_minute"))?;
                 let kernel = population_lifecycle::admit_pending_returns(&candidate, &minute).map(|_| ());
-                rule_or_python(py, kernel, LIFECYCLE, "admit_pending_returns", PyTuple::new(py, [&candidate, &minute])?, None)
+                population_rule(py, kernel, "population_lifecycle.admit_pending_returns")
             })
         };
         // The rule's `try`: a deferral swaps its copy in and is the outcome; its own failures go on;
@@ -1816,7 +1784,7 @@ fn infrastructure<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, 
         })?;
         Ok((previous, additional, component, sources))
     })();
-    let (previous, mut additional, component, sources) = counted(py, label, refused_by_python(py, swapped))?;
+    let (previous, mut additional, component, sources) = counted(py, label, swapped)?;
 
     // The world has changed: what fails from here fails in Python too.
     let mut sorted_previous = previous;

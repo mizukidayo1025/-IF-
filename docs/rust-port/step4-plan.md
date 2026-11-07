@@ -1220,6 +1220,13 @@ L0 の前に文を読んで付けた分類です。到達は**推測で、上の
 
 **L10 の進め方（2026-11-08 に決めたこと）：** Python の規則を消す関数は `kernel_first` を `core/kernels.py` の `kernel_only` に替え、本体を消して、名前、引数、docstring だけを残します。kernel の断りは `KernelRefusal`（`ValueError` の派生）になり、`__wrapped__` も同じ例外を出します（driver の `rule_of` が断りの後にだけ呼びます）。消す前に、Python の規則が出していた文のうち、呼び手が保存したり `match=` で確かめたりするものは、Rust から同じ文で出すようにします。Python の規則と比べていたテストは、規則から書き起こした固定の期待値と比べる形にします。最初は `domain/temporary_spaces.py` です。続いて `domain/facility_queues.py`（`queue_head_agent_ids` を除く）、`domain/queueing.py`、`domain/geometry_overlay.py`（`reserve_sleep_bed` と状態の検証を除く）、`experiments/phases/dispatch.py` の3つの手順、`domain/movement.py`（`advance_movement`、`staff_position_snapshots`、`progress_physical_queue_positions` を除く）を消しました。除いたものは、テストで kernel が断る場面があったものです。
 
+**L10 の結果（2026-11-08、完了）：** #119〜#128 と、この PR で終わりました。結果は変わっていません（全経路のゲートと7日分のハッシュが、各 PR の前と同じです）。
+- tick のすべての規則（`kernel_first` だった約150個）と、段階の手順（`SEGMENTS` の20個）の Python の本体を消しました。手順は `KERNEL_ONLY_SEGMENTS` が kernel だけで動かします。
+- driver が断りの後に Python へ戻る道（`or_rule!`、`rule_of`、`python_step`、`use_python_entries` など）を消しました。断りは、検査の名前と kernel の理由を持つ `KernelRefusal` の1つの出口です。`LEGACY_SHAPES_TICKABLE` は False です。
+- 移植のときの比べる道具（`benchmarks/rule_shadow` の shadow、`tracked_mirror`、`WorldView.from_world`、文の照合）を引退させました。断りを数える `refusal_census.py` は残しています。
+- **Python に残したもの：** 読み込みの完全な検証と Scenario の検査（D3）、契約（pydantic）、世界の組み立て、LLM の境界（`consider_*`、Provider）、表にない型のイベントの dispatcher（`_dispatch_one_event`）。Rust からの呼び戻しは、これらだけです。
+- **有効な入力で kernel が断っていたもの**は、各レーンで Python と同じに受けるようにしました。例：int の係数（D6）、ASCII 以外の種類（D11）、64ビットを超える int と seed、古い形の状態。版を上げないと直せないものは L11 の作業にしました。
+
 **一番危ないのは L9 です。** 読んで確かめたこと：
 
 - `Checkpoint._legacy_queue_migration_required`（`core/checkpoint.py:184-213`）は、`policy:`、`simulator:`、`state:`、`operator:`、`model_suite` のどれかが違うと `CheckpointError("installed model implementation/state versions differ; explicit migration required")` を出します。`_world_document_for_restore` から呼ばれ、**すべての読み込みの経路（`load_restored_checkpoint`）を通ります。**

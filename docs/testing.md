@@ -98,13 +98,13 @@ python -m coverage report --sort=cover
 | `support/plans.py` | 取り込む図面：合成の避難所の図面（画像・GeoJSON）と、手で描いたそのトレース | `shelter_trace`、`upload_plan` |
 | `support/public_data.py` | 地域の調べが呼ぶ公開サービス（国土地理院の住所検索・指定緊急避難場所、e-Stat、気象庁の予報、設定した地域の公開データ）の偽物。存在しない自治体（合成県合成市）の合成の記録を返し、`fail()`で接続の失敗を起こせる。ネットワークには出ない | `public_data`、`researching_project_api`、`research_request` |
 | `support/world.py` | WorldState・イベント・検証の部品 | `make_event`、`record_handler`、`stress_delta`、`count_validations`、`live_checkpoint_world` |
-| `support/python_rules.py` | `python_rules`の印：そのテストではRustのkernelを切り、Pythonの規則を動かす | `_python_rules`（自動） |
+| `support/python_rules.py` | `python_rules`の印：そのテストでは検証のRustの双子を切り、Pythonの検証（`validate_*`）にすべての名前空間を読ませる | `_python_rules`（自動）、`without_kernels` |
 
 `support/paths.py`（`fixtures/`のファイルのパス）、`support/isolation.py`（隔離の処理）、`support/psychology.py`（心理の手順のkernelを世界の上で動かし、差分とtraceの文書を返す）は、fixtureを持たない部品です。テストで使う`fixtures/`のファイルが増えたら、`support/paths.py`に定数を足します。
 
-`support/tracked_mirror.py`も、fixtureを持たない部品です。Rust移植の「`model_state`への書き込みを転送する入れ物」（`core/state_mirror.py`）に、Rustの代わりにPythonの影の文書を相手として渡し、世界のすべての文書を載せて、転送の漏れを探します。`src/`からは使いません。全テストをこの入れ物の上で動かすときは、`PYTHONPATH`に`tests`を足して`pytest -p support.tracked_mirror_plugin`を実行します。素の実行と各段階で比べるときは、`benchmarks/tracked_mirror_gate.py`を使います。使い方と結果は[rust-port/lanes/p1-tracked-mirror.md](rust-port/lanes/p1-tracked-mirror.md)にあります。
+`support/world.py`の`view_of`と`decisions_of`も、fixtureを持たない部品です。段階が作る`WorldView`と提案を、Runと同じkernel（`native/src/rules/world_view.rs`など）で作ります。PythonでWorldViewを作る規則（`WorldView.from_world`）はないので、Pythonの方策に渡すviewもこれで作ります。
 
-Rustのkernelが置き換えたPythonの関数をpatchするテストには、`@pytest.mark.python_rules`を付けます。kernelはその関数を呼ばないので、印がないとpatchは何にも届きません。`tests/unit/repo/test_python_rules_lint.py`は、`support/python_rules.py`の名前を印なしでpatchしていると失敗します。規則を移すレーンは、kernelが呼ばなくなった関数の名前をここに足します。コントローラーの手順そのもの（`OfflineSimulationController._psychology_update`など）をpatchするのは、kernelごと置き換えるので印は要りません。
+tickの規則はRustのkernelだけで、Pythonの本体はありません（`kernel_only`、`KERNEL_ONLY_SEGMENTS`）。Pythonの関数をpatchしても、kernelはそれを呼ばないので、patchは何にも届きません。振る舞いを変えたいテストは、状態やイベントでその場面を作ります。コントローラーの手順そのもの（`OfflineSimulationController._psychology_update`など）をpatchすると、driverはそのtickを断り、段階のPythonの手順（`phase_handler`）で進みます。手順はそれでもkernelです（`support/world.py`の`on_the_phases`）。Pythonに残した検証（`validate_*`、決定D3）を数えたりpatchしたりするテストには`@pytest.mark.python_rules`を付けます。印は検証のRustの双子（`register_rust_validator`と実体の規則のkernel）を切ります。
 
 `tests/unit/repo/test_tracked_write_lint.py`は、tick側のコードで、入れ物に入れた値を元の名前のまま書き換える書き方（`record = relationships[key] = {...}`のあとの`record["trust"] = x`）を見つけると失敗します。入れたあとは`record = relationships[key]`で読み直します。
 
@@ -163,7 +163,7 @@ python benchmarks/gate_all_paths.py --output 出力先 --coverage
 - `--coverage`：tick側のコード（`core`、`domain`、`events`、`policies`、`experiments/runner.py`、`experiments/phases/`）のどの行に届いたかを、ファイルごとに`coverage.md`に書きます。
 - `policies`のモデルや、EffectProgramの操作を足したら、ここにもScenarioを足します。`tests/integration/test_all_paths_gate.py`は、モデルの一覧がここに入っていないと失敗します。
 - 介入が拒否された結果と、有効な入力でRunが止まる結果（`run_stops`のScenario）も、期待値に入れます。直したら期待値が変わるので気づけます。止まるものは、見つけたときにIssueにします。直したものは`run_stops`にRunとして残し、再発に気づけるようにします。
-- `--reversed-order`：`world.agents`と`model_state`のすべてのdictの順序を、各段階の終わりに逆にする回（`reversed_order`）と、段階の途中でも逆にする回（`reversed_within_phase`）を動かして、1回目と比べます。結果が変わったScenarioは、dictの順序に頼る処理があるということです。途中で逆にする場所は`benchmarks/tick_probe.py`の`WITHIN_PHASE`にあり、処理を移したら一緒に直します。
+- `--reversed-order`：`world.agents`と`model_state`のすべてのdictの順序を、各段階の終わりに逆にする回（`reversed_order`）を動かして、1回目と比べます。結果が変わったScenarioは、dictの順序に頼る処理があるということです。
 - 全件を動かすテストには`long_simulation`の印を付けます。通常のpytestは、1つの小さなScenarioだけを動かします。
 
 ### 最初に違った場所を探す（`benchmarks/first_difference.py`）
@@ -176,9 +176,9 @@ python benchmarks/first_difference.py A B
 ~~~
 
 - 段階ごとに、`model_state`の名前空間、人、作業、イベントの列、イベント記録などの部分ごとのdigestを書きます。比べると、最初に違った分、段階、部分を示し、そこまでもう一度実行して、違う値をJSONのパスと浮動小数点の16進で示します。
-- 記録は、Runと同じ経路（`native/src/rules/tick.rs`のdriver）を、段階の間で見ます（`tick_probe.install`は`TickEngine.phase_observer`を使います）。`benchmarks/rule_shadow`は`phase_handler`の経路を動かすので、driverの比較にはなりません。
-- `--draws`は、乱数の抽選ごとに鍵と値、比べた相手の値を記録して比べます。確率がわずかに違っても比較の結果が変わらなければ世界もハッシュも変わらないので、確率の式を移すときはこれを使います。Rustの中の抽選は記録されないので、Rustの確率の式は、レーンの文書の手順で`tests/integration/test_native_kernels.py`にビット単位の比較を足して確かめます。
-- ハッシュは、kernelが動いたことを示しません。`Unsupported`ならPythonが動いて同じハッシュになるからです。kernelを足したら、`benchmarks/rule_shadow`（kernelとPythonの規則を毎回比べ、`Unsupported`を理由ごとに数える）を同じ手順で通し、kernelが動いた回数を確かめます。手順は[lanes/p5-template-namespace.md](rust-port/lanes/p5-template-namespace.md)に書きます。driverの経路も含めて、すべての`Unsupported`を作られた行と理由ごとに数えるには`benchmarks/rule_shadow/refusal_census.py`（`SHELTERSIM_REFUSAL_CENSUS`）を使います。
+- 記録は、Runと同じ経路（`native/src/rules/tick.rs`のdriver）を、段階の間で見ます（`tick_probe.install`は`TickEngine.phase_observer`を使います）。
+- `--draws`は、Pythonの乱数の抽選ごとに鍵と値、比べた相手の値を記録して比べます。確率がわずかに違っても比較の結果が変わらなければ世界もハッシュも変わらないためです。Rustの中の抽選は記録されません。Pythonに残る抽選は、Scenarioの人の性質（profile）の抽選だけです。Rustの確率の式は、ビット単位の比較のテスト（`tests/integration/test_native_kernels.py`や`test_*_row.py`）で確かめます。
+- kernelが断ると（`Unsupported`）、代わりに動くPythonの規則はないので、その手順は`KernelRefusal`で止まります。すべての`Unsupported`を作られた行と理由、受け取った場所ごとに数えるには`benchmarks/rule_shadow/refusal_census.py`（`SHELTERSIM_REFUSAL_CENSUS`）を使います。有効なRunでは0件です。kernelとPythonの規則を毎回比べた道具（`benchmarks/rule_shadow`の影、`benchmarks/tracked_mirror_gate.py`）は、規則と一緒になくなりました。
 - これらのフックはベンチマークの側にあり、`src/`には何も足しません。`--draws`や`--reverse`は、`--expect`と同じ最終のハッシュになるはずです。ならなければ不具合として調べます。
 - digestは、辞書の順序を区別しません（キーでそろえた正規のJSONです）。順序に頼る処理は`--reversed-order`で確かめます。追記だけの履歴の古い項目の書き換えは、一定の間隔（`--full-every-minutes`）でしか見えません。
 

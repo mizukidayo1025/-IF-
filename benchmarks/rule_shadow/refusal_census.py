@@ -1,8 +1,9 @@
 """Count every refusal of the Rust kernels: where raised, why, who caught it, and from what state.
 
-Replaces the reading of refusal texts (docs/rust-port/step4-plan.md) with measurement. Off unless
-the variable is set; then, with this directory first on PYTHONPATH, sitecustomize.py installs it in
-every process:
+Since lane L10 a kernel's refusal is, but for a few validators that keep a Python rule, an error of
+the Run (KernelRefusal): a valid Run has none, and this says where one came from and how often. Off
+unless the variable is set; then, with this directory first on PYTHONPATH, sitecustomize.py installs
+it in every process:
 
     SHELTERSIM_REFUSAL_CENSUS=DIR PYTHONPATH=benchmarks/rule_shadow:src:native/pylib \
         python benchmarks/gate_all_paths.py --output OUT --expect fixtures/gate-all-paths.json
@@ -10,13 +11,10 @@ every process:
     python benchmarks/rule_shadow/refusal_census.py report OUT.json --root . \
         --tests DIR --gate DIR --week DIR
 
-Rust (native/src/core/census.rs) counts each `Unsupported` where it is built, and each fallback of
-`or_rule!` and each `__wrapped__` call-back, so the driver's path shows as well as `kernel_first`'s.
-A wrapper on every function of `rules` and `state` counts what reaches a Python entry. Nothing here
-changes a result: it reads, and the gate and 7-day hashes are checked with it on. It also counts
-what the Python rule raised after each refusal (`python_raised`: the error texts to move to Rust,
-docs/rust-port/lanes/l8-texts-rest.md) and each error a kernel raises through core/errors.rs
-(`moved`).
+Rust (native/src/core/census.rs) counts each `Unsupported` where it is built, and who caught it,
+the driver of rules/tick.rs among them. A wrapper on every function of `rules` and `state` counts
+what reaches a Python entry. Nothing here changes a result: it reads, and the gate and 7-day hashes
+are checked with it on. It also counts each error a kernel raises through core/errors.rs (`moved`).
 
 Each count has a bucket, from the state it came from:
   tick_ok        in a tick that finished, and so passed validate_after_tick
@@ -68,8 +66,9 @@ class _Census:
 
     def collect(self, bucket: str, scope: str | None = None) -> None:
         raised, caught = self.native.census_take()
-        moved, fell_back = self.native.census_take_errors()
-        if not raised and not caught and not moved and not fell_back:
+        # Not counted: what a Python rule raised after a refusal (L10 removes those rules).
+        moved, _fell_back = self.native.census_take_errors()
+        if not raised and not caught and not moved:
             return
         where = self.scope() if scope is None else scope
         for file, line, reason, n in raised:
@@ -78,9 +77,6 @@ class _Census:
             self.rows["caught", where, bucket, file, line, reason, by] += n
         for file, line, text, n in moved:
             self.rows["moved", where, bucket, file, line, text, ""] += n
-        # The Python class and text go where `by` is for the others, after the one who fell back.
-        for by, file, line, reason, outcome, n in fell_back:
-            self.rows["fell_back", where, bucket, file, line, reason, f"{by}\t{outcome}"] += n
 
     def write(self) -> None:
         self.collect("outside")
@@ -168,16 +164,6 @@ def install(output: str) -> None:
                 _wrap_module(module, f"{group_name}.{module_name}")
     native.census_switch(True)
     atexit.register(census.write)
-
-    from sheltersim.core import kernels
-
-    class FellBack:
-        """kernel_first's `_fell_back`: what the Python rule raised after a refusal."""
-
-        def fell_back(self, label: str, refusal: Exception, error: Exception) -> None:
-            native.census_fell_back(label, refusal, error)
-
-    kernels._fell_back = FellBack()
 
     from sheltersim.core.engine import TickEngine
     from sheltersim.core.world import WorldState
@@ -275,8 +261,7 @@ def _test_sources(root: Path, ids: set[str]) -> dict[str, bool]:
                     if isinstance(node, ast.FunctionDef):
                         functions[node.name] = ast.get_source_segment(source, node) or ""
             by_file[file] = functions
-        # The tracked-mirror tests run every kernel over containers no Run has.
-        answer[test] = "tracked_mirror" in file or bool(_BREAKS.search(by_file[file].get(name, "")))
+        answer[test] = bool(_BREAKS.search(by_file[file].get(name, "")))
     return answer
 
 
@@ -318,7 +303,6 @@ def report(arguments: argparse.Namespace) -> int:
         return data[key]
 
     moved: dict[Any, Counter[str]] = defaultdict(Counter)
-    outcomes: dict[Any, Counter[str]] = defaultdict(Counter)
     for run, directory in runs.items():
         rows, ticks[run] = _read(directory)
         for kind, scope, bucket, file, line, reason, by, n in rows:
@@ -326,9 +310,6 @@ def report(arguments: argparse.Namespace) -> int:
             file = file[file.rfind("native/") + len("native/") :] if "native/" in file else file
             if kind == "moved":
                 moved[file, line, reason][run] += n
-                continue
-            if kind == "fell_back":
-                outcomes[file, line, reason][by.split("\t", 1)[1]] += n
                 continue
             if kind == "caught":
                 if by.startswith(("or_rule", "__wrapped__")):
@@ -389,8 +370,6 @@ def report(arguments: argparse.Namespace) -> int:
                 "entries": entries[file, line, reason].most_common(3),
                 # None caught: a check that discards the error, or a class's method's refusal.
                 "caught": sum(entries[file, line, reason].values()),
-                # What the Python rule raised after this refusal; the rest of `caught` returned.
-                "python_raised": outcomes[file, line, reason].most_common(5),
             }
         )
     table.sort(key=lambda row: (-row["week"], -row["gate"], -row["tests"], row["reason"]))

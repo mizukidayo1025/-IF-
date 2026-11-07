@@ -28,7 +28,6 @@ use crate::core::world_core::raw_dict_get;
 use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, RequestStatus};
 use crate::rules::movement::{at_queue_slot, at_service_point, at_trip_destination};
 use crate::rules::travel::{approach_route, plan_room_approach, write_travel};
-use crate::rules::effects::refused_by_python;
 use crate::rules::{service, toilet};
 use crate::state::resource_service::RequestRecord;
 use crate::state::events::{EventRef, EventRow, EventWriter};
@@ -537,9 +536,8 @@ fn after_arrival<'py>(
 /// The attribute of an outcome `decide` raised: the rule's checks failed and nothing was written.
 const UNWRITTEN: &str = "_sheltersim_travel_unwritten";
 
-/// Whether this error is a text of the rule's checks, raised before any change. dispatch.rs shows
-/// these to text_check.py; a text raised after the walk's writes (from what the walk leads to) it
-/// does not.
+/// Whether this error is a text of the rule's checks, raised before any change, rather than one
+/// raised after the walk's writes (from what the walk leads to).
 pub(crate) fn raised_before_writing(py: Python<'_>, error: &PyErr) -> bool {
     error.value(py).hasattr(intern!(py, UNWRITTEN)).unwrap_or(false)
 }
@@ -718,8 +716,8 @@ pub(crate) fn apply_event<'py>(
     direct: bool,
 ) -> PyResult<()> {
     let py = world.py();
-    // A read that raises in Python is the Python rule's to raise: Unsupported, with nothing written.
-    let decided = match refused_by_python(py, decide(handler, world, event)) {
+    // The rule's checks, before anything is written: its texts, a refusal or a call's own error.
+    let decided = match decide(handler, world, event) {
         Ok(Some(decided)) => decided,
         Ok(None) => return Ok(()),
         Err(error) => {

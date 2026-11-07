@@ -6,7 +6,7 @@ from typing import Any
 
 from sheltersim import native
 from sheltersim.contracts.extensions import FacilityServicePoint
-from sheltersim.core.kernels import kernel_first, kernel_only
+from sheltersim.core.kernels import kernel_only
 from sheltersim.core.state_mirror import register_rust_validator
 from sheltersim.core.world import WorldState
 from sheltersim.domain.geometry_overlay import parsed_facility_geometry
@@ -251,7 +251,6 @@ def facility_has_independent_queues(world: WorldState, facility_id: str) -> bool
     """Whether `facility_queues_v1` holds a queue of this facility."""
 
 
-@kernel_first("facility_queues", "queue_head_agent_ids")
 def queue_head_agent_ids(world: WorldState, facility_id: str) -> set[str]:
     """The Agents first in line at a facility: one per independent queue, else the shared head."""
     state = world.model_state.get(FACILITY_QUEUES_STATE_KEY)

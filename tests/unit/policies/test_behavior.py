@@ -8,11 +8,10 @@ tests/integration/test_behavior_policy.py.
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
-from typing import Any
 
 import pytest
 from support.paths import BASELINE_100_7D, SCENARIO_100_AGENTS
-from support.world import decisions_of
+from support.world import decisions_of, view_of
 
 from sheltersim import native
 from sheltersim.core.kernels import KernelRefusal
@@ -32,7 +31,6 @@ from sheltersim.policies.behavior import (
     BehaviorDecisionRunner,
     PriorityRuleBehaviorPolicy,
     UtilityBehaviorPolicy,
-    WorldView,
     behavior_policy_catalog,
     create_behavior_policy,
 )
@@ -43,8 +41,8 @@ def make_world() -> WorldState:
 
 
 def test_world_view_gives_every_person_each_field_of_the_view(generated_scenario) -> None:
-    """from_world fills a view's fields directly; none may fall back to the class default."""
-    view = WorldView.from_world(WorldState.from_scenario(generated_scenario))
+    """The view kernel fills a view's fields directly; none may fall back to the class default."""
+    view = view_of(WorldState.from_scenario(generated_scenario))
     names = set(AgentView.__dataclass_fields__)
     for agent in view.agents.values():
         assert set(agent.__dict__) == names
@@ -53,34 +51,9 @@ def test_world_view_gives_every_person_each_field_of_the_view(generated_scenario
             agent.stress = 1.0
 
 
-def test_world_view_hash_is_the_same_with_and_without_the_kernel(
-    generated_scenario, monkeypatch
-) -> None:
-    world = WorldState.from_scenario(generated_scenario)
-    with_kernel = WorldView.from_world(world).state_hash
-    monkeypatch.setattr(native, "canonical_sha256", lambda value: None)
-    assert WorldView.from_world(world).state_hash == with_kernel
-
-
-def test_world_view_person_cache_follows_a_changed_record(generated_scenario) -> None:
-    world = WorldState.from_scenario(generated_scenario)
-    cache: dict[str, Any] = {}
-    plain = WorldView.from_world(world)
-    assert WorldView.from_world(world, person_cache=cache) == plain
-    assert WorldView.from_world(world, person_cache=cache) == plain
-    assert cache
-    people = world.model_configs["population_context"]["people"]
-    identity = sorted(people)[0]
-    # An edit inside the record, not a new record, must also be seen.
-    people[identity]["usual_wake_minute"] = 123
-    view = WorldView.from_world(world, person_cache=cache)
-    assert view.agents[identity].usual_wake_minute == 123
-    assert view == WorldView.from_world(world)
-
-
 def test_world_view_is_detached_read_only_and_canonical() -> None:
     world = make_world()
-    view = WorldView.from_world(world)
+    view = view_of(world)
     original_hash = view.state_hash
 
     with pytest.raises(TypeError):
@@ -91,7 +64,7 @@ def test_world_view_is_detached_read_only_and_canonical() -> None:
     world.agents["A001"].stress = 0.7
     assert view.agents["A001"].stress == 0.0
     assert view.state_hash == original_hash
-    assert WorldView.from_world(make_world()).state_hash == original_hash
+    assert view_of(make_world()).state_hash == original_hash
 
 
 def test_behavior_proposal_is_reproducible_and_exposes_candidate_trace() -> None:
@@ -99,7 +72,7 @@ def test_behavior_proposal_is_reproducible_and_exposes_candidate_trace() -> None
     agent = world.agents["A001"]
     agent.activity = Activity.IDLE
     agent.needs.toilet_urgency = 0.95
-    view = WorldView.from_world(world)
+    view = view_of(world)
     policy = UtilityBehaviorPolicy()
 
     first = decisions_of(world, policy)["A001"]
@@ -296,16 +269,26 @@ def test_a_recorded_outcome_equals_replace_and_keeps_the_timing_check() -> None:
 
 
 def test_a_kept_zone_environment_follows_the_configs_and_modifiers(generated_scenario) -> None:
+    """The view kernel keeps a zone's conditions in the controller's `_zone_environments` while the
+    configs are the same object and the modifiers the same values (rules/world_view.rs)."""
+    from types import SimpleNamespace
+
     from sheltersim.domain.environment import ZONE_ENVIRONMENT_STATE_KEY, zone_environment_view
-    from sheltersim.policies.behavior import _zone_environment
 
     world = WorldState.from_scenario(generated_scenario)
     world.model_state.setdefault(ZONE_ENVIRONMENT_STATE_KEY, {"schema_version": 1, "modifiers": {}})
-    zone_id = next(iter(world.zones))
-    cache: dict = {}
-    first = _zone_environment(world, zone_id, cache)
-    assert first == zone_environment_view(world, zone_id)
-    assert _zone_environment(world, zone_id, cache) is first
+    agent = next(iter(world.agents.values()))
+    zone_id = agent.zone_id
+    controller = SimpleNamespace(
+        _view_before_proposals=None, _rust_view_cache=None, _zone_environments={}
+    )
+    rules = native.rules("world_view")
+
+    def lighting() -> float:
+        return rules.view_after_movement(controller, world).agents[agent.id].lighting_level
+
+    first = lighting()
+    assert first == zone_environment_view(world, zone_id).lighting_level
     world.model_state[ZONE_ENVIRONMENT_STATE_KEY]["modifiers"]["m-1"] = {
         "zone_id": zone_id,
         "op": "set_lighting",
@@ -315,15 +298,13 @@ def test_a_kept_zone_environment_follows_the_configs_and_modifiers(generated_sce
         "source_id": "ASM-TEST",
         "assumption_ids": ["ASM-TEST"],
     }
-    changed = _zone_environment(world, zone_id, cache)
-    assert changed == zone_environment_view(world, zone_id)
+    changed = lighting()
+    assert changed == zone_environment_view(world, zone_id).lighting_level
     if "zone_environment" in world.model_configs:
-        assert changed.lighting_level == 0.125
+        assert changed == 0.125
     del world.model_state[ZONE_ENVIRONMENT_STATE_KEY]["modifiers"]["m-1"]
-    assert _zone_environment(world, zone_id, cache) == first
+    assert lighting() == first
     world.model_configs = dict(world.model_configs)
-    assert _zone_environment(world, zone_id, cache) == first
-    assert cache["configs"] is world.model_configs
+    assert lighting() == first
     del world.model_state[ZONE_ENVIRONMENT_STATE_KEY]
-    assert _zone_environment(world, zone_id, cache) == zone_environment_view(world, zone_id)
-    assert cache["has_state"] is False
+    assert lighting() == zone_environment_view(world, zone_id).lighting_level

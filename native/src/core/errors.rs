@@ -5,24 +5,14 @@
 //! `detail`, which is hashed and shown. So a kernel that raises one must say what the Python rule
 //! says, byte for byte, and in the same order of checks. The classes stay Python's; a kernel raises
 //! them through here.
-//!
-//! benchmarks/rule_shadow/text_check.py compares each text made here with what the Python rule
-//! raises for the same input, while the Python rules still exist. It turns the record on: then each
-//! text says where it was made (`#[track_caller]`), as `core/census.rs` does for `Unsupported`.
-//! Off, a text costs one load of a flag.
 
-use std::collections::BTreeMap;
-use std::panic::Location;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
 
 use pyo3::exceptions::PyValueError;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
-use pyo3::types::{PyBool, PyFloat, PyInt, PyList, PyString, PyType};
+use pyo3::types::{PyBool, PyFloat, PyInt, PyString, PyType};
 
-type Site = (&'static str, u32);
 
 /// Which of the two outcomes.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -31,34 +21,9 @@ pub(crate) enum Outcome {
     Failed,
 }
 
-impl Outcome {
-    fn class_name(self) -> &'static str {
-        match self {
-            Outcome::Suppressed => "EventSuppressed",
-            Outcome::Failed => "EventApplicationError",
-        }
-    }
-}
-
-static ON: AtomicBool = AtomicBool::new(false);
-static MADE: Mutex<Record> = Mutex::new(Record { made: BTreeMap::new(), last: None });
 /// The attribute an outcome made here carries; its text, `str(exc)`, is the rule's alone.
 const MARK: &str = "_sheltersim_native_outcome";
 static CLASSES: GILOnceCell<(Py<PyType>, Py<PyType>)> = GILOnceCell::new();
-
-struct Record {
-    made: BTreeMap<(Site, Outcome, String), u64>,
-    last: Option<(Site, Outcome, String)>,
-}
-
-#[cold]
-#[inline(never)]
-fn note(site: Site, outcome: Outcome, text: &str) {
-    if let Ok(mut record) = MADE.lock() {
-        *record.made.entry((site, outcome, text.to_owned())).or_default() += 1;
-        record.last = Some((site, outcome, text.to_owned()));
-    }
-}
 
 fn class(py: Python<'_>, outcome: Outcome) -> PyResult<&Bound<'_, PyType>> {
     let classes = CLASSES.get_or_try_init(py, || -> PyResult<_> {
@@ -74,14 +39,9 @@ fn class(py: Python<'_>, outcome: Outcome) -> PyResult<&Bound<'_, PyType>> {
     })
 }
 
-/// A fixed text of an outcome a kernel returns as a value, noted where it was made.
-#[track_caller]
+/// A fixed text of an outcome a kernel returns as a value.
 #[inline]
-pub(crate) fn noted(outcome: Outcome, text: &'static str) -> &'static str {
-    if ON.load(Ordering::Relaxed) {
-        let location = Location::caller();
-        note((location.file(), location.line()), outcome, text);
-    }
+pub(crate) fn noted(_outcome: Outcome, text: &'static str) -> &'static str {
     text
 }
 
@@ -90,10 +50,6 @@ pub(crate) fn noted(outcome: Outcome, text: &'static str) -> &'static str {
 #[inline]
 pub(crate) fn error(py: Python<'_>, outcome: Outcome, text: impl Into<String>) -> PyErr {
     let text = text.into();
-    if ON.load(Ordering::Relaxed) {
-        let location = Location::caller();
-        note((location.file(), location.line()), outcome, &text);
-    }
     let made = (|| -> PyResult<PyErr> {
         let instance = class(py, outcome)?.call1((text,))?;
         instance.setattr(intern!(py, MARK), true)?;
@@ -235,37 +191,6 @@ pub(crate) fn member_of<'a>(value: &'a Bound<'_, PyAny>, members: &[&str]) -> Py
     Ok(members.contains(&text).then_some(text))
 }
 
-/// Turn the record on or off for this process.
-#[pyfunction]
-pub(crate) fn texts_switch(on: bool) {
-    ON.store(on, Ordering::Relaxed);
-}
-
-/// The last text made: `(file, line, class name, text)`, or None.
-#[pyfunction]
-pub(crate) fn texts_last() -> Option<(&'static str, u32, &'static str, String)> {
-    let record = MADE.lock().ok()?;
-    let ((file, line), outcome, text) = record.last.clone()?;
-    Some((file, line, outcome.class_name(), text))
-}
-
-/// Take what was made: rows of `(file, line, class name, text, n)`, and start again.
-#[pyfunction]
-pub(crate) fn texts_take(py: Python<'_>) -> PyResult<Bound<'_, PyList>> {
-    let made = match MADE.lock() {
-        Ok(mut record) => {
-            record.last = None;
-            std::mem::take(&mut record.made)
-        }
-        Err(_) => BTreeMap::new(),
-    };
-    let rows = PyList::empty(py);
-    for (((file, line), outcome, text), n) in made {
-        rows.append((file, line, outcome.class_name(), text, n))?;
-    }
-    Ok(rows)
-}
-
 // ---- social (lane L8c) -------------------------------------------------------------------------------
 
 /// The exception of an outcome a kernel already noted where it gave the text (`noted`), raised without
@@ -285,40 +210,18 @@ pub(crate) fn raise_noted<T>(py: Python<'_>, outcome: Outcome, text: &str) -> Py
 // `StateInvariantError` or another class of the rules, it raises the rule's error itself through one
 // of these: the same class and the same text, before it has changed anything, as a refusal must be.
 //
-// While the Python rules exist, `errors_switch(True)` (benchmarks/rule_shadow/error_compare.py)
-// turns the comparison on: an entry that falls back to the Python rule (`kernel_first`,
-// `segments.py`, the driver's `or_rule!`) then also runs the rule after such an error, on the same
-// unchanged state, and counts whether it raised the same class and text. Off, an error made here
-// costs the load of two flags, and only when it is raised.
-//
 // `corrupt` is the one exit for a state the checks of the Python rules never let through (the C
 // group of docs/rust-port/step4-plan.md): its text names the namespace and the check and is not
-// Python's, so it is not compared.
-
-static COMPARING: AtomicBool = AtomicBool::new(false);
-/// With the comparison: a difference raises AssertionError at once, so a test or a Run fails.
-static STRICT: AtomicBool = AtomicBool::new(false);
-static STATE: Mutex<Compared> = Mutex::new(Compared { last: None, seen: BTreeMap::new() });
-
-struct Compared {
-    /// The site and text of the last moved error, while comparing.
-    last: Option<(Site, String)>,
-    /// By `(site, verdict, Rust's class and text, Python's class and text)`.
-    seen: BTreeMap<(Site, &'static str, String, String), u64>,
-}
+// Python's.
+//
+// `kernel_refusal` is the one exit of a refusal that no Python rule stands behind (lane L10): a
+// `KernelRefusal` of `core/kernels.py` that names the kernel and gives its reason.
 
 #[cold]
 #[inline(never)]
 #[track_caller]
 fn moved(text: &str) {
     crate::core::census::moved(text);
-    if !COMPARING.load(Ordering::Relaxed) {
-        return;
-    }
-    let location = Location::caller();
-    if let Ok(mut state) = STATE.lock() {
-        state.last = Some(((location.file(), location.line()), text.to_owned()));
-    }
 }
 
 /// A Python class, imported once.
@@ -410,95 +313,22 @@ pub(crate) fn corrupt(namespace: &str, check: &str) -> PyErr {
     PyErr::new::<StateInvariantError, _>(text)
 }
 
-/// While comparing, the site of `error` if it is the last moved error, which is then taken.
-pub(crate) fn moved_site(py: Python<'_>, error: &PyErr) -> Option<Site> {
-    if !COMPARING.load(Ordering::Relaxed) {
-        return None;
-    }
-    let text = error.value(py).to_string();
-    let mut state = STATE.lock().ok()?;
-    match state.last.take() {
-        Some((site, last)) if last == text => Some(site),
-        other => {
-            state.last = other;
-            None
-        }
-    }
-}
 
-fn described(py: Python<'_>, error: &PyErr) -> String {
-    let class = error.get_type(py).qualname().map(|name| name.to_string()).unwrap_or_default();
-    format!("{class}: {}", error.value(py))
+#[allow(dead_code)]
+mod refusal_class {
+    use super::*;
+    python_class!(KernelRefusal, "sheltersim.core.kernels", "KernelRefusal");
 }
+pub(crate) use refusal_class::KernelRefusal;
 
-/// Count what the Python rule did after the moved error of `site`: the same class and text, or not.
-/// In strict mode a difference gives the AssertionError to raise instead.
-pub(crate) fn compared(py: Python<'_>, site: Site, rust: &PyErr, python: Option<&PyErr>) -> Option<PyErr> {
-    let rust_text = described(py, rust);
-    let (verdict, python_text) = match python {
-        None => ("python returned", String::new()),
-        Some(python) => {
-            let same_class = python.get_type(py).is(&rust.get_type(py));
-            let python_text = described(py, python);
-            if same_class && python_text == rust_text {
-                ("same", String::new())
-            } else {
-                ("differs", python_text)
-            }
-        }
-    };
-    let failure = (verdict != "same" && STRICT.load(Ordering::Relaxed)).then(|| {
-        pyo3::exceptions::PyAssertionError::new_err(format!(
-            "{}:{}: the kernel raised {rust_text:?} where the Python rule {verdict} {python_text:?}",
-            site.0, site.1
-        ))
-    });
-    let rust_text = if verdict == "same" { String::new() } else { rust_text };
-    if let Ok(mut state) = STATE.lock() {
-        *state.seen.entry((site, verdict, rust_text, python_text)).or_default() += 1;
+/// The one exit of a kernel's refusal, where no Python rule stands behind it: `Unsupported` becomes
+/// `KernelRefusal(f"{label} refused: {reason}")` with the refusal as its cause, as `kernel_only` of
+/// `core/kernels.py` raises it. `label` is `module.name` of the kernel. Any other error goes on as it is.
+pub(crate) fn kernel_refusal(py: Python<'_>, label: &str, error: PyErr) -> PyErr {
+    if !error.is_instance_of::<crate::Unsupported>(py) {
+        return error;
     }
-    failure
-}
-
-/// Turn the comparison on or off for this process.
-#[pyfunction]
-#[pyo3(signature = (on, strict=false))]
-pub(crate) fn errors_switch(on: bool, strict: bool) {
-    COMPARING.store(on, Ordering::Relaxed);
-    STRICT.store(on && strict, Ordering::Relaxed);
-    if let Ok(mut state) = STATE.lock() {
-        state.last = None;
-    }
-}
-
-/// At a Python entry that caught `error` from a kernel: if it is a moved error and the comparison
-/// is on, run `rule` (the Python rule on the same arguments) and count what it raised.
-#[pyfunction]
-pub(crate) fn errors_compare(py: Python<'_>, error: Bound<'_, PyAny>, rule: Bound<'_, PyAny>) -> PyResult<()> {
-    if !COMPARING.load(Ordering::Relaxed) {
-        return Ok(());
-    }
-    let error = PyErr::from_value(error);
-    let Some(site) = moved_site(py, &error) else {
-        return Ok(());
-    };
-    let python = rule.call0().err();
-    match compared(py, site, &error, python.as_ref()) {
-        Some(failure) => Err(failure),
-        None => Ok(()),
-    }
-}
-
-/// Take the comparisons counted: rows of `(file, line, verdict, rust, python, n)`, and start again.
-#[pyfunction]
-pub(crate) fn errors_take<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
-    let seen = match STATE.lock() {
-        Ok(mut state) => std::mem::take(&mut state.seen),
-        Err(_) => BTreeMap::new(),
-    };
-    let rows = PyList::empty(py);
-    for (((file, line), verdict, rust, python), n) in seen {
-        rows.append((file, line, verdict, rust, python, n))?;
-    }
-    Ok(rows)
+    let refusal = PyErr::new::<KernelRefusal, _>(format!("{label} refused: {}", error.value(py)));
+    refusal.set_cause(py, Some(error));
+    refusal
 }

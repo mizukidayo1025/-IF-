@@ -1130,7 +1130,7 @@ def test_a_row_taken_by_a_bad_value_goes_to_python(world: WorldState, rules: Any
     with pytest.raises(native.Unsupported):
         rules.validate_state(world, validate_event_history=False)
     # 1.0 == 1 passes the Python rule, so only the row is lost.
-    validate_effect_program_state.__wrapped__(world, validate_event_history=False)
+    validate_effect_program_state(world, validate_event_history=False)
     with pytest.raises(native.Unsupported):
         rules.has_active_modifier(world, facility)
 
@@ -1197,7 +1197,7 @@ def test_a_state_the_check_accepts_passes_the_python_rules(world: WorldState, ru
                 refused += 1
             else:
                 accepted += 1
-                validate_effect_program_state.__wrapped__(broken, validate_event_history=history)
+                validate_effect_program_state(broken, validate_event_history=history)
     assert accepted and refused
 
 
@@ -1274,7 +1274,7 @@ def test_a_stack_the_python_rule_refuses_is_refused(
     with pytest.raises(native.Unsupported):
         rules.validate_state(world, validate_event_history=True)
     with pytest.raises(ValueError):
-        validate_effect_program_state.__wrapped__(world, validate_event_history=True)
+        validate_effect_program_state(world, validate_event_history=True)
 
 
 @pytest.mark.parametrize(
@@ -1305,12 +1305,12 @@ def test_the_bounds_of_a_program_record_are_the_python_rule_s(
     write(world.model_state[KEY]["programs"]["program-1"])
     if good:
         rules.validate_state(world, validate_event_history=True)
-        validate_effect_program_state.__wrapped__(world, validate_event_history=True)
+        validate_effect_program_state(world, validate_event_history=True)
     else:
         with pytest.raises(native.Unsupported):
             rules.validate_state(world, validate_event_history=True)
         with pytest.raises(ValueError):
-            validate_effect_program_state.__wrapped__(world, validate_event_history=True)
+            validate_effect_program_state(world, validate_event_history=True)
 
 
 def _assumption(description: str) -> dict[str, Any]:
@@ -1345,4 +1345,4 @@ def test_a_marker_the_python_rule_refuses_is_refused(
     with pytest.raises(native.Unsupported):
         rules.validate_state(world, validate_event_history=True)
     with pytest.raises(ValueError):
-        validate_effect_program_state.__wrapped__(world, validate_event_history=True)
+        validate_effect_program_state(world, validate_event_history=True)

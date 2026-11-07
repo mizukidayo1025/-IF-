@@ -7,7 +7,6 @@ from typing import Any
 from sheltersim.core.rng import KeyedRandom
 from sheltersim.core.world import WorldState
 from sheltersim.domain.movement import MOVEMENT_STATE_KEY, advance_movement
-from sheltersim.experiments.phases.segments import no_python_step
 from sheltersim.policies.psychology import PsychologyUpdateResult
 from sheltersim.policies.world_view import WorldView
 
@@ -28,18 +27,17 @@ class UpdatePhase:
     def _view_after_movement(self, world: WorldState) -> WorldView:
         """The view the update phase reads, which native/src/rules/world_view.rs makes.
 
-        A `WorldView` of `world` at its minute, without an audit hash (`state_hash` None): what
-        `WorldView.from_world(world, include_state_hash=False)` holds, read from the rows and the
-        namespaces. Its `agents`, `facilities`, `zone_members` and `group_members` are made when a
-        Python reader first asks for them. Parsed person contexts and zone conditions are kept for
-        the controller while their documents stay the same; `_zone_environments` is the zones'.
+        A `WorldView` of `world` at its minute, without an audit hash (`state_hash` None), read
+        from the rows and the namespaces. Its `agents`, `facilities`, `zone_members` and
+        `group_members` are made when a Python reader first asks for them. Parsed person contexts
+        and zone conditions are kept for the controller while their documents stay the same;
+        `_zone_environments` is the zones'.
 
         The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
         raises KernelRefusal: a value of another type than its typed field holds, a person in an
         unknown zone, a person context or a zone modifier that does not parse, a selection of
         models the contract refuses.
         """
-        raise no_python_step("_view_after_movement")
 
     def _psychology_update(self, view: WorldView, minute: int) -> PsychologyUpdateResult:
         """Each person's values of the next minute, which native/src/rules/psychology.rs computes.
@@ -56,7 +54,6 @@ class UpdatePhase:
         sleep debt, a sleep efficiency or a required sleep out of bounds, or a new value outside
         an AgentStateDelta's bounds.
         """
-        raise no_python_step("_psychology_update")
 
     def _social_propagation(
         self, world: WorldState, view: WorldView, base_deltas: Any, minute: int, rng: KeyedRandom
@@ -75,7 +72,6 @@ class UpdatePhase:
         raises KernelRefusal: a namespace of another schema or with negative minutes, deltas or a
         view of another minute, an RNG other than CounterRNG, a policy class it does not know.
         """
-        raise no_python_step("_social_propagation")
 
     def _record_psychology_trace(
         self, psychology_result: PsychologyUpdateResult, final_deltas: Any, minute: int
@@ -92,7 +88,6 @@ class UpdatePhase:
         raises KernelRefusal: traces that are not the psychology kernel's rows, or a person
         without a final delta.
         """
-        raise no_python_step("_record_psychology_trace")
 
     def _update_long_term_psychology(
         self, world: WorldState, view: WorldView, final_deltas: Any, minute: int
@@ -117,7 +112,6 @@ class UpdatePhase:
         a threshold outside 0..1, a monitor value that is negative or not finite, another model
         with an `update_long_term_state` of its own.
         """
-        raise no_python_step("_update_long_term_psychology")
 
     def _apply_state_deltas(self, world: WorldState, final_deltas: Any) -> None:
         """Write the final deltas, which native/src/rules/psychology.rs does.
@@ -131,7 +125,6 @@ class UpdatePhase:
         delta of another minute, a value that is not a float within 0..1, body values without a
         body record.
         """
-        raise no_python_step("_apply_state_deltas")
 
     def _update_movement(self, minute: int) -> None:
         """Advance route interpolation and atomically reschedule changed paths."""
@@ -168,4 +161,3 @@ class UpdatePhase:
         before the first stop raises KernelRefusal, and after it a RuntimeError, since a stop
         is written.
         """
-        raise no_python_step("_replan_journeys")

@@ -3,7 +3,8 @@
 `TickEngine.step` asks a handler's `run_tick` first. The driver refuses a tick that a hook changes,
 before anything has happened, and `step` then runs the phases through `phase_handler`, so a test's
 patch sees what it saw before. A trace, a Provider and an observer of the phases go with the driver.
-Without the Rust kernels the controller has no `run_tick`. See docs/rust-port/lanes/m6-driver.md.
+Past those checks each step is its kernel; a kernel's refusal is KernelRefusal (core/kernels.py).
+See docs/rust-port/lanes/m6-driver.md.
 """
 
 from __future__ import annotations
@@ -102,7 +103,6 @@ def install_driver(controller: type) -> None:
         list(DRIVEN_STEPS),
         list(DRIVEN_RULES),
         list(TICK_PHASE_ORDER),
-        (arbitrate, update, facilities),
         metrics.MetricsRecorder,
         TickExecutionError,
     )

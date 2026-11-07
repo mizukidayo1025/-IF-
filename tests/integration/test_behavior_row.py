@@ -14,6 +14,7 @@ import hashlib
 import json
 import random
 import sys
+from dataclasses import replace
 from enum import Enum
 from pathlib import Path
 from types import SimpleNamespace
@@ -21,6 +22,7 @@ from typing import Any
 
 import pytest
 from support.paths import SMALL_REPLAY
+from support.world import view_of
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine, TraceLevel
@@ -432,7 +434,8 @@ def test_a_tick_makes_no_python_view_of_the_people(
 def test_a_view_python_made_is_refused(generated_scenario: Any) -> None:
     world = WorldState.from_scenario(generated_scenario)
     world.model_state.setdefault("body_state_v1", create_body_state(world))
-    view = WorldView.from_world(world)
+    # A copy of the kernel's view, without its snapshot.
+    view = replace(view_of(world))
     assert "_rust_view" not in view.__dict__
     controller = SimpleNamespace(decisions=BehaviorDecisionRunner())
     with pytest.raises(native.Unsupported, match="Python's"):

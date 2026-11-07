@@ -205,7 +205,8 @@ def test_a_tainted_store_or_namespace_saves_the_same_checkpoint(
 def test_an_entity_map_stored_past_the_world_is_not_taken_from_its_old_rows(
     finished_document,
 ) -> None:
-    """Found by benchmarks/tracked_mirror_gate.py, whose session replaces WorldState.__setattr__."""
+    """Found by the tracked-mirror gate of the Rust port (retired in lane L10), whose session
+    replaced WorldState.__setattr__."""
 
     def assign(world: WorldState) -> None:
         kept = dict(list(world.support_requests.items())[1:])

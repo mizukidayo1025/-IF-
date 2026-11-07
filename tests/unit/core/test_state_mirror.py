@@ -17,10 +17,53 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
-from support.tracked_mirror import strict_difference
 
 from sheltersim import native
 from sheltersim.core.state_mirror import NamespaceTable, TrackedDict, TrackedList
+
+
+def _kind(value: Any) -> str:
+    if isinstance(value, dict):
+        return "dict"
+    if isinstance(value, list):
+        return "list"
+    return type(value).__name__
+
+
+def _show(path: tuple[Any, ...]) -> str:
+    return "/".join(str(part) for part in path) or "<root>"
+
+
+def strict_difference(first: Any, second: Any, path: tuple[Any, ...] = ()) -> str | None:
+    """The first place two documents differ, by type, value, bits of a float or key order."""
+    first_kind = _kind(first)
+    if first_kind != _kind(second):
+        return f"{_show(path)}: {first_kind} != {_kind(second)}"
+    if first_kind == "dict":
+        first_keys = list(dict.keys(first))
+        second_keys = list(dict.keys(second))
+        if first_keys != second_keys:
+            return f"{_show(path)}: keys {first_keys[:8]} != {second_keys[:8]}"
+        for key in first_keys:
+            found = strict_difference(
+                dict.__getitem__(first, key), dict.__getitem__(second, key), (*path, key)
+            )
+            if found is not None:
+                return found
+        return None
+    if first_kind in {"list", "tuple"}:
+        if len(first) != len(second):
+            return f"{_show(path)}: {len(first)} items != {len(second)}"
+        for index, (left, right) in enumerate(zip(first, second, strict=True)):
+            found = strict_difference(left, right, (*path, index))
+            if found is not None:
+                return found
+        return None
+    if first_kind == "float":
+        same = first.hex() == second.hex() or (first != first and second != second)
+    else:
+        same = first == second
+    return None if same else f"{_show(path)}: {first!r} != {second!r}"
 
 
 def _tree(document: Any) -> tuple[Any, Any]:

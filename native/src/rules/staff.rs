@@ -18,7 +18,7 @@ use crate::core::mathx::{py_fsum, py_max, py_round_int};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, map_set, namespace_is_absent, unsupported};
 use crate::core::value::V;
 use crate::core::world_core::{field_mirror_of, mirror_of, raw_dict_get, NamespaceMirror};
-use crate::rules::effects::{active_outage, has_active_modifier, refused_by_python};
+use crate::rules::effects::{active_outage, has_active_modifier};
 use crate::rules::handlers::{assumption, get, get_is, log_record, new_event, NewEvent};
 use crate::rules::movement::{mobility_text, movement_minutes};
 use crate::rules::movement_geometry::Geo;
@@ -375,7 +375,7 @@ fn assign_work<'py>(service: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>, val
         let current_no_qualified = number_at(&metrics, NO_QUALIFIED_METRIC, 0.0)?;
         Ok((world, at, ordered, workers, objects, metrics, attempt, no_qualified, current_no_qualified, fairness))
     })();
-    let (world, at, ordered, workers, objects, metrics, attempt, no_qualified, current_no_qualified, fairness) = crate::rules::effects::refused_by_python(py, plan)?;
+    let (world, at, ordered, workers, objects, metrics, attempt, no_qualified, current_no_qualified, fairness) = plan?;
 
     // Sorted by ID: the workers free to start.
     let mut free: Vec<usize> = (0..workers.len()).filter(|index| !workers[*index].has_task && workers[*index].available && workers[*index].can_start).collect();
@@ -1506,7 +1506,7 @@ pub(crate) fn assign_operations<'py>(
         return Ok(done);
     }
     let plan = plan_operations(world, at, router, &workers);
-    let plan = refused_by_python(py, plan)?;
+    let plan = plan?;
     write_operations(world, minute, at, &plan, &workers)
 }
 
@@ -2018,7 +2018,7 @@ pub(crate) fn relief<'py>(world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>)
         return Ok(done);
     }
     let plans = plan_relief(world, at, next, duration);
-    let plans = refused_by_python(py, plans)?;
+    let plans = plans?;
     let mut handoffs = Vec::with_capacity(plans.len());
     for plan in plans {
         let sequence: i64 = world.call_method0(intern!(py, "allocate_event_sequence"))?.extract()?;
