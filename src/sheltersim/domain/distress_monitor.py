@@ -1,84 +1,19 @@
-"""Compact online duration indicators for mean-reverting psychology runs."""
+"""Compact online duration indicators for mean-reverting psychology runs.
+
+The update phase's `_update_long_term_psychology` (native/src/rules/psychology.rs) keeps five values
+per Agent in checkpointed metric state, under `acute_distress_monitor:<agent_id>:`: the current
+and the longest high-distress run, the episodes, and the total and the count of the runs that
+ended. A run is the minutes with distress at or above the threshold; one ends when distress was
+or is below it, including a fall while events were handled before the update (#159). It keeps no
+tick-by-tick history and does not affect model state.
+"""
 
 from __future__ import annotations
 
-import math
 from collections.abc import Mapping
-from functools import lru_cache
 from typing import Any
 
-from sheltersim.domain.models import validate_unit_interval
-
 _PREFIX = "acute_distress_monitor"
-
-
-@lru_cache(maxsize=1024)
-def _metric_keys(agent_id: str) -> tuple[str, str, str, str, str]:
-    key = f"{_PREFIX}:{agent_id}"
-    return (
-        f"{key}:current_run",
-        f"{key}:longest_run",
-        f"{key}:episodes",
-        f"{key}:recovered_run_total",
-        f"{key}:recovered_run_count",
-    )
-
-
-def record_distress_monitor_tick(
-    metrics: dict[str, float],
-    *,
-    previous_by_agent: Mapping[str, float],
-    current_by_agent: Mapping[str, float],
-    threshold: float,
-) -> None:
-    """Update per-Agent longest high-load runs and completed recovery durations.
-
-    The monitor stores only five numeric values per Agent in checkpointed metric state;
-    it does not retain a tick-by-tick history or affect model state.
-    """
-    validate_unit_interval("distress monitor threshold", threshold)
-    if previous_by_agent.keys() != current_by_agent.keys():
-        raise ValueError("distress monitor Agent sets must match")
-    for agent_id in sorted(current_by_agent):
-        previous = previous_by_agent[agent_id]
-        current = current_by_agent[agent_id]
-        # Floats within bounds pass, and NaN fails the comparison; the check decides the rest.
-        if not (type(previous) is float and 0.0 <= previous <= 1.0):
-            validate_unit_interval(f"previous distress for {agent_id}", previous)
-        if not (type(current) is float and 0.0 <= current <= 1.0):
-            validate_unit_interval(f"current distress for {agent_id}", current)
-        run_key, longest_key, episodes_key, total_key, count_key = _metric_keys(agent_id)
-        run = metrics.get(run_key, 0.0)
-        longest = metrics.get(longest_key, 0.0)
-        episodes = metrics.get(episodes_key, 0.0)
-        recovered_total = metrics.get(total_key, 0.0)
-        recovered_count = metrics.get(count_key, 0.0)
-        for value in (run, longest, episodes, recovered_total, recovered_count):
-            # Not finite or negative; NaN fails the comparison.
-            if not 0.0 <= value < math.inf:
-                raise ValueError("distress monitor state must be finite and non-negative")
-
-        was_high = previous >= threshold
-        is_high = current >= threshold
-        if run > 0.0 and not (was_high and is_high):
-            # Distress fell below the threshold in this update or, when the previous
-            # value is already low, while events were handled before it (#159).
-            recovered_total += run
-            recovered_count += 1.0
-            run = 0.0
-        if is_high:
-            if run == 0.0:
-                run = 1.0
-                episodes += 1.0
-            else:
-                run += 1.0
-            longest = max(longest, run)
-
-        metrics[run_key] = run
-        metrics[longest_key] = longest
-        metrics[episodes_key] = episodes
-        metrics[total_key] = recovered_total
-        metrics[count_key] = recovered_count
 
 
 def distress_monitor_summary(metrics: Mapping[str, float]) -> dict[str, Any]:

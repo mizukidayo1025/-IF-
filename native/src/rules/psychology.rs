@@ -1,16 +1,19 @@
-//! Each person's psychology in the update phase: the new values of a minute
-//! (`policies/psychology.py`, all five built-in models and `BoundedStressPolicy` of
-//! `policies/alternatives.py`), the distress monitor (`domain/distress_monitor.py`), the long-term
-//! distress (`update_psychological_state` in `domain/psychological_state.py`) and writing the new
-//! values (`apply_state_deltas`). The entity fields come from the rows of `state/entities.rs`, and
-//! the zone's conditions, the body record, the group and what a person heard from the snapshot of
-//! `rules/world_view.rs`.
+//! Each person's psychology in the update phase: the new values of a minute (the five built-in
+//! models of `policies/psychology.py` and `BoundedStressPolicy` of `policies/alternatives.py`), the
+//! distress monitor (`domain/distress_monitor.py`), the long-term distress
+//! (`domain/psychological_state.py`) and writing the new values. The entity fields come from the
+//! rows of `state/entities.rs`, and the zone's conditions, the body record, the group and what a
+//! person heard from the snapshot of `rules/world_view.rs`.
 //!
-//! A kernel changes nothing until it knows the Python rules would pass: first `plan_*` computes
-//! everything from the rows, and any value the Python rules would turn down, or that this kernel
-//! does not handle, gives Unsupported, so the Python step runs and raises its own text. Then the plan is written to
-//! the row and the tree, value by value, without replacing anything: the namespace is never
-//! forwarded whole. Every float operation keeps the order of the Python expression.
+//! These steps have no Python rule left (lane L10): the Python of `explain_update`,
+//! `deltas_without_traces`, `update_psychological_state`, `record_distress_monitor_tick` and
+//! `apply_state_deltas` that the comments below name was deleted, and the kernels keep its
+//! results bit for bit. A kernel changes nothing until it knows its checks pass: first `plan_*`
+//! computes everything from the rows, and any value the deleted rules turned down, or that this
+//! kernel does not handle, gives Unsupported, which the step raises as KernelRefusal
+//! (`experiments/phases/segments.py`). Then the plan is written to the row and the tree, value by
+//! value, without replacing anything: the namespace is never forwarded whole. Every float operation
+//! keeps the order of the Python expression.
 
 use std::sync::Arc;
 

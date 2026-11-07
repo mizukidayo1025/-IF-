@@ -28,10 +28,6 @@ SEGMENTS: dict[str, tuple[str, str]] = {
     "_observed_state": ("decisions", "observed_row"),
     "_record_outcome": ("decisions", "record_outcome"),
     "_apply_effect": ("proposals", "apply_effect"),
-    "_psychology_update": ("psychology", "update_psychology"),
-    "_update_long_term_psychology": ("psychology", "update_long_term"),
-    "_apply_state_deltas": ("psychology", "apply_deltas"),
-    "_record_psychology_trace": ("trace", "record_psychology_trace"),
 }
 
 # Steps whose kernel alone runs them, in the same form.
@@ -46,6 +42,10 @@ KERNEL_ONLY_SEGMENTS: dict[str, tuple[str, str]] = {
     "_schedule_travel": ("travel", "schedule_travel"),
     "_schedule_staff_support_travel": ("travel", "schedule_support_travel"),
     "_sample_proximity_contacts": ("proximity", "sample_contacts"),
+    "_psychology_update": ("psychology", "update_psychology"),
+    "_record_psychology_trace": ("trace", "record_psychology_trace"),
+    "_update_long_term_psychology": ("psychology", "update_long_term"),
+    "_apply_state_deltas": ("psychology", "apply_deltas"),
 }
 
 

@@ -14,6 +14,7 @@ import json
 
 import pytest
 from support.paths import SCENARIO_100_AGENTS, SMALL_REPLAY, SOURCE_MANIFEST
+from support.psychology import psychology_step
 
 from sheltersim.contracts.policies import (
     CORE_MODEL_SUITE_MODELS,
@@ -27,6 +28,7 @@ from sheltersim.contracts.policies import (
     selected_models,
 )
 from sheltersim.core.checkpoint import Checkpoint, CheckpointError
+from sheltersim.core.engine import TraceLevel
 from sheltersim.core.model_version import ViewOnlyRunError
 from sheltersim.core.world import WorldState
 from sheltersim.domain.information import INFORMATION_SPREAD_STATE_KEY
@@ -126,8 +128,7 @@ def test_alternative_is_pure_and_changes_the_operator():
     scenario = ScenarioSpec.load(SCENARIO_100_AGENTS)
     world = WorldState.from_scenario(scenario)
     original = world.canonical_json()
-    view = WorldView.from_world(world)
-    baseline = create_psychology(world.model_configs).explain_update(view, 0)
+    baseline = psychology_step(world, create_psychology(world.model_configs))
     alternate_configs = {
         **world.model_configs,
         "policy_registry": {
@@ -135,10 +136,13 @@ def test_alternative_is_pure_and_changes_the_operator():
             "psychology": "bounded-stress-v1",
         },
     }
-    alternate = create_psychology(alternate_configs).explain_update(view, 0)
+    alternate = psychology_step(
+        world, create_psychology(alternate_configs), trace_level=TraceLevel.FULL
+    )
     assert world.canonical_json() == original
     assert alternate.deltas != baseline.deltas
-    assert alternate.policy_version == "bounded-stress-v1"
+    assert alternate.document is not None
+    assert alternate.document["policy_version"] == "bounded-stress-v1"
 
 
 def test_incompatible_policy_checkpoint_is_rejected():
@@ -168,10 +172,9 @@ def _body_scenario(body_model: str) -> ScenarioSpec:
 def test_body_formula_factory_changes_stress_response_and_checkpoint_signature():
     full_world = WorldState.from_scenario(_body_scenario("body-feedback-complete-v1"))
     sleep_world = WorldState.from_scenario(_body_scenario("body-feedback-sleep-debt-v1"))
-    view = WorldView.from_world(full_world)
 
-    full_result = create_psychology(full_world.model_configs).explain_update(view, 0)
-    sleep_result = create_psychology(sleep_world.model_configs).explain_update(view, 0)
+    full_result = psychology_step(full_world, create_psychology(full_world.model_configs))
+    sleep_result = psychology_step(sleep_world, create_psychology(sleep_world.model_configs))
 
     assert full_result.deltas != sleep_result.deltas
     full_checkpoint = Checkpoint.capture(full_world)

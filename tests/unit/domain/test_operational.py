@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 from support.paths import SMALL_REPLAY
+from support.psychology import apply_deltas, psychology_step
 
 from sheltersim.contracts.operations import StaffSupportContinuityReceipt
 from sheltersim.contracts.workspace import HistoryQuery
@@ -49,11 +50,7 @@ from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.inspection.frames import person_projection
 from sheltersim.inspection.traces import RunArtifactWriter
 from sheltersim.policies.behavior import ActionKind, UtilityBehaviorPolicy, WorldView
-from sheltersim.policies.psychology import (
-    PsychologyParameters,
-    SimplePsychologyPolicy,
-    apply_state_deltas,
-)
+from sheltersim.policies.psychology import PsychologyParameters, SimplePsychologyPolicy
 from sheltersim.storage.history_index import HistoryIndex
 from sheltersim.storage.projects import ProjectStore
 
@@ -583,7 +580,7 @@ def test_water_outage_unmet_need_changes_water_action_without_direct_stress_over
             hydration_growth=0.02,
         )
     )
-    apply_state_deltas(world, psychology.update(WorldView.from_world(world), 0))
+    apply_deltas(world, psychology_step(world, psychology).deltas)
     after = decision_policy.propose(WorldView.from_world(world), agent.id, CounterRNG(2026))
     after_candidates = {candidate.action: candidate for candidate in after.candidates}
     assert agent.needs.hydration_need == pytest.approx(0.26)

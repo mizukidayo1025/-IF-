@@ -1,4 +1,10 @@
-"""Checkpointable day-scale latent distress state for the research psychology model."""
+"""Checkpointable day-scale latent distress state for the research psychology model.
+
+The update phase's `_update_long_term_psychology` (native/src/rules/psychology.rs) adds each
+minute's final acute distress, after social influence, to a resident's day. At the last minute of
+a day the long-term distress D becomes `baseline + retention (D - baseline) + acute_weight
+(mean acute - baseline) + high_distress_weight (share of high minutes)`, within 0..1.
+"""
 
 from __future__ import annotations
 
@@ -41,98 +47,6 @@ def create_psychological_state(
         "last_updated_minute": -1,
         "agents": agents,
     }
-
-
-def update_psychological_state(
-    state: dict[str, Any],
-    *,
-    minute: int,
-    acute_by_agent: dict[str, float],
-    retention: float,
-    acute_weight: float,
-    high_distress_weight: float,
-    high_distress_threshold: float,
-    baseline_by_agent: dict[str, float] | None = None,
-) -> dict[str, Any]:
-    """Accumulate post-social acute load and update D only at day boundaries.
-
-    This function receives the final acute value for the tick, so social contagion
-    enters the daily integral once. It does not change the acute state.
-    """
-    validate_psychological_state(state)
-    if type(minute) is not int or minute < 0:
-        raise ValueError("psychology minute must be a non-negative integer")
-    if state["last_updated_minute"] != minute - 1:
-        raise ValueError("psychology state must advance by exactly one minute")
-    for name, value in (
-        ("retention", retention),
-        ("acute_weight", acute_weight),
-        ("high_distress_weight", high_distress_weight),
-        ("high_distress_threshold", high_distress_threshold),
-    ):
-        validate_unit_interval(name, value)
-    # Validated above: each record holds numbers only, so this is a deep copy.
-    agents = {agent_id: dict(record) for agent_id, record in state["agents"].items()}
-    result = {**state, "agents": agents}
-    for agent_id, acute in sorted(acute_by_agent.items()):
-        validate_unit_interval(f"acute distress for {agent_id}", acute)
-        record = agents.get(agent_id)
-        if record is None:
-            baseline = (baseline_by_agent or {}).get(agent_id, 0.0)
-            validate_unit_interval(f"baseline distress for {agent_id}", baseline)
-            record = {
-                "baseline_distress": float(baseline),
-                "long_term_distress": float(baseline),
-                "daily_acute_sum": 0.0,
-                "daily_high_distress_minutes": 0,
-                "daily_observed_minutes": 0,
-                "completed_days": 0,
-            }
-            agents[agent_id] = record
-        record["daily_acute_sum"] += acute
-        record["daily_observed_minutes"] += 1
-        if acute >= high_distress_threshold:
-            record["daily_high_distress_minutes"] += 1
-
-    if (minute + 1) % 1440 == 0:
-        for record in agents.values():
-            observed = record["daily_observed_minutes"]
-            if observed == 0:
-                continue
-            record["long_term_distress"] = next_long_term_distress(
-                record,
-                retention=retention,
-                acute_weight=acute_weight,
-                high_distress_weight=high_distress_weight,
-            )
-            record["daily_acute_sum"] = 0.0
-            record["daily_high_distress_minutes"] = 0
-            record["daily_observed_minutes"] = 0
-            record["completed_days"] += 1
-    result["last_updated_minute"] = minute
-    validate_psychological_state(result)
-    return result
-
-
-def next_long_term_distress(
-    record: dict[str, Any],
-    *,
-    retention: float,
-    acute_weight: float,
-    high_distress_weight: float,
-) -> float:
-    """The day's end value of D for a record with observed minutes."""
-    observed = record["daily_observed_minutes"]
-    mean_acute = record["daily_acute_sum"] / observed
-    high_fraction = record["daily_high_distress_minutes"] / observed
-    baseline = record["baseline_distress"]
-    next_value = (
-        baseline
-        + retention * (record["long_term_distress"] - baseline)
-        + acute_weight * (mean_acute - baseline)
-        + high_distress_weight * high_fraction
-    )
-    return min(1.0, max(0.0, next_value))
 
 
 def validate_psychological_state(state: Any) -> None:

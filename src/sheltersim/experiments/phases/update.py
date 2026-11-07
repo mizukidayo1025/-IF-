@@ -2,17 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
 from typing import Any
 
-from sheltersim.core.engine import TraceLevel
 from sheltersim.core.rng import KeyedRandom
 from sheltersim.core.world import WorldState
-from sheltersim.domain.distress_monitor import record_distress_monitor_tick
 from sheltersim.domain.movement import MOVEMENT_STATE_KEY, advance_movement
-from sheltersim.domain.psychological_state import PSYCHOLOGICAL_STATE_KEY
 from sheltersim.experiments.phases.segments import no_python_step
-from sheltersim.policies.psychology import PsychologyUpdateResult, apply_state_deltas
+from sheltersim.policies.psychology import PsychologyUpdateResult
 from sheltersim.policies.world_view import WorldView
 
 
@@ -38,13 +34,21 @@ class UpdatePhase:
         )
 
     def _psychology_update(self, view: WorldView, minute: int) -> PsychologyUpdateResult:
-        deltas_without_traces = getattr(self.psychology, "deltas_without_traces", None)
-        if self.artifacts.trace_level is TraceLevel.OFF and deltas_without_traces is not None:
-            # No psychology trace is recorded, so its per-agent parts are not built.
-            psychology_result = PsychologyUpdateResult(deltas_without_traces(view, minute), ())
-        else:
-            psychology_result = self.psychology.explain_update(view, minute)
-        return psychology_result
+        """Each person's values of the next minute, which native/src/rules/psychology.rs computes.
+
+        The model is `psychology` (the five models of policies/psychology.py and
+        BoundedStressPolicy of policies/alternatives.py, by their exact class). The result holds
+        one new AgentStateDelta per person of `view`, in ID order, and `policy_version`; its
+        `traces` are the kernel's rows of each person's contributions when the Run keeps a trace,
+        and () otherwise. Nothing changes: the deltas are written by `_apply_state_deltas`.
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        raises KernelRefusal: a model of another class, a minute other than the view's, a trace
+        on a view Python made, an entity store that a write past its rows tainted, a trust, a
+        sleep debt, a sleep efficiency or a required sleep out of bounds, or a new value outside
+        an AgentStateDelta's bounds.
+        """
+        raise no_python_step("_psychology_update")
 
     def _social_propagation(
         self, world: WorldState, view: WorldView, base_deltas: Any, minute: int, rng: KeyedRandom
@@ -68,68 +72,58 @@ class UpdatePhase:
     def _record_psychology_trace(
         self, psychology_result: PsychologyUpdateResult, final_deltas: Any, minute: int
     ) -> None:
-        base_deltas = psychology_result.deltas
-        if self.artifacts.trace_level is not TraceLevel.OFF:
-            final_by_agent = {delta.agent_id: delta for delta in final_deltas}
-            base_by_agent = {delta.agent_id: delta for delta in base_deltas}
-            traced_result = replace(
-                psychology_result,
-                traces=tuple(
-                    replace(
-                        trace,
-                        stress_after=final_by_agent[trace.agent_id].stress,
-                        social_stress_delta=(
-                            final_by_agent[trace.agent_id].stress
-                            - base_by_agent[trace.agent_id].stress
-                        ),
-                    )
-                    for trace in psychology_result.traces
-                ),
-            )
-            self.artifacts.record_psychology_trace(
-                traced_result.trace_document(
-                    minute,
-                    source_id=self.psychology.source_id,
-                    full=self.artifacts.trace_level is TraceLevel.FULL,
-                ),
-                agent_contributions=(
-                    {
-                        "agent_id": trace.agent_id,
-                        "stress_before": trace.stress_before,
-                        "stress_after": final_by_agent[trace.agent_id].stress,
-                        "raw_stress_delta": trace.raw_stress_delta,
-                        "social_stress_delta": (
-                            final_by_agent[trace.agent_id].stress
-                            - base_by_agent[trace.agent_id].stress
-                        ),
-                        "component_contributions": dict(trace.component_contributions),
-                    }
-                    for trace in psychology_result.traces
-                ),
-            )
+        """The psychology trace of the minute, which native/src/rules/trace.rs writes.
+
+        Nothing when the Run keeps no trace. Otherwise `artifacts.record_psychology_trace` gets
+        the minute's document and `agent_contributions`, one per person: each person's stress
+        after is the final delta's, so `social_stress_delta` is what the social step added. A full
+        trace keeps every person, a summary the 20 whose stress changed most (then by ID); the
+        component totals are over everyone.
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        raises KernelRefusal: traces that are not the psychology kernel's rows, or a person
+        without a final delta.
+        """
+        raise no_python_step("_record_psychology_trace")
 
     def _update_long_term_psychology(
         self, world: WorldState, view: WorldView, final_deltas: Any, minute: int
     ) -> None:
-        update_long_term = getattr(self.psychology, "update_long_term_state", None)
-        if callable(update_long_term):
-            record_distress_monitor_tick(
-                world.metric_state,
-                previous_by_agent={
-                    agent_id: agent.stress for agent_id, agent in view.agents.items()
-                },
-                current_by_agent={delta.agent_id: delta.stress for delta in final_deltas},
-                threshold=self.psychology.parameters.high_distress_threshold,
-            )
-            runtime_state = world.model_state.get(PSYCHOLOGICAL_STATE_KEY)
-            if not isinstance(runtime_state, dict):
-                raise ValueError("mean-reverting psychology runtime state is missing")
-            world.model_state[PSYCHOLOGICAL_STATE_KEY] = update_long_term(
-                runtime_state, minute, final_deltas
-            )
+        """The distress monitor and the day-scale distress, which native/src/rules/psychology.rs
+        updates for the models with long-term state.
+
+        Nothing for a model other than mean-reverting-distress-v1 and
+        mean-reverting-life-state-v1. For those, with each person's stress before (the rows the
+        view was made of) and after (`final_deltas`) and the model's `high_distress_threshold`:
+        `world.metric_state` gets the five values of `acute_distress_monitor:<id>` (the current
+        and the longest high run, the episodes, the total and the count of the runs that ended),
+        and `world.model_state["psychological_distress_v1"]` adds the final stress to each
+        person's day, with a new record from `baseline_distress_by_agent` (0 by default) for
+        someone it has none of. At the last minute of a day each record with observed minutes
+        takes its new long-term distress and starts the next day; `last_updated_minute` becomes
+        `minute`.
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        raises KernelRefusal, before anything changes: a namespace that does not validate or is
+        not at the previous minute, deltas of other people or of two for one person, a stress or
+        a threshold outside 0..1, a monitor value that is negative or not finite, another model
+        with an `update_long_term_state` of its own.
+        """
+        raise no_python_step("_update_long_term_psychology")
 
     def _apply_state_deltas(self, world: WorldState, final_deltas: Any) -> None:
-        apply_state_deltas(world, final_deltas)
+        """Write the final deltas, which native/src/rules/psychology.rs does.
+
+        Each person's needs, stress and trust take the delta's values, and the body values a
+        delta has go to its record of `body_state_v1`. Every delta is checked before anything
+        is written.
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        raises KernelRefusal: two deltas for one person, a person the world does not have, a
+        delta of another minute, a value that is not a float within 0..1, body values without a
+        body record.
+        """
+        raise no_python_step("_apply_state_deltas")
 
     def _update_movement(self, minute: int) -> None:
         """Advance route interpolation and atomically reschedule changed paths."""

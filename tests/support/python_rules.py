@@ -112,14 +112,6 @@ PORTED_NAMES = frozenset(
         "_sleep_debt_utility",
         "_target_for_action",
         "_agent_view_snapshot",
-        # policies/psychology.py, domain/distress_monitor.py, domain/psychological_state.py:
-        # rules/psychology.rs
-        "deltas_without_traces",
-        "explain_update",
-        "apply_state_deltas",
-        "update_long_term_state",
-        "record_distress_monitor_tick",
-        "update_psychological_state",
         # experiments/phases/dispatch.py, the rules it calls: rules/dispatch.rs. An event type's
         # handler is read at each event, and a patch of a class's `apply` shows there.
         "effect_event_guard_or_suppress",
@@ -169,8 +161,7 @@ PORTED_NAMES = frozenset(
         "_zone_has_room",
         "_choose_admission_target",
         "_apply_presence_action",
-        # policies/psychology.py, inspection/traces.py: rules/trace.rs, rules/decisions.rs
-        "explain_update",
+        # inspection/traces.py: rules/decisions.rs
         "_decision_document",
         # experiments/phases/propose.py, policies/space.py: rules/proposals.rs, rules/travel.rs
         "reserve_sleep_bed",
@@ -187,7 +178,6 @@ PORTED_METHODS = frozenset(
         ("_IndexedMetricSink", "record_decision"),
         ("UtilityBehaviorPolicy", "propose"),
         ("PriorityRuleBehaviorPolicy", "propose"),
-        ("PsychologyUpdateResult", "trace_document"),
         ("EventDispatcher", "dispatch_due"),
         ("EventDispatcher", "settle"),
         ("ResourceServiceManager", "_serve_head"),

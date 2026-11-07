@@ -1,5 +1,6 @@
 """The Rust kernels (feature/rust-port, native/) give the same values as the Python
-code they replace, bit for bit, at every tick of a generated Scenario.
+code they replace, bit for bit, at every tick of a generated Scenario. Where that Python code is
+gone (lane L10), against what it gave, recorded once.
 
 Skipped when the sheltersim_native extension is not installed; CI on the Rust port
 branch builds and installs it.
@@ -8,8 +9,10 @@ branch builds and installs it.
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import struct
+import sys
 
 import pytest
 
@@ -25,37 +28,36 @@ def _same_float_bits(x: object, y: object) -> bool:
     return x == y and type(x) is type(y)
 
 
-def test_the_psychology_kernel_gives_the_python_deltas(
+# What the deleted Python step `_psychology_update` (experiments/phases/update.py at 45a9bc9) gave
+# at each minute of the Run below, as sha256 of the deltas' JSON, recorded once on Linux.
+PSYCHOLOGY_DELTAS = "842c8f23bf0c3e3ce2a8b971ca3bc742cc6c263cedaa52918c04e2e6d3ba7d9d"
+
+
+def test_the_psychology_kernel_gives_the_deltas_of_the_deleted_python_step(
     generated_scenario, tmp_path, monkeypatch
 ) -> None:
-    from sheltersim.experiments.phases.update import UpdatePhase
     from sheltersim.experiments.runner import OfflineSimulationController
 
     document = generated_scenario.model_dump(mode="json")
     document["duration_minutes"] = 360
     scenario = ScenarioSpec.model_validate(document)
     compared = []
+    digest = hashlib.sha256()
     kernel = OfflineSimulationController._psychology_update
-    python = UpdatePhase._psychology_update
 
     def checked(self, view, minute):
         result = kernel(self, view, minute)
-        rust = result.deltas
-        expected = python(self, view, minute).deltas
-        assert len(rust) == len(expected)
-        for a, b in zip(rust, expected, strict=True):
-            for name in a.__dataclass_fields__:
-                assert _same_float_bits(getattr(a, name), getattr(b, name)), (
-                    minute,
-                    a.agent_id,
-                    name,
-                )
+        for delta in result.deltas:
+            text = json.dumps([getattr(delta, name) for name in delta.__dataclass_fields__])
+            digest.update(text.encode() + b"\n")
         compared.append(minute)
         return result
 
     monkeypatch.setattr(OfflineSimulationController, "_psychology_update", checked)
     run_scenario(scenario, tmp_path, trace_level=TraceLevel.OFF)
     assert compared == list(range(360))
+    if sys.platform == "linux":
+        assert digest.hexdigest() == PSYCHOLOGY_DELTAS
 
 
 def _outcome(validate, world) -> str:

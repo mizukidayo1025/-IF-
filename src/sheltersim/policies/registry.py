@@ -42,46 +42,18 @@ _INSTALLED_FACTORIES: dict[tuple[str, str], Callable[..., Any]] = {}
 
 @dataclass(frozen=True)
 class BodyDynamicsFormula:
-    """One installed stress-feedback equation for the body-state policy."""
+    """One installed stress-feedback equation for the body-state policy.
+
+    native/src/rules/psychology.rs computes it, by `model_id`. The feedback of a minute is the
+    sleep debt over a day times `sleep_debt_stress_rate`; body-feedback-sleep-debt-v1 stops there.
+    The others add uncertainty, discontent, hygiene need and the zone's lack of sanitation, and
+    the family separation pressure, less reassurance and positive affect. The per-person rates
+    `sleep_debt_stress_rate_by_agent`, `negative_affect_stress_rate_by_agent` and
+    `discontent_stress_rate_by_agent` of the body config come before the shared ones.
+    """
 
     model_id: str
     source_id: str
-
-    def stress_feedback(
-        self,
-        *,
-        sleep_debt_minutes: float,
-        uncertainty: float,
-        discontent: float,
-        hygiene_need: float,
-        sanitation_level: float,
-        family_separation_pressure: float,
-        reassurance: float,
-        positive_affect: float,
-        config: dict[str, Any],
-        agent_id: str | None = None,
-    ) -> float:
-        per_agent = config.get("sleep_debt_stress_rate_by_agent", {})
-        sleep_debt_rate = per_agent.get(agent_id, config["sleep_debt_stress_rate"])
-        debt_component = sleep_debt_minutes / 1440.0 * sleep_debt_rate
-        if self.model_id == "body-feedback-sleep-debt-v1":
-            return debt_component
-        negative_affect_rates = config.get("negative_affect_stress_rate_by_agent", {})
-        negative_affect_rate = negative_affect_rates.get(
-            agent_id, config["negative_affect_stress_rate"]
-        )
-        discontent_rates = config.get("discontent_stress_rate_by_agent", {})
-        discontent_rate = discontent_rates.get(agent_id, config["discontent_stress_rate"])
-        return (
-            debt_component
-            + uncertainty * negative_affect_rate
-            + discontent * discontent_rate
-            + hygiene_need * config["sanitation_stress_rate"]
-            + (1.0 - sanitation_level) * config["sanitation_stress_rate"]
-            + family_separation_pressure
-            - reassurance * negative_affect_rate
-            - positive_affect * config["discontent_relief_per_minute"]
-        )
 
 
 @dataclass(frozen=True)

@@ -63,8 +63,8 @@ D_i(d+1)=\operatorname{clip}_{[0,1]}\{\mu_i+\phi_i(D_i(d)-\mu_i)+\theta_A(\bar A
 
 ## Traceと実装対応
 
-- `src/sheltersim/policies/psychology.py`: `MeanRevertingDistressPolicy`, `LifeStatePsychologyPolicy`, `IntegratedDistressLifeStatePolicy`, `mean_reverting_step`
-- `src/sheltersim/domain/psychological_state.py`: 日内積分、日境界更新、checkpoint検証
+- `native/src/rules/psychology.rs`: 平均回帰（`mean_reverting_terms`）、睡眠負債、生活状態の帰還、日内積分、日境界更新（モデルのクラスと係数は`src/sheltersim/policies/psychology.py`の`MeanRevertingDistressPolicy`, `LifeStatePsychologyPolicy`, `IntegratedDistressLifeStatePolicy`）
+- `src/sheltersim/domain/psychological_state.py`: 日単位の状態のスキーマとcheckpoint検証
 - `src/sheltersim/domain/body_state.py`: 身体・不確実性・安心・感情状態と訂正eventの一回適用
 - `src/sheltersim/policies/world_view.py`: 情報beliefをsnapshotへ投影し、Trace用の情報event出典を保持
 - `src/sheltersim/experiments/phases/update.py`: 心理・社会更新、Trace、日内積分を同じtickで順序制御

@@ -1,8 +1,10 @@
 //! The trace documents of a Run, with their shape unchanged (docs/rust-port/step4-plan.md, D1):
-//! `AgentPsychologyTrace` and `PsychologyUpdateResult.trace_document` (`policies/psychology.py`),
+//! those the Python rules wrote with `AgentPsychologyTrace.to_dict` and
+//! `PsychologyUpdateResult.trace_document` (`policies/psychology.py`),
 //! `SocialPropagationResult.trace_document` (`policies/social.py`) and
-//! `InformationSpreadResult.trace_document` (`policies/information.py`). `_record_psychology_trace`
-//! of the update phase is here too. A trace does not feed back into the state and draws nothing.
+//! `InformationSpreadResult.trace_document` (`policies/information.py`), which lane L10 deleted.
+//! `_record_psychology_trace` of the update phase is here too, and only here. A trace does not feed
+//! back into the state and draws nothing.
 //!
 //! `TraceSink` hands a finished document to the sink's own `record_*` method. The writer stays in
 //! Python (`inspection/traces.py`): it holds the files, the spool, and `_sanitize`, which is not a
@@ -10,8 +12,7 @@
 //! the same Python dict, with the same keys in the same order, and the writer gives the same bytes.
 //!
 //! The kernels keep what a document needs in plain rows, and make the document only when a sink takes
-//! it. `TraceRows.__iter__` gives the Python rule's `AgentPsychologyTrace` objects, for a step of
-//! Python that reads them and for the comparisons of benchmarks/rule_shadow.
+//! it.
 
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -19,8 +20,7 @@ use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyFloat, PyList, PyString, PyTuple};
-use pyo3::IntoPyObjectExt;
+use pyo3::types::{PyDict, PyFloat, PyList, PyString};
 
 use crate::contacts::Basis;
 use crate::core::mathx::{py_fsum, Num};
@@ -94,17 +94,10 @@ fn texts<'py>(py: Python<'py>, items: &[Arc<str>]) -> PyResult<Bound<'py, PyList
     PyList::new(py, items.iter().map(|item| &**item))
 }
 
-fn tuple_of<'py>(py: Python<'py>, items: &[Arc<str>]) -> PyResult<Bound<'py, PyTuple>> {
-    PyTuple::new(py, items.iter().map(|item| &**item))
-}
-
-fn pairs<'py>(py: Python<'py>, items: &[(&'static str, f64)]) -> PyResult<Bound<'py, PyTuple>> {
-    PyTuple::new(py, items.iter().copied())
-}
 
 // ---- A person's psychology -----------------------------------------------------------------------
 
-/// What `AgentPsychologyTrace` holds that the view doesn't.
+/// What a person's part of the psychology document holds that the view doesn't.
 pub(crate) struct PersonTrace {
     /// In the view's people.
     pub(crate) index: usize,
@@ -167,7 +160,7 @@ fn queue_facility<'a>(data: &'a ViewData, agent: &ViewAgent) -> Option<&'a crate
     Some(&data.facilities[place])
 }
 
-/// `AgentPsychologyTrace.to_dict`.
+/// A person's part of the psychology document (`AgentPsychologyTrace.to_dict`).
 fn person_document<'py>(
     py: Python<'py>,
     data: &ViewData,
@@ -363,7 +356,7 @@ fn person_document<'py>(
 
 // ---- A minute's psychology -----------------------------------------------------------------------
 
-/// `PsychologyUpdateResult.traces` of a kernel: rows, with the objects made if something asks.
+/// `PsychologyUpdateResult.traces` of a kernel: the rows `record_psychology_trace` makes the document of.
 #[pyclass(module = "sheltersim_native", frozen)]
 pub struct TraceRows {
     view: Py<RustView>,
@@ -375,110 +368,12 @@ impl TraceRows {
     pub(crate) fn new(view: Py<RustView>, threshold: f64, rows: Vec<PersonTrace>) -> TraceRows {
         TraceRows { view, threshold, rows }
     }
-
-    fn object<'py>(&self, py: Python<'py>, class: &Bound<'py, PyAny>, row: &PersonTrace) -> PyResult<Bound<'py, PyAny>> {
-        let view = self.view.get();
-        let data = view.data();
-        let agent = &data.agents[row.index];
-        let zone = data.zone_of(agent);
-        let facility = queue_facility(data, agent);
-        let before: Vec<(&str, f64)> = row.needs.iter().map(|&(name, before, _)| (name, before)).collect();
-        let after: Vec<(&str, f64)> = row.needs.iter().map(|&(name, _, after)| (name, after)).collect();
-        let fields = PyDict::new(py);
-        fields.set_item("agent_id", view.key(py, row.index))?;
-        fields.set_item("needs_before", PyTuple::new(py, before)?)?;
-        fields.set_item("needs_after", PyTuple::new(py, after)?)?;
-        fields.set_item("stress_before", row.stress_before)?;
-        fields.set_item("stress_after", row.stress_after)?;
-        fields.set_item("highest_need", row.highest_need)?;
-        fields.set_item("highest_need_value", row.highest_need_value)?;
-        fields.set_item("need_pressure_threshold", self.threshold)?;
-        fields.set_item("need_pressure", row.need_pressure)?;
-        fields.set_item("need_pressure_stress", row.need_pressure_stress)?;
-        fields.set_item("queue_wait_stress", row.queue_wait_stress)?;
-        fields.set_item("support_wait_stress", row.support_wait_stress)?;
-        fields.set_item("recovery_stress", row.recovery_stress)?;
-        fields.set_item("queue_task_id", agent.queue_task_id.as_deref())?;
-        fields.set_item("queue_kind", agent.queue_kind.as_deref())?;
-        fields.set_item("queue_target_id", agent.queue_target_id.as_deref())?;
-        fields.set_item("queue_source_id", queue_source_of(agent))?;
-        fields.set_item("queue_wait_minutes", agent.queue_wait_minutes)?;
-        fields.set_item("queue_facility_capacity", facility.map(|facility| facility.capacity))?;
-        fields.set_item("queue_facility_working_units", facility.map(|facility| facility.working_units))?;
-        fields.set_item(
-            "facility_event_context_ids",
-            tuple_of(py, facility.map_or(&[][..], |facility| &facility.facility_event_context_ids))?,
-        )?;
-        fields.set_item("support_request_id", agent.support_request_id.as_deref())?;
-        fields.set_item("support_request_status", agent.support_request_status.map(status_text))?;
-        fields.set_item("support_assigned_staff_id", agent.support_assigned_staff_id.as_deref())?;
-        fields.set_item("support_wait_minutes", agent.support_wait_minutes)?;
-        fields.set_item("environmental_stress", row.environmental_stress)?;
-        fields.set_item("environmental_stressor_event_ids", tuple_of(py, &zone.environmental_stressor_event_ids)?)?;
-        fields.set_item("environmental_assumption_source_id", zone.environmental_assumption_source_id.as_deref())?;
-        fields.set_item("information_uncertainty_stress", row.information_uncertainty_stress)?;
-        fields.set_item("ambient_noise_level", zone.ambient_noise_level)?;
-        fields.set_item("rest_efficiency_multiplier", zone.rest_efficiency_multiplier)?;
-        fields.set_item("zone_environment_modifier_event_ids", tuple_of(py, &zone.zone_environment_modifier_event_ids)?)?;
-        fields.set_item("zone_environment_assumption_ids", tuple_of(py, &zone.zone_environment_assumption_ids)?)?;
-        fields.set_item("ventilation_effectiveness", zone.ventilation_effectiveness)?;
-        fields.set_item("lighting_level", zone.lighting_level)?;
-        fields.set_item("privacy_level", zone.privacy_level)?;
-        fields.set_item("temperature_c", zone.temperature_c)?;
-        fields.set_item("condition_modifier_event_ids", tuple_of(py, &zone.condition_modifier_event_ids)?)?;
-        fields.set_item("condition_assumption_ids", tuple_of(py, &zone.condition_assumption_ids)?)?;
-        fields.set_item("life_state_feedback_stress", row.life_state_feedback_stress)?;
-        fields.set_item("natural_recovery_stress", row.natural_recovery_stress)?;
-        if let Some((before, after)) = &row.life_state {
-            let named = |values: &LifeStateTrace| -> PyResult<Bound<'py, PyTuple>> {
-                let mut items = Vec::with_capacity(LIFE_STATE_NAMES.len());
-                for (place, (&name, &value)) in LIFE_STATE_NAMES.iter().zip(values).enumerate() {
-                    let value = if place == FAMILY_PRESSURE && row.family_pressure_int {
-                        (value as i64).into_bound_py_any(py)?
-                    } else {
-                        value.into_bound_py_any(py)?
-                    };
-                    items.push((name, value));
-                }
-                PyTuple::new(py, items)
-            };
-            fields.set_item("life_state_before", named(before)?)?;
-            fields.set_item("life_state_after", named(after)?)?;
-        }
-        fields.set_item("information_belief_pressure", agent.misinformation_belief_pressure)?;
-        let mut sources = Vec::with_capacity(agent.misinformation_effect_sources.len());
-        for source in &agent.misinformation_effect_sources {
-            sources.push((
-                &*source.message_id,
-                &*source.origin_event_id,
-                &*source.last_event_id,
-                &*source.source_id,
-                source.time,
-            ));
-        }
-        fields.set_item("information_effect_sources", PyTuple::new(py, sources)?)?;
-        fields.set_item("component_contributions", pairs(py, &row.components)?)?;
-        fields.set_item("raw_stress_delta", row.raw_stress_delta)?;
-        fields.set_item("stress_candidate_before_clip", row.candidate_before_clip)?;
-        fields.set_item("psychology_clipped_delta", row.clipped_delta)?;
-        class.call((), Some(&fields))
-    }
 }
 
 #[pymethods]
 impl TraceRows {
     fn __len__(&self) -> usize {
         self.rows.len()
-    }
-
-    /// The Python rule's objects, as `explain_update` gives them.
-    fn __iter__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let class = py.import("sheltersim.policies.psychology")?.getattr("AgentPsychologyTrace")?;
-        let mut objects = Vec::with_capacity(self.rows.len());
-        for row in &self.rows {
-            objects.push(self.object(py, &class, row)?);
-        }
-        PyTuple::new(py, objects)?.try_iter().map(Bound::into_any)
     }
 }
 
@@ -502,7 +397,7 @@ pub(crate) fn record_psychology_trace<'py>(
     };
     let traces = result.getattr(intern!(py, "traces"))?;
     let Ok(rows) = traces.downcast_exact::<TraceRows>() else {
-        return unsupported("the traces are the Python rule's");
+        return unsupported("the traces are not the psychology kernel's rows");
     };
     let rows = rows.get();
     let view = rows.view.get();

@@ -13,6 +13,7 @@ from __future__ import annotations
 from copy import deepcopy
 
 import pytest
+from support.psychology import psychology_step
 
 from sheltersim.contracts.extensions import Point2D
 from sheltersim.contracts.policies import model_catalog, model_signatures
@@ -49,8 +50,10 @@ from sheltersim.policies.behavior import (
     UtilityBehaviorPolicy,
     WorldView,
 )
+from sheltersim.policies.psychology import LifeStatePsychologyPolicy, PsychologyParameters
 from sheltersim.policies.queueing import create_queue_policy
 from sheltersim.policies.registry import (
+    BodyDynamicsFormula,
     create_behavior,
     create_body_dynamics_formula,
     create_care_outcome_formula,
@@ -200,20 +203,27 @@ def test_selected_formula_overrides_reach_runtime_config_and_checkpoint_signatur
     assert proportional_care.hygiene_need_after_support(0.8, 0.3) == pytest.approx(0.56)
     baseline_formula = create_body_dynamics_formula(baseline.scenario.model_configs)
     customized_formula = create_body_dynamics_formula(customized.scenario.model_configs)
-    inputs = {
-        "sleep_debt_minutes": 720,
-        "uncertainty": 0,
-        "discontent": 0,
-        "hygiene_need": 0,
-        "sanitation_level": 1,
-        "family_separation_pressure": 0,
-        "reassurance": 0,
-        "positive_affect": 0,
-    }
-    base_output = baseline_formula.stress_feedback(
-        **inputs, config=baseline.scenario.model_configs["body_dynamics"]
-    )
-    changed_output = customized_formula.stress_feedback(**inputs, config=config["body_dynamics"])
+    assert customized_formula is not None
+    assert customized_formula.model_id == baseline_formula.model_id
+    # The sleep debt's stress feedback of a minute per minute of debt, in the psychology step of a
+    # tick: the sleep-debt-only formula isolates it, with each Scenario's body config.
+    world = WorldState.from_scenario(baseline.scenario)
+    person = next(iter(world.agents))
+    world.model_state["body_state_v1"]["agents"][person]["sleep_debt_minutes"] = 720.0
+    sleep_only = BodyDynamicsFormula("body-feedback-sleep-debt-v1", customized_formula.source_id)
+
+    def feedback(body_config: dict[str, object]) -> float:
+        policy = LifeStatePsychologyPolicy(
+            PsychologyParameters(), body_config=body_config, body_formula=sleep_only
+        )
+        step = psychology_step(world, policy, trace_level=TraceLevel.FULL)
+        debt = step.person(person)["life_state"]["sleep_debt_minutes"]["after"]
+        stress = step.contribution(person)["component_contributions"]["life_state_feedback"]
+        return stress / debt
+
+    base_output = feedback(baseline.scenario.model_configs["body_dynamics"])
+    changed_output = feedback(config["body_dynamics"])
+    assert base_output > 0.0
     assert changed_output == pytest.approx(base_output * 4)
     baseline_fatigue = create_staff_fatigue_formula(baseline.scenario.model_configs).fatigue(
         150, baseline.scenario.model_configs["staff_dynamics"]["max_continuous_work_minutes"]
@@ -1210,11 +1220,11 @@ def test_per_agent_sleep_debt_coefficient_changes_only_selected_agent_feedback()
     for world in (baseline_world, customized_world):
         world.model_state["body_state_v1"]["agents"][agent_id]["sleep_debt_minutes"] = 720.0
 
-    baseline_result = create_psychology(baseline_world.model_configs).explain_update(
-        WorldView.from_world(baseline_world), 0
+    baseline_result = psychology_step(
+        baseline_world, create_psychology(baseline_world.model_configs)
     )
-    customized_result = create_psychology(customized_world.model_configs).explain_update(
-        WorldView.from_world(customized_world), 0
+    customized_result = psychology_step(
+        customized_world, create_psychology(customized_world.model_configs)
     )
     baseline_stress = {item.agent_id: item.stress for item in baseline_result.deltas}
     customized_stress = {item.agent_id: item.stress for item in customized_result.deltas}
@@ -1307,12 +1317,8 @@ def test_per_agent_psychology_need_rates_change_only_selected_resident() -> None
                 "schema_version": 1,
                 "psychology": psychology_id,
             }
-        baseline_result = create_psychology(baseline_configs).explain_update(
-            WorldView.from_world(baseline_world), 0
-        )
-        customized_result = create_psychology(customized_configs).explain_update(
-            WorldView.from_world(customized_world), 0
-        )
+        baseline_result = psychology_step(baseline_world, create_psychology(baseline_configs))
+        customized_result = psychology_step(customized_world, create_psychology(customized_configs))
         base_by_id = {item.agent_id: item for item in baseline_result.deltas}
         changed_by_id = {item.agent_id: item for item in customized_result.deltas}
         assert changed_by_id[agent_id].toilet_urgency - base_by_id[agent_id].toilet_urgency == (
@@ -1398,11 +1404,11 @@ def test_per_agent_body_feedback_rates_change_only_selected_resident(
     customized_world = WorldState.from_scenario(customized.scenario)
     for world in (baseline_world, customized_world):
         world.model_state["body_state_v1"]["agents"][agent_id][body_field] = 1.0
-    baseline_result = create_psychology(baseline_world.model_configs).explain_update(
-        WorldView.from_world(baseline_world), 0
+    baseline_result = psychology_step(
+        baseline_world, create_psychology(baseline_world.model_configs)
     )
-    customized_result = create_psychology(customized_world.model_configs).explain_update(
-        WorldView.from_world(customized_world), 0
+    customized_result = psychology_step(
+        customized_world, create_psychology(customized_world.model_configs)
     )
     baseline_stress = {item.agent_id: item.stress for item in baseline_result.deltas}
     customized_stress = {item.agent_id: item.stress for item in customized_result.deltas}
