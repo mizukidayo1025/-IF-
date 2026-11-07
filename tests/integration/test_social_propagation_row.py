@@ -399,14 +399,49 @@ def test_a_tainted_entity_store_goes_to_python(generated_scenario: Any) -> None:
         _run_kernel(world, controller, view, deltas, rng)
 
 
-def test_contacts_without_weight_keep_the_python_error(generated_scenario: Any) -> None:
-    world, controller, view, deltas, rng = _small(
-        generated_scenario, same_zone_channel_strength=0.0, family_channel_strength=0.0
-    )
-    with pytest.raises(ValueError):
-        _python_result(world, controller, view, deltas, rng)
-    with pytest.raises(native.Unsupported, match="no weight"):
-        _run_kernel(world, controller, view, deltas, rng)
+@pytest.mark.parametrize(
+    "case", ["stress_sensitivity", "source_expressiveness", "channel_strength"]
+)
+def test_contacts_without_weight_shift_nothing_in_both_rules(
+    generated_scenario: Any, case: str
+) -> None:
+    """#87 (元 #301): a total weight of 0 is no propagation in Python and in the kernel.
+
+    Before, the Python rule raised the ValueError of its strict zip and the kernel gave
+    Unsupported, so a Run stopped. The trace, the row and the draws are the Python rule's.
+    """
+    document = generated_scenario.model_dump(mode="json")
+    parameters: dict[str, Any] = {}
+    if case == "stress_sensitivity":
+        for profile in document["profiles"]:
+            profile["stress_sensitivity"] = 0.0
+    elif case == "source_expressiveness":
+        parameters["source_expressiveness_by_agent"] = {
+            profile["id"]: 0.0 for profile in document["profiles"]
+        }
+    else:
+        parameters |= {
+            f"{basis}_channel_strength": 0.0 for basis in ("family", "same_zone", "nearby_zone")
+        }
+    scenario = type(generated_scenario).model_validate(document)
+    world, controller, view, deltas, _rng = _small(scenario, **parameters)
+    sink = _KeepingSink()
+    controller.artifacts = sink
+    python_rng = _KeepingRNG(1)
+    python = _python_result(world, controller, view, deltas, python_rng)
+    _rules().start_draw_log()
+    try:
+        final = _run_kernel(world, controller, view, deltas, CounterRNG(1))
+    finally:
+        rust_draws = _rules().take_draw_log()
+    assert [(key, value.hex()) for key, value in rust_draws] == python_rng.draws
+    assert sink.documents == [json.dumps(python.trace_document(0), ensure_ascii=False)]
+    assert json.dumps(world.model_state[KEY]) == json.dumps(python.runtime_state)
+    assert [asdict(delta) for delta in final] == [asdict(delta) for delta in python.deltas]
+    # Contacts were made, and none of them moved a stress or started a cooldown.
+    assert python.contacts and final == deltas
+    assert python.contributing_contact_count == 0
+    assert world.model_state[KEY]["agent_cooldown_until"] == {}
 
 
 def test_unsorted_deltas_are_sorted_except_for_degroot(generated_scenario: Any) -> None:
@@ -658,7 +693,8 @@ def test_the_rule_matches_python_on_random_inputs(generated_scenario: Any, polic
         stress_moved += any(delta.stress != by_id[delta.agent_id] for delta in deltas)
         matched += 1
     assert matched > 100 and stress_moved > 5 and draws > 1000
-    assert raised > 0 or policy != "channel"
+    # Contacts without weight were the only cases that raised; both rules run them now (#87).
+    assert raised == 0
 
 
 @pytest.mark.parametrize("policy", POLICIES)

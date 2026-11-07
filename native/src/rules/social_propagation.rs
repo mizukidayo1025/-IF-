@@ -382,10 +382,9 @@ fn channel_stress(
         .collect();
     let weight_total =
         py_fsum(&weights).ok_or_else(|| Unsupported::new_err("weights are not finite"))?;
-    // The Python code raises for contacts without any weight (its strict zip).
-    if !eligible.is_empty() && !(weight_total > 0.0) {
-        return unsupported("eligible contacts have no weight");
-    }
+    // Weights are products of factors in 0..1, so a total of 0 means every contribution is 0:
+    // no shift, and `details` keep no weights, so the trace has each contact as one without a
+    // share, as the Python rule has it (#87, 元 #301).
     let mut shift = 0.0;
     if weight_total > 0.0 {
         let gamma = py_min(1.0, settings.spread * weight_total);

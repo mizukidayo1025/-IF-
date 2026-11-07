@@ -23,7 +23,7 @@ r_i^{agg}=\operatorname{clip}_{[-c_i,c_i]}\left(\sum_{j\in C_i}r_{ji}^{pair}\rig
 \Delta A_i^{social}=\operatorname{clip}_{[-A_i^{psych},1-A_i^{psych}]}(r_i^{agg}).
 \]
 
-`λ` は1分あたりの同調率、`c_p` はpair上限、`c_i` は受信者1分あたりの合計上限です。実装tickは1分です。`W_i=0`、または適格な接触がなければ社会差分は0です。近隣平均との差を重み総和で正規化し、強度が大きい場合は `G_i` が1で飽和します。個々の接触時間は伝播量に重ねて掛けません。`minimum_contact_minutes` は接触を有効にする条件であり、cooldownは反復更新を抑えます。
+`λ` は1分あたりの同調率、`c_p` はpair上限、`c_i` は受信者1分あたりの合計上限です。実装tickは1分です。`W_i=0`、または適格な接触がなければ社会差分は0です。`W_i=0` は、`ε_j`・`α_ji`・`δ_i` のどれかが0のときに起きます（どれもScenarioの検証を通る値です）。そのtickの対象 `i` には伝播がなく、cooldownも始まりません。Traceでは、その接触を寄与のない接触と同じ値（`w_ji=0`、`G_i=0`、pair cap前後の差分0、aggregate scale 1）で記録します（#87、元 #301）。近隣平均との差を重み総和で正規化し、強度が大きい場合は `G_i` が1で飽和します。個々の接触時間は伝播量に重ねて掛けません。`minimum_contact_minutes` は接触を有効にする条件であり、cooldownは反復更新を抑えます。
 
 `A_j^snapshot` と `A_i^snapshot` は同一tick開始時の状態です。差分を計算した後、心理policyで更新した値 `A_i^psych` に一度加えます。pair cap、受信者cap、最終状態の境界capを順に適用するため、Agentの処理順に結果が左右されません。
 
@@ -39,4 +39,4 @@ r_i^{agg}=\operatorname{clip}_{[-c_i,c_i]}\left(\sum_{j\in C_i}r_{ji}^{pair}\rig
 
 ## 内部検証と限界
 
-`tests/unit/policies/test_social.py` は高い状態から低い状態への上昇、逆方向の鎮静、無接触時の差分0、Agent mapping順の不変、上限、Traceと正規化式の一致を検査します。表出性・接触・感受性係数や接触抽出確率は未校正です。増幅bias項は実装していません。
+`tests/unit/policies/test_social.py` は高い状態から低い状態への上昇、逆方向の鎮静、無接触時の差分0、重みの合計が0のときの差分0と乱数の引き方、Agent mapping順の不変、上限、Traceと正規化式の一致を検査します。表出性・接触・感受性係数や接触抽出確率は未校正です。増幅bias項は実装していません。

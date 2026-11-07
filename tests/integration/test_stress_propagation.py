@@ -15,7 +15,9 @@ import copy
 import json
 from pathlib import Path
 
+import pytest
 from support.paths import SCENARIO_100_AGENTS
+from support.python_rules import without_kernels
 
 from sheltersim.core.checkpoint import Checkpoint
 from sheltersim.core.engine import TraceLevel
@@ -116,3 +118,51 @@ def test_generated_scenario_propagation_is_checkpointable_and_writes_compact_con
     assert (tmp_path / "social-run-off-trace" / "social_contacts.jsonl").read_text(
         encoding="utf-8"
     ) == ""
+
+
+@pytest.mark.parametrize(
+    "case", ["stress_sensitivity", "source_expressiveness", "channel_strength"]
+)
+def test_generated_scenario_without_contact_weight_runs_without_propagation_on_both_rules(
+    tmp_path: Path, generated_previews, case: str
+) -> None:
+    """#87 (元 #301): every contact weight is 0, so no stress moves, and the Run goes on.
+
+    Each case sets one factor of the weight (expressiveness × channel strength ×
+    stress_sensitivity) to 0 through valid Scenario values. Before, the Run stopped with the
+    ValueError of the Python rule's strict zip, and the Rust kernel handed the tick to it.
+    The kernel and the Python rules write the same world and the same contact trace.
+    """
+    document = copy.deepcopy(generated_previews()["scenario"])
+    document["duration_minutes"] = GENERATED_MINUTES
+    social = document["model_configs"]["social_propagation"]
+    assert social["source_id"] == "ASM-BOSSE-AFFECT-CONTAGION-V1"
+    if case == "stress_sensitivity":
+        for profile in document["profiles"]:
+            profile["stress_sensitivity"] = 0.0
+    elif case == "source_expressiveness":
+        social["source_expressiveness_by_agent"] = {
+            profile["id"]: 0.0 for profile in document["profiles"]
+        }
+    else:
+        for basis in ("family", "same_zone", "nearby_zone"):
+            social[f"{basis}_channel_strength"] = 0.0
+    scenario = ScenarioSpec.model_validate(document)
+
+    kernel_world = run_scenario(scenario, tmp_path / "kernel")
+    with pytest.MonkeyPatch.context() as patch:
+        without_kernels(patch)
+        python_world = run_scenario(scenario, tmp_path / "python")
+
+    assert kernel_world.canonical_json() == python_world.canonical_json()
+    written = [
+        (tmp_path / run / "social_contacts.jsonl").read_text(encoding="utf-8")
+        for run in ("kernel", "python")
+    ]
+    assert written[0] == written[1]
+    traces = [json.loads(line) for line in written[0].splitlines()]
+    assert len(traces) == GENERATED_MINUTES
+    assert any(item["selected_contact_count"] for item in traces)
+    assert all(item["contributing_contact_count"] == 0 for item in traces)
+    assert all(item["total_stress_added"] == 0.0 for item in traces)
+    assert all(item["contributions"] == [] for item in traces)

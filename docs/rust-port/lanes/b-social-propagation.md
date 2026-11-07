@@ -26,7 +26,7 @@ Rust が `social_propagation_v1` を持ち、更新の段階の手順 `_social_p
 
 ## Python に任せる場合（`Unsupported`）
 
-trace、`CounterRNG` でない乱数、方策の派生クラス、int の係数（`stress_spread_per_minute=0` など）、taint、schema 違い、負の値、重みのない接触（Python はここで例外）、delta と view の不一致、範囲外の stress。何かを変える前に判断します。
+trace、`CounterRNG` でない乱数、方策の派生クラス、int の係数（`stress_spread_per_minute=0` など）、taint、schema 違い、負の値、delta と view の不一致、範囲外の stress。何かを変える前に判断します。重みの合計が 0 の接触（`stress_sensitivity`、表出性、接触の強度のどれかが 0）は、どちらも伝播なしとして扱います（#87、元 #301）。以前は Python が例外を出し、kernel は `Unsupported` でした。
 
 **Run の最初の tick：** 名前空間がまだないので Python の手順が動き、丸ごとの書き込みが1回起きます。
 
