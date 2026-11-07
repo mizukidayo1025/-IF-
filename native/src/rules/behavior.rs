@@ -861,10 +861,16 @@ pub(crate) fn due_outcomes<'py>(
     if !rng.get_type().is(classes.counter_rng.bind(py)) {
         return unsupported("the RNG is not a CounterRNG");
     }
-    let seed = exact_i64(&rng.getattr(intern!(py, "seed"))?)?;
-    if seed < 0 {
+    // `CounterRNG` keys its draws with `str(seed)`: a Scenario's seed is any int from 0, past 64
+    // bits too.
+    let seed = rng.getattr(intern!(py, "seed"))?;
+    let Ok(seed) = seed.downcast_exact::<PyInt>() else {
+        return unsupported("the seed is not an int");
+    };
+    if seed.lt(0)? {
         return unsupported("the seed is negative");
     }
+    let seed = seed.str()?.to_str()?.to_owned();
     let snapshot = snapshot_of(view)?;
     let rust = snapshot.get();
     let data = rust.data();
@@ -916,7 +922,7 @@ pub(crate) fn due_outcomes<'py>(
     if as_readable_dict(&temperatures).is_none() || as_readable_dict(&intervals).is_none() {
         return unsupported("the per-person coefficients are not a plain dict");
     }
-    let draws = KeyedDraws::new(&seed.to_string());
+    let draws = KeyedDraws::new(&seed);
     let frozen = Frozen::new(data, &settings, &draws).map_err(Unsupported::new_err)?;
     let triggers = Triggers::new(
         py,

@@ -33,7 +33,7 @@ r_i^{agg}=\operatorname{clip}_{[-c_i,c_i]}\left(\sum_{j\in C_i}r_{ji}^{pair}\rig
 
 ## 実装・責務
 
-`src/sheltersim/policies/social.py` の `ExpressivenessChannelOpennessPolicy`（version `expressiveness-channel-openness-v1`）が接触の重みと有界同調を計算します。Traceには各接触の `w_ji`、`G_i`、pair cap前後の差分、aggregate scale、実際に適用された差分を記録します。自然回復はこのpolicyにありません。平均回帰policyと組み合わせた場合、旧社会policyの自然回復係数は0にして二重回復を防ぎます。社会的支援は積極的接触・身体状態への作用であり、単純な感情同調とは別経路です。
+`native/src/rules/social_propagation.rs` が、`src/sheltersim/policies/social.py` の `ExpressivenessChannelOpennessPolicy`（version `expressiveness-channel-openness-v1`）の係数で、接触の重みと有界同調を計算します。Traceには各接触の `w_ji`、`G_i`、pair cap前後の差分、aggregate scale、実際に適用された差分を記録します。自然回復はこのpolicyにありません。平均回帰policyと組み合わせた場合、旧社会policyの自然回復係数は0にして二重回復を防ぎます。社会的支援は積極的接触・身体状態への作用であり、単純な感情同調とは別経路です。
 
 全員の状態が同じなら同調項は0です。その場合も心理policyの自然回復は独立して働きます。継続中のニーズや環境負荷は別の心理入力として残るため、高い状態が維持される場合があります。
 

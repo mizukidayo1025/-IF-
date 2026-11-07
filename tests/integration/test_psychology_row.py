@@ -441,6 +441,37 @@ def test_the_step_writes_what_the_python_rules_write(minute: int) -> None:
         assert _mirror(world).verify()
 
 
+@pytest.mark.parametrize("baseline", [0, 1])
+def test_an_int_baseline_of_a_scenario_is_written_as_the_python_rules_write_it(
+    baseline: int,
+) -> None:
+    """`baseline_distress_by_agent` allows ints (StrictInt in the Scenario's psychology config).
+    The kernel turned them down before, and the Python rules ran; their float() is the kernel's."""
+    state = _state("a", "b")
+    state["last_updated_minute"] = 1438
+    previous = {"a": 0.1, "b": 0.2, "new": 0.3}
+    current = {"a": 0.4, "b": 0.8, "new": 0.75}
+    python_metrics: dict[str, float] = {}
+    expected = _python_rules(
+        python_metrics,
+        copy.deepcopy(state),
+        previous=previous,
+        current=current,
+        minute=1439,
+        baselines={"new": baseline},
+    )
+    world = WorldState("s", 1, 100, model_state={PSYCHOLOGICAL_STATE_KEY: state})
+    _kernel()(
+        _controller(baselines={"new": baseline}), world, _view(previous), _deltas(current), 1439
+    )
+    assert _text(world.metric_state) == _text(python_metrics)
+    assert _text(world.model_state[PSYCHOLOGICAL_STATE_KEY]) == _text(expected)
+    assert (
+        type(world.model_state[PSYCHOLOGICAL_STATE_KEY]["agents"]["new"]["baseline_distress"])
+        is float
+    )
+
+
 # ---- What the kernel leaves to the Python rules -----------------------------------------------
 
 
@@ -594,11 +625,6 @@ def test_another_model_with_long_term_state_is_the_python_step_s() -> None:
         (_controller(threshold=1), {"a": 0.1, "b": 0.1}, {"a": 0.1, "b": 0.1}),
         (_controller(), {"a": 0, "b": 0.1}, {"a": 0.1, "b": 0.1}),
         (_controller(), {"a": 0.1, "b": 0.1}, {"a": 1, "b": 0.1}),
-        (
-            _controller(baselines={"new": 0}),
-            {"a": 0.1, "b": 0.1, "new": 0.1},
-            {"a": 0.1, "b": 0.1, "new": 0.1},
-        ),
         (
             _controller(baselines={"new": 1.5}),
             {"a": 0.1, "b": 0.1, "new": 0.1},

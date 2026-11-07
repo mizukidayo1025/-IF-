@@ -122,12 +122,6 @@ PORTED_NAMES = frozenset(
         "update_long_term_state",
         "record_distress_monitor_tick",
         "update_psychological_state",
-        # policies/social.py, policies/alternatives.py: rules/social_propagation.rs
-        "_contact_buckets",
-        "_select_contacts",
-        # policies/information.py: rules/information.rs
-        "_transmission_probability",
-        "_sender_sharing_factor",
         # experiments/phases/dispatch.py, the rules it calls: rules/dispatch.rs. An event type's
         # handler is read at each event, and a patch of a class's `apply` shows there.
         "_dispatch_due_events",
@@ -201,14 +195,6 @@ PORTED_METHODS = frozenset(
         ("UtilityBehaviorPolicy", "propose"),
         ("PriorityRuleBehaviorPolicy", "propose"),
         ("PsychologyUpdateResult", "trace_document"),
-        ("SocialPropagationResult", "trace_document"),
-        ("InformationSpreadResult", "trace_document"),
-        ("StressPropagationPolicy", "update"),
-        ("ExpressivenessChannelOpennessPolicy", "update"),
-        ("DeGrootContactPolicy", "update"),
-        ("InformationSpreadPolicy", "update"),
-        ("HazardInformationPolicy", "update"),
-        ("EvidenceAwareInformationPolicy", "update"),
         ("EventDispatcher", "dispatch_due"),
         ("EventDispatcher", "settle"),
         ("ResourceServiceManager", "_serve_head"),

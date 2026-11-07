@@ -49,7 +49,16 @@ fn unit_float(value: &Bound<'_, PyAny>) -> PyResult<f64> {
     let Ok(number) = value.downcast_exact::<PyFloat>() else {
         return unsupported("a value is not a float");
     };
-    let number = number.value();
+    unit_value(number.value())
+}
+
+/// A value of a config that `validate_unit_interval` passes, a float or an int: a Scenario's
+/// `baseline_distress_by_agent` may hold the int `0` or `1`, which the rules turn into a float.
+fn unit_number(value: &Bound<'_, PyAny>) -> PyResult<f64> {
+    unit_value(number_of(value)?)
+}
+
+fn unit_value(number: f64) -> PyResult<f64> {
     if !(0.0..=1.0).contains(&number) {
         return unsupported("a value is outside 0..1");
     }
@@ -265,7 +274,7 @@ fn plan_long_term(
             None => {
                 let baseline = match as_readable_dict(baseline_by_agent) {
                     Some(baselines) => match baselines.get_item(&person.id)? {
-                        Some(baseline) => unit_float(&baseline)?,
+                        Some(baseline) => unit_number(&baseline)?,
                         None => 0.0,
                     },
                     None => return unsupported("the baselines are not a plain dict"),
@@ -445,19 +454,40 @@ fn exact_float(value: &Bound<'_, PyAny>) -> PyResult<f64> {
     }
 }
 
-/// An item of a dict that must be a float.
-fn float_item(dict: &Bound<'_, PyAny>, key: &Bound<'_, PyString>) -> PyResult<f64> {
+/// An exact float, or an exact int of a config that allows one (a rate of `0`, a body rate of
+/// `1`): each meets a float in the rules' arithmetic, where it is this f64. Bigger ints than the
+/// configs allow are left to Unsupported.
+fn number_of(value: &Bound<'_, PyAny>) -> PyResult<f64> {
+    if let Ok(number) = value.downcast_exact::<PyFloat>() {
+        return Ok(number.value());
+    }
+    let Ok(number) = value.downcast_exact::<PyInt>() else {
+        return unsupported("a value is not a float");
+    };
+    match number.extract::<i64>() {
+        Ok(whole) if whole.unsigned_abs() <= 1 << 53 => Ok(whole as f64),
+        _ => unsupported("an int value is too large"),
+    }
+}
+
+/// An item of a dict that must be a number, and whether it is an int.
+fn number_item(dict: &Bound<'_, PyAny>, key: &Bound<'_, PyString>) -> PyResult<(f64, bool)> {
     match raw_dict_get(dict, key.as_any())? {
-        Some(value) => exact_float(&value),
+        Some(value) => Ok((number_of(&value)?, value.is_exact_instance_of::<PyInt>())),
         None => unsupported("a field is missing"),
     }
 }
 
-/// `by_agent.get(id, default)` of a dict of floats.
+/// An item of a dict that must be a number.
+fn float_item(dict: &Bound<'_, PyAny>, key: &Bound<'_, PyString>) -> PyResult<f64> {
+    number_item(dict, key).map(|(value, _)| value)
+}
+
+/// `by_agent.get(id, default)` of a dict of numbers.
 #[inline]
 fn rate_of(by_agent: &Bound<'_, PyAny>, id: &Bound<'_, PyString>, default: f64) -> PyResult<f64> {
     match raw_dict_get(by_agent, id.as_any())? {
-        Some(value) => exact_float(&value),
+        Some(value) => number_of(&value),
         None => Ok(default),
     }
 }
@@ -505,6 +535,9 @@ struct BodyRates {
     sanitation_hygiene_growth: f64,
     negative_affect_stress: f64,
     sanitation_stress: f64,
+    /// Whether `discontent_stress_rate` is an int, which a separated family's pressure is
+    /// (`life_state_before` of the trace keeps it).
+    discontent_stress_int: bool,
     /// `body-feedback-sleep-debt-v1`: only the debt feeds back.
     sleep_debt_only: bool,
     tick_start_reference: bool,
@@ -558,7 +591,8 @@ fn read_rates<'py>(
         resting_stress_recovery: float_attr!(parameters, "resting_stress_recovery"),
         sleeping_stress_recovery: float_attr!(parameters, "sleeping_stress_recovery"),
         need_pressure_threshold: float_attr!(parameters, "need_pressure_threshold"),
-        hydration_growth: float_attr!(parameters, "hydration_growth"),
+        // `resource_service.hydration_growth_per_minute` of the Scenario's config, as written.
+        hydration_growth: number_of(&parameters.getattr(intern!(py, "hydration_growth"))?)?,
         support_wait_stress: float_attr!(parameters, "support_wait_stress"),
         natural_recovery_rate: float_attr!(parameters, "natural_recovery_rate_per_minute"),
         direct_rest_recovery: exact_bool(
@@ -596,6 +630,8 @@ fn read_body_rates<'py>(
         model_id.to_str()? == "body-feedback-sleep-debt-v1"
     };
     let item = |key: &Bound<'py, PyString>| float_item(config, key);
+    let (discontent_stress, discontent_stress_int) =
+        number_item(config, intern!(py, "discontent_stress_rate"))?;
     let rates = BodyRates {
         awake_sleep_debt: item(intern!(py, "awake_sleep_debt_minutes_per_minute"))?,
         rest_sleep_debt_recovery: item(intern!(py, "rest_sleep_debt_recovery_per_minute"))?,
@@ -606,7 +642,8 @@ fn read_body_rates<'py>(
         uncertainty_decay: item(intern!(py, "uncertainty_decay_per_minute"))?,
         discontent_queue: item(intern!(py, "discontent_queue_rate"))?,
         discontent_relief: item(intern!(py, "discontent_relief_per_minute"))?,
-        discontent_stress: item(intern!(py, "discontent_stress_rate"))?,
+        discontent_stress,
+        discontent_stress_int,
         positive_affect_decay: item(intern!(py, "positive_affect_decay_per_minute"))?,
         hygiene_growth: item(intern!(py, "hygiene_growth_per_minute"))?,
         sanitation_hygiene_growth: item(intern!(py, "sanitation_hygiene_growth_per_minute"))?,
@@ -877,6 +914,7 @@ fn step(model: Model, rates: &Rates, body: Option<&BodyRates>, a: &Input, mut st
     if model == Model::LifeState {
         if let Some(stages) = stages {
             stages.family_pressure = family_pressure;
+            stages.family_pressure_int = life.family_separated && g.discontent_stress_int;
             stages.feedback = feedback;
             stages.information_feedback = feedback - feedback_with(uncertainty_without);
         }
@@ -889,6 +927,7 @@ fn step(model: Model, rates: &Rates, body: Option<&BodyRates>, a: &Input, mut st
     let (natural, multiplier) = mean_reverting_terms(a.stress, a.baseline, a.kappa)?;
     if let Some(stages) = stages {
         stages.family_pressure = family_pressure;
+        stages.family_pressure_int = life.family_separated && g.discontent_stress_int;
         stages.feedback = feedback;
         stages.information_feedback = information_feedback;
         stages.natural = natural;
@@ -925,6 +964,8 @@ struct Stages {
     multiplier: f64,
     /// The life-state models.
     family_pressure: f64,
+    /// The int `discontent_stress_rate` of a separated family, as Python keeps it.
+    family_pressure_int: bool,
     feedback: f64,
     information_feedback: f64,
 }
@@ -975,6 +1016,7 @@ fn person_trace(model: Model, rates: &Rates, a: &Input, next: &Next, stages: &St
         life_state_feedback_stress: 0.0,
         information_uncertainty_stress: 0.0,
         life_state: None,
+        family_pressure_int: false,
         components: simple_components,
         raw_stress_delta: s.stress_delta,
         candidate_before_clip: before + s.stress_delta,
@@ -1008,6 +1050,7 @@ fn person_trace(model: Model, rates: &Rates, a: &Input, next: &Next, stages: &St
             let life = &a.life;
             let misinformation = life.misinformation_pressure;
             let values = next.body.unwrap_or_default();
+            trace.family_pressure_int = s.family_pressure_int;
             trace.life_state = Some((
                 [
                     life.debt,

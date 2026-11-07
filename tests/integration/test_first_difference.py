@@ -32,7 +32,8 @@ SOURCE = BENCHMARKS.parent / "src"
 TESTS = BENCHMARKS.parent / "tests"
 # Put on PYTHONPATH, it runs the recorded process on the Python rules, whose draws the recorder logs
 # and which _patched_source can edit: the `python_rules` mark. (The contact handler's Python rule,
-# whose correction draw a second case edited, is gone: lane L10.)
+# whose correction draw a second case edited, and the information rule, which the other cases
+# edited, are gone: lane L10. A bug in a step only Rust runs is put in by a patch of the step.)
 PYTHON_RULES_SITE = f"""\
 import sys
 
@@ -43,9 +44,28 @@ from support.python_rules import without_kernels
 
 without_kernels(pytest.MonkeyPatch())
 """
-# Rumors, corrections and the Python information rule, in a few seconds.
+# Rumors, corrections and the information model, in a few seconds.
 RUMORS = "model__information__evidence-aware-rumor-v1"
-FORGETTING = "forget_probability = -math.expm1(-self.config.forgetting_rate_per_minute)"
+# The behavior rule's choice, a draw against the cumulative probabilities, in Python under the mark.
+CHOICE = "            cumulative += candidate.probability\n"
+# A bug a lane might make in the information step: a bigger decay of the query pressure, put after
+# the kernel's step since only Rust has the rule.
+DECAY_BUG = """
+from sheltersim.domain.information import INFORMATION_SPREAD_STATE_KEY
+from sheltersim.experiments.runner import OfflineSimulationController
+
+_step = OfflineSimulationController._sample_information_contacts
+
+
+def _with_a_bug(self, minute, rng):
+    _step(self, minute, rng)
+    pressure = self.world.model_state[INFORMATION_SPREAD_STATE_KEY]["query_pressure"]
+    for agent_id in pressure:
+        pressure[agent_id] = max(0.0, pressure[agent_id] - 0.001)
+
+
+OfflineSimulationController._sample_information_contacts = _with_a_bug
+"""
 LINUX_ONLY = pytest.mark.skipif(sys.platform != "linux", reason="hashes are pinned on Linux")
 
 
@@ -77,11 +97,12 @@ def _patched_source(directory: Path, relative: str, before: str, after: str) -> 
     return root
 
 
-def _recorded(output: Path, *arguments: object, path: Path | None = None) -> Path:
-    """A stream of the Python rules, which are what _patched_source edits: Rust moved the rest."""
-    site = output.parent / "python_rules"
+def _recorded(output: Path, *arguments: object, path: Path | None = None, patch: str = "") -> Path:
+    """A stream of the Python rules, which are what _patched_source edits: Rust moved the rest.
+    `patch` is more of the site's code, run after the mark's change."""
+    site = output.parent / f"python_rules_{output.name}"
     site.mkdir(parents=True, exist_ok=True)
-    (site / "sitecustomize.py").write_text(PYTHON_RULES_SITE, encoding="utf-8")
+    (site / "sitecustomize.py").write_text(PYTHON_RULES_SITE + patch, encoding="utf-8")
     paths = (site,) if path is None else (site, path)
     done = _tool("--record", RUMORS, "--output", output, "--draws", *arguments, paths=paths)
     assert done.returncode == 0, done.stdout + done.stderr
@@ -114,14 +135,7 @@ def test_two_recordings_of_a_scenario_compare_as_the_same(
 def test_an_injected_bug_is_named_by_minute_phase_part_path_and_hex(
     base_stream: Path, tmp_path: Path
 ) -> None:
-    decay = "query_pressure[agent_id] = max(0.0, query_pressure[agent_id] - decay)"
-    source = _patched_source(
-        tmp_path,
-        "sheltersim/policies/information.py",
-        decay,
-        "query_pressure[agent_id] = max(0.0, query_pressure[agent_id] - decay * 1.5)",
-    )
-    changed = _recorded(tmp_path / "changed", path=source)
+    changed = _recorded(tmp_path / "changed", patch=DECAY_BUG)
 
     done = _tool(base_stream, changed)
 
@@ -137,15 +151,15 @@ def test_an_injected_bug_is_named_by_minute_phase_part_path_and_hex(
     ("label", "relative", "before", "after"),
     [
         (
-            "information-forgetting-v1",
-            "sheltersim/policies/information.py",
-            FORGETTING,
-            f"{FORGETTING} * 1.01",
+            "behavior",
+            "sheltersim/policies/behavior.py",
+            CHOICE,
+            CHOICE.replace("candidate.probability", "candidate.probability * (1 + 2**-40)"),
         ),
     ],
-    ids=["forgetting_plus_one_percent"],
+    ids=["choice_plus_two_to_the_minus_forty"],
 )
-def test_a_one_percent_change_of_a_probability_is_caught_though_no_comparison_flips(
+def test_a_small_change_of_a_probability_is_caught_though_no_comparison_flips(
     base_stream: Path, tmp_path: Path, label: str, relative: str, before: str, after: str
 ) -> None:
     """The gate's weak cases (docs/rust-port.md): the world and the hashes stay the same."""

@@ -9,6 +9,7 @@ See docs/rust-port/lanes/m6-driver.md.
 from __future__ import annotations
 
 import ast
+import contextlib
 import sys
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,7 @@ from sheltersim.core.engine import (
     TickPhase,
     TraceLevel,
 )
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.experiments.performance import PhaseProfiler
@@ -210,12 +212,23 @@ def test_the_driver_keeps_the_view_the_next_phase_builds_on(
     assert kept == [True] * 4
 
 
+class _OtherRng(CounterRNG):
+    """Not plainly a CounterRNG, so what draws in Rust says Unsupported."""
+
+
+def _without_contact_models(scenario: Any) -> Any:
+    """The scenario without the social and information models, whose steps have no Python rule."""
+    document = scenario.model_dump(mode="json")
+    document["model_configs"]["social_propagation"]["enabled"] = False
+    document["model_configs"]["information_spread"]["enabled"] = False
+    return type(scenario).model_validate(document)
+
+
 def test_a_step_a_kernel_refuses_goes_to_its_python_rule(
     generated_scenario: Any, tmp_path: Path
 ) -> None:
-    class OtherRng(CounterRNG):
-        """Not plainly a CounterRNG, so what draws in Rust says Unsupported."""
-
+    OtherRng = _OtherRng
+    generated_scenario = _without_contact_models(generated_scenario)
     seed = generated_scenario.seed
     before = _stats()[0]
     driven = _run(generated_scenario, tmp_path / "driven", 120, rng=OtherRng(seed))
@@ -226,6 +239,27 @@ def test_a_step_a_kernel_refuses_goes_to_its_python_rule(
         phases = _run(generated_scenario, tmp_path / "phases", 120, rng=OtherRng(seed))
     plain = _run(generated_scenario, tmp_path / "plain", 120)
     assert driven == phases == plain
+
+
+@pytest.mark.parametrize("on_the_phases", [False, True])
+def test_a_refusal_of_a_step_without_a_python_rule_fails_the_tick(
+    generated_scenario: Any, tmp_path: Path, on_the_phases: bool
+) -> None:
+    """The social step is the kernel alone (segments.py, KERNEL_ONLY_SEGMENTS). An RNG no Run has
+    is turned down, and neither the driver nor the phases have a Python rule to run instead."""
+    world, controller, engine = _build(
+        generated_scenario, tmp_path, rng=_OtherRng(generated_scenario.seed)
+    )
+    with _on_the_phases() if on_the_phases else contextlib.nullcontext():
+        with pytest.raises(Exception) as raised:
+            engine.step()
+    chain = []
+    error: BaseException | None = raised.value
+    while error is not None:
+        chain.append(error)
+        error = error.__cause__ or error.__context__
+    assert any(isinstance(item, KernelRefusal) for item in chain), chain
+    assert any("social_propagation" in str(item) for item in chain), chain
 
 
 @pytest.mark.parametrize("step", DRIVEN_STEPS)

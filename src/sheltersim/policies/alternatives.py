@@ -1,4 +1,7 @@
-"""Installed alternative numerical operators; no evaluation of arbitrary code."""
+"""Installed alternative numerical operators; no evaluation of arbitrary code.
+
+The kernels of native/src/rules know each class here by identity.
+"""
 
 from __future__ import annotations
 
@@ -49,86 +52,20 @@ class BoundedStressPolicy(SimplePsychologyPolicy):
 
 
 class DeGrootContactPolicy(StressPropagationPolicy):
-    """Sparse consensus permits calming and amplification from the same contacts."""
+    """Sparse consensus permits calming and amplification from the same contacts.
+
+    The contacts, their minutes and their draws are StressPropagationPolicy's. Each person moves
+    toward the mean stress of the contacts that have lasted `minimum_contact_minutes`, by
+    `min(1, stress_spread_per_minute)`, capped per pair and per person, after recovering by
+    `natural_recovery_per_minute`; there is no cooldown. Its step is
+    native/src/rules/social_propagation.rs.
+    """
 
     policy_version = "degroot-contact-v1"
 
-    def update(
-        self,
-        view: Any,
-        base_deltas: Any,
-        rng: Any,
-        *,
-        zone_neighbors: Any,
-        runtime_state: Any = None,
-    ) -> Any:
-        # Reuse contact eligibility, duration and RNG identity; replace influence operator.
-        baseline = super().update(
-            view, base_deltas, rng, zone_neighbors=zone_neighbors, runtime_state=runtime_state
-        )
-        if not self.parameters.enabled:
-            return replace(baseline, policy_version=self.policy_version)
-        eligible = {}
-        for contact in baseline.contacts:
-            if contact.consecutive_contact_minutes >= self.parameters.minimum_contact_minutes:
-                eligible.setdefault(contact.recipient_id, []).append(contact)
-        deltas, contacts = [], []
-        total = 0.0
-        for delta in base_deltas:
-            neighbors = eligible.get(delta.agent_id, [])
-            alpha = min(1.0, self.parameters.stress_spread_per_minute)
-            contributions = [
-                max(
-                    -self.parameters.max_pair_stress_increase,
-                    min(
-                        self.parameters.max_pair_stress_increase,
-                        alpha
-                        * (view.agents[c.source_id].stress - view.agents[delta.agent_id].stress)
-                        / max(1, len(neighbors)),
-                    ),
-                )
-                for c in neighbors
-            ]
-            raw_shift = sum(contributions)
-            limit = self.parameters.max_agent_stress_increase_per_minute
-            shift = max(-limit, min(limit, raw_shift))
-            recovered = max(0.0, delta.stress - self.parameters.natural_recovery_per_minute)
-            applied = min(1.0, max(0.0, recovered + shift)) - recovered
-            scale = applied / raw_shift if raw_shift else 1.0
-            deltas.append(replace(delta, stress=recovered + applied))
-            total += applied
-            for contact, contribution in zip(neighbors, contributions, strict=True):
-                contacts.append(
-                    replace(
-                        contact,
-                        stress_difference=view.agents[contact.source_id].stress
-                        - view.agents[delta.agent_id].stress,
-                        stress_contribution=contribution * scale,
-                        cooldown_remaining_minutes=0,
-                    )
-                )
-        state = {**baseline.runtime_state, "agent_cooldown_until": {}}
-        return replace(
-            baseline,
-            deltas=tuple(deltas),
-            runtime_state=state,
-            contacts=tuple(contacts),
-            total_stress_added=total,
-            contributing_contact_count=sum(c.stress_contribution != 0 for c in contacts),
-            policy_version=self.policy_version,
-        )
-
 
 class HazardInformationPolicy(InformationSpreadPolicy):
+    """InformationSpreadPolicy with a hazard: a transfer's probability is `1 - exp(-p)` of the
+    sparse model's `p`. Its step is native/src/rules/information.rs."""
+
     policy_version = "hazard-information-v1"
-
-    def update(self, *args: Any, **kwargs: Any) -> Any:
-        return replace(super().update(*args, **kwargs), policy_version=self.policy_version)
-
-    def _transmission_probability(
-        self, trust: float, basis: str, contact_minutes: int, *, correction: bool
-    ) -> float:
-        propensity = super()._transmission_probability(
-            trust, basis, contact_minutes, correction=correction
-        )
-        return -math.expm1(-propensity)

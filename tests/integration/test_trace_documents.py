@@ -7,7 +7,9 @@ docs/rust-port/step4-plan.md: the documents keep their shape. See docs/rust-port
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import random
 import sys
 from dataclasses import fields
@@ -62,6 +64,88 @@ MODELS = (
 )
 
 
+# What the deleted Python steps wrote (`_social_propagation` and `_sample_information_contacts` of
+# experiments/phases at 2d8fb46, on policies/social.py, information.py and alternatives.py), as
+# sha256 of the files, recorded once on Linux. With SHELTERSIM_RECORD_CONTACT_RUNS set, the tests
+# ran those Python steps and wrote their digests to that file instead.
+ANSWERS: dict[str, str] = {
+    "information-evidence-aware-rumor-v1-full": (
+        "fb778b1f2efe73f30f329d7c607ad89e7525e49b953a07efd276b28a543940e7"
+    ),
+    "information-hazard-information-v1-full": (
+        "d12a6e4ef3f0e6b6e88ae908236c824753cab76b5dbfcd95188c3a56c1ee2bae"
+    ),
+    "information-hazard-information-v1-summary": (
+        "4f4e45a4960be69011340e45aed649bc80142d2d019c0b3ff345c7b54755fc30"
+    ),
+    "information-sparse-information-contact-v1-full": (
+        "f6074fdb6f36d2b32872a379fe6834a350008e6a44613e771b558e45a8af90ea"
+    ),
+    "psychology-bounded-stress-v1-full": (
+        "e18873bd88512855e5ad8605bdac008b00e135f767e9a9235fb8d9ed41e2c486"
+    ),
+    "psychology-causal-stress-v1-full": (
+        "e18873bd88512855e5ad8605bdac008b00e135f767e9a9235fb8d9ed41e2c486"
+    ),
+    "psychology-causal-stress-v1-summary": (
+        "4aba58d720f035c8365cddf8fabca84cf1a37e300062cf0855b33906cd2f3f9c"
+    ),
+    "psychology-life-state-feedback-v1-full": (
+        "08c928a34f1ba7755e78bae1f960fd7c7f484a6a8ebbd27b922d077749d57749"
+    ),
+    "psychology-mean-reverting-distress-v1-full": (
+        "e18873bd88512855e5ad8605bdac008b00e135f767e9a9235fb8d9ed41e2c486"
+    ),
+    "psychology-mean-reverting-life-state-v1-full": (
+        "fb778b1f2efe73f30f329d7c607ad89e7525e49b953a07efd276b28a543940e7"
+    ),
+    "psychology-mean-reverting-life-state-v1-summary": (
+        "b3b45b0cd5f92ac8a47ef4978ef1996eae73cf0f4dc8842e7e5294aec751d25a"
+    ),
+    "social-degroot-contact-v1-full": (
+        "45bd3d00cc58361b56656cf994cbafc1b3c8717ce8d147cf56344888a3955c6e"
+    ),
+    "social-degroot-contact-v1-summary": (
+        "cf9a42ccbbfcac3504ca23786a829a1e2d0086a25c13ee78f69b7cbeb676b1b3"
+    ),
+    "social-expressiveness-channel-openness-v1-full": (
+        "fb778b1f2efe73f30f329d7c607ad89e7525e49b953a07efd276b28a543940e7"
+    ),
+    "social-sparse-family-zone-contact-v1-full": (
+        "405482147be37d931f2ceadbc3b887a59da7ad0c6b7498ad04a143b5b2c6d688"
+    ),
+}
+_RECORD = os.environ.get("SHELTERSIM_RECORD_CONTACT_RUNS")
+
+
+def _answers(name: str, texts: list[str]) -> None:
+    digest = hashlib.sha256()
+    for text in texts:
+        digest.update(text.encode() + b"\n")
+    if _RECORD:
+        with open(_RECORD, "a", encoding="utf-8") as file:
+            file.write(json.dumps({name: digest.hexdigest()}) + "\n")
+        return
+    if sys.platform == "linux":
+        assert digest.hexdigest() == ANSWERS[name], name
+
+
+def _python_contact_steps(patch: pytest.MonkeyPatch) -> None:
+    """Only while recording: the deleted Python steps of the contact models."""
+    from sheltersim.experiments.phases.sample import SamplePhase
+    from sheltersim.experiments.phases.update import UpdatePhase
+    from sheltersim.experiments.runner import OfflineSimulationController
+
+    patch.setattr(
+        OfflineSimulationController, "_social_propagation", UpdatePhase._social_propagation
+    )
+    patch.setattr(
+        OfflineSimulationController,
+        "_sample_information_contacts",
+        SamplePhase._sample_information_contacts,
+    )
+
+
 def _ticks() -> int:
     return native.rules("tick").stats()[0]["ticks"]
 
@@ -88,17 +172,29 @@ def _files(directory: Path) -> dict[str, bytes | None]:
 def test_a_run_with_a_trace_writes_the_bytes_of_the_python_rules(
     domain: str, model: str, level: TraceLevel, tmp_path: Path
 ) -> None:
+    """The psychology and decision files against the Python rules of a Run without the kernels;
+    the contact files, whose Python steps are gone, against what those steps wrote."""
     scenario = _model_scenario(domain, model)
     before = _ticks()
-    run_scenario(scenario, tmp_path / "driver", trace_level=level)
-    assert _ticks() - before == scenario.duration_minutes
+    with pytest.MonkeyPatch.context() as patch:
+        if _RECORD:
+            _python_contact_steps(patch)
+        run_scenario(scenario, tmp_path / "driver", trace_level=level)
+    if not _RECORD:
+        assert _ticks() - before == scenario.duration_minutes
     driven = _files(tmp_path / "driver")
     with pytest.MonkeyPatch.context() as patch:
         without_kernels(patch)
         run_scenario(scenario, tmp_path / "python", trace_level=level)
     assert driven["psychology_contributions.jsonl"]
+    contacts = ("social_contacts.jsonl", "information_contacts.jsonl")
     for name, raw in _files(tmp_path / "python").items():
-        assert driven[name] == raw, name
+        if name not in contacts:
+            assert driven[name] == raw, name
+    _answers(
+        f"{domain}-{model}-{level.value}",
+        [(driven[name] or b"").decode("utf-8") for name in contacts],
+    )
 
 
 def _text(value: Any) -> str:
@@ -198,6 +294,64 @@ def test_the_rows_and_the_document_of_each_model_are_python_s(
         UpdatePhase._record_psychology_trace(controller, python, final, 0)
         ours, theirs = controller.artifacts.documents
         assert ours == theirs
+
+
+def _int_policies(ids: list[str]) -> list[Any]:
+    """Ints a Scenario may write (per-person rates and baselines, body rates of `0` or `1`)."""
+    parameters = PsychologyParameters(
+        toilet_growth_by_agent={ids[0]: 0},
+        natural_recovery_rate_by_agent={ids[1]: 0},
+        baseline_distress_by_agent={ids[0]: 1, ids[1]: 0},
+        hydration_growth=0,
+    )
+    body = {
+        "discontent_stress_rate": 1,
+        "awake_sleep_debt_minutes_per_minute": 1,
+        "reassurance_decay_per_minute": 0,
+        "sleep_debt_stress_rate_by_agent": {ids[0]: 1},
+    }
+    formula = BodyDynamicsFormula("body-feedback-complete-v1", "S")
+    return [
+        MeanRevertingDistressPolicy(parameters),
+        LifeStatePsychologyPolicy(parameters, body_config=body),
+        LifeStatePsychologyPolicy(parameters, body_config=body, body_formula=formula),
+        IntegratedDistressLifeStatePolicy(parameters, body_config=body, body_formula=formula),
+    ]
+
+
+@pytest.mark.parametrize(
+    "level", [TraceLevel.SUMMARY, TraceLevel.FULL], ids=lambda level: level.value
+)
+def test_int_values_of_a_scenario_give_the_python_rule_s_document(
+    generated_scenario: Any, tmp_path: Path, level: TraceLevel
+) -> None:
+    """A separated household's pressure is the int `discontent_stress_rate`: the Python rule kept
+    it an int in `life_state_before` and `after`, and JSON writes `1`, not `1.0`."""
+    rules = native.rules("psychology")
+    record = native.rules("trace").record_psychology_trace
+    world = WorldState.from_scenario(generated_scenario)
+    artifacts = RunArtifactWriter(generated_scenario, tmp_path, trace_level=TraceLevel.OFF)
+    artifacts.write_initial(world, execution_mode="offline")
+    controller = OfflineSimulationController(world, artifacts)
+    _shuffle(world, random.Random(3))
+    view = controller._view_after_movement(world)
+    separated = 0
+    for policy in _int_policies(sorted(world.agents)):
+        controller.psychology = policy
+        controller.artifacts = _Keeping(level)
+        result = rules.update_psychology(controller, view, 0)
+        python = policy.explain_update(view, 0)
+        assert [_text(trace) for trace in result.traces] == [
+            _text(trace) for trace in python.traces
+        ]
+        record(controller, result, result.deltas, 0)
+        UpdatePhase._record_psychology_trace(controller, python, result.deltas, 0)
+        ours, theirs = controller.artifacts.documents
+        assert ours == theirs
+        separated += ours.count(
+            '"family_separation_pressure": {"before": 1, "after": 1, "delta": 0}'
+        )
+    assert separated > 0
 
 
 def test_a_python_result_stays_with_the_python_step(generated_scenario: Any) -> None:

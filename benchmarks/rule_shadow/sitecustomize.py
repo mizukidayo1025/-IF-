@@ -1,10 +1,9 @@
 """Compare the Rust steps with their Python rules at every call, in any process.
 
 This file has the long-term psychology step, psychology_update.py the other psychology steps,
-social_propagation_shadow.py the social one, movement_shadow.py the state of movement_v1,
-information_shadow.py the information one, whose results are in DIR/information,
-world_view_shadow.py the views, in DIR/world_view, and behavior_shadow.py the proposals, in
-DIR/behavior.
+movement_shadow.py the state of movement_v1, world_view_shadow.py the views, in DIR/world_view,
+and behavior_shadow.py the proposals, in DIR/behavior. The social and information steps have no
+Python rule left to compare with (lane L10).
 
 Hashes do not see a 1% change in a value that doesn't reach them yet, and a kernel may never run if
 it always says Unsupported. Put this directory first on PYTHONPATH and run anything:
@@ -140,10 +139,6 @@ def _install(output: str) -> None:
     OfflineSimulationController._update_long_term_psychology = step  # type: ignore[method-assign]
     psychology_update.install(seen, reasons, differences)
 
-    import social_propagation_shadow
-
-    social_propagation_shadow.install(seen, reasons, differences)
-
     import movement_shadow
 
     movement_shadow.install(seen, reasons, differences)
@@ -183,10 +178,8 @@ elif OUTPUT and os.environ.get("SHELTERSIM_RULE_SHADOW_ONLY"):
     Path(OUTPUT).mkdir(parents=True, exist_ok=True)
     for name in os.environ["SHELTERSIM_RULE_SHADOW_ONLY"].split(","):
         if name == "update":
-            # The steps of the update phase, in this file: the psychology and the social model.
+            # The psychology steps of the update phase, in this file.
             _install(OUTPUT)
-        elif name == "information":
-            importlib.import_module("information_shadow").install(OUTPUT)
         else:
             importlib.import_module(f"shadow_{name}").prepare(OUTPUT)
 elif OUTPUT:
@@ -195,9 +188,6 @@ elif OUTPUT:
         if shadow.stem != "shadow_kit":
             importlib.import_module(shadow.stem).prepare(OUTPUT)
     _install(OUTPUT)
-    from information_shadow import install as _install_information
-
-    _install_information(OUTPUT)
     import capture_shadow
 
     capture_shadow.install(OUTPUT)

@@ -18,7 +18,6 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from support.paths import BENCHMARKS
 from support.world import kernel_says_python_s_text
 
 from sheltersim import native
@@ -821,17 +820,3 @@ def test_a_bad_payload_is_failed_by_the_kernel_in_python_s_text(
     expected = (EventApplicationError, text)
     kernel_says_python_s_text(SocialInteractionHandler(), world, event, expected)
     assert _values(world, ids) == before
-
-
-def test_the_social_shadow_ignores_key_order_only_in_a_run_that_reverses_dicts(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.syspath_prepend(str(BENCHMARKS / "rule_shadow"))
-    from social_propagation_shadow import _text
-
-    first, second = {"a": 1, "b": 2}, {"b": 2, "a": 1}
-    monkeypatch.delenv("SHELTERSIM_GATE_REVERSE", raising=False)
-    assert _text(first) != _text(second)
-    monkeypatch.setenv("SHELTERSIM_GATE_REVERSE", "phase")
-    assert _text(first) == _text(second)
-    assert _text({"a": 1.0}) != _text({"a": 1})

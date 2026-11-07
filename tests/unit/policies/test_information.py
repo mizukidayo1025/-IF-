@@ -13,13 +13,13 @@ import pytest
 from pydantic import ValidationError
 from support.paths import SCENARIO_100_AGENTS
 
+from sheltersim import native
 from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import StateInvariantError, WorldState
 from sheltersim.domain.information import INFORMATION_SPREAD_STATE_KEY
 from sheltersim.domain.models import InformationSpreadConfig
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.policies.behavior import UtilityBehaviorPolicy, WorldView
-from sheltersim.policies.information import InformationSpreadPolicy
 
 
 def test_information_config_is_strict_and_off_by_default() -> None:
@@ -55,11 +55,27 @@ def test_transmission_probability_depends_on_trust_and_contact_duration(
             contact_duration_scale_minutes=5,
         )
     )
-    policy = InformationSpreadPolicy(config)
 
-    low_trust = policy._transmission_probability(0.0, "same_zone", 5, correction=False)
-    short_trusted_contact = policy._transmission_probability(1.0, "same_zone", 1, correction=False)
-    long_trusted_contact = policy._transmission_probability(1.0, "same_zone", 5, correction=False)
+    def probability(trust: float, minutes: int) -> float:
+        """A same-zone claim's chance in native/src/rules/information.rs, the sparse model's."""
+        return native.rules("information").transmission_probability_of(
+            False,
+            trust,
+            False,
+            False,
+            minutes,
+            False,
+            float(config.contact_duration_scale_minutes),
+            config.base_transmission_probability,
+            config.correction_transmission_multiplier,
+            config.trust_sensitivity,
+            config.family_contact_multiplier,
+            config.adjacent_zone_contact_multiplier,
+        )
+
+    low_trust = probability(0.0, 5)
+    short_trusted_contact = probability(1.0, 1)
+    long_trusted_contact = probability(1.0, 5)
 
     assert low_trust == 0.0
     assert short_trusted_contact == 0.2

@@ -255,20 +255,6 @@ def test_what_the_python_checks_may_refuse_goes_to_them(
             0,
             "not a float",
         ),
-        (
-            SimplePsychologyPolicy(PsychologyParameters(toilet_growth_by_agent={"A001": 0})),
-            TraceLevel.OFF,
-            0,
-            "not a float",
-        ),
-        (
-            MeanRevertingDistressPolicy(
-                PsychologyParameters(baseline_distress_by_agent={"A001": 0})
-            ),
-            TraceLevel.OFF,
-            0,
-            "not a float",
-        ),
     ],
 )
 def test_what_the_kernel_does_not_handle_is_unsupported(
@@ -278,6 +264,57 @@ def test_what_the_kernel_does_not_handle_is_unsupported(
     view = WorldView.from_world(world, include_state_hash=False)
     with pytest.raises(native.Unsupported, match=reason):
         _rules().update_psychology(_controller(world, policy, trace), view, minute)
+
+
+def _int_policies(ids: list[str]) -> list[Any]:
+    """Each model with the ints a Scenario may write: per-person rates and baselines of `0` or `1`
+    (StrictInt in its psychology config), a resource service's hydration growth of `0`, and body
+    rates of `0` or `1` (canonical_body_config allows ints)."""
+    first, second, third = ids[:3]
+    parameters = PsychologyParameters(
+        toilet_growth_by_agent={first: 0, second: 0.01},
+        hunger_growth_by_agent={first: 0},
+        awake_fatigue_growth_by_agent={third: 0},
+        natural_recovery_rate_by_agent={first: 0, second: 0},
+        baseline_distress_by_agent={first: 1, second: 0, third: 0.3},
+        hydration_growth=0,
+    )
+    body = {
+        "discontent_stress_rate": 1,
+        "awake_sleep_debt_minutes_per_minute": 1,
+        "sleep_debt_stress_rate": 0,
+        "uncertainty_decay_per_minute": 0,
+        "discontent_queue_rate": 1,
+        "reassurance_decay_per_minute": 0,
+        "positive_affect_decay_per_minute": 1,
+        "sleep_debt_stress_rate_by_agent": {first: 1},
+        "negative_affect_stress_rate_by_agent": {second: 0},
+        "discontent_stress_rate_by_agent": {third: 1},
+    }
+    return [
+        SimplePsychologyPolicy(parameters),
+        BoundedStressPolicy(parameters),
+        MeanRevertingDistressPolicy(parameters),
+        LifeStatePsychologyPolicy(parameters, body_config=body),
+        LifeStatePsychologyPolicy(parameters, body_config=body, body_formula=FULL),
+        LifeStatePsychologyPolicy(parameters, body_config=body, body_formula=SLEEP_ONLY),
+        IntegratedDistressLifeStatePolicy(parameters, body_config=body),
+        IntegratedDistressLifeStatePolicy(parameters, body_config=body, body_formula=FULL),
+    ]
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_int_values_of_a_scenario_give_the_bits_of_python(
+    generated_scenario: Any, seed: int
+) -> None:
+    """The kernel turned these down before, and the Python rules ran: they meet floats in every
+    expression, where they are the same f64. With a trace, a separated household's int pressure
+    stays an int (tests/integration/test_trace_documents.py)."""
+    draws = random.Random(seed)
+    world = _shuffled_world(generated_scenario, draws)
+    view = WorldView.from_world(world, include_state_hash=False)
+    for policy in _int_policies(sorted(world.agents)):
+        _same_as_python(world, policy, view)
 
 
 def test_a_tainted_store_goes_to_python(generated_scenario: Any) -> None:

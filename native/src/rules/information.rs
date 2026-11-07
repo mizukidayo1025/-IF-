@@ -190,8 +190,13 @@ fn inputs<'py>(
         return unsupported("the minute is not an int");
     };
     let minute: i64 = minute.extract().map_err(|_| Unsupported::new_err("the minute is too large"))?;
-    let seed = exact_int(&rng.getattr(intern!(py, "seed"))?)?;
-    if minute < 0 || minute == i64::MAX || seed < 0 {
+    // `CounterRNG` keys its draws with `str(seed)`: a Scenario's seed is any int from 0, past 64
+    // bits too.
+    let seed = rng.getattr(intern!(py, "seed"))?;
+    let Ok(seed) = seed.downcast_exact::<PyInt>() else {
+        return unsupported("the seed is not an int");
+    };
+    if minute < 0 || minute == i64::MAX || seed.lt(0)? {
         return unsupported("the minute or the seed is out of range");
     }
     let world = controller.getattr(intern!(py, "world"))?;
@@ -205,7 +210,7 @@ fn inputs<'py>(
         .extract()
         .map_err(|_| Unsupported::new_err("the zone neighbors are not str tuples"))?;
     let presence_people = presence_people_of(&world.getattr(intern!(py, "model_state"))?)?;
-    Ok(Some(Inputs { world, model, settings, minute, seed: seed.to_string(), neighbors, presence_people }))
+    Ok(Some(Inputs { world, model, settings, minute, seed: seed.str()?.to_str()?.to_owned(), neighbors, presence_people }))
 }
 
 // ---- The plan -----------------------------------------------------------------------------------

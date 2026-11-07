@@ -93,7 +93,9 @@ def prepare(output: str) -> None:
         accepted = rust_validate(world)
         recorder.seen["validator_accepted" if accepted else "validator_refused"] += 1
         try:
-            operations().validate_staff_operations_state(world)
+            from sheltersim.domain import staff_operations
+
+            staff_operations.validate_staff_operations_state(world)
         except ValueError as error:
             if accepted:
                 recorder.differ(f"the validator took what Python turned down: {error}")
