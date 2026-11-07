@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Set up judge slots of 避難所IF！ on a fresh Ubuntu 24.04 VM (docs/vm-deploy.md).
 #
-#   sudo bash deploy/vm/setup.sh <public-ip> [slots]
+#   sudo bash deploy/vm/setup.sh [public-ip [slots]]
+#
+# Without public-ip, the VM's external IP is read from the GCP metadata server.
 #
 # The app is installed from the commit this script was checked out at (override with
 # REF=<commit or origin/branch>), so that commit must be pushed to REPO_URL.
@@ -12,7 +14,17 @@
 # Re-running the script is safe: it keeps the API key, the password and slot data.
 set -euo pipefail
 
-PUBLIC_IP="${1:?usage: sudo bash setup.sh <public-ip> [slots]}"
+METADATA=http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0
+PUBLIC_IP="${1:-}"
+if [[ -z $PUBLIC_IP ]]; then
+  PUBLIC_IP="$(curl -sf --max-time 5 -H 'Metadata-Flavor: Google' \
+    "$METADATA/access-configs/0/external-ip" || true)"
+  [[ -n $PUBLIC_IP ]] || {
+    echo "could not read the external IP from GCP; run: sudo bash setup.sh <public-ip> [slots]" >&2
+    exit 1
+  }
+  echo "== external IP from GCP metadata: $PUBLIC_IP"
+fi
 SLOTS="${2:-6}"
 REPO_URL="${REPO_URL:-https://github.com/mizukidayo1025/HinanjoIF-Shelter_Sim-.git}"
 BASIC_USER="${BASIC_USER:-judge}"
@@ -96,7 +108,9 @@ chown root:sheltersim "$ETC/env"
 chmod 640 "$ETC/env"
 
 if [[ ! -f $ETC/basic-auth ]]; then
-  BASIC_PASS="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16)"
+  # Not `tr </dev/urandom | head`: under pipefail, tr's SIGPIPE ends the script silently.
+  BASIC_PASS="$(python3 -c 'import secrets, string
+print("".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16)))')"
   printf '%s\n%s\n' "$BASIC_USER" "$BASIC_PASS" > "$ETC/basic-auth"
   chmod 600 "$ETC/basic-auth"
 fi
