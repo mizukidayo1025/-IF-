@@ -1,0 +1,29 @@
+[Unit]
+Description=ShelterSim judge slot %i
+After=network-online.target
+
+[Service]
+User=sheltersim
+Group=sheltersim
+EnvironmentFile=/etc/sheltersim/env
+EnvironmentFile=/etc/sheltersim/slot%i.env
+# One usage ledger for every slot, so the $50 cap holds for the whole VM.
+Environment=XDG_STATE_HOME=/var/lib/sheltersim/state
+Environment=SHELTERSIM_PROJECTS_DIR=/var/lib/sheltersim/slot%i/demo_replay/runs/.projects
+Environment=SHELTERSIM_LLM_CACHE_PATH=/var/lib/sheltersim/slot%i/llm-tape.json
+WorkingDirectory=/var/lib/sheltersim/slot%i
+ExecStart=/opt/sheltersim/venv/bin/sheltersim web \
+  --runs-dir /var/lib/sheltersim/slot%i/demo_replay/runs \
+  --demo-scenario /opt/sheltersim/app/fixtures/scenarios/baseline_100_7d.json \
+  --host 127.0.0.1 --port ${PORT} --max-parallel-runs 1
+Restart=on-failure
+RestartSec=3
+MemoryMax=8G
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/sheltersim
+
+[Install]
+WantedBy=multi-user.target
