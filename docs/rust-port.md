@@ -50,7 +50,7 @@
 1. **状態の持ち主を、まとまりごとに Rust へ移す：** まとまりは「状態と、それを変えるコードと、検証と、保存の形」を一緒に移せる単位です。移したまとまりは、Python からは今と同じ名前・同じ形で読める窓口（PyO3 のクラス）を通して使います。
 2. **保存の形は、各段階で変えない：** Rust が持つ状態からも、今と1バイト違わない正規化した JSON を作ります（試作で、7日目の世界の文書で同じ出力になることを確かめました）。Checkpoint・索引・ハッシュは、段階B3まで今のままです。
 3. **段階ごとの合格の条件は、ハッシュの一致：** 7日分の world・events・KPI のハッシュ（`benchmarks/investigate_performance.py --expect`）と、全テストです。Linux では Python と Rust が同じ数学ライブラリを使うので、結果が今と同じになります。
-4. **Python の実装は、段階が合格するまで残す：** 段階の作業中は、`SHELTERSIM_NATIVE=0` で今の Python の実装に戻せるようにし、毎 tick の比較テスト（`tests/integration/test_native_kernels.py`）で同じ結果になることを確かめます。合格した段階の Python の実装は消し、その部分は Rust を必須にします（下の「決めたこと」）。
+4. **Python の実装は、段階が合格するまで残す：** 段階の作業中は、`SHELTERSIM_NATIVE=0` で Python の実装に戻せるようにし、毎 tick の比較テスト（`tests/integration/test_native_kernels.py`）で同じ結果になることを確かめました。今は Rust の拡張が必須で、`SHELTERSIM_NATIVE` はありません。kernel が `Unsupported` を返したときに動く Python の実装は残っています（下の「決めたこと」）。
 
 ## 段階
 
@@ -123,7 +123,7 @@
 - `TickEngine.step` の終わりの検証は `WorldState.validate_after_tick` です。`validate(validate_event_history=False)` と同じ規則を通しますが、前の分から変わっていないと示せるものを省きます（`native/src/rules/after_tick.rs`）。何を省くかとその根拠は `docs/architecture.md` にあります。完全な検証（`validate()`）の結果は変わりません。
 - 大きな辞書の走査は、Rust の確認（`native/src/validation.rs`）を先に通します。Rust の確認は「すべて規則を満たす」と分かったときだけ受け入れ、それ以外は Python の規則が判定します。エラーの文は Python の規則からだけ出ます。
 - 社会関係・体調の関係の記録は、長い Run ではメモリ上に散らばり、Rust で全部を読むだけで 1 tick に数ミリ秒かかります。そこで CPython の dict watcher（Python 3.12 以降）で、書き込まれた記録だけを確かめます（`native/src/watch.rs`）。安定 ABI の外なので、関数は ctypes で探します。
-- Rust の部品がないときは、毎 tick `validate(validate_event_history=False)` を実行します。
+- kernel が `Unsupported` を返した分は、記憶なしの `validate(validate_event_history=False)` を実行します。
 
 **計測（7日分、画面からの経路、world・events・KPI のハッシュは一致、2026-10-31）：**
 
@@ -145,7 +145,7 @@
 - **毎回の作り直しをやめたもの：** `selected_models`（段階ごとに1回）、心理の長期状態の `deepcopy`、資源台帳の予約IDの確認、移動の経路が物理的に通れるかの判定（入力が変わるまで）、区域の中心、`dispatch_due` のキューの並べ替え。
 - **`AgentStateDelta` の確認：** Rust の計算結果は Rust の中で範囲を確かめ、外れたときだけ Python の確認に任せて、同じエラーにします。
 
-Python に任せる場合（型の違う値、不正な状態、trace が要るとき）は、Rust の関数が `Unsupported` を返します。`SHELTERSIM_NATIVE=0` では、すべて Python で計算します。
+Python に任せる場合（型の違う値、不正な状態、trace が要るとき）は、Rust の関数が `Unsupported` を返します。
 
 **計測（7日分、画面からの経路。移植前の commit と同時に実行して同じ負荷で比較、2026-10-31）：** world・events・KPI のハッシュは一致しました。
 
@@ -231,7 +231,7 @@ Python に任せる場合（型の違う値、不正な状態、trace が要る�
 各テストは、壊した世界について、記憶のない `validate()` と同じ判定（同じエラーの文）になることを確かめます。
 
 - **毎 tick の検証（`native/src/rules/after_tick.rs`）が完全検証に任せているもの：** 属性の代入を通らない書き込み、設定の `1`→`True` は、保存のたびに今までどおり読みます。古い共有の運営の記録と、履歴の中のタプルとリストの差し替えは、上の比較で同じ保存で見つけます。Run の終わりまで待つものはありません。Run の開始・終了（`TickEngine.run`）、読み込みなどの完全検証は、全項目を読みます。
-- **覚えたことを捨てる時：** 読み込み・分岐・再開の世界は新しいキャッシュで始まるので、最初の検証は完全です。Checkpoint の作成に失敗すると捨てます。Rust の部品がないときは毎回全部読みます。
+- **覚えたことを捨てる時：** 読み込み・分岐・再開の世界は新しいキャッシュで始まるので、最初の検証は完全です。Checkpoint の作成に失敗すると捨てます。
 - **限界：** 共有の運営の履歴が上限（20,000件）を超えて `history_truncated` になると、再生の始点が変わるので、その履歴は毎回全部読みます。今の Scenario の7日分は約8,000件で、ここに届きません。
 
 ほかに、モデルの署名を書き手ごとに設定の正準JSONあたり1回だけ計算し（1回の保存で2回計算して約10 ms でした）、archive が文書の大きさを 64 KiB を超えると分かった時点で数えるのをやめました（EventLog の全記録の長さを足していました）。
@@ -342,7 +342,7 @@ EventLog の比較の保証：`same_saved_records` は保存した bytes を読�
 
 | 処理 | 変えたこと | 根拠・読む入力 |
 |---|---|---|
-| 支援の依頼の走査（`assign_pending`、指標、苦情の確認、スタッフの支援の完了） | `WorldState.unsettled_support_requests()` で、終わっていない依頼だけを読む | 前の毎 tick の検証の記憶（`TickMemo.unsettled_requests`、`native/src/rules/after_tick.rs`）。解決済み・未解決の依頼は書き込みを知らせる。辞書が同じオブジェクトで始まること（`ValuesSnapshot`）を呼ぶたびに確かめ、新しい依頼を足す。終わった依頼が開き直された、辞書が差し替わった、記憶がない（分岐の直後、`SHELTERSIM_NATIVE=0`）ときは全部を読む。順序は辞書の順で、呼ぶ側が状態を読むので、結果は全部を読むときと同じ。毎 tick の全段階の比較テスト（`test_the_unsettled_requests_equal_a_scan_in_every_tick_phase`）と、開き直し・追加・削除・差し替え・写しのテスト |
+| 支援の依頼の走査（`assign_pending`、指標、苦情の確認、スタッフの支援の完了） | `WorldState.unsettled_support_requests()` で、終わっていない依頼だけを読む | 前の毎 tick の検証の記憶（`TickMemo.unsettled_requests`、`native/src/rules/after_tick.rs`）。解決済み・未解決の依頼は書き込みを知らせる。辞書が同じオブジェクトで始まること（`ValuesSnapshot`）を呼ぶたびに確かめ、新しい依頼を足す。終わった依頼が開き直された、辞書が差し替わった、記憶がない（分岐の直後）ときは全部を読む。順序は辞書の順で、呼ぶ側が状態を読むので、結果は全部を読むときと同じ。毎 tick の全段階の比較テスト（`test_the_unsettled_requests_equal_a_scan_in_every_tick_phase`）と、開き直し・追加・削除・差し替え・写しのテスト |
 | 段階ごとのスコープ（設備の形状、`selected_models`、部屋の経路、検証の設定） | ジェネレーターの `contextmanager` をやめ、クラス（`core/context.py`）にする | 値を入れて戻すだけで、入れ子のときの動きも同じ |
 | Python の GC | 計算の間の最も若い世代の回収を 50,000 個ごとから 200,000 個ごとにする（`core/collection.py`） | 結果に関わらない。後述の計測 |
 | 依頼の状態・イベントの種類と状態の enum | すでに enum なら呼び直さない（検証で 1 tick 約33回、記録で約29回） | `Enum(x)` は `x` がその enum なら `x` を返す |
@@ -402,11 +402,12 @@ EventLog の比較の保証：`same_saved_records` は保存した bytes を読�
 | 保存の前の完全検証 | 古い項目と規則が読むものを壊すと同じ保存で止まること、止めるエラーが省かない検証と同じこと（`tests/integration/test_save_validation.py`） |
 | 保存の形 | Rust が作る正規化した JSON・chunk・目録が、Python のものと1バイト違わないこと（B3 までは目録・ハッシュも同じ） |
 | 速さ | 計測器の「Run の終わりだけを測る」機能（`--from-project`・`--fork-minute`）で、7日目の保存と tick を数分で測る |
-| 3つの OS | `オフラインCI`（Rust の部品を作って入れたテストと、Linux では部品なしのテスト） |
+| 3つの OS | `オフラインCI`（3つの OS で Rust の部品を作って入れたテスト） |
 
 ## 決めたこと（2026-10-30）
 
 1. **Rust を必須にする：** 段階が合格したら、その段階の Python の実装は消してよい。チームには、CI が作る wheel を配るか、Rust の開発環境を入れてもらう。
+   - Rust の拡張は必須にした。`SHELTERSIM_NATIVE`、`native.available()`、CI の「Rust なし」の回はもうない。kernel が `Unsupported` を返したときに動く Python の実装を消すのは、手順4のレーン L10（[rust-port/step4-plan.md](rust-port/step4-plan.md)）。
 2. **モデルの式も Rust に移す：** B2・B4 で、モデルの式は Rust のコードになる。式を変えるときは Rust を書く。各移植は、モデル担当の方に見ていただく。
 3. **main へは、移植が終わるまで戻さない：** `feature/rust-port` で最後まで進め、終わってからまとめて戻す。main の変更は、必要に応じてこのブランチに取り込む。
    - 開発は、作業の区切りごとに作業ブランチから `feature/rust-port` への Pull Request で統合する。全テスト、ハッシュの一致、7日分の計測結果を Pull Request に書く。

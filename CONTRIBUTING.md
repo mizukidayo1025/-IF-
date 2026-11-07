@@ -12,7 +12,7 @@
 
 ## ローカル確認
 
-開発依存を導入し、offlineで実行します。
+開発依存とRustのkernel（[開発環境](docs/development.md#rustのkernel)）を導入し、offlineで実行します。kernelは必須です。
 
 ```shell
 python -m pip install -e ".[dev]"

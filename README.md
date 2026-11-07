@@ -226,9 +226,9 @@ LLMは条件設定や介入指示の解釈、結果の分析などに活用し�
 
 ## ▶️ 実際に動かしてみる
 
-Python 3.12以降に対応しています。
+Python 3.12以降に対応しています。Rustのkernel（`native/`）も必要で、Rust（stable）とmaturinで作って導入します。
 
-ローカルでのセットアップ方法やデモの起動方法については、[デモ・操作ガイド](docs/demo-guide.md)をご覧ください。計算を速くするRustのkernelの導入は[開発環境](docs/development.md)、共有のVMに置く手順は[VMへのデプロイ](docs/vm-deploy.md)にあります。
+ローカルでのセットアップ方法やデモの起動方法については、[デモ・操作ガイド](docs/demo-guide.md)をご覧ください。Rustのkernelの導入は[開発環境](docs/development.md)、共有のVMに置く手順は[VMへのデプロイ](docs/vm-deploy.md)にあります。
 
 LLMによるシナリオ補完、自然言語介入、分析レポート、質問応答にはAPI設定が必要です。
 

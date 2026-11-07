@@ -3,6 +3,7 @@
 ## 必要なもの
 
 - Python 3.12以降
+- Rust（stable）。Rustのkernelを作るのに使います
 - Git
 - ローカルWeb画面を使う場合はbrowser
 - Node.jsは任意。JavaScript構文をローカル確認するときだけ必要
@@ -24,20 +25,20 @@ python -m pip install -e ".[dev]"
 $env:SHELTERSIM_LLM_MODE = "offline"
 ~~~
 
-任意の施設図面画像処理は python -m pip install -e ".[dev,plan-import]"、Claude連携は python -m pip install -e ".[dev,llm]" で追加します。
+任意の施設図面画像処理は python -m pip install -e ".[dev,plan-import]"、Claude連携は python -m pip install -e ".[dev,llm]" で追加します。続けて、次の「Rustのkernel」の手順でkernelを導入します。
 
 ## Rustのkernel
 
-計算を速くするRustのkernel（`native/`）は、Rust（stable）とmaturinで作って導入します。導入しなくても動き、そのときは各処理がPythonのコードで動きます。CIは両方の経路でテストします。
+Rustのkernel（`native/`）は必須です。Rust（stable）とmaturinで作って導入します。導入しないと、`sheltersim`を読み込むときにImportErrorになります。
 
 ~~~shell
 python -m pip install "maturin>=1.7,<2"
 maturin build --release -m native/Cargo.toml --out native-dist
 python -m pip install --no-index --find-links native-dist sheltersim-native
-python -c "import sheltersim.native as n; assert n.available(), 'kernels not loaded'"
+python -c "import sheltersim.native"
 ~~~
 
-導入したkernelを使わずに動かすときは`SHELTERSIM_NATIVE=0`を設定します。kernelの構成と確認の道具は[native/README.md](../native/README.md)と[rust-port.md](rust-port.md)にあります。
+kernelの構成と確認の道具は[native/README.md](../native/README.md)と[rust-port.md](rust-port.md)にあります。
 
 ## 設定
 
