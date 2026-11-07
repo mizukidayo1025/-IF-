@@ -12,7 +12,7 @@
 | ID / version | 設定例 | 単位 | 理論・公的根拠 | 校正 |
 |---|---|---|---|---|
 | `PSY-RECOVERY-KAPPA` / `mean-reverting-distress-v1` | 0.01 | 1/minute | emotional inertia/mean reversionの構造 | 未校正 |
-| `ASM-MEAN-REVERTING-LIFE-STATE-V1` / `mean-reverting-life-state-v1` | recovery 0.01、body feedbackは既存config値 | 1/minute + 各body unit | 平均回帰と既存life-state式を組み合わせたShelterSim統合 | 未校正 |
+| `ASM-MEAN-REVERTING-LIFE-STATE-V1` / `mean-reverting-life-state-v1` | recovery 0.01、body feedbackは既存config値 | 1/minute + 各body unit | 平均回帰と既存life-state式を組み合わせた避難所IF！の統合 | 未校正 |
 | `natural_recovery_rate_by_agent` | 空mapなら共有率、個別指定時に優先 | 1/minute/Agent | 個人差を表す構造 | 未校正 |
 | `PSY-DAILY-RETENTION` | 0.90 | 日ごとの保持率 | AR(1)型潜在状態構造 | 未校正 |
 | `SOCIAL-AFFECT-GAMMA` / `expressiveness-channel-openness-v1` | existing spread rate | 1/minute | Bosse expressiveness/channel/openness構造 | 未校正 |

@@ -1,5 +1,5 @@
 [Unit]
-Description=ShelterSim judge slot %i
+Description=避難所IF！ judge slot %i
 After=network-online.target
 
 [Service]

@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "sheltersim-native"
 version = "0.1.0"
-description = "Rust kernels for ShelterSim (docs/rust-port.md)."
+description = "Rust kernels for 避難所IF！ (docs/rust-port.md)."
 requires-python = ">=3.12"
 
 [tool.maturin]

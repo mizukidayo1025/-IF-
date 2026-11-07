@@ -36,7 +36,7 @@ slotを減らすなら、小さいマシン（`e2-standard-4`など）でもか�
 VMにSSHで入り、リポジトリを取り出して`setup.sh`を実行します。`<IP>`は上で表示された固定IPです。
 
 ~~~shell
-git clone https://github.com/mizukidayo1025/-IF-.git sheltersim-kit
+git clone https://github.com/mizukidayo1025/HinanjoIF-Shelter_Sim-.git sheltersim-kit
 sudo bash sheltersim-kit/deploy/vm/setup.sh <IP>
 ~~~
 

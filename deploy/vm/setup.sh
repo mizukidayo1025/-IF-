@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Set up judge slots of ShelterSim on a fresh Ubuntu 24.04 VM (docs/vm-deploy.md).
+# Set up judge slots of 避難所IF！ on a fresh Ubuntu 24.04 VM (docs/vm-deploy.md).
 #
 #   sudo bash deploy/vm/setup.sh <public-ip> [slots]
 #
@@ -14,7 +14,7 @@ set -euo pipefail
 
 PUBLIC_IP="${1:?usage: sudo bash setup.sh <public-ip> [slots]}"
 SLOTS="${2:-6}"
-REPO_URL="${REPO_URL:-https://github.com/mizukidayo1025/-IF-.git}"
+REPO_URL="${REPO_URL:-https://github.com/mizukidayo1025/HinanjoIF-Shelter_Sim-.git}"
 BASIC_USER="${BASIC_USER:-judge}"
 
 APP=/opt/sheltersim/app

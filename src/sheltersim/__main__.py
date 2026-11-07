@@ -1,4 +1,4 @@
-"""Command-line entry point for ShelterSim."""
+"""Command-line entry point for 避難所IF！."""
 
 from sheltersim.cli import main
 

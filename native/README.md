@@ -1,6 +1,6 @@
 # sheltersim_native
 
-Rust kernels for ShelterSim, merged into `main` on 2026-11-07. The port moves the
+Rust kernels for 避難所IF！, merged into `main` on 2026-11-07. The port moves the
 state the tick computes on into Rust in stages; each stage must keep the world,
 events and KPI hashes of a seven-day Run (`benchmarks/investigate_performance.py
 --expect`). The plan and the measurements are in issue #272.
