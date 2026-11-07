@@ -12,6 +12,10 @@
 # https://sN.<ip-with-dashes>.sslip.io behind one Basic-auth login. All slots share one
 # LLM usage ledger (XDG_STATE_HOME), so the default $50 cap holds for the whole VM.
 # Re-running the script is safe: it keeps the API key, the password and slot data.
+#
+# The precomputed sample Project (scripts/build_project_sample.py) is built once per app
+# commit into /var/lib/sheltersim/sample and copied into each slot that lacks it.
+# SAMPLE=0 skips it.
 set -euo pipefail
 
 METADATA=http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0
@@ -28,6 +32,7 @@ fi
 SLOTS="${2:-6}"
 REPO_URL="${REPO_URL:-https://github.com/mizukidayo1025/HinanjoIF-Shelter_Sim-.git}"
 BASIC_USER="${BASIC_USER:-judge}"
+SAMPLE="${SAMPLE:-1}"
 
 APP=/opt/sheltersim/app
 VENV=/opt/sheltersim/venv
@@ -118,13 +123,45 @@ BASIC_USER="$(sed -n 1p "$ETC/basic-auth")"
 BASIC_PASS="$(sed -n 2p "$ETC/basic-auth")"
 BASIC_HASH="$(caddy hash-password --plaintext "$BASIC_PASS")"
 
+# The precomputed sample: a 7-day Run of the new screen's example Scenario and its
+# Day 4 toilet outage branch, which the new screen opens without computing. It is built as the sheltersim user,
+# offline, without the API key and away from the shared usage ledger, and again only
+# when the app commit has changed since the last build (docs/vm-deploy.md).
+SAMPLE_DIR=$DATA/sample
+if [[ $SAMPLE == 0 ]]; then
+  rm -rf "$SAMPLE_DIR"
+else
+  COMMIT="$(git -C "$APP" rev-parse HEAD)"
+  if [[ "$(cat "$SAMPLE_DIR/app-commit" 2>/dev/null || true)" != "$COMMIT" ]]; then
+    echo "== precomputed sample (about 5 minutes, 4 GB of memory)"
+    rm -rf "$SAMPLE_DIR.new"
+    install -d -o sheltersim -g sheltersim "$SAMPLE_DIR.new"
+    runuser -u sheltersim -- env -i -C "$SAMPLE_DIR.new" PATH=/usr/bin:/bin HOME="$DATA" \
+      PYTHONUNBUFFERED=1 SHELTERSIM_LLM_MODE=offline XDG_STATE_HOME="$SAMPLE_DIR.new/state" \
+      SHELTERSIM_PROJECTS_DIR="$SAMPLE_DIR.new/projects" \
+      SHELTERSIM_LLM_CACHE_PATH="$SAMPLE_DIR.new/llm-tape.json" \
+      "$VENV/bin/python" "$APP/scripts/build_project_sample.py" "$SAMPLE_DIR.new/projects" \
+      --summary "$SAMPLE_DIR.new/sample-build.json" >/dev/null
+    rm -rf "$SAMPLE_DIR.new/state" "$SAMPLE_DIR.new/llm-tape.json"
+    echo "$COMMIT" > "$SAMPLE_DIR.new/app-commit"
+    rm -rf "$SAMPLE_DIR"
+    mv "$SAMPLE_DIR.new" "$SAMPLE_DIR"
+  fi
+fi
+SAMPLE_GB=0
+if [[ -d $SAMPLE_DIR ]]; then
+  SAMPLE_GB="$(du -s -B 1000000000 "$SAMPLE_DIR" | cut -f1)"
+fi
+
 # Each slot may keep this much saved data, so that all slots together cannot fill the disk:
-# the disk less a reserve for the system, the app and its build, shared by the slots.
+# the disk less a reserve for the system, the app and its build, and less the sample's
+# template, shared by the slots. A slot's own copy of the sample counts toward its share.
 # Set STORAGE_GB=<n> to choose it; run setup.sh again after resizing the disk.
 DISK_GB="$(df --output=size -B 1000000000 "$DATA" | tail -n 1 | tr -d ' ')"
-STORAGE_GB="${STORAGE_GB:-$(( (DISK_GB - 15) / SLOTS ))}"
-[[ $STORAGE_GB =~ ^[0-9]+$ && $STORAGE_GB -ge 1 ]] || {
-  echo "not enough disk for $SLOTS slots (${DISK_GB} GB); set STORAGE_GB or use fewer slots" >&2
+STORAGE_GB="${STORAGE_GB:-$(( (DISK_GB - 15 - SAMPLE_GB) / SLOTS ))}"
+[[ $STORAGE_GB =~ ^[0-9]+$ && $STORAGE_GB -gt $SAMPLE_GB ]] || {
+  echo "not enough disk for $SLOTS slots (${DISK_GB} GB, sample ${SAMPLE_GB} GB);" \
+    "set STORAGE_GB, use fewer slots or skip the sample with SAMPLE=0" >&2
   exit 1
 }
 
@@ -133,15 +170,27 @@ install -m 755 "$HERE/reset-slot.sh" /opt/sheltersim/reset-slot.sh
 install -m 644 "$HERE/sheltersim@.service" /etc/systemd/system/sheltersim@.service
 for n in $(seq 1 "$SLOTS"); do
   printf 'PORT=%s\nSTORAGE_GB=%s\n' "$((8800 + n))" "$STORAGE_GB" > "$ETC/slot$n.env"
+  projects=$DATA/slot$n/demo_replay/runs/.projects
   if [[ ! -d $DATA/slot$n/demo_replay ]]; then
     /opt/sheltersim/reset-slot.sh "$n" --no-restart
+  elif [[ -d $SAMPLE_DIR && ! -e $projects/sample ]]; then
+    # Copied beside the store and moved in, so a running slot never lists half a copy.
+    rm -rf "$DATA/slot$n/sample.copy"
+    cp -a "$SAMPLE_DIR/projects/sample" "$DATA/slot$n/sample.copy"
+    mkdir -p "$projects"
+    mv "$DATA/slot$n/sample.copy" "$projects/sample"
   fi
 done
 chown -R sheltersim:sheltersim "$DATA"
 
 echo "== landing page and Caddy"
 mkdir -p /opt/sheltersim/landing
-python3 "$HERE/render_landing.py" "$DOMAIN" "$SLOTS" > /opt/sheltersim/landing/index.html
+SAMPLE_SUMMARY=()
+if [[ -f $SAMPLE_DIR/sample-build.json ]]; then
+  SAMPLE_SUMMARY=("$SAMPLE_DIR/sample-build.json")
+fi
+python3 "$HERE/render_landing.py" "$DOMAIN" "$SLOTS" "${SAMPLE_SUMMARY[@]}" \
+  > /opt/sheltersim/landing/index.html
 {
   echo "(auth) {"
   echo "  basic_auth {"
@@ -157,9 +206,10 @@ python3 "$HERE/render_landing.py" "$DOMAIN" "$SLOTS" > /opt/sheltersim/landing/i
     echo "s$n.$DOMAIN {"
     echo "  import auth"
     # Judges use the new screen only: the app's / and the older screens (/demo, /admin)
-    # all go to /demo-v2. The API and the new screen's files pass through.
+    # all go to /demo-v2 with the same query (?project=...&run=...). The API and the new
+    # screen's files pass through.
     echo "  @older path / /demo /admin /index.html"
-    echo "  redir @older /demo-v2 302"
+    echo "  redir @older /demo-v2{?query} 302"
     echo "  reverse_proxy 127.0.0.1:$((8800 + n))"
     echo "}"
   done
