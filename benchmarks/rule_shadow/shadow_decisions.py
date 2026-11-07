@@ -33,8 +33,6 @@ KEY = "agent_dynamics_v1"
 def prepare(output: str) -> None:
     from sheltersim import native
 
-    if not native.available():
-        return
     rules = native.rules("decisions")
     kernel = rules.record_outcome
     recorder = Recorder(output, "decisions")

@@ -1092,5 +1092,4 @@ class ResourceServiceManager:
         self.world.metric_state[key] = self.world.metric_state.get(key, 0.0) + 1.0
 
 
-if native.available():
-    register_rust_validator(SERVICE_STATE_KEY, native.state("resource_service").validate)
+register_rust_validator(SERVICE_STATE_KEY, native.state("resource_service").validate)

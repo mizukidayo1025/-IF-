@@ -4,11 +4,10 @@
 and `EventApplicationError`, whose texts the dispatcher saves as an event's `detail`. A request
 the queue turns down raises a `ValueError` whose text the propose step saves as the request's
 `detail`. Each case builds a state that reaches one check and asks the Python rule, on a copy,
-what it says. With the kernels, the kernel must raise the same class and text itself (not a
-refusal the Python rule then words) and leave the world as it was, or, for a request, write what
-the Python rule writes. Without the kernels the Python rule alone is checked against the text
-(docs/rust-port/lanes/l8-texts-events.md). The toilet completion's and the ledger handler's
-wraps of their rules' `ValueError` are here too.
+what it says. The kernel must raise the same class and text itself (not a refusal the Python rule
+then words) and leave the world as it was, or, for a request, write what the Python rule writes
+(docs/rust-port/lanes/l8-texts-events.md). The toilet completion's and the ledger handler's wraps
+of their rules' `ValueError` are here too.
 """
 
 from __future__ import annotations
@@ -52,20 +51,16 @@ def _bytes(world: WorldState) -> str:
 
 
 def _says(world: WorldState, call: Any, rule: Any, expected: type, text: str) -> None:
-    """`rule(copy)` raises `expected` with `text`; with the kernels, `call(world)` raises it itself.
+    """`rule(copy)` raises `expected` with `text`, and `call(world)` raises it itself.
 
     `call` runs the kernel (through its Python entry); `rule` is the Python rule alone. The world
     `call` ran on must end as the copy the rule ran on does: unchanged for an event's outcome.
-    Without the kernels the rule runs on the world itself (a world holds read-only views that
-    `deepcopy` takes only from the kernels' rows).
     """
-    twin = copy.deepcopy(world) if native.available() else world
+    twin = copy.deepcopy(world)
     with pytest.raises(expected) as said:
         rule(twin)
     assert type(said.value) is expected
     assert str(said.value) == text
-    if not native.available():
-        return
     before = _bytes(world)
     with pytest.raises(expected) as made:
         call(world)
@@ -127,9 +122,7 @@ def _complete_says(world: WorldState, event: ScheduledEvent, expected: type, tex
         lambda state: ResourceServiceManager(state).complete(event),
         lambda state: ResourceServiceManager.complete.__wrapped__(
             ResourceServiceManager(state), event
-        )
-        if native.available()
-        else ResourceServiceManager(state).complete(event),
+        ),
         expected,
         text,
     )
@@ -281,11 +274,7 @@ def test_a_completion_in_a_world_not_v6_fails_with_the_handler_s_text(
 
 def _cancel_says(world: WorldState, event: ScheduledEvent, expected: type, text: str) -> None:
     def rule(state: WorldState) -> None:
-        manager = ResourceServiceManager(state)
-        if native.available():
-            ResourceServiceManager.cancel.__wrapped__(manager, event)
-        else:
-            ResourceServiceCancellationHandler(manager).apply(state, event)
+        ResourceServiceManager.cancel.__wrapped__(ResourceServiceManager(state), event)
 
     _says(
         world,
@@ -461,13 +450,9 @@ def test_an_interruption_s_texts_are_python_s(
     cause = _event("staff_unavailable", {"staff_id": staff_id, "until_minute": 5})
 
     def rule(state: WorldState) -> None:
-        manager = ResourceServiceManager(state)
-        if native.available():
-            ResourceServiceManager.interrupt_for_staff.__wrapped__(
-                manager, staff_id, causation_event=cause
-            )
-        else:
-            manager.interrupt_for_staff(staff_id, causation_event=cause)
+        ResourceServiceManager.interrupt_for_staff.__wrapped__(
+            ResourceServiceManager(state), staff_id, causation_event=cause
+        )
 
     _says(
         world,
@@ -489,15 +474,13 @@ def test_an_interruption_of_a_cancelled_task_is_the_cancellation_s_text(
     staff_id = completion.payload["staff_id"]
     world.model_state[SERVICE]["cancelled_task_ids"].append(task_id)
     cause = _event("staff_unavailable", {"staff_id": staff_id, "until_minute": 5})
-    twin = copy.deepcopy(world) if native.available() else world
+    twin = copy.deepcopy(world)
     rule = ResourceServiceManager.interrupt_for_staff
     rule = getattr(rule, "__wrapped__", rule)
     with pytest.raises(EventSuppressed) as said:
         rule(ResourceServiceManager(twin), staff_id, causation_event=cause)
     text = f"resource service task {task_id!r} was already cancelled"
     assert str(said.value) == text
-    if not native.available():
-        return
     before = _bytes(world)
     with pytest.raises(EventSuppressed) as made:
         native.rules("handlers").interrupt_for_staff(
@@ -657,7 +640,7 @@ def test_a_request_at_once_the_queue_turns_down_keeps_python_s_text(
         world = WorldState.from_scenario(generated_scenario_with_split_queues)
         _place_at(world, "A001", "water_station_main")
         world.facilities["toilet_01"].queue_agent_ids.append("A001")
-    twin = copy.deepcopy(world) if native.available() else world
+    twin = copy.deepcopy(world)
     proposal = SimpleNamespace(
         action=ActionKind.FETCH_WATER,
         agent_id="A001",
@@ -671,8 +654,6 @@ def test_a_request_at_once_the_queue_turns_down_keeps_python_s_text(
     assert history[-1]["detail"] == texts[why]
     assert twin.metric_state["resource_service_request_rejected_count"] == 1.0
     assert expected[0] is None
-    if not native.available():
-        return
     result = native.rules("proposals").apply_effect(_controller(world), proposal)
     assert list(result) == list(expected)
     assert _bytes(world) == _bytes(twin)
@@ -721,7 +702,7 @@ def test_a_toilet_completion_wraps_python_s_text(
     visiting: tuple[WorldState, str], spoil: str, text: str
 ) -> None:
     world = visiting[0]
-    world = copy.deepcopy(world) if native.available() else WorldState.from_dict(world.to_dict())
+    world = copy.deepcopy(world)
     task = world.active_tasks[visiting[1]]
     agent_id, toilet = task.agent_id, task.resource_id
     water = next(key for key, item in world.facilities.items() if item.kind == "water_station")

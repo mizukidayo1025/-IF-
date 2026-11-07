@@ -52,7 +52,7 @@ class Variant:
 
 
 # PYTHONHASHSEED varies set and str-hash order; RAYON_NUM_THREADS varies the parallel parse
-# of saved records; SHELTERSIM_NATIVE=0 runs the Python implementation of the Rust parts.
+# of saved records.
 BASE = Variant("base", {"PYTHONHASHSEED": "1"})
 VARIANTS = (
     Variant("second_process", {"PYTHONHASHSEED": "1"}),
@@ -61,7 +61,6 @@ VARIANTS = (
     Variant(
         "four_workers", {"PYTHONHASHSEED": "3", "RAYON_NUM_THREADS": "4"}, only_with_saves=True
     ),
-    Variant("python_kernels", {"PYTHONHASHSEED": "4", "SHELTERSIM_NATIVE": "0"}),
 )
 # With the base run's hash seed, so that only the order of the dicts differs from it.
 ORDER_VARIABLE = "SHELTERSIM_GATE_REVERSE"
@@ -92,8 +91,6 @@ def run_one(name: str, output: Path, chosen: Any = None) -> None:
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from gate_scenarios import all_scenarios
 
-    from sheltersim import native
-
     scenario = chosen or all_scenarios()[name]
     order = os.environ.get(ORDER_VARIABLE)
     if order:
@@ -113,8 +110,6 @@ def run_one(name: str, output: Path, chosen: Any = None) -> None:
                 "scenario": name,
                 "what": scenario.what,
                 "wall_seconds": time.perf_counter() - started,
-                # A comparison with the Python kernels means nothing if both runs used one kind.
-                "native_kernels": native.available(),
                 "runs": outcome.runs,
                 "refused": outcome.refused,
                 "must_match": [list(row) for row in outcome.must_match],
@@ -285,14 +280,9 @@ def main() -> int:
         help="also reverse model_state's dicts and world.agents at each phase's end, and in phases",
     )
     parser.add_argument(
-        "--no-python-kernels",
-        action="store_true",
-        help="skip the comparison with the Python kernels (Rust and Python agree on Linux only)",
-    )
-    parser.add_argument(
         "--coverage",
         action="store_true",
-        help="measure the tick-side lines reached, with the Rust kernels and without",
+        help="measure the tick-side Python lines the base runs reach, into coverage.md",
     )
     parser.add_argument("--only", action="append", help="scenarios whose name starts with this")
     parser.add_argument("--jobs", type=int, default=min(os.cpu_count() or 1, 12))
@@ -316,7 +306,6 @@ def main() -> int:
         "scenarios": {
             name: {
                 "wall_seconds": result.get("wall_seconds"),
-                "native_kernels": result.get("native_kernels"),
                 "what": result.get("what"),
                 "runs": result.get("runs"),
                 "refused": result.get("refused"),
@@ -334,15 +323,10 @@ def main() -> int:
             else:
                 problems.extend(_differences(f"expected {name}", expected[name], results[name]))
 
-    if args.determinism or args.coverage or args.reversed_order:
+    if args.determinism or args.reversed_order:
         table: dict[str, dict[str, Any]] = {name: {} for name in names}
         reads_saves = _reads_saves(names)
-        variants = [
-            variant
-            for variant in VARIANTS
-            if (args.determinism or (args.coverage and variant.name == "python_kernels"))
-            and not (args.no_python_kernels and variant.name == "python_kernels")
-        ]
+        variants = list(VARIANTS) if args.determinism else []
         if args.reversed_order:
             variants += ORDER_VARIANTS
         for variant in variants:
@@ -351,21 +335,13 @@ def main() -> int:
             problems.extend(_problems_within(other))
             for name in chosen:
                 differences = _differences(f"{variant.name} {name}", results[name], other[name])
-                if (
-                    variant.name == "python_kernels"
-                    and not other[name].get("crashed")
-                    and other[name]["native_kernels"]
-                ):
-                    differences.append(f"{name}: SHELTERSIM_NATIVE=0 still used the Rust kernels")
                 problems.extend(differences)
                 table[name][variant.name] = "same" if not differences else "DIFFERENT"
         summary["determinism"] = table
 
     if coverage_dir:
-        native = sorted(coverage_dir.glob(f"{BASE.name}.*.cov"))
-        everything = sorted(coverage_dir.glob("*.cov"))
-        _write_coverage(_tick_side_rows(native), args.output / "coverage-native.md")
-        _write_coverage(_tick_side_rows(everything), args.output / "coverage-both.md")
+        base = sorted(coverage_dir.glob(f"{BASE.name}.*.cov"))
+        _write_coverage(_tick_side_rows(base), args.output / "coverage.md")
 
     if args.write_expected:
         if problems:

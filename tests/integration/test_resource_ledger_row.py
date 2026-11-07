@@ -37,8 +37,6 @@ from sheltersim.domain.resources import (
 from sheltersim.events.models import EventKind, ScheduledEvent
 from sheltersim.experiments.scenario import ScenarioSpec
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 SOURCE = "ASM-TEST-RESOURCE-OPERATION"
 SEQUENCE = [0]
 

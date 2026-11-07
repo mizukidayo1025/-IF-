@@ -1216,6 +1216,8 @@ L0 の前に文を読んで付けた分類です。到達は**推測で、上の
 | **L13** | 3つの OS | 9節。CI の変更 |  | L11（L12 と同時でよい） | L12 と | 中 |
 | **L14**（任意） | 木の切り離し | 5節 |  | L10 | L12 と調整 | 低〜中 |
 
+**L10 の進み：** 最初の部分（Rust の拡張を必須にし、`SHELTERSIM_NATIVE`、`native.available()`、CI の「Rust なし」の回を消す）は済みました。
+
 **一番危ないのは L9 です。** 読んで確かめたこと：
 
 - `Checkpoint._legacy_queue_migration_required`（`core/checkpoint.py:184-213`）は、`policy:`、`simulator:`、`state:`、`operator:`、`model_suite` のどれかが違うと `CheckpointError("installed model implementation/state versions differ; explicit migration required")` を出します。`_world_document_for_restore` から呼ばれ、**すべての読み込みの経路（`load_restored_checkpoint`）を通ります。**

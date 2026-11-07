@@ -43,8 +43,6 @@ from sheltersim.events.models import (
 )
 from sheltersim.experiments.scenario import ScenarioSpec
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="the kernels are the subject")
-
 
 def _document(world: WorldState) -> str:
     # A digest: pytest's report of two long documents that differ takes minutes.

@@ -27,8 +27,6 @@ from sheltersim.policies.behavior import ActionProposal, WorldView
 from sheltersim.storage import history_payloads
 from sheltersim.storage.history_index import HistoryIndex
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="only with the Rust kernels")
-
 STEPS = ("_propose_due", "_observed_state", "_record_outcome")
 
 

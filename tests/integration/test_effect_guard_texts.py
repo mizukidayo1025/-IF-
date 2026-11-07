@@ -33,8 +33,6 @@ from sheltersim.events.models import EventKind, EventStatus, ScheduledEvent
 from sheltersim.experiments.phases.dispatch import DispatchPhase
 from sheltersim.experiments.runner import OfflineSimulationController
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 KEY = "effect_program_v1"
 
 

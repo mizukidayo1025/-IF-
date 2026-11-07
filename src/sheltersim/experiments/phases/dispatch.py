@@ -297,5 +297,4 @@ class DispatchPhase:
 
 # Which step a toilet's completion leads to, for the table of rules/dispatch.rs. A patch of the
 # step shows there, and the walk home then goes through it.
-if native.available():
-    native.rules("dispatch").install_return_rule(DispatchPhase._schedule_return_to_initial_zone)
+native.rules("dispatch").install_return_rule(DispatchPhase._schedule_return_to_initial_zone)

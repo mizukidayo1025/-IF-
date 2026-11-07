@@ -20,18 +20,15 @@ from typing import Any
 import pytest
 from support.world import kernel_says_python_s_text
 
-from sheltersim import native
 from sheltersim.core.engine import TickEngine
 from sheltersim.core.world import WorldState
 from sheltersim.domain.models import Activity, SupportRequestState, SupportRequestStatus
 from sheltersim.domain.social_dialogue import capture_social_state_context
 from sheltersim.events.handlers import SocialInteractionHandler
 from sheltersim.events.models import (
-    EventApplicationError,
     EventKind,
     EventLogRecord,
     EventStatus,
-    EventSuppressed,
     ScheduledEvent,
 )
 from sheltersim.experiments.metrics import MetricsRecorder
@@ -78,9 +75,8 @@ def rumor_world() -> WorldState:
 
 
 def _copy(world: WorldState) -> WorldState:
-    """A copy to change. Without the kernels a world does not deep-copy; each test then has its
-    own world, and a Python rule that raises changes nothing."""
-    return copy.deepcopy(world) if native.available() else world
+    """A copy to change."""
+    return copy.deepcopy(world)
 
 
 def _social(world: WorldState, payload: dict[str, Any], **fields: Any) -> ScheduledEvent:
@@ -103,24 +99,16 @@ def _social(world: WorldState, payload: dict[str, Any], **fields: Any) -> Schedu
 
 
 def _says(world: WorldState, event: ScheduledEvent, text: str) -> None:
-    """The first failing check's text: the kernel's own, or the Python rule's without kernels."""
+    """The first failing check's text, the kernel's own."""
     world = _copy(world)
     handler = SocialInteractionHandler()
-    if native.available():
-        _, said = kernel_says_python_s_text(handler, world, event)
-    else:
-        with pytest.raises((EventSuppressed, EventApplicationError)) as raised:
-            handler.apply(world, event)
-        said = str(raised.value)
+    _, said = kernel_says_python_s_text(handler, world, event)
     assert said == text, (event.payload, said)
 
 
 def _applies_as_python(world: WorldState, event: ScheduledEvent) -> WorldState:
-    """The event applies, and with the kernels it writes what the Python rule writes."""
+    """The event applies, and it writes what the Python rule writes."""
     handler = SocialInteractionHandler()
-    if not native.available():
-        handler.apply(world, event)
-        return world
     world = copy.deepcopy(world)
     twin = copy.deepcopy(world)
     handler.apply(world, event)

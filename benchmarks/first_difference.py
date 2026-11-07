@@ -6,13 +6,12 @@ values it runs the scenario again up to that phase on each side; no state is sto
 
     python benchmarks/first_difference.py --record NAME --output A [--draws]
     python benchmarks/first_difference.py A B
-    python benchmarks/first_difference.py --both NAME --output DIR [--draws]
 
 NAME is a gate scenario or generated:MINUTES:EVACUEES. For A and B, change PYTHONPATH or
 the environment between the recordings: each stream remembers how to run itself again.
---both records under SHELTERSIM_NATIVE=1 and =0 and compares the two. --draws also logs each
-random draw and what it was compared with, which finds a probability that changed without
-flipping any comparison. Exit status: 0 no difference, 1 a difference, 2 could not compare.
+--draws also logs each random draw of the Python code and what it was compared with, which
+finds a probability that changed without flipping any comparison; the Rust kernels' draws are
+not logged. Exit status: 0 no difference, 1 a difference, 2 could not compare.
 
 Run from the repository root with src on PYTHONPATH. Output belongs outside the repository.
 """
@@ -26,7 +25,6 @@ import os
 import shutil
 import subprocess
 import sys
-import time
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -40,7 +38,6 @@ RESULT = "result.json"
 REMEMBERED_ENVIRONMENT = (
     "PYTHONPATH",
     "PYTHONHASHSEED",
-    "SHELTERSIM_NATIVE",
     "RAYON_NUM_THREADS",
 )
 HASHES = ("world_hash", "events_hash", "metrics_hash")
@@ -348,11 +345,10 @@ def _flipped(first: list[Any], second: list[Any]) -> bool:
     )
 
 
-def compare_draws(first: Path, second: Path, *, one_side_allowed: bool, max_values: int) -> bool:
+def compare_draws(first: Path, second: Path, *, max_values: int) -> bool:
     """Print the first draw whose value or uses differ; whether a draw differs.
 
-    A draw on one side only is a difference unless ``one_side_allowed``: Rust's draws are not
-    logged, so under --both the Python side has draws the Rust side made in Rust.
+    A draw on one side only is a difference too.
     """
     a_groups = dict(_draw_groups(first / DRAWS))
     b_groups = dict(_draw_groups(second / DRAWS))
@@ -395,7 +391,7 @@ def compare_draws(first: Path, second: Path, *, one_side_allowed: bool, max_valu
         print(f"  first difference: {first_place}")
         print("  each entry is [draw, [[operation, the other number (hex), result], ...]]")
         print("\n".join(examples))
-    return bool(different or (not one_side_allowed and any(one_side.values())))
+    return bool(different or any(one_side.values()))
 
 
 def compare_results(first: Path, second: Path) -> bool:
@@ -417,24 +413,14 @@ def compare_results(first: Path, second: Path) -> bool:
     return bool(different)
 
 
-def compare(
-    first: Path,
-    second: Path,
-    *,
-    max_values: int,
-    values: bool = True,
-    one_side_allowed: bool = False,
-) -> int:
+def compare(first: Path, second: Path, *, max_values: int, values: bool = True) -> int:
     if not (first / DIGESTS).exists() or not (second / DIGESTS).exists():
         print(f"no stream in {first} or {second}", file=sys.stderr)
         return 2
     print(f"A: {first}\nB: {second}")
     found = compare_digests(first, second, max_values=max_values, values=values)
     if (first / DRAWS).exists() and (second / DRAWS).exists():
-        found = (
-            compare_draws(first, second, one_side_allowed=one_side_allowed, max_values=max_values)
-            or found
-        )
+        found = compare_draws(first, second, max_values=max_values) or found
     else:
         print("draws: not recorded on both sides")
     if compare_results(first, second):
@@ -442,51 +428,10 @@ def compare(
     return 1 if found else 0
 
 
-def both(args: argparse.Namespace) -> int:
-    """Record a scenario with the Rust kernels and without, and compare."""
-    output: Path = args.output.resolve()
-    output.mkdir(parents=True, exist_ok=False)
-    meta = {
-        "scenario": args.both,
-        "script": str(Path(__file__).resolve()),
-        "python": sys.executable,
-        "cwd": os.getcwd(),
-        "draws": args.draws,
-        "reverse": args.reverse,
-        "every_minutes": args.every_minutes,
-        "minutes": args.minutes,
-        "full_every_minutes": args.full_every_minutes,
-    }
-    sides = {"native": "1", "python": "0"}
-
-    def one(side: str) -> tuple[str, subprocess.CompletedProcess[str], float]:
-        started = time.perf_counter()
-        done = _spawn_record(
-            meta,
-            output / side,
-            {"SHELTERSIM_NATIVE": sides[side], "PYTHONHASHSEED": "1"},
-        )
-        return side, done, time.perf_counter() - started
-
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        for side, done, seconds in pool.map(one, sides):
-            print(f"{side}: exit {done.returncode} in {seconds:.1f}s")
-            if done.returncode != 0:
-                print(done.stderr[-2000:], file=sys.stderr)
-    first, second = output / "native", output / "python"
-    if (first / RESULT).exists():
-        result = json.loads((first / RESULT).read_text(encoding="utf-8"))
-        if not result["native_kernels"]:
-            print("the extension is not installed: both sides ran Python", file=sys.stderr)
-            return 2
-    return compare(first, second, max_values=args.max_values, one_side_allowed=True)
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     parser.add_argument("streams", nargs="*", type=Path, metavar="STREAM", help="A and B")
     parser.add_argument("--record", help="record this scenario into --output")
-    parser.add_argument("--both", help="record with and without the Rust kernels, and compare")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--draws", action="store_true", help="also log random draws and uses")
     parser.add_argument(
@@ -512,12 +457,12 @@ def main() -> int:
     parser.add_argument("--dump-line", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--dump-parts", help=argparse.SUPPRESS)
     args = parser.parse_args()
-    if args.record or args.both:
+    if args.record:
         if args.output is None or args.streams:
-            parser.error("--record and --both take --output and no streams")
-        return record(args) if args.record else both(args)
+            parser.error("--record takes --output and no streams")
+        return record(args)
     if len(args.streams) != 2:
-        parser.error("give two streams, or --record or --both")
+        parser.error("give two streams, or --record")
     return compare(
         args.streams[0].resolve(),
         args.streams[1].resolve(),

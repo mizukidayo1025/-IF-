@@ -21,8 +21,6 @@ from sheltersim.experiments.runner import OfflineSimulationController, run_scena
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _IndexedMetricSink, _MetricSink
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 
 @pytest.fixture(scope="module")
 def documents(tmp_path_factory, generated_scenario_preview) -> list[dict]:

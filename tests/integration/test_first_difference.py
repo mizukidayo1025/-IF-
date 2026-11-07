@@ -7,7 +7,6 @@ The rules for using them are in docs/testing.md.
 from __future__ import annotations
 
 import copy
-import importlib.util
 import json
 import os
 import shutil
@@ -30,6 +29,23 @@ import tick_probe  # noqa: E402
 
 TOOL = BENCHMARKS / "first_difference.py"
 SOURCE = BENCHMARKS.parent / "src"
+TESTS = BENCHMARKS.parent / "tests"
+# Put on PYTHONPATH, it runs the recorded process on the Python rules, whose draws the recorder logs
+# and which _patched_source can edit: the `python_rules` mark, and the Python rule of the contact
+# handler that carries a correction.
+PYTHON_RULES_SITE = f"""\
+import sys
+
+import pytest
+
+sys.path.insert(0, {str(TESTS)!r})
+from support.python_rules import without_kernels
+
+from sheltersim.events.handlers import InformationContactHandler
+
+without_kernels(pytest.MonkeyPatch())
+InformationContactHandler.apply = InformationContactHandler.apply.__wrapped__
+"""
 # Rumors, corrections and the Python information rule, in a few seconds.
 RUMORS = "model__information__evidence-aware-rumor-v1"
 FORGETTING = "forget_probability = -math.expm1(-self.config.forgetting_rate_per_minute)"
@@ -42,13 +58,11 @@ CORRECTION = """\
 LINUX_ONLY = pytest.mark.skipif(sys.platform != "linux", reason="hashes are pinned on Linux")
 
 
-def _tool(
-    *arguments: object, path: Path | None = None, extra_env: dict[str, str] | None = None
-) -> subprocess.CompletedProcess[str]:
-    env = {**os.environ, "SHELTERSIM_LLM_MODE": "offline", **(extra_env or {})}
-    if path is not None:
+def _tool(*arguments: object, paths: tuple[Path, ...] = ()) -> subprocess.CompletedProcess[str]:
+    env = {**os.environ, "SHELTERSIM_LLM_MODE": "offline"}
+    if paths:
         env["PYTHONPATH"] = os.pathsep.join(
-            [str(path), *filter(None, os.environ.get("PYTHONPATH", "").split(os.pathsep))]
+            [*map(str, paths), *filter(None, os.environ.get("PYTHONPATH", "").split(os.pathsep))]
         )
     return subprocess.run(
         [sys.executable, str(TOOL), *map(str, arguments)],
@@ -74,16 +88,11 @@ def _patched_source(directory: Path, relative: str, before: str, after: str) -> 
 
 def _recorded(output: Path, *arguments: object, path: Path | None = None) -> Path:
     """A stream of the Python rules, which are what _patched_source edits: Rust moved the rest."""
-    done = _tool(
-        "--record",
-        RUMORS,
-        "--output",
-        output,
-        "--draws",
-        *arguments,
-        path=path,
-        extra_env={"SHELTERSIM_NATIVE": "0"},
-    )
+    site = output.parent / "python_rules"
+    site.mkdir(parents=True, exist_ok=True)
+    (site / "sitecustomize.py").write_text(PYTHON_RULES_SITE, encoding="utf-8")
+    paths = (site,) if path is None else (site, path)
+    done = _tool("--record", RUMORS, "--output", output, "--draws", *arguments, paths=paths)
     assert done.returncode == 0, done.stdout + done.stderr
     return output
 
@@ -167,17 +176,6 @@ def test_a_one_percent_change_of_a_probability_is_caught_though_no_comparison_fl
     patched = tick_probe.uses_of_draws(changed / "draws.jsonl", label)
     assert original and [row[0] for row in original] == [row[0] for row in patched]
     assert [row[1] for row in original] != [row[1] for row in patched]
-
-
-def test_the_kernels_compare_as_the_same_on_a_small_scenario(tmp_path: Path) -> None:
-    done = _tool("--both", "branch_commands", "--output", tmp_path / "both", "--draws")
-
-    # --both sets SHELTERSIM_NATIVE itself, so only a missing extension stops it.
-    if importlib.util.find_spec("sheltersim_native") is None:
-        assert done.returncode == 2
-        return
-    assert done.returncode == 0, done.stdout + done.stderr
-    assert "digests: the same" in done.stdout
 
 
 def test_a_run_that_stops_early_is_reported_where_its_stream_ends(

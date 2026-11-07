@@ -29,8 +29,6 @@ from sheltersim.experiments.phases.update import UpdatePhase
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 ROOT = Path(__file__).resolve().parents[2]
 
 

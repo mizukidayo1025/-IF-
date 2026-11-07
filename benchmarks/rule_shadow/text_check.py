@@ -220,14 +220,9 @@ def _python_guard(world: Any, event: Any) -> None:
 def install(output: str, strict: bool = False) -> None:
     """Turn the comparison on in this process."""
     global CHECK
-    if os.environ.get("SHELTERSIM_NATIVE", "1") == "0":
-        return
-    from sheltersim import native
-
-    if not native.available():
-        return
     import sheltersim_native
 
+    from sheltersim import native
     from sheltersim.core import kernels
     from sheltersim.core.world import WorldState
     from sheltersim.events import models

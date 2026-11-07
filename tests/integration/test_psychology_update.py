@@ -37,8 +37,6 @@ from sheltersim.policies.psychology import (
 )
 from sheltersim.policies.registry import BodyDynamicsFormula
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 FULL = BodyDynamicsFormula("body-feedback-complete-v1", "S")
 SLEEP_ONLY = BodyDynamicsFormula("body-feedback-sleep-debt-v1", "S")
 

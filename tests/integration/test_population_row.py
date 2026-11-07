@@ -22,8 +22,6 @@ from sheltersim.domain.simulator_state import validate_simulator_extensions
 from sheltersim.experiments.runner import run_scenario
 from sheltersim.experiments.scenario import ScenarioSpec
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 NAMESPACES = (
     "population_presence_v1",
     "population_lifecycle_v1",

@@ -5,12 +5,12 @@ state the tick computes on into Rust in stages; each stage must keep the world,
 events and KPI hashes of a seven-day Run (`benchmarks/investigate_performance.py
 --expect`). The plan and the measurements are in issue #272.
 
-`sheltersim.native` uses the extension when it can be imported and
-`SHELTERSIM_NATIVE` is not `0`; otherwise every caller runs its Python code, which
-stays the reference. `tests/integration/test_native_kernels.py` compares each kernel
-with that Python code at every tick and is skipped without the extension. CI
-builds and installs the extension on Linux, Windows and macOS, and on Linux
-runs the tests once more without it.
+The extension is required: importing `sheltersim` without it raises ImportError
+(`docs/development.md` gives the build). Where a kernel raises `Unsupported`, the
+caller runs its Python code, which stays until lane L10 of
+`docs/rust-port/step4-plan.md` removes it. `tests/integration/test_native_kernels.py`
+compares each kernel with that Python code at every tick. CI builds and installs the
+extension on Linux, Windows and macOS.
 
 ## Build and use without installing
 
@@ -33,8 +33,7 @@ Checkpoint document) and times them.
 - `src/state/*.rs` and `src/rules/*.rs`: `build.rs` makes each file a module and a Python
   submodule, so a lane adds a file and edits neither `lib.rs` nor `sheltersim/native.py`. A file
   exports `pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()>`, and Python reaches it with
-  `native.rules("movement")` or `native.state("movement")`, which are `None` without the
-  extension. Catch `native.Unsupported` around a call; the Python code then decides.
+  `native.rules("movement")` or `native.state("movement")`. Catch `native.Unsupported` around a call; the Python code then decides.
   `Unsupported` is a type of its own in `lib.rs`: building one notes its line for
   `benchmarks/rule_shadow/refusal_census.py` (`src/core/census.rs`), off unless that tool turns it
   on. New refusals are counted without doing anything.
@@ -140,7 +139,7 @@ each OS, because both call the same libm.
   `docs/rust-port/step4-plan.md`): `TraceRows`, `AgentPsychologyTrace.to_dict`, `trace_document` and
   `record_psychology_trace` (`_record_psychology_trace`), the social contacts' document, and
   `TraceSink`, which hands each finished Python dict to the sink's own `record_*` method. The writer
-  and its `_sanitize` stay in Python. `benchmarks/trace_bytes.py` compares what a Run writes.
+  and its `_sanitize` stay in Python.
 
 - `rules/psychology.rs`: each person's minute (`update_psychology`, all the built-in psychology
   models, with `TraceRows` if the Run keeps a trace), the distress monitor and long-term distress

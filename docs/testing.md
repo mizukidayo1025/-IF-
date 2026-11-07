@@ -6,7 +6,7 @@
 
 ## 通常のoffline確認
 
-開発toolを導入し、次を実行します。
+開発toolとRustのkernel（[開発環境](development.md#rustのkernel)）を導入し、次を実行します。kernelがないと`sheltersim`を読み込めず、テストは動きません。
 
 ~~~shell
 python -m pip install -e ".[dev]"
@@ -25,7 +25,7 @@ ruff format --check .
 
 - `-n auto`（pytest-xdist）で並列に実行します。`pyproject.toml`の`--dist worksteal`で、手の空いたworkerが残りのテストを引き取ります。
 - `long_simulation`の印は、7日間のsimulationを実行するテストと、1件で30秒以上（直列）かかるテストに付けます。`tests/conftest.py`の`pytest_collection_modifyitems`が、並列のときにこれらを各workerの塊の先頭に1本ずつ置くので、長いテストは最初から並んで走ります。
-- 開発中は`-m "not long_simulation"`で長いテストを除けます。印のない`pytest`は全件を実行します。`オフラインCI`（`.github/workflows/ci.yml`）は、mainへのPull Requestごとに自動で、または手動で、Linux・Windows・macOSの3つでRustのkernelを作って導入し、長いテストを除いた全件を`-n auto`で実行します。3つのOSで動くことを確かめるためです（#48）。Linuxだけの確認（kernelなしのテスト、全経路のハッシュ、lint・format・clippy）は、待ち時間が延びないよう、それぞれ別のjobとして並べて動かします。手動実行の`長時間simulation回帰`（`.github/workflows/long-regression.yml`）の`long`は、長いテストだけをLinuxで実行します。`オフラインCI`と同じく、Rustのkernelを作って導入してから実行します。
+- 開発中は`-m "not long_simulation"`で長いテストを除けます。印のない`pytest`は全件を実行します。`オフラインCI`（`.github/workflows/ci.yml`）は、mainへのPull Requestごとに自動で、または手動で、Linux・Windows・macOSの3つでRustのkernelを作って導入し、長いテストを除いた全件を`-n auto`で実行します。3つのOSで動くことを確かめるためです（#48）。Linuxだけの確認（全経路のハッシュ、lint・format・clippy）は、待ち時間が延びないよう、それぞれ別のjobとして並べて動かします。手動実行の`長時間simulation回帰`（`.github/workflows/long-regression.yml`）の`long`は、長いテストだけをLinuxで実行します。`オフラインCI`と同じく、Rustのkernelを作って導入してから実行します。
 
 ### 結果の残り方と見方
 
@@ -43,7 +43,7 @@ test results: 1 failed, 967 passed, 4 skipped; failed: tests/unit/x/test_y.py::t
 
 失敗の原因は、もう一度実行せずに`summary.txt`で確かめます。`.pytest_cache`の失敗記録（`--lf`）は、次に全件が通ると消えるので、記録としては使いません。コーディングエージェントも、`| tail -1`などで集計行だけを見て判断しないでください。失敗があったら、この最後の行で名前を、`summary.txt`で原因を確かめ、テストの名前と原因を報告します。結果を残したくない実行では`-p no:results_log`を付けます。
 
-`オフラインCI`は、OSごとの`.test-results/`を`test-results-<OS>`、kernelなしのテストの分を`test-results-without-native`のartifactとして7日間保存します。失敗したときは、そのartifactの`summary.txt`で原因を確かめます。
+`オフラインCI`は、OSごとの`.test-results/`を`test-results-<OS>`のartifactとして7日間保存します。失敗したときは、そのartifactの`summary.txt`で原因を確かめます。
 
 ### 網羅率の計測
 
@@ -158,9 +158,9 @@ python benchmarks/gate_all_paths.py --output 出力先 --coverage
 
 - 各Scenarioは自分のプロセスで動き、終わりの世界ごとにworld・events・KPIのハッシュと時間を`出力先/summary.json`に書きます。ネットワークへの接続は失敗させます。LLMの応答は、手元の台本のProviderが書いた応答テープとその再生だけを使います。
 - `--expect`：`fixtures/gate-all-paths.json`のハッシュと比べます。モデルや規則を意図して変えてハッシュが変わったときは、理由をPull Requestに書いて、`--write-expected`で更新します。理由が説明できない変化は不具合として調べます。この値はLinuxのものです（OSをまたいだ一致は段階B5で確かめます）。
-- `--determinism`：別のプロセス、別の`PYTHONHASHSEED`、保存を読むScenarioでは別の`RAYON_NUM_THREADS`、Rustのkernelなし（`SHELTERSIM_NATIVE=0`）で動かして、1回目と比べます。WindowsとmacOSでは`--no-python-kernels`を付けます（RustとPythonの数学関数が同じなのはLinuxだけです）。
+- `--determinism`：別のプロセス、別の`PYTHONHASHSEED`、保存を読むScenarioでは別の`RAYON_NUM_THREADS`で動かして、1回目と比べます。
 - 分岐・再開・Checkpointの往復は、1つのScenarioの中でまっすぐのRunと比べます（`must_match`）。tickの順序に効くものを省いて同じになることは、この比較で確かめます。
-- `--coverage`：tick側のコード（`core`、`domain`、`events`、`policies`、`experiments/runner.py`、`experiments/phases/`）のどの行に届いたかを、ファイルごとに`coverage-native.md`（Rustのkernelあり）と`coverage-both.md`（なしの回も合わせたもの）に書きます。
+- `--coverage`：tick側のコード（`core`、`domain`、`events`、`policies`、`experiments/runner.py`、`experiments/phases/`）のどの行に届いたかを、ファイルごとに`coverage.md`に書きます。
 - `policies`のモデルや、EffectProgramの操作を足したら、ここにもScenarioを足します。`tests/integration/test_all_paths_gate.py`は、モデルの一覧がここに入っていないと失敗します。
 - 介入が拒否された結果と、有効な入力でRunが止まる結果（`run_stops`のScenario）も、期待値に入れます。直したら期待値が変わるので気づけます。止まるものは、見つけたときにIssueにします。直したものは`run_stops`にRunとして残し、再発に気づけるようにします。
 - `--reversed-order`：`world.agents`と`model_state`のすべてのdictの順序を、各段階の終わりに逆にする回（`reversed_order`）と、段階の途中でも逆にする回（`reversed_within_phase`）を動かして、1回目と比べます。結果が変わったScenarioは、dictの順序に頼る処理があるということです。途中で逆にする場所は`benchmarks/tick_probe.py`の`WITHIN_PHASE`にあり、処理を移したら一緒に直します。
@@ -168,16 +168,15 @@ python benchmarks/gate_all_paths.py --output 出力先 --coverage
 
 ### 最初に違った場所を探す（`benchmarks/first_difference.py`）
 
-ハッシュが変わったときは、原因をこの道具で絞ります。移植のレーンは、Rustの規則をPythonの規則と比べるのに使います。手順と計測は[lanes/p0-digest.md](rust-port/lanes/p0-digest.md)に書きます。
+ハッシュが変わったときは、原因をこの道具で絞ります。2回の記録を比べます。記録の間で`PYTHONPATH`や環境を変えます。手順と計測は[lanes/p0-digest.md](rust-port/lanes/p0-digest.md)に書きます。
 
 ~~~shell
-python benchmarks/first_difference.py --both Scenario名 --output 出力先
 python benchmarks/first_difference.py --record Scenario名 --output A --draws
 python benchmarks/first_difference.py A B
 ~~~
 
 - 段階ごとに、`model_state`の名前空間、人、作業、イベントの列、イベント記録などの部分ごとのdigestを書きます。比べると、最初に違った分、段階、部分を示し、そこまでもう一度実行して、違う値をJSONのパスと浮動小数点の16進で示します。
-- `--both`は`SHELTERSIM_NATIVE=1`と`=0`で動かして比べます。Rustの側はRunと同じ経路（`native/src/rules/tick.rs`のdriver）を、段階の間で見ます（`tick_probe.install`は`TickEngine.phase_observer`を使います）。`benchmarks/rule_shadow`は`phase_handler`の経路を動かすので、driverの比較にはなりません。Runが書くファイルをバイト単位で比べるのは`benchmarks/trace_bytes.py`です（`--models`で各モデルを完全なtraceつきで動かします）。ハッシュはtraceの文書を見ないので、traceの文書を変えたらこれを通します。
+- 記録は、Runと同じ経路（`native/src/rules/tick.rs`のdriver）を、段階の間で見ます（`tick_probe.install`は`TickEngine.phase_observer`を使います）。`benchmarks/rule_shadow`は`phase_handler`の経路を動かすので、driverの比較にはなりません。
 - `--draws`は、乱数の抽選ごとに鍵と値、比べた相手の値を記録して比べます。確率がわずかに違っても比較の結果が変わらなければ世界もハッシュも変わらないので、確率の式を移すときはこれを使います。Rustの中の抽選は記録されないので、Rustの確率の式は、レーンの文書の手順で`tests/integration/test_native_kernels.py`にビット単位の比較を足して確かめます。
 - ハッシュは、kernelが動いたことを示しません。`Unsupported`ならPythonが動いて同じハッシュになるからです。kernelを足したら、`benchmarks/rule_shadow`（kernelとPythonの規則を毎回比べ、`Unsupported`を理由ごとに数える）を同じ手順で通し、kernelが動いた回数を確かめます。手順は[lanes/p5-template-namespace.md](rust-port/lanes/p5-template-namespace.md)に書きます。driverの経路も含めて、すべての`Unsupported`を作られた行と理由ごとに数えるには`benchmarks/rule_shadow/refusal_census.py`（`SHELTERSIM_REFUSAL_CENSUS`）を使います。
 - これらのフックはベンチマークの側にあり、`src/`には何も足しません。`--draws`や`--reverse`は、`--expect`と同じ最終のハッシュになるはずです。ならなければ不具合として調べます。

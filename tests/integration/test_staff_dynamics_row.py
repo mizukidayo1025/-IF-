@@ -40,8 +40,6 @@ from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
 from sheltersim.policies.registry import StaffFatigueFormula
 
-needs_kernels = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 KEY = STAFF_DYNAMICS_STATE_KEY
 IDS = ("S01", "S02", "S03")
 
@@ -91,7 +89,6 @@ def _plain_twin(world: WorldState) -> tuple[Any, SimpleNamespace]:
 # ---- The row ----
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     "raw",
     [
@@ -113,7 +110,6 @@ def test_a_row_writes_the_bytes_of_the_tree(raw: dict[str, Any]) -> None:
     assert _text(_state(world)) == before
 
 
-@needs_kernels
 def test_a_config_key_an_older_schema_lacks_is_absent_from_the_row_and_its_bytes() -> None:
     world = _world()
     assert "max_continuous_work_minutes_by_staff" not in _state(world)["config"]
@@ -127,7 +123,6 @@ def test_a_config_key_an_older_schema_lacks_is_absent_from_the_row_and_its_bytes
     assert _mirror(world).verify()
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     ("write", "reason"),
     [
@@ -162,7 +157,6 @@ def test_a_value_the_row_cant_hold_taints_it_and_the_python_rules_still_run(
     assert not rust_validated(world, KEY)
 
 
-@needs_kernels
 def test_forwarded_writes_reach_the_row() -> None:
     world = _world()
     record = _state(world)["staff"]["S01"]
@@ -177,7 +171,6 @@ def test_forwarded_writes_reach_the_row() -> None:
 # ---- update ----
 
 
-@needs_kernels
 def test_a_tick_writes_no_whole_record_and_nothing_is_forwarded() -> None:
     world = _world()
     world.staff["S01"].active_task_id = "t"
@@ -191,7 +184,6 @@ def test_a_tick_writes_no_whole_record_and_nothing_is_forwarded() -> None:
     assert _mirror(world).verify()
 
 
-@needs_kernels
 def test_the_rule_the_callers_use_runs_the_kernel() -> None:
     world = _world()
     update_staff_dynamics(world, 0)
@@ -233,7 +225,6 @@ def _random_world(rng: random.Random) -> WorldState:
     return world
 
 
-@needs_kernels
 @pytest.mark.parametrize("seed", range(40))
 def test_update_writes_what_the_python_rule_writes(seed: int) -> None:
     rng = random.Random(seed)
@@ -249,7 +240,6 @@ def test_update_writes_what_the_python_rule_writes(seed: int) -> None:
         assert _mirror(world).verify()
 
 
-@needs_kernels
 def test_the_comparison_sees_a_one_percent_change() -> None:
     world = _world()
     world.staff["S01"].active_task_id = "t"
@@ -261,7 +251,6 @@ def test_the_comparison_sees_a_one_percent_change() -> None:
     assert _text(_state(world)) != _text(plain)
 
 
-@needs_kernels
 @pytest.mark.parametrize("model_id", ["staff-fatigue-linear-v1", "staff-fatigue-saturating-v1"])
 def test_a_fatigue_value_has_the_bits_of_the_python_formula(model_id: str) -> None:
     formula = StaffFatigueFormula(model_id, "x", {})
@@ -277,7 +266,6 @@ def test_a_fatigue_value_has_the_bits_of_the_python_formula(model_id: str) -> No
         assert actual.hex() == expected.hex()
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     ("corrupt", "error"),
     [
@@ -320,7 +308,6 @@ def test_a_bad_value_changes_nothing_and_the_python_rule_gives_its_error(
     assert str(raised_here.value) == str(expected)
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     "prepare",
     [
@@ -345,7 +332,6 @@ def test_what_the_kernel_does_not_handle_is_unsupported_before_any_change(prepar
     assert _text(_state(world)) == before
 
 
-@needs_kernels
 @pytest.mark.parametrize("minute", [True, 1.0, 2**70, "1"])
 def test_a_minute_of_another_type_goes_to_python(minute: Any) -> None:
     world = _world()
@@ -354,7 +340,6 @@ def test_a_minute_of_another_type_goes_to_python(minute: Any) -> None:
             kernel(world, minute)
 
 
-@needs_kernels
 def test_a_world_without_the_namespace_answers_as_the_python_rule_does() -> None:
     world = WorldState("s", 1, 100, staff={"S01": StaffState("S01", "z", ("support",))})
     update_staff_dynamics(world, 0)
@@ -376,7 +361,6 @@ def test_a_world_of_another_class_reaches_the_python_rule() -> None:
 # ---- The readers ----
 
 
-@needs_kernels
 @pytest.mark.parametrize("seed", range(40))
 def test_the_readers_answer_what_the_python_rules_answer(seed: int) -> None:
     rng = random.Random(seed)
@@ -403,7 +387,6 @@ def test_the_readers_answer_what_the_python_rules_answer(seed: int) -> None:
     assert answers == {True, False}
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     "operations",
     [
@@ -422,7 +405,6 @@ def test_the_availability_reader_takes_each_shape_of_the_operations_state(operat
     )
 
 
-@needs_kernels
 def test_a_config_without_windows_leaves_the_readers_to_the_python_rule() -> None:
     world = _world()
     del _state(world)["config"]["shift_windows_by_staff"]
@@ -435,7 +417,6 @@ def test_a_config_without_windows_leaves_the_readers_to_the_python_rule() -> Non
 # ---- add_staff, create ----
 
 
-@needs_kernels
 @pytest.mark.parametrize("staff_id", ["S09", "S01"])
 def test_add_staff_writes_what_the_python_rule_writes_and_the_tree_stays_tracked(
     staff_id: str,
@@ -451,7 +432,6 @@ def test_add_staff_writes_what_the_python_rule_writes_and_the_tree_stays_tracked
     assert _mirror(world).verify()
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     "raw",
     [
@@ -555,7 +535,6 @@ def _outcome(rule: Any, *arguments: Any, **options: Any) -> tuple[str, str]:
         return "error", str(error)
 
 
-@needs_kernels
 @pytest.mark.parametrize("raw", CONFIGS, ids=[f"config{i}" for i in range(len(CONFIGS))])
 def test_the_config_kernel_gives_the_python_result_or_leaves_it_to_python(raw: Any) -> None:
     """The kernel's value, or the Python rule's ValueError, class and text, or Unsupported for a
@@ -572,7 +551,6 @@ def test_the_config_kernel_gives_the_python_result_or_leaves_it_to_python(raw: A
     assert _outcome(canonical_staff_dynamics_config, copy.deepcopy(raw)) == expected
 
 
-@needs_kernels
 def test_the_config_kernel_runs_on_the_shapes_of_a_real_config() -> None:
     for raw in (
         None,
@@ -588,7 +566,6 @@ def test_the_config_kernel_runs_on_the_shapes_of_a_real_config() -> None:
         )
 
 
-@needs_kernels
 def test_the_config_kernel_shares_what_the_python_rule_shares() -> None:
     windows = {"S01": [_shift()]}
     assert _kernels().canonical_config({"shift_windows_by_staff": windows})[
@@ -622,7 +599,6 @@ OVERRIDES: list[Any] = [
 ]
 
 
-@needs_kernels
 @pytest.mark.parametrize("known", [None, {"S01"}, {"S01", "a", "b"}])
 @pytest.mark.parametrize("value", OVERRIDES, ids=[f"override{i}" for i in range(len(OVERRIDES))])
 def test_the_override_kernel_gives_the_python_result_or_leaves_it_to_python(
@@ -666,7 +642,6 @@ def _override_of_size(size: int) -> dict[str, Any]:
     return value
 
 
-@needs_kernels
 @pytest.mark.parametrize(("size", "accepted"), [(16_383, True), (16_384, True), (16_385, False)])
 def test_the_override_kernel_counts_the_json_limit_to_the_byte(size: int, accepted: bool) -> None:
     """The limit is on the length of json.dumps, so the kernel adds that length up without it."""
@@ -727,7 +702,6 @@ CORRUPTIONS: list[Any] = [
 ]
 
 
-@needs_kernels
 @pytest.mark.parametrize("corrupt", CORRUPTIONS)
 def test_the_validator_never_takes_what_the_python_rule_turns_down(corrupt: Any) -> None:
     world = _world()
@@ -737,7 +711,6 @@ def test_the_validator_never_takes_what_the_python_rule_turns_down(corrupt: Any)
     assert not rust_validated(world, KEY)
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     "change",
     [
@@ -760,7 +733,6 @@ def test_the_validator_takes_what_the_python_rule_passes(change: Any) -> None:
     assert rust_validated(world, KEY)
 
 
-@needs_kernels
 def test_the_validator_takes_the_config_of_policy_v1_without_its_later_keys() -> None:
     world = _world(policy_version=STAFF_DYNAMICS_POLICY_VERSION)
     config = _state(world)["config"]
@@ -773,7 +745,6 @@ def test_the_validator_takes_the_config_of_policy_v1_without_its_later_keys() ->
     assert not rust_validated(world, KEY)
 
 
-@needs_kernels
 def test_a_person_added_to_the_world_alone_fails_the_validators() -> None:
     world = _world()
     world.staff["S09"] = StaffState("S09", "z", ())
@@ -787,7 +758,6 @@ def test_a_person_added_to_the_world_alone_fails_the_validators() -> None:
 # ---- A real run ----
 
 
-@needs_kernels
 def test_a_run_never_forwards_a_write_of_the_tick_and_the_kernel_runs(
     generated_scenario: Any,
 ) -> None:

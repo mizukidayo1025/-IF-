@@ -10,7 +10,7 @@
 
 ## 起動
 
-バックアップworktree内に専用venvを用意します。既存ディレクトリのvenvへeditable installして、既存作業の参照先を変更しないでください。デモはClaude APIへ接続する`record` modeで起動し、APIエラー時にoffline fallbackせず理由を表示します。API keyはGit管理外の環境変数またはローカルの`.env`から読み込ませてください（アプリは`.env`を自動読込しません）。
+バックアップworktree内に専用venvを用意します。既存ディレクトリのvenvへeditable installして、既存作業の参照先を変更しないでください。デモはClaude APIへ接続する`record` modeで起動し、APIエラー時にoffline fallbackせず理由を表示します。API keyはGit管理外の環境変数またはローカルの`.env`から読み込ませてください（アプリは`.env`を自動読込しません）。次の`pip install`のあと、起動の前に、Rustのkernelを同じvenvへ導入します（[開発環境](development.md#rustのkernel)）。
 
 ```sh
 python3.12 -m venv .venv

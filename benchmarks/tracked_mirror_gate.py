@@ -97,7 +97,7 @@ def run_one(name: str, gate_dir: Path, output: Path, check_every: int, census_ev
 
     wait_idle = ProjectAPI.wait_idle
     ProjectAPI.wait_idle = lambda api, timeout=None: wait_idle(api)  # type: ignore[method-assign]
-    result: dict[str, Any] = {"scenario": name, "native": os.environ.get("SHELTERSIM_NATIVE", "1")}
+    result: dict[str, Any] = {"scenario": name}
 
     def execute(mode: str, session: Session, workers: dict[str, Any] | None) -> dict[str, Any]:
         directory = output / "work" / mode

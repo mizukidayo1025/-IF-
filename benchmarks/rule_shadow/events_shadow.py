@@ -42,8 +42,6 @@ def install(output: str) -> None:
     from sheltersim.events import queue as events
     from sheltersim.events.models import EventLogRecord, ScheduledEvent
 
-    if not native.available():
-        return
     state = native.state("events")
     seen: Counter[str] = Counter()
     refused: Counter[str] = Counter()

@@ -30,8 +30,6 @@ from sheltersim.events.models import EventKind, ScheduledEvent
 from sheltersim.experiments.runner import run_scenario
 from sheltersim.experiments.scenario import ScenarioSpec
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 SOURCE_ID = "ASM-EVENT-TRIGGERED-SOCIAL-INTERACTIONS-V1"
 ACTIONS = {
     "reassurance_exchange": ("offer_reassurance", "emotional_check_in"),

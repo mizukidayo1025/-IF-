@@ -2,10 +2,9 @@
 
 The environment, temporary-space, geometry and structure handlers of events/effects.py
 (native/src/rules/effects.rs). These texts are saved: the dispatcher writes them to the event's
-record as `detail`. With the kernels, each case checks that the kernel raises the outcome itself
-(not a refusal the Python rule then words), that nothing changed, and that the Python rule on a copy
-raises the same class with the same text (support/world.py `kernel_says_python_s_text`). Without
-them (`SHELTERSIM_NATIVE=0`), the same cases check the Python rule's own text. A handoff needs a
+record as `detail`. Each case checks that the kernel raises the outcome itself (not a refusal the
+Python rule then words), that nothing changed, and that the Python rule on a copy raises the same
+class with the same text (support/world.py `kernel_says_python_s_text`). A handoff needs a
 staff operation under way, so its world is run with TickEngine to that point
 (docs/rust-port/lanes/l8-texts-events.md).
 """
@@ -36,9 +35,7 @@ from sheltersim.events.effects import (
     schedule_effect_program,
 )
 from sheltersim.events.models import (
-    EventApplicationError,
     EventKind,
-    EventSuppressed,
     ScheduledEvent,
 )
 from sheltersim.experiments.metrics import MetricsRecorder
@@ -132,12 +129,7 @@ def _says(
     handler: Any, world: WorldState, event: Any, outcome: str, text: str, *, prefix: bool = False
 ) -> None:
     """The handler's outcome is `outcome` with `text` (or a text starting with it), the kernel's."""
-    if native.available():
-        said = kernel_says_python_s_text(handler, world, event)
-    else:
-        with pytest.raises((EventSuppressed, EventApplicationError)) as raised:
-            handler.apply(world, event)
-        said = (type(raised.value).__name__, str(raised.value))
+    said = kernel_says_python_s_text(handler, world, event)
     assert said[0] == outcome, said
     if prefix:
         assert said[1].startswith(text) and len(said[1]) > len(text), said
@@ -391,11 +383,7 @@ def test_a_geometry_event_s_texts_are_python_s(world: WorldState) -> None:
         _says(handler, world, event, outcome, text)
     # What apply_geometry_change raises is the text, as the Python rule words it.
     for change in ({"target_id": "no-such-route"}, {"parameters": {"accessible": "yes"}}):
-        if native.available():
-            kernel_says_python_s_text(apply, world, _changed(start, change))
-        else:
-            with pytest.raises(EventApplicationError):
-                apply.apply(world, _changed(start, change))
+        kernel_says_python_s_text(apply, world, _changed(start, change))
 
 
 # ---- EffectProgramStructureHandler: additions, roles, repairs ------------------------------------
@@ -685,14 +673,13 @@ def test_a_handoff_s_texts_are_python_s(
     def fresh() -> WorldState:
         return WorldState.from_dict(base.to_dict())
 
-    if native.available():
-        # The handoff itself is the Python rule's, receipt and all.
-        python_world, kernel_world = fresh(), fresh()
-        expected = type(handler).apply.__wrapped__(handler, python_world, event)
-        made = native.rules("effects").structure(handler, kernel_world, event)
-        assert [item.to_dict() for item in made] == [item.to_dict() for item in expected]
-        assert kernel_world.to_dict() == python_world.to_dict()
-        assert kernel_world.staff[replacement].active_task_id is not None
+    # The handoff itself is the Python rule's, receipt and all.
+    python_world, kernel_world = fresh(), fresh()
+    expected = type(handler).apply.__wrapped__(handler, python_world, event)
+    made = native.rules("effects").structure(handler, kernel_world, event)
+    assert [item.to_dict() for item in made] == [item.to_dict() for item in expected]
+    assert kernel_world.to_dict() == python_world.to_dict()
+    assert kernel_world.staff[replacement].active_task_id is not None
 
     approved = "staff handoff does not reference an approved program"
     for change in (

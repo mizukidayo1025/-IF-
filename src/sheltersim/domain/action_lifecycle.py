@@ -53,8 +53,6 @@ def _kernel_first(name: str) -> Callable[[Rule], Rule]:
     """
 
     def decorate(python_rule: Rule) -> Rule:
-        if not native.available():
-            return python_rule
         rules = native.rules("action_lifecycle")
         kernel = getattr(rules, name)
         store = rules.ActiveActions
@@ -76,10 +74,8 @@ def _kernel_first(name: str) -> Callable[[Rule], Rule]:
 
 
 def active_action_store(world: WorldState) -> Any:
-    """What a controller keeps of the open actions: Rust rows, or a dict without the kernels."""
+    """What a controller keeps of the open actions: the Rust rows."""
     index = active_action_index(world)
-    if not native.available():
-        return index
     # A restored record's needs are a frozen payload's.
     for record in index.values():
         if isinstance(record["start_needs"], Mapping):

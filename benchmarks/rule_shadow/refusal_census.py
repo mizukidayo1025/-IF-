@@ -155,12 +155,8 @@ class _Entry:
 def install(output: str) -> None:
     """Turn the census on in this process, before the simulator looks up its kernels."""
     global CENSUS, UNSUPPORTED
-    if os.environ.get("SHELTERSIM_NATIVE", "1") == "0":
-        return
-    try:
-        import sheltersim_native as native
-    except ImportError:
-        return
+    import sheltersim_native as native
+
     Path(output).mkdir(parents=True, exist_ok=True)
     census = _Census(output, native, os.environ.get("SHELTERSIM_REFUSAL_CENSUS_PROBE") == "1")
     CENSUS = census

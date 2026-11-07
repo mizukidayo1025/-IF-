@@ -24,8 +24,6 @@ from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 MODULES = {
     "prepare_facility_queue": queueing,
     "progress_physical_queue_positions": movement,

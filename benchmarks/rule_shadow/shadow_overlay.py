@@ -190,8 +190,6 @@ def _verify(recorder: Recorder, world: Any, where: str) -> None:
 def prepare(output: str) -> None:
     from sheltersim import native
 
-    if not native.available():
-        return
     recorder = Recorder(output, "overlay")
     report_stats(recorder, native.rules("overlay"))
     if os.environ.get("SHELTERSIM_DISPATCH_COUNT_ONLY") == "1":

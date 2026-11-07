@@ -47,8 +47,6 @@ from sheltersim.experiments.benchmark import build_benchmark_scenario
 from sheltersim.experiments.runner import run_scenario
 from sheltersim.experiments.scenario import ResourceServiceConfig, ScenarioSpec
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 kernel = world_module._after_tick_kernel
 
 

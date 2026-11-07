@@ -92,8 +92,6 @@ DRIVEN_RULES = (
 
 def install_driver(controller: type) -> None:
     """Give this class `run_tick`, once its segments are installed."""
-    if not native.available():
-        return
     rules = native.rules("tick")
     rules.install(
         controller,

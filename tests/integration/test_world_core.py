@@ -35,8 +35,6 @@ from sheltersim.experiments.phases.segments import install_segments
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 SAMPLE = "sample_v1"
 
 

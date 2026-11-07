@@ -4,7 +4,7 @@
 
 ## アプリの起動
 
-開発依存を入れ、repository rootで次を実行します。
+開発依存とRustのkernel（[開発環境](development.md#rustのkernel)）を入れ、repository rootで次を実行します。kernelは必須です。
 
 ~~~shell
 python -m pip install -e ".[dev]"

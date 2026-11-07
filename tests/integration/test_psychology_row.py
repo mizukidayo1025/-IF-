@@ -33,8 +33,6 @@ from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
 
-needs_kernels = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 METRIC = "metric_state"
 THRESHOLD = 0.6
 RETENTION = 0.9
@@ -169,7 +167,6 @@ def _run_ticks(scenario: Any, minutes: int, check: Any = None) -> WorldState:
 # ---- The macro, on the sample namespace and on the real rows ------------------------------------
 
 
-@needs_kernels
 def test_a_row_writes_the_bytes_of_the_tree_with_its_keys_sorted() -> None:
     world = _world()
     # The row lists its fields in the tree's order, which is not the sorted one.
@@ -187,7 +184,6 @@ def test_a_row_writes_the_bytes_of_the_tree_with_its_keys_sorted() -> None:
     assert _mirror(world, METRIC).row_json() == native.canonical_json(world.metric_state)
 
 
-@needs_kernels
 def test_a_rebuilt_tree_has_the_values_and_the_order_of_the_first() -> None:
     world = _world()
     before = _text(world.model_state[PSYCHOLOGICAL_STATE_KEY])
@@ -195,7 +191,6 @@ def test_a_rebuilt_tree_has_the_values_and_the_order_of_the_first() -> None:
     assert _text(world.model_state[PSYCHOLOGICAL_STATE_KEY]) == before
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     # The overflow message is CPython's: "too large" on Linux, "too big" on Windows.
     ("write", "reason"),
@@ -216,7 +211,6 @@ def test_a_value_the_record_cant_hold_taints_the_namespace(write: Any, reason: s
     assert not _mirror(world).has_row
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     "write",
     [
@@ -232,7 +226,6 @@ def test_a_write_outside_the_record_taints_the_namespace_too(write: Any) -> None
     assert _mirror(world).tainted is not None
 
 
-@needs_kernels
 def test_forwarded_writes_reach_both_rows() -> None:
     world = _world()
     state = world.model_state[PSYCHOLOGICAL_STATE_KEY]
@@ -255,7 +248,6 @@ def test_forwarded_writes_reach_both_rows() -> None:
     assert _mirror(world, METRIC).row_json() == b"{}"
 
 
-@needs_kernels
 def test_an_int_metric_taints_metric_state_and_python_keeps_it() -> None:
     world = _world()
     world.metric_state["count"] = 1
@@ -273,7 +265,6 @@ def test_an_int_metric_taints_metric_state_and_python_keeps_it() -> None:
 # ---- The worlds ----------------------------------------------------------------------------------
 
 
-@needs_kernels
 def test_a_world_owns_both_and_a_copy_owns_its_own(generated_scenario: Any) -> None:
     world = WorldState.from_scenario(generated_scenario)
     assert type(world.model_state) is NamespaceTable
@@ -296,16 +287,6 @@ def test_a_world_owns_both_and_a_copy_owns_its_own(generated_scenario: Any) -> N
     assert _mirror(again, METRIC).verify()
 
 
-@pytest.mark.skipif(native.available(), reason="only without the Rust kernels")
-def test_without_the_kernels_the_documents_are_plain(generated_scenario: Any) -> None:
-    world = WorldState.from_scenario(generated_scenario)
-    assert "_core" not in world.__dict__
-    assert type(world.metric_state) is dict
-    assert type(world.model_state) is dict
-    assert type(world.model_state[PSYCHOLOGICAL_STATE_KEY]) is dict
-
-
-@needs_kernels
 def test_ticks_write_values_in_place_and_never_the_whole_namespace(generated_scenario: Any) -> None:
     seen: dict[int, tuple[Any, Any, int]] = {}
 
@@ -331,7 +312,6 @@ def test_ticks_write_values_in_place_and_never_the_whole_namespace(generated_sce
     assert world.model_state[PSYCHOLOGICAL_STATE_KEY]["last_updated_minute"] == 29
 
 
-@needs_kernels
 def test_the_rust_rules_and_the_python_rules_make_the_same_world(
     generated_scenario: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -356,7 +336,6 @@ def test_the_rust_rules_and_the_python_rules_make_the_same_world(
 # ---- Identity of the rule with the Python rule --------------------------------------------------
 
 
-@needs_kernels
 def test_a_long_term_value_has_the_bits_of_the_python_rule() -> None:
     rule = native.rules("psychology").next_long_term_distress_of
     draws = random.Random(20261031)
@@ -396,7 +375,6 @@ def test_a_long_term_value_has_the_bits_of_the_python_rule() -> None:
     assert rule(0.25, 0.25, 500.0, 100, 1000, 0.9, 0.08 * 1.01, 0.02).hex() != python.hex()
 
 
-@needs_kernels
 @pytest.mark.parametrize("minute", [0, 1, 1438, 1439, 2879])
 def test_the_step_writes_what_the_python_rules_write(minute: int) -> None:
     draws = random.Random(minute)
@@ -489,7 +467,6 @@ def _bad_cases() -> list[tuple[str, dict[str, Any], str]]:
     ]
 
 
-@needs_kernels
 @pytest.mark.parametrize(("_name", "change", "message"), _bad_cases())
 def test_a_bad_input_changes_nothing_and_the_python_rule_gives_its_text(
     _name: str, change: dict[str, Any], message: str
@@ -528,7 +505,6 @@ def test_a_bad_input_changes_nothing_and_the_python_rule_gives_its_text(
     assert str(raised.value) == message
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     ("record", "message"),
     [
@@ -576,7 +552,6 @@ def test_a_record_the_rule_turns_down_keeps_the_python_error(
     assert str(raised.value) == message
 
 
-@needs_kernels
 def test_a_bad_metric_leaves_it_to_the_python_rule() -> None:
     world = _world()
     world.metric_state["acute_distress_monitor:a:longest_run"] = -1.0
@@ -594,7 +569,6 @@ def test_a_bad_metric_leaves_it_to_the_python_rule() -> None:
         )
 
 
-@needs_kernels
 def test_a_model_without_long_term_state_has_nothing_to_do() -> None:
     """As `getattr(self.psychology, "update_long_term_state", None)` in the Python step."""
     world = _world()
@@ -606,7 +580,6 @@ def test_a_model_without_long_term_state_has_nothing_to_do() -> None:
     assert _documents(world) == before
 
 
-@needs_kernels
 def test_another_model_with_long_term_state_is_the_python_step_s() -> None:
     world = _world()
     controller = _controller(version="another-model")
@@ -615,7 +588,6 @@ def test_another_model_with_long_term_state_is_the_python_step_s() -> None:
         _kernel()(controller, world, _view({"a": 0.1, "b": 0.1}), _deltas({"a": 0.1, "b": 0.1}), 0)
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     ("controller", "view", "deltas"),
     [
@@ -644,7 +616,6 @@ def test_what_the_kernel_does_not_handle_is_unsupported_before_any_change(
     assert _documents(world) == before
 
 
-@needs_kernels
 def test_two_deltas_for_one_person_go_to_python() -> None:
     world = _world()
     deltas = (
@@ -655,7 +626,6 @@ def test_two_deltas_for_one_person_go_to_python() -> None:
         _kernel()(_controller(), world, _view({"a": 0.1, "b": 0.1}), deltas, 0)
 
 
-@needs_kernels
 def test_a_field_assigned_whole_stops_being_rust_and_the_python_rules_run_on_it() -> None:
     world = _world()
     assigned = {"x": 1.0}
@@ -696,7 +666,6 @@ def _corruptions() -> list[Any]:
     ]
 
 
-@needs_kernels
 @pytest.mark.parametrize("corrupt", _corruptions())
 def test_the_validator_never_takes_what_the_python_rule_turns_down(corrupt: Any) -> None:
     plain = _state("a", "b")
@@ -713,7 +682,6 @@ def test_the_validator_never_takes_what_the_python_rule_turns_down(corrupt: Any)
     assert str(raised.value) == str(expected.value)
 
 
-@needs_kernels
 def test_the_validator_takes_what_the_python_rule_passes(generated_scenario: Any) -> None:
     def check(world: WorldState) -> None:
         assert rust_validated(world, PSYCHOLOGICAL_STATE_KEY)

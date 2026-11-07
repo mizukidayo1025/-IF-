@@ -26,8 +26,6 @@ from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _MetricSink
 from sheltersim.policies.behavior import ActionKind
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 SEEKS = (ActionKind.SEEK_HELP, ActionKind.SEEK_INFORMATION)
 
 

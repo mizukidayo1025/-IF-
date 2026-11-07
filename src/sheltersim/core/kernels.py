@@ -34,15 +34,12 @@ def kernel_first(module: str, name: str) -> Callable[[Rule], Rule]:
     """Try native/src/rules/<module>.rs's kernel, and on Unsupported run the decorated Python rule.
 
     A kernel says Unsupported before it changes anything, so the Python rule then runs as if the
-    kernel weren't there and raises its own text. Without the kernels the rule is returned as it
-    is and a call has nothing to pay. `__wrapped__` is the Python rule.
+    kernel weren't there and raises its own text. `__wrapped__` is the Python rule.
 
     The kernel is looked up once, here, so benchmarks/rule_shadow replaces it before this runs.
     """
 
     def decorate(python_rule: Rule) -> Rule:
-        if not native.available():
-            return python_rule
         kernel = getattr(native.rules(module), name)
         unsupported = native.Unsupported
         label = f"kernel_first {module}.{name}"

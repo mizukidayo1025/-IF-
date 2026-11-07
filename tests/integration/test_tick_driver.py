@@ -40,7 +40,6 @@ import tick_probe  # noqa: E402
 from gate_scenarios import ScriptedProvider, _llm_settings, generated, with_rumors  # noqa: E402
 
 ROOT = BENCHMARKS.parent
-needs_rust = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
 
 
 def _stats() -> tuple[dict[str, int], dict[str, int]]:
@@ -100,11 +99,10 @@ def short_scenario(generated_scenario: Any) -> Any:
     return generated_scenario.model_copy(update={"duration_minutes": 240})
 
 
-def test_only_the_rust_kernels_give_a_controller_a_driver() -> None:
-    assert hasattr(OfflineSimulationController, "run_tick") == native.available()
+def test_the_rust_kernels_give_a_controller_a_driver() -> None:
+    assert hasattr(OfflineSimulationController, "run_tick")
 
 
-@needs_rust
 def test_a_whole_run_is_the_same_through_the_driver_and_through_the_phases(
     short_scenario: Any, tmp_path: Path
 ) -> None:
@@ -120,7 +118,6 @@ def test_a_whole_run_is_the_same_through_the_driver_and_through_the_phases(
     assert len(driven["records"]) > 100
 
 
-@needs_rust
 def test_each_phase_ends_in_the_same_state_through_the_driver_and_the_phases(
     generated_scenario: Any, tmp_path: Path
 ) -> None:
@@ -174,7 +171,6 @@ def _whole_run(
     return _saved(world, controller), loops
 
 
-@needs_rust
 def test_the_driver_serves_independent_queues_itself_as_the_phases_do(
     generated_scenario_with_split_queues: Any, tmp_path: Path
 ) -> None:
@@ -194,7 +190,6 @@ def test_the_driver_serves_independent_queues_itself_as_the_phases_do(
     assert requests, "nobody was served, so the queues were not tried"
 
 
-@needs_rust
 def test_the_driver_keeps_the_view_the_next_phase_builds_on(
     generated_scenario: Any, tmp_path: Path
 ) -> None:
@@ -215,7 +210,6 @@ def test_the_driver_keeps_the_view_the_next_phase_builds_on(
     assert kept == [True] * 4
 
 
-@needs_rust
 def test_a_step_a_kernel_refuses_goes_to_its_python_rule(
     generated_scenario: Any, tmp_path: Path
 ) -> None:
@@ -234,7 +228,6 @@ def test_a_step_a_kernel_refuses_goes_to_its_python_rule(
     assert driven == phases == plain
 
 
-@needs_rust
 @pytest.mark.parametrize("step", DRIVEN_STEPS)
 def test_a_patched_step_sends_the_tick_to_the_phases(
     step: str, generated_scenario: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -251,7 +244,6 @@ def test_a_patched_step_sends_the_tick_to_the_phases(
     assert world.state_digest() == state
 
 
-@needs_rust
 @pytest.mark.parametrize(
     "holder, name", DRIVEN_RULES, ids=[f"{item[0].__name__}.{item[1]}" for item in DRIVEN_RULES]
 )
@@ -268,7 +260,6 @@ def test_a_patched_rule_sends_the_tick_to_the_phases(
     assert controller.run_tick(world, 0, engine.rng, None) is False
 
 
-@needs_rust
 def test_a_step_patched_on_the_controller_itself_sends_the_tick_to_the_phases(
     generated_scenario: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -287,7 +278,6 @@ def test_a_step_patched_on_the_controller_itself_sends_the_tick_to_the_phases(
     assert _ticks() == before
 
 
-@needs_rust
 @pytest.mark.parametrize("level", [TraceLevel.SUMMARY, TraceLevel.FULL])
 def test_a_trace_runs_on_the_driver_and_keeps_its_files(
     level: TraceLevel, generated_scenario: Any, tmp_path: Path
@@ -303,7 +293,6 @@ def test_a_trace_runs_on_the_driver_and_keeps_its_files(
     ).read_bytes()
 
 
-@needs_rust
 def test_a_trace_of_the_engine_s_phases_runs_on_the_driver(
     generated_scenario: Any, tmp_path: Path
 ) -> None:
@@ -347,7 +336,6 @@ def _stressed(controller: OfflineSimulationController, world: WorldState) -> Non
     )
 
 
-@needs_rust
 def test_a_router_that_can_call_a_provider_runs_on_the_driver_as_through_the_phases(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -398,7 +386,6 @@ def test_a_router_that_can_call_a_provider_runs_on_the_driver_as_through_the_pha
     assert replayed_calls == driven_calls
 
 
-@needs_rust
 def test_an_answer_the_schema_refuses_falls_back_on_the_driver_as_through_the_phases(
     tmp_path: Path,
 ) -> None:
@@ -428,7 +415,6 @@ def test_an_answer_the_schema_refuses_falls_back_on_the_driver_as_through_the_ph
     assert asked == phases_asked
 
 
-@needs_rust
 def test_the_hooks_of_an_offline_router_run_where_they_run_through_the_phases(
     generated_scenario: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -479,7 +465,6 @@ class _Seen:
         self.phases.append((minute, phase.value, False))
 
 
-@needs_rust
 def test_a_tick_probe_watches_the_driver_and_a_patch_s_phases_alike(
     generated_scenario: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -507,7 +492,6 @@ def test_a_tick_probe_watches_the_driver_and_a_patch_s_phases_alike(
     assert results[False] == results[True]
 
 
-@needs_rust
 def test_the_phase_profiler_leaves_the_driver_running(
     generated_scenario: Any, tmp_path: Path
 ) -> None:
@@ -522,7 +506,6 @@ def test_the_phase_profiler_leaves_the_driver_running(
     assert all(row["calls"] == 2 for row in report["phases"])
 
 
-@needs_rust
 def test_the_driver_says_what_the_engine_says_of_a_phase_that_moves_the_clock(
     generated_scenario: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -541,7 +524,6 @@ def test_the_driver_says_what_the_engine_says_of_a_phase_that_moves_the_clock(
     assert _ticks() - before == 1
 
 
-@needs_rust
 def test_an_error_of_a_rule_comes_through_the_driver_as_itself(
     generated_scenario: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -555,7 +537,6 @@ def test_an_error_of_a_rule_comes_through_the_driver_as_itself(
         engine.step()
 
 
-@needs_rust
 def test_a_world_with_another_controller_is_refused_with_nothing_changed(
     generated_scenario: Any, tmp_path: Path
 ) -> None:

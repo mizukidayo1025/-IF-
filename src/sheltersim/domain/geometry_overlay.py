@@ -1592,5 +1592,4 @@ def _zones_are_connected(world: Any, source_zone_id: str, destination_zone_id: s
     return False
 
 
-if native.available():
-    register_rust_validator(GEOMETRY_OVERLAY_KEY, native.rules("overlay").validate_overlay)
+register_rust_validator(GEOMETRY_OVERLAY_KEY, native.rules("overlay").validate_overlay)

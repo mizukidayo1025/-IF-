@@ -49,9 +49,6 @@ from sheltersim.experiments import metrics
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.policies.space import SpaceRouter
 
-needs_kernels = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-pytestmark = needs_kernels
-
 KEY = STAFF_OPERATIONS_STATE_KEY
 SHARED = SHARED_OPERATIONS_KEY
 KINDS = (*_CARE_SKILL_ALTERNATIVES, "a_kind_of_no_table")

@@ -320,5 +320,4 @@ def information_spread_summary(state: Mapping[str, Any], *, agent_count: int) ->
 
 
 # Rust holds this namespace in native/src/state/information.rs.
-if native.available():
-    register_rust_validator(INFORMATION_SPREAD_STATE_KEY, native.state("information").validate)
+register_rust_validator(INFORMATION_SPREAD_STATE_KEY, native.state("information").validate)

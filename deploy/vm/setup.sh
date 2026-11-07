@@ -87,7 +87,7 @@ rm -rf /opt/sheltersim/native-dist
   --out /opt/sheltersim/native-dist
 "$VENV/bin/pip" install -q --force-reinstall --no-deps --no-index \
   --find-links /opt/sheltersim/native-dist sheltersim-native
-"$VENV/bin/python" -c "import sheltersim.native as n; assert n.available(), 'kernels not loaded'"
+"$VENV/bin/python" -c "import sheltersim.native"
 
 echo "== settings"
 if [[ ! -f $ETC/env ]]; then

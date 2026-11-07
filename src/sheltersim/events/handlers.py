@@ -59,6 +59,11 @@ from sheltersim.domain.staff import (
     timeout_support_request,
 )
 from sheltersim.events.effects import (
+    EffectProgramEnvironmentHandler,
+    EffectProgramFacilityHandler,
+    EffectProgramGeometryHandler,
+    EffectProgramStructureHandler,
+    EffectProgramTemporarySpaceHandler,
     derived_effect_marker,
     effect_event_guard_or_suppress,
     has_active_facility_modifier,
@@ -3301,50 +3306,41 @@ class SupportRequestTimeoutHandler:
 # The event types with a Rust function in rules/dispatch.rs. A patch of `apply` shows here, and the
 # handler then goes to Python. The EffectProgram handlers are there for an event whose guard held:
 # the loop asks the guard as `dispatch_one` does, then calls `apply`.
-if native.available():
-    from sheltersim.events.effects import (
-        EffectProgramEnvironmentHandler,
-        EffectProgramFacilityHandler,
-        EffectProgramGeometryHandler,
-        EffectProgramStructureHandler,
-        EffectProgramTemporarySpaceHandler,
-    )
-
-    native.rules("dispatch").install_table(
-        (SocialInteractionHandler, SocialInteractionHandler.apply),
-        (AgentTravelCompletionHandler, AgentTravelCompletionHandler.apply),
-        (ToiletServiceCompletionHandler, ToiletServiceCompletionHandler.apply),
-        (ResourceServiceCompletionHandler, ResourceServiceCompletionHandler.apply),
-        (SupportRequestTimeoutHandler, SupportRequestTimeoutHandler.apply),
-        (StaffSupportCompletionHandler, StaffSupportCompletionHandler.apply),
-        [
-            (handler, handler.apply)
-            for handler in (
-                ProximityContactHandler,
-                InformationRumorHandler,
-                InformationCorrectionHandler,
-                InformationContactHandler,
-                ResourceLedgerHandler,
-                FacilityOutageHandler,
-                FacilityRecoveryHandler,
-                InfrastructureEventHandler,
-                ResourceServiceCancellationHandler,
-                EffectProgramPopulationHandler,
-                DeliveryDelayHandler,
-                WaterOutageHandler,
-                WaterRestorationHandler,
-                StaffUnavailabilityHandler,
-                StaffRestorationHandler,
-                StaffOperationArrivalHandler,
-                StaffOperationReliefHandler,
-                StaffOperationCompletionHandler,
-                EffectProgramFacilityHandler,
-                EffectProgramEnvironmentHandler,
-                EffectProgramTemporarySpaceHandler,
-                EffectProgramGeometryHandler,
-                EffectProgramStructureHandler,
-            )
-        ],
-        AgentTravelCompletionHandler._after_arrival,
-        EventDispatcher,
-    )
+native.rules("dispatch").install_table(
+    (SocialInteractionHandler, SocialInteractionHandler.apply),
+    (AgentTravelCompletionHandler, AgentTravelCompletionHandler.apply),
+    (ToiletServiceCompletionHandler, ToiletServiceCompletionHandler.apply),
+    (ResourceServiceCompletionHandler, ResourceServiceCompletionHandler.apply),
+    (SupportRequestTimeoutHandler, SupportRequestTimeoutHandler.apply),
+    (StaffSupportCompletionHandler, StaffSupportCompletionHandler.apply),
+    [
+        (handler, handler.apply)
+        for handler in (
+            ProximityContactHandler,
+            InformationRumorHandler,
+            InformationCorrectionHandler,
+            InformationContactHandler,
+            ResourceLedgerHandler,
+            FacilityOutageHandler,
+            FacilityRecoveryHandler,
+            InfrastructureEventHandler,
+            ResourceServiceCancellationHandler,
+            EffectProgramPopulationHandler,
+            DeliveryDelayHandler,
+            WaterOutageHandler,
+            WaterRestorationHandler,
+            StaffUnavailabilityHandler,
+            StaffRestorationHandler,
+            StaffOperationArrivalHandler,
+            StaffOperationReliefHandler,
+            StaffOperationCompletionHandler,
+            EffectProgramFacilityHandler,
+            EffectProgramEnvironmentHandler,
+            EffectProgramTemporarySpaceHandler,
+            EffectProgramGeometryHandler,
+            EffectProgramStructureHandler,
+        )
+    ],
+    AgentTravelCompletionHandler._after_arrival,
+    EventDispatcher,
+)

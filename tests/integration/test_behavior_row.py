@@ -39,8 +39,6 @@ from sheltersim.policies.behavior import (
     WorldView,
 )
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="only with the Rust kernels")
-
 
 def _exact(value: Any) -> Any:
     """Equal only with the same types, the same bits, and the same order of each dict's keys."""

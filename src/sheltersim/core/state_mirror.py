@@ -9,8 +9,7 @@ when it is inserted, so a write through a name it had before the insert reaches 
 docs/rust-port/lanes/p4-world-core.md for what a lane does.
 
 The maps of entities are IdMap, which keep the Rust rows of the entities equal to the objects
-(docs/rust-port/lanes/p6-entity-windows.md). With SHELTERSIM_NATIVE=0 a world has no core at all,
-and these maps and containers are plain dicts and lists.
+(docs/rust-port/lanes/p6-entity-windows.md).
 
 A sink is sheltersim_native.NamespaceMirror, or a test's object with the same methods
 (tests/support/tracked_mirror.py). A node's _sink is None out of any tree: it then behaves as the
@@ -734,10 +733,10 @@ _RUST_VALIDATORS: dict[str, Callable[[Any], bool]] = {}
 
 
 def register_rust_validator(name: str, kernel: Callable[[Any], bool] | None) -> None:
-    """Say a kernel can accept this namespace; None takes that back. Without kernels, a no-op."""
+    """Say a kernel can accept this namespace; None takes that back."""
     if kernel is None:
         _RUST_VALIDATORS.pop(name, None)
-    elif native.available():
+    else:
         _RUST_VALIDATORS[name] = kernel
 
 

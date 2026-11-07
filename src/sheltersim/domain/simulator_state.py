@@ -557,9 +557,6 @@ def _install_after_tick_kernel() -> None:
     A patch of one of these, and the python_rules mark, leave a tick to the Python check.
     """
     from sheltersim import native
-
-    if not native.available():
-        return
     from sheltersim.contracts import runtime
     from sheltersim.core import state_mirror, tick_validation
     from sheltersim.core import world as world_module

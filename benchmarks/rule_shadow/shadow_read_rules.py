@@ -178,8 +178,6 @@ def _stand_in_world(world: Any, scheduled: list[Any]) -> Any:
 def prepare(output: str) -> None:
     from sheltersim import native
 
-    if not native.available():
-        return
     # The driver calls its kernels directly, past these stand-ins: alone, this shadow would see no
     # tick and report nothing while every hash passes.
     native.rules("tick").python_path_only(True)

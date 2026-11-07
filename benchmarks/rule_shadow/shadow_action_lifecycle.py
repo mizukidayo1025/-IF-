@@ -61,8 +61,6 @@ def _python_json(record: Any) -> bytes:
 def prepare(output: str) -> None:
     from sheltersim import native
 
-    if not native.available():
-        return
     rules = native.rules("action_lifecycle")
     recorder = Recorder(output, "action_lifecycle")
     unsupported = native.Unsupported

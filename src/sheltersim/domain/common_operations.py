@@ -31,9 +31,9 @@ from sheltersim.events.models import EventStatus
 
 # native/src/state/shared_operations.rs: what accepts a tick's state with no replay of the history,
 # and what tells the row that these rules accepted its recent receipts.
-_TICK_VALID = native.state("shared_operations").validate_tick if native.available() else None
-_TICK_PASSED = native.state("shared_operations").recent_passed if native.available() else None
-_HISTORY_PASSED = native.state("shared_operations").history_passed if native.available() else None
+_TICK_VALID = native.state("shared_operations").validate_tick
+_TICK_PASSED = native.state("shared_operations").recent_passed
+_HISTORY_PASSED = native.state("shared_operations").history_passed
 
 _CARE_TRANSITIONS = {
     None: {"requested"},
@@ -295,8 +295,6 @@ def _tell_the_row_they_passed(
 ) -> None:
     """A tick's kernels trust the receipts these rules have just passed: the recent ones of a tick,
     or all of them after a replay of the whole history."""
-    if _TICK_PASSED is None or _HISTORY_PASSED is None:
-        return
     try:
         if validate_event_history:
             _HISTORY_PASSED(world)

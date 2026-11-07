@@ -17,7 +17,6 @@ from typing import Any
 import pytest
 from support.world import kernel_says_python_s_text
 
-from sheltersim import native
 from sheltersim.contracts.policies import selected_models
 from sheltersim.core.engine import TickEngine
 from sheltersim.core.world import WorldState
@@ -46,8 +45,6 @@ from sheltersim.events.models import EventKind, ScheduledEvent
 from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
-
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
 
 
 def _gate() -> Any:

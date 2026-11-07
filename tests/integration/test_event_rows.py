@@ -26,8 +26,6 @@ from sheltersim.events.queue import (
 )
 from sheltersim.experiments.scenario import ScenarioSpec
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 
 def _event(
     name: str, sequence: int, due: int = 3, priority: int = 0, **payload: Any

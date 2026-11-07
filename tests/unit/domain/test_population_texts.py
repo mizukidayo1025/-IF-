@@ -18,7 +18,6 @@ from typing import Any
 import pytest
 from support.world import NATIVE_OUTCOME
 
-from sheltersim import native
 from sheltersim.contracts.presence import PRESENCE_NAMESPACE, PresenceRecord, PresenceState
 from sheltersim.core.world import WorldState
 from sheltersim.domain import population, population_lifecycle
@@ -69,8 +68,7 @@ def _says(rule: Any, world: WorldState, text: str, *arguments: Any, **options: A
     with pytest.raises((EventSuppressed, EventApplicationError)) as made:
         rule(world, *arguments, **options)
     assert str(made.value) == text
-    if native.available():
-        assert getattr(made.value, NATIVE_OUTCOME, False), f"the kernel refused: {made.value}"
+    assert getattr(made.value, NATIVE_OUTCOME, False), f"the kernel refused: {made.value}"
     with pytest.raises((EventSuppressed, EventApplicationError)) as said:
         python_rule(twin, *arguments, **options)
     assert type(made.value) is type(said.value)
@@ -96,8 +94,7 @@ def _handler_says(world: WorldState, event: ScheduledEvent, text: str) -> None:
     with pytest.raises((EventSuppressed, EventApplicationError)) as made:
         handler.apply(world, event)
     assert str(made.value) == text
-    if native.available():
-        assert getattr(made.value, NATIVE_OUTCOME, False), f"the kernel refused: {made.value}"
+    assert getattr(made.value, NATIVE_OUTCOME, False), f"the kernel refused: {made.value}"
     assert _document(world) == before
     with pytest.raises((EventSuppressed, EventApplicationError)) as said:
         python_rule(handler, twin, event)

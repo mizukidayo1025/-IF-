@@ -41,8 +41,6 @@ def install(output: str) -> None:
     from sheltersim.policies.information import EvidenceAwareInformationPolicy
     from sheltersim.policies.world_view import WorldView
 
-    if not native.available():
-        return
     seen: Counter[str] = Counter()
     reasons: Counter[str] = Counter()
     differences: list[str] = []

@@ -12,7 +12,6 @@ import copy
 
 import pytest
 
-from sheltersim import native
 from sheltersim.core.checkpoint import Checkpoint, CheckpointError
 from sheltersim.core.checkpoint_cache import CheckpointHistoryCache
 from sheltersim.core.engine import TickEngine
@@ -28,10 +27,6 @@ _AUDIT = ("resource_ledger_v1", "audit")
 _REQUESTS = ("resource_service_v1", "request_history")
 _STALLS = ("resource_service_v1", "queue_stall_history")
 _BODY = ("body_state_v1", "history")
-
-needs_kernels = pytest.mark.skipif(
-    not native.available(), reason="the memo exists only with the sheltersim_native extension"
-)
 
 
 @pytest.fixture(scope="module")
@@ -259,7 +254,6 @@ def _clear(counts: dict[str, list[int]]) -> None:
         values.clear()
 
 
-@needs_kernels
 @pytest.mark.python_rules
 def test_unchanged_old_entries_are_not_read_again(finished_world, reads) -> None:
     world, cache = _saved(finished_world)
@@ -272,7 +266,6 @@ def test_unchanged_old_entries_are_not_read_again(finished_world, reads) -> None
     assert reads["unread"] == [1, 1, 1]
 
 
-@needs_kernels
 @pytest.mark.python_rules
 def test_a_changed_entry_or_input_reads_that_history_again(finished_world, reads) -> None:
     world, cache = _saved(finished_world)
@@ -289,7 +282,6 @@ def test_a_changed_entry_or_input_reads_that_history_again(finished_world, reads
     assert reads["operations"][0] == len(world.model_state[_OPERATIONS[0]][_OPERATIONS[1]])
 
 
-@needs_kernels
 @pytest.mark.python_rules
 def test_a_changed_staff_history_reads_the_operations_history_again(
     finished_world, reads, monkeypatch
@@ -308,7 +300,6 @@ def test_a_changed_staff_history_reads_the_operations_history_again(
     assert reads["operations"][0] == len(world.model_state[_OPERATIONS[0]][_OPERATIONS[1]])
 
 
-@needs_kernels
 @pytest.mark.python_rules
 def test_a_truncated_operations_history_is_replayed_in_full(finished_world, reads) -> None:
     """Records dropped from the front change where a replay starts."""
@@ -321,7 +312,6 @@ def test_a_truncated_operations_history_is_replayed_in_full(finished_world, read
     assert reads["operations"] == [len(state["history"])] * 2
 
 
-@needs_kernels
 @pytest.mark.python_rules
 def test_a_failed_capture_leaves_nothing_proven(finished_world, reads) -> None:
     world, cache = _saved(finished_world)
@@ -336,7 +326,6 @@ def test_a_failed_capture_leaves_nothing_proven(finished_world, reads) -> None:
     assert len(reads["audit"]) == len(world.model_state[_AUDIT[0]][_AUDIT[1]])
 
 
-@needs_kernels
 @pytest.mark.python_rules
 def test_a_capture_that_fails_after_validation_leaves_nothing_proven(
     finished_world, reads, monkeypatch
@@ -355,7 +344,6 @@ def test_a_capture_that_fails_after_validation_leaves_nothing_proven(
     assert len(reads["audit"]) == len(world.model_state[_AUDIT[0]][_AUDIT[1]])
 
 
-@needs_kernels
 @pytest.mark.python_rules
 def test_a_restored_world_starts_with_a_complete_validation(finished_world, reads) -> None:
     world, cache = _saved(finished_world)

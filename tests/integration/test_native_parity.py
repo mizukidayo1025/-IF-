@@ -50,8 +50,6 @@ EDGES = [
 
 @pytest.fixture
 def parity():
-    if not native.available():
-        pytest.skip("the sheltersim_native extension is not installed")
     return native.rules("parity")
 
 
@@ -413,9 +411,3 @@ def test_lane_modules_are_found_by_name(parity) -> None:
         native.rules("no_such_rule_module")
     with pytest.raises(AttributeError):
         native.state("no_such_state_module")
-
-
-def test_without_the_extension_lane_modules_are_none(monkeypatch) -> None:
-    monkeypatch.setattr(native, "_native", None)
-    assert native.rules("parity") is None
-    assert native.state("anything") is None

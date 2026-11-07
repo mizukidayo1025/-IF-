@@ -247,5 +247,4 @@ def _new_agent_dynamics_record(world: WorldState, agent_id: str) -> dict[str, An
     }
 
 
-if native.available():
-    register_rust_validator(AGENT_DYNAMICS_STATE_KEY, native.state("agent_dynamics").validate)
+register_rust_validator(AGENT_DYNAMICS_STATE_KEY, native.state("agent_dynamics").validate)

@@ -2,8 +2,8 @@
 
 WorldState.validate_after_tick is one call to the kernel, which keeps the memo of the last passed
 check (its TickMemo, in world.__dict__["_tick_memo"]) and runs every rule of the per-tick check.
-A state it doesn't take, and every world without the kernels, gets validate(validate_event_history
-=False), with no memo, which passes or raises the error text.
+A state it doesn't take gets validate(validate_event_history=False), with no memo, which passes
+or raises the error text.
 
 The configs are parsed here, by the contracts that validate parses them with (pydantic models and
 the canonical_* functions, which stay in Python: docs/rust-port/step4-plan.md, decision D3). The

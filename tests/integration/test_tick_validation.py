@@ -14,7 +14,6 @@ from dataclasses import replace
 
 import pytest
 
-from sheltersim import native
 from sheltersim.core.engine import TickEngine, TickPhase
 from sheltersim.core.world import StateInvariantError, WorldState
 from sheltersim.domain.models import SupportRequestState, SupportRequestStatus
@@ -355,8 +354,6 @@ def test_old_history_is_left_to_the_next_full_validation(finished_world) -> None
 
 def test_the_full_validation_reads_a_settled_request_the_tick_check_trusts(finished_world) -> None:
     """Only a write around the attribute protocol can pass the tick check; a save stops it."""
-    if not native.available():
-        pytest.skip("the plain validation reads every request")
     world = _checked_world(finished_world)
     _settled(world).__dict__["agent_id"] = "nobody"
 
@@ -449,8 +446,8 @@ def test_a_memo_does_not_carry_over_when_the_clock_goes_back(finished_world) -> 
     before = world.__dict__.get("_tick_memo")
     world.minute_index -= 1
     world.validate_after_tick()
-    assert native.available() is (before is not None)
-    assert before is None or world.__dict__["_tick_memo"] is not before
+    assert before is not None
+    assert world.__dict__["_tick_memo"] is not before
 
 
 def test_the_validation_leaves_the_saved_state_unchanged(finished_world) -> None:

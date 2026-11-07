@@ -148,8 +148,6 @@ def _shadow(recorder: Recorder, label_of: Any, kernel: Any, rule: Any) -> Any:
 def prepare(output: str) -> None:
     from sheltersim import native
 
-    if not native.available():
-        return
     recorder = Recorder(output, "handlers_rest")
     report_stats(recorder, native.rules("handlers"))
     if not _comparing():

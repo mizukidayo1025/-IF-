@@ -1471,5 +1471,4 @@ def _idle_record() -> dict[str, Any]:
     }
 
 
-if native.available():
-    register_rust_validator(STAFF_OPERATIONS_STATE_KEY, native.state("staff_operations").validate)
+register_rust_validator(STAFF_OPERATIONS_STATE_KEY, native.state("staff_operations").validate)
