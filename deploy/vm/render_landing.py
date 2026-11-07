@@ -7,7 +7,7 @@ domain, slots = sys.argv[1], int(sys.argv[2])
 links = "\n".join(
     f'<li><a href="https://s{n}.{html.escape(domain)}/demo-v2">環境 {n}</a>'
     f' <span class="sub">(<a href="https://s{n}.{html.escape(domain)}/demo">'
-    "Project workspace</a>)</span></li>"
+    "従来の画面</a>)</span></li>"
     for n in range(1, slots + 1)
 )
 print(f"""<!doctype html>

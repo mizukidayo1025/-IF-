@@ -146,6 +146,8 @@ python3 "$HERE/render_landing.py" "$DOMAIN" "$SLOTS" > /opt/sheltersim/landing/i
   for n in $(seq 1 "$SLOTS"); do
     echo "s$n.$DOMAIN {"
     echo "  import auth"
+    # The app sends / to the older /demo screen; judges should land on /demo-v2.
+    echo "  redir / /demo-v2 302"
     echo "  reverse_proxy 127.0.0.1:$((8800 + n))"
     echo "}"
   done
