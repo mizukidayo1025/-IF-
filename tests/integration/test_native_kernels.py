@@ -1,5 +1,6 @@
 """The Rust kernels (feature/rust-port, native/) give the same values as the Python
-code they replace, bit for bit, at every tick of a generated Scenario.
+code they replace, bit for bit, at every tick of a generated Scenario. Where that Python code is
+gone (lane L10), against what it gave, recorded once.
 
 Skipped when the sheltersim_native extension is not installed; CI on the Rust port
 branch builds and installs it.
@@ -8,8 +9,10 @@ branch builds and installs it.
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import struct
+import sys
 
 import pytest
 
@@ -25,37 +28,36 @@ def _same_float_bits(x: object, y: object) -> bool:
     return x == y and type(x) is type(y)
 
 
-def test_the_psychology_kernel_gives_the_python_deltas(
+# What the deleted Python step `_psychology_update` (experiments/phases/update.py at 45a9bc9) gave
+# at each minute of the Run below, as sha256 of the deltas' JSON, recorded once on Linux.
+PSYCHOLOGY_DELTAS = "842c8f23bf0c3e3ce2a8b971ca3bc742cc6c263cedaa52918c04e2e6d3ba7d9d"
+
+
+def test_the_psychology_kernel_gives_the_deltas_of_the_deleted_python_step(
     generated_scenario, tmp_path, monkeypatch
 ) -> None:
-    from sheltersim.experiments.phases.update import UpdatePhase
     from sheltersim.experiments.runner import OfflineSimulationController
 
     document = generated_scenario.model_dump(mode="json")
     document["duration_minutes"] = 360
     scenario = ScenarioSpec.model_validate(document)
     compared = []
+    digest = hashlib.sha256()
     kernel = OfflineSimulationController._psychology_update
-    python = UpdatePhase._psychology_update
 
     def checked(self, view, minute):
         result = kernel(self, view, minute)
-        rust = result.deltas
-        expected = python(self, view, minute).deltas
-        assert len(rust) == len(expected)
-        for a, b in zip(rust, expected, strict=True):
-            for name in a.__dataclass_fields__:
-                assert _same_float_bits(getattr(a, name), getattr(b, name)), (
-                    minute,
-                    a.agent_id,
-                    name,
-                )
+        for delta in result.deltas:
+            text = json.dumps([getattr(delta, name) for name in delta.__dataclass_fields__])
+            digest.update(text.encode() + b"\n")
         compared.append(minute)
         return result
 
     monkeypatch.setattr(OfflineSimulationController, "_psychology_update", checked)
     run_scenario(scenario, tmp_path, trace_level=TraceLevel.OFF)
     assert compared == list(range(360))
+    if sys.platform == "linux":
+        assert digest.hexdigest() == PSYCHOLOGY_DELTAS
 
 
 def _outcome(validate, world) -> str:
@@ -490,33 +492,30 @@ def test_the_event_kernel_leaves_frozen_values_and_subclasses_to_python() -> Non
     assert event.to_dict()["payload"] == {"a": {"a": [1, 2]}, "b": "x"}
 
 
-@pytest.mark.python_rules
 def test_the_view_hash_kernel_gives_the_python_hash_at_every_tick(
     generated_scenario, tmp_path, monkeypatch
 ) -> None:
-    from sheltersim import policies
+    """Each proposal view's audit hash (rules/world_view.rs) against `from_world`'s, hashed by
+    Python's json alone."""
+    from sheltersim.experiments.runner import OfflineSimulationController
+    from sheltersim.policies.world_view import WorldView
 
-    world_view = __import__("sheltersim.policies.world_view", fromlist=["_view_state_hash"])
-    assert policies is not None
     document = generated_scenario.model_dump(mode="json")
     document["duration_minutes"] = 240
-    kernel = native.view_state_hash
-    original = world_view._view_state_hash
+    step = OfflineSimulationController._view_for_proposals
     compared = []
 
-    def checked(*arguments):
-        rust = original(*arguments)
-        assert kernel is native.view_state_hash
-        monkeypatch.setattr(native, "view_state_hash", lambda *_: None)
-        try:
-            python = original(*arguments)
-        finally:
-            monkeypatch.setattr(native, "view_state_hash", kernel)
-        assert rust == python
-        compared.append(rust)
-        return rust
+    def checked(self, world, minute):
+        made = step(self, world, minute)
+        with monkeypatch.context() as python_only:
+            python_only.setattr(native, "view_state_hash", lambda *_: None)
+            python_only.setattr(native, "canonical_sha256", lambda _value: None)
+            python = WorldView.from_world(world).state_hash
+        assert made.state_hash == python
+        compared.append(python)
+        return made
 
-    monkeypatch.setattr(world_view, "_view_state_hash", checked)
+    monkeypatch.setattr(OfflineSimulationController, "_view_for_proposals", checked)
     run_scenario(ScenarioSpec.model_validate(document), tmp_path, trace_level=TraceLevel.OFF)
     assert len(compared) == 240
 

@@ -4,8 +4,7 @@
   `zone_environment.view_of`, every person's `PersonContext` against `person_context.fields_of`, the
   selected psychology's reading of beliefs, and one person per zone of the kernel's view. Python's
   and Rust's kept values are not used by the first three, so these compare new reads.
-- At each proximity step: the Python rule on a stand-in world that records what it schedules, then
-  the kernel on the world; the events as JSON text, in order, and the event counter.
+- The proximity step has no Python rule left to compare (KERNEL_ONLY_SEGMENTS, lane L10).
 
 Run alone with SHELTERSIM_RULE_SHADOW_ONLY=read_rules, this keeps every tick on the Python path.
 
@@ -16,11 +15,9 @@ since most of these are selected by the Scenario, and a formula no Run selects i
 
 from __future__ import annotations
 
-import json
-from types import SimpleNamespace
 from typing import Any
 
-from shadow_kit import Recorder, values_in
+from shadow_kit import Recorder
 
 
 def _exact(value: Any) -> Any:
@@ -157,24 +154,6 @@ def _compare_view(recorder: Recorder, world: Any, made: Any) -> None:
                 recorder.differ(f"minute {world.minute_index}, {agent.id}: {name} of the view")
 
 
-def _stand_in_world(world: Any, scheduled: list[Any]) -> Any:
-    counter = [world.id_counters.get("event", 0)]
-
-    def allocate() -> int:
-        counter[0] += 1
-        return counter[0] - 1
-
-    return SimpleNamespace(
-        model_state=world.model_state,
-        agents=world.agents,
-        zones=world.zones,
-        duration_minutes=world.duration_minutes,
-        allocate_event_sequence=allocate,
-        schedule_event=scheduled.append,
-        counter=counter,
-    )
-
-
 def prepare(output: str) -> None:
     from sheltersim import native
 
@@ -182,11 +161,8 @@ def prepare(output: str) -> None:
     # tick and report nothing while every hash passes.
     native.rules("tick").python_path_only(True)
     recorder = Recorder(output, "read_rules")
-    unsupported = native.Unsupported
     views = native.rules("world_view")
-    proximity = native.rules("proximity")
     view_kernel = views.view_after_movement
-    sample_kernel = proximity.sample_contacts
 
     def view_after_movement(controller: Any, world: Any) -> Any:
         _compare_reads(recorder, native, world)
@@ -194,47 +170,4 @@ def prepare(output: str) -> None:
         _compare_view(recorder, world, made)
         return made
 
-    def sample_contacts(controller: Any, minute: int) -> None:
-        from sheltersim.experiments.phases.sample import SamplePhase
-
-        seen = recorder.seen
-        config = controller.proximity_contact_config
-        if config is None:
-            return sample_kernel(controller, minute)
-        seen["proximity.calls"] += 1
-        world = controller.world
-        scheduled: list[Any] = []
-        stand_in = _stand_in_world(world, scheduled)
-        SamplePhase._sample_proximity_contacts(
-            SimpleNamespace(
-                world=stand_in,
-                proximity_contact_config=config,
-                proximity_policy=controller.proximity_policy,
-            ),
-            minute,
-        )
-        start = world.id_counters.get("event", 0)
-        try:
-            sample_kernel(controller, minute)
-        except unsupported as reason:
-            recorder.reasons[f"proximity: {reason}"] += 1
-            raise
-        seen["proximity.ran"] += 1
-        tainted = world._core.mirror("movement_v1").tainted is not None
-        seen[f"proximity.{'tree' if tainted else 'row'}"] += bool(scheduled)
-        made = sorted(
-            (event for event in world.event_queue.pending() if event.sequence >= start),
-            key=lambda event: event.sequence,
-        )
-        left = json.dumps([event.to_dict() for event in scheduled])
-        right = json.dumps([event.to_dict() for event in made])
-        if left != right:
-            recorder.differ(f"minute {minute}: the events {left:.300} against {right:.300}")
-        if world.id_counters.get("event", 0) != stand_in.counter[0]:
-            recorder.differ(f"minute {minute}: the counter differs")
-        seen["proximity.pairs"] += len(scheduled)
-        seen["proximity.values_compared"] += sum(values_in(e.to_dict()) for e in scheduled)
-        return None
-
     views.view_after_movement = view_after_movement
-    proximity.sample_contacts = sample_contacts

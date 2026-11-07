@@ -224,21 +224,24 @@ def _without_contact_models(scenario: Any) -> Any:
     return type(scenario).model_validate(document)
 
 
-def test_a_step_a_kernel_refuses_goes_to_its_python_rule(
-    generated_scenario: Any, tmp_path: Path
+@pytest.mark.parametrize("on_the_phases", [False, True])
+def test_without_the_contact_models_the_decisions_refuse_another_rng(
+    generated_scenario: Any, tmp_path: Path, on_the_phases: bool
 ) -> None:
-    OtherRng = _OtherRng
-    generated_scenario = _without_contact_models(generated_scenario)
-    seed = generated_scenario.seed
-    before = _stats()[0]
-    driven = _run(generated_scenario, tmp_path / "driven", 120, rng=OtherRng(seed))
-    after = _stats()[0]
-    assert after["ticks"] - before["ticks"] == 120
-    assert after["kernels_refused"] - before["kernels_refused"] >= 120
-    with _on_the_phases():
-        phases = _run(generated_scenario, tmp_path / "phases", 120, rng=OtherRng(seed))
-    plain = _run(generated_scenario, tmp_path / "plain", 120)
-    assert driven == phases == plain
+    """The decisions are the kernel alone too (lane L10): with the social and information models
+    off, an RNG no Run has fails the tick at `_propose_due`, not in a Python rule."""
+    scenario = _without_contact_models(generated_scenario)
+    world, controller, engine = _build(scenario, tmp_path, rng=_OtherRng(scenario.seed))
+    with _on_the_phases() if on_the_phases else contextlib.nullcontext():
+        with pytest.raises(Exception) as raised:
+            engine.step()
+    chain = []
+    error: BaseException | None = raised.value
+    while error is not None:
+        chain.append(error)
+        error = error.__cause__ or error.__context__
+    assert any(isinstance(item, KernelRefusal) for item in chain), chain
+    assert any("propose_rows" in str(item) for item in chain), chain
 
 
 @pytest.mark.parametrize("on_the_phases", [False, True])

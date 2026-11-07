@@ -1,7 +1,8 @@
 //! Where a person walks: `_route`, `_schedule_travel`, and the choice of a facility
-//! (`experiments/phases/propose.py`, `policies/space.py`). The Python rules stay for the comparison
-//! and for what's refused here, which says so before it writes (docs/rust-port/lanes/m4-service.md):
-//! another route policy. Edge capacities count every trip under way (docs/rust-port/lanes/l2-staff.md).
+//! (`experiments/phases/propose.py`, `policies/space.py`). `_route`, `_schedule_travel` and
+//! `_schedule_staff_support_travel` have no Python step left (lane L10): what is refused here says so
+//! before it writes, and is a KernelRefusal there (docs/rust-port/lanes/m4-service.md). Edge
+//! capacities count every trip under way (docs/rust-port/lanes/l2-staff.md).
 
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap, HashSet};
@@ -12,6 +13,7 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyList, PyString, PyTuple};
 
+use crate::core::errors;
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, unsupported};
 use crate::core::value::V;
 use crate::core::world_core::{raw_dict_get, NamespaceMirror};
@@ -715,8 +717,9 @@ fn strings(ids: &[Arc<str>]) -> V {
     V::List(ids.iter().map(|id| V::Str(id.clone())).collect())
 }
 
-/// `_schedule_travel`, changing nothing. None is its False. Refused before anything is written, the
-/// Python rule then says what it says.
+/// `_schedule_travel`, changing nothing. None is its False. Its errors, and its refusals, come before
+/// anything is written: the Python rule's texts for a route from elsewhere and a support trip
+/// without its IDs (the Python rule allocated a sequence before the second).
 pub(crate) fn plan_travel(world: &Bound<'_, PyAny>, writer: &EventWriter<'_>, trip: Trip<'_>) -> PyResult<Option<PlannedTrip>> {
     let py = world.py();
     let store = entities_of(world)?;
@@ -728,7 +731,7 @@ pub(crate) fn plan_travel(world: &Bound<'_, PyAny>, writer: &EventWriter<'_>, tr
         Ok(agent.zone_id == route.origin)
     })?;
     if !is_origin {
-        return unsupported("the route starts elsewhere");
+        return Err(errors::value_error("travel route origin does not match Agent zone"));
     }
     if route.minutes <= 0 {
         return Ok(None);
@@ -809,10 +812,10 @@ pub(crate) fn plan_travel(world: &Bound<'_, PyAny>, writer: &EventWriter<'_>, tr
     }
     if purpose == "staff_support_travel" {
         let (Some(request), Some(staff)) = (&support_request_id, &support_staff_id) else {
-            return unsupported("a support trip without its IDs");
+            return Err(errors::value_error("staff support travel requires request and staff IDs"));
         };
         if request.is_empty() || staff.is_empty() {
-            return unsupported("a support trip without its IDs");
+            return Err(errors::value_error("staff support travel requires request and staff IDs"));
         }
         payload.insert(names.request_id.clone(), V::Str(request.clone()));
         payload.insert(names.staff_id.clone(), V::Str(staff.clone()));
@@ -1034,7 +1037,7 @@ fn schedule_support_travel<'py>(
     Ok(true)
 }
 
-/// `_schedule_travel`, with no validation of the whole world.
+/// `_schedule_travel`: with `validate_state` (true when not given), `world.validate()` after a trip.
 #[pyfunction]
 #[pyo3(signature = (
     controller, *, agent_id, route, route_points=None, purpose, facility_id, minute, causation_id=None,
@@ -1055,9 +1058,10 @@ fn schedule_travel<'py>(
     validate_state: Option<&Bound<'py, PyAny>>,
 ) -> PyResult<bool> {
     let py = controller.py();
-    if !validate_state.is_some_and(|validate| validate.downcast_exact::<PyBool>().is_ok_and(|validate| !validate.is_true())) {
-        return unsupported("the world's whole validation is Python's");
-    }
+    let validate = match validate_state {
+        Some(validate) => validate.is_truthy()?,
+        None => true,
+    };
     let world = attribute(controller, intern!(py, "world"))?;
     let writer = EventWriter::of(&world)?;
     let planned = plan_travel(
@@ -1079,6 +1083,9 @@ fn schedule_travel<'py>(
         return Ok(false);
     };
     write_travel(&world, &writer, planned)?;
+    if validate {
+        world.call_method0(intern!(py, "validate"))?;
+    }
     Ok(true)
 }
 
@@ -1213,12 +1220,9 @@ fn select(
         for (id, facility) in rows.facilities.iter() {
             let takes = match resource_kind {
                 Some(kind) => &*facility.kind == kind,
-                None => {
-                    if !facility.kind.is_ascii() {
-                        return unsupported("a facility kind that casefold may change");
-                    }
-                    facility.kind.to_ascii_lowercase().contains("toilet")
-                }
+                // `"toilet" in kind.casefold()`; a kind that isn't ASCII is folded by Python's own
+                // `str.casefold`, which reads no state.
+                None => crate::rules::toilet::is_toilet(&facility.kind)?,
             };
             if takes && queue_has_capacity(world, rows, id, facility, resource)? {
                 let load = if resource {

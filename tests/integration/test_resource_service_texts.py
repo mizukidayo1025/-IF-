@@ -13,11 +13,12 @@ toilet completion's and the ledger handler's wraps of their rules' `ValueError` 
 from __future__ import annotations
 
 import copy
+import sys
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from support.world import NATIVE_OUTCOME
+from support.world import NATIVE_OUTCOME, world_digest
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine
@@ -36,7 +37,6 @@ from sheltersim.events.models import (
     ScheduledEvent,
 )
 from sheltersim.experiments.metrics import MetricsRecorder
-from sheltersim.experiments.phases.propose import ProposePhase
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
 from sheltersim.policies.behavior import ActionKind
@@ -237,38 +237,25 @@ def test_a_completion_whose_service_state_differs_is_python_s_to_fail(
 def test_a_completion_in_a_world_not_v6_fails_with_the_handler_s_text(
     resource_service_scenario: Any,
 ) -> None:
-    """`ResourceServiceCompletionHandler`'s own check: the dispatch loop saves the Python step's.
+    """`ResourceServiceCompletionHandler`'s own check: the dispatch loop saves the handler's text.
 
     A world with the water service is v6 (`validate()` says so); one whose version was set back
-    reaches the handler's check before its manager's. The Rust loop and the Python step save the
-    same failed record.
+    reaches the handler's check before its manager's. The Rust loop saves the failed record the
+    Python step saved.
     """
     from sheltersim.events.models import EventStatus
-    from sheltersim.experiments.phases.dispatch import DispatchPhase
 
-    saved = []
-    for by_kernel in (True, False):
-        world, completion = _started(resource_service_scenario)
-        controller = OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
-        world.event_queue.remove(completion.event_id)
-        world.schedule_event(_completion(completion, due_minute=0))
-        world.schema_version = 5
-        if by_kernel:
-            controller._run_dispatch_phase(world, 0)
-        else:
-            DispatchPhase._run_dispatch_phase(controller, world, 0)
-        record = world.event_log.find(completion.event_id)
-        assert (record.status, record.detail) == (
-            EventStatus.FAILED,
-            "resource service completion requires WorldState v6",
-        )
-        saved.append(
-            [item.decode() for item in world.event_log.items_bytes(0, len(world.event_log))]
-        )
-    assert saved[0] == saved[1]
-
-
-# ---- cancel -------------------------------------------------------------------------------------
+    world, completion = _started(resource_service_scenario)
+    controller = OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
+    world.event_queue.remove(completion.event_id)
+    world.schedule_event(_completion(completion, due_minute=0))
+    world.schema_version = 5
+    controller._run_dispatch_phase(world, 0)
+    record = world.event_log.find(completion.event_id)
+    assert (record.status, record.detail) == (
+        EventStatus.FAILED,
+        "resource service completion requires WorldState v6",
+    )
 
 
 def _cancel_says(world: WorldState, event: ScheduledEvent, expected: type, text: str) -> None:
@@ -612,11 +599,19 @@ def _controller(world: WorldState) -> OfflineSimulationController:
     return OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
 
 
-@pytest.mark.parametrize("why", ["queue", "active", "exclusive"])
+@pytest.mark.parametrize(
+    ("why", "digest"),
+    [
+        ("queue", "3a9569d6ad20ffc0"),
+        ("active", "4a025222d590125b"),
+        ("exclusive", "8074303070235945"),
+    ],
+)
 def test_a_request_at_once_the_queue_turns_down_keeps_python_s_text(
-    generated_scenario_with_split_queues: Any, why: str
+    generated_scenario_with_split_queues: Any, why: str, digest: str
 ) -> None:
-    """The propose step records `str(exc)` as the request's detail, and counts the rejection."""
+    """The propose step records `str(exc)` as the request's detail, and counts the rejection: the
+    world of the Python step (`world_digest`, recorded from it on 45a9bc9 before it went)."""
     world = _restricted(generated_scenario_with_split_queues)
     _place_at(world, "A001", "water_station_main")
     texts = {
@@ -632,26 +627,21 @@ def test_a_request_at_once_the_queue_turns_down_keeps_python_s_text(
         world = WorldState.from_scenario(generated_scenario_with_split_queues)
         _place_at(world, "A001", "water_station_main")
         world.facilities["toilet_01"].queue_agent_ids.append("A001")
-    twin = copy.deepcopy(world)
     proposal = SimpleNamespace(
         action=ActionKind.FETCH_WATER,
         agent_id="A001",
         next_decision_at=world.minute_index + 7,
         target_id=None,
     )
-    expected = ProposePhase._apply_effect(_controller(twin), proposal)
-    history = twin.model_state[SERVICE]["request_history"]
+    result = native.rules("proposals").apply_effect(_controller(world), proposal)
+    assert list(result) == [None, 7, False]
+    history = world.model_state[SERVICE]["request_history"]
     assert history[-1]["outcome"] == "rejected"
     assert history[-1]["reason"] == "request_rejected"
     assert history[-1]["detail"] == texts[why]
-    assert twin.metric_state["resource_service_request_rejected_count"] == 1.0
-    assert expected[0] is None
-    result = native.rules("proposals").apply_effect(_controller(world), proposal)
-    assert list(result) == list(expected)
-    assert _bytes(world) == _bytes(twin)
-    assert world.id_counters == twin.id_counters
-    assert world.metric_state == twin.metric_state
-    assert world.model_state[SERVICE] == twin.model_state[SERVICE]
+    assert world.metric_state["resource_service_request_rejected_count"] == 1.0
+    if sys.platform == "linux":
+        assert world_digest(world) == digest
 
 
 # ---- The wraps: a toilet visit's completion, and the ledger --------------------------------------

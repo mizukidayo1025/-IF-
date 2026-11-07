@@ -190,36 +190,38 @@ each OS, because both call the same libm.
   for `benchmarks/rule_shadow`, and `stats()` says what ran and why anything was refused.
 - `rules/decisions.rs`: `propose_rows(controller, view, rng)`, `observed_row(controller, view,
   agent_id)` and `record_outcome(controller, proposal, *, target_id, next_decision_at, committed,
-  observed_state)` replace the steps `_propose_due`, `_observed_state` and `_record_outcome`. A
-  `ProposalRow` answers what `_apply_effect`'s Python body reads and makes the `ActionProposal`
-  for anything else. `record_outcome` appends the `_IndexedMetricSink` record as JSON bytes
-  (`decision_sink` in a sink's own class says what it may do), then calls `commit_action` and
-  `remember_decision`. Unsupported comes before anything is appended; after that, a rule that
-  refuses runs in Python on its own. With a trace `RunArtifactWriter` gets the document of
-  `_decision_document` (`record_decision_document`). A sink of another class is Unsupported.
+  observed_state)` are the steps `_propose_due`, `_observed_state` and `_record_outcome`, which have
+  no Python body (`KERNEL_ONLY_SEGMENTS`). A `ProposalRow` answers what `_apply_effect` reads and
+  makes the `ActionProposal` for anything else. `record_outcome` appends the `_IndexedMetricSink`
+  record as JSON bytes (`decision_sink` in a sink's own class says what it may do), then calls
+  `commit_action` and `remember_decision`. What the rows don't take (a sink of another class, a
+  proposal Python made, a long observed state, a value they can't write) goes, before anything is
+  appended, to the sink's own `record_decision` and the domain rules, in the step's order. With a
+  trace `RunArtifactWriter` gets the document of `_decision_document` (`record_decision_document`).
 - `rules/behavior.rs`: `propose_due(controller, view, rng)` and `observed_state(controller, view,
   agent_id)` compute the proposals and the snapshot `rules/decisions.rs` keeps as rows, here as the
-  Python `ActionProposal`s and the snapshot dict. They read the snapshot of `rules/world_view.rs`, so
-  a tick makes no Python view of the people for them. They run for `UtilityBehaviorPolicy`
-  and `PriorityRuleBehaviorPolicy` (the exact classes) with a `CounterRNG`. They write nothing, so
-  `Unsupported` at any point runs the Python step: a view Python made (or a partial one), another
+  Python `ActionProposal`s and the snapshot dict (for tests). They read the snapshot of
+  `rules/world_view.rs`, so a tick makes no Python view of the people for them. They run for
+  `UtilityBehaviorPolicy` and `PriorityRuleBehaviorPolicy` (the exact classes, which keep only their
+  settings) with a `CounterRNG`. They write nothing, so `Unsupported` at any point leaves the world
+  as it was, and the step raises KernelRefusal: a view Python made (or a partial one), another
   class, and anything `ActionCandidate` and `ActionProposal` would turn down.
 
 - `rules/proximity.rs`: `sample_contacts(controller, minute)` replaces the step
   `_sample_proximity_contacts`, with `DistanceSampledProximityPolicy.sample` on the positions of the
   `movement_v1` row, or of its tree when the row is tainted. `sample_of` gives the pairs alone.
 - `rules/world_view.rs`: `view_after_movement(controller, world)` and
-  `view_for_proposals(controller, world, minute)` replace the two steps of the phases that make a
-  `WorldView`. A snapshot of plain Rust values (`ViewData`) is built from the entity rows, the rows of
+  `view_for_proposals(controller, world, minute)` are the two steps of the phases that make a
+  `WorldView`, which have no Python body (`KERNEL_ONLY_SEGMENTS`). A snapshot of plain Rust values (`ViewData`) is built from the entity rows, the rows of
   `information_spread_v1` and `psychological_distress_v1`, and a read of the namespaces Python still
-  owns. It is what `WorldView.from_world` and `after_state_update` provide, with the same audit hash
+  owns. It is what `WorldView.from_world` provides, with the same audit hash
   (`state_hash`, which writes the canonical document from the snapshot). The returned `WorldView`
   makes `agents`, `facilities`, `zone_members` and `group_members` when a Python reader first asks
   (`RustView.python_fields`, through `WorldView.__getattr__`). A person's context comes from
   `rules/person_context.rs` (`PersonContext` and `_fields_of_person`) and a zone's conditions from
   `rules/zone_environment.rs` (`zone_environment_view` and its 8 formulas), each kept while its
   document stays equal. `selected_models` stays the Python contract. A value a typed field can't hold, or anything Python would raise on, says
-  `Unsupported`, and `from_world` runs. `view_of(view)` gives a kernel the snapshot; for a view Python
+  `Unsupported`, and the step raises KernelRefusal. `view_of(view)` gives a kernel the snapshot; for a view Python
   made it reads the fields the update kernels read and sets `partial`. Nothing refuses a partial
   view for a rule: a rule that reads other fields must check `partial` and say `Unsupported`.
 
@@ -336,8 +338,10 @@ each OS, because both call the same libm.
   `serve_head` is one pass of `arbitrate`'s loop after the positions; it returns the started event's
   ID, or None to stop. `serve_independent_head` is the same pass of one independent queue.
 - `rules.proposals.apply_effect(controller, proposal)`: `_apply_effect` (`src/rules/proposals.rs`),
-  which returns `(target_id, next_decision_at, committed)`. A person the queue turns down at once gives
-  `Unsupported` before any write, and the Python step records the queue's text.
+  which returns `(target_id, next_decision_at, committed)`; the step has no Python body
+  (`KERNEL_ONLY_SEGMENTS`). A person the water or meal queue turns down at once is recorded with the
+  queue's text; a capacity wait recorded while the facility was chosen is written before the queue's
+  own events.
 - `rules.travel`: `route(controller, origin_zone_id, destination_zone_id, agent_id)` and
   `schedule_travel(controller, *, ...)`: `_route` and `_schedule_travel` (`src/rules/travel.rs`).
   Edge capacities and another route policy give `Unsupported`. The graph as rows stays on the

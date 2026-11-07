@@ -1,29 +1,32 @@
-//! The tail of `_apply_proposal` (`experiments/phases/propose.py`): what a decision records, with no
-//! Python object for the proposal.
+//! The steps of the propose phase that make and record a decision (`experiments/phases/propose.py`),
+//! with no Python object for the proposal. They have no Python step (segments.py,
+//! KERNEL_ONLY_SEGMENTS).
 //!
-//! `propose_rows` is `_propose_due`, returning `ProposalRow`s: what `_apply_proposal`'s Python body
-//! reads (`agent_id`, `action`, `next_decision_at`, `target_id`, `observed_state_hash`) comes from the
+//! `propose_rows` is `_propose_due`, returning `ProposalRow`s: what the phase reads of a proposal
+//! (`agent_id`, `action`, `next_decision_at`, `target_id`, `observed_state_hash`) comes from the
 //! row, and anything else makes the `ActionProposal` of rules/behavior.rs, once. `observed_row` is
 //! `_observed_state`, which keeps only where to find the person in the snapshot. `record_outcome` is
 //! `_record_outcome`: `record_decision`, then the lifecycle, then the memory, in that order.
 //!
 //! The record `_IndexedMetricSink.record_decision` keeps is written as JSON bytes, with the keys in the
 //! order of its dict, and goes into `sink.observations` as bytes; the index reads them
-//! (`HistoryIndex.ingest`). Everything that can refuse the record is read before it is appended, so
-//! Unsupported from there runs the Python step, which changes nothing twice: a sink of another class,
-//! a NaN, a large observed state, a tainted store. A Run with a trace gives `RunArtifactWriter` the
-//! document of `_decision_document`, and the writer keeps it as before. After the
-//! append each rule says for itself: Unsupported from `commit_action` or `remember_decision` has
-//! changed nothing, and that one rule then runs in Python.
+//! (`HistoryIndex.ingest`). Everything that can turn the record down is read before it is appended,
+//! and what the kernel does not write itself goes to the sink's own `record_decision` and the
+//! domain rules, as the phase called them (`record_through_python`): a sink that declares no
+//! `decision_sink`, a proposal Python made, a NaN, a large observed state (the sink measures it), a
+//! tainted store. A Run with a trace gives `RunArtifactWriter` the document of `_decision_document`,
+//! and the writer keeps it as before. After the append each rule says for itself: Unsupported from
+//! `commit_action` or `remember_decision` has changed nothing, and that one rule is then called
+//! through its Python entry.
 
 use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
-use pyo3::types::{PyBool, PyBytes, PyDict, PyList, PyString, PyTuple};
+use pyo3::types::{PyBool, PyBytes, PyDict, PyInt, PyList, PyString, PyTuple};
 
-use crate::core::row::{attribute, exact_dict, exact_int, exact_list, exact_str, unsupported};
+use crate::core::row::{attribute, exact_dict, exact_list, exact_str, unsupported};
 use crate::core::world_core::{raw_dict_get, raw_list_append};
 use crate::rules::action_lifecycle::{commit_action, ActiveActions, Proposal};
 use crate::rules::agent_dynamics::{remember_decision, Decision};
@@ -597,52 +600,61 @@ pub(crate) fn record_outcome<'py>(
     observed_state: &Bound<'py, PyAny>,
 ) -> PyResult<()> {
     let py = controller.py();
+    let through_python = || record_through_python(controller, proposal, target_id, next_decision_at, committed, observed_state);
     let Ok(row) = proposal.downcast_exact::<ProposalRow>() else {
-        return unsupported("the proposal is a Python object");
+        return through_python();
     };
     let row = row.get();
-    let Ok(committed) = committed.downcast_exact::<PyBool>() else {
-        return unsupported("committed is not a bool");
+    let Ok(committed_flag) = committed.downcast_exact::<PyBool>() else {
+        return through_python();
     };
-    let committed = committed.is_true();
-    let next = exact_int(next_decision_at)?;
+    let committed_flag = committed_flag.is_true();
     let data = row.view.get().data();
-    if next <= data.minute_index {
-        return unsupported("the outcome's timing is for Python to refuse");
-    }
+    // `with_outcome` refuses a next decision that is not after the minute, with its own text.
+    let next = match next_decision_at.downcast_exact::<PyInt>().map(|next| next.extract::<i64>()) {
+        Ok(Ok(next)) if next > data.minute_index => next,
+        _ => return through_python(),
+    };
     let target = if target_id.is_none() { None } else { Some(exact_str(target_id)?) };
     let world = attribute(controller, intern!(py, "world"))?;
     let active = attribute(controller, intern!(py, "active_actions"))?;
     let Ok(active) = active.downcast::<ActiveActions>() else {
-        return unsupported("the open actions are not the store");
+        return through_python();
     };
     let table = attribute(&world, intern!(py, "model_state"))?;
     let remembers = raw_dict_get(exact_dict(&table)?.as_any(), intern!(py, AGENT_DYNAMICS).as_any())?.is_some();
 
-    // The decision's record. All of this reads, so a refusal here runs the Python step.
+    // The decision's record. All of this reads before its one write, so what the kernel does not
+    // write itself goes to the sink's own `record_decision`, as for a sink that declares nothing.
     match sink_of(controller)? {
-        Sink::Python => return unsupported("the sink is Python's"),
+        Sink::Python => return through_python(),
         Sink::Silent => {}
         Sink::Traced(sink, full) => {
             let document = decision_document(py, row, target, next, full)?;
             sink.call_method1(intern!(py, "record_decision_document"), (document, observed_state))?;
         }
         Sink::Indexed(sink) => {
-            let Ok(observed) = observed_state.downcast_exact::<ObservedRow>() else {
-                return unsupported("the observed state is a Python object");
+            let written = match observed_state.downcast_exact::<ObservedRow>() {
+                Ok(observed) if attribute(&sink, intern!(py, "world"))?.is(&world) => {
+                    let observations = attribute(&sink, intern!(py, "observations"))?;
+                    exact_list(&observations)?;
+                    match decision_bytes(py, &sink, &world, row, target, next, observed.get()) {
+                        Ok(raw) => Some((observations, raw)),
+                        Err(error) if error.is_instance_of::<Unsupported>(py) => None,
+                        Err(error) => return Err(error),
+                    }
+                }
+                _ => None,
             };
-            if !attribute(&sink, intern!(py, "world"))?.is(&world) {
-                return unsupported("the sink reads another world");
-            }
-            let observations = attribute(&sink, intern!(py, "observations"))?;
-            exact_list(&observations)?;
-            let raw = decision_bytes(py, &sink, &world, row, target, next, observed.get())?;
+            let Some((observations, raw)) = written else {
+                return through_python();
+            };
             raw_list_append(&observations, PyBytes::new(py, &raw).as_any())?;
         }
     }
 
     let action = row.outcome.action.value();
-    if committed {
+    if committed_flag {
         let lifecycle = Proposal { agent_id: row.view.get().key(py, row.index).to_str()?, action, target_id: target, minute: data.minute_index, trigger: TRIGGER };
         if let Err(error) = commit_action(&world, active, &lifecycle) {
             if !error.is_instance_of::<Unsupported>(py) {
@@ -652,7 +664,7 @@ pub(crate) fn record_outcome<'py>(
             options.set_item(intern!(py, "target_id"), target_id)?;
             options.set_item(intern!(py, "committed"), true)?;
             options.set_item(intern!(py, "active_actions"), active)?;
-            phase_rule(py, "record_action_proposal")?
+            domain_rule(py, LIFECYCLE_MODULE, "record_action_proposal")?
                 .call((&world, row.recorded(py, target_id, next_decision_at)?), Some(&options))?;
         }
     }
@@ -671,16 +683,52 @@ pub(crate) fn record_outcome<'py>(
             }
             let options = PyDict::new(py);
             options.set_item(intern!(py, "target_id"), target_id)?;
-            phase_rule(py, "record_agent_proposal")?
+            domain_rule(py, DYNAMICS_MODULE, "record_proposal")?
                 .call((&world, row.recorded(py, target_id, next_decision_at)?), Some(&options))?;
         }
     }
     Ok(())
 }
 
-/// A rule as the propose phase's module has it, for what the kernels leave to Python.
-fn phase_rule<'py>(py: Python<'py>, name: &str) -> PyResult<Bound<'py, PyAny>> {
-    py.import("sheltersim.experiments.phases.propose")?.getattr(name)
+/// The step as the phase wrote it, for what the rows above do not take: a proposal Python made, a
+/// sink without `decision_sink` (or a trace's writer before its start or after its end), a long
+/// observed state, which the sink measures, values `with_outcome` or the rules raise on. The sink's
+/// `record_decision` and the rules it calls are the same ones, each with its own checks and texts.
+fn record_through_python<'py>(
+    controller: &Bound<'py, PyAny>,
+    proposal: &Bound<'py, PyAny>,
+    target_id: &Bound<'py, PyAny>,
+    next_decision_at: &Bound<'py, PyAny>,
+    committed: &Bound<'py, PyAny>,
+    observed_state: &Bound<'py, PyAny>,
+) -> PyResult<()> {
+    let py = controller.py();
+    let recorded = proposal.call_method1(intern!(py, "with_outcome"), (target_id, next_decision_at))?;
+    let options = PyDict::new(py);
+    options.set_item(intern!(py, "observed_state"), observed_state)?;
+    controller
+        .getattr(intern!(py, "artifacts"))?
+        .call_method(intern!(py, "record_decision"), (&recorded,), Some(&options))?;
+    let world = controller.getattr(intern!(py, "world"))?;
+    let options = PyDict::new(py);
+    options.set_item(intern!(py, "target_id"), target_id)?;
+    options.set_item(intern!(py, "committed"), committed)?;
+    options.set_item(intern!(py, "active_actions"), controller.getattr(intern!(py, "active_actions"))?)?;
+    domain_rule(py, LIFECYCLE_MODULE, "record_action_proposal")?.call((&world, &recorded), Some(&options))?;
+    if world.getattr(intern!(py, "model_state"))?.contains(intern!(py, AGENT_DYNAMICS))? {
+        let options = PyDict::new(py);
+        options.set_item(intern!(py, "target_id"), target_id)?;
+        domain_rule(py, DYNAMICS_MODULE, "record_proposal")?.call((&world, &recorded), Some(&options))?;
+    }
+    Ok(())
+}
+
+const LIFECYCLE_MODULE: &str = "sheltersim.domain.action_lifecycle";
+const DYNAMICS_MODULE: &str = "sheltersim.domain.agent_dynamics";
+
+/// A rule as its domain module has it, for what the kernels leave to it.
+fn domain_rule<'py>(py: Python<'py>, module: &str, name: &str) -> PyResult<Bound<'py, PyAny>> {
+    py.import(module)?.getattr(name)
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

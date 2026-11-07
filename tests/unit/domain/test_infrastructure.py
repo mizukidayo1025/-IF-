@@ -8,8 +8,10 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 from support.paths import SMALL_REPLAY
+from support.psychology import psychology_step
 
 from sheltersim.core.checkpoint import Checkpoint
+from sheltersim.core.engine import TraceLevel
 from sheltersim.core.world import StateInvariantError, WorldState
 from sheltersim.domain.infrastructure import (
     INFRASTRUCTURE_STATE_KEY,
@@ -322,22 +324,23 @@ def test_environmental_stressor_is_zone_scoped_bounded_and_expires_with_provenan
     assert view.agents["A001"].environmental_stress_per_minute == pytest.approx(0.002)
     assert view.agents["A001"].environmental_stressor_event_ids == ("heat-wave",)
     assert view.agents["A002"].environmental_stress_per_minute == 0.0
+    # Floats, as a Scenario's psychology config gives them.
     parameters = PsychologyParameters(
-        toilet_growth=0,
-        hunger_growth=0,
-        awake_fatigue_growth=0,
-        resting_fatigue_recovery=0,
-        sleeping_fatigue_recovery=0,
-        stress_pressure=0,
-        queued_stress=0,
-        support_wait_stress=0,
-        resting_stress_recovery=0,
-        sleeping_stress_recovery=0,
-        need_pressure_threshold=1,
+        toilet_growth=0.0,
+        hunger_growth=0.0,
+        awake_fatigue_growth=0.0,
+        resting_fatigue_recovery=0.0,
+        sleeping_fatigue_recovery=0.0,
+        stress_pressure=0.0,
+        queued_stress=0.0,
+        support_wait_stress=0.0,
+        resting_stress_recovery=0.0,
+        sleeping_stress_recovery=0.0,
+        need_pressure_threshold=1.0,
     )
-    result = SimplePsychologyPolicy(parameters).explain_update(view, 0)
-    traces = result.trace_document(0, source_id="ASM-H04-CAUSAL-STRESS-V1", full=True)
-    by_agent = {record["agent_id"]: record for record in traces["agents"]}
+    result = psychology_step(world, SimplePsychologyPolicy(parameters), trace_level=TraceLevel.FULL)
+    assert result.document is not None
+    by_agent = {record["agent_id"]: record for record in result.document["agents"]}
     assert result.deltas[0].stress == pytest.approx(0.002)
     assert by_agent["A001"]["stress"]["components"][
         "experimental_environmental_stress"

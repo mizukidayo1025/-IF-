@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from sheltersim.core.rng import KeyedRandom
-from sheltersim.domain.social_network import PROXIMITY_CONTACT_SOURCE_ID
 from sheltersim.events.models import EventKind, ScheduledEvent
 from sheltersim.experiments.phases.segments import no_python_step
 
@@ -78,41 +77,19 @@ class SamplePhase:
         )
 
     def _sample_proximity_contacts(self, minute: int) -> None:
-        """Schedule only reproducible same-zone physical proximity observations."""
-        config = self.proximity_contact_config
-        if (
-            config is None
-            or minute % config["sample_interval_minutes"] != 0
-            or minute + 1 >= self.world.duration_minutes
-        ):
-            return
-        for pair in self.proximity_policy.sample(self.world):
-            due_minute = minute + 1
-            sequence = self.world.allocate_event_sequence()
-            self.world.schedule_event(
-                ScheduledEvent(
-                    event_id=f"proximity-contact-{sequence}",
-                    kind=EventKind.ENDOGENOUS,
-                    due_minute=due_minute,
-                    priority=40,
-                    sequence=sequence,
-                    event_type="proximity_contact_update",
-                    payload={
-                        "first_agent_id": pair.first_agent_id,
-                        "second_agent_id": pair.second_agent_id,
-                        "zone_id": pair.zone_id,
-                        "observed_minute": due_minute,
-                        "contact_minutes": 0,
-                        "distance_m": pair.distance_m,
-                        "first_point": pair.first_point,
-                        "second_point": pair.second_point,
-                    },
-                    source_id=PROXIMITY_CONTACT_SOURCE_ID,
-                    provenance={
-                        "source_type": "assumption",
-                        "source_id": PROXIMITY_CONTACT_SOURCE_ID,
-                        "policy_version": config["policy_version"],
-                        "observed_minute": due_minute,
-                    },
-                )
-            )
+        """Next minute's same-zone proximity contacts, which native/src/rules/proximity.rs samples.
+
+        Nothing without `proximity_contact_config`, at a minute that is not a multiple of its
+        `sample_interval_minutes`, or when `minute + 1` is past the Run. Otherwise
+        `proximity_policy` (DistanceSampledProximityPolicy) pairs the people whose physical points
+        of `movement_v1` lie in the same zone and within `max_distance_m` (each person known, the
+        point a finite x and y), closest first, then by ID, at most `max_pairs_per_sample`; each
+        pair becomes a `proximity_contact_update` event due at `minute + 1` (priority 40, the
+        source ASM-PROXIMITY-CONTACT-V1, the config's `policy_version`), with the distance and both
+        points.
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        raises KernelRefusal: a policy of another class, a minute or interval that is not an int,
+        a coordinate whose grid cell does not fit 64 bits.
+        """
+        raise no_python_step("_sample_proximity_contacts")

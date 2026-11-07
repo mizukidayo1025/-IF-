@@ -1,9 +1,10 @@
 """The handlers' kernels against their Python rules, on a world and a copy of it made before.
 
 rules/care_receipts.rs, rules/toilet.rs, rules/support.rs, `after_arrival` of
-rules/travel_completion.rs and the dispatch table's new entries. benchmarks/rule_shadow/
-shadow_handlers.py does this on the runs of the gate; here, the branches those runs may not reach
-and the values that change the result (docs/rust-port/lanes/m6-handlers.md).
+rules/travel_completion.rs, the seeks of rules/proposals.rs and the dispatch table's new entries:
+the branches the gate's runs may not reach and the values that change the result
+(docs/rust-port/lanes/m6-handlers.md). A rule with no Python body left is compared with what that
+rule gave, recorded from it before it went.
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ import sys
 from typing import Any
 
 import pytest
-from support.world import kernel_says_python_s_text
+from support.world import kernel_says_python_s_text, world_digest
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine
@@ -24,7 +25,6 @@ from sheltersim.domain import care_receipts
 from sheltersim.domain.facilities import ToiletRequestReceipt, ToiletServiceManager
 from sheltersim.domain.facility_queues import facility_has_independent_queues
 from sheltersim.domain.models import ActiveTask, Activity, SupportRequestState, SupportRequestStatus
-from sheltersim.domain.staff import StaffService
 from sheltersim.events.handlers import (
     AgentTravelCompletionHandler,
     StaffSupportCompletionHandler,
@@ -40,7 +40,6 @@ from sheltersim.events.models import (
 )
 from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.phases.dispatch import DispatchPhase
-from sheltersim.experiments.phases.propose import ProposePhase
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
 from sheltersim.policies.behavior import ActionKind
@@ -586,29 +585,27 @@ def test_without_the_namespace_nothing_happens(generated_scenario: Any) -> None:
 
 
 @pytest.mark.parametrize(
-    "person",
+    ("person", "digest"),
     [
-        {},
-        {"source_ids": ["S-B", "S-A", 3]},
-        {"care_support_needs": ["language_access"]},
-        {"care_support_needs": ["hygiene_support", "language_access"]},
-        {"medication_support": True},
-        {"medical_support": True},
-        {"medical_support": 1},
-        "not a person",
+        ({}, "b97278e44a1578bb"),
+        ({"source_ids": ["S-B", "S-A", 3]}, "77396644fe0730ff"),
+        ({"care_support_needs": ["language_access"]}, "15ff1c01a90eedaa"),
+        ({"care_support_needs": ["hygiene_support", "language_access"]}, "1b1b58c7ce93057d"),
+        ({"medication_support": True}, "cddd80dc1bf49308"),
+        ({"medical_support": True}, "1b05e9d54a04d73b"),
+        ({"medical_support": 1}, "76415054a7336834"),
+        ("not a person", "a149ba7dc717f136"),
     ],
 )
-def test_what_a_seek_reads_of_a_person_is_python_s(generated_scenario: Any, person: Any) -> None:
+def test_what_a_seek_reads_of_a_person_is_python_s(
+    generated_scenario: Any, person: Any, digest: str
+) -> None:
     world, controller = _run(generated_scenario, 5)
     agent_id = _idle_person(world)
     configs = world.model_configs.setdefault("population_context", {})
     configs.setdefault("people", {})[agent_id] = person
-    twin = copy.deepcopy(world)
     proposal = _proposal(ActionKind.SEEK_HELP, agent_id, world)
-    result = native.rules("proposals").apply_effect(controller, proposal)
-    expected = _python_seek(controller, twin, proposal)
-    assert list(result) == list(expected)
-    _same_world(world, twin)
+    _seek(world, controller, proposal, ("support-9a4dff703809248129a56411", 12, True), digest)
 
 
 # ---- seek_help and seek_information --------------------------------------------------------------
@@ -626,47 +623,45 @@ def _proposal(action: ActionKind, agent_id: str, world: WorldState) -> Any:
     return proposal
 
 
-def _python_seek(controller: Any, twin: WorldState, proposal: Any) -> Any:
-    class Step(ProposePhase):
-        pass
+def _seek(
+    world: WorldState, controller: Any, proposal: Any, expected: tuple[Any, ...], digest: str
+) -> Any:
+    """The kernel on the world: the result and the world (`world_digest`) of the Python step,
+    recorded from it on 45a9bc9 before it went (lane L10), pinned on Linux."""
+    result = native.rules("proposals").apply_effect(controller, proposal)
+    assert tuple(result) == expected
+    assert type(result[2]) is bool
+    assert world._core.entities().verify(world) is None
+    if sys.platform == "linux":
+        assert world_digest(world) == digest
+    return result
 
-    step = Step()
-    step.__dict__.update(controller.__dict__)
-    step.world = twin
-    service = StaffService.__new__(StaffService)
-    service.__dict__.update(controller.staff_service.__dict__)
-    service.world = twin
-    step.staff_service = service
-    return step._apply_effect(proposal)
 
-
-@pytest.mark.parametrize("action", [ActionKind.SEEK_HELP, ActionKind.SEEK_INFORMATION])
-def test_a_seek_is_python_s(generated_scenario: Any, action: ActionKind) -> None:
+@pytest.mark.parametrize(
+    ("action", "digest"),
+    [
+        (ActionKind.SEEK_HELP, "5d20d2e22d7a9ee7"),
+        (ActionKind.SEEK_INFORMATION, "9f3389377a05f25c"),
+    ],
+)
+def test_a_seek_is_python_s(generated_scenario: Any, action: ActionKind, digest: str) -> None:
     world, controller = _run(generated_scenario, 5)
     agent_id = _idle_person(world)
-    twin = copy.deepcopy(world)
     proposal = _proposal(action, agent_id, world)
-    result = native.rules("proposals").apply_effect(controller, proposal)
-    expected = _python_seek(controller, twin, proposal)
-    assert list(result) == list(expected)
-    assert result[2] is True
+    result = _seek(
+        world, controller, proposal, ("support-9a4dff703809248129a56411", 12, True), digest
+    )
     assert world.agents[agent_id].activity is Activity.SEEKING_HELP
     assert result[0] in world.support_requests
-    _same_world(world, twin)
 
 
 def test_a_seek_in_cooldown_counts_as_rejected(generated_scenario: Any) -> None:
     world, controller = _run(generated_scenario, 5)
     agent_id = _idle_person(world)
     world.agents[agent_id].support_cooldown_until = world.minute_index + 1
-    twin = copy.deepcopy(world)
     proposal = _proposal(ActionKind.SEEK_HELP, agent_id, world)
-    result = native.rules("proposals").apply_effect(controller, proposal)
-    expected = _python_seek(controller, twin, proposal)
-    assert list(result) == list(expected)
-    assert result[0] is None and result[2] is False
+    _seek(world, controller, proposal, (None, 12, False), "f53692cd3b447cc5")
     assert world.metric_state["support_request_rejected_count"] >= 1.0
-    _same_world(world, twin)
 
 
 def test_a_seek_reaches_the_information_rule_above_its_threshold(generated_scenario: Any) -> None:
@@ -676,12 +671,14 @@ def test_a_seek_reaches_the_information_rule_above_its_threshold(generated_scena
     agent_id = _idle_person(world)
     state = world.model_state["information_spread_v1"]
     state["query_pressure"][agent_id] = controller.information_policy.config.query_threshold
-    twin = copy.deepcopy(world)
     proposal = _proposal(ActionKind.SEEK_HELP, agent_id, world)
-    result = native.rules("proposals").apply_effect(controller, proposal)
-    expected = _python_seek(controller, twin, proposal)
-    assert list(result) == list(expected)
-    _same_world(world, twin)
+    _seek(
+        world,
+        controller,
+        proposal,
+        ("support-9a4dff703809248129a56411", 12, True),
+        "dbe1888452f64656",
+    )
 
 
 # ---- the timeout ---------------------------------------------------------------------------------

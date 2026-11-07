@@ -3,6 +3,8 @@
 A Run with a trace goes through the driver and its kernels. Here each model writes its files on the
 driver and with the kernels removed, and random worlds reach values no scenario does. Decision D1 of
 docs/rust-port/step4-plan.md: the documents keep their shape. See docs/rust-port/lanes/l6-trace.md.
+The psychology, contact and information steps have no Python rule left (lane L10): what the
+deleted rules wrote was recorded once as digests (ANSWERS), which the kernels' must equal on Linux.
 """
 
 from __future__ import annotations
@@ -12,7 +14,6 @@ import json
 import os
 import random
 import sys
-from dataclasses import fields
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -23,6 +24,7 @@ from support.python_rules import without_kernels
 
 from sheltersim import native
 from sheltersim.core.engine import TraceLevel
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.world import WorldState
 from sheltersim.domain.models import SupportRequestState, SupportRequestStatus
 from sheltersim.experiments.phases.update import UpdatePhase
@@ -68,6 +70,8 @@ MODELS = (
 # experiments/phases at 2d8fb46, on policies/social.py, information.py and alternatives.py), as
 # sha256 of the files, recorded once on Linux. With SHELTERSIM_RECORD_CONTACT_RUNS set, the tests
 # ran those Python steps and wrote their digests to that file instead.
+# The psychology steps' (`_psychology_update` and `_record_psychology_trace` at 45a9bc9, on
+# policies/psychology.py and alternatives.py) are in PSYCHOLOGY_ANSWERS.
 ANSWERS: dict[str, str] = {
     "information-evidence-aware-rumor-v1-full": (
         "fb778b1f2efe73f30f329d7c607ad89e7525e49b953a07efd276b28a543940e7"
@@ -116,6 +120,67 @@ ANSWERS: dict[str, str] = {
     ),
 }
 _RECORD = os.environ.get("SHELTERSIM_RECORD_CONTACT_RUNS")
+PSYCHOLOGY_ANSWERS: dict[str, str] = {
+    "information-evidence-aware-rumor-v1-full": (
+        "48f99bbe27eadd8107164069b4b7a54e7a327696f916e6966294c6eee7d74a23"
+    ),
+    "information-hazard-information-v1-full": (
+        "cc56c5df0fedfeed07d18da6accf33f3812fe5cb592d806d62a7e5d039221da5"
+    ),
+    "information-hazard-information-v1-summary": (
+        "cc56c5df0fedfeed07d18da6accf33f3812fe5cb592d806d62a7e5d039221da5"
+    ),
+    "information-sparse-information-contact-v1-full": (
+        "1ba1960873ed3bf1d7418ca10c091073c4a32fac857cab7d57c254a2b736eecf"
+    ),
+    "ints-full": ("abaed98d7e6d7a28a3d53028be0c3c5f084a104613ffbd306a72bdb5c74c627b"),
+    "ints-summary": ("abaed98d7e6d7a28a3d53028be0c3c5f084a104613ffbd306a72bdb5c74c627b"),
+    "models-0-full": ("640ed4e7a101957606fcddcd486c7030758ff4658be73a39bf25370877272c81"),
+    "models-0-summary": ("640ed4e7a101957606fcddcd486c7030758ff4658be73a39bf25370877272c81"),
+    "models-1-full": ("cfa05fafeec31e3646ed5207a524a17be226b2eb2f6eab428ffbc628c49ef0e5"),
+    "models-1-summary": ("cfa05fafeec31e3646ed5207a524a17be226b2eb2f6eab428ffbc628c49ef0e5"),
+    "models-2-full": ("36b75b85d6acd4c719b7c3b8fbf456ac773665de29e0b669f350c6e959a19de4"),
+    "models-2-summary": ("36b75b85d6acd4c719b7c3b8fbf456ac773665de29e0b669f350c6e959a19de4"),
+    "models-3-full": ("787c2c165087682b368863caab8719d90719eebbfa85df6a49aca1ad25aeac2d"),
+    "models-3-summary": ("787c2c165087682b368863caab8719d90719eebbfa85df6a49aca1ad25aeac2d"),
+    "models-4-full": ("735c4e5d454fa51f58798bd8fd699f0aabd6c04aee6a2f25153a26f6f0753fc7"),
+    "models-4-summary": ("735c4e5d454fa51f58798bd8fd699f0aabd6c04aee6a2f25153a26f6f0753fc7"),
+    "models-5-full": ("4d964b10d02eafeabfc15ea50eace84a454a013e51beed194e8eb1a2ecb3338a"),
+    "models-5-summary": ("4d964b10d02eafeabfc15ea50eace84a454a013e51beed194e8eb1a2ecb3338a"),
+    "psychology-bounded-stress-v1-full": (
+        "9c5f529b5e0a9319970986f5155f1cd84ae72a8eea3c889d67765b82582f4a7e"
+    ),
+    "psychology-causal-stress-v1-full": (
+        "c9fc0b3623eb82283792189dc457c8bb5cbb2827f48658dc409d76aa0d2f99d3"
+    ),
+    "psychology-causal-stress-v1-summary": (
+        "c9fc0b3623eb82283792189dc457c8bb5cbb2827f48658dc409d76aa0d2f99d3"
+    ),
+    "psychology-life-state-feedback-v1-full": (
+        "1c4cce80a6f63956dc0496fcec4c532cd57330cab33f0b659b1fdcc188e89de0"
+    ),
+    "psychology-mean-reverting-distress-v1-full": (
+        "1ced8a5fd869b4f02716b6249857e89094293e4cdf5f79d38c983771286a0d36"
+    ),
+    "psychology-mean-reverting-life-state-v1-full": (
+        "48f99bbe27eadd8107164069b4b7a54e7a327696f916e6966294c6eee7d74a23"
+    ),
+    "psychology-mean-reverting-life-state-v1-summary": (
+        "48f99bbe27eadd8107164069b4b7a54e7a327696f916e6966294c6eee7d74a23"
+    ),
+    "social-degroot-contact-v1-full": (
+        "ea9bea375767d9717591c58ebaee32fab78bfbc9746d01c9f247cb0806a7536d"
+    ),
+    "social-degroot-contact-v1-summary": (
+        "ea9bea375767d9717591c58ebaee32fab78bfbc9746d01c9f247cb0806a7536d"
+    ),
+    "social-expressiveness-channel-openness-v1-full": (
+        "48f99bbe27eadd8107164069b4b7a54e7a327696f916e6966294c6eee7d74a23"
+    ),
+    "social-sparse-family-zone-contact-v1-full": (
+        "0ef79df752ad8be7cb2401ae7833d110320b97e4d0a85e484bb2af53408a8f55"
+    ),
+}
 
 
 def _answers(name: str, texts: list[str]) -> None:
@@ -130,10 +195,17 @@ def _answers(name: str, texts: list[str]) -> None:
         assert digest.hexdigest() == ANSWERS[name], name
 
 
+def _psychology_answers(name: str, texts: list[str]) -> None:
+    digest = hashlib.sha256()
+    for text in texts:
+        digest.update(text.encode() + b"\n")
+    if sys.platform == "linux":
+        assert digest.hexdigest() == PSYCHOLOGY_ANSWERS[name], name
+
+
 def _python_contact_steps(patch: pytest.MonkeyPatch) -> None:
     """Only while recording: the deleted Python steps of the contact models."""
     from sheltersim.experiments.phases.sample import SamplePhase
-    from sheltersim.experiments.phases.update import UpdatePhase
     from sheltersim.experiments.runner import OfflineSimulationController
 
     patch.setattr(
@@ -172,8 +244,8 @@ def _files(directory: Path) -> dict[str, bytes | None]:
 def test_a_run_with_a_trace_writes_the_bytes_of_the_python_rules(
     domain: str, model: str, level: TraceLevel, tmp_path: Path
 ) -> None:
-    """The psychology and decision files against the Python rules of a Run without the kernels;
-    the contact files, whose Python steps are gone, against what those steps wrote."""
+    """The decision file against the Python rules of a Run without the kernels; the psychology
+    and contact files, whose Python steps are gone, against what those steps wrote."""
     scenario = _model_scenario(domain, model)
     before = _ticks()
     with pytest.MonkeyPatch.context() as patch:
@@ -183,22 +255,27 @@ def test_a_run_with_a_trace_writes_the_bytes_of_the_python_rules(
     if not _RECORD:
         assert _ticks() - before == scenario.duration_minutes
     driven = _files(tmp_path / "driver")
+    view_step = OfflineSimulationController.__dict__["_view_after_movement"]
     with pytest.MonkeyPatch.context() as patch:
         without_kernels(patch)
+        # The psychology trace, which has no Python step, reads a view the kernel made.
+        patch.setattr(OfflineSimulationController, "_view_after_movement", view_step)
         run_scenario(scenario, tmp_path / "python", trace_level=level)
     assert driven["psychology_contributions.jsonl"]
     contacts = ("social_contacts.jsonl", "information_contacts.jsonl")
-    for name, raw in _files(tmp_path / "python").items():
+    psychology = ("psychology_contributions.jsonl", "psychology_contributions_hourly.jsonl")
+    python = _files(tmp_path / "python")
+    for name, raw in python.items():
         if name not in contacts:
             assert driven[name] == raw, name
+    _psychology_answers(
+        f"{domain}-{model}-{level.value}",
+        [(driven[name] or b"").decode("utf-8") for name in psychology],
+    )
     _answers(
         f"{domain}-{model}-{level.value}",
         [(driven[name] or b"").decode("utf-8") for name in contacts],
     )
-
-
-def _text(value: Any) -> str:
-    return json.dumps([getattr(value, item.name) for item in fields(value)], ensure_ascii=False)
 
 
 def _shuffle(world: WorldState, draws: random.Random) -> None:
@@ -260,15 +337,21 @@ class _Keeping:
         self.documents.append(json.dumps([trace, list(agent_contributions)], ensure_ascii=False))
 
 
+def _documents(controller: Any, view: Any, final_of: Any) -> str:
+    """The step's document of the minute and its contributions, as text."""
+    result = native.rules("psychology").update_psychology(controller, view, 0)
+    native.rules("trace").record_psychology_trace(controller, result, final_of(result.deltas), 0)
+    (document,) = controller.artifacts.documents
+    return document
+
+
 @pytest.mark.parametrize("seed", range(6))
 @pytest.mark.parametrize(
     "level", [TraceLevel.SUMMARY, TraceLevel.FULL], ids=lambda level: level.value
 )
-def test_the_rows_and_the_document_of_each_model_are_python_s(
+def test_the_document_of_each_model_is_the_deleted_rule_s(
     generated_scenario: Any, tmp_path: Path, seed: int, level: TraceLevel
 ) -> None:
-    rules = native.rules("psychology")
-    record = native.rules("trace").record_psychology_trace
     draws = random.Random(seed)
     world = WorldState.from_scenario(generated_scenario)
     artifacts = RunArtifactWriter(generated_scenario, tmp_path, trace_level=TraceLevel.OFF)
@@ -276,24 +359,22 @@ def test_the_rows_and_the_document_of_each_model_are_python_s(
     controller = OfflineSimulationController(world, artifacts)
     _shuffle(world, draws)
     view = controller._view_after_movement(world)
+    documents = []
     for policy in _policies(draws, sorted(world.agents)):
         controller.psychology = policy
         controller.artifacts = _Keeping(level)
-        result = rules.update_psychology(controller, view, 0)
-        python = policy.explain_update(view, 0)
-        assert [_text(trace) for trace in result.traces] == [
-            _text(trace) for trace in python.traces
-        ]
-        assert result.policy_version == python.policy_version
         # What the social step does between the two.
-        final = tuple(
-            delta.with_stress(draws.random()) if number % 2 else delta
-            for number, delta in enumerate(result.deltas)
+        documents.append(
+            _documents(
+                controller,
+                view,
+                lambda deltas: tuple(
+                    delta.with_stress(draws.random()) if number % 2 else delta
+                    for number, delta in enumerate(deltas)
+                ),
+            )
         )
-        record(controller, result, final, 0)
-        UpdatePhase._record_psychology_trace(controller, python, final, 0)
-        ours, theirs = controller.artifacts.documents
-        assert ours == theirs
+    _psychology_answers(f"models-{seed}-{level.value}", documents)
 
 
 def _int_policies(ids: list[str]) -> list[Any]:
@@ -322,13 +403,11 @@ def _int_policies(ids: list[str]) -> list[Any]:
 @pytest.mark.parametrize(
     "level", [TraceLevel.SUMMARY, TraceLevel.FULL], ids=lambda level: level.value
 )
-def test_int_values_of_a_scenario_give_the_python_rule_s_document(
+def test_int_values_of_a_scenario_give_the_deleted_rule_s_document(
     generated_scenario: Any, tmp_path: Path, level: TraceLevel
 ) -> None:
     """A separated household's pressure is the int `discontent_stress_rate`: the Python rule kept
     it an int in `life_state_before` and `after`, and JSON writes `1`, not `1.0`."""
-    rules = native.rules("psychology")
-    record = native.rules("trace").record_psychology_trace
     world = WorldState.from_scenario(generated_scenario)
     artifacts = RunArtifactWriter(generated_scenario, tmp_path, trace_level=TraceLevel.OFF)
     artifacts.write_initial(world, execution_mode="offline")
@@ -336,32 +415,29 @@ def test_int_values_of_a_scenario_give_the_python_rule_s_document(
     _shuffle(world, random.Random(3))
     view = controller._view_after_movement(world)
     separated = 0
+    documents = []
     for policy in _int_policies(sorted(world.agents)):
         controller.psychology = policy
         controller.artifacts = _Keeping(level)
-        result = rules.update_psychology(controller, view, 0)
-        python = policy.explain_update(view, 0)
-        assert [_text(trace) for trace in result.traces] == [
-            _text(trace) for trace in python.traces
-        ]
-        record(controller, result, result.deltas, 0)
-        UpdatePhase._record_psychology_trace(controller, python, result.deltas, 0)
-        ours, theirs = controller.artifacts.documents
-        assert ours == theirs
-        separated += ours.count(
+        document = _documents(controller, view, lambda deltas: deltas)
+        documents.append(document)
+        separated += document.count(
             '"family_separation_pressure": {"before": 1, "after": 1, "delta": 0}'
         )
     assert separated > 0
+    _psychology_answers(f"ints-{level.value}", documents)
 
 
-def test_a_python_result_stays_with_the_python_step(generated_scenario: Any) -> None:
+def test_traces_that_are_not_the_kernel_s_rows_are_refused(generated_scenario: Any) -> None:
     world = WorldState.from_scenario(generated_scenario)
     controller = SimpleNamespace(
         psychology=SimplePsychologyPolicy(), artifacts=_Keeping(TraceLevel.SUMMARY)
     )
     result = SimpleNamespace(traces=(), deltas=())
-    with pytest.raises(native.Unsupported, match="Python rule's"):
-        native.rules("trace").record_psychology_trace(controller, result, (), world.minute_index)
+    with pytest.raises(KernelRefusal, match="not the psychology kernel's rows"):
+        OfflineSimulationController._record_psychology_trace(
+            controller, result, (), world.minute_index
+        )
     assert controller.artifacts.documents == []
 
 
@@ -374,9 +450,7 @@ def test_no_trace_writes_nothing(generated_scenario: Any) -> None:
     assert controller.artifacts.documents == []
 
 
-def test_a_person_with_no_final_delta_is_left_to_the_python_step(
-    generated_scenario: Any, tmp_path: Path
-) -> None:
+def test_a_person_with_no_final_delta_is_refused(generated_scenario: Any, tmp_path: Path) -> None:
     world = WorldState.from_scenario(generated_scenario)
     artifacts = RunArtifactWriter(generated_scenario, tmp_path, trace_level=TraceLevel.OFF)
     artifacts.write_initial(world, execution_mode="offline")
@@ -385,6 +459,8 @@ def test_a_person_with_no_final_delta_is_left_to_the_python_step(
     controller.psychology = SimplePsychologyPolicy()
     controller.artifacts = _Keeping(TraceLevel.FULL)
     result = native.rules("psychology").update_psychology(controller, view, 0)
-    with pytest.raises(native.Unsupported, match="no final delta"):
-        native.rules("trace").record_psychology_trace(controller, result, result.deltas[:-1], 0)
+    with pytest.raises(KernelRefusal, match="no final delta"):
+        OfflineSimulationController._record_psychology_trace(
+            controller, result, result.deltas[:-1], 0
+        )
     assert controller.artifacts.documents == []

@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import sys
 from types import SimpleNamespace
 
 import pytest
 from support.paths import FIXTURES, SMALL_REPLAY
+from support.psychology import psychology_step
+from support.world import decisions_of
 
 from sheltersim import native
 from sheltersim.core.checkpoint import Checkpoint, CheckpointError
@@ -20,6 +24,7 @@ from sheltersim.domain.environment import (
     ScenarioZoneEnvironmentConfig,
     zone_environment_view,
 )
+from sheltersim.domain.models import Activity
 from sheltersim.events.effects import (
     DEFAULT_PRIMITIVE_REGISTRY,
     EffectProgram,
@@ -34,7 +39,6 @@ from sheltersim.events.effects import (
 from sheltersim.events.handlers import EventDispatcher
 from sheltersim.events.models import EventStatus
 from sheltersim.experiments.metrics import MetricsRecorder
-from sheltersim.experiments.phases.update import UpdatePhase
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _MetricSink
@@ -49,8 +53,8 @@ from sheltersim.llm.natural_language import (
 )
 from sheltersim.llm.provider import LLMRouter
 from sheltersim.llm.schemas import ParseRequest
-from sheltersim.policies.behavior import ActionKind, UtilityBehaviorPolicy, WorldView
-from sheltersim.policies.psychology import Activity, SimplePsychologyPolicy
+from sheltersim.policies.behavior import ActionKind, UtilityBehaviorPolicy
+from sheltersim.policies.psychology import SimplePsychologyPolicy
 
 ENVIRONMENT_SOURCE = "ASM-H19-ZONE-ENVIRONMENT-V1"
 
@@ -162,23 +166,18 @@ def test_noise_changes_rest_recovery_only_in_the_target_zone_and_never_writes_st
     )
     assert zone_environment_view(noisy, "sleeping").rest_efficiency_multiplier == 0.6
     assert zone_environment_view(noisy, "corridor").rest_efficiency_multiplier == 1.0
-    base_result = SimplePsychologyPolicy().explain_update(WorldView.from_world(baseline), 1)
-    noise_result = SimplePsychologyPolicy().explain_update(WorldView.from_world(noisy), 1)
-    base_deltas = {item.agent_id: item for item in base_result.deltas}
-    noise_deltas = {item.agent_id: item for item in noise_result.deltas}
-    base_traces = {item.agent_id: item for item in base_result.traces}
-    noise_traces = {item.agent_id: item for item in noise_result.traces}
+    base_result = psychology_step(baseline, SimplePsychologyPolicy(), trace_level=TraceLevel.FULL)
+    noise_result = psychology_step(noisy, SimplePsychologyPolicy(), trace_level=TraceLevel.FULL)
 
-    assert noise_deltas["A001"].fatigue > base_deltas["A001"].fatigue
-    assert noise_deltas["A004"].fatigue == base_deltas["A004"].fatigue
-    assert noise_deltas["A001"].stress == base_deltas["A001"].stress
-    assert noise_deltas["A004"].stress == base_deltas["A004"].stress
-    assert noise_traces["A001"].zone_environment_modifier_event_ids == (event_ids[0],)
-    assert noise_traces["A001"].to_dict(source_id="ASM-H04-CAUSAL-STRESS-V1")["zone_environment"][
-        "assumption_ids"
-    ] == [ENVIRONMENT_SOURCE]
-    assert noise_traces["A004"].zone_environment_modifier_event_ids == ()
-    assert base_traces["A001"].zone_environment_modifier_event_ids == ()
+    assert noise_result.delta("A001").fatigue > base_result.delta("A001").fatigue
+    assert noise_result.delta("A004").fatigue == base_result.delta("A004").fatigue
+    assert noise_result.delta("A001").stress == base_result.delta("A001").stress
+    assert noise_result.delta("A004").stress == base_result.delta("A004").stress
+    noise_zone = noise_result.person("A001")["zone_environment"]
+    assert noise_zone["modifier_event_ids"] == [event_ids[0]]
+    assert noise_zone["assumption_ids"] == [ENVIRONMENT_SOURCE]
+    assert "zone_environment" not in noise_result.person("A004")
+    assert "zone_environment" not in base_result.person("A001")
 
 
 def test_demand_odds_are_action_and_zone_scoped_and_rest_duration_is_clamped() -> None:
@@ -208,12 +207,12 @@ def test_demand_odds_are_action_and_zone_scoped_and_rest_duration_is_clamped() -
         ),
     )
     policy = UtilityBehaviorPolicy(decision_interval_minutes=15)
-    baseline_view = WorldView.from_world(baseline)
-    modified_view = WorldView.from_world(modified)
-    base_target = policy.propose(baseline_view, "A001", CounterRNG(3))
-    modified_target = policy.propose(modified_view, "A001", CounterRNG(3))
-    base_other = policy.propose(baseline_view, "A004", CounterRNG(3))
-    modified_other = policy.propose(modified_view, "A004", CounterRNG(3))
+    base_proposals = decisions_of(baseline, policy, rng=CounterRNG(3))
+    modified_proposals = decisions_of(modified, policy, rng=CounterRNG(3))
+    base_target = base_proposals["A001"]
+    modified_target = modified_proposals["A001"]
+    base_other = base_proposals["A004"]
+    modified_other = modified_proposals["A004"]
     base_target_sleep = next(
         item for item in base_target.candidates if item.action is ActionKind.SLEEP
     )
@@ -240,7 +239,7 @@ def test_demand_odds_are_action_and_zone_scoped_and_rest_duration_is_clamped() -
     selected_sleep = next(
         proposal
         for seed in range(100)
-        if (proposal := policy.propose(modified_view, "A001", CounterRNG(seed))).action
+        if (proposal := decisions_of(modified, policy, rng=CounterRNG(seed))["A001"]).action
         is ActionKind.SLEEP
     )
     assert selected_sleep.next_decision_at == 21
@@ -456,11 +455,19 @@ def test_unseen_stories_compile_to_the_same_registered_environment_operators(
     assert all(item.target_selector.target_id == "sleeping" for item in result.draft_plan.effects)
 
 
+NOISY_ZONE_DOCUMENTS = {
+    "summary": "df2c020f9671f8e435c5f516a694cbfbb4d8060e07b45ecdf1977358e51c4c88",
+    "full": "df2c020f9671f8e435c5f516a694cbfbb4d8060e07b45ecdf1977358e51c4c88",
+}
+
+
 @pytest.mark.parametrize(
     "level", [TraceLevel.SUMMARY, TraceLevel.FULL], ids=lambda item: item.value
 )
-def test_the_trace_of_a_noisy_zone_is_the_python_rule_s(level: TraceLevel) -> None:
-    """No gate scenario has noise with a trace, so this compares that part of the document."""
+def test_the_trace_of_a_noisy_zone_is_the_deleted_python_rule_s(level: TraceLevel) -> None:
+    """No gate scenario has noise with a trace, so this compares that part of the document with
+    what the deleted Python rule wrote (`explain_update` and `_record_psychology_trace` at 45a9bc9),
+    recorded once on Linux as sha256 of the document's text."""
     world = _world()
     for agent in world.agents.values():
         agent.activity = Activity.RESTING
@@ -484,15 +491,12 @@ def test_the_trace_of_a_noisy_zone_is_the_python_rule_s(level: TraceLevel) -> No
     )
     minute = world.minute_index
     result = native.rules("psychology").update_psychology(controller, view, minute)
-    python = controller.psychology.explain_update(view, minute)
-    assert [trace.zone_environment_modifier_event_ids for trace in result.traces] == [
-        trace.zone_environment_modifier_event_ids for trace in python.traces
-    ]
-    assert list(result.traces) == list(python.traces)
     native.rules("trace").record_psychology_trace(controller, result, result.deltas, minute)
-    UpdatePhase._record_psychology_trace(controller, python, python.deltas, minute)
-    assert documents[0] == documents[1]
-    reached = json.loads(documents[0])[0]["agents"]
+    (document,) = documents
+    digest = hashlib.sha256(document.encode()).hexdigest()
+    if sys.platform == "linux":
+        assert digest == NOISY_ZONE_DOCUMENTS[level.value]
+    reached = json.loads(document)[0]["agents"]
     assert any("zone_environment" in person for person in reached)
     assert any(
         cause["kind"] == "experimental_zone_noise_reduced_rest_efficiency"

@@ -1,17 +1,20 @@
 """What `_apply_effect` does with no trip to make, and the checks of having arrived.
 
 A person who asks a queue at once and a request closed at once, on a world with a floor plan and on
-one without, and `agent_is_at_*`: each kernel on the world, the Python rule on a copy.
+one without, and `agent_is_at_*`: each kernel on the world, against what the Python rule gave,
+recorded from it on 45a9bc9 before it went (lane L10): the result, and the world's `world_digest`,
+pinned on Linux as the gate's hashes are.
 """
 
 from __future__ import annotations
 
-import copy
+import sys
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from support.paths import SCENARIO_100_AGENTS
+from support.world import world_digest
 
 from sheltersim import native
 from sheltersim.core.kernels import KernelRefusal
@@ -21,7 +24,6 @@ from sheltersim.domain.agent_dynamics import learn_facility
 from sheltersim.domain.models import Activity, SupportRequestStatus
 from sheltersim.domain.movement import MOVEMENT_STATE_KEY as KEY
 from sheltersim.experiments.metrics import MetricsRecorder
-from sheltersim.experiments.phases.propose import ProposePhase
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _MetricSink
@@ -45,31 +47,23 @@ def _proposal(action: ActionKind, agent_id: str, world: WorldState) -> Any:
     )
 
 
-def _pending(world: WorldState) -> list[Any]:
-    return [
-        (event.event_id, event.sequence, event.due_minute, sorted(event.payload.items()))
-        for event in world.event_queue.pending()
-    ]
-
-
-def _effect(world: WorldState, action: ActionKind, agent_id: str, setup: Any = None) -> Any:
-    """The kernel on the world, the Python step on a copy: the same result and the same world."""
-    twin = copy.deepcopy(world)
-    controller, python_controller = _controller(world), _controller(twin)
+def _effect(
+    world: WorldState,
+    action: ActionKind,
+    agent_id: str,
+    expected: tuple[Any, ...],
+    digest: str,
+    setup: Any = None,
+) -> Any:
+    """The kernel on the world: the result and the world the Python step made."""
+    controller = _controller(world)
     if setup is not None:
         setup(controller)
-        setup(python_controller)
-    proposal = _proposal(action, agent_id, world)
-    result = native.rules("proposals").apply_effect(controller, proposal)
-    expected = ProposePhase._apply_effect(python_controller, proposal)
-    assert list(result) == list(expected)
-    assert type(result[2]) is type(expected[2])
-    assert _bytes(world) == _bytes(twin)
-    assert world.id_counters == twin.id_counters
-    assert world.metric_state == twin.metric_state
-    assert _pending(world) == _pending(twin)
-    assert len(world.event_log.records) == len(twin.event_log.records)
-    assert list(world.active_tasks) == list(twin.active_tasks)
+    result = native.rules("proposals").apply_effect(controller, _proposal(action, agent_id, world))
+    assert tuple(result) == expected
+    assert type(result[2]) is bool
+    if sys.platform == "linux":
+        assert world_digest(world) == digest
     return result
 
 
@@ -100,7 +94,13 @@ def _facility_of(world: WorldState, word: str) -> str:
 def test_a_toilet_at_an_independent_queue(generated_scenario_with_split_queues: Any) -> None:
     world = WorldState.from_scenario(generated_scenario_with_split_queues)
     _place_at(world, "A001", "toilet_01")
-    target, _, committed = _effect(world, ActionKind.REQUEST_TOILET, "A001")
+    target, _, committed = _effect(
+        world,
+        ActionKind.REQUEST_TOILET,
+        "A001",
+        ("accessible_toilet_01", 7, True),
+        "c5ae5dfd75fc5f19",
+    )
     assert world.facilities[target].zone_id == world.facilities["toilet_01"].zone_id
     assert committed is True
     assert world.agents["A001"].activity is Activity.QUEUED
@@ -111,7 +111,9 @@ def test_a_service_at_an_independent_queue(generated_scenario_with_split_queues:
     world = WorldState.from_scenario(generated_scenario_with_split_queues)
     facility_id = _facility_of(world, "water")
     _place_at(world, "A001", facility_id)
-    target, _, committed = _effect(world, ActionKind.FETCH_WATER, "A001")
+    target, _, committed = _effect(
+        world, ActionKind.FETCH_WATER, "A001", (facility_id, 7, True), "2ef942f400f86948"
+    )
     assert target == facility_id
     assert committed is True
     assert "A001" in world.facilities[facility_id].resource_queue_agent_ids
@@ -125,22 +127,22 @@ def _own_queues(scenario: Any) -> WorldState:
 
 
 @pytest.mark.parametrize(
-    ("action", "word"),
+    ("action", "word", "digest"),
     [
-        (ActionKind.REQUEST_TOILET, "toilet"),
-        (ActionKind.FETCH_WATER, "water"),
-        (ActionKind.COLLECT_MEAL, "meal"),
+        (ActionKind.REQUEST_TOILET, "toilet", "438170f6746a69b5"),
+        (ActionKind.FETCH_WATER, "water", "12cae6962fa17612"),
+        (ActionKind.COLLECT_MEAL, "meal", "0aee98f71212d596"),
     ],
 )
 def test_someone_at_the_point_of_the_facility_asks_at_once(
-    generated_scenario: Any, action: ActionKind, word: str
+    generated_scenario: Any, action: ActionKind, word: str, digest: str
 ) -> None:
     world = _own_queues(generated_scenario)
     facility_id = _facility_of(world, word)
     _place_at(world, "A001", facility_id)
     point = world.model_configs["facility_geometry"]["facility_points"][facility_id]
     world.model_state[KEY]["positions"]["A001"]["point"] = dict(point)
-    target, _, _ = _effect(world, action, "A001")
+    target, _, _ = _effect(world, action, "A001", (facility_id, 7, True), digest)
     assert target == facility_id
     assert world.agents["A001"].activity is Activity.QUEUED
 
@@ -164,7 +166,10 @@ def test_without_a_floor_plan_someone_in_the_zone_asks_at_once(
         pytest.skip(f"this Scenario has no {word}")
     agent_id = sorted(world.agents)[0]
     _place_at(world, agent_id, facility_id)
-    target, _, committed = _effect(world, action, agent_id)
+    # The fixture has toilets only.
+    target, _, committed = _effect(
+        world, action, agent_id, (facility_id, 7, True), "510ba205709d5c99"
+    )
     assert target == facility_id
     assert committed is True
 
@@ -176,7 +181,9 @@ def test_a_person_the_service_turns_down_is_recorded_with_python_s_text(
     facility_id = _facility_of(world, "water")
     _place_at(world, "A001", facility_id)
     world.agents["A001"].activity = Activity.MOVING
-    target, _, committed = _effect(world, ActionKind.FETCH_WATER, "A001")
+    target, _, committed = _effect(
+        world, ActionKind.FETCH_WATER, "A001", (None, 7, False), "cca2a54dd1d43e3c"
+    )
     assert target is None
     assert committed is False
     records = world.model_state["resource_service_v1"]["request_history"]
@@ -184,17 +191,18 @@ def test_a_person_the_service_turns_down_is_recorded_with_python_s_text(
     assert records[-1]["detail"] == "Agent 'A001' cannot request resource service while active"
 
 
-def test_a_toilet_request_a_test_patched_is_the_python_step_s(
+def test_a_toilet_request_a_test_patched_is_a_kernel_refusal(
     generated_scenario_with_split_queues: Any,
 ) -> None:
+    """A manager's own `request` is not the queue's kernel, and the step has no Python body."""
     world = WorldState.from_scenario(generated_scenario_with_split_queues)
     _place_at(world, "A001", "toilet_01")
     controller = _controller(world)
     controller.toilet_service.request = lambda *_arguments, **_options: None
-    with pytest.raises(native.Unsupported, match="another function"):
-        native.rules("proposals").apply_effect(
-            controller, _proposal(ActionKind.REQUEST_TOILET, "A001", world)
-        )
+    before = _bytes(world)
+    with pytest.raises(KernelRefusal, match="another function"):
+        controller._apply_effect(_proposal(ActionKind.REQUEST_TOILET, "A001", world))
+    assert _bytes(world) == before
 
 
 def test_a_service_action_with_no_service_is_rejected(generated_scenario: Any) -> None:
@@ -203,24 +211,70 @@ def test_a_service_action_with_no_service_is_rejected(generated_scenario: Any) -
     def no_service(controller: Any) -> None:
         controller.resource_service = None
 
-    target, _, committed = _effect(world, ActionKind.FETCH_WATER, "A001", no_service)
+    target, _, committed = _effect(
+        world, ActionKind.FETCH_WATER, "A001", (None, 7, False), "01b3b5c39ad4a7a1", no_service
+    )
     assert target is None
     assert committed is False
     assert world.metric_state["resource_service_request_rejected_count"] == 1.0
 
 
+def test_a_capacity_wait_comes_before_a_request_at_once() -> None:
+    """Choosing a toilet routes to each one the person knows: a full passage on the way to one
+    records its wait, then the person asks the queue of another at once. The kernel refused this;
+    the Python step's answer, recorded, has the wait first (sequence 1, after the trip's 0)."""
+    world = _without_a_floor_plan()
+    world.model_configs["layout_routing"] = {
+        "max_agents_in_transit_by_edge": {"toilet_corridor": 1}
+    }
+    world.facilities["toilet_4"].zone_id = "sleeping"
+    for agent_id in ("A001", "A002", "A003", "A004", "A005"):
+        world.agents[agent_id].zone_id = "toilet"
+    controller = _controller(world)
+    kernel = native.rules("proposals").apply_effect
+    # Three queue at once, and the fourth walks to the toilet left empty, through the passage.
+    assert [
+        list(kernel(controller, _proposal(ActionKind.REQUEST_TOILET, agent_id, world)))
+        for agent_id in ("A003", "A004", "A005", "A002")
+    ] == [
+        ["toilet_1", 7, True],
+        ["toilet_2", 7, True],
+        ["toilet_3", 7, True],
+        ["toilet_4", 7, True],
+    ]
+    result = kernel(controller, _proposal(ActionKind.REQUEST_TOILET, "A001", world))
+    assert list(result) == ["toilet_1", 7, True]
+    waits = [
+        (record.event.event_id, record.event.sequence, record.event.payload["edge_id"])
+        for record in world.event_log.records
+        if record.event.event_type == "zone_edge_capacity_wait"
+    ]
+    assert waits == [("zone-edge-capacity-wait-1", 1, "toilet_corridor")]
+    assert world.id_counters == {"agent": 100, "event": 2}
+    if sys.platform == "linux":
+        assert world_digest(world) == "2cc71f44ef0c8a6b"
+
+
 # ---- A request closed at once --------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("action", SEEKS)
+@pytest.mark.parametrize(
+    ("action", "digest"),
+    [
+        (ActionKind.SEEK_HELP, "bad73c778047a79d"),
+        (ActionKind.SEEK_INFORMATION, "531955270a9a0d1f"),
+    ],
+)
 def test_a_request_of_the_last_minute_is_closed_at_once(
-    generated_scenario: Any, action: ActionKind
+    generated_scenario: Any, action: ActionKind, digest: str
 ) -> None:
     world = WorldState.from_scenario(generated_scenario)
     world.minute_index = world.duration_minutes - 1
     before = world.id_counters.get("event", 0)
     activity = world.agents["A001"].activity
-    target, _, committed = _effect(world, action, "A001")
+    target, _, committed = _effect(
+        world, action, "A001", ("support-dc1da28153b6ded2fec8874d", 366, False), digest
+    )
     assert committed is False
     request = world.support_requests[target]
     assert request.status is SupportRequestStatus.UNRESOLVED
@@ -244,7 +298,9 @@ def test_a_person_in_a_cooldown_is_turned_down_in_the_last_minute_too(
     world = WorldState.from_scenario(generated_scenario)
     world.minute_index = world.duration_minutes - 1
     world.agents["A001"].support_cooldown_until = world.duration_minutes + 5
-    target, _, committed = _effect(world, ActionKind.SEEK_HELP, "A001")
+    target, _, committed = _effect(
+        world, ActionKind.SEEK_HELP, "A001", (None, 366, False), "e3dfec0b66e237b2"
+    )
     assert target is None
     assert committed is False
     assert world.metric_state["support_request_rejected_count"] == 1.0

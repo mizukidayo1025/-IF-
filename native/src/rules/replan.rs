@@ -1,12 +1,11 @@
-//! `_replan_journeys` and `_replan_staff_support_trip` of `experiments/phases/update.py`: the people
-//! whose route changed under them, in the order the walk returned them.
+//! `_replan_journeys` of `experiments/phases/update.py`: the people whose route changed under them,
+//! in the order the walk returned them. It has no Python step left (lane L10).
 //!
 //! Each person is two steps. Their old trip stops, and then a new route is planned from where that
 //! left them, reading what the stop wrote: their zone, and that nobody counts them as on the way.
-//! So one kernel cannot plan a person and then write them, as the others do. Instead a refusal says
-//! how far it got: before anyone's stop, the Python step does the rest of the people; after a stop
-//! and before a write of the second step, `_replan_stopped` does that person's second step.
-//! A replan is rare, so this goes through the Python objects' own `__setattr__`, as
+//! So one kernel cannot plan a person and then write them, as the others do. A refusal before the
+//! first stop says Unsupported, with nothing changed; past it, a stop is written, and a refusal is a
+//! RuntimeError. A replan is rare, so this goes through the Python objects' own `__setattr__`, as
 //! `rules/handlers.rs` does for what happens rarely. See docs/rust-port/lanes/l3-movement.md.
 
 use std::sync::Arc;
@@ -18,7 +17,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyString, PyTuple};
 
 use crate::core::census;
-use crate::core::row::{attribute, exact_int, exact_str, unsupported, Field};
+use crate::core::errors;
+use crate::core::row::{attribute, exact_int, exact_str, unsupported};
 use crate::core::value::V;
 use crate::core::world_core::{raw_dict_get, NamespaceMirror};
 use crate::rules::care_receipts::continuity_record;
@@ -36,27 +36,22 @@ const REPLAN: &str = "movement_replan_count";
 const BLOCKED: &str = "movement_replan_blocked_count";
 const STAFF_SUPPORT_SOURCE: &str = "ASM-STAFF-SUPPORT-LIFECYCLE-V1";
 
-/// Say Unsupported no more: the people before this one have been written.
+/// Say Unsupported no more: a stop has been written.
 fn after_a_write(py: Python<'_>, result: PyResult<()>) -> PyResult<()> {
     match result {
         Err(error) if error.is_instance_of::<Unsupported>(py) => {
+            census::caught(py, "replan after a stop", &error);
             Err(PyRuntimeError::new_err(format!("a kernel said Unsupported after a replan was written: {}", error.value(py))))
         }
         other => other,
     }
 }
 
-/// The controller's `_route`, read as a route. The kernel, or with edge capacities the Python step.
+/// `_route` of the controller, its kernel, read as a route.
 fn route_of<'py>(controller: &Bound<'py, PyAny>, origin: &str, destination: &str, agent_id: &str) -> PyResult<Option<Route>> {
     let py = controller.py();
     let (from, to, who) = (PyString::new(py, origin), PyString::new(py, destination), PyString::new(py, agent_id));
-    let found = match route_kernel(controller, from.as_any(), to.as_any(), who.as_any()) {
-        Err(error) if error.is_instance_of::<Unsupported>(py) => {
-            census::caught(py, "replan route", &error);
-            controller.call_method1(intern!(py, "_route"), (&from, &to, &who))?
-        }
-        other => other?,
-    };
+    let found = route_kernel(controller, from.as_any(), to.as_any(), who.as_any())?;
     if found.is_none() {
         return Ok(None);
     }
@@ -140,7 +135,8 @@ impl<'py> Replan<'_, 'py> {
         )
     }
 
-    /// `_replan_stopped`. Says Unsupported only before its first write.
+    /// The second step: a new route from where the stop left them. Says Unsupported only before its
+    /// first write.
     fn second_step(&self, agent_id: &Arc<str>, journey: &Journey) -> PyResult<()> {
         match &*journey.purpose {
             "staff_support_travel" => {
@@ -234,8 +230,10 @@ impl<'py> Replan<'_, 'py> {
     fn staff_support(&self, agent_id: &Arc<str>, journey: &Journey) -> PyResult<bool> {
         let py = self.world.py();
         let minute = self.minute;
+        // The texts of the Python rule, which a Run's error keeps.
+        let lost = || errors::value_error("replanned resident trip lost its assigned support task");
         let Some(request_id) = journey.support_request_id.clone() else {
-            return unsupported("the trip lost its support");
+            return Err(lost());
         };
         struct Found {
             staff_id: Arc<str>,
@@ -247,16 +245,16 @@ impl<'py> Replan<'_, 'py> {
         }
         let found = EntityStore::with_rows(self.store, |rows| {
             let Some(request) = rows.support_requests.get(&*request_id) else {
-                return unsupported("the trip lost its support");
+                return Err(lost());
             };
             let (Some(staff_id), Some(task_id)) = (&request.assigned_staff_id, &request.task_id) else {
-                return unsupported("the trip lost its support");
+                return Err(lost());
             };
             let (Some(staff), Some(task)) = (rows.staff.get(staff_id), rows.active_tasks.get(task_id)) else {
-                return unsupported("the trip lost its support");
+                return Err(lost());
             };
             if request.status != RequestStatus::Assigned || &*task.kind != "staff_support" {
-                return unsupported("the trip lost its support");
+                return Err(lost());
             }
             Ok(Found {
                 staff_id: staff_id.clone(),
@@ -283,7 +281,7 @@ impl<'py> Replan<'_, 'py> {
             }
         }
         if completions.len() != 1 || completions[0].due_minute != found.due {
-            return unsupported("the support's completion is inconsistent");
+            return Err(errors::value_error("replanned resident trip has inconsistent support completion"));
         }
         let previous = completions.remove(0);
         let service_minutes = found.due - found.start;
@@ -422,7 +420,20 @@ fn reschedule_event(
     .ok_or_else(|| Unsupported::new_err("the event's values are not what an event takes"))
 }
 
-/// `_replan_journeys`.
+/// One person of `_replan_journeys`: `written` once their stop is.
+fn replan_one(replan: &Replan<'_, '_>, agent_id: &Arc<str>, written: &mut bool) -> PyResult<()> {
+    let journey = NamespaceMirror::with_row::<MovementRow, _>(replan.mirror, |row| Ok(row.journeys.get(&**agent_id).cloned()))?;
+    let known = EntityStore::with_rows(replan.store, |rows| Ok(rows.agents.get(&**agent_id).is_some()))?;
+    let (Some(journey), true) = (journey, known) else {
+        return Ok(());
+    };
+    // Says Unsupported only before its first write.
+    replan.stop(agent_id, &journey)?;
+    *written = true;
+    replan.second_step(agent_id, &journey)
+}
+
+/// `_replan_journeys`. `state` is the movement namespace, which the row stands for.
 #[pyfunction]
 pub(crate) fn replan_journeys<'py>(
     controller: &Bound<'py, PyAny>,
@@ -430,6 +441,7 @@ pub(crate) fn replan_journeys<'py>(
     agent_ids: &Bound<'py, PyAny>,
     minute: &Bound<'py, PyAny>,
 ) -> PyResult<()> {
+    let _ = state;
     let py = controller.py();
     let world = attribute(controller, intern!(py, "world"))?;
     let minute_value = exact_int(minute)?;
@@ -440,32 +452,14 @@ pub(crate) fn replan_journeys<'py>(
     let ids = agent_ids.try_iter()?.collect::<PyResult<Vec<_>>>()?;
     let ids = ids.iter().map(|id| Ok(Arc::<str>::from(exact_str(id)?))).collect::<PyResult<Vec<Arc<str>>>>()?;
     let replan = Replan { controller, world: &world, mirror: &mirror, store: &store, writer: &writer, metrics: &metrics, minute: minute_value };
-    for (index, agent_id) in ids.iter().enumerate() {
-        let journey = NamespaceMirror::with_row::<MovementRow, _>(&mirror, |row| Ok(row.journeys.get(&**agent_id).cloned()))?;
-        let known = EntityStore::with_rows(&store, |rows| Ok(rows.agents.get(&**agent_id).is_some()))?;
-        let (Some(journey), true) = (journey, known) else {
-            continue;
-        };
-        if let Err(error) = replan.stop(agent_id, &journey) {
-            if !error.is_instance_of::<Unsupported>(py) {
-                return Err(error);
-            }
-            // Nobody from here has been touched: the rest are the Python step's.
-            census::caught(py, "replan stop", &error);
-            if index == 0 {
-                return Err(error);
-            }
-            let rest = PyTuple::new(py, ids[index..].iter().map(|id| &**id))?;
-            controller.call_method1(intern!(py, "_replan_in_python"), (state, rest, minute))?;
-            return Ok(());
-        }
-        match replan.second_step(agent_id, &journey) {
-            Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                census::caught(py, "replan second step", &error);
-                let record = Field::to_py(&journey, py)?;
-                after_a_write(py, controller.call_method1(intern!(py, "_replan_stopped"), (state, &**agent_id, record, minute)).map(|_| ()))?;
-            }
-            other => other?,
+    let mut written = false;
+    for agent_id in &ids {
+        let result = replan_one(&replan, agent_id, &mut written);
+        if written {
+            after_a_write(py, result)?;
+        } else {
+            // Nothing is written yet: a refusal changes nothing.
+            result?;
         }
     }
     Ok(())

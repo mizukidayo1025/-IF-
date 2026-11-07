@@ -14,6 +14,7 @@ from copy import deepcopy
 from typing import Any
 
 import pytest
+from support.world import world_digest
 
 from sheltersim import native
 from sheltersim.core.kernels import KernelRefusal
@@ -1446,10 +1447,12 @@ def _sleep_proposal(world: WorldState, agent_id: str) -> Any:
     )
 
 
-@pytest.mark.parametrize("at_bed", [False, True])
-def test_sleep_in_a_room_is_the_python_step_s(world: WorldState, at_bed: bool) -> None:
-    from sheltersim.experiments.phases.propose import ProposePhase
-
+@pytest.mark.parametrize(
+    ("at_bed", "digest"), [(False, "a4f07608e1e04866"), (True, "2732f2f9b97629f9")]
+)
+def test_sleep_in_a_room_is_the_python_step_s(world: WorldState, at_bed: bool, digest: str) -> None:
+    """The result and the world (`world_digest`) of the Python step, recorded from it on 45a9bc9
+    before it went (lane L10), pinned on Linux."""
     room = _room_record(world, "room")
     world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["temporary_rooms"]["room"] = room
     agent_id = _person_in_room_zone(world)
@@ -1457,37 +1460,29 @@ def test_sleep_in_a_room_is_the_python_step_s(world: WorldState, at_bed: bool) -
         world.model_state["movement_v1"]["positions"][agent_id]["point"] = dict(
             room["bed_points_m"][0]
         )
-    ours, theirs = _copy(world), _copy(world)
-    theirs_result = ProposePhase._apply_effect(
-        _controller(theirs), _sleep_proposal(theirs, agent_id)
-    )
+    ours = _copy(world)
     kernel = native.rules("proposals").apply_effect
     result = kernel(_controller(ours), _sleep_proposal(ours, agent_id))
-    assert tuple(result) == tuple(theirs_result)
-    _same_world(ours, theirs)
+    assert tuple(result) == ("bed-ec7532def0b0c01715ae0abb", 5, True)
     assert ours.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["bed_reservations"]
-    assert result[0] is not None
-    assert [repr(event) for event in ours.event_queue.pending()] == [
-        repr(event) for event in theirs.event_queue.pending()
-    ]
+    if sys.platform == "linux":
+        assert world_digest(ours) == digest
 
 
 def test_sleep_past_the_run_s_end_releases_the_bed(world: WorldState) -> None:
-    from sheltersim.experiments.phases.propose import ProposePhase
-
     _room_world(world)
     agent_id = _person_in_room_zone(world)
     # The walk would end after the Run: no trip, and what the person held is gone.
     geometry_overlay.reserve_sleep_bed(world, agent_id)
     world.minute_index = world.duration_minutes - 1
-    ours, theirs = _copy(world), _copy(world)
-    expected = ProposePhase._apply_effect(_controller(theirs), _sleep_proposal(theirs, agent_id))
+    ours = _copy(world)
     result = native.rules("proposals").apply_effect(
         _controller(ours), _sleep_proposal(ours, agent_id)
     )
-    assert tuple(result) == tuple(expected)
-    _same_world(ours, theirs)
+    assert tuple(result) == (None, 364, True)
     assert not ours.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["bed_reservations"]
+    if sys.platform == "linux":
+        assert world_digest(ours) == "bf284ac247d7f46c"
 
 
 # ---- Independent queues --------------------------------------------------------------------------

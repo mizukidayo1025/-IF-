@@ -85,8 +85,6 @@ PORTED_NAMES = frozenset(
         # travel.rs, support.rs. A test reaches a `kernel_first` rule through `__wrapped__`.
         "_maintenance_blocked",
         "shared_passage_edge_loads",
-        "_active_route_edge_loads",
-        "_record_route_capacity_wait",
         "_current_journey_edge",
         # domain/common_operations.py: rules/common_operations.rs, likewise.
         "_event_payload_matches",
@@ -106,29 +104,8 @@ PORTED_NAMES = frozenset(
         "active_environmental_stress",
         "infrastructure_event_context_ids",
         "population_context_people",
-        # policies/behavior.py, experiments/phases/propose.py: rules/behavior.rs
-        "propose_due",
-        "_candidate",
-        "_demand_trigger",
-        "_decision_interval_minutes",
-        "_sleep_debt_utility",
-        "_target_for_action",
-        "_agent_view_snapshot",
-        # policies/psychology.py, domain/distress_monitor.py, domain/psychological_state.py:
-        # rules/psychology.rs
-        "deltas_without_traces",
-        "explain_update",
-        "apply_state_deltas",
-        "update_long_term_state",
-        "record_distress_monitor_tick",
-        "update_psychological_state",
         # experiments/phases/dispatch.py, the rules it calls: rules/dispatch.rs. An event type's
         # handler is read at each event, and a patch of a class's `apply` shows there.
-        "_dispatch_due_events",
-        "_record_applied_outcomes",
-        "_refresh_space_after_geometry_change",
-        "_interrupt_trips_on_closed_routes",
-        "_consider_social_contact_events",
         "effect_event_guard_or_suppress",
         "should_apply_effect_guard",
         "record_social_event",
@@ -176,8 +153,7 @@ PORTED_NAMES = frozenset(
         "_zone_has_room",
         "_choose_admission_target",
         "_apply_presence_action",
-        # policies/psychology.py, inspection/traces.py: rules/trace.rs, rules/decisions.rs
-        "explain_update",
+        # inspection/traces.py: rules/decisions.rs
         "_decision_document",
         # experiments/phases/propose.py, policies/space.py: rules/proposals.rs, rules/travel.rs
         "reserve_sleep_bed",
@@ -190,11 +166,7 @@ PORTED_NAMES = frozenset(
 PORTED_METHODS = frozenset(
     {
         ("WorldView", "from_world"),
-        ("WorldView", "after_state_update"),
         ("_IndexedMetricSink", "record_decision"),
-        ("UtilityBehaviorPolicy", "propose"),
-        ("PriorityRuleBehaviorPolicy", "propose"),
-        ("PsychologyUpdateResult", "trace_document"),
         ("EventDispatcher", "dispatch_due"),
         ("EventDispatcher", "settle"),
         ("ResourceServiceManager", "_serve_head"),

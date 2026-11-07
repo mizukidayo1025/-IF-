@@ -2,16 +2,15 @@
 
 A kernel runs on the world, and the Python rule on a twin of the world or on its own copy of it.
 The validator is compared on what it accepts: the Python rule must accept that too.
-`update_operations`, `assign_operations`, `relief` and `assign_pending` have no Python rule left to
-compare with (lane L10, `kernel_only`).
+`update_operations`, `assign_operations`, `relief`, `assign_pending` and travel.rs's `route` have
+no Python rule left to compare with (lane L10).
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from shadow_handlers_rest import _outcome, _worlds, compare_worlds
-from shadow_kit import Recorder, text
+from shadow_kit import Recorder
 
 KEY = "staff_operations_v1"
 ROW_CHECK_EVERY = 25
@@ -43,44 +42,8 @@ def prepare(output: str) -> None:
     # The driver calls these kernels without going through the module.
     native.rules("tick").python_path_only(True)
     recorder = Recorder(output, "staff")
-    travel = native.rules("travel")
-    route_kernel = travel.route
-
-    def route(controller: Any, origin: Any, destination: Any, agent_id: Any) -> Any:
-        if not controller.route_capacities:
-            return route_kernel(controller, origin, destination, agent_id)
-        recorder.seen["route_capacity.calls"] += 1
-        import copy
-        import dataclasses
-
-        from sheltersim.experiments.phases.propose import ProposePhase
-
-        python_world, kernel_world = _worlds(controller.world)
-
-        def on(world: Any) -> Any:
-            copied = copy.copy(controller)
-            copied.world = world
-            return copied
-
-        def plain(found: Any) -> Any:
-            return None if found is None else dataclasses.asdict(found)
-
-        wanted = _outcome(
-            lambda: plain(ProposePhase._route(on(python_world), origin, destination, agent_id))
-        )
-        actual = _outcome(
-            lambda: plain(route_kernel(on(kernel_world), origin, destination, agent_id))
-        )
-        if actual[0] == "Unsupported":
-            recorder.reasons[f"route_capacity: {actual[1]}"] += 1
-        elif text(actual) != text(wanted):
-            recorder.differ(f"route_capacity: {actual!r:.300} and {wanted!r:.300}")
-        else:
-            compare_worlds(recorder, "route_capacity", python_world, kernel_world)
-            recorder.seen["route_capacity.none"] += actual[1] is None
-        return route_kernel(controller, origin, destination, agent_id)
-
-    travel.route = route
+    # `_route` of travel.rs, with edge capacities or not, has no Python rule left to compare
+    # (KERNEL_ONLY_SEGMENTS, lane L10).
 
     # `wait_snapshot` (experiments/metrics.py's `_support_wait_snapshot`) and the minute's
     # `snapshot_fields` around it have no Python rule left to compare (`kernel_only`, lane L10).

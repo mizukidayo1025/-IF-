@@ -1,11 +1,16 @@
 """The Rust dispatch phase: the Python phase's order, records and errors, and its fallbacks.
 
-Each comparison runs the same events on two worlds, one through rules/dispatch.rs and one through
-the Python step, and compares everything saved. See docs/rust-port/lanes/m3-dispatch.md.
+The phase has no Python step left (lane L10). Each case runs events through rules/dispatch.rs and
+compares everything saved with what the Python step saved from the same events: a digest of it,
+taken once from that step (45a9bc9) before it went, pinned on Linux, as the gate's hashes are.
+See docs/rust-port/lanes/m3-dispatch.md.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -29,7 +34,6 @@ from sheltersim.events.models import (
     EventSuppressed,
     ScheduledEvent,
 )
-from sheltersim.experiments.phases.dispatch import DispatchPhase
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.inspection.traces import RunArtifactWriter
@@ -90,22 +94,28 @@ def _saved(controller: OfflineSimulationController) -> dict[str, Any]:
     }
 
 
-def _both_ways(
+def _is_python_s(controller: OfflineSimulationController, python_saved: str) -> None:
+    """All the controller's world saved is what the Python step saved: `python_saved`, the digest
+    of `_saved`."""
+    text = json.dumps(_saved(controller), sort_keys=True)
+    if sys.platform == "linux":
+        assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == python_saved
+
+
+def _dispatched(
     arrange: Callable[[OfflineSimulationController], Any],
+    python_saved: str,
     minute: int = 0,
-) -> tuple[OfflineSimulationController, OfflineSimulationController]:
-    """The same arrangement run by the kernel and by the Python step; all they saved is equal."""
-    by_kernel, by_python = _new_controller(), _new_controller()
-    arrange(by_kernel)
-    arrange(by_python)
-    assert _saved(by_kernel) == _saved(by_python)
+) -> OfflineSimulationController:
+    """The arrangement run by the kernel: all it saved is what the Python step saved."""
+    controller = _new_controller()
+    arrange(controller)
     before = _counts()["phases_ran"]
-    by_kernel.world.minute_index = by_python.world.minute_index = minute
-    by_kernel._run_dispatch_phase(by_kernel.world, minute)
+    controller.world.minute_index = minute
+    controller._run_dispatch_phase(controller.world, minute)
     assert _counts()["phases_ran"] == before + 1, "the kernel did not run"
-    DispatchPhase._run_dispatch_phase(by_python, by_python.world, minute)
-    assert _saved(by_kernel) == _saved(by_python)
-    return by_kernel, by_python
+    _is_python_s(controller, python_saved)
+    return controller
 
 
 class Recording:
@@ -137,8 +147,8 @@ def test_events_run_by_minute_priority_and_sequence_and_are_recorded_in_that_ord
         ):
             world.schedule_event(_event(name, sequence, priority=priority, due=due))
 
-    by_kernel, _ = _both_ways(arrange)
-    assert orders[0] == orders[1] == ["first", "b", "c", "a"]
+    by_kernel = _dispatched(arrange, "f889ba9eceb028b3")
+    assert orders == [["first", "b", "c", "a"]]
     assert [event.event_id for event in by_kernel.world.event_queue.pending()][:1] != ["first"]
     assert by_kernel.world.event_queue.find("late") is not None
 
@@ -152,13 +162,15 @@ def test_a_snapshot_entry_that_was_cancelled_is_skipped_with_no_record() -> None
         controller.world.schedule_event(_event("first", 901))
         controller.world.schedule_event(_event("second", 902))
 
-    by_kernel, _ = _both_ways(arrange)
+    by_kernel = _dispatched(arrange, "79bb05deffe0dbb1")
     assert by_kernel.world.event_log.find("second") is None
 
 
-@pytest.mark.parametrize("same_values", [True, False])
+@pytest.mark.parametrize(
+    ("same_values", "python_saved"), [(True, "94eaff10eddb7b43"), (False, "d68e579eb45e5653")]
+)
 def test_a_snapshot_entry_that_was_replaced_runs_only_if_it_is_the_same_event(
-    same_values: bool,
+    same_values: bool, python_saved: str
 ) -> None:
     orders: list[list[str]] = []
 
@@ -175,24 +187,29 @@ def test_a_snapshot_entry_that_was_replaced_runs_only_if_it_is_the_same_event(
         controller.world.schedule_event(_event("first", 901))
         controller.world.schedule_event(_event("second", 902))
 
-    by_kernel, _ = _both_ways(arrange)
-    assert orders[0] == orders[1] == (["first", "second"] if same_values else ["first"])
+    by_kernel = _dispatched(arrange, python_saved)
+    assert orders == [["first", "second"] if same_values else ["first"]]
     assert (by_kernel.world.event_log.find("second") is not None) is same_values
 
 
 def test_an_event_type_without_a_handler_fails_with_python_s_text() -> None:
-    by_kernel, _ = _both_ways(lambda controller: controller.world.schedule_event(_event("x", 901)))
+    by_kernel = _dispatched(
+        lambda controller: controller.world.schedule_event(_event("x", 901)), "3363a241c396b9b0"
+    )
     record = by_kernel.world.event_log.find("x")
     assert record.status is EventStatus.FAILED
     assert record.detail == "no handler registered for event type 'probe'"
 
 
 @pytest.mark.parametrize(
-    ("error", "status"),
-    [(EventSuppressed, EventStatus.SUPPRESSED), (EventApplicationError, EventStatus.FAILED)],
+    ("error", "status", "python_saved"),
+    [
+        (EventSuppressed, EventStatus.SUPPRESSED, "38d488adb5fe3afe"),
+        (EventApplicationError, EventStatus.FAILED, "7f99fe7b25b8cd0b"),
+    ],
 )
 def test_a_python_handler_s_expected_errors_are_its_outcome(
-    error: type[Exception], status: EventStatus
+    error: type[Exception], status: EventStatus, python_saved: str
 ) -> None:
     def refuse(world: Any, event: Any) -> None:
         raise error("the reason")
@@ -201,7 +218,7 @@ def test_a_python_handler_s_expected_errors_are_its_outcome(
         controller.event_dispatcher.handlers["probe"] = Recording([], refuse)
         controller.world.schedule_event(_event("x", 901))
 
-    by_kernel, _ = _both_ways(arrange)
+    by_kernel = _dispatched(arrange, python_saved)
     record = by_kernel.world.event_log.find("x")
     assert (record.status, record.detail) == (status, "the reason")
 
@@ -230,7 +247,7 @@ def test_a_handler_s_own_record_and_follow_ups_are_compared_and_appended_as_in_p
         controller.event_dispatcher.handlers["probe"] = Recording([], transactional)
         controller.world.schedule_event(_event("x", 901))
 
-    by_kernel, _ = _both_ways(arrange)
+    by_kernel = _dispatched(arrange, "c13e322e9bf6693c")
     assert by_kernel.world.event_log.find("follow") is not None
 
 
@@ -282,8 +299,9 @@ def _social_action(controller: OfflineSimulationController, sequence: int = 901)
 
 def test_a_social_action_runs_in_rust_with_python_s_results() -> None:
     before = _counts()
-    by_kernel, _ = _both_ways(
-        lambda controller: controller.world.schedule_event(_social_action(controller))
+    by_kernel = _dispatched(
+        lambda controller: controller.world.schedule_event(_social_action(controller)),
+        "db670ea5268dbb27",
     )
     after = _counts()
     assert after["social_ran"] > before["social_ran"]
@@ -303,7 +321,7 @@ def test_a_suppressed_social_action_has_python_s_detail_in_its_record() -> None:
         world.schedule_event(event)
 
     before = _counts()
-    by_kernel, _ = _both_ways(arrange)
+    by_kernel = _dispatched(arrange, "f1b5249381ba1d0c")
     after = _counts()
     record = by_kernel.world.event_log.find("social-901")
     assert (record.status, record.detail) == (EventStatus.SUPPRESSED, text)
@@ -332,7 +350,7 @@ def test_a_failed_social_action_has_python_s_detail_from_the_kernel() -> None:
         controller.world.schedule_event(_social_action_with(controller, reason_short="other"))
 
     before = _counts()
-    by_kernel, _ = _both_ways(arrange)
+    by_kernel = _dispatched(arrange, "b0d258951174919c")
     after = _counts()
     assert after["social_refused"] == before["social_refused"]
     assert after["events_python"] == before["events_python"]
@@ -347,20 +365,15 @@ class _Code(str):
 
 def test_a_social_event_the_kernel_refuses_stops_the_phase_with_kernel_refusal() -> None:
     """With no Python rule behind the kernel (lane L10), a value outside the contract is refused:
-    the handler raises KernelRefusal, which no dispatch phase takes as an outcome."""
-    for run in (
-        OfflineSimulationController._run_dispatch_phase,
-        DispatchPhase._run_dispatch_phase,
-    ):
-        controller = _new_controller()
-        event = _social_action_with(controller, reason_short=_Code("other"))
-        controller.world.schedule_event(event)
-        before = _counts()
-        with pytest.raises(KernelRefusal, match="social_interaction.apply refused"):
-            run(controller, controller.world, 0)
-        assert controller.world.event_log.find("social-901") is None
-        if run is OfflineSimulationController._run_dispatch_phase:
-            assert _counts()["social_refused"] == before["social_refused"] + 1
+    the handler raises KernelRefusal, which the dispatch phase does not take as an outcome."""
+    controller = _new_controller()
+    event = _social_action_with(controller, reason_short=_Code("other"))
+    controller.world.schedule_event(event)
+    before = _counts()
+    with pytest.raises(KernelRefusal, match="social_interaction.apply refused"):
+        controller._run_dispatch_phase(controller.world, 0)
+    assert controller.world.event_log.find("social-901") is None
+    assert _counts()["social_refused"] == before["social_refused"] + 1
 
 
 def test_a_patch_of_a_table_handler_s_apply_is_called(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -410,7 +423,9 @@ def test_an_effect_program_s_guard_is_python_s_to_read() -> None:
     assert controller.world.event_log.find(event.event_id).status is EventStatus.APPLIED
 
 
-def test_a_dispatcher_of_another_kind_leaves_the_phase_to_python() -> None:
+def test_a_dispatcher_of_another_kind_is_refused_with_nothing_changed() -> None:
+    """The phase has no Python step (lane L10): a dispatcher the kernel does not know is outside
+    its contract, as the controller makes an EventDispatcher."""
     controller = _new_controller()
 
     class Other(type(controller.event_dispatcher)):
@@ -418,9 +433,15 @@ def test_a_dispatcher_of_another_kind_leaves_the_phase_to_python() -> None:
 
     other = Other(dict(controller.event_dispatcher.handlers))
     controller.event_dispatcher = other
+    controller.world.schedule_event(_event("x", 901))
+    saved = _saved(controller)
     before = _counts()
-    controller._run_dispatch_phase(controller.world, 0)
+    with pytest.raises(
+        KernelRefusal, match="^dispatch.run_phase refused: another kind of dispatcher$"
+    ):
+        controller._run_dispatch_phase(controller.world, 0)
     after = _counts()
+    assert _saved(controller) == saved
     assert after["phases_refused"] == before["phases_refused"] + 1
     assert after["phases_ran"] == before["phases_ran"]
 
@@ -479,15 +500,18 @@ def _toilet_walk(controller: OfflineSimulationController) -> ScheduledEvent:
     return _walk(controller, "toilet_request", facility.id, facility.zone_id)
 
 
-@pytest.mark.parametrize("walk", [_return_walk, _toilet_walk])
+@pytest.mark.parametrize(
+    ("walk", "python_saved"),
+    [(_return_walk, "e7cc4860a63dc8ea"), (_toilet_walk, "d071ac8765838790")],
+)
 def test_a_walk_ends_in_rust_with_python_s_results(
-    walk: Callable[[OfflineSimulationController], ScheduledEvent],
+    walk: Callable[[OfflineSimulationController], ScheduledEvent], python_saved: str
 ) -> None:
     def arrange(controller: OfflineSimulationController) -> None:
         walk(controller)
 
     before = _counts()
-    by_kernel, _ = _both_ways(arrange, minute=_due_of(walk))
+    by_kernel = _dispatched(arrange, python_saved, minute=_due_of(walk))
     after = _counts()
     assert after["travel_ran"] == before["travel_ran"] + 1
     assert after["travel_refused"] == before["travel_refused"]
@@ -509,7 +533,7 @@ def test_a_walk_s_request_that_fails_is_recorded_with_its_text_as_in_python(
         monkeypatch.setattr(controller.toilet_service, "request", refuse)
 
     before = _counts()
-    by_kernel, _ = _both_ways(arrange, minute=_due_of(_toilet_walk))
+    by_kernel = _dispatched(arrange, "f70d12763e33305a", minute=_due_of(_toilet_walk))
     after = _counts()
     assert after["travel_failed"] == before["travel_failed"] + 1
     record = next(
@@ -652,21 +676,19 @@ def test_a_walk_with_a_value_the_writer_refuses_is_applied_by_the_phase_but_not_
 
 
 def test_a_walk_that_has_only_a_row_gets_its_object_only_if_python_reads_it() -> None:
-    controller, twin = _new_controller(), _new_controller()
+    controller = _new_controller()
     state = native.state("events")
-    for each in (controller, twin):
-        event = _return_walk(each)
-        due = event.due_minute
-        each.world.event_queue.remove(event.event_id)
-        state.schedule_row(each.world, event)
-    controller.world.minute_index = twin.world.minute_index = due
+    event = _return_walk(controller)
+    due = event.due_minute
+    controller.world.event_queue.remove(event.event_id)
+    state.schedule_row(controller.world, event)
+    controller.world.minute_index = due
     before = _counts()
     controller._run_dispatch_phase(controller.world, due)
-    DispatchPhase._run_dispatch_phase(twin, twin.world, due)
     after = _counts()
     assert after["travel_ran"] == before["travel_ran"] + 1
     assert after["settled_rows"] == before["settled_rows"] + 1
-    assert _saved(controller) == _saved(twin)
+    _is_python_s(controller, "e7cc4860a63dc8ea")
 
 
 # ---- A run ---------------------------------------------------------------------------------------
@@ -686,8 +708,10 @@ def _run(scenario: Any, directory: Path, minutes: int) -> dict[str, Any]:
 
 
 def test_a_run_is_the_same_in_rust_through_python_entries_and_in_python(
-    generated_scenario: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    generated_scenario: Any, tmp_path: Path
 ) -> None:
+    """240 minutes through the kernel, and through the rules' Python entries: both are what the
+    Python step made of them, its digest taken from that step."""
     before = _counts()
     direct = _run(generated_scenario, tmp_path / "direct", 240)
     after = _counts()
@@ -703,6 +727,6 @@ def test_a_run_is_the_same_in_rust_through_python_entries_and_in_python(
     finally:
         module.use_python_entries(False)
     assert entries == direct
-    monkeypatch.delattr(OfflineSimulationController, "_run_dispatch_phase")
-    python = _run(generated_scenario, tmp_path / "python", 240)
-    assert python == direct
+    if sys.platform == "linux":
+        text = json.dumps(direct, sort_keys=True)
+        assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == "9bea40ea3b5cd8b4"

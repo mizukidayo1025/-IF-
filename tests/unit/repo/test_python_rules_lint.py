@@ -180,7 +180,7 @@ def test_the_lint_finds_a_patch_without_the_mark() -> None:
         "def test_a(monkeypatch):\n    monkeypatch.setattr(UpdatePhase, '_some_step', f)\n"
     )
     assert _lint("def test_a():\n    patch('a.WorldView.from_world')\n")
-    assert _lint("def test_a():\n    patch.object(a.WorldView, 'after_state_update')\n")
+    assert _lint("def test_a():\n    patch.object(a.WorldView, 'from_world')\n")
     assert _lint("def test_a(monkeypatch):\n    monkeypatch.setattr('a.b._view_state_hash', f)\n")
     assert _lint(
         "def test_a(monkeypatch):\n"

@@ -1,7 +1,9 @@
 """The views of rules/world_view.rs: every field the bits of Python's, made when a reader asks.
 
-The phases' steps `_view_after_movement` and `_view_for_proposals` make them. Python's `from_world`
-and `after_state_update` stay the comparison base, and run for whatever the kernel leaves to them.
+The phases' steps `_view_after_movement` and `_view_for_proposals` make them, and have no Python
+body (lane L10): what the kernel refuses is a KernelRefusal. `WorldView.from_world`, which tests
+keep for the Python policies, is the comparison base; `after_state_update`, the proposal view's
+refresh, is gone, and the refreshed view is compared with a new `from_world`.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ import pytest
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine, TraceLevel
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.world import WorldState
 from sheltersim.domain.body_state import create_body_state
 from sheltersim.experiments.metrics import MetricsRecorder
@@ -24,7 +27,6 @@ from sheltersim.experiments.phases.update import UpdatePhase
 from sheltersim.experiments.runner import OfflineSimulationController, run_scenario
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _MetricSink
-from sheltersim.policies import world_view
 from sheltersim.policies.world_view import WorldView
 
 
@@ -69,7 +71,7 @@ def _controller(world: WorldState) -> OfflineSimulationController:
 def _run_comparing(
     scenario: ScenarioSpec, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, **options: Any
 ) -> dict[str, int]:
-    """Run, comparing each view with Python's chain of from_world and after_state_update."""
+    """Run, comparing each view with Python's `from_world` of the same world."""
     counts = {"update": 0, "propose": 0}
     after_movement = OfflineSimulationController._view_after_movement
     for_proposals = OfflineSimulationController._view_for_proposals
@@ -86,7 +88,6 @@ def _run_comparing(
     def checked_for_proposals(self: Any, world: WorldState, minute: int) -> WorldView:
         made = for_proposals(self, world, minute)
         assert "_rust_view" in made.__dict__
-        _assert_same(made, WorldView.after_state_update(chain[0], world))
         _assert_same(made, WorldView.from_world(world))
         counts["propose"] += 1
         return made
@@ -221,25 +222,17 @@ def test_the_proposal_view_reads_again_what_the_update_phase_writes(
     world.model_state["body_state_v1"]["agents"][agent.id]["uncertainty"] = 0.625
     made = _rules().view_for_proposals(controller, world, world.minute_index)
     assert controller._view_before_proposals is None
-    _assert_same(made, WorldView.after_state_update(python_prior, world))
     _assert_same(made, WorldView.from_world(world))
+    assert made.agents[agent.id].stress != python_prior.agents[agent.id].stress
 
 
-def test_a_python_prior_of_a_proposal_view_stays_with_python(generated_scenario: Any) -> None:
+def test_a_python_prior_of_a_proposal_view_is_a_kernel_refusal(generated_scenario: Any) -> None:
     world, controller = _world_with_views(generated_scenario)
     prior = WorldView.from_world(world, include_state_hash=False)
     controller._view_before_proposals = prior
-    with pytest.raises(native.Unsupported, match="prior view"):
-        _rules().view_for_proposals(controller, world, world.minute_index)
+    with pytest.raises(KernelRefusal, match="prior view"):
+        controller._view_for_proposals(world, world.minute_index)
     assert controller._view_before_proposals is prior
-
-
-def test_python_refreshes_a_rust_prior_into_a_plain_view(generated_scenario: Any) -> None:
-    world, controller = _world_with_views(generated_scenario)
-    prior = _rules().view_after_movement(controller, world)
-    refreshed = WorldView.after_state_update(prior, world)
-    assert "_rust_view" not in refreshed.__dict__
-    _assert_same(refreshed, WorldView.from_world(world))
 
 
 @pytest.mark.parametrize(
@@ -268,22 +261,27 @@ def test_python_refreshes_a_rust_prior_into_a_plain_view(generated_scenario: Any
         ),
     ],
 )
-def test_what_a_typed_field_cannot_hold_is_left_to_python(
+def test_what_a_typed_field_cannot_hold_is_a_kernel_refusal(
     generated_scenario: Any, change: Any, reason: str
 ) -> None:
+    """Values no Run's validated world holds: the step refuses them, before anything is made."""
     world, controller = _world_with_views(generated_scenario)
     change(world)
     with pytest.raises(native.Unsupported, match=reason):
         _rules().view_after_movement(controller, world)
+    with pytest.raises(KernelRefusal, match=reason):
+        controller._view_after_movement(world)
 
 
-def test_a_context_that_does_not_parse_raises_python_error(generated_scenario: Any) -> None:
+def test_a_context_that_does_not_parse_is_a_kernel_refusal(generated_scenario: Any) -> None:
+    """A Scenario's contexts are validated when it is made; the view no longer raises the
+    contract's own error (`from_world` still does, for a Python policy's test)."""
     world, controller = _world_with_views(generated_scenario)
     world.model_configs["population_context"] = {"people": {"A001": {"pet_count": -1}}}
-    with pytest.raises(native.Unsupported, match="does not parse"):
-        _rules().view_after_movement(controller, world)
+    with pytest.raises(KernelRefusal, match="does not parse"):
+        controller._view_after_movement(world)
     with pytest.raises(ValueError, match="pet_count"):
-        UpdatePhase._view_after_movement(controller, world)
+        WorldView.from_world(world, include_state_hash=False)
 
 
 def test_a_changed_context_is_seen_at_the_next_view(generated_scenario: Any) -> None:
@@ -422,12 +420,15 @@ def test_the_rust_view_hash_covers_each_form_of_the_document(generated_scenario:
 
 
 @pytest.mark.python_rules
-def test_the_mark_runs_the_python_steps(generated_scenario: Any) -> None:
-    assert OfflineSimulationController._view_after_movement is UpdatePhase._view_after_movement
-    assert OfflineSimulationController._view_for_proposals is ProposePhase._view_for_proposals
-    assert world_view.WorldView.from_world
+def test_the_mark_keeps_the_kernels_of_steps_without_a_python_body(
+    generated_scenario: Any,
+) -> None:
+    assert OfflineSimulationController._view_after_movement is not UpdatePhase._view_after_movement
+    assert OfflineSimulationController._view_for_proposals is not ProposePhase._view_for_proposals
     world, controller = _world_with_views(generated_scenario)
-    assert "_rust_view" not in controller._view_after_movement(world).__dict__
+    assert "_rust_view" in controller._view_after_movement(world).__dict__
+    with pytest.raises(KernelRefusal, match="no Python step"):
+        UpdatePhase._view_after_movement(controller, world)
 
 
 def test_without_the_mark_the_kernels_run() -> None:

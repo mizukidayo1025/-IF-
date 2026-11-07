@@ -1,18 +1,21 @@
-"""`_replan_journeys` and `_replan_staff_support_trip`, the kernel against the Python step.
+"""`_replan_journeys`, native/src/rules/replan.rs, which has no Python step left (lane L10).
 
-A replan is rare: one call in the gate and none in the 7-day run, so these tests are what compares
-most of its branches. Each runs the kernel on the world and the Python step on a copy with its own
-controller, and the whole worlds must be the same, floats by their bits.
+A replan is rare: one call in the gate and none in the 7-day run, so these tests are what checks
+most of its branches. Each runs the step and compares the whole world, its counters, metrics,
+pending events, log and journeys with what the Python step made on the same world: their digest,
+taken once from that step (45a9bc9) before it went, and pinned on Linux, as the gate's hashes are.
 """
 
 from __future__ import annotations
 
-import copy
+import hashlib
+import sys
 from typing import Any
 
 import pytest
 
 from sheltersim import native
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.world import WorldState
 from sheltersim.domain.care_receipts import (
     append_applied_care_transition,
@@ -33,7 +36,6 @@ from sheltersim.events.effects import (
 from sheltersim.events.handlers import EventDispatcher
 from sheltersim.events.models import EventStatus
 from sheltersim.experiments.metrics import MetricsRecorder
-from sheltersim.experiments.phases.update import UpdatePhase
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
 
@@ -57,7 +59,7 @@ def _records(world: WorldState) -> list[Any]:
             record.event.sequence,
             record.event.causation_id,
             record.realized_minute,
-            record.status,
+            record.status.value,
             record.detail,
             sorted(record.event.payload.items(), key=lambda item: item[0]),
         )
@@ -80,23 +82,29 @@ def _pending(world: WorldState) -> list[Any]:
     ]
 
 
-def _same_replan(world: WorldState, agent_ids: tuple[str, ...], minute: int) -> None:
-    """The step on the world, the Python step on a copy: both must have done the same."""
-    twin = copy.deepcopy(world)
-    twin_controller = _controller(twin)
-    controller = _controller(world)
-    native.rules("replan").replan_journeys(controller, world.model_state[KEY], agent_ids, minute)
-    UpdatePhase._replan_in_python(twin_controller, twin.model_state[KEY], agent_ids, minute)
-    assert _bytes(world) == _bytes(twin)
-    assert world.id_counters == twin.id_counters
-    assert world.metric_state == twin.metric_state
-    assert _pending(world) == _pending(twin)
-    assert _records(world) == _records(twin)
-    assert list(world.model_state[KEY]["journeys"]) == list(twin.model_state[KEY]["journeys"])
+def _is_python_s(world: WorldState, digest: str) -> None:
+    """What the Python step made of this world: its digest, taken from that step."""
+    data = [
+        _bytes(world),
+        sorted(world.id_counters.items()),
+        sorted(world.metric_state.items()),
+        _pending(world),
+        _records(world),
+        list(world.model_state[KEY]["journeys"]),
+    ]
+    if sys.platform == "linux":
+        assert hashlib.sha256(repr(data).encode("utf-8")).hexdigest()[:16] == digest
     mirror = world._core.mirror(KEY)
     assert mirror.tainted is None
     assert mirror.verify()
     assert mirror.row_json() == native.canonical_json(world.model_state[KEY])
+
+
+def _replanned(world: WorldState, agent_ids: tuple[str, ...], minute: int, digest: str) -> None:
+    """The step on the world, which must then be what the Python step made."""
+    controller = _controller(world)
+    controller._replan_journeys(world.model_state[KEY], agent_ids, minute)
+    _is_python_s(world, digest)
 
 
 def _world(scenario: Any, *, slow: bool = True) -> WorldState:
@@ -149,7 +157,7 @@ def test_a_walk_takes_the_other_route(generated_scenario: Any) -> None:
     _with_alternate_route(world)
     old = dict(_walk_to_the_toilet(world))
     world.zone_edges[FIRST_LEG].closed = True
-    _same_replan(world, ("A001",), 1)
+    _replanned(world, ("A001",), 1, "1cdf310433881a39")
     journey = world.model_state[KEY]["journeys"]["A001"]
     assert journey["route_edge_ids"] == [ALTERNATE]
     assert journey["event_id"] != old["event_id"]
@@ -166,7 +174,7 @@ def test_a_walk_with_no_route_stops_and_is_counted(generated_scenario: Any) -> N
     world = _world(generated_scenario)
     _walk_to_the_toilet(world)
     world.zone_edges[FIRST_LEG].closed = True
-    _same_replan(world, ("A001",), 1)
+    _replanned(world, ("A001",), 1, "6689c48e638a2b72")
     assert "A001" not in world.model_state[KEY]["journeys"]
     assert world.metric_state["movement_replan_blocked_count"] == 1.0
     assert world.agents["A001"].activity is Activity.IDLE
@@ -181,7 +189,7 @@ def test_people_replan_in_the_order_given_and_take_their_event_numbers(
         world.agents[agent_id].zone_id = "sleeping"
         _walk_to_the_toilet(world, agent_id)
     world.zone_edges[FIRST_LEG].closed = True
-    _same_replan(world, ("A003", "A001", "A002"), 1)
+    _replanned(world, ("A003", "A001", "A002"), 1, "62922aa33b07b046")
     journeys = world.model_state[KEY]["journeys"]
     numbers = [int(journeys[key]["event_id"].rsplit("-", 1)[1]) for key in ("A003", "A001", "A002")]
     assert numbers == [numbers[0], numbers[0] + 1, numbers[0] + 2]
@@ -192,7 +200,7 @@ def test_someone_with_no_journey_or_gone_is_passed_over(generated_scenario: Any)
     _with_alternate_route(world)
     _walk_to_the_toilet(world)
     world.zone_edges[FIRST_LEG].closed = True
-    _same_replan(world, ("A002", "nobody", "A001"), 1)
+    _replanned(world, ("A002", "nobody", "A001"), 1, "1cdf310433881a39")
     assert world.metric_state["movement_replan_count"] == 1.0
 
 
@@ -202,7 +210,7 @@ def test_a_walk_stopped_in_another_zone_is_where_its_position_says(generated_sce
     _walk_to_the_toilet(world)
     world.model_state[KEY]["positions"]["A001"]["zone_id"] = "corridor"
     world.zone_edges[FIRST_LEG].closed = True
-    _same_replan(world, ("A001",), 1)
+    _replanned(world, ("A001",), 1, "8204ab4a3512b531")
     assert world.agents["A001"].zone_id == "corridor"
 
 
@@ -212,7 +220,7 @@ def test_the_trip_past_the_end_of_the_run_is_not_made(generated_scenario: Any) -
     _walk_to_the_toilet(world)
     world.zone_edges[FIRST_LEG].closed = True
     world.duration_minutes = 4
-    _same_replan(world, ("A001",), 1)
+    _replanned(world, ("A001",), 1, "9e655475230ed9b8")
     assert "A001" not in world.model_state[KEY]["journeys"]
 
 
@@ -243,7 +251,7 @@ def test_a_room_walk_has_a_new_path(generated_scenario: Any) -> None:
     old = dict(_in_the_toilet_area(world))
     world.model_state[KEY]["positions"]["A001"]["point"] = dict(old["route_points"][0])
     world.model_state[KEY]["positions"]["A001"]["point"]["x"] += 0.1
-    _same_replan(world, ("A001",), 1)
+    _replanned(world, ("A001",), 1, "5f4fe364be4806b3")
     assert world.model_state[KEY]["journeys"]["A001"]["route_points"][0] != old["route_points"][0]
 
 
@@ -251,7 +259,7 @@ def test_a_room_walk_that_is_already_there_is_placed(generated_scenario: Any) ->
     world = _world(generated_scenario)
     old = _in_the_toilet_area(world)
     world.model_state[KEY]["positions"]["A001"]["point"] = dict(old["route_points"][-1])
-    _same_replan(world, ("A001",), 1)
+    _replanned(world, ("A001",), 1, "5eb2ecd919c1a9ed")
     assert "A001" not in world.model_state[KEY]["journeys"]
     assert world.model_state[KEY]["positions"]["A001"]["point"] == old["route_points"][-1]
 
@@ -272,7 +280,7 @@ def test_a_room_walk_with_no_path_is_counted(generated_scenario: Any) -> None:
             "source_ids": ["ASM-TEST"],
         }
     )
-    _same_replan(world, ("A001",), 1)
+    _replanned(world, ("A001",), 1, "16f3ec3b3f8a1874")
     assert world.metric_state["movement_replan_blocked_count"] == 1.0
 
 
@@ -284,7 +292,7 @@ def test_without_a_floor_plan_a_room_walk_is_counted(generated_scenario: Any) ->
     world.model_configs.pop("spatial_constraints", None)
     world.model_configs.pop("geometry_overlay", None)
     world.model_state.pop(GEOMETRY_OVERLAY_KEY, None)
-    _same_replan(world, ("A001",), 1)
+    _replanned(world, ("A001",), 1, "91b6e7d954882f29")
     assert world.metric_state["movement_replan_blocked_count"] == 1.0
 
 
@@ -367,7 +375,7 @@ def test_a_walk_to_a_bed_has_a_new_path(generated_scenario: Any) -> None:
     _room_with_a_bed(world)
     old = dict(_walk_to_a_bed(world))
     world.model_state[KEY]["positions"]["A001"]["point"]["x"] += 0.2
-    _same_replan(world, ("A001",), 1)
+    _replanned(world, ("A001",), 1, "2bf07a168417f468")
     journey = world.model_state[KEY]["journeys"]["A001"]
     assert journey["purpose"] == "sleep_bed"
     assert journey["event_id"] != old["event_id"]
@@ -378,7 +386,7 @@ def test_a_walk_to_a_bed_that_arrived_sleeps_there(generated_scenario: Any) -> N
     bed = _room_with_a_bed(world)
     _walk_to_a_bed(world)
     world.model_state[KEY]["positions"]["A001"]["point"] = dict(bed)
-    _same_replan(world, ("A001",), 1)
+    _replanned(world, ("A001",), 1, "d64b769f6a133e6b")
     assert world.agents["A001"].activity is Activity.SLEEPING
     assert world.model_state[KEY]["positions"]["A001"]["progress"] == 1.0
 
@@ -388,7 +396,7 @@ def test_a_walk_to_a_bed_past_the_end_of_the_run_gives_it_up(generated_scenario:
     _room_with_a_bed(world)
     _walk_to_a_bed(world)
     world.duration_minutes = 3
-    _same_replan(world, ("A001",), 1)
+    _replanned(world, ("A001",), 1, "4ebefdf01c3c0bd7")
     assert world.agents["A001"].activity is Activity.SLEEPING
     assert "A001" not in world.model_state[GEOMETRY_OVERLAY_KEY]["bed_reservations"]
     assert world.metric_state["movement_replan_blocked_count"] == 1.0
@@ -401,7 +409,7 @@ def test_a_walk_to_a_room_that_went_gives_it_up(generated_scenario: Any) -> None
     overlay = world.model_state[GEOMETRY_OVERLAY_KEY]
     overlay["bed_reservations"].clear()
     overlay["temporary_rooms"].clear()
-    _same_replan(world, ("A001",), 1)
+    _replanned(world, ("A001",), 1, "c0f2b22e1af2cd51")
     assert world.metric_state["movement_replan_blocked_count"] == 1.0
     assert world.agents["A001"].activity is Activity.SLEEPING
 
@@ -464,7 +472,7 @@ def test_support_with_another_route_is_rescheduled(generated_scenario: Any) -> N
     world, request_id = _assigned_support(generated_scenario)
     _alternate_to_the_staff(world)
     world.zone_edges[FIRST_LEG].closed = True
-    _same_replan(world, ("A001",), 1)
+    _replanned(world, ("A001",), 1, "9a3489ab32e34ae5")
     journey = world.model_state[KEY]["journeys"]["A001"]
     assert journey["route_edge_ids"] == ["route_sleeping_staff_alt"]
     assert world.support_requests[request_id].status is SupportRequestStatus.ASSIGNED
@@ -478,7 +486,7 @@ def test_support_with_another_route_is_rescheduled(generated_scenario: Any) -> N
 def test_support_where_the_staff_already_are_starts_there(generated_scenario: Any) -> None:
     world, request_id = _assigned_support(generated_scenario)
     world.model_state[KEY]["positions"]["A001"]["zone_id"] = "staff"
-    _same_replan(world, ("A001",), 1)
+    _replanned(world, ("A001",), 1, "b4b0409a6739a93b")
     assert world.agents["A001"].activity is Activity.SEEKING_HELP
     assert world.support_requests[request_id].status is SupportRequestStatus.ASSIGNED
 
@@ -486,7 +494,7 @@ def test_support_where_the_staff_already_are_starts_there(generated_scenario: An
 def test_support_with_no_route_goes_back_to_the_queue(generated_scenario: Any) -> None:
     world, request_id = _assigned_support(generated_scenario)
     world.zone_edges[FIRST_LEG].closed = True
-    _same_replan(world, ("A001",), 1)
+    _replanned(world, ("A001",), 1, "1d90584fe7362f7d")
     assert world.support_requests[request_id].status is SupportRequestStatus.PENDING
     assert world.metric_state["movement_replan_blocked_count"] == 1.0
     assert world.agents["A001"].support_request_id == request_id
@@ -496,7 +504,7 @@ def test_support_past_its_timeout_is_left_unresolved(generated_scenario: Any) ->
     world, request_id = _assigned_support(generated_scenario)
     world.zone_edges[FIRST_LEG].closed = True
     world.support_requests[request_id].timeout_minute = 1
-    _same_replan(world, ("A001",), 1)
+    _replanned(world, ("A001",), 1, "ab4c53aa38c8236f")
     assert world.support_requests[request_id].status is SupportRequestStatus.UNRESOLVED
     assert world.agents["A001"].activity is Activity.IDLE
     assert world.metric_state["support_unresolved_count"] == 1.0
@@ -507,21 +515,18 @@ def test_support_past_the_end_of_the_run_goes_back_to_the_queue(generated_scenar
     _alternate_to_the_staff(world)
     world.zone_edges[FIRST_LEG].closed = True
     world.duration_minutes = 3
-    _same_replan(world, ("A001",), 1)
+    _replanned(world, ("A001",), 1, "f09cd2fb0aaafad2")
     assert world.support_requests[request_id].status is SupportRequestStatus.PENDING
 
 
-def _python_says_inconsistent(world: WorldState, spoil: Any, match: str) -> None:
-    """The Python step's error, from the kernel's fallback on the same world, on both."""
-    twin = copy.deepcopy(world)
-    twin_controller, controller = _controller(twin), _controller(world)
-    spoil(twin)
+def _says_inconsistent(world: WorldState, spoil: Any, match: str, digest: str) -> None:
+    """The Python step's error, after the stop it has written, as that step left the world."""
     spoil(world)
-    with pytest.raises(ValueError, match=match):
-        UpdatePhase._replan_in_python(twin_controller, twin.model_state[KEY], ("A001",), 1)
-    with pytest.raises(ValueError, match=match):
-        native.rules("replan").replan_journeys(controller, world.model_state[KEY], ("A001",), 1)
-    assert _bytes(world) == _bytes(twin)
+    controller = _controller(world)
+    with pytest.raises(ValueError, match=match) as raised:
+        controller._replan_journeys(world.model_state[KEY], ("A001",), 1)
+    assert type(raised.value) is ValueError
+    _is_python_s(world, digest)
 
 
 def test_support_that_lost_its_task_is_python_s_error(generated_scenario: Any) -> None:
@@ -530,7 +535,12 @@ def test_support_that_lost_its_task_is_python_s_error(generated_scenario: Any) -
     def spoil(world: WorldState) -> None:
         del world.active_tasks[world.support_requests[request_id].task_id]
 
-    _python_says_inconsistent(world, spoil, "lost its assigned support task")
+    _says_inconsistent(
+        world,
+        spoil,
+        "^replanned resident trip lost its assigned support task$",
+        "11ea2f11622faeae",
+    )
 
 
 def test_support_with_a_moved_completion_is_python_s_error(generated_scenario: Any) -> None:
@@ -539,25 +549,127 @@ def test_support_with_a_moved_completion_is_python_s_error(generated_scenario: A
     def spoil(world: WorldState) -> None:
         world.active_tasks[world.support_requests[request_id].task_id].due_minute += 1
 
-    _python_says_inconsistent(world, spoil, "inconsistent support completion")
+    _says_inconsistent(
+        world,
+        spoil,
+        "^replanned resident trip has inconsistent support completion$",
+        "34d27c8b92f9f8ce",
+    )
+
+
+# ---- More branches -------------------------------------------------------------------------------
+
+
+def test_a_walk_whose_event_is_gone_stops_without_a_record(generated_scenario: Any) -> None:
+    world = _world(generated_scenario)
+    _with_alternate_route(world)
+    old = dict(_walk_to_the_toilet(world))
+    world.event_queue.remove(old["event_id"])
+    world.zone_edges[FIRST_LEG].closed = True
+    _replanned(world, ("A001",), 1, "2541b8d93f8fbef8")
+    assert not any(record.event.event_id == old["event_id"] for record in world.event_log.records)
+    assert old["task_id"] not in world.active_tasks
+    assert world.model_state[KEY]["journeys"]["A001"]["route_edge_ids"] == [ALTERNATE]
+
+
+def test_a_walk_to_its_own_zone_has_no_route_and_is_counted(generated_scenario: Any) -> None:
+    world = _world(generated_scenario)
+    controller = _controller(world)
+    start = world.agents["A001"].zone_id
+    route = controller._route(start, "toilet", "A001")
+    assert controller._schedule_travel(
+        agent_id="A001",
+        route=route,
+        purpose="return",
+        facility_id=None,
+        minute=world.minute_index,
+        validate_state=False,
+    )
+    world.model_state[KEY]["journeys"]["A001"]["destination_zone_id"] = start
+    _replanned(world, ("A001",), 1, "eb8eb130a300260a")
+    assert "A001" not in world.model_state[KEY]["journeys"]
+    assert world.metric_state["movement_replan_blocked_count"] == 1.0
+    assert world.metric_state["movement_replan_count"] == 1.0
+
+
+def test_a_room_walk_past_the_end_of_the_run_is_not_made_nor_blocked(
+    generated_scenario: Any,
+) -> None:
+    world = _world(generated_scenario)
+    old = dict(_in_the_toilet_area(world))
+    world.model_state[KEY]["positions"]["A001"]["point"] = dict(old["route_points"][0])
+    world.model_state[KEY]["positions"]["A001"]["point"]["x"] += 0.1
+    world.duration_minutes = 2
+    _replanned(world, ("A001",), 1, "321b3db4a63a4f25")
+    assert "A001" not in world.model_state[KEY]["journeys"]
+    assert world.metric_state.get("movement_replan_blocked_count", 0.0) == 0.0
+    assert world.metric_state["movement_replan_count"] == 1.0
+
+
+def test_support_whose_walk_a_full_zone_refuses_goes_back_to_the_queue(
+    generated_scenario: Any,
+) -> None:
+    world, request_id = _assigned_support(generated_scenario)
+    _alternate_to_the_staff(world)
+    world.zone_edges[FIRST_LEG].closed = True
+    world.zones["staff"].capacity = 0
+    _replanned(world, ("A001",), 1, "2ddf59bf7eb7550d")
+    assert world.support_requests[request_id].status is SupportRequestStatus.PENDING
+    assert world.metric_state["movement_replan_blocked_count"] == 1.0
+    assert "A001" not in world.model_state[KEY]["journeys"]
+
+
+# ---- What the kernel turns down ------------------------------------------------------------------
+
+
+def test_a_refusal_before_the_first_stop_changes_nothing(generated_scenario: Any) -> None:
+    world = _world(generated_scenario)
+    _with_alternate_route(world)
+    _walk_to_the_toilet(world)
+    world.zone_edges[FIRST_LEG].closed = True
+    before = (_bytes(world), _pending(world), _records(world))
+    controller = _controller(world)
+    with pytest.raises(KernelRefusal, match="^replan.replan_journeys refused: "):
+        controller._replan_journeys(world.model_state[KEY], ("A001",), "1")
+    assert (_bytes(world), _pending(world), _records(world)) == before
+
+
+def test_a_refusal_after_a_stop_is_an_error(generated_scenario: Any) -> None:
+    """A stop is written, so what the kernel turns down then cannot leave the world as it was."""
+    from sheltersim.policies.space import SpaceRouter
+
+    world = _world(generated_scenario)
+    _with_alternate_route(world)
+    old = dict(_walk_to_the_toilet(world))
+    world.zone_edges[FIRST_LEG].closed = True
+    controller = _controller(world)
+
+    class Other:
+        def route(self, *arguments: Any, **options: Any) -> None:
+            return None
+
+    controller.space = SpaceRouter(controller.space.graph, Other())
+    with pytest.raises(RuntimeError, match="after a replan was written: another route policy"):
+        controller._replan_journeys(world.model_state[KEY], ("A001",), 1)
+    assert "A001" not in world.model_state[KEY]["journeys"]
+    assert world.event_log.find(old["event_id"]).status is EventStatus.SUPPRESSED
 
 
 # ---- Beside the kernel ---------------------------------------------------------------------------
 
 
-def test_edge_capacities_are_asked_of_the_python_route(generated_scenario: Any) -> None:
-    """`_route` with capacities may be Python's: the rest here is the kernel's."""
+def test_edge_capacities_are_counted_on_the_new_route(generated_scenario: Any) -> None:
     world = _world(generated_scenario)
     _with_alternate_route(world)
     _walk_to_the_toilet(world)
     world.zone_edges[FIRST_LEG].closed = True
     world.zone_edges[ALTERNATE].max_agents_in_transit = 5
-    _same_replan(world, ("A001",), 1)
+    _replanned(world, ("A001",), 1, "1cdf310433881a39")
     assert "A001" in world.model_state[KEY]["journeys"]
 
 
 def test_a_tick_with_a_closed_edge_replans_through_the_driver(generated_scenario: Any) -> None:
-    """The driver's path against the phases' Python, over ticks that really replan."""
+    """The driver's path against the phases' path, over ticks that really replan."""
     from sheltersim.core.engine import TickEngine
 
     def run(driver: bool) -> tuple[str, float]:

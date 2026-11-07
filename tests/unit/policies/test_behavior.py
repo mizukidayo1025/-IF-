@@ -1,6 +1,7 @@
 """Immutable policy views and reproducible behavior proposals.
 
-Checkpoint replay of a behavior policy variant is checked in
+The proposals are native/src/rules/behavior.rs's, as the propose phase makes them
+(`support.world.decisions_of`). Checkpoint replay of a behavior policy variant is checked in
 tests/integration/test_behavior_policy.py.
 """
 
@@ -11,20 +12,24 @@ from typing import Any
 
 import pytest
 from support.paths import BASELINE_100_7D, SCENARIO_100_AGENTS
+from support.world import decisions_of
 
 from sheltersim import native
-from sheltersim.core.rng import CounterRNG, KeyedRandom
+from sheltersim.core.kernels import KernelRefusal
+from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.domain.models import Activity
 from sheltersim.domain.staff import StaffService
+from sheltersim.experiments.metrics import MetricsRecorder
+from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
+from sheltersim.experiments.timeline import _MetricSink
 from sheltersim.policies.behavior import (
     ActionCandidate,
     ActionKind,
     ActionProposal,
     AgentView,
     BehaviorDecisionRunner,
-    IneligibleDecisionError,
     PriorityRuleBehaviorPolicy,
     UtilityBehaviorPolicy,
     WorldView,
@@ -97,8 +102,8 @@ def test_behavior_proposal_is_reproducible_and_exposes_candidate_trace() -> None
     view = WorldView.from_world(world)
     policy = UtilityBehaviorPolicy()
 
-    first = policy.propose(view, "A001", CounterRNG(world.seed))
-    second = policy.propose(view, "A001", CounterRNG(world.seed))
+    first = decisions_of(world, policy)["A001"]
+    second = decisions_of(world, policy)["A001"]
     candidates = {candidate.action: candidate for candidate in first.candidates}
 
     assert first == second
@@ -123,73 +128,31 @@ def test_behavior_proposal_is_reproducible_and_exposes_candidate_trace() -> None
     assert first.selection_probability == candidates[first.action].probability
 
 
-def test_behavior_policy_rejects_not_due_or_mutually_exclusive_active_agents() -> None:
+def test_a_person_not_due_or_busy_gets_no_proposal() -> None:
     world = make_world()
-    policy = UtilityBehaviorPolicy()
     agent = world.agents["A001"]
+    assert "A001" in decisions_of(world)
 
     agent.next_decision_at = 1
-    with pytest.raises(IneligibleDecisionError, match="not due"):
-        policy.propose(WorldView.from_world(world), agent.id, CounterRNG(world.seed))
+    assert "A001" not in decisions_of(world)
 
     agent.next_decision_at = 0
     agent.activity = Activity.QUEUED
-    with pytest.raises(IneligibleDecisionError, match="while queued"):
-        policy.propose(WorldView.from_world(world), agent.id, CounterRNG(world.seed))
+    assert "A001" not in decisions_of(world)
 
 
-def test_behavior_policy_can_be_swapped_without_changing_runner() -> None:
+def test_a_policy_of_another_class_is_a_kernel_refusal() -> None:
+    """The step decides with the installed policies only: there is no Python rule to call."""
     world = make_world()
-    world.agents["A001"].activity = Activity.IDLE
-    view = WorldView.from_world(world)
+    controller = OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
+    view = controller._view_for_proposals(world, world.minute_index)
 
     class FixedActionPolicy:
-        def __init__(self, action: ActionKind) -> None:
-            self.action = action
-            self.policy_version = f"fixed-{action.value}-v1"
+        policy_version = "fixed-wait-v1"
 
-        def propose(
-            self,
-            snapshot: WorldView,
-            agent_id: str,
-            rng: KeyedRandom,
-            *,
-            trigger: str = "scheduled_decision",
-        ) -> ActionProposal:
-            key = ("fixed-policy", self.policy_version, agent_id, snapshot.minute_index)
-            choice_value = rng.random(*key)
-            candidate = ActionCandidate(
-                action=self.action,
-                eligible=True,
-                trigger="policy selected configured action",
-                utility=1.0,
-                urgency_priority=0,
-                probability=1.0,
-            )
-            return ActionProposal(
-                agent_id=agent_id,
-                minute_index=snapshot.minute_index,
-                observed_state_hash=snapshot.state_hash,
-                action=self.action,
-                candidates=(candidate,),
-                trigger=trigger,
-                choice_value=choice_value,
-                rng_key=key,
-                selection_probability=1.0,
-                policy_version=self.policy_version,
-                next_decision_at=snapshot.minute_index + 1,
-            )
-
-    wait = BehaviorDecisionRunner(FixedActionPolicy(ActionKind.WAIT)).propose_due(
-        view, CounterRNG(world.seed)
-    )
-    rest = BehaviorDecisionRunner(FixedActionPolicy(ActionKind.REST)).propose_due(
-        view, CounterRNG(world.seed)
-    )
-
-    assert wait[0].action is ActionKind.WAIT
-    assert rest[0].action is ActionKind.REST
-    assert wait[0].agent_id == rest[0].agent_id == "A001"
+    controller.decisions = BehaviorDecisionRunner(FixedActionPolicy())  # type: ignore[arg-type]
+    with pytest.raises(KernelRefusal, match="the policy is another class"):
+        controller._propose_due(view, CounterRNG(world.seed))
 
 
 def test_registered_priority_policy_reuses_candidates_and_is_keyed_deterministic() -> None:
@@ -198,11 +161,10 @@ def test_registered_priority_policy_reuses_candidates_and_is_keyed_deterministic
     world.agents["A001"].needs.toilet_urgency = 0.95
     world.agents["A001"].needs.hunger = 0.85
     before = world.canonical_json()
-    view = WorldView.from_world(world)
     policy = create_behavior_policy("priority-rule-v1", temperature=0.8)
 
-    first = policy.propose(view, "A001", CounterRNG(world.seed))
-    second = policy.propose(view, "A001", CounterRNG(world.seed))
+    first = decisions_of(world, policy)["A001"]
+    second = decisions_of(world, policy)["A001"]
     candidates = [item for item in first.candidates if item.eligible]
     best_rank = max((item.urgency_priority, item.utility) for item in candidates)
     selected = next(item for item in candidates if item.action is first.action)
@@ -230,9 +192,9 @@ def test_sleep_aware_behavior_normalizes_debt_by_daily_sleep_need() -> None:
     policy = create_behavior_policy(
         "sleep-aware-utility-softmax-v2",
     )
-    low_debt = policy.propose(WorldView.from_world(world), agent.id, CounterRNG(world.seed))
+    low_debt = decisions_of(world, policy)[agent.id]
     body["agents"][agent.id]["sleep_debt_minutes"] = 480.0
-    high_debt = policy.propose(WorldView.from_world(world), agent.id, CounterRNG(world.seed))
+    high_debt = decisions_of(world, policy)[agent.id]
 
     low_sleep = next(item for item in low_debt.candidates if item.action is ActionKind.SLEEP)
     high_sleep = next(item for item in high_debt.candidates if item.action is ActionKind.SLEEP)
@@ -250,11 +212,7 @@ def test_behavior_runner_only_proposes_due_agents_in_stable_id_order() -> None:
     world.agents["A003"].activity = Activity.IDLE
     world.agents["A003"].next_decision_at = 5
 
-    proposals = BehaviorDecisionRunner().propose_due(
-        WorldView.from_world(world), CounterRNG(world.seed)
-    )
-
-    assert [proposal.agent_id for proposal in proposals] == ["A001", "A002"]
+    assert list(decisions_of(world)) == ["A001", "A002"]
 
 
 def test_support_candidates_are_suppressed_for_open_request_and_cooldown(
@@ -268,7 +226,7 @@ def test_support_candidates_are_suppressed_for_open_request_and_cooldown(
     agent.activity = Activity.IDLE  # Keep the proposal gate under test while request is open.
     policy = UtilityBehaviorPolicy()
 
-    proposal = policy.propose(WorldView.from_world(world), agent.id, CounterRNG(world.seed))
+    proposal = decisions_of(world, policy)[agent.id]
     help_candidate = next(
         item for item in proposal.candidates if item.action is ActionKind.SEEK_HELP
     )
@@ -277,17 +235,13 @@ def test_support_candidates_are_suppressed_for_open_request_and_cooldown(
 
     agent.support_request_id = None
     agent.support_cooldown_until = 10
-    cooldown_proposal = policy.propose(
-        WorldView.from_world(world), agent.id, CounterRNG(world.seed)
-    )
+    cooldown_proposal = decisions_of(world, policy)[agent.id]
     assert not next(
         item for item in cooldown_proposal.candidates if item.action is ActionKind.SEEK_HELP
     ).eligible
 
     world.minute_index = 10
-    eligible_proposal = policy.propose(
-        WorldView.from_world(world), agent.id, CounterRNG(world.seed)
-    )
+    eligible_proposal = decisions_of(world, policy)[agent.id]
     assert next(
         item for item in eligible_proposal.candidates if item.action is ActionKind.SEEK_HELP
     ).eligible
@@ -295,18 +249,17 @@ def test_support_candidates_are_suppressed_for_open_request_and_cooldown(
 
 def test_behavior_refuses_a_view_without_its_required_audit_hash() -> None:
     world = WorldState.from_scenario(ScenarioSpec.load(BASELINE_100_7D))
-    view = WorldView.from_world(world, include_state_hash=False)
+    controller = OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
+    # The update phase's view, which has no audit hash.
+    view = controller._view_after_movement(world)
+    assert view.state_hash is None
 
-    with pytest.raises(ValueError, match="require a WorldView with a state hash"):
-        UtilityBehaviorPolicy().propose(view, next(iter(world.agents)), CounterRNG(world.seed))
+    with pytest.raises(KernelRefusal, match="no hash of a state"):
+        controller._propose_due(view, CounterRNG(world.seed))
 
 
-def test_a_directly_made_candidate_equals_the_dataclass_and_keeps_its_errors() -> None:
-    from sheltersim.policies.behavior import _candidate
-
-    made = _candidate(ActionKind.REST, True, "trigger", 0.25, 1, 0.5)
-    assert made == ActionCandidate(ActionKind.REST, True, "trigger", 0.25, 1, 0.5)
-    assert made.__dict__ == ActionCandidate(ActionKind.REST, True, "trigger", 0.25, 1, 0.5).__dict__
+def test_a_candidate_keeps_its_errors() -> None:
+    assert ActionCandidate("rest", True, "t", 0.25, 1, 0.5).action is ActionKind.REST
     for arguments in (
         (ActionKind.REST, True, "", 0.25, 1, 0.5),
         (ActionKind.REST, True, "t", float("nan"), 1, 0.5),
@@ -317,8 +270,7 @@ def test_a_directly_made_candidate_equals_the_dataclass_and_keeps_its_errors() -
         (ActionKind.REST, False, "t", 0.25, 1, 0.5),
     ):
         with pytest.raises(ValueError):
-            _candidate(*arguments)
-    assert _candidate("rest", True, "t", 0.25, 1, 0.5).action is ActionKind.REST
+            ActionCandidate(*arguments)
 
 
 def test_a_recorded_outcome_equals_replace_and_keeps_the_timing_check() -> None:

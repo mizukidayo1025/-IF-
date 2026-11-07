@@ -14,7 +14,11 @@ import pytest
 
 from sheltersim.core.engine import TraceLevel
 from sheltersim.core.world import StateInvariantError
-from sheltersim.domain.care_receipts import care_history_by_agent, care_receipt_for_request
+from sheltersim.domain.care_receipts import (
+    care_history_by_agent,
+    care_receipt_for_request,
+    ingest_applied_shared_operation_records,
+)
 from sheltersim.events.effects import (
     DEFAULT_PRIMITIVE_REGISTRY,
     EffectProgram,
@@ -164,7 +168,12 @@ def test_a_timed_out_care_request_is_valid_only_until_the_end_of_its_dispatch(
     world = timeline.seek(branch, minute).world
     controller = OfflineSimulationController(world, _NoArtifacts())
 
-    outcomes = controller._dispatch_due_events(world, minute)
+    # The dispatch phase's batch, before the care records of what it applied.
+    outcomes = controller.event_dispatcher.dispatch_due(
+        world,
+        minute,
+        after_event=lambda records: ingest_applied_shared_operation_records(world, records),
+    )
 
     timed_out = [
         record.event.payload["request_id"]

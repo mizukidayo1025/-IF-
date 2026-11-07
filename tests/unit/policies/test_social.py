@@ -45,10 +45,16 @@ def _two_agent_world(count: int = 2) -> WorldState:
     return world
 
 
-def _base_deltas(view: WorldView, minute: int) -> tuple[AgentStateDelta, ...]:
+def _base_deltas(world: WorldState, view: WorldView, minute: int) -> tuple[AgentStateDelta, ...]:
+    """The deltas of `_psychology_update` (native/src/rules/psychology.rs), before this step."""
     if view.minute_index != minute:
         view = replace(view, minute_index=minute)
-    return SimplePsychologyPolicy().update(view, minute)
+    controller = SimpleNamespace(
+        world=world,
+        psychology=SimplePsychologyPolicy(),
+        artifacts=SimpleNamespace(trace_level=TraceLevel.OFF),
+    )
+    return native.rules("psychology").update_psychology(controller, view, minute).deltas
 
 
 class _Sink:
@@ -92,7 +98,7 @@ def _propagate(
 def test_disabled_model_preserves_the_rule_baseline_exactly() -> None:
     world = _two_agent_world()
     view = WorldView.from_world(world)
-    baseline = _base_deltas(view, 0)
+    baseline = _base_deltas(world, view, 0)
 
     result = _propagate(
         world,
@@ -121,7 +127,7 @@ def test_family_contact_propagates_stress_and_records_contribution() -> None:
             cooldown_minutes=5,
         )
     )
-    baseline = _base_deltas(view, 0)
+    baseline = _base_deltas(world, view, 0)
 
     result = _propagate(world, policy, view, baseline, CounterRNG(world.seed), zone_neighbors={})
 
@@ -151,7 +157,7 @@ def test_agent_cooldown_suppresses_repeated_influence_until_it_expires() -> None
     for minute in range(6):
         world.minute_index = minute
         view = WorldView.from_world(world)
-        deltas = _base_deltas(view, minute)
+        deltas = _base_deltas(world, view, minute)
         result = _propagate(world, policy, view, deltas, CounterRNG(world.seed), zone_neighbors={})
         if minute == 0:
             first_result = result
@@ -171,7 +177,7 @@ def test_nearby_zone_contacts_are_selected_without_family_membership() -> None:
         agent_id: replace(agent, group_id=None) for agent_id, agent in original.agents.items()
     }
     view = WorldView(0, agents, original.facilities, original.state_hash)
-    base = _base_deltas(view, 0)
+    base = _base_deltas(world, view, 0)
     policy = StressPropagationPolicy(
         SocialPropagationParameters(enabled=True, max_contacts_per_agent=1)
     )

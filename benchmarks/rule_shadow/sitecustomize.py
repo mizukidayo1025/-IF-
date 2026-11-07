@@ -1,9 +1,8 @@
 """Compare the Rust steps with their Python rules at every call, in any process.
 
-This file has the long-term psychology step, psychology_update.py the other psychology steps,
-movement_shadow.py the state of movement_v1, world_view_shadow.py the views, in DIR/world_view,
-and behavior_shadow.py the proposals, in DIR/behavior. The social and information steps have no
-Python rule left to compare with (lane L10).
+This file has the validator of psychological_distress_v1, movement_shadow.py the state of
+movement_v1. The psychology, social and information steps, the views, the decisions and their
+effects have no Python rule left to compare with (lane L10).
 
 Hashes do not see a 1% change in a value that doesn't reach them yet, and a kernel may never run if
 it always says Unsupported. Put this directory first on PYTHONPATH and run anything:
@@ -18,8 +17,7 @@ write the bytes of the tree. Each process writes what it saw to DIR at exit, so 
 processes of a Project count too. The kernel's result is what goes on, so the hashes of such a run
 must still pass. Without SHELTERSIM_RULE_SHADOW this file does nothing.
 
-psychology_update.py does the same for the other two steps. This is the pattern for the next
-kernels; docs/rust-port/lanes/p5-template-namespace.md says how.
+docs/rust-port/lanes/p5-template-namespace.md says how a kernel's shadow is made.
 A new shadow is a file shadow_<name>.py with prepare(output) beside this one (see shadow_kit.py).
 Each runs first, so it can replace a kernel before the module that looks it up is imported.
 """
@@ -41,90 +39,17 @@ CENSUS_OUTPUT = os.environ.get("SHELTERSIM_REFUSAL_CENSUS")
 TEXT_OUTPUT = os.environ.get("SHELTERSIM_TEXT_CHECK")
 
 
-def _floats(value: Any) -> int:
-    if isinstance(value, dict):
-        return sum(_floats(item) for item in value.values())
-    return 1
-
-
-def _text(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False)
-
-
 def _install(output: str) -> None:
-    import psychology_update
-
     from sheltersim import native
     from sheltersim.core import state_mirror
-    from sheltersim.domain.distress_monitor import record_distress_monitor_tick
     from sheltersim.domain.psychological_state import (
         PSYCHOLOGICAL_STATE_KEY,
         validate_psychological_state,
     )
-    from sheltersim.experiments.phases.update import UpdatePhase
-    from sheltersim.experiments.runner import OfflineSimulationController
 
     seen: Counter[str] = Counter()
     reasons: Counter[str] = Counter()
     differences: list[str] = []
-    kernel = native.rules("psychology").update_long_term
-    python_step = UpdatePhase._update_long_term_psychology
-
-    def step(self: Any, world: Any, view: Any, final_deltas: Any, minute: int) -> None:
-        seen["steps"] += 1
-        policy = self.psychology
-        update_long_term = getattr(policy, "update_long_term_state", None)
-        python_metrics = None
-        python_state = None
-        python_error = None
-        records_before = 0
-        if callable(update_long_term):
-            python_metrics = dict(world.metric_state)
-            records_before = len(
-                world.model_state.get(PSYCHOLOGICAL_STATE_KEY, {}).get("agents", {})
-            )
-            try:
-                record_distress_monitor_tick(
-                    python_metrics,
-                    previous_by_agent={key: agent.stress for key, agent in view.agents.items()},
-                    current_by_agent={delta.agent_id: delta.stress for delta in final_deltas},
-                    threshold=policy.parameters.high_distress_threshold,
-                )
-                python_state = update_long_term(
-                    world.model_state[PSYCHOLOGICAL_STATE_KEY], minute, final_deltas
-                )
-            except Exception as error:  # noqa: BLE001 - only compared with what the kernel does
-                python_error = error
-        try:
-            kernel(self, world, view, final_deltas, minute)
-        except native.Unsupported as reason:
-            reasons[str(reason)] += 1
-            python_step(self, world, view, final_deltas, minute)
-            return
-        seen["kernel_ran"] += 1
-        if not callable(update_long_term):
-            # A model with no long-term state: the Python step does nothing, nor does the kernel.
-            seen["no_long_term_state"] += 1
-            return
-        if python_error is not None:
-            differences.append(f"minute {minute}: the kernel took what Python turned down")
-            return
-        state = world.model_state[PSYCHOLOGICAL_STATE_KEY]
-        if _text(python_metrics) != _text(world.metric_state):
-            differences.append(f"minute {minute}: metric_state")
-        if _text(python_state) != _text(state):
-            differences.append(f"minute {minute}: {PSYCHOLOGICAL_STATE_KEY}")
-        seen["values_compared"] += _floats(python_metrics) + _floats(python_state)
-        for name in (PSYCHOLOGICAL_STATE_KEY, "metric_state"):
-            if not world._core.mirror(name).verify():
-                differences.append(f"minute {minute}: the row and the tree of {name}")
-        # What the comparison reached, since a branch no scenario takes is not compared.
-        seen["records_added"] += len(state["agents"]) - records_before
-        if (minute + 1) % 1440 == 0:
-            seen["day_ends"] += 1
-            seen["records_at_day_ends"] += len(state["agents"])
-        high = policy.parameters.high_distress_threshold
-        seen["people_high"] += sum(delta.stress >= high for delta in final_deltas)
 
     def validator(world: Any) -> bool:
         accepted = rust_validate(world)
@@ -136,8 +61,6 @@ def _install(output: str) -> None:
 
     rust_validate = native.state("psychological_distress").validate
     state_mirror.register_rust_validator(PSYCHOLOGICAL_STATE_KEY, validator)
-    OfflineSimulationController._update_long_term_psychology = step  # type: ignore[method-assign]
-    psychology_update.install(seen, reasons, differences)
 
     import movement_shadow
 
@@ -178,7 +101,7 @@ elif OUTPUT and os.environ.get("SHELTERSIM_RULE_SHADOW_ONLY"):
     Path(OUTPUT).mkdir(parents=True, exist_ok=True)
     for name in os.environ["SHELTERSIM_RULE_SHADOW_ONLY"].split(","):
         if name == "update":
-            # The psychology steps of the update phase, in this file.
+            # The validator of psychological_distress_v1 and movement_shadow.py, in this file.
             _install(OUTPUT)
         else:
             importlib.import_module(f"shadow_{name}").prepare(OUTPUT)
@@ -194,9 +117,3 @@ elif OUTPUT:
     import events_shadow
 
     events_shadow.install(OUTPUT)
-    from world_view_shadow import install as _install_world_view
-
-    _install_world_view(OUTPUT)
-    from behavior_shadow import install as _install_behavior
-
-    _install_behavior(OUTPUT)

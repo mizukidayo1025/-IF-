@@ -16,7 +16,6 @@ _EXPORTS = {
     "AgentStateDelta": ".psychology",
     "PsychologyPolicy": ".psychology",
     "SimplePsychologyPolicy": ".psychology",
-    "apply_state_deltas": ".psychology",
 }
 
 __all__ = list(_EXPORTS)

@@ -2,25 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
 from typing import Any
 
-from sheltersim.core.engine import TraceLevel
 from sheltersim.core.rng import KeyedRandom
 from sheltersim.core.world import WorldState
-from sheltersim.domain.care_receipts import (
-    ingest_applied_shared_operation_records,
-    make_staff_support_continuity_record,
-)
-from sheltersim.domain.distress_monitor import record_distress_monitor_tick
-from sheltersim.domain.geometry_overlay import release_sleep_bed, reserve_sleep_bed
-from sheltersim.domain.models import Activity, SupportRequestStatus
-from sheltersim.domain.movement import MOVEMENT_STATE_KEY, advance_movement, finish_movement
-from sheltersim.domain.psychological_state import PSYCHOLOGICAL_STATE_KEY
-from sheltersim.events.models import EventKind, EventLogRecord, EventStatus, ScheduledEvent
+from sheltersim.domain.movement import MOVEMENT_STATE_KEY, advance_movement
 from sheltersim.experiments.phases.segments import no_python_step
-from sheltersim.policies.psychology import PsychologyUpdateResult, apply_state_deltas
-from sheltersim.policies.space import ZoneRoute
+from sheltersim.policies.psychology import PsychologyUpdateResult
 from sheltersim.policies.world_view import WorldView
 
 
@@ -38,21 +26,37 @@ class UpdatePhase:
         self._view_before_proposals = view
 
     def _view_after_movement(self, world: WorldState) -> WorldView:
-        return WorldView.from_world(
-            world,
-            include_state_hash=False,
-            person_cache=self._person_contexts,
-            environment_cache=self._zone_environments,
-        )
+        """The view the update phase reads, which native/src/rules/world_view.rs makes.
+
+        A `WorldView` of `world` at its minute, without an audit hash (`state_hash` None): what
+        `WorldView.from_world(world, include_state_hash=False)` holds, read from the rows and the
+        namespaces. Its `agents`, `facilities`, `zone_members` and `group_members` are made when a
+        Python reader first asks for them. Parsed person contexts and zone conditions are kept for
+        the controller while their documents stay the same; `_zone_environments` is the zones'.
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        raises KernelRefusal: a value of another type than its typed field holds, a person in an
+        unknown zone, a person context or a zone modifier that does not parse, a selection of
+        models the contract refuses.
+        """
+        raise no_python_step("_view_after_movement")
 
     def _psychology_update(self, view: WorldView, minute: int) -> PsychologyUpdateResult:
-        deltas_without_traces = getattr(self.psychology, "deltas_without_traces", None)
-        if self.artifacts.trace_level is TraceLevel.OFF and deltas_without_traces is not None:
-            # No psychology trace is recorded, so its per-agent parts are not built.
-            psychology_result = PsychologyUpdateResult(deltas_without_traces(view, minute), ())
-        else:
-            psychology_result = self.psychology.explain_update(view, minute)
-        return psychology_result
+        """Each person's values of the next minute, which native/src/rules/psychology.rs computes.
+
+        The model is `psychology` (the five models of policies/psychology.py and
+        BoundedStressPolicy of policies/alternatives.py, by their exact class). The result holds
+        one new AgentStateDelta per person of `view`, in ID order, and `policy_version`; its
+        `traces` are the kernel's rows of each person's contributions when the Run keeps a trace,
+        and () otherwise. Nothing changes: the deltas are written by `_apply_state_deltas`.
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        raises KernelRefusal: a model of another class, a minute other than the view's, a trace
+        on a view Python made, an entity store that a write past its rows tainted, a trust, a
+        sleep debt, a sleep efficiency or a required sleep out of bounds, or a new value outside
+        an AgentStateDelta's bounds.
+        """
+        raise no_python_step("_psychology_update")
 
     def _social_propagation(
         self, world: WorldState, view: WorldView, base_deltas: Any, minute: int, rng: KeyedRandom
@@ -76,68 +80,58 @@ class UpdatePhase:
     def _record_psychology_trace(
         self, psychology_result: PsychologyUpdateResult, final_deltas: Any, minute: int
     ) -> None:
-        base_deltas = psychology_result.deltas
-        if self.artifacts.trace_level is not TraceLevel.OFF:
-            final_by_agent = {delta.agent_id: delta for delta in final_deltas}
-            base_by_agent = {delta.agent_id: delta for delta in base_deltas}
-            traced_result = replace(
-                psychology_result,
-                traces=tuple(
-                    replace(
-                        trace,
-                        stress_after=final_by_agent[trace.agent_id].stress,
-                        social_stress_delta=(
-                            final_by_agent[trace.agent_id].stress
-                            - base_by_agent[trace.agent_id].stress
-                        ),
-                    )
-                    for trace in psychology_result.traces
-                ),
-            )
-            self.artifacts.record_psychology_trace(
-                traced_result.trace_document(
-                    minute,
-                    source_id=self.psychology.source_id,
-                    full=self.artifacts.trace_level is TraceLevel.FULL,
-                ),
-                agent_contributions=(
-                    {
-                        "agent_id": trace.agent_id,
-                        "stress_before": trace.stress_before,
-                        "stress_after": final_by_agent[trace.agent_id].stress,
-                        "raw_stress_delta": trace.raw_stress_delta,
-                        "social_stress_delta": (
-                            final_by_agent[trace.agent_id].stress
-                            - base_by_agent[trace.agent_id].stress
-                        ),
-                        "component_contributions": dict(trace.component_contributions),
-                    }
-                    for trace in psychology_result.traces
-                ),
-            )
+        """The psychology trace of the minute, which native/src/rules/trace.rs writes.
+
+        Nothing when the Run keeps no trace. Otherwise `artifacts.record_psychology_trace` gets
+        the minute's document and `agent_contributions`, one per person: each person's stress
+        after is the final delta's, so `social_stress_delta` is what the social step added. A full
+        trace keeps every person, a summary the 20 whose stress changed most (then by ID); the
+        component totals are over everyone.
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        raises KernelRefusal: traces that are not the psychology kernel's rows, or a person
+        without a final delta.
+        """
+        raise no_python_step("_record_psychology_trace")
 
     def _update_long_term_psychology(
         self, world: WorldState, view: WorldView, final_deltas: Any, minute: int
     ) -> None:
-        update_long_term = getattr(self.psychology, "update_long_term_state", None)
-        if callable(update_long_term):
-            record_distress_monitor_tick(
-                world.metric_state,
-                previous_by_agent={
-                    agent_id: agent.stress for agent_id, agent in view.agents.items()
-                },
-                current_by_agent={delta.agent_id: delta.stress for delta in final_deltas},
-                threshold=self.psychology.parameters.high_distress_threshold,
-            )
-            runtime_state = world.model_state.get(PSYCHOLOGICAL_STATE_KEY)
-            if not isinstance(runtime_state, dict):
-                raise ValueError("mean-reverting psychology runtime state is missing")
-            world.model_state[PSYCHOLOGICAL_STATE_KEY] = update_long_term(
-                runtime_state, minute, final_deltas
-            )
+        """The distress monitor and the day-scale distress, which native/src/rules/psychology.rs
+        updates for the models with long-term state.
+
+        Nothing for a model other than mean-reverting-distress-v1 and
+        mean-reverting-life-state-v1. For those, with each person's stress before (the rows the
+        view was made of) and after (`final_deltas`) and the model's `high_distress_threshold`:
+        `world.metric_state` gets the five values of `acute_distress_monitor:<id>` (the current
+        and the longest high run, the episodes, the total and the count of the runs that ended),
+        and `world.model_state["psychological_distress_v1"]` adds the final stress to each
+        person's day, with a new record from `baseline_distress_by_agent` (0 by default) for
+        someone it has none of. At the last minute of a day each record with observed minutes
+        takes its new long-term distress and starts the next day; `last_updated_minute` becomes
+        `minute`.
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        raises KernelRefusal, before anything changes: a namespace that does not validate or is
+        not at the previous minute, deltas of other people or of two for one person, a stress or
+        a threshold outside 0..1, a monitor value that is negative or not finite, another model
+        with an `update_long_term_state` of its own.
+        """
+        raise no_python_step("_update_long_term_psychology")
 
     def _apply_state_deltas(self, world: WorldState, final_deltas: Any) -> None:
-        apply_state_deltas(world, final_deltas)
+        """Write the final deltas, which native/src/rules/psychology.rs does.
+
+        Each person's needs, stress and trust take the delta's values, and the body values a
+        delta has go to its record of `body_state_v1`. Every delta is checked before anything
+        is written.
+
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        raises KernelRefusal: two deltas for one person, a person the world does not have, a
+        delta of another minute, a value that is not a float within 0..1, body values without a
+        body record.
+        """
+        raise no_python_step("_apply_state_deltas")
 
     def _update_movement(self, minute: int) -> None:
         """Advance route interpolation and atomically reschedule changed paths."""
@@ -147,289 +141,31 @@ class UpdatePhase:
         self._replan_journeys(state, advance_movement(self.world, minute), minute)
 
     def _replan_journeys(self, state: Any, agent_ids: Any, minute: int) -> None:
-        """The people whose route changed, from the state read before it advanced."""
-        self._replan_in_python(state, agent_ids, minute)
+        """New routes for the people whose route changed, which native/src/rules/replan.rs plans.
 
-    def _replan_in_python(self, state: Any, agent_ids: Any, minute: int) -> None:
-        """The whole of `_replan_journeys`, for those its kernel has not started on."""
-        for agent_id in agent_ids:
-            journey = dict(state["journeys"].get(agent_id, {}))
-            agent = self.world.agents.get(agent_id)
-            if not journey or agent is None:
-                continue
-            old_event = next(
-                (
-                    event
-                    for event in self.world.event_queue.pending()
-                    if event.event_id == journey["event_id"]
-                ),
-                None,
-            )
-            if old_event is not None:
-                self.world.event_queue.remove(old_event.event_id)
-                self.world.event_log.append(
-                    EventLogRecord(
-                        event=old_event,
-                        realized_minute=minute,
-                        status=EventStatus.SUPPRESSED,
-                        detail="the route changed before travel completion",
-                    )
-                )
-            self.world.active_tasks.pop(journey["task_id"], None)
-            old_position = state["positions"].get(agent_id, {})
-            agent.zone_id = old_position.get("zone_id", agent.zone_id)
-            agent.activity = Activity.IDLE
-            agent.target_id = None
-            # Keep the last applied physical point while planning the replacement path.
-            # For a same-zone facility move, the new in-room route therefore begins
-            # at the stopped actor position instead of a zone-centre placeholder.
-            state["journeys"].pop(agent_id, None)
-            self._replan_stopped(state, agent_id, journey, minute)
+        `agent_ids` are those `advance_movement` returned, in that order; `state` is
+        `world.model_state["movement_v1"]`. For each one with a journey: the old trip stops (its
+        pending event SUPPRESSED with "the route changed before travel completion", its task gone,
+        the person IDLE at the zone of their position with no target, the journey removed), and
+        then, from where that left them:
 
-    def _replan_stopped(
-        self, state: Any, agent_id: str, journey: dict[str, Any], minute: int
-    ) -> None:
-        """A new route for one person, whose old trip has just been stopped."""
-        agent = self.world.agents[agent_id]
-        target_zone = journey["destination_zone_id"]
-        facility_id = journey.get("facility_id")
-        if journey.get("purpose") == "staff_support_travel":
-            if not self._replan_staff_support_trip(agent_id, journey, minute):
-                self.world.metric_state["movement_replan_blocked_count"] = (
-                    self.world.metric_state.get("movement_replan_blocked_count", 0.0) + 1.0
-                )
-            self.world.metric_state["movement_replan_count"] = (
-                self.world.metric_state.get("movement_replan_count", 0.0) + 1.0
-            )
-            return
-        if journey.get("purpose") == "sleep_bed":
-            reservation = reserve_sleep_bed(self.world, agent_id)
-            if reservation is not None and reservation["travel_minutes"] > 0:
-                route = ZoneRoute(
-                    origin_zone_id=agent.zone_id,
-                    destination_zone_id=agent.zone_id,
-                    zone_ids=(agent.zone_id, agent.zone_id),
-                    edge_ids=(),
-                    travel_minutes=reservation["travel_minutes"],
-                )
-                scheduled = self._schedule_travel(
-                    agent_id=agent.id,
-                    route=route,
-                    route_points=reservation["route_points"],
-                    purpose="sleep_bed",
-                    facility_id=None,
-                    minute=minute,
-                    causation_id=journey["event_id"],
-                    validate_state=False,
-                )
-                if scheduled:
-                    self.world.metric_state["movement_replan_count"] = (
-                        self.world.metric_state.get("movement_replan_count", 0.0) + 1.0
-                    )
-                    return
-            if reservation is None or reservation["travel_minutes"] > 0:
-                self.world.metric_state["movement_replan_blocked_count"] = (
-                    self.world.metric_state.get("movement_replan_blocked_count", 0.0) + 1.0
-                )
-                release_sleep_bed(self.world, agent_id)
-            else:
-                state["positions"][agent_id].update(
-                    {
-                        "zone_id": agent.zone_id,
-                        "point": reservation["point"].model_dump(mode="json"),
-                        "edge_id": None,
-                        "progress": 1.0,
-                        "position_kind": "physical",
-                    }
-                )
-            agent.activity = Activity.SLEEPING
-            agent.target_id = None
-            self.world.metric_state["movement_replan_count"] = (
-                self.world.metric_state.get("movement_replan_count", 0.0) + 1.0
-            )
-            return
-        if facility_id in self.world.facilities:
-            target_zone = self.world.facilities[facility_id].zone_id
-            if agent.zone_id == target_zone:
-                room_route = self._facility_approach(agent_id, facility_id)
-                if room_route is not None and room_route[1]:
-                    if room_route[0].travel_minutes > 0 and len(room_route[1]) > 1:
-                        self._schedule_travel(
-                            agent_id=agent_id,
-                            route=room_route[0],
-                            route_points=room_route[1],
-                            purpose=journey["purpose"],
-                            facility_id=facility_id,
-                            minute=minute,
-                            causation_id=journey["event_id"],
-                            validate_state=False,
-                        )
-                    else:
-                        state["positions"][agent_id] = {
-                            "zone_id": agent.zone_id,
-                            "point": room_route[1][-1].model_dump(mode="json"),
-                            "edge_id": None,
-                            "progress": 0.0,
-                            "position_kind": "physical",
-                        }
-                else:
-                    self.world.metric_state["movement_replan_blocked_count"] = (
-                        self.world.metric_state.get("movement_replan_blocked_count", 0.0) + 1.0
-                    )
-                self.world.metric_state["movement_replan_count"] = (
-                    self.world.metric_state.get("movement_replan_count", 0.0) + 1.0
-                )
-                return
-        route = self._route(agent.zone_id, target_zone, agent_id)
-        if route is not None and route.edge_ids:
-            self._schedule_travel(
-                agent_id=agent_id,
-                route=route,
-                purpose=journey["purpose"],
-                facility_id=facility_id,
-                minute=minute,
-                causation_id=journey["event_id"],
-                validate_state=False,
-            )
-        else:
-            self.world.metric_state["movement_replan_blocked_count"] = (
-                self.world.metric_state.get("movement_replan_blocked_count", 0.0) + 1.0
-            )
-        self.world.metric_state["movement_replan_count"] = (
-            self.world.metric_state.get("movement_replan_count", 0.0) + 1.0
-        )
+        - a `staff_support_travel` trip walks again to the assigned staff (`_route`,
+          `_schedule_travel`) and the support's completion moves after it, or, with no route or no
+          time left, the completion is SUPPRESSED, the staff member freed, and the request
+          UNRESOLVED (at its timeout) or PENDING again, with a continuity record
+          "route_unreachable"; a request no longer ASSIGNED with its task raises
+          ValueError("replanned resident trip lost its assigned support task"), a completion not
+          the task's one ValueError("replanned resident trip has inconsistent support completion");
+        - a `sleep_bed` trip reserves a bed again and walks there, or lies down where it is, or,
+          with no bed, releases it; the person is SLEEPING;
+        - a trip to a facility in the person's zone takes the room's approach path, and any
+          other trip a new route of `_route` to the facility's or destination zone.
 
-    def _replan_staff_support_trip(
-        self, agent_id: str, journey: dict[str, Any], minute: int
-    ) -> bool:
-        """Re-route an assigned resident or requeue support if its route closed."""
-        world = self.world
-        request_id = journey.get("support_request_id")
-        request = world.support_requests.get(request_id) if isinstance(request_id, str) else None
-        agent = world.agents.get(agent_id)
-        staff = world.staff.get(request.assigned_staff_id or "") if request is not None else None
-        task = world.active_tasks.get(request.task_id or "") if request is not None else None
-        if (
-            request is None
-            or request.status is not SupportRequestStatus.ASSIGNED
-            or agent is None
-            or staff is None
-            or task is None
-            or task.kind != "staff_support"
-        ):
-            raise ValueError("replanned resident trip lost its assigned support task")
-        completions = [
-            event
-            for event in world.event_queue.pending()
-            if event.event_type == "staff_support_complete"
-            and event.payload.get("task_id") == task.id
-        ]
-        if len(completions) != 1 or completions[0].due_minute != task.due_minute:
-            raise ValueError("replanned resident trip has inconsistent support completion")
-        previous_completion = completions[0]
-        service_minutes = task.due_minute - task.start_minute
-        route = self._route(agent.zone_id, staff.zone_id, agent.id)
-        due_minute = minute + (route.travel_minutes if route is not None else 0) + service_minutes
-        can_schedule = route is not None and due_minute < world.duration_minutes
-        if can_schedule and route is not None and route.travel_minutes > 0:
-            can_schedule = self._schedule_travel(
-                agent_id=agent.id,
-                route=route,
-                purpose="staff_support_travel",
-                facility_id=None,
-                minute=minute,
-                causation_id=journey.get("event_id"),
-                support_request_id=request.id,
-                support_staff_id=staff.id,
-                validate_state=False,
-            )
-        elif can_schedule:
-            agent.activity = Activity.SEEKING_HELP
-            agent.target_id = None
-        if can_schedule:
-            world.event_queue.remove(previous_completion.event_id)
-            world.event_log.append(
-                EventLogRecord(
-                    event=previous_completion,
-                    realized_minute=minute,
-                    status=EventStatus.SUPPRESSED,
-                    detail="support completion was rescheduled after a route change",
-                )
-            )
-            sequence = world.allocate_event_sequence()
-            task.start_minute = minute + (route.travel_minutes if route is not None else 0)
-            task.due_minute = due_minute
-            staff.busy_until = due_minute
-            world.schedule_event(
-                ScheduledEvent(
-                    event_id=f"staff-support-complete-{sequence}",
-                    kind=EventKind.COMPLETION,
-                    due_minute=due_minute,
-                    priority=0,
-                    sequence=sequence,
-                    event_type="staff_support_complete",
-                    payload={
-                        "request_id": request.id,
-                        "agent_id": agent.id,
-                        "staff_id": staff.id,
-                        "task_id": task.id,
-                        "support_duration_minutes": service_minutes,
-                    },
-                    source_id=task.id,
-                    causation_id=journey.get("event_id"),
-                    provenance={
-                        "source_type": "assumption",
-                        "source_id": "ASM-STAFF-SUPPORT-LIFECYCLE-V1",
-                        "policy_version": self.staff_service.policy_version,
-                        "rescheduled_after_route_change": True,
-                    },
-                )
-            )
-            return True
+        Each person adds 1 to `movement_replan_count`, and 1 to `movement_replan_blocked_count`
+        when no route or bed was found.
 
-        world.event_queue.remove(previous_completion.event_id)
-        world.event_log.append(
-            EventLogRecord(
-                event=previous_completion,
-                realized_minute=minute,
-                status=EventStatus.SUPPRESSED,
-                detail="support completion was cancelled because the staff route is unavailable",
-            )
-        )
-        del world.active_tasks[task.id]
-        staff.work_queue.clear()
-        staff.active_task_id = None
-        staff.busy_until = 0
-        request.assigned_staff_id = None
-        request.task_id = None
-        agent.target_id = None
-        if request.timeout_minute <= minute:
-            request.status = SupportRequestStatus.UNRESOLVED
-            request.resolved_minute = minute
-            request.cooldown_until = minute + self.staff_service.cooldown_minutes
-            agent.activity = Activity.IDLE
-            agent.support_request_id = None
-            agent.support_cooldown_until = request.cooldown_until
-            world.metric_state["support_unresolved_count"] = (
-                world.metric_state.get("support_unresolved_count", 0.0) + 1.0
-            )
-            continuity_status = "unresolved"
-        else:
-            request.status = SupportRequestStatus.PENDING
-            agent.activity = Activity.SEEKING_HELP
-            agent.support_request_id = request.id
-            continuity_status = "requeued"
-        continuity = make_staff_support_continuity_record(
-            world,
-            request_id=request.id,
-            agent_id=agent.id,
-            task_id=task.id,
-            previous_staff_id=staff.id,
-            status=continuity_status,
-            causation_id=journey.get("event_id") or task.id,
-            cause_type="route_unreachable",
-        )
-        world.event_log.append(continuity)
-        ingest_applied_shared_operation_records(world, (continuity,))
-        finish_movement(world, agent.id)
-        return False
+        The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
+        before the first stop raises KernelRefusal, and after it a RuntimeError, since a stop
+        is written.
+        """
+        raise no_python_step("_replan_journeys")

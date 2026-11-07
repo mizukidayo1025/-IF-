@@ -1,13 +1,19 @@
-"""The proposals of rules/behavior.rs: every field the bits of policies/behavior.py.
+"""The proposals of rules/behavior.rs: every field the bits of the deleted Python rule's.
 
-The Python rules stay the reference (docs/rust-port/lanes/h-behavior.md). The bits over whole
-scenarios are compared by benchmarks/rule_shadow; here, on values no scenario reaches.
+The Python rules of `UtilityBehaviorPolicy.propose`, `PriorityRuleBehaviorPolicy.propose` and
+`_agent_view_snapshot` are gone (lane L10; docs/rust-port/lanes/h-behavior.md). Each case hashes the
+bits (`_exact`) of everything the kernel made, in order, and compares the digest with the one of
+what the Python rules made from the same inputs, recorded from them on 45a9bc9 before they went
+(`_Bits`, pinned on Linux, as the gate's hashes are). Here, on values no scenario reaches.
 """
 
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 import random
+import sys
 from enum import Enum
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,6 +24,7 @@ from support.paths import SMALL_REPLAY
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine, TraceLevel
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.domain.body_state import create_body_state
@@ -28,7 +35,6 @@ from sheltersim.domain.models import (
     SupportRequestStatus,
 )
 from sheltersim.experiments.metrics import MetricsRecorder
-from sheltersim.experiments.phases.propose import ProposePhase, _agent_view_snapshot
 from sheltersim.experiments.runner import OfflineSimulationController, run_scenario
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _MetricSink
@@ -72,12 +78,31 @@ def _view(world: WorldState, controller: Any = None) -> WorldView:
     return native.rules("world_view").view_for_proposals(controller, world, world.minute_index)
 
 
-def _both(policy: Any, view: WorldView, seed: int = 11) -> tuple[Any, ...]:
-    """Each way of making the proposals, which must be the same; the kernel's made them."""
+class _Bits:
+    """The bits of each value the kernel made, in order, as one digest; `check` compares it with
+    the digest of the Python rules' values, recorded from them on 45a9bc9 (Linux only: libm)."""
+
+    def __init__(self) -> None:
+        self._hash = hashlib.sha256()
+
+    def add(self, value: Any) -> Any:
+        self._hash.update(json.dumps(_exact(value)).encode("utf-8"))
+        return value
+
+    def check(self, digest: str) -> None:
+        if sys.platform == "linux":
+            assert self._hash.hexdigest()[:16] == digest
+
+
+def _proposals(bits: _Bits, policy: Any, view: WorldView, seed: int = 11) -> tuple[Any, ...]:
+    """The kernel's proposals (`ActionProposal`s), added to `bits`."""
     runner = BehaviorDecisionRunner(policy)
-    made = _rules().propose_due(SimpleNamespace(decisions=runner), view, CounterRNG(seed))
-    assert _exact(made) == _exact(runner.propose_due(view, CounterRNG(seed)))
-    return made
+    return bits.add(_rules().propose_due(SimpleNamespace(decisions=runner), view, CounterRNG(seed)))
+
+
+def _observed(bits: _Bits, view: WorldView, agent_id: str) -> Any:
+    """The kernel's observed state of a person, added to `bits`."""
+    return bits.add(_rules().observed_state(SimpleNamespace(), view, agent_id))
 
 
 def _draw_world(draws: random.Random, scenario: Any) -> tuple[WorldState, WorldView]:
@@ -195,6 +220,41 @@ def _draw_policy(draws: random.Random, ids: list[str]) -> Any:
     return scorer
 
 
+# What the Python rules made of each drawn world below, by its seed.
+DRAWN_WORLDS = {
+    0: "a75e1a0b843d604a",
+    1: "54127aaab126522e",
+    2: "03aa74930a83c477",
+    3: "01480b250c183998",
+    4: "759c84469f622373",
+    5: "3305b723004d415f",
+    6: "1f6885babce7be2f",
+    7: "c6131cbffafe1736",
+    8: "07df3b459896e7c8",
+    9: "a5da201dbec9e7c6",
+    10: "005a1312c8eaa02c",
+    11: "7d7c54b6570dd895",
+    12: "ff19950581f34bf8",
+    13: "ebcaa1fc952a9536",
+    14: "ca9f1824c96a0c56",
+    15: "d3b411379a675edb",
+    16: "8326b30f4e9b8567",
+    17: "c993f584194cea48",
+    18: "646303d00d5210d5",
+    19: "de4bc552c13d7a26",
+    20: "51de621c56b08f2d",
+    21: "4e0ad16f618d176b",
+    22: "28743f221a57460d",
+    23: "a79f0c44cce24aae",
+    24: "c8dcda460a94d64f",
+    25: "ab3c2120559e30ed",
+    26: "ef0a7cf53d30932b",
+    27: "530c552f9d011ce4",
+    28: "66cf9034e9ddb225",
+    29: "f92a3ff0d47d666a",
+}
+
+
 @pytest.mark.parametrize("seed", range(30))
 def test_each_proposal_of_a_drawn_world_has_the_bits_of_python(
     seed: int, generated_scenario: Any
@@ -204,22 +264,30 @@ def test_each_proposal_of_a_drawn_world_has_the_bits_of_python(
     scenario = ScenarioSpec.load(SMALL_REPLAY) if seed % 3 == 0 else generated_scenario
     world, view = _draw_world(draws, scenario)
     assert view.resource_service_enabled is (seed % 3 != 0)
+    bits = _Bits()
     for _ in range(4):
         policy = _draw_policy(draws, sorted(world.agents))
-        _both(policy, view, seed=draws.randrange(0, 2**40))
+        _proposals(bits, policy, view, seed=draws.randrange(0, 2**40))
     for agent_id in world.agents:
-        rust = _rules().observed_state(SimpleNamespace(), view, agent_id)
-        assert _exact(rust) == _exact(_agent_view_snapshot(view.agents[agent_id]))
+        _observed(bits, view, agent_id)
+    bits.check(DRAWN_WORLDS[seed])
 
 
-@pytest.mark.parametrize("seed", [2**63, 2**64 + 7, 10**30])
-def test_a_seed_past_64_bits_has_the_bits_of_python(seed: int, generated_scenario: Any) -> None:
+@pytest.mark.parametrize(
+    ("seed", "digest"),
+    [(2**63, "887ea0bd5b3db33a"), (2**64 + 7, "94f7011b95b88590"), (10**30, "7141d443e2c65a86")],
+)
+def test_a_seed_past_64_bits_has_the_bits_of_python(
+    seed: int, digest: str, generated_scenario: Any
+) -> None:
     """A Scenario's seed is any int from 0, and CounterRNG keys its draws with `str(seed)`. The
     kernel turned such a seed down before, and the Python rule made the proposals."""
     draws = random.Random(5)
     world, view = _draw_world(draws, generated_scenario)
     policy = _draw_policy(draws, sorted(world.agents))
-    assert _both(policy, view, seed=seed)
+    bits = _Bits()
+    assert _proposals(bits, policy, view, seed=seed)
+    bits.check(digest)
 
 
 def test_requests_cooldowns_and_queued_tasks_are_read_as_python_reads_them(
@@ -245,14 +313,15 @@ def test_requests_cooldowns_and_queued_tasks_are_read_as_python_reads_them(
     world.active_tasks["T3"] = ActiveTask("T3", "toilet_queue", people[9], "F1", 20, 90)
     world.active_tasks["T4"] = ActiveTask("T4", "resource_service_queue", people[9], "F2", 30, 90)
     view = _view(world, controller)
+    bits = _Bits()
     for threshold in (1.1, 0.0):
         policy = UtilityBehaviorPolicy(information_query_threshold=threshold)
-        made = _both(policy, view)
+        made = _proposals(bits, policy, view)
         assert {proposal.agent_id for proposal in made} == set(people)
     snapshots = {}
     for agent_id in people:
-        snapshots[agent_id] = _rules().observed_state(SimpleNamespace(), view, agent_id)
-        assert _exact(snapshots[agent_id]) == _exact(_agent_view_snapshot(view.agents[agent_id]))
+        snapshots[agent_id] = _observed(bits, view, agent_id)
+    bits.check("40bb5ee46bae6762")
     assert snapshots[people[0]]["support"]["status"] == "pending"
     assert snapshots[people[0]]["support"]["wait_minutes"] == 35
     assert snapshots[people[4]]["support"]["request_id"] == "nothing"
@@ -274,11 +343,12 @@ def test_drawn_worlds_reach_what_they_are_for(generated_scenario: Any) -> None:
     actions: set[str] = set()
     with_target: set[str] = set()
     demand = ties = 0
+    bits = _Bits()
     for seed in range(60):
         draws = random.Random(seed)
         world, view = _draw_world(draws, generated_scenario)
         policy = _draw_policy(draws, sorted(world.agents))
-        for proposal in _both(policy, view):
+        for proposal in _proposals(bits, policy, view):
             actions.add(proposal.action.value)
             if proposal.target_id is not None:
                 with_target.add(proposal.action.value)
@@ -299,6 +369,7 @@ def test_drawn_worlds_reach_what_they_are_for(generated_scenario: Any) -> None:
     }
     assert with_target == {"socialize", "care_family", "help_others"}
     assert ties > 0 and demand > 0
+    bits.check("bfd3d87d2183d49e")
 
 
 def test_each_proposal_of_a_run_has_the_bits_of_python(
@@ -307,17 +378,16 @@ def test_each_proposal_of_a_run_has_the_bits_of_python(
     document = copy.deepcopy(generated_scenario.model_dump(mode="json"))
     document["duration_minutes"] = 90
     counts = {"calls": 0, "proposals": 0, "observed": 0}
+    bits = _Bits()
 
     def propose(self: Any, view: WorldView, rng: Any) -> Any:
-        made = _rules().propose_due(self, view, rng)
-        assert _exact(made) == _exact(self.decisions.propose_due(view, rng))
+        made = bits.add(_rules().propose_due(self, view, rng))
         counts["calls"] += 1
         counts["proposals"] += len(made)
         return made
 
     def observed(self: Any, view: WorldView, agent_id: str) -> Any:
-        made = _rules().observed_state(self, view, agent_id)
-        assert _exact(made) == _exact(_agent_view_snapshot(view.agents[agent_id]))
+        made = bits.add(_rules().observed_state(self, view, agent_id))
         counts["observed"] += 1
         return made
 
@@ -326,6 +396,7 @@ def test_each_proposal_of_a_run_has_the_bits_of_python(
     run_scenario(ScenarioSpec.model_validate(document), tmp_path, trace_level=TraceLevel.OFF)
     assert counts["calls"] == 90
     assert counts["proposals"] == counts["observed"] > 0
+    bits.check("5c03bfd5f0e95882")
 
 
 def test_a_tick_makes_no_python_view_of_the_people(
@@ -358,7 +429,7 @@ def test_a_tick_makes_no_python_view_of_the_people(
         assert "agents" not in view.__dict__
 
 
-def test_a_view_python_made_is_left_to_python(generated_scenario: Any) -> None:
+def test_a_view_python_made_is_refused(generated_scenario: Any) -> None:
     world = WorldState.from_scenario(generated_scenario)
     world.model_state.setdefault("body_state_v1", create_body_state(world))
     view = WorldView.from_world(world)
@@ -370,7 +441,7 @@ def test_a_view_python_made_is_left_to_python(generated_scenario: Any) -> None:
         _rules().observed_state(controller, view, "A001")
 
 
-def test_a_view_without_its_hash_is_left_to_python(generated_scenario: Any) -> None:
+def test_a_view_without_its_hash_is_refused(generated_scenario: Any) -> None:
     world = WorldState.from_scenario(generated_scenario)
     controller = _controller(world)
     view = native.rules("world_view").view_after_movement(controller, world)
@@ -379,11 +450,9 @@ def test_a_view_without_its_hash_is_left_to_python(generated_scenario: Any) -> N
         _rules().propose_due(
             SimpleNamespace(decisions=BehaviorDecisionRunner()), view, CounterRNG(1)
         )
-    with pytest.raises(ValueError, match="state hash"):
-        BehaviorDecisionRunner().propose_due(view, CounterRNG(1))
 
 
-def test_what_the_kernel_does_not_know_is_left_to_python(generated_scenario: Any) -> None:
+def test_what_the_kernel_does_not_know_is_refused(generated_scenario: Any) -> None:
     class OtherPolicy(UtilityBehaviorPolicy):
         pass
 
@@ -422,45 +491,42 @@ def _everyone_due(world: WorldState) -> None:
 
 
 @pytest.mark.parametrize(
-    ("field", "value", "error", "message"),
+    ("field", "value", "message"),
     [
-        # The difference from the best utility, divided by this, leaves the range of exp.
-        ("temperature", -1e-300, OverflowError, "range"),
-        ("decision_interval_minutes", 0, ValueError, "decision timing"),
+        # The difference from the best utility, divided by this, leaves the range of exp: the
+        # Python rule raised OverflowError.
+        ("temperature", -1e-300, "exponent is out of range"),
+        # The Python rule raised "proposal has invalid decision timing".
+        ("decision_interval_minutes", 0, "invalid decision timing"),
     ],
 )
-def test_what_python_raises_on_is_left_to_python_with_its_text(
-    generated_scenario: Any, field: str, value: Any, error: type[Exception], message: str
+def test_what_python_raised_on_is_a_kernel_refusal(
+    generated_scenario: Any, field: str, value: Any, message: str
 ) -> None:
+    """Values the policy's own checks turn down when it is made, set past them."""
     world = WorldState.from_scenario(generated_scenario)
     _everyone_due(world)
     world.agents["A001"].needs.fatigue = 0.9
-    view = _view(world)
+    controller = _controller(world)
+    view = _view(world, controller)
     policy = UtilityBehaviorPolicy()
     object.__setattr__(policy, field, value)
-    runner = BehaviorDecisionRunner(policy)
-    with pytest.raises(native.Unsupported):
-        _rules().propose_due(SimpleNamespace(decisions=runner), view, CounterRNG(1))
-    with pytest.raises(error, match=message):
-        runner.propose_due(view, CounterRNG(1))
+    controller.decisions = BehaviorDecisionRunner(policy)
+    with pytest.raises(KernelRefusal, match=message):
+        controller._propose_due(view, CounterRNG(1))
 
 
-def test_the_step_runs_python_when_the_kernel_refuses(
-    generated_scenario: Any, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_the_step_refuses_a_policy_of_another_class(generated_scenario: Any) -> None:
+    """A subclass may score otherwise: the step has no Python rule to run it with."""
     world = WorldState.from_scenario(generated_scenario)
     _everyone_due(world)
     controller = _controller(world)
     view = _view(world, controller)
-    calls: list[str] = []
 
     class Counting(UtilityBehaviorPolicy):
-        def propose(self, *args: Any, **options: Any) -> Any:
-            calls.append(args[1])
-            return super().propose(*args, **options)
+        pass
 
     controller.decisions = BehaviorDecisionRunner(Counting())
-    made = controller._propose_due(view, CounterRNG(1))
-    assert len(made) == len(world.agents) == len(calls)
-    assert _exact(made) == _exact(ProposePhase._propose_due(controller, view, CounterRNG(1)))
-    assert "agents" in view.__dict__
+    with pytest.raises(KernelRefusal, match="the policy is another class"):
+        controller._propose_due(view, CounterRNG(1))
+    assert "agents" not in view.__dict__

@@ -1,19 +1,20 @@
-//! `BehaviorDecisionRunner.propose_due` with `UtilityBehaviorPolicy` and
-//! `PriorityRuleBehaviorPolicy` (`policies/behavior.py`), reading the snapshot of
-//! `rules/world_view.rs`, and `_agent_view_snapshot` (`experiments/phases/propose.py`).
+//! The decisions of the propose phase with `UtilityBehaviorPolicy` and `PriorityRuleBehaviorPolicy`
+//! (`policies/behavior.py`, which keeps only their settings), reading the snapshot of
+//! `rules/world_view.rs`, and the observed state of a decision.
 //!
-//! `propose_due` and `observed_state` replace the steps `_propose_due` and `_observed_state` of the
-//! propose phase (experiments/phases/segments.py). They change nothing and the draws keep no state,
-//! so saying `Unsupported` at any point is safe: the Python step then runs and raises its own text.
-//! That covers a view Python made, a policy, runner or RNG of another class (subclasses too), and any
-//! value on which the Python rule would raise, which `check_candidate` and `check_proposal` repeat
-//! from `ActionCandidate` and `ActionProposal`. The proposals are the Python classes, without their
-//! generated `__init__`, made only when something reads one (rules/decisions.rs keeps the rows).
-//! Nothing here writes a trace: what a run records of a decision is the proposal.
+//! rules/decisions.rs gives these to the steps `_propose_due` and `_observed_state`, which have no
+//! Python body (experiments/phases/segments.py, KERNEL_ONLY_SEGMENTS). They change nothing and the
+//! draws keep no state, so saying `Unsupported` at any point is safe; the step then raises
+//! KernelRefusal. That covers a view no kernel made, a policy, runner or RNG of another class
+//! (subclasses too), and any value on which the deleted Python rule raised, which `check_candidate`
+//! and `check_proposal` repeat from `ActionCandidate` and `ActionProposal`. The proposals are the
+//! Python classes, without their generated `__init__`, made only when something reads one
+//! (rules/decisions.rs keeps the rows). Nothing here writes a trace: what a run records of a decision
+//! is the proposal. `propose_due` and `observed_state` give the Python objects themselves, for tests.
 //!
-//! The coefficients are the ones of `UtilityBehaviorPolicy.propose`: `score` and `candidates_of` have
-//! them with the same order of operations, and the policy's own fields are read from it at each call.
-//! `compute` reads no Python, so it can run per person at step 4.
+//! The coefficients are the ones the deleted `UtilityBehaviorPolicy.propose` had: `score` and
+//! `candidates_of` have them with the same order of operations, and the policy's own fields are read
+//! from it at each call. `compute` reads no Python, so it can run per person at step 4.
 
 use std::sync::Arc;
 

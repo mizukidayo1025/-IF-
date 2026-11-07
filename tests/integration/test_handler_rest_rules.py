@@ -57,7 +57,6 @@ from sheltersim.events.models import (
     ScheduledEvent,
 )
 from sheltersim.experiments.metrics import MetricsRecorder
-from sheltersim.experiments.phases.arbitrate import ArbitratePhase
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _MetricSink
@@ -743,10 +742,8 @@ def test_only_the_due_requests_go_to_the_policy(generated_scenario: Any) -> None
     )
     controller = SimpleNamespace(world=world, social_policy=policy)
     native.rules("staff").consider_due_complaints(controller, world.minute_index)
-    from_python = list(asked)
-    asked.clear()
-    ArbitratePhase._consider_due_complaints(controller, world.minute_index)
-    assert from_python == asked == [(world.support_requests[request_id].agent_id, request_id)]
+    # The Python step's answer: the one request due this minute.
+    assert asked == [(world.support_requests[request_id].agent_id, request_id)]
     asked.clear()
     native.rules("staff").consider_due_complaints(controller, world.minute_index + 1)
     assert asked == []

@@ -1,16 +1,21 @@
 """The template namespace: psychological_distress_v1 and metric_state owned by Rust.
 
-native/src/core/row.rs writes the rows from their fields, native/src/rules/psychology.rs moves the
-rules, and domain/psychological_state.py and domain/distress_monitor.py stay as the comparison
-base (docs/rust-port/lanes/p5-template-namespace.md). The bits of the whole rule are compared on the
-gate by benchmarks/rule_shadow; here, on small worlds and on values no scenario reaches.
+native/src/core/row.rs writes the rows from their fields, and native/src/rules/psychology.rs is the
+only rule of the distress monitor and the long-term distress
+(docs/rust-port/lanes/p5-template-namespace.md): the Python rules of domain/psychological_state.py
+and domain/distress_monitor.py are gone (lane L10). What they answered, on small worlds, on values
+no scenario reaches and on whole ticks, was recorded once as digests (ANSWERS), which the kernel's
+answers must equal on Linux. What their checks turned down, the step refuses (KernelRefusal) before
+anything changes.
 """
 
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import random
+import sys
 from types import SimpleNamespace
 from typing import Any
 
@@ -18,15 +23,13 @@ import pytest
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.state_mirror import NamespaceTable, TrackedDict, detach, rust_validated
 from sheltersim.core.world import StateInvariantError, WorldState
-from sheltersim.domain.distress_monitor import record_distress_monitor_tick
 from sheltersim.domain.models import AgentProfile, AgentState, Mobility
 from sheltersim.domain.psychological_state import (
     PSYCHOLOGICAL_STATE_KEY,
     PSYCHOLOGICAL_STATE_POLICY_VERSION,
-    next_long_term_distress,
-    update_psychological_state,
     validate_psychological_state,
 )
 from sheltersim.experiments.metrics import MetricsRecorder
@@ -38,6 +41,30 @@ THRESHOLD = 0.6
 RETENTION = 0.9
 ACUTE_WEIGHT = 0.08
 HIGH_WEIGHT = 0.02
+
+# What the deleted Python rules answered (record_distress_monitor_tick, update_psychological_state
+# and next_long_term_distress, and the update phase's Python step, at 45a9bc9), as sha256 of the
+# answers' texts, recorded once on Linux.
+ANSWERS: dict[str, str] = {
+    "int-baseline-0": ("28b87773ac1abba0cdc2f4063e340a29a44d5dc6fe971e8a6f342aa7605f58ca"),
+    "int-baseline-1": ("8f29cf90a210f9f6483025883b1498bf477bc74453f2fc0cace41ee1e73a46f9"),
+    "long-term": ("ebe04062e2595b4bda4cc150abce6fa872b992bc6ddeaafbf4726864e4e6100c"),
+    "long-term-one": ("dcad63db1936d53bd36d64d9c3fb1c910ea7c52e92b038c07399edb21ef69613"),
+    "step-0": ("6fdf198dcd1fb13efa2ad7e8ed5c820cddc6f625e537712155314563d65ce59a"),
+    "step-1": ("01d9330214853fcb2de323286e6ef33dda17d20fc2f5483abe464d9e482c20d2"),
+    "step-1438": ("244e196d97fbf1b30cdb8cce8ec02d75a1093a1a0b2f07a0ae7ff25b7a140043"),
+    "step-1439": ("da61e7b244bcc19a6108ebc0e1f46e4a2f42651b4d358dc3726700418ef282aa"),
+    "step-2879": ("8b5deb573505976332761cfc1061bd105df7f33397404b0fa0c4d0baa96a0f0a"),
+    "ticks": ("b8b2abdff9bf5cd8869cf24ed87f45c335bd6161d273e6684364b4eb9aa6ea15"),
+}
+
+
+def _answers(name: str, texts: list[str]) -> None:
+    digest = hashlib.sha256()
+    for text in texts:
+        digest.update(text.encode() + b"\n")
+    if sys.platform == "linux":
+        assert digest.hexdigest() == ANSWERS[name], name
 
 
 def _state(*agents: str) -> dict[str, Any]:
@@ -118,30 +145,6 @@ def _view(previous: dict[str, Any]) -> SimpleNamespace:
 
 def _deltas(current: dict[str, Any]) -> tuple[Any, ...]:
     return tuple(SimpleNamespace(agent_id=key, stress=stress) for key, stress in current.items())
-
-
-def _python_rules(
-    metrics: dict[str, float],
-    state: dict[str, Any],
-    *,
-    previous: dict[str, float],
-    current: dict[str, float],
-    minute: int,
-    baselines: dict[str, float] | None = None,
-) -> dict[str, Any]:
-    record_distress_monitor_tick(
-        metrics, previous_by_agent=previous, current_by_agent=current, threshold=THRESHOLD
-    )
-    return update_psychological_state(
-        state,
-        minute=minute,
-        acute_by_agent=current,
-        retention=RETENTION,
-        acute_weight=ACUTE_WEIGHT,
-        high_distress_weight=HIGH_WEIGHT,
-        high_distress_threshold=THRESHOLD,
-        baseline_by_agent=baselines or {},
-    )
 
 
 def _text(value: Any) -> str:
@@ -254,11 +257,9 @@ def test_an_int_metric_taints_metric_state_and_python_keeps_it() -> None:
     assert "not a float" in _mirror(world, METRIC).tainted
     assert world.metric_state["count"] == 1
     assert type(world.metric_state["count"]) is int
-    # The rules then run in Python, and the tree holds what they write.
-    with pytest.raises(native.Unsupported):
-        _kernel()(
-            _controller(), world, _view({"a": 0.1, "b": 0.1}), _deltas({"a": 0.1, "b": 0.1}), 0
-        )
+    # The step then refuses, and changes nothing.
+    with pytest.raises(KernelRefusal):
+        _step(_controller(), world, _view({"a": 0.1, "b": 0.1}), _deltas({"a": 0.1, "b": 0.1}), 0)
     assert world.model_state[PSYCHOLOGICAL_STATE_KEY]["last_updated_minute"] == -1
 
 
@@ -312,33 +313,33 @@ def test_ticks_write_values_in_place_and_never_the_whole_namespace(generated_sce
     assert world.model_state[PSYCHOLOGICAL_STATE_KEY]["last_updated_minute"] == 29
 
 
-def test_the_rust_rules_and_the_python_rules_make_the_same_world(
-    generated_scenario: Any, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    fast = _run_ticks(generated_scenario, 40)
-    from sheltersim.experiments.phases.update import UpdatePhase
-
-    monkeypatch.setattr(
-        OfflineSimulationController,
-        "_update_long_term_psychology",
-        UpdatePhase._update_long_term_psychology,
+def test_ticks_make_the_world_of_the_deleted_rules(generated_scenario: Any) -> None:
+    world = _run_ticks(generated_scenario, 40)
+    _answers(
+        "ticks",
+        [_text(world.model_state[PSYCHOLOGICAL_STATE_KEY]["agents"]), world.canonical_json()],
     )
-    slow = _run_ticks(generated_scenario, 40)
-    assert _text(slow.model_state[PSYCHOLOGICAL_STATE_KEY]["agents"]) == _text(
-        fast.model_state[PSYCHOLOGICAL_STATE_KEY]["agents"]
+
+
+# ---- The rule, against what the deleted Python rule answered -----------------------------------
+
+
+def _long_term(record: dict[str, Any], retention: float, acute: float, weight: float) -> float:
+    return native.rules("psychology").next_long_term_distress_of(
+        record["baseline_distress"],
+        record["long_term_distress"],
+        record["daily_acute_sum"],
+        record["daily_high_distress_minutes"],
+        record["daily_observed_minutes"],
+        retention,
+        acute,
+        weight,
     )
-    assert slow.canonical_json() == fast.canonical_json()
-    # The Python step wrote the namespace whole, and the row followed.
-    assert _mirror(slow).stats()["whole_writes"] > 1
-    assert _mirror(slow).verify()
 
 
-# ---- Identity of the rule with the Python rule --------------------------------------------------
-
-
-def test_a_long_term_value_has_the_bits_of_the_python_rule() -> None:
-    rule = native.rules("psychology").next_long_term_distress_of
+def test_a_long_term_value_has_the_bits_of_the_deleted_rule() -> None:
     draws = random.Random(20261031)
+    values = []
     for _ in range(20_000):
         observed = draws.randrange(1, 1441)
         high = draws.randrange(0, observed + 1)
@@ -350,34 +351,22 @@ def test_a_long_term_value_has_the_bits_of_the_python_rule() -> None:
             "daily_observed_minutes": observed,
         }
         retention, acute, weight = draws.random(), draws.random(), draws.random()
-        python = next_long_term_distress(
-            record, retention=retention, acute_weight=acute, high_distress_weight=weight
-        )
-        rust = rule(
-            record["baseline_distress"],
-            record["long_term_distress"],
-            record["daily_acute_sum"],
-            high,
-            observed,
-            retention,
-            acute,
-            weight,
-        )
-        assert rust.hex() == python.hex()
+        values.append(_long_term(record, retention, acute, weight).hex())
+    _answers("long-term", values)
     # The comparison can tell: a 1% larger weight is another value.
     record = _record(0.25)
     record.update(
         daily_acute_sum=500.0, daily_high_distress_minutes=100, daily_observed_minutes=1000
     )
-    python = next_long_term_distress(
-        record, retention=0.9, acute_weight=0.08, high_distress_weight=0.02
-    )
-    assert rule(0.25, 0.25, 500.0, 100, 1000, 0.9, 0.08 * 1.01, 0.02).hex() != python.hex()
+    same = _long_term(record, 0.9, 0.08, 0.02)
+    _answers("long-term-one", [same.hex()])
+    assert _long_term(record, 0.9, 0.08 * 1.01, 0.02).hex() != same.hex()
 
 
 @pytest.mark.parametrize("minute", [0, 1, 1438, 1439, 2879])
-def test_the_step_writes_what_the_python_rules_write(minute: int) -> None:
+def test_the_step_writes_what_the_deleted_rules_wrote(minute: int) -> None:
     draws = random.Random(minute)
+    texts = []
     for _ in range(200):
         agents = [f"A{index:03d}" for index in range(draws.randrange(1, 12))]
         state = _state()
@@ -414,96 +403,77 @@ def test_the_step_writes_what_the_python_rules_write(minute: int) -> None:
         current[agents[0]] = THRESHOLD
         baselines = {agent: draws.random() for agent in agents if draws.random() < 0.5}
 
-        python_metrics = dict(metrics)
-        expected = _python_rules(
-            python_metrics,
-            copy.deepcopy(state),
-            previous=previous,
-            current=current,
-            minute=minute,
-            baselines=baselines,
-        )
         world = WorldState(
             "s", 1, 100, metric_state=metrics, model_state={PSYCHOLOGICAL_STATE_KEY: state}
         )
         _kernel()(
             _controller(baselines=baselines), world, _view(previous), _deltas(current), minute
         )
-        assert _text(world.metric_state) == _text(python_metrics)
-        assert _text(world.model_state[PSYCHOLOGICAL_STATE_KEY]) == _text(expected)
+        written = world.model_state[PSYCHOLOGICAL_STATE_KEY]
+        texts += [_text(world.metric_state), _text(written)]
         assert _mirror(world).verify()
         assert _mirror(world, METRIC).verify()
-        assert _mirror(world).row_json() == native.canonical_json(expected)
+        assert _mirror(world).row_json() == native.canonical_json(written)
         # What was added and what was changed are nodes and values of the row, for later writes.
         for agent in agents:
             world.model_state[PSYCHOLOGICAL_STATE_KEY]["agents"][agent]["completed_days"] = 99
         assert _mirror(world).tainted is None
         assert _mirror(world).verify()
+    _answers(f"step-{minute}", texts)
 
 
 @pytest.mark.parametrize("baseline", [0, 1])
-def test_an_int_baseline_of_a_scenario_is_written_as_the_python_rules_write_it(
+def test_an_int_baseline_of_a_scenario_is_written_as_the_deleted_rules_wrote_it(
     baseline: int,
 ) -> None:
     """`baseline_distress_by_agent` allows ints (StrictInt in the Scenario's psychology config).
-    The kernel turned them down before, and the Python rules ran; their float() is the kernel's."""
+    The deleted rules wrote their float(), as the kernel does."""
     state = _state("a", "b")
     state["last_updated_minute"] = 1438
     previous = {"a": 0.1, "b": 0.2, "new": 0.3}
     current = {"a": 0.4, "b": 0.8, "new": 0.75}
-    python_metrics: dict[str, float] = {}
-    expected = _python_rules(
-        python_metrics,
-        copy.deepcopy(state),
-        previous=previous,
-        current=current,
-        minute=1439,
-        baselines={"new": baseline},
-    )
     world = WorldState("s", 1, 100, model_state={PSYCHOLOGICAL_STATE_KEY: state})
     _kernel()(
         _controller(baselines={"new": baseline}), world, _view(previous), _deltas(current), 1439
     )
-    assert _text(world.metric_state) == _text(python_metrics)
-    assert _text(world.model_state[PSYCHOLOGICAL_STATE_KEY]) == _text(expected)
-    assert (
-        type(world.model_state[PSYCHOLOGICAL_STATE_KEY]["agents"]["new"]["baseline_distress"])
-        is float
+    written = world.model_state[PSYCHOLOGICAL_STATE_KEY]
+    _answers(f"int-baseline-{baseline}", [_text(world.metric_state), _text(written)])
+    assert type(written["agents"]["new"]["baseline_distress"]) is float
+
+
+# ---- What the step refuses ---------------------------------------------------------------------
+
+
+def _step(controller: Any, world: WorldState, view: Any, deltas: Any, minute: Any) -> None:
+    """`_update_long_term_psychology` of a tick, on the people of the view."""
+    _people_of(world, view)
+    OfflineSimulationController._update_long_term_psychology(
+        controller, world, view, deltas, minute
     )
 
 
-# ---- What the kernel leaves to the Python rules -----------------------------------------------
-
-
-def _bad_cases() -> list[tuple[str, dict[str, Any], str]]:
-    return [
-        ("the minute jumped", {"minute": 5}, "psychology state must advance by exactly one minute"),
-        ("a string minute", {"minute": True}, "psychology minute must be a non-negative integer"),
-        ("different people", {"current": {"a": 0.1}}, "distress monitor Agent sets must match"),
-        (
-            "stress out of range",
-            {"current": {"a": 1.5, "b": 0.1}},
-            "current distress for a must be finite and between 0 and 1",
-        ),
-        (
-            "previous out of range",
-            {"previous": {"a": float("nan"), "b": 0.1}},
-            "previous distress for a must be finite and between 0 and 1",
-        ),
-        (
-            "threshold out of range",
-            {"threshold": 2.0},
-            "distress monitor threshold must be finite and between 0 and 1",
-        ),
-    ]
-
-
-@pytest.mark.parametrize(("_name", "change", "message"), _bad_cases())
-def test_a_bad_input_changes_nothing_and_the_python_rule_gives_its_text(
-    _name: str, change: dict[str, Any], message: str
-) -> None:
-    from sheltersim.experiments.phases.update import UpdatePhase
-
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"minute": 5},
+        {"minute": True},
+        {"current": {"a": 0.1}},
+        {"current": {"a": 1.5, "b": 0.1}},
+        {"previous": {"a": float("nan"), "b": 0.1}},
+        {"threshold": 2.0},
+    ],
+    ids=[
+        "the minute jumped",
+        "a bool minute",
+        "different people",
+        "stress out of range",
+        "previous out of range",
+        "threshold out of range",
+    ],
+)
+def test_a_bad_input_is_refused_and_changes_nothing(change: dict[str, Any]) -> None:
+    """The deleted rules raised on these: a jump of the minute, a bool minute, other people, a
+    stress or a threshold outside 0..1. No tick gives them."""
     arguments: dict[str, Any] = {
         "minute": 0,
         "previous": {"a": 0.1, "b": 0.1},
@@ -512,96 +482,47 @@ def test_a_bad_input_changes_nothing_and_the_python_rule_gives_its_text(
         **change,
     }
     controller = _controller(threshold=arguments["threshold"])
-    controller.psychology.update_long_term_state = lambda state, minute, deltas: (
-        update_psychological_state(
-            state,
-            minute=minute,
-            acute_by_agent={delta.agent_id: delta.stress for delta in deltas},
-            retention=RETENTION,
-            acute_weight=ACUTE_WEIGHT,
-            high_distress_weight=HIGH_WEIGHT,
-            high_distress_threshold=THRESHOLD,
-        )
-    )
     world = _world()
     before = _documents(world)
     view, deltas = _view(arguments["previous"]), _deltas(arguments["current"])
-    with pytest.raises(native.Unsupported):
-        _kernel()(controller, world, view, deltas, arguments["minute"])
+    with pytest.raises(KernelRefusal):
+        _step(controller, world, view, deltas, arguments["minute"])
     assert _documents(world) == before
-    with pytest.raises(ValueError) as raised:
-        UpdatePhase._update_long_term_psychology(
-            controller, world, view, deltas, arguments["minute"]
-        )
-    assert str(raised.value) == message
 
 
 @pytest.mark.parametrize(
-    ("record", "message"),
+    "record",
     [
-        (
-            {"daily_observed_minutes": 1439},
-            "psychological distress daily observed minutes are invalid",
-        ),
-        (
-            {"daily_acute_sum": 5.0, "daily_observed_minutes": 2},
-            "psychological distress daily accumulation is invalid",
-        ),
-        (
-            {"daily_acute_sum": float("inf")},
-            "psychological distress daily integral must be finite",
-        ),
-        ({"baseline_distress": 1.5}, "baseline_distress must be finite and between 0 and 1"),
-        (
-            {"daily_high_distress_minutes": 3, "daily_observed_minutes": 2},
-            "psychological distress high minutes are invalid",
-        ),
+        {"daily_observed_minutes": 1439},
+        {"daily_acute_sum": 5.0, "daily_observed_minutes": 2},
+        {"daily_acute_sum": float("inf")},
+        {"baseline_distress": 1.5},
+        {"daily_high_distress_minutes": 3, "daily_observed_minutes": 2},
     ],
 )
-def test_a_record_the_rule_turns_down_keeps_the_python_error(
-    record: dict[str, Any], message: str
-) -> None:
+def test_a_record_the_deleted_rule_turned_down_is_refused(record: dict[str, Any]) -> None:
+    """A record that validate_psychological_state turns down, now or after this minute."""
     state = _state("a", "b")
     state["agents"]["a"].update(record)
     world = _world(state)
     before = _documents(world)
-    with pytest.raises(native.Unsupported):
-        _kernel()(
-            _controller(), world, _view({"a": 0.1, "b": 0.1}), _deltas({"a": 0.1, "b": 0.1}), 0
-        )
+    with pytest.raises(KernelRefusal):
+        _step(_controller(), world, _view({"a": 0.1, "b": 0.1}), _deltas({"a": 0.1, "b": 0.1}), 0)
     assert _documents(world) == before
-    with pytest.raises(ValueError) as raised:
-        update_psychological_state(
-            world.model_state[PSYCHOLOGICAL_STATE_KEY],
-            minute=0,
-            acute_by_agent={"a": 0.1, "b": 0.1},
-            retention=RETENTION,
-            acute_weight=ACUTE_WEIGHT,
-            high_distress_weight=HIGH_WEIGHT,
-            high_distress_threshold=THRESHOLD,
-        )
-    assert str(raised.value) == message
 
 
-def test_a_bad_metric_leaves_it_to_the_python_rule() -> None:
+def test_a_bad_metric_is_refused() -> None:
     world = _world()
     world.metric_state["acute_distress_monitor:a:longest_run"] = -1.0
     assert _mirror(world, METRIC).has_row
-    with pytest.raises(native.Unsupported):
-        _kernel()(
-            _controller(), world, _view({"a": 0.1, "b": 0.1}), _deltas({"a": 0.1, "b": 0.1}), 0
-        )
-    with pytest.raises(ValueError, match="distress monitor state must be finite and non-negative"):
-        record_distress_monitor_tick(
-            world.metric_state,
-            previous_by_agent={"a": 0.1, "b": 0.1},
-            current_by_agent={"a": 0.1, "b": 0.1},
-            threshold=THRESHOLD,
-        )
+    before = _documents(world)
+    with pytest.raises(KernelRefusal, match="negative or not finite"):
+        _step(_controller(), world, _view({"a": 0.1, "b": 0.1}), _deltas({"a": 0.1, "b": 0.1}), 0)
+    assert _documents(world) == before
 
 
 def test_a_model_without_long_term_state_has_nothing_to_do() -> None:
-    """As `getattr(self.psychology, "update_long_term_state", None)` in the Python step."""
+    """The models other than the two mean-reverting ones keep no long-term state."""
     world = _world()
     before = _documents(world)
     controller = _controller(version="life-state-feedback-v1")
@@ -611,12 +532,12 @@ def test_a_model_without_long_term_state_has_nothing_to_do() -> None:
     assert _documents(world) == before
 
 
-def test_another_model_with_long_term_state_is_the_python_step_s() -> None:
+def test_another_model_with_long_term_state_is_refused() -> None:
     world = _world()
     controller = _controller(version="another-model")
     controller.psychology.update_long_term_state = lambda *arguments: None
-    with pytest.raises(native.Unsupported):
-        _kernel()(controller, world, _view({"a": 0.1, "b": 0.1}), _deltas({"a": 0.1, "b": 0.1}), 0)
+    with pytest.raises(KernelRefusal, match="does not know"):
+        _step(controller, world, _view({"a": 0.1, "b": 0.1}), _deltas({"a": 0.1, "b": 0.1}), 0)
 
 
 @pytest.mark.parametrize(
@@ -642,24 +563,22 @@ def test_what_the_kernel_does_not_handle_is_unsupported_before_any_change(
     assert _documents(world) == before
 
 
-def test_two_deltas_for_one_person_go_to_python() -> None:
+def test_two_deltas_for_one_person_are_refused() -> None:
     world = _world()
     deltas = (
         SimpleNamespace(agent_id="a", stress=0.1),
         SimpleNamespace(agent_id="a", stress=0.2),
     )
-    with pytest.raises(native.Unsupported):
-        _kernel()(_controller(), world, _view({"a": 0.1, "b": 0.1}), deltas, 0)
+    with pytest.raises(KernelRefusal):
+        _step(_controller(), world, _view({"a": 0.1, "b": 0.1}), deltas, 0)
 
 
-def test_a_field_assigned_whole_stops_being_rust_and_the_python_rules_run_on_it() -> None:
+def test_a_field_assigned_whole_stops_being_rust_and_the_step_is_refused() -> None:
     world = _world()
     assigned = {"x": 1.0}
     world.metric_state = assigned
-    with pytest.raises(native.Unsupported):
-        _kernel()(
-            _controller(), world, _view({"a": 0.1, "b": 0.1}), _deltas({"a": 0.1, "b": 0.1}), 0
-        )
+    with pytest.raises(KernelRefusal):
+        _step(_controller(), world, _view({"a": 0.1, "b": 0.1}), _deltas({"a": 0.1, "b": 0.1}), 0)
     assert world.metric_state is assigned
 
 

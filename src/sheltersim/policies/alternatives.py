@@ -5,50 +5,20 @@ The kernels of native/src/rules know each class here by identity.
 
 from __future__ import annotations
 
-import math
-from dataclasses import replace
-from typing import Any
-
 from sheltersim.policies.information import InformationSpreadPolicy
-from sheltersim.policies.psychology import PsychologyUpdateResult, SimplePsychologyPolicy
+from sheltersim.policies.psychology import SimplePsychologyPolicy
 from sheltersim.policies.social import StressPropagationPolicy
 
 
 class BoundedStressPolicy(SimplePsychologyPolicy):
-    """Exponential pressure/recovery avoids a linear stress saturation step."""
+    """Exponential pressure/recovery avoids a linear stress saturation step.
+
+    The contributions are SimplePsychologyPolicy's. Their sum p adds `(1 - S)(1 - exp(-p))` to
+    stress S, shared among them in proportion, and the recovery r removes `S(1 - exp(-r))`; the
+    result is clipped to 0..1. Its step is native/src/rules/psychology.rs.
+    """
 
     policy_version = "bounded-stress-v1"
-
-    def explain_update(self, view: Any, minute: int) -> PsychologyUpdateResult:
-        baseline = super().explain_update(view, minute)
-        deltas, traces = [], []
-        for delta, trace in zip(baseline.deltas, baseline.traces, strict=True):
-            components = [
-                trace.need_pressure_stress,
-                trace.queue_wait_stress,
-                trace.support_wait_stress,
-                trace.environmental_stress,
-            ]
-            pressure = sum(components)
-            added = (1 - trace.stress_before) * -math.expm1(-pressure)
-            scale = added / pressure if pressure else 0
-            recovery = trace.stress_before * -math.expm1(trace.recovery_stress)
-            stress = min(1.0, max(0.0, trace.stress_before + added - recovery))
-            deltas.append(replace(delta, stress=stress))
-            traces.append(
-                replace(
-                    trace,
-                    stress_after=stress,
-                    need_pressure_stress=components[0] * scale,
-                    queue_wait_stress=components[1] * scale,
-                    support_wait_stress=components[2] * scale,
-                    environmental_stress=components[3] * scale,
-                    recovery_stress=-recovery,
-                )
-            )
-        return PsychologyUpdateResult(
-            tuple(deltas), tuple(traces), policy_version=self.policy_version
-        )
 
 
 class DeGrootContactPolicy(StressPropagationPolicy):

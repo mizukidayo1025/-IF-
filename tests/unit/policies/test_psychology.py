@@ -1,21 +1,34 @@
 """Psychology policies: sleep debt, mean-reverting distress, latent distress and the
 integrated life-state policy, with their traces.
 
+Each model's rules are native/src/rules/psychology.rs: a test runs the steps of a tick on a world
+(support/psychology.py) and reads the deltas and the trace document the Run's sink is given. The
+sleep debt and the mean reversion were also Python functions (sleep_debt_step and
+mean_reverting_step of policies/psychology.py), deleted in lane L10; what they answered here was
+recorded once as digests (ANSWERS), which the kernel's values must equal on Linux.
+
 The research social operator is checked in tests/unit/policies/test_social.py, and
 full Runs with these policies in tests/integration/test_research_psychology.py.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
+import sys
+from dataclasses import replace
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
 from support.paths import BASELINE_100_7D, SCENARIO_100_AGENTS
+from support.psychology import apply_deltas, psychology_step
 
 from sheltersim.core.engine import TraceLevel
-from sheltersim.core.world import StateInvariantError, WorldState
+from sheltersim.core.kernels import KernelRefusal
+from sheltersim.core.world import WorldState
 from sheltersim.domain.facilities import ToiletServiceManager
 from sheltersim.domain.information import INFORMATION_SPREAD_STATE_KEY
 from sheltersim.domain.models import (
@@ -31,20 +44,91 @@ from sheltersim.domain.psychological_state import PSYCHOLOGICAL_STATE_KEY
 from sheltersim.domain.staff import StaffService
 from sheltersim.events.handlers import EventDispatcher, FacilityOutageHandler
 from sheltersim.events.models import EventKind, ScheduledEvent
+from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import PsychologyModelConfig, ScenarioSpec
 from sheltersim.inspection.traces import RunArtifactWriter
 from sheltersim.policies.behavior import WorldView
 from sheltersim.policies.psychology import (
     AgentStateDelta,
     IntegratedDistressLifeStatePolicy,
+    LifeStatePsychologyPolicy,
     MeanRevertingDistressPolicy,
     PsychologyParameters,
     SimplePsychologyPolicy,
-    apply_state_deltas,
-    mean_reverting_step,
-    sleep_debt_step,
 )
 from sheltersim.policies.registry import create_psychology
+
+# What the deleted sleep_debt_step and the mean-reverting model's Python rule answered at 45a9bc9,
+# as sha256 of the values' hex, recorded once on Linux.
+ANSWERS: dict[str, str] = {
+    "mean-reversion-10": ("c6afdf1fc8dd7b7cd390d2cd117bae7b1da1f74cd38d5722bbcb1f8fb0e98c21"),
+    "mean-reversion-2000": ("c3ebc44f3d0f20f76edb4207257049e3bc7d37d352da1cfb77773f4b97263536"),
+    "mean-reversion-shock": ("4c2266e9e6da26dbb9566ef55cb752ffa5edf800f946919ee6a24ba9d35e3708"),
+    "recovery-rates": ("fb632e6e938d51e2e3f1ef731b3d8c53832a121626434cf007bd938943a317f5"),
+    "sleep-debt-420": ("c642b2e917a5e2f352ed054dc973567d8eb4fa9475c0e16f003fcd0e907cbba1"),
+    "sleep-debt-480": ("12b4f52f2b4a923a51259118bbccb373ed641215cd9a18abc8f2f0e5e34fdeaa"),
+    "sleep-debt-600": ("f3dff529ab2272801bcc6504030ff521a74225ae5e2cc1bf2f7868694bef925f"),
+}
+
+
+def _answers(name: str, values: list[float]) -> None:
+    digest = hashlib.sha256()
+    for value in values:
+        digest.update(value.hex().encode() + b"\n")
+    if sys.platform == "linux":
+        assert digest.hexdigest() == ANSWERS[name], name
+
+
+def _one_person_world() -> WorldState:
+    document = json.loads(SCENARIO_100_AGENTS.read_text(encoding="utf-8"))
+    document["profiles"] = document["profiles"][:1]
+    document["scheduled_events"] = []
+    document["model_configs"] = {}
+    return WorldState.from_scenario(ScenarioSpec.model_validate(document))
+
+
+# ---- Sleep debt -------------------------------------------------------------------------------
+
+
+class _SleepDebt:
+    """One person's sleep debt through the life-state model, minute by minute.
+
+    The required sleep and the sleep efficiency are the view's; the activity is the person's.
+    """
+
+    def __init__(
+        self,
+        *,
+        required_sleep_minutes: int | None,
+        awake_rate: float,
+        rest_recovery_rate: float,
+        sleep_recovery_rate: float,
+        sleep_efficiency: float = 1.0,
+    ) -> None:
+        self.world = _one_person_world()
+        self.agent = next(iter(self.world.agents.values()))
+        self.policy = LifeStatePsychologyPolicy(
+            PsychologyParameters(),
+            body_config={
+                "awake_sleep_debt_minutes_per_minute": awake_rate,
+                "rest_sleep_debt_recovery_per_minute": rest_recovery_rate,
+                "sleep_sleep_debt_recovery_per_minute": sleep_recovery_rate,
+            },
+        )
+        view = WorldView.from_world(self.world, include_state_hash=False)
+        self.viewed = replace(
+            view.agents[self.agent.id],
+            required_sleep_minutes=required_sleep_minutes,
+            rest_efficiency_multiplier=sleep_efficiency,
+        )
+        self.view = view
+
+    def step(self, debt: float, activity: Activity) -> float:
+        self.agent.activity = activity
+        viewed = replace(self.viewed, sleep_debt_minutes=debt, activity=activity)
+        view = replace(self.view, agents={self.agent.id: viewed})
+        step = psychology_step(self.world, self.policy, view=view)
+        return step.deltas[0].sleep_debt_minutes
 
 
 @pytest.mark.parametrize("required_sleep_minutes", [420, 480, 600])
@@ -53,63 +137,112 @@ def test_sleep_debt_balances_a_repeating_required_sleep_schedule(
 ) -> None:
     awake_minutes = 1440 - required_sleep_minutes
     awake_rate = required_sleep_minutes / awake_minutes
+    debt_of = _SleepDebt(
+        required_sleep_minutes=required_sleep_minutes,
+        awake_rate=0.5,
+        rest_recovery_rate=0.0,
+        sleep_recovery_rate=1.0,
+    )
     debt = 0.0
     for _ in range(awake_minutes):
-        debt = sleep_debt_step(
-            debt,
-            activity=Activity.IDLE,
-            required_sleep_minutes=required_sleep_minutes,
-            awake_rate=0.5,
-            rest_recovery_rate=0.0,
-            sleep_recovery_rate=1.0,
-            sleep_efficiency=1.0,
-        )
+        debt = debt_of.step(debt, Activity.IDLE)
     assert debt == pytest.approx(required_sleep_minutes)
+    awake = debt
     for _ in range(required_sleep_minutes):
-        debt = sleep_debt_step(
-            debt,
-            activity=Activity.SLEEPING,
-            required_sleep_minutes=required_sleep_minutes,
-            awake_rate=0.5,
-            rest_recovery_rate=0.0,
-            sleep_recovery_rate=1.0,
-            sleep_efficiency=1.0,
-        )
+        debt = debt_of.step(debt, Activity.SLEEPING)
     assert debt == pytest.approx(0.0, abs=1e-9)
     assert awake_rate * awake_minutes == pytest.approx(required_sleep_minutes)
+    _answers(f"sleep-debt-{required_sleep_minutes}", [awake, debt])
 
 
 def test_sleep_debt_rest_and_unspecified_requirement_are_explicit_assumptions() -> None:
-    resting = sleep_debt_step(
-        120.0,
-        activity=Activity.RESTING,
+    debt_of = _SleepDebt(
         required_sleep_minutes=None,
         awake_rate=0.5,
         rest_recovery_rate=0.0,
         sleep_recovery_rate=1.0,
-        sleep_efficiency=1.0,
     )
-    awake = sleep_debt_step(
-        120.0,
-        activity=Activity.IDLE,
-        required_sleep_minutes=None,
+    assert debt_of.step(120.0, Activity.RESTING) == 120.0
+    assert debt_of.step(120.0, Activity.IDLE) == 120.5
+    # The deleted sleep_debt_step raised on an efficiency that is not a number; no view holds one.
+    nan = _SleepDebt(
+        required_sleep_minutes=480,
         awake_rate=0.5,
         rest_recovery_rate=0.0,
         sleep_recovery_rate=1.0,
-        sleep_efficiency=1.0,
+        sleep_efficiency=float("nan"),
     )
-    assert resting == 120.0
-    assert awake == 120.5
-    with pytest.raises(ValueError, match="sleep_efficiency"):
-        sleep_debt_step(
-            120.0,
-            activity=Activity.SLEEPING,
-            required_sleep_minutes=480,
-            awake_rate=0.5,
-            rest_recovery_rate=0.0,
-            sleep_recovery_rate=1.0,
-            sleep_efficiency=float("nan"),
+    with pytest.raises(KernelRefusal, match="sleep efficiency"):
+        OfflineSimulationController._psychology_update(
+            SimpleNamespace(
+                world=nan.world,
+                psychology=nan.policy,
+                artifacts=SimpleNamespace(trace_level=TraceLevel.OFF),
+            ),
+            replace(nan.view, agents={nan.agent.id: nan.viewed}),
+            0,
         )
+
+
+# ---- Mean reversion ---------------------------------------------------------------------------
+
+
+def _queued_minutes(
+    stress: float, *, baseline: float, forcing: float, rate: float, minutes: int
+) -> list[float]:
+    """One queued person's stress over the minutes of the mean-reverting model, whose only
+    forcing is the constant `queued_stress`."""
+    world = _one_person_world()
+    agent = next(iter(world.agents.values()))
+    agent.activity = Activity.QUEUED
+    agent.stress = stress
+    policy = MeanRevertingDistressPolicy(
+        PsychologyParameters(
+            toilet_growth=0.0,
+            hunger_growth=0.0,
+            awake_fatigue_growth=0.0,
+            stress_pressure=0.0,
+            queued_stress=forcing,
+            support_wait_stress=0.0,
+            natural_recovery_rate_per_minute=rate,
+            baseline_distress_by_agent={agent.id: baseline},
+        )
+    )
+    values = []
+    for _ in range(minutes):
+        apply_deltas(world, psychology_step(world, policy).deltas)
+        values.append(agent.stress)
+    return values
+
+
+def _exact(value: float, baseline: float, forcing: float, rate: float, minutes: float) -> float:
+    """The closed form of dS/dt = rate (baseline - S) + forcing after `minutes`."""
+    decay = math.exp(-rate * minutes)
+    return baseline + (value - baseline) * decay + forcing * (1.0 - decay) / rate
+
+
+def test_exact_mean_reversion_matches_the_closed_form_and_has_a_bounded_equilibrium() -> None:
+    minutes = _queued_minutes(0.2, baseline=0.1, forcing=0.005, rate=0.05, minutes=10)
+    assert minutes[-1] == pytest.approx(_exact(0.2, 0.1, 0.005, 0.05, 10.0), abs=1e-12)
+    _answers("mean-reversion-10", minutes)
+
+    sustained = _queued_minutes(0.1, baseline=0.1, forcing=0.005, rate=0.05, minutes=2000)
+    assert sustained[-1] == pytest.approx(0.2, abs=1e-9)
+    assert all(0.0 <= value <= 1.0 for value in sustained)
+    _answers("mean-reversion-2000", sustained[-1:])
+
+    shock = _queued_minutes(0.8, baseline=0.0, forcing=0.0, rate=0.01, minutes=300)
+    assert shock[-1] < 0.05
+    _answers("mean-reversion-shock", shock[-1:])
+
+
+def test_recovery_rate_changes_decay_speed_and_nonfinite_rates_are_rejected() -> None:
+    slow = _queued_minutes(0.9, baseline=0.0, forcing=0.0, rate=0.005, minutes=60)[-1]
+    fast = _queued_minutes(0.9, baseline=0.0, forcing=0.0, rate=0.05, minutes=60)[-1]
+    assert fast < slow
+    _answers("recovery-rates", [slow, fast])
+    with pytest.raises(ValueError, match="natural_recovery_rate_per_minute"):
+        PsychologyParameters(natural_recovery_rate_per_minute=math.inf)
 
 
 def test_acute_distress_is_a_compatibility_alias_and_recovers_at_restless_ticks(
@@ -122,38 +255,12 @@ def test_acute_distress_is_a_compatibility_alias_and_recovers_at_restless_ticks(
     agent.acute_distress = 0.6
     assert agent.stress == 0.6
 
-    view = WorldView.from_world(world)
-    result = create_psychology(world.model_configs).explain_update(view, 0)
-    first = next(delta for delta in result.deltas if delta.agent_id == agent.id)
-    assert first.stress == pytest.approx(0.6 * math.exp(-0.02))
-    assert result.policy_version == "mean-reverting-distress-v1"
-
-
-def test_exact_mean_reversion_matches_finer_time_steps_and_has_a_bounded_equilibrium() -> None:
-    coarse = mean_reverting_step(0.2, 0.1, 0.005, 0.05, 1.0)
-    fine = 0.2
-    for _ in range(10):
-        fine = mean_reverting_step(fine, 0.1, 0.005, 0.05, 0.1)
-    assert coarse == pytest.approx(fine, abs=1e-12)
-
-    sustained = 0.1
-    for _ in range(2000):
-        sustained = mean_reverting_step(sustained, 0.1, 0.005, 0.05, 1.0)
-    assert sustained == pytest.approx(0.2, abs=1e-9)
-    assert 0.0 <= sustained <= 1.0
-
-    same_shock = [0.8] * 12
-    for _ in range(300):
-        same_shock = [mean_reverting_step(value, 0.0, 0.0, 0.01, 1.0) for value in same_shock]
-    assert max(same_shock) < 0.05
-
-
-def test_recovery_rate_changes_decay_speed_and_nonfinite_values_are_rejected() -> None:
-    slow = mean_reverting_step(0.9, 0.0, 0.0, 0.005, 60.0)
-    fast = mean_reverting_step(0.9, 0.0, 0.0, 0.05, 60.0)
-    assert fast < slow
-    with pytest.raises(ValueError, match="mean-reversion"):
-        mean_reverting_step(0.5, 0.0, math.inf, 0.1, 1.0)
+    step = psychology_step(
+        world, create_psychology(world.model_configs), trace_level=TraceLevel.FULL
+    )
+    assert step.delta(agent.id).stress == pytest.approx(0.6 * math.exp(-0.02))
+    assert step.document is not None
+    assert step.document["policy_version"] == "mean-reverting-distress-v1"
 
 
 def test_personal_recovery_rates_allow_individual_decay_speeds() -> None:
@@ -173,8 +280,8 @@ def test_personal_recovery_rates_allow_individual_decay_speeds() -> None:
     world = WorldState.from_scenario(ScenarioSpec.model_validate(document))
     for agent in world.agents.values():
         agent.stress = 0.8
-    result = create_psychology(world.model_configs).explain_update(WorldView.from_world(world), 0)
-    by_id = {delta.agent_id: delta.stress for delta in result.deltas}
+    step = psychology_step(world, create_psychology(world.model_configs))
+    by_id = {delta.agent_id: delta.stress for delta in step.deltas}
     assert by_id["A002"] < by_id["A001"]
     assert by_id["A001"] == pytest.approx(0.8 * math.exp(-0.005))
     assert by_id["A002"] == pytest.approx(0.8 * math.exp(-0.05))
@@ -185,16 +292,18 @@ def test_daily_latent_distress_accumulates_final_acute_values_and_is_checkpointa
 ) -> None:
     scenario = research_psychology_scenario(duration=1440)
     world = WorldState.from_scenario(scenario)
-    state = world.model_state[PSYCHOLOGICAL_STATE_KEY]
     policy = create_psychology(world.model_configs)
     assert isinstance(policy, MeanRevertingDistressPolicy)
+    controller = SimpleNamespace(psychology=policy)
     for minute in range(1440):
-        state = policy.update_long_term_state(
-            state,
-            minute,
+        OfflineSimulationController._update_long_term_psychology(
+            controller,
+            world,
+            None,
             (stress_delta("A001", minute, 0.8), stress_delta("A002", minute, 0.2)),
+            minute,
         )
-    world.model_state[PSYCHOLOGICAL_STATE_KEY] = state
+    state = world.model_state[PSYCHOLOGICAL_STATE_KEY]
     assert state["agents"]["A001"]["completed_days"] == 1
     assert state["agents"]["A001"]["long_term_distress"] == pytest.approx(0.084)
     world.minute_index = 1440
@@ -236,32 +345,23 @@ def test_integrated_life_state_policy_uses_one_exact_recovery_path_and_trace() -
 
     policy = create_psychology(world.model_configs)
     assert isinstance(policy, IntegratedDistressLifeStatePolicy)
-    result = policy.explain_update(WorldView.from_world(world), 0)
-    delta = next(item for item in result.deltas if item.agent_id == agent.id)
-    trace = next(item for item in result.traces if item.agent_id == agent.id)
-    components = dict(trace.component_contributions)
-    assert trace.recovery_stress == 0.0
-    assert components["natural_recovery"] < 0.0
+    step = psychology_step(world, policy, trace_level=TraceLevel.FULL)
+    delta = step.delta(agent.id)
+    stress = step.person(agent.id)["stress"]
+    components = step.contribution(agent.id)["component_contributions"]
+    # No direct rest recovery: sleeping only reverts toward the baseline.
+    assert "recovery" not in components
+    assert components["natural_recovery"] == pytest.approx((0.0 - 0.8) * (1.0 - math.exp(-0.02)))
     support_multiplier = (1.0 - math.exp(-0.02)) / 0.02
     assert components["staff_support_wait"] == pytest.approx(
-        trace.support_wait_stress * support_multiplier
+        policy.parameters.support_wait_stress * support_multiplier
     )
-    assert trace.support_wait_stress > 0.0
-    assert trace.raw_stress_delta == pytest.approx(sum(components.values()))
-    assert trace.stress_candidate_before_clip == pytest.approx(
-        trace.stress_before + trace.raw_stress_delta
-    )
-    assert trace.psychology_clipped_delta == pytest.approx(delta.stress - agent.stress)
+    assert policy.parameters.support_wait_stress > 0.0
+    assert stress["raw_delta"] == pytest.approx(sum(components.values()))
+    assert stress["candidate_before_clip"] == pytest.approx(stress["before"] + stress["raw_delta"])
+    assert stress["psychology_clipped_delta"] == pytest.approx(delta.stress - agent.stress)
     assert delta.sleep_debt_minutes < 300.0
-    forcing = (
-        trace.need_pressure_stress
-        + trace.queue_wait_stress
-        + trace.support_wait_stress
-        + trace.environmental_stress
-        + trace.life_state_feedback_stress
-        + trace.information_uncertainty_stress
-    )
-    assert delta.stress == pytest.approx(mean_reverting_step(agent.stress, 0.0, forcing, 0.02, 1.0))
+    assert delta.stress == pytest.approx(agent.stress + sum(components.values()))
 
 
 def test_false_claim_pressure_reaches_uncertainty_stress_and_trace() -> None:
@@ -308,9 +408,9 @@ def test_false_claim_pressure_reaches_uncertainty_stress_and_trace() -> None:
     ).to_dict()
     world.model_state["body_state_v1"]["agents"]["A001"]["uncertainty"] = 0.2
     policy = create_psychology(world.model_configs)
-    with_rumor = policy.explain_update(WorldView.from_world(world), 0)
-    rumor_agent = next(item for item in with_rumor.deltas if item.agent_id == "A001")
-    rumor_trace = next(item for item in with_rumor.traces if item.agent_id == "A001")
+    with_rumor = psychology_step(world, policy, trace_level=TraceLevel.FULL)
+    rumor_agent = with_rumor.delta("A001")
+    rumor_trace = with_rumor.person("A001")
 
     runtime["beliefs"]["A001"][message.id] = AgentInformationState(
         message_id=message.id,
@@ -323,19 +423,25 @@ def test_false_claim_pressure_reaches_uncertainty_stress_and_trace() -> None:
         correction_accepted=True,
         ever_misbelieved=True,
     ).to_dict()
-    corrected = policy.explain_update(WorldView.from_world(world), 0)
-    corrected_agent = next(item for item in corrected.deltas if item.agent_id == "A001")
-    corrected_trace = next(item for item in corrected.traces if item.agent_id == "A001")
+    corrected = psychology_step(world, policy, trace_level=TraceLevel.FULL)
+    corrected_agent = corrected.delta("A001")
+    corrected_trace = corrected.person("A001")
 
-    assert rumor_trace.information_belief_pressure == 1.0
-    assert rumor_trace.information_uncertainty_stress > 0.0
-    assert rumor_trace.information_effect_sources == (
-        (message.id, "rumor-event", "rumor-event", message.source_id, 0),
-    )
+    effect = rumor_trace["information_belief_effect"]
+    assert effect["active_false_claim_pressure"] == 1.0
+    assert rumor_trace["stress"]["components"]["information_belief_via_uncertainty"] > 0.0
+    assert effect["source_records"] == [
+        {
+            "message_id": message.id,
+            "origin_event_id": "rumor-event",
+            "belief_event_id": "rumor-event",
+            "source_id": message.source_id,
+            "origin_minute": 0,
+        }
+    ]
     assert rumor_agent.uncertainty > corrected_agent.uncertainty
     assert rumor_agent.stress > corrected_agent.stress
-    assert corrected_trace.information_belief_pressure == 0.0
-    assert "information_belief_effect" in rumor_trace.to_dict(source_id=policy.source_id)
+    assert corrected_trace["life_state"]["information_belief_pressure"]["after"] == 0.0
 
 
 def test_psychology_trace_delta_fields_reconstruct_applied_stress_delta(
@@ -345,9 +451,8 @@ def test_psychology_trace_delta_fields_reconstruct_applied_stress_delta(
     agent = world.agents["A001"]
     agent.stress = 0.8
     policy = create_psychology(world.model_configs)
-    result = policy.explain_update(WorldView.from_world(world), 0)
-    trace = next(item for item in result.traces if item.agent_id == agent.id)
-    serialized = trace.to_dict(source_id=policy.source_id)["stress"]
+    step = psychology_step(world, policy, trace_level=TraceLevel.FULL)
+    serialized = step.person(agent.id)["stress"]
     assert sum(serialized["components"].values()) == pytest.approx(serialized["raw_delta"])
     assert (
         serialized["raw_delta"] + serialized["clip_delta"] + serialized["social_delta"]
@@ -363,15 +468,14 @@ def test_psychology_update_is_pure_bounded_and_keeps_trust_until_outcome_exists(
     agent.needs.fatigue = 0.001
     agent.stress = 0.999
     agent.trust = 0.2
-    view = WorldView.from_world(world)
     state_before = world.canonical_json()
     policy = SimplePsychologyPolicy()
 
-    deltas = policy.update(view, minute=0)
+    deltas = psychology_step(world, policy).deltas
     first_delta = next(delta for delta in deltas if delta.agent_id == "A001")
 
     assert world.canonical_json() == state_before
-    assert deltas == policy.update(view, minute=0)
+    assert deltas == psychology_step(world, policy).deltas
     assert 0.0 <= first_delta.toilet_urgency <= 1.0
     assert 0.0 <= first_delta.hunger <= 1.0
     assert 0.0 <= first_delta.fatigue <= 1.0
@@ -379,40 +483,37 @@ def test_psychology_update_is_pure_bounded_and_keeps_trust_until_outcome_exists(
     assert first_delta.fatigue < agent.needs.fatigue
     assert first_delta.trust == agent.trust
 
-    apply_state_deltas(world, deltas)
+    apply_deltas(world, deltas)
     world.validate()
     assert world.agents["A001"].needs.fatigue < 0.001
     assert world.agents["A001"].trust == 0.2
 
 
-def test_psychology_application_rejects_stale_or_duplicate_updates_atomically() -> None:
+def _delta(agent_id: str, minute: int, **values: Any) -> AgentStateDelta:
+    return AgentStateDelta(
+        agent_id=agent_id,
+        minute_index=minute,
+        toilet_urgency=values.get("toilet_urgency", 0.1),
+        hunger=values.get("hunger", 0.2),
+        fatigue=values.get("fatigue", 0.3),
+        stress=values.get("stress", 0.4),
+        trust=values.get("trust", 0.5),
+        hydration_need=values.get("hydration_need", 0.0),
+    )
+
+
+def test_psychology_application_refuses_stale_or_duplicate_updates_atomically() -> None:
     world = WorldState.from_scenario(ScenarioSpec.load(SCENARIO_100_AGENTS))
-    update = AgentStateDelta(
-        agent_id="A001",
-        minute_index=0,
-        toilet_urgency=0.1,
-        hunger=0.2,
-        fatigue=0.3,
-        stress=0.4,
-        trust=0.5,
-    )
-    stale_update = AgentStateDelta(
-        agent_id="A002",
-        minute_index=1,
-        toilet_urgency=0.1,
-        hunger=0.2,
-        fatigue=0.3,
-        stress=0.4,
-        trust=0.5,
-    )
+    update = _delta("A001", 0)
+    stale_update = _delta("A002", 1)
     initial = world.canonical_json()
 
-    with pytest.raises(StateInvariantError, match="different minute"):
-        apply_state_deltas(world, (update, stale_update))
+    with pytest.raises(KernelRefusal, match="not of this minute"):
+        OfflineSimulationController._apply_state_deltas(None, world, (update, stale_update))
     assert world.canonical_json() == initial
 
-    with pytest.raises(StateInvariantError, match="duplicate psychology update"):
-        apply_state_deltas(world, (update, update))
+    with pytest.raises(KernelRefusal, match="two deltas"):
+        OfflineSimulationController._apply_state_deltas(None, world, (update, update))
     assert world.canonical_json() == initial
 
 
@@ -438,22 +539,21 @@ def test_psychology_trace_separates_need_queue_and_staff_causes(causal_stress_sc
     StaffService(world, task_duration_minutes=5).assign_pending(0)
     world.minute_index = 5
 
-    view = WorldView.from_world(world)
-    result = SimplePsychologyPolicy(
-        PsychologyParameters(
-            stress_pressure=0.1,
-            queued_stress=0.01,
-            support_wait_stress=0.02,
-        )
-    ).explain_update(view, 5)
-    trace = result.trace_document(
-        5,
-        source_id="ASM-H04-CAUSAL-STRESS-V1",
-        full=True,
+    step = psychology_step(
+        world,
+        SimplePsychologyPolicy(
+            PsychologyParameters(
+                stress_pressure=0.1,
+                queued_stress=0.01,
+                support_wait_stress=0.02,
+            )
+        ),
+        trace_level=TraceLevel.FULL,
     )
-    by_agent = {item["agent_id"]: item for item in trace["agents"]}
-    queue_trace = by_agent["A001"]
-    support_trace = by_agent["A002"]
+    assert step.document is not None
+    assert step.document["assumption_id"] == "ASM-H04-CAUSAL-STRESS-V1"
+    queue_trace = step.person("A001")
+    support_trace = step.person("A002")
 
     assert queue_trace["stress"]["components"]["unmet_need_pressure"] > 0.0
     assert queue_trace["stress"]["components"]["facility_queue_wait"] == pytest.approx(0.01)
@@ -476,7 +576,7 @@ def test_psychology_trace_separates_need_queue_and_staff_causes(causal_stress_sc
     )
 
     capacity_before = world.facilities["toilet-1"].working_units
-    apply_state_deltas(world, result.deltas)
+    apply_deltas(world, step.deltas)
     assert world.facilities["toilet-1"].working_units == capacity_before == 0
 
 
@@ -496,13 +596,14 @@ def test_scenario_psychology_coefficients_are_validated_and_source_tagged(
     assert manifest["model_assumptions"]["psychology"]["source_id"] == config.source_id
     assert manifest["model_assumptions"]["psychology"]["values"]["stress_pressure"] == 0.2
 
-    view = WorldView.from_world(world)
-    low_sensitivity = SimplePsychologyPolicy(
-        PsychologyParameters(stress_pressure=0.01, support_wait_stress=0.0)
-    ).update(view, 0)[0]
-    high_sensitivity = SimplePsychologyPolicy(
-        PsychologyParameters(stress_pressure=0.2, support_wait_stress=0.0)
-    ).update(view, 0)[0]
+    low_sensitivity = psychology_step(
+        world,
+        SimplePsychologyPolicy(PsychologyParameters(stress_pressure=0.01, support_wait_stress=0.0)),
+    ).deltas[0]
+    high_sensitivity = psychology_step(
+        world,
+        SimplePsychologyPolicy(PsychologyParameters(stress_pressure=0.2, support_wait_stress=0.0)),
+    ).deltas[0]
     assert high_sensitivity.stress > low_sensitivity.stress
 
     with pytest.raises(ValidationError):
@@ -520,7 +621,10 @@ def test_psychology_view_skips_audit_hash_without_changing_inputs() -> None:
     assert psychology_view.agents == hashed.agents
     assert psychology_view.facilities == hashed.facilities
     policy = SimplePsychologyPolicy()
-    assert policy.explain_update(hashed, 0) == policy.explain_update(psychology_view, 0)
+    assert (
+        psychology_step(world, policy, view=hashed).deltas
+        == psychology_step(world, policy, view=psychology_view).deltas
+    )
     assert world.canonical_json() == before
 
 
@@ -533,40 +637,17 @@ def test_psychology_view_skips_audit_hash_without_changing_inputs() -> None:
         ("trust", float("inf")),
         ("fatigue", True),
         ("hydration_need", "0.5"),
+        # The deleted rule accepted an int within bounds; the kernels' deltas hold floats.
+        ("hunger", 1),
     ],
 )
-def test_applying_a_delta_refuses_what_its_checks_refuse(generated_scenario, field, value) -> None:
-    """Deltas of plain floats within bounds skip the checks, and nothing else does."""
-    from sheltersim.core.world import StateInvariantError
-
+def test_applying_a_delta_refuses_what_is_not_a_float_within_bounds(
+    generated_scenario, field, value
+) -> None:
     world = WorldState.from_scenario(generated_scenario)
-    delta = AgentStateDelta(
-        agent_id=next(iter(world.agents)),
-        minute_index=world.minute_index,
-        toilet_urgency=0.1,
-        hunger=0.1,
-        fatigue=0.1,
-        stress=0.1,
-        trust=0.1,
-        hydration_need=0.1,
-    )
+    delta = _delta(next(iter(world.agents)), world.minute_index, hydration_need=0.1)
     object.__setattr__(delta, field, value)
-    with pytest.raises(StateInvariantError, match="invalid psychology update"):
-        apply_state_deltas(world, (delta,))
-
-
-def test_applying_a_delta_of_ints_within_bounds_is_accepted(generated_scenario) -> None:
-    world = WorldState.from_scenario(generated_scenario)
-    agent_id = next(iter(world.agents))
-    delta = AgentStateDelta(
-        agent_id=agent_id,
-        minute_index=world.minute_index,
-        toilet_urgency=0,
-        hunger=1,
-        fatigue=0.5,
-        stress=0,
-        trust=1,
-        hydration_need=0,
-    )
-    apply_state_deltas(world, (delta,))
-    assert world.agents[agent_id].needs.hunger == 1 and world.agents[agent_id].trust == 1
+    before = world.canonical_json()
+    with pytest.raises(KernelRefusal):
+        OfflineSimulationController._apply_state_deltas(None, world, (delta,))
+    assert world.canonical_json() == before

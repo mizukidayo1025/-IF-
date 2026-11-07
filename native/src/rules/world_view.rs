@@ -1,13 +1,14 @@
 //! What `WorldView.from_world` and `WorldView.after_state_update` provide (`policies/world_view.py`),
 //! built from the rows: a detached snapshot in plain Rust values, which Rust rules read directly.
 //!
-//! `view_after_movement` and `view_for_proposals` replace the two steps of the phases that make a
-//! view (experiments/phases/segments.py). They return a real `WorldView` whose `agents`,
-//! `facilities`, `zone_members` and `group_members` are made when a Python reader first asks
-//! (`WorldView.__getattr__`), from the same snapshot. Anything this module is not sure of says
-//! `Unsupported` before anything has changed, and `WorldView.from_world` runs and raises its own
-//! text. A value of another type than the Python view would hold is left to Python, too: a typed
-//! field here could not keep it, and `1` and `1.0` would hash differently.
+//! `view_after_movement` and `view_for_proposals` are the two steps of the phases that make a
+//! view, which have no Python body (experiments/phases/segments.py, KERNEL_ONLY_SEGMENTS). They
+//! return a real `WorldView` whose `agents`, `facilities`, `zone_members` and `group_members` are
+//! made when a Python reader first asks (`WorldView.__getattr__`), from the same snapshot. Anything
+//! this module is not sure of says `Unsupported` before anything has changed, and the step raises
+//! KernelRefusal; `WorldView.from_world`, which tests use to make a view for a Python policy, would
+//! raise its own text. A value of another type than the Python view would hold is refused, too: a
+//! typed field here could not keep it, and `1` and `1.0` would hash differently.
 //!
 //! A person's context is parsed by `rules/person_context.rs`, and a zone's conditions come from
 //! `rules/zone_environment.rs`; what they make is kept here while their inputs stay the same. The
@@ -1052,7 +1053,8 @@ fn build(controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>) -> PyResult<(V
     ))
 }
 
-/// `after_state_update`, without its hash.
+/// The prior view with what the update phase writes read again (the Python `after_state_update`
+/// of before lane L10), without its hash.
 fn refresh(prior: &RustView, world: &Bound<'_, PyAny>) -> PyResult<(ViewData, Vec<Py<PyString>>)> {
     let py = world.py();
     let before = &prior.data;

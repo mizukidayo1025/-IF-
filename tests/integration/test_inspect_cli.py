@@ -10,15 +10,15 @@ from pathlib import Path
 
 import pytest
 from support.paths import SCENARIO_100_AGENTS
+from support.world import decisions_of
 
 from sheltersim.__main__ import main
 from sheltersim.core.engine import TraceLevel
-from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.events.handlers import EventDispatcher
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.inspection.traces import RunArtifactWriter
-from sheltersim.policies.behavior import UtilityBehaviorPolicy, WorldView
+from sheltersim.policies.behavior import UtilityBehaviorPolicy
 
 
 def make_scenario_file(path: Path) -> Path:
@@ -47,9 +47,7 @@ def make_run(directory: Path) -> tuple[Path, str]:
     world = WorldState.from_scenario(scenario)
     writer = RunArtifactWriter(scenario, directory, trace_level=TraceLevel.FULL)
     writer.write_initial(world)
-    proposal = UtilityBehaviorPolicy().propose(
-        WorldView.from_world(world), "A001", CounterRNG(world.seed)
-    )
+    proposal = decisions_of(world, UtilityBehaviorPolicy())["A001"]
     writer.record_decision(proposal)
     first_event = scenario.scheduled_events[0]
     world.minute_index = first_event.due_minute

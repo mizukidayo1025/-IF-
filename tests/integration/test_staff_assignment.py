@@ -1,9 +1,10 @@
 """The staff's assignment in Rust: a task, a relief, a route's wait and a preemption.
 
 native/src/rules/staff.rs and travel.rs on what the gate reaches rarely or never
-(docs/rust-port/lanes/l2-staff.md). `assign_staff_operations` and `schedule_staff_operation_relief`
-have no Python body left (lane L10, `kernel_only`): what they start is checked against a digest of
-what the Python rule started on the same world (its answer, the world, its records and events),
+(docs/rust-port/lanes/l2-staff.md). `assign_staff_operations`, `schedule_staff_operation_relief`
+and the controller's `_route` have no Python body left (lane L10): what they start is checked
+against a digest of what the Python rule started on the same world (its answer, the world, its
+records and events),
 taken before it went, pinned on Linux as the gate's hashes are. No Run reaches the preemption of a
 background task, so a Run here does, through the driver and through the phases.
 """
@@ -35,7 +36,6 @@ from sheltersim.domain.staff_operations import (
 )
 from sheltersim.domain.zones import ZoneGraph
 from sheltersim.experiments import metrics
-from sheltersim.experiments.phases.propose import ProposePhase
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.inspection.traces import RunArtifactWriter
@@ -722,41 +722,43 @@ def _capacity_controller(
     return OfflineSimulationController(world, artifacts)
 
 
+def _is_what_python_left(world: WorldState, digest: str) -> None:
+    """The world, its records and events, as `_route` of the Python rule left them: `digest`."""
+    text = json.dumps(_state(world))
+    if sys.platform == "linux":
+        assert hashlib.sha256(text.encode()).hexdigest()[:16] == digest
+
+
 def test_a_route_with_a_full_edge_records_its_wait_as_the_python_rule_does(tmp_path: Path) -> None:
-    first = _capacity_controller(tmp_path, "first")
-    second = _capacity_controller(tmp_path, "second")
-    people = sorted(first.world.agents)
-    route = native.rules("travel").route
-    for controller in (first, second):
-        for agent in controller.world.agents.values():
-            agent.zone_id = "sleeping"
-        for edge in controller.world.zone_edges:
-            controller.world.schedule_event(_trip(controller.world, edge))
-    answer = route(first, "sleeping", "toilet", people[0])
-    expected = ProposePhase._route(second, "sleeping", "toilet", people[0])
-    assert answer == expected is None
-    answer = route(first, "sleeping", "sleeping", people[0])
-    assert answer == ProposePhase._route(second, "sleeping", "sleeping", people[0])
-    assert answer.edge_ids == ()
-    assert json.dumps(_state(first.world)) == json.dumps(_state(second.world))
+    controller = _capacity_controller(tmp_path, "first")
+    people = sorted(controller.world.agents)
+    for agent in controller.world.agents.values():
+        agent.zone_id = "sleeping"
+    for edge in controller.world.zone_edges:
+        controller.world.schedule_event(_trip(controller.world, edge))
+    assert controller._route("sleeping", "toilet", people[0]) is None
+    answer = controller._route("sleeping", "sleeping", people[0])
+    assert (answer.zone_ids, answer.edge_ids, answer.travel_minutes) == (("sleeping",), (), 0)
+    _is_what_python_left(controller.world, "f4d92ff6d72e10df")
     assert [
         record.event.event_type
-        for record in first.world.event_log.records
+        for record in controller.world.event_log.records
         if record.event.event_type == "zone_edge_capacity_wait"
     ] == ["zone_edge_capacity_wait"]
 
 
 def test_a_route_with_room_on_its_edges_counts_the_trips_under_way(tmp_path: Path) -> None:
-    first = _capacity_controller(tmp_path, "first", capacity=2)
-    second = _capacity_controller(tmp_path, "second", capacity=2)
-    people = sorted(first.world.agents)
-    for controller in (first, second):
-        for edge in controller.world.zone_edges:
-            controller.world.schedule_event(_trip(controller.world, edge))
-    answer = native.rules("travel").route(first, "sleeping", "toilet", people[0])
-    assert answer == ProposePhase._route(second, "sleeping", "toilet", people[0])
-    assert answer is not None and answer.edge_ids
-    assert json.dumps(_state(first.world)) == json.dumps(_state(second.world))
+    controller = _capacity_controller(tmp_path, "first", capacity=2)
+    people = sorted(controller.world.agents)
+    for edge in controller.world.zone_edges:
+        controller.world.schedule_event(_trip(controller.world, edge))
+    answer = controller._route("sleeping", "toilet", people[0])
+    assert (answer.zone_ids, answer.edge_ids, answer.travel_minutes) == (
+        ("sleeping", "corridor", "toilet"),
+        ("sleeping_corridor", "corridor_toilet"),
+        2,
+    )
+    _is_what_python_left(controller.world, "99b6008414a8e20a")
 
 
 def test_a_full_edge_in_a_request_records_the_wait_before_the_trip_s_sequence(
