@@ -31,7 +31,7 @@ use sha2::{Digest, Sha256};
 
 use crate::core::mathx::{py_fsum, py_min};
 use crate::core::parallel::parts_in_order;
-use crate::core::tracked::as_readable_dict;
+use crate::core::tracked::{as_readable_dict, is_detached};
 use crate::core::world_core::{mirror_of, raw_dict_get, raw_dict_set, NamespaceMirror};
 use crate::rules::person_context::{self, plain_copy};
 use crate::rules::zone_environment::{ZoneConditions, ZoneInputs};
@@ -824,8 +824,18 @@ fn read_body_and_distress(
     keys: &[Py<PyString>],
 ) -> PyResult<()> {
     let py = world.py();
-    let distress = state_get(model_state, intern!(py, "psychological_distress_v1"))?;
-    if dict_or_nothing(&distress)?.is_some() {
+    let key = intern!(py, "psychological_distress_v1");
+    // Read past `_DetachingTable.get`, which would rebuild the tree of a detached namespace.
+    let distress = match as_readable_dict(model_state) {
+        Some(table) => table.get_item(key)?,
+        None => Some(state_get(model_state, key)?),
+    };
+    let present = match &distress {
+        Some(held) if is_detached(held) => true,
+        Some(held) => dict_or_nothing(held)?.is_some(),
+        None => false,
+    };
+    if present {
         // A namespace of another form is not the row's: this says Unsupported.
         let mirror = mirror_of(world, DISTRESS)?;
         NamespaceMirror::with_row::<DistressRow, _>(&mirror, |row| {

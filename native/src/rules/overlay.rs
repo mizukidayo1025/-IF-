@@ -23,8 +23,9 @@ use sha2::{Digest, Sha256};
 use crate::core::errors;
 use crate::core::mathx::{hypot, pow, py_max, py_min, py_round, py_sum};
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, unsupported};
+use crate::core::tracked::is_detached;
 use crate::core::value::V;
-use crate::core::world_core::{raw_dict_get, NamespaceMirror};
+use crate::core::world_core::{attached_state, mirror_of, raw_dict_get, NamespaceMirror};
 use crate::rules::movement::{mirror_held, mobility_text, point_object, room_minutes, KEY as MOVEMENT_KEY};
 use crate::rules::movement_geometry::{
     is_identifier, point_in_polygon, point_in_value, point_segment_distance, point_walkable, points_in_value, polyline_length,
@@ -106,8 +107,14 @@ fn table_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     Ok(table)
 }
 
-/// `world.model_state.get(name)`, the tree's node.
+/// `world.model_state.get(name)`, the tree's node; a detached namespace's is rebuilt.
 fn state_of<'py>(world: &Bound<'py, PyAny>, name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+    let table = table_of(world)?;
+    attached_state(&table, name)
+}
+
+/// `world.model_state.get(name)` as it is held: the placeholder for a detached namespace.
+fn held_of<'py>(world: &Bound<'py, PyAny>, name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
     let table = table_of(world)?;
     exact_dict(&table)?.get_item(name)
 }
@@ -350,13 +357,24 @@ fn expire_temporary_space(
 fn validate_spaces(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = world.py();
     let result = (|| {
-        let Some(state) = state_of(world, SPACES_KEY)? else {
+        let Some(state) = held_of(world, SPACES_KEY)? else {
             return Ok(true);
         };
-        let state = V::from_py(&state)?;
-        let state = map_of(&state)?;
         let zones = attribute(world, intern!(py, "zones"))?;
         let zones = exact_dict(&zones)?;
+        if is_detached(&state) {
+            // The row alone holds it; the checks read no Python code.
+            return NamespaceMirror::with_value(&mirror_of(world, SPACES_KEY)?, |state| spaces_pass(state, zones));
+        }
+        spaces_pass(&V::from_py(&state)?, zones)
+    })();
+    counted(py, "validate_spaces", result)
+}
+
+/// The rules of `validate_temporary_spaces_state` on the namespace as a `V`.
+fn spaces_pass(state: &V, zones: &Bound<'_, PyDict>) -> PyResult<bool> {
+    {
+        let state = map_of(state)?;
         let (Some(V::Map(spaces)), Some(V::List(history))) = (state.get("spaces"), state.get("history")) else {
             return unsupported("the state has another shape");
         };
@@ -424,8 +442,7 @@ fn validate_spaces(world: &Bound<'_, PyAny>) -> PyResult<bool> {
             }
         }
         Ok(true)
-    })();
-    counted(py, "validate_spaces", result)
+    }
 }
 
 pub(crate) struct Capacity {
@@ -453,28 +470,47 @@ pub(crate) fn capacity_of(world: &Bound<'_, PyAny>, zone_id: &str, nominal: i64,
     let (mut active_people, mut expired_people, mut sleeping) = (0, 0, 0);
     let table = table_of(world)?;
     let table = exact_dict(&table)?;
+    let mut count = |row: &V| -> PyResult<()> {
+        let row = map_of(row)?;
+        if !matches!(row.get("zone_id"), Some(V::Str(zone)) if &**zone == zone_id) {
+            if !matches!(row.get("zone_id"), Some(V::Str(_) | V::Null) | None) {
+                return unsupported("a space's zone is another value");
+            }
+            return Ok(());
+        }
+        let Some(V::Bool(active)) = row.get("active") else {
+            return unsupported("a space's active is not a bool");
+        };
+        let people = int_of(row, "people_capacity")?;
+        if *active {
+            active_people = add(active_people, people)?;
+            sleeping = add(sleeping, int_of(row, "sleeping_capacity")?)?;
+        } else {
+            expired_people = add(expired_people, people)?;
+        }
+        Ok(())
+    };
     if let Some(state) = table.get_item(SPACES_KEY)? {
-        if let Some(fields) = crate::core::tracked::as_readable_dict(&state) {
+        if is_detached(&state) {
+            // The row alone holds it.
+            NamespaceMirror::with_value(&mirror_of(world, SPACES_KEY)?, |state| {
+                let V::Map(fields) = state else {
+                    return unsupported("the spaces' state is not a plain dict");
+                };
+                if let Some(spaces) = fields.get("spaces") {
+                    let V::Map(spaces) = spaces else {
+                        return unsupported("a value is not a plain dict");
+                    };
+                    for row in spaces.values() {
+                        count(row)?;
+                    }
+                }
+                Ok(())
+            })?;
+        } else if let Some(fields) = crate::core::tracked::as_readable_dict(&state) {
             if let Some(spaces) = fields.get_item(intern!(py, "spaces"))? {
                 for (_, row) in exact_dict(&spaces)?.iter() {
-                    let row = V::from_py(&row)?;
-                    let row = map_of(&row)?;
-                    if !matches!(row.get("zone_id"), Some(V::Str(zone)) if &**zone == zone_id) {
-                        if !matches!(row.get("zone_id"), Some(V::Str(_) | V::Null) | None) {
-                            return unsupported("a space's zone is another value");
-                        }
-                        continue;
-                    }
-                    let Some(V::Bool(active)) = row.get("active") else {
-                        return unsupported("a space's active is not a bool");
-                    };
-                    let people = int_of(row, "people_capacity")?;
-                    if *active {
-                        active_people = add(active_people, people)?;
-                        sleeping = add(sleeping, int_of(row, "sleeping_capacity")?)?;
-                    } else {
-                        expired_people = add(expired_people, people)?;
-                    }
+                    count(&V::from_py(&row)?)?;
                 }
             }
         } else {

@@ -29,6 +29,7 @@ use crate::core::errors;
 use crate::core::mathx::py_min;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_int_text, exact_str, unsupported};
 use crate::core::value::V;
+use crate::core::world_core::attached_state;
 use crate::rules::movement::{mirror_held, Scene};
 use crate::rules::movement_geometry::Pt;
 use crate::state::entities::{entities_of, Activity, EntityStore};
@@ -97,7 +98,8 @@ pub(crate) fn writing<T>(result: PyResult<T>) -> PyResult<T> {
 /// `world.model_state.get(name)`, or None.
 pub(crate) fn namespace<'py>(world: &Bound<'py, PyAny>, name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
     let table = attribute(world, intern!(world.py(), "model_state"))?;
-    Ok(exact_dict(&table)?.get_item(name)?.filter(|state| !state.is_none()))
+    // These rules read and write through the tree: a detached namespace's is rebuilt.
+    Ok(attached_state(&table, name)?.filter(|state| !state.is_none()))
 }
 
 pub(crate) fn has_namespace(world: &Bound<'_, PyAny>, name: &str) -> PyResult<bool> {

@@ -27,6 +27,7 @@ from sheltersim.domain import (
 )
 from sheltersim.domain.facilities import ToiletServiceManager
 from sheltersim.domain.models import Activity
+from sheltersim.domain.psychological_state import PSYCHOLOGICAL_STATE_KEY
 from sheltersim.domain.resource_service import ResourceServiceManager
 from sheltersim.domain.simulator_state import initialize_simulator_extensions
 from sheltersim.domain.temporary_spaces import create_temporary_spaces_state
@@ -44,9 +45,18 @@ def _copy(world: WorldState) -> WorldState:
 
 
 def _bytes(world: WorldState) -> str:
-    """The state as it is, valid or not: `to_dict` would check it."""
+    """The state as it is, valid or not: `to_dict` would check it.
+
+    psychological_distress_v1 is detached (test_detached_namespaces.py), so a read builds its
+    tree in the order of its typed row; these worlds come from JSON, whose keys are sorted.
+    """
+    model_state = dict(world.model_state)
+    if PSYCHOLOGICAL_STATE_KEY in model_state:
+        model_state[PSYCHOLOGICAL_STATE_KEY] = json.loads(
+            json.dumps(model_state[PSYCHOLOGICAL_STATE_KEY], sort_keys=True)
+        )
     parts = (
-        world.model_state,
+        model_state,
         world.metric_state,
         world.id_counters,
         repr(world.agents),

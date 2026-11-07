@@ -9,6 +9,11 @@
 //! Python hands the classes over when `core/state_mirror.py` is imported. This holds types, not
 //! state of a world, so one set serves every world and thread of the process. Until then only
 //! plain containers match.
+//!
+//! `model_state` with a detached namespace (`_DetachingTable`) reads as a plain dict too, but a
+//! detached key holds a placeholder, not a tree: the row alone holds that namespace. A kernel that
+//! reads such a key either reads the row (`world_core::held_state`) or asks Python for the tree
+//! (`world_core::attached_state`), which rebuilds it from the row.
 
 use std::ptr::{addr_of_mut, null_mut};
 use std::sync::atomic::{AtomicPtr, Ordering};
@@ -21,6 +26,8 @@ static TRACKED_DICT: AtomicPtr<ffi::PyTypeObject> = AtomicPtr::new(null_mut());
 static NAMESPACE_TABLE: AtomicPtr<ffi::PyTypeObject> = AtomicPtr::new(null_mut());
 static TRACKED_LIST: AtomicPtr<ffi::PyTypeObject> = AtomicPtr::new(null_mut());
 static ID_MAP: AtomicPtr<ffi::PyTypeObject> = AtomicPtr::new(null_mut());
+static DETACHING_TABLE: AtomicPtr<ffi::PyTypeObject> = AtomicPtr::new(null_mut());
+static DETACHED: AtomicPtr<ffi::PyObject> = AtomicPtr::new(null_mut());
 
 /// Remember the exact classes. Each stays alive for the life of the process.
 #[pyfunction]
@@ -57,12 +64,35 @@ pub fn install_id_map_type(id_map: &Bound<'_, PyType>) -> PyResult<()> {
     Ok(())
 }
 
-pub(crate) fn id_map_type() -> *mut ffi::PyTypeObject {
-    ID_MAP.load(Ordering::Acquire)
+/// Remember `_DetachingTable` and the placeholder it holds under a detached namespace.
+#[pyfunction]
+pub fn install_detached_types(table: &Bound<'_, PyType>, placeholder: &Bound<'_, PyAny>) -> PyResult<()> {
+    if !table.is_subclass_of::<PyDict>()? {
+        return Err(pyo3::exceptions::PyTypeError::new_err("not a dict subclass"));
+    }
+    // Both new references are never dropped, so the pointers stay valid.
+    DETACHING_TABLE.store(table.clone().unbind().into_ptr().cast(), Ordering::Release);
+    DETACHED.store(placeholder.clone().unbind().into_ptr(), Ordering::Release);
+    Ok(())
 }
 
-pub(crate) fn namespace_table_type() -> *mut ffi::PyTypeObject {
-    NAMESPACE_TABLE.load(Ordering::Acquire)
+/// Whether a value read from `model_state` is the placeholder of a detached namespace.
+#[inline]
+pub(crate) fn is_detached(value: &Bound<'_, PyAny>) -> bool {
+    let placeholder = DETACHED.load(Ordering::Relaxed);
+    !placeholder.is_null() && value.as_ptr() == placeholder
+}
+
+/// Whether this is a type `model_state` has while namespaces are owned: `NamespaceTable`, or
+/// `_DetachingTable` while one of them is detached.
+#[inline]
+pub(crate) fn is_table_type(kind: *mut ffi::PyTypeObject) -> bool {
+    !kind.is_null()
+        && (kind == NAMESPACE_TABLE.load(Ordering::Relaxed) || kind == DETACHING_TABLE.load(Ordering::Relaxed))
+}
+
+pub(crate) fn id_map_type() -> *mut ffi::PyTypeObject {
+    ID_MAP.load(Ordering::Acquire)
 }
 
 pub(crate) fn tracked_dict_type() -> *mut ffi::PyTypeObject {
@@ -79,6 +109,7 @@ pub(crate) fn is_readable_dict_type(kind: *mut ffi::PyTypeObject) -> bool {
     kind == addr_of_mut!(ffi::PyDict_Type)
         || kind == TRACKED_DICT.load(Ordering::Relaxed)
         || kind == NAMESPACE_TABLE.load(Ordering::Relaxed)
+        || kind == DETACHING_TABLE.load(Ordering::Relaxed)
         || kind == ID_MAP.load(Ordering::Relaxed)
 }
 

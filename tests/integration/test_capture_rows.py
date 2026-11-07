@@ -194,6 +194,8 @@ def test_a_tainted_store_or_namespace_saves_the_same_checkpoint(
 ) -> None:
     def taint(world: WorldState) -> None:
         world._core.entities().taint_now("for the test")
+        # A detached namespace has its row alone: a read builds the tree the taint leaves.
+        assert isinstance(world.model_state["psychological_distress_v1"], dict)
         world._core.mirror("psychological_distress_v1").taint("for the test")
         world._core.mirror("metric_state").taint("for the test")
 

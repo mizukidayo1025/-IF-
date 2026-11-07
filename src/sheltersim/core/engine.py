@@ -9,6 +9,7 @@ from enum import StrEnum
 from sheltersim.core.clock import ClockExhaustedError, SimulationClock
 from sheltersim.core.model_version import require_tickable
 from sheltersim.core.rng import CounterRNG, KeyedRandom
+from sheltersim.core.state_mirror import detach_unread
 from sheltersim.core.world import WorldState
 
 
@@ -103,6 +104,8 @@ class TickEngine:
         self.phase_observer: PhaseObserver | None = None
         self.world.rng_state = dict(self.rng.metadata)
         self.world.validate()
+        # The namespaces their rows alone hold have no tree while the tick runs (state_mirror.py).
+        detach_unread(self.world)
 
     def step(self) -> WorldState:
         """Execute one finite tick and advance the simulation clock once."""
@@ -121,6 +124,8 @@ class TickEngine:
 
         self.clock.advance()
         self.world.minute_index = self.clock.minute_index
+        # A tree a read built during the tick, or before it, goes again (state_mirror.py).
+        detach_unread(self.world)
         self.world.validate_after_tick()
         if self.trace_level is TraceLevel.SUMMARY:
             self._emit(TickTrace(minute_index=minute, phase=None))

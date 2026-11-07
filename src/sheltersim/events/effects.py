@@ -38,6 +38,7 @@ from sheltersim.contracts.operations import (
 )
 from sheltersim.contracts.population import DynamicArrivalPersonContext
 from sheltersim.core.kernels import kernel_only
+from sheltersim.core.state_mirror import read_only_state
 from sheltersim.domain.environment import (
     ZONE_ENVIRONMENT_POLICY,
     ZONE_ENVIRONMENT_STATE_KEY,
@@ -926,7 +927,8 @@ def validate_effect_program(
             room_id = parameters.get("room_id")
             if isinstance(room_id, str):
                 temporary_room_ids.add(room_id)
-    temporary_state = world.model_state.get(TEMPORARY_SPACES_STATE_KEY, {})
+    # Read only, so a detached namespace is read from its row (core/state_mirror.py).
+    temporary_state = read_only_state(world, TEMPORARY_SPACES_STATE_KEY, {})
     if isinstance(temporary_state, dict):
         for space in temporary_state.get("spaces", {}).values():
             if space.get("active"):

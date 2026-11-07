@@ -34,7 +34,7 @@ trace、`CounterRNG` でない乱数、方策の派生クラス、int の係数�
 
 - trace つきの Run は Python の規則で、毎 tick 丸ごと書きます（設計どおり）。
 - `population.py`、`population_lifecycle.py` の接触の書き込みは1項目ずつの転送です（まれです）。
-- 木はまだ毎 tick 書いています。tick の中で Python が読まないので切り離せそうですが、切り離すと `model_state` が `_DetachingTable` になり、ほかの kernel が断ります。
+- 木はまだ毎 tick 書いています。tick の中で Python が読まないので切り離せそうですが、切り離すと `model_state` が `_DetachingTable` になり、ほかの kernel が断ります。**L14 の段階1で切り離しました**（kernel が `_DetachingTable` を読むようにした。[step4-plan.md](../step4-plan.md) 5節）。
 
 ## 費用
 

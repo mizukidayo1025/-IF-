@@ -10,7 +10,7 @@ from typing import Any
 
 from sheltersim import native
 from sheltersim.core.kernels import kernel_only
-from sheltersim.core.state_mirror import register_rust_validator
+from sheltersim.core.state_mirror import read_only_state, register_rust_validator
 from sheltersim.core.world import WorldState
 
 TEMPORARY_SPACES_STATE_KEY = "temporary_spaces_v1"
@@ -47,7 +47,8 @@ def create_temporary_spaces_state() -> dict[str, Any]:
 
 
 def validate_temporary_spaces_state(world: WorldState) -> None:
-    state = world.model_state.get(TEMPORARY_SPACES_STATE_KEY)
+    # The row's document when the namespace is detached: this reads only.
+    state = read_only_state(world, TEMPORARY_SPACES_STATE_KEY)
     if state is None:
         return
     if (
