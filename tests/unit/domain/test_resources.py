@@ -32,7 +32,7 @@ from sheltersim.events.handlers import (
 )
 from sheltersim.events.models import EventApplicationError, EventKind, EventStatus, ScheduledEvent
 from sheltersim.experiments.metrics import MetricsRecorder
-from sheltersim.experiments.scenario import ScenarioSpec
+from sheltersim.experiments.scenario import MAX_RESOURCE_QUANTITY, ScenarioSpec
 
 
 def event(
@@ -182,6 +182,39 @@ def test_resource_scenario_v2_migration_and_v3_stock_rejections(scenario_with_st
         scenario_with_stock(water_ml=1, source_ids=[])
     with pytest.raises(ValidationError, match="greater than or equal to 0"):
         scenario_with_stock(food_meal_units=-1)
+
+
+def _delivery(number: int, quantity: int) -> dict[str, object]:
+    return {
+        "id": f"delivery-{number}",
+        "kind": "exogenous",
+        "due_minute": 1,
+        "priority": 0,
+        "sequence": number,
+        "event_type": "resource_delivery",
+        "payload": {"resource_id": "water_ml", "quantity": quantity},
+        "source_id": "ASM-H01-TEST-RESOURCE-OPERATION-V1",
+    }
+
+
+def test_a_scenario_bounds_what_one_resource_can_hold(scenario_with_stock) -> None:
+    """The ledger's kernel holds 64-bit ints: a Scenario's stock and deliveries of one resource
+    stay within MAX_RESOURCE_QUANTITY, with a clear error at validation and not in the Run."""
+    assert MAX_RESOURCE_QUANTITY == 10**15
+    half = MAX_RESOURCE_QUANTITY // 2
+    scenario_with_stock(water_ml=MAX_RESOURCE_QUANTITY)
+    scenario_with_stock(water_ml=half, scheduled_events=[_delivery(0, half)])
+    with pytest.raises(ValidationError, match="less than or equal to 1000000000000000"):
+        scenario_with_stock(water_ml=MAX_RESOURCE_QUANTITY + 1)
+    with pytest.raises(ValidationError, match="quantity exceeds 1000000000000000"):
+        scenario_with_stock(scheduled_events=[_delivery(0, 2**64)])
+    with pytest.raises(
+        ValidationError,
+        match="initial stock and scheduled deliveries of water_ml exceed 1000000000000000",
+    ):
+        scenario_with_stock(
+            water_ml=half, scheduled_events=[_delivery(0, half), _delivery(1, half)]
+        )
 
 
 def test_resource_operations_balance_inventory_and_preserve_audit_sources(

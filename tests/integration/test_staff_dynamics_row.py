@@ -687,8 +687,9 @@ def _outcome(rule: Any, *arguments: Any, **options: Any) -> tuple[str, str]:
 
 
 # The configs the kernel's canonical config does not take, of types the rows do not hold, and the
-# ones whose `in` raises TypeError in Python (an unhashable policy).
-REFUSED_CONFIGS = {9, 10}
+# ones whose `in` raises TypeError in Python (an unhashable policy). Since model version 2 a
+# `schema_version` of 1.0 or true (configs 9 and 10) is taken and written as the int 1.
+REFUSED_CONFIGS: set[int] = set()
 
 
 @pytest.mark.parametrize(
@@ -697,8 +698,7 @@ REFUSED_CONFIGS = {9, 10}
 def test_a_new_namespace_has_the_config_of_the_python_check(index: int) -> None:
     """`create_staff_dynamics_state` makes its config in Rust: what
     `canonical_staff_dynamics_config` gives, which a Scenario's check keeps in Python, or its
-    ValueError's text, or KernelRefusal for a value of a type the rows do not hold
-    (`schema_version: 1.0`, `True`)."""
+    ValueError's text, or KernelRefusal for a value of a type the rows do not hold."""
     raw = CONFIGS[index]
     world = WorldState("s", 1, 100, staff={"S01": StaffState("S01", "z", ())})
     world.model_configs["staff_dynamics"] = copy.deepcopy(raw)
@@ -718,6 +718,7 @@ def test_a_new_namespace_has_the_config_of_the_python_check(index: int) -> None:
         config.pop("max_continuous_work_minutes_by_staff")
     assert expected[0] == "value"
     assert _text(state["config"]) == _text(config)
+    assert type(state["config"]["schema_version"]) is int
 
 
 def test_a_new_namespace_shares_the_config_s_windows_as_the_python_rule_did() -> None:
