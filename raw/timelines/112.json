@@ -1,0 +1,170 @@
+[
+  {
+    "sha": "7a0d96dd781b24c7640a51f0de27670515510472",
+    "node_id": "C_kwDOU3hqGNoAKDdhMGQ5NmRkNzgxYjI0Yzc2NDBhNTFmMGRlMjc2NzA1MTU1MTA0NzI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7a0d96dd781b24c7640a51f0de27670515510472",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/7a0d96dd781b24c7640a51f0de27670515510472",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:48:03Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:48:03Z"
+    },
+    "tree": {
+      "sha": "33403cde518b93248436bbc45852d458eb7f89f1",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/33403cde518b93248436bbc45852d458eb7f89f1"
+    },
+    "message": "Move test_region_water_outage_conditions.py under tests/unit/region\n\nOnly the file move, named after the module whose operational\nconditions it checks (region/conditions.py), so its history stays\ntraceable. The next commit splits out its run and switches that to the\nshared generated Scenario (#88).\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "466e1d2089601d09592f2c9785b7de9726f36968",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/466e1d2089601d09592f2c9785b7de9726f36968",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/466e1d2089601d09592f2c9785b7de9726f36968"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "210c7936ea33b28322347649eebbfa11d1945e34",
+    "node_id": "C_kwDOU3hqGNoAKDIxMGM3OTM2ZWEzM2IyODMyMjM0NzY0OWVlYmJmYTExZDE5NDVlMzQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/210c7936ea33b28322347649eebbfa11d1945e34",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/210c7936ea33b28322347649eebbfa11d1945e34",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:51:44Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:51:44Z"
+    },
+    "tree": {
+      "sha": "0ab1c21105166830dc98ee05945fcaf19582d6d2",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/0ab1c21105166830dc98ee05945fcaf19582d6d2"
+    },
+    "message": "Run an operator-entered water outage on the shared generated Scenario\n\nThe run test built its own Scenario with InitialScenarioBuilder (12\nevacuees, half a day, seed 7). It now passes the same operational\nconditions to generated_scenario_with and moves to\ntests/integration/test_water_outage_conditions.py (#88).\n\nThe test of how a repeating outage expands into linked scheduled events\nchecks the generator itself, so it keeps building the draft directly.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "7a0d96dd781b24c7640a51f0de27670515510472",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7a0d96dd781b24c7640a51f0de27670515510472",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/7a0d96dd781b24c7640a51f0de27670515510472"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34356813399,
+    "node_id": "ME_lADOU3hqGM8AAAABaRGCOc8AAAAH_9NeVw",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34356813399",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "7a0aa248a917862a72083ed6427b734c749c9900",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/7a0aa248a917862a72083ed6427b734c749c9900",
+    "created_at": "2026-10-27T10:52:14Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34356813527,
+    "node_id": "CE_lADOU3hqGM8AAAABaRGCOc8AAAAH_9Ne1w",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34356813527",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T10:52:14Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34356818456,
+    "node_id": "HRDE_lADOU3hqGM8AAAABaRGCOc8AAAAH_9NyGA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34356818456",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T10:52:18Z",
+    "performed_via_github_app": null
+  }
+]
+

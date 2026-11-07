@@ -1,0 +1,86 @@
+[
+  {
+    "source_url": "https://github.com/user-attachments/assets/291dad28-6b5f-4ac8-a3bb-91ed39e4a765",
+    "status": "connection_error",
+    "error_type": "URLError",
+    "reason": "CONNECT tunnel rejected with HTTP 403 by environment network policy"
+  },
+  {
+    "source_url": "https://github.com/user-attachments/assets/2b10e03c-4ea8-4e76-b902-e1a309fbd5d3",
+    "status": "connection_error",
+    "error_type": "URLError",
+    "reason": "CONNECT tunnel rejected with HTTP 403 by environment network policy"
+  },
+  {
+    "source_url": "https://github.com/user-attachments/assets/45b01403-2233-4950-829d-257e12d97705",
+    "status": "connection_error",
+    "error_type": "URLError",
+    "reason": "CONNECT tunnel rejected with HTTP 403 by environment network policy"
+  },
+  {
+    "source_url": "https://github.com/user-attachments/assets/49d49b9e-58ae-4e44-b3eb-0075a0c31097",
+    "status": "connection_error",
+    "error_type": "URLError",
+    "reason": "CONNECT tunnel rejected with HTTP 403 by environment network policy"
+  },
+  {
+    "source_url": "https://github.com/user-attachments/assets/4c90389c-3cc3-4a10-997d-272ce7127397",
+    "status": "connection_error",
+    "error_type": "URLError",
+    "reason": "CONNECT tunnel rejected with HTTP 403 by environment network policy"
+  },
+  {
+    "source_url": "https://github.com/user-attachments/assets/578c087e-7a1e-4b43-b3cc-cdc9ff46f78b",
+    "status": "connection_error",
+    "error_type": "URLError",
+    "reason": "CONNECT tunnel rejected with HTTP 403 by environment network policy"
+  },
+  {
+    "source_url": "https://github.com/user-attachments/assets/7c3cd8b2-cad5-4aec-8ea5-0d2983f52c57",
+    "status": "connection_error",
+    "error_type": "URLError",
+    "reason": "CONNECT tunnel rejected with HTTP 403 by environment network policy"
+  },
+  {
+    "source_url": "https://github.com/user-attachments/assets/86487258-815c-468b-b038-51e71b65fcfb",
+    "status": "connection_error",
+    "error_type": "URLError",
+    "reason": "CONNECT tunnel rejected with HTTP 403 by environment network policy"
+  },
+  {
+    "source_url": "https://github.com/user-attachments/assets/9a300762-309a-4e1a-8793-46d25244c7d7",
+    "status": "connection_error",
+    "error_type": "URLError",
+    "reason": "CONNECT tunnel rejected with HTTP 403 by environment network policy"
+  },
+  {
+    "source_url": "https://github.com/user-attachments/assets/acbea4ee-8905-430e-a633-d05a921b6e64",
+    "status": "connection_error",
+    "error_type": "URLError",
+    "reason": "CONNECT tunnel rejected with HTTP 403 by environment network policy"
+  },
+  {
+    "source_url": "https://github.com/user-attachments/assets/b7f29b55-5cd7-4cc2-be90-e2f414597a44",
+    "status": "connection_error",
+    "error_type": "URLError",
+    "reason": "CONNECT tunnel rejected with HTTP 403 by environment network policy"
+  },
+  {
+    "source_url": "https://github.com/user-attachments/assets/c8e930a7-a0be-43f5-b182-c7d421a60c6e",
+    "status": "connection_error",
+    "error_type": "URLError",
+    "reason": "CONNECT tunnel rejected with HTTP 403 by environment network policy"
+  },
+  {
+    "source_url": "https://github.com/user-attachments/assets/cfaa812e-45bb-4a6f-916e-2241c23df780",
+    "status": "connection_error",
+    "error_type": "URLError",
+    "reason": "CONNECT tunnel rejected with HTTP 403 by environment network policy"
+  },
+  {
+    "source_url": "https://github.com/user-attachments/assets/d9400940-c96a-4d2e-9471-c39383aa7247",
+    "status": "connection_error",
+    "error_type": "URLError",
+    "reason": "CONNECT tunnel rejected with HTTP 403 by environment network policy"
+  }
+]

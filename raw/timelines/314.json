@@ -1,0 +1,360 @@
+[
+  {
+    "sha": "8130dfbd4f126fa8225312fe14f800f35ff398c0",
+    "node_id": "C_kwDOU3hqGNoAKDgxMzBkZmJkNGYxMjZmYTgyMjUzMTJmZTE0ZjgwMGYzNWZmMzk4YzA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/8130dfbd4f126fa8225312fe14f800f35ff398c0",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/8130dfbd4f126fa8225312fe14f800f35ff398c0",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T21:48:23Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T21:48:23Z"
+    },
+    "tree": {
+      "sha": "0a10cf416aa9feaee0110ac3dacc0fcabd51d9fc",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/0a10cf416aa9feaee0110ac3dacc0fcabd51d9fc"
+    },
+    "message": "Read an inserted container again before writing to it, and lint for it\n\nThe Rust port keeps model_state in tracked containers that convert a plain\ncontainer on insert, so a write through the name it had before the insert would\nreach neither the tree nor Rust. Three sites did that. Results and the 674\nCheckpoint files of the seven-day run stay byte-identical.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "478feaee5c45527260266b615095c0dcd199a159",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/478feaee5c45527260266b615095c0dcd199a159",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/478feaee5c45527260266b615095c0dcd199a159"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "9903b688121fff29f30bd894ad465d91829fe3d2",
+    "node_id": "C_kwDOU3hqGNoAKDk5MDNiNjg4MTIxZmZmMjlmMzBiZDg5NGFkNDY1ZDkxODI5ZmUzZDI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/9903b688121fff29f30bd894ad465d91829fe3d2",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/9903b688121fff29f30bd894ad465d91829fe3d2",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T23:17:25Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T23:17:25Z"
+    },
+    "tree": {
+      "sha": "d0d5ec1e27803b6ff85ea5aac03bd891ed9b8032",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/d0d5ec1e27803b6ff85ea5aac03bd891ed9b8032"
+    },
+    "message": "Add a test-only tracked mirror that looks for writes it does not see\n\nA Python prototype of what the Rust port plans for model_state: dict and list\nsubclasses forward every write to a shadow document, a plain container is\nconverted on insert and its alias watched, and a run is compared phase by phase\nwith its shadow and with a plain run, in physical and read-reversed dict order.\nbenchmarks/tracked_mirror_gate.py runs that over the gate's scenarios, and the\npytest plugin runs the whole suite on it.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "8130dfbd4f126fa8225312fe14f800f35ff398c0",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/8130dfbd4f126fa8225312fe14f800f35ff398c0",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/8130dfbd4f126fa8225312fe14f800f35ff398c0"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "ba60fbe7fe30bbf90cdd93e09e7490fb17db1096",
+    "node_id": "C_kwDOU3hqGNoAKGJhNjBmYmU3ZmUzMGJiZjkwY2RkOTNlMDllNzQ5MGZiMTdkYjEwOTY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ba60fbe7fe30bbf90cdd93e09e7490fb17db1096",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/ba60fbe7fe30bbf90cdd93e09e7490fb17db1096",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T23:17:25Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T23:17:25Z"
+    },
+    "tree": {
+      "sha": "b0c3f39409cfd62f87f9c7cca1547db88f17bcf0",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/b0c3f39409cfd62f87f9c7cca1547db88f17bcf0"
+    },
+    "message": "Merge branch 'feature/rust-port' into rust/p1-tracked-mirror",
+    "parents": [
+      {
+        "sha": "9903b688121fff29f30bd894ad465d91829fe3d2",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/9903b688121fff29f30bd894ad465d91829fe3d2",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/9903b688121fff29f30bd894ad465d91829fe3d2"
+      },
+      {
+        "sha": "49a3cfe416162bb75373a41192c69e34544b442c",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/49a3cfe416162bb75373a41192c69e34544b442c",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/49a3cfe416162bb75373a41192c69e34544b442c"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "9409af7249f17e78d85378d27d047ea9bec8a35f",
+    "node_id": "C_kwDOU3hqGNoAKDk0MDlhZjcyNDlmMTdlNzhkODUzNzhkMjdkMDQ3ZWE5YmVjOGEzNWY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/9409af7249f17e78d85378d27d047ea9bec8a35f",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/9409af7249f17e78d85378d27d047ea9bec8a35f",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T01:01:32Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T01:01:32Z"
+    },
+    "tree": {
+      "sha": "e3e895525b4e3b067cbb1d9141456e51f6899cf4",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/e3e895525b4e3b067cbb1d9141456e51f6899cf4"
+    },
+    "message": "Record what the tracked mirror found across the gate and the test suite\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "ba60fbe7fe30bbf90cdd93e09e7490fb17db1096",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ba60fbe7fe30bbf90cdd93e09e7490fb17db1096",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/ba60fbe7fe30bbf90cdd93e09e7490fb17db1096"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "c246fb965c73611d3784a5c62085b494e761259f",
+    "node_id": "C_kwDOU3hqGNoAKGMyNDZmYjk2NWM3MzYxMWQzNzg0YTVjNjIwODViNDk0ZTc2MTI1OWY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c246fb965c73611d3784a5c62085b494e761259f",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/c246fb965c73611d3784a5c62085b494e761259f",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T01:18:33Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T01:18:33Z"
+    },
+    "tree": {
+      "sha": "602119cbeea5c19afabf09760fc60df774a9a9bf",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/602119cbeea5c19afabf09760fc60df774a9a9bf"
+    },
+    "message": "Merge feature/rust-port into rust/p1-tracked-mirror\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "9409af7249f17e78d85378d27d047ea9bec8a35f",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/9409af7249f17e78d85378d27d047ea9bec8a35f",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/9409af7249f17e78d85378d27d047ea9bec8a35f"
+      },
+      {
+        "sha": "50c34dffa082823b58ef33b5f6bb9914c0a4b7e4",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/50c34dffa082823b58ef33b5f6bb9914c0a4b7e4",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/50c34dffa082823b58ef33b5f6bb9914c0a4b7e4"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "12be61d76a23236cfbd2f39d1a510ba79ae92e7c",
+    "node_id": "C_kwDOU3hqGNoAKDEyYmU2MWQ3NmEyMzIzNmNmYmQyZjM5ZDFhNTEwYmE3OWFlOTJlN2M",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/12be61d76a23236cfbd2f39d1a510ba79ae92e7c",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/12be61d76a23236cfbd2f39d1a510ba79ae92e7c",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T01:24:15Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T01:24:15Z"
+    },
+    "tree": {
+      "sha": "cba6a97ccecc45339dcc17a9d7d073d729f60ce0",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/cba6a97ccecc45339dcc17a9d7d073d729f60ce0"
+    },
+    "message": "Follow the phase and view moves in the tracked write lint\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "c246fb965c73611d3784a5c62085b494e761259f",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c246fb965c73611d3784a5c62085b494e761259f",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/c246fb965c73611d3784a5c62085b494e761259f"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "f739cd2cb7a8c98f122a1148400cb6e2afefcea5",
+    "node_id": "C_kwDOU3hqGNoAKGY3MzljZDJjYjdhOGM5OGYxMjJhMTE0ODQwMGNiNmUyYWZlZmNlYTU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f739cd2cb7a8c98f122a1148400cb6e2afefcea5",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/f739cd2cb7a8c98f122a1148400cb6e2afefcea5",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T01:24:58Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T01:24:58Z"
+    },
+    "tree": {
+      "sha": "ad2ece1c30e6d2b4c7d8186a0f00a15886208e09",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/ad2ece1c30e6d2b4c7d8186a0f00a15886208e09"
+    },
+    "message": "Format the lint's allow list\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "12be61d76a23236cfbd2f39d1a510ba79ae92e7c",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/12be61d76a23236cfbd2f39d1a510ba79ae92e7c",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/12be61d76a23236cfbd2f39d1a510ba79ae92e7c"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34746870914,
+    "node_id": "ME_lADOU3hqGM8AAAABbVov4s8AAAAIFxMsgg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34746870914",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "d4571a830972c750d1787e664d3307f46dfdd52b",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/d4571a830972c750d1787e664d3307f46dfdd52b",
+    "created_at": "2026-10-31T01:43:28Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34746870954,
+    "node_id": "CE_lADOU3hqGM8AAAABbVov4s8AAAAIFxMsqg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34746870954",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-31T01:43:28Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34746875674,
+    "node_id": "HRDE_lADOU3hqGM8AAAABbVov4s8AAAAIFxM_Gg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34746875674",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-31T01:43:36Z",
+    "performed_via_github_app": null
+  }
+]
+

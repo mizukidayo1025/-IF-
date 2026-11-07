@@ -1,0 +1,206 @@
+[
+  {
+    "sha": "eadd2bebeca53700356e77061fac8c55da54a1ff",
+    "node_id": "C_kwDOU3hqGNoAKGVhZGQyYmViZWNhNTM3MDAzNTZlNzcwNjFmYWM4YzU1ZGE1NGExZmY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/eadd2bebeca53700356e77061fac8c55da54a1ff",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/eadd2bebeca53700356e77061fac8c55da54a1ff",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T22:54:21Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T22:54:21Z"
+    },
+    "tree": {
+      "sha": "846aa7a5d2bf7abacbc020a1fe8cff37c065400d",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/846aa7a5d2bf7abacbc020a1fe8cff37c065400d"
+    },
+    "message": "Split the runner's tick phases into experiments/phases\n\nMove the controller's phase code out of experiments/runner.py, one mixin per\ntick phase. Each `_run_*_phase` method is the phase's list of steps, each step a\nnamed method, so one step can later be replaced with a single call-site hunk.\nOfflineSimulationController stays the entry point and keeps its attribute names.\nMixins keep the moved method text unchanged and add no call per agent.\n\nNo behaviour change. The gate's coverage list follows the moved code.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "49a3cfe416162bb75373a41192c69e34544b442c",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/49a3cfe416162bb75373a41192c69e34544b442c",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/49a3cfe416162bb75373a41192c69e34544b442c"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "bfba400666ef6ef89639b5252986631bb92a0570",
+    "node_id": "C_kwDOU3hqGNoAKGJmYmE0MDA2NjZlZjZlZjg5NjM5YjUyNTI5ODY2MzFiYjkyYTA1NzA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/bfba400666ef6ef89639b5252986631bb92a0570",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/bfba400666ef6ef89639b5252986631bb92a0570",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T22:55:31Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T22:55:31Z"
+    },
+    "tree": {
+      "sha": "92241a545e9ce829675863f101f731b135f2aeb9",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/92241a545e9ce829675863f101f731b135f2aeb9"
+    },
+    "message": "Move WorldView and the view types into policies/world_view.py\n\nThe scoring stays in policies/behavior.py, which re-exports the public view types\nand the two private names tests read. The one test that patched\nbehavior._view_state_hash now patches world_view, where WorldView reads it; a patch\nof the re-export would do nothing.\n\nNo behaviour change.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "eadd2bebeca53700356e77061fac8c55da54a1ff",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/eadd2bebeca53700356e77061fac8c55da54a1ff",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/eadd2bebeca53700356e77061fac8c55da54a1ff"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "a58a917f53584f9d2758ba2a6f1b9973296fde1e",
+    "node_id": "C_kwDOU3hqGNoAKGE1OGE5MTdmNTM1ODRmOWQyNzU4YmEyYTZmMWI5OTczMjk2ZmRlMWU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/a58a917f53584f9d2758ba2a6f1b9973296fde1e",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/a58a917f53584f9d2758ba2a6f1b9973296fde1e",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T22:56:48Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T22:57:19Z"
+    },
+    "tree": {
+      "sha": "532d0865e2f29af22bdf3b53745ee87829de0bfe",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/532d0865e2f29af22bdf3b53745ee87829de0bfe"
+    },
+    "message": "Split the contact kernels into rules/social_propagation and rules/information\n\nThe two kernels move to native/src/rules/, where build.rs finds them, and stay\nregistered at the top of the module, so Python's calls do not change. The sampling\nand record reading they share stay in contacts.rs, now pub(crate).\n\nNo behaviour change.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "bfba400666ef6ef89639b5252986631bb92a0570",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/bfba400666ef6ef89639b5252986631bb92a0570",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/bfba400666ef6ef89639b5252986631bb92a0570"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34741139398,
+    "node_id": "ME_lADOU3hqGM8AAAABbUg7Hs8AAAAIFru3xg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34741139398",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "7991c22e8ec73ac1371e39484148cf2c201cc855",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/7991c22e8ec73ac1371e39484148cf2c201cc855",
+    "created_at": "2026-10-30T23:31:38Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34741139489,
+    "node_id": "CE_lADOU3hqGM8AAAABbUg7Hs8AAAAIFru4IQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34741139489",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-30T23:31:38Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34741147030,
+    "node_id": "HRDE_lADOU3hqGM8AAAABbUg7Hs8AAAAIFrvVlg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34741147030",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-30T23:31:47Z",
+    "performed_via_github_app": null
+  }
+]
+

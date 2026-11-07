@@ -1,0 +1,324 @@
+[
+  {
+    "sha": "624ae69daf7b8cc72a5e466d576a8fe3a4e96d00",
+    "node_id": "C_kwDOU3hqGNoAKDYyNGFlNjlkYWY3YjhjYzcyYTVlNDY2ZDU3NmE4ZmUzYTRlOTZkMDA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/624ae69daf7b8cc72a5e466d576a8fe3a4e96d00",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/624ae69daf7b8cc72a5e466d576a8fe3a4e96d00",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T22:10:22Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T22:10:22Z"
+    },
+    "tree": {
+      "sha": "ad2d39f8b43bc4e5b16c6fec3950bcdc0f306e3b",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/ad2d39f8b43bc4e5b16c6fec3950bcdc0f306e3b"
+    },
+    "message": "Move the agent dynamics namespace and the action lifecycle's receipts into Rust\n\nRust owns agent_dynamics_v1 and its writers (rules/agent_dynamics.rs), and writes each lifecycle\nreceipt as an EventRow through EventWriter, with no Python object (rules/action_lifecycle.rs).\nA controller keeps its open actions in ActiveActions; a Python rule gets a plain dict. The row\nkernel replaces agent_dynamics_valid. EventWriter.record now refuses a negative minute as\nEventLogRecord does, and the metrics read the IDs at a minute without making records.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "c60555b233f122e8a6742be4395e152269c8d3c5",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c60555b233f122e8a6742be4395e152269c8d3c5",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/c60555b233f122e8a6742be4395e152269c8d3c5"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "3f872acd172b95c25568c90ce6c1e03b9cf25980",
+    "node_id": "C_kwDOU3hqGNoAKDNmODcyYWNkMTcyYjk1YzI1NTY4YzkwY2U2YzFlMDNiOWNmMjU5ODA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/3f872acd172b95c25568c90ce6c1e03b9cf25980",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/3f872acd172b95c25568c90ce6c1e03b9cf25980",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T22:11:47Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T22:11:47Z"
+    },
+    "tree": {
+      "sha": "41d4a496f3dc550817480f2b123170edb7376a08",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/41d4a496f3dc550817480f2b123170edb7376a08"
+    },
+    "message": "Merge origin/feature/rust-port (lanes E and T) into the action lifecycle lane\n\nBoth sides retired checks of validation.rs. agent_dynamics_v1 joins the route tests of lane T, as\nthe rule for retiring agent_dynamics_valid asks.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "624ae69daf7b8cc72a5e466d576a8fe3a4e96d00",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/624ae69daf7b8cc72a5e466d576a8fe3a4e96d00",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/624ae69daf7b8cc72a5e466d576a8fe3a4e96d00"
+      },
+      {
+        "sha": "41bde2f08f6f2cccaf45a88850d06c03be4c1845",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/41bde2f08f6f2cccaf45a88850d06c03be4c1845",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/41bde2f08f6f2cccaf45a88850d06c03be4c1845"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "994d048082cc684feb3531a051011fd396b007d7",
+    "node_id": "C_kwDOU3hqGNoAKDk5NGQwNDgwODJjYzY4NGZlYjM1MzFhMDUxMDExZmQzOTZiMDA3ZDc",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/994d048082cc684feb3531a051011fd396b007d7",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/994d048082cc684feb3531a051011fd396b007d7",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T22:12:49Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T22:14:59Z"
+    },
+    "tree": {
+      "sha": "5d0cc058c3484ba946e7ff7c0f88a9bbe09d6dce",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/5d0cc058c3484ba946e7ff7c0f88a9bbe09d6dce"
+    },
+    "message": "Keep the route tests' docstring within the line limit\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "3f872acd172b95c25568c90ce6c1e03b9cf25980",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/3f872acd172b95c25568c90ce6c1e03b9cf25980",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/3f872acd172b95c25568c90ce6c1e03b9cf25980"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "478fdb7e858ef79893ff0af88af7970e398f0824",
+    "node_id": "C_kwDOU3hqGNoAKDQ3OGZkYjdlODU4ZWY3OTg5M2ZmMGFmODhhZjc5NzBlMzk4ZjA4MjQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/478fdb7e858ef79893ff0af88af7970e398f0824",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/478fdb7e858ef79893ff0af88af7970e398f0824",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T22:32:17Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T22:32:17Z"
+    },
+    "tree": {
+      "sha": "30174da4d2eaedc573f4caeff30b7f172e250749",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/30174da4d2eaedc573f4caeff30b7f172e250749"
+    },
+    "message": "Merge origin/feature/rust-port (lane H) into the action lifecycle lane\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "994d048082cc684feb3531a051011fd396b007d7",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/994d048082cc684feb3531a051011fd396b007d7",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/994d048082cc684feb3531a051011fd396b007d7"
+      },
+      {
+        "sha": "de984627eac6c92d44083a6dfeea33f4e91a47f4",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/de984627eac6c92d44083a6dfeea33f4e91a47f4",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/de984627eac6c92d44083a6dfeea33f4e91a47f4"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "461edb21677062ae472e93510498cb41e13e5e35",
+    "node_id": "C_kwDOU3hqGNoAKDQ2MWVkYjIxNjc3MDYyYWU0NzJlOTM1MTA0OThjYjQxZTEzZTVlMzU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/461edb21677062ae472e93510498cb41e13e5e35",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/461edb21677062ae472e93510498cb41e13e5e35",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T22:36:01Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T22:36:01Z"
+    },
+    "tree": {
+      "sha": "1f84e95428b8e1d6abede68a0c9251d42155213f",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/1f84e95428b8e1d6abede68a0c9251d42155213f"
+    },
+    "message": "Leave a rule's counter and a record missing from its tree to Python, before anything is written\n\nA rule adds to the event counter unchecked, and a counter near the end of i64 would have wrapped\nwhere Python's int goes on: EventWriter::of now refuses it, and schedule a sequence whose counter\nwould not fit. A record taken past the tree made the agent dynamics writers raise, or change the row\nand not the tree: they now say Unsupported with the row as it was. What is left to fail inside\ncommit is memory and bugs, not data.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "478fdb7e858ef79893ff0af88af7970e398f0824",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/478fdb7e858ef79893ff0af88af7970e398f0824",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/478fdb7e858ef79893ff0af88af7970e398f0824"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "faf9df769801d858a2b650c33204ce7fb6b88a02",
+    "node_id": "C_kwDOU3hqGNoAKGZhZjlkZjc2OTgwMWQ4NThhMmI2NTBjMzMyMDRjZTdmYjZiODhhMDI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/faf9df769801d858a2b650c33204ce7fb6b88a02",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/faf9df769801d858a2b650c33204ce7fb6b88a02",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T00:09:35Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T00:09:35Z"
+    },
+    "tree": {
+      "sha": "91cb559803f400c845757708ed5b721c5627613e",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/91cb559803f400c845757708ed5b721c5627613e"
+    },
+    "message": "Record the action lifecycle lane: what moved, what commit can fail on, and the results\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "461edb21677062ae472e93510498cb41e13e5e35",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/461edb21677062ae472e93510498cb41e13e5e35",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/461edb21677062ae472e93510498cb41e13e5e35"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34805995952,
+    "node_id": "ME_lADOU3hqGM8AAAABbg5qX88AAAAIGplZsA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34805995952",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "3aefc030f1bf45e21beb6ed1a08f3428036b9717",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/3aefc030f1bf45e21beb6ed1a08f3428036b9717",
+    "created_at": "2026-11-01T00:36:41Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34805996025,
+    "node_id": "CE_lADOU3hqGM8AAAABbg5qX88AAAAIGplZ-Q",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34805996025",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-11-01T00:36:41Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34805997447,
+    "node_id": "HRDE_lADOU3hqGM8AAAABbg5qX88AAAAIGplfhw",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34805997447",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-11-01T00:36:43Z",
+    "performed_via_github_app": null
+  }
+]
+

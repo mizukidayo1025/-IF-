@@ -1,0 +1,66 @@
+{
+  "total_count": 3,
+  "artifacts": [
+    {
+      "id": 13083909076,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA4MzkwOTA3Ng==",
+      "name": "test-results-windows-latest",
+      "size_in_bytes": 72902,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13083909076",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13083909076/zip",
+      "expired": false,
+      "digest": "sha256:f280e78f1753264fcee48f7f70fe05cead003427bf1339ea72bd3d3b834f50f7",
+      "created_at": "2026-11-01T12:53:05Z",
+      "updated_at": "2026-11-01T12:53:05Z",
+      "expires_at": "2026-11-08T12:53:05Z",
+      "workflow_run": {
+        "id": 41307564171,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/m4-service",
+        "head_sha": "ad3c95b61f5435591205473e36352738859b455b"
+      }
+    },
+    {
+      "id": 13083748678,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA4Mzc0ODY3OA==",
+      "name": "test-results-macos-latest",
+      "size_in_bytes": 70399,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13083748678",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13083748678/zip",
+      "expired": false,
+      "digest": "sha256:bfafd382339b265e59359ec4af5d3a4c8ef343af337df2a1feb141a1bb8d0c43",
+      "created_at": "2026-11-01T12:46:31Z",
+      "updated_at": "2026-11-01T12:46:31Z",
+      "expires_at": "2026-11-08T12:46:30Z",
+      "workflow_run": {
+        "id": 41307564171,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/m4-service",
+        "head_sha": "ad3c95b61f5435591205473e36352738859b455b"
+      }
+    },
+    {
+      "id": 13083684953,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA4MzY4NDk1Mw==",
+      "name": "test-results-ubuntu-latest",
+      "size_in_bytes": 141642,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13083684953",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13083684953/zip",
+      "expired": false,
+      "digest": "sha256:28230d52e71d7e8e47e5e1839a4ef91e3db902afa0107f66df31d21e3894e891",
+      "created_at": "2026-11-01T12:53:25Z",
+      "updated_at": "2026-11-01T12:53:25Z",
+      "expires_at": "2026-11-08T12:53:24Z",
+      "workflow_run": {
+        "id": 41307564171,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/m4-service",
+        "head_sha": "ad3c95b61f5435591205473e36352738859b455b"
+      }
+    }
+  ]
+}
+

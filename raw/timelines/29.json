@@ -1,0 +1,401 @@
+[
+  {
+    "sha": "daae8eb20947f5e36e4f84365b6c5ae0d098469a",
+    "node_id": "C_kwDOU3hqGNoAKGRhYWU4ZWIyMDk0N2Y1ZTM2ZTRmODQzNjViNmM1YWUwZDA5ODQ2OWE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/daae8eb20947f5e36e4f84365b6c5ae0d098469a",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/daae8eb20947f5e36e4f84365b6c5ae0d098469a",
+    "author": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T18:05:31Z"
+    },
+    "committer": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T18:05:31Z"
+    },
+    "tree": {
+      "sha": "b4c6bad414a095f15136d0a7c42c0906ab33907d",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/b4c6bad414a095f15136d0a7c42c0906ab33907d"
+    },
+    "message": "feat(web): add independent Hinanjo IF backup UI with real project API flow",
+    "parents": [
+      {
+        "sha": "0d3a641d6a8470085b49e09cfda4a8c2cbe467a5",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/0d3a641d6a8470085b49e09cfda4a8c2cbe467a5",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/0d3a641d6a8470085b49e09cfda4a8c2cbe467a5"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "03b0e0d2eef4704ca33521d29ad7ff7f338c7703",
+    "node_id": "C_kwDOU3hqGNoAKDAzYjBlMGQyZWVmNDcwNGNhMzM1MjFkMjlhZDdmZjdmMzM4Yzc3MDM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/03b0e0d2eef4704ca33521d29ad7ff7f338c7703",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/03b0e0d2eef4704ca33521d29ad7ff7f338c7703",
+    "author": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T18:22:14Z"
+    },
+    "committer": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T18:22:14Z"
+    },
+    "tree": {
+      "sha": "4bf4725ae9f14b74db87ebfa5d3fdf17896ca68c",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/4bf4725ae9f14b74db87ebfa5d3fdf17896ca68c"
+    },
+    "message": "Require Claude API for backup demo",
+    "parents": [
+      {
+        "sha": "daae8eb20947f5e36e4f84365b6c5ae0d098469a",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/daae8eb20947f5e36e4f84365b6c5ae0d098469a",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/daae8eb20947f5e36e4f84365b6c5ae0d098469a"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "30044816139b35b6ecfdb84358fbe0d6674fa629",
+    "node_id": "C_kwDOU3hqGNoAKDMwMDQ0ODE2MTM5YjM1YjZlY2ZkYjg0MzU4ZmJlMGQ2Njc0ZmE2Mjk",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/30044816139b35b6ecfdb84358fbe0d6674fa629",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/30044816139b35b6ecfdb84358fbe0d6674fa629",
+    "author": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T18:39:12Z"
+    },
+    "committer": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T18:39:12Z"
+    },
+    "tree": {
+      "sha": "13ce61b686e6f4c8429f2d4b4f7c2ea200589223",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/13ce61b686e6f4c8429f2d4b4f7c2ea200589223"
+    },
+    "message": "Audit approved shared LLM budget increases",
+    "parents": [
+      {
+        "sha": "03b0e0d2eef4704ca33521d29ad7ff7f338c7703",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/03b0e0d2eef4704ca33521d29ad7ff7f338c7703",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/03b0e0d2eef4704ca33521d29ad7ff7f338c7703"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "bba3a82322a63b0195e605ede88fcaf8b3067f88",
+    "node_id": "C_kwDOU3hqGNoAKGJiYTNhODIzMjJhNjNiMDE5NWU2MDVlZGU4OGZjYWY4YjMwNjdmODg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/bba3a82322a63b0195e605ede88fcaf8b3067f88",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/bba3a82322a63b0195e605ede88fcaf8b3067f88",
+    "author": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T19:54:41Z"
+    },
+    "committer": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T19:54:41Z"
+    },
+    "tree": {
+      "sha": "58cb2d15811a9749ee253093d3efa098a21d1f7d",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/58cb2d15811a9749ee253093d3efa098a21d1f7d"
+    },
+    "message": "Improve backup UI layouts and recorded map rendering",
+    "parents": [
+      {
+        "sha": "30044816139b35b6ecfdb84358fbe0d6674fa629",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/30044816139b35b6ecfdb84358fbe0d6674fa629",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/30044816139b35b6ecfdb84358fbe0d6674fa629"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "155618e18ab5e92c6bec48a6fb7d2c2fc7e4cefb",
+    "node_id": "C_kwDOU3hqGNoAKDE1NTYxOGUxOGFiNWU5MmM2YmVjNDhhNmZiN2QyYzJmYzdlNGNlZmI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/155618e18ab5e92c6bec48a6fb7d2c2fc7e4cefb",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/155618e18ab5e92c6bec48a6fb7d2c2fc7e4cefb",
+    "author": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T22:18:10Z"
+    },
+    "committer": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T22:18:10Z"
+    },
+    "tree": {
+      "sha": "e614fb7872b8859419087606536c2fcb446fffde",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/e614fb7872b8859419087606536c2fcb446fffde"
+    },
+    "message": "Merge remote-tracking branch 'origin/main' into feature/ui-backup-20261025",
+    "parents": [
+      {
+        "sha": "bba3a82322a63b0195e605ede88fcaf8b3067f88",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/bba3a82322a63b0195e605ede88fcaf8b3067f88",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/bba3a82322a63b0195e605ede88fcaf8b3067f88"
+      },
+      {
+        "sha": "19b986289ab6d321b9606614d8b4dd22344c11a7",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/19b986289ab6d321b9606614d8b4dd22344c11a7",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/19b986289ab6d321b9606614d8b4dd22344c11a7"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "d86ce155226d5d2d7bc0704de4337fdc92b3645c",
+    "node_id": "C_kwDOU3hqGNoAKGQ4NmNlMTU1MjI2ZDVkMmQ3YmMwNzA0ZGU0MzM3ZmRjOTJiMzY0NWM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/d86ce155226d5d2d7bc0704de4337fdc92b3645c",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/d86ce155226d5d2d7bc0704de4337fdc92b3645c",
+    "author": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T22:48:40Z"
+    },
+    "committer": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T22:48:40Z"
+    },
+    "tree": {
+      "sha": "d323a0ec9dd32726026e58cac1d890e0cbed6c42",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/d323a0ec9dd32726026e58cac1d890e0cbed6c42"
+    },
+    "message": "Add schematic shelter maps and continuous recorded character playback",
+    "parents": [
+      {
+        "sha": "155618e18ab5e92c6bec48a6fb7d2c2fc7e4cefb",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/155618e18ab5e92c6bec48a6fb7d2c2fc7e4cefb",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/155618e18ab5e92c6bec48a6fb7d2c2fc7e4cefb"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "7411aaa8e12c1afc95ab2e4dedb7c55609bfd309",
+    "node_id": "C_kwDOU3hqGNoAKDc0MTFhYWE4ZTEyYzFhZmM5NWFiMmU0ZGVkYjdjNTU2MDliZmQzMDk",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7411aaa8e12c1afc95ab2e4dedb7c55609bfd309",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/7411aaa8e12c1afc95ab2e4dedb7c55609bfd309",
+    "author": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-25T00:06:11Z"
+    },
+    "committer": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-25T00:06:11Z"
+    },
+    "tree": {
+      "sha": "ced46d2df6f1cc7a8b13fb8462c0de88e28b0fe0",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/ced46d2df6f1cc7a8b13fb8462c0de88e28b0fe0"
+    },
+    "message": "Add exact bounded frame reads for buffered replay",
+    "parents": [
+      {
+        "sha": "d86ce155226d5d2d7bc0704de4337fdc92b3645c",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/d86ce155226d5d2d7bc0704de4337fdc92b3645c",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/d86ce155226d5d2d7bc0704de4337fdc92b3645c"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "2125f5350cdb71ba3cfba91213b26b100303144d",
+    "node_id": "C_kwDOU3hqGNoAKDIxMjVmNTM1MGNkYjcxYmEzY2ZiYTkxMjEzYjI2YjEwMDMwMzE0NGQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/2125f5350cdb71ba3cfba91213b26b100303144d",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/2125f5350cdb71ba3cfba91213b26b100303144d",
+    "author": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-25T00:06:20Z"
+    },
+    "committer": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-25T00:06:20Z"
+    },
+    "tree": {
+      "sha": "7baad9505b31a4f93dd320d475dbbb1c143a4dd0",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/7baad9505b31a4f93dd320d475dbbb1c143a4dd0"
+    },
+    "message": "Improve sprite characters and real-time recorded playback",
+    "parents": [
+      {
+        "sha": "7411aaa8e12c1afc95ab2e4dedb7c55609bfd309",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7411aaa8e12c1afc95ab2e4dedb7c55609bfd309",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/7411aaa8e12c1afc95ab2e4dedb7c55609bfd309"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "9211f270fdfe1cc265e40a99397821ec49a6a934",
+    "node_id": "C_kwDOU3hqGNoAKDkyMTFmMjcwZmRmZTFjYzI2NWU0MGE5OTM5NzgyMWVjNDlhNmE5MzQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/9211f270fdfe1cc265e40a99397821ec49a6a934",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/9211f270fdfe1cc265e40a99397821ec49a6a934",
+    "author": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-25T01:24:52Z"
+    },
+    "committer": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-25T01:24:52Z"
+    },
+    "tree": {
+      "sha": "c3375f910a38bd802bb690d72a7f7a4943975a77",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/c3375f910a38bd802bb690d72a7f7a4943975a77"
+    },
+    "message": "Merge remote-tracking branch 'origin/main' into feature/ui-backup-20261025",
+    "parents": [
+      {
+        "sha": "2125f5350cdb71ba3cfba91213b26b100303144d",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/2125f5350cdb71ba3cfba91213b26b100303144d",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/2125f5350cdb71ba3cfba91213b26b100303144d"
+      },
+      {
+        "sha": "449bed29dca94c7214685ae31d6d017bab708945",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/449bed29dca94c7214685ae31d6d017bab708945",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/449bed29dca94c7214685ae31d6d017bab708945"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34159007709,
+    "node_id": "ME_lADOU3hqGM8AAAABZsu40M8AAAAH9AkX3Q",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34159007709",
+    "actor": {
+      "login": "mizukidayo1025",
+      "id": 245258530,
+      "node_id": "U_kgDODp5ZIg",
+      "avatar_url": "https://avatars.githubusercontent.com/u/245258530?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/mizukidayo1025",
+      "html_url": "https://github.com/mizukidayo1025",
+      "followers_url": "https://api.github.com/users/mizukidayo1025/followers",
+      "following_url": "https://api.github.com/users/mizukidayo1025/following{/other_user}",
+      "gists_url": "https://api.github.com/users/mizukidayo1025/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/mizukidayo1025/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/mizukidayo1025/subscriptions",
+      "organizations_url": "https://api.github.com/users/mizukidayo1025/orgs",
+      "repos_url": "https://api.github.com/users/mizukidayo1025/repos",
+      "events_url": "https://api.github.com/users/mizukidayo1025/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/mizukidayo1025/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "603f215f2ccefbf479c66d89f24877ef14fa586e",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/603f215f2ccefbf479c66d89f24877ef14fa586e",
+    "created_at": "2026-10-25T01:26:10Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34159007774,
+    "node_id": "CE_lADOU3hqGM8AAAABZsu40M8AAAAH9AkYHg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34159007774",
+    "actor": {
+      "login": "mizukidayo1025",
+      "id": 245258530,
+      "node_id": "U_kgDODp5ZIg",
+      "avatar_url": "https://avatars.githubusercontent.com/u/245258530?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/mizukidayo1025",
+      "html_url": "https://github.com/mizukidayo1025",
+      "followers_url": "https://api.github.com/users/mizukidayo1025/followers",
+      "following_url": "https://api.github.com/users/mizukidayo1025/following{/other_user}",
+      "gists_url": "https://api.github.com/users/mizukidayo1025/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/mizukidayo1025/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/mizukidayo1025/subscriptions",
+      "organizations_url": "https://api.github.com/users/mizukidayo1025/orgs",
+      "repos_url": "https://api.github.com/users/mizukidayo1025/repos",
+      "events_url": "https://api.github.com/users/mizukidayo1025/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/mizukidayo1025/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-25T01:26:10Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  }
+]
+

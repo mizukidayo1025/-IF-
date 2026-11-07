@@ -1,0 +1,97 @@
+{
+  "description": {
+    "source": "避難者の行動・心理状態・感情伝播まで再現し、途中介入・A/B比較・AI分析を通じて、避難所運営の「もしも」を事前に検証できるシミュレーター",
+    "destination_snapshot": "避難者の行動・心理状態・感情伝播まで再現し、途中介入・A/B比較・AI分析を通じて、避難所運営の「もしも」を事前に検証できるシミュレーター  Resources",
+    "matches": false
+  },
+  "homepage": {
+    "source": "",
+    "destination_snapshot": null,
+    "matches": true
+  },
+  "default_branch": {
+    "source": "main",
+    "destination_snapshot": "main",
+    "matches": true
+  },
+  "has_issues": {
+    "source": true,
+    "destination_snapshot": true,
+    "matches": true
+  },
+  "has_wiki": {
+    "source": true,
+    "destination_snapshot": true,
+    "matches": true
+  },
+  "has_projects": {
+    "source": true,
+    "destination_snapshot": true,
+    "matches": true
+  },
+  "has_discussions": {
+    "source": false,
+    "destination_snapshot": false,
+    "matches": true
+  },
+  "allow_squash_merge": {
+    "source": true,
+    "destination_snapshot": true,
+    "matches": true
+  },
+  "allow_merge_commit": {
+    "source": true,
+    "destination_snapshot": true,
+    "matches": true
+  },
+  "allow_rebase_merge": {
+    "source": true,
+    "destination_snapshot": true,
+    "matches": true
+  },
+  "allow_auto_merge": {
+    "source": false,
+    "destination_snapshot": false,
+    "matches": true
+  },
+  "delete_branch_on_merge": {
+    "source": false,
+    "destination_snapshot": false,
+    "matches": true
+  },
+  "allow_update_branch": {
+    "source": false,
+    "destination_snapshot": false,
+    "matches": true
+  },
+  "web_commit_signoff_required": {
+    "source": false,
+    "destination_snapshot": false,
+    "matches": true
+  },
+  "squash_merge_commit_message": {
+    "source": "COMMIT_MESSAGES",
+    "destination_snapshot": "COMMIT_MESSAGES",
+    "matches": true
+  },
+  "squash_merge_commit_title": {
+    "source": "COMMIT_OR_PR_TITLE",
+    "destination_snapshot": "COMMIT_OR_PR_TITLE",
+    "matches": true
+  },
+  "merge_commit_message": {
+    "source": "PR_TITLE",
+    "destination_snapshot": "PR_TITLE",
+    "matches": true
+  },
+  "merge_commit_title": {
+    "source": "MERGE_MESSAGE",
+    "destination_snapshot": "MERGE_MESSAGE",
+    "matches": true
+  },
+  "topics": {
+    "source": [],
+    "destination_snapshot": [],
+    "matches": true
+  }
+}

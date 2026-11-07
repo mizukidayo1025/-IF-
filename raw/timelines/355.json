@@ -1,0 +1,432 @@
+[
+  {
+    "sha": "168777e7eb64df624efd22290db0290e873d0311",
+    "node_id": "C_kwDOU3hqGNoAKDE2ODc3N2U3ZWI2NGRmNjI0ZWZkMjIyOTBkYjAyOTBlODczZDAzMTE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/168777e7eb64df624efd22290db0290e873d0311",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/168777e7eb64df624efd22290db0290e873d0311",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-02T10:46:53Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-02T10:46:53Z"
+    },
+    "tree": {
+      "sha": "5221195670a25b31c1891f8288c1abb7f534a80f",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/5221195670a25b31c1891f8288c1abb7f534a80f"
+    },
+    "message": "Give event outcome texts one exit in Rust, compare them with the Python rules, and move the handlers' and information events' texts\n\ncore/errors.rs raises EventSuppressed and EventApplicationError with the rule's text and notes where\nit was made; benchmarks/rule_shadow/text_check.py runs the Python rule on the same input each time a\nkernel raises one, through a hook of kernel_first and the dispatch loop's direct calls. The kernels of\nhandlers.rs and information_events.rs now check in the Python rules' order and raise their texts\ninstead of refusing.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01K4QyYRukuCLBerKa4UYj4y",
+    "parents": [
+      {
+        "sha": "20807e944cd3dafc37e00e32769e5d490128cc9b",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/20807e944cd3dafc37e00e32769e5d490128cc9b",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/20807e944cd3dafc37e00e32769e5d490128cc9b"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "2ff47c39aedea8fde1754c5f6005fa404f78e713",
+    "node_id": "C_kwDOU3hqGNoAKDJmZjQ3YzM5YWVkZWE4ZmRlMTc1NGM1ZjYwMDVmYTQwNGY3OGU3MTM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/2ff47c39aedea8fde1754c5f6005fa404f78e713",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/2ff47c39aedea8fde1754c5f6005fa404f78e713",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-02T11:04:26Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-02T11:04:26Z"
+    },
+    "tree": {
+      "sha": "d3dafad9c8f0ddd26c17ac136761e3c4bb020898",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/d3dafad9c8f0ddd26c17ac136761e3c4bb020898"
+    },
+    "message": "Move the staff operation, support, travel, toilet, timeout, effect facility and social texts, and test them\n\nThe kernels of the staff operation events, staff support completion, a walk's first checks, a\ntoilet visit's, a support timeout, an EffectProgram's facility modifier and a typed social event's\nfirst checks raise the Python rule's texts in its order. The dispatch loop records those its direct\ncalls raise. Tests that asserted a refusal now assert the kernel's own text equals the Python rule's.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01K4QyYRukuCLBerKa4UYj4y",
+    "parents": [
+      {
+        "sha": "168777e7eb64df624efd22290db0290e873d0311",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/168777e7eb64df624efd22290db0290e873d0311",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/168777e7eb64df624efd22290db0290e873d0311"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "8ea76b12ba5c916ece4355377e6d0b91122a6d2f",
+    "node_id": "C_kwDOU3hqGNoAKDhlYTc2YjEyYmE1YzkxNmVjZTQzNTUzNzdlNmQwYjkxMTIyYTZkMmY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/8ea76b12ba5c916ece4355377e6d0b91122a6d2f",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/8ea76b12ba5c916ece4355377e6d0b91122a6d2f",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-02T11:04:38Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-02T11:04:38Z"
+    },
+    "tree": {
+      "sha": "8bf9191c791b90a62be1a5e8cf736ed3a97a06aa",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/8bf9191c791b90a62be1a5e8cf736ed3a97a06aa"
+    },
+    "message": "Sort an import and shorten a heading of the event text tests\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01K4QyYRukuCLBerKa4UYj4y",
+    "parents": [
+      {
+        "sha": "2ff47c39aedea8fde1754c5f6005fa404f78e713",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/2ff47c39aedea8fde1754c5f6005fa404f78e713",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/2ff47c39aedea8fde1754c5f6005fa404f78e713"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "b5625b11cea3c9e7bb3c7ff5283ea01eb339feb7",
+    "node_id": "C_kwDOU3hqGNoAKGI1NjI1YjExY2VhM2M5ZTdiYjNjN2ZmNTI4M2VhMDFlYjMzOWZlYjc",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/b5625b11cea3c9e7bb3c7ff5283ea01eb339feb7",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/b5625b11cea3c9e7bb3c7ff5283ea01eb339feb7",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-02T11:20:36Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-02T11:20:36Z"
+    },
+    "tree": {
+      "sha": "e57bd5ce0e40cd7521358111d3149f1410bb9477",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/e57bd5ce0e40cd7521358111d3149f1410bb9477"
+    },
+    "message": "Expect the timeout of another person's request in the Python rule's text, and describe the outcome texts' exit\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01K4QyYRukuCLBerKa4UYj4y",
+    "parents": [
+      {
+        "sha": "8ea76b12ba5c916ece4355377e6d0b91122a6d2f",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/8ea76b12ba5c916ece4355377e6d0b91122a6d2f",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/8ea76b12ba5c916ece4355377e6d0b91122a6d2f"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "ce62a82adcbee5190906b0b9d2ec102ee2c17c0b",
+    "node_id": "C_kwDOU3hqGNoAKGNlNjJhODJhZGNiZWU1MTkwOTA2YjBiOWQyZWMxMDJlZTJjMTdjMGI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ce62a82adcbee5190906b0b9d2ec102ee2c17c0b",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/ce62a82adcbee5190906b0b9d2ec102ee2c17c0b",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-02T11:42:04Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-02T11:42:04Z"
+    },
+    "tree": {
+      "sha": "145fecf53db0e626d4dd43911c1fd9f093a135e5",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/145fecf53db0e626d4dd43911c1fd9f093a135e5"
+    },
+    "message": "Test an infrastructure outage's later texts against the Python rule\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01K4QyYRukuCLBerKa4UYj4y",
+    "parents": [
+      {
+        "sha": "b5625b11cea3c9e7bb3c7ff5283ea01eb339feb7",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/b5625b11cea3c9e7bb3c7ff5283ea01eb339feb7",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/b5625b11cea3c9e7bb3c7ff5283ea01eb339feb7"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "b2e47a0df877ae07e5e655cfa54b21f8b12a4f45",
+    "node_id": "C_kwDOU3hqGNoAKGIyZTQ3YTBkZjg3N2FlMDdlNWU2NTVjZmE1NGIyMWY4YjEyYTRmNDU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/b2e47a0df877ae07e5e655cfa54b21f8b12a4f45",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/b2e47a0df877ae07e5e655cfa54b21f8b12a4f45",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-02T11:58:22Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-02T11:58:22Z"
+    },
+    "tree": {
+      "sha": "f4f02ca53b9e21820f4aa9af40c2db3da604b563",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/f4f02ca53b9e21820f4aa9af40c2db3da604b563"
+    },
+    "message": "Raise the guard's ValueError of a non-start EffectProgram event in the Python rule's words\n\nvalidate_effect_program_state's check of a stored guard on another phase was a refusal the gate\nreaches in a tick that fails by design; the kernel now raises the rule's ValueError itself.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01K4QyYRukuCLBerKa4UYj4y",
+    "parents": [
+      {
+        "sha": "ce62a82adcbee5190906b0b9d2ec102ee2c17c0b",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ce62a82adcbee5190906b0b9d2ec102ee2c17c0b",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/ce62a82adcbee5190906b0b9d2ec102ee2c17c0b"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "588c470d1ff4fdc6ddc059ba584243d034cd2f8c",
+    "node_id": "C_kwDOU3hqGNoAKDU4OGM0NzBkMWZmNGZkYzZkZGMwNTliYTU4NDI0M2QwMzRjZDJmOGM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/588c470d1ff4fdc6ddc059ba584243d034cd2f8c",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/588c470d1ff4fdc6ddc059ba584243d034cd2f8c",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-02T12:14:34Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-02T12:14:34Z"
+    },
+    "tree": {
+      "sha": "0fd701809f1e90eea11d49575f7de68381940e8d",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/0fd701809f1e90eea11d49575f7de68381940e8d"
+    },
+    "message": "Write down lane L8a: the saved outcome texts that moved, how they are compared, and what remains\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01K4QyYRukuCLBerKa4UYj4y",
+    "parents": [
+      {
+        "sha": "b2e47a0df877ae07e5e655cfa54b21f8b12a4f45",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/b2e47a0df877ae07e5e655cfa54b21f8b12a4f45",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/b2e47a0df877ae07e5e655cfa54b21f8b12a4f45"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "2e6755b188fc8cf0f755053949133929527a3d28",
+    "node_id": "C_kwDOU3hqGNoAKDJlNjc1NWIxODhmYzhjZjBmNzU1MDUzOTQ5MTMzOTI5NTI3YTNkMjg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/2e6755b188fc8cf0f755053949133929527a3d28",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/2e6755b188fc8cf0f755053949133929527a3d28",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-02T12:15:40Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-02T12:15:40Z"
+    },
+    "tree": {
+      "sha": "4c7aa0db474d49fee48e5372cb74a8a380bb9451",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/4c7aa0db474d49fee48e5372cb74a8a380bb9451"
+    },
+    "message": "Merge remote-tracking branch 'origin/feature/rust-port' into rust/l8-texts-events",
+    "parents": [
+      {
+        "sha": "588c470d1ff4fdc6ddc059ba584243d034cd2f8c",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/588c470d1ff4fdc6ddc059ba584243d034cd2f8c",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/588c470d1ff4fdc6ddc059ba584243d034cd2f8c"
+      },
+      {
+        "sha": "6d5662ca64904231ccd5d05ee5a949f0f4b25c32",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/6d5662ca64904231ccd5d05ee5a949f0f4b25c32",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/6d5662ca64904231ccd5d05ee5a949f0f4b25c32"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "44f6aecf0527329c796ebba5f5240828c864cd85",
+    "node_id": "C_kwDOU3hqGNoAKDQ0ZjZhZWNmMDUyNzMyOWM3OTZlYmJhNWY1MjQwODI4Yzg2NGNkODU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/44f6aecf0527329c796ebba5f5240828c864cd85",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/44f6aecf0527329c796ebba5f5240828c864cd85",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-02T12:35:04Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-02T12:35:04Z"
+    },
+    "tree": {
+      "sha": "60977af47ce0e327ea7ec6c104d421f92977af6c",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/60977af47ce0e327ea7ec6c104d421f92977af6c"
+    },
+    "message": "Merge remote-tracking branch 'origin/feature/rust-port' into rust/l8-texts-events\n\n# Conflicts:\n#\tnative/src/rules/population_lifecycle.rs",
+    "parents": [
+      {
+        "sha": "2e6755b188fc8cf0f755053949133929527a3d28",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/2e6755b188fc8cf0f755053949133929527a3d28",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/2e6755b188fc8cf0f755053949133929527a3d28"
+      },
+      {
+        "sha": "53db4998ebfbad2a536e7bc05ff755a986cda300",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/53db4998ebfbad2a536e7bc05ff755a986cda300",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/53db4998ebfbad2a536e7bc05ff755a986cda300"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34911793536,
+    "node_id": "ME_lADOU3hqGM8AAAABb07GOs8AAAAIIOexgA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34911793536",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "2d419f750135acd2de94197dfd96d546eae44396",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/2d419f750135acd2de94197dfd96d546eae44396",
+    "created_at": "2026-11-02T13:05:17Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34911793752,
+    "node_id": "CE_lADOU3hqGM8AAAABb07GOs8AAAAIIOeyWA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34911793752",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-11-02T13:05:17Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34911797890,
+    "node_id": "HRDE_lADOU3hqGM8AAAABb07GOs8AAAAIIOfCgg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34911797890",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-11-02T13:05:20Z",
+    "performed_via_github_app": null
+  }
+]
+

@@ -1,0 +1,247 @@
+[
+  {
+    "sha": "818e2d2f5548418d851dffb2a09ffa457a3e25bf",
+    "node_id": "C_kwDOU3hqGNoAKDgxOGUyZDJmNTU0ODQxOGQ4NTFkZmZiMmEwOWZmYTQ1N2EzZTI1YmY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/818e2d2f5548418d851dffb2a09ffa457a3e25bf",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/818e2d2f5548418d851dffb2a09ffa457a3e25bf",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T05:40:20Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T05:40:20Z"
+    },
+    "tree": {
+      "sha": "ac2365a9d90975d02aef65362443a4d9ca88e9b0",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/ac2365a9d90975d02aef65362443a4d9ca88e9b0"
+    },
+    "message": "Move information_spread_v1 and the sample step of the information model to Rust\n\nRust owns the namespace in native/src/state/information.rs. The step\n_sample_information_contacts runs native/src/rules/information.rs, with claims and\nbeliefs, for the three information policies, and the namespace is no longer written\nwhole each tick: the tree gets single values, and the contact records are refilled.\nAgents come from the entity rows. A trace, another RNG, a policy's subclass and any\nstate the Python rule might raise on give Unsupported, and the Python step runs.\n\nThe kernel no longer needs InformationSpreadPolicy.native_update, and its validator\nreplaces the Python validation of the namespace when it accepts.\n\nbenchmarks/rule_shadow/information_shadow.py compares every draw, contact,\nprobability and event with the Python rule. rng.rs and world_core.rs take the same\ndraw log and refill_record_map as the social propagation lane, line for line.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "dd6a2948741f9e4a41f566e43735b49976c53f19",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/dd6a2948741f9e4a41f566e43735b49976c53f19",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/dd6a2948741f9e4a41f566e43735b49976c53f19"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "7d564ec5c7bd3f28acdaccd91cb3ec15b0155bc2",
+    "node_id": "C_kwDOU3hqGNoAKDdkNTY0ZWM1YzdiZDNmMjhhY2RhY2NkOTFjYjNlYzE1YjAxNTViYzI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7d564ec5c7bd3f28acdaccd91cb3ec15b0155bc2",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/7d564ec5c7bd3f28acdaccd91cb3ec15b0155bc2",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T06:14:59Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T06:14:59Z"
+    },
+    "tree": {
+      "sha": "c5cd1eaa0e3de976a7d867320908c5ffc0833db4",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/c5cd1eaa0e3de976a7d867320908c5ffc0833db4"
+    },
+    "message": "Compare the forgetting probability with the Python rule's bits\n\nNo contact shows it and a comparison may not flip for a 1% change, so the shadow and\nthe tests read it from the plan.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "818e2d2f5548418d851dffb2a09ffa457a3e25bf",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/818e2d2f5548418d851dffb2a09ffa457a3e25bf",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/818e2d2f5548418d851dffb2a09ffa457a3e25bf"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "7688f067c6b6b7c26c0a028af6b3adc1dee03599",
+    "node_id": "C_kwDOU3hqGNoAKDc2ODhmMDY3YzZiNmI3YzI2YzBhMDI4YWY2YjNhZGMxZGVlMDM1OTk",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7688f067c6b6b7c26c0a028af6b3adc1dee03599",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/7688f067c6b6b7c26c0a028af6b3adc1dee03599",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T09:20:50Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T09:20:50Z"
+    },
+    "tree": {
+      "sha": "0cfc2522554a2fbe55f9eda4b5856ee0f1f7cd96",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/0cfc2522554a2fbe55f9eda4b5856ee0f1f7cd96"
+    },
+    "message": "Record the results of the information lane\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "7d564ec5c7bd3f28acdaccd91cb3ec15b0155bc2",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7d564ec5c7bd3f28acdaccd91cb3ec15b0155bc2",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/7d564ec5c7bd3f28acdaccd91cb3ec15b0155bc2"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "74e2d797ec7ce8f5e597ea4f39078b900ca699c8",
+    "node_id": "C_kwDOU3hqGNoAKDc0ZTJkNzk3ZWM3Y2U4ZjVlNTk3ZWE0ZjM5MDc4YjkwMGNhNjk5Yzg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/74e2d797ec7ce8f5e597ea4f39078b900ca699c8",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/74e2d797ec7ce8f5e597ea4f39078b900ca699c8",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T09:23:30Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T09:23:30Z"
+    },
+    "tree": {
+      "sha": "65447027a11c70e93d0386cf0592321b203ced97",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/65447027a11c70e93d0386cf0592321b203ced97"
+    },
+    "message": "Merge feature/rust-port (lane B) into the information lane\n\nBoth lanes' rows are in the registries. social_channel_update and\ninformation_contacts_without_messages are both gone from lib.rs and native.py, and\nwhat only they used is gone from contacts.rs. test_native_kernels.py keeps neither\nremoved kernel's tests: test_social_propagation_row.py and test_information_row.py\nhold that coverage, and the latter now has the IDs JSON escapes.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "7688f067c6b6b7c26c0a028af6b3adc1dee03599",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7688f067c6b6b7c26c0a028af6b3adc1dee03599",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/7688f067c6b6b7c26c0a028af6b3adc1dee03599"
+      },
+      {
+        "sha": "9c0f89f14295837e52923f55a7781352bbee70f6",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/9c0f89f14295837e52923f55a7781352bbee70f6",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/9c0f89f14295837e52923f55a7781352bbee70f6"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34765762947,
+    "node_id": "ME_lADOU3hqGM8AAAABbZZHD88AAAAIGDNxgw",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34765762947",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "7b635d2dfcee53ee96878566c9afb49b44743f41",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/7b635d2dfcee53ee96878566c9afb49b44743f41",
+    "created_at": "2026-10-31T10:12:33Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34765763091,
+    "node_id": "CE_lADOU3hqGM8AAAABbZZHD88AAAAIGDNyEw",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34765763091",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-31T10:12:34Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34765766197,
+    "node_id": "HRDE_lADOU3hqGM8AAAABbZZHD88AAAAIGDN-NQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34765766197",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-31T10:12:39Z",
+    "performed_via_github_app": null
+  }
+]
+

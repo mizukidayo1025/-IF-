@@ -1,0 +1,498 @@
+﻿2026-10-30T22:03:02.8986337Z Current runner version: '2.338.2'
+2026-10-30T22:03:02.9012897Z ##[group]Runner Image Provisioner
+2026-10-30T22:03:02.9013712Z Hosted Compute Agent
+2026-10-30T22:03:02.9014253Z Version: 20261021.618
+2026-10-30T22:03:02.9014836Z Commit: 21505ad2541d5be6135ed84fc33697146cf75b8e
+2026-10-30T22:03:02.9015493Z Build Date: 2026-10-21T00:45:21Z
+2026-10-30T22:03:02.9016102Z Worker ID: {31d7ee28-cb40-4261-a596-aa90f04be3ec}
+2026-10-30T22:03:02.9016769Z Region: westus2
+2026-10-30T22:03:02.9017292Z Cloud: Azure
+2026-10-30T22:03:02.9017799Z ##[endgroup]
+2026-10-30T22:03:02.9019166Z ##[group]Operating System
+2026-10-30T22:03:02.9020256Z Microsoft Windows Server 2025
+2026-10-30T22:03:02.9020911Z 10.0.26100
+2026-10-30T22:03:02.9021389Z Datacenter
+2026-10-30T22:03:02.9021863Z ##[endgroup]
+2026-10-30T22:03:02.9022387Z ##[group]Runner Image
+2026-10-30T22:03:02.9022963Z Image: windows-2025-vs2026
+2026-10-30T22:03:02.9023523Z Version: 20261021.278.1
+2026-10-30T22:03:02.9025050Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20261021.278/images/windows/Windows2025-VS2026-Readme.md
+2026-10-30T22:03:02.9026763Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20261021.278
+2026-10-30T22:03:02.9027688Z ##[endgroup]
+2026-10-30T22:03:02.9028776Z ##[group]GITHUB_TOKEN Permissions
+2026-10-30T22:03:02.9030624Z Contents: read
+2026-10-30T22:03:02.9031243Z Metadata: read
+2026-10-30T22:03:02.9031754Z ##[endgroup]
+2026-10-30T22:03:02.9033797Z Secret source: Actions
+2026-10-30T22:03:02.9034697Z Cache mode: write
+2026-10-30T22:03:02.9035436Z Prepare workflow directory
+2026-10-30T22:03:02.9492969Z Prepare all required actions
+2026-10-30T22:03:02.9542176Z Getting action download info
+2026-10-30T22:03:03.2914896Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-30T22:03:03.4344342Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+2026-10-30T22:03:03.5888443Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-10-30T22:03:03.9089840Z Complete job name: test (windows-latest)
+2026-10-30T22:03:04.0701890Z ##[group]Run actions/checkout@v4
+2026-10-30T22:03:04.0702897Z with:
+2026-10-30T22:03:04.0703303Z   repository: jphacks/tkb_2615
+2026-10-30T22:03:04.0707018Z   token: ***
+2026-10-30T22:03:04.0707409Z   ssh-strict: true
+2026-10-30T22:03:04.0707795Z   ssh-user: git
+2026-10-30T22:03:04.0708190Z   persist-credentials: true
+2026-10-30T22:03:04.0708622Z   clean: true
+2026-10-30T22:03:04.0709018Z   sparse-checkout-cone-mode: true
+2026-10-30T22:03:04.0709485Z   fetch-depth: 1
+2026-10-30T22:03:04.0709868Z   fetch-tags: false
+2026-10-30T22:03:04.0710277Z   show-progress: true
+2026-10-30T22:03:04.0710681Z   lfs: false
+2026-10-30T22:03:04.0711039Z   submodules: false
+2026-10-30T22:03:04.0711439Z   set-safe-directory: true
+2026-10-30T22:03:04.0711891Z   allow-unsafe-pr-checkout: false
+2026-10-30T22:03:04.0712588Z env:
+2026-10-30T22:03:04.0712966Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:03:04.0713705Z ##[endgroup]
+2026-10-30T22:03:04.2180506Z Syncing repository: jphacks/tkb_2615
+2026-10-30T22:03:04.2182239Z ##[group]Getting Git version info
+2026-10-30T22:03:04.2182841Z Working directory is 'D:\a\tkb_2615\tkb_2615'
+2026-10-30T22:03:04.3092559Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-30T22:03:04.6205707Z git version 2.56.0.windows.2
+2026-10-30T22:03:04.6257496Z ##[endgroup]
+2026-10-30T22:03:04.6277203Z Temporarily overriding HOME='D:\a\_temp\a53b1f0e-fc95-48d1-a0ab-eb5af3c219f1' before making global git config changes
+2026-10-30T22:03:04.6280110Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-30T22:03:04.6290372Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\tkb_2615\tkb_2615
+2026-10-30T22:03:04.6987115Z Deleting the contents of 'D:\a\tkb_2615\tkb_2615'
+2026-10-30T22:03:04.6993175Z ##[group]Initializing the repository
+2026-10-30T22:03:04.7002601Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\tkb_2615\tkb_2615
+2026-10-30T22:03:04.7979760Z Initialized empty Git repository in D:/a/tkb_2615/tkb_2615/.git/
+2026-10-30T22:03:04.8023830Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/jphacks/tkb_2615
+2026-10-30T22:03:04.8669539Z ##[endgroup]
+2026-10-30T22:03:04.8671108Z ##[group]Disabling automatic garbage collection
+2026-10-30T22:03:04.8678445Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+2026-10-30T22:03:04.9046141Z ##[endgroup]
+2026-10-30T22:03:04.9047964Z ##[group]Setting up auth
+2026-10-30T22:03:04.9057510Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-30T22:03:04.9429630Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-30T22:03:06.3249691Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-30T22:03:06.3623337Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-30T22:03:06.9150883Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-30T22:03:06.9544007Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-30T22:03:07.5310553Z [command]"C:\Program Files\Git\bin\git.exe" config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+2026-10-30T22:03:07.5713940Z ##[endgroup]
+2026-10-30T22:03:07.5714824Z ##[group]Fetching the repository
+2026-10-30T22:03:07.5801283Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +204b9c3d8cb91c02eb4d5e938340fcfea6d7b1f8:refs/remotes/pull/308/merge
+2026-10-30T22:03:09.2073915Z From https://github.com/jphacks/tkb_2615
+2026-10-30T22:03:09.2075233Z  * [new ref]         204b9c3d8cb91c02eb4d5e938340fcfea6d7b1f8 -> pull/308/merge
+2026-10-30T22:03:09.2114799Z ##[endgroup]
+2026-10-30T22:03:09.2116052Z ##[group]Determining the checkout info
+2026-10-30T22:03:09.2118012Z ##[endgroup]
+2026-10-30T22:03:09.2127117Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+2026-10-30T22:03:09.2635149Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+2026-10-30T22:03:09.3025071Z ##[group]Checking out the ref
+2026-10-30T22:03:09.3039278Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force refs/remotes/pull/308/merge
+2026-10-30T22:03:09.7911158Z Note: switching to 'refs/remotes/pull/308/merge'.
+2026-10-30T22:03:09.7911828Z 
+2026-10-30T22:03:09.7912245Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-30T22:03:09.7913150Z changes and commit them, and you can discard any commits you make in this
+2026-10-30T22:03:09.7914010Z state without impacting any branches by switching back to a branch.
+2026-10-30T22:03:09.7914525Z 
+2026-10-30T22:03:09.7914863Z If you want to create a new branch to retain commits you create, you may
+2026-10-30T22:03:09.7915700Z do so (now or later) by using -c with the switch command. Example:
+2026-10-30T22:03:09.7916182Z 
+2026-10-30T22:03:09.7916346Z   git switch -c <new-branch-name>
+2026-10-30T22:03:09.7916664Z 
+2026-10-30T22:03:09.7916823Z Or undo this operation with:
+2026-10-30T22:03:09.7917126Z 
+2026-10-30T22:03:09.7917272Z   git switch -
+2026-10-30T22:03:09.7917534Z 
+2026-10-30T22:03:09.7917915Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-30T22:03:09.7920116Z 
+2026-10-30T22:03:09.7921630Z HEAD is now at 204b9c3 Merge a69e7fd559f7de76e208d05fb5c643fe430df28e into 38ff1fda96a1dd373e7a695329b2576d26e30eca
+2026-10-30T22:03:09.8007129Z ##[endgroup]
+2026-10-30T22:03:09.8476525Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+2026-10-30T22:03:09.8815896Z 204b9c3d8cb91c02eb4d5e938340fcfea6d7b1f8
+2026-10-30T22:03:09.9284816Z ##[group]Run actions/setup-python@v5
+2026-10-30T22:03:09.9285146Z with:
+2026-10-30T22:03:09.9285335Z   python-version: 3.12
+2026-10-30T22:03:09.9285547Z   cache: pip
+2026-10-30T22:03:09.9285762Z   cache-dependency-path: pyproject.toml
+2026-10-30T22:03:09.9286039Z   check-latest: false
+2026-10-30T22:03:09.9288556Z   token: ***
+2026-10-30T22:03:09.9288770Z   update-environment: true
+2026-10-30T22:03:09.9289004Z   allow-prereleases: false
+2026-10-30T22:03:09.9289233Z   freethreaded: false
+2026-10-30T22:03:09.9289427Z env:
+2026-10-30T22:03:09.9289599Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:03:09.9289859Z ##[endgroup]
+2026-10-30T22:03:10.1192869Z ##[group]Installed versions
+2026-10-30T22:03:10.1367409Z (node:1828) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-30T22:03:10.1368709Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-30T22:03:10.1370110Z Successfully set up CPython (3.12.10)
+2026-10-30T22:03:10.1371348Z ##[endgroup]
+2026-10-30T22:03:12.8307405Z Cache hit for: setup-python-Windows-x64-python-3.12.10-pip-8706a46a56db24cf1b665cd3450f0330fa02de9defc1f56ace435ff27e865ac1
+2026-10-30T22:03:12.8426772Z (node:1828) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-30T22:03:14.1350665Z Received 33554432 of 44399539 (75.6%), 31.7 MBs/sec
+2026-10-30T22:03:14.2490880Z Received 44399539 of 44399539 (100.0%), 37.7 MBs/sec
+2026-10-30T22:03:14.2492808Z Cache Size: ~42 MB (44399539 B)
+2026-10-30T22:03:14.2526358Z [command]"C:\Program Files\Git\usr\bin\tar.exe" -xf D:/a/_temp/39b72a4d-33e9-4db6-8bc4-2704cf94932c/cache.tzst -P -C D:/a/tkb_2615/tkb_2615 --force-local --use-compress-program "zstd -d"
+2026-10-30T22:03:14.6993845Z Cache restored successfully
+2026-10-30T22:03:14.7014979Z Cache restored from key: setup-python-Windows-x64-python-3.12.10-pip-8706a46a56db24cf1b665cd3450f0330fa02de9defc1f56ace435ff27e865ac1
+2026-10-30T22:03:14.7335571Z ##[group]Run python -m pip install -e ".[dev]"
+2026-10-30T22:03:14.7336007Z [36;1mpython -m pip install -e ".[dev]"[0m
+2026-10-30T22:03:14.8008992Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-30T22:03:14.8009482Z env:
+2026-10-30T22:03:14.8009729Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:03:14.8010316Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:03:14.8011124Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.12.10\x64/lib/pkgconfig
+2026-10-30T22:03:14.8011829Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:03:14.8012439Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:03:14.8013055Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:03:14.8013531Z ##[endgroup]
+2026-10-30T22:03:17.1737646Z Obtaining file:///D:/a/tkb_2615/tkb_2615
+2026-10-30T22:03:17.1783461Z   Installing build dependencies: started
+2026-10-30T22:03:19.6640301Z   Installing build dependencies: finished with status 'done'
+2026-10-30T22:03:19.6656380Z   Checking if build backend supports build_editable: started
+2026-10-30T22:03:20.1205995Z   Checking if build backend supports build_editable: finished with status 'done'
+2026-10-30T22:03:20.1231206Z   Getting requirements to build editable: started
+2026-10-30T22:03:20.7465711Z   Getting requirements to build editable: finished with status 'done'
+2026-10-30T22:03:20.7497082Z   Preparing editable metadata (pyproject.toml): started
+2026-10-30T22:03:21.1163082Z   Preparing editable metadata (pyproject.toml): finished with status 'done'
+2026-10-30T22:03:21.4984208Z Collecting pydantic==2.11.9 (from sheltersim==0.1.0)
+2026-10-30T22:03:21.5009803Z   Using cached pydantic-2.11.9-py3-none-any.whl.metadata (68 kB)
+2026-10-30T22:03:21.6446200Z Collecting reportlab<5,>=4.4 (from sheltersim==0.1.0)
+2026-10-30T22:03:21.6470755Z   Using cached reportlab-4.5.1-py3-none-any.whl.metadata (1.7 kB)
+2026-10-30T22:03:21.6868748Z Collecting pytest==8.3.5 (from sheltersim==0.1.0)
+2026-10-30T22:03:21.6890422Z   Using cached pytest-8.3.5-py3-none-any.whl.metadata (7.6 kB)
+2026-10-30T22:03:21.7189725Z Collecting pytest-xdist==3.8.0 (from sheltersim==0.1.0)
+2026-10-30T22:03:21.7213421Z   Using cached pytest_xdist-3.8.0-py3-none-any.whl.metadata (3.0 kB)
+2026-10-30T22:03:21.7492119Z Collecting pytest-cov==7.0.0 (from sheltersim==0.1.0)
+2026-10-30T22:03:21.7516932Z   Using cached pytest_cov-7.0.0-py3-none-any.whl.metadata (31 kB)
+2026-10-30T22:03:22.2023555Z Collecting coverage==7.10.7 (from sheltersim==0.1.0)
+2026-10-30T22:03:22.2086771Z   Using cached coverage-7.10.7-cp312-cp312-win_amd64.whl.metadata (9.2 kB)
+2026-10-30T22:03:22.5932184Z Collecting ruff==0.11.0 (from sheltersim==0.1.0)
+2026-10-30T22:03:22.5959111Z   Using cached ruff-0.11.0-py3-none-win_amd64.whl.metadata (26 kB)
+2026-10-30T22:03:22.6321656Z Collecting pypdf<6,>=5 (from sheltersim==0.1.0)
+2026-10-30T22:03:22.6379688Z   Using cached pypdf-5.9.0-py3-none-any.whl.metadata (7.1 kB)
+2026-10-30T22:03:22.7471558Z Collecting pypdfium2<5,>=4.30 (from sheltersim==0.1.0)
+2026-10-30T22:03:22.7498730Z   Using cached pypdfium2-4.30.0-py3-none-win_amd64.whl.metadata (48 kB)
+2026-10-30T22:03:22.7809393Z Collecting annotated-types>=0.6.0 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-30T22:03:22.7833851Z   Using cached annotated_types-0.8.0-py3-none-any.whl.metadata (15 kB)
+2026-10-30T22:03:23.5628417Z Collecting pydantic-core==2.33.2 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-30T22:03:23.5657696Z   Using cached pydantic_core-2.33.2-cp312-cp312-win_amd64.whl.metadata (6.9 kB)
+2026-10-30T22:03:23.5981623Z Collecting typing-extensions>=4.12.2 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-30T22:03:23.6004134Z   Using cached typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+2026-10-30T22:03:23.6245132Z Collecting typing-inspection>=0.4.0 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-30T22:03:23.6268254Z   Using cached typing_inspection-0.4.4-py3-none-any.whl.metadata (2.6 kB)
+2026-10-30T22:03:23.6319240Z Requirement already satisfied: colorama in C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\site-packages (from pytest==8.3.5->sheltersim==0.1.0) (0.4.6)
+2026-10-30T22:03:23.6581145Z Collecting iniconfig (from pytest==8.3.5->sheltersim==0.1.0)
+2026-10-30T22:03:23.6601879Z   Using cached iniconfig-2.3.1-py3-none-any.whl.metadata (2.8 kB)
+2026-10-30T22:03:23.6639133Z Requirement already satisfied: packaging in C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\site-packages (from pytest==8.3.5->sheltersim==0.1.0) (26.3)
+2026-10-30T22:03:23.6863183Z Collecting pluggy<2,>=1.5 (from pytest==8.3.5->sheltersim==0.1.0)
+2026-10-30T22:03:23.6884217Z   Using cached pluggy-1.7.0-py3-none-any.whl.metadata (5.0 kB)
+2026-10-30T22:03:23.7181807Z Collecting execnet>=2.1 (from pytest-xdist==3.8.0->sheltersim==0.1.0)
+2026-10-30T22:03:23.7249421Z   Using cached execnet-2.1.2-py3-none-any.whl.metadata (2.9 kB)
+2026-10-30T22:03:23.9745976Z Collecting pillow>=9.0.0 (from reportlab<5,>=4.4->sheltersim==0.1.0)
+2026-10-30T22:03:23.9770827Z   Using cached pillow-13.0.0-cp312-cp312-win_amd64.whl.metadata (9.3 kB)
+2026-10-30T22:03:24.1287443Z Collecting charset-normalizer (from reportlab<5,>=4.4->sheltersim==0.1.0)
+2026-10-30T22:03:24.1311420Z   Using cached charset_normalizer-3.5.2-cp312-cp312-win_amd64.whl.metadata (47 kB)
+2026-10-30T22:03:24.1454702Z Using cached coverage-7.10.7-cp312-cp312-win_amd64.whl (221 kB)
+2026-10-30T22:03:24.1473863Z Using cached pydantic-2.11.9-py3-none-any.whl (444 kB)
+2026-10-30T22:03:24.1516455Z Using cached pydantic_core-2.33.2-cp312-cp312-win_amd64.whl (2.0 MB)
+2026-10-30T22:03:24.1548989Z Using cached pytest-8.3.5-py3-none-any.whl (343 kB)
+2026-10-30T22:03:24.1569007Z Using cached pytest_cov-7.0.0-py3-none-any.whl (22 kB)
+2026-10-30T22:03:24.1587162Z Using cached pytest_xdist-3.8.0-py3-none-any.whl (46 kB)
+2026-10-30T22:03:24.1605406Z Using cached ruff-0.11.0-py3-none-win_amd64.whl (11.4 MB)
+2026-10-30T22:03:24.1679961Z Using cached pluggy-1.7.0-py3-none-any.whl (27 kB)
+2026-10-30T22:03:24.1698927Z Using cached pypdf-5.9.0-py3-none-any.whl (313 kB)
+2026-10-30T22:03:24.1719648Z Using cached pypdfium2-4.30.0-py3-none-win_amd64.whl (2.9 MB)
+2026-10-30T22:03:24.1753264Z Using cached reportlab-4.5.1-py3-none-any.whl (2.0 MB)
+2026-10-30T22:03:24.1785941Z Using cached annotated_types-0.8.0-py3-none-any.whl (13 kB)
+2026-10-30T22:03:24.1804470Z Using cached execnet-2.1.2-py3-none-any.whl (40 kB)
+2026-10-30T22:03:24.1822804Z Using cached pillow-13.0.0-cp312-cp312-win_amd64.whl (7.3 MB)
+2026-10-30T22:03:24.1876674Z Using cached typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+2026-10-30T22:03:24.1938188Z Using cached typing_inspection-0.4.4-py3-none-any.whl (14 kB)
+2026-10-30T22:03:24.1956554Z Using cached charset_normalizer-3.5.2-cp312-cp312-win_amd64.whl (207 kB)
+2026-10-30T22:03:24.1975451Z Using cached iniconfig-2.3.1-py3-none-any.whl (7.6 kB)
+2026-10-30T22:03:24.3088729Z Building wheels for collected packages: sheltersim
+2026-10-30T22:03:24.3237563Z   Building editable for sheltersim (pyproject.toml): started
+2026-10-30T22:03:24.7587830Z   Building editable for sheltersim (pyproject.toml): finished with status 'done'
+2026-10-30T22:03:24.7636489Z   Created wheel for sheltersim: filename=sheltersim-0.1.0-0.editable-py3-none-any.whl size=9166 sha256=bf6edca9119ab1fcf7a74c42bf07bece7e805ed89bbf31a6a5d3d09c51e67408
+2026-10-30T22:03:24.7638218Z   Stored in directory: C:\Users\runneradmin\AppData\Local\Temp\pip-ephem-wheel-cache-bqi6k9j7\wheels\25\d6\ee\5ab6036338aeb6b14bbca7511bc844e3df1f8d61f449109643
+2026-10-30T22:03:24.7670908Z Successfully built sheltersim
+2026-10-30T22:03:24.8267516Z Installing collected packages: typing-extensions, ruff, pypdfium2, pypdf, pluggy, pillow, iniconfig, execnet, coverage, charset-normalizer, annotated-types, typing-inspection, reportlab, pytest, pydantic-core, pytest-xdist, pytest-cov, pydantic, sheltersim
+2026-10-30T22:03:30.6569946Z 
+2026-10-30T22:03:30.6606144Z Successfully installed annotated-types-0.8.0 charset-normalizer-3.5.2 coverage-7.10.7 execnet-2.1.2 iniconfig-2.3.1 pillow-13.0.0 pluggy-1.7.0 pydantic-2.11.9 pydantic-core-2.33.2 pypdf-5.9.0 pypdfium2-4.30.0 pytest-8.3.5 pytest-cov-7.0.0 pytest-xdist-3.8.0 reportlab-4.5.1 ruff-0.11.0 sheltersim-0.1.0 typing-extensions-4.16.0 typing-inspection-0.4.4
+2026-10-30T22:03:31.0775139Z ##[group]Run rustup toolchain install stable --profile minimal
+2026-10-30T22:03:31.0775693Z [36;1mrustup toolchain install stable --profile minimal[0m
+2026-10-30T22:03:31.0776100Z [36;1mpython -m pip install "maturin>=1.7,<2"[0m
+2026-10-30T22:03:31.0776510Z [36;1mmaturin build --release -m native/Cargo.toml --out native-dist[0m
+2026-10-30T22:03:31.0777032Z [36;1mpython -m pip install --no-index --find-links native-dist sheltersim-native[0m
+2026-10-30T22:03:31.0777641Z [36;1mpython -c "import sheltersim.native as n; assert n.available(), 'kernels not loaded'"[0m
+2026-10-30T22:03:31.0796691Z shell: C:\Program Files\Git\bin\bash.EXE --noprofile --norc -e -o pipefail {0}
+2026-10-30T22:03:31.0797105Z env:
+2026-10-30T22:03:31.0797296Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:03:31.0797634Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:03:31.0798122Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.12.10\x64/lib/pkgconfig
+2026-10-30T22:03:31.0798629Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:03:31.0799050Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:03:31.0800303Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:03:31.0800638Z ##[endgroup]
+2026-10-30T22:03:34.4509814Z info: syncing channel updates for stable-x86_64-pc-windows-msvc
+2026-10-30T22:03:34.8675258Z 
+2026-10-30T22:03:34.8881811Z   stable-x86_64-pc-windows-msvc unchanged - rustc 1.99.1 (58cf8f9c3 2026-10-13)
+2026-10-30T22:03:34.8882397Z 
+2026-10-30T22:03:35.9527543Z Collecting maturin<2,>=1.7
+2026-10-30T22:03:35.9555291Z   Using cached maturin-1.16.0-py3-none-win_amd64.whl.metadata (17 kB)
+2026-10-30T22:03:35.9623762Z Using cached maturin-1.16.0-py3-none-win_amd64.whl (10.6 MB)
+2026-10-30T22:03:36.0666053Z Installing collected packages: maturin
+2026-10-30T22:03:36.2425481Z Successfully installed maturin-1.16.0
+2026-10-30T22:03:38.6056041Z     Updating crates.io index
+2026-10-30T22:03:39.1843598Z  Downloading crates ...
+2026-10-30T22:03:39.3226265Z   Downloaded cfg-if v1.0.5
+2026-10-30T22:03:39.3378611Z   Downloaded block-buffer v0.10.4
+2026-10-30T22:03:39.3485731Z   Downloaded crossbeam-epoch v0.9.21
+2026-10-30T22:03:39.3787849Z   Downloaded crossbeam-deque v0.8.8
+2026-10-30T22:03:39.3907992Z   Downloaded cpufeatures v0.2.17
+2026-10-30T22:03:39.4037650Z   Downloaded generic-array v0.14.7
+2026-10-30T22:03:39.4205469Z   Downloaded equivalent v1.0.3
+2026-10-30T22:03:39.4299345Z   Downloaded itoa v1.0.18
+2026-10-30T22:03:39.4421997Z   Downloaded pyo3-macros v0.23.5
+2026-10-30T22:03:39.4507768Z   Downloaded crypto-common v0.1.7
+2026-10-30T22:03:39.4594489Z   Downloaded heck v0.5.0
+2026-10-30T22:03:39.4763859Z   Downloaded indoc v2.0.8
+2026-10-30T22:03:39.5098965Z   Downloaded memoffset v0.9.1
+2026-10-30T22:03:39.5210521Z   Downloaded version_check v0.9.5
+2026-10-30T22:03:39.5322318Z   Downloaded autocfg v1.5.1
+2026-10-30T22:03:39.5485866Z   Downloaded rustc-hash v2.1.3
+2026-10-30T22:03:39.5602192Z   Downloaded either v1.19.0
+2026-10-30T22:03:39.6531564Z   Downloaded unindent v0.2.4
+2026-10-30T22:03:39.6624333Z   Downloaded digest v0.10.7
+2026-10-30T22:03:39.6833571Z   Downloaded quote v1.0.47
+2026-10-30T22:03:39.7124707Z   Downloaded rustversion v1.0.23
+2026-10-30T22:03:39.7473464Z   Downloaded target-lexicon v0.12.16
+2026-10-30T22:03:39.7677234Z   Downloaded sha2 v0.10.9
+2026-10-30T22:03:39.7987533Z   Downloaded pyo3-build-config v0.23.5
+2026-10-30T22:03:39.8088959Z   Downloaded smallvec v1.16.4
+2026-10-30T22:03:39.8188184Z   Downloaded unicode-ident v1.0.27
+2026-10-30T22:03:39.8450409Z   Downloaded once_cell v1.21.4
+2026-10-30T22:03:39.8732724Z   Downloaded proc-macro2 v1.0.107
+2026-10-30T22:03:39.9743702Z   Downloaded ryu v1.0.23
+2026-10-30T22:03:40.1672787Z   Downloaded zmij v1.0.23
+2026-10-30T22:03:40.2384418Z   Downloaded crossbeam-utils v0.8.23
+2026-10-30T22:03:40.3029014Z   Downloaded serde_core v1.0.229
+2026-10-30T22:03:40.3685190Z   Downloaded pyo3-ffi v0.23.5
+2026-10-30T22:03:40.6350247Z   Downloaded rayon-core v1.13.0
+2026-10-30T22:03:40.8530843Z   Downloaded pyo3-macros-backend v0.23.5
+2026-10-30T22:03:40.9755804Z   Downloaded serde_derive v1.0.229
+2026-10-30T22:03:41.5793857Z   Downloaded serde v1.0.229
+2026-10-30T22:03:41.7347805Z   Downloaded memchr v2.8.3
+2026-10-30T22:03:41.8328735Z   Downloaded typenum v1.20.1
+2026-10-30T22:03:41.8636234Z   Downloaded hashbrown v0.17.1
+2026-10-30T22:03:41.9236885Z   Downloaded indexmap v2.14.2
+2026-10-30T22:03:41.9935038Z   Downloaded portable-atomic v1.15.0
+2026-10-30T22:03:42.1023993Z   Downloaded serde_json v1.0.154
+2026-10-30T22:03:42.2008726Z   Downloaded rayon v1.12.0
+2026-10-30T22:03:42.3162604Z   Downloaded syn v2.0.119
+2026-10-30T22:03:43.2102662Z   Downloaded syn v3.0.9
+2026-10-30T22:03:43.3087248Z   Downloaded pyo3 v0.23.5
+2026-10-30T22:03:43.5814834Z   Downloaded libc v0.2.191
+2026-10-30T22:03:44.7136469Z 🔗 Found pyo3 bindings with abi3-py3.12 support
+2026-10-30T22:03:44.7136998Z 📡 Using build options features from pyproject.toml
+2026-10-30T22:03:45.3300705Z    Compiling target-lexicon v0.12.16
+2026-10-30T22:03:45.3301824Z    Compiling once_cell v1.21.4
+2026-10-30T22:03:45.3302746Z    Compiling version_check v0.9.5
+2026-10-30T22:03:45.3303973Z    Compiling proc-macro2 v1.0.107
+2026-10-30T22:03:53.5676710Z    Compiling unicode-ident v1.0.27
+2026-10-30T22:03:53.7157562Z    Compiling generic-array v0.14.7
+2026-10-30T22:03:53.9201180Z    Compiling crossbeam-utils v0.8.23
+2026-10-30T22:03:55.7205871Z    Compiling quote v1.0.47
+2026-10-30T22:03:55.8320378Z    Compiling crossbeam-epoch v0.9.21
+2026-10-30T22:03:56.0550038Z    Compiling typenum v1.20.1
+2026-10-30T22:03:56.1927479Z    Compiling pyo3-build-config v0.23.5
+2026-10-30T22:03:57.9200418Z    Compiling autocfg v1.5.1
+2026-10-30T22:03:58.0291262Z    Compiling libc v0.2.191
+2026-10-30T22:03:58.5363286Z    Compiling crossbeam-deque v0.8.8
+2026-10-30T22:03:58.7252158Z    Compiling memoffset v0.9.1
+2026-10-30T22:03:58.8121033Z    Compiling syn v2.0.119
+2026-10-30T22:03:58.9924865Z    Compiling rayon-core v1.13.0
+2026-10-30T22:03:59.1982741Z    Compiling heck v0.5.0
+2026-10-30T22:03:59.2236060Z    Compiling pyo3-ffi v0.23.5
+2026-10-30T22:03:59.3980333Z    Compiling pyo3-macros-backend v0.23.5
+2026-10-30T22:03:59.4540005Z    Compiling zmij v1.0.23
+2026-10-30T22:03:59.6159561Z    Compiling serde_core v1.0.229
+2026-10-30T22:03:59.6993410Z    Compiling pyo3 v0.23.5
+2026-10-30T22:04:00.0331306Z    Compiling block-buffer v0.10.4
+2026-10-30T22:04:00.1385470Z    Compiling crypto-common v0.1.7
+2026-10-30T22:04:00.1825227Z    Compiling cfg-if v1.0.5
+2026-10-30T22:04:00.2333974Z    Compiling serde_json v1.0.154
+2026-10-30T22:04:00.2424009Z    Compiling digest v0.10.7
+2026-10-30T22:04:01.5187082Z    Compiling sheltersim_native v0.1.0 (D:\a\tkb_2615\tkb_2615\native)
+2026-10-30T22:04:01.9441958Z    Compiling either v1.19.0
+2026-10-30T22:04:02.1802431Z    Compiling equivalent v1.0.3
+2026-10-30T22:04:02.2208123Z    Compiling itoa v1.0.18
+2026-10-30T22:04:02.2937784Z    Compiling hashbrown v0.17.1
+2026-10-30T22:04:02.4792682Z    Compiling memchr v2.8.3
+2026-10-30T22:04:04.0934384Z    Compiling indoc v2.0.8
+2026-10-30T22:04:04.5773612Z    Compiling unindent v0.2.4
+2026-10-30T22:04:04.7844209Z    Compiling cpufeatures v0.2.17
+2026-10-30T22:04:04.8407522Z    Compiling sha2 v0.10.9
+2026-10-30T22:04:06.4575873Z    Compiling indexmap v2.14.2
+2026-10-30T22:04:06.5174209Z    Compiling rayon v1.12.0
+2026-10-30T22:04:07.7494162Z    Compiling smallvec v1.16.4
+2026-10-30T22:04:08.0938439Z    Compiling ryu v1.0.23
+2026-10-30T22:04:08.4346048Z    Compiling rustc-hash v2.1.3
+2026-10-30T22:04:09.1355287Z    Compiling pyo3-macros v0.23.5
+2026-10-30T22:04:34.9965902Z     Finished `release` profile [optimized] target(s) in 50.24s
+2026-10-30T22:04:35.0818193Z 📦 Built wheel for abi3 Python ≥ 3.12 to native-dist\sheltersim_native-0.1.0-cp312-abi3-win_amd64.whl
+2026-10-30T22:04:35.7412723Z Looking in links: native-dist
+2026-10-30T22:04:35.7736416Z Processing .\native-dist\sheltersim_native-0.1.0-cp312-abi3-win_amd64.whl
+2026-10-30T22:04:35.8204590Z Installing collected packages: sheltersim-native
+2026-10-30T22:04:35.8790796Z Successfully installed sheltersim-native-0.1.0
+2026-10-30T22:04:36.0107679Z ##[group]Run python -m pytest -m "not long_simulation" -n auto
+2026-10-30T22:04:36.0108348Z [36;1mpython -m pytest -m "not long_simulation" -n auto[0m
+2026-10-30T22:04:36.0178929Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-30T22:04:36.0179292Z env:
+2026-10-30T22:04:36.0179488Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:04:36.0179828Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:04:36.0180318Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.12.10\x64/lib/pkgconfig
+2026-10-30T22:04:36.0180795Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:04:36.0181251Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:04:36.0181981Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:04:36.0182323Z ##[endgroup]
+2026-10-30T22:04:47.0800583Z ============================= test session starts =============================
+2026-10-30T22:04:47.0801598Z platform win32 -- Python 3.12.10, pytest-8.3.5, pluggy-1.7.0
+2026-10-30T22:04:47.0802820Z rootdir: D:\a\tkb_2615\tkb_2615
+2026-10-30T22:04:47.0803132Z configfile: pyproject.toml
+2026-10-30T22:04:47.0803386Z testpaths: tests
+2026-10-30T22:04:47.0803852Z plugins: platformdirs-4.13.5, cov-7.0.0, xdist-3.8.0
+2026-10-30T22:04:47.0804422Z created: 4/4 workers
+2026-10-30T22:04:47.0804713Z 4 workers [1753 items]
+2026-10-30T22:04:47.0804859Z 
+2026-10-30T22:04:49.4757682Z ........................................................................ [  4%]
+2026-10-30T22:04:51.8193986Z ........................................................................ [  8%]
+2026-10-30T22:04:56.0924685Z ........................................................................ [ 12%]
+2026-10-30T22:04:56.8207281Z ........................................................................ [ 16%]
+2026-10-30T22:05:01.5631665Z ........................................................................ [ 20%]
+2026-10-30T22:05:19.5535942Z ........................................................................ [ 24%]
+2026-10-30T22:05:39.7587065Z ........................................................................ [ 28%]
+2026-10-30T22:05:48.4988581Z ........................................................................ [ 32%]
+2026-10-30T22:05:49.6666908Z ........................................................................ [ 36%]
+2026-10-30T22:05:53.9591949Z ........................................................................ [ 41%]
+2026-10-30T22:05:58.3432658Z ..........................................................F............. [ 45%]
+2026-10-30T22:06:21.7507262Z ..............................................................s.......ss [ 49%]
+2026-10-30T22:06:33.5053265Z ........................................................s............... [ 53%]
+2026-10-30T22:06:56.0822979Z ........................................................................ [ 57%]
+2026-10-30T22:07:35.0046144Z ........................................................................ [ 61%]
+2026-10-30T22:07:45.6530264Z ........................................................................ [ 65%]
+2026-10-30T22:08:02.4543232Z ........................................................................ [ 69%]
+2026-10-30T22:08:20.8708551Z ........................................................................ [ 73%]
+2026-10-30T22:09:02.3337169Z ........................................................................ [ 78%]
+2026-10-30T22:09:56.6513488Z .............................ssss....................................... [ 82%]
+2026-10-30T22:11:31.5572162Z ..s..................................................................... [ 86%]
+2026-10-30T22:13:26.5293729Z ........................................................................ [ 90%]
+2026-10-30T22:15:46.3324935Z ........................................................................ [ 94%]
+2026-10-30T22:16:58.5303711Z ........................................................................ [ 98%]
+2026-10-30T22:17:58.6635656Z .........................                                                [100%]
+2026-10-30T22:17:58.6636784Z ================================== FAILURES ===================================
+2026-10-30T22:17:58.6637696Z _______________ test_sum_of_ints_and_floats_keeps_python_types ________________
+2026-10-30T22:17:58.6638698Z [gw2] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-30T22:17:58.6639200Z 
+2026-10-30T22:17:58.6639368Z parity = <module 'parity'>
+2026-10-30T22:17:58.6639605Z 
+2026-10-30T22:17:58.6639977Z     def test_sum_of_ints_and_floats_keeps_python_types(parity) -> None:
+2026-10-30T22:17:58.6640539Z         rng = random.Random(12)
+2026-10-30T22:17:58.6641063Z         rows: list[list[int | float]] = [[], [0], [1, 2], [1, 0.5], [0.5, 1], [-0.0], [0, -0.0]]
+2026-10-30T22:17:58.6641764Z         rows += [[2**53, 1, 1.0], [1.0, 2**53, 1], [1e100, 1, -1e100], [1.0, 1e100, 1, -1e100]]
+2026-10-30T22:17:58.6642735Z         for _ in range(CASES // 2):
+2026-10-30T22:17:58.6643149Z             rows.append(
+2026-10-30T22:17:58.6643476Z                 [
+2026-10-30T22:17:58.6643806Z                     rng.randint(-(2**60), 2**60)
+2026-10-30T22:17:58.6644239Z                     if rng.random() < 0.4
+2026-10-30T22:17:58.6644688Z                     else rng.choice(EDGES[:18])
+2026-10-30T22:17:58.6645105Z                     if rng.random() < 0.1
+2026-10-30T22:17:58.6645524Z                     else rng.uniform(-1e6, 1e6)
+2026-10-30T22:17:58.6645963Z                     for _ in range(rng.randint(0, 7))
+2026-10-30T22:17:58.6646397Z                 ]
+2026-10-30T22:17:58.6646689Z             )
+2026-10-30T22:17:58.6647207Z >       _assert_all_same(rows, [parity.sum_nums(row) for row in rows], [sum(row) for row in rows])
+2026-10-30T22:17:58.6647709Z 
+2026-10-30T22:17:58.6647874Z tests\integration\test_native_parity.py:248: 
+2026-10-30T22:17:58.6648410Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-30T22:17:58.6648734Z 
+2026-10-30T22:17:58.6648933Z inputs = [[], [0], [1, 2], [1, 0.5], [0.5, 1], [-0.0], ...]
+2026-10-30T22:17:58.6649464Z rust = [0, 0, 3, 1.5, 1.5, 0.0, ...], python = [0, 0, 3, 1.5, 1.5, 0.0, ...]
+2026-10-30T22:17:58.6649821Z 
+2026-10-30T22:17:58.6650071Z     def _assert_all_same(inputs: list, rust: list, python: list) -> None:
+2026-10-30T22:17:58.6650598Z         wrong = [
+2026-10-30T22:17:58.6650880Z             (given, ours, theirs)
+2026-10-30T22:17:58.6651312Z             for given, ours, theirs in zip(inputs, rust, python, strict=True)
+2026-10-30T22:17:58.6651789Z             if not _same(ours, theirs)
+2026-10-30T22:17:58.6652106Z         ]
+2026-10-30T22:17:58.6652486Z >       assert not wrong, f"{len(wrong)} of {len(inputs)} differ, first: {wrong[:5]}"
+2026-10-30T22:17:58.6655534Z E       AssertionError: 685 of 10011 differ, first: [([-93941.01624389295, -578419.9368680674, 24317.37617072137, -479114823791303956, 57574.747646587435, 539791317191070578], 6.067649339917617e+16, 6.067649339917619e+16), ([562200028466418984, 132491.29507875186, 974517.8305325997, 743976.1692179823, -49658217236860660], 5.125418112314093e+17, 5.1254181123140934e+17), ([-943562.2174508692, -388696433031748318, 727385.9094431368, -965154256969905544, -799925.6255518437, 282122.5816570632, -380611.60373253794], -1.3538506900027684e+18, -1.3538506900027686e+18), ([-913627.1003505796, -671310464756924060, 137812162725420420, -193863320135547225, -194964795572362848, 750170.2722580277, -681892.3856863149], -9.223264177402592e+17, -9.223264177402591e+17), ([-979232586027552564, 555960.4659064647, -1.0, 659890.8045909056, -415723.4297037289], -9.792325860267524e+17, -9.792325860267525e+17)]
+2026-10-30T22:17:58.6660708Z E       assert not [([-93941.01624389295, -578419.9368680674, 24317.37617072137, -479114823791303956, 57574.747646587435, 539791317191070..., 430450.0480410538, 714011034032807889, -246815.08740936103, ...], 5.622507715567347e+16, 5.622507715567352e+16), ...]
+2026-10-30T22:17:58.6661808Z 
+2026-10-30T22:17:58.6662005Z tests\integration\test_native_parity.py:91: AssertionError
+2026-10-30T22:17:58.6662500Z =========================== short test summary info ===========================
+2026-10-30T22:17:58.6663373Z SKIPPED [1] tests\unit\storage\test_projects.py:259: Windows keeps each entry's size from the directory listing, so a file removed while it is measured still counts
+2026-10-30T22:17:58.6664299Z SKIPPED [1] tests\unit\storage\test_projects.py:352: needs Linux open-file-description locks
+2026-10-30T22:17:58.6664987Z SKIPPED [1] tests\unit\storage\test_projects.py:366: needs Linux open-file-description locks
+2026-10-30T22:17:58.6665714Z SKIPPED [1] tests\unit\storage\test_query_cursors.py:42: needs Linux open-file-description locks
+2026-10-30T22:17:58.6666469Z SKIPPED [1] tests\live\test_live_api.py:30: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-30T22:17:58.6667872Z SKIPPED [1] tests\live\test_live_api.py:116: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-30T22:17:58.6668688Z SKIPPED [1] tests\live\test_live_api.py:155: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-30T22:17:58.6669530Z SKIPPED [1] tests\live\test_live_api.py:188: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-30T22:17:58.6670230Z SKIPPED [1] tests\unit\core\test_checkpoint_cache.py:147: the Python EventLog only
+2026-10-30T22:17:58.6673854Z FAILED tests/integration/test_native_parity.py::test_sum_of_ints_and_floats_keeps_python_types - AssertionError: 685 of 10011 differ, first: [([-93941.01624389295, -578419.9368680674, 24317.37617072137, -479114823791303956, 57574.747646587435, 539791317191070578], 6.067649339917617e+16, 6.067649339917619e+16), ([562200028466418984, 132491.29507875186, 974517.8305325997, 743976.1692179823, -49658217236860660], 5.125418112314093e+17, 5.1254181123140934e+17), ([-943562.2174508692, -388696433031748318, 727385.9094431368, -965154256969905544, -799925.6255518437, 282122.5816570632, -380611.60373253794], -1.3538506900027684e+18, -1.3538506900027686e+18), ([-913627.1003505796, -671310464756924060, 137812162725420420, -193863320135547225, -194964795572362848, 750170.2722580277, -681892.3856863149], -9.223264177402592e+17, -9.223264177402591e+17), ([-979232586027552564, 555960.4659064647, -1.0, 659890.8045909056, -415723.4297037289], -9.792325860267524e+17, -9.792325860267525e+17)]
+2026-10-30T22:17:58.6677925Z assert not [([-93941.01624389295, -578419.9368680674, 24317.37617072137, -479114823791303956, 57574.747646587435, 539791317191070..., 430450.0480410538, 714011034032807889, -246815.08740936103, ...], 5.622507715567347e+16, 5.622507715567352e+16), ...]
+2026-10-30T22:17:58.6679245Z ============ 1 failed, 1743 passed, 9 skipped in 801.63s (0:13:21) ============
+2026-10-30T22:17:58.6680306Z test results: 1 failed, 1743 passed, 9 skipped; failed: tests/integration/test_native_parity.py::test_sum_of_ints_and_floats_keeps_python_types; tracebacks in .test-results\20261030T220436Z-1096\summary.txt
+2026-10-30T22:17:58.8277498Z ##[error]Process completed with exit code 1.
+2026-10-30T22:17:58.8565385Z ##[group]Run actions/upload-artifact@v4
+2026-10-30T22:17:58.8565798Z with:
+2026-10-30T22:17:58.8566067Z   name: test-results-windows-latest
+2026-10-30T22:17:58.8566398Z   path: .test-results/
+2026-10-30T22:17:58.8566832Z   retention-days: 7
+2026-10-30T22:17:58.8567435Z   if-no-files-found: ignore
+2026-10-30T22:17:58.8567758Z   include-hidden-files: true
+2026-10-30T22:17:58.8568064Z   compression-level: 6
+2026-10-30T22:17:58.8568335Z   overwrite: false
+2026-10-30T22:17:58.8568615Z env:
+2026-10-30T22:17:58.8568864Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:17:58.8569252Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:17:58.8569799Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.12.10\x64/lib/pkgconfig
+2026-10-30T22:17:58.8570374Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:17:58.8570854Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:17:58.8571419Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:17:58.8571836Z ##[endgroup]
+2026-10-30T22:17:59.0508717Z (node:4620) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-30T22:17:59.0510160Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-30T22:17:59.0599858Z With the provided path, there will be 3 files uploaded
+2026-10-30T22:17:59.0605994Z Artifact name is valid!
+2026-10-30T22:17:59.0607755Z Root directory input is valid!
+2026-10-30T22:17:59.4497829Z Beginning upload of artifact content to blob storage
+2026-10-30T22:17:59.4807894Z (node:4620) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-30T22:17:59.8301337Z Uploaded bytes 45798
+2026-10-30T22:17:59.9098638Z Finished uploading artifact content to blob storage!
+2026-10-30T22:17:59.9100183Z SHA256 digest of uploaded artifact zip is 2c66044406064559aad57838dd3bf323efa7813cf3dc86383feb4d807eaa7377
+2026-10-30T22:17:59.9102327Z Finalizing artifact upload
+2026-10-30T22:18:00.4209191Z Artifact test-results-windows-latest.zip successfully finalized. Artifact ID 13016873099
+2026-10-30T22:18:00.4210845Z Artifact test-results-windows-latest has been successfully uploaded! Final size is 45798 bytes. Artifact ID is 13016873099
+2026-10-30T22:18:00.4221141Z Artifact download URL: https://github.com/jphacks/tkb_2615/actions/runs/41135428182/artifacts/13016873099
+2026-10-30T22:18:00.4612015Z Post job cleanup.
+2026-10-30T22:18:00.6534853Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-30T22:18:00.6896502Z git version 2.56.0.windows.2
+2026-10-30T22:18:00.6975698Z Temporarily overriding HOME='D:\a\_temp\a6826f99-5174-4c8e-9a59-4f5e573250ba' before making global git config changes
+2026-10-30T22:18:00.6977031Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-30T22:18:00.6988420Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\tkb_2615\tkb_2615
+2026-10-30T22:18:00.7392124Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-30T22:18:00.7792594Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-30T22:18:01.3365819Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-30T22:18:01.3702051Z http.https://github.com/.extraheader
+2026-10-30T22:18:01.3748546Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all http.https://github.com/.extraheader
+2026-10-30T22:18:01.4127583Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-30T22:18:01.9870580Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-30T22:18:02.0257181Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-30T22:18:02.6081741Z Cleaning up orphan processes
+2026-10-30T22:18:02.6297289Z Terminate orphan process: pid (9504) (vctip)
+2026-10-30T22:18:02.6494295Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+

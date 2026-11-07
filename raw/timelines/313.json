@@ -1,0 +1,211 @@
+[
+  {
+    "sha": "9805479424ff6506ee6af41945783d75104481a3",
+    "node_id": "C_kwDOU3hqGNoAKDk4MDU0Nzk0MjRmZjY1MDZlZTZhZjQxOTQ1NzgzZDc1MTA0NDgxYTM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/9805479424ff6506ee6af41945783d75104481a3",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/9805479424ff6506ee6af41945783d75104481a3",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T00:10:58Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T00:17:21Z"
+    },
+    "tree": {
+      "sha": "350d64fdca9271291cc6bb9efc12d10cf8e4a238",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/350d64fdca9271291cc6bb9efc12d10cf8e4a238"
+    },
+    "message": "Find where two runs first differ, and the values behind random comparisons\n\nbenchmarks/first_difference.py compares per-phase digests of each part of the world and\nshows the first differing minute, phase, part and values. --draws logs each draw's key and\nwhat it was compared with, which catches a probability that changed without flipping any\ncomparison. gate_all_paths.py gets --reversed-order. The hooks live in benchmarks/tick_probe.py\non TickEngine and CounterRNG; src/ is unchanged.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "49a3cfe416162bb75373a41192c69e34544b442c",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/49a3cfe416162bb75373a41192c69e34544b442c",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/49a3cfe416162bb75373a41192c69e34544b442c"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "2b5d566ef5e796f3bf06d01f0884ce0d75842f1e",
+    "node_id": "C_kwDOU3hqGNoAKDJiNWQ1NjZlZjVlNzk2ZjNiZjA2ZDAxZjA4ODRjZTBkNzU4NDJmMWU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/2b5d566ef5e796f3bf06d01f0884ce0d75842f1e",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/2b5d566ef5e796f3bf06d01f0884ce0d75842f1e",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T00:18:31Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T00:18:31Z"
+    },
+    "tree": {
+      "sha": "5dd9c009e8bfa5c3e20cfa25671e1e3282a2c6c8",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/5dd9c009e8bfa5c3e20cfa25671e1e3282a2c6c8"
+    },
+    "message": "Merge feature/rust-port into rust/p0-digest\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "9805479424ff6506ee6af41945783d75104481a3",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/9805479424ff6506ee6af41945783d75104481a3",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/9805479424ff6506ee6af41945783d75104481a3"
+      },
+      {
+        "sha": "7991c22e8ec73ac1371e39484148cf2c201cc855",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7991c22e8ec73ac1371e39484148cf2c201cc855",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/7991c22e8ec73ac1371e39484148cf2c201cc855"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "3627349f0b2e469cf65fa6b6eb2e449cc9376d21",
+    "node_id": "C_kwDOU3hqGNoAKDM2MjczNDlmMGIyZTQ2OWNmNjVmYTZiNmViMmU0NDljYzkzNzZkMjE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/3627349f0b2e469cf65fa6b6eb2e449cc9376d21",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/3627349f0b2e469cf65fa6b6eb2e449cc9376d21",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T00:36:18Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T00:36:18Z"
+    },
+    "tree": {
+      "sha": "d3bdc27eb1ca3d1b19afdced6b3432b9f2008995",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/d3bdc27eb1ca3d1b19afdced6b3432b9f2008995"
+    },
+    "message": "Point the order probe at where the phases and views moved\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "2b5d566ef5e796f3bf06d01f0884ce0d75842f1e",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/2b5d566ef5e796f3bf06d01f0884ce0d75842f1e",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/2b5d566ef5e796f3bf06d01f0884ce0d75842f1e"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34744975050,
+    "node_id": "ME_lADOU3hqGM8AAAABbVKelc8AAAAIFvY-yg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34744975050",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "50c34dffa082823b58ef33b5f6bb9914c0a4b7e4",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/50c34dffa082823b58ef33b5f6bb9914c0a4b7e4",
+    "created_at": "2026-10-31T00:55:07Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34744975146,
+    "node_id": "CE_lADOU3hqGM8AAAABbVKelc8AAAAIFvY_Kg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34744975146",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-31T00:55:07Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34744981068,
+    "node_id": "HRDE_lADOU3hqGM8AAAABbVKelc8AAAAIFvZWTA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34744981068",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-31T00:55:15Z",
+    "performed_via_github_app": null
+  }
+]
+

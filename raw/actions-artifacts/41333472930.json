@@ -1,0 +1,66 @@
+{
+  "total_count": 3,
+  "artifacts": [
+    {
+      "id": 13094623093,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA5NDYyMzA5Mw==",
+      "name": "test-results-ubuntu-latest",
+      "size_in_bytes": 150675,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13094623093",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13094623093/zip",
+      "expired": false,
+      "digest": "sha256:864b226195b5f0c26aeaaf1009eb12e8a414b6f15da4896c8a55cfb8aaccf18d",
+      "created_at": "2026-11-01T18:08:07Z",
+      "updated_at": "2026-11-01T18:08:07Z",
+      "expires_at": "2026-11-08T18:08:06Z",
+      "workflow_run": {
+        "id": 41333472930,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/m6-population-rules",
+        "head_sha": "db1288177a80b53041f86f63de55b45fcf2e20fd"
+      }
+    },
+    {
+      "id": 13094541634,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA5NDU0MTYzNA==",
+      "name": "test-results-macos-latest",
+      "size_in_bytes": 75957,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13094541634",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13094541634/zip",
+      "expired": false,
+      "digest": "sha256:5e1aff36fa1f444e0daef05b5afc391842ede7cc2ecb9a876e654742f15868e2",
+      "created_at": "2026-11-01T17:57:35Z",
+      "updated_at": "2026-11-01T17:57:35Z",
+      "expires_at": "2026-11-08T17:57:33Z",
+      "workflow_run": {
+        "id": 41333472930,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/m6-population-rules",
+        "head_sha": "db1288177a80b53041f86f63de55b45fcf2e20fd"
+      }
+    },
+    {
+      "id": 13094199927,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA5NDE5OTkyNw==",
+      "name": "test-results-windows-latest",
+      "size_in_bytes": 77801,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13094199927",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13094199927/zip",
+      "expired": false,
+      "digest": "sha256:a719aae1740ea3fdac56e3272c36285defe6dfce6441b12d1409cc0ff4514c38",
+      "created_at": "2026-11-01T18:03:46Z",
+      "updated_at": "2026-11-01T18:03:46Z",
+      "expires_at": "2026-11-08T18:03:45Z",
+      "workflow_run": {
+        "id": 41333472930,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/m6-population-rules",
+        "head_sha": "db1288177a80b53041f86f63de55b45fcf2e20fd"
+      }
+    }
+  ]
+}
+

@@ -1,0 +1,494 @@
+[
+  {
+    "sha": "bd8936f94eccf427143facf71107a5dacc7257e1",
+    "node_id": "C_kwDOU3hqGNoAKGJkODkzNmY5NGVjY2Y0MjcxNDNmYWNmNzExMDdhNWRhY2M3MjU3ZTE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/bd8936f94eccf427143facf71107a5dacc7257e1",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/bd8936f94eccf427143facf71107a5dacc7257e1",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-24T04:41:59Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-24T04:41:59Z"
+    },
+    "tree": {
+      "sha": "8e1e84923336c1413d71c280df89c697ce3d722d",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/8e1e84923336c1413d71c280df89c697ce3d722d"
+    },
+    "message": "Surface LLM rule fallbacks in Run summaries\n\nAPI-mode runs could silently fall back to rules for every task (call cap,\ndenied usage allowance, schema rejection) while the manifest reported\nfailures: 0, so results matching offline looked like a model problem.\n\n- Add sheltersim.llm.outcomes: one classifier that counts accepted,\n  fallback and offline-rule calls by reason, error kind and prompt version\n  and derives a status (not_requested / offline_rules / all_accepted /\n  degraded / all_fallback).\n- Manifest llm_usage gains a versioned \"outcomes\" block; \"failures\" now\n  counts every non-offline fallback, including max_api_calls and\n  shared_allowance_unavailable.\n- CLI run prints llm_status and warns on stderr when degraded or\n  all_fallback (exit code unchanged).\n- Add read-only Project route .../branches/{branch}/llm-status computed\n  from records already in the head Checkpoint (no Checkpoint format change).\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "dedb563854e92f6bfe136a108a458f0fba2e35cb",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/dedb563854e92f6bfe136a108a458f0fba2e35cb",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/dedb563854e92f6bfe136a108a458f0fba2e35cb"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "c5d16728181a2fba1d92dbde029c4d9b5657423c",
+    "node_id": "C_kwDOU3hqGNoAKGM1ZDE2NzI4MTgxYTJmYmExZDkyZGJkZTAyOWM0ZDliNTY1NzQyM2M",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c5d16728181a2fba1d92dbde029c4d9b5657423c",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/c5d16728181a2fba1d92dbde029c4d9b5657423c",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-24T04:49:07Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-24T04:49:07Z"
+    },
+    "tree": {
+      "sha": "5d0a174f3215714bed7ccd72e3c7468f9371474d",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/5d0a174f3215714bed7ccd72e3c7468f9371474d"
+    },
+    "message": "docs: drop domain-reviewer requirement from AGENTS.md\n\nRemove the team-development rule that required changes to state/schema,\nthe Provider boundary, persistence and public HTTP contracts to be reviewed\nby a teammate familiar with that area, as agreed by the project owner.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "bd8936f94eccf427143facf71107a5dacc7257e1",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/bd8936f94eccf427143facf71107a5dacc7257e1",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/bd8936f94eccf427143facf71107a5dacc7257e1"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "caa30162a20cdca19f733d74f186218e60364f8c",
+    "node_id": "C_kwDOU3hqGNoAKGNhYTMwMTYyYTIwY2RjYTE5ZjczM2Q3NGYxODYyMThlNjAzNjRmOGM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/caa30162a20cdca19f733d74f186218e60364f8c",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/caa30162a20cdca19f733d74f186218e60364f8c",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-24T04:50:02Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-24T04:50:02Z"
+    },
+    "tree": {
+      "sha": "651098586f35a1b14ac8ed9dc7d52b46818778ba",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/651098586f35a1b14ac8ed9dc7d52b46818778ba"
+    },
+    "message": "docs: drop domain-reviewer requirement from CONTRIBUTING.md\n\nKeep the general one-teammate review step but remove the requirement that\nschema, Checkpoint, model, Provider and public HTTP changes be checked by\nsomeone familiar with that boundary, matching the AGENTS.md change.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "c5d16728181a2fba1d92dbde029c4d9b5657423c",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c5d16728181a2fba1d92dbde029c4d9b5657423c",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/c5d16728181a2fba1d92dbde029c4d9b5657423c"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "59ae8b6a24f79732a85984aa1d3099943db1adab",
+    "node_id": "C_kwDOU3hqGNoAKDU5YWU4YjZhMjRmNzk3MzJhODU5ODRhYTFkMzA5OTk0M2RiMWFkYWI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/59ae8b6a24f79732a85984aa1d3099943db1adab",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/59ae8b6a24f79732a85984aa1d3099943db1adab",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-24T04:51:50Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-24T04:51:50Z"
+    },
+    "tree": {
+      "sha": "176b5e63a01a9ac2a8b8dc837f91eede3a0920c8",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/176b5e63a01a9ac2a8b8dc837f91eede3a0920c8"
+    },
+    "message": "docs: let authors merge their own PRs without review during the hackathon\n\nReplace the review steps in CONTRIBUTING.md with the short-term hackathon\nrule: open a Pull Request, run the local checks, and merge it yourself.\nDirect pushes to main remain disallowed.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "caa30162a20cdca19f733d74f186218e60364f8c",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/caa30162a20cdca19f733d74f186218e60364f8c",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/caa30162a20cdca19f733d74f186218e60364f8c"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "48241cfaa4077650b053314af0fdd1dadc71c6e5",
+    "node_id": "C_kwDOU3hqGNoAKDQ4MjQxY2ZhYTQwNzc2NTBiMDUzMzE0YWYwZmRkMWRhZGM3MWM2ZTU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/48241cfaa4077650b053314af0fdd1dadc71c6e5",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/48241cfaa4077650b053314af0fdd1dadc71c6e5",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-24T04:53:01Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-24T04:53:01Z"
+    },
+    "tree": {
+      "sha": "d204a5dafbbeabbf9e3ffb9fdfc529d0c9a49b25",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/d204a5dafbbeabbf9e3ffb9fdfc529d0c9a49b25"
+    },
+    "message": "docs: run offline tests before merging, not before review requests\n\nAlign AGENTS.md with the hackathon rule that authors merge their own Pull\nRequests without review.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "59ae8b6a24f79732a85984aa1d3099943db1adab",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/59ae8b6a24f79732a85984aa1d3099943db1adab",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/59ae8b6a24f79732a85984aa1d3099943db1adab"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34111618340,
+    "node_id": "ME_lADOU3hqGM8AAAABZjBKlc8AAAAH8TX9JA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34111618340",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "94462855a6c00f9b5732e4a8822f53b8f0e643ef",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/94462855a6c00f9b5732e4a8822f53b8f0e643ef",
+    "created_at": "2026-10-24T04:53:58Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34111618390,
+    "node_id": "CE_lADOU3hqGM8AAAABZjBKlc8AAAAH8TX9Vg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34111618390",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-24T04:53:58Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34111659760,
+    "node_id": "HRDE_lADOU3hqGM8AAAABZjBKlc8AAAAH8Tae8A",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34111659760",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-24T04:55:16Z",
+    "performed_via_github_app": null
+  },
+  {
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "created_at": "2026-10-24T05:15:47Z",
+    "updated_at": "2026-10-24T05:15:47Z",
+    "source": {
+      "type": "issue",
+      "issue": {
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/4",
+        "repository_url": "https://api.github.com/repos/jphacks/tkb_2615",
+        "labels_url": "https://api.github.com/repos/jphacks/tkb_2615/issues/4/labels{/name}",
+        "comments_url": "https://api.github.com/repos/jphacks/tkb_2615/issues/4/comments",
+        "events_url": "https://api.github.com/repos/jphacks/tkb_2615/issues/4/events",
+        "html_url": "https://github.com/jphacks/tkb_2615/pull/4",
+        "id": 6009636703,
+        "node_id": "PR_kwDOU3hqGM8AAAABKZcBzg",
+        "number": 4,
+        "title": "API利用時の結果がofflineと同じになるfallbackの原因を修正する",
+        "user": {
+          "login": "WaTeR-7",
+          "id": 128142265,
+          "node_id": "U_kgDOB6NLuQ",
+          "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/WaTeR-7",
+          "html_url": "https://github.com/WaTeR-7",
+          "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+          "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+          "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+          "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+          "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+          "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "labels": [],
+        "state": "closed",
+        "locked": false,
+        "assignees": [],
+        "milestone": null,
+        "comments": 0,
+        "created_at": "2026-10-24T05:15:46Z",
+        "updated_at": "2026-10-24T05:23:22Z",
+        "closed_at": "2026-10-24T05:19:41Z",
+        "assignee": null,
+        "author_association": "COLLABORATOR",
+        "issue_field_values": [],
+        "type": null,
+        "active_lock_reason": null,
+        "draft": false,
+        "repository": {
+          "id": 1400400408,
+          "node_id": "R_kgDOU3hqGA",
+          "name": "tkb_2615",
+          "full_name": "jphacks/tkb_2615",
+          "private": false,
+          "owner": {
+            "login": "jphacks",
+            "id": 10176253,
+            "node_id": "MDEyOk9yZ2FuaXphdGlvbjEwMTc2MjUz",
+            "avatar_url": "https://avatars.githubusercontent.com/u/10176253?v=4",
+            "gravatar_id": "",
+            "url": "https://api.github.com/users/jphacks",
+            "html_url": "https://github.com/jphacks",
+            "followers_url": "https://api.github.com/users/jphacks/followers",
+            "following_url": "https://api.github.com/users/jphacks/following{/other_user}",
+            "gists_url": "https://api.github.com/users/jphacks/gists{/gist_id}",
+            "starred_url": "https://api.github.com/users/jphacks/starred{/owner}{/repo}",
+            "subscriptions_url": "https://api.github.com/users/jphacks/subscriptions",
+            "organizations_url": "https://api.github.com/users/jphacks/orgs",
+            "repos_url": "https://api.github.com/users/jphacks/repos",
+            "events_url": "https://api.github.com/users/jphacks/events{/privacy}",
+            "received_events_url": "https://api.github.com/users/jphacks/received_events",
+            "type": "Organization",
+            "user_view_type": "public",
+            "site_admin": false
+          },
+          "html_url": "https://github.com/jphacks/tkb_2615",
+          "description": "避難者の行動・心理状態・感情伝播まで再現し、途中介入・A/B比較・AI分析を通じて、避難所運営の「もしも」を事前に検証できるシミュレーター",
+          "fork": false,
+          "url": "https://api.github.com/repos/jphacks/tkb_2615",
+          "forks_url": "https://api.github.com/repos/jphacks/tkb_2615/forks",
+          "keys_url": "https://api.github.com/repos/jphacks/tkb_2615/keys{/key_id}",
+          "collaborators_url": "https://api.github.com/repos/jphacks/tkb_2615/collaborators{/collaborator}",
+          "teams_url": "https://api.github.com/repos/jphacks/tkb_2615/teams",
+          "hooks_url": "https://api.github.com/repos/jphacks/tkb_2615/hooks",
+          "issue_events_url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events{/number}",
+          "events_url": "https://api.github.com/repos/jphacks/tkb_2615/events",
+          "assignees_url": "https://api.github.com/repos/jphacks/tkb_2615/assignees{/user}",
+          "branches_url": "https://api.github.com/repos/jphacks/tkb_2615/branches{/branch}",
+          "tags_url": "https://api.github.com/repos/jphacks/tkb_2615/tags",
+          "blobs_url": "https://api.github.com/repos/jphacks/tkb_2615/git/blobs{/sha}",
+          "git_tags_url": "https://api.github.com/repos/jphacks/tkb_2615/git/tags{/sha}",
+          "git_refs_url": "https://api.github.com/repos/jphacks/tkb_2615/git/refs{/sha}",
+          "trees_url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees{/sha}",
+          "statuses_url": "https://api.github.com/repos/jphacks/tkb_2615/statuses/{sha}",
+          "languages_url": "https://api.github.com/repos/jphacks/tkb_2615/languages",
+          "stargazers_url": "https://api.github.com/repos/jphacks/tkb_2615/stargazers",
+          "contributors_url": "https://api.github.com/repos/jphacks/tkb_2615/contributors",
+          "subscribers_url": "https://api.github.com/repos/jphacks/tkb_2615/subscribers",
+          "subscription_url": "https://api.github.com/repos/jphacks/tkb_2615/subscription",
+          "commits_url": "https://api.github.com/repos/jphacks/tkb_2615/commits{/sha}",
+          "git_commits_url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits{/sha}",
+          "comments_url": "https://api.github.com/repos/jphacks/tkb_2615/comments{/number}",
+          "issue_comment_url": "https://api.github.com/repos/jphacks/tkb_2615/issues/comments{/number}",
+          "contents_url": "https://api.github.com/repos/jphacks/tkb_2615/contents/{+path}",
+          "compare_url": "https://api.github.com/repos/jphacks/tkb_2615/compare/{base}...{head}",
+          "merges_url": "https://api.github.com/repos/jphacks/tkb_2615/merges",
+          "archive_url": "https://api.github.com/repos/jphacks/tkb_2615/{archive_format}{/ref}",
+          "downloads_url": "https://api.github.com/repos/jphacks/tkb_2615/downloads",
+          "issues_url": "https://api.github.com/repos/jphacks/tkb_2615/issues{/number}",
+          "pulls_url": "https://api.github.com/repos/jphacks/tkb_2615/pulls{/number}",
+          "milestones_url": "https://api.github.com/repos/jphacks/tkb_2615/milestones{/number}",
+          "notifications_url": "https://api.github.com/repos/jphacks/tkb_2615/notifications{?since,all,participating}",
+          "labels_url": "https://api.github.com/repos/jphacks/tkb_2615/labels{/name}",
+          "releases_url": "https://api.github.com/repos/jphacks/tkb_2615/releases{/id}",
+          "deployments_url": "https://api.github.com/repos/jphacks/tkb_2615/deployments",
+          "created_at": "2026-10-01T16:49:45Z",
+          "updated_at": "2026-10-30T15:34:58Z",
+          "pushed_at": "2026-11-02T18:36:17Z",
+          "git_url": "git://github.com/jphacks/tkb_2615.git",
+          "ssh_url": "git@github.com:jphacks/tkb_2615.git",
+          "clone_url": "https://github.com/jphacks/tkb_2615.git",
+          "svn_url": "https://github.com/jphacks/tkb_2615",
+          "homepage": "",
+          "size": 12247,
+          "stargazers_count": 0,
+          "watchers_count": 0,
+          "language": "Python",
+          "has_issues": true,
+          "has_projects": true,
+          "has_downloads": false,
+          "has_wiki": true,
+          "has_pages": false,
+          "has_discussions": false,
+          "forks_count": 0,
+          "mirror_url": null,
+          "archived": false,
+          "disabled": false,
+          "open_issues_count": 15,
+          "license": {
+            "key": "mit",
+            "name": "MIT License",
+            "spdx_id": "MIT",
+            "url": "https://api.github.com/licenses/mit",
+            "node_id": "MDc6TGljZW5zZTEz"
+          },
+          "allow_forking": true,
+          "is_template": false,
+          "web_commit_signoff_required": false,
+          "has_pull_requests": true,
+          "pull_request_creation_policy": "all",
+          "topics": [],
+          "visibility": "public",
+          "forks": 0,
+          "open_issues": 15,
+          "watchers": 0,
+          "default_branch": "main",
+          "permissions": {
+            "admin": true,
+            "maintain": true,
+            "push": true,
+            "triage": true,
+            "pull": true
+          }
+        },
+        "pull_request": {
+          "url": "https://api.github.com/repos/jphacks/tkb_2615/pulls/4",
+          "html_url": "https://github.com/jphacks/tkb_2615/pull/4",
+          "diff_url": "https://github.com/jphacks/tkb_2615/pull/4.diff",
+          "patch_url": "https://github.com/jphacks/tkb_2615/pull/4.patch",
+          "merged_at": "2026-10-24T05:19:41Z"
+        },
+        "body": "## 背景\n\n#3 でfallbackを可視化したところ、API modeのRunでClaudeの応答がほぼ使われない原因が4つ見つかりました（30人・1日のScenarioで確認）。このPRでその4つを直します。\n\n## 変更内容\n\n1. **優先度判定の呼出しを絞る（support-priority-v2）**：`src/sheltersim/experiments/runner.py`、`src/sheltersim/llm/runtime.py`\n   - これまでは支援要請のたびに問い合わせていました。30人1日で約256回になり、既定の上限10回をminute 0で使い切っていました。そのため、ストレスを動かすsocial提案の呼出しには一度も届いていませんでした。\n   - v2は、stressが0.65以上の依頼者についてだけ、1日（simulation日）あたり全体で4件まで問い合わせます。対象外の依頼は、Providerを呼ばずにruleの優先度0になります（fallbackと同じ値）。\n   - 1日のruntime呼出しは約260回から9回（reviewを含む）に減り、既定の上限10回に収まります。\n   - 試行数とskip理由は `model_state[\"support_priority_runtime_v1\"]` に記録します。このstateは非offline時に初めて呼出しを判定したときに作られるので、offline Runの結果は変わりません（state hashが一致）。\n   - 上限値は新しい仮定 `ASM-SUPPORT-PRIORITY-LIMITS-V1` として、`fixtures/source-manifest.json`、Run manifestの`model_assumptions`、review用の仮定ID、`docs/model-validation.md`に記録しました。\n   - **互換性**：routerの記録済み履歴に`support-priority-v1`の呼出しがある場合は、v1の動作とpromptのまま実行します。記録済みのRunを厳密に再生できるようにするためです。v1の呼出しがない履歴は、v2の判定で呼出しが増えることはないので、そのまま再生できます。判定のため、routerに`history_records()`を追加しました（replay routerは未再生分も含めて返します）。\n2. **応答の長さ超過**：v2のpromptで「rationaleは80文字以内の短い句」と明示しました。v1のlive応答はschemaの上限160文字を超えて不合格になることが多く、10件中7件がfallbackしていました。\n3. **CLIの利用枠**：`src/sheltersim/cli.py`\n   - prepareとrunのたびに新しい利用枠（`cli-prepare-…`、`cli-run-…`）を作ります。reviewは対象Runの利用枠を引き継ぎます。\n   - これまでは全CLI実行が固定の`cli-default`を共有していました。上限は作成時の値で固定されるため、一度使い切るとそれ以降の実行はAPIを呼ばずに全taskがfallbackしていました。\n   - Run間の合計は、引き続き累積50ドルのledgerで制限されます。既存の`cli-default`は使われなくなるだけで、記録は残ります。\n4. **Project Checkpointの保存失敗**：`src/sheltersim/llm/cache.py`\n   - 応答tapeが`citations`をtupleのまま持っていました。ProjectStoreは保存前に「sanitize後の内容と元の内容が一致するか」を確認していて、tupleとlistの違いを不一致と判定し、\"checkpoint contains sensitive data\"で保存を拒否していました。\n   - 結果として、Claudeの応答を1件でも採用したProject Runは保存できませんでした（`main`のコードで再現を確認）。\n   - JSONと同じlistで持つように直しました。ディスクに書かれるJSONは変わりません。\n\n`fixtures/regression-contract.json`のpolicy版一覧には、`event_triggered_support_priority_limits: support-priority-v2`を追加しました。policyを1つ追加したことによる、意図した契約の変更です。\n\n## 確認\n\n- `SHELTERSIM_LLM_MODE=offline python -m pytest -q -m \"not live_api and not long_simulation\"`：**590 passed, 7 deselected**\n- ruff：変更した既存fileの指摘は変更前より1件減り（削除した長い行）、増えた指摘はありません。新規test fileは`ruff check`と`ruff format --check`ともに指摘なし。\n- 新規テスト`tests/test_support_priority_runtime.py`（6件）：\n  - v2が閾値と日次上限の範囲でだけ問い合わせ、social提案まで届くこと\n  - 翌日に上限がリセットされること\n  - offline Runではstateを作らないこと\n  - v1の履歴はv1のpromptと動作を保つこと\n  - v2のProject履歴を、Providerを呼ばずに厳密に再生できること\n  - CLIのrunごとに別の利用枠になること\n- `tests/test_llm_provider.py`にtape回帰テストを追加しました。修正前のcodeで失敗し、修正後に通ることを確認しています。\n- live確認（プロジェクトオーナー承認済み、30人1日、上限10回、予算$0.01、実費$0.00045）：\n  - runtimeの呼出し8件（優先度判定4、social 3、苦情対応1）がすべて採用され、検証の不合格は0件でした。修正前は採用3件、不合格7件、上限によるfallback 251件でした。\n  - Opusのreviewは、承認範囲に収めるため予算で止めました（`budget_exceeded`として警告に表示）。\n  - social interactionが4件実行され、`stress_mean`の推移がofflineと変わりました（1,440分中1,135分で差あり）。\n\n## 制限・未実施\n\n- **効果は小さいままです。** 平均stressの差は最大−0.0027（約1%）で、1255分目以降はofflineと一致し、1日の最終KPIは同じ値です。social提案が全体で1日4件までであることと、効果の係数が小さいことによる、モデル設計上の性質です。係数や上限の見直しには根拠と仮定の記録が必要なため、別PRで扱います。\n- 上限値（閾値0.65、1日4件）は未校正の費用・選択の上限です。\n- Opus reviewを含む1日分の通常予算でのlive確認はしていません。\n- ローカル`.env`の`SHELTERSIM_LLM_MAX_CALLS`という誤った変数名は、各自の環境で`SHELTERSIM_LLM_MAX_API_CALLS`に直す必要があります（`.env`はGit管理外）。\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+        "reactions": {
+          "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/4/reactions",
+          "total_count": 0,
+          "+1": 0,
+          "-1": 0,
+          "laugh": 0,
+          "hooray": 0,
+          "confused": 0,
+          "heart": 0,
+          "rocket": 0,
+          "eyes": 0
+        },
+        "timeline_url": "https://api.github.com/repos/jphacks/tkb_2615/issues/4/timeline",
+        "performed_via_github_app": null,
+        "state_reason": null
+      }
+    },
+    "event": "cross-referenced"
+  }
+]
+

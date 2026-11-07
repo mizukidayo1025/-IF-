@@ -1,0 +1,396 @@
+[
+  {
+    "sha": "63fcd7a34e5c942b992a5705c25885b27d77dff0",
+    "node_id": "C_kwDOU3hqGNoAKDYzZmNkN2EzNGU1Yzk0MmI5OTJhNTcwNWMyNTg4NWIyN2Q3N2RmZjA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/63fcd7a34e5c942b992a5705c25885b27d77dff0",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/63fcd7a34e5c942b992a5705c25885b27d77dff0",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T21:56:15Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T21:56:15Z"
+    },
+    "tree": {
+      "sha": "35e3df8f90065ff9c6e9306f0569c63af5ffde8a",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/35e3df8f90065ff9c6e9306f0569c63af5ffde8a"
+    },
+    "message": "Add an all-paths gate with a determinism check for the Rust port\n\nSmall offline scenarios reach rumors, interventions, recorded LLM responses, every\nselectable model, population changes, the floor plan overlay, fork and resume. Expected\nhashes are pinned, including two valid interventions that stop a Run today.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "478feaee5c45527260266b615095c0dcd199a159",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/478feaee5c45527260266b615095c0dcd199a159",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/478feaee5c45527260266b615095c0dcd199a159"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "4cd5291378832b6d2337199a67a92e0af324e15c",
+    "node_id": "C_kwDOU3hqGNoAKDRjZDUyOTEzNzg4MzJiNmQyMzM3MTk5YTY3YTkyZTBhZjMyNGUxNWM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4cd5291378832b6d2337199a67a92e0af324e15c",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/4cd5291378832b6d2337199a67a92e0af324e15c",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T21:56:15Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T21:56:15Z"
+    },
+    "tree": {
+      "sha": "f13daa1d3e5eb494bb18a4a6949a60270a9600dc",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/f13daa1d3e5eb494bb18a4a6949a60270a9600dc"
+    },
+    "message": "Add a multi-seed comparison of KPIs against seed noise\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "63fcd7a34e5c942b992a5705c25885b27d77dff0",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/63fcd7a34e5c942b992a5705c25885b27d77dff0",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/63fcd7a34e5c942b992a5705c25885b27d77dff0"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "5a43a1cae88f0f3b366baddf62db1a0146c64ac7",
+    "node_id": "C_kwDOU3hqGNoAKDVhNDNhMWNhZTg4ZjBmM2IzNjZiYWRkZjYyZGIxYTAxNDZjNjRhYzc",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/5a43a1cae88f0f3b366baddf62db1a0146c64ac7",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/5a43a1cae88f0f3b366baddf62db1a0146c64ac7",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T21:56:15Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T21:56:15Z"
+    },
+    "tree": {
+      "sha": "6a97bbecf3c2ef91aba2818b03fa8f9f01eba80f",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/6a97bbecf3c2ef91aba2818b03fa8f9f01eba80f"
+    },
+    "message": "Document the all-paths gate and record its first measurements\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "4cd5291378832b6d2337199a67a92e0af324e15c",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4cd5291378832b6d2337199a67a92e0af324e15c",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/4cd5291378832b6d2337199a67a92e0af324e15c"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "434198219099af70bf026c703a6efc5c2a3bcd79",
+    "node_id": "C_kwDOU3hqGNoAKDQzNDE5ODIxOTA5OWFmNzBiZjAyNmM3MDNhNmVmYzVjMmEzYmNkNzk",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/434198219099af70bf026c703a6efc5c2a3bcd79",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/434198219099af70bf026c703a6efc5c2a3bcd79",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T21:56:51Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T21:56:51Z"
+    },
+    "tree": {
+      "sha": "109139ad385644bb4561457d3e2f94e32ac9384c",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/109139ad385644bb4561457d3e2f94e32ac9384c"
+    },
+    "message": "Run the gate's hash checks only on Linux, where the hashes are pinned\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "5a43a1cae88f0f3b366baddf62db1a0146c64ac7",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/5a43a1cae88f0f3b366baddf62db1a0146c64ac7",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/5a43a1cae88f0f3b366baddf62db1a0146c64ac7"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "01bb7ee1919582a11a20b6702d597f7cd2b1cdd0",
+    "node_id": "C_kwDOU3hqGNoAKDAxYmI3ZWUxOTE5NTgyYTExYTIwYjY3MDJkNTk3ZjdjZDJiMWNkZDA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/01bb7ee1919582a11a20b6702d597f7cd2b1cdd0",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/01bb7ee1919582a11a20b6702d597f7cd2b1cdd0",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T22:02:57Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T22:02:57Z"
+    },
+    "tree": {
+      "sha": "02598536797aff26428c5ce3692621910615c748",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/02598536797aff26428c5ce3692621910615c748"
+    },
+    "message": "Merge feature/rust-port into rust/gate-all-paths\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "434198219099af70bf026c703a6efc5c2a3bcd79",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/434198219099af70bf026c703a6efc5c2a3bcd79",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/434198219099af70bf026c703a6efc5c2a3bcd79"
+      },
+      {
+        "sha": "38ff1fda96a1dd373e7a695329b2576d26e30eca",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/38ff1fda96a1dd373e7a695329b2576d26e30eca",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/38ff1fda96a1dd373e7a695329b2576d26e30eca"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "360e9bece4ba407b7aecb6c4c009acbec70f780a",
+    "node_id": "C_kwDOU3hqGNoAKDM2MGU5YmVjZTRiYTQwN2I3YWVjYjZjNGMwMDlhY2JlYzcwZjc4MGE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/360e9bece4ba407b7aecb6c4c009acbec70f780a",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/360e9bece4ba407b7aecb6c4c009acbec70f780a",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T22:05:20Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T22:05:20Z"
+    },
+    "tree": {
+      "sha": "922c3bdf26c4997f0bd770044cf7d38b4143bc06",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/922c3bdf26c4997f0bd770044cf7d38b4143bc06"
+    },
+    "message": "Merge feature/rust-port into rust/gate-all-paths\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "01bb7ee1919582a11a20b6702d597f7cd2b1cdd0",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/01bb7ee1919582a11a20b6702d597f7cd2b1cdd0",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/01bb7ee1919582a11a20b6702d597f7cd2b1cdd0"
+      },
+      {
+        "sha": "21d6ec285a02f3d2a6272e1432bcd3ea5834fd9e",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/21d6ec285a02f3d2a6272e1432bcd3ea5834fd9e",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/21d6ec285a02f3d2a6272e1432bcd3ea5834fd9e"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "27a8d502b179dc100804905adaa4d5f311de6cbb",
+    "node_id": "C_kwDOU3hqGNoAKDI3YThkNTAyYjE3OWRjMTAwODA0OTA1YWRhYTRkNWYzMTFkZTZjYmI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/27a8d502b179dc100804905adaa4d5f311de6cbb",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/27a8d502b179dc100804905adaa4d5f311de6cbb",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T22:05:20Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T22:05:20Z"
+    },
+    "tree": {
+      "sha": "8795cab00fe07a66c87e37530c96add3bca7ebfa",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/8795cab00fe07a66c87e37530c96add3bca7ebfa"
+    },
+    "message": "Run the all-paths gate and the banned-method check in CI on Linux\n\nPort lanes merge once CI passes, so the gate has to be part of it. feature/rust-port only.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "360e9bece4ba407b7aecb6c4c009acbec70f780a",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/360e9bece4ba407b7aecb6c4c009acbec70f780a",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/360e9bece4ba407b7aecb6c4c009acbec70f780a"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "204b97ff3d3bac34e746ebfbc303ee63ac61ad0c",
+    "node_id": "C_kwDOU3hqGNoAKDIwNGI5N2ZmM2QzYmFjMzRlNzQ2ZWJmYmMzMDNlZTYzYWM2MWFkMGM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/204b97ff3d3bac34e746ebfbc303ee63ac61ad0c",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/204b97ff3d3bac34e746ebfbc303ee63ac61ad0c",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T22:21:53Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T22:21:53Z"
+    },
+    "tree": {
+      "sha": "99b123d2a85cd1c019792b7a9a97fd49156c7ee7",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/99b123d2a85cd1c019792b7a9a97fd49156c7ee7"
+    },
+    "message": "Write the behaviour report as UTF-8 on any console\n\nWindows' default console encoding cannot write its Japanese labels.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "27a8d502b179dc100804905adaa4d5f311de6cbb",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/27a8d502b179dc100804905adaa4d5f311de6cbb",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/27a8d502b179dc100804905adaa4d5f311de6cbb"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34738500176,
+    "node_id": "ME_lADOU3hqGM8AAAABbT2dwM8AAAAIFpNyUA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34738500176",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "49a3cfe416162bb75373a41192c69e34544b442c",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/49a3cfe416162bb75373a41192c69e34544b442c",
+    "created_at": "2026-10-30T22:40:50Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34738500329,
+    "node_id": "CE_lADOU3hqGM8AAAABbT2dwM8AAAAIFpNy6Q",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34738500329",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-30T22:40:50Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34738509828,
+    "node_id": "HRDE_lADOU3hqGM8AAAABbT2dwM8AAAAIFpOYBA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34738509828",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-30T22:41:00Z",
+    "performed_via_github_app": null
+  }
+]
+

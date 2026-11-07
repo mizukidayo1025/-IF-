@@ -1,0 +1,170 @@
+[
+  {
+    "sha": "f2150dd0450e39199cb91593bb2e6b318959474c",
+    "node_id": "C_kwDOU3hqGNoAKGYyMTUwZGQwNDUwZTM5MTk5Y2I5MTU5M2JiMmU2YjMxODk1OTQ3NGM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f2150dd0450e39199cb91593bb2e6b318959474c",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/f2150dd0450e39199cb91593bb2e6b318959474c",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T09:38:20Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T09:38:20Z"
+    },
+    "tree": {
+      "sha": "00e47cbd8ce31086684045ecc5ad66aecd2244ea",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/00e47cbd8ce31086684045ecc5ad66aecd2244ea"
+    },
+    "message": "Move test_geometry_config_cache.py under tests/integration\n\nOnly the file move, so its history stays traceable. The next commit\nmoves its unit tests next to the other geometry_overlay unit tests and\nswitches the file to the shared generated Scenario (#88).\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "dd7cc7e32b75492683b897a219e74599ba63fc97",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/dd7cc7e32b75492683b897a219e74599ba63fc97",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/dd7cc7e32b75492683b897a219e74599ba63fc97"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "cebeb0b3429f02feb62591af29ecc47357e71e2c",
+    "node_id": "C_kwDOU3hqGNoAKGNlYmViMGIzNDI5ZjAyZmViNjI1OTFhZjI5ZWNjNDczNTdlNzFlMmM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/cebeb0b3429f02feb62591af29ecc47357e71e2c",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/cebeb0b3429f02feb62591af29ecc47357e71e2c",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T09:41:52Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T09:41:52Z"
+    },
+    "tree": {
+      "sha": "8a8342f4c3b237105d7770fe30da99318667276b",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/8a8342f4c3b237105d7770fe30da99318667276b"
+    },
+    "message": "Check the geometry config cache on the shared generated Scenario\n\nThe cache tests built their own Scenario with InitialScenarioBuilder\n(20 evacuees, one day, seed 2026) instead of the Scenario the UI makes.\nThey now use the shared generated_scenario fixture (#88).\n\nThe three unit tests of the per-phase cache join the other\ngeometry_overlay unit tests; the tick-phase test stays here as the\nintegration test. Their shared validation counter becomes the\ncount_validations fixture in tests/conftest.py.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "f2150dd0450e39199cb91593bb2e6b318959474c",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f2150dd0450e39199cb91593bb2e6b318959474c",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/f2150dd0450e39199cb91593bb2e6b318959474c"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34351862915,
+    "node_id": "ME_lADOU3hqGM8AAAABaQGH8M8AAAAH_4fUgw",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34351862915",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "3150d72d6b0cb78d4e6047f5565e406a88f3b343",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/3150d72d6b0cb78d4e6047f5565e406a88f3b343",
+    "created_at": "2026-10-27T09:52:58Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34351863071,
+    "node_id": "CE_lADOU3hqGM8AAAABaQGH8M8AAAAH_4fVHw",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34351863071",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T09:52:59Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34351867932,
+    "node_id": "HRDE_lADOU3hqGM8AAAABaQGH8M8AAAAH_4foHA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34351867932",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T09:53:02Z",
+    "performed_via_github_app": null
+  }
+]
+

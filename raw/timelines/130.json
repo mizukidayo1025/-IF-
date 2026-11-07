@@ -1,0 +1,710 @@
+[
+  {
+    "sha": "5e6d4895a19da0aeeea82af42dfada9de7928733",
+    "node_id": "C_kwDOU3hqGNoAKDVlNmQ0ODk1YTE5ZGEwYWVlZWE4MmFmNDJkZmFkYTlkZTc5Mjg3MzM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/5e6d4895a19da0aeeea82af42dfada9de7928733",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/5e6d4895a19da0aeeea82af42dfada9de7928733",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:40:22Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:40:22Z"
+    },
+    "tree": {
+      "sha": "c50a3351543b9421bd21791aa670ea826c761613",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/c50a3351543b9421bd21791aa670ea826c761613"
+    },
+    "message": "Move test_branch.py under tests/integration\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "96904bf37110bdffb37218b79ece10a5fee7c089",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/96904bf37110bdffb37218b79ece10a5fee7c089",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/96904bf37110bdffb37218b79ece10a5fee7c089"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "f65bf78dc6e0eea026fe7650cc97e72e47512eb2",
+    "node_id": "C_kwDOU3hqGNoAKGY2NWJmNzhkYzZlMGVlYTAyNmZlNzY1MGNjOTdlNzJlNDc1MTJlYjI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f65bf78dc6e0eea026fe7650cc97e72e47512eb2",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/f65bf78dc6e0eea026fe7650cc97e72e47512eb2",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:40:40Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:40:40Z"
+    },
+    "tree": {
+      "sha": "6b13fb518ca45d795b43ae8a1d771b1a7e5b6a52",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/6b13fb518ca45d795b43ae8a1d771b1a7e5b6a52"
+    },
+    "message": "Split the former branch tests by scope\n\nThe no-op fork replay stays in tests/integration; the intervention and\nlineage tests join tests/unit/experiments/test_branch.py.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "5e6d4895a19da0aeeea82af42dfada9de7928733",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/5e6d4895a19da0aeeea82af42dfada9de7928733",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/5e6d4895a19da0aeeea82af42dfada9de7928733"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "f871162b5b7f801454ec77216bfdad8cdeede6d8",
+    "node_id": "C_kwDOU3hqGNoAKGY4NzExNjJiNWI3ZjgwMTQ1NGVjNzcyMTZiZmRhZDhjZGVlZGU2ZDg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f871162b5b7f801454ec77216bfdad8cdeede6d8",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/f871162b5b7f801454ec77216bfdad8cdeede6d8",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:40:51Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:40:51Z"
+    },
+    "tree": {
+      "sha": "3472e8ff439e2d344f3ee48626c25a3cb2ecfbd2",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/3472e8ff439e2d344f3ee48626c25a3cb2ecfbd2"
+    },
+    "message": "Move test_comparison.py under tests/integration\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "f65bf78dc6e0eea026fe7650cc97e72e47512eb2",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f65bf78dc6e0eea026fe7650cc97e72e47512eb2",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/f65bf78dc6e0eea026fe7650cc97e72e47512eb2"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "1edf1b69cd4637b7debbd1d5e7cefc23dd42f5e4",
+    "node_id": "C_kwDOU3hqGNoAKDFlZGYxYjY5Y2Q0NjM3YjdkZWJiZDFkNWU3Y2VmYzIzZGQ0MmY1ZTQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/1edf1b69cd4637b7debbd1d5e7cefc23dd42f5e4",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/1edf1b69cd4637b7debbd1d5e7cefc23dd42f5e4",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:41:05Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:41:05Z"
+    },
+    "tree": {
+      "sha": "3331d41ffbbbb6d2a376acc9a0417aef477831a5",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/3331d41ffbbbb6d2a376acc9a0417aef477831a5"
+    },
+    "message": "Split the former comparison tests by scope\n\nThe saved-Run and run-set comparisons stay in tests/integration, the\npolicy comparison through the CLI becomes tests/e2e/test_policy_comparison.py,\nand the in-memory report tests join tests/unit/experiments/test_comparison.py.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "f871162b5b7f801454ec77216bfdad8cdeede6d8",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f871162b5b7f801454ec77216bfdad8cdeede6d8",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/f871162b5b7f801454ec77216bfdad8cdeede6d8"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "befe7d284464af1f10ba498d3e6308ad36bb93c2",
+    "node_id": "C_kwDOU3hqGNoAKGJlZmU3ZDI4NDQ2NGFmMWYxMGJhNDk4ZDNlNjMwOGFkMzZiYjkzYzI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/befe7d284464af1f10ba498d3e6308ad36bb93c2",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/befe7d284464af1f10ba498d3e6308ad36bb93c2",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:41:05Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:41:05Z"
+    },
+    "tree": {
+      "sha": "74c1fc779573c667e198c0ec4df3179542508ffb",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/74c1fc779573c667e198c0ec4df3179542508ffb"
+    },
+    "message": "Move test_e2e.py under tests/integration\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "1edf1b69cd4637b7debbd1d5e7cefc23dd42f5e4",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/1edf1b69cd4637b7debbd1d5e7cefc23dd42f5e4",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/1edf1b69cd4637b7debbd1d5e7cefc23dd42f5e4"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "c11a925e1d7de52c3222c3bacf8ca72efcdf4d57",
+    "node_id": "C_kwDOU3hqGNoAKGMxMWE5MjVlMWQ3ZGU1MmMzMjIyYzNiYWNmOGNhNzJlZmNkZjRkNTc",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c11a925e1d7de52c3222c3bacf8ca72efcdf4d57",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/c11a925e1d7de52c3222c3bacf8ca72efcdf4d57",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:41:05Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:41:05Z"
+    },
+    "tree": {
+      "sha": "9b035b04fce75024ffba6d28f0b2086523bd7df2",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/9b035b04fce75024ffba6d28f0b2086523bd7df2"
+    },
+    "message": "Move test_exact_timeline.py under tests/integration\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "befe7d284464af1f10ba498d3e6308ad36bb93c2",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/befe7d284464af1f10ba498d3e6308ad36bb93c2",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/befe7d284464af1f10ba498d3e6308ad36bb93c2"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "74114385bcc67f247c0e09425245d6ee079391b6",
+    "node_id": "C_kwDOU3hqGNoAKDc0MTE0Mzg1YmNjNjdmMjQ3YzBlMDk0MjUyNDVkNmVlMDc5MzkxYjY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/74114385bcc67f247c0e09425245d6ee079391b6",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/74114385bcc67f247c0e09425245d6ee079391b6",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:42:27Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:42:34Z"
+    },
+    "tree": {
+      "sha": "587103e689c7e8dc7f17ec6c0fffafc2b80b9a99",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/587103e689c7e8dc7f17ec6c0fffafc2b80b9a99"
+    },
+    "message": "Point tests/integration/test_offline_run.py at the fixtures and describe it\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "c11a925e1d7de52c3222c3bacf8ca72efcdf4d57",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c11a925e1d7de52c3222c3bacf8ca72efcdf4d57",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/c11a925e1d7de52c3222c3bacf8ca72efcdf4d57"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "c3d71c1b51021bfe93e973e21e928367d07af9a2",
+    "node_id": "C_kwDOU3hqGNoAKGMzZDcxYzFiNTEwMjFiZmU5M2U5NzNlMjFlOTI4MzY3ZDA3YWY5YTI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c3d71c1b51021bfe93e973e21e928367d07af9a2",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/c3d71c1b51021bfe93e973e21e928367d07af9a2",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:42:27Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:42:34Z"
+    },
+    "tree": {
+      "sha": "91849ab0583309d0e1bf94bbf2d60bcb17221ae9",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/91849ab0583309d0e1bf94bbf2d60bcb17221ae9"
+    },
+    "message": "Describe what tests/integration/test_exact_timeline.py checks\n\nThe old docstring said the check was not yet executed; it runs in the\noffline suite.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "74114385bcc67f247c0e09425245d6ee079391b6",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/74114385bcc67f247c0e09425245d6ee079391b6",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/74114385bcc67f247c0e09425245d6ee079391b6"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "04f1f7927b97461f5741f47fd6e024b8047cbd02",
+    "node_id": "C_kwDOU3hqGNoAKDA0ZjFmNzkyN2I5NzQ2MWY1NzQxZjQ3ZmQ2ZTAyNGI4MDQ3Y2JkMDI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/04f1f7927b97461f5741f47fd6e024b8047cbd02",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/04f1f7927b97461f5741f47fd6e024b8047cbd02",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:42:44Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:42:44Z"
+    },
+    "tree": {
+      "sha": "c10bd3a8a6887764b73d33518d113402d601de3d",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/c10bd3a8a6887764b73d33518d113402d601de3d"
+    },
+    "message": "Move test_generated_scenario_fixture.py under tests/integration\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "c3d71c1b51021bfe93e973e21e928367d07af9a2",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c3d71c1b51021bfe93e973e21e928367d07af9a2",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/c3d71c1b51021bfe93e973e21e928367d07af9a2"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "c329bd8c3f953523e5762820da444203a6e98550",
+    "node_id": "C_kwDOU3hqGNoAKGMzMjliZDhjM2Y5NTM1MjNlNTc2MjgyMGRhNDQ0MjAzYTZlOTg1NTA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c329bd8c3f953523e5762820da444203a6e98550",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/c329bd8c3f953523e5762820da444203a6e98550",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:42:51Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:42:51Z"
+    },
+    "tree": {
+      "sha": "ea0d0c5eef8806780961820b84d4e7d679b7aa06",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/ea0d0c5eef8806780961820b84d4e7d679b7aa06"
+    },
+    "message": "Split the former generated Scenario fixture tests by scope\n\nThe pinned Run stays in tests/integration; the two checks of the fixture\nitself go to tests/unit/repo, since they check test infrastructure.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "04f1f7927b97461f5741f47fd6e024b8047cbd02",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/04f1f7927b97461f5741f47fd6e024b8047cbd02",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/04f1f7927b97461f5741f47fd6e024b8047cbd02"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "62d8bb04165ae318f98631fea48ce6ed3281a049",
+    "node_id": "C_kwDOU3hqGNoAKDYyZDhiYjA0MTY1YWUzMThmOTg2MzFmZWE0OGNlNmVkMzI4MWEwNDk",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/62d8bb04165ae318f98631fea48ce6ed3281a049",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/62d8bb04165ae318f98631fea48ce6ed3281a049",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:43:14Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:43:14Z"
+    },
+    "tree": {
+      "sha": "bdd45968f832fdbb0563e776228d0b13306d6bd2",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/bdd45968f832fdbb0563e776228d0b13306d6bd2"
+    },
+    "message": "Move test_metrics.py under tests/unit/experiments\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "c329bd8c3f953523e5762820da444203a6e98550",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c329bd8c3f953523e5762820da444203a6e98550",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/c329bd8c3f953523e5762820da444203a6e98550"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "431e0352229b93c3a9a11ee415b1c96d67fc1723",
+    "node_id": "C_kwDOU3hqGNoAKDQzMWUwMzUyMjI5YjkzYzNhOWExMWVlNDE1YjFjOTZkNjdmYzE3MjM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/431e0352229b93c3a9a11ee415b1c96d67fc1723",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/431e0352229b93c3a9a11ee415b1c96d67fc1723",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:43:26Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:43:26Z"
+    },
+    "tree": {
+      "sha": "a8f6270e9a37a48f4b2453bb25768fc2ebba30c6",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/a8f6270e9a37a48f4b2453bb25768fc2ebba30c6"
+    },
+    "message": "Split the former metrics tests by scope\n\nThe trace-level comparison over a Run moves to\ntests/integration/test_trace_level.py; the three unit tests stay in\ntests/unit/experiments/test_metrics.py.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "62d8bb04165ae318f98631fea48ce6ed3281a049",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/62d8bb04165ae318f98631fea48ce6ed3281a049",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/62d8bb04165ae318f98631fea48ce6ed3281a049"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "6a4a2bbe55cb96a2ffdd3edb2798b5e4dd19e4f5",
+    "node_id": "C_kwDOU3hqGNoAKDZhNGEyYmJlNTVjYjk2YTJmZmRkM2VkYjI3OThiNWU0ZGQxOWU0ZjU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/6a4a2bbe55cb96a2ffdd3edb2798b5e4dd19e4f5",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/6a4a2bbe55cb96a2ffdd3edb2798b5e4dd19e4f5",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:43:26Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:43:26Z"
+    },
+    "tree": {
+      "sha": "0f5e944c0d0c8690b27614967235a04e468945c2",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/0f5e944c0d0c8690b27614967235a04e468945c2"
+    },
+    "message": "Move test_operational_scenarios.py under tests/integration\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "431e0352229b93c3a9a11ee415b1c96d67fc1723",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/431e0352229b93c3a9a11ee415b1c96d67fc1723",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/431e0352229b93c3a9a11ee415b1c96d67fc1723"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "9614adff82c8627817629dc6eda209d1200af3d7",
+    "node_id": "C_kwDOU3hqGNoAKDk2MTRhZGZmODJjODYyNzgxNzYyOWRjNmVkYTIwOWQxMjAwYWYzZDc",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/9614adff82c8627817629dc6eda209d1200af3d7",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/9614adff82c8627817629dc6eda209d1200af3d7",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:44:40Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:44:40Z"
+    },
+    "tree": {
+      "sha": "19f97830100ea93437ffd33c0478afbd5b87292f",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/19f97830100ea93437ffd33c0478afbd5b87292f"
+    },
+    "message": "Split the former operational scenario tests by scope\n\nThe Runs and paired comparisons stay in tests/integration; the check that\nthe six scenario fixtures stay frozen goes to\ntests/unit/repo/test_scenario_fixtures.py.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "6a4a2bbe55cb96a2ffdd3edb2798b5e4dd19e4f5",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/6a4a2bbe55cb96a2ffdd3edb2798b5e4dd19e4f5",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/6a4a2bbe55cb96a2ffdd3edb2798b5e4dd19e4f5"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "3370c93f4f3a36692079121a4d6614371b90de49",
+    "node_id": "C_kwDOU3hqGNoAKDMzNzBjOTNmNGYzYTM2NjkyMDc5MTIxYTRkNjYxNDM3MWI5MGRlNDk",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/3370c93f4f3a36692079121a4d6614371b90de49",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/3370c93f4f3a36692079121a4d6614371b90de49",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:44:49Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:44:49Z"
+    },
+    "tree": {
+      "sha": "6a40aa10d30c3770f6f13485fc762941f1b1029e",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/6a40aa10d30c3770f6f13485fc762941f1b1029e"
+    },
+    "message": "Move test_performance_smoke.py under tests/integration\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "9614adff82c8627817629dc6eda209d1200af3d7",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/9614adff82c8627817629dc6eda209d1200af3d7",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/9614adff82c8627817629dc6eda209d1200af3d7"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "d6588adfbc6dd24666822a587227aeb1dcb6432f",
+    "node_id": "C_kwDOU3hqGNoAKGQ2NTg4YWRmYmM2ZGQyNDY2NjgyMmE1ODcyMjdhZWIxZGNiNjQzMmY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/d6588adfbc6dd24666822a587227aeb1dcb6432f",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/d6588adfbc6dd24666822a587227aeb1dcb6432f",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:44:50Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:44:50Z"
+    },
+    "tree": {
+      "sha": "1909fbf29243ad2b8f984dcb66c883f1046630ca",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/1909fbf29243ad2b8f984dcb66c883f1046630ca"
+    },
+    "message": "Split the former benchmark smoke tests by scope\n\nThe scaled Runs stay in tests/integration/test_benchmark.py; the seed\nsummary test moves to tests/unit/experiments/test_benchmark.py.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "3370c93f4f3a36692079121a4d6614371b90de49",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/3370c93f4f3a36692079121a4d6614371b90de49",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/3370c93f4f3a36692079121a4d6614371b90de49"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "3ffd30c5aed765648b9587c460c9414ec41b2324",
+    "node_id": "C_kwDOU3hqGNoAKDNmZmQzMGM1YWVkNzY1NjQ4Yjk1ODdjNDYwYzk0MTRlYzQxYjIzMjQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/3ffd30c5aed765648b9587c460c9414ec41b2324",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/3ffd30c5aed765648b9587c460c9414ec41b2324",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:46:53Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T16:46:53Z"
+    },
+    "tree": {
+      "sha": "09d1a2e38d02595df9414d60ce460c90b53eb6fa",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/09d1a2e38d02595df9414d60ce460c90b53eb6fa"
+    },
+    "message": "Map the first half of the sorted experiments tests\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "d6588adfbc6dd24666822a587227aeb1dcb6432f",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/d6588adfbc6dd24666822a587227aeb1dcb6432f",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/d6588adfbc6dd24666822a587227aeb1dcb6432f"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34390520776,
+    "node_id": "ME_lADOU3hqGM8AAAABaW2Agc8AAAAIAdWzyA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34390520776",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "bf9ec352fdc390a7aebb0c59b75df16c0ed0fdea",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/bf9ec352fdc390a7aebb0c59b75df16c0ed0fdea",
+    "created_at": "2026-10-27T16:50:05Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34390521102,
+    "node_id": "CE_lADOU3hqGM8AAAABaW2Agc8AAAAIAdW1Dg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34390521102",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T16:50:05Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34390527901,
+    "node_id": "HRDE_lADOU3hqGM8AAAABaW2Agc8AAAAIAdXPnQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34390527901",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T16:50:09Z",
+    "performed_via_github_app": null
+  }
+]
+

@@ -1,0 +1,581 @@
+[
+  {
+    "sha": "0e55b964e037b83fd337415fdc07c7be8a166a07",
+    "node_id": "C_kwDOU3hqGNoAKDBlNTViOTY0ZTAzN2I4M2ZkMzM3NDE1ZmRjMDdjN2JlOGExNjZhMDc",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/0e55b964e037b83fd337415fdc07c7be8a166a07",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/0e55b964e037b83fd337415fdc07c7be8a166a07",
+    "author": {
+      "name": "mizuki",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T06:45:39Z"
+    },
+    "committer": {
+      "name": "mizuki",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T06:45:39Z"
+    },
+    "tree": {
+      "sha": "1aa0422a128a4d3b143db85e2436b97efc27b0f6",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/1aa0422a128a4d3b143db85e2436b97efc27b0f6"
+    },
+    "message": "feat: add research-based distress and social models",
+    "parents": [
+      {
+        "sha": "70c198a2ee2cca0609339a3f468b145c7e3d52b8",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/70c198a2ee2cca0609339a3f468b145c7e3d52b8",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/70c198a2ee2cca0609339a3f468b145c7e3d52b8"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "038346d18c6a2a66983d5a12dbb2a7593bb8061c",
+    "node_id": "C_kwDOU3hqGNoAKDAzODM0NmQxOGM2YTJhNjY5ODNkNWExMmRiYjJhNzU5M2JiODA2MWM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/038346d18c6a2a66983d5a12dbb2a7593bb8061c",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/038346d18c6a2a66983d5a12dbb2a7593bb8061c",
+    "author": {
+      "name": "mizuki",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T06:45:44Z"
+    },
+    "committer": {
+      "name": "mizuki",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T06:45:44Z"
+    },
+    "tree": {
+      "sha": "801cbb2f1b2d3d3ec9b65b38dbf6c6f5b8cc7ecc",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/801cbb2f1b2d3d3ec9b65b38dbf6c6f5b8cc7ecc"
+    },
+    "message": "feat: model rumor belief and correction acceptance",
+    "parents": [
+      {
+        "sha": "0e55b964e037b83fd337415fdc07c7be8a166a07",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/0e55b964e037b83fd337415fdc07c7be8a166a07",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/0e55b964e037b83fd337415fdc07c7be8a166a07"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "96081d55fe98c54d0a3bb6f40303061a53b49fa9",
+    "node_id": "C_kwDOU3hqGNoAKDk2MDgxZDU1ZmU5OGM1NGQwYTNiYjZmNDAzMDMwNjFhNTNiNDlmYTk",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/96081d55fe98c54d0a3bb6f40303061a53b49fa9",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/96081d55fe98c54d0a3bb6f40303061a53b49fa9",
+    "author": {
+      "name": "mizuki",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T06:45:49Z"
+    },
+    "committer": {
+      "name": "mizuki",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T06:45:49Z"
+    },
+    "tree": {
+      "sha": "e5df114a56e7f54e4d4ae8ef7f59ed358fab9c36",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/e5df114a56e7f54e4d4ae8ef7f59ed358fab9c36"
+    },
+    "message": "feat: add toilet planning diagnostics",
+    "parents": [
+      {
+        "sha": "038346d18c6a2a66983d5a12dbb2a7593bb8061c",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/038346d18c6a2a66983d5a12dbb2a7593bb8061c",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/038346d18c6a2a66983d5a12dbb2a7593bb8061c"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "2ee8813b75c3b171991ce0807c363717fc6da8a0",
+    "node_id": "C_kwDOU3hqGNoAKDJlZTg4MTNiNzVjM2IxNzE5OTFjZTA4MDdjMzYzNzE3ZmM2ZGE4YTA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/2ee8813b75c3b171991ce0807c363717fc6da8a0",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/2ee8813b75c3b171991ce0807c363717fc6da8a0",
+    "author": {
+      "name": "mizuki",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T06:45:58Z"
+    },
+    "committer": {
+      "name": "mizuki",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T06:45:58Z"
+    },
+    "tree": {
+      "sha": "116868ee04fc149cee433cb43d7d97b74ec61869",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/116868ee04fc149cee433cb43d7d97b74ec61869"
+    },
+    "message": "docs: document models and internal validation",
+    "parents": [
+      {
+        "sha": "96081d55fe98c54d0a3bb6f40303061a53b49fa9",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/96081d55fe98c54d0a3bb6f40303061a53b49fa9",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/96081d55fe98c54d0a3bb6f40303061a53b49fa9"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "124e26235812bbc20b7319b4786d4acd3f513f15",
+    "node_id": "C_kwDOU3hqGNoAKDEyNGUyNjIzNTgxMmJiYzIwYjczMTliNDc4NmQ0YWNkM2Y1MTNmMTU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/124e26235812bbc20b7319b4786d4acd3f513f15",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/124e26235812bbc20b7319b4786d4acd3f513f15",
+    "author": {
+      "name": "mizuki",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T07:03:12Z"
+    },
+    "committer": {
+      "name": "mizuki",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T07:03:12Z"
+    },
+    "tree": {
+      "sha": "3a19e595c968d598af5ea3cf7c25e24811dd4f56",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/3a19e595c968d598af5ea3cf7c25e24811dd4f56"
+    },
+    "message": "Merge remote-tracking branch 'origin/main' into feat/research-based-mathematical-models",
+    "parents": [
+      {
+        "sha": "2ee8813b75c3b171991ce0807c363717fc6da8a0",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/2ee8813b75c3b171991ce0807c363717fc6da8a0",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/2ee8813b75c3b171991ce0807c363717fc6da8a0"
+      },
+      {
+        "sha": "98fb08b5c28993b517cb56d4b98f0b5d6b41c197",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/98fb08b5c28993b517cb56d4b98f0b5d6b41c197",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/98fb08b5c28993b517cb56d4b98f0b5d6b41c197"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "dae3ba3991cf1b1503e09ee1665dbf41e4daa69f",
+    "node_id": "C_kwDOU3hqGNoAKGRhZTNiYTM5OTFjZjFiMTUwM2UwOWVlMTY2NWRiZjQxZTRkYWE2OWY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/dae3ba3991cf1b1503e09ee1665dbf41e4daa69f",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/dae3ba3991cf1b1503e09ee1665dbf41e4daa69f",
+    "author": {
+      "name": "mizuki",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T09:00:16Z"
+    },
+    "committer": {
+      "name": "mizuki",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T09:00:16Z"
+    },
+    "tree": {
+      "sha": "c960dd6b510e6f5ce98b3abf5e6dd88d9077127f",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/c960dd6b510e6f5ce98b3abf5e6dd88d9077127f"
+    },
+    "message": "feat: integrate mean-reverting distress and life-state dynamics",
+    "parents": [
+      {
+        "sha": "124e26235812bbc20b7319b4786d4acd3f513f15",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/124e26235812bbc20b7319b4786d4acd3f513f15",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/124e26235812bbc20b7319b4786d4acd3f513f15"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "c2b0266a32c3ecee0e10ea69bca8dd6525649981",
+    "node_id": "C_kwDOU3hqGNoAKGMyYjAyNjZhMzJjM2VjZWUwZTEwZWE2OWJjYThkZDY1MjU2NDk5ODE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c2b0266a32c3ecee0e10ea69bca8dd6525649981",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/c2b0266a32c3ecee0e10ea69bca8dd6525649981",
+    "author": {
+      "name": "mizuki",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T09:00:25Z"
+    },
+    "committer": {
+      "name": "mizuki",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T09:00:25Z"
+    },
+    "tree": {
+      "sha": "f74c18de458711ef7aa5130aaf0b0a36c161d3f4",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/f74c18de458711ef7aa5130aaf0b0a36c161d3f4"
+    },
+    "message": "fix: preserve correction outcomes and information history",
+    "parents": [
+      {
+        "sha": "dae3ba3991cf1b1503e09ee1665dbf41e4daa69f",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/dae3ba3991cf1b1503e09ee1665dbf41e4daa69f",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/dae3ba3991cf1b1503e09ee1665dbf41e4daa69f"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "92344e782190d4efcdb51df396cac6f752cb8503",
+    "node_id": "C_kwDOU3hqGNoAKDkyMzQ0ZTc4MjE5MGQ0ZWZjZGI1MWRmMzk2Y2FjNmY3NTJjYjg1MDM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/92344e782190d4efcdb51df396cac6f752cb8503",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/92344e782190d4efcdb51df396cac6f752cb8503",
+    "author": {
+      "name": "mizuki",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T09:00:32Z"
+    },
+    "committer": {
+      "name": "mizuki",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T09:00:32Z"
+    },
+    "tree": {
+      "sha": "6dc9cf601f1b0971a4045b07a7c587e9dea65597",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/6dc9cf601f1b0971a4045b07a7c587e9dea65597"
+    },
+    "message": "docs: record integrated model validation and seven-day results",
+    "parents": [
+      {
+        "sha": "c2b0266a32c3ecee0e10ea69bca8dd6525649981",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c2b0266a32c3ecee0e10ea69bca8dd6525649981",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/c2b0266a32c3ecee0e10ea69bca8dd6525649981"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "d5714ee31adfa76dd281c7a117aeb78642b85ea3",
+    "node_id": "C_kwDOU3hqGNoAKGQ1NzE0ZWUzMWFkZmE3NmRkMjgxYzdhMTE3YWViNzg2NDJiODVlYTM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/d5714ee31adfa76dd281c7a117aeb78642b85ea3",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/d5714ee31adfa76dd281c7a117aeb78642b85ea3",
+    "author": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T14:26:40Z"
+    },
+    "committer": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T14:26:40Z"
+    },
+    "tree": {
+      "sha": "6a2546126690f01b33fbc4ef47dd67e9e173590c",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/6a2546126690f01b33fbc4ef47dd67e9e173590c"
+    },
+    "message": "Merge remote-tracking branch 'origin/main' into feat/research-based-mathematical-models",
+    "parents": [
+      {
+        "sha": "92344e782190d4efcdb51df396cac6f752cb8503",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/92344e782190d4efcdb51df396cac6f752cb8503",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/92344e782190d4efcdb51df396cac6f752cb8503"
+      },
+      {
+        "sha": "906a7d5b542728648f0fcfc82a1fe8a505c7bcbf",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/906a7d5b542728648f0fcfc82a1fe8a505c7bcbf",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/906a7d5b542728648f0fcfc82a1fe8a505c7bcbf"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "f886e4469d4671e2068fd84efd3ef6cc9d831fb0",
+    "node_id": "C_kwDOU3hqGNoAKGY4ODZlNDQ2OWQ0NjcxZTIwNjhmZDg0ZWZkM2VmNmNjOWQ4MzFmYjA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f886e4469d4671e2068fd84efd3ef6cc9d831fb0",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/f886e4469d4671e2068fd84efd3ef6cc9d831fb0",
+    "author": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T14:27:35Z"
+    },
+    "committer": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T14:27:35Z"
+    },
+    "tree": {
+      "sha": "72dcd097c36e38c109ca0568f952471fe8dec93b",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/72dcd097c36e38c109ca0568f952471fe8dec93b"
+    },
+    "message": "fix: model explicit facility awareness and toilet discovery",
+    "parents": [
+      {
+        "sha": "d5714ee31adfa76dd281c7a117aeb78642b85ea3",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/d5714ee31adfa76dd281c7a117aeb78642b85ea3",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/d5714ee31adfa76dd281c7a117aeb78642b85ea3"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "cc0f984fa52d416825bb846b29ab17db230bb86e",
+    "node_id": "C_kwDOU3hqGNoAKGNjMGY5ODRmYTUyZDQxNjgyNWJiODQ2YjI5YWIxN2RiMjMwYmI4NmU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/cc0f984fa52d416825bb846b29ab17db230bb86e",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/cc0f984fa52d416825bb846b29ab17db230bb86e",
+    "author": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T14:27:59Z"
+    },
+    "committer": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T14:27:59Z"
+    },
+    "tree": {
+      "sha": "3beec959391c5738550600e3265632aa96d9c713",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/3beec959391c5738550600e3265632aa96d9c713"
+    },
+    "message": "perf: summarize psychology traces by hour and cache redaction keys",
+    "parents": [
+      {
+        "sha": "f886e4469d4671e2068fd84efd3ef6cc9d831fb0",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f886e4469d4671e2068fd84efd3ef6cc9d831fb0",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/f886e4469d4671e2068fd84efd3ef6cc9d831fb0"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "4e726071474f1dafbefce82c7e02ca4eb2a4af56",
+    "node_id": "C_kwDOU3hqGNoAKDRlNzI2MDcxNDc0ZjFkYWZiZWZjZTgyYzdlMDJjYTRlYjJhNGFmNTY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4e726071474f1dafbefce82c7e02ca4eb2a4af56",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/4e726071474f1dafbefce82c7e02ca4eb2a4af56",
+    "author": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T14:28:09Z"
+    },
+    "committer": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T14:28:09Z"
+    },
+    "tree": {
+      "sha": "d54287844db1d17737aa1070286f502bede1f9b8",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/d54287844db1d17737aa1070286f502bede1f9b8"
+    },
+    "message": "docs: report long-run validation and performance measurements",
+    "parents": [
+      {
+        "sha": "cc0f984fa52d416825bb846b29ab17db230bb86e",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/cc0f984fa52d416825bb846b29ab17db230bb86e",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/cc0f984fa52d416825bb846b29ab17db230bb86e"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "8132cf7899a96f0ef5932dfe65357f1c8d3592d8",
+    "node_id": "C_kwDOU3hqGNoAKDgxMzJjZjc4OTlhOTZmMGVmNTkzMmRmZTY1MzU3ZjFjOGQzNTkyZDg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/8132cf7899a96f0ef5932dfe65357f1c8d3592d8",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/8132cf7899a96f0ef5932dfe65357f1c8d3592d8",
+    "author": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T14:28:56Z"
+    },
+    "committer": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T14:28:56Z"
+    },
+    "tree": {
+      "sha": "2e3b330359db957c2ef19c9615a4c25505d914ec",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/2e3b330359db957c2ef19c9615a4c25505d914ec"
+    },
+    "message": "Merge origin/main into research model integration",
+    "parents": [
+      {
+        "sha": "4e726071474f1dafbefce82c7e02ca4eb2a4af56",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4e726071474f1dafbefce82c7e02ca4eb2a4af56",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/4e726071474f1dafbefce82c7e02ca4eb2a4af56"
+      },
+      {
+        "sha": "5a2600000b9a908f482db6d412bdb772012d9ef5",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/5a2600000b9a908f482db6d412bdb772012d9ef5",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/5a2600000b9a908f482db6d412bdb772012d9ef5"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34132850614,
+    "node_id": "RFRE_lADOU3hqGM8AAAABZj1tFM8AAAAH8nn3tg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34132850614",
+    "actor": {
+      "login": "mizukidayo1025",
+      "id": 245258530,
+      "node_id": "U_kgDODp5ZIg",
+      "avatar_url": "https://avatars.githubusercontent.com/u/245258530?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/mizukidayo1025",
+      "html_url": "https://github.com/mizukidayo1025",
+      "followers_url": "https://api.github.com/users/mizukidayo1025/followers",
+      "following_url": "https://api.github.com/users/mizukidayo1025/following{/other_user}",
+      "gists_url": "https://api.github.com/users/mizukidayo1025/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/mizukidayo1025/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/mizukidayo1025/subscriptions",
+      "organizations_url": "https://api.github.com/users/mizukidayo1025/orgs",
+      "repos_url": "https://api.github.com/users/mizukidayo1025/repos",
+      "events_url": "https://api.github.com/users/mizukidayo1025/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/mizukidayo1025/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "ready_for_review",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-24T14:30:23Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34132856319,
+    "node_id": "ME_lADOU3hqGM8AAAABZj1tFM8AAAAH8noN_w",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34132856319",
+    "actor": {
+      "login": "mizukidayo1025",
+      "id": 245258530,
+      "node_id": "U_kgDODp5ZIg",
+      "avatar_url": "https://avatars.githubusercontent.com/u/245258530?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/mizukidayo1025",
+      "html_url": "https://github.com/mizukidayo1025",
+      "followers_url": "https://api.github.com/users/mizukidayo1025/followers",
+      "following_url": "https://api.github.com/users/mizukidayo1025/following{/other_user}",
+      "gists_url": "https://api.github.com/users/mizukidayo1025/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/mizukidayo1025/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/mizukidayo1025/subscriptions",
+      "organizations_url": "https://api.github.com/users/mizukidayo1025/orgs",
+      "repos_url": "https://api.github.com/users/mizukidayo1025/repos",
+      "events_url": "https://api.github.com/users/mizukidayo1025/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/mizukidayo1025/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "fbb75b982c540578e997d6122a14cbc45edbc1e5",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/fbb75b982c540578e997d6122a14cbc45edbc1e5",
+    "created_at": "2026-10-24T14:30:30Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34132856393,
+    "node_id": "CE_lADOU3hqGM8AAAABZj1tFM8AAAAH8noOSQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34132856393",
+    "actor": {
+      "login": "mizukidayo1025",
+      "id": 245258530,
+      "node_id": "U_kgDODp5ZIg",
+      "avatar_url": "https://avatars.githubusercontent.com/u/245258530?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/mizukidayo1025",
+      "html_url": "https://github.com/mizukidayo1025",
+      "followers_url": "https://api.github.com/users/mizukidayo1025/followers",
+      "following_url": "https://api.github.com/users/mizukidayo1025/following{/other_user}",
+      "gists_url": "https://api.github.com/users/mizukidayo1025/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/mizukidayo1025/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/mizukidayo1025/subscriptions",
+      "organizations_url": "https://api.github.com/users/mizukidayo1025/orgs",
+      "repos_url": "https://api.github.com/users/mizukidayo1025/repos",
+      "events_url": "https://api.github.com/users/mizukidayo1025/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/mizukidayo1025/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-24T14:30:31Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  }
+]
+

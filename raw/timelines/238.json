@@ -1,0 +1,134 @@
+[
+  {
+    "sha": "c1c7117933785b2b4cd7fb7c7d29c13363a9b6f8",
+    "node_id": "C_kwDOU3hqGNoAKGMxYzcxMTc5MzM3ODViMmI0Y2Q3ZmI3YzdkMjljMTMzNjNhOWI2Zjg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c1c7117933785b2b4cd7fb7c7d29c13363a9b6f8",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/c1c7117933785b2b4cd7fb7c7d29c13363a9b6f8",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-28T22:14:40Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-28T22:14:40Z"
+    },
+    "tree": {
+      "sha": "acc874b714280e8a3654b5df773fcbc4f859e76b",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/acc874b714280e8a3654b5df773fcbc4f859e76b"
+    },
+    "message": "Build the information policy's view without the unused audit hash\n\n_sample_information_contacts built its WorldView with the default audit\nhash, which serializes and hashes every person and facility at every tick.\nInformation policies read only the view's people and minute; the behavior\ndecisions, which record the hash, still build their view with it.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "4bd949e2cfa5ee80f8b306b1afff6a92632c5867",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4bd949e2cfa5ee80f8b306b1afff6a92632c5867",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/4bd949e2cfa5ee80f8b306b1afff6a92632c5867"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34525933798,
+    "node_id": "ME_lADOU3hqGM8AAAABaubE988AAAAICefw5g",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34525933798",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "b4d3cbd590c269125166534186dc03eb141bcb83",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/b4d3cbd590c269125166534186dc03eb141bcb83",
+    "created_at": "2026-10-28T22:14:46Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34525933924,
+    "node_id": "CE_lADOU3hqGM8AAAABaubE988AAAAICefxZA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34525933924",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-28T22:14:46Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34525936921,
+    "node_id": "HRDE_lADOU3hqGM8AAAABaubE988AAAAICef9GQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34525936921",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-28T22:14:49Z",
+    "performed_via_github_app": null
+  }
+]
+

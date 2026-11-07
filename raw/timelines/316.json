@@ -1,0 +1,211 @@
+[
+  {
+    "sha": "17bd2c8fbad2f139de2862d9b0be2d89739934c8",
+    "node_id": "C_kwDOU3hqGNoAKDE3YmQyYzhmYmFkMmYxMzlkZTI4NjJkOWIwYmUyZDg5NzM5OTM0Yzg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/17bd2c8fbad2f139de2862d9b0be2d89739934c8",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/17bd2c8fbad2f139de2862d9b0be2d89739934c8",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T02:13:03Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T02:13:03Z"
+    },
+    "tree": {
+      "sha": "3ab2a49dbf938fda5cdd8f7ed2c7817c78a65cc2",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/3ab2a49dbf938fda5cdd8f7ed2c7817c78a65cc2"
+    },
+    "message": "Add WorldCore, the production tracked mirror and the lane registries\n\nA world with the Rust kernels has a core in __dict__, which owns nothing yet, so model_state\nstays a plain dict. A namespace listed in OWNED_NAMESPACES becomes a tree of TrackedDict and\nTrackedList whose writes reach a typed Rust row; Rust writes through the C API; a write that\ndoes not fit taints the namespace, and the Python rules run on the tree. The sample namespace,\nfor tests only, is the template. Validator and segment registries let lanes leave core/world.py\nand the phases alone.\n\nA kernel walks a dict with PyDict_Next, so only classes whose reads are the inherited C code may\ngo through it. core/tracked.rs holds those classes; any other subclass goes to the Python code,\nincluding in canonical_json and V::from_py, which took every subclass before.\ntests/support/tracked_mirror.py now runs the production containers, so the kernels read them\nunder its plugin too, and the five failures P1 listed there pass.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "f739cd2cb7a8c98f122a1148400cb6e2afefcea5",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f739cd2cb7a8c98f122a1148400cb6e2afefcea5",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/f739cd2cb7a8c98f122a1148400cb6e2afefcea5"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "27f585c67676d4808d1c72ba7a26542fc50c74f8",
+    "node_id": "C_kwDOU3hqGNoAKDI3ZjU4NWM2NzY3NmQ0ODA4ZDFjNzJiYTdhMjY1NDJmYzUwYzc0Zjg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/27f585c67676d4808d1c72ba7a26542fc50c74f8",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/27f585c67676d4808d1c72ba7a26542fc50c74f8",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T03:17:52Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T03:17:52Z"
+    },
+    "tree": {
+      "sha": "880d35932f8ab76c28391e08140e8aae3645d9fc",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/880d35932f8ab76c28391e08140e8aae3645d9fc"
+    },
+    "message": "Add the per-lane tick budget check and the how-to for owning a namespace\n\nbenchmarks/tick_budget.py runs base, base and lane at once on a fork late in a stored Run and\ncompares the thread CPU time of the tick. docs/rust-port/lanes/p4-world-core.md says what a lane\ndoes to own a namespace, with the sample as its template, and what was measured.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "17bd2c8fbad2f139de2862d9b0be2d89739934c8",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/17bd2c8fbad2f139de2862d9b0be2d89739934c8",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/17bd2c8fbad2f139de2862d9b0be2d89739934c8"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "938114639426c116804ddfdd60f37950e28d807c",
+    "node_id": "C_kwDOU3hqGNoAKDkzODExNDYzOTQyNmMxMTY4MDRkZGZkZDYwZjM3OTUwZTI4ZDgwN2M",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/938114639426c116804ddfdd60f37950e28d807c",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/938114639426c116804ddfdd60f37950e28d807c",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T03:27:35Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T03:27:35Z"
+    },
+    "tree": {
+      "sha": "880d35932f8ab76c28391e08140e8aae3645d9fc",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/880d35932f8ab76c28391e08140e8aae3645d9fc"
+    },
+    "message": "Merge remote-tracking branch 'origin/feature/rust-port' into rust/p4-world-core",
+    "parents": [
+      {
+        "sha": "27f585c67676d4808d1c72ba7a26542fc50c74f8",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/27f585c67676d4808d1c72ba7a26542fc50c74f8",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/27f585c67676d4808d1c72ba7a26542fc50c74f8"
+      },
+      {
+        "sha": "d4571a830972c750d1787e664d3307f46dfdd52b",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/d4571a830972c750d1787e664d3307f46dfdd52b",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/d4571a830972c750d1787e664d3307f46dfdd52b"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34751955652,
+    "node_id": "ME_lADOU3hqGM8AAAABbWqKwc8AAAAIF2DCxA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34751955652",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "fa5de20d9088018a1a83008e98b23d382cc77977",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/fa5de20d9088018a1a83008e98b23d382cc77977",
+    "created_at": "2026-10-31T03:51:18Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34751955740,
+    "node_id": "CE_lADOU3hqGM8AAAABbWqKwc8AAAAIF2DDHA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34751955740",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-31T03:51:18Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34751966288,
+    "node_id": "HRDE_lADOU3hqGM8AAAABbWqKwc8AAAAIF2DsUA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34751966288",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-31T03:51:32Z",
+    "performed_via_github_app": null
+  }
+]
+

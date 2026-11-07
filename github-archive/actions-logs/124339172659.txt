@@ -1,0 +1,727 @@
+﻿2026-10-30T22:09:33.3710107Z Current runner version: '2.338.2'
+2026-10-30T22:09:33.3728678Z ##[group]Runner Image Provisioner
+2026-10-30T22:09:33.3729453Z Hosted Compute Agent
+2026-10-30T22:09:33.3729811Z Version: 20261021.618
+2026-10-30T22:09:33.3730223Z Commit: 21505ad2541d5be6135ed84fc33697146cf75b8e
+2026-10-30T22:09:33.3730675Z Build Date: 2026-10-21T00:45:21Z
+2026-10-30T22:09:33.3731137Z Worker ID: {c3b6875e-580e-4b00-8116-5bac2882628c}
+2026-10-30T22:09:33.3731600Z Region: centralus
+2026-10-30T22:09:33.3731938Z Cloud: Azure
+2026-10-30T22:09:33.3732294Z ##[endgroup]
+2026-10-30T22:09:33.3733124Z ##[group]Operating System
+2026-10-30T22:09:33.3733524Z Ubuntu
+2026-10-30T22:09:33.3733890Z 26.04.1
+2026-10-30T22:09:33.3734208Z LTS
+2026-10-30T22:09:33.3734516Z ##[endgroup]
+2026-10-30T22:09:33.3734921Z ##[group]Runner Image
+2026-10-30T22:09:33.3735335Z Image: ubuntu-26.04
+2026-10-30T22:09:33.3735721Z Version: 20261025.179.1
+2026-10-30T22:09:33.3736482Z Included Software: https://github.com/actions/runner-images/blob/ubuntu26/20261025.179/images/ubuntu/Ubuntu2604-Readme.md
+2026-10-30T22:09:33.3737411Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu26%2F20261025.179
+2026-10-30T22:09:33.3738011Z ##[endgroup]
+2026-10-30T22:09:33.3738703Z ##[group]GITHUB_TOKEN Permissions
+2026-10-30T22:09:33.3740405Z Contents: read
+2026-10-30T22:09:33.3740814Z Metadata: read
+2026-10-30T22:09:33.3741198Z ##[endgroup]
+2026-10-30T22:09:33.3742645Z Secret source: Actions
+2026-10-30T22:09:33.3743274Z Cache mode: write
+2026-10-30T22:09:33.3743918Z Prepare workflow directory
+2026-10-30T22:09:33.4023626Z Prepare all required actions
+2026-10-30T22:09:33.4055618Z Getting action download info
+2026-10-30T22:09:33.6624215Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-30T22:09:33.7911525Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+2026-10-30T22:09:33.8716817Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-10-30T22:09:34.0333449Z Complete job name: test (ubuntu-latest)
+2026-10-30T22:09:34.0940890Z ##[group]Run actions/checkout@v4
+2026-10-30T22:09:34.0941347Z with:
+2026-10-30T22:09:34.0941603Z   repository: jphacks/tkb_2615
+2026-10-30T22:09:34.0943729Z   token: ***
+2026-10-30T22:09:34.0943976Z   ssh-strict: true
+2026-10-30T22:09:34.0944231Z   ssh-user: git
+2026-10-30T22:09:34.0944491Z   persist-credentials: true
+2026-10-30T22:09:34.0944771Z   clean: true
+2026-10-30T22:09:34.0945033Z   sparse-checkout-cone-mode: true
+2026-10-30T22:09:34.0945332Z   fetch-depth: 1
+2026-10-30T22:09:34.0945583Z   fetch-tags: false
+2026-10-30T22:09:34.0945845Z   show-progress: true
+2026-10-30T22:09:34.0946105Z   lfs: false
+2026-10-30T22:09:34.0946341Z   submodules: false
+2026-10-30T22:09:34.0946601Z   set-safe-directory: true
+2026-10-30T22:09:34.0946891Z   allow-unsafe-pr-checkout: false
+2026-10-30T22:09:34.0947250Z env:
+2026-10-30T22:09:34.0947488Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:09:34.0947768Z ##[endgroup]
+2026-10-30T22:09:34.2842502Z Syncing repository: jphacks/tkb_2615
+2026-10-30T22:09:34.2844122Z ##[group]Getting Git version info
+2026-10-30T22:09:34.2844530Z Working directory is '/home/runner/work/tkb_2615/tkb_2615'
+2026-10-30T22:09:34.2845411Z [command]/usr/bin/git version
+2026-10-30T22:09:34.2867527Z git version 2.56.0
+2026-10-30T22:09:34.2881413Z ##[endgroup]
+2026-10-30T22:09:34.2892586Z Temporarily overriding HOME='/home/runner/work/_temp/93c88f33-8251-4935-85c8-9dd3ba0a8e6d' before making global git config changes
+2026-10-30T22:09:34.2894030Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-30T22:09:34.2896250Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/tkb_2615/tkb_2615
+2026-10-30T22:09:34.2957766Z Deleting the contents of '/home/runner/work/tkb_2615/tkb_2615'
+2026-10-30T22:09:34.2960831Z ##[group]Initializing the repository
+2026-10-30T22:09:34.2965103Z [command]/usr/bin/git init /home/runner/work/tkb_2615/tkb_2615
+2026-10-30T22:09:34.3046427Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-30T22:09:34.3047521Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-30T22:09:34.3048462Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-30T22:09:34.3049278Z hint: call:
+2026-10-30T22:09:34.3049647Z hint:
+2026-10-30T22:09:34.3050121Z hint: 	git config --global init.defaultBranch <name>
+2026-10-30T22:09:34.3050694Z hint:
+2026-10-30T22:09:34.3051226Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-30T22:09:34.3052104Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-30T22:09:34.3052802Z hint:
+2026-10-30T22:09:34.3053187Z hint: 	git branch -m <name>
+2026-10-30T22:09:34.3053623Z hint:
+2026-10-30T22:09:34.3054212Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-30T22:09:34.3056384Z Initialized empty Git repository in /home/runner/work/tkb_2615/tkb_2615/.git/
+2026-10-30T22:09:34.3066843Z [command]/usr/bin/git remote add origin https://github.com/jphacks/tkb_2615
+2026-10-30T22:09:34.3115857Z ##[endgroup]
+2026-10-30T22:09:34.3120811Z ##[group]Disabling automatic garbage collection
+2026-10-30T22:09:34.3121272Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-30T22:09:34.3156653Z ##[endgroup]
+2026-10-30T22:09:34.3157163Z ##[group]Setting up auth
+2026-10-30T22:09:34.3164423Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-30T22:09:34.3201770Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-30T22:09:34.3593589Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-30T22:09:34.3624657Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-30T22:09:34.3865932Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-30T22:09:34.3897831Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-30T22:09:34.4131646Z [command]/usr/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-30T22:09:34.4172781Z ##[endgroup]
+2026-10-30T22:09:34.4173528Z ##[group]Fetching the repository
+2026-10-30T22:09:34.4180861Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +d71390ffd8999c2a0de34cadb492baf8e59b51a7:refs/remotes/pull/311/merge
+2026-10-30T22:09:35.7311967Z From https://github.com/jphacks/tkb_2615
+2026-10-30T22:09:35.7313125Z  * [new ref]         d71390ffd8999c2a0de34cadb492baf8e59b51a7 -> pull/311/merge
+2026-10-30T22:09:35.7320129Z ##[endgroup]
+2026-10-30T22:09:35.7320888Z ##[group]Determining the checkout info
+2026-10-30T22:09:35.7321668Z ##[endgroup]
+2026-10-30T22:09:35.7330363Z [command]/usr/bin/git sparse-checkout disable
+2026-10-30T22:09:35.7388346Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-30T22:09:35.7418353Z ##[group]Checking out the ref
+2026-10-30T22:09:35.7421407Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/311/merge
+2026-10-30T22:09:35.8941535Z Note: switching to 'refs/remotes/pull/311/merge'.
+2026-10-30T22:09:35.8942228Z 
+2026-10-30T22:09:35.8942698Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-30T22:09:35.8943808Z changes and commit them, and you can discard any commits you make in this
+2026-10-30T22:09:35.8944952Z state without impacting any branches by switching back to a branch.
+2026-10-30T22:09:35.8945636Z 
+2026-10-30T22:09:35.8946113Z If you want to create a new branch to retain commits you create, you may
+2026-10-30T22:09:35.8947503Z do so (now or later) by using -c with the switch command. Example:
+2026-10-30T22:09:35.8948081Z 
+2026-10-30T22:09:35.8948351Z   git switch -c <new-branch-name>
+2026-10-30T22:09:35.8948778Z 
+2026-10-30T22:09:35.8949227Z Or undo this operation with:
+2026-10-30T22:09:35.8949603Z 
+2026-10-30T22:09:35.8949844Z   git switch -
+2026-10-30T22:09:35.8950157Z 
+2026-10-30T22:09:35.8950660Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-30T22:09:35.8951360Z 
+2026-10-30T22:09:35.8952144Z HEAD is now at d71390f Merge 27a8d502b179dc100804905adaa4d5f311de6cbb into 21d6ec285a02f3d2a6272e1432bcd3ea5834fd9e
+2026-10-30T22:09:35.8969403Z ##[endgroup]
+2026-10-30T22:09:35.9016325Z [command]/usr/bin/git log -1 --format=%H
+2026-10-30T22:09:35.9038260Z d71390ffd8999c2a0de34cadb492baf8e59b51a7
+2026-10-30T22:09:35.9306004Z ##[group]Run actions/setup-python@v5
+2026-10-30T22:09:35.9306756Z with:
+2026-10-30T22:09:35.9307338Z   python-version: 3.12
+2026-10-30T22:09:35.9307957Z   cache: pip
+2026-10-30T22:09:35.9308551Z   cache-dependency-path: pyproject.toml
+2026-10-30T22:09:35.9309471Z   check-latest: false
+2026-10-30T22:09:35.9314013Z   token: ***
+2026-10-30T22:09:35.9314600Z   update-environment: true
+2026-10-30T22:09:35.9315244Z   allow-prereleases: false
+2026-10-30T22:09:35.9315875Z   freethreaded: false
+2026-10-30T22:09:35.9316451Z env:
+2026-10-30T22:09:35.9316986Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:09:35.9317609Z ##[endgroup]
+2026-10-30T22:09:36.0244301Z ##[group]Installed versions
+2026-10-30T22:09:36.0315590Z (node:2142) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-30T22:09:36.0317730Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-30T22:09:36.0319399Z Successfully set up CPython (3.12.15)
+2026-10-30T22:09:36.0321009Z ##[endgroup]
+2026-10-30T22:09:36.0625842Z [command]/opt/hostedtoolcache/Python/3.12.15/x64/bin/pip cache dir
+2026-10-30T22:09:36.2669728Z /home/runner/.cache/pip
+2026-10-30T22:09:36.4252907Z Cache hit for: setup-python-Linux-x64-26.04-Ubuntu-python-3.12.15-pip-b367d41838550f84609ecb92150b1202d239cd09f1ce76059f8a004a979a806e
+2026-10-30T22:09:36.4325967Z (node:2142) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-30T22:09:37.1513656Z Received 44550630 of 44550630 (100.0%), 72.0 MBs/sec
+2026-10-30T22:09:37.1514334Z Cache Size: ~42 MB (44550630 B)
+2026-10-30T22:09:37.1530971Z [command]/usr/bin/tar -xf /home/runner/work/_temp/91091da2-a672-409b-b784-f4814488ea1c/cache.tzst -P -C /home/runner/work/tkb_2615/tkb_2615 --use-compress-program unzstd
+2026-10-30T22:09:37.2101968Z Cache restored successfully
+2026-10-30T22:09:37.2125525Z Cache restored from key: setup-python-Linux-x64-26.04-Ubuntu-python-3.12.15-pip-b367d41838550f84609ecb92150b1202d239cd09f1ce76059f8a004a979a806e
+2026-10-30T22:09:37.2343506Z ##[group]Run python -m pip install -e ".[dev]"
+2026-10-30T22:09:37.2343795Z [36;1mpython -m pip install -e ".[dev]"[0m
+2026-10-30T22:09:37.2375236Z shell: /usr/bin/bash -e {0}
+2026-10-30T22:09:37.2375419Z env:
+2026-10-30T22:09:37.2375563Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:09:37.2375759Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:09:37.2376026Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+2026-10-30T22:09:37.2376295Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:09:37.2376539Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:09:37.2376766Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:09:37.2376998Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+2026-10-30T22:09:37.2377208Z ##[endgroup]
+2026-10-30T22:09:37.6719066Z Obtaining file:///home/runner/work/tkb_2615/tkb_2615
+2026-10-30T22:09:37.6731552Z   Installing build dependencies: started
+2026-10-30T22:09:38.1547234Z   Installing build dependencies: finished with status 'done'
+2026-10-30T22:09:38.1552677Z   Checking if build backend supports build_editable: started
+2026-10-30T22:09:38.4023161Z   Checking if build backend supports build_editable: finished with status 'done'
+2026-10-30T22:09:38.4030041Z   Getting requirements to build editable: started
+2026-10-30T22:09:38.7016289Z   Getting requirements to build editable: finished with status 'done'
+2026-10-30T22:09:38.7023752Z   Preparing editable metadata (pyproject.toml): started
+2026-10-30T22:09:38.8567673Z   Preparing editable metadata (pyproject.toml): finished with status 'done'
+2026-10-30T22:09:38.9686061Z Collecting pydantic==2.11.9 (from sheltersim==0.1.0)
+2026-10-30T22:09:38.9697272Z   Using cached pydantic-2.11.9-py3-none-any.whl.metadata (68 kB)
+2026-10-30T22:09:39.0478487Z Collecting reportlab<5,>=4.4 (from sheltersim==0.1.0)
+2026-10-30T22:09:39.0492370Z   Using cached reportlab-4.5.1-py3-none-any.whl.metadata (1.7 kB)
+2026-10-30T22:09:39.0830806Z Collecting pytest==8.3.5 (from sheltersim==0.1.0)
+2026-10-30T22:09:39.0840958Z   Using cached pytest-8.3.5-py3-none-any.whl.metadata (7.6 kB)
+2026-10-30T22:09:39.1022356Z Collecting pytest-xdist==3.8.0 (from sheltersim==0.1.0)
+2026-10-30T22:09:39.1031029Z   Using cached pytest_xdist-3.8.0-py3-none-any.whl.metadata (3.0 kB)
+2026-10-30T22:09:39.1200555Z Collecting pytest-cov==7.0.0 (from sheltersim==0.1.0)
+2026-10-30T22:09:39.1209114Z   Using cached pytest_cov-7.0.0-py3-none-any.whl.metadata (31 kB)
+2026-10-30T22:09:39.3436509Z Collecting coverage==7.10.7 (from sheltersim==0.1.0)
+2026-10-30T22:09:39.3447573Z   Using cached coverage-7.10.7-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (8.9 kB)
+2026-10-30T22:09:39.5653942Z Collecting ruff==0.11.0 (from sheltersim==0.1.0)
+2026-10-30T22:09:39.5665530Z   Using cached ruff-0.11.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (25 kB)
+2026-10-30T22:09:39.5893654Z Collecting pypdf<6,>=5 (from sheltersim==0.1.0)
+2026-10-30T22:09:39.5919619Z   Using cached pypdf-5.9.0-py3-none-any.whl.metadata (7.1 kB)
+2026-10-30T22:09:39.6479236Z Collecting pypdfium2<5,>=4.30 (from sheltersim==0.1.0)
+2026-10-30T22:09:39.6490764Z   Using cached pypdfium2-4.30.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (48 kB)
+2026-10-30T22:09:39.6647537Z Collecting annotated-types>=0.6.0 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-30T22:09:39.6656710Z   Using cached annotated_types-0.8.0-py3-none-any.whl.metadata (15 kB)
+2026-10-30T22:09:40.0879691Z Collecting pydantic-core==2.33.2 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-30T22:09:40.0891979Z   Using cached pydantic_core-2.33.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.8 kB)
+2026-10-30T22:09:40.1055812Z Collecting typing-extensions>=4.12.2 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-30T22:09:40.1065852Z   Using cached typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+2026-10-30T22:09:40.1202317Z Collecting typing-inspection>=0.4.0 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-30T22:09:40.1211351Z   Using cached typing_inspection-0.4.4-py3-none-any.whl.metadata (2.6 kB)
+2026-10-30T22:09:40.1359094Z Collecting iniconfig (from pytest==8.3.5->sheltersim==0.1.0)
+2026-10-30T22:09:40.1372846Z   Using cached iniconfig-2.3.1-py3-none-any.whl.metadata (2.8 kB)
+2026-10-30T22:09:40.1536994Z Collecting packaging (from pytest==8.3.5->sheltersim==0.1.0)
+2026-10-30T22:09:40.1547136Z   Using cached packaging-26.3-py3-none-any.whl.metadata (3.5 kB)
+2026-10-30T22:09:40.1689205Z Collecting pluggy<2,>=1.5 (from pytest==8.3.5->sheltersim==0.1.0)
+2026-10-30T22:09:40.1697814Z   Using cached pluggy-1.7.0-py3-none-any.whl.metadata (5.0 kB)
+2026-10-30T22:09:40.1870835Z Collecting execnet>=2.1 (from pytest-xdist==3.8.0->sheltersim==0.1.0)
+2026-10-30T22:09:40.1880418Z   Using cached execnet-2.1.2-py3-none-any.whl.metadata (2.9 kB)
+2026-10-30T22:09:40.3181723Z Collecting pillow>=9.0.0 (from reportlab<5,>=4.4->sheltersim==0.1.0)
+2026-10-30T22:09:40.3193204Z   Using cached pillow-13.0.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl.metadata (9.1 kB)
+2026-10-30T22:09:40.4022600Z Collecting charset-normalizer (from reportlab<5,>=4.4->sheltersim==0.1.0)
+2026-10-30T22:09:40.4034002Z   Using cached charset_normalizer-3.5.2-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (46 kB)
+2026-10-30T22:09:40.4095401Z Using cached coverage-7.10.7-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (252 kB)
+2026-10-30T22:09:40.4103758Z Using cached pydantic-2.11.9-py3-none-any.whl (444 kB)
+2026-10-30T22:09:40.4112825Z Using cached pydantic_core-2.33.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.0 MB)
+2026-10-30T22:09:40.4125144Z Using cached pytest-8.3.5-py3-none-any.whl (343 kB)
+2026-10-30T22:09:40.4133390Z Using cached pytest_cov-7.0.0-py3-none-any.whl (22 kB)
+2026-10-30T22:09:40.4140348Z Using cached pytest_xdist-3.8.0-py3-none-any.whl (46 kB)
+2026-10-30T22:09:40.4147326Z Using cached ruff-0.11.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (11.3 MB)
+2026-10-30T22:09:40.4186651Z Using cached pluggy-1.7.0-py3-none-any.whl (27 kB)
+2026-10-30T22:09:40.4193388Z Using cached pypdf-5.9.0-py3-none-any.whl (313 kB)
+2026-10-30T22:09:40.4201039Z Using cached pypdfium2-4.30.0-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.8 MB)
+2026-10-30T22:09:40.4215017Z Using cached reportlab-4.5.1-py3-none-any.whl (2.0 MB)
+2026-10-30T22:09:40.4227109Z Using cached annotated_types-0.8.0-py3-none-any.whl (13 kB)
+2026-10-30T22:09:40.4233794Z Using cached execnet-2.1.2-py3-none-any.whl (40 kB)
+2026-10-30T22:09:40.4240838Z Using cached pillow-13.0.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (7.1 MB)
+2026-10-30T22:09:40.4266065Z Using cached typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+2026-10-30T22:09:40.4273105Z Using cached typing_inspection-0.4.4-py3-none-any.whl (14 kB)
+2026-10-30T22:09:40.4279618Z Using cached charset_normalizer-3.5.2-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (257 kB)
+2026-10-30T22:09:40.4286141Z Using cached iniconfig-2.3.1-py3-none-any.whl (7.6 kB)
+2026-10-30T22:09:40.4292349Z Using cached packaging-26.3-py3-none-any.whl (129 kB)
+2026-10-30T22:09:40.4735377Z Building wheels for collected packages: sheltersim
+2026-10-30T22:09:40.4741956Z   Building editable for sheltersim (pyproject.toml): started
+2026-10-30T22:09:40.6660922Z   Building editable for sheltersim (pyproject.toml): finished with status 'done'
+2026-10-30T22:09:40.6664913Z   Created wheel for sheltersim: filename=sheltersim-0.1.0-0.editable-py3-none-any.whl size=9131 sha256=e1cc202c91b2b87015624970c7581b55cac0378de31fa1f79dd3ef25be5545ce
+2026-10-30T22:09:40.6666116Z   Stored in directory: /tmp/pip-ephem-wheel-cache-vll0aige/wheels/3a/9d/b2/4c049e117d34c12e79957a2067cf07e4f67901f0f3f7849eb0
+2026-10-30T22:09:40.6681700Z Successfully built sheltersim
+2026-10-30T22:09:40.6947209Z Installing collected packages: typing-extensions, ruff, pypdfium2, pypdf, pluggy, pillow, packaging, iniconfig, execnet, coverage, charset-normalizer, annotated-types, typing-inspection, reportlab, pytest, pydantic-core, pytest-xdist, pytest-cov, pydantic, sheltersim
+2026-10-30T22:09:42.7788135Z 
+2026-10-30T22:09:42.7802994Z Successfully installed annotated-types-0.8.0 charset-normalizer-3.5.2 coverage-7.10.7 execnet-2.1.2 iniconfig-2.3.1 packaging-26.3 pillow-13.0.0 pluggy-1.7.0 pydantic-2.11.9 pydantic-core-2.33.2 pypdf-5.9.0 pypdfium2-4.30.0 pytest-8.3.5 pytest-cov-7.0.0 pytest-xdist-3.8.0 reportlab-4.5.1 ruff-0.11.0 sheltersim-0.1.0 typing-extensions-4.16.0 typing-inspection-0.4.4
+2026-10-30T22:09:43.0586460Z ##[group]Run rustup toolchain install stable --profile minimal
+2026-10-30T22:09:43.0586793Z [36;1mrustup toolchain install stable --profile minimal[0m
+2026-10-30T22:09:43.0587015Z [36;1mpython -m pip install "maturin>=1.7,<2"[0m
+2026-10-30T22:09:43.0587256Z [36;1mmaturin build --release -m native/Cargo.toml --out native-dist[0m
+2026-10-30T22:09:43.0587775Z [36;1mpython -m pip install --no-index --find-links native-dist sheltersim-native[0m
+2026-10-30T22:09:43.0588131Z [36;1mpython -c "import sheltersim.native as n; assert n.available(), 'kernels not loaded'"[0m
+2026-10-30T22:09:43.0618348Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-30T22:09:43.0618550Z env:
+2026-10-30T22:09:43.0618692Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:09:43.0618980Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:09:43.0619227Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+2026-10-30T22:09:43.0619529Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:09:43.0619763Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:09:43.0619988Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:09:43.0620217Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+2026-10-30T22:09:43.0620408Z ##[endgroup]
+2026-10-30T22:09:43.3020076Z info: syncing channel updates for stable-x86_64-unknown-linux-gnu
+2026-10-30T22:09:43.5673967Z 
+2026-10-30T22:09:43.5751726Z   stable-x86_64-unknown-linux-gnu unchanged - rustc 1.99.1 (58cf8f9c3 2026-10-13)
+2026-10-30T22:09:43.5751964Z 
+2026-10-30T22:09:43.9068789Z Collecting maturin<2,>=1.7
+2026-10-30T22:09:43.9080277Z   Using cached maturin-1.16.0-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.musllinux_1_1_x86_64.whl.metadata (17 kB)
+2026-10-30T22:09:43.9108567Z Using cached maturin-1.16.0-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.musllinux_1_1_x86_64.whl (10.8 MB)
+2026-10-30T22:09:43.9558450Z Installing collected packages: maturin
+2026-10-30T22:09:44.0687281Z Successfully installed maturin-1.16.0
+2026-10-30T22:09:45.4145544Z     Updating crates.io index
+2026-10-30T22:09:45.7839162Z  Downloading crates ...
+2026-10-30T22:09:46.0199748Z   Downloaded block-buffer v0.10.4
+2026-10-30T22:09:46.0218686Z   Downloaded cfg-if v1.0.5
+2026-10-30T22:09:46.0317111Z   Downloaded crossbeam-deque v0.8.8
+2026-10-30T22:09:46.0338418Z   Downloaded autocfg v1.5.1
+2026-10-30T22:09:46.0357927Z   Downloaded cpufeatures v0.2.17
+2026-10-30T22:09:46.0529665Z   Downloaded portable-atomic v1.15.0
+2026-10-30T22:09:46.0585186Z   Downloaded unindent v0.2.4
+2026-10-30T22:09:46.0636478Z   Downloaded heck v0.5.0
+2026-10-30T22:09:46.0645318Z   Downloaded itoa v1.0.18
+2026-10-30T22:09:46.0670871Z   Downloaded generic-array v0.14.7
+2026-10-30T22:09:46.0721222Z   Downloaded memoffset v0.9.1
+2026-10-30T22:09:46.0730089Z   Downloaded rustversion v1.0.23
+2026-10-30T22:09:46.0751153Z   Downloaded version_check v0.9.5
+2026-10-30T22:09:46.0759533Z   Downloaded pyo3-macros v0.23.5
+2026-10-30T22:09:46.0765369Z   Downloaded target-lexicon v0.12.16
+2026-10-30T22:09:46.0781212Z   Downloaded either v1.19.0
+2026-10-30T22:09:46.0791481Z   Downloaded indoc v2.0.8
+2026-10-30T22:09:46.0813541Z   Downloaded zmij v1.0.23
+2026-10-30T22:09:46.0825713Z   Downloaded sha2 v0.10.9
+2026-10-30T22:09:46.0843551Z   Downloaded crypto-common v0.1.7
+2026-10-30T22:09:46.0850782Z   Downloaded digest v0.10.7
+2026-10-30T22:09:46.0864412Z   Downloaded once_cell v1.21.4
+2026-10-30T22:09:46.0884986Z   Downloaded crossbeam-utils v0.8.23
+2026-10-30T22:09:46.0907495Z   Downloaded pyo3-build-config v0.23.5
+2026-10-30T22:09:46.0919971Z   Downloaded ryu v1.0.23
+2026-10-30T22:09:46.0944330Z   Downloaded crossbeam-epoch v0.9.21
+2026-10-30T22:09:46.0961277Z   Downloaded serde_core v1.0.229
+2026-10-30T22:09:46.0980938Z   Downloaded proc-macro2 v1.0.107
+2026-10-30T22:09:46.1002304Z   Downloaded serde_derive v1.0.229
+2026-10-30T22:09:46.1023920Z   Downloaded unicode-ident v1.0.27
+2026-10-30T22:09:46.1044015Z   Downloaded pyo3-ffi v0.23.5
+2026-10-30T22:09:46.1093971Z   Downloaded quote v1.0.47
+2026-10-30T22:09:46.1112640Z   Downloaded serde v1.0.229
+2026-10-30T22:09:46.1136667Z   Downloaded rayon-core v1.13.0
+2026-10-30T22:09:46.1162146Z   Downloaded memchr v2.8.3
+2026-10-30T22:09:46.1200181Z   Downloaded pyo3-macros-backend v0.23.5
+2026-10-30T22:09:46.1217685Z   Downloaded typenum v1.20.1
+2026-10-30T22:09:46.1243808Z   Downloaded serde_json v1.0.154
+2026-10-30T22:09:46.1297113Z   Downloaded rayon v1.12.0
+2026-10-30T22:09:46.1363791Z   Downloaded syn v2.0.119
+2026-10-30T22:09:46.1439354Z   Downloaded syn v3.0.9
+2026-10-30T22:09:46.1519417Z   Downloaded libc v0.2.191
+2026-10-30T22:09:46.1854475Z   Downloaded pyo3 v0.23.5
+2026-10-30T22:09:46.4018338Z 🐍 Found CPython 3.12 at /opt/hostedtoolcache/Python/3.12.15/x64/bin/python3
+2026-10-30T22:09:46.4018987Z 🔗 Found pyo3 bindings with abi3-py3.12 support
+2026-10-30T22:09:46.4019363Z 📡 Using build options features from pyproject.toml
+2026-10-30T22:09:46.4805762Z    Compiling target-lexicon v0.12.16
+2026-10-30T22:09:46.4806306Z    Compiling once_cell v1.21.4
+2026-10-30T22:09:46.4806767Z    Compiling proc-macro2 v1.0.107
+2026-10-30T22:09:46.4807008Z    Compiling version_check v0.9.5
+2026-10-30T22:09:49.6898831Z    Compiling quote v1.0.47
+2026-10-30T22:09:49.6939499Z    Compiling generic-array v0.14.7
+2026-10-30T22:09:51.4500236Z    Compiling crossbeam-utils v0.8.23
+2026-10-30T22:09:51.4503671Z    Compiling unicode-ident v1.0.27
+2026-10-30T22:09:51.5569521Z    Compiling crossbeam-epoch v0.9.21
+2026-10-30T22:09:51.6059959Z    Compiling typenum v1.20.1
+2026-10-30T22:09:51.6474837Z    Compiling pyo3-build-config v0.23.5
+2026-10-30T22:09:52.3850146Z    Compiling libc v0.2.191
+2026-10-30T22:09:52.4210210Z    Compiling autocfg v1.5.1
+2026-10-30T22:09:52.6120215Z    Compiling crossbeam-deque v0.8.8
+2026-10-30T22:09:52.6450136Z    Compiling syn v2.0.119
+2026-10-30T22:09:52.6581408Z    Compiling memoffset v0.9.1
+2026-10-30T22:09:52.7305693Z    Compiling serde_core v1.0.229
+2026-10-30T22:09:52.7783923Z    Compiling pyo3-ffi v0.23.5
+2026-10-30T22:09:52.8459114Z    Compiling pyo3-macros-backend v0.23.5
+2026-10-30T22:09:52.9140942Z    Compiling rayon-core v1.13.0
+2026-10-30T22:09:52.9398207Z    Compiling zmij v1.0.23
+2026-10-30T22:09:52.9901211Z    Compiling heck v0.5.0
+2026-10-30T22:09:53.0810075Z    Compiling pyo3 v0.23.5
+2026-10-30T22:09:53.1493965Z    Compiling block-buffer v0.10.4
+2026-10-30T22:09:53.1773487Z    Compiling crypto-common v0.1.7
+2026-10-30T22:09:53.2114613Z    Compiling cfg-if v1.0.5
+2026-10-30T22:09:53.2271496Z    Compiling serde_json v1.0.154
+2026-10-30T22:09:53.2359990Z    Compiling digest v0.10.7
+2026-10-30T22:09:54.4814099Z    Compiling indoc v2.0.8
+2026-10-30T22:09:54.7361905Z    Compiling itoa v1.0.18
+2026-10-30T22:09:54.8995616Z    Compiling memchr v2.8.3
+2026-10-30T22:09:55.0290161Z    Compiling either v1.19.0
+2026-10-30T22:09:55.1560141Z    Compiling cpufeatures v0.2.17
+2026-10-30T22:09:55.1810467Z    Compiling unindent v0.2.4
+2026-10-30T22:09:55.2946384Z    Compiling sha2 v0.10.9
+2026-10-30T22:09:55.8290033Z    Compiling rayon v1.12.0
+2026-10-30T22:09:55.9004374Z    Compiling ryu v1.0.23
+2026-10-30T22:09:57.0758622Z    Compiling pyo3-macros v0.23.5
+2026-10-30T22:09:59.7413283Z    Compiling sheltersim_native v0.1.0 (/home/runner/work/tkb_2615/tkb_2615/native)
+2026-10-30T22:10:10.8904887Z     Finished `release` profile [optimized] target(s) in 24.47s
+2026-10-30T22:10:11.2891501Z 📦 Built wheel for abi3 Python ≥ 3.12 to native-dist/sheltersim_native-0.1.0-cp312-abi3-manylinux_2_34_x86_64.whl
+2026-10-30T22:10:11.5025867Z Looking in links: native-dist
+2026-10-30T22:10:11.5081546Z Processing ./native-dist/sheltersim_native-0.1.0-cp312-abi3-manylinux_2_34_x86_64.whl
+2026-10-30T22:10:11.5276509Z Installing collected packages: sheltersim-native
+2026-10-30T22:10:11.5445076Z Successfully installed sheltersim-native-0.1.0
+2026-10-30T22:10:11.6074144Z ##[group]Run python -m pytest -m "not long_simulation" -n auto
+2026-10-30T22:10:11.6074422Z [36;1mpython -m pytest -m "not long_simulation" -n auto[0m
+2026-10-30T22:10:11.6100167Z shell: /usr/bin/bash -e {0}
+2026-10-30T22:10:11.6100316Z env:
+2026-10-30T22:10:11.6100438Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:10:11.6100628Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:10:11.6100877Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+2026-10-30T22:10:11.6101265Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:10:11.6101483Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:10:11.6101697Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:10:11.6101927Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+2026-10-30T22:10:11.6102118Z ##[endgroup]
+2026-10-30T22:10:17.9558397Z ============================= test session starts ==============================
+2026-10-30T22:10:17.9580018Z platform linux -- Python 3.12.15, pytest-8.3.5, pluggy-1.7.0
+2026-10-30T22:10:17.9609917Z rootdir: /home/runner/work/tkb_2615/tkb_2615
+2026-10-30T22:10:17.9619547Z configfile: pyproject.toml
+2026-10-30T22:10:17.9619797Z testpaths: tests
+2026-10-30T22:10:17.9619993Z plugins: cov-7.0.0, xdist-3.8.0
+2026-10-30T22:10:17.9620212Z created: 4/4 workers
+2026-10-30T22:10:17.9620402Z 4 workers [1773 items]
+2026-10-30T22:10:17.9620517Z 
+2026-10-30T22:10:18.6741465Z ........................................................................ [  4%]
+2026-10-30T22:10:19.2510030Z ........................................................................ [  8%]
+2026-10-30T22:10:21.3929968Z ........................................................................ [ 12%]
+2026-10-30T22:10:22.9178715Z ........................................................................ [ 16%]
+2026-10-30T22:10:23.4830260Z ........................................................................ [ 20%]
+2026-10-30T22:10:35.2060335Z ........................................................................ [ 24%]
+2026-10-30T22:10:40.7650353Z ........................................................................ [ 28%]
+2026-10-30T22:10:42.9129923Z ........................................................................ [ 32%]
+2026-10-30T22:10:46.5926786Z ........................................................................ [ 36%]
+2026-10-30T22:10:48.3745331Z ........................................................................ [ 40%]
+2026-10-30T22:10:50.3241456Z ........................................................................ [ 44%]
+2026-10-30T22:10:50.7462324Z ........................................................................ [ 48%]
+2026-10-30T22:10:52.5827990Z ........................................................................ [ 52%]
+2026-10-30T22:10:55.5792703Z ........................................................................ [ 56%]
+2026-10-30T22:10:57.3642559Z ........................................................................ [ 60%]
+2026-10-30T22:11:03.0109958Z ........................................................................ [ 64%]
+2026-10-30T22:11:05.3370210Z ........................................................................ [ 69%]
+2026-10-30T22:11:10.9410258Z ........................................................................ [ 73%]
+2026-10-30T22:11:26.8561931Z ........................................................................ [ 77%]
+2026-10-30T22:11:52.3079987Z ........................................................................ [ 81%]
+2026-10-30T22:12:10.6938816Z ........................................................................ [ 85%]
+2026-10-30T22:12:28.5050009Z ........................................................................ [ 89%]
+2026-10-30T22:12:58.9190119Z ....................................................................ssss [ 93%]
+2026-10-30T22:13:01.6680695Z ...................................................s.................... [ 97%]
+2026-10-30T22:13:14.2465512Z .............................................                            [100%]
+2026-10-30T22:13:14.2465955Z =========================== short test summary info ============================
+2026-10-30T22:13:14.2466322Z SKIPPED [1] tests/live/test_live_api.py:30: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-30T22:13:14.2466766Z SKIPPED [1] tests/live/test_live_api.py:116: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-30T22:13:14.2467490Z SKIPPED [1] tests/live/test_live_api.py:155: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-30T22:13:14.2467895Z SKIPPED [1] tests/live/test_live_api.py:188: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-30T22:13:14.2468256Z SKIPPED [1] tests/unit/core/test_checkpoint_cache.py:150: the Python EventLog only
+2026-10-30T22:13:14.2468552Z ================= 1768 passed, 5 skipped in 182.16s (0:03:02) ==================
+2026-10-30T22:13:14.2469062Z test results: 1768 passed, 5 skipped; details in .test-results/20261030T221011Z-3022/summary.txt
+2026-10-30T22:13:14.3024941Z ##[group]Run python -m pytest -m "not long_simulation" -n auto
+2026-10-30T22:13:14.3025243Z [36;1mpython -m pytest -m "not long_simulation" -n auto[0m
+2026-10-30T22:13:14.3051786Z shell: /usr/bin/bash -e {0}
+2026-10-30T22:13:14.3051938Z env:
+2026-10-30T22:13:14.3052071Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:13:14.3052258Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:13:14.3052533Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+2026-10-30T22:13:14.3052783Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:13:14.3053010Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:13:14.3053240Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:13:14.3053470Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+2026-10-30T22:13:14.3053664Z   SHELTERSIM_NATIVE: 0
+2026-10-30T22:13:14.3053801Z ##[endgroup]
+2026-10-30T22:13:16.1690356Z ============================= test session starts ==============================
+2026-10-30T22:13:16.1719651Z platform linux -- Python 3.12.15, pytest-8.3.5, pluggy-1.7.0
+2026-10-30T22:13:16.1759724Z rootdir: /home/runner/work/tkb_2615/tkb_2615
+2026-10-30T22:13:16.1779301Z configfile: pyproject.toml
+2026-10-30T22:13:16.1779600Z testpaths: tests
+2026-10-30T22:13:16.1779835Z plugins: cov-7.0.0, xdist-3.8.0
+2026-10-30T22:13:16.1780128Z created: 4/4 workers
+2026-10-30T22:13:16.1780349Z 4 workers [1773 items]
+2026-10-30T22:13:16.1780495Z 
+2026-10-30T22:13:16.8840548Z ........................................................................ [  4%]
+2026-10-30T22:13:17.5020010Z ........................................................................ [  8%]
+2026-10-30T22:13:19.6120268Z ........................................................................ [ 12%]
+2026-10-30T22:13:21.4017816Z ..............................s.s....................................... [ 16%]
+2026-10-30T22:13:21.5954098Z ........................................................................ [ 20%]
+2026-10-30T22:13:35.6400451Z ........................................................................ [ 24%]
+2026-10-30T22:13:42.9937181Z ........................................................................ [ 28%]
+2026-10-30T22:13:44.9590260Z .................................................ss..................... [ 32%]
+2026-10-30T22:13:46.9776173Z ........................................................................ [ 36%]
+2026-10-30T22:13:48.7052699Z ........................................................................ [ 40%]
+2026-10-30T22:13:49.7340283Z ........................................................................ [ 44%]
+2026-10-30T22:13:49.9866607Z ........................................................................ [ 48%]
+2026-10-30T22:13:50.3793797Z .....................................sssssssssssssssssssssssssssssssssss [ 52%]
+2026-10-30T22:13:52.0850382Z sssssssssssssssssssssssssssssssssssssssssssssssssssssssssss............. [ 56%]
+2026-10-30T22:13:57.9296804Z .............................s.......................................... [ 60%]
+2026-10-30T22:14:04.0084612Z ................s....................................................... [ 64%]
+2026-10-30T22:14:06.3836371Z ........................................................................ [ 69%]
+2026-10-30T22:14:13.0870414Z ........................................................................ [ 73%]
+2026-10-30T22:14:32.4850053Z ............................................sssssss..................... [ 77%]
+2026-10-30T22:15:18.6980244Z ........................................................................ [ 81%]
+2026-10-30T22:15:51.6970513Z ........................................................................ [ 85%]
+2026-10-30T22:16:05.9163742Z .................................................s..........s...ss...... [ 89%]
+2026-10-30T22:16:45.5643975Z ........................................................................ [ 93%]
+2026-10-30T22:16:58.2600759Z ...............s........s..........ssssssssssssssss.........ss.......... [ 97%]
+2026-10-30T22:17:34.9397027Z .....ssss....................................                            [100%]
+2026-10-30T22:17:34.9397340Z =========================== short test summary info ============================
+2026-10-30T22:17:34.9397670Z SKIPPED [1] tests/unit/events/test_queue.py:182: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9398074Z SKIPPED [1] tests/unit/events/test_queue.py:285: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9398441Z SKIPPED [1] tests/unit/storage/test_projects.py:676: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9398815Z SKIPPED [1] tests/unit/storage/test_projects.py:714: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9399367Z SKIPPED [8] tests/integration/test_native_kernels.py:647: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9399769Z SKIPPED [1] tests/integration/test_native_kernels.py:674: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9400149Z SKIPPED [1] tests/integration/test_native_kernels.py:690: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9400526Z SKIPPED [1] tests/integration/test_native_kernels.py:746: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9400909Z SKIPPED [1] tests/integration/test_native_kernels.py:786: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9401291Z SKIPPED [1] tests/integration/test_native_kernels.py:826: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9401664Z SKIPPED [1] tests/integration/test_native_kernels.py:974: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9402055Z SKIPPED [22] tests/integration/test_native_kernels.py:1001: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9402443Z SKIPPED [1] tests/integration/test_native_kernels.py:1051: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9402834Z SKIPPED [1] tests/integration/test_native_kernels.py:1071: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9403246Z SKIPPED [8] tests/integration/test_native_kernels.py:1101: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9403632Z SKIPPED [1] tests/integration/test_native_kernels.py:1146: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9404019Z SKIPPED [1] tests/integration/test_native_kernels.py:1160: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9404408Z SKIPPED [1] tests/integration/test_native_kernels.py:1195: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9404794Z SKIPPED [11] tests/integration/test_native_kernels.py:1228: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9405184Z SKIPPED [7] tests/integration/test_native_kernels.py:1249: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9405575Z SKIPPED [1] tests/integration/test_native_kernels.py:1265: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9405957Z SKIPPED [2] tests/integration/test_native_kernels.py:1333: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9406339Z SKIPPED [3] tests/integration/test_native_kernels.py:1347: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9406724Z SKIPPED [1] tests/integration/test_native_kernels.py:1364: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9407442Z SKIPPED [14] tests/integration/test_native_kernels.py:1386: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9407825Z SKIPPED [4] tests/integration/test_native_kernels.py:1412: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9408206Z SKIPPED [1] tests/integration/test_native_kernels.py:1428: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9408589Z SKIPPED [1] tests/integration/test_native_kernels.py:1448: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9409259Z SKIPPED [1] tests/integration/test_native_kernels.py:1469: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9409642Z SKIPPED [1] tests/integration/test_native_kernels.py:1490: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9410022Z SKIPPED [1] tests/integration/test_native_kernels.py:1504: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9410415Z SKIPPED [1] tests/unit/core/test_checkpoint_cache.py:406: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9410848Z SKIPPED [1] tests/unit/domain/test_action_lifecycle.py:248: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9411252Z SKIPPED [1] tests/integration/test_save_validation.py:262: the memo exists only with the sheltersim_native extension
+2026-10-30T22:17:34.9411676Z SKIPPED [1] tests/integration/test_save_validation.py:274: the memo exists only with the sheltersim_native extension
+2026-10-30T22:17:34.9412093Z SKIPPED [1] tests/integration/test_save_validation.py:290: the memo exists only with the sheltersim_native extension
+2026-10-30T22:17:34.9412502Z SKIPPED [1] tests/integration/test_save_validation.py:308: the memo exists only with the sheltersim_native extension
+2026-10-30T22:17:34.9412921Z SKIPPED [1] tests/integration/test_save_validation.py:320: the memo exists only with the sheltersim_native extension
+2026-10-30T22:17:34.9413337Z SKIPPED [1] tests/integration/test_save_validation.py:334: the memo exists only with the sheltersim_native extension
+2026-10-30T22:17:34.9413749Z SKIPPED [1] tests/integration/test_save_validation.py:352: the memo exists only with the sheltersim_native extension
+2026-10-30T22:17:34.9414143Z SKIPPED [1] tests/integration/test_tick_validation.py:359: the plain validation reads every request
+2026-10-30T22:17:34.9414507Z SKIPPED [1] tests/integration/test_tick_validation.py:459: the plain validation reads every request
+2026-10-30T22:17:34.9414860Z SKIPPED [1] tests/integration/test_tick_validation.py:482: this build cannot watch dicts
+2026-10-30T22:17:34.9415187Z SKIPPED [1] tests/integration/test_tick_validation.py:510: this build cannot watch dicts
+2026-10-30T22:17:34.9415496Z SKIPPED [1] tests/unit/core/test_checkpoint.py:523: needs the Rust EventLog
+2026-10-30T22:17:34.9415789Z SKIPPED [1] tests/unit/core/test_checkpoint_cache.py:192: needs the Rust EventLog
+2026-10-30T22:17:34.9416128Z SKIPPED [1] tests/integration/test_native_kernels.py:32: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9416514Z SKIPPED [1] tests/integration/test_native_kernels.py:62: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9416894Z SKIPPED [1] tests/integration/test_native_kernels.py:99: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9417279Z SKIPPED [1] tests/integration/test_native_kernels.py:171: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9417659Z SKIPPED [1] tests/integration/test_native_kernels.py:306: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9418037Z SKIPPED [1] tests/integration/test_native_kernels.py:326: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9418410Z SKIPPED [1] tests/integration/test_native_kernels.py:367: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9418788Z SKIPPED [1] tests/integration/test_native_kernels.py:395: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9419463Z SKIPPED [1] tests/integration/test_native_kernels.py:440: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9419841Z SKIPPED [1] tests/integration/test_native_kernels.py:488: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9420221Z SKIPPED [1] tests/integration/test_native_kernels.py:528: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9420594Z SKIPPED [1] tests/integration/test_native_kernels.py:556: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9421120Z SKIPPED [1] tests/integration/test_native_kernels.py:605: the sheltersim_native extension is not installed
+2026-10-30T22:17:34.9421450Z SKIPPED [1] tests/unit/core/test_checkpoint.py:305: needs the Rust EventLog
+2026-10-30T22:17:34.9421722Z SKIPPED [1] tests/unit/core/test_checkpoint.py:321: needs the Rust EventLog
+2026-10-30T22:17:34.9422069Z SKIPPED [1] tests/live/test_live_api.py:30: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-30T22:17:34.9422473Z SKIPPED [1] tests/live/test_live_api.py:116: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-30T22:17:34.9422995Z SKIPPED [1] tests/live/test_live_api.py:155: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-30T22:17:34.9423555Z SKIPPED [1] tests/live/test_live_api.py:188: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-30T22:17:34.9423890Z ================ 1638 passed, 135 skipped in 260.50s (0:04:20) =================
+2026-10-30T22:17:34.9424204Z test results: 1638 passed, 135 skipped; details in .test-results/20261030T221314Z-4200/summary.txt
+2026-10-30T22:17:35.0224904Z ##[group]Run actions/upload-artifact@v4
+2026-10-30T22:17:35.0225098Z with:
+2026-10-30T22:17:35.0225236Z   name: test-results-ubuntu-latest
+2026-10-30T22:17:35.0225399Z   path: .test-results/
+2026-10-30T22:17:35.0225537Z   retention-days: 7
+2026-10-30T22:17:35.0225680Z   if-no-files-found: ignore
+2026-10-30T22:17:35.0225850Z   include-hidden-files: true
+2026-10-30T22:17:35.0226001Z   compression-level: 6
+2026-10-30T22:17:35.0226132Z   overwrite: false
+2026-10-30T22:17:35.0226265Z env:
+2026-10-30T22:17:35.0226393Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:17:35.0226594Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:17:35.0226853Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+2026-10-30T22:17:35.0227111Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:17:35.0227339Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:17:35.0227617Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:17:35.0227847Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+2026-10-30T22:17:35.0228042Z ##[endgroup]
+2026-10-30T22:17:35.1583270Z (node:5348) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-30T22:17:35.1584061Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-30T22:17:35.1670331Z With the provided path, there will be 5 files uploaded
+2026-10-30T22:17:35.1671473Z Artifact name is valid!
+2026-10-30T22:17:35.1671955Z Root directory input is valid!
+2026-10-30T22:17:35.4374076Z Beginning upload of artifact content to blob storage
+2026-10-30T22:17:35.4622738Z (node:5348) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-30T22:17:35.6515206Z Uploaded bytes 85854
+2026-10-30T22:17:35.6888575Z Finished uploading artifact content to blob storage!
+2026-10-30T22:17:35.6889344Z SHA256 digest of uploaded artifact zip is 967a9e5dcd2bd7ac2acbd65b8572532a93ef0c56ff3dc00762d6a73a14f5f6a3
+2026-10-30T22:17:35.6890113Z Finalizing artifact upload
+2026-10-30T22:17:36.1907466Z Artifact test-results-ubuntu-latest.zip successfully finalized. Artifact ID 13015644344
+2026-10-30T22:17:36.1908832Z Artifact test-results-ubuntu-latest has been successfully uploaded! Final size is 85854 bytes. Artifact ID is 13015644344
+2026-10-30T22:17:36.1912310Z Artifact download URL: https://github.com/jphacks/tkb_2615/actions/runs/41136205247/artifacts/13015644344
+2026-10-30T22:17:36.2051723Z ##[group]Run python benchmarks/gate_all_paths.py --output "$RUNNER_TEMP/gate" --expect fixtures/gate-all-paths.json
+2026-10-30T22:17:36.2052357Z [36;1mpython benchmarks/gate_all_paths.py --output "$RUNNER_TEMP/gate" --expect fixtures/gate-all-paths.json[0m
+2026-10-30T22:17:36.2078293Z shell: /usr/bin/bash -e {0}
+2026-10-30T22:17:36.2078532Z env:
+2026-10-30T22:17:36.2078790Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:17:36.2079238Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:17:36.2079624Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+2026-10-30T22:17:36.2079973Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:17:36.2080334Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:17:36.2080678Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:17:36.2080995Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+2026-10-30T22:17:36.2081378Z ##[endgroup]
+2026-10-30T22:17:49.7630032Z [base] long_generated: 12.2s
+2026-10-30T22:18:02.4220302Z [base] trace_levels: 25.0s
+2026-10-30T22:18:13.1340382Z [base] generated_project: 35.5s
+2026-10-30T22:18:28.7325660Z [base] fork_resume: 51.2s
+2026-10-30T22:18:37.8540342Z [base] geometry: 23.9s
+2026-10-30T22:18:39.9275620Z [base] llm_tape: 49.2s
+2026-10-30T22:18:40.7800287Z [base] operational: 2.1s
+2026-10-30T22:18:46.1861440Z [base] split_queues: 4.6s
+2026-10-30T22:18:47.3974545Z [base] branch_commands: 0.4s
+2026-10-30T22:18:48.2860304Z [base] conditions: 7.5s
+2026-10-30T22:18:54.6293745Z [base] scarcity: 5.5s
+2026-10-30T22:18:57.9020578Z [base] known_stops: 2.6s
+2026-10-30T22:19:02.2410573Z [base] population: 32.7s
+2026-10-30T22:19:02.2500252Z [base] model__affect__linear-positive-negative-v1: 3.6s
+2026-10-30T22:19:06.5069755Z [base] model__behavior__priority-rule-v1: 3.5s
+2026-10-30T22:19:06.6056202Z [base] model__affect__trust-weighted-positive-negative-v1: 3.6s
+2026-10-30T22:19:10.5200145Z [base] model__behavior__utility-softmax-v1: 3.3s
+2026-10-30T22:19:10.6703894Z [base] model__behavior__sleep-aware-utility-softmax-v2: 3.6s
+2026-10-30T22:19:14.6180172Z [base] model__body_dynamics__body-feedback-complete-v1: 3.4s
+2026-10-30T22:19:14.9700625Z [base] model__body_dynamics__body-feedback-complete-v2: 3.5s
+2026-10-30T22:19:18.9430551Z [base] model__body_dynamics__body-feedback-sleep-debt-v1: 3.5s
+2026-10-30T22:19:19.2470491Z [base] model__care_outcome__hygiene-support-fixed-relief-v1: 3.4s
+2026-10-30T22:19:22.1901497Z [base] arrivals: 34.0s
+2026-10-30T22:19:23.1501351Z [base] model__care_outcome__hygiene-support-proportional-relief-v1: 3.5s
+2026-10-30T22:19:23.4530433Z [base] model__care_outcome__typed-care-support-response-v1: 3.4s
+2026-10-30T22:19:26.6560051Z [base] model__information__evidence-aware-rumor-v1: 3.7s
+2026-10-30T22:19:27.2202759Z [base] model__information__sparse-information-contact-v1: 3.0s
+2026-10-30T22:19:27.3103488Z [base] model__information__hazard-information-v1: 3.3s
+2026-10-30T22:19:30.3634158Z [base] model__psychology__bounded-stress-v1: 2.9s
+2026-10-30T22:19:30.7980049Z [base] model__psychology__causal-stress-v1: 2.8s
+2026-10-30T22:19:31.1780161Z [base] model__psychology__life-state-feedback-v1: 3.1s
+2026-10-30T22:19:33.0024907Z [base] interventions: 89.8s
+2026-10-30T22:19:34.0494105Z [base] model__psychology__mean-reverting-distress-v1: 2.9s
+2026-10-30T22:19:35.2100639Z [base] model__psychology__mean-reverting-life-state-v1: 3.6s
+2026-10-30T22:19:35.3950070Z [base] model__queue__need-weighted-physical-queue-v1: 3.5s
+2026-10-30T22:19:37.1890028Z [base] model__queue__strict-fifo-queue-v1: 3.4s
+2026-10-30T22:19:38.3620277Z [base] model__relationship__distance-duration-repeat-trust-v1: 3.6s
+2026-10-30T22:19:39.5823949Z [base] model__relationship__duration-contact-trust-v1: 3.6s
+2026-10-30T22:19:39.9213981Z [base] model__social__degroot-contact-v1: 3.8s
+2026-10-30T22:19:41.4879571Z [base] model__social__expressiveness-channel-openness-v1: 3.5s
+2026-10-30T22:19:43.1690818Z [base] model__social__sparse-family-zone-contact-v1: 4.0s
+2026-10-30T22:19:43.9020258Z [base] model__social_proximity__disabled-proximity-v1: 3.5s
+2026-10-30T22:19:44.7782068Z [base] model__social_proximity__distance-sampled-proximity-v1: 4.1s
+2026-10-30T22:19:45.7570063Z [base] model__staff_fatigue__staff-fatigue-linear-v1: 3.5s
+2026-10-30T22:19:48.1050432Z [base] model__staff_operations__staff-travel-first-v1: 3.5s
+2026-10-30T22:19:48.3064515Z [base] model__staff_fatigue__staff-fatigue-saturating-v1: 4.4s
+2026-10-30T22:19:49.9640234Z [base] model__zone_environment__zone-temperature-comfort-band-v1: 3.5s
+2026-10-30T22:19:50.2900042Z [base] model__staff_operations__staff-urgency-first-v1: 4.7s
+2026-10-30T22:19:52.3400439Z [base] model__zone_environment__zone-temperature-midpoint-v1: 3.5s
+2026-10-30T22:19:53.0159985Z [base] model__zone_hygiene__zone-hygiene-linear-v1: 3.9s
+2026-10-30T22:19:54.4200625Z [base] model__zone_hygiene__zone-hygiene-quadratic-v1: 3.7s
+2026-10-30T22:19:54.6164883Z [base] model__zone_privacy__zone-privacy-proportional-v1: 3.6s
+2026-10-30T22:19:56.1878833Z [base] model__zone_rest__zone-rest-limiting-v1: 2.4s
+2026-10-30T22:19:56.5127247Z [base] model__zone_privacy__zone-privacy-threshold-v1: 3.4s
+2026-10-30T22:19:57.6947366Z [base] model__zone_rest__zone-rest-multiplicative-v1: 2.6s
+2026-10-30T22:19:57.6998234Z 55 scenarios in 141.4s; 0 problems
+2026-10-30T22:19:57.7718276Z ##[group]Run rustup component add clippy
+2026-10-30T22:19:57.7718530Z [36;1mrustup component add clippy[0m
+2026-10-30T22:19:57.7719034Z [36;1mcargo clippy --manifest-path native/Cargo.toml -- -A clippy::all -D clippy::disallowed_methods[0m
+2026-10-30T22:19:57.7744931Z shell: /usr/bin/bash -e {0}
+2026-10-30T22:19:57.7745086Z env:
+2026-10-30T22:19:57.7745239Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:19:57.7745436Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:19:57.7745699Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+2026-10-30T22:19:57.7745961Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:19:57.7746194Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:19:57.7746472Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:19:57.7746722Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+2026-10-30T22:19:57.7746918Z ##[endgroup]
+2026-10-30T22:19:57.8488573Z info: component clippy is up to date
+2026-10-30T22:19:58.0961397Z    Compiling target-lexicon v0.12.16
+2026-10-30T22:19:58.0961852Z    Compiling once_cell v1.21.4
+2026-10-30T22:19:58.0962398Z    Compiling version_check v0.9.5
+2026-10-30T22:19:58.0962844Z    Compiling proc-macro2 v1.0.107
+2026-10-30T22:19:58.2029992Z    Compiling unicode-ident v1.0.27
+2026-10-30T22:19:58.2543014Z    Compiling quote v1.0.47
+2026-10-30T22:19:58.2758750Z    Compiling generic-array v0.14.7
+2026-10-30T22:19:58.3544075Z    Compiling crossbeam-utils v0.8.23
+2026-10-30T22:19:58.3811841Z     Checking typenum v1.20.1
+2026-10-30T22:19:58.4891247Z    Compiling crossbeam-epoch v0.9.21
+2026-10-30T22:19:58.5510064Z    Compiling pyo3-build-config v0.23.5
+2026-10-30T22:19:58.8501103Z    Compiling crossbeam-deque v0.8.8
+2026-10-30T22:19:58.9520733Z    Compiling libc v0.2.191
+2026-10-30T22:19:58.9790253Z    Compiling autocfg v1.5.1
+2026-10-30T22:19:59.1863418Z    Compiling syn v2.0.119
+2026-10-30T22:19:59.1930078Z    Compiling memoffset v0.9.1
+2026-10-30T22:19:59.2670849Z    Compiling zmij v1.0.23
+2026-10-30T22:19:59.3452969Z    Compiling heck v0.5.0
+2026-10-30T22:19:59.3841494Z    Compiling serde_core v1.0.229
+2026-10-30T22:19:59.4469185Z    Compiling rayon-core v1.13.0
+2026-10-30T22:19:59.5518035Z    Compiling pyo3-macros-backend v0.23.5
+2026-10-30T22:19:59.5746929Z    Compiling pyo3-ffi v0.23.5
+2026-10-30T22:19:59.6272888Z    Compiling pyo3 v0.23.5
+2026-10-30T22:19:59.6570185Z     Checking block-buffer v0.10.4
+2026-10-30T22:19:59.7220188Z     Checking crypto-common v0.1.7
+2026-10-30T22:19:59.7480136Z    Compiling serde_json v1.0.154
+2026-10-30T22:19:59.7592155Z     Checking cfg-if v1.0.5
+2026-10-30T22:19:59.7844990Z     Checking digest v0.10.7
+2026-10-30T22:20:00.0489982Z     Checking memchr v2.8.3
+2026-10-30T22:20:00.3070066Z     Checking either v1.19.0
+2026-10-30T22:20:00.3940158Z     Checking cpufeatures v0.2.17
+2026-10-30T22:20:00.4120150Z    Compiling indoc v2.0.8
+2026-10-30T22:20:00.6599726Z     Checking unindent v0.2.4
+2026-10-30T22:20:00.6671031Z     Checking itoa v1.0.18
+2026-10-30T22:20:00.6980252Z     Checking sha2 v0.10.9
+2026-10-30T22:20:00.7279956Z     Checking rayon v1.12.0
+2026-10-30T22:20:00.8370004Z     Checking ryu v1.0.23
+2026-10-30T22:20:02.8589495Z    Compiling pyo3-macros v0.23.5
+2026-10-30T22:20:04.0411722Z     Checking sheltersim_native v0.1.0 (/home/runner/work/tkb_2615/tkb_2615/native)
+2026-10-30T22:20:04.9058588Z     Finished `dev` profile [unoptimized + debuginfo] target(s) in 6.99s
+2026-10-30T22:20:04.9154688Z ##[group]Run ruff check .
+2026-10-30T22:20:04.9154870Z [36;1mruff check .[0m
+2026-10-30T22:20:04.9180337Z shell: /usr/bin/bash -e {0}
+2026-10-30T22:20:04.9180492Z env:
+2026-10-30T22:20:04.9180621Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:20:04.9180812Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:20:04.9181072Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+2026-10-30T22:20:04.9181326Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:20:04.9181559Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:20:04.9181785Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:20:04.9182015Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+2026-10-30T22:20:04.9182212Z ##[endgroup]
+2026-10-30T22:20:04.9890415Z All checks passed!
+2026-10-30T22:20:04.9949140Z ##[group]Run ruff format --check .
+2026-10-30T22:20:04.9949425Z [36;1mruff format --check .[0m
+2026-10-30T22:20:04.9974745Z shell: /usr/bin/bash -e {0}
+2026-10-30T22:20:04.9974897Z env:
+2026-10-30T22:20:04.9975025Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:20:04.9975220Z   pythonLocation: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:20:04.9975471Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib/pkgconfig
+2026-10-30T22:20:04.9975716Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:20:04.9975948Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:20:04.9976178Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.12.15/x64
+2026-10-30T22:20:04.9976413Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.12.15/x64/lib
+2026-10-30T22:20:04.9976604Z ##[endgroup]
+2026-10-30T22:20:05.0940373Z 390 files already formatted
+2026-10-30T22:20:05.1022888Z Post job cleanup.
+2026-10-30T22:20:05.1826862Z Cache hit occurred on the primary key setup-python-Linux-x64-26.04-Ubuntu-python-3.12.15-pip-b367d41838550f84609ecb92150b1202d239cd09f1ce76059f8a004a979a806e, not saving cache.
+2026-10-30T22:20:05.1827928Z (node:6600) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-30T22:20:05.1828518Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-30T22:20:05.1934134Z Post job cleanup.
+2026-10-30T22:20:05.2525613Z [command]/usr/bin/git version
+2026-10-30T22:20:05.2561642Z git version 2.56.0
+2026-10-30T22:20:05.2587717Z Temporarily overriding HOME='/home/runner/work/_temp/c6b69ff5-8616-402f-b117-3bc523b9c2e6' before making global git config changes
+2026-10-30T22:20:05.2588761Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-30T22:20:05.2591576Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/tkb_2615/tkb_2615
+2026-10-30T22:20:05.2629910Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-30T22:20:05.2688118Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-30T22:20:05.2980057Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-30T22:20:05.2987909Z http.https://github.com/.extraheader
+2026-10-30T22:20:05.2998833Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-30T22:20:05.3045494Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-30T22:20:05.3285938Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-30T22:20:05.3314612Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-30T22:20:05.3664261Z Cleaning up orphan processes
+2026-10-30T22:20:05.3899607Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+

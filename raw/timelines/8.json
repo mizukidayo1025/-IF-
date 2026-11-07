@@ -1,0 +1,134 @@
+[
+  {
+    "sha": "9541131f778d440a8dee0731d80391e4c6719046",
+    "node_id": "C_kwDOU3hqGNoAKDk1NDExMzFmNzc4ZDQ0MGE4ZGVlMDczMWQ4MDM5MWU0YzY3MTkwNDY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/9541131f778d440a8dee0731d80391e4c6719046",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/9541131f778d440a8dee0731d80391e4c6719046",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-24T07:20:07Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-24T07:20:07Z"
+    },
+    "tree": {
+      "sha": "88b88ece53dba19ff1f9af6c71d59e22dc1c4699",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/88b88ece53dba19ff1f9af6c71d59e22dc1c4699"
+    },
+    "message": "Reuse compiler replies and repair the paid live tests\n\n- Intervention previews now keep accepted compiler replies in\n  runs/<run>/compiler-tape.json (StoredResponseTape). Before, an identical\n  instruction was refused by the ledger's duplicate guard and fell back to\n  the offline parser.\n- The opt-in live tests predated thinking headroom: the model-family test's\n  $0.03 budget could not cover an Opus reservation, and its 96-token output\n  total ignored thinking tokens. Raise that budget to $0.15 and bound each\n  call's output by its own cap. Give the search test two calls of allowance,\n  since a web-search call reserves two sampling passes.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "98fb08b5c28993b517cb56d4b98f0b5d6b41c197",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/98fb08b5c28993b517cb56d4b98f0b5d6b41c197",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/98fb08b5c28993b517cb56d4b98f0b5d6b41c197"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34116544029,
+    "node_id": "ME_lADOU3hqGM8AAAABZkFAZM8AAAAH8YEmHQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34116544029",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "684a771c41fd422a9fa198207462740d0ccc98e3",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/684a771c41fd422a9fa198207462740d0ccc98e3",
+    "created_at": "2026-10-24T07:21:34Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34116544076,
+    "node_id": "CE_lADOU3hqGM8AAAABZkFAZM8AAAAH8YEmTA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34116544076",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-24T07:21:34Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34116567553,
+    "node_id": "HRDE_lADOU3hqGM8AAAABZkFAZM8AAAAH8YGCAQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34116567553",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-24T07:22:12Z",
+    "performed_via_github_app": null
+  }
+]
+

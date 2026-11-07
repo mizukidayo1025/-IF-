@@ -1,0 +1,818 @@
+[
+  {
+    "sha": "35c11302adda9581c24b757b839923ccc2952665",
+    "node_id": "C_kwDOU3hqGNoAKDM1YzExMzAyYWRkYTk1ODFjMjRiNzU3YjgzOTkyM2NjYzI5NTI2NjU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/35c11302adda9581c24b757b839923ccc2952665",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/35c11302adda9581c24b757b839923ccc2952665",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:17:25Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:17:25Z"
+    },
+    "tree": {
+      "sha": "f861e96973bc70456c90e52bb6610e2e419feac8",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/f861e96973bc70456c90e52bb6610e2e419feac8"
+    },
+    "message": "Move test_effect_explanation_ui.py under tests/unit/web\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "bd0becc8da0bc0f6fbddd467fd4d42e41e3bb200",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/bd0becc8da0bc0f6fbddd467fd4d42e41e3bb200",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/bd0becc8da0bc0f6fbddd467fd4d42e41e3bb200"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "27d971132fafb921cc3a7fbff3fde375cc999c15",
+    "node_id": "C_kwDOU3hqGNoAKDI3ZDk3MTEzMmZhZmI5MjFjYzNhN2ZiZmYzZmRlMzc1Y2M5OTljMTU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/27d971132fafb921cc3a7fbff3fde375cc999c15",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/27d971132fafb921cc3a7fbff3fde375cc999c15",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:17:25Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:17:25Z"
+    },
+    "tree": {
+      "sha": "de6e729d3c942f954d6dec1afc7eef7cd1e56b64",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/de6e729d3c942f954d6dec1afc7eef7cd1e56b64"
+    },
+    "message": "Move test_demo_v2_polling.py under tests/unit/web\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "35c11302adda9581c24b757b839923ccc2952665",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/35c11302adda9581c24b757b839923ccc2952665",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/35c11302adda9581c24b757b839923ccc2952665"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "e45d997f88a40ecdea08704547de2c55272a28c8",
+    "node_id": "C_kwDOU3hqGNoAKGU0NWQ5OTdmODhhNDBlY2RlYTA4NzA0NTQ3ZGUyYzU1MjcyYTI4Yzg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/e45d997f88a40ecdea08704547de2c55272a28c8",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/e45d997f88a40ecdea08704547de2c55272a28c8",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:17:26Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:17:26Z"
+    },
+    "tree": {
+      "sha": "80dbc2f6526f0962edc5eecc08cb925b78c93ff4",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/80dbc2f6526f0962edc5eecc08cb925b78c93ff4"
+    },
+    "message": "Point tests/unit/web/test_static_project_round3.py at the script from its new place\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "27d971132fafb921cc3a7fbff3fde375cc999c15",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/27d971132fafb921cc3a7fbff3fde375cc999c15",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/27d971132fafb921cc3a7fbff3fde375cc999c15"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "d873c9515b9d812e60d4af5ad9c07b83500dd641",
+    "node_id": "C_kwDOU3hqGNoAKGQ4NzNjOTUxNWI5ZDgxMmU2MGQ0YWY1YWQ5YzA3YjgzNTAwZGQ2NDE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/d873c9515b9d812e60d4af5ad9c07b83500dd641",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/d873c9515b9d812e60d4af5ad9c07b83500dd641",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:17:38Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:17:38Z"
+    },
+    "tree": {
+      "sha": "b7d62b41b59c47322d0ccdb38fc207bf330ffd2f",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/b7d62b41b59c47322d0ccdb38fc207bf330ffd2f"
+    },
+    "message": "Move test_demo_v2.py under tests/integration\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "e45d997f88a40ecdea08704547de2c55272a28c8",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/e45d997f88a40ecdea08704547de2c55272a28c8",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/e45d997f88a40ecdea08704547de2c55272a28c8"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "9b3b2c2e51adc228c524472ac6e6c0d11b3e2588",
+    "node_id": "C_kwDOU3hqGNoAKDliM2IyYzJlNTFhZGMyMjhjNTI0NDcyYWM2ZTZjMGQxMWIzZTI1ODg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/9b3b2c2e51adc228c524472ac6e6c0d11b3e2588",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/9b3b2c2e51adc228c524472ac6e6c0d11b3e2588",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:17:40Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:17:40Z"
+    },
+    "tree": {
+      "sha": "e643838f50c4a9261ed8b4400fa4ab2eeab336df",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/e643838f50c4a9261ed8b4400fa4ab2eeab336df"
+    },
+    "message": "Split the former demo-v2 tests by scope\n\nServing the backup UI's assets stays in\ntests/integration/test_demo_v2_routes.py; the zone target resolution\nchecks parse_natural_language, so it joins\ntests/unit/llm/test_natural_language.py.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "d873c9515b9d812e60d4af5ad9c07b83500dd641",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/d873c9515b9d812e60d4af5ad9c07b83500dd641",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/d873c9515b9d812e60d4af5ad9c07b83500dd641"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "7afe9f5e0c56dbecd86ab4232a44b73d93bec785",
+    "node_id": "C_kwDOU3hqGNoAKDdhZmU5ZjVlMGM1NmRiZWNkODZhYjQyMzJhNDRiNzNkOTNiZWM3ODU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7afe9f5e0c56dbecd86ab4232a44b73d93bec785",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/7afe9f5e0c56dbecd86ab4232a44b73d93bec785",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:17:50Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:17:50Z"
+    },
+    "tree": {
+      "sha": "4a2aeda23ea3088cc403c47717aa2fc1568fb75f",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/4a2aeda23ea3088cc403c47717aa2fc1568fb75f"
+    },
+    "message": "Move test_demo_performance.py under tests/integration\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "9b3b2c2e51adc228c524472ac6e6c0d11b3e2588",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/9b3b2c2e51adc228c524472ac6e6c0d11b3e2588",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/9b3b2c2e51adc228c524472ac6e6c0d11b3e2588"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "b50be18d4402e90c03229ef8944d5143ab66e888",
+    "node_id": "C_kwDOU3hqGNoAKGI1MGJlMThkNDQwMmU5MGMwMzIyOWVmODk0NGQ1MTQzYWI2NmU4ODg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/b50be18d4402e90c03229ef8944d5143ab66e888",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/b50be18d4402e90c03229ef8944d5143ab66e888",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:17:58Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:17:58Z"
+    },
+    "tree": {
+      "sha": "d0dc6008900bcafca8ab41c42a0274d0d131c14d",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/d0dc6008900bcafca8ab41c42a0274d0d131c14d"
+    },
+    "message": "Split the former demo performance tests by scope\n\nThe live recompute Run moves to tests/integration/test_demo_live_recompute.py.\nThe audit-hash checks of a psychology view and a behavior view join\ntests/unit/policies/test_psychology.py and test_behavior.py.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "7afe9f5e0c56dbecd86ab4232a44b73d93bec785",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7afe9f5e0c56dbecd86ab4232a44b73d93bec785",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/7afe9f5e0c56dbecd86ab4232a44b73d93bec785"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "83bd74228b79b5398b3686002df8db83e82c6a4f",
+    "node_id": "C_kwDOU3hqGNoAKDgzYmQ3NDIyOGI3OWI1Mzk4YjM2ODYwMDJkZjhkYjgzZTgyYzZhNGY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/83bd74228b79b5398b3686002df8db83e82c6a4f",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/83bd74228b79b5398b3686002df8db83e82c6a4f",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:18:09Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:18:09Z"
+    },
+    "tree": {
+      "sha": "da0ff850630cf7e7be96396a3b840ba0d468d524",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/da0ff850630cf7e7be96396a3b840ba0d468d524"
+    },
+    "message": "Move test_judge_demo_e2e.py under tests/integration\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "b50be18d4402e90c03229ef8944d5143ab66e888",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/b50be18d4402e90c03229ef8944d5143ab66e888",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/b50be18d4402e90c03229ef8944d5143ab66e888"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "c97f07f9f86005a654c3997bdd0c56b4e6b5f1cd",
+    "node_id": "C_kwDOU3hqGNoAKGM5N2YwN2Y5Zjg2MDA1YTY1NGMzOTk3YmRkMGM1NmI0ZTZiNWYxY2Q",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c97f07f9f86005a654c3997bdd0c56b4e6b5f1cd",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/c97f07f9f86005a654c3997bdd0c56b4e6b5f1cd",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:18:16Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:18:16Z"
+    },
+    "tree": {
+      "sha": "e11b32ed89d15d6c3c8da7d13d6436b61883d247",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/e11b32ed89d15d6c3c8da7d13d6436b61883d247"
+    },
+    "message": "Split the former judge demo tests by scope\n\nThe loopback HTTP checks stay in tests/integration/test_judge_demo.py;\nthe check of the packaged replay files goes to tests/unit/repo, since it\nchecks a fixture.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "83bd74228b79b5398b3686002df8db83e82c6a4f",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/83bd74228b79b5398b3686002df8db83e82c6a4f",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/83bd74228b79b5398b3686002df8db83e82c6a4f"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "f2ec19eae11479c031b8394ac6608dc5733702e6",
+    "node_id": "C_kwDOU3hqGNoAKGYyZWMxOWVhZTExNDc5YzAzMWI4Mzk0YWM2NjA4ZGM1NzMzNzAyZTY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f2ec19eae11479c031b8394ac6608dc5733702e6",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/f2ec19eae11479c031b8394ac6608dc5733702e6",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:18:25Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:18:25Z"
+    },
+    "tree": {
+      "sha": "078f6da87c6418b3d01d90c711939181982d47e8",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/078f6da87c6418b3d01d90c711939181982d47e8"
+    },
+    "message": "Move test_map_layout.py under tests/unit/web\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "c97f07f9f86005a654c3997bdd0c56b4e6b5f1cd",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c97f07f9f86005a654c3997bdd0c56b4e6b5f1cd",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/c97f07f9f86005a654c3997bdd0c56b4e6b5f1cd"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "621f5dc7cda00e4c8ef938fb069a1237c734ca38",
+    "node_id": "C_kwDOU3hqGNoAKDYyMWY1ZGM3Y2RhMDBlNGM4ZWY5MzhmYjA2OWExMjM3YzczNGNhMzg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/621f5dc7cda00e4c8ef938fb069a1237c734ca38",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/621f5dc7cda00e4c8ef938fb069a1237c734ca38",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:18:26Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:18:26Z"
+    },
+    "tree": {
+      "sha": "3a1ff91faa00c0deedde94a409e03638ee963e8f",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/3a1ff91faa00c0deedde94a409e03638ee963e8f"
+    },
+    "message": "Point tests/unit/web/test_inspector.py at the fixtures from its new place\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "f2ec19eae11479c031b8394ac6608dc5733702e6",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f2ec19eae11479c031b8394ac6608dc5733702e6",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/f2ec19eae11479c031b8394ac6608dc5733702e6"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "59c844c7193400e201062e2d72533e78aa96b12c",
+    "node_id": "C_kwDOU3hqGNoAKDU5Yzg0NGM3MTkzNDAwZTIwMTA2MmUyZDcyNTMzZTc4YWE5NmIxMmM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/59c844c7193400e201062e2d72533e78aa96b12c",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/59c844c7193400e201062e2d72533e78aa96b12c",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:18:26Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:18:26Z"
+    },
+    "tree": {
+      "sha": "1b2806163b4ccbb6aa9f20df7be4f6f823944fec",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/1b2806163b4ccbb6aa9f20df7be4f6f823944fec"
+    },
+    "message": "Move test_demo_timeline.py under tests/integration\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "621f5dc7cda00e4c8ef938fb069a1237c734ca38",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/621f5dc7cda00e4c8ef938fb069a1237c734ca38",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/621f5dc7cda00e4c8ef938fb069a1237c734ca38"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "ffb73ae1e55d73839f853fa81396866d38e1a287",
+    "node_id": "C_kwDOU3hqGNoAKGZmYjczYWUxZTU1ZDczODM5Zjg1M2ZhODEzOTY4NjZkMzhlMWEyODc",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ffb73ae1e55d73839f853fa81396866d38e1a287",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/ffb73ae1e55d73839f853fa81396866d38e1a287",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:18:43Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:18:43Z"
+    },
+    "tree": {
+      "sha": "4d21888f4dff68e2626bc8e99554ab55171c1c76",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/4d21888f4dff68e2626bc8e99554ab55171c1c76"
+    },
+    "message": "Split the former demo timeline tests by scope\n\nThe timeline route stays in tests/integration/test_demo_timeline.py; the\nprojection test joins tests/unit/web/test_inspector.py. The hand-written\ndemo Run both read becomes the demo_timeline_inspector fixture.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "59c844c7193400e201062e2d72533e78aa96b12c",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/59c844c7193400e201062e2d72533e78aa96b12c",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/59c844c7193400e201062e2d72533e78aa96b12c"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "4f6a2bc572fd89b99ffb38d536a719eb6000e242",
+    "node_id": "C_kwDOU3hqGNoAKDRmNmEyYmM1NzJmZDg5Yjk5ZmZiMzhkNTM2YTcxOWViNjAwMGUyNDI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4f6a2bc572fd89b99ffb38d536a719eb6000e242",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/4f6a2bc572fd89b99ffb38d536a719eb6000e242",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:19:03Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:19:03Z"
+    },
+    "tree": {
+      "sha": "7cff31f5a87a654f5a926b9e08475e6e4a24668b",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/7cff31f5a87a654f5a926b9e08475e6e4a24668b"
+    },
+    "message": "Move test_admin_audit.py under tests/integration\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "ffb73ae1e55d73839f853fa81396866d38e1a287",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ffb73ae1e55d73839f853fa81396866d38e1a287",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/ffb73ae1e55d73839f853fa81396866d38e1a287"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "6e51fd99cf7e28f49615005da54fa41d90525c83",
+    "node_id": "C_kwDOU3hqGNoAKDZlNTFmZDk5Y2Y3ZTI4ZjQ5NjE1MDA1ZGE1NGZhNDFkOTA1MjVjODM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/6e51fd99cf7e28f49615005da54fa41d90525c83",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/6e51fd99cf7e28f49615005da54fa41d90525c83",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:19:15Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:19:15Z"
+    },
+    "tree": {
+      "sha": "2a61a93470b5424be7f1b70a4040f6e3b2fbe68b",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/2a61a93470b5424be7f1b70a4040f6e3b2fbe68b"
+    },
+    "message": "Split the former admin audit tests by scope\n\nThe audit APIs on a Run stay in tests/integration/test_admin_audit.py, the\nfiltered queries over HTTP become tests/e2e/test_admin_audit_queries.py,\nand the admin page check becomes tests/unit/web/test_static_index.py. The\nRun both read becomes the audit_inspector fixture.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "4f6a2bc572fd89b99ffb38d536a719eb6000e242",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4f6a2bc572fd89b99ffb38d536a719eb6000e242",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/4f6a2bc572fd89b99ffb38d536a719eb6000e242"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "ef11a31461614d6d7447b7e4e5fecc214fd8d4fa",
+    "node_id": "C_kwDOU3hqGNoAKGVmMTFhMzE0NjE2MTRkNmQ3NDQ3YjdlNGU1ZmVjYzIxNGZkOGQ0ZmE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ef11a31461614d6d7447b7e4e5fecc214fd8d4fa",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/ef11a31461614d6d7447b7e4e5fecc214fd8d4fa",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:19:31Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:19:31Z"
+    },
+    "tree": {
+      "sha": "1f441b93c8e48d666696038643e256834b94aa1a",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/1f441b93c8e48d666696038643e256834b94aa1a"
+    },
+    "message": "Move test_demo_jobs.py under tests/integration\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "6e51fd99cf7e28f49615005da54fa41d90525c83",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/6e51fd99cf7e28f49615005da54fa41d90525c83",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/6e51fd99cf7e28f49615005da54fa41d90525c83"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "7a151399df9d4cad8a15d62269033aa926dda163",
+    "node_id": "C_kwDOU3hqGNoAKDdhMTUxMzk5ZGY5ZDRjYWQ4YTE1ZDYyMjY5MDMzYWE5MjZkZGExNjM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7a151399df9d4cad8a15d62269033aa926dda163",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/7a151399df9d4cad8a15d62269033aa926dda163",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:19:39Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:19:39Z"
+    },
+    "tree": {
+      "sha": "6e7f8d2c44e6abd1a628383350ad5843b7402fbf",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/6e7f8d2c44e6abd1a628383350ad5843b7402fbf"
+    },
+    "message": "Split the former demo job tests by scope\n\nThe jobs stay in tests/integration/test_demo_jobs.py; the HTTP routes\nbecome tests/e2e/test_demo_jobs_http.py. The demo and the job wait they\nshare become the failure_day3_demo and wait_for_job fixtures.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "ef11a31461614d6d7447b7e4e5fecc214fd8d4fa",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ef11a31461614d6d7447b7e4e5fecc214fd8d4fa",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/ef11a31461614d6d7447b7e4e5fecc214fd8d4fa"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "5f69f3575aea88dc16045f4f05898ca51fd52c54",
+    "node_id": "C_kwDOU3hqGNoAKDVmNjlmMzU3NWFlYTg4ZGMxNjA0NWY0ZjA1ODk4Y2E1MWZkNTJjNTQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/5f69f3575aea88dc16045f4f05898ca51fd52c54",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/5f69f3575aea88dc16045f4f05898ca51fd52c54",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:20:10Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:20:10Z"
+    },
+    "tree": {
+      "sha": "b02bdd5f3d6828edf9298a64f514c94483068bd5",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/b02bdd5f3d6828edf9298a64f514c94483068bd5"
+    },
+    "message": "Move test_multi_plan.py under tests/integration\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "7a151399df9d4cad8a15d62269033aa926dda163",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7a151399df9d4cad8a15d62269033aa926dda163",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/7a151399df9d4cad8a15d62269033aa926dda163"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "1100c76994f18ef947360c5e394c9be0464453d4",
+    "node_id": "C_kwDOU3hqGNoAKDExMDBjNzY5OTRmMThlZjk0NzM2MGM1ZTM5NGM5YmUwNDY0NDUzZDQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/1100c76994f18ef947360c5e394c9be0464453d4",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/1100c76994f18ef947360c5e394c9be0464453d4",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:20:19Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:20:19Z"
+    },
+    "tree": {
+      "sha": "532235a5a4ca0382a25c79217be7cfc1d47498cd",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/532235a5a4ca0382a25c79217be7cfc1d47498cd"
+    },
+    "message": "Split the former multi-plan tests by scope\n\nThe HTTP validate-and-apply check stays in tests/integration/test_multi_plan.py,\nthe refusals before anything is applied go to tests/unit/web/test_demo.py,\nand the runs of applied siblings become tests/e2e/test_multi_plan.py. The\ndemo, the draft, the HTTP post and the approval they share become the\npaused_small_replay_demo, multi_plan_draft, post_demo_json and\napply_multi_plan fixtures.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "5f69f3575aea88dc16045f4f05898ca51fd52c54",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/5f69f3575aea88dc16045f4f05898ca51fd52c54",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/5f69f3575aea88dc16045f4f05898ca51fd52c54"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "57a1d30a38e1e034eaec5f87436fa6e46668f951",
+    "node_id": "C_kwDOU3hqGNoAKDU3YTFkMzBhMzhlMWUwMzRlYWVjNWY4NzQzNmZhNmU0NjY2OGY5NTE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/57a1d30a38e1e034eaec5f87436fa6e46668f951",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/57a1d30a38e1e034eaec5f87436fa6e46668f951",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:21:13Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T17:21:13Z"
+    },
+    "tree": {
+      "sha": "a4ef3398e483dadf3d8ce9e772a2c26689b0fbd7",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/a4ef3398e483dadf3d8ce9e772a2c26689b0fbd7"
+    },
+    "message": "Map the first half of the sorted web tests and point documents at their new paths\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "1100c76994f18ef947360c5e394c9be0464453d4",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/1100c76994f18ef947360c5e394c9be0464453d4",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/1100c76994f18ef947360c5e394c9be0464453d4"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34393669913,
+    "node_id": "ME_lADOU3hqGM8AAAABaXYPkM8AAAAIAgXBGQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34393669913",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "263b5d155d9034f84862b23730db31c250cb6d45",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/263b5d155d9034f84862b23730db31c250cb6d45",
+    "created_at": "2026-10-27T17:24:33Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34393670060,
+    "node_id": "CE_lADOU3hqGM8AAAABaXYPkM8AAAAIAgXBrA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34393670060",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T17:24:34Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34393675952,
+    "node_id": "HRDE_lADOU3hqGM8AAAABaXYPkM8AAAAIAgXYsA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34393675952",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T17:24:37Z",
+    "performed_via_github_app": null
+  }
+]
+

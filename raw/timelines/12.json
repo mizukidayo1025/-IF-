@@ -1,0 +1,134 @@
+[
+  {
+    "sha": "64521fbf7ed5159a816e4b123c02d02e9ad6ac0b",
+    "node_id": "C_kwDOU3hqGNoAKDY0NTIxZmJmN2VkNTE1OWE4MTZlNGIxMjNjMDJkMDJlOWFkNmFjMGI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/64521fbf7ed5159a816e4b123c02d02e9ad6ac0b",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/64521fbf7ed5159a816e4b123c02d02e9ad6ac0b",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-24T14:56:19Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-24T14:56:19Z"
+    },
+    "tree": {
+      "sha": "e66c7afa6364ceb27cd8f50bfc6267658b4ad1ec",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/e66c7afa6364ceb27cd8f50bfc6267658b4ad1ec"
+    },
+    "message": "Run the offline suite in parallel with pytest-xdist\n\nAdd pytest-xdist to the dev dependencies so the suite can run with\n-n auto. On a Ryzen 5 5625U the full run drops from about 12-15 minutes\nto 7-9 minutes; the longest single test (about 6 minutes) sets the floor.\n\nAdd an autouse fixture that points the Project root, XDG state dir and\nLLM cache at a per-test temp dir. Parallel workers then share nothing,\nand tests stop writing to the developer's real locations: a CLI test\nhad been adding a usage account under runs/.projects on every run.\nPaid live_api tests are exempt so their spend still counts against the\nmachine-wide campaign ledger.\n\nAlso fix the editable install command in CONTRIBUTING.md.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "5a2600000b9a908f482db6d412bdb772012d9ef5",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/5a2600000b9a908f482db6d412bdb772012d9ef5",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/5a2600000b9a908f482db6d412bdb772012d9ef5"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34134028285,
+    "node_id": "ME_lADOU3hqGM8AAAABZnocYs8AAAAH8ovv_Q",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34134028285",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "fe28ad5a3c086a687a05a2079c90127257b46e50",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/fe28ad5a3c086a687a05a2079c90127257b46e50",
+    "created_at": "2026-10-24T14:57:59Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34134028348,
+    "node_id": "CE_lADOU3hqGM8AAAABZnocYs8AAAAH8ovwPA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34134028348",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-24T14:57:59Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34134173739,
+    "node_id": "HRDE_lADOU3hqGM8AAAABZnocYs8AAAAH8o4oKw",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34134173739",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-24T15:01:21Z",
+    "performed_via_github_app": null
+  }
+]
+

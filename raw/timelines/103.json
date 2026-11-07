@@ -1,0 +1,170 @@
+[
+  {
+    "sha": "65fd347c9f46ad5c4d09fb957f3a1d1fffd1d1a0",
+    "node_id": "C_kwDOU3hqGNoAKDY1ZmQzNDdjOWY0NmFkNWM0ZDA5ZmI5NTdmM2ExZDFmZmZkMWQxYTA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/65fd347c9f46ad5c4d09fb957f3a1d1fffd1d1a0",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/65fd347c9f46ad5c4d09fb957f3a1d1fffd1d1a0",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T09:58:54Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T09:58:54Z"
+    },
+    "tree": {
+      "sha": "e8fb021f2a574a3178b99b014517199db82f8df9",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/e8fb021f2a574a3178b99b014517199db82f8df9"
+    },
+    "message": "Move test_nl_opus.py under tests/unit/llm\n\nOnly the file move, so its history stays traceable. The next commit\nsplits out its two Project integration tests and switches them to the\nshared generated Scenario (#88).\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "3c5c15d53586fc167db31cff2dabcd1a5a7376ba",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/3c5c15d53586fc167db31cff2dabcd1a5a7376ba",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/3c5c15d53586fc167db31cff2dabcd1a5a7376ba"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "c4cf12e88a3e02177c037bada8b57d9ad1dab372",
+    "node_id": "C_kwDOU3hqGNoAKGM0Y2YxMmU4OGEzZTAyMTc3YzAzN2JhZGE4YjU3ZDlhZDFkYWIzNzI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c4cf12e88a3e02177c037bada8b57d9ad1dab372",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/c4cf12e88a3e02177c037bada8b57d9ad1dab372",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:02:18Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:02:18Z"
+    },
+    "tree": {
+      "sha": "293e5dd49cb6ee7e8ffe03f631659eb73049d59d",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/293e5dd49cb6ee7e8ffe03f631659eb73049d59d"
+    },
+    "message": "Preview interventions on the shared generated Scenario\n\nTwo Project tests ran a Scenario they built with InitialScenarioBuilder\n(10 evacuees, one day, seed 7) before asking for an intervention\npreview. They now use the shared generated_scenario fixture (#88) and\nmove to tests/integration/test_project_intervention_preview.py with a\nsmall fake provider of their own, as the other LLM test files have.\nThe compiler's unit tests stay in tests/unit/llm/test_natural_language.py.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "65fd347c9f46ad5c4d09fb957f3a1d1fffd1d1a0",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/65fd347c9f46ad5c4d09fb957f3a1d1fffd1d1a0",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/65fd347c9f46ad5c4d09fb957f3a1d1fffd1d1a0"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34352676102,
+    "node_id": "ME_lADOU3hqGM8AAAABaQYm-M8AAAAH_5Q9Bg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34352676102",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "b01aad72973854b3083fd3f9f8162f5bd5c86080",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/b01aad72973854b3083fd3f9f8162f5bd5c86080",
+    "created_at": "2026-10-27T10:02:57Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34352676307,
+    "node_id": "CE_lADOU3hqGM8AAAABaQYm-M8AAAAH_5Q90w",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34352676307",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T10:02:57Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34352681864,
+    "node_id": "HRDE_lADOU3hqGM8AAAABaQYm-M8AAAAH_5RTiA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34352681864",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T10:03:01Z",
+    "performed_via_github_app": null
+  }
+]
+

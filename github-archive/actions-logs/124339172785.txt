@@ -1,0 +1,639 @@
+﻿2026-10-30T22:09:33.2145322Z Current runner version: '2.338.2'
+2026-10-30T22:09:33.2162424Z ##[group]Runner Image Provisioner
+2026-10-30T22:09:33.2162955Z Hosted Compute Agent
+2026-10-30T22:09:33.2163283Z Version: 20261021.618
+2026-10-30T22:09:33.2163627Z Commit: 21505ad2541d5be6135ed84fc33697146cf75b8e
+2026-10-30T22:09:33.2164040Z Build Date: 2026-10-21T00:45:21Z
+2026-10-30T22:09:33.2164414Z Worker ID: {cf1269e5-2ac9-466d-9243-f5377308b7f6}
+2026-10-30T22:09:33.2164802Z Region: centralus
+2026-10-30T22:09:33.2165102Z Cloud: Azure
+2026-10-30T22:09:33.2165392Z ##[endgroup]
+2026-10-30T22:09:33.2166110Z ##[group]Operating System
+2026-10-30T22:09:33.2166456Z Microsoft Windows Server 2025
+2026-10-30T22:09:33.2166817Z 10.0.26100
+2026-10-30T22:09:33.2167112Z Datacenter
+2026-10-30T22:09:33.2167395Z ##[endgroup]
+2026-10-30T22:09:33.2167711Z ##[group]Runner Image
+2026-10-30T22:09:33.2168036Z Image: windows-2025-vs2026
+2026-10-30T22:09:33.2168360Z Version: 20261021.278.1
+2026-10-30T22:09:33.2169293Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20261021.278/images/windows/Windows2025-VS2026-Readme.md
+2026-10-30T22:09:33.2170194Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20261021.278
+2026-10-30T22:09:33.2170738Z ##[endgroup]
+2026-10-30T22:09:33.2171365Z ##[group]GITHUB_TOKEN Permissions
+2026-10-30T22:09:33.2172493Z Contents: read
+2026-10-30T22:09:33.2172811Z Metadata: read
+2026-10-30T22:09:33.2173120Z ##[endgroup]
+2026-10-30T22:09:33.2174358Z Secret source: Actions
+2026-10-30T22:09:33.2174864Z Cache mode: write
+2026-10-30T22:09:33.2175261Z Prepare workflow directory
+2026-10-30T22:09:33.2442447Z Prepare all required actions
+2026-10-30T22:09:33.2473779Z Getting action download info
+2026-10-30T22:09:33.4639383Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-30T22:09:33.5533159Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+2026-10-30T22:09:33.6445853Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-10-30T22:09:33.8648902Z Complete job name: test (windows-latest)
+2026-10-30T22:09:33.9585916Z ##[group]Run actions/checkout@v4
+2026-10-30T22:09:33.9586604Z with:
+2026-10-30T22:09:33.9586829Z   repository: jphacks/tkb_2615
+2026-10-30T22:09:33.9589016Z   token: ***
+2026-10-30T22:09:33.9589229Z   ssh-strict: true
+2026-10-30T22:09:33.9589452Z   ssh-user: git
+2026-10-30T22:09:33.9589674Z   persist-credentials: true
+2026-10-30T22:09:33.9589915Z   clean: true
+2026-10-30T22:09:33.9590140Z   sparse-checkout-cone-mode: true
+2026-10-30T22:09:33.9590404Z   fetch-depth: 1
+2026-10-30T22:09:33.9590621Z   fetch-tags: false
+2026-10-30T22:09:33.9590843Z   show-progress: true
+2026-10-30T22:09:33.9591065Z   lfs: false
+2026-10-30T22:09:33.9591265Z   submodules: false
+2026-10-30T22:09:33.9591490Z   set-safe-directory: true
+2026-10-30T22:09:33.9591746Z   allow-unsafe-pr-checkout: false
+2026-10-30T22:09:33.9592120Z env:
+2026-10-30T22:09:33.9592332Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:09:33.9592576Z ##[endgroup]
+2026-10-30T22:09:34.0550745Z Syncing repository: jphacks/tkb_2615
+2026-10-30T22:09:34.0551819Z ##[group]Getting Git version info
+2026-10-30T22:09:34.0552130Z Working directory is 'D:\a\tkb_2615\tkb_2615'
+2026-10-30T22:09:34.1034418Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-30T22:09:34.4704040Z git version 2.56.0.windows.2
+2026-10-30T22:09:34.4737212Z ##[endgroup]
+2026-10-30T22:09:34.4750877Z Temporarily overriding HOME='D:\a\_temp\e1a9bc5f-b49c-4a55-91fe-a026dd7d0df9' before making global git config changes
+2026-10-30T22:09:34.4751905Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-30T22:09:34.4757989Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\tkb_2615\tkb_2615
+2026-10-30T22:09:34.5287625Z Deleting the contents of 'D:\a\tkb_2615\tkb_2615'
+2026-10-30T22:09:34.5291728Z ##[group]Initializing the repository
+2026-10-30T22:09:34.5298281Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\tkb_2615\tkb_2615
+2026-10-30T22:09:34.6068944Z Initialized empty Git repository in D:/a/tkb_2615/tkb_2615/.git/
+2026-10-30T22:09:34.6098769Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/jphacks/tkb_2615
+2026-10-30T22:09:34.6854930Z ##[endgroup]
+2026-10-30T22:09:34.6855352Z ##[group]Disabling automatic garbage collection
+2026-10-30T22:09:34.6861988Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+2026-10-30T22:09:34.7152528Z ##[endgroup]
+2026-10-30T22:09:34.7153278Z ##[group]Setting up auth
+2026-10-30T22:09:34.7154231Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-30T22:09:34.7383425Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-30T22:09:36.0079579Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-30T22:09:36.0625352Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-30T22:09:36.7837269Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-30T22:09:36.8371213Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-30T22:09:37.3025274Z [command]"C:\Program Files\Git\bin\git.exe" config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+2026-10-30T22:09:37.3283607Z ##[endgroup]
+2026-10-30T22:09:37.3284158Z ##[group]Fetching the repository
+2026-10-30T22:09:37.3293614Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +d71390ffd8999c2a0de34cadb492baf8e59b51a7:refs/remotes/pull/311/merge
+2026-10-30T22:09:38.9052094Z From https://github.com/jphacks/tkb_2615
+2026-10-30T22:09:38.9052700Z  * [new ref]         d71390ffd8999c2a0de34cadb492baf8e59b51a7 -> pull/311/merge
+2026-10-30T22:09:38.9081010Z ##[endgroup]
+2026-10-30T22:09:38.9081433Z ##[group]Determining the checkout info
+2026-10-30T22:09:38.9082061Z ##[endgroup]
+2026-10-30T22:09:38.9089551Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+2026-10-30T22:09:38.9475489Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+2026-10-30T22:09:38.9721704Z ##[group]Checking out the ref
+2026-10-30T22:09:38.9728176Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force refs/remotes/pull/311/merge
+2026-10-30T22:09:39.4372183Z Note: switching to 'refs/remotes/pull/311/merge'.
+2026-10-30T22:09:39.4373877Z 
+2026-10-30T22:09:39.4374092Z You are in 'detached HEAD' state. You can look around, make experimental
+2026-10-30T22:09:39.4374411Z changes and commit them, and you can discard any commits you make in this
+2026-10-30T22:09:39.4374798Z state without impacting any branches by switching back to a branch.
+2026-10-30T22:09:39.4374949Z 
+2026-10-30T22:09:39.4375043Z If you want to create a new branch to retain commits you create, you may
+2026-10-30T22:09:39.4375314Z do so (now or later) by using -c with the switch command. Example:
+2026-10-30T22:09:39.4375509Z 
+2026-10-30T22:09:39.4375586Z   git switch -c <new-branch-name>
+2026-10-30T22:09:39.4375677Z 
+2026-10-30T22:09:39.4375740Z Or undo this operation with:
+2026-10-30T22:09:39.4375879Z 
+2026-10-30T22:09:39.4375926Z   git switch -
+2026-10-30T22:09:39.4376051Z 
+2026-10-30T22:09:39.4376166Z Turn off this advice by setting config variable advice.detachedHead to false
+2026-10-30T22:09:39.4377054Z 
+2026-10-30T22:09:39.4377294Z HEAD is now at d71390f Merge 27a8d502b179dc100804905adaa4d5f311de6cbb into 21d6ec285a02f3d2a6272e1432bcd3ea5834fd9e
+2026-10-30T22:09:39.4442104Z ##[endgroup]
+2026-10-30T22:09:39.4768165Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+2026-10-30T22:09:39.4988949Z d71390ffd8999c2a0de34cadb492baf8e59b51a7
+2026-10-30T22:09:39.5315790Z ##[group]Run actions/setup-python@v5
+2026-10-30T22:09:39.5316011Z with:
+2026-10-30T22:09:39.5316127Z   python-version: 3.12
+2026-10-30T22:09:39.5316245Z   cache: pip
+2026-10-30T22:09:39.5316367Z   cache-dependency-path: pyproject.toml
+2026-10-30T22:09:39.5316516Z   check-latest: false
+2026-10-30T22:09:39.5317960Z   token: ***
+2026-10-30T22:09:39.5318078Z   update-environment: true
+2026-10-30T22:09:39.5318211Z   allow-prereleases: false
+2026-10-30T22:09:39.5318343Z   freethreaded: false
+2026-10-30T22:09:39.5318453Z env:
+2026-10-30T22:09:39.5318557Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:09:39.5318708Z ##[endgroup]
+2026-10-30T22:09:39.6345885Z ##[group]Installed versions
+2026-10-30T22:09:39.6465189Z (node:4976) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-30T22:09:39.6465619Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-30T22:09:39.6466495Z Successfully set up CPython (3.12.10)
+2026-10-30T22:09:39.6467115Z ##[endgroup]
+2026-10-30T22:09:41.9784957Z Cache hit for: setup-python-Windows-x64-python-3.12.10-pip-8706a46a56db24cf1b665cd3450f0330fa02de9defc1f56ace435ff27e865ac1
+2026-10-30T22:09:41.9850153Z (node:4976) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-30T22:09:42.8439328Z Received 44399539 of 44399539 (100.0%), 58.4 MBs/sec
+2026-10-30T22:09:42.8441012Z Cache Size: ~42 MB (44399539 B)
+2026-10-30T22:09:42.8463083Z [command]"C:\Program Files\Git\usr\bin\tar.exe" -xf D:/a/_temp/2d30fbed-a907-4241-9105-b0e85c3f4998/cache.tzst -P -C D:/a/tkb_2615/tkb_2615 --force-local --use-compress-program "zstd -d"
+2026-10-30T22:09:43.1091771Z Cache restored successfully
+2026-10-30T22:09:43.1124569Z Cache restored from key: setup-python-Windows-x64-python-3.12.10-pip-8706a46a56db24cf1b665cd3450f0330fa02de9defc1f56ace435ff27e865ac1
+2026-10-30T22:09:43.1388070Z ##[group]Run python -m pip install -e ".[dev]"
+2026-10-30T22:09:43.1388354Z [36;1mpython -m pip install -e ".[dev]"[0m
+2026-10-30T22:09:43.1998385Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-30T22:09:43.1998626Z env:
+2026-10-30T22:09:43.1998740Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:09:43.1998917Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:09:43.1999171Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.12.10\x64/lib/pkgconfig
+2026-10-30T22:09:43.1999420Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:09:43.1999656Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:09:43.1999864Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:09:43.2000036Z ##[endgroup]
+2026-10-30T22:09:45.3558246Z Obtaining file:///D:/a/tkb_2615/tkb_2615
+2026-10-30T22:09:45.3580703Z   Installing build dependencies: started
+2026-10-30T22:09:47.1437167Z   Installing build dependencies: finished with status 'done'
+2026-10-30T22:09:47.1449838Z   Checking if build backend supports build_editable: started
+2026-10-30T22:09:47.4604633Z   Checking if build backend supports build_editable: finished with status 'done'
+2026-10-30T22:09:47.4622079Z   Getting requirements to build editable: started
+2026-10-30T22:09:47.8238576Z   Getting requirements to build editable: finished with status 'done'
+2026-10-30T22:09:47.8257028Z   Preparing editable metadata (pyproject.toml): started
+2026-10-30T22:09:48.0128903Z   Preparing editable metadata (pyproject.toml): finished with status 'done'
+2026-10-30T22:09:48.2707126Z Collecting pydantic==2.11.9 (from sheltersim==0.1.0)
+2026-10-30T22:09:48.2723661Z   Using cached pydantic-2.11.9-py3-none-any.whl.metadata (68 kB)
+2026-10-30T22:09:48.3874893Z Collecting reportlab<5,>=4.4 (from sheltersim==0.1.0)
+2026-10-30T22:09:48.3891474Z   Using cached reportlab-4.5.1-py3-none-any.whl.metadata (1.7 kB)
+2026-10-30T22:09:48.4223109Z Collecting pytest==8.3.5 (from sheltersim==0.1.0)
+2026-10-30T22:09:48.4236576Z   Using cached pytest-8.3.5-py3-none-any.whl.metadata (7.6 kB)
+2026-10-30T22:09:48.4530563Z Collecting pytest-xdist==3.8.0 (from sheltersim==0.1.0)
+2026-10-30T22:09:48.4559330Z   Using cached pytest_xdist-3.8.0-py3-none-any.whl.metadata (3.0 kB)
+2026-10-30T22:09:48.4841006Z Collecting pytest-cov==7.0.0 (from sheltersim==0.1.0)
+2026-10-30T22:09:48.4882669Z   Using cached pytest_cov-7.0.0-py3-none-any.whl.metadata (31 kB)
+2026-10-30T22:09:48.7162359Z Collecting coverage==7.10.7 (from sheltersim==0.1.0)
+2026-10-30T22:09:48.7197149Z   Using cached coverage-7.10.7-cp312-cp312-win_amd64.whl.metadata (9.2 kB)
+2026-10-30T22:09:48.9182010Z Collecting ruff==0.11.0 (from sheltersim==0.1.0)
+2026-10-30T22:09:48.9202543Z   Using cached ruff-0.11.0-py3-none-win_amd64.whl.metadata (26 kB)
+2026-10-30T22:09:48.9602946Z Collecting pypdf<6,>=5 (from sheltersim==0.1.0)
+2026-10-30T22:09:48.9617740Z   Using cached pypdf-5.9.0-py3-none-any.whl.metadata (7.1 kB)
+2026-10-30T22:09:49.0241689Z Collecting pypdfium2<5,>=4.30 (from sheltersim==0.1.0)
+2026-10-30T22:09:49.0256598Z   Using cached pypdfium2-4.30.0-py3-none-win_amd64.whl.metadata (48 kB)
+2026-10-30T22:09:49.0522220Z Collecting annotated-types>=0.6.0 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-30T22:09:49.0536379Z   Using cached annotated_types-0.8.0-py3-none-any.whl.metadata (15 kB)
+2026-10-30T22:09:49.4373235Z Collecting pydantic-core==2.33.2 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-30T22:09:49.4395056Z   Using cached pydantic_core-2.33.2-cp312-cp312-win_amd64.whl.metadata (6.9 kB)
+2026-10-30T22:09:49.4673883Z Collecting typing-extensions>=4.12.2 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-30T22:09:49.4688790Z   Using cached typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+2026-10-30T22:09:49.4961598Z Collecting typing-inspection>=0.4.0 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-30T22:09:49.4976474Z   Using cached typing_inspection-0.4.4-py3-none-any.whl.metadata (2.6 kB)
+2026-10-30T22:09:49.5004848Z Requirement already satisfied: colorama in C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\site-packages (from pytest==8.3.5->sheltersim==0.1.0) (0.4.6)
+2026-10-30T22:09:49.5234269Z Collecting iniconfig (from pytest==8.3.5->sheltersim==0.1.0)
+2026-10-30T22:09:49.5248522Z   Using cached iniconfig-2.3.1-py3-none-any.whl.metadata (2.8 kB)
+2026-10-30T22:09:49.5267646Z Requirement already satisfied: packaging in C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\site-packages (from pytest==8.3.5->sheltersim==0.1.0) (26.3)
+2026-10-30T22:09:49.5522682Z Collecting pluggy<2,>=1.5 (from pytest==8.3.5->sheltersim==0.1.0)
+2026-10-30T22:09:49.5537715Z   Using cached pluggy-1.7.0-py3-none-any.whl.metadata (5.0 kB)
+2026-10-30T22:09:49.5821805Z Collecting execnet>=2.1 (from pytest-xdist==3.8.0->sheltersim==0.1.0)
+2026-10-30T22:09:49.5846392Z   Using cached execnet-2.1.2-py3-none-any.whl.metadata (2.9 kB)
+2026-10-30T22:09:49.8235925Z Collecting pillow>=9.0.0 (from reportlab<5,>=4.4->sheltersim==0.1.0)
+2026-10-30T22:09:49.8267881Z   Using cached pillow-13.0.0-cp312-cp312-win_amd64.whl.metadata (9.3 kB)
+2026-10-30T22:09:49.9655280Z Collecting charset-normalizer (from reportlab<5,>=4.4->sheltersim==0.1.0)
+2026-10-30T22:09:49.9672705Z   Using cached charset_normalizer-3.5.2-cp312-cp312-win_amd64.whl.metadata (47 kB)
+2026-10-30T22:09:49.9752672Z Using cached coverage-7.10.7-cp312-cp312-win_amd64.whl (221 kB)
+2026-10-30T22:09:49.9764059Z Using cached pydantic-2.11.9-py3-none-any.whl (444 kB)
+2026-10-30T22:09:49.9787799Z Using cached pydantic_core-2.33.2-cp312-cp312-win_amd64.whl (2.0 MB)
+2026-10-30T22:09:49.9806084Z Using cached pytest-8.3.5-py3-none-any.whl (343 kB)
+2026-10-30T22:09:49.9820487Z Using cached pytest_cov-7.0.0-py3-none-any.whl (22 kB)
+2026-10-30T22:09:49.9830314Z Using cached pytest_xdist-3.8.0-py3-none-any.whl (46 kB)
+2026-10-30T22:09:49.9840585Z Using cached ruff-0.11.0-py3-none-win_amd64.whl (11.4 MB)
+2026-10-30T22:09:49.9896255Z Using cached pluggy-1.7.0-py3-none-any.whl (27 kB)
+2026-10-30T22:09:49.9955052Z Using cached pypdf-5.9.0-py3-none-any.whl (313 kB)
+2026-10-30T22:09:49.9967006Z Using cached pypdfium2-4.30.0-py3-none-win_amd64.whl (2.9 MB)
+2026-10-30T22:09:49.9988593Z Using cached reportlab-4.5.1-py3-none-any.whl (2.0 MB)
+2026-10-30T22:09:50.0006613Z Using cached annotated_types-0.8.0-py3-none-any.whl (13 kB)
+2026-10-30T22:09:50.0019640Z Using cached execnet-2.1.2-py3-none-any.whl (40 kB)
+2026-10-30T22:09:50.0029710Z Using cached pillow-13.0.0-cp312-cp312-win_amd64.whl (7.3 MB)
+2026-10-30T22:09:50.0068807Z Using cached typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+2026-10-30T22:09:50.0090481Z Using cached typing_inspection-0.4.4-py3-none-any.whl (14 kB)
+2026-10-30T22:09:50.0103276Z Using cached charset_normalizer-3.5.2-cp312-cp312-win_amd64.whl (207 kB)
+2026-10-30T22:09:50.0113952Z Using cached iniconfig-2.3.1-py3-none-any.whl (7.6 kB)
+2026-10-30T22:09:50.0795831Z Building wheels for collected packages: sheltersim
+2026-10-30T22:09:50.0817591Z   Building editable for sheltersim (pyproject.toml): started
+2026-10-30T22:09:50.3145132Z   Building editable for sheltersim (pyproject.toml): finished with status 'done'
+2026-10-30T22:09:50.3172943Z   Created wheel for sheltersim: filename=sheltersim-0.1.0-0.editable-py3-none-any.whl size=9166 sha256=b6f93b9db589c07386107ea076da03d7194fab6acfb2a478f9738256c84086f2
+2026-10-30T22:09:50.3174170Z   Stored in directory: C:\Users\runneradmin\AppData\Local\Temp\pip-ephem-wheel-cache-26ve3abb\wheels\25\d6\ee\5ab6036338aeb6b14bbca7511bc844e3df1f8d61f449109643
+2026-10-30T22:09:50.3196621Z Successfully built sheltersim
+2026-10-30T22:09:50.3527615Z Installing collected packages: typing-extensions, ruff, pypdfium2, pypdf, pluggy, pillow, iniconfig, execnet, coverage, charset-normalizer, annotated-types, typing-inspection, reportlab, pytest, pydantic-core, pytest-xdist, pytest-cov, pydantic, sheltersim
+2026-10-30T22:09:54.5936289Z 
+2026-10-30T22:09:54.5953234Z Successfully installed annotated-types-0.8.0 charset-normalizer-3.5.2 coverage-7.10.7 execnet-2.1.2 iniconfig-2.3.1 pillow-13.0.0 pluggy-1.7.0 pydantic-2.11.9 pydantic-core-2.33.2 pypdf-5.9.0 pypdfium2-4.30.0 pytest-8.3.5 pytest-cov-7.0.0 pytest-xdist-3.8.0 reportlab-4.5.1 ruff-0.11.0 sheltersim-0.1.0 typing-extensions-4.16.0 typing-inspection-0.4.4
+2026-10-30T22:09:54.8477005Z ##[group]Run rustup toolchain install stable --profile minimal
+2026-10-30T22:09:54.8477318Z [36;1mrustup toolchain install stable --profile minimal[0m
+2026-10-30T22:09:54.8477509Z [36;1mpython -m pip install "maturin>=1.7,<2"[0m
+2026-10-30T22:09:54.8477733Z [36;1mmaturin build --release -m native/Cargo.toml --out native-dist[0m
+2026-10-30T22:09:54.8478003Z [36;1mpython -m pip install --no-index --find-links native-dist sheltersim-native[0m
+2026-10-30T22:09:54.8478467Z [36;1mpython -c "import sheltersim.native as n; assert n.available(), 'kernels not loaded'"[0m
+2026-10-30T22:09:54.8488214Z shell: C:\Program Files\Git\bin\bash.EXE --noprofile --norc -e -o pipefail {0}
+2026-10-30T22:09:54.8488417Z env:
+2026-10-30T22:09:54.8488528Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:09:54.8488706Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:09:54.8488948Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.12.10\x64/lib/pkgconfig
+2026-10-30T22:09:54.8489215Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:09:54.8489430Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:09:54.8489639Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:09:54.8490404Z ##[endgroup]
+2026-10-30T22:09:58.4010987Z info: syncing channel updates for stable-x86_64-pc-windows-msvc
+2026-10-30T22:09:58.8575808Z 
+2026-10-30T22:09:58.8738756Z   stable-x86_64-pc-windows-msvc unchanged - rustc 1.99.1 (58cf8f9c3 2026-10-13)
+2026-10-30T22:09:58.8739009Z 
+2026-10-30T22:09:59.5260249Z Collecting maturin<2,>=1.7
+2026-10-30T22:09:59.5279366Z   Using cached maturin-1.16.0-py3-none-win_amd64.whl.metadata (17 kB)
+2026-10-30T22:09:59.5326530Z Using cached maturin-1.16.0-py3-none-win_amd64.whl (10.6 MB)
+2026-10-30T22:09:59.5982240Z Installing collected packages: maturin
+2026-10-30T22:09:59.7208509Z Successfully installed maturin-1.16.0
+2026-10-30T22:10:02.1948149Z     Updating crates.io index
+2026-10-30T22:10:02.9024577Z  Downloading crates ...
+2026-10-30T22:10:03.0670907Z   Downloaded cfg-if v1.0.5
+2026-10-30T22:10:03.0794415Z   Downloaded indoc v2.0.8
+2026-10-30T22:10:03.0956012Z   Downloaded block-buffer v0.10.4
+2026-10-30T22:10:03.1028217Z   Downloaded generic-array v0.14.7
+2026-10-30T22:10:03.1099560Z   Downloaded memoffset v0.9.1
+2026-10-30T22:10:03.1152896Z   Downloaded heck v0.5.0
+2026-10-30T22:10:03.1223349Z   Downloaded itoa v1.0.18
+2026-10-30T22:10:03.1283464Z   Downloaded version_check v0.9.5
+2026-10-30T22:10:03.1336088Z   Downloaded unindent v0.2.4
+2026-10-30T22:10:03.1382241Z   Downloaded crypto-common v0.1.7
+2026-10-30T22:10:03.1429418Z   Downloaded cpufeatures v0.2.17
+2026-10-30T22:10:03.1489048Z   Downloaded pyo3-macros v0.23.5
+2026-10-30T22:10:03.1532563Z   Downloaded crossbeam-deque v0.8.8
+2026-10-30T22:10:03.1588593Z   Downloaded either v1.19.0
+2026-10-30T22:10:03.1658680Z   Downloaded autocfg v1.5.1
+2026-10-30T22:10:03.1731020Z   Downloaded target-lexicon v0.12.16
+2026-10-30T22:10:03.1840862Z   Downloaded rustversion v1.0.23
+2026-10-30T22:10:03.1996227Z   Downloaded zmij v1.0.23
+2026-10-30T22:10:03.2063492Z   Downloaded quote v1.0.47
+2026-10-30T22:10:03.2210208Z   Downloaded sha2 v0.10.9
+2026-10-30T22:10:03.2352799Z   Downloaded once_cell v1.21.4
+2026-10-30T22:10:03.2468033Z   Downloaded digest v0.10.7
+2026-10-30T22:10:03.2558026Z   Downloaded pyo3-build-config v0.23.5
+2026-10-30T22:10:03.2621440Z   Downloaded memchr v2.8.3
+2026-10-30T22:10:03.2859756Z   Downloaded crossbeam-epoch v0.9.21
+2026-10-30T22:10:03.2962368Z   Downloaded unicode-ident v1.0.27
+2026-10-30T22:10:03.3490332Z   Downloaded crossbeam-utils v0.8.23
+2026-10-30T22:10:03.5196771Z   Downloaded proc-macro2 v1.0.107
+2026-10-30T22:10:03.5907983Z   Downloaded serde_derive v1.0.229
+2026-10-30T22:10:03.6402703Z   Downloaded pyo3-ffi v0.23.5
+2026-10-30T22:10:03.8514106Z   Downloaded pyo3-macros-backend v0.23.5
+2026-10-30T22:10:03.9440202Z   Downloaded rayon-core v1.13.0
+2026-10-30T22:10:04.1422222Z   Downloaded ryu v1.0.23
+2026-10-30T22:10:04.7947117Z   Downloaded serde_core v1.0.229
+2026-10-30T22:10:04.8927581Z   Downloaded serde v1.0.229
+2026-10-30T22:10:04.9821525Z   Downloaded typenum v1.20.1
+2026-10-30T22:10:04.9999599Z   Downloaded serde_json v1.0.154
+2026-10-30T22:10:05.0522334Z   Downloaded rayon v1.12.0
+2026-10-30T22:10:05.1595174Z   Downloaded portable-atomic v1.15.0
+2026-10-30T22:10:05.2461005Z   Downloaded syn v2.0.119
+2026-10-30T22:10:05.3015967Z   Downloaded syn v3.0.9
+2026-10-30T22:10:05.3557024Z   Downloaded libc v0.2.191
+2026-10-30T22:10:06.2360488Z   Downloaded pyo3 v0.23.5
+2026-10-30T22:10:07.0094196Z 🔗 Found pyo3 bindings with abi3-py3.12 support
+2026-10-30T22:10:07.0094485Z 📡 Using build options features from pyproject.toml
+2026-10-30T22:10:07.1695228Z    Compiling target-lexicon v0.12.16
+2026-10-30T22:10:07.1695719Z    Compiling once_cell v1.21.4
+2026-10-30T22:10:07.1695945Z    Compiling proc-macro2 v1.0.107
+2026-10-30T22:10:07.1696209Z    Compiling version_check v0.9.5
+2026-10-30T22:10:15.9712293Z    Compiling unicode-ident v1.0.27
+2026-10-30T22:10:16.1227669Z    Compiling generic-array v0.14.7
+2026-10-30T22:10:16.3060838Z    Compiling crossbeam-utils v0.8.23
+2026-10-30T22:10:17.9184213Z    Compiling quote v1.0.47
+2026-10-30T22:10:17.9814563Z    Compiling typenum v1.20.1
+2026-10-30T22:10:18.1277949Z    Compiling crossbeam-epoch v0.9.21
+2026-10-30T22:10:18.1837308Z    Compiling pyo3-build-config v0.23.5
+2026-10-30T22:10:19.9435019Z    Compiling autocfg v1.5.1
+2026-10-30T22:10:19.9664215Z    Compiling crossbeam-deque v0.8.8
+2026-10-30T22:10:20.1591165Z    Compiling libc v0.2.191
+2026-10-30T22:10:20.2812323Z    Compiling memoffset v0.9.1
+2026-10-30T22:10:20.3346706Z    Compiling syn v2.0.119
+2026-10-30T22:10:20.4135379Z    Compiling pyo3-macros-backend v0.23.5
+2026-10-30T22:10:20.4173155Z    Compiling pyo3-ffi v0.23.5
+2026-10-30T22:10:20.6039685Z    Compiling rayon-core v1.13.0
+2026-10-30T22:10:20.6488297Z    Compiling serde_core v1.0.229
+2026-10-30T22:10:20.7323533Z    Compiling heck v0.5.0
+2026-10-30T22:10:20.9069011Z    Compiling zmij v1.0.23
+2026-10-30T22:10:21.1919160Z    Compiling pyo3 v0.23.5
+2026-10-30T22:10:21.2646056Z    Compiling block-buffer v0.10.4
+2026-10-30T22:10:21.2765681Z    Compiling crypto-common v0.1.7
+2026-10-30T22:10:21.3485132Z    Compiling serde_json v1.0.154
+2026-10-30T22:10:21.3677468Z    Compiling cfg-if v1.0.5
+2026-10-30T22:10:21.4020453Z    Compiling digest v0.10.7
+2026-10-30T22:10:22.1213752Z    Compiling itoa v1.0.18
+2026-10-30T22:10:22.4380084Z    Compiling either v1.19.0
+2026-10-30T22:10:22.5835386Z    Compiling unindent v0.2.4
+2026-10-30T22:10:22.6522976Z    Compiling memchr v2.8.3
+2026-10-30T22:10:22.7855362Z    Compiling cpufeatures v0.2.17
+2026-10-30T22:10:22.8243059Z    Compiling indoc v2.0.8
+2026-10-30T22:10:23.6513047Z    Compiling sha2 v0.10.9
+2026-10-30T22:10:24.4681970Z    Compiling rayon v1.12.0
+2026-10-30T22:10:24.5775839Z    Compiling ryu v1.0.23
+2026-10-30T22:10:26.0581387Z    Compiling pyo3-macros v0.23.5
+2026-10-30T22:10:29.1128288Z    Compiling sheltersim_native v0.1.0 (D:\a\tkb_2615\tkb_2615\native)
+2026-10-30T22:10:41.7074124Z     Finished `release` profile [optimized] target(s) in 34.67s
+2026-10-30T22:10:41.8465381Z 📦 Built wheel for abi3 Python ≥ 3.12 to native-dist\sheltersim_native-0.1.0-cp312-abi3-win_amd64.whl
+2026-10-30T22:10:42.2320519Z Looking in links: native-dist
+2026-10-30T22:10:42.2527679Z Processing .\native-dist\sheltersim_native-0.1.0-cp312-abi3-win_amd64.whl
+2026-10-30T22:10:42.2776239Z Installing collected packages: sheltersim-native
+2026-10-30T22:10:42.3013794Z Successfully installed sheltersim-native-0.1.0
+2026-10-30T22:10:42.3969289Z ##[group]Run python -m pytest -m "not long_simulation" -n auto
+2026-10-30T22:10:42.3969589Z [36;1mpython -m pytest -m "not long_simulation" -n auto[0m
+2026-10-30T22:10:42.4014118Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-30T22:10:42.4014319Z env:
+2026-10-30T22:10:42.4014437Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:10:42.4014622Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:10:42.4014887Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.12.10\x64/lib/pkgconfig
+2026-10-30T22:10:42.4015166Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:10:42.4015392Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:10:42.4015615Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:10:42.4015801Z ##[endgroup]
+2026-10-30T22:10:48.9025245Z ============================= test session starts =============================
+2026-10-30T22:10:48.9112401Z platform win32 -- Python 3.12.10, pytest-8.3.5, pluggy-1.7.0
+2026-10-30T22:10:48.9113396Z rootdir: D:\a\tkb_2615\tkb_2615
+2026-10-30T22:10:48.9115791Z configfile: pyproject.toml
+2026-10-30T22:10:48.9116104Z testpaths: tests
+2026-10-30T22:10:48.9116426Z plugins: platformdirs-4.13.5, cov-7.0.0, xdist-3.8.0
+2026-10-30T22:10:48.9116777Z created: 4/4 workers
+2026-10-30T22:10:48.9117052Z 4 workers [1773 items]
+2026-10-30T22:10:48.9117255Z 
+2026-10-30T22:10:50.1422130Z ........................................................................ [  4%]
+2026-10-30T22:10:52.3741057Z ........................................................................ [  8%]
+2026-10-30T22:10:53.3056736Z ........................................................................ [ 12%]
+2026-10-30T22:10:55.0594272Z ........................................................................ [ 16%]
+2026-10-30T22:10:57.6016334Z ........................................................................ [ 20%]
+2026-10-30T22:11:08.1945896Z ........................................................................ [ 24%]
+2026-10-30T22:11:16.0338814Z ........................................................................ [ 28%]
+2026-10-30T22:11:21.4175505Z ........................................................................ [ 32%]
+2026-10-30T22:11:21.7753061Z ........................................................................ [ 36%]
+2026-10-30T22:11:23.0978545Z .....................................................s.................. [ 40%]
+2026-10-30T22:11:24.0283414Z ........................................................................ [ 44%]
+2026-10-30T22:11:42.1665496Z ........................................................................ [ 48%]
+2026-10-30T22:11:46.1887387Z ........................................................................ [ 52%]
+2026-10-30T22:11:51.9618425Z ........................................................................ [ 56%]
+2026-10-30T22:11:59.2038258Z ........................................................................ [ 60%]
+2026-10-30T22:12:08.6171244Z ..................s.........ss.......................................... [ 64%]
+2026-10-30T22:12:22.1087023Z ..............s......................................................... [ 69%]
+2026-10-30T22:12:50.3026970Z ........................................................................ [ 73%]
+2026-10-30T22:13:08.0685844Z ........................................................................ [ 77%]
+2026-10-30T22:13:38.9621696Z ..........................................................s............. [ 81%]
+2026-10-30T22:14:12.6679313Z ...F..F..................ssss........................................... [ 85%]
+2026-10-30T22:15:08.0489456Z ........................................................................ [ 89%]
+2026-10-30T22:16:42.1637142Z ........................................................................ [ 93%]
+2026-10-30T22:18:04.4563998Z ........................................................................ [ 97%]
+2026-10-30T22:18:54.4011632Z .............................................                            [100%]
+2026-10-30T22:18:54.4011962Z ================================== FAILURES ===================================
+2026-10-30T22:18:54.4012450Z ______________ test_same_seeds_of_the_same_code_report_no_change ______________
+2026-10-30T22:18:54.4012876Z [gw0] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-30T22:18:54.4013082Z 
+2026-10-30T22:18:54.4013324Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw0/test_same_seeds_of_the_same_co0')
+2026-10-30T22:18:54.4013726Z 
+2026-10-30T22:18:54.4013982Z     def test_same_seeds_of_the_same_code_report_no_change(tmp_path: Path) -> None:
+2026-10-30T22:18:54.4014297Z         _collect(tmp_path / "a", 11)
+2026-10-30T22:18:54.4014537Z         _collect(tmp_path / "b", 11)
+2026-10-30T22:18:54.4014724Z     
+2026-10-30T22:18:54.4014981Z >       report = _run(tmp_path / "a", tmp_path / "b")
+2026-10-30T22:18:54.4015167Z 
+2026-10-30T22:18:54.4015322Z tests\integration\test_behaviour_comparison.py:48: 
+2026-10-30T22:18:54.4015683Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-30T22:18:54.4016102Z tests\integration\test_behaviour_comparison.py:16: in _run
+2026-10-30T22:18:54.4016450Z     done = subprocess.run(
+2026-10-30T22:18:54.4016736Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-30T22:18:54.4016979Z 
+2026-10-30T22:18:54.4017132Z input = None, capture_output = True, timeout = None, check = True
+2026-10-30T22:18:54.4018286Z popenargs = (['C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\python.exe', 'D:\\a\\tkb_2615\\tkb_2615\\benchmarks\\compare_be...\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\popen-gw0\\test_same_seeds_of_the_same_co0\\b'],)
+2026-10-30T22:18:54.4019188Z kwargs = {'encoding': 'utf-8', 'env': {'ACTIONS_ORCHESTRATION_ID': '1985341a-aef2-8308-a843-af44835a1628.python.windows-latest'...RESULT_FOR_HOSTED': '1', 'AGENT_TOOLSDIRECTORY': 'C:\\hostedtoolcache\\windows', ...}, 'stderr': -1, 'stdout': -1, ...}
+2026-10-30T22:18:54.4019803Z process = <Popen: returncode: 1 args: ['C:\\hostedtoolcache\\windows\\Python\\3.12.10\...>
+2026-10-30T22:18:54.4020064Z stdout = ''
+2026-10-30T22:18:54.4020546Z stderr = 'Traceback (most recent call last):\n  File "D:\\a\\tkb_2615\\tkb_2615\\benchmarks\\compare_behaviour.py", line 395, i...^^^^^\nUnicodeEncodeError: \'charmap\' codec can\'t encode characters in position 2-8: character maps to <undefined>\n'
+2026-10-30T22:18:54.4021090Z retcode = 1
+2026-10-30T22:18:54.4021160Z 
+2026-10-30T22:18:54.4021251Z     def run(*popenargs,
+2026-10-30T22:18:54.4021472Z             input=None, capture_output=False, timeout=None, check=False, **kwargs):
+2026-10-30T22:18:54.4021796Z         """Run command with arguments and return a CompletedProcess instance.
+2026-10-30T22:18:54.4022034Z     
+2026-10-30T22:18:54.4022243Z         The returned instance will have attributes args, returncode, stdout and
+2026-10-30T22:18:54.4022543Z         stderr. By default, stdout and stderr are not captured, and those attributes
+2026-10-30T22:18:54.4022874Z         will be None. Pass stdout=PIPE and/or stderr=PIPE in order to capture them,
+2026-10-30T22:18:54.4023144Z         or pass capture_output=True to capture both.
+2026-10-30T22:18:54.4023340Z     
+2026-10-30T22:18:54.4023514Z         If check is True and the exit code was non-zero, it raises a
+2026-10-30T22:18:54.4023811Z         CalledProcessError. The CalledProcessError object will have the return code
+2026-10-30T22:18:54.4024178Z         in the returncode attribute, and output & stderr attributes if those streams
+2026-10-30T22:18:54.4024539Z         were captured.
+2026-10-30T22:18:54.4024712Z     
+2026-10-30T22:18:54.4024894Z         If timeout (seconds) is given and the process takes too long,
+2026-10-30T22:18:54.4025860Z          a TimeoutExpired exception will be raised.
+2026-10-30T22:18:54.4026055Z     
+2026-10-30T22:18:54.4026228Z         There is an optional argument "input", allowing you to
+2026-10-30T22:18:54.4026515Z         pass bytes or a string to the subprocess's stdin.  If you use this argument
+2026-10-30T22:18:54.4026804Z         you may not also use the Popen constructor's "stdin" argument, as
+2026-10-30T22:18:54.4027038Z         it will be used internally.
+2026-10-30T22:18:54.4027206Z     
+2026-10-30T22:18:54.4027421Z         By default, all communication is in bytes, and therefore any "input" should
+2026-10-30T22:18:54.4027717Z         be bytes, and the stdout and stderr will be bytes. If in text mode, any
+2026-10-30T22:18:54.4028003Z         "input" should be a string, and stdout and stderr will be strings decoded
+2026-10-30T22:18:54.4028309Z         according to locale encoding, or by "encoding" if set. Text mode is
+2026-10-30T22:18:54.4028619Z         triggered by setting any of text, encoding, errors or universal_newlines.
+2026-10-30T22:18:54.4028846Z     
+2026-10-30T22:18:54.4029038Z         The other arguments are the same as for the Popen constructor.
+2026-10-30T22:18:54.4029280Z         """
+2026-10-30T22:18:54.4029423Z         if input is not None:
+2026-10-30T22:18:54.4029894Z             if kwargs.get('stdin') is not None:
+2026-10-30T22:18:54.4030137Z                 raise ValueError('stdin and input arguments may not both be used.')
+2026-10-30T22:18:54.4030402Z             kwargs['stdin'] = PIPE
+2026-10-30T22:18:54.4030575Z     
+2026-10-30T22:18:54.4030724Z         if capture_output:
+2026-10-30T22:18:54.4031359Z             if kwargs.get('stdout') is not None or kwargs.get('stderr') is not None:
+2026-10-30T22:18:54.4031667Z                 raise ValueError('stdout and stderr arguments may not be used '
+2026-10-30T22:18:54.4031917Z                                  'with capture_output.')
+2026-10-30T22:18:54.4032120Z             kwargs['stdout'] = PIPE
+2026-10-30T22:18:54.4032308Z             kwargs['stderr'] = PIPE
+2026-10-30T22:18:54.4032497Z     
+2026-10-30T22:18:54.4032663Z         with Popen(*popenargs, **kwargs) as process:
+2026-10-30T22:18:54.4032864Z             try:
+2026-10-30T22:18:54.4033069Z                 stdout, stderr = process.communicate(input, timeout=timeout)
+2026-10-30T22:18:54.4033309Z             except TimeoutExpired as exc:
+2026-10-30T22:18:54.4033521Z                 process.kill()
+2026-10-30T22:18:54.4033697Z                 if _mswindows:
+2026-10-30T22:18:54.4033897Z                     # Windows accumulates the output in a single blocking
+2026-10-30T22:18:54.4034144Z                     # read() call run on child threads, with the timeout
+2026-10-30T22:18:54.4034415Z                     # being done in a join() on those threads.  communicate()
+2026-10-30T22:18:54.4034673Z                     # _after_ kill() is required to collect that and add it
+2026-10-30T22:18:54.4034893Z                     # to the exception.
+2026-10-30T22:18:54.4035131Z                     exc.stdout, exc.stderr = process.communicate()
+2026-10-30T22:18:54.4035341Z                 else:
+2026-10-30T22:18:54.4035539Z                     # POSIX _communicate already populated the output so
+2026-10-30T22:18:54.4035774Z                     # far into the TimeoutExpired exception.
+2026-10-30T22:18:54.4035994Z                     process.wait()
+2026-10-30T22:18:54.4036240Z                 raise
+2026-10-30T22:18:54.4036484Z             except:  # Including KeyboardInterrupt, communicate handled that.
+2026-10-30T22:18:54.4036712Z                 process.kill()
+2026-10-30T22:18:54.4036938Z                 # We don't call process.wait() as .__exit__ does that for us.
+2026-10-30T22:18:54.4037150Z                 raise
+2026-10-30T22:18:54.4037309Z             retcode = process.poll()
+2026-10-30T22:18:54.4037489Z             if check and retcode:
+2026-10-30T22:18:54.4037695Z >               raise CalledProcessError(retcode, process.args,
+2026-10-30T22:18:54.4038033Z                                          output=stdout, stderr=stderr)
+2026-10-30T22:18:54.4038934Z E               subprocess.CalledProcessError: Command '['C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\python.exe', 'D:\\a\\tkb_2615\\tkb_2615\\benchmarks\\compare_behaviour.py', 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\popen-gw0\\test_same_seeds_of_the_same_co0\\a', 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\popen-gw0\\test_same_seeds_of_the_same_co0\\b']' returned non-zero exit status 1.
+2026-10-30T22:18:54.4039914Z 
+2026-10-30T22:18:54.4040074Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\subprocess.py:571: CalledProcessError
+2026-10-30T22:18:54.4040394Z _________________ test_other_seeds_are_compared_as_two_groups _________________
+2026-10-30T22:18:54.4040706Z [gw0] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-30T22:18:54.4040900Z 
+2026-10-30T22:18:54.4041162Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw0/test_other_seeds_are_compared_0')
+2026-10-30T22:18:54.4041445Z 
+2026-10-30T22:18:54.4041583Z     def test_other_seeds_are_compared_as_two_groups(tmp_path: Path) -> None:
+2026-10-30T22:18:54.4041828Z         _collect(tmp_path / "a", 11)
+2026-10-30T22:18:54.4042019Z         _collect(tmp_path / "b", 21)
+2026-10-30T22:18:54.4042231Z     
+2026-10-30T22:18:54.4042442Z >       report = _run(tmp_path / "a", tmp_path / "b", "--output", tmp_path / "report.md")
+2026-10-30T22:18:54.4042632Z 
+2026-10-30T22:18:54.4042719Z tests\integration\test_behaviour_comparison.py:60: 
+2026-10-30T22:18:54.4043045Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-30T22:18:54.4043296Z tests\integration\test_behaviour_comparison.py:16: in _run
+2026-10-30T22:18:54.4043523Z     done = subprocess.run(
+2026-10-30T22:18:54.4043717Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-30T22:18:54.4043875Z 
+2026-10-30T22:18:54.4043997Z input = None, capture_output = True, timeout = None, check = True
+2026-10-30T22:18:54.4044557Z popenargs = (['C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\python.exe', 'D:\\a\\tkb_2615\\tkb_2615\\benchmarks\\compare_be...admin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\popen-gw0\\test_other_seeds_are_compared_0\\report.md'],)
+2026-10-30T22:18:54.4045416Z kwargs = {'encoding': 'utf-8', 'env': {'ACTIONS_ORCHESTRATION_ID': '1985341a-aef2-8308-a843-af44835a1628.python.windows-latest'...RESULT_FOR_HOSTED': '1', 'AGENT_TOOLSDIRECTORY': 'C:\\hostedtoolcache\\windows', ...}, 'stderr': -1, 'stdout': -1, ...}
+2026-10-30T22:18:54.4046025Z process = <Popen: returncode: 1 args: ['C:\\hostedtoolcache\\windows\\Python\\3.12.10\...>
+2026-10-30T22:18:54.4046282Z stdout = ''
+2026-10-30T22:18:54.4046755Z stderr = 'Traceback (most recent call last):\n  File "D:\\a\\tkb_2615\\tkb_2615\\benchmarks\\compare_behaviour.py", line 395, i...^^^^^\nUnicodeEncodeError: \'charmap\' codec can\'t encode characters in position 2-8: character maps to <undefined>\n'
+2026-10-30T22:18:54.4047271Z retcode = 1
+2026-10-30T22:18:54.4047343Z 
+2026-10-30T22:18:54.4047426Z     def run(*popenargs,
+2026-10-30T22:18:54.4047645Z             input=None, capture_output=False, timeout=None, check=False, **kwargs):
+2026-10-30T22:18:54.4047939Z         """Run command with arguments and return a CompletedProcess instance.
+2026-10-30T22:18:54.4048181Z     
+2026-10-30T22:18:54.4048384Z         The returned instance will have attributes args, returncode, stdout and
+2026-10-30T22:18:54.4048687Z         stderr. By default, stdout and stderr are not captured, and those attributes
+2026-10-30T22:18:54.4051982Z         will be None. Pass stdout=PIPE and/or stderr=PIPE in order to capture them,
+2026-10-30T22:18:54.4052388Z         or pass capture_output=True to capture both.
+2026-10-30T22:18:54.4052660Z     
+2026-10-30T22:18:54.4053063Z         If check is True and the exit code was non-zero, it raises a
+2026-10-30T22:18:54.4053368Z         CalledProcessError. The CalledProcessError object will have the return code
+2026-10-30T22:18:54.4053677Z         in the returncode attribute, and output & stderr attributes if those streams
+2026-10-30T22:18:54.4053920Z         were captured.
+2026-10-30T22:18:54.4054076Z     
+2026-10-30T22:18:54.4054270Z         If timeout (seconds) is given and the process takes too long,
+2026-10-30T22:18:54.4054509Z          a TimeoutExpired exception will be raised.
+2026-10-30T22:18:54.4054702Z     
+2026-10-30T22:18:54.4054877Z         There is an optional argument "input", allowing you to
+2026-10-30T22:18:54.4055167Z         pass bytes or a string to the subprocess's stdin.  If you use this argument
+2026-10-30T22:18:54.4055466Z         you may not also use the Popen constructor's "stdin" argument, as
+2026-10-30T22:18:54.4055699Z         it will be used internally.
+2026-10-30T22:18:54.4055873Z     
+2026-10-30T22:18:54.4056090Z         By default, all communication is in bytes, and therefore any "input" should
+2026-10-30T22:18:54.4056388Z         be bytes, and the stdout and stderr will be bytes. If in text mode, any
+2026-10-30T22:18:54.4056683Z         "input" should be a string, and stdout and stderr will be strings decoded
+2026-10-30T22:18:54.4056974Z         according to locale encoding, or by "encoding" if set. Text mode is
+2026-10-30T22:18:54.4057290Z         triggered by setting any of text, encoding, errors or universal_newlines.
+2026-10-30T22:18:54.4057523Z     
+2026-10-30T22:18:54.4057705Z         The other arguments are the same as for the Popen constructor.
+2026-10-30T22:18:54.4058010Z         """
+2026-10-30T22:18:54.4058163Z         if input is not None:
+2026-10-30T22:18:54.4058347Z             if kwargs.get('stdin') is not None:
+2026-10-30T22:18:54.4058592Z                 raise ValueError('stdin and input arguments may not both be used.')
+2026-10-30T22:18:54.4058838Z             kwargs['stdin'] = PIPE
+2026-10-30T22:18:54.4059030Z     
+2026-10-30T22:18:54.4059176Z         if capture_output:
+2026-10-30T22:18:54.4059398Z             if kwargs.get('stdout') is not None or kwargs.get('stderr') is not None:
+2026-10-30T22:18:54.4059839Z                 raise ValueError('stdout and stderr arguments may not be used '
+2026-10-30T22:18:54.4060121Z                                  'with capture_output.')
+2026-10-30T22:18:54.4060325Z             kwargs['stdout'] = PIPE
+2026-10-30T22:18:54.4060511Z             kwargs['stderr'] = PIPE
+2026-10-30T22:18:54.4060678Z     
+2026-10-30T22:18:54.4060868Z         with Popen(*popenargs, **kwargs) as process:
+2026-10-30T22:18:54.4061070Z             try:
+2026-10-30T22:18:54.4061269Z                 stdout, stderr = process.communicate(input, timeout=timeout)
+2026-10-30T22:18:54.4061505Z             except TimeoutExpired as exc:
+2026-10-30T22:18:54.4061720Z                 process.kill()
+2026-10-30T22:18:54.4061904Z                 if _mswindows:
+2026-10-30T22:18:54.4062106Z                     # Windows accumulates the output in a single blocking
+2026-10-30T22:18:54.4062378Z                     # read() call run on child threads, with the timeout
+2026-10-30T22:18:54.4062628Z                     # being done in a join() on those threads.  communicate()
+2026-10-30T22:18:54.4062882Z                     # _after_ kill() is required to collect that and add it
+2026-10-30T22:18:54.4063099Z                     # to the exception.
+2026-10-30T22:18:54.4063325Z                     exc.stdout, exc.stderr = process.communicate()
+2026-10-30T22:18:54.4063530Z                 else:
+2026-10-30T22:18:54.4063717Z                     # POSIX _communicate already populated the output so
+2026-10-30T22:18:54.4063952Z                     # far into the TimeoutExpired exception.
+2026-10-30T22:18:54.4064169Z                     process.wait()
+2026-10-30T22:18:54.4064345Z                 raise
+2026-10-30T22:18:54.4064554Z             except:  # Including KeyboardInterrupt, communicate handled that.
+2026-10-30T22:18:54.4065175Z                 process.kill()
+2026-10-30T22:18:54.4065405Z                 # We don't call process.wait() as .__exit__ does that for us.
+2026-10-30T22:18:54.4065623Z                 raise
+2026-10-30T22:18:54.4065781Z             retcode = process.poll()
+2026-10-30T22:18:54.4065965Z             if check and retcode:
+2026-10-30T22:18:54.4066192Z >               raise CalledProcessError(retcode, process.args,
+2026-10-30T22:18:54.4066428Z                                          output=stdout, stderr=stderr)
+2026-10-30T22:18:54.4067570Z E               subprocess.CalledProcessError: Command '['C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\python.exe', 'D:\\a\\tkb_2615\\tkb_2615\\benchmarks\\compare_behaviour.py', 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\popen-gw0\\test_other_seeds_are_compared_0\\a', 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\popen-gw0\\test_other_seeds_are_compared_0\\b', '--output', 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\popen-gw0\\test_other_seeds_are_compared_0\\report.md']' returned non-zero exit status 1.
+2026-10-30T22:18:54.4068625Z 
+2026-10-30T22:18:54.4068787Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\subprocess.py:571: CalledProcessError
+2026-10-30T22:18:54.4069083Z =========================== short test summary info ===========================
+2026-10-30T22:18:54.4069369Z SKIPPED [1] tests\unit\core\test_checkpoint_cache.py:150: the Python EventLog only
+2026-10-30T22:18:54.4069833Z SKIPPED [1] tests\unit\storage\test_projects.py:259: Windows keeps each entry's size from the directory listing, so a file removed while it is measured still counts
+2026-10-30T22:18:54.4070356Z SKIPPED [1] tests\unit\storage\test_projects.py:352: needs Linux open-file-description locks
+2026-10-30T22:18:54.4070704Z SKIPPED [1] tests\unit\storage\test_projects.py:366: needs Linux open-file-description locks
+2026-10-30T22:18:54.4071076Z SKIPPED [1] tests\unit\storage\test_query_cursors.py:42: needs Linux open-file-description locks
+2026-10-30T22:18:54.4071417Z SKIPPED [1] tests\integration\test_all_paths_gate.py:37: hashes are pinned on Linux
+2026-10-30T22:18:54.4071783Z SKIPPED [1] tests\live\test_live_api.py:30: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-30T22:18:54.4072187Z SKIPPED [1] tests\live\test_live_api.py:116: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-30T22:18:54.4072610Z SKIPPED [1] tests\live\test_live_api.py:155: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-30T22:18:54.4073017Z SKIPPED [1] tests\live\test_live_api.py:188: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-30T22:18:54.4074254Z FAILED tests/integration/test_behaviour_comparison.py::test_same_seeds_of_the_same_code_report_no_change - subprocess.CalledProcessError: Command '['C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\python.exe', 'D:\\a\\tkb_2615\\tkb_2615\\benchmarks\\compare_behaviour.py', 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\popen-gw0\\test_same_seeds_of_the_same_co0\\a', 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\popen-gw0\\test_same_seeds_of_the_same_co0\\b']' returned non-zero exit status 1.
+2026-10-30T22:18:54.4076530Z FAILED tests/integration/test_behaviour_comparison.py::test_other_seeds_are_compared_as_two_groups - subprocess.CalledProcessError: Command '['C:\\hostedtoolcache\\windows\\Python\\3.12.10\\x64\\python.exe', 'D:\\a\\tkb_2615\\tkb_2615\\benchmarks\\compare_behaviour.py', 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\popen-gw0\\test_other_seeds_are_compared_0\\a', 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\popen-gw0\\test_other_seeds_are_compared_0\\b', '--output', 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\popen-gw0\\test_other_seeds_are_compared_0\\report.md']' returned non-zero exit status 1.
+2026-10-30T22:18:54.4077852Z =========== 2 failed, 1761 passed, 10 skipped in 491.34s (0:08:11) ============
+2026-10-30T22:18:54.4078532Z test results: 2 failed, 1761 passed, 10 skipped; failed: tests/integration/test_behaviour_comparison.py::test_same_seeds_of_the_same_code_report_no_change, tests/integration/test_behaviour_comparison.py::test_other_seeds_are_compared_as_two_groups; tracebacks in .test-results\20261030T221042Z-6876\summary.txt
+2026-10-30T22:18:54.5321455Z ##[error]Process completed with exit code 1.
+2026-10-30T22:18:54.5514675Z ##[group]Run actions/upload-artifact@v4
+2026-10-30T22:18:54.5514955Z with:
+2026-10-30T22:18:54.5515124Z   name: test-results-windows-latest
+2026-10-30T22:18:54.5515317Z   path: .test-results/
+2026-10-30T22:18:54.5515497Z   retention-days: 7
+2026-10-30T22:18:54.5515655Z   if-no-files-found: ignore
+2026-10-30T22:18:54.5515834Z   include-hidden-files: true
+2026-10-30T22:18:54.5516012Z   compression-level: 6
+2026-10-30T22:18:54.5516194Z   overwrite: false
+2026-10-30T22:18:54.5516313Z env:
+2026-10-30T22:18:54.5516417Z   SHELTERSIM_LLM_MODE: offline
+2026-10-30T22:18:54.5516627Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:18:54.5516942Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.12.10\x64/lib/pkgconfig
+2026-10-30T22:18:54.5517223Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:18:54.5517486Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:18:54.5517773Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-30T22:18:54.5518130Z ##[endgroup]
+2026-10-30T22:18:54.6805481Z (node:7744) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-30T22:18:54.6805937Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-30T22:18:54.6853863Z With the provided path, there will be 3 files uploaded
+2026-10-30T22:18:54.6856841Z Artifact name is valid!
+2026-10-30T22:18:54.6857622Z Root directory input is valid!
+2026-10-30T22:18:54.9350593Z Beginning upload of artifact content to blob storage
+2026-10-30T22:18:54.9533057Z (node:7744) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-30T22:18:55.1388573Z Uploaded bytes 47469
+2026-10-30T22:18:55.1874697Z Finished uploading artifact content to blob storage!
+2026-10-30T22:18:55.1875550Z SHA256 digest of uploaded artifact zip is a45a2e014331400886404b9be8d2449a77f2be76afe3465dbc8f1630428da47f
+2026-10-30T22:18:55.1876117Z Finalizing artifact upload
+2026-10-30T22:18:55.6399828Z Artifact test-results-windows-latest.zip successfully finalized. Artifact ID 13016568387
+2026-10-30T22:18:55.6400395Z Artifact test-results-windows-latest has been successfully uploaded! Final size is 47469 bytes. Artifact ID is 13016568387
+2026-10-30T22:18:55.6407216Z Artifact download URL: https://github.com/jphacks/tkb_2615/actions/runs/41136205247/artifacts/13016568387
+2026-10-30T22:18:55.6688209Z Post job cleanup.
+2026-10-30T22:18:55.7749396Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-30T22:18:55.8005768Z git version 2.56.0.windows.2
+2026-10-30T22:18:55.8052892Z Temporarily overriding HOME='D:\a\_temp\8af7f45f-bb04-4466-b8ad-05578d674479' before making global git config changes
+2026-10-30T22:18:55.8053341Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-30T22:18:55.8060591Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\tkb_2615\tkb_2615
+2026-10-30T22:18:55.8327857Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-30T22:18:55.8575945Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-30T22:18:56.3210708Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-30T22:18:56.3609427Z http.https://github.com/.extraheader
+2026-10-30T22:18:56.3688351Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all http.https://github.com/.extraheader
+2026-10-30T22:18:56.3951327Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-30T22:18:56.7737915Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-30T22:18:56.7978759Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-30T22:18:57.1831823Z Cleaning up orphan processes
+2026-10-30T22:18:57.2046112Z Terminate orphan process: pid (10100) (vctip)
+2026-10-30T22:18:57.2363047Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+

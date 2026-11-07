@@ -1,0 +1,144 @@
+[
+  {
+    "sha": "3777f4bd12459b9585d3d5caad0e5513244bc87f",
+    "node_id": "C_kwDOU3hqGNoAKDM3NzdmNGJkMTI0NTliOTU4NWQzZDVjYWFkMGU1NTEzMjQ0YmM4N2Y",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/3777f4bd12459b9585d3d5caad0e5513244bc87f",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/3777f4bd12459b9585d3d5caad0e5513244bc87f",
+    "author": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-25T16:53:10Z"
+    },
+    "committer": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-25T16:53:10Z"
+    },
+    "tree": {
+      "sha": "f407525855a2f4b869265cb6f716c2f307e3b545",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/f407525855a2f4b869265cb6f716c2f307e3b545"
+    },
+    "message": "feat: export evidence-grounded Japanese Opus PDF reports",
+    "parents": [
+      {
+        "sha": "a0632b651d9bdca41f4286b501bf89b0455c8985",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/a0632b651d9bdca41f4286b501bf89b0455c8985",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/a0632b651d9bdca41f4286b501bf89b0455c8985"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "6c6aa453f93c84198366cf88ec7e02c1ad391b4e",
+    "node_id": "C_kwDOU3hqGNoAKDZjNmFhNDUzZjkzYzg0MTk4MzY2Y2Y4OGVjN2UwMmMxYWQzOTFiNGU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/6c6aa453f93c84198366cf88ec7e02c1ad391b4e",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/6c6aa453f93c84198366cf88ec7e02c1ad391b4e",
+    "author": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-25T16:58:36Z"
+    },
+    "committer": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-25T16:58:36Z"
+    },
+    "tree": {
+      "sha": "ad81d90598572284a4dd80e76b7c4bb7e0119b7f",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/ad81d90598572284a4dd80e76b7c4bb7e0119b7f"
+    },
+    "message": "Merge remote-tracking branch 'origin/main' into feature/pdf-report-export",
+    "parents": [
+      {
+        "sha": "3777f4bd12459b9585d3d5caad0e5513244bc87f",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/3777f4bd12459b9585d3d5caad0e5513244bc87f",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/3777f4bd12459b9585d3d5caad0e5513244bc87f"
+      },
+      {
+        "sha": "1e62d05c6d3f6f6eeac6cce09ecf33b0071fce24",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/1e62d05c6d3f6f6eeac6cce09ecf33b0071fce24",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/1e62d05c6d3f6f6eeac6cce09ecf33b0071fce24"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34193577568,
+    "node_id": "ME_lADOU3hqGM8AAAABZz3LdM8AAAAH9hiWYA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34193577568",
+    "actor": {
+      "login": "mizukidayo1025",
+      "id": 245258530,
+      "node_id": "U_kgDODp5ZIg",
+      "avatar_url": "https://avatars.githubusercontent.com/u/245258530?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/mizukidayo1025",
+      "html_url": "https://github.com/mizukidayo1025",
+      "followers_url": "https://api.github.com/users/mizukidayo1025/followers",
+      "following_url": "https://api.github.com/users/mizukidayo1025/following{/other_user}",
+      "gists_url": "https://api.github.com/users/mizukidayo1025/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/mizukidayo1025/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/mizukidayo1025/subscriptions",
+      "organizations_url": "https://api.github.com/users/mizukidayo1025/orgs",
+      "repos_url": "https://api.github.com/users/mizukidayo1025/repos",
+      "events_url": "https://api.github.com/users/mizukidayo1025/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/mizukidayo1025/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "c56fd47ba2c79deb6967b52e5bf3dec896feefd5",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/c56fd47ba2c79deb6967b52e5bf3dec896feefd5",
+    "created_at": "2026-10-25T17:12:36Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34193577651,
+    "node_id": "CE_lADOU3hqGM8AAAABZz3LdM8AAAAH9hiWsw",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34193577651",
+    "actor": {
+      "login": "mizukidayo1025",
+      "id": 245258530,
+      "node_id": "U_kgDODp5ZIg",
+      "avatar_url": "https://avatars.githubusercontent.com/u/245258530?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/mizukidayo1025",
+      "html_url": "https://github.com/mizukidayo1025",
+      "followers_url": "https://api.github.com/users/mizukidayo1025/followers",
+      "following_url": "https://api.github.com/users/mizukidayo1025/following{/other_user}",
+      "gists_url": "https://api.github.com/users/mizukidayo1025/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/mizukidayo1025/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/mizukidayo1025/subscriptions",
+      "organizations_url": "https://api.github.com/users/mizukidayo1025/orgs",
+      "repos_url": "https://api.github.com/users/mizukidayo1025/repos",
+      "events_url": "https://api.github.com/users/mizukidayo1025/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/mizukidayo1025/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-25T17:12:36Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  }
+]
+

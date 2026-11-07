@@ -1,0 +1,134 @@
+[
+  {
+    "sha": "2b7e2de0773bf5c75a1a1af079390878fe885e4d",
+    "node_id": "C_kwDOU3hqGNoAKDJiN2UyZGUwNzczYmY1Yzc1YTFhMWFmMDc5MzkwODc4ZmU4ODVlNGQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/2b7e2de0773bf5c75a1a1af079390878fe885e4d",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/2b7e2de0773bf5c75a1a1af079390878fe885e4d",
+    "author": {
+      "name": "mizukidayo1025",
+      "email": "245258530+mizukidayo1025@users.noreply.github.com",
+      "date": "2026-10-24T02:07:32Z"
+    },
+    "committer": {
+      "name": "mizukidayo1025",
+      "email": "245258530+mizukidayo1025@users.noreply.github.com",
+      "date": "2026-10-24T02:07:32Z"
+    },
+    "tree": {
+      "sha": "09bfd7c6310468f2f99382c773bb4985ec0ffcb6",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/09bfd7c6310468f2f99382c773bb4985ec0ffcb6"
+    },
+    "message": "docs: restore original JPHACKS README template",
+    "parents": [
+      {
+        "sha": "ae3cd11bcfc57a925fa1629e88c8b2b440d62e7e",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ae3cd11bcfc57a925fa1629e88c8b2b440d62e7e",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/ae3cd11bcfc57a925fa1629e88c8b2b440d62e7e"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34106220933,
+    "node_id": "ME_lADOU3hqGM8AAAABZh_FrM8AAAAH8OOhhQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34106220933",
+    "actor": {
+      "login": "mizukidayo1025",
+      "id": 245258530,
+      "node_id": "U_kgDODp5ZIg",
+      "avatar_url": "https://avatars.githubusercontent.com/u/245258530?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/mizukidayo1025",
+      "html_url": "https://github.com/mizukidayo1025",
+      "followers_url": "https://api.github.com/users/mizukidayo1025/followers",
+      "following_url": "https://api.github.com/users/mizukidayo1025/following{/other_user}",
+      "gists_url": "https://api.github.com/users/mizukidayo1025/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/mizukidayo1025/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/mizukidayo1025/subscriptions",
+      "organizations_url": "https://api.github.com/users/mizukidayo1025/orgs",
+      "repos_url": "https://api.github.com/users/mizukidayo1025/repos",
+      "events_url": "https://api.github.com/users/mizukidayo1025/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/mizukidayo1025/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "42d7ac9cb44bbe94e956be0cc8bff82584f71a21",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/42d7ac9cb44bbe94e956be0cc8bff82584f71a21",
+    "created_at": "2026-10-24T02:09:56Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34106220995,
+    "node_id": "CE_lADOU3hqGM8AAAABZh_FrM8AAAAH8OOhww",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34106220995",
+    "actor": {
+      "login": "mizukidayo1025",
+      "id": 245258530,
+      "node_id": "U_kgDODp5ZIg",
+      "avatar_url": "https://avatars.githubusercontent.com/u/245258530?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/mizukidayo1025",
+      "html_url": "https://github.com/mizukidayo1025",
+      "followers_url": "https://api.github.com/users/mizukidayo1025/followers",
+      "following_url": "https://api.github.com/users/mizukidayo1025/following{/other_user}",
+      "gists_url": "https://api.github.com/users/mizukidayo1025/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/mizukidayo1025/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/mizukidayo1025/subscriptions",
+      "organizations_url": "https://api.github.com/users/mizukidayo1025/orgs",
+      "repos_url": "https://api.github.com/users/mizukidayo1025/repos",
+      "events_url": "https://api.github.com/users/mizukidayo1025/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/mizukidayo1025/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-24T02:09:56Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34138050854,
+    "node_id": "HRDE_lADOU3hqGM8AAAABZh_FrM8AAAAH8slRJg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34138050854",
+    "actor": {
+      "login": "mizukidayo1025",
+      "id": 245258530,
+      "node_id": "U_kgDODp5ZIg",
+      "avatar_url": "https://avatars.githubusercontent.com/u/245258530?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/mizukidayo1025",
+      "html_url": "https://github.com/mizukidayo1025",
+      "followers_url": "https://api.github.com/users/mizukidayo1025/followers",
+      "following_url": "https://api.github.com/users/mizukidayo1025/following{/other_user}",
+      "gists_url": "https://api.github.com/users/mizukidayo1025/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/mizukidayo1025/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/mizukidayo1025/subscriptions",
+      "organizations_url": "https://api.github.com/users/mizukidayo1025/orgs",
+      "repos_url": "https://api.github.com/users/mizukidayo1025/repos",
+      "events_url": "https://api.github.com/users/mizukidayo1025/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/mizukidayo1025/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-24T16:32:41Z",
+    "performed_via_github_app": null
+  }
+]
+

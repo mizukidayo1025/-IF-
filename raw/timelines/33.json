@@ -1,0 +1,134 @@
+[
+  {
+    "sha": "48e61a5ba6f79026bc4c0781921e23a3b3466e09",
+    "node_id": "C_kwDOU3hqGNoAKDQ4ZTYxYTViYTZmNzkwMjZiYzRjMDc4MTkyMWUyM2EzYjM0NjZlMDk",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/48e61a5ba6f79026bc4c0781921e23a3b3466e09",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/48e61a5ba6f79026bc4c0781921e23a3b3466e09",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-25T02:10:19Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-25T02:10:19Z"
+    },
+    "tree": {
+      "sha": "7c88e18527cb278da6eb566b99a2404e6dc64262",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/7c88e18527cb278da6eb566b99a2404e6dc64262"
+    },
+    "message": "Fail the intervention compiler under a stop policy instead of using rules\n\nWith SHELTERSIM_LLM_ERROR_POLICY=stop, the router raises when a call cannot\nbe used, and other features surface that failure. The intervention compiler\ncaught it and returned the offline parser's plan, so /demo-v2 still showed a\nrule result where its docs promise the error reason without a fallback.\n\nOutside an explicit offline mode, the compiler now raises\nInterventionCompilerUnavailable with the same fixed Japanese reason the\nfallback path shows. The Project intervention preview returns it as a 409\nwith code intervention_compiler_unavailable, and the legacy\n/api/v1/nl/interpret returns a 409. The fallback policy is unchanged.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "aa9606b15230aeb00adc5aa506d943fcaa1006ea",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/aa9606b15230aeb00adc5aa506d943fcaa1006ea",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/aa9606b15230aeb00adc5aa506d943fcaa1006ea"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34160718857,
+    "node_id": "ME_lADOU3hqGM8AAAABZtCMjc8AAAAH9CM0CQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34160718857",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "2d0c0ac9d53044b3dc204e7e84d102d1da099f1c",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/2d0c0ac9d53044b3dc204e7e84d102d1da099f1c",
+    "created_at": "2026-10-25T02:18:12Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34160718928,
+    "node_id": "CE_lADOU3hqGM8AAAABZtCMjc8AAAAH9CM0UA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34160718928",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-25T02:18:13Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34160733086,
+    "node_id": "HRDE_lADOU3hqGM8AAAABZtCMjc8AAAAH9CNrng",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34160733086",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-25T02:18:38Z",
+    "performed_via_github_app": null
+  }
+]
+

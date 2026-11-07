@@ -1,0 +1,170 @@
+[
+  {
+    "sha": "4e8b9f6e6abfc3adeb7de8dd897627b83830ad91",
+    "node_id": "C_kwDOU3hqGNoAKDRlOGI5ZjZlNmFiZmMzYWRlYjdkZThkZDg5NzYyN2I4MzgzMGFkOTE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4e8b9f6e6abfc3adeb7de8dd897627b83830ad91",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/4e8b9f6e6abfc3adeb7de8dd897627b83830ad91",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:03:15Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:03:15Z"
+    },
+    "tree": {
+      "sha": "ffa90b9b2d269e4d3933cfda9a8ab94b9e43a964",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/ffa90b9b2d269e4d3933cfda9a8ab94b9e43a964"
+    },
+    "message": "Move test_research_psychology_default.py under tests/unit/policies\n\nOnly the file move, so its history stays traceable. The next commit\nsplits out its integration and e2e tests and switches the generated\nScenario tests to the shared fixture (#88).\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "b01aad72973854b3083fd3f9f8162f5bd5c86080",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/b01aad72973854b3083fd3f9f8162f5bd5c86080",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/b01aad72973854b3083fd3f9f8162f5bd5c86080"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "7632b65981c201a4ea0e1113f8be3b7de9a019d4",
+    "node_id": "C_kwDOU3hqGNoAKDc2MzJiNjU5ODFjMjAxYTRlYTBlMTExM2Y4YmUzYjdkZTlhMDE5ZDQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7632b65981c201a4ea0e1113f8be3b7de9a019d4",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/7632b65981c201a4ea0e1113f8be3b7de9a019d4",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:06:42Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:06:42Z"
+    },
+    "tree": {
+      "sha": "f7925c8846e7ccd7f9347ea9b22ab41f7099c445",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/f7925c8846e7ccd7f9347ea9b22ab41f7099c445"
+    },
+    "message": "Check the research psychology default on the shared generated Scenario\n\nFive tests built their own Scenario with InitialScenarioBuilder (10\nevacuees, seed 7) to check the generated psychology model. They now use\nthe shared generated_scenario fixture (#88).\n\nThe file mixed scopes, so it is split: model selection stays as unit\ntests of the policy registry, the run moves to\ntests/integration/test_research_psychology.py, the CLI warning for a\nlegacy model to tests/e2e/test_legacy_psychology_cli.py, and the\ncomparison report check to tests/unit/experiments/test_comparison.py.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "4e8b9f6e6abfc3adeb7de8dd897627b83830ad91",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4e8b9f6e6abfc3adeb7de8dd897627b83830ad91",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/4e8b9f6e6abfc3adeb7de8dd897627b83830ad91"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34353069049,
+    "node_id": "ME_lADOU3hqGM8AAAABaQcyPc8AAAAH_5o7-Q",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34353069049",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "f0e9c929605903ee28a05a7df8814dfcde1d079c",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/f0e9c929605903ee28a05a7df8814dfcde1d079c",
+    "created_at": "2026-10-27T10:07:10Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34353069208,
+    "node_id": "CE_lADOU3hqGM8AAAABaQcyPc8AAAAH_5o8mA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34353069208",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T10:07:10Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34353075677,
+    "node_id": "HRDE_lADOU3hqGM8AAAABaQcyPc8AAAAH_5pV3Q",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34353075677",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T10:07:14Z",
+    "performed_via_github_app": null
+  }
+]
+

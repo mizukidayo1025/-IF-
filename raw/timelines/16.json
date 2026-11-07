@@ -1,0 +1,139 @@
+[
+  {
+    "sha": "8ed3d0eccdc74db3d583c45c7d9a79483d547c4f",
+    "node_id": "C_kwDOU3hqGNoAKDhlZDNkMGVjY2RjNzRkYjNkNTgzYzQ1YzdkOWE3OTQ4M2Q1NDdjNGY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/8ed3d0eccdc74db3d583c45c7d9a79483d547c4f",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/8ed3d0eccdc74db3d583c45c7d9a79483d547c4f",
+    "author": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T18:49:38Z"
+    },
+    "committer": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T18:49:38Z"
+    },
+    "tree": {
+      "sha": "0e614d8502a85248a86dd28ea31beb525fc7eb6d",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/0e614d8502a85248a86dd28ea31beb525fc7eb6d"
+    },
+    "message": "feat: add versioned core model suite and sleep balance",
+    "parents": [
+      {
+        "sha": "04db3525714f0bba44419240decf9b0bfa429efa",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/04db3525714f0bba44419240decf9b0bfa429efa",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/04db3525714f0bba44419240decf9b0bfa429efa"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "cefc2a9c6d9501bdd8cc2cf9fc1d07f40112d56a",
+    "node_id": "C_kwDOU3hqGNoAKGNlZmMyYTljNmQ5NTAxYmRkOGNjMmNmOWZjMWQwN2Y0MDExMmQ1NmE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/cefc2a9c6d9501bdd8cc2cf9fc1d07f40112d56a",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/cefc2a9c6d9501bdd8cc2cf9fc1d07f40112d56a",
+    "author": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T18:49:45Z"
+    },
+    "committer": {
+      "name": "mizukidayo1025",
+      "email": "nacht.mizuki@gmail.com",
+      "date": "2026-10-24T18:49:45Z"
+    },
+    "tree": {
+      "sha": "d12390e89fbe7313385874fd917b07e6a4b62457",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/d12390e89fbe7313385874fd917b07e6a4b62457"
+    },
+    "message": "docs: record core model audit and validation results",
+    "parents": [
+      {
+        "sha": "8ed3d0eccdc74db3d583c45c7d9a79483d547c4f",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/8ed3d0eccdc74db3d583c45c7d9a79483d547c4f",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/8ed3d0eccdc74db3d583c45c7d9a79483d547c4f"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34143965772,
+    "node_id": "ME_lADOU3hqGM8AAAABZpro9M8AAAAH8yOSTA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34143965772",
+    "actor": {
+      "login": "mizukidayo1025",
+      "id": 245258530,
+      "node_id": "U_kgDODp5ZIg",
+      "avatar_url": "https://avatars.githubusercontent.com/u/245258530?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/mizukidayo1025",
+      "html_url": "https://github.com/mizukidayo1025",
+      "followers_url": "https://api.github.com/users/mizukidayo1025/followers",
+      "following_url": "https://api.github.com/users/mizukidayo1025/following{/other_user}",
+      "gists_url": "https://api.github.com/users/mizukidayo1025/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/mizukidayo1025/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/mizukidayo1025/subscriptions",
+      "organizations_url": "https://api.github.com/users/mizukidayo1025/orgs",
+      "repos_url": "https://api.github.com/users/mizukidayo1025/repos",
+      "events_url": "https://api.github.com/users/mizukidayo1025/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/mizukidayo1025/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "cb037ca6d1b06667f13a7b544b2f4dde4db48260",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/cb037ca6d1b06667f13a7b544b2f4dde4db48260",
+    "created_at": "2026-10-24T18:50:21Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34143965874,
+    "node_id": "CE_lADOU3hqGM8AAAABZpro9M8AAAAH8yOSsg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34143965874",
+    "actor": {
+      "login": "mizukidayo1025",
+      "id": 245258530,
+      "node_id": "U_kgDODp5ZIg",
+      "avatar_url": "https://avatars.githubusercontent.com/u/245258530?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/mizukidayo1025",
+      "html_url": "https://github.com/mizukidayo1025",
+      "followers_url": "https://api.github.com/users/mizukidayo1025/followers",
+      "following_url": "https://api.github.com/users/mizukidayo1025/following{/other_user}",
+      "gists_url": "https://api.github.com/users/mizukidayo1025/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/mizukidayo1025/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/mizukidayo1025/subscriptions",
+      "organizations_url": "https://api.github.com/users/mizukidayo1025/orgs",
+      "repos_url": "https://api.github.com/users/mizukidayo1025/repos",
+      "events_url": "https://api.github.com/users/mizukidayo1025/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/mizukidayo1025/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-24T18:50:21Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  }
+]
+

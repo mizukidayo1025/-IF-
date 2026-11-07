@@ -1,0 +1,134 @@
+[
+  {
+    "sha": "aa83d48f19b33841bdb4961690cb2eac16daa56b",
+    "node_id": "C_kwDOU3hqGNoAKGFhODNkNDhmMTliMzM4NDFiZGI0OTYxNjkwY2IyZWFjMTZkYWE1NmI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/aa83d48f19b33841bdb4961690cb2eac16daa56b",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/aa83d48f19b33841bdb4961690cb2eac16daa56b",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-24T22:13:01Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-24T22:13:01Z"
+    },
+    "tree": {
+      "sha": "cbac59e52a2c851c0e003f08b1148d6d0b0177f7",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/cbac59e52a2c851c0e003f08b1148d6d0b0177f7"
+    },
+    "message": "Let plain resource losses run without operational event state\n\nThe per-tick operational check required operational_events_v1 state\nwhenever a resource_loss (or other plain ledger event) was pending, but\nthe state is only created for H03 events and shipment deliveries, and\nthe full check accepts its absence in the same case. A generated\nScenario with a resource_loss condition stopped at its first tick.\nThe per-tick check now uses the same uses_operational_events rule.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "645b95d887da5149f005b98fa55944c6f00da8ee",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/645b95d887da5149f005b98fa55944c6f00da8ee",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/645b95d887da5149f005b98fa55944c6f00da8ee"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34152221125,
+    "node_id": "ME_lADOU3hqGM8AAAABZrXtfc8AAAAH86GJxQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34152221125",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "19b986289ab6d321b9606614d8b4dd22344c11a7",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/19b986289ab6d321b9606614d8b4dd22344c11a7",
+    "created_at": "2026-10-24T22:13:16Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34152221181,
+    "node_id": "CE_lADOU3hqGM8AAAABZrXtfc8AAAAH86GJ_Q",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34152221181",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-24T22:13:16Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34152223244,
+    "node_id": "HRDE_lADOU3hqGM8AAAABZrXtfc8AAAAH86GSDA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34152223244",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-24T22:13:19Z",
+    "performed_via_github_app": null
+  }
+]
+

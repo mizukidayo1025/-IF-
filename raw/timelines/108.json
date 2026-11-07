@@ -1,0 +1,170 @@
+[
+  {
+    "sha": "c4e34b14ded1f0afd9afe775af6707526ff5f853",
+    "node_id": "C_kwDOU3hqGNoAKGM0ZTM0YjE0ZGVkMWYwYWZkOWFmZTc3NWFmNjcwNzUyNmZmNWY4NTM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c4e34b14ded1f0afd9afe775af6707526ff5f853",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/c4e34b14ded1f0afd9afe775af6707526ff5f853",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:20:05Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:20:05Z"
+    },
+    "tree": {
+      "sha": "9ff62e52f9d7ec71c36dae357e857bbb65de4e13",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/9ff62e52f9d7ec71c36dae357e857bbb65de4e13"
+    },
+    "message": "Move test_queue_service_while_repositioning.py under tests/integration\n\nOnly the file move, renamed after the feature, so its history stays\ntraceable. The next commit moves its unit tests next to the other\nmovement unit tests and switches the file to the shared generated\nScenario (#88).\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "5836605abfd13ec32543fab227b4a976c9443047",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/5836605abfd13ec32543fab227b4a976c9443047",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/5836605abfd13ec32543fab227b4a976c9443047"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "d6bb5c205ae5fa3a374ea61b0909a9ddd220b631",
+    "node_id": "C_kwDOU3hqGNoAKGQ2YmI1YzIwNWFlNWZhM2EzNzRlYTYxYjA5MDlhOWRkZDIyMGI2MzE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/d6bb5c205ae5fa3a374ea61b0909a9ddd220b631",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/d6bb5c205ae5fa3a374ea61b0909a9ddd220b631",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:24:40Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:24:40Z"
+    },
+    "tree": {
+      "sha": "b67efb90362c346cbc5a5a24ae27459538ebe132",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/b67efb90362c346cbc5a5a24ae27459538ebe132"
+    },
+    "message": "Check queue service while others move up on the shared generated Scenario\n\nThe tests built their own Scenario with InitialScenarioBuilder (seed 7,\none day) for 30 or 100 evacuees. They now pass the evacuee count, and a\nday for the long run, to the shared generated_scenario_with fixture\n(#88).\n\nThe three queue-progress tests join the other movement unit tests; the\nlong_simulation run with a hundred people stays here as the integration\ntest. All four still hold with the shared seed.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "c4e34b14ded1f0afd9afe775af6707526ff5f853",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c4e34b14ded1f0afd9afe775af6707526ff5f853",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/c4e34b14ded1f0afd9afe775af6707526ff5f853"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34354600864,
+    "node_id": "ME_lADOU3hqGM8AAAABaQt0FM8AAAAH_7GboA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34354600864",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "f3e3508a9e28547fa09585f7bda09121216edb96",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/f3e3508a9e28547fa09585f7bda09121216edb96",
+    "created_at": "2026-10-27T10:25:09Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34354601232,
+    "node_id": "CE_lADOU3hqGM8AAAABaQt0FM8AAAAH_7GdEA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34354601232",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T10:25:10Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34354608980,
+    "node_id": "HRDE_lADOU3hqGM8AAAABaQt0FM8AAAAH_7G7VA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34354608980",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T10:25:14Z",
+    "performed_via_github_app": null
+  }
+]
+

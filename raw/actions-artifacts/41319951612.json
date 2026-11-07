@@ -1,0 +1,66 @@
+{
+  "total_count": 3,
+  "artifacts": [
+    {
+      "id": 13089392789,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA4OTM5Mjc4OQ==",
+      "name": "test-results-windows-latest",
+      "size_in_bytes": 75631,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13089392789",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13089392789/zip",
+      "expired": false,
+      "digest": "sha256:bde06d98db9f724988113c35f5a6c26186cdd74d2f72b250cb9064063ba7347d",
+      "created_at": "2026-11-01T15:26:58Z",
+      "updated_at": "2026-11-01T15:26:58Z",
+      "expires_at": "2026-11-08T15:26:57Z",
+      "workflow_run": {
+        "id": 41319951612,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/m6-effects",
+        "head_sha": "ebfd8a0c6064c9e400916a5f4a49588b43923372"
+      }
+    },
+    {
+      "id": 13089387017,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA4OTM4NzAxNw==",
+      "name": "test-results-macos-latest",
+      "size_in_bytes": 74747,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13089387017",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13089387017/zip",
+      "expired": false,
+      "digest": "sha256:ffa9372cf0775b7aed328574c75445c47da7d4c95c6d4202b5b4e37f8dfc8a2a",
+      "created_at": "2026-11-01T15:21:17Z",
+      "updated_at": "2026-11-01T15:21:17Z",
+      "expires_at": "2026-11-08T15:21:15Z",
+      "workflow_run": {
+        "id": 41319951612,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/m6-effects",
+        "head_sha": "ebfd8a0c6064c9e400916a5f4a49588b43923372"
+      }
+    },
+    {
+      "id": 13089128306,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA4OTEyODMwNg==",
+      "name": "test-results-ubuntu-latest",
+      "size_in_bytes": 146800,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13089128306",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13089128306/zip",
+      "expired": false,
+      "digest": "sha256:c4db142f89234afc1a9ad06842e91d2aa0dc5f32fc639b9e638be7a762774097",
+      "created_at": "2026-11-01T15:25:24Z",
+      "updated_at": "2026-11-01T15:25:24Z",
+      "expires_at": "2026-11-08T15:25:23Z",
+      "workflow_run": {
+        "id": 41319951612,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/m6-effects",
+        "head_sha": "ebfd8a0c6064c9e400916a5f4a49588b43923372"
+      }
+    }
+  ]
+}
+

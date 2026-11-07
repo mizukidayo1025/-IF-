@@ -1,0 +1,66 @@
+{
+  "total_count": 3,
+  "artifacts": [
+    {
+      "id": 13039602137,
+      "node_id": "MDg6QXJ0aWZhY3QxMzAzOTYwMjEzNw==",
+      "name": "test-results-ubuntu-latest",
+      "size_in_bytes": 105180,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13039602137",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13039602137/zip",
+      "expired": false,
+      "digest": "sha256:4e9115f732f6482c52c8a3694634a4375d024261716dc0f666c0702a0cc67d9b",
+      "created_at": "2026-10-31T10:27:41Z",
+      "updated_at": "2026-10-31T10:27:41Z",
+      "expires_at": "2026-11-07T10:27:31Z",
+      "workflow_run": {
+        "id": 41191844417,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/m1-psychology",
+        "head_sha": "49276be39812203407bcdf3f2188e924a707491b"
+      }
+    },
+    {
+      "id": 13039496152,
+      "node_id": "MDg6QXJ0aWZhY3QxMzAzOTQ5NjE1Mg==",
+      "name": "test-results-windows-latest",
+      "size_in_bytes": 53217,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13039496152",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13039496152/zip",
+      "expired": false,
+      "digest": "sha256:db6b6c86e49cce0f7d759b855c11cd1649a8ff764f1371a725dd3092c6107974",
+      "created_at": "2026-10-31T10:24:37Z",
+      "updated_at": "2026-10-31T10:24:37Z",
+      "expires_at": "2026-11-07T10:24:36Z",
+      "workflow_run": {
+        "id": 41191844417,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/m1-psychology",
+        "head_sha": "49276be39812203407bcdf3f2188e924a707491b"
+      }
+    },
+    {
+      "id": 13039146547,
+      "node_id": "MDg6QXJ0aWZhY3QxMzAzOTE0NjU0Nw==",
+      "name": "test-results-macos-latest",
+      "size_in_bytes": 52258,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13039146547",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13039146547/zip",
+      "expired": false,
+      "digest": "sha256:7d9c4211ec5292264d3e6cf2534c942817366cbc5b6110474a0bdc9f20b928af",
+      "created_at": "2026-10-31T10:18:13Z",
+      "updated_at": "2026-10-31T10:18:13Z",
+      "expires_at": "2026-11-07T10:18:12Z",
+      "workflow_run": {
+        "id": 41191844417,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/m1-psychology",
+        "head_sha": "49276be39812203407bcdf3f2188e924a707491b"
+      }
+    }
+  ]
+}
+

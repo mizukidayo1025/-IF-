@@ -1,0 +1,617 @@
+﻿2026-10-29T18:26:39.4916490Z Current runner version: '2.338.0'
+2026-10-29T18:26:39.4932000Z ##[group]Runner Image Provisioner
+2026-10-29T18:26:39.4932520Z Hosted Compute Agent
+2026-10-29T18:26:39.4932880Z Version: 20261012.601
+2026-10-29T18:26:39.4933260Z Commit: f3dc54e1fb89da6852db922499a0233137369e1d
+2026-10-29T18:26:39.4933730Z Build Date: 2026-10-12T17:48:21Z
+2026-10-29T18:26:39.4934160Z Worker ID: {f0b07fc3-ece9-4ebf-b4a3-cf8bdea1e9a6}
+2026-10-29T18:26:39.4934610Z Region: westus
+2026-10-29T18:26:39.4934940Z Cloud: MacCloud
+2026-10-29T18:26:39.4935280Z ##[endgroup]
+2026-10-29T18:26:39.4936130Z ##[group]Operating System
+2026-10-29T18:26:39.4936500Z macOS
+2026-10-29T18:26:39.4936820Z 26.6.2
+2026-10-29T18:26:39.4937130Z 25G83
+2026-10-29T18:26:39.4937450Z ##[endgroup]
+2026-10-29T18:26:39.4937780Z ##[group]Runner Image
+2026-10-29T18:26:39.4938140Z Image: macos-26-arm64
+2026-10-29T18:26:39.4938500Z Version: 20261013.0424.1
+2026-10-29T18:26:39.4939290Z Included Software: https://github.com/actions/runner-images/blob/macos-26-arm64/20261013.0424/images/macos/macos-26-arm64-Readme.md
+2026-10-29T18:26:39.4940290Z Image Release: https://github.com/actions/runner-images/releases/tag/macos-26-arm64%2F20261013.0424
+2026-10-29T18:26:39.4940940Z ##[endgroup]
+2026-10-29T18:26:39.4941730Z ##[group]GITHUB_TOKEN Permissions
+2026-10-29T18:26:39.4942740Z Contents: read
+2026-10-29T18:26:39.4943100Z Metadata: read
+2026-10-29T18:26:39.4943460Z ##[endgroup]
+2026-10-29T18:26:39.4945330Z Secret source: Actions
+2026-10-29T18:26:39.4945930Z Cache mode: write
+2026-10-29T18:26:39.4946410Z Prepare workflow directory
+2026-10-29T18:26:39.5253290Z Prepare all required actions
+2026-10-29T18:26:39.5291070Z Getting action download info
+2026-10-29T18:26:39.9733390Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-29T18:26:40.2682040Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+2026-10-29T18:26:40.4057250Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-10-29T18:26:40.6547370Z Complete job name: test (macos-latest)
+2026-10-29T18:26:40.7097750Z ##[group]Run actions/checkout@v4
+2026-10-29T18:26:40.7098480Z with:
+2026-10-29T18:26:40.7099020Z   repository: jphacks/tkb_2615
+2026-10-29T18:26:40.7102050Z   token: ***
+2026-10-29T18:26:40.7102390Z   ssh-strict: true
+2026-10-29T18:26:40.7102750Z   ssh-user: git
+2026-10-29T18:26:40.7103090Z   persist-credentials: true
+2026-10-29T18:26:40.7103500Z   clean: true
+2026-10-29T18:26:40.7103930Z   sparse-checkout-cone-mode: true
+2026-10-29T18:26:40.7104440Z   fetch-depth: 1
+2026-10-29T18:26:40.7104780Z   fetch-tags: false
+2026-10-29T18:26:40.7105130Z   show-progress: true
+2026-10-29T18:26:40.7105480Z   lfs: false
+2026-10-29T18:26:40.7105820Z   submodules: false
+2026-10-29T18:26:40.7106190Z   set-safe-directory: true
+2026-10-29T18:26:40.7106650Z   allow-unsafe-pr-checkout: false
+2026-10-29T18:26:40.7107510Z env:
+2026-10-29T18:26:40.7108030Z   SHELTERSIM_LLM_MODE: offline
+2026-10-29T18:26:40.7108550Z ##[endgroup]
+2026-10-29T18:26:41.1284320Z Syncing repository: jphacks/tkb_2615
+2026-10-29T18:26:41.1286030Z ##[group]Getting Git version info
+2026-10-29T18:26:41.1286730Z Working directory is '/Users/runner/work/tkb_2615/tkb_2615'
+2026-10-29T18:26:41.1287660Z [command]/opt/homebrew/bin/git version
+2026-10-29T18:26:41.1545350Z git version 2.56.0
+2026-10-29T18:26:41.1557290Z ##[endgroup]
+2026-10-29T18:26:41.1567250Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/fcc2bb75-aab6-4101-98bc-6a4d65743ef0/.gitconfig'
+2026-10-29T18:26:41.1574830Z Temporarily overriding HOME='/Users/runner/work/_temp/fcc2bb75-aab6-4101-98bc-6a4d65743ef0' before making global git config changes
+2026-10-29T18:26:41.1576020Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-29T18:26:41.1579790Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/tkb_2615/tkb_2615
+2026-10-29T18:26:41.1696720Z Deleting the contents of '/Users/runner/work/tkb_2615/tkb_2615'
+2026-10-29T18:26:41.1699560Z ##[group]Initializing the repository
+2026-10-29T18:26:41.1705310Z [command]/opt/homebrew/bin/git init /Users/runner/work/tkb_2615/tkb_2615
+2026-10-29T18:26:41.1924630Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-29T18:26:41.1925600Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-29T18:26:41.1926460Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-29T18:26:41.1927200Z hint: call:
+2026-10-29T18:26:41.1927600Z hint:
+2026-10-29T18:26:41.1928140Z hint: 	git config --global init.defaultBranch <name>
+2026-10-29T18:26:41.1928640Z hint:
+2026-10-29T18:26:41.1929150Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-29T18:26:41.1930060Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-29T18:26:41.1930640Z hint:
+2026-10-29T18:26:41.1931000Z hint: 	git branch -m <name>
+2026-10-29T18:26:41.1931490Z hint:
+2026-10-29T18:26:41.1932070Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-29T18:26:41.1934480Z Initialized empty Git repository in /Users/runner/work/tkb_2615/tkb_2615/.git/
+2026-10-29T18:26:41.1945570Z [command]/opt/homebrew/bin/git remote add origin https://github.com/jphacks/tkb_2615
+2026-10-29T18:26:41.2028450Z ##[endgroup]
+2026-10-29T18:26:41.2029200Z ##[group]Disabling automatic garbage collection
+2026-10-29T18:26:41.2031680Z [command]/opt/homebrew/bin/git config --local gc.auto 0
+2026-10-29T18:26:41.2117690Z ##[endgroup]
+2026-10-29T18:26:41.2119620Z ##[group]Setting up auth
+2026-10-29T18:26:41.2121950Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-29T18:26:41.2194860Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-29T18:26:41.3404600Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-29T18:26:41.3476340Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-29T18:26:41.4378300Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-29T18:26:41.4444420Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-29T18:26:41.5238960Z [command]/opt/homebrew/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-29T18:26:41.5308120Z ##[endgroup]
+2026-10-29T18:26:41.5309100Z ##[group]Fetching the repository
+2026-10-29T18:26:41.5315320Z [command]/opt/homebrew/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +a4a290b58357d68bfb1fec372dc71cfb2ea506b2:refs/remotes/origin/ci/three-platforms
+2026-10-29T18:26:43.2799970Z From https://github.com/jphacks/tkb_2615
+2026-10-29T18:26:43.2802140Z  * [new ref]         a4a290b58357d68bfb1fec372dc71cfb2ea506b2 -> origin/ci/three-platforms
+2026-10-29T18:26:43.2808090Z ##[endgroup]
+2026-10-29T18:26:43.2810760Z ##[group]Determining the checkout info
+2026-10-29T18:26:43.2813650Z ##[endgroup]
+2026-10-29T18:26:43.2816500Z [command]/opt/homebrew/bin/git sparse-checkout disable
+2026-10-29T18:26:43.2915740Z [command]/opt/homebrew/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-29T18:26:43.3009460Z ##[group]Checking out the ref
+2026-10-29T18:26:43.3011780Z [command]/opt/homebrew/bin/git checkout --progress --force -B ci/three-platforms refs/remotes/origin/ci/three-platforms
+2026-10-29T18:26:43.5694890Z Switched to a new branch 'ci/three-platforms'
+2026-10-29T18:26:43.5711200Z branch 'ci/three-platforms' set up to track 'origin/ci/three-platforms'.
+2026-10-29T18:26:43.5823930Z ##[endgroup]
+2026-10-29T18:26:43.5827890Z [command]/opt/homebrew/bin/git log -1 --format=%H
+2026-10-29T18:26:43.5905840Z a4a290b58357d68bfb1fec372dc71cfb2ea506b2
+2026-10-29T18:26:43.6196880Z ##[group]Run actions/setup-python@v5
+2026-10-29T18:26:43.6197480Z with:
+2026-10-29T18:26:43.6197820Z   python-version: 3.12
+2026-10-29T18:26:43.6198160Z   cache: pip
+2026-10-29T18:26:43.6198600Z   cache-dependency-path: pyproject.toml
+2026-10-29T18:26:43.6199050Z   check-latest: false
+2026-10-29T18:26:43.6201540Z   token: ***
+2026-10-29T18:26:43.6201880Z   update-environment: true
+2026-10-29T18:26:43.6202250Z   allow-prereleases: false
+2026-10-29T18:26:43.6202600Z   freethreaded: false
+2026-10-29T18:26:43.6202950Z env:
+2026-10-29T18:26:43.6203280Z   SHELTERSIM_LLM_MODE: offline
+2026-10-29T18:26:43.6203650Z ##[endgroup]
+2026-10-29T18:26:43.7792300Z ##[group]Installed versions
+2026-10-29T18:26:43.7874450Z (node:1137) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-29T18:26:43.7875660Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-29T18:26:43.7876340Z Successfully set up CPython (3.12.10)
+2026-10-29T18:26:43.7877080Z ##[endgroup]
+2026-10-29T18:26:43.7992050Z [command]/Users/runner/hostedtoolcache/Python/3.12.10/arm64/bin/pip cache dir
+2026-10-29T18:26:44.4415820Z /Users/runner/Library/Caches/pip
+2026-10-29T18:26:44.7510360Z pip cache is not found
+2026-10-29T18:26:44.7627330Z ##[group]Run python -m pip install -e ".[dev]"
+2026-10-29T18:26:44.7627720Z [36;1mpython -m pip install -e ".[dev]"[0m
+2026-10-29T18:26:44.7674540Z shell: /bin/bash -e {0}
+2026-10-29T18:26:44.7674820Z env:
+2026-10-29T18:26:44.7675040Z   SHELTERSIM_LLM_MODE: offline
+2026-10-29T18:26:44.7675350Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-10-29T18:26:44.7675830Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/arm64/lib/pkgconfig
+2026-10-29T18:26:44.7676260Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-10-29T18:26:44.7676670Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-10-29T18:26:44.7677050Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-10-29T18:26:44.7677360Z ##[endgroup]
+2026-10-29T18:26:45.6684220Z Obtaining file:///Users/runner/work/tkb_2615/tkb_2615
+2026-10-29T18:26:45.6704680Z   Installing build dependencies: started
+2026-10-29T18:26:46.8298680Z   Installing build dependencies: finished with status 'done'
+2026-10-29T18:26:46.8322480Z   Checking if build backend supports build_editable: started
+2026-10-29T18:26:47.3071160Z   Checking if build backend supports build_editable: finished with status 'done'
+2026-10-29T18:26:47.3095250Z   Getting requirements to build editable: started
+2026-10-29T18:26:47.7610940Z   Getting requirements to build editable: finished with status 'done'
+2026-10-29T18:26:47.7627650Z   Preparing editable metadata (pyproject.toml): started
+2026-10-29T18:26:47.9743570Z   Preparing editable metadata (pyproject.toml): finished with status 'done'
+2026-10-29T18:26:48.0902520Z Collecting pydantic==2.11.9 (from sheltersim==0.1.0)
+2026-10-29T18:26:48.1404990Z   Downloading pydantic-2.11.9-py3-none-any.whl.metadata (68 kB)
+2026-10-29T18:26:48.2585960Z Collecting reportlab<5,>=4.4 (from sheltersim==0.1.0)
+2026-10-29T18:26:48.2707780Z   Downloading reportlab-4.5.1-py3-none-any.whl.metadata (1.7 kB)
+2026-10-29T18:26:48.2953900Z Collecting pytest==8.3.5 (from sheltersim==0.1.0)
+2026-10-29T18:26:48.3091630Z   Downloading pytest-8.3.5-py3-none-any.whl.metadata (7.6 kB)
+2026-10-29T18:26:48.3346770Z Collecting pytest-xdist==3.8.0 (from sheltersim==0.1.0)
+2026-10-29T18:26:48.3477280Z   Downloading pytest_xdist-3.8.0-py3-none-any.whl.metadata (3.0 kB)
+2026-10-29T18:26:48.3659270Z Collecting pytest-cov==7.0.0 (from sheltersim==0.1.0)
+2026-10-29T18:26:48.3790320Z   Downloading pytest_cov-7.0.0-py3-none-any.whl.metadata (31 kB)
+2026-10-29T18:26:48.6172240Z Collecting coverage==7.10.7 (from sheltersim==0.1.0)
+2026-10-29T18:26:48.6299250Z   Downloading coverage-7.10.7-cp312-cp312-macosx_11_0_arm64.whl.metadata (8.9 kB)
+2026-10-29T18:26:48.8374010Z Collecting ruff==0.11.0 (from sheltersim==0.1.0)
+2026-10-29T18:26:48.8495710Z   Downloading ruff-0.11.0-py3-none-macosx_11_0_arm64.whl.metadata (25 kB)
+2026-10-29T18:26:48.8683720Z Collecting pypdf<6,>=5 (from sheltersim==0.1.0)
+2026-10-29T18:26:48.8798400Z   Downloading pypdf-5.9.0-py3-none-any.whl.metadata (7.1 kB)
+2026-10-29T18:26:48.9318300Z Collecting pypdfium2<5,>=4.30 (from sheltersim==0.1.0)
+2026-10-29T18:26:48.9436270Z   Downloading pypdfium2-4.30.0-py3-none-macosx_11_0_arm64.whl.metadata (48 kB)
+2026-10-29T18:26:48.9582200Z Collecting annotated-types>=0.6.0 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-29T18:26:48.9693660Z   Downloading annotated_types-0.8.0-py3-none-any.whl.metadata (15 kB)
+2026-10-29T18:26:49.4008540Z Collecting pydantic-core==2.33.2 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-29T18:26:49.4134020Z   Downloading pydantic_core-2.33.2-cp312-cp312-macosx_11_0_arm64.whl.metadata (6.8 kB)
+2026-10-29T18:26:49.4286130Z Collecting typing-extensions>=4.12.2 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-29T18:26:49.4398110Z   Downloading typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+2026-10-29T18:26:49.4507830Z Collecting typing-inspection>=0.4.0 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-29T18:26:49.4615320Z   Downloading typing_inspection-0.4.4-py3-none-any.whl.metadata (2.6 kB)
+2026-10-29T18:26:49.4751950Z Collecting iniconfig (from pytest==8.3.5->sheltersim==0.1.0)
+2026-10-29T18:26:49.4864810Z   Downloading iniconfig-2.3.1-py3-none-any.whl.metadata (2.8 kB)
+2026-10-29T18:26:49.5017580Z Collecting packaging (from pytest==8.3.5->sheltersim==0.1.0)
+2026-10-29T18:26:49.5127810Z   Downloading packaging-26.3-py3-none-any.whl.metadata (3.5 kB)
+2026-10-29T18:26:49.5252600Z Collecting pluggy<2,>=1.5 (from pytest==8.3.5->sheltersim==0.1.0)
+2026-10-29T18:26:49.5362730Z   Downloading pluggy-1.7.0-py3-none-any.whl.metadata (5.0 kB)
+2026-10-29T18:26:49.5518270Z Collecting execnet>=2.1 (from pytest-xdist==3.8.0->sheltersim==0.1.0)
+2026-10-29T18:26:49.5625530Z   Downloading execnet-2.1.2-py3-none-any.whl.metadata (2.9 kB)
+2026-10-29T18:26:49.6616940Z Collecting pillow>=9.0.0 (from reportlab<5,>=4.4->sheltersim==0.1.0)
+2026-10-29T18:26:49.6725750Z   Downloading pillow-13.0.0-cp312-cp312-macosx_11_0_arm64.whl.metadata (9.1 kB)
+2026-10-29T18:26:49.7748470Z Collecting charset-normalizer (from reportlab<5,>=4.4->sheltersim==0.1.0)
+2026-10-29T18:26:49.7857300Z   Downloading charset_normalizer-3.5.2-cp312-cp312-macosx_10_13_universal2.whl.metadata (46 kB)
+2026-10-29T18:26:49.8065310Z Downloading coverage-7.10.7-cp312-cp312-macosx_11_0_arm64.whl (218 kB)
+2026-10-29T18:26:49.8310380Z Downloading pydantic-2.11.9-py3-none-any.whl (444 kB)
+2026-10-29T18:26:49.8585250Z Downloading pydantic_core-2.33.2-cp312-cp312-macosx_11_0_arm64.whl (1.8 MB)
+2026-10-29T18:26:49.8772370Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.8/1.8 MB 97.5 MB/s  0:00:00
+2026-10-29T18:26:49.8912780Z Downloading pytest-8.3.5-py3-none-any.whl (343 kB)
+2026-10-29T18:26:49.9044090Z Downloading pytest_cov-7.0.0-py3-none-any.whl (22 kB)
+2026-10-29T18:26:49.9179610Z Downloading pytest_xdist-3.8.0-py3-none-any.whl (46 kB)
+2026-10-29T18:26:49.9328550Z Downloading ruff-0.11.0-py3-none-macosx_11_0_arm64.whl (10.2 MB)
+2026-10-29T18:26:50.1983190Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 10.2/10.2 MB 38.0 MB/s  0:00:00
+2026-10-29T18:26:50.2207760Z Downloading pluggy-1.7.0-py3-none-any.whl (27 kB)
+2026-10-29T18:26:50.2368220Z Downloading pypdf-5.9.0-py3-none-any.whl (313 kB)
+2026-10-29T18:26:50.2524080Z Downloading pypdfium2-4.30.0-py3-none-macosx_11_0_arm64.whl (2.7 MB)
+2026-10-29T18:26:50.2769370Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.7/2.7 MB 107.5 MB/s  0:00:00
+2026-10-29T18:26:50.2880390Z Downloading reportlab-4.5.1-py3-none-any.whl (2.0 MB)
+2026-10-29T18:26:50.3173040Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.0/2.0 MB 69.2 MB/s  0:00:00
+2026-10-29T18:26:50.3289320Z Downloading annotated_types-0.8.0-py3-none-any.whl (13 kB)
+2026-10-29T18:26:50.3439710Z Downloading execnet-2.1.2-py3-none-any.whl (40 kB)
+2026-10-29T18:26:50.3578370Z Downloading pillow-13.0.0-cp312-cp312-macosx_11_0_arm64.whl (4.9 MB)
+2026-10-29T18:26:50.3858860Z    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.9/4.9 MB 177.2 MB/s  0:00:00
+2026-10-29T18:26:50.3988300Z Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+2026-10-29T18:26:50.4126120Z Downloading typing_inspection-0.4.4-py3-none-any.whl (14 kB)
+2026-10-29T18:26:50.4264070Z Downloading charset_normalizer-3.5.2-cp312-cp312-macosx_10_13_universal2.whl (367 kB)
+2026-10-29T18:26:50.4476950Z Downloading iniconfig-2.3.1-py3-none-any.whl (7.6 kB)
+2026-10-29T18:26:50.4621590Z Downloading packaging-26.3-py3-none-any.whl (129 kB)
+2026-10-29T18:26:50.5154650Z Building wheels for collected packages: sheltersim
+2026-10-29T18:26:50.5163730Z   Building editable for sheltersim (pyproject.toml): started
+2026-10-29T18:26:50.8147400Z   Building editable for sheltersim (pyproject.toml): finished with status 'done'
+2026-10-29T18:26:50.8158810Z   Created wheel for sheltersim: filename=sheltersim-0.1.0-0.editable-py3-none-any.whl size=9134 sha256=a8938adadfa72bb096f3649afd04c76da53c2eea142d08f51375cc56aa0c1fb3
+2026-10-29T18:26:50.8160740Z   Stored in directory: /private/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/pip-ephem-wheel-cache-zpje4tfw/wheels/4c/6e/3f/2ad3bca87255fbd89a5846d439db1e4751bebb2cc85675ffc1
+2026-10-29T18:26:50.8194440Z Successfully built sheltersim
+2026-10-29T18:26:50.8494460Z Installing collected packages: typing-extensions, ruff, pypdfium2, pypdf, pluggy, pillow, packaging, iniconfig, execnet, coverage, charset-normalizer, annotated-types, typing-inspection, reportlab, pytest, pydantic-core, pytest-xdist, pytest-cov, pydantic, sheltersim
+2026-10-29T18:26:52.6435080Z 
+2026-10-29T18:26:52.6452090Z Successfully installed annotated-types-0.8.0 charset-normalizer-3.5.2 coverage-7.10.7 execnet-2.1.2 iniconfig-2.3.1 packaging-26.3 pillow-13.0.0 pluggy-1.7.0 pydantic-2.11.9 pydantic-core-2.33.2 pypdf-5.9.0 pypdfium2-4.30.0 pytest-8.3.5 pytest-cov-7.0.0 pytest-xdist-3.8.0 reportlab-4.5.1 ruff-0.11.0 sheltersim-0.1.0 typing-extensions-4.16.0 typing-inspection-0.4.4
+2026-10-29T18:26:52.6460030Z 
+2026-10-29T18:26:52.6460610Z [notice] A new release of pip is available: 26.2.1 -> 26.2.2
+2026-10-29T18:26:52.6461210Z [notice] To update, run: python -m pip install --upgrade pip
+2026-10-29T18:26:52.9257470Z ##[group]Run python -m pytest -m "not long_simulation" -n auto
+2026-10-29T18:26:52.9258100Z [36;1mpython -m pytest -m "not long_simulation" -n auto[0m
+2026-10-29T18:26:52.9373990Z shell: /bin/bash -e {0}
+2026-10-29T18:26:52.9374510Z env:
+2026-10-29T18:26:52.9528090Z   SHELTERSIM_LLM_MODE: offline
+2026-10-29T18:26:52.9528450Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-10-29T18:26:52.9528960Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/arm64/lib/pkgconfig
+2026-10-29T18:26:52.9530650Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-10-29T18:26:52.9532160Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-10-29T18:26:52.9532600Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-10-29T18:26:52.9533490Z ##[endgroup]
+2026-10-29T18:26:58.3620550Z ============================= test session starts ==============================
+2026-10-29T18:26:58.3622320Z platform darwin -- Python 3.12.10, pytest-8.3.5, pluggy-1.7.0
+2026-10-29T18:26:58.3623070Z rootdir: /Users/runner/work/tkb_2615/tkb_2615
+2026-10-29T18:26:58.3623540Z configfile: pyproject.toml
+2026-10-29T18:26:58.3623910Z testpaths: tests
+2026-10-29T18:26:58.3624390Z plugins: xdist-3.8.0, cov-7.0.0
+2026-10-29T18:26:58.3624720Z created: 3/3 workers
+2026-10-29T18:26:58.3625150Z 3 workers [1336 items]
+2026-10-29T18:26:58.3625350Z 
+2026-10-29T18:26:58.8193950Z ........................................................................ [  5%]
+2026-10-29T18:26:59.6172070Z ........................................................................ [ 10%]
+2026-10-29T18:27:00.7445140Z ........................................................................ [ 16%]
+2026-10-29T18:27:02.9938760Z ........................................................................ [ 21%]
+2026-10-29T18:27:03.6783740Z ........................................................................ [ 26%]
+2026-10-29T18:27:04.8025100Z ........................................................................ [ 32%]
+2026-10-29T18:27:07.8246580Z ........................................................................ [ 37%]
+2026-10-29T18:27:16.9339270Z ........................................................................ [ 43%]
+2026-10-29T18:27:20.3562320Z .....................s.........s........................................ [ 48%]
+2026-10-29T18:27:23.5079540Z ........................................................................ [ 53%]
+2026-10-29T18:27:30.0536130Z .................F.F.................................................... [ 59%]
+2026-10-29T18:27:33.0426790Z ............................................FF.......................... [ 64%]
+2026-10-29T18:27:38.0897780Z ........................................................................ [ 70%]
+2026-10-29T18:28:43.2527160Z ........................................................................ [ 75%]
+2026-10-29T18:29:35.5759330Z ........................................................................ [ 80%]
+2026-10-29T18:30:44.3610870Z ........................................................................ [ 86%]
+2026-10-29T18:31:15.0385580Z ........................................................................ [ 91%]
+2026-10-29T18:31:30.9934620Z ..................ssss.................................................. [ 97%]
+2026-10-29T18:32:17.4769670Z ........................................                                 [100%]
+2026-10-29T18:32:17.4870570Z =================================== FAILURES ===================================
+2026-10-29T18:32:17.4901070Z ____________ test_repeated_identical_preview_reuses_the_saved_reply ____________
+2026-10-29T18:32:17.4902240Z [gw2] darwin -- Python 3.12.10 /Library/Frameworks/Python.framework/Versions/3.12/bin/python
+2026-10-29T18:32:17.4903440Z 
+2026-10-29T18:32:17.4903810Z self = <sheltersim.llm.provider.AnthropicProvider object at 0x10e7273b0>
+2026-10-29T18:32:17.4904400Z api_key = 'mock-key'
+2026-10-29T18:32:17.4904670Z 
+2026-10-29T18:32:17.4910670Z     def __init__(self, api_key: str, *, client: object | None = None) -> None:
+2026-10-29T18:32:17.4912380Z         if not api_key:
+2026-10-29T18:32:17.4913380Z             raise LLMProviderError("ANTHROPIC_API_KEY is required for Claude API mode")
+2026-10-29T18:32:17.4914700Z         if client is None:
+2026-10-29T18:32:17.4915280Z             try:
+2026-10-29T18:32:17.4915880Z >               import anthropic
+2026-10-29T18:32:17.4916610Z E               ModuleNotFoundError: No module named 'anthropic'
+2026-10-29T18:32:17.4917210Z 
+2026-10-29T18:32:17.4917610Z src/sheltersim/llm/provider.py:60: ModuleNotFoundError
+2026-10-29T18:32:17.4918260Z 
+2026-10-29T18:32:17.4918740Z The above exception was the direct cause of the following exception:
+2026-10-29T18:32:17.4919340Z 
+2026-10-29T18:32:17.4920460Z tmp_path = PosixPath('/private/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/pytest-of-runner/pytest-0/popen-gw2/test_repeated_identical_previe0')
+2026-10-29T18:32:17.4922760Z monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10e7272f0>
+2026-10-29T18:32:17.4923400Z 
+2026-10-29T18:32:17.4923970Z     def test_repeated_identical_preview_reuses_the_saved_reply(
+2026-10-29T18:32:17.4925310Z         tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+2026-10-29T18:32:17.4926080Z     ) -> None:
+2026-10-29T18:32:17.4926840Z         from datetime import UTC, datetime
+2026-10-29T18:32:17.4927590Z     
+2026-10-29T18:32:17.4928380Z         from sheltersim.region.models import RegionResearchResult
+2026-10-29T18:32:17.4929590Z         from sheltersim.web import workspace as workspace_module
+2026-10-29T18:32:17.4938450Z     
+2026-10-29T18:32:17.4938760Z         monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+2026-10-29T18:32:17.4939190Z         calls = []
+2026-10-29T18:32:17.4939420Z     
+2026-10-29T18:32:17.4939720Z         class ContractProvider:
+2026-10-29T18:32:17.4940150Z             """Return the task's own contract-shaped answer, as an accepted reply."""
+2026-10-29T18:32:17.4940620Z     
+2026-10-29T18:32:17.4941010Z             def complete(self, *, model_id, task, max_output_tokens, timeout_seconds):
+2026-10-29T18:32:17.4941580Z                 del max_output_tokens, timeout_seconds
+2026-10-29T18:32:17.4941970Z                 calls.append(task.prompt_version)
+2026-10-29T18:32:17.4942320Z                 return ProviderResponse(
+2026-10-29T18:32:17.4942760Z                     text=task.fallback_text,
+2026-10-29T18:32:17.4943040Z                     model_id=model_id,
+2026-10-29T18:32:17.4943360Z                     input_tokens=10,
+2026-10-29T18:32:17.4943640Z                     output_tokens=5,
+2026-10-29T18:32:17.4943950Z                     elapsed_ms=0.0,
+2026-10-29T18:32:17.4944310Z                 )
+2026-10-29T18:32:17.4944510Z     
+2026-10-29T18:32:17.4944800Z         real_router = workspace_module.accounted_router
+2026-10-29T18:32:17.4945230Z     
+2026-10-29T18:32:17.4945440Z         def live_like_router(*args, **kwargs):
+2026-10-29T18:32:17.4945950Z             settings = LLMSettings(mode=LLMMode.RECORD, api_key="mock-key", budget_usd=10.0)
+2026-10-29T18:32:17.4946430Z             router = real_router(*args, **{**kwargs, "settings": settings})
+2026-10-29T18:32:17.4946940Z             router.provider.provider = ContractProvider()  # keep the real usage ledger
+2026-10-29T18:32:17.4947320Z             return router
+2026-10-29T18:32:17.4947660Z     
+2026-10-29T18:32:17.4947970Z         monkeypatch.setattr(workspace_module, "accounted_router", live_like_router)
+2026-10-29T18:32:17.4948510Z         store = ProjectStore(tmp_path / "projects")
+2026-10-29T18:32:17.4948920Z         store.create_project("project")
+2026-10-29T18:32:17.4949230Z         api = ProjectAPI(store, recover=False)
+2026-10-29T18:32:17.4949570Z         monkeypatch.setattr(
+2026-10-29T18:32:17.4949850Z             api.workspace.research,
+2026-10-29T18:32:17.4950210Z             "research",
+2026-10-29T18:32:17.4950700Z             lambda query, **_kwargs: RegionResearchResult(
+2026-10-29T18:32:17.4951810Z                 request=query, researched_at=datetime.now(UTC)
+2026-10-29T18:32:17.4952190Z             ),
+2026-10-29T18:32:17.4952440Z         )
+2026-10-29T18:32:17.4963400Z         body = {"text": "横浜市で地震が発生。避難者30人、期間は1日。"}
+2026-10-29T18:32:17.4963800Z         try:
+2026-10-29T18:32:17.4964140Z >           first = api.workspace.preview("project", body)
+2026-10-29T18:32:17.4964340Z 
+2026-10-29T18:32:17.4964480Z tests/unit/web/test_workspace.py:377: 
+2026-10-29T18:32:17.4964960Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+2026-10-29T18:32:17.4966120Z src/sheltersim/web/workspace.py:156: in preview
+2026-10-29T18:32:17.4966520Z     router = accounted_router(
+2026-10-29T18:32:17.4966930Z tests/unit/web/test_workspace.py:360: in live_like_router
+2026-10-29T18:32:17.4967310Z     router = real_router(*args, **{**kwargs, "settings": settings})
+2026-10-29T18:32:17.4967760Z src/sheltersim/llm/accounting.py:266: in accounted_router
+2026-10-29T18:32:17.4968120Z     router = LLMRouter(settings, tape=tape)
+2026-10-29T18:32:17.4968520Z src/sheltersim/llm/provider.py:211: in __init__
+2026-10-29T18:32:17.4968930Z     provider = AnthropicProvider(self.settings.api_key or "")
+2026-10-29T18:32:17.4969360Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+2026-10-29T18:32:17.4969640Z 
+2026-10-29T18:32:17.4969860Z self = <sheltersim.llm.provider.AnthropicProvider object at 0x10e7273b0>
+2026-10-29T18:32:17.4970240Z api_key = 'mock-key'
+2026-10-29T18:32:17.4970440Z 
+2026-10-29T18:32:17.4970670Z     def __init__(self, api_key: str, *, client: object | None = None) -> None:
+2026-10-29T18:32:17.4971820Z         if not api_key:
+2026-10-29T18:32:17.4972260Z             raise LLMProviderError("ANTHROPIC_API_KEY is required for Claude API mode")
+2026-10-29T18:32:17.4972760Z         if client is None:
+2026-10-29T18:32:17.4973040Z             try:
+2026-10-29T18:32:17.4973290Z                 import anthropic
+2026-10-29T18:32:17.4973660Z             except ImportError as exc:
+2026-10-29T18:32:17.4973990Z >               raise LLMProviderError(
+2026-10-29T18:32:17.4974440Z                     "install the optional LLM dependencies with `pip install .[llm]`"
+2026-10-29T18:32:17.4975000Z                 ) from exc
+2026-10-29T18:32:17.4975500Z E               sheltersim.llm.contracts.LLMProviderError: install the optional LLM dependencies with `pip install .[llm]`
+2026-10-29T18:32:17.4975960Z 
+2026-10-29T18:32:17.4976140Z src/sheltersim/llm/provider.py:62: LLMProviderError
+2026-10-29T18:32:17.4976570Z _____ test_repeated_identical_intervention_preview_reuses_the_saved_reply ______
+2026-10-29T18:32:17.4977200Z [gw2] darwin -- Python 3.12.10 /Library/Frameworks/Python.framework/Versions/3.12/bin/python
+2026-10-29T18:32:17.4977580Z 
+2026-10-29T18:32:17.4977750Z self = <sheltersim.llm.provider.AnthropicProvider object at 0x107d8fe30>
+2026-10-29T18:32:17.4978370Z api_key = 'mock-key'
+2026-10-29T18:32:17.4978560Z 
+2026-10-29T18:32:17.4978790Z     def __init__(self, api_key: str, *, client: object | None = None) -> None:
+2026-10-29T18:32:17.4979170Z         if not api_key:
+2026-10-29T18:32:17.4979660Z             raise LLMProviderError("ANTHROPIC_API_KEY is required for Claude API mode")
+2026-10-29T18:32:17.4980200Z         if client is None:
+2026-10-29T18:32:17.4980470Z             try:
+2026-10-29T18:32:17.4980710Z >               import anthropic
+2026-10-29T18:32:17.4981060Z E               ModuleNotFoundError: No module named 'anthropic'
+2026-10-29T18:32:17.4981340Z 
+2026-10-29T18:32:17.4981520Z src/sheltersim/llm/provider.py:60: ModuleNotFoundError
+2026-10-29T18:32:17.4981760Z 
+2026-10-29T18:32:17.4981910Z The above exception was the direct cause of the following exception:
+2026-10-29T18:32:17.4982220Z 
+2026-10-29T18:32:17.4982930Z tmp_path = PosixPath('/private/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/pytest-of-runner/pytest-0/popen-gw2/test_repeated_identical_interv0')
+2026-10-29T18:32:17.4983940Z monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10ec1dfd0>
+2026-10-29T18:32:17.4984840Z small_benchmark_scenario = <function _small_benchmark_scenario at 0x1046ade40>
+2026-10-29T18:32:17.4985230Z 
+2026-10-29T18:32:17.4985500Z     def test_repeated_identical_intervention_preview_reuses_the_saved_reply(
+2026-10-29T18:32:17.4985980Z         tmp_path: Path, monkeypatch: pytest.MonkeyPatch, small_benchmark_scenario
+2026-10-29T18:32:17.4986440Z     ) -> None:
+2026-10-29T18:32:17.4986730Z         from sheltersim.web import workspace as workspace_module
+2026-10-29T18:32:17.4987140Z     
+2026-10-29T18:32:17.4987420Z         monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+2026-10-29T18:32:17.4987830Z         calls = []
+2026-10-29T18:32:17.4988110Z     
+2026-10-29T18:32:17.4988300Z         class AcceptedProvider:
+2026-10-29T18:32:17.4989350Z             def complete(self, *, model_id, task, max_output_tokens, timeout_seconds):
+2026-10-29T18:32:17.4989870Z                 del max_output_tokens, timeout_seconds
+2026-10-29T18:32:17.4990280Z                 calls.append(task.prompt_version)
+2026-10-29T18:32:17.4990660Z                 return ProviderResponse(
+2026-10-29T18:32:17.4990990Z                     text=task.fallback_text,
+2026-10-29T18:32:17.4991280Z                     model_id=model_id,
+2026-10-29T18:32:17.4991650Z                     input_tokens=10,
+2026-10-29T18:32:17.4991990Z                     output_tokens=5,
+2026-10-29T18:32:17.4992290Z                     elapsed_ms=0.0,
+2026-10-29T18:32:17.4994110Z                 )
+2026-10-29T18:32:17.4994840Z     
+2026-10-29T18:32:17.4995190Z         real_router = workspace_module.accounted_router
+2026-10-29T18:32:17.4995990Z     
+2026-10-29T18:32:17.4996210Z         def live_like_router(*args, **kwargs):
+2026-10-29T18:32:17.4996780Z             settings = LLMSettings(mode=LLMMode.RECORD, api_key="mock-key", budget_usd=10.0)
+2026-10-29T18:32:17.4997280Z             router = real_router(*args, **{**kwargs, "settings": settings})
+2026-10-29T18:32:17.4997910Z             router.provider.provider = AcceptedProvider()  # keep the real usage ledger
+2026-10-29T18:32:17.4998320Z             return router
+2026-10-29T18:32:17.4998960Z     
+2026-10-29T18:32:17.4999430Z         monkeypatch.setattr(workspace_module, "accounted_router", live_like_router)
+2026-10-29T18:32:17.4999880Z         scenario = small_benchmark_scenario(30)
+2026-10-29T18:32:17.5000360Z         store = ProjectStore(tmp_path / "projects")
+2026-10-29T18:32:17.5000690Z         store.create_project("project")
+2026-10-29T18:32:17.5001030Z         saved = store.save_scenario(
+2026-10-29T18:32:17.5001770Z             "project", scenario, approved_hash=digest(json.loads(scenario.canonical_json()))
+2026-10-29T18:32:17.5002340Z         )
+2026-10-29T18:32:17.5002630Z         store.create_run("project", "run", scenario.id, saved["scenario_version"])
+2026-10-29T18:32:17.5003280Z         TimelineStore(store, "project", "run").record(
+2026-10-29T18:32:17.5003860Z             BranchRuntime.from_world(WorldState.from_scenario(scenario))
+2026-10-29T18:32:17.5004330Z         )
+2026-10-29T18:32:17.5004630Z         api = ProjectAPI(store, recover=False)
+2026-10-29T18:32:17.5005310Z         body = {"minute": 0, "text": "information_desk ゾーンにスタッフを2人追加してください。"}
+2026-10-29T18:32:17.5005700Z         try:
+2026-10-29T18:32:17.5006150Z >           first = api.workspace.intervention("project", "run", "main", dict(body))
+2026-10-29T18:32:17.5006490Z 
+2026-10-29T18:32:17.5006570Z tests/unit/web/test_workspace.py:432: 
+2026-10-29T18:32:17.5006990Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+2026-10-29T18:32:17.5007570Z src/sheltersim/web/workspace.py:526: in intervention
+2026-10-29T18:32:17.5008170Z     router=accounted_router(
+2026-10-29T18:32:17.5008930Z tests/unit/web/test_workspace.py:414: in live_like_router
+2026-10-29T18:32:17.5009390Z     router = real_router(*args, **{**kwargs, "settings": settings})
+2026-10-29T18:32:17.5009900Z src/sheltersim/llm/accounting.py:266: in accounted_router
+2026-10-29T18:32:17.5010260Z     router = LLMRouter(settings, tape=tape)
+2026-10-29T18:32:17.5011440Z src/sheltersim/llm/provider.py:211: in __init__
+2026-10-29T18:32:17.5011930Z     provider = AnthropicProvider(self.settings.api_key or "")
+2026-10-29T18:32:17.5012480Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+2026-10-29T18:32:17.5012840Z 
+2026-10-29T18:32:17.5013070Z self = <sheltersim.llm.provider.AnthropicProvider object at 0x107d8fe30>
+2026-10-29T18:32:17.5013440Z api_key = 'mock-key'
+2026-10-29T18:32:17.5013840Z 
+2026-10-29T18:32:17.5014390Z     def __init__(self, api_key: str, *, client: object | None = None) -> None:
+2026-10-29T18:32:17.5014820Z         if not api_key:
+2026-10-29T18:32:17.5015850Z             raise LLMProviderError("ANTHROPIC_API_KEY is required for Claude API mode")
+2026-10-29T18:32:17.5016390Z         if client is None:
+2026-10-29T18:32:17.5017570Z             try:
+2026-10-29T18:32:17.5018040Z                 import anthropic
+2026-10-29T18:32:17.5018840Z             except ImportError as exc:
+2026-10-29T18:32:17.5019760Z >               raise LLMProviderError(
+2026-10-29T18:32:17.5020320Z                     "install the optional LLM dependencies with `pip install .[llm]`"
+2026-10-29T18:32:17.5021530Z                 ) from exc
+2026-10-29T18:32:17.5022190Z E               sheltersim.llm.contracts.LLMProviderError: install the optional LLM dependencies with `pip install .[llm]`
+2026-10-29T18:32:17.5022850Z 
+2026-10-29T18:32:17.5023340Z src/sheltersim/llm/provider.py:62: LLMProviderError
+2026-10-29T18:32:17.5023890Z _________ test_each_live_model_check_run_fits_its_call_and_budget_caps _________
+2026-10-29T18:32:17.5024800Z [gw1] darwin -- Python 3.12.10 /Library/Frameworks/Python.framework/Versions/3.12/bin/python
+2026-10-29T18:32:17.5028240Z 
+2026-10-29T18:32:17.5029140Z self = <sheltersim.llm.provider.AnthropicProvider object at 0x105d30aa0>
+2026-10-29T18:32:17.5030300Z api_key = 'mock-key'
+2026-10-29T18:32:17.5030740Z 
+2026-10-29T18:32:17.5031430Z     def __init__(self, api_key: str, *, client: object | None = None) -> None:
+2026-10-29T18:32:17.5032350Z         if not api_key:
+2026-10-29T18:32:17.5033660Z             raise LLMProviderError("ANTHROPIC_API_KEY is required for Claude API mode")
+2026-10-29T18:32:17.5034680Z         if client is None:
+2026-10-29T18:32:17.5035080Z             try:
+2026-10-29T18:32:17.5035420Z >               import anthropic
+2026-10-29T18:32:17.5036100Z E               ModuleNotFoundError: No module named 'anthropic'
+2026-10-29T18:32:17.5036440Z 
+2026-10-29T18:32:17.5036980Z src/sheltersim/llm/provider.py:60: ModuleNotFoundError
+2026-10-29T18:32:17.5037470Z 
+2026-10-29T18:32:17.5037780Z The above exception was the direct cause of the following exception:
+2026-10-29T18:32:17.5038840Z 
+2026-10-29T18:32:17.5039650Z live_model_check = <function _live_model_check at 0x102598720>
+2026-10-29T18:32:17.5040470Z tmp_path = PosixPath('/private/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/pytest-of-runner/pytest-0/popen-gw1/test_each_live_model_check_run0')
+2026-10-29T18:32:17.5041110Z 
+2026-10-29T18:32:17.5041620Z     def test_each_live_model_check_run_fits_its_call_and_budget_caps(live_model_check, tmp_path: Path):
+2026-10-29T18:32:17.5042530Z         # tests/live/test_live_api.py runs this case against the real API only when asked, so
+2026-10-29T18:32:17.5043170Z         # a ledger rule that denies one of its calls went unnoticed for days (#148). A second
+2026-10-29T18:32:17.5043850Z         # run in the same usage store must get its own allowance.
+2026-10-29T18:32:17.5044290Z         for run in ("first", "second"):
+2026-10-29T18:32:17.5045860Z >           settings, router, tasks, _ = live_model_check(
+2026-10-29T18:32:17.5046880Z                 LLMSettings(api_key="mock-key"), tmp_path / f"{run}.json", provider=_AckProvider()
+2026-10-29T18:32:17.5047640Z             )
+2026-10-29T18:32:17.5048120Z 
+2026-10-29T18:32:17.5048300Z tests/unit/llm/test_accounting.py:509: 
+2026-10-29T18:32:17.5049010Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+2026-10-29T18:32:17.5050830Z tests/support/llm.py:66: in _live_model_check
+2026-10-29T18:32:17.5051350Z     router = LLMRouter(settings)
+2026-10-29T18:32:17.5052420Z src/sheltersim/llm/provider.py:211: in __init__
+2026-10-29T18:32:17.5052900Z     provider = AnthropicProvider(self.settings.api_key or "")
+2026-10-29T18:32:17.5053880Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+2026-10-29T18:32:17.5054300Z 
+2026-10-29T18:32:17.5054660Z self = <sheltersim.llm.provider.AnthropicProvider object at 0x105d30aa0>
+2026-10-29T18:32:17.5055240Z api_key = 'mock-key'
+2026-10-29T18:32:17.5055520Z 
+2026-10-29T18:32:17.5055800Z     def __init__(self, api_key: str, *, client: object | None = None) -> None:
+2026-10-29T18:32:17.5056450Z         if not api_key:
+2026-10-29T18:32:17.5056940Z             raise LLMProviderError("ANTHROPIC_API_KEY is required for Claude API mode")
+2026-10-29T18:32:17.5057350Z         if client is None:
+2026-10-29T18:32:17.5057720Z             try:
+2026-10-29T18:32:17.5057940Z                 import anthropic
+2026-10-29T18:32:17.5058750Z             except ImportError as exc:
+2026-10-29T18:32:17.5059310Z >               raise LLMProviderError(
+2026-10-29T18:32:17.5059820Z                     "install the optional LLM dependencies with `pip install .[llm]`"
+2026-10-29T18:32:17.5060440Z                 ) from exc
+2026-10-29T18:32:17.5060910Z E               sheltersim.llm.contracts.LLMProviderError: install the optional LLM dependencies with `pip install .[llm]`
+2026-10-29T18:32:17.5061630Z 
+2026-10-29T18:32:17.5061910Z src/sheltersim/llm/provider.py:62: LLMProviderError
+2026-10-29T18:32:17.5062470Z ___________ test_each_live_source_search_run_fits_its_own_allowance ____________
+2026-10-29T18:32:17.5064370Z [gw1] darwin -- Python 3.12.10 /Library/Frameworks/Python.framework/Versions/3.12/bin/python
+2026-10-29T18:32:17.5064810Z 
+2026-10-29T18:32:17.5065180Z self = <sheltersim.llm.provider.AnthropicProvider object at 0x105da36e0>
+2026-10-29T18:32:17.5065710Z api_key = 'mock-key'
+2026-10-29T18:32:17.5065900Z 
+2026-10-29T18:32:17.5066180Z     def __init__(self, api_key: str, *, client: object | None = None) -> None:
+2026-10-29T18:32:17.5066960Z         if not api_key:
+2026-10-29T18:32:17.5068010Z             raise LLMProviderError("ANTHROPIC_API_KEY is required for Claude API mode")
+2026-10-29T18:32:17.5068610Z         if client is None:
+2026-10-29T18:32:17.5069720Z             try:
+2026-10-29T18:32:17.5070650Z >               import anthropic
+2026-10-29T18:32:17.5071370Z E               ModuleNotFoundError: No module named 'anthropic'
+2026-10-29T18:32:17.5071760Z 
+2026-10-29T18:32:17.5072160Z src/sheltersim/llm/provider.py:60: ModuleNotFoundError
+2026-10-29T18:32:17.5072560Z 
+2026-10-29T18:32:17.5073070Z The above exception was the direct cause of the following exception:
+2026-10-29T18:32:17.5073310Z 
+2026-10-29T18:32:17.5073690Z live_source_search_check = <function _live_source_search_check at 0x1025987c0>
+2026-10-29T18:32:17.5074790Z tmp_path = PosixPath('/private/var/folders/n6/hn37q6pj7sj_9dmqqc2113800000gn/T/pytest-of-runner/pytest-0/popen-gw1/test_each_live_source_search_r0')
+2026-10-29T18:32:17.5075560Z 
+2026-10-29T18:32:17.5075730Z     def test_each_live_source_search_run_fits_its_own_allowance(
+2026-10-29T18:32:17.5076500Z         live_source_search_check, tmp_path: Path
+2026-10-29T18:32:17.5077310Z     ):
+2026-10-29T18:32:17.5168530Z         # Like the live model check, the search check reserved on one fixed account, so its
+2026-10-29T18:32:17.5170880Z         # 2-call cap covered every run on the machine (#152).
+2026-10-29T18:32:17.5171830Z         for run in ("first", "second", "third"):
+2026-10-29T18:32:17.5172980Z >           _, router, task, campaign = live_source_search_check(
+2026-10-29T18:32:17.5174360Z                 LLMSettings(api_key="mock-key"), tmp_path / f"{run}.json", _SourceSearchProvider()
+2026-10-29T18:32:17.5174880Z             )
+2026-10-29T18:32:17.5174990Z 
+2026-10-29T18:32:17.5175460Z tests/unit/llm/test_accounting.py:546: 
+2026-10-29T18:32:17.5179920Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+2026-10-29T18:32:17.5181260Z tests/support/llm.py:125: in _live_source_search_check
+2026-10-29T18:32:17.5182060Z     router = LLMRouter(settings)
+2026-10-29T18:32:17.5182820Z src/sheltersim/llm/provider.py:211: in __init__
+2026-10-29T18:32:17.5183860Z     provider = AnthropicProvider(self.settings.api_key or "")
+2026-10-29T18:32:17.5184890Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+2026-10-29T18:32:17.5185530Z 
+2026-10-29T18:32:17.5186840Z self = <sheltersim.llm.provider.AnthropicProvider object at 0x105da36e0>
+2026-10-29T18:32:17.5187500Z api_key = 'mock-key'
+2026-10-29T18:32:17.5187620Z 
+2026-10-29T18:32:17.5188310Z     def __init__(self, api_key: str, *, client: object | None = None) -> None:
+2026-10-29T18:32:17.5189390Z         if not api_key:
+2026-10-29T18:32:17.5190290Z             raise LLMProviderError("ANTHROPIC_API_KEY is required for Claude API mode")
+2026-10-29T18:32:17.5191320Z         if client is None:
+2026-10-29T18:32:17.5191910Z             try:
+2026-10-29T18:32:17.5192540Z                 import anthropic
+2026-10-29T18:32:17.5193830Z             except ImportError as exc:
+2026-10-29T18:32:17.5194170Z >               raise LLMProviderError(
+2026-10-29T18:32:17.5194530Z                     "install the optional LLM dependencies with `pip install .[llm]`"
+2026-10-29T18:32:17.5194960Z                 ) from exc
+2026-10-29T18:32:17.5195470Z E               sheltersim.llm.contracts.LLMProviderError: install the optional LLM dependencies with `pip install .[llm]`
+2026-10-29T18:32:17.5195890Z 
+2026-10-29T18:32:17.5196790Z src/sheltersim/llm/provider.py:62: LLMProviderError
+2026-10-29T18:32:17.5197140Z =========================== short test summary info ============================
+2026-10-29T18:32:17.5197670Z SKIPPED [1] tests/unit/storage/test_projects.py:337: needs Linux open-file-description locks
+2026-10-29T18:32:17.5198380Z SKIPPED [1] tests/unit/storage/test_query_cursors.py:42: needs Linux open-file-description locks
+2026-10-29T18:32:17.5199080Z SKIPPED [1] tests/live/test_live_api.py:30: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-29T18:32:17.5199930Z SKIPPED [1] tests/live/test_live_api.py:116: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-29T18:32:17.5200650Z SKIPPED [1] tests/live/test_live_api.py:155: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-29T18:32:17.5201400Z SKIPPED [1] tests/live/test_live_api.py:188: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-29T18:32:17.5203430Z FAILED tests/unit/web/test_workspace.py::test_repeated_identical_preview_reuses_the_saved_reply - sheltersim.llm.contracts.LLMProviderError: install the optional LLM dependencies with `pip install .[llm]`
+2026-10-29T18:32:17.5204660Z FAILED tests/unit/web/test_workspace.py::test_repeated_identical_intervention_preview_reuses_the_saved_reply - sheltersim.llm.contracts.LLMProviderError: install the optional LLM dependencies with `pip install .[llm]`
+2026-10-29T18:32:17.5205880Z FAILED tests/unit/llm/test_accounting.py::test_each_live_model_check_run_fits_its_call_and_budget_caps - sheltersim.llm.contracts.LLMProviderError: install the optional LLM dependencies with `pip install .[llm]`
+2026-10-29T18:32:17.5207270Z FAILED tests/unit/llm/test_accounting.py::test_each_live_source_search_run_fits_its_own_allowance - sheltersim.llm.contracts.LLMProviderError: install the optional LLM dependencies with `pip install .[llm]`
+2026-10-29T18:32:17.5208020Z ============ 4 failed, 1326 passed, 6 skipped in 323.90s (0:05:23) =============
+2026-10-29T18:32:17.5210190Z test results: 4 failed, 1326 passed, 6 skipped; failed: tests/unit/web/test_workspace.py::test_repeated_identical_preview_reuses_the_saved_reply, tests/unit/web/test_workspace.py::test_repeated_identical_intervention_preview_reuses_the_saved_reply, tests/unit/llm/test_accounting.py::test_each_live_model_check_run_fits_its_call_and_budget_caps, tests/unit/llm/test_accounting.py::test_each_live_source_search_run_fits_its_own_allowance; tracebacks in .test-results/20261029T182653Z-1208/summary.txt
+2026-10-29T18:32:17.5483150Z ##[error]Process completed with exit code 1.
+2026-10-29T18:32:17.5832970Z ##[group]Run actions/upload-artifact@v4
+2026-10-29T18:32:17.5833230Z with:
+2026-10-29T18:32:17.5833420Z   name: test-results-macos-latest
+2026-10-29T18:32:17.5833680Z   path: .test-results/
+2026-10-29T18:32:17.5833890Z   retention-days: 7
+2026-10-29T18:32:17.5834150Z   if-no-files-found: ignore
+2026-10-29T18:32:17.5834400Z   compression-level: 6
+2026-10-29T18:32:17.5834580Z   overwrite: false
+2026-10-29T18:32:17.5834780Z   include-hidden-files: false
+2026-10-29T18:32:17.5834960Z env:
+2026-10-29T18:32:17.5835120Z   SHELTERSIM_LLM_MODE: offline
+2026-10-29T18:32:17.5835420Z   pythonLocation: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-10-29T18:32:17.5835850Z   PKG_CONFIG_PATH: /Users/runner/hostedtoolcache/Python/3.12.10/arm64/lib/pkgconfig
+2026-10-29T18:32:17.5836420Z   Python_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-10-29T18:32:17.5836870Z   Python2_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-10-29T18:32:17.5837450Z   Python3_ROOT_DIR: /Users/runner/hostedtoolcache/Python/3.12.10/arm64
+2026-10-29T18:32:17.5837800Z ##[endgroup]
+2026-10-29T18:32:18.7899460Z (node:5282) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-29T18:32:18.7900740Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-29T18:32:18.8310850Z No files were found with the provided path: .test-results/. No artifacts will be uploaded.
+2026-10-29T18:32:18.8872400Z Post job cleanup.
+2026-10-29T18:32:19.1378810Z [command]/opt/homebrew/bin/git version
+2026-10-29T18:32:19.2427750Z git version 2.56.0
+2026-10-29T18:32:19.2479070Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/552d34c7-216f-42ff-aaf8-8bda65e540a8/.gitconfig'
+2026-10-29T18:32:19.2506780Z Temporarily overriding HOME='/Users/runner/work/_temp/552d34c7-216f-42ff-aaf8-8bda65e540a8' before making global git config changes
+2026-10-29T18:32:19.2510980Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-29T18:32:19.2511970Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/tkb_2615/tkb_2615
+2026-10-29T18:32:19.2764670Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-29T18:32:19.3133370Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-29T18:32:19.5670340Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-29T18:32:19.5794370Z http.https://github.com/.extraheader
+2026-10-29T18:32:19.5814810Z [command]/opt/homebrew/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-29T18:32:19.6009310Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-29T18:32:19.8054390Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-29T18:32:19.8143990Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-29T18:32:20.0682930Z Cleaning up orphan processes
+2026-10-29T18:32:21.9994620Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+

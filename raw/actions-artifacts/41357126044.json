@@ -1,0 +1,66 @@
+{
+  "total_count": 3,
+  "artifacts": [
+    {
+      "id": 13104576282,
+      "node_id": "MDg6QXJ0aWZhY3QxMzEwNDU3NjI4Mg==",
+      "name": "test-results-ubuntu-latest",
+      "size_in_bytes": 155049,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13104576282",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13104576282/zip",
+      "expired": false,
+      "digest": "sha256:2afb4823cb8b7eb8b1282f7efc3d96d7a81cb8e9089bb09b86b2f61f66fab10d",
+      "created_at": "2026-11-01T22:43:57Z",
+      "updated_at": "2026-11-01T22:43:57Z",
+      "expires_at": "2026-11-08T22:43:56Z",
+      "workflow_run": {
+        "id": 41357126044,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/m6-overlay",
+        "head_sha": "79c60db15731a65be2b78ddfab79548244228451"
+      }
+    },
+    {
+      "id": 13103493523,
+      "node_id": "MDg6QXJ0aWZhY3QxMzEwMzQ5MzUyMw==",
+      "name": "test-results-windows-latest",
+      "size_in_bytes": 80315,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13103493523",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13103493523/zip",
+      "expired": false,
+      "digest": "sha256:3e1c8a51f4fce4afed4218d255fc538ce747b6a73911185bdf30d8ab49c83186",
+      "created_at": "2026-11-01T22:40:46Z",
+      "updated_at": "2026-11-01T22:40:46Z",
+      "expires_at": "2026-11-08T22:40:45Z",
+      "workflow_run": {
+        "id": 41357126044,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/m6-overlay",
+        "head_sha": "79c60db15731a65be2b78ddfab79548244228451"
+      }
+    },
+    {
+      "id": 13103469494,
+      "node_id": "MDg6QXJ0aWZhY3QxMzEwMzQ2OTQ5NA==",
+      "name": "test-results-macos-latest",
+      "size_in_bytes": 78184,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13103469494",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13103469494/zip",
+      "expired": false,
+      "digest": "sha256:186b17fbf9aded6470fef316e0a9c6795358e635f798f436f11cd22f0775c9e5",
+      "created_at": "2026-11-01T22:34:42Z",
+      "updated_at": "2026-11-01T22:34:42Z",
+      "expires_at": "2026-11-08T22:34:41Z",
+      "workflow_run": {
+        "id": 41357126044,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/m6-overlay",
+        "head_sha": "79c60db15731a65be2b78ddfab79548244228451"
+      }
+    }
+  ]
+}
+

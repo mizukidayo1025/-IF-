@@ -1,0 +1,2008 @@
+[
+  {
+    "sha": "c28af8b076018c94ad2959d226b7a4d6a3c27a04",
+    "node_id": "C_kwDOU3hqGNoAKGMyOGFmOGIwNzYwMThjOTRhZDI5NTlkMjI2YjdhNGQ2YTNjMjdhMDQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c28af8b076018c94ad2959d226b7a4d6a3c27a04",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/c28af8b076018c94ad2959d226b7a4d6a3c27a04",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-29T20:31:44Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-29T20:31:44Z"
+    },
+    "tree": {
+      "sha": "a9c4b8bbb42a2333de7a6873569433e79f8109ff",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/a9c4b8bbb42a2333de7a6873569433e79f8109ff"
+    },
+    "message": "Ask for UTF-8 in text file and subprocess I/O in the testing doc\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "e408e3862dcec44b4c037844031bc863ccc38814",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/e408e3862dcec44b4c037844031bc863ccc38814",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/e408e3862dcec44b4c037844031bc863ccc38814"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "a1a13350bba0ff8e177b80c362915cedda996f54",
+    "node_id": "C_kwDOU3hqGNoAKGExYTEzMzUwYmJhMGZmOGUxNzdiODBjMzYyOTE1Y2VkZGE5OTZmNTQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/a1a13350bba0ff8e177b80c362915cedda996f54",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/a1a13350bba0ff8e177b80c362915cedda996f54",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-29T20:36:56Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-29T20:36:56Z"
+    },
+    "tree": {
+      "sha": "a9c4b8bbb42a2333de7a6873569433e79f8109ff",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/a9c4b8bbb42a2333de7a6873569433e79f8109ff"
+    },
+    "message": "Merge pull request #273 from jphacks/fix/utf8-everywhere\n\nテキストの読み書きと CLI の出力を、どの OS でも UTF-8 にする",
+    "parents": [
+      {
+        "sha": "4a3c5539bcce012dc4a2fd69194d57b787f60a6b",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4a3c5539bcce012dc4a2fd69194d57b787f60a6b",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/4a3c5539bcce012dc4a2fd69194d57b787f60a6b"
+      },
+      {
+        "sha": "c28af8b076018c94ad2959d226b7a4d6a3c27a04",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c28af8b076018c94ad2959d226b7a4d6a3c27a04",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/c28af8b076018c94ad2959d226b7a4d6a3c27a04"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq465oCRC1aQ7uu5UhlAAAYBgQAGBdq0LhRKJY8CGdlaWixXd0\nI3Sc2JpRklLaUAzRCc4+5zRZEPM6MoXq5A/93Kr6Dh/v2ZK5Oe5ltG4qWQG9QXqo\n/pulE/YYWLElaxz/aowhwzSjeeRWODyyP5dTOXwy+Sk3jkZ69M2hMd0dSXYjk11u\nFdVvYK9rq+F6u0Sz7qwpA2LTkOkR1qtDF+6xh709XkQPvafAI2DOnBwh7zL1vmg2\nR2Q/iDCILArNvmfOW8ziDP52YXjBoGv5bj0devKgqPwC1NaLUtHBHKsSXmniWETB\nBrb8pcPjM5FZ2Rnj4T/K6s9KY3dc40LuGSlrcHs5+DTfdObCe9U7OwZAVOEikn4l\nKemdAu1TOWzCBsmp2OSMlMFVqC8jSEGJq8NywOETYqIgVY7ddcWD2ZIfFNfdNy5E\nq19PYKpdlQiChAIVlJP4Hc7GvG1AHKYFaAH59OZuG0ZSKPQ+8lSODUClGT2pTqxU\n6f6VLRkilUEnQlx7HoSbCHhi/LJRoNRXYP62RfQge8XnO+8meHYuuRFr/+IkRAFq\n/K5eTVMekT62vL75UFgLpRd1iXxyzIdhz77X/e0TLA3FaqM1MEpD5CmBvD3+ZzpC\nZyT5fojUSIorNj6iw1Qd85Lk0n5bokp6Wb5dvgRU7f4wwhhuhZew8BUZHWMEWDPg\nHEk0gDMfSZDi5GLvg4jB\n=SgsJ\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree a9c4b8bbb42a2333de7a6873569433e79f8109ff\nparent 4a3c5539bcce012dc4a2fd69194d57b787f60a6b\nparent c28af8b076018c94ad2959d226b7a4d6a3c27a04\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793306216 +0900\ncommitter GitHub <noreply@github.com> 1793306216 +0900\n\nMerge pull request #273 from jphacks/fix/utf8-everywhere\n\nテキストの読み書きと CLI の出力を、どの OS でも UTF-8 にする",
+      "verified_at": "2026-10-29T20:36:59Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "ef28f0285c61a6cc263005eb7c555abaf94f12d3",
+    "node_id": "C_kwDOU3hqGNoAKGVmMjhmMDI4NWM2MWE2Y2MyNjMwMDVlYjdjNTU1YWJhZjk0ZjEyZDM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ef28f0285c61a6cc263005eb7c555abaf94f12d3",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/ef28f0285c61a6cc263005eb7c555abaf94f12d3",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-29T20:37:03Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-29T20:37:03Z"
+    },
+    "tree": {
+      "sha": "7fa409a88957cb36e897f1f837b24e9491cf86a9",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/7fa409a88957cb36e897f1f837b24e9491cf86a9"
+    },
+    "message": "Merge pull request #274 from jphacks/fix/windows-process-and-files\n\nWindows でのプロセスの確認・Run の削除・ファイルの共有などを直す",
+    "parents": [
+      {
+        "sha": "a1a13350bba0ff8e177b80c362915cedda996f54",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/a1a13350bba0ff8e177b80c362915cedda996f54",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/a1a13350bba0ff8e177b80c362915cedda996f54"
+      },
+      {
+        "sha": "6b7b9b56fe8ca4c77c1a873a8c55cc38b10102a1",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/6b7b9b56fe8ca4c77c1a873a8c55cc38b10102a1",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/6b7b9b56fe8ca4c77c1a873a8c55cc38b10102a1"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq465vCRC1aQ7uu5UhlAAA6mEQABGRvCkUnusbCa2/FqgCFris\nVCPzsZudz0VLvGgm10ZSCAC+MEff95Wkzf4fuSU5nW/Pdi14iqUwTilzNkQ90j0t\nFK+qFm8nvb9kd4+YaEX7/6S/VMDqxLM345+jCCsK77f1HIqreIhp72/njw1TMukG\nZVWVQpTK4TiIvxeekQI3KQSusd76Hc8nNGYZwwCJWuYEzXwoEWvG73OBqmbG7OXJ\nN9R3bYLvK4kVwoqpECFvgri33chntji1k6w4zsaeplvY+r3rCZk8pjeMfox/Kwie\nLTXYo4IA/Ie8QYzoOGgrFMQb3PPih5mDtscsrztoCH+XlfVJlLjgTidF01Kwut3q\nkRvVQw+3bcToLg9g8BTKYryFHDOpspCLRlapmj/VoScxfSTbd73hbzk4iYB9Xqvj\n6orl5DzY3dQFJctByB3G0pifyluS8qbDMJlok0M3ErLG5yoFyHZrjJ833z51B/xe\ntkgSBC+nBiOyQde52jpRXRgBAW9bdz83g79xh3yemmYtjod5zQpXM5l8fqxn4zlH\nHDlywTukUVFkz2hmSRJMT7MZuLWLX9XwcSfJeVLPlPtkcpGXrcUGLHEmRb4Y1euM\nqLbjBrt96oA55ieekQtreekkX7bqaH1P3ZVdd/kKxBjFZOhQYrKmddMA37lkBGQv\nuwgcYAm84ZXMvjO+cZFu\n=rvBK\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree 7fa409a88957cb36e897f1f837b24e9491cf86a9\nparent a1a13350bba0ff8e177b80c362915cedda996f54\nparent 6b7b9b56fe8ca4c77c1a873a8c55cc38b10102a1\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793306223 +0900\ncommitter GitHub <noreply@github.com> 1793306223 +0900\n\nMerge pull request #274 from jphacks/fix/windows-process-and-files\n\nWindows でのプロセスの確認・Run の削除・ファイルの共有などを直す",
+      "verified_at": "2026-10-29T20:37:03Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "a77a4e5ee4b26fcfe55162954ebfb47fcc8d5319",
+    "node_id": "C_kwDOU3hqGNoAKGE3N2E0ZTVlZTRiMjZmY2ZlNTUxNjI5NTRlYmZiNDdmY2M4ZDUzMTk",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/a77a4e5ee4b26fcfe55162954ebfb47fcc8d5319",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/a77a4e5ee4b26fcfe55162954ebfb47fcc8d5319",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-29T20:37:10Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-29T20:37:10Z"
+    },
+    "tree": {
+      "sha": "0283569a9a4306035e47e04645b1da6156223201",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/0283569a9a4306035e47e04645b1da6156223201"
+    },
+    "message": "Merge pull request #275 from jphacks/fix/lazy-anthropic-sdk\n\nAnthropic の SDK を、最初に API を呼ぶときに読み込む",
+    "parents": [
+      {
+        "sha": "ef28f0285c61a6cc263005eb7c555abaf94f12d3",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ef28f0285c61a6cc263005eb7c555abaf94f12d3",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/ef28f0285c61a6cc263005eb7c555abaf94f12d3"
+      },
+      {
+        "sha": "6b6e950a8936a54f05620c725a3fc49a15a95f28",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/6b6e950a8936a54f05620c725a3fc49a15a95f28",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/6b6e950a8936a54f05620c725a3fc49a15a95f28"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq4652CRC1aQ7uu5UhlAAArCUQAEiN4tt3NrNEVzhB1+nti67u\nV5DGPemIhrWxPPZ79TJd7qWFMH+ySIQt89ruSDv5WdrYEj9MPuLAvYiez2L2Sy5j\nibqazchzlsj9vtW4Afsk7AHOPK/IkU8CjqHYHZ8TezQ5GpL4Lx1V1YAc8ckMP4u2\n+xa6QRrC1m3+p32kRiOu8u2d5fZ7Z/fhZ/dmS14ZIh8QT3QWrk4YwCMBzqSDN1mH\nIsqrzvm2xEXbWXnlb05joZO9Azt5+/rV7iNyulRWcM6bGC4yUF8NKzrf5Rrv93V+\nH/jVxQJGdiEjTqhz93HOe9/56QbMTiPhf1aO7doXp4qktIauM4KPTjD0d+3wXM3F\nnLD7fmGzoF/yM+nL4kC3SvuEr7Yz9SPbcHA+lZfJPM69Sf5ZQhhVv5aV62+9cmKD\na1iC8E9yt7qtyZzYUlHbXoYXmn4GiFjEVikcuZTYfyRzBALkdXfS90BjM/FjfgSw\ncLELbKtGqeR56J23/WkNejwCWy5iNyazHhughH2skkKgjK1hhP0h4pQy5FKKAGbP\nJnkCKI3ksIqrmlvfnU1weLy7/KvSxT1L97V9xVk/ydh6NWr8koYmrzLTIFAdDaJP\nNlAVF9QUWcLx2S8FnP5atytjnVM0tcEeHFEk0d/HUoRnEs0NGfmp3M3ZsUxhL4t5\ny5CCL8W7xHddMIUGG3by\n=b9jD\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree 0283569a9a4306035e47e04645b1da6156223201\nparent ef28f0285c61a6cc263005eb7c555abaf94f12d3\nparent 6b6e950a8936a54f05620c725a3fc49a15a95f28\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793306230 +0900\ncommitter GitHub <noreply@github.com> 1793306230 +0900\n\nMerge pull request #275 from jphacks/fix/lazy-anthropic-sdk\n\nAnthropic の SDK を、最初に API を呼ぶときに読み込む",
+      "verified_at": "2026-10-29T20:37:11Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "4ad818a5a3f400f1c1843f6947865b58089b1518",
+    "node_id": "C_kwDOU3hqGNoAKDRhZDgxOGE1YTNmNDAwZjFjMTg0M2Y2OTQ3ODY1YjU4MDg5YjE1MTg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4ad818a5a3f400f1c1843f6947865b58089b1518",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/4ad818a5a3f400f1c1843f6947865b58089b1518",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-29T18:21:25Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-29T20:41:42Z"
+    },
+    "tree": {
+      "sha": "8f5042e6e0ea7a00b2ce94ccc4f007ec75f91632",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/8f5042e6e0ea7a00b2ce94ccc4f007ec75f91632"
+    },
+    "message": "Run the offline CI on Linux, Windows and macOS\n\nThe workflow tested Linux only, one test at a time. It now runs the same\noffline tests on ubuntu, windows and macos runners in parallel workers,\nkeeps each platform's test results, and lints once on Linux. It is still\nstarted by hand while the other platforms' failures are sorted out.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "a77a4e5ee4b26fcfe55162954ebfb47fcc8d5319",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/a77a4e5ee4b26fcfe55162954ebfb47fcc8d5319",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/a77a4e5ee4b26fcfe55162954ebfb47fcc8d5319"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "79963fb38b577e3b3043e6f73534ba98a2e54a9c",
+    "node_id": "C_kwDOU3hqGNoAKDc5OTYzZmIzOGI1NzdlM2IzMDQzZTZmNzM1MzRiYTk4YTJlNTRhOWM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/79963fb38b577e3b3043e6f73534ba98a2e54a9c",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/79963fb38b577e3b3043e6f73534ba98a2e54a9c",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-29T18:39:45Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-29T20:41:42Z"
+    },
+    "tree": {
+      "sha": "8e3f9e9a97c59ff047ec0cbea5b8d5c259a65605",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/8e3f9e9a97c59ff047ec0cbea5b8d5c259a65605"
+    },
+    "message": "Keep the hidden test results directory in CI\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "4ad818a5a3f400f1c1843f6947865b58089b1518",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4ad818a5a3f400f1c1843f6947865b58089b1518",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/4ad818a5a3f400f1c1843f6947865b58089b1518"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "febb105189fce3ca7ccd0b93abb6aeacae8ae583",
+    "node_id": "C_kwDOU3hqGNoAKGZlYmIxMDUxODlmY2UzY2E3Y2NkMGI5M2FiYjZhZWFjYWU4YWU1ODM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/febb105189fce3ca7ccd0b93abb6aeacae8ae583",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/febb105189fce3ca7ccd0b93abb6aeacae8ae583",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-29T20:41:43Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-29T20:41:43Z"
+    },
+    "tree": {
+      "sha": "1a21f9ad3b6e7cc589b52df85dd00dc8da6edbca",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/1a21f9ad3b6e7cc589b52df85dd00dc8da6edbca"
+    },
+    "message": "Stop real-time scanning on the Windows CI runner\n\nThe runner's Defender scans every file the tests write, and a Run's saves\nwrite thousands. The step runs only on the disposable CI machine.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "79963fb38b577e3b3043e6f73534ba98a2e54a9c",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/79963fb38b577e3b3043e6f73534ba98a2e54a9c",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/79963fb38b577e3b3043e6f73534ba98a2e54a9c"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "793bf0fb56a5c40308d805c058be12121d2fa4f2",
+    "node_id": "C_kwDOU3hqGNoAKDc5M2JmMGZiNTZhNWM0MDMwOGQ4MDVjMDU4YmUxMjEyMWQyZmE0ZjI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/793bf0fb56a5c40308d805c058be12121d2fa4f2",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/793bf0fb56a5c40308d805c058be12121d2fa4f2",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-29T20:59:13Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-29T20:59:13Z"
+    },
+    "tree": {
+      "sha": "8e3f9e9a97c59ff047ec0cbea5b8d5c259a65605",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/8e3f9e9a97c59ff047ec0cbea5b8d5c259a65605"
+    },
+    "message": "Keep real-time scanning on the Windows CI runner\n\nStopping it shortened the Windows tests by about 6% (2,463 to 2,305 s of\ntest time), within the variation between runs, so the runner keeps it.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "febb105189fce3ca7ccd0b93abb6aeacae8ae583",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/febb105189fce3ca7ccd0b93abb6aeacae8ae583",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/febb105189fce3ca7ccd0b93abb6aeacae8ae583"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "1d0e66cb90cb94e57dd2c1be0ff883e799b9474b",
+    "node_id": "C_kwDOU3hqGNoAKDFkMGU2NmNiOTBjYjk0ZTU3ZGQyYzFiZTBmZjg4M2U3OTliOTQ3NGI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/1d0e66cb90cb94e57dd2c1be0ff883e799b9474b",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/1d0e66cb90cb94e57dd2c1be0ff883e799b9474b",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-29T20:59:27Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-29T20:59:27Z"
+    },
+    "tree": {
+      "sha": "400f88059e8015659c9d04fcf70ed7bf77dc4e6a",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/400f88059e8015659c9d04fcf70ed7bf77dc4e6a"
+    },
+    "message": "Run the offline CI on every pull request to develop\n\nThe three-platform CI passes on develop now that the Windows and encoding\nfixes are in (#273, #274, #275), so it runs on each pull request to\ndevelop as well as by hand. The testing doc describes the runs and the\nkept test results.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "793bf0fb56a5c40308d805c058be12121d2fa4f2",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/793bf0fb56a5c40308d805c058be12121d2fa4f2",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/793bf0fb56a5c40308d805c058be12121d2fa4f2"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "260c26fdca68d6e37d3afba0a652c996fb31f3c4",
+    "node_id": "C_kwDOU3hqGNoAKDI2MGMyNmZkY2E2OGQ2ZTM3ZDNhZmJhMGE2NTJjOTk2ZmIzMWYzYzQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/260c26fdca68d6e37d3afba0a652c996fb31f3c4",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/260c26fdca68d6e37d3afba0a652c996fb31f3c4",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-29T21:28:11Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-29T21:28:11Z"
+    },
+    "tree": {
+      "sha": "400f88059e8015659c9d04fcf70ed7bf77dc4e6a",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/400f88059e8015659c9d04fcf70ed7bf77dc4e6a"
+    },
+    "message": "Merge pull request #276 from jphacks/ci/three-platforms-pr\n\nオフラインCIを3つの OS で流し、develop への PR ごとに自動で走らせる",
+    "parents": [
+      {
+        "sha": "a77a4e5ee4b26fcfe55162954ebfb47fcc8d5319",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/a77a4e5ee4b26fcfe55162954ebfb47fcc8d5319",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/a77a4e5ee4b26fcfe55162954ebfb47fcc8d5319"
+      },
+      {
+        "sha": "1d0e66cb90cb94e57dd2c1be0ff883e799b9474b",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/1d0e66cb90cb94e57dd2c1be0ff883e799b9474b",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/1d0e66cb90cb94e57dd2c1be0ff883e799b9474b"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq47prCRC1aQ7uu5UhlAAACoQQAFhn/2EQwTsnJ6s5/XdYLGgH\n9av06IyNia94HIQVZ/xemmoIKrAiAr1cYBHRNIAixBK8dJjTaMGcfOZ2al0ScbNr\n5wsfiaLDH9fyjn0dy2r9yV4FsigGCPRQgwQN2QAA4lIghvnlZbSbJKb3y1WroAtf\ng3RPzUCAMM5fmu+YBim3DM2uyYbSZ+Mtp3j0wmrKfwbVby0UBKqlpintQEX/jez+\n//DBkW7z+fdtSTxSK3cS9ueDK0w3sBoTuqgevND4K8s+v+63fREiRT3AlW8za2sg\nQWh7zlTz13tIOkjHlX/yk/kLzpnBGCU4syVUSZaIg3nQLje79BhX5LlPYfaMZwn0\n4XaMCejSpwf68gKBgifwTJ0IXP5BiMVCMRDZDhklShBfa6hhP+KDDvt7p7xf7Y58\nXBwvK37osGYxrSxchsUB9khvEFUPdPzUDwX3EScPOGEe9jHPb1i2H98Vh/jNIbEb\nwpeLHqkjUPjX/u9OmiofnDPKhkY1q4G+ftL9VZZiVgQGw9TmdFGS9NLKzSsdkrGX\nCEhIhmZULIh7BEkijIaOzQLICd3fxkNesfA82KHQtZYDFtNxZ0o5Ll6h6H65j75c\nKa40OOcOOipZNeKR9a+pkAC/6nU2HpicoM2JXUTM5ktiBjDM6504sx0ghZ9iMGjB\nYtv39mafL1KVVtrkzKh7\n=kzUw\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree 400f88059e8015659c9d04fcf70ed7bf77dc4e6a\nparent a77a4e5ee4b26fcfe55162954ebfb47fcc8d5319\nparent 1d0e66cb90cb94e57dd2c1be0ff883e799b9474b\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793309291 +0900\ncommitter GitHub <noreply@github.com> 1793309291 +0900\n\nMerge pull request #276 from jphacks/ci/three-platforms-pr\n\nオフラインCIを3つの OS で流し、develop への PR ごとに自動で走らせる",
+      "verified_at": "2026-10-29T21:28:11Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "6482de4b6c03d1a739cb49393a93f685916242f4",
+    "node_id": "C_kwDOU3hqGNoAKDY0ODJkZTRiNmMwM2QxYTczOWNiNDkzOTNhOTNmNjg1OTE2MjQyZjQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/6482de4b6c03d1a739cb49393a93f685916242f4",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/6482de4b6c03d1a739cb49393a93f685916242f4",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-29T22:02:20Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-29T22:02:20Z"
+    },
+    "tree": {
+      "sha": "86a9014a8c8639be216781b4fc04021df1e0e087",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/86a9014a8c8639be216781b4fc04021df1e0e087"
+    },
+    "message": "Give each branch of a Run its own writer lease and status\n\nclaim_branch locks a branch's own worker-lock after taking the Run's gate\nfor a moment, so writers of different branches work at once. claim_run,\nfor operations on a whole Run, holds the gate and refuses while any branch\nis written. Only exclusive locks are used, as Windows offers. Each branch\nrecords its computation status in its own status.json, version 1; the\nRun's status becomes their summary. Recovery interrupts branches left\nrunning without a writer and forgets the status of a fork's child that\nwas never created.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "260c26fdca68d6e37d3afba0a652c996fb31f3c4",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/260c26fdca68d6e37d3afba0a652c996fb31f3c4",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/260c26fdca68d6e37d3afba0a652c996fb31f3c4"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "4a67d73127512ef6ba80ca7faf5d5b380b6d0373",
+    "node_id": "C_kwDOU3hqGNoAKDRhNjdkNzMxMjc1MTJlZjZiYTgwY2E3ZmFmNWQ1YjM4MGI2ZDAzNzM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4a67d73127512ef6ba80ca7faf5d5b380b6d0373",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/4a67d73127512ef6ba80ca7faf5d5b380b6d0373",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-29T22:02:20Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-29T22:02:20Z"
+    },
+    "tree": {
+      "sha": "82855740ac385a9879cf90d1c2c591e11f3f9587",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/82855740ac385a9879cf90d1c2c591e11f3f9587"
+    },
+    "message": "Compute and fork branches of one Run at once\n\nProjectAPI keeps a job per branch: a branch computes or is created by one\njob at a time, and other branches of the Run, or other Runs, run up to\nthe limit. A fork waits only for its source branch. Cancelling with a\nbranch_id stops that branch; without one, the whole Run. Computations,\nforks, the CLI and TimelineStore.advance take branch leases and record\nbranch statuses. Index writers wait up to two minutes for another\nbranch's write.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "6482de4b6c03d1a739cb49393a93f685916242f4",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/6482de4b6c03d1a739cb49393a93f685916242f4",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/6482de4b6c03d1a739cb49393a93f685916242f4"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "fc331acf482e8e649580ed334621e62478f2c1b8",
+    "node_id": "C_kwDOU3hqGNoAKGZjMzMxYWNmNDgyZThlNjQ5NTgwZWQzMzQ2MjFlNjI0NzhmMmMxYjg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/fc331acf482e8e649580ed334621e62478f2c1b8",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/fc331acf482e8e649580ed334621e62478f2c1b8",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-29T22:02:20Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-29T22:02:20Z"
+    },
+    "tree": {
+      "sha": "79bc0a5971e6256e8929df2207c5f7105760699d",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/79bc0a5971e6256e8929df2207c5f7105760699d"
+    },
+    "message": "Describe branch leases, branch statuses and per-branch cancel\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "4a67d73127512ef6ba80ca7faf5d5b380b6d0373",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4a67d73127512ef6ba80ca7faf5d5b380b6d0373",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/4a67d73127512ef6ba80ca7faf5d5b380b6d0373"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "19a2a0b1c3a9e3bdcc588b7ef56805328dace309",
+    "node_id": "C_kwDOU3hqGNoAKDE5YTJhMGIxYzNhOWUzYmRjYzU4OGI3ZWY1NjgwNTMyOGRhY2UzMDk",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/19a2a0b1c3a9e3bdcc588b7ef56805328dace309",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/19a2a0b1c3a9e3bdcc588b7ef56805328dace309",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-29T22:08:00Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-29T22:08:00Z"
+    },
+    "tree": {
+      "sha": "6665cb29e2b17d48ce5fa63d64741265d40937aa",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/6665cb29e2b17d48ce5fa63d64741265d40937aa"
+    },
+    "message": "Show and control each branch's computation on the project screen\n\nThe screen read the Run's status, which is running while any branch\ncomputes, so every branch's buttons were disabled and a fork waited for\nother branches to stop. It now reads the selected branch's status: its\ncompute, fork and preview buttons are disabled only while it computes,\nthe branch list marks computing branches, a fork ends when its child is\nlisted and still or its outcome failed, and cancel stops the selected\nbranch. A Run without branch statuses still uses its own.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "fc331acf482e8e649580ed334621e62478f2c1b8",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/fc331acf482e8e649580ed334621e62478f2c1b8",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/fc331acf482e8e649580ed334621e62478f2c1b8"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "71ef3c95237b23b1373dd5b07829102d92a6eb6d",
+    "node_id": "C_kwDOU3hqGNoAKDcxZWYzYzk1MjM3YjIzYjEzNzNkZDViMDc4MjkxMDJkOTJhNmViNmQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/71ef3c95237b23b1373dd5b07829102d92a6eb6d",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/71ef3c95237b23b1373dd5b07829102d92a6eb6d",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-29T22:23:02Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-29T22:23:02Z"
+    },
+    "tree": {
+      "sha": "79bc0a5971e6256e8929df2207c5f7105760699d",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/79bc0a5971e6256e8929df2207c5f7105760699d"
+    },
+    "message": "Merge pull request #277 from jphacks/feature/branch-writers\n\n同じ Run の複数の branch を同時に計算・分岐できるようにする（#48 段階3 バックエンド）",
+    "parents": [
+      {
+        "sha": "260c26fdca68d6e37d3afba0a652c996fb31f3c4",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/260c26fdca68d6e37d3afba0a652c996fb31f3c4",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/260c26fdca68d6e37d3afba0a652c996fb31f3c4"
+      },
+      {
+        "sha": "fc331acf482e8e649580ed334621e62478f2c1b8",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/fc331acf482e8e649580ed334621e62478f2c1b8",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/fc331acf482e8e649580ed334621e62478f2c1b8"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq48dGCRC1aQ7uu5UhlAAAQdUQAK2xIDdY3ePtgoVC6/lXjSYO\nMbxc7Ffe7BHUBaXNcFn2gpShESQqcXsprkVAdBoM1DOVGAJZQPXAMmU9ArZ6wNsU\n03Ax52HOAJYO0ZMbh2Ak+g4U26GhezClggITddRCGBxgzTlx12DVrdCXszkTlFtL\nBexGN4wqg3mZ+t7frU9vBX2ERYcVICG5T5PHAveyzqJtsiWgRsoEaJcrsRwUUcQ5\nZ/2w1yLAvOaI27Hzg4xS1QIi7Wm5t4N7vSBSSKMeolneRbmzknVUOi1K2Q3jPKJq\n2xryRQjrYE8whpg4Zpai6l/QJg10hn2jVZA/b5+Zr9NfLE8GuIsScu+5ZQwLQPaI\n2Ujcc4qgYDL05smurAaCZK4bBI5244TFyPH+eUiIs7VLH1GiNCkojv7b6zaKNaE0\nlHUHEGSXdPJgwZfemiBj47l5DeCPZylncpxne48H3THvFI7zRw1P4ByqzeYcmd7x\no0eVPh7YcSNyg3RyyKD+Xf/SyLeYSOCKPsZLdcxG7MOieCIfv7Aqe81Gz0HKMB4v\nlKzVPW0obkFf8ScvAO+VS1BQj+/EhrC6NY0XzBjFHq5xFp2jrw9pu/h8ZGOjUKkp\nalwyBQSfXiOf44vp5ElnK96QUSw451kOkfguUtpj/XU/Kr5qdV1bxzjATkj4cvGk\nNWu0dBaSGjtyCIqX0J9x\n=6o/A\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree 79bc0a5971e6256e8929df2207c5f7105760699d\nparent 260c26fdca68d6e37d3afba0a652c996fb31f3c4\nparent fc331acf482e8e649580ed334621e62478f2c1b8\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793312582 +0900\ncommitter GitHub <noreply@github.com> 1793312582 +0900\n\nMerge pull request #277 from jphacks/feature/branch-writers\n\n同じ Run の複数の branch を同時に計算・分岐できるようにする（#48 段階3 バックエンド）",
+      "verified_at": "2026-10-29T22:23:02Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "f1c91775c2b62521220553023b994726697d1473",
+    "node_id": "C_kwDOU3hqGNoAKGYxYzkxNzc1YzJiNjI1MjEyMjA1NTMwMjNiOTk0NzI2Njk3ZDE0NzM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f1c91775c2b62521220553023b994726697d1473",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/f1c91775c2b62521220553023b994726697d1473",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-29T22:45:04Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-29T22:45:04Z"
+    },
+    "tree": {
+      "sha": "6665cb29e2b17d48ce5fa63d64741265d40937aa",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/6665cb29e2b17d48ce5fa63d64741265d40937aa"
+    },
+    "message": "Merge pull request #278 from jphacks/feature/branch-status-screen\n\nProject 画面で、branch ごとの計算の状態を表示・操作する（#48 段階3 画面）",
+    "parents": [
+      {
+        "sha": "71ef3c95237b23b1373dd5b07829102d92a6eb6d",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/71ef3c95237b23b1373dd5b07829102d92a6eb6d",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/71ef3c95237b23b1373dd5b07829102d92a6eb6d"
+      },
+      {
+        "sha": "19a2a0b1c3a9e3bdcc588b7ef56805328dace309",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/19a2a0b1c3a9e3bdcc588b7ef56805328dace309",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/19a2a0b1c3a9e3bdcc588b7ef56805328dace309"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq48xwCRC1aQ7uu5UhlAAABEYQACzwZRT0aodoalwTINiGX0Cw\n+LBXM2UN6V/+w6r+3nysAeYFsaoGBl1i7+zpksrS2OSs/NReKoXaI04dIGx9Rg1v\nXxs1biT1+arhYQ5iL5j2sMq/5G2QCtrswstLoWSYr8YWKscgISY+HD7VRV2XKw8o\nO4/FJsSZbthy5VcFSUUSnWcg/s0ub/89n7l/T1L/tHLVmxbUAkWQp1Ge6+Cg+NzA\npQAwL9mKTMY6gStXov2dkyHDovHnIzYYtPoRniFJKAw+SzWHpnZgMdD7EPFnsi2k\neUZouD4+zsEa0abYxUGGTXs0sbgzac54Uv7IDEp/hHl5CR6ELobpmIbhJ8u1vG7Y\nIMutvbdZK0RVhm87XIeVwWpe2Cfif/LudO+jYk4auqq4d4ZyBVt6wUiwoCsUq0gb\nC1zl/RuIdAmmovW0MAyWUMWhq4gwIvdsqYtMLKSXoCniEF5ViuCniKcoD1eqH3BU\noDJmFF/JcMsiLuHIdMgFrN+UyojMsFEdr1YttZv3WFJVDmB+1QTwv4dshylkHK9T\nz4UxkJK481uW3aViB7VJZ9AfV0B9iJ1ttv8JfiSdCXTjRWUDvH5p6SQ/HnkaQdLN\nYz7dDWnz0KAwEufPxRbDoXD+XqMa+s57swEBB2SwlCJ5/RnMD7W+JVb1KrlmlcJB\nqjTzesDIfYGRkt7opZi2\n=rEan\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree 6665cb29e2b17d48ce5fa63d64741265d40937aa\nparent 71ef3c95237b23b1373dd5b07829102d92a6eb6d\nparent 19a2a0b1c3a9e3bdcc588b7ef56805328dace309\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793313904 +0900\ncommitter GitHub <noreply@github.com> 1793313904 +0900\n\nMerge pull request #278 from jphacks/feature/branch-status-screen\n\nProject 画面で、branch ごとの計算の状態を表示・操作する（#48 段階3 画面）",
+      "verified_at": "2026-10-29T22:45:04Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "1b8386f67383cafdb58cdac119cd1a5521401a93",
+    "node_id": "C_kwDOU3hqGNoAKDFiODM4NmY2NzM4M2NhZmRiNThjZGFjMTE5Y2QxYTU1MjE0MDFhOTM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/1b8386f67383cafdb58cdac119cd1a5521401a93",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/1b8386f67383cafdb58cdac119cd1a5521401a93",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T00:03:10Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T00:03:10Z"
+    },
+    "tree": {
+      "sha": "3bb39864e64f4ba6e21656838b6dcb07c7b15c76",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/3bb39864e64f4ba6e21656838b6dcb07c7b15c76"
+    },
+    "message": "Write the chunks one save adds into one pack file\n\nA v3 checkpoint manifest records where each chunk is in a pack. Chunks of\nearlier saves are referred to where they are, and v1/v2 archives with one\nfile per chunk stay readable. Checkpoint v1 contents and hashes are unchanged.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "f1c91775c2b62521220553023b994726697d1473",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f1c91775c2b62521220553023b994726697d1473",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/f1c91775c2b62521220553023b994726697d1473"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "d395df3c0670d48fdc84189118e2c8d2ca733d2a",
+    "node_id": "C_kwDOU3hqGNoAKGQzOTVkZjNjMDY3MGQ0OGZkYzg0MTg5MTE4ZTJjOGQyY2E3MzNkMmE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/d395df3c0670d48fdc84189118e2c8d2ca733d2a",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/d395df3c0670d48fdc84189118e2c8d2ca733d2a",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T00:05:31Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T00:05:31Z"
+    },
+    "tree": {
+      "sha": "0120c8f05ef0765c2efc6d9e93c07e9e574cbdc6",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/0120c8f05ef0765c2efc6d9e93c07e9e574cbdc6"
+    },
+    "message": "Remember every chunk a writer packed and list each pack name once\n\nA chunk that left one save and came back in a later one was written again.\nThe writer's encoder now keeps the locations of all its saves, and manifests\nstore locations as a pack-name table plus per-chunk indexes.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "1b8386f67383cafdb58cdac119cd1a5521401a93",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/1b8386f67383cafdb58cdac119cd1a5521401a93",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/1b8386f67383cafdb58cdac119cd1a5521401a93"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "12f37b7d5dc21f20c7aaa620c54cf98d6657a024",
+    "node_id": "C_kwDOU3hqGNoAKDEyZjM3YjdkNWRjMjFmMjBjN2FhYTYyMGM1NGNmOThkNjY1N2EwMjQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/12f37b7d5dc21f20c7aaa620c54cf98d6657a024",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/12f37b7d5dc21f20c7aaa620c54cf98d6657a024",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-30T00:37:12Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-30T00:37:12Z"
+    },
+    "tree": {
+      "sha": "0120c8f05ef0765c2efc6d9e93c07e9e574cbdc6",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/0120c8f05ef0765c2efc6d9e93c07e9e574cbdc6"
+    },
+    "message": "Merge pull request #279 from jphacks/perf/checkpoint-packs\n\nCheckpoint の chunk を保存ごとに1つの pack にまとめ、7日分の計算を19%短くする",
+    "parents": [
+      {
+        "sha": "f1c91775c2b62521220553023b994726697d1473",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f1c91775c2b62521220553023b994726697d1473",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/f1c91775c2b62521220553023b994726697d1473"
+      },
+      {
+        "sha": "d395df3c0670d48fdc84189118e2c8d2ca733d2a",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/d395df3c0670d48fdc84189118e2c8d2ca733d2a",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/d395df3c0670d48fdc84189118e2c8d2ca733d2a"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq4+a4CRC1aQ7uu5UhlAAAq6EQAGXqpm49opgm2IELiMlSCfJC\nT9ecEAxGz4md7gZ98GdeyfRoh7hhw5v0ZBy6emDAY+Dhn4Yuwv2GQ8mPm4fa9ufx\nxpK4KbEDyi+TFE9y4jLkAJgBU98dJR88wa3gNAgxHR8aQ7p84rJkJjUmF26WRMl9\nFl1WumQx5ZKuFUv64uWW8Grxrt0CzRJjHmQ9QIbFlkGTczTAMaJx9Iij2h8tbD3L\nwfPphmwlROw8WyKe24pTjwH1siUuoub0yrXxTbCH4p7o0Q7gIMtPsBohd8lP+iOw\nTr0B9fM6XfoxeZrTyyCb0bbBSlKZWF7Mo3OrFZ5EWx6Bg6ER/Y5VPNrVsISbenOn\nry+++t4zxPj92oa9jPumXSEDjKeoQjb7rmXx48dTUJfMo8F4H93nfZ5Yn/WHUpou\nni4NRp8xjqXlneJxbrlZ1ZrEckeZ518maRy9VjejJHdhmzmM6p5Pf+ElkQXsGw4D\ndUA2iCYTnjxMA3ATCxH0xBSc9U8tpGDKgfmCL4BVsP5vER3cYmj94xz9WTFbYdnQ\nTVPzp0a+gzyvau6ZwFn6WjAfbKw7df2Eke++f20LRTvxCP5gq/TijZ0wE27tYmpu\nEezQwuYo4NNuBiUjP1sZaDCYCk2CWdP4dv0nn1qJOqcDu9XszC/1QqqacZEJY3yG\n5mNIjzQnnOyZB5Im6LbE\n=XxEh\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree 0120c8f05ef0765c2efc6d9e93c07e9e574cbdc6\nparent f1c91775c2b62521220553023b994726697d1473\nparent d395df3c0670d48fdc84189118e2c8d2ca733d2a\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793320632 +0900\ncommitter GitHub <noreply@github.com> 1793320632 +0900\n\nMerge pull request #279 from jphacks/perf/checkpoint-packs\n\nCheckpoint の chunk を保存ごとに1つの pack にまとめ、7日分の計算を19%短くする",
+      "verified_at": "2026-10-30T00:37:13Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "079fd0d307cea71dfd91c75698963e98d57116b7",
+    "node_id": "C_kwDOU3hqGNoAKDA3OWZkMGQzMDdjZWE3MWRmZDkxYzc1Njk4OTYzZTk4ZDU3MTE2Yjc",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/079fd0d307cea71dfd91c75698963e98d57116b7",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/079fd0d307cea71dfd91c75698963e98d57116b7",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T00:57:30Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T00:57:30Z"
+    },
+    "tree": {
+      "sha": "655f19d4249b784a93fd9011612541b28a56870e",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/655f19d4249b784a93fd9011612541b28a56870e"
+    },
+    "message": "Check a save's restore by comparing it with the world just validated\n\nThe restore check of a cached capture builds the world from the saved document\nand compares it with the world validated before the capture. An equal world\npasses the same validation, so it is not validated again; a different one is.\nEventLog records an earlier check found equal are not compared again.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "12f37b7d5dc21f20c7aaa620c54cf98d6657a024",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/12f37b7d5dc21f20c7aaa620c54cf98d6657a024",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/12f37b7d5dc21f20c7aaa620c54cf98d6657a024"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "d8f5cd6ee033cc801b23913a95abee7d319422c7",
+    "node_id": "C_kwDOU3hqGNoAKGQ4ZjVjZDZlZTAzM2NjODAxYjIzOTEzYTk1YWJlZTdkMzE5NDIyYzc",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/d8f5cd6ee033cc801b23913a95abee7d319422c7",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/d8f5cd6ee033cc801b23913a95abee7d319422c7",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T01:43:25Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T01:43:25Z"
+    },
+    "tree": {
+      "sha": "3dc4a499e0a389ade0e6ae1e5ade1d7455218487",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/3dc4a499e0a389ade0e6ae1e5ade1d7455218487"
+    },
+    "message": "Parse only recent shared-operation records before an append\n\nrecord_shared_operation validated the whole shared operations state, up to\n20,000 records, on every append. Like per-tick validation it now parses the\nrecords since the previous tick; the duplicate check reads the same records,\nsince a record carries its event's realized minute, the current one.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "12f37b7d5dc21f20c7aaa620c54cf98d6657a024",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/12f37b7d5dc21f20c7aaa620c54cf98d6657a024",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/12f37b7d5dc21f20c7aaa620c54cf98d6657a024"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "06dd714af80b91971e9646465e3156d37828b3a0",
+    "node_id": "C_kwDOU3hqGNoAKDA2ZGQ3MTRhZjgwYjkxOTcxZTk2NDY0NjVlMzE1NmQzNzgyOGIzYTA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/06dd714af80b91971e9646465e3156d37828b3a0",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/06dd714af80b91971e9646465e3156d37828b3a0",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T02:26:56Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T02:26:56Z"
+    },
+    "tree": {
+      "sha": "6019c7d2d51b576b97eb2549ec33f8174b34d3aa",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/6019c7d2d51b576b97eb2549ec33f8174b34d3aa"
+    },
+    "message": "Read only the checked event types and new records in full validation\n\nThe EventLog keeps indexes by event type and by provenance object as records\nare appended, and EventsById looks events up through its ID index. The\noperational, EffectProgram, environment and infrastructure checks read only the\nevent types they check, without copying the log into a dict. The EventLog audit\nchecks only records added since its last audit while the earlier ones are still\nthe same leading objects.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "12f37b7d5dc21f20c7aaa620c54cf98d6657a024",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/12f37b7d5dc21f20c7aaa620c54cf98d6657a024",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/12f37b7d5dc21f20c7aaa620c54cf98d6657a024"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "94941562fef8c46fe1e58a5f255fdac4f7e79aea",
+    "node_id": "C_kwDOU3hqGNoAKDk0OTQxNTYyZmVmOGM0NmZlMWU1OGE1ZjI1NWZkYWM0ZjdlNzlhZWE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/94941562fef8c46fe1e58a5f255fdac4f7e79aea",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/94941562fef8c46fe1e58a5f255fdac4f7e79aea",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T02:56:57Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T02:56:57Z"
+    },
+    "tree": {
+      "sha": "3ec68dc5c18d12b28ba76164a60d687a1df97577",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/3ec68dc5c18d12b28ba76164a60d687a1df97577"
+    },
+    "message": "End a thread job's status, lease and entry together under the API lock\n\nA thread job wrote its final status, recorded telemetry, then released its\nlease and left the job table. A client that saw the status and submitted the\nnext job at once was refused as busy. The three now end together under the\nlock a submit takes.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "12f37b7d5dc21f20c7aaa620c54cf98d6657a024",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/12f37b7d5dc21f20c7aaa620c54cf98d6657a024",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/12f37b7d5dc21f20c7aaa620c54cf98d6657a024"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "51628dabadcb2b92f40aac01db414c33176233e1",
+    "node_id": "C_kwDOU3hqGNoAKDUxNjI4ZGFiYWRjYjJiOTJmNDBhYWMwMWRiNDE0YzMzMTc2MjMzZTE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/51628dabadcb2b92f40aac01db414c33176233e1",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/51628dabadcb2b92f40aac01db414c33176233e1",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T02:57:22Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T02:57:22Z"
+    },
+    "tree": {
+      "sha": "b9ea68a40005c29bb8096869d11610d0302283ca",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/b9ea68a40005c29bb8096869d11610d0302283ca"
+    },
+    "message": "Check each social and body relationship record inline every tick\n\nEvery tick checks every relationship (about 9,800 at day 7). The record checks\nnow compare key views with a constant set and read the counts directly instead\nof building a set and running generators per record, accepting exactly what\nthe field-by-field rules accepted.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "12f37b7d5dc21f20c7aaa620c54cf98d6657a024",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/12f37b7d5dc21f20c7aaa620c54cf98d6657a024",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/12f37b7d5dc21f20c7aaa620c54cf98d6657a024"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "30ef6d8a019a522f3bbf658e8bdbd93674777dc2",
+    "node_id": "C_kwDOU3hqGNoAKDMwZWY2ZDhhMDE5YTUyMmYzYmJmNjU4ZThiZGJkOTM2NzQ3NzdkYzI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/30ef6d8a019a522f3bbf658e8bdbd93674777dc2",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/30ef6d8a019a522f3bbf658e8bdbd93674777dc2",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-30T03:03:07Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-30T03:03:07Z"
+    },
+    "tree": {
+      "sha": "655f19d4249b784a93fd9011612541b28a56870e",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/655f19d4249b784a93fd9011612541b28a56870e"
+    },
+    "message": "Merge pull request #280 from jphacks/perf/restore-check-equality\n\n保存ごとの復元の確認を、直前に検証した世界との比較にして、7日分の計算を短くする",
+    "parents": [
+      {
+        "sha": "12f37b7d5dc21f20c7aaa620c54cf98d6657a024",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/12f37b7d5dc21f20c7aaa620c54cf98d6657a024",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/12f37b7d5dc21f20c7aaa620c54cf98d6657a024"
+      },
+      {
+        "sha": "079fd0d307cea71dfd91c75698963e98d57116b7",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/079fd0d307cea71dfd91c75698963e98d57116b7",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/079fd0d307cea71dfd91c75698963e98d57116b7"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq5AjrCRC1aQ7uu5UhlAAA7O8QAIk3eg0tu59Urk5Ml/4FWbqV\nzCtNtuF2bGwo5AZij/ZZZWNWhlyVkJVEDeO4pCfccBP0uUYndsHMOh6IBWE+W3Xz\ntV/cHrJwaSLJCK/y34/4f6oA1Nbxi/cTrhLFUoOZ7z+QQZ+hre5BgqTuFEvPR5bU\nPcoElQPd9tiJbDid6MPwPLPXZXg7sIIkgMG2IkXo8MznzD6nWcri4674LiX0NNIc\n4sD+niotmolZADGEjiNjLypDins8Ex07UMyx8/2vK1OzMUBf1Q+v7hj2xiUUSN2Y\npq9A10I6nY6qOs2AsY+7AKmxx48UoLKAu1x77oQ3RB+ZodDImiDsU+HzLF2v5yyZ\nXnhB8AyxkaQmBY9Y3u5EWiMnx4g9UN05TKi/Z/vYaGYeCrW6YQzPxn2MkKfDfZGc\n12S9IR6oX8zUB4sz5fLRGKE2FB+hdgGVzEVEaij0VyORqKtjcfRTEY6UOo/G1Xsd\nFScvoJotT4ijlDKIBhiIRv7BDPXyxO92qQgNSZunX6KWFQXVCHLghOVPJhVJ7MLl\nII2eyCABGypOiNc93ARVR1AzdhqnUjzXNTSo51Mo94bWJkH3UL2knM3EMxxasDQn\nu9Fz4EDPXh13BfQTtm7qFTX3C0SVb4ggj5mqnwxzDouKpwp1Jg/7gtwOyNmapBq0\nxtVdd1ZuMr8+UDsdiqsn\n=ZOGm\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree 655f19d4249b784a93fd9011612541b28a56870e\nparent 12f37b7d5dc21f20c7aaa620c54cf98d6657a024\nparent 079fd0d307cea71dfd91c75698963e98d57116b7\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793329387 +0900\ncommitter GitHub <noreply@github.com> 1793329387 +0900\n\nMerge pull request #280 from jphacks/perf/restore-check-equality\n\n保存ごとの復元の確認を、直前に検証した世界との比較にして、7日分の計算を短くする",
+      "verified_at": "2026-10-30T03:03:07Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "b290261223f3b21b5c62dae85db18b33a6bb7872",
+    "node_id": "C_kwDOU3hqGNoAKGIyOTAyNjEyMjNmM2IyMWI1YzYyZGFlODVkYjE4YjMzYTZiYjc4NzI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/b290261223f3b21b5c62dae85db18b33a6bb7872",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/b290261223f3b21b5c62dae85db18b33a6bb7872",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-30T03:03:10Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-30T03:03:10Z"
+    },
+    "tree": {
+      "sha": "de4b4e82498a12d66d1686fb121caee6e34ef059",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/de4b4e82498a12d66d1686fb121caee6e34ef059"
+    },
+    "message": "Merge pull request #281 from jphacks/perf/shared-operation-append\n\n運営の記録を足すときの検証を前の tick 以降の記録に絞り、日を追って伸びる tick の時間を減らす",
+    "parents": [
+      {
+        "sha": "30ef6d8a019a522f3bbf658e8bdbd93674777dc2",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/30ef6d8a019a522f3bbf658e8bdbd93674777dc2",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/30ef6d8a019a522f3bbf658e8bdbd93674777dc2"
+      },
+      {
+        "sha": "d8f5cd6ee033cc801b23913a95abee7d319422c7",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/d8f5cd6ee033cc801b23913a95abee7d319422c7",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/d8f5cd6ee033cc801b23913a95abee7d319422c7"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq5AjuCRC1aQ7uu5UhlAAAQS8QAGOOykgYXlJL5pqnNbtVdNnD\n0e51IYpXjpnOyOEmbIw7OsqAEup2eBOVZtUL07pbLqJ17vL7AneDoTJQZzmXWFlY\nL//c9WjqkT15y9ThvbYUQXg4QTAz7H9Z2/YReagLTK+ZRBy4gRNiQZlfWW0mAZGx\nwkE0klEmsXjBSKoJzEdk02HXy4FL55babUf7FwpwN3PjQ8mlgPzPKsJ2yWfXWTpK\n/haz7Wz5MGUg+NoLbsn8oJXgKNI05tMDP3weXT8YCHqz1gE46WKPDNJlB2ZBudu1\nhItm/Y9Jwl27iEssSYo0Jhp1TvGQWAj0xywul+qje/2m2UKpQFrpbipwKaVYT/AZ\n7K8QLEYByMqIqyuL0+G2nFvZtOBVA7NxT1DqRWVl4KorYB0Fave+sEkPDFp01XVO\nTUOEbOWVvdMO4Tdh6eXBv9Cr/6kv16IEI3xoWN+Q1nHxbeJlffMBOy/l8zPP+oz2\nQ/yg/QoY/VugLEQo0FByHjXANFho4jVYD4SpqiMZvlUukeYyPcq7uWCif+AbshCE\n7KlRkqwXctnamKU7+rd7x13+RFscks7B2yQyAsEaVCGSmgPioRMUZ75tLF2z/nCB\n+WLyUHmslLNTD6PEPufSbbyZZryz8aSjSTR6n+GKPRfw+aLhEDRb02Vs2qZmgFs3\n4PSByQ14GkJaflsCT6WA\n=Ui5n\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree de4b4e82498a12d66d1686fb121caee6e34ef059\nparent 30ef6d8a019a522f3bbf658e8bdbd93674777dc2\nparent d8f5cd6ee033cc801b23913a95abee7d319422c7\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793329390 +0900\ncommitter GitHub <noreply@github.com> 1793329390 +0900\n\nMerge pull request #281 from jphacks/perf/shared-operation-append\n\n運営の記録を足すときの検証を前の tick 以降の記録に絞り、日を追って伸びる tick の時間を減らす",
+      "verified_at": "2026-10-30T03:03:11Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "0f5c6aaa790db8465192b2fb09843427f032abd9",
+    "node_id": "C_kwDOU3hqGNoAKDBmNWM2YWFhNzkwZGI4NDY1MTkyYjJmYjA5ODQzNDI3ZjAzMmFiZDk",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/0f5c6aaa790db8465192b2fb09843427f032abd9",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/0f5c6aaa790db8465192b2fb09843427f032abd9",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-30T03:03:15Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-30T03:03:15Z"
+    },
+    "tree": {
+      "sha": "d849c297707c9511a7350568c2eb4f3033c1d51f",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/d849c297707c9511a7350568c2eb4f3033c1d51f"
+    },
+    "message": "Merge pull request #282 from jphacks/perf/incremental-history-validation\n\n完全な検証で EventLog の確かめる種類と増えた記録だけを読み、保存を短くする",
+    "parents": [
+      {
+        "sha": "b290261223f3b21b5c62dae85db18b33a6bb7872",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/b290261223f3b21b5c62dae85db18b33a6bb7872",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/b290261223f3b21b5c62dae85db18b33a6bb7872"
+      },
+      {
+        "sha": "06dd714af80b91971e9646465e3156d37828b3a0",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/06dd714af80b91971e9646465e3156d37828b3a0",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/06dd714af80b91971e9646465e3156d37828b3a0"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq5AjzCRC1aQ7uu5UhlAAA6T0QAGM9VrgoDGT5augFP4l4NlwO\n2dCKyracjQ5HYNdIFA8EFheobCNQp03jz5Bzsrc4SWz4Bck8N7f/PMJ21rD8BJwf\nJF+8DD3ExbAsdtkJBbkDUfYCbwDA8MkGOCNw+Zec6Jk4Gbgij+NIzekmd1xtOGXe\nsFN4vGNB0HSwNxR5fD1sMBhwdb6n6QvU6uqvlwdmuTBR6SHz9JtqHTbm8sOqLjpt\ng30QtOHrXS5fYQsP8HyywseOA6kzn8jWIr55O0Cum7OLOjS1rbP1ITSzKdziKjk9\nDoIlELGG3eDFcT0trPOUwkcxXF0U+4KQ6AXARKMLO8Lwlfmh8v6VUw7yu7OuJVg6\nYAS+lEVz3NDHGUHLidZNaiyHk5f5Ofw07IIVJ0rN/79ZW+i+ijMWmtLjfUPKi2Gn\nJU/HRwYWjLpdYiupKfEuDjvrXE4+pwwC88rTpKMCb6+urS8VDVz1me7WDPrIXyEo\nmNwVfAXaOcOO2djYcgEj0Efilni7tuC83+82hTE8V/gwORneWJl3RXpGX+cwHTH5\nsrDbJ8oaw0JxvIoo/WG9fdrAyIF2UFYmKjPRcADw2ueVzddYXmlW5Y54/Ol4Inz1\nY4y9hnu3lQyxS3XsBvH4WGBPVDuz706v/I8P4wCehFgbMepGv8e77okjonzai5cA\ndAaLyUI3HqBCIcO880JM\n=l/mt\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree d849c297707c9511a7350568c2eb4f3033c1d51f\nparent b290261223f3b21b5c62dae85db18b33a6bb7872\nparent 06dd714af80b91971e9646465e3156d37828b3a0\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793329395 +0900\ncommitter GitHub <noreply@github.com> 1793329395 +0900\n\nMerge pull request #282 from jphacks/perf/incremental-history-validation\n\n完全な検証で EventLog の確かめる種類と増えた記録だけを読み、保存を短くする",
+      "verified_at": "2026-10-30T03:03:15Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "3e0777b02224c9e9d9a3cc4cfb2ccc45f8f28760",
+    "node_id": "C_kwDOU3hqGNoAKDNlMDc3N2IwMjIyNGM5ZTlkOWEzY2M0Y2ZiMmNjYzQ1ZjhmMjg3NjA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/3e0777b02224c9e9d9a3cc4cfb2ccc45f8f28760",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/3e0777b02224c9e9d9a3cc4cfb2ccc45f8f28760",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-30T03:14:50Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-30T03:14:50Z"
+    },
+    "tree": {
+      "sha": "9d551a8126d8cdc59819174bd0782105dd6b0d35",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/9d551a8126d8cdc59819174bd0782105dd6b0d35"
+    },
+    "message": "Merge pull request #283 from jphacks/fix/thread-job-finish-race\n\nスレッドの計算が終わるとき、状態・書き込み権・ジョブをまとめて片付け、直後の計算が断られないようにする",
+    "parents": [
+      {
+        "sha": "0f5c6aaa790db8465192b2fb09843427f032abd9",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/0f5c6aaa790db8465192b2fb09843427f032abd9",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/0f5c6aaa790db8465192b2fb09843427f032abd9"
+      },
+      {
+        "sha": "94941562fef8c46fe1e58a5f255fdac4f7e79aea",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/94941562fef8c46fe1e58a5f255fdac4f7e79aea",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/94941562fef8c46fe1e58a5f255fdac4f7e79aea"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq5AuqCRC1aQ7uu5UhlAAAiS8QABwbQWMdlrr0DMIbWNeVSR4E\ngrXFBPRqhY5u053MiNd+h6Gqqxk28U0pvYkURgxUck9+VZo4Mmc4JI1wwSMWD4sk\n0MAPYwlHHvCai0jxoKmt7uiXzxMrdRadobzgXFAl49fM1Lu42xEVZmPmQRKQ/mgx\nnZeT0Y5xV87HZu7+j2MgQ65F4zroelXYMwbn6UEMzInimCQ0FOsnLIFf+RLUgVpX\n5dQR/bwZ6AzYxZeTNCKUWwuIJJllGESTqdCfiDUceCZ1/rWU47V1OoZqJW2vUJ8e\nvbcNrZ/691qiEGO2K/UtBa+ZwGDWSZoOJptHapXvVqaBmi9rVSbWsSpflymtY2ux\nHppaNFqLxFWG230VHNKgcMBwW6T8tTtRHasZ2H4fcIUxm17FIoqPdTyBBWmMVPQp\nwH1ivijqMnn4VWWwW8BOImkVgXIGtSq+Bjx1sjWeWaM9Wks4jmbJLRYeFrcFOb4X\nrLlXSw1z8ETLlYQFJegu50ALGyFbvZMikq3Rtr2U3WpaK764yM2Xt36UyD9mBoeK\n1TYtSh49B8BKMHsfXxgLQl9pGf4fla2MGezS1uMVLfCglgO8pMlzJ4LREmoxIzHz\nxuO35wuFzCpxy5KobaDr5lbevwne107v1GXkmQG1JbbKzn7wJ6hiUgDICsWwyHa0\n9KYIMpxPjzqTnu+OeV3C\n=2ZUH\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree 9d551a8126d8cdc59819174bd0782105dd6b0d35\nparent 0f5c6aaa790db8465192b2fb09843427f032abd9\nparent 94941562fef8c46fe1e58a5f255fdac4f7e79aea\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793330090 +0900\ncommitter GitHub <noreply@github.com> 1793330090 +0900\n\nMerge pull request #283 from jphacks/fix/thread-job-finish-race\n\nスレッドの計算が終わるとき、状態・書き込み権・ジョブをまとめて片付け、直後の計算が断られないようにする",
+      "verified_at": "2026-10-30T03:14:50Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "4272b404a3f1d005a9d442d86f9fba830a95794e",
+    "node_id": "C_kwDOU3hqGNoAKDQyNzJiNDA0YTNmMWQwMDVhOWQ0NDJkODZmOWZiYTgzMGE5NTc5NGU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4272b404a3f1d005a9d442d86f9fba830a95794e",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/4272b404a3f1d005a9d442d86f9fba830a95794e",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-30T03:14:54Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-30T03:14:54Z"
+    },
+    "tree": {
+      "sha": "eba5dd1eb78014fb6d03552e4bac40c909330b67",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/eba5dd1eb78014fb6d03552e4bac40c909330b67"
+    },
+    "message": "Merge pull request #284 from jphacks/perf/per-tick-validators\n\n毎 tick の社会関係・体調の関係の確認を直接書き、検証の時間を減らす",
+    "parents": [
+      {
+        "sha": "3e0777b02224c9e9d9a3cc4cfb2ccc45f8f28760",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/3e0777b02224c9e9d9a3cc4cfb2ccc45f8f28760",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/3e0777b02224c9e9d9a3cc4cfb2ccc45f8f28760"
+      },
+      {
+        "sha": "51628dabadcb2b92f40aac01db414c33176233e1",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/51628dabadcb2b92f40aac01db414c33176233e1",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/51628dabadcb2b92f40aac01db414c33176233e1"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq5AuuCRC1aQ7uu5UhlAAAMTAQAASScc+QpjYtmJ+034NJxskl\nOHm3NwV4ck3JRPVkwG+blTnzzdI12fYOuPETFJjD40k2MXE2vKsCGz7umk/CzFKo\n/yeLIXrOOEpdrHgFyZnJBzAxBwTPmZlbdRrg90gK3erz5PXbvH5hkHidQJiSH0bI\n/GFVWhQ+8J11ZQXa372D7q27jyBnBlkUZAZSSTvqOYzfAAk5dtMZooNrjyfN4Ihl\nh4HYNYg3rmeBbXyhaUMghIe1yepmE7WTEYAD2VDse7oMNxlGjThtyYv/b/rsMgLR\n0PV0JY2FJG6b49DjDeJ3RLiAbCrRF2L1PF7to86SYhW8Jc4BVLo6wzZabwvZ/FmU\nMiTPXCRjyBB4Vh/vnlZOA81xCgPPofIjM0lltXjmuThz0yvoybVpk4wDquQfn5ES\nzGwts9AM+qwEvsMTzNRfqmnDkYYO7JsW6Cab+c7bBnQ6et0UQSpH4q+q9Jayaw2n\nmHViGFuaZ0tTo3Drgd1VdPOSbH8WvmQ13gAYjt1Uf74JZ55c/xKc4wAc4Nk1Lkin\nJYpGM1DM4c0rh+yQX9mHQ3m8x81U97VmrqR+dTSPSp2qdUz9RkKRz+ITN+MBcPVU\nb7PeASEnNrlsvx9wKm6zhZo/nKJmpUgxJWpijkb8PUVIn39xoiVXnRMYdVqC+b7r\nVnH3q73vr8DJHX/esl9H\n=01ZP\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree eba5dd1eb78014fb6d03552e4bac40c909330b67\nparent 3e0777b02224c9e9d9a3cc4cfb2ccc45f8f28760\nparent 51628dabadcb2b92f40aac01db414c33176233e1\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793330094 +0900\ncommitter GitHub <noreply@github.com> 1793330094 +0900\n\nMerge pull request #284 from jphacks/perf/per-tick-validators\n\n毎 tick の社会関係・体調の関係の確認を直接書き、検証の時間を減らす",
+      "verified_at": "2026-10-30T03:14:55Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "c031061f05dadea13eb894835a2e5b2e6eec9ff7",
+    "node_id": "C_kwDOU3hqGNoAKGMwMzEwNjFmMDVkYWRlYTEzZWI4OTQ4MzVhMmU1YjJlNmVlYzlmZjc",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c031061f05dadea13eb894835a2e5b2e6eec9ff7",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/c031061f05dadea13eb894835a2e5b2e6eec9ff7",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T04:23:17Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T04:23:17Z"
+    },
+    "tree": {
+      "sha": "05074719378fe0a16ebfbf99dc7be177de1d5592",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/05074719378fe0a16ebfbf99dc7be177de1d5592"
+    },
+    "message": "Measure the end of a saved Run and compare hashes in the benchmark\n\ninvestigate_performance.py can fork a saved Run's main branch at a minute and\ncompute a short window from there, so the last day's saves and ticks are\nmeasured without computing the whole Run again. --expect compares the world,\nevents and KPI hashes with an earlier result and exits 1 on a mismatch.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "4272b404a3f1d005a9d442d86f9fba830a95794e",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4272b404a3f1d005a9d442d86f9fba830a95794e",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/4272b404a3f1d005a9d442d86f9fba830a95794e"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "a24f47d3af493a586a920f98b308ff66c58c78c5",
+    "node_id": "C_kwDOU3hqGNoAKGEyNGY0N2QzYWY0OTNhNTg2YTkyMGY5OGIzMDhmZjY2YzU4Yzc4YzU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/a24f47d3af493a586a920f98b308ff66c58c78c5",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/a24f47d3af493a586a920f98b308ff66c58c78c5",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T05:05:51Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T05:05:51Z"
+    },
+    "tree": {
+      "sha": "125f5d12e8b6b6f2562dc62eec7392975047116a",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/125f5d12e8b6b6f2562dc62eec7392975047116a"
+    },
+    "message": "Compute psychology deltas without traces when no trace is recorded\n\nIntegratedDistressLifeStatePolicy.deltas_without_traces runs the three stages'\nexpressions in one pass without the per-agent traces and dataclass copies, and\nthe runner uses it when the trace level is off. The stress feedback formula is\nshared with explain_update. The deltas are bit for bit those of explain_update.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "4272b404a3f1d005a9d442d86f9fba830a95794e",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4272b404a3f1d005a9d442d86f9fba830a95794e",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/4272b404a3f1d005a9d442d86f9fba830a95794e"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "f37cd81f7da29304b6e6cdd362b5d58db46ef74d",
+    "node_id": "C_kwDOU3hqGNoAKGYzN2NkODFmN2RhMjkzMDRiNmU2Y2RkMzYyYjVkNThkYjQ2ZWY3NGQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f37cd81f7da29304b6e6cdd362b5d58db46ef74d",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/f37cd81f7da29304b6e6cdd362b5d58db46ef74d",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T05:24:43Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T05:24:43Z"
+    },
+    "tree": {
+      "sha": "deb1342d06ea87f9f9797880a164ecd9180bfaf6",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/deb1342d06ea87f9f9797880a164ecd9180bfaf6"
+    },
+    "message": "Take the saved checkpoint when forking at a saved minute\n\nA fork at a saved minute restored the source from its Checkpoint and then\ncaptured and restored it again for the child. When the source is the saved\nCheckpoint restored and not advanced, with the same runtime state, the child\nnow takes that Checkpoint and the source's world.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "4272b404a3f1d005a9d442d86f9fba830a95794e",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4272b404a3f1d005a9d442d86f9fba830a95794e",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/4272b404a3f1d005a9d442d86f9fba830a95794e"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "8fce25a567b7bdd39432bdc935348a7980565300",
+    "node_id": "C_kwDOU3hqGNoAKDhmY2UyNWE1NjdiN2JkZDM5NDMyYmRjOTM1MzQ4YTc5ODA1NjUzMDA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/8fce25a567b7bdd39432bdc935348a7980565300",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/8fce25a567b7bdd39432bdc935348a7980565300",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-30T06:30:34Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-30T06:30:34Z"
+    },
+    "tree": {
+      "sha": "05074719378fe0a16ebfbf99dc7be177de1d5592",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/05074719378fe0a16ebfbf99dc7be177de1d5592"
+    },
+    "message": "Merge pull request #285 from jphacks/perf/benchmark-late-window\n\n計測器で、保存済みの Run の終わりだけを測り、ハッシュを自動で比べられるようにする",
+    "parents": [
+      {
+        "sha": "4272b404a3f1d005a9d442d86f9fba830a95794e",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4272b404a3f1d005a9d442d86f9fba830a95794e",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/4272b404a3f1d005a9d442d86f9fba830a95794e"
+      },
+      {
+        "sha": "c031061f05dadea13eb894835a2e5b2e6eec9ff7",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c031061f05dadea13eb894835a2e5b2e6eec9ff7",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/c031061f05dadea13eb894835a2e5b2e6eec9ff7"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq5DmKCRC1aQ7uu5UhlAAAgCEQABS3CsyLtTA4KJBaGinnuTYH\nna5iN/LY3NwDbGaWEvbcZPZYEZrfswr8ecuB3I3bkymYhrDjuWPP/dL8V7dlMq8h\n5VvNZ0gUDr0QtV68BU7V8wKx0H+8iprRSlpt2PI0GCqvTko9e5DnPtYTfQ1TcV8u\n6JE1taSPdbKvwu3LAKICcTzfKCTuNS7K9oeZ4fyOtvZtgiWTmK7MbRLx0/YHX6Jj\nJi6Zbi7C5JAz1J47CBJfzmc1Q0Szs3s7w8r8/vew9YdLuJ6AHWFP5GUxE3Q8OHMN\n3jJfPpKVRxG3OVn/wSAkauX28gkSkakojU75dEGuSho2IhltxCdtmbzvAHWS/rE9\nfu07pF8QudJRW/GwYTXHquhdlFFdR6JSrl3QH/MFOEfAIeZ1FG12nEIXbxq7vGdA\nQgNrLC45IpQTU+DJCofLq6FPZR/3z2x/2jNpZiDPHTzDHuDHn58nOZT5rL1wJa1h\nTErs++ZEJ4lIpj0CcBbYgQtYCk80zJMdra9iFiDJKF5hIzUY4EC4Q7nR+dqSxyFB\n8GM21pfe5/Z/qyvASggVTFZSC+MqImNOfTz/HdHMJL94NuAZeHaT4GFEh8024NmP\n9qKBLjHIZM+gdhwlcW7g33xpMEqCWrnWLJknI772qDxqr2Qqsl7i60wxkI/WLFk4\nX4L8fXaBycWdGcXHJygk\n=swql\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree 05074719378fe0a16ebfbf99dc7be177de1d5592\nparent 4272b404a3f1d005a9d442d86f9fba830a95794e\nparent c031061f05dadea13eb894835a2e5b2e6eec9ff7\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793341834 +0900\ncommitter GitHub <noreply@github.com> 1793341834 +0900\n\nMerge pull request #285 from jphacks/perf/benchmark-late-window\n\n計測器で、保存済みの Run の終わりだけを測り、ハッシュを自動で比べられるようにする",
+      "verified_at": "2026-10-30T06:30:35Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "8a443d27f309c165992ea4eb68b6c3f21a2a03a3",
+    "node_id": "C_kwDOU3hqGNoAKDhhNDQzZDI3ZjMwOWMxNjU5OTJlYTRlYjY4YjZjM2YyMWEyYTAzYTM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/8a443d27f309c165992ea4eb68b6c3f21a2a03a3",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/8a443d27f309c165992ea4eb68b6c3f21a2a03a3",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-30T06:30:38Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-30T06:30:38Z"
+    },
+    "tree": {
+      "sha": "339a6a261564250c534ea54c290f76ba908e2548",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/339a6a261564250c534ea54c290f76ba908e2548"
+    },
+    "message": "Merge pull request #286 from jphacks/perf/psychology-without-traces\n\n記録を出さない tick では、心理の更新で人ごとの記録を組み立てない",
+    "parents": [
+      {
+        "sha": "8fce25a567b7bdd39432bdc935348a7980565300",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/8fce25a567b7bdd39432bdc935348a7980565300",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/8fce25a567b7bdd39432bdc935348a7980565300"
+      },
+      {
+        "sha": "a24f47d3af493a586a920f98b308ff66c58c78c5",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/a24f47d3af493a586a920f98b308ff66c58c78c5",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/a24f47d3af493a586a920f98b308ff66c58c78c5"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq5DmOCRC1aQ7uu5UhlAAAFXEQAE+Tt76ynnp2kHWmOd0nNGvL\nyQrGKwm0SEqCUzt4UNQFml4lmp+QFhRjq0zIYDvKAAlb5hwZlTivcbVCvLTP8/1F\nbVNLfRwNE/IssBiKWhpD4/J4X8JFQyscdAVTcdgHCrOYv8PWH4JT0IFXnoK1LyzN\nC3ocNHNNXGG2/L0bSbFVqSKqqz0l+zfISCHtG6kmLh6AMaOWsUG2PK3t3PozTmKo\nPBVG6GfIBJY5FxVoR6lBD6RHYW2lBtmMrObeLJIxS7lsdcc7ncxEncKlVLGcb5t5\nJ26ItJNyG883f0V3oIOyVNi5XQhhYXxTHj4M2vR6wocmt1W3etw6NAcAbpxTv0fi\nnlrCg9ivVrGykVNjYJfMKcst1y/ge9fzBgBtsTDlpFEoOcDhQScAAeoxzUz9heK/\nk88Y/+val5ErB67xVYf1hExtWC6CmJDw6Wr2T79KbJ5c4nqN4qhqLKrIMJ1azu8h\nUH9HAys18ny+5OyzSHYmzOXVV90mp3onzOclAHq1ACRmGpqS7GnuGKITJwyKSnQY\ni9vsOsxXvnydIhSwPeUf0hoHTRdVxPidDSct2l4xCh6q85nOla6k0Qz5bbJmYZOt\nB9z8UmIa8P6UtgnKEcpXlNhXp3N28y9Ps30sBT6MSJGgB1sDSgbMKQSDKDnwyu2m\nMXqM7SYjZVeDsRQI9bhA\n=q8Bm\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree 339a6a261564250c534ea54c290f76ba908e2548\nparent 8fce25a567b7bdd39432bdc935348a7980565300\nparent a24f47d3af493a586a920f98b308ff66c58c78c5\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793341838 +0900\ncommitter GitHub <noreply@github.com> 1793341838 +0900\n\nMerge pull request #286 from jphacks/perf/psychology-without-traces\n\n記録を出さない tick では、心理の更新で人ごとの記録を組み立てない",
+      "verified_at": "2026-10-30T06:30:38Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "3fe2622f65bbec7021d0682e0bb57ea884ecaf11",
+    "node_id": "C_kwDOU3hqGNoAKDNmZTI2MjJmNjViYmVjNzAyMWQwNjgyZTBiYjU3ZWE4ODRlY2FmMTE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/3fe2622f65bbec7021d0682e0bb57ea884ecaf11",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/3fe2622f65bbec7021d0682e0bb57ea884ecaf11",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T06:34:45Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T06:34:45Z"
+    },
+    "tree": {
+      "sha": "e438c224defbc5a16640a11558804627bb30590e",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/e438c224defbc5a16640a11558804627bb30590e"
+    },
+    "message": "Check two branches compute at once without depending on their speed\n\nBoth branches computed only 30 minutes, and on Windows CI the first finished\nbefore the second process had started. Each now asks for 600 minutes, the test\nchecks both run, then cancels them.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "8a443d27f309c165992ea4eb68b6c3f21a2a03a3",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/8a443d27f309c165992ea4eb68b6c3f21a2a03a3",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/8a443d27f309c165992ea4eb68b6c3f21a2a03a3"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "8f09bc94ce5bbfcfb9b2c911b23496aaf1ec8abd",
+    "node_id": "C_kwDOU3hqGNoAKDhmMDliYzk0Y2U1YmJmY2ZiOWIyYzkxMWIyMzQ5NmFhZjFlYzhhYmQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/8f09bc94ce5bbfcfb9b2c911b23496aaf1ec8abd",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/8f09bc94ce5bbfcfb9b2c911b23496aaf1ec8abd",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-30T06:49:02Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-30T06:49:02Z"
+    },
+    "tree": {
+      "sha": "e438c224defbc5a16640a11558804627bb30590e",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/e438c224defbc5a16640a11558804627bb30590e"
+    },
+    "message": "Merge pull request #289 from jphacks/fix/parallel-branches-test-timing\n\n2つの Branch の同時計算のテストを、計算の速さに依存しない形にする",
+    "parents": [
+      {
+        "sha": "8a443d27f309c165992ea4eb68b6c3f21a2a03a3",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/8a443d27f309c165992ea4eb68b6c3f21a2a03a3",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/8a443d27f309c165992ea4eb68b6c3f21a2a03a3"
+      },
+      {
+        "sha": "3fe2622f65bbec7021d0682e0bb57ea884ecaf11",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/3fe2622f65bbec7021d0682e0bb57ea884ecaf11",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/3fe2622f65bbec7021d0682e0bb57ea884ecaf11"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq5D3eCRC1aQ7uu5UhlAAAJNQQAFkx8CJraN2ZljyKi0NyvgYj\nG1XbI5uqQfwIHGybHQOWSA9K/87HXVInpuZbTDBVYLt4x+cWd2YKc6VkqeE3KAiH\nVlqPFk0Uy9q8Q3uhXpwUfiuIbX8U31pJd1wuXofjumeZrDqPp+ZFYuUfn8SUFQ5v\nM6u+58WPLvsR8hQmCty92A6aylWQaUNEJDHXE6iSWgQDs9HgYFonfXYSBtKfLqd/\nyFgu7z74AKVuiVApjoS086/31StN2C+487KFQ09zP9I+JuFHl8uiUtFm2fmpycpc\neXQ+Zygb7meCKWUd2LPk6WrV5RlLD15/9uqZvCMYzk6g4qc/akLoDZ1FFmHptDFC\nbDb9S59H5TpgZVhu7ophIT2UkPPXZJM6TrHhrdcejl67gcRl3Va2zzPXCX3ENFuN\nC+IKSMWQQ2wXNfn4Q8r0H0l2cDaa2Nu//bpBSJ7EDVXzPOg5QqpKZes/vBa5glAr\nrSdwEzWVR1+B8amAbsmMvNB9fPxYQbxfmBl0T2ezyXBxrM/ywQk2QB97cv/F+bxQ\nciK3j3c1uL87s35wc4dWIcx8qxo3oxTB2kLFxV6v4wam7c8hHhrVx2iWi6kN0voB\nsWWuZSJeJtNbwx1krP+9FwkhpNb/6ooFrV2Eu4t0tFX517uPpVA6s9o9Phs/3evH\nlvTXw7qAy6e9B4QYId1N\n=oGop\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree e438c224defbc5a16640a11558804627bb30590e\nparent 8a443d27f309c165992ea4eb68b6c3f21a2a03a3\nparent 3fe2622f65bbec7021d0682e0bb57ea884ecaf11\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793342942 +0900\ncommitter GitHub <noreply@github.com> 1793342942 +0900\n\nMerge pull request #289 from jphacks/fix/parallel-branches-test-timing\n\n2つの Branch の同時計算のテストを、計算の速さに依存しない形にする",
+      "verified_at": "2026-10-30T06:49:03Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "353c1d051abeabd548d9b89d4ac5d3e506418572",
+    "node_id": "C_kwDOU3hqGNoAKDM1M2MxZDA1MWFiZWFiZDU0OGQ5Yjg5ZDRhYzVkM2U1MDY0MTg1NzI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/353c1d051abeabd548d9b89d4ac5d3e506418572",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/353c1d051abeabd548d9b89d4ac5d3e506418572",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-30T06:49:07Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-30T06:49:07Z"
+    },
+    "tree": {
+      "sha": "e5b5b182740493ad4e5d089073907cc0623d19d3",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/e5b5b182740493ad4e5d089073907cc0623d19d3"
+    },
+    "message": "Merge pull request #287 from jphacks/perf/fork-at-saved-minute\n\n保存済みの時刻で分岐するとき、読み込んだ Checkpoint を子にそのまま使う",
+    "parents": [
+      {
+        "sha": "8f09bc94ce5bbfcfb9b2c911b23496aaf1ec8abd",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/8f09bc94ce5bbfcfb9b2c911b23496aaf1ec8abd",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/8f09bc94ce5bbfcfb9b2c911b23496aaf1ec8abd"
+      },
+      {
+        "sha": "f37cd81f7da29304b6e6cdd362b5d58db46ef74d",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f37cd81f7da29304b6e6cdd362b5d58db46ef74d",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/f37cd81f7da29304b6e6cdd362b5d58db46ef74d"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq5D3jCRC1aQ7uu5UhlAAAIOgQAEJsaE0xqyH1O8ASTtQrdyLf\n5yfwsZmK+GWy6kvO+4bJRDiS8YQlckwY/sIvbiXKDX1KNjAxrgMoSNtziwW4g5Fy\n9mKjzg7OD7mBb0QXB8dETC+O1+ZwDfpSivBh4ffqkGM+Fd169QxVKaFiDwjHg+OD\ncqHSbOCKe3ZoX7ie2q8+gH93q2mHrJsgH5kmJdMC6RDf2V5l8WvwCRvZtP3FNTeS\nWAmCXRfFrKxUS1eseoak6LjJrC0PYNoTLicAJC5VLK3KEzO98nQTBAKxK9FtQ96t\nZ8aEgZM78PkIYVNV4wJ3ENmDrMzlxsBJ8CKUqMmBlzHRCBGiLLtgNUC97+UfWy3m\nRJ8+2T2hzvKLFOCHNq9FCIy66XM6EbyeiWaG7L8O/l5++qTrus1CRsnbJGHzSWcU\nX04HNv4atrZmbmUm/ICsJ/YtCzKXQ/Y6ZT9i5yU8hpLUiFmlDcpbUb30///s1dfB\nxve5ZD0k3/Whaavaw6+4A0PAC8C+G7NIeZ/LacaFLziomqLPsm2HpydIbjwyhptU\nOiwX0LYkxpZ8xXq93GyJ6sA4nUPvgXNcvN2d7v+yB8vimWBWUiJ8IJgfqaqTDfg3\nt6jTVy37wsOs/xZtupNA1StfcfLRBplankfgGDP9262cgFDDUFgEq/mRRk1lfaWS\nZdK3ImS2WmSLRBZF+ENd\n=y8qQ\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree e5b5b182740493ad4e5d089073907cc0623d19d3\nparent 8f09bc94ce5bbfcfb9b2c911b23496aaf1ec8abd\nparent f37cd81f7da29304b6e6cdd362b5d58db46ef74d\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793342947 +0900\ncommitter GitHub <noreply@github.com> 1793342947 +0900\n\nMerge pull request #287 from jphacks/perf/fork-at-saved-minute\n\n保存済みの時刻で分岐するとき、読み込んだ Checkpoint を子にそのまま使う",
+      "verified_at": "2026-10-30T06:49:07Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "fb3bed509ee9391badf566dbda191ff02b935a66",
+    "node_id": "C_kwDOU3hqGNoAKGZiM2JlZDUwOWVlOTM5MWJhZGY1NjZkYmRhMTkxZmYwMmI5MzVhNjY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/fb3bed509ee9391badf566dbda191ff02b935a66",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/fb3bed509ee9391badf566dbda191ff02b935a66",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T07:32:13Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T07:32:13Z"
+    },
+    "tree": {
+      "sha": "e38de3459b68ea7acf40189484a350eec54e089b",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/e38de3459b68ea7acf40189484a350eec54e089b"
+    },
+    "message": "Read a forked branch's history through its parent instead of copying it\n\nA fork recorded the child's rows by copying the parent's index rows, about\n3.5 GB for a seven-day Run, so a second fork exceeded the store's capacity.\nThe index (version 2) now records each child's parent and fork minute; reads\ntake the branch's own rows and its ancestors' rows before the fork minute, and\nthe child stores only rows from the fork minute on that its ancestors lack.\nConversation turns stay with their branch; a rebuilt branch reads no ancestor.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "353c1d051abeabd548d9b89d4ac5d3e506418572",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/353c1d051abeabd548d9b89d4ac5d3e506418572",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/353c1d051abeabd548d9b89d4ac5d3e506418572"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "52e2aec4826ff9ddbcc84516590f073ff863773a",
+    "node_id": "C_kwDOU3hqGNoAKDUyZTJhZWM0ODI2ZmY5ZGRiY2M4NDUxNjU5MGYwNzNmZjg2Mzc3M2E",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/52e2aec4826ff9ddbcc84516590f073ff863773a",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/52e2aec4826ff9ddbcc84516590f073ff863773a",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-30T07:44:57Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-30T07:44:57Z"
+    },
+    "tree": {
+      "sha": "e38de3459b68ea7acf40189484a350eec54e089b",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/e38de3459b68ea7acf40189484a350eec54e089b"
+    },
+    "message": "Merge pull request #290 from jphacks/perf/index-lineage\n\n分岐した子 Branch の履歴を、分岐元の行を写さずに系譜をたどって読む",
+    "parents": [
+      {
+        "sha": "353c1d051abeabd548d9b89d4ac5d3e506418572",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/353c1d051abeabd548d9b89d4ac5d3e506418572",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/353c1d051abeabd548d9b89d4ac5d3e506418572"
+      },
+      {
+        "sha": "fb3bed509ee9391badf566dbda191ff02b935a66",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/fb3bed509ee9391badf566dbda191ff02b935a66",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/fb3bed509ee9391badf566dbda191ff02b935a66"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq5Er5CRC1aQ7uu5UhlAAAeaMQAH+zcJ4c2l4FH/13WaJ9UGkL\n6DmkTQp+OoVH2cbu93G/UJPvsMOYxmDM6ii+ZVepBGWrUMRF2ImhwIt+2M/Y/5rT\nUDtVro7D4vhmOsn3DjB5uRCIjCFChr30aQFR8grwXmcGDZedOvJT5kqZ/3QYyr/W\nq/2ryirhRbdcDLJpzjgTAMisbuTLrAPEGNRrK1mLtTgZgkt0LtPUIE6s3OSQXt55\n5K82st13eY46RRAVoYoTrw+f2eAuUvPeKOQvQn8cP3kxzCUBF0owLsuvP9+/S+5F\nw5n2rtDsw/CjhP7ZNcvvJ9Z95LEPacHPzTZjARu/lBQgMlELQNAzN9YWiQ18ymw7\nE/XLHUAseLr+Jt2oaQw89NOrJeaYse9d8ow8nTH/+fr9dDG6/T22+52vRu4EUIsf\nlTgGg42nSWgXZWvIFMAu2l07EMTwc4S7Z5kzbjqR/+JG1jy1WvvTUSwFUuvEP2tT\ndLWW+tfnCmcNCUQ0Lf/zJw78Zx8NNoNwADa3gGPaJ5nHOI82mJOCWyXqviST9RoW\ntUwRuF/fNG7qQjdBSAAqFzv5sY0yTZcy8kNoj3sXW4TgzxTC6GcwWZ4sZ65xUOPH\nIHr3edsMq6K/vSnJ+ee/CUne5b8VCRygRgmWHseixTGOys2k/UkNhW2t77uQXyui\n3r4AIuHJkuLyVUF7PfhJ\n=eIF+\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree e38de3459b68ea7acf40189484a350eec54e089b\nparent 353c1d051abeabd548d9b89d4ac5d3e506418572\nparent fb3bed509ee9391badf566dbda191ff02b935a66\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793346297 +0900\ncommitter GitHub <noreply@github.com> 1793346297 +0900\n\nMerge pull request #290 from jphacks/perf/index-lineage\n\n分岐した子 Branch の履歴を、分岐元の行を写さずに系譜をたどって読む",
+      "verified_at": "2026-10-30T07:44:58Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "055e3dae19e6b6e3a069310a1797206b996eca67",
+    "node_id": "C_kwDOU3hqGNoAKDA1NWUzZGFlMTllNmI2ZTNhMDY5MzEwYTE3OTcyMDZiOTk2ZWNhNjc",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/055e3dae19e6b6e3a069310a1797206b996eca67",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/055e3dae19e6b6e3a069310a1797206b996eca67",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T07:49:08Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T07:49:08Z"
+    },
+    "tree": {
+      "sha": "db77621761a809c773f77ffb10ecb8403178dd43",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/db77621761a809c773f77ffb10ecb8403178dd43"
+    },
+    "message": "Refer to the fork origin's chunks in a new child's first save\n\nA new branch had no earlier save to take chunk locations from, so its first\nsave checked and packed every chunk again. It now takes the locations of the\nCheckpoint its fork_origin names and packs only the chunks that differ.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "52e2aec4826ff9ddbcc84516590f073ff863773a",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/52e2aec4826ff9ddbcc84516590f073ff863773a",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/52e2aec4826ff9ddbcc84516590f073ff863773a"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "6f29d11f15f8bb09f5bc2da1db15add98a1e0cb5",
+    "node_id": "C_kwDOU3hqGNoAKDZmMjlkMTFmMTVmOGJiMDlmNWJjMmRhMWRiMTVhZGQ5OGExZTBjYjU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/6f29d11f15f8bb09f5bc2da1db15add98a1e0cb5",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/6f29d11f15f8bb09f5bc2da1db15add98a1e0cb5",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T07:57:51Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T07:57:51Z"
+    },
+    "tree": {
+      "sha": "fc79bee1c2161321f9cb12dea8707637fa5d45d8",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/fc79bee1c2161321f9cb12dea8707637fa5d45d8"
+    },
+    "message": "Load a checkpoint without re-encoding event payloads or keeping a fork's copy\n\nA restore from hash-checked canonical JSON builds each event with\nScheduledEvent.from_saved, which skips only encoding the payload again to check\nit is JSON. A fork reads its source with keep=False, so the store keeps no copy\nof a world the child takes.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "52e2aec4826ff9ddbcc84516590f073ff863773a",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/52e2aec4826ff9ddbcc84516590f073ff863773a",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/52e2aec4826ff9ddbcc84516590f073ff863773a"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "26e8e636415388bf0eabb62c48ae09eb49b22af5",
+    "node_id": "C_kwDOU3hqGNoAKDI2ZThlNjM2NDE1Mzg4YmYwZWFiYjYyYzQ4YWUwOWViNDliMjJhZjU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/26e8e636415388bf0eabb62c48ae09eb49b22af5",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/26e8e636415388bf0eabb62c48ae09eb49b22af5",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-30T08:11:38Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-30T08:11:38Z"
+    },
+    "tree": {
+      "sha": "db77621761a809c773f77ffb10ecb8403178dd43",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/db77621761a809c773f77ffb10ecb8403178dd43"
+    },
+    "message": "Merge pull request #291 from jphacks/perf/fork-save-reuses-chunks\n\n分岐した子 Branch の最初の保存で、分岐元の chunk を参照して書き直さない",
+    "parents": [
+      {
+        "sha": "52e2aec4826ff9ddbcc84516590f073ff863773a",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/52e2aec4826ff9ddbcc84516590f073ff863773a",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/52e2aec4826ff9ddbcc84516590f073ff863773a"
+      },
+      {
+        "sha": "055e3dae19e6b6e3a069310a1797206b996eca67",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/055e3dae19e6b6e3a069310a1797206b996eca67",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/055e3dae19e6b6e3a069310a1797206b996eca67"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq5FE6CRC1aQ7uu5UhlAAAeq4QAF3i6B4Z5x+MqI7IYkV7cEl0\nCEpvJfXL+WL2ITOW/krrwZ4a9j/L+AAW/gzR2pxjhbcezU4xP8+cJeSLeZowlW02\nv0Fd9/wOho2QOlatGWyGt4MGVCmhlj4IbaJjHukulmqanT5N9tkpFrqP8Vpjw3am\nQ4BbH7ntvdxNTgpyWWrTydKlp7WPzDimU0HL43TCKokywSzF8E7/w5eSizqnERa0\nlMTzBBfWMfPcyHe7BfdIXoiIZqT3v6zKDjbfwPpOAe9a3hv7EdtyQYyMZXrn1uzf\nxl5PUUykInYvtEeoDufXqImf+OZ1FJyu5QNsWsZdb17n/0ZgrD4uqrN2I2+46VWn\nleFkjWcZCyDjCKp8eXGJrtmgnlrdYXjetqshdCCGICAl5uaVmW7iArJFCGe0PbNN\nA7ou0MKeJje5xjpQp+ItjJXfYxSiDIKyAz6HJWGXkwedOje1jYwEK7ra4snsSdIN\nDMoWrqkTr518zvApQu7rMZjQLkzsuUP69IVYoUtm9y7k44AB3KnpvRlx76QF2vxT\nJp+ZGnTn+2i4mxZDn75/HxYSbkuRrd7mz9K236xH4Kt1O4fvtk5kbBTx1sNbeNm6\nV1daElo2U30eYMFZaLGVISQjbBJD9zWGF65uYiG0iF90RWRKBrLNZsRTZC1Lf6NK\ngs+aU6mPfRYvNeuZ8ZCJ\n=4V1j\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree db77621761a809c773f77ffb10ecb8403178dd43\nparent 52e2aec4826ff9ddbcc84516590f073ff863773a\nparent 055e3dae19e6b6e3a069310a1797206b996eca67\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793347898 +0900\ncommitter GitHub <noreply@github.com> 1793347898 +0900\n\nMerge pull request #291 from jphacks/perf/fork-save-reuses-chunks\n\n分岐した子 Branch の最初の保存で、分岐元の chunk を参照して書き直さない",
+      "verified_at": "2026-10-30T08:11:38Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "7b920660d808d88f0e2d70b1ace61d2e9c331f4d",
+    "node_id": "C_kwDOU3hqGNoAKDdiOTIwNjYwZDgwOGQ4OGYwZTJkNzBiMWFjZTYxZDJlOWMzMzFmNGQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7b920660d808d88f0e2d70b1ace61d2e9c331f4d",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/7b920660d808d88f0e2d70b1ace61d2e9c331f4d",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-30T08:11:42Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-30T08:11:42Z"
+    },
+    "tree": {
+      "sha": "7b7cecc825a02e654e7ab3b7125422d62cb31810",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/7b7cecc825a02e654e7ab3b7125422d62cb31810"
+    },
+    "message": "Merge pull request #292 from jphacks/perf/faster-checkpoint-load\n\nCheckpoint の読み込みで、イベントの payload を JSON にし直さず、分岐では読んだ世界の写しを取っておかない",
+    "parents": [
+      {
+        "sha": "26e8e636415388bf0eabb62c48ae09eb49b22af5",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/26e8e636415388bf0eabb62c48ae09eb49b22af5",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/26e8e636415388bf0eabb62c48ae09eb49b22af5"
+      },
+      {
+        "sha": "6f29d11f15f8bb09f5bc2da1db15add98a1e0cb5",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/6f29d11f15f8bb09f5bc2da1db15add98a1e0cb5",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/6f29d11f15f8bb09f5bc2da1db15add98a1e0cb5"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq5FE+CRC1aQ7uu5UhlAAAvP4QACs3DxmYKUMOYPRmiE+O3fet\nqXW8PgiKEf5WxhTA/R0L76FCKeq6B5sBIr/KWmGI0DW0Fz6zJnkxh0kBByRNlFrO\nxclA2FjqwtrnnjaPlCKF9e7n71eoxXLxia0SJnQy38FFo505nbaOnyudbWG6YrAj\nNgQYOSXWikTLnff9uSNlA/1FqVVo8Dt4bL7dWWXeJVonxKLLzQCifSMg6hkva2c9\n28wrxDhMsCXJkhT2Rw39h6LCa1foPNzcQiOv1LmRUB9HOpChTAPz/O8qm/0ASzD7\nGAzTz5rtgV/VULQX+6ZUvmPjYh9XKExj7K9k5GowAQpKetiOpeIUbKD9yLA7C+PN\nJXMnsCU/bosv9A5xyUOl2u/M3AjDSRULK5CfNBU4+p5v8X0rXbbmRnggp8uVo32L\nej12j3WSJkOwrO3df4exRNwGL7tT75kFA9BarXK4QnnE7Q4GV5Vv5LQDoWdegN+O\nx2UCJtlqYylp1RN7lEijY441kQdyM1a2wO3RkSAStaKgcEbiK+wjDnLkkgJnX3Pm\nXZgGcjE5yABgPu1Q2Bk/gIwTEDASZ1WF9Eo//jqV2ViZttBLGHYEOPn6EvYG4TF1\n4yBPz3N4QftSW1jvUsb3dkzoXqS9SWxoZJT7SWOOoRLyM7V2o5MVXXG+UwJyJlZ/\n5VNr3GaOC+DdZSbWK34D\n=lyxh\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree 7b7cecc825a02e654e7ab3b7125422d62cb31810\nparent 26e8e636415388bf0eabb62c48ae09eb49b22af5\nparent 6f29d11f15f8bb09f5bc2da1db15add98a1e0cb5\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793347902 +0900\ncommitter GitHub <noreply@github.com> 1793347902 +0900\n\nMerge pull request #292 from jphacks/perf/faster-checkpoint-load\n\nCheckpoint の読み込みで、イベントの payload を JSON にし直さず、分岐では読んだ世界の写しを取っておかない",
+      "verified_at": "2026-10-30T08:11:42Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "b0b22aba3f775f058b9bfe9d09bad1ac82f500c7",
+    "node_id": "C_kwDOU3hqGNoAKGIwYjIyYWJhM2Y3NzVmMDU4YjliZmU5ZDA5YmFkMWFjODJmNTAwYzc",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/b0b22aba3f775f058b9bfe9d09bad1ac82f500c7",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/b0b22aba3f775f058b9bfe9d09bad1ac82f500c7",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T08:21:07Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T08:21:07Z"
+    },
+    "tree": {
+      "sha": "a463880a2e3100ddb53eb31e427c107082c8944d",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/a463880a2e3100ddb53eb31e427c107082c8944d"
+    },
+    "message": "Index a long computation's saves in another process\n\nA computation with at least eight saves sends each save's new records to one\nindexing process (storage/index_writer.py), which ingests them in order while\nthe computation goes on. Only what ingest reads is sent; a send that does not\nstart at the index's offsets is refused. The computation waits when the index\nis two saves behind and, at its end, until every save is indexed.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "7b920660d808d88f0e2d70b1ace61d2e9c331f4d",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7b920660d808d88f0e2d70b1ace61d2e9c331f4d",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/7b920660d808d88f0e2d70b1ace61d2e9c331f4d"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "13a7611fe78501f2b11b39eb2c8b8a512e5140f6",
+    "node_id": "C_kwDOU3hqGNoAKDEzYTc2MTFmZTc4NTAxZjJiMTFiMzllYjJjOGI4YTUxMmU1MTQwZjY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/13a7611fe78501f2b11b39eb2c8b8a512e5140f6",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/13a7611fe78501f2b11b39eb2c8b8a512e5140f6",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T08:28:00Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T08:28:00Z"
+    },
+    "tree": {
+      "sha": "e4c36c51d1bf01d8d0c9902f09ddc035bbcbc94e",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/e4c36c51d1bf01d8d0c9902f09ddc035bbcbc94e"
+    },
+    "message": "Remove a new child's pointer when its first save fails to index\n\nA fork saves the child's pointer and then indexes it. When indexing failed,\nthe pointer named a branch the index lacked, and a retry under the same ID was\nrefused. TimelineStore.fork now removes the pointer (and any status) of the\nnew child before raising.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "7b920660d808d88f0e2d70b1ace61d2e9c331f4d",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7b920660d808d88f0e2d70b1ace61d2e9c331f4d",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/7b920660d808d88f0e2d70b1ace61d2e9c331f4d"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "ffd759b85d9b30344cb315602084a298b31e720b",
+    "node_id": "C_kwDOU3hqGNoAKGZmZDc1OWI4NWQ5YjMwMzQ0Y2IzMTU2MDIwODRhMjk4YjMxZTcyMGI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ffd759b85d9b30344cb315602084a298b31e720b",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/ffd759b85d9b30344cb315602084a298b31e720b",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T08:51:09Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T08:51:09Z"
+    },
+    "tree": {
+      "sha": "f2f054d73d8e600e5ca7549b6247488baf795105",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/f2f054d73d8e600e5ca7549b6247488baf795105"
+    },
+    "message": "Build a save's restore check on the documents and extend the last check's log\n\nThe world a capture's restore check builds is only compared and discarded. It\nis now built on the captured documents instead of two copies of them, and its\nEventLog is the previous check's log with the new records appended, instead of\nindexing every record again.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "7b920660d808d88f0e2d70b1ace61d2e9c331f4d",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7b920660d808d88f0e2d70b1ace61d2e9c331f4d",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/7b920660d808d88f0e2d70b1ace61d2e9c331f4d"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "22732182fa6db6f5ac7dd449b336256b793732c7",
+    "node_id": "C_kwDOU3hqGNoAKDIyNzMyMTgyZmE2ZGI2ZjVhYzdkZDQ0OWIzMzYyNTZiNzkzNzMyYzc",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/22732182fa6db6f5ac7dd449b336256b793732c7",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/22732182fa6db6f5ac7dd449b336256b793732c7",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-30T09:21:01Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-30T09:21:01Z"
+    },
+    "tree": {
+      "sha": "a463880a2e3100ddb53eb31e427c107082c8944d",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/a463880a2e3100ddb53eb31e427c107082c8944d"
+    },
+    "message": "Merge pull request #293 from jphacks/perf/background-index\n\n長い計算では、索引への登録を別のプロセスで計算と並行して行う",
+    "parents": [
+      {
+        "sha": "7b920660d808d88f0e2d70b1ace61d2e9c331f4d",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7b920660d808d88f0e2d70b1ace61d2e9c331f4d",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/7b920660d808d88f0e2d70b1ace61d2e9c331f4d"
+      },
+      {
+        "sha": "b0b22aba3f775f058b9bfe9d09bad1ac82f500c7",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/b0b22aba3f775f058b9bfe9d09bad1ac82f500c7",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/b0b22aba3f775f058b9bfe9d09bad1ac82f500c7"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq5GF9CRC1aQ7uu5UhlAAApzsQAG5zQCUGbV2Yn+8HvjGO+Cyr\nVWoT2I09T4sKceW+BYMiLPBN6yosSby2u0T3d9rm+M1czmRYPsAaNdQqF9yFRYH3\nPm1rfNgz8+O/zVujicw0vnswYVqYUdVZ6FeBT5rc1EE8Df8QBpoORiGvPPUtURGA\n9dpjLBFSjW9wr3TV8y7O9+qivLb6kEVpmAdCLLAHxzVTNNrCcrcF/8joUTQnaEvy\nF8i2Jun5zk/aatnBcya5jOFjo6mqZ+6CCLHe+YBQCDPtZ5CrB5f+Iky+GYTbYbri\nMt00BPRNd+Kxzhk2MiKYWzV/ZuJ349tRowzXem90EQlc48rJEeSHVl30IR4VSfaz\nA6TBUNPe8PON0ct6vjAS5rQyhe80x/qHhUchsVLD6tDSYQO6f1kHRHWu9tRLJKDK\nH9wARqd9gM8qGrSfjRtqmkGLHkLbmVjehzs5qoVsshO3hKtR4fI1dCcZyjxkKvgq\nEzBQTfynuzbGvrdCa6qe3Jm3RUkfTHZ2akyIX3ctxRfBElm4cOsz+ruLuaDqiNLX\ndWrm2Pqfwgu36e8jSdu41phMFMoigm5cISxNfpfhhKcKZKD/7xu0TzIvds6itbmi\n0xkAX6YVkttxfnCmsGMvJ9HH94KComYxjV15JeFZ/trb9bWRvDPMZiyM91bR4gp4\nyV0N7Xjmoji1K+KWLUBx\n=1vpl\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree a463880a2e3100ddb53eb31e427c107082c8944d\nparent 7b920660d808d88f0e2d70b1ace61d2e9c331f4d\nparent b0b22aba3f775f058b9bfe9d09bad1ac82f500c7\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793352061 +0900\ncommitter GitHub <noreply@github.com> 1793352061 +0900\n\nMerge pull request #293 from jphacks/perf/background-index\n\n長い計算では、索引への登録を別のプロセスで計算と並行して行う",
+      "verified_at": "2026-10-30T09:21:01Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "6d734a7a5a845d99970b48533e58e959f03ecc1a",
+    "node_id": "C_kwDOU3hqGNoAKDZkNzM0YTdhNWE4NDVkOTk5NzBiNDg1MzNlNThlOTU5ZjAzZWNjMWE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/6d734a7a5a845d99970b48533e58e959f03ecc1a",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/6d734a7a5a845d99970b48533e58e959f03ecc1a",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-30T09:21:08Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-30T09:21:08Z"
+    },
+    "tree": {
+      "sha": "6e00556b095cb4cd1ee9879f2ea73245b8f0ac92",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/6e00556b095cb4cd1ee9879f2ea73245b8f0ac92"
+    },
+    "message": "Merge pull request #294 from jphacks/fix/failed-fork-leaves-no-branch\n\n分岐が保存の途中で失敗したとき、子 Branch の pointer を残さない",
+    "parents": [
+      {
+        "sha": "22732182fa6db6f5ac7dd449b336256b793732c7",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/22732182fa6db6f5ac7dd449b336256b793732c7",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/22732182fa6db6f5ac7dd449b336256b793732c7"
+      },
+      {
+        "sha": "13a7611fe78501f2b11b39eb2c8b8a512e5140f6",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/13a7611fe78501f2b11b39eb2c8b8a512e5140f6",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/13a7611fe78501f2b11b39eb2c8b8a512e5140f6"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq5GGECRC1aQ7uu5UhlAAANcYQAAjv5BxafVAp2heVvCvDPWys\nHm5DHaDQQV0xmF2P+tVQ8my6sQVbemvtxH1XR8uczqTO+YWVfffrBsL+tCpgynRa\nUDP113OafXbiTArSh2d8j12tHqvhp4HLVbqBOY3sW0Qj6Bg2QiXjTdg6CP/PuP2d\niyTbe45U9FZ3Lez3GLlZ8tlJdUNbvtz2VkWFMGWxMyDD13hvReds8INV4UT7khUI\nqH0rlMEKH81a6tpXgp98QvSgiZcUMxpzCExLYxoyhdHtaNt7zFctOLCNdI/Y5iTk\nrQAA+8hyAeH+JgnE9boIXLL+I/esiwmEvG9N05FzUujPrqW3ygg8uKYvCBRHGiGw\nRRRYfDda3VURn2fe9Nx8mgs+N6LvEv+uw1Gl6VGo8AgRoV8ShrpGm1Qf/tDUVxDQ\nyNxD2LP5iE1boqeyZEsPS/DPGkNGJp/3Ns8MIARVBFP4n9a/ejSFWE9VUWPQ4Pvb\nyZIq8JHY6cLDA9AhxyY49q5alZtsqdopMYkyIJ/VIKRSJOJUNIzauLykFVZtI540\niOV9Lo2+vXtYUI2H4cDc+JBhhj9pugMN9gnP8i8QeT399P/zyVvMkTYmf+jiRxCm\nYgFolsyygrwApOM4+4+Lh+3oc6KVmzSvtzBLzqqXC1ePkz1OrEDSc4uA2QOQhHNV\nBkAw5JKS2YCcTMKyRyvd\n=dSEj\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree 6e00556b095cb4cd1ee9879f2ea73245b8f0ac92\nparent 22732182fa6db6f5ac7dd449b336256b793732c7\nparent 13a7611fe78501f2b11b39eb2c8b8a512e5140f6\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793352068 +0900\ncommitter GitHub <noreply@github.com> 1793352068 +0900\n\nMerge pull request #294 from jphacks/fix/failed-fork-leaves-no-branch\n\n分岐が保存の途中で失敗したとき、子 Branch の pointer を残さない",
+      "verified_at": "2026-10-30T09:21:08Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "501bea8105319cc9c3f5de7bc9bf3cb0819813fa",
+    "node_id": "C_kwDOU3hqGNoAKDUwMWJlYTgxMDUzMTljYzljM2Y1ZGU3YmM5YmYzY2IwODE5ODEzZmE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/501bea8105319cc9c3f5de7bc9bf3cb0819813fa",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/501bea8105319cc9c3f5de7bc9bf3cb0819813fa",
+    "author": {
+      "name": "Mizuno",
+      "email": "128142265+WaTeR-7@users.noreply.github.com",
+      "date": "2026-10-30T09:21:15Z"
+    },
+    "committer": {
+      "name": "GitHub",
+      "email": "noreply@github.com",
+      "date": "2026-10-30T09:21:15Z"
+    },
+    "tree": {
+      "sha": "d315926b5e0fc7cf56328661d0ed883f4f3be58b",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/d315926b5e0fc7cf56328661d0ed883f4f3be58b"
+    },
+    "message": "Merge pull request #295 from jphacks/perf/restore-check-without-copies\n\n保存の復元の確認で、文書を写さず、前の確認の EventLog に増えた記録だけを足す",
+    "parents": [
+      {
+        "sha": "6d734a7a5a845d99970b48533e58e959f03ecc1a",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/6d734a7a5a845d99970b48533e58e959f03ecc1a",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/6d734a7a5a845d99970b48533e58e959f03ecc1a"
+      },
+      {
+        "sha": "ffd759b85d9b30344cb315602084a298b31e720b",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ffd759b85d9b30344cb315602084a298b31e720b",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/ffd759b85d9b30344cb315602084a298b31e720b"
+      }
+    ],
+    "verification": {
+      "verified": true,
+      "reason": "valid",
+      "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJq5GGLCRC1aQ7uu5UhlAAAJ3gQAIBVzHZ0Cx0fefLD4fqLyQn/\noWNiemyzoeVqz0WQ5GRDKkAi8RIkU703W8sKcmjDOEyz3BxXuT+h7xIRp/8msOVu\nk3kg/ZsyU2lCce8gzX1RybNs087lpXv2ijh83GnvClqH3aQIjUynIZ7A5LqbLQy9\ntTavcXzGn0fvzAa1tAyVKmTOh/aat/fV9qYCIKFwxjdsxIikabUwQUTRAuP0yhpe\nTykuRagvcAzKWrSRCCKiRgWdvx8HTYxUtr4pRn0JESxb73JpuvCag59/PLNgNXZ+\nrY/St+OhwIpMbT4Xr4bTYkojvJ8vWRYUF+UhHsg/CixAJMG0qUhPxpHZwcqgnKEZ\nHEwz70TB338l5WkEvR1YnQ0VQ5X71rhqMkDp1HOi3pEETZbO7pdHKOsCVn+yaMEV\nGpMbjoZ/DEHY3nbWZp2Tr+2tdDjqPlaTT97wdbaO/9BqMjR7iGxxrE9l/sMlYrs0\nFs6FOyCIVeSwuMIMXmtKRWAyPhxcU90kuaJDgQ52lENeFhYYoBlOf9sscnPJhCMf\nRMhadIPuCIED9BCSGB4B4goxysQ0bs14XFu7dBHi4LjEC3jU8yZFtc5+QHagzksi\nL4308RUk8wSqdUWmxxKkoUj5tv8/zzeXiNK6Y6wo2Zp0WDNBhTFxsMzhL3SYHyrA\n2v+fWi/yI2Pz7NE6N8NO\n=+GHO\n-----END PGP SIGNATURE-----\n",
+      "payload": "tree d315926b5e0fc7cf56328661d0ed883f4f3be58b\nparent 6d734a7a5a845d99970b48533e58e959f03ecc1a\nparent ffd759b85d9b30344cb315602084a298b31e720b\nauthor Mizuno <128142265+WaTeR-7@users.noreply.github.com> 1793352075 +0900\ncommitter GitHub <noreply@github.com> 1793352075 +0900\n\nMerge pull request #295 from jphacks/perf/restore-check-without-copies\n\n保存の復元の確認で、文書を写さず、前の確認の EventLog に増えた記録だけを足す",
+      "verified_at": "2026-10-30T09:21:15Z"
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "32a28b4e7360e414d688680b7c711aa82b0385c1",
+    "node_id": "C_kwDOU3hqGNoAKDMyYTI4YjRlNzM2MGU0MTRkNjg4NjgwYjdjNzExYWE4MmIwMzg1YzE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/32a28b4e7360e414d688680b7c711aa82b0385c1",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/32a28b4e7360e414d688680b7c711aa82b0385c1",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T15:16:17Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T15:16:17Z"
+    },
+    "tree": {
+      "sha": "546e08357cfab4bc9e466ecc2cbc3b93eb24fea3",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/546e08357cfab4bc9e466ecc2cbc3b93eb24fea3"
+    },
+    "message": "Make main the integration branch now that judging is over\n\nThe team agreed to return develop to main and keep the Rust port on its own\nbranch. PRs and the offline CI now target main; the submitted version stays\nreachable through the submission tag. CONTRIBUTING no longer says CI on pull\nrequests is absent, which was already out of date.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "501bea8105319cc9c3f5de7bc9bf3cb0819813fa",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/501bea8105319cc9c3f5de7bc9bf3cb0819813fa",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/501bea8105319cc9c3f5de7bc9bf3cb0819813fa"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34705893245,
+    "node_id": "ME_lADOU3hqGM8AAAABbOPSUs8AAAAIFKHnfQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34705893245",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "32a28b4e7360e414d688680b7c711aa82b0385c1",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/32a28b4e7360e414d688680b7c711aa82b0385c1",
+    "created_at": "2026-10-30T15:33:58Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34705894199,
+    "node_id": "CE_lADOU3hqGM8AAAABbOPSUs8AAAAIFKHrNw",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34705894199",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-30T15:33:59Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34705945206,
+    "node_id": "HRDE_lADOU3hqGM8AAAABbOPSUs8AAAAIFKKydg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34705945206",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-30T15:34:33Z",
+    "performed_via_github_app": null
+  }
+]
+

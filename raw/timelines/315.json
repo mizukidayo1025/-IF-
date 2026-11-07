@@ -1,0 +1,134 @@
+[
+  {
+    "sha": "46e8ec7c0870660efc035979dd40b44ba18dc024",
+    "node_id": "C_kwDOU3hqGNoAKDQ2ZThlYzdjMDg3MDY2MGVmYzAzNTk3OWRkNDBiNDRiYTE4ZGMwMjQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/46e8ec7c0870660efc035979dd40b44ba18dc024",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/46e8ec7c0870660efc035979dd40b44ba18dc024",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T03:30:50Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T03:31:15Z"
+    },
+    "tree": {
+      "sha": "80b5e6f05833860fda541bf636bb072275326018",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/80b5e6f05833860fda541bf636bb072275326018"
+    },
+    "message": "Add the Japanese step 3 design for the Rust port and update the 7-day timing\n\nAdd docs/rust-port/step3-design.md with the current decisions merged from\nthe P1 and P3 experiments, link it from docs/rust-port.md, and bring the\nsummary line of the 7-day timing to the latest quiet-machine measurement\n(122.8 s at 50c34df, with the fsync range noted).\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "d4571a830972c750d1787e664d3307f46dfdd52b",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/d4571a830972c750d1787e664d3307f46dfdd52b",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/d4571a830972c750d1787e664d3307f46dfdd52b"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34751712209,
+    "node_id": "ME_lADOU3hqGM8AAAABbWpWDM8AAAAIF10L0Q",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34751712209",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "5a2e76f1b1ef6b024775e6eec197be69dd7a8209",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/5a2e76f1b1ef6b024775e6eec197be69dd7a8209",
+    "created_at": "2026-10-31T03:45:34Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34751712280,
+    "node_id": "CE_lADOU3hqGM8AAAABbWpWDM8AAAAIF10MGA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34751712280",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-31T03:45:34Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34751966139,
+    "node_id": "HRDE_lADOU3hqGM8AAAABbWpWDM8AAAAIF2Druw",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34751966139",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-31T03:51:32Z",
+    "performed_via_github_app": null
+  }
+]
+

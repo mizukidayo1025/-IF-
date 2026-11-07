@@ -1,0 +1,66 @@
+{
+  "total_count": 3,
+  "artifacts": [
+    {
+      "id": 13166340043,
+      "node_id": "MDg6QXJ0aWZhY3QxMzE2NjM0MDA0Mw==",
+      "name": "test-results-ubuntu-latest",
+      "size_in_bytes": 184173,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13166340043",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13166340043/zip",
+      "expired": false,
+      "digest": "sha256:0a091170104e8362fa65de6a8437867714990c36dfbf00702d371cecbbb1d77e",
+      "created_at": "2026-11-02T17:43:19Z",
+      "updated_at": "2026-11-02T17:43:19Z",
+      "expires_at": "2026-11-09T17:43:19Z",
+      "workflow_run": {
+        "id": 41490423012,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/l7b-world-v5",
+        "head_sha": "e70f354413f108e0d67f34649111094d03748173"
+      }
+    },
+    {
+      "id": 13165521011,
+      "node_id": "MDg6QXJ0aWZhY3QxMzE2NTUyMTAxMQ==",
+      "name": "test-results-windows-latest",
+      "size_in_bytes": 95704,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13165521011",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13165521011/zip",
+      "expired": false,
+      "digest": "sha256:ac5e3ad4feb48b98ee5c1ec1625a53cc75ca6384aab2c9ad0902cc1f90b4e795",
+      "created_at": "2026-11-02T17:39:34Z",
+      "updated_at": "2026-11-02T17:39:34Z",
+      "expires_at": "2026-11-09T17:39:34Z",
+      "workflow_run": {
+        "id": 41490423012,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/l7b-world-v5",
+        "head_sha": "e70f354413f108e0d67f34649111094d03748173"
+      }
+    },
+    {
+      "id": 13164038587,
+      "node_id": "MDg6QXJ0aWZhY3QxMzE2NDAzODU4Nw==",
+      "name": "test-results-macos-latest",
+      "size_in_bytes": 93092,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13164038587",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13164038587/zip",
+      "expired": false,
+      "digest": "sha256:59970ed32d24a1e1c4147baba2e8c60a9eb3a7806ab512b80a345ee98eb46fcd",
+      "created_at": "2026-11-02T17:29:59Z",
+      "updated_at": "2026-11-02T17:29:59Z",
+      "expires_at": "2026-11-09T17:29:58Z",
+      "workflow_run": {
+        "id": 41490423012,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/l7b-world-v5",
+        "head_sha": "e70f354413f108e0d67f34649111094d03748173"
+      }
+    }
+  ]
+}
+

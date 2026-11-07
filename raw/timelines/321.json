@@ -1,0 +1,293 @@
+[
+  {
+    "sha": "723e62094c7ef06ca3801f2bfaf119ac28b41209",
+    "node_id": "C_kwDOU3hqGNoAKDcyM2U2MjA5NGM3ZWYwNmNhMzgwMWYyYmZhZjExOWFjMjhiNDEyMDk",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/723e62094c7ef06ca3801f2bfaf119ac28b41209",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/723e62094c7ef06ca3801f2bfaf119ac28b41209",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T05:39:33Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T05:39:33Z"
+    },
+    "tree": {
+      "sha": "e87ca0d1d357ff9ecf07b869c8b5d946b7a4ee9d",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/e87ca0d1d357ff9ecf07b869c8b5d946b7a4ee9d"
+    },
+    "message": "Move each person's minute of psychology and its writes to Rust rows\n\nupdate_psychology runs the five built-in models from the entity rows and the\nview, and apply_deltas writes rows, objects and body records. Traced ticks stay\non explain_update. update_long_term reads the previous stress from the rows.\nnative_deltas and native/src/psychology.rs go away.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "dd6a2948741f9e4a41f566e43735b49976c53f19",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/dd6a2948741f9e4a41f566e43735b49976c53f19",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/dd6a2948741f9e4a41f566e43735b49976c53f19"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "74c90681fe9ab3ac8a579e5ed7e13548fa36a02a",
+    "node_id": "C_kwDOU3hqGNoAKDc0YzkwNjgxZmU5YWIzYWM4YTU3OWU1ZWQ3ZTEzNTQ4ZmEzNmEwMmE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/74c90681fe9ab3ac8a579e5ed7e13548fa36a02a",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/74c90681fe9ab3ac8a579e5ed7e13548fa36a02a",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T09:46:14Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T09:46:14Z"
+    },
+    "tree": {
+      "sha": "28bcbdb60e9bf7c2f438ed231c71d8b2f1b89b3a",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/28bcbdb60e9bf7c2f438ed231c71d8b2f1b89b3a"
+    },
+    "message": "Record the psychology lane, and pass whole entity assignments through the tracked session\n\nThe test session replaced WorldState.__setattr__ without entities_assigned, so\nrows went stale in population scenarios once a kernel read them.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "723e62094c7ef06ca3801f2bfaf119ac28b41209",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/723e62094c7ef06ca3801f2bfaf119ac28b41209",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/723e62094c7ef06ca3801f2bfaf119ac28b41209"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "ec99a8bf1faf2a07887e9920799249a5c0e1ddfe",
+    "node_id": "C_kwDOU3hqGNoAKGVjOTlhOGJmMWZhZjJhMDc4ODdlOTkyMDc5OTI0OWE1YzBlMWRkZmU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ec99a8bf1faf2a07887e9920799249a5c0e1ddfe",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/ec99a8bf1faf2a07887e9920799249a5c0e1ddfe",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T09:54:44Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T09:54:44Z"
+    },
+    "tree": {
+      "sha": "c254c438a4124e5c9a69ede615c90c4d9a857baa",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/c254c438a4124e5c9a69ede615c90c4d9a857baa"
+    },
+    "message": "Merge lane B into the psychology lane\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "74c90681fe9ab3ac8a579e5ed7e13548fa36a02a",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/74c90681fe9ab3ac8a579e5ed7e13548fa36a02a",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/74c90681fe9ab3ac8a579e5ed7e13548fa36a02a"
+      },
+      {
+        "sha": "9c0f89f14295837e52923f55a7781352bbee70f6",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/9c0f89f14295837e52923f55a7781352bbee70f6",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/9c0f89f14295837e52923f55a7781352bbee70f6"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "5d23fd27311ba0658d07acd2d3cd28b3322d77ea",
+    "node_id": "C_kwDOU3hqGNoAKDVkMjNmZDI3MzExYmEwNjU4ZDA3YWNkMmQzY2QyOGIzMzIyZDc3ZWE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/5d23fd27311ba0658d07acd2d3cd28b3322d77ea",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/5d23fd27311ba0658d07acd2d3cd28b3322d77ea",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T09:54:59Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T09:54:59Z"
+    },
+    "tree": {
+      "sha": "19f4b2201bc612e5c9b8a8d7b91f90cd7c833580",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/19f4b2201bc612e5c9b8a8d7b91f90cd7c833580"
+    },
+    "message": "Merge lane C into the psychology lane\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "ec99a8bf1faf2a07887e9920799249a5c0e1ddfe",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ec99a8bf1faf2a07887e9920799249a5c0e1ddfe",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/ec99a8bf1faf2a07887e9920799249a5c0e1ddfe"
+      },
+      {
+        "sha": "74e2d797ec7ce8f5e597ea4f39078b900ca699c8",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/74e2d797ec7ce8f5e597ea4f39078b900ca699c8",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/74e2d797ec7ce8f5e597ea4f39078b900ca699c8"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "49276be39812203407bcdf3f2188e924a707491b",
+    "node_id": "C_kwDOU3hqGNoAKDQ5Mjc2YmUzOTgxMjIwMzQwN2JjZGYzZjIxODhlOTI0YTcwNzQ5MWI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/49276be39812203407bcdf3f2188e924a707491b",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/49276be39812203407bcdf3f2188e924a707491b",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T10:12:39Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T10:12:39Z"
+    },
+    "tree": {
+      "sha": "19f4b2201bc612e5c9b8a8d7b91f90cd7c833580",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/19f4b2201bc612e5c9b8a8d7b91f90cd7c833580"
+    },
+    "message": "Merge remote-tracking branch 'origin/feature/rust-port' into rust/m1-psychology",
+    "parents": [
+      {
+        "sha": "5d23fd27311ba0658d07acd2d3cd28b3322d77ea",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/5d23fd27311ba0658d07acd2d3cd28b3322d77ea",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/5d23fd27311ba0658d07acd2d3cd28b3322d77ea"
+      },
+      {
+        "sha": "7b635d2dfcee53ee96878566c9afb49b44743f41",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7b635d2dfcee53ee96878566c9afb49b44743f41",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/7b635d2dfcee53ee96878566c9afb49b44743f41"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34766470044,
+    "node_id": "ME_lADOU3hqGM8AAAABbZh_KM8AAAAIGD47nA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34766470044",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "1506f2b490c3d765fcb01f295cbe1fa90f4e87d4",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/1506f2b490c3d765fcb01f295cbe1fa90f4e87d4",
+    "created_at": "2026-10-31T10:30:55Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34766470105,
+    "node_id": "CE_lADOU3hqGM8AAAABbZh_KM8AAAAIGD472Q",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34766470105",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-31T10:30:55Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34766472350,
+    "node_id": "HRDE_lADOU3hqGM8AAAABbZh_KM8AAAAIGD5Eng",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34766472350",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-31T10:30:59Z",
+    "performed_via_github_app": null
+  }
+]
+

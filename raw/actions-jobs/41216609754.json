@@ -1,0 +1,450 @@
+{
+  "total_count": 3,
+  "jobs": [
+    {
+      "id": 124582342161,
+      "run_id": 41216609754,
+      "workflow_name": "オフラインCI",
+      "head_branch": "rust/m1-staff-pilot",
+      "run_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/runs/41216609754",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOU3hqGM8AAAAdAa-uEQ",
+      "head_sha": "f6eb4a5c093ed1bf53fd724143e877836f3b8487",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/jobs/124582342161",
+      "html_url": "https://github.com/jphacks/tkb_2615/actions/runs/41216609754/job/124582342161",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-31T15:48:36Z",
+      "started_at": "2026-10-31T15:48:38Z",
+      "completed_at": "2026-10-31T15:55:01Z",
+      "name": "test (macos-latest)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-31T15:48:39Z",
+          "completed_at": "2026-10-31T15:48:40Z"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-31T15:48:40Z",
+          "completed_at": "2026-10-31T15:48:44Z"
+        },
+        {
+          "name": "Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-31T15:48:44Z",
+          "completed_at": "2026-10-31T15:48:47Z"
+        },
+        {
+          "name": "packageと開発toolを導入",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-31T15:48:47Z",
+          "completed_at": "2026-10-31T15:48:55Z"
+        },
+        {
+          "name": "Rustのkernelを作って導入",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-31T15:48:55Z",
+          "completed_at": "2026-10-31T15:50:05Z"
+        },
+        {
+          "name": "短時間offline test",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-31T15:50:05Z",
+          "completed_at": "2026-10-31T15:54:51Z"
+        },
+        {
+          "name": "Rustのkernelなしで短時間offline test",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 7,
+          "started_at": "2026-10-31T15:54:51Z",
+          "completed_at": "2026-10-31T15:54:51Z"
+        },
+        {
+          "name": "test結果を保存",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-31T15:54:51Z",
+          "completed_at": "2026-10-31T15:54:53Z"
+        },
+        {
+          "name": "全経路のハッシュを確認",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 9,
+          "started_at": "2026-10-31T15:54:53Z",
+          "completed_at": "2026-10-31T15:54:53Z"
+        },
+        {
+          "name": "Rustの禁止メソッドを確認",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 10,
+          "started_at": "2026-10-31T15:54:53Z",
+          "completed_at": "2026-10-31T15:54:53Z"
+        },
+        {
+          "name": "lintを確認",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 11,
+          "started_at": "2026-10-31T15:54:53Z",
+          "completed_at": "2026-10-31T15:54:53Z"
+        },
+        {
+          "name": "formatを確認",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 12,
+          "started_at": "2026-10-31T15:54:53Z",
+          "completed_at": "2026-10-31T15:54:53Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-31T15:54:53Z",
+          "completed_at": "2026-10-31T15:54:53Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 24,
+          "started_at": "2026-10-31T15:54:53Z",
+          "completed_at": "2026-10-31T15:54:54Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 25,
+          "started_at": "2026-10-31T15:54:54Z",
+          "completed_at": "2026-10-31T15:54:59Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/jphacks/tkb_2615/check-runs/124582342161",
+      "labels": [
+        "macos-latest"
+      ],
+      "runner_id": 1000023844,
+      "runner_name": "GitHub Actions 1000023844",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 124582342337,
+      "run_id": 41216609754,
+      "workflow_name": "オフラインCI",
+      "head_branch": "rust/m1-staff-pilot",
+      "run_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/runs/41216609754",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOU3hqGM8AAAAdAa-uwQ",
+      "head_sha": "f6eb4a5c093ed1bf53fd724143e877836f3b8487",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/jobs/124582342337",
+      "html_url": "https://github.com/jphacks/tkb_2615/actions/runs/41216609754/job/124582342337",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-31T15:48:36Z",
+      "started_at": "2026-10-31T15:48:38Z",
+      "completed_at": "2026-10-31T15:58:28Z",
+      "name": "test (ubuntu-latest)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-31T15:48:48Z",
+          "completed_at": "2026-10-31T15:48:49Z"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-31T15:48:49Z",
+          "completed_at": "2026-10-31T15:48:50Z"
+        },
+        {
+          "name": "Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-31T15:48:50Z",
+          "completed_at": "2026-10-31T15:48:52Z"
+        },
+        {
+          "name": "packageと開発toolを導入",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-31T15:48:52Z",
+          "completed_at": "2026-10-31T15:48:57Z"
+        },
+        {
+          "name": "Rustのkernelを作って導入",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-31T15:48:57Z",
+          "completed_at": "2026-10-31T15:49:33Z"
+        },
+        {
+          "name": "短時間offline test",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-31T15:49:33Z",
+          "completed_at": "2026-10-31T15:52:42Z"
+        },
+        {
+          "name": "Rustのkernelなしで短時間offline test",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-31T15:52:42Z",
+          "completed_at": "2026-10-31T15:56:43Z"
+        },
+        {
+          "name": "test結果を保存",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-31T15:56:43Z",
+          "completed_at": "2026-10-31T15:56:44Z"
+        },
+        {
+          "name": "全経路のハッシュを確認",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 9,
+          "started_at": "2026-10-31T15:56:44Z",
+          "completed_at": "2026-10-31T15:58:18Z"
+        },
+        {
+          "name": "Rustの禁止メソッドを確認",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 10,
+          "started_at": "2026-10-31T15:58:18Z",
+          "completed_at": "2026-10-31T15:58:26Z"
+        },
+        {
+          "name": "lintを確認",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 11,
+          "started_at": "2026-10-31T15:58:26Z",
+          "completed_at": "2026-10-31T15:58:26Z"
+        },
+        {
+          "name": "formatを確認",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 12,
+          "started_at": "2026-10-31T15:58:26Z",
+          "completed_at": "2026-10-31T15:58:26Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-31T15:58:26Z",
+          "completed_at": "2026-10-31T15:58:26Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 24,
+          "started_at": "2026-10-31T15:58:26Z",
+          "completed_at": "2026-10-31T15:58:26Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 25,
+          "started_at": "2026-10-31T15:58:26Z",
+          "completed_at": "2026-10-31T15:58:26Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/jphacks/tkb_2615/check-runs/124582342337",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000023845,
+      "runner_name": "GitHub Actions 1000023845",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 124582342408,
+      "run_id": 41216609754,
+      "workflow_name": "オフラインCI",
+      "head_branch": "rust/m1-staff-pilot",
+      "run_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/runs/41216609754",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOU3hqGM8AAAAdAa-vCA",
+      "head_sha": "f6eb4a5c093ed1bf53fd724143e877836f3b8487",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/jobs/124582342408",
+      "html_url": "https://github.com/jphacks/tkb_2615/actions/runs/41216609754/job/124582342408",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-31T15:48:36Z",
+      "started_at": "2026-10-31T15:48:38Z",
+      "completed_at": "2026-10-31T16:03:19Z",
+      "name": "test (windows-latest)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-31T15:48:39Z",
+          "completed_at": "2026-10-31T15:48:41Z"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-31T15:48:41Z",
+          "completed_at": "2026-10-31T15:48:47Z"
+        },
+        {
+          "name": "Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-31T15:48:47Z",
+          "completed_at": "2026-10-31T15:48:53Z"
+        },
+        {
+          "name": "packageと開発toolを導入",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-31T15:48:53Z",
+          "completed_at": "2026-10-31T15:49:13Z"
+        },
+        {
+          "name": "Rustのkernelを作って導入",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-31T15:49:13Z",
+          "completed_at": "2026-10-31T15:50:53Z"
+        },
+        {
+          "name": "短時間offline test",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-31T15:50:53Z",
+          "completed_at": "2026-10-31T16:03:14Z"
+        },
+        {
+          "name": "Rustのkernelなしで短時間offline test",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 7,
+          "started_at": "2026-10-31T16:03:14Z",
+          "completed_at": "2026-10-31T16:03:14Z"
+        },
+        {
+          "name": "test結果を保存",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-31T16:03:14Z",
+          "completed_at": "2026-10-31T16:03:15Z"
+        },
+        {
+          "name": "全経路のハッシュを確認",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 9,
+          "started_at": "2026-10-31T16:03:15Z",
+          "completed_at": "2026-10-31T16:03:15Z"
+        },
+        {
+          "name": "Rustの禁止メソッドを確認",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 10,
+          "started_at": "2026-10-31T16:03:15Z",
+          "completed_at": "2026-10-31T16:03:15Z"
+        },
+        {
+          "name": "lintを確認",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 11,
+          "started_at": "2026-10-31T16:03:15Z",
+          "completed_at": "2026-10-31T16:03:15Z"
+        },
+        {
+          "name": "formatを確認",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 12,
+          "started_at": "2026-10-31T16:03:15Z",
+          "completed_at": "2026-10-31T16:03:15Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 23,
+          "started_at": "2026-10-31T16:03:15Z",
+          "completed_at": "2026-10-31T16:03:15Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 24,
+          "started_at": "2026-10-31T16:03:15Z",
+          "completed_at": "2026-10-31T16:03:18Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 25,
+          "started_at": "2026-10-31T16:03:18Z",
+          "completed_at": "2026-10-31T16:03:18Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/jphacks/tkb_2615/check-runs/124582342408",
+      "labels": [
+        "windows-latest"
+      ],
+      "runner_id": 1000023846,
+      "runner_name": "GitHub Actions 1000023846",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}
+

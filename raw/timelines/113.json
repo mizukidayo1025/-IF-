@@ -1,0 +1,170 @@
+[
+  {
+    "sha": "a54e1accf781c663ebf395c41a283849b2749164",
+    "node_id": "C_kwDOU3hqGNoAKGE1NGUxYWNjZjc4MWM2NjNlYmYzOTVjNDFhMjgzODQ5YjI3NDkxNjQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/a54e1accf781c663ebf395c41a283849b2749164",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/a54e1accf781c663ebf395c41a283849b2749164",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:52:43Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:52:43Z"
+    },
+    "tree": {
+      "sha": "a115e3f6c5a1023d05b4f4962dda21751460d11c",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/a115e3f6c5a1023d05b4f4962dda21751460d11c"
+    },
+    "message": "Move test_service_capacity.py under tests/unit/experiments\n\nOnly the file move, so its history stays traceable. The next commit\nsplits out its CLI test and switches the generated Scenarios that are\nnot generator checks to the shared fixture (#88).\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "7a0aa248a917862a72083ed6427b734c749c9900",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7a0aa248a917862a72083ed6427b734c749c9900",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/7a0aa248a917862a72083ed6427b734c749c9900"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "e9eba3fe2d81a9bfaa57366b02957198e6052478",
+    "node_id": "C_kwDOU3hqGNoAKGU5ZWJhM2ZlMmQ4MWE5YmZhYTU3MzY2YjAyOTU3MTk4ZTYwNTI0Nzg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/e9eba3fe2d81a9bfaa57366b02957198e6052478",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/e9eba3fe2d81a9bfaa57366b02957198e6052478",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:56:09Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:56:09Z"
+    },
+    "tree": {
+      "sha": "c0fedb102b50b88c4b70167889e3c1c52e50a67f",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/c0fedb102b50b88c4b70167889e3c1c52e50a67f"
+    },
+    "message": "Diagnose service capacity on the shared generated Scenario\n\nThe diagnostic tests built their own Scenarios with InitialScenarioBuilder\n(seed 7, one day) for 10, 30 or 100 evacuees. They now use the shared\ngenerated_scenario, or generated_scenario_with(evacuees=N) where the\nchecked numbers depend on the count (#88).\n\nThe test that a floor-plan station counts as one unit now compares with\nthe Scenario's water stations instead of the fixed 2 that 30 evacuees\ngave. The check of the generator's own defaults across sizes keeps\nbuilding drafts directly. The CLI test moves to\ntests/integration/test_service_capacity_cli.py.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "a54e1accf781c663ebf395c41a283849b2749164",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/a54e1accf781c663ebf395c41a283849b2749164",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/a54e1accf781c663ebf395c41a283849b2749164"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34357220614,
+    "node_id": "ME_lADOU3hqGM8AAAABaRKZR88AAAAH_9mVBg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34357220614",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "6a49790ff0ceb6cd7dcad267d2d53aac932389e5",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/6a49790ff0ceb6cd7dcad267d2d53aac932389e5",
+    "created_at": "2026-10-27T10:56:44Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34357220924,
+    "node_id": "CE_lADOU3hqGM8AAAABaRKZR88AAAAH_9mWPA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34357220924",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T10:56:44Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34357227159,
+    "node_id": "HRDE_lADOU3hqGM8AAAABaRKZR88AAAAH_9mulw",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34357227159",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T10:56:48Z",
+    "performed_via_github_app": null
+  }
+]
+

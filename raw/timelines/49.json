@@ -1,0 +1,139 @@
+[
+  {
+    "sha": "de27830bd977cc453e366a78522d7dab52169a99",
+    "node_id": "C_kwDOU3hqGNoAKGRlMjc4MzBiZDk3N2NjNDUzZTM2NmE3ODUyMmQ3ZGFiNTIxNjlhOTk",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/de27830bd977cc453e366a78522d7dab52169a99",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/de27830bd977cc453e366a78522d7dab52169a99",
+    "author": {
+      "name": "すみす",
+      "email": "moribayashi366@gmail.com",
+      "date": "2026-10-25T05:26:19Z"
+    },
+    "committer": {
+      "name": "すみす",
+      "email": "moribayashi366@gmail.com",
+      "date": "2026-10-25T05:26:19Z"
+    },
+    "tree": {
+      "sha": "bcd0c601b2e88113b5c61fbb90c861d73294db59",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/bcd0c601b2e88113b5c61fbb90c861d73294db59"
+    },
+    "message": "Add the logo, bubble popups and plain-language KPI notes to demo-v2\n\n- Show the supplied logo (house and name only) in the header top-left, served from a new static route and included in the package data\n- Open evacuee/staff status as a speech-bubble popup next to the click, scrollable inside, and let the people panel expand in-page\n- Replace developer wording in the KPI notes with plain explanations\n- Keep a copy of the logo as demo-v2-logo.jpg\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "5768a571ffc7cc411957fe5afc595a47384a4834",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/5768a571ffc7cc411957fe5afc595a47384a4834",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/5768a571ffc7cc411957fe5afc595a47384a4834"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "f39972b03190d88f86c0a7f874e54e608c96175d",
+    "node_id": "C_kwDOU3hqGNoAKGYzOTk3MmIwMzE5MGQ4OGY4NmMwYTdmODc0ZTU0ZTYwOGM5NjE3NWQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f39972b03190d88f86c0a7f874e54e608c96175d",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/f39972b03190d88f86c0a7f874e54e608c96175d",
+    "author": {
+      "name": "すみす",
+      "email": "moribayashi366@gmail.com",
+      "date": "2026-10-25T05:27:42Z"
+    },
+    "committer": {
+      "name": "すみす",
+      "email": "moribayashi366@gmail.com",
+      "date": "2026-10-25T05:27:42Z"
+    },
+    "tree": {
+      "sha": "7d148cabd49964935bf750d8291e786029ce7c5f",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/7d148cabd49964935bf750d8291e786029ce7c5f"
+    },
+    "message": "Keep the header tagline and mark the people panel as an excerpt\n\n- Restore the \"避難所の「もしも」を、考えよう。\" text beside the logo\n- Label the evacuee/staff panel \"（抜粋）\" since it lists only a few people\n\nCo-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "de27830bd977cc453e366a78522d7dab52169a99",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/de27830bd977cc453e366a78522d7dab52169a99",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/de27830bd977cc453e366a78522d7dab52169a99"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34166642545,
+    "node_id": "ME_lADOU3hqGM8AAAABZuRphc8AAAAH9H2XcQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34166642545",
+    "actor": {
+      "login": "moribayashi366",
+      "id": 301607228,
+      "node_id": "U_kgDOEfopPA",
+      "avatar_url": "https://avatars.githubusercontent.com/u/301607228?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/moribayashi366",
+      "html_url": "https://github.com/moribayashi366",
+      "followers_url": "https://api.github.com/users/moribayashi366/followers",
+      "following_url": "https://api.github.com/users/moribayashi366/following{/other_user}",
+      "gists_url": "https://api.github.com/users/moribayashi366/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/moribayashi366/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/moribayashi366/subscriptions",
+      "organizations_url": "https://api.github.com/users/moribayashi366/orgs",
+      "repos_url": "https://api.github.com/users/moribayashi366/repos",
+      "events_url": "https://api.github.com/users/moribayashi366/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/moribayashi366/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "4ae0db8ad9e013d0ddd680daf69091325bdaf3e6",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/4ae0db8ad9e013d0ddd680daf69091325bdaf3e6",
+    "created_at": "2026-10-25T05:28:42Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34166642577,
+    "node_id": "CE_lADOU3hqGM8AAAABZuRphc8AAAAH9H2XkQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34166642577",
+    "actor": {
+      "login": "moribayashi366",
+      "id": 301607228,
+      "node_id": "U_kgDOEfopPA",
+      "avatar_url": "https://avatars.githubusercontent.com/u/301607228?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/moribayashi366",
+      "html_url": "https://github.com/moribayashi366",
+      "followers_url": "https://api.github.com/users/moribayashi366/followers",
+      "following_url": "https://api.github.com/users/moribayashi366/following{/other_user}",
+      "gists_url": "https://api.github.com/users/moribayashi366/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/moribayashi366/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/moribayashi366/subscriptions",
+      "organizations_url": "https://api.github.com/users/moribayashi366/orgs",
+      "repos_url": "https://api.github.com/users/moribayashi366/repos",
+      "events_url": "https://api.github.com/users/moribayashi366/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/moribayashi366/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-25T05:28:42Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  }
+]
+

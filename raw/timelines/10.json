@@ -1,0 +1,169 @@
+[
+  {
+    "sha": "694d14dcc860e5d82b6035c51844e11055efe42c",
+    "node_id": "C_kwDOU3hqGNoAKDY5NGQxNGRjYzg2MGU1ZDgyYjYwMzVjNTE4NDRlMTEwNTVlZmU0MmM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/694d14dcc860e5d82b6035c51844e11055efe42c",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/694d14dcc860e5d82b6035c51844e11055efe42c",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-24T08:35:50Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-24T08:35:50Z"
+    },
+    "tree": {
+      "sha": "b7e53e4c772e2443229d8a65e38914ed9cc9a386",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/b7e53e4c772e2443229d8a65e38914ed9cc9a386"
+    },
+    "message": "Keep other approval blockers when correcting household links\n\nScenario previews did not store approval_blockers, so the household\ncorrection endpoint treated every non-guardian blocker as cleared. A\npreview blocked by both unaccompanied minors and an inaccessible route\ncould be corrected and approved, creating a Run.\n\nStore blockers in both scenario-preview and facility-preview drafts, and\nrefuse corrections on drafts that predate the blocker record.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "9e71d60de5f2614f944c69d3e9257bd7ef3390a3",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/9e71d60de5f2614f944c69d3e9257bd7ef3390a3",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/9e71d60de5f2614f944c69d3e9257bd7ef3390a3"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34119209921,
+    "node_id": "RTE_lADOU3hqGM8AAAABZkn9K88AAAAH8anTwQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34119209921",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "renamed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-24T08:37:06Z",
+    "rename": {
+      "from": "Keep other approval blockers when correcting household links",
+      "to": "世帯関係の修正で他の承認ブロッカーが消えないようにする（Web Scenarioが開始できない原因の調査を含む）"
+    },
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34119511934,
+    "node_id": "ME_lADOU3hqGM8AAAABZkn9K88AAAAH8a5vfg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34119511934",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "906a7d5b542728648f0fcfc82a1fe8a505c7bcbf",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/906a7d5b542728648f0fcfc82a1fe8a505c7bcbf",
+    "created_at": "2026-10-24T08:45:57Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34119511981,
+    "node_id": "CE_lADOU3hqGM8AAAABZkn9K88AAAAH8a5vrQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34119511981",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-24T08:45:57Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34119573261,
+    "node_id": "HRDE_lADOU3hqGM8AAAABZkn9K88AAAAH8a9fDQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34119573261",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-24T08:47:43Z",
+    "performed_via_github_app": null
+  }
+]
+

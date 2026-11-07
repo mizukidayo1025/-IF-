@@ -1,0 +1,170 @@
+[
+  {
+    "sha": "ae88a4447ec6fa474655e91f2c8e60a0a66cbc16",
+    "node_id": "C_kwDOU3hqGNoAKGFlODhhNDQ0N2VjNmZhNDc0NjU1ZTkxZjJjOGU2MGEwYTY2Y2JjMTY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ae88a4447ec6fa474655e91f2c8e60a0a66cbc16",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/ae88a4447ec6fa474655e91f2c8e60a0a66cbc16",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T11:01:51Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T11:01:51Z"
+    },
+    "tree": {
+      "sha": "39631c197f8df043e3b035e12fee076bb9603eb8",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/39631c197f8df043e3b035e12fee076bb9603eb8"
+    },
+    "message": "Build the views of the phases from the rows, and give the update kernels their fields from them\n\nrules/world_view.rs makes what WorldView.from_world and after_state_update provide as a snapshot of\nplain Rust values, with the same audit hash. The phases' steps return a WorldView whose Python parts\nare made when a Python reader first asks. The psychology and social kernels read the zone's\nconditions, the body record, the group (with the household override), information pressure and\nrequired sleep from it instead of AgentView.__dict__, and the information kernel shares the group rule.\n\nAdd the python_rules mark, which turns the Rust dispatch off for a test, with a lint that fails when\na ported name is patched without it. Add a shadow that compares every field of each view bit by bit.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "1506f2b490c3d765fcb01f295cbe1fa90f4e87d4",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/1506f2b490c3d765fcb01f295cbe1fa90f4e87d4",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/1506f2b490c3d765fcb01f295cbe1fa90f4e87d4"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "6f07f3de4eaeecfc8788864477c7a17b91bc8b8b",
+    "node_id": "C_kwDOU3hqGNoAKDZmMDdmM2RlNGVhZWVjZmM4Nzg4ODY0NDc3YzdhMTdiOTFiYzhiOGI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/6f07f3de4eaeecfc8788864477c7a17b91bc8b8b",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/6f07f3de4eaeecfc8788864477c7a17b91bc8b8b",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T11:33:09Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T15:56:24Z"
+    },
+    "tree": {
+      "sha": "e24f64612cb931cdfd7f9518d1cd5fb0a4e9ebba",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/e24f64612cb931cdfd7f9518d1cd5fb0a4e9ebba"
+    },
+    "message": "Record lane G's results, and say which model code moved and who checks partial\n\nAll checks have run on this code: the lane doc has the results. The comments said no coefficient\nlives in world_view.rs and that a rule says Unsupported on a partial view. The misinformation\npressure has its weight, threshold and cap there, and each rule has to check partial itself, so say\nthat; the built extension is byte-identical.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "ae88a4447ec6fa474655e91f2c8e60a0a66cbc16",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ae88a4447ec6fa474655e91f2c8e60a0a66cbc16",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/ae88a4447ec6fa474655e91f2c8e60a0a66cbc16"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34782631285,
+    "node_id": "ME_lADOU3hqGM8AAAABbcj-mc8AAAAIGTTVdQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34782631285",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "56323f6f2c69323014d4d4ec7b4e528e77607398",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/56323f6f2c69323014d4d4ec7b4e528e77607398",
+    "created_at": "2026-10-31T16:17:36Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34782631392,
+    "node_id": "CE_lADOU3hqGM8AAAABbcj-mc8AAAAIGTTV4A",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34782631392",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-31T16:17:36Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34786933487,
+    "node_id": "HRDE_lADOU3hqGM8AAAABbcj-mc8AAAAIGXZ67w",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34786933487",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-31T17:32:18Z",
+    "performed_via_github_app": null
+  }
+]
+

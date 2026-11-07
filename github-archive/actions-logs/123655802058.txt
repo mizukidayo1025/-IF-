@@ -1,0 +1,1043 @@
+﻿2026-10-29T18:39:53.4904877Z Current runner version: '2.338.0'
+2026-10-29T18:39:53.4925537Z ##[group]Runner Image Provisioner
+2026-10-29T18:39:53.4926201Z Hosted Compute Agent
+2026-10-29T18:39:53.4926710Z Version: 20261021.618
+2026-10-29T18:39:53.4927182Z Commit: 21505ad2541d5be6135ed84fc33697146cf75b8e
+2026-10-29T18:39:53.4927784Z Build Date: 2026-10-21T00:45:21Z
+2026-10-29T18:39:53.4928299Z Worker ID: {b26b7f6d-2e64-4ef9-b9ee-79e4a62c1bac}
+2026-10-29T18:39:53.4928816Z Region: westus3
+2026-10-29T18:39:53.4929251Z Cloud: Azure
+2026-10-29T18:39:53.4929638Z ##[endgroup]
+2026-10-29T18:39:53.4930603Z ##[group]Operating System
+2026-10-29T18:39:53.4931149Z Microsoft Windows Server 2025
+2026-10-29T18:39:53.4931588Z 10.0.26100
+2026-10-29T18:39:53.4932022Z Datacenter
+2026-10-29T18:39:53.4932402Z ##[endgroup]
+2026-10-29T18:39:53.4932826Z ##[group]Runner Image
+2026-10-29T18:39:53.4933868Z Image: windows-2025-vs2026
+2026-10-29T18:39:53.4934458Z Version: 20261021.278.1
+2026-10-29T18:39:53.4935835Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20261021.278/images/windows/Windows2025-VS2026-Readme.md
+2026-10-29T18:39:53.4937099Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20261021.278
+2026-10-29T18:39:53.4937841Z ##[endgroup]
+2026-10-29T18:39:53.4938689Z ##[group]GITHUB_TOKEN Permissions
+2026-10-29T18:39:53.4940134Z Contents: read
+2026-10-29T18:39:53.4940558Z Metadata: read
+2026-10-29T18:39:53.4941000Z ##[endgroup]
+2026-10-29T18:39:53.4942563Z Secret source: Actions
+2026-10-29T18:39:53.4943255Z Cache mode: write
+2026-10-29T18:39:53.4943773Z Prepare workflow directory
+2026-10-29T18:39:53.5292610Z Prepare all required actions
+2026-10-29T18:39:53.5348170Z Getting action download info
+2026-10-29T18:39:53.8177590Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-29T18:39:53.9356454Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+2026-10-29T18:39:54.0577506Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-10-29T18:39:54.3531834Z Complete job name: test (windows-latest)
+2026-10-29T18:39:54.4826253Z ##[group]Run actions/checkout@v4
+2026-10-29T18:39:54.4827270Z with:
+2026-10-29T18:39:54.4827705Z   repository: jphacks/tkb_2615
+2026-10-29T18:39:54.4831013Z   token: ***
+2026-10-29T18:39:54.4831325Z   ssh-strict: true
+2026-10-29T18:39:54.4831644Z   ssh-user: git
+2026-10-29T18:39:54.4831955Z   persist-credentials: true
+2026-10-29T18:39:54.4832308Z   clean: true
+2026-10-29T18:39:54.4832688Z   sparse-checkout-cone-mode: true
+2026-10-29T18:39:54.4833145Z   fetch-depth: 1
+2026-10-29T18:39:54.4833442Z   fetch-tags: false
+2026-10-29T18:39:54.4833750Z   show-progress: true
+2026-10-29T18:39:54.4834058Z   lfs: false
+2026-10-29T18:39:54.4834337Z   submodules: false
+2026-10-29T18:39:54.4834643Z   set-safe-directory: true
+2026-10-29T18:39:54.4834991Z   allow-unsafe-pr-checkout: false
+2026-10-29T18:39:54.4835595Z env:
+2026-10-29T18:39:54.4835871Z   SHELTERSIM_LLM_MODE: offline
+2026-10-29T18:39:54.4836227Z ##[endgroup]
+2026-10-29T18:39:54.6006845Z Syncing repository: jphacks/tkb_2615
+2026-10-29T18:39:54.6008162Z ##[group]Getting Git version info
+2026-10-29T18:39:54.6008609Z Working directory is 'D:\a\tkb_2615\tkb_2615'
+2026-10-29T18:39:54.7146334Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-29T18:39:55.1074630Z git version 2.56.0.windows.2
+2026-10-29T18:39:55.1120504Z ##[endgroup]
+2026-10-29T18:39:55.1138210Z Temporarily overriding HOME='D:\a\_temp\96a1cdb1-dfcd-45b3-abee-d44eecc27e27' before making global git config changes
+2026-10-29T18:39:55.1139979Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-29T18:39:55.1147620Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\tkb_2615\tkb_2615
+2026-10-29T18:39:55.1786381Z Deleting the contents of 'D:\a\tkb_2615\tkb_2615'
+2026-10-29T18:39:55.1791161Z ##[group]Initializing the repository
+2026-10-29T18:39:55.1798657Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\tkb_2615\tkb_2615
+2026-10-29T18:39:55.2819219Z Initialized empty Git repository in D:/a/tkb_2615/tkb_2615/.git/
+2026-10-29T18:39:55.2864402Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/jphacks/tkb_2615
+2026-10-29T18:39:55.3545596Z ##[endgroup]
+2026-10-29T18:39:55.3546946Z ##[group]Disabling automatic garbage collection
+2026-10-29T18:39:55.3553147Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+2026-10-29T18:39:55.3845562Z ##[endgroup]
+2026-10-29T18:39:55.3846674Z ##[group]Setting up auth
+2026-10-29T18:39:55.3854979Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-29T18:39:55.4146886Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-29T18:39:57.0057623Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-29T18:39:57.0349839Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-29T18:39:57.5070823Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-29T18:39:57.5367518Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-29T18:39:57.9774171Z [command]"C:\Program Files\Git\bin\git.exe" config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+2026-10-29T18:39:58.0072395Z ##[endgroup]
+2026-10-29T18:39:58.0073079Z ##[group]Fetching the repository
+2026-10-29T18:39:58.0090288Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +ff1dcedb29653146a8e7df9a314608720072d5a2:refs/remotes/origin/ci/three-platforms
+2026-10-29T18:39:59.9731052Z From https://github.com/jphacks/tkb_2615
+2026-10-29T18:39:59.9731868Z  * [new ref]         ff1dcedb29653146a8e7df9a314608720072d5a2 -> origin/ci/three-platforms
+2026-10-29T18:39:59.9765474Z ##[endgroup]
+2026-10-29T18:39:59.9765929Z ##[group]Determining the checkout info
+2026-10-29T18:39:59.9767899Z ##[endgroup]
+2026-10-29T18:39:59.9775847Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+2026-10-29T18:40:00.0257759Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+2026-10-29T18:40:00.0548332Z ##[group]Checking out the ref
+2026-10-29T18:40:00.0556045Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force -B ci/three-platforms refs/remotes/origin/ci/three-platforms
+2026-10-29T18:40:00.5263629Z Switched to a new branch 'ci/three-platforms'
+2026-10-29T18:40:00.5279849Z branch 'ci/three-platforms' set up to track 'origin/ci/three-platforms'.
+2026-10-29T18:40:00.5333709Z ##[endgroup]
+2026-10-29T18:40:00.5707804Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+2026-10-29T18:40:00.6055179Z ff1dcedb29653146a8e7df9a314608720072d5a2
+2026-10-29T18:40:00.6476809Z ##[group]Run actions/setup-python@v5
+2026-10-29T18:40:00.6477110Z with:
+2026-10-29T18:40:00.6477280Z   python-version: 3.12
+2026-10-29T18:40:00.6477465Z   cache: pip
+2026-10-29T18:40:00.6477643Z   cache-dependency-path: pyproject.toml
+2026-10-29T18:40:00.6477856Z   check-latest: false
+2026-10-29T18:40:00.6479939Z   token: ***
+2026-10-29T18:40:00.6480109Z   update-environment: true
+2026-10-29T18:40:00.6480293Z   allow-prereleases: false
+2026-10-29T18:40:00.6480462Z   freethreaded: false
+2026-10-29T18:40:00.6480621Z env:
+2026-10-29T18:40:00.6481069Z   SHELTERSIM_LLM_MODE: offline
+2026-10-29T18:40:00.6481890Z ##[endgroup]
+2026-10-29T18:40:00.7704271Z ##[group]Installed versions
+2026-10-29T18:40:00.7862584Z (node:2396) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-29T18:40:00.7863482Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-29T18:40:00.7864511Z Successfully set up CPython (3.12.10)
+2026-10-29T18:40:00.7865440Z ##[endgroup]
+2026-10-29T18:40:04.0290537Z pip cache is not found
+2026-10-29T18:40:04.0557510Z ##[group]Run python -m pip install -e ".[dev]"
+2026-10-29T18:40:04.0557885Z [36;1mpython -m pip install -e ".[dev]"[0m
+2026-10-29T18:40:04.1725749Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-29T18:40:04.1726149Z env:
+2026-10-29T18:40:04.1726328Z   SHELTERSIM_LLM_MODE: offline
+2026-10-29T18:40:04.1726589Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T18:40:04.1726971Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.12.10\x64/lib/pkgconfig
+2026-10-29T18:40:04.1727344Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T18:40:04.1727652Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T18:40:04.1727943Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T18:40:04.1728197Z ##[endgroup]
+2026-10-29T18:40:07.2326138Z Obtaining file:///D:/a/tkb_2615/tkb_2615
+2026-10-29T18:40:07.2354758Z   Installing build dependencies: started
+2026-10-29T18:40:09.9463318Z   Installing build dependencies: finished with status 'done'
+2026-10-29T18:40:09.9477071Z   Checking if build backend supports build_editable: started
+2026-10-29T18:40:10.4513308Z   Checking if build backend supports build_editable: finished with status 'done'
+2026-10-29T18:40:10.4533753Z   Getting requirements to build editable: started
+2026-10-29T18:40:10.9565766Z   Getting requirements to build editable: finished with status 'done'
+2026-10-29T18:40:10.9589453Z   Preparing editable metadata (pyproject.toml): started
+2026-10-29T18:40:11.2316150Z   Preparing editable metadata (pyproject.toml): finished with status 'done'
+2026-10-29T18:40:11.6229809Z Collecting pydantic==2.11.9 (from sheltersim==0.1.0)
+2026-10-29T18:40:11.7912297Z   Downloading pydantic-2.11.9-py3-none-any.whl.metadata (68 kB)
+2026-10-29T18:40:12.1034877Z Collecting reportlab<5,>=4.4 (from sheltersim==0.1.0)
+2026-10-29T18:40:12.1081570Z   Downloading reportlab-4.5.1-py3-none-any.whl.metadata (1.7 kB)
+2026-10-29T18:40:12.1768210Z Collecting pytest==8.3.5 (from sheltersim==0.1.0)
+2026-10-29T18:40:12.1808609Z   Downloading pytest-8.3.5-py3-none-any.whl.metadata (7.6 kB)
+2026-10-29T18:40:12.2441095Z Collecting pytest-xdist==3.8.0 (from sheltersim==0.1.0)
+2026-10-29T18:40:12.2481630Z   Downloading pytest_xdist-3.8.0-py3-none-any.whl.metadata (3.0 kB)
+2026-10-29T18:40:12.3106374Z Collecting pytest-cov==7.0.0 (from sheltersim==0.1.0)
+2026-10-29T18:40:12.3168075Z   Downloading pytest_cov-7.0.0-py3-none-any.whl.metadata (31 kB)
+2026-10-29T18:40:12.6841010Z Collecting coverage==7.10.7 (from sheltersim==0.1.0)
+2026-10-29T18:40:12.6899415Z   Downloading coverage-7.10.7-cp312-cp312-win_amd64.whl.metadata (9.2 kB)
+2026-10-29T18:40:13.0313164Z Collecting ruff==0.11.0 (from sheltersim==0.1.0)
+2026-10-29T18:40:13.0368322Z   Downloading ruff-0.11.0-py3-none-win_amd64.whl.metadata (26 kB)
+2026-10-29T18:40:13.0984389Z Collecting pypdf<6,>=5 (from sheltersim==0.1.0)
+2026-10-29T18:40:13.1044032Z   Downloading pypdf-5.9.0-py3-none-any.whl.metadata (7.1 kB)
+2026-10-29T18:40:13.2534764Z Collecting pypdfium2<5,>=4.30 (from sheltersim==0.1.0)
+2026-10-29T18:40:13.2587991Z   Downloading pypdfium2-4.30.0-py3-none-win_amd64.whl.metadata (48 kB)
+2026-10-29T18:40:13.3251170Z Collecting annotated-types>=0.6.0 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-29T18:40:13.3292252Z   Downloading annotated_types-0.8.0-py3-none-any.whl.metadata (15 kB)
+2026-10-29T18:40:14.0036276Z Collecting pydantic-core==2.33.2 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-29T18:40:14.0105347Z   Downloading pydantic_core-2.33.2-cp312-cp312-win_amd64.whl.metadata (6.9 kB)
+2026-10-29T18:40:14.1295644Z Collecting typing-extensions>=4.12.2 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-29T18:40:14.1336449Z   Downloading typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+2026-10-29T18:40:14.1970667Z Collecting typing-inspection>=0.4.0 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-29T18:40:14.2012957Z   Downloading typing_inspection-0.4.4-py3-none-any.whl.metadata (2.6 kB)
+2026-10-29T18:40:14.2223631Z Requirement already satisfied: colorama in C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\site-packages (from pytest==8.3.5->sheltersim==0.1.0) (0.4.6)
+2026-10-29T18:40:14.2562816Z Collecting iniconfig (from pytest==8.3.5->sheltersim==0.1.0)
+2026-10-29T18:40:14.2605056Z   Downloading iniconfig-2.3.1-py3-none-any.whl.metadata (2.8 kB)
+2026-10-29T18:40:14.2843346Z Requirement already satisfied: packaging in C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\site-packages (from pytest==8.3.5->sheltersim==0.1.0) (26.3)
+2026-10-29T18:40:14.3468294Z Collecting pluggy<2,>=1.5 (from pytest==8.3.5->sheltersim==0.1.0)
+2026-10-29T18:40:14.3511915Z   Downloading pluggy-1.7.0-py3-none-any.whl.metadata (5.0 kB)
+2026-10-29T18:40:14.4260297Z Collecting execnet>=2.1 (from pytest-xdist==3.8.0->sheltersim==0.1.0)
+2026-10-29T18:40:14.4333382Z   Downloading execnet-2.1.2-py3-none-any.whl.metadata (2.9 kB)
+2026-10-29T18:40:14.8029109Z Collecting pillow>=9.0.0 (from reportlab<5,>=4.4->sheltersim==0.1.0)
+2026-10-29T18:40:14.8072280Z   Downloading pillow-13.0.0-cp312-cp312-win_amd64.whl.metadata (9.3 kB)
+2026-10-29T18:40:14.9888830Z Collecting charset-normalizer (from reportlab<5,>=4.4->sheltersim==0.1.0)
+2026-10-29T18:40:14.9935503Z   Downloading charset_normalizer-3.5.2-cp312-cp312-win_amd64.whl.metadata (47 kB)
+2026-10-29T18:40:15.0383309Z Downloading coverage-7.10.7-cp312-cp312-win_amd64.whl (221 kB)
+2026-10-29T18:40:15.0867282Z Downloading pydantic-2.11.9-py3-none-any.whl (444 kB)
+2026-10-29T18:40:15.1604668Z Downloading pydantic_core-2.33.2-cp312-cp312-win_amd64.whl (2.0 MB)
+2026-10-29T18:40:15.2543982Z    ---------------------------------------- 2.0/2.0 MB 18.0 MB/s  0:00:00
+2026-10-29T18:40:15.2584291Z Downloading pytest-8.3.5-py3-none-any.whl (343 kB)
+2026-10-29T18:40:15.3106199Z Downloading pytest_cov-7.0.0-py3-none-any.whl (22 kB)
+2026-10-29T18:40:15.3422343Z Downloading pytest_xdist-3.8.0-py3-none-any.whl (46 kB)
+2026-10-29T18:40:15.3829763Z Downloading ruff-0.11.0-py3-none-win_amd64.whl (11.4 MB)
+2026-10-29T18:40:15.6601774Z    ---------------------------------------- 11.4/11.4 MB 41.9 MB/s  0:00:00
+2026-10-29T18:40:15.6642028Z Downloading pluggy-1.7.0-py3-none-any.whl (27 kB)
+2026-10-29T18:40:15.6916530Z Downloading pypdf-5.9.0-py3-none-any.whl (313 kB)
+2026-10-29T18:40:15.7413868Z Downloading pypdfium2-4.30.0-py3-none-win_amd64.whl (2.9 MB)
+2026-10-29T18:40:15.8590282Z    ---------------------------------------- 2.9/2.9 MB 24.1 MB/s  0:00:00
+2026-10-29T18:40:15.8628552Z Downloading reportlab-4.5.1-py3-none-any.whl (2.0 MB)
+2026-10-29T18:40:15.9674376Z    ---------------------------------------- 2.0/2.0 MB 15.6 MB/s  0:00:00
+2026-10-29T18:40:15.9715998Z Downloading annotated_types-0.8.0-py3-none-any.whl (13 kB)
+2026-10-29T18:40:15.9938114Z Downloading execnet-2.1.2-py3-none-any.whl (40 kB)
+2026-10-29T18:40:16.0261691Z Downloading pillow-13.0.0-cp312-cp312-win_amd64.whl (7.3 MB)
+2026-10-29T18:40:16.3174943Z    ---------------------------------------- 7.3/7.3 MB 24.9 MB/s  0:00:00
+2026-10-29T18:40:16.3601936Z Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+2026-10-29T18:40:16.3933205Z Downloading typing_inspection-0.4.4-py3-none-any.whl (14 kB)
+2026-10-29T18:40:16.4243353Z Downloading charset_normalizer-3.5.2-cp312-cp312-win_amd64.whl (207 kB)
+2026-10-29T18:40:16.5744451Z Downloading iniconfig-2.3.1-py3-none-any.whl (7.6 kB)
+2026-10-29T18:40:16.6830222Z Building wheels for collected packages: sheltersim
+2026-10-29T18:40:16.6904972Z   Building editable for sheltersim (pyproject.toml): started
+2026-10-29T18:40:17.0154732Z   Building editable for sheltersim (pyproject.toml): finished with status 'done'
+2026-10-29T18:40:17.0208239Z   Created wheel for sheltersim: filename=sheltersim-0.1.0-0.editable-py3-none-any.whl size=9166 sha256=b28785eab8a5263a252d7a6f887f2a8019dc059409713f945301e8b305a715dc
+2026-10-29T18:40:17.0210526Z   Stored in directory: C:\Users\runneradmin\AppData\Local\Temp\pip-ephem-wheel-cache-vpymmbih\wheels\25\d6\ee\5ab6036338aeb6b14bbca7511bc844e3df1f8d61f449109643
+2026-10-29T18:40:17.0236625Z Successfully built sheltersim
+2026-10-29T18:40:17.0682527Z Installing collected packages: typing-extensions, ruff, pypdfium2, pypdf, pluggy, pillow, iniconfig, execnet, coverage, charset-normalizer, annotated-types, typing-inspection, reportlab, pytest, pydantic-core, pytest-xdist, pytest-cov, pydantic, sheltersim
+2026-10-29T18:40:24.5297333Z 
+2026-10-29T18:40:24.5328586Z Successfully installed annotated-types-0.8.0 charset-normalizer-3.5.2 coverage-7.10.7 execnet-2.1.2 iniconfig-2.3.1 pillow-13.0.0 pluggy-1.7.0 pydantic-2.11.9 pydantic-core-2.33.2 pypdf-5.9.0 pypdfium2-4.30.0 pytest-8.3.5 pytest-cov-7.0.0 pytest-xdist-3.8.0 reportlab-4.5.1 ruff-0.11.0 sheltersim-0.1.0 typing-extensions-4.16.0 typing-inspection-0.4.4
+2026-10-29T18:40:24.8409342Z ##[group]Run python -m pytest -m "not long_simulation" -n auto
+2026-10-29T18:40:24.8409774Z [36;1mpython -m pytest -m "not long_simulation" -n auto[0m
+2026-10-29T18:40:24.8464047Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-29T18:40:24.8464311Z env:
+2026-10-29T18:40:24.8464463Z   SHELTERSIM_LLM_MODE: offline
+2026-10-29T18:40:24.8464709Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T18:40:24.8465047Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.12.10\x64/lib/pkgconfig
+2026-10-29T18:40:24.8465380Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T18:40:24.8465702Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T18:40:24.8465995Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T18:40:24.8466237Z ##[endgroup]
+2026-10-29T18:40:33.4537734Z ============================= test session starts =============================
+2026-10-29T18:40:33.4538670Z platform win32 -- Python 3.12.10, pytest-8.3.5, pluggy-1.7.0
+2026-10-29T18:40:33.4539550Z rootdir: D:\a\tkb_2615\tkb_2615
+2026-10-29T18:40:33.4539981Z configfile: pyproject.toml
+2026-10-29T18:40:33.4540318Z testpaths: tests
+2026-10-29T18:40:33.4540571Z plugins: platformdirs-4.13.5, cov-7.0.0, xdist-3.8.0
+2026-10-29T18:40:33.4540891Z created: 4/4 workers
+2026-10-29T18:40:33.4541099Z 4 workers [1338 items]
+2026-10-29T18:40:33.4541253Z 
+2026-10-29T18:40:36.6068598Z ........................................................................ [  5%]
+2026-10-29T18:40:39.0623204Z ........................................................................ [ 10%]
+2026-10-29T18:40:51.8952459Z ........................................................................ [ 16%]
+2026-10-29T18:41:05.5843303Z .F...................................................................... [ 21%]
+2026-10-29T18:41:16.6324216Z ........................................................................ [ 26%]
+2026-10-29T18:41:19.3423689Z ........................................................................ [ 32%]
+2026-10-29T18:41:21.9677222Z ........................................................................ [ 37%]
+2026-10-29T18:41:35.4258527Z ........................................................................ [ 43%]
+2026-10-29T18:41:50.4968547Z ........................................................................ [ 48%]
+2026-10-29T18:42:52.3377985Z ........................................................................ [ 53%]
+2026-10-29T18:43:33.6879135Z .....F....s.......s..................................................... [ 59%]
+2026-10-29T18:44:52.6725394Z .............................................................F.......... [ 64%]
+2026-10-29T18:44:58.3033558Z FF.....FF....ssss....................................................... [ 69%]
+2026-10-29T18:45:39.2886414Z ........................................................................ [ 75%]
+2026-10-29T18:49:45.3307437Z .............................................F.......................... [ 80%]
+2026-10-29T18:52:22.6614702Z ........................................................................ [ 86%]
+2026-10-29T18:56:26.3934006Z ........................................................................ [ 91%]
+2026-10-29T19:00:06.3395032Z ......................................FFFFFF............................ [ 96%]
+2026-10-29T19:05:51.8931700Z ..........................................                               [100%]
+2026-10-29T19:05:51.8932391Z ================================== FAILURES ===================================
+2026-10-29T19:05:51.8933013Z ___ test_a_project_is_prepared_computed_forked_and_cleaned_up_from_the_cli ____
+2026-10-29T19:05:51.8934290Z [gw0] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-29T19:05:51.8934744Z 
+2026-10-29T19:05:51.8937492Z argv = ['project', '--root', 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\popen-gw0\\test_a_project_is_prepared_com0\\projects', 'delete', '--project-id', 'p', ...]
+2026-10-29T19:05:51.8938152Z 
+2026-10-29T19:05:51.8938539Z     def main(argv: Sequence[str] | None = None) -> int:
+2026-10-29T19:05:51.8938895Z         """Run one offline CLI action and return its process status."""
+2026-10-29T19:05:51.8939224Z         parser = build_parser()
+2026-10-29T19:05:51.8939483Z         arguments = parser.parse_args(argv)
+2026-10-29T19:05:51.8939782Z         if arguments.command == "usage":
+2026-10-29T19:05:51.8940172Z             from sheltersim.llm.accounting import runtime_usage_store, runtime_usage_summary
+2026-10-29T19:05:51.8940536Z     
+2026-10-29T19:05:51.8940843Z             if arguments.unfreeze is not None and arguments.increase_budget is not None:
+2026-10-29T19:05:51.8941308Z                 parser.error("usage --unfreeze and --increase-budget are mutually exclusive")
+2026-10-29T19:05:51.8941823Z             if arguments.increase_budget is not None:
+2026-10-29T19:05:51.8942382Z                 if (
+2026-10-29T19:05:51.8942614Z                     arguments.new_budget_usd is None
+2026-10-29T19:05:51.8942904Z                     or arguments.confirm is None
+2026-10-29T19:05:51.8943206Z                     or arguments.reason is None
+2026-10-29T19:05:51.8943445Z                 ):
+2026-10-29T19:05:51.8943649Z                     parser.error(
+2026-10-29T19:05:51.8944004Z                         "usage --increase-budget requires --new-budget-usd, --confirm, and --reason"
+2026-10-29T19:05:51.8944361Z                     )
+2026-10-29T19:05:51.8944570Z                 try:
+2026-10-29T19:05:51.8944796Z                     event = _increase_usage_budget(
+2026-10-29T19:05:51.8945078Z                         arguments.increase_budget,
+2026-10-29T19:05:51.8945350Z                         confirm=arguments.confirm,
+2026-10-29T19:05:51.8945663Z                         new_budget_usd=arguments.new_budget_usd,
+2026-10-29T19:05:51.8945959Z                         reason=arguments.reason,
+2026-10-29T19:05:51.8946210Z                     )
+2026-10-29T19:05:51.8946493Z                 except (OSError, ValueError, RuntimeError) as exc:
+2026-10-29T19:05:51.8946846Z                     parser.error(f"could not increase usage budget: {exc}")
+2026-10-29T19:05:51.8947139Z                 print(
+2026-10-29T19:05:51.8947414Z                     _json_text(
+2026-10-29T19:05:51.8947973Z                         {"account_id": arguments.increase_budget, "budget_increase_event": event}
+2026-10-29T19:05:51.8948319Z                     )
+2026-10-29T19:05:51.8948522Z                 )
+2026-10-29T19:05:51.8948711Z                 return 0
+2026-10-29T19:05:51.8949140Z             if arguments.unfreeze is None:
+2026-10-29T19:05:51.8949396Z                 if (
+2026-10-29T19:05:51.8949638Z                     arguments.confirm is not None
+2026-10-29T19:05:51.8949923Z                     or arguments.reason is not None
+2026-10-29T19:05:51.8950249Z                     or arguments.new_budget_usd is not None
+2026-10-29T19:05:51.8950520Z                 ):
+2026-10-29T19:05:51.8950844Z                     parser.error("usage --confirm/--reason require an explicit account operation")
+2026-10-29T19:05:51.8951284Z                 print(_json_text(runtime_usage_summary(runtime_usage_store())))
+2026-10-29T19:05:51.8951600Z                 return 0
+2026-10-29T19:05:51.8951842Z             if arguments.new_budget_usd is not None:
+2026-10-29T19:05:51.8952221Z                 parser.error("usage --new-budget-usd requires --increase-budget")
+2026-10-29T19:05:51.8952550Z             try:
+2026-10-29T19:05:51.8952794Z                 event = _unfreeze_usage_account(
+2026-10-29T19:05:51.8953230Z                     arguments.unfreeze, confirm=arguments.confirm or "", reason=arguments.reason or ""
+2026-10-29T19:05:51.8953605Z                 )
+2026-10-29T19:05:51.8953850Z             except (OSError, ValueError, RuntimeError) as exc:
+2026-10-29T19:05:51.8954602Z                 parser.error(f"could not unfreeze usage account: {exc}")
+2026-10-29T19:05:51.8955029Z             print(_json_text({"account_id": arguments.unfreeze, "unfreeze_event": event}))
+2026-10-29T19:05:51.8955377Z             return 0
+2026-10-29T19:05:51.8955601Z         if arguments.command == "project":
+2026-10-29T19:05:51.8955898Z             from sheltersim.storage.commands import execute
+2026-10-29T19:05:51.8956174Z     
+2026-10-29T19:05:51.8956381Z             try:
+2026-10-29T19:05:51.8956612Z >               print(_json_text(execute(arguments)))
+2026-10-29T19:05:51.8956781Z 
+2026-10-29T19:05:51.8956895Z src\sheltersim\cli.py:355: 
+2026-10-29T19:05:51.8957161Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-29T19:05:51.8957486Z src\sheltersim\storage\commands.py:199: in execute
+2026-10-29T19:05:51.8957867Z     store.delete_run(project_id, arguments.run_id, confirmation=arguments.confirmation)
+2026-10-29T19:05:51.8958266Z src\sheltersim\storage\projects.py:1010: in delete_run
+2026-10-29T19:05:51.8958593Z     shutil.rmtree(self._path(project_id, "runs", run_id))
+2026-10-29T19:05:51.8958991Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\shutil.py:781: in rmtree
+2026-10-29T19:05:51.8959335Z     return _rmtree_unsafe(path, onexc)
+2026-10-29T19:05:51.8959678Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\shutil.py:635: in _rmtree_unsafe
+2026-10-29T19:05:51.8960036Z     onexc(os.unlink, fullname, err)
+2026-10-29T19:05:51.8960315Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-29T19:05:51.8960529Z 
+2026-10-29T19:05:51.8960941Z path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw0/test_a_project_is_prepared_com0/projects/p/runs/again')
+2026-10-29T19:05:51.8961591Z onexc = <function rmtree.<locals>.onexc at 0x00000267FBF85E40>
+2026-10-29T19:05:51.8961824Z 
+2026-10-29T19:05:51.8961917Z     def _rmtree_unsafe(path, onexc):
+2026-10-29T19:05:51.8962435Z         def onerror(err):
+2026-10-29T19:05:51.8962699Z             onexc(os.scandir, err.filename, err)
+2026-10-29T19:05:51.8963104Z         results = os.walk(path, topdown=False, onerror=onerror, followlinks=os._walk_symlinks_as_files)
+2026-10-29T19:05:51.8963519Z         for dirpath, dirnames, filenames in results:
+2026-10-29T19:05:51.8963798Z             for name in dirnames:
+2026-10-29T19:05:51.8964067Z                 fullname = os.path.join(dirpath, name)
+2026-10-29T19:05:51.8964331Z                 try:
+2026-10-29T19:05:51.8964547Z                     os.rmdir(fullname)
+2026-10-29T19:05:51.8964792Z                 except OSError as err:
+2026-10-29T19:05:51.8965079Z                     onexc(os.rmdir, fullname, err)
+2026-10-29T19:05:51.8965458Z             for name in filenames:
+2026-10-29T19:05:51.8965718Z                 fullname = os.path.join(dirpath, name)
+2026-10-29T19:05:51.8965977Z                 try:
+2026-10-29T19:05:51.8966196Z >                   os.unlink(fullname)
+2026-10-29T19:05:51.8967058Z E                   PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\popen-gw0\\test_a_project_is_prepared_com0\\projects\\p\\runs\\again\\worker-lock'
+2026-10-29T19:05:51.8967843Z 
+2026-10-29T19:05:51.8968050Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\shutil.py:633: PermissionError
+2026-10-29T19:05:51.8968303Z 
+2026-10-29T19:05:51.8968479Z During handling of the above exception, another exception occurred:
+2026-10-29T19:05:51.8968697Z 
+2026-10-29T19:05:51.8969067Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw0/test_a_project_is_prepared_com0')
+2026-10-29T19:05:51.8969660Z capsys = <_pytest.capture.CaptureFixture object at 0x00000267FC784170>
+2026-10-29T19:05:51.8970082Z monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000267FB906510>
+2026-10-29T19:05:51.8970600Z public_data = <support.public_data.FakePublicData object at 0x00000267FC4B1CD0>
+2026-10-29T19:05:51.8971060Z generated_request = <function _generated_request at 0x00000267F74E5A80>
+2026-10-29T19:05:51.8971283Z 
+2026-10-29T19:05:51.8971471Z     def test_a_project_is_prepared_computed_forked_and_cleaned_up_from_the_cli(
+2026-10-29T19:05:51.8971866Z         tmp_path, capsys, monkeypatch, public_data, generated_request
+2026-10-29T19:05:51.8972167Z     ):
+2026-10-29T19:05:51.8972409Z         monkeypatch.setenv("SHELTERSIM_LLM_MODE", "offline")
+2026-10-29T19:05:51.8972731Z         project = ProjectCli(tmp_path / "projects", capsys)
+2026-10-29T19:05:51.8973030Z         request = tmp_path / "request.json"
+2026-10-29T19:05:51.8973319Z         request.write_text(
+2026-10-29T19:05:51.8973654Z             json.dumps({"request": generated_request()}, ensure_ascii=False), encoding="utf-8"
+2026-10-29T19:05:51.8974001Z         )
+2026-10-29T19:05:51.8974221Z         history_query = tmp_path / "history.json"
+2026-10-29T19:05:51.8974498Z         history_query.write_text(
+2026-10-29T19:05:51.8974835Z             json.dumps({"kind": "kpis", "start": 0, "end": 30, "limit": 100}), encoding="utf-8"
+2026-10-29T19:05:51.8975159Z         )
+2026-10-29T19:05:51.8975355Z         p = ("--project-id", "p")
+2026-10-29T19:05:51.8975579Z     
+2026-10-29T19:05:51.8975780Z         project("create", *p)
+2026-10-29T19:05:51.8976124Z         draft = project("prepare", *p, "--text", "", "--input-json", str(request))
+2026-10-29T19:05:51.8976505Z         assert draft["can_start"], draft["approval_blockers"]
+2026-10-29T19:05:51.8976793Z         approved = project(
+2026-10-29T19:05:51.8977027Z             "approve-draft",
+2026-10-29T19:05:51.8977251Z             *p,
+2026-10-29T19:05:51.8977491Z             "--run-id",
+2026-10-29T19:05:51.8977698Z             "r",
+2026-10-29T19:05:51.8977937Z             "--preview-id",
+2026-10-29T19:05:51.8978163Z             draft["preview_id"],
+2026-10-29T19:05:51.8978406Z             "--approved-hash",
+2026-10-29T19:05:51.8978651Z             draft["approved_hash"],
+2026-10-29T19:05:51.8978885Z         )
+2026-10-29T19:05:51.8979135Z         assert approved["scenario_hash"] == draft["approved_hash"]
+2026-10-29T19:05:51.8979421Z     
+2026-10-29T19:05:51.8979681Z         computed = project("resume", *p, "--run-id", "r", "--minute", "30")
+2026-10-29T19:05:51.8980079Z         frame = project("frame", *p, "--run-id", "r", "--minute", "20")
+2026-10-29T19:05:51.8980473Z         forked = project("fork", *p, "--run-id", "r", "--minute", "20", "--child-id", "later")
+2026-10-29T19:05:51.8980916Z         child = project("resume", *p, "--run-id", "r", "--branch-id", "later", "--minute", "40")
+2026-10-29T19:05:51.8981462Z         history = project("history", *p, "--run-id", "r", "--input-json", str(history_query))
+2026-10-29T19:05:51.8981844Z         usage = project("usage", *p, "--run-id", "r")
+2026-10-29T19:05:51.8982104Z     
+2026-10-29T19:05:51.8982574Z         assert (computed["minute"], computed["branch_id"]) == (30, "main")
+2026-10-29T19:05:51.8982965Z         assert len(frame["agents"]) == len(draft["scenario"]["profiles"])
+2026-10-29T19:05:51.8983371Z         assert (forked["branch_id"], forked["minute"]) == ("later", 20)
+2026-10-29T19:05:51.8983682Z         assert child["minute"] == 40
+2026-10-29T19:05:51.8984007Z         assert [row["minute_index"] for row in history["items"]] == list(range(30))
+2026-10-29T19:05:51.8984359Z         assert usage["estimated_cost_usd"] == 0
+2026-10-29T19:05:51.8984626Z         branches = {
+2026-10-29T19:05:51.8984915Z             branch["branch_id"]: (branch["fork_minute"], branch["computed_until"])
+2026-10-29T19:05:51.8985283Z             for branch in project("show", *p)["runs"][0]["branches"]
+2026-10-29T19:05:51.8985584Z         }
+2026-10-29T19:05:51.8985818Z         assert branches == {"main": (0, 30), "later": (20, 40)}
+2026-10-29T19:05:51.8986122Z     
+2026-10-29T19:05:51.8990799Z         rerun = project("rerun", *p, "--run-id", "r", "--new-run-id", "again")
+2026-10-29T19:05:51.8991609Z         assert rerun["scenario_hash"] == approved["scenario_hash"]
+2026-10-29T19:05:51.8991971Z         project("archive", *p, "--run-id", "again")
+2026-10-29T19:05:51.8992363Z         runs = {run["run_id"]: run["archived"] for run in project("show", *p)["runs"]}
+2026-10-29T19:05:51.8992737Z         assert runs == {"r": False, "again": True}
+2026-10-29T19:05:51.8993115Z         error = project.refused("delete", *p, "--run-id", "again", "--confirmation", "r")
+2026-10-29T19:05:51.8993486Z         assert "run ID confirmation" in error
+2026-10-29T19:05:51.8993848Z >       assert project("delete", *p, "--run-id", "again", "--confirmation", "again") == {
+2026-10-29T19:05:51.8994229Z             "deleted": "again"
+2026-10-29T19:05:51.8994457Z         }
+2026-10-29T19:05:51.8994578Z 
+2026-10-29T19:05:51.8994674Z tests\e2e\test_cli_project.py:92: 
+2026-10-29T19:05:51.8994992Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-29T19:05:51.8995305Z tests\e2e\test_cli_project.py:26: in __call__
+2026-10-29T19:05:51.8995662Z     assert cli.main(["project", "--root", str(self.root), action, *arguments]) == 0
+2026-10-29T19:05:51.8996012Z src\sheltersim\cli.py:357: in main
+2026-10-29T19:05:51.8996297Z     parser.error(f"project operation failed: {exc}")
+2026-10-29T19:05:51.8996662Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\argparse.py:2650: in error
+2026-10-29T19:05:51.8997043Z     self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+2026-10-29T19:05:51.8997363Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-29T19:05:51.8997575Z 
+2026-10-29T19:05:51.8998082Z self = ArgumentParser(prog='sheltersim', usage=None, description='Shelter operations simulation tools.', formatter_class=<class 'argparse.HelpFormatter'>, conflict_handler='error', add_help=True)
+2026-10-29T19:05:51.8998732Z status = 2
+2026-10-29T19:05:51.8999433Z message = "sheltersim: error: project operation failed: [WinError 32] The process cannot access the file because it is being use...radmin\\\\pytest-0\\\\popen-gw0\\\\test_a_project_is_prepared_com0\\\\projects\\\\p\\\\runs\\\\again\\\\worker-lock'\n"
+2026-10-29T19:05:51.9000095Z 
+2026-10-29T19:05:51.9000192Z     def exit(self, status=0, message=None):
+2026-10-29T19:05:51.9000450Z         if message:
+2026-10-29T19:05:51.9000702Z             self._print_message(message, _sys.stderr)
+2026-10-29T19:05:51.9000977Z >       _sys.exit(status)
+2026-10-29T19:05:51.9001196Z E       SystemExit: 2
+2026-10-29T19:05:51.9001332Z 
+2026-10-29T19:05:51.9001538Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\argparse.py:2637: SystemExit
+2026-10-29T19:05:51.9002154Z ---------------------------- Captured stderr call -----------------------------
+2026-10-29T19:05:51.9003310Z usage: sheltersim [-h] [--version]
+2026-10-29T19:05:51.9004043Z                   {project,usage,model-catalog,toilet-diagnostic,service-capacity-diagnostic,evaluate-models,profiles-preview,prepare,run,inspect,compare,review,web}
+2026-10-29T19:05:51.9004749Z                   ...
+2026-10-29T19:05:51.9005607Z sheltersim: error: project operation failed: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\popen-gw0\\test_a_project_is_prepared_com0\\projects\\p\\runs\\again\\worker-lock'
+2026-10-29T19:05:51.9006559Z ____________ test_usage_skips_a_file_removed_while_it_is_measured _____________
+2026-10-29T19:05:51.9006992Z [gw3] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-29T19:05:51.9007262Z 
+2026-10-29T19:05:51.9007614Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw3/test_usage_skips_a_file_remove0')
+2026-10-29T19:05:51.9008259Z monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000013031D34230>
+2026-10-29T19:05:51.9008660Z 
+2026-10-29T19:05:51.9009475Z     def test_usage_skips_a_file_removed_while_it_is_measured(tmp_path, monkeypatch):
+2026-10-29T19:05:51.9010073Z         store = ProjectStore(tmp_path)
+2026-10-29T19:05:51.9010478Z         (tmp_path / "kept").write_bytes(b"12")
+2026-10-29T19:05:51.9010922Z         (tmp_path / ".pending-x").write_bytes(b"1234")
+2026-10-29T19:05:51.9011371Z         scandir = os.scandir
+2026-10-29T19:05:51.9011686Z     
+2026-10-29T19:05:51.9011981Z         def listing_then_removal(path):
+2026-10-29T19:05:51.9012360Z             entries = list(scandir(path))
+2026-10-29T19:05:51.9012820Z             (tmp_path / ".pending-x").unlink(missing_ok=True)
+2026-10-29T19:05:51.9013252Z             return iter(entries)
+2026-10-29T19:05:51.9013580Z     
+2026-10-29T19:05:51.9013933Z         monkeypatch.setattr(os, "scandir", listing_then_removal)
+2026-10-29T19:05:51.9014417Z >       assert store.usage()["bytes"] == 2
+2026-10-29T19:05:51.9014792Z E       assert 6 == 2
+2026-10-29T19:05:51.9014991Z 
+2026-10-29T19:05:51.9015185Z tests\unit\storage\test_projects.py:261: AssertionError
+2026-10-29T19:05:51.9015778Z ________________ test_map_lod_helper_is_served_to_project_maps ________________
+2026-10-29T19:05:51.9016506Z [gw3] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-29T19:05:51.9016965Z 
+2026-10-29T19:05:51.9017587Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw3/test_map_lod_helper_is_served_0')
+2026-10-29T19:05:51.9018586Z bare_request_handler = <function _bare_request_handler at 0x000001302D039D00>
+2026-10-29T19:05:51.9018977Z 
+2026-10-29T19:05:51.9019367Z     def test_map_lod_helper_is_served_to_project_maps(tmp_path: Path, bare_request_handler) -> None:
+2026-10-29T19:05:51.9020123Z         handler, statuses, headers, output = bare_request_handler(tmp_path)
+2026-10-29T19:05:51.9020606Z     
+2026-10-29T19:05:51.9020904Z         handler._static_response("/map-lod.js")
+2026-10-29T19:05:51.9021281Z     
+2026-10-29T19:05:51.9021561Z         assert statuses == [200]
+2026-10-29T19:05:51.9022332Z >       assert headers["Content-Type"].startswith("text/javascript")
+2026-10-29T19:05:51.9022829Z E       AssertionError: assert False
+2026-10-29T19:05:51.9023476Z E        +  where False = <built-in method startswith of str object at 0x000001303BEB8530>('text/javascript')
+2026-10-29T19:05:51.9024535Z E        +    where <built-in method startswith of str object at 0x000001303BEB8530> = 'application/javascript; charset=utf-8'.startswith
+2026-10-29T19:05:51.9025238Z 
+2026-10-29T19:05:51.9025402Z tests\unit\web\test_server.py:18: AssertionError
+2026-10-29T19:05:51.9025955Z ___________ test_map_note_lists_the_zones_of_agents_it_cannot_draw ____________
+2026-10-29T19:05:51.9026917Z [gw3] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-29T19:05:51.9027342Z 
+2026-10-29T19:05:51.9027606Z     def test_map_note_lists_the_zones_of_agents_it_cannot_draw() -> None:
+2026-10-29T19:05:51.9028104Z         note = _map_note(
+2026-10-29T19:05:51.9028406Z             {
+2026-10-29T19:05:51.9028759Z                 "layout": {"title": "\u5408\u6210\u4f53\u80b2\u9928"},
+2026-10-29T19:05:51.9029196Z                 "agents": [{"id": "A003"}],
+2026-10-29T19:05:51.9029571Z                 "undrawn_agents": [
+2026-10-29T19:05:51.9029953Z                     {"id": "A001", "zone_id": "food"},
+2026-10-29T19:05:51.9030355Z                     {"id": "A002", "zone_id": "food"},
+2026-10-29T19:05:51.9030781Z                     {"id": "A004", "zone_id": "staff"},
+2026-10-29T19:05:51.9031227Z                 ],
+2026-10-29T19:05:51.9031521Z             }
+2026-10-29T19:05:51.9031802Z         )
+2026-10-29T19:05:51.9032262Z >       assert note.startswith("\u5408\u6210\u4f53\u80b2\u9928 \xb7 1\u4eba\u8868\u793a")
+2026-10-29T19:05:51.9032960Z E       AttributeError: 'NoneType' object has no attribute 'startswith'
+2026-10-29T19:05:51.9033355Z 
+2026-10-29T19:05:51.9033562Z tests\unit\web\test_static_app.py:43: AttributeError
+2026-10-29T19:05:51.9034584Z ____________ test_map_note_is_unchanged_when_every_agent_is_drawn _____________
+2026-10-29T19:05:51.9035318Z [gw3] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-29T19:05:51.9035721Z 
+2026-10-29T19:05:51.9035981Z     def test_map_note_is_unchanged_when_every_agent_is_drawn() -> None:
+2026-10-29T19:05:51.9036675Z         note = _map_note({"layout": {"title": "Scenario\u306e\u56f3\u9762"}, "agents": [{"id": "A001"}]})
+2026-10-29T19:05:51.9037819Z >       assert note == "Scenario\u306e\u56f3\u9762 \xb7 1\u4eba\u8868\u793a \xb7 \u5ea7\u6a19\u306f\u8868\u793a\u7528 \xb7 \u914d\u7f6e\u7de8\u96c6\u306f\u30d6\u30e9\u30a6\u30b6\u5185\u306e\u307f"
+2026-10-29T19:05:51.9039463Z E       AssertionError: assert None == 'Scenario\u306e\u56f3\u9762 \xb7 1\u4eba\u8868\u793a \xb7 \u5ea7\u6a19\u306f\u8868\u793a\u7528 \xb7 \u914d\u7f6e\u7de8\u96c6\u306f\u30d6\u30e9\u30a6\u30b6\u5185\u306e\u307f'
+2026-10-29T19:05:51.9040263Z 
+2026-10-29T19:05:51.9040487Z tests\unit\web\test_static_app.py:49: AssertionError
+2026-10-29T19:05:51.9041070Z ________ test_rule_fallback_preview_shows_the_reason_opus_was_not_used ________
+2026-10-29T19:05:51.9041745Z [gw3] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-29T19:05:51.9042414Z 
+2026-10-29T19:05:51.9042678Z     def test_rule_fallback_preview_shows_the_reason_opus_was_not_used() -> None:
+2026-10-29T19:05:51.9043245Z         preview = _offline_preview()
+2026-10-29T19:05:51.9043636Z         assert preview["fallback_used"] is True
+2026-10-29T19:05:51.9044038Z     
+2026-10-29T19:05:51.9044312Z >       lines = _render(preview)
+2026-10-29T19:05:51.9044520Z 
+2026-10-29T19:05:51.9044711Z tests\unit\web\test_static_project_round3.py:74: 
+2026-10-29T19:05:51.9045196Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-29T19:05:51.9045707Z tests\unit\web\test_static_project_round3.py:41: in _render
+2026-10-29T19:05:51.9046184Z     return json.loads(completed.stdout)
+2026-10-29T19:05:51.9046717Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-29T19:05:51.9047070Z 
+2026-10-29T19:05:51.9047330Z s = None, cls = None, object_hook = None, parse_float = None, parse_int = None
+2026-10-29T19:05:51.9047952Z parse_constant = None, object_pairs_hook = None, kw = {}
+2026-10-29T19:05:51.9048304Z 
+2026-10-29T19:05:51.9048510Z     def loads(s, *, cls=None, object_hook=None, parse_float=None,
+2026-10-29T19:05:51.9049136Z             parse_int=None, parse_constant=None, object_pairs_hook=None, **kw):
+2026-10-29T19:05:51.9049754Z         """Deserialize ``s`` (a ``str``, ``bytes`` or ``bytearray`` instance
+2026-10-29T19:05:51.9050295Z         containing a JSON document) to a Python object.
+2026-10-29T19:05:51.9050878Z     
+2026-10-29T19:05:51.9051263Z         ``object_hook`` is an optional function that will be called with the
+2026-10-29T19:05:51.9051880Z         result of any object literal decode (a ``dict``). The return value of
+2026-10-29T19:05:51.9052485Z         ``object_hook`` will be used instead of the ``dict``. This feature
+2026-10-29T19:05:51.9053094Z         can be used to implement custom decoders (e.g. JSON-RPC class hinting).
+2026-10-29T19:05:51.9053619Z     
+2026-10-29T19:05:51.9054017Z         ``object_pairs_hook`` is an optional function that will be called with the
+2026-10-29T19:05:51.9054671Z         result of any object literal decoded with an ordered list of pairs.  The
+2026-10-29T19:05:51.9055354Z         return value of ``object_pairs_hook`` will be used instead of the ``dict``.
+2026-10-29T19:05:51.9055966Z         This feature can be used to implement custom decoders.  If ``object_hook``
+2026-10-29T19:05:51.9056533Z         is also defined, the ``object_pairs_hook`` takes priority.
+2026-10-29T19:05:51.9056944Z     
+2026-10-29T19:05:51.9057287Z         ``parse_float``, if specified, will be called with the string
+2026-10-29T19:05:51.9057981Z         of every JSON float to be decoded. By default this is equivalent to
+2026-10-29T19:05:51.9058762Z         float(num_str). This can be used to use another datatype or parser
+2026-10-29T19:05:51.9059297Z         for JSON floats (e.g. decimal.Decimal).
+2026-10-29T19:05:51.9059700Z     
+2026-10-29T19:05:51.9060074Z         ``parse_int``, if specified, will be called with the string
+2026-10-29T19:05:51.9060672Z         of every JSON int to be decoded. By default this is equivalent to
+2026-10-29T19:05:51.9061280Z         int(num_str). This can be used to use another datatype or parser
+2026-10-29T19:05:51.9061795Z         for JSON integers (e.g. float).
+2026-10-29T19:05:51.9062458Z     
+2026-10-29T19:05:51.9062902Z         ``parse_constant``, if specified, will be called with one of the
+2026-10-29T19:05:51.9063478Z         following strings: -Infinity, Infinity, NaN.
+2026-10-29T19:05:51.9064026Z         This can be used to raise an exception if invalid JSON numbers
+2026-10-29T19:05:51.9064489Z         are encountered.
+2026-10-29T19:05:51.9064785Z     
+2026-10-29T19:05:51.9065160Z         To use a custom ``JSONDecoder`` subclass, specify it with the ``cls``
+2026-10-29T19:05:51.9065688Z         kwarg; otherwise ``JSONDecoder`` is used.
+2026-10-29T19:05:51.9066091Z         """
+2026-10-29T19:05:51.9066382Z         if isinstance(s, str):
+2026-10-29T19:05:51.9066756Z             if s.startswith('\ufeff'):
+2026-10-29T19:05:51.9067351Z                 raise JSONDecodeError("Unexpected UTF-8 BOM (decode using utf-8-sig)",
+2026-10-29T19:05:51.9067948Z                                       s, 0)
+2026-10-29T19:05:51.9068317Z         else:
+2026-10-29T19:05:51.9068656Z             if not isinstance(s, (bytes, bytearray)):
+2026-10-29T19:05:51.9069215Z >               raise TypeError(f'the JSON object must be str, bytes or bytearray, '
+2026-10-29T19:05:51.9069790Z                                 f'not {s.__class__.__name__}')
+2026-10-29T19:05:51.9070275Z E               TypeError: the JSON object must be str, bytes or bytearray, not NoneType
+2026-10-29T19:05:51.9070752Z 
+2026-10-29T19:05:51.9071052Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\json\__init__.py:339: TypeError
+2026-10-29T19:05:51.9071793Z _______ test_opus_preview_without_limitations_shows_no_fallback_notice ________
+2026-10-29T19:05:51.9072441Z [gw3] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-29T19:05:51.9072824Z 
+2026-10-29T19:05:51.9073135Z     def test_opus_preview_without_limitations_shows_no_fallback_notice() -> None:
+2026-10-29T19:05:51.9073812Z         preview = {**_offline_preview(), "fallback_used": False, "limitations": []}
+2026-10-29T19:05:51.9074314Z     
+2026-10-29T19:05:51.9074593Z >       lines = _render(preview)
+2026-10-29T19:05:51.9075009Z 
+2026-10-29T19:05:51.9075177Z tests\unit\web\test_static_project_round3.py:87: 
+2026-10-29T19:05:51.9075637Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-29T19:05:51.9076156Z tests\unit\web\test_static_project_round3.py:41: in _render
+2026-10-29T19:05:51.9076607Z     return json.loads(completed.stdout)
+2026-10-29T19:05:51.9077020Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-29T19:05:51.9077316Z 
+2026-10-29T19:05:51.9077600Z s = None, cls = None, object_hook = None, parse_float = None, parse_int = None
+2026-10-29T19:05:51.9078196Z parse_constant = None, object_pairs_hook = None, kw = {}
+2026-10-29T19:05:51.9078497Z 
+2026-10-29T19:05:51.9078694Z     def loads(s, *, cls=None, object_hook=None, parse_float=None,
+2026-10-29T19:05:51.9079252Z             parse_int=None, parse_constant=None, object_pairs_hook=None, **kw):
+2026-10-29T19:05:51.9079873Z         """Deserialize ``s`` (a ``str``, ``bytes`` or ``bytearray`` instance
+2026-10-29T19:05:51.9080398Z         containing a JSON document) to a Python object.
+2026-10-29T19:05:51.9080779Z     
+2026-10-29T19:05:51.9081153Z         ``object_hook`` is an optional function that will be called with the
+2026-10-29T19:05:51.9081903Z         result of any object literal decode (a ``dict``). The return value of
+2026-10-29T19:05:51.9082825Z         ``object_hook`` will be used instead of the ``dict``. This feature
+2026-10-29T19:05:51.9083444Z         can be used to implement custom decoders (e.g. JSON-RPC class hinting).
+2026-10-29T19:05:51.9083913Z     
+2026-10-29T19:05:51.9084309Z         ``object_pairs_hook`` is an optional function that will be called with the
+2026-10-29T19:05:51.9085016Z         result of any object literal decoded with an ordered list of pairs.  The
+2026-10-29T19:05:51.9085631Z         return value of ``object_pairs_hook`` will be used instead of the ``dict``.
+2026-10-29T19:05:51.9086242Z         This feature can be used to implement custom decoders.  If ``object_hook``
+2026-10-29T19:05:51.9086824Z         is also defined, the ``object_pairs_hook`` takes priority.
+2026-10-29T19:05:51.9087225Z     
+2026-10-29T19:05:51.9087567Z         ``parse_float``, if specified, will be called with the string
+2026-10-29T19:05:51.9088148Z         of every JSON float to be decoded. By default this is equivalent to
+2026-10-29T19:05:51.9088760Z         float(num_str). This can be used to use another datatype or parser
+2026-10-29T19:05:51.9089301Z         for JSON floats (e.g. decimal.Decimal).
+2026-10-29T19:05:51.9089693Z     
+2026-10-29T19:05:51.9090031Z         ``parse_int``, if specified, will be called with the string
+2026-10-29T19:05:51.9090559Z         of every JSON int to be decoded. By default this is equivalent to
+2026-10-29T19:05:51.9091071Z         int(num_str). This can be used to use another datatype or parser
+2026-10-29T19:05:51.9091515Z         for JSON integers (e.g. float).
+2026-10-29T19:05:51.9091860Z     
+2026-10-29T19:05:51.9092230Z         ``parse_constant``, if specified, will be called with one of the
+2026-10-29T19:05:51.9092741Z         following strings: -Infinity, Infinity, NaN.
+2026-10-29T19:05:51.9093247Z         This can be used to raise an exception if invalid JSON numbers
+2026-10-29T19:05:51.9093668Z         are encountered.
+2026-10-29T19:05:51.9093968Z     
+2026-10-29T19:05:51.9094338Z         To use a custom ``JSONDecoder`` subclass, specify it with the ``cls``
+2026-10-29T19:05:51.9094849Z         kwarg; otherwise ``JSONDecoder`` is used.
+2026-10-29T19:05:51.9095243Z         """
+2026-10-29T19:05:51.9095546Z         if isinstance(s, str):
+2026-10-29T19:05:51.9095915Z             if s.startswith('\ufeff'):
+2026-10-29T19:05:51.9096421Z                 raise JSONDecodeError("Unexpected UTF-8 BOM (decode using utf-8-sig)",
+2026-10-29T19:05:51.9096944Z                                       s, 0)
+2026-10-29T19:05:51.9097313Z         else:
+2026-10-29T19:05:51.9097616Z             if not isinstance(s, (bytes, bytearray)):
+2026-10-29T19:05:51.9098316Z >               raise TypeError(f'the JSON object must be str, bytes or bytearray, '
+2026-10-29T19:05:51.9098860Z                                 f'not {s.__class__.__name__}')
+2026-10-29T19:05:51.9099408Z E               TypeError: the JSON object must be str, bytes or bytearray, not NoneType
+2026-10-29T19:05:51.9099842Z 
+2026-10-29T19:05:51.9100822Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\json\__init__.py:339: TypeError
+2026-10-29T19:05:51.9102044Z _______________ test_a_process_saves_the_same_head_as_a_thread ________________
+2026-10-29T19:05:51.9102731Z [gw1] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-29T19:05:51.9103160Z 
+2026-10-29T19:05:51.9103727Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw1/test_a_process_saves_the_same_0')
+2026-10-29T19:05:51.9104654Z monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001CB1549B230>
+2026-10-29T19:05:51.9105298Z saved_timeline = <function _saved_timeline at 0x000001CB0E6191C0>
+2026-10-29T19:05:51.9105680Z 
+2026-10-29T19:05:51.9106000Z     def test_a_process_saves_the_same_head_as_a_thread(tmp_path, monkeypatch, saved_timeline):
+2026-10-29T19:05:51.9106687Z         monkeypatch.setenv("SHELTERSIM_LLM_MODE", "offline")
+2026-10-29T19:05:51.9107696Z         thread = _computed(tmp_path / "thread", saved_timeline, "thread", 30)
+2026-10-29T19:05:51.9108428Z         process = _computed(tmp_path / "process", saved_timeline, "process", 30)
+2026-10-29T19:05:51.9109074Z         assert process.run("p", "r")["status"] == thread.run("p", "r")["status"] == "paused"
+2026-10-29T19:05:51.9109656Z         expected = thread.branch_reference("p", "r", "main")
+2026-10-29T19:05:51.9110165Z         head = process.branch_reference("p", "r", "main")
+2026-10-29T19:05:51.9110815Z         assert (head.computed_until, head.checkpoint_hash) == (30, expected.checkpoint_hash)
+2026-10-29T19:05:51.9111488Z         # The process is the Run's own, so its peak memory is the Run's.
+2026-10-29T19:05:51.9112128Z         execution = RunTelemetryStore(process, "p", "r").read()["executions"][-1]
+2026-10-29T19:05:51.9112757Z >       assert execution["memory_attribution_status"] == "measured"
+2026-10-29T19:05:51.9113342Z E       AssertionError: assert 'unavailable' == 'measured'
+2026-10-29T19:05:51.9113756Z E         
+2026-10-29T19:05:51.9114043Z E         - measured
+2026-10-29T19:05:51.9114360Z E         + unavailable
+2026-10-29T19:05:51.9114541Z 
+2026-10-29T19:05:51.9114782Z tests\integration\test_process_worker.py:41: AssertionError
+2026-10-29T19:05:51.9115578Z _ test_backup_assets_are_independent_and_served_locally[/demo-v2.js-text/javascript-scenario-approve] _
+2026-10-29T19:05:51.9116440Z [gw0] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-29T19:05:51.9116882Z 
+2026-10-29T19:05:51.9117468Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw0/test_backup_assets_are_indepen2')
+2026-10-29T19:05:51.9118437Z route = '/demo-v2.js', content_type = 'text/javascript'
+2026-10-29T19:05:51.9118883Z marker = b'scenario-approve'
+2026-10-29T19:05:51.9119096Z 
+2026-10-29T19:05:51.9119262Z     @pytest.mark.parametrize(
+2026-10-29T19:05:51.9119636Z         ("route", "content_type", "marker"),
+2026-10-29T19:05:51.9120017Z         [
+2026-10-29T19:05:51.9120398Z             ("/demo-v2", "text/html", "\u907f\u96e3\u6240IF\uff01".encode()),
+2026-10-29T19:05:51.9121090Z             ("/demo-v2.css", "text/css", b"--navy"),
+2026-10-29T19:05:51.9121565Z             ("/demo-v2.js", "text/javascript", b"scenario-approve"),
+2026-10-29T19:05:51.9122081Z             ("/demo-v2-map.js", "text/javascript", b"Hinanj"),
+2026-10-29T19:05:51.9122620Z             ("/demo-v2-scene.js", "text/javascript", b"HinanjoScene"),
+2026-10-29T19:05:51.9123236Z             ("/demo-v2-clock.js", "text/javascript", b"HinanjoReplayClock"),
+2026-10-29T19:05:51.9123841Z             ("/demo-v2-replay.js", "text/javascript", b"HinanjoReplayPlayer"),
+2026-10-29T19:05:51.9124598Z             ("/demo-v2-sprites.js", "text/javascript", b"HinanjoSprites"),
+2026-10-29T19:05:51.9125060Z         ],
+2026-10-29T19:05:51.9125315Z     )
+2026-10-29T19:05:51.9125866Z     def test_backup_assets_are_independent_and_served_locally(tmp_path, route, content_type, marker):
+2026-10-29T19:05:51.9126640Z         handler_type = _handler_for(InspectorService(tmp_path), DemoService())
+2026-10-29T19:05:51.9127232Z         handler = handler_type.__new__(handler_type)
+2026-10-29T19:05:51.9127653Z         statuses, headers = [], {}
+2026-10-29T19:05:51.9128050Z         handler.send_response = statuses.append
+2026-10-29T19:05:51.9128584Z         handler.send_header = lambda key, value: headers.__setitem__(key, value)
+2026-10-29T19:05:51.9129139Z         handler.end_headers = lambda: None
+2026-10-29T19:05:51.9129521Z         handler.wfile = BytesIO()
+2026-10-29T19:05:51.9129883Z         handler.path = route
+2026-10-29T19:05:51.9130204Z         handler.do_GET()
+2026-10-29T19:05:51.9130545Z         body = handler.wfile.getvalue()
+2026-10-29T19:05:51.9130922Z         assert statuses == [200]
+2026-10-29T19:05:51.9131378Z >       assert headers["Content-Type"].startswith(content_type)
+2026-10-29T19:05:51.9132290Z E       AssertionError: assert False
+2026-10-29T19:05:51.9132911Z E        +  where False = <built-in method startswith of str object at 0x0000026784406EC0>('text/javascript')
+2026-10-29T19:05:51.9133889Z E        +    where <built-in method startswith of str object at 0x0000026784406EC0> = 'application/javascript; charset=utf-8'.startswith
+2026-10-29T19:05:51.9134542Z 
+2026-10-29T19:05:51.9134747Z tests\integration\test_demo_v2_routes.py:40: AssertionError
+2026-10-29T19:05:51.9135467Z _ test_backup_assets_are_independent_and_served_locally[/demo-v2-map.js-text/javascript-Hinanj] _
+2026-10-29T19:05:51.9136323Z [gw0] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-29T19:05:51.9136782Z 
+2026-10-29T19:05:51.9137405Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw0/test_backup_assets_are_indepen3')
+2026-10-29T19:05:51.9138384Z route = '/demo-v2-map.js', content_type = 'text/javascript', marker = b'Hinanj'
+2026-10-29T19:05:51.9138812Z 
+2026-10-29T19:05:51.9138964Z     @pytest.mark.parametrize(
+2026-10-29T19:05:51.9139386Z         ("route", "content_type", "marker"),
+2026-10-29T19:05:51.9139783Z         [
+2026-10-29T19:05:51.9140169Z             ("/demo-v2", "text/html", "\u907f\u96e3\u6240IF\uff01".encode()),
+2026-10-29T19:05:51.9140710Z             ("/demo-v2.css", "text/css", b"--navy"),
+2026-10-29T19:05:51.9141371Z             ("/demo-v2.js", "text/javascript", b"scenario-approve"),
+2026-10-29T19:05:51.9244426Z             ("/demo-v2-map.js", "text/javascript", b"Hinanj"),
+2026-10-29T19:05:51.9244967Z             ("/demo-v2-scene.js", "text/javascript", b"HinanjoScene"),
+2026-10-29T19:05:51.9245530Z             ("/demo-v2-clock.js", "text/javascript", b"HinanjoReplayClock"),
+2026-10-29T19:05:51.9246081Z             ("/demo-v2-replay.js", "text/javascript", b"HinanjoReplayPlayer"),
+2026-10-29T19:05:51.9246640Z             ("/demo-v2-sprites.js", "text/javascript", b"HinanjoSprites"),
+2026-10-29T19:05:51.9247036Z         ],
+2026-10-29T19:05:51.9247266Z     )
+2026-10-29T19:05:51.9247762Z     def test_backup_assets_are_independent_and_served_locally(tmp_path, route, content_type, marker):
+2026-10-29T19:05:51.9248255Z         handler_type = _handler_for(InspectorService(tmp_path), DemoService())
+2026-10-29T19:05:51.9248619Z         handler = handler_type.__new__(handler_type)
+2026-10-29T19:05:51.9248890Z         statuses, headers = [], {}
+2026-10-29T19:05:51.9249141Z         handler.send_response = statuses.append
+2026-10-29T19:05:51.9249475Z         handler.send_header = lambda key, value: headers.__setitem__(key, value)
+2026-10-29T19:05:51.9249838Z         handler.end_headers = lambda: None
+2026-10-29T19:05:51.9250466Z         handler.wfile = BytesIO()
+2026-10-29T19:05:51.9250704Z         handler.path = route
+2026-10-29T19:05:51.9250933Z         handler.do_GET()
+2026-10-29T19:05:51.9251160Z         body = handler.wfile.getvalue()
+2026-10-29T19:05:51.9251409Z         assert statuses == [200]
+2026-10-29T19:05:51.9251690Z >       assert headers["Content-Type"].startswith(content_type)
+2026-10-29T19:05:51.9251984Z E       AssertionError: assert False
+2026-10-29T19:05:51.9252370Z E        +  where False = <built-in method startswith of str object at 0x00000267840A26A0>('text/javascript')
+2026-10-29T19:05:51.9252982Z E        +    where <built-in method startswith of str object at 0x00000267840A26A0> = 'application/javascript; charset=utf-8'.startswith
+2026-10-29T19:05:51.9253335Z 
+2026-10-29T19:05:51.9253492Z tests\integration\test_demo_v2_routes.py:40: AssertionError
+2026-10-29T19:05:51.9253953Z _ test_backup_assets_are_independent_and_served_locally[/demo-v2-scene.js-text/javascript-HinanjoScene] _
+2026-10-29T19:05:51.9254471Z [gw0] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-29T19:05:51.9254745Z 
+2026-10-29T19:05:51.9255091Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw0/test_backup_assets_are_indepen4')
+2026-10-29T19:05:51.9255786Z route = '/demo-v2-scene.js', content_type = 'text/javascript'
+2026-10-29T19:05:51.9256091Z marker = b'HinanjoScene'
+2026-10-29T19:05:51.9256237Z 
+2026-10-29T19:05:51.9256348Z     @pytest.mark.parametrize(
+2026-10-29T19:05:51.9256596Z         ("route", "content_type", "marker"),
+2026-10-29T19:05:51.9256841Z         [
+2026-10-29T19:05:51.9257092Z             ("/demo-v2", "text/html", "\u907f\u96e3\u6240IF\uff01".encode()),
+2026-10-29T19:05:51.9257427Z             ("/demo-v2.css", "text/css", b"--navy"),
+2026-10-29T19:05:51.9257736Z             ("/demo-v2.js", "text/javascript", b"scenario-approve"),
+2026-10-29T19:05:51.9258064Z             ("/demo-v2-map.js", "text/javascript", b"Hinanj"),
+2026-10-29T19:05:51.9258398Z             ("/demo-v2-scene.js", "text/javascript", b"HinanjoScene"),
+2026-10-29T19:05:51.9258755Z             ("/demo-v2-clock.js", "text/javascript", b"HinanjoReplayClock"),
+2026-10-29T19:05:51.9259569Z             ("/demo-v2-replay.js", "text/javascript", b"HinanjoReplayPlayer"),
+2026-10-29T19:05:51.9259981Z             ("/demo-v2-sprites.js", "text/javascript", b"HinanjoSprites"),
+2026-10-29T19:05:51.9260282Z         ],
+2026-10-29T19:05:51.9260454Z     )
+2026-10-29T19:05:51.9260780Z     def test_backup_assets_are_independent_and_served_locally(tmp_path, route, content_type, marker):
+2026-10-29T19:05:51.9261241Z         handler_type = _handler_for(InspectorService(tmp_path), DemoService())
+2026-10-29T19:05:51.9261581Z         handler = handler_type.__new__(handler_type)
+2026-10-29T19:05:51.9261853Z         statuses, headers = [], {}
+2026-10-29T19:05:51.9262126Z         handler.send_response = statuses.append
+2026-10-29T19:05:51.9262461Z         handler.send_header = lambda key, value: headers.__setitem__(key, value)
+2026-10-29T19:05:51.9262789Z         handler.end_headers = lambda: None
+2026-10-29T19:05:51.9263037Z         handler.wfile = BytesIO()
+2026-10-29T19:05:51.9263271Z         handler.path = route
+2026-10-29T19:05:51.9263492Z         handler.do_GET()
+2026-10-29T19:05:51.9263711Z         body = handler.wfile.getvalue()
+2026-10-29T19:05:51.9263954Z         assert statuses == [200]
+2026-10-29T19:05:51.9264224Z >       assert headers["Content-Type"].startswith(content_type)
+2026-10-29T19:05:51.9264519Z E       AssertionError: assert False
+2026-10-29T19:05:51.9264913Z E        +  where False = <built-in method startswith of str object at 0x0000026782782EC0>('text/javascript')
+2026-10-29T19:05:51.9265506Z E        +    where <built-in method startswith of str object at 0x0000026782782EC0> = 'application/javascript; charset=utf-8'.startswith
+2026-10-29T19:05:51.9265875Z 
+2026-10-29T19:05:51.9266029Z tests\integration\test_demo_v2_routes.py:40: AssertionError
+2026-10-29T19:05:51.9266680Z _ test_backup_assets_are_independent_and_served_locally[/demo-v2-clock.js-text/javascript-HinanjoReplayClock] _
+2026-10-29T19:05:51.9267206Z [gw0] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-29T19:05:51.9267472Z 
+2026-10-29T19:05:51.9267823Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw0/test_backup_assets_are_indepen5')
+2026-10-29T19:05:51.9268451Z route = '/demo-v2-clock.js', content_type = 'text/javascript'
+2026-10-29T19:05:51.9268747Z marker = b'HinanjoReplayClock'
+2026-10-29T19:05:51.9268878Z 
+2026-10-29T19:05:51.9268984Z     @pytest.mark.parametrize(
+2026-10-29T19:05:51.9269222Z         ("route", "content_type", "marker"),
+2026-10-29T19:05:51.9269458Z         [
+2026-10-29T19:05:51.9269695Z             ("/demo-v2", "text/html", "\u907f\u96e3\u6240IF\uff01".encode()),
+2026-10-29T19:05:51.9270013Z             ("/demo-v2.css", "text/css", b"--navy"),
+2026-10-29T19:05:51.9270325Z             ("/demo-v2.js", "text/javascript", b"scenario-approve"),
+2026-10-29T19:05:51.9270658Z             ("/demo-v2-map.js", "text/javascript", b"Hinanj"),
+2026-10-29T19:05:51.9271015Z             ("/demo-v2-scene.js", "text/javascript", b"HinanjoScene"),
+2026-10-29T19:05:51.9271488Z             ("/demo-v2-clock.js", "text/javascript", b"HinanjoReplayClock"),
+2026-10-29T19:05:51.9271874Z             ("/demo-v2-replay.js", "text/javascript", b"HinanjoReplayPlayer"),
+2026-10-29T19:05:51.9272251Z             ("/demo-v2-sprites.js", "text/javascript", b"HinanjoSprites"),
+2026-10-29T19:05:51.9272543Z         ],
+2026-10-29T19:05:51.9272727Z     )
+2026-10-29T19:05:51.9273060Z     def test_backup_assets_are_independent_and_served_locally(tmp_path, route, content_type, marker):
+2026-10-29T19:05:51.9273536Z         handler_type = _handler_for(InspectorService(tmp_path), DemoService())
+2026-10-29T19:05:51.9273915Z         handler = handler_type.__new__(handler_type)
+2026-10-29T19:05:51.9274210Z         statuses, headers = [], {}
+2026-10-29T19:05:51.9274461Z         handler.send_response = statuses.append
+2026-10-29T19:05:51.9274799Z         handler.send_header = lambda key, value: headers.__setitem__(key, value)
+2026-10-29T19:05:51.9275134Z         handler.end_headers = lambda: None
+2026-10-29T19:05:51.9275379Z         handler.wfile = BytesIO()
+2026-10-29T19:05:51.9275610Z         handler.path = route
+2026-10-29T19:05:51.9275837Z         handler.do_GET()
+2026-10-29T19:05:51.9276067Z         body = handler.wfile.getvalue()
+2026-10-29T19:05:51.9276311Z         assert statuses == [200]
+2026-10-29T19:05:51.9276596Z >       assert headers["Content-Type"].startswith(content_type)
+2026-10-29T19:05:51.9276881Z E       AssertionError: assert False
+2026-10-29T19:05:51.9277261Z E        +  where False = <built-in method startswith of str object at 0x00000267FC2DBB90>('text/javascript')
+2026-10-29T19:05:51.9277853Z E        +    where <built-in method startswith of str object at 0x00000267FC2DBB90> = 'application/javascript; charset=utf-8'.startswith
+2026-10-29T19:05:51.9278225Z 
+2026-10-29T19:05:51.9278352Z tests\integration\test_demo_v2_routes.py:40: AssertionError
+2026-10-29T19:05:51.9278832Z _ test_backup_assets_are_independent_and_served_locally[/demo-v2-replay.js-text/javascript-HinanjoReplayPlayer] _
+2026-10-29T19:05:51.9279637Z [gw0] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-29T19:05:51.9279899Z 
+2026-10-29T19:05:51.9280263Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw0/test_backup_assets_are_indepen6')
+2026-10-29T19:05:51.9280803Z route = '/demo-v2-replay.js', content_type = 'text/javascript'
+2026-10-29T19:05:51.9281100Z marker = b'HinanjoReplayPlayer'
+2026-10-29T19:05:51.9281231Z 
+2026-10-29T19:05:51.9281334Z     @pytest.mark.parametrize(
+2026-10-29T19:05:51.9281568Z         ("route", "content_type", "marker"),
+2026-10-29T19:05:51.9282701Z         [
+2026-10-29T19:05:51.9282937Z             ("/demo-v2", "text/html", "\u907f\u96e3\u6240IF\uff01".encode()),
+2026-10-29T19:05:51.9283261Z             ("/demo-v2.css", "text/css", b"--navy"),
+2026-10-29T19:05:51.9283601Z             ("/demo-v2.js", "text/javascript", b"scenario-approve"),
+2026-10-29T19:05:51.9283917Z             ("/demo-v2-map.js", "text/javascript", b"Hinanj"),
+2026-10-29T19:05:51.9284237Z             ("/demo-v2-scene.js", "text/javascript", b"HinanjoScene"),
+2026-10-29T19:05:51.9284613Z             ("/demo-v2-clock.js", "text/javascript", b"HinanjoReplayClock"),
+2026-10-29T19:05:51.9284990Z             ("/demo-v2-replay.js", "text/javascript", b"HinanjoReplayPlayer"),
+2026-10-29T19:05:51.9285358Z             ("/demo-v2-sprites.js", "text/javascript", b"HinanjoSprites"),
+2026-10-29T19:05:51.9285645Z         ],
+2026-10-29T19:05:51.9285819Z     )
+2026-10-29T19:05:51.9286147Z     def test_backup_assets_are_independent_and_served_locally(tmp_path, route, content_type, marker):
+2026-10-29T19:05:51.9286608Z         handler_type = _handler_for(InspectorService(tmp_path), DemoService())
+2026-10-29T19:05:51.9286942Z         handler = handler_type.__new__(handler_type)
+2026-10-29T19:05:51.9287202Z         statuses, headers = [], {}
+2026-10-29T19:05:51.9287584Z         handler.send_response = statuses.append
+2026-10-29T19:05:51.9287923Z         handler.send_header = lambda key, value: headers.__setitem__(key, value)
+2026-10-29T19:05:51.9288255Z         handler.end_headers = lambda: None
+2026-10-29T19:05:51.9288502Z         handler.wfile = BytesIO()
+2026-10-29T19:05:51.9288734Z         handler.path = route
+2026-10-29T19:05:51.9288950Z         handler.do_GET()
+2026-10-29T19:05:51.9289171Z         body = handler.wfile.getvalue()
+2026-10-29T19:05:51.9289498Z         assert statuses == [200]
+2026-10-29T19:05:51.9289766Z >       assert headers["Content-Type"].startswith(content_type)
+2026-10-29T19:05:51.9290048Z E       AssertionError: assert False
+2026-10-29T19:05:51.9290429Z E        +  where False = <built-in method startswith of str object at 0x000002678052B320>('text/javascript')
+2026-10-29T19:05:51.9291004Z E        +    where <built-in method startswith of str object at 0x000002678052B320> = 'application/javascript; charset=utf-8'.startswith
+2026-10-29T19:05:51.9291379Z 
+2026-10-29T19:05:51.9291525Z tests\integration\test_demo_v2_routes.py:40: AssertionError
+2026-10-29T19:05:51.9292000Z _ test_backup_assets_are_independent_and_served_locally[/demo-v2-sprites.js-text/javascript-HinanjoSprites] _
+2026-10-29T19:05:51.9292513Z [gw0] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-29T19:05:51.9292748Z 
+2026-10-29T19:05:51.9293115Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw0/test_backup_assets_are_indepen7')
+2026-10-29T19:05:51.9293659Z route = '/demo-v2-sprites.js', content_type = 'text/javascript'
+2026-10-29T19:05:51.9293955Z marker = b'HinanjoSprites'
+2026-10-29T19:05:51.9294110Z 
+2026-10-29T19:05:51.9294203Z     @pytest.mark.parametrize(
+2026-10-29T19:05:51.9294448Z         ("route", "content_type", "marker"),
+2026-10-29T19:05:51.9294699Z         [
+2026-10-29T19:05:51.9294891Z             ("/demo-v2", "text/html", "\u907f\u96e3\u6240IF\uff01".encode()),
+2026-10-29T19:05:51.9295147Z             ("/demo-v2.css", "text/css", b"--navy"),
+2026-10-29T19:05:51.9295391Z             ("/demo-v2.js", "text/javascript", b"scenario-approve"),
+2026-10-29T19:05:51.9295660Z             ("/demo-v2-map.js", "text/javascript", b"Hinanj"),
+2026-10-29T19:05:51.9295928Z             ("/demo-v2-scene.js", "text/javascript", b"HinanjoScene"),
+2026-10-29T19:05:51.9296226Z             ("/demo-v2-clock.js", "text/javascript", b"HinanjoReplayClock"),
+2026-10-29T19:05:51.9296546Z             ("/demo-v2-replay.js", "text/javascript", b"HinanjoReplayPlayer"),
+2026-10-29T19:05:51.9296862Z             ("/demo-v2-sprites.js", "text/javascript", b"HinanjoSprites"),
+2026-10-29T19:05:51.9297394Z         ],
+2026-10-29T19:05:51.9297521Z     )
+2026-10-29T19:05:51.9297797Z     def test_backup_assets_are_independent_and_served_locally(tmp_path, route, content_type, marker):
+2026-10-29T19:05:51.9298206Z         handler_type = _handler_for(InspectorService(tmp_path), DemoService())
+2026-10-29T19:05:51.9298492Z         handler = handler_type.__new__(handler_type)
+2026-10-29T19:05:51.9298705Z         statuses, headers = [], {}
+2026-10-29T19:05:51.9298902Z         handler.send_response = statuses.append
+2026-10-29T19:05:51.9299237Z         handler.send_header = lambda key, value: headers.__setitem__(key, value)
+2026-10-29T19:05:51.9299812Z         handler.end_headers = lambda: None
+2026-10-29T19:05:51.9300092Z         handler.wfile = BytesIO()
+2026-10-29T19:05:51.9300390Z         handler.path = route
+2026-10-29T19:05:51.9300647Z         handler.do_GET()
+2026-10-29T19:05:51.9300879Z         body = handler.wfile.getvalue()
+2026-10-29T19:05:51.9301147Z         assert statuses == [200]
+2026-10-29T19:05:51.9301516Z >       assert headers["Content-Type"].startswith(content_type)
+2026-10-29T19:05:51.9301867Z E       AssertionError: assert False
+2026-10-29T19:05:51.9302336Z E        +  where False = <built-in method startswith of str object at 0x00000267FBC1F500>('text/javascript')
+2026-10-29T19:05:51.9303339Z E        +    where <built-in method startswith of str object at 0x00000267FBC1F500> = 'application/javascript; charset=utf-8'.startswith
+2026-10-29T19:05:51.9303926Z 
+2026-10-29T19:05:51.9304109Z tests\integration\test_demo_v2_routes.py:40: AssertionError
+2026-10-29T19:05:51.9304577Z ============================== warnings summary ===============================
+2026-10-29T19:05:51.9305332Z tests/unit/web/test_static_app.py::test_map_note_lists_the_zones_of_agents_it_cannot_draw
+2026-10-29T19:05:51.9306545Z   C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\site-packages\_pytest\threadexception.py:82: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-32 (_readerthread)
+2026-10-29T19:05:51.9307585Z   
+2026-10-29T19:05:51.9307808Z   Traceback (most recent call last):
+2026-10-29T19:05:51.9316210Z     File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\threading.py", line 1075, in _bootstrap_inner
+2026-10-29T19:05:51.9316711Z       self.run()
+2026-10-29T19:05:51.9317065Z     File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\threading.py", line 1012, in run
+2026-10-29T19:05:51.9317427Z       self._target(*self._args, **self._kwargs)
+2026-10-29T19:05:51.9317834Z     File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\subprocess.py", line 1599, in _readerthread
+2026-10-29T19:05:51.9318210Z       buffer.append(fh.read())
+2026-10-29T19:05:51.9318387Z                     ^^^^^^^^^
+2026-10-29T19:05:51.9318716Z     File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\encodings\cp1252.py", line 23, in decode
+2026-10-29T19:05:51.9319189Z       return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+2026-10-29T19:05:51.9319780Z              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-29T19:05:51.9320174Z   UnicodeDecodeError: 'charmap' codec can't decode byte 0x90 in position 1: character maps to <undefined>
+2026-10-29T19:05:51.9320540Z   
+2026-10-29T19:05:51.9320801Z     warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+2026-10-29T19:05:51.9321033Z 
+2026-10-29T19:05:51.9321298Z tests/unit/web/test_static_app.py::test_map_note_is_unchanged_when_every_agent_is_drawn
+2026-10-29T19:05:51.9322043Z   C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\site-packages\_pytest\threadexception.py:82: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-34 (_readerthread)
+2026-10-29T19:05:51.9322583Z   
+2026-10-29T19:05:51.9322722Z   Traceback (most recent call last):
+2026-10-29T19:05:51.9323108Z     File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\threading.py", line 1075, in _bootstrap_inner
+2026-10-29T19:05:51.9323452Z       self.run()
+2026-10-29T19:05:51.9323742Z     File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\threading.py", line 1012, in run
+2026-10-29T19:05:51.9324691Z       self._target(*self._args, **self._kwargs)
+2026-10-29T19:05:51.9325060Z     File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\subprocess.py", line 1599, in _readerthread
+2026-10-29T19:05:51.9325426Z       buffer.append(fh.read())
+2026-10-29T19:05:51.9325616Z                     ^^^^^^^^^
+2026-10-29T19:05:51.9325931Z     File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\encodings\cp1252.py", line 23, in decode
+2026-10-29T19:05:51.9326335Z       return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+2026-10-29T19:05:51.9326620Z              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-29T19:05:51.9326986Z   UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 9: character maps to <undefined>
+2026-10-29T19:05:51.9327321Z   
+2026-10-29T19:05:51.9327540Z     warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+2026-10-29T19:05:51.9327757Z 
+2026-10-29T19:05:51.9328007Z tests/unit/web/test_static_project_round3.py::test_rule_fallback_preview_shows_the_reason_opus_was_not_used
+2026-10-29T19:05:51.9328852Z   C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\site-packages\_pytest\threadexception.py:82: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-36 (_readerthread)
+2026-10-29T19:05:51.9329401Z   
+2026-10-29T19:05:51.9329540Z   Traceback (most recent call last):
+2026-10-29T19:05:51.9329980Z     File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\threading.py", line 1075, in _bootstrap_inner
+2026-10-29T19:05:51.9330347Z       self.run()
+2026-10-29T19:05:51.9330621Z     File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\threading.py", line 1012, in run
+2026-10-29T19:05:51.9330955Z       self._target(*self._args, **self._kwargs)
+2026-10-29T19:05:51.9331307Z     File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\subprocess.py", line 1599, in _readerthread
+2026-10-29T19:05:51.9331643Z       buffer.append(fh.read())
+2026-10-29T19:05:51.9331818Z                     ^^^^^^^^^
+2026-10-29T19:05:51.9332118Z     File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\encodings\cp1252.py", line 23, in decode
+2026-10-29T19:05:51.9332509Z       return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+2026-10-29T19:05:51.9332797Z              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-29T19:05:51.9333154Z   UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 15: character maps to <undefined>
+2026-10-29T19:05:51.9333484Z   
+2026-10-29T19:05:51.9333688Z     warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+2026-10-29T19:05:51.9333888Z 
+2026-10-29T19:05:51.9334128Z tests/unit/web/test_static_project_round3.py::test_opus_preview_without_limitations_shows_no_fallback_notice
+2026-10-29T19:05:51.9334845Z   C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\site-packages\_pytest\threadexception.py:82: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-38 (_readerthread)
+2026-10-29T19:05:51.9335398Z   
+2026-10-29T19:05:51.9335536Z   Traceback (most recent call last):
+2026-10-29T19:05:51.9335882Z     File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\threading.py", line 1075, in _bootstrap_inner
+2026-10-29T19:05:51.9336208Z       self.run()
+2026-10-29T19:05:51.9336494Z     File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\threading.py", line 1012, in run
+2026-10-29T19:05:51.9336821Z       self._target(*self._args, **self._kwargs)
+2026-10-29T19:05:51.9337167Z     File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\subprocess.py", line 1599, in _readerthread
+2026-10-29T19:05:51.9337506Z       buffer.append(fh.read())
+2026-10-29T19:05:51.9337677Z                     ^^^^^^^^^
+2026-10-29T19:05:51.9337978Z     File "C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\encodings\cp1252.py", line 23, in decode
+2026-10-29T19:05:51.9338359Z       return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+2026-10-29T19:05:51.9338952Z              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2026-10-29T19:05:51.9339320Z   UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 15: character maps to <undefined>
+2026-10-29T19:05:51.9339956Z   
+2026-10-29T19:05:51.9340164Z     warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+2026-10-29T19:05:51.9340380Z 
+2026-10-29T19:05:51.9340534Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2026-10-29T19:05:51.9340847Z =========================== short test summary info ===========================
+2026-10-29T19:05:51.9341215Z SKIPPED [1] tests\unit\storage\test_projects.py:337: needs Linux open-file-description locks
+2026-10-29T19:05:51.9341659Z SKIPPED [1] tests\unit\storage\test_query_cursors.py:42: needs Linux open-file-description locks
+2026-10-29T19:05:51.9342141Z SKIPPED [1] tests\live\test_live_api.py:30: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-29T19:05:51.9342648Z SKIPPED [1] tests\live\test_live_api.py:116: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-29T19:05:51.9343154Z SKIPPED [1] tests\live\test_live_api.py:155: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-29T19:05:51.9343755Z SKIPPED [1] tests\live\test_live_api.py:188: set SHELTERSIM_ALLOW_LIVE_API_TESTS=1 for the capped live API command
+2026-10-29T19:05:51.9344338Z FAILED tests/e2e/test_cli_project.py::test_a_project_is_prepared_computed_forked_and_cleaned_up_from_the_cli - SystemExit: 2
+2026-10-29T19:05:51.9344910Z FAILED tests/unit/storage/test_projects.py::test_usage_skips_a_file_removed_while_it_is_measured - assert 6 == 2
+2026-10-29T19:05:51.9345442Z FAILED tests/unit/web/test_server.py::test_map_lod_helper_is_served_to_project_maps - AssertionError: assert False
+2026-10-29T19:05:51.9345943Z  +  where False = <built-in method startswith of str object at 0x000001303BEB8530>('text/javascript')
+2026-10-29T19:05:51.9346459Z  +    where <built-in method startswith of str object at 0x000001303BEB8530> = 'application/javascript; charset=utf-8'.startswith
+2026-10-29T19:05:51.9347163Z FAILED tests/unit/web/test_static_app.py::test_map_note_lists_the_zones_of_agents_it_cannot_draw - AttributeError: 'NoneType' object has no attribute 'startswith'
+2026-10-29T19:05:51.9348243Z FAILED tests/unit/web/test_static_app.py::test_map_note_is_unchanged_when_every_agent_is_drawn - AssertionError: assert None == 'Scenario\u306e\u56f3\u9762 \xb7 1\u4eba\u8868\u793a \xb7 \u5ea7\u6a19\u306f\u8868\u793a\u7528 \xb7 \u914d\u7f6e\u7de8\u96c6\u306f\u30d6\u30e9\u30a6\u30b6\u5185\u306e\u307f'
+2026-10-29T19:05:51.9349409Z FAILED tests/unit/web/test_static_project_round3.py::test_rule_fallback_preview_shows_the_reason_opus_was_not_used - TypeError: the JSON object must be str, bytes or bytearray, not NoneType
+2026-10-29T19:05:51.9350312Z FAILED tests/unit/web/test_static_project_round3.py::test_opus_preview_without_limitations_shows_no_fallback_notice - TypeError: the JSON object must be str, bytes or bytearray, not NoneType
+2026-10-29T19:05:51.9351127Z FAILED tests/integration/test_process_worker.py::test_a_process_saves_the_same_head_as_a_thread - AssertionError: assert 'unavailable' == 'measured'
+2026-10-29T19:05:51.9351566Z   
+2026-10-29T19:05:51.9351687Z   - measured
+2026-10-29T19:05:51.9351822Z   + unavailable
+2026-10-29T19:05:51.9352354Z FAILED tests/integration/test_demo_v2_routes.py::test_backup_assets_are_independent_and_served_locally[/demo-v2.js-text/javascript-scenario-approve] - AssertionError: assert False
+2026-10-29T19:05:51.9353022Z  +  where False = <built-in method startswith of str object at 0x0000026784406EC0>('text/javascript')
+2026-10-29T19:05:51.9353540Z  +    where <built-in method startswith of str object at 0x0000026784406EC0> = 'application/javascript; charset=utf-8'.startswith
+2026-10-29T19:05:51.9354254Z FAILED tests/integration/test_demo_v2_routes.py::test_backup_assets_are_independent_and_served_locally[/demo-v2-map.js-text/javascript-Hinanj] - AssertionError: assert False
+2026-10-29T19:05:51.9355185Z  +  where False = <built-in method startswith of str object at 0x00000267840A26A0>('text/javascript')
+2026-10-29T19:05:51.9355695Z  +    where <built-in method startswith of str object at 0x00000267840A26A0> = 'application/javascript; charset=utf-8'.startswith
+2026-10-29T19:05:51.9356443Z FAILED tests/integration/test_demo_v2_routes.py::test_backup_assets_are_independent_and_served_locally[/demo-v2-scene.js-text/javascript-HinanjoScene] - AssertionError: assert False
+2026-10-29T19:05:51.9357107Z  +  where False = <built-in method startswith of str object at 0x0000026782782EC0>('text/javascript')
+2026-10-29T19:05:51.9357612Z  +    where <built-in method startswith of str object at 0x0000026782782EC0> = 'application/javascript; charset=utf-8'.startswith
+2026-10-29T19:05:51.9358363Z FAILED tests/integration/test_demo_v2_routes.py::test_backup_assets_are_independent_and_served_locally[/demo-v2-clock.js-text/javascript-HinanjoReplayClock] - AssertionError: assert False
+2026-10-29T19:05:51.9359048Z  +  where False = <built-in method startswith of str object at 0x00000267FC2DBB90>('text/javascript')
+2026-10-29T19:05:51.9359548Z  +    where <built-in method startswith of str object at 0x00000267FC2DBB90> = 'application/javascript; charset=utf-8'.startswith
+2026-10-29T19:05:51.9360850Z FAILED tests/integration/test_demo_v2_routes.py::test_backup_assets_are_independent_and_served_locally[/demo-v2-replay.js-text/javascript-HinanjoReplayPlayer] - AssertionError: assert False
+2026-10-29T19:05:51.9361567Z  +  where False = <built-in method startswith of str object at 0x000002678052B320>('text/javascript')
+2026-10-29T19:05:51.9362084Z  +    where <built-in method startswith of str object at 0x000002678052B320> = 'application/javascript; charset=utf-8'.startswith
+2026-10-29T19:05:51.9362853Z FAILED tests/integration/test_demo_v2_routes.py::test_backup_assets_are_independent_and_served_locally[/demo-v2-sprites.js-text/javascript-HinanjoSprites] - AssertionError: assert False
+2026-10-29T19:05:51.9363543Z  +  where False = <built-in method startswith of str object at 0x00000267FBC1F500>('text/javascript')
+2026-10-29T19:05:51.9364050Z  +    where <built-in method startswith of str object at 0x00000267FBC1F500> = 'application/javascript; charset=utf-8'.startswith
+2026-10-29T19:05:51.9364519Z ===== 14 failed, 1318 passed, 6 skipped, 4 warnings in 1525.90s (0:25:25) =====
+2026-10-29T19:05:51.9366103Z test results: 14 failed, 1318 passed, 6 skipped; failed: tests/e2e/test_cli_project.py::test_a_project_is_prepared_computed_forked_and_cleaned_up_from_the_cli, tests/unit/storage/test_projects.py::test_usage_skips_a_file_removed_while_it_is_measured, tests/unit/web/test_server.py::test_map_lod_helper_is_served_to_project_maps, tests/unit/web/test_static_app.py::test_map_note_lists_the_zones_of_agents_it_cannot_draw, tests/unit/web/test_static_app.py::test_map_note_is_unchanged_when_every_agent_is_drawn (+9 more); tracebacks in .test-results\20261029T184025Z-7788\summary.txt
+2026-10-29T19:05:52.0647669Z ##[error]Process completed with exit code 1.
+2026-10-29T19:05:52.0856928Z ##[group]Run actions/upload-artifact@v4
+2026-10-29T19:05:52.0857212Z with:
+2026-10-29T19:05:52.0857378Z   name: test-results-windows-latest
+2026-10-29T19:05:52.0857587Z   path: .test-results/
+2026-10-29T19:05:52.0857758Z   retention-days: 7
+2026-10-29T19:05:52.0857912Z   if-no-files-found: ignore
+2026-10-29T19:05:52.0858081Z   include-hidden-files: true
+2026-10-29T19:05:52.0858253Z   compression-level: 6
+2026-10-29T19:05:52.0858403Z   overwrite: false
+2026-10-29T19:05:52.0858538Z env:
+2026-10-29T19:05:52.0858671Z   SHELTERSIM_LLM_MODE: offline
+2026-10-29T19:05:52.0858909Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T19:05:52.0859251Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.12.10\x64/lib/pkgconfig
+2026-10-29T19:05:52.0859588Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T19:05:52.0859891Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T19:05:52.0860649Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T19:05:52.0860887Z ##[endgroup]
+2026-10-29T19:05:52.2413032Z (node:8804) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-29T19:05:52.2413588Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-29T19:05:52.2481986Z With the provided path, there will be 3 files uploaded
+2026-10-29T19:05:52.2487053Z Artifact name is valid!
+2026-10-29T19:05:52.2488120Z Root directory input is valid!
+2026-10-29T19:05:52.6238184Z Beginning upload of artifact content to blob storage
+2026-10-29T19:05:52.6470165Z (node:8804) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-29T19:05:52.9399240Z Uploaded bytes 49232
+2026-10-29T19:05:52.9972896Z Finished uploading artifact content to blob storage!
+2026-10-29T19:05:52.9973614Z SHA256 digest of uploaded artifact zip is 8ad98881f7155efd706dd6f9de649be0f0e01f71cfe73db243a1eca715951f9f
+2026-10-29T19:05:52.9976032Z Finalizing artifact upload
+2026-10-29T19:05:53.4942387Z Artifact test-results-windows-latest.zip successfully finalized. Artifact ID 12926040337
+2026-10-29T19:05:53.4943512Z Artifact test-results-windows-latest has been successfully uploaded! Final size is 49232 bytes. Artifact ID is 12926040337
+2026-10-29T19:05:53.4952484Z Artifact download URL: https://github.com/jphacks/tkb_2615/actions/runs/40932915808/artifacts/12926040337
+2026-10-29T19:05:53.5263508Z Post job cleanup.
+2026-10-29T19:05:53.6595989Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-29T19:05:53.6883413Z git version 2.56.0.windows.2
+2026-10-29T19:05:53.6942017Z Temporarily overriding HOME='D:\a\_temp\a4cfe4e6-9e2e-4a78-9960-aaf087503790' before making global git config changes
+2026-10-29T19:05:53.6942989Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-29T19:05:53.6952165Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\tkb_2615\tkb_2615
+2026-10-29T19:05:53.7275730Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-29T19:05:53.7599495Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-29T19:05:54.2501060Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-29T19:05:54.2776993Z http.https://github.com/.extraheader
+2026-10-29T19:05:54.2813891Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all http.https://github.com/.extraheader
+2026-10-29T19:05:54.3123421Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-29T19:05:54.7716518Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-29T19:05:54.8061003Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-29T19:05:55.2612612Z Cleaning up orphan processes
+2026-10-29T19:05:55.2804107Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+

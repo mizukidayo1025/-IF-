@@ -1,0 +1,319 @@
+[
+  {
+    "sha": "040682825e47de8b05159ba3bc3e0d418deb12c6",
+    "node_id": "C_kwDOU3hqGNoAKDA0MDY4MjgyNWU0N2RlOGIwNTE1OWJhM2JjM2UwZDQxOGRlYjEyYzY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/040682825e47de8b05159ba3bc3e0d418deb12c6",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/040682825e47de8b05159ba3bc3e0d418deb12c6",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T18:37:45Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T18:37:45Z"
+    },
+    "tree": {
+      "sha": "73d1a0b9292ae208d32e8a86c42d155854c5b31f",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/73d1a0b9292ae208d32e8a86c42d155854c5b31f"
+    },
+    "message": "Let the row kernels alone judge the namespaces Rust owns at the end of a tick\n\nRetire the Rust checks that walked the trees of psychological_distress_v1 and\ninformation_spread_v1 in front of their Python rules: psychological_agents_valid,\ninformation_contacts_valid and unit_values_valid. A row kernel stands in front of those rules\nnow, and on anything else the rules read the tree themselves.\n\nA row kernel's yes used to pass for a world that no longer holds what the row follows. Storing\npast NamespaceTable or IdMap, or in the world's __dict__, left a row nothing writes. rust_validated\nnow asks whether the world holds the row's tree and the maps the rows follow, so those writes reach\nthe Python rules and their errors.\n\nAdd a test for each way of writing, and a shadow of the per-tick check.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "abcff2584b336b685ca72e0219118d4efab0129f",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/abcff2584b336b685ca72e0219118d4efab0129f",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/abcff2584b336b685ca72e0219118d4efab0129f"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "e0c7761595be72a0319928d0b7a2512fc4af82ed",
+    "node_id": "C_kwDOU3hqGNoAKGUwYzc3NjE1OTViZTcyYTAzMTk5MjhkMGI3YTI1MTJmYzRhZjgyZWQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/e0c7761595be72a0319928d0b7a2512fc4af82ed",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/e0c7761595be72a0319928d0b7a2512fc4af82ed",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T18:45:16Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T18:45:16Z"
+    },
+    "tree": {
+      "sha": "80fc38555c4db1fa4c5f3fa453a2f1c73c7c4f47",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/80fc38555c4db1fa4c5f3fa453a2f1c73c7c4f47"
+    },
+    "message": "Let the kernel answer for a namespace that is really absent\n\nA world without staff_dynamics_v1 has no row, and its kernel says so. Only a row left behind by a\nwrite past the table must not answer.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "040682825e47de8b05159ba3bc3e0d418deb12c6",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/040682825e47de8b05159ba3bc3e0d418deb12c6",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/040682825e47de8b05159ba3bc3e0d418deb12c6"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "dac68c13cc59807504f287df2ec55fba9a2b26bc",
+    "node_id": "C_kwDOU3hqGNoAKGRhYzY4YzEzY2M1OTgwNzUwNGYyODdkZjJlYzU1ZmJhOWEyYjI2YmM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/dac68c13cc59807504f287df2ec55fba9a2b26bc",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/dac68c13cc59807504f287df2ec55fba9a2b26bc",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T19:38:57Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T19:38:57Z"
+    },
+    "tree": {
+      "sha": "9fc2b6e8481626f42d746dfbe5bef3c825a78d20",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/9fc2b6e8481626f42d746dfbe5bef3c825a78d20"
+    },
+    "message": "Take the shadow of the per-tick check past absent namespaces and uncopyable worlds\n\nA world without staff_dynamics_v1 has nothing to compare, and deepcopy cannot copy a world's event\npayloads, so the probes break a restored copy.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "e0c7761595be72a0319928d0b7a2512fc4af82ed",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/e0c7761595be72a0319928d0b7a2512fc4af82ed",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/e0c7761595be72a0319928d0b7a2512fc4af82ed"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "e26014b102057d59386fb2bceea722e7655c8ff3",
+    "node_id": "C_kwDOU3hqGNoAKGUyNjAxNGIxMDIwNTdkNTkzODZmYjJiY2VlYTcyMmU3NjU1YzhmZjM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/e26014b102057d59386fb2bceea722e7655c8ff3",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/e26014b102057d59386fb2bceea722e7655c8ff3",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T20:57:27Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T20:57:27Z"
+    },
+    "tree": {
+      "sha": "1eb9ee8dd6b1781dcd42f209a47f093fbad41776",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/1eb9ee8dd6b1781dcd42f209a47f093fbad41776"
+    },
+    "message": "Record the per-tick validation lane: what was retired, what proves it, what remains\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "dac68c13cc59807504f287df2ec55fba9a2b26bc",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/dac68c13cc59807504f287df2ec55fba9a2b26bc",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/dac68c13cc59807504f287df2ec55fba9a2b26bc"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "86f6743c356a534e78bef3e4dd5b2b08328e3af5",
+    "node_id": "C_kwDOU3hqGNoAKDg2ZjY3NDNjMzU2YTUzNGU3OGJlZjNlNGRkNWIyYjA4MzI4ZTNhZjU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/86f6743c356a534e78bef3e4dd5b2b08328e3af5",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/86f6743c356a534e78bef3e4dd5b2b08328e3af5",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T20:58:20Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T20:58:20Z"
+    },
+    "tree": {
+      "sha": "d2439a96c81bf65a20f8c918ee53f5fdedfb56b0",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/d2439a96c81bf65a20f8c918ee53f5fdedfb56b0"
+    },
+    "message": "Merge remote-tracking branch 'origin/feature/rust-port' into rust/m1-tick-validation",
+    "parents": [
+      {
+        "sha": "e26014b102057d59386fb2bceea722e7655c8ff3",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/e26014b102057d59386fb2bceea722e7655c8ff3",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/e26014b102057d59386fb2bceea722e7655c8ff3"
+      },
+      {
+        "sha": "b0159454f635f7b23bbc59b66936503a5d28a9d8",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/b0159454f635f7b23bbc59b66936503a5d28a9d8",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/b0159454f635f7b23bbc59b66936503a5d28a9d8"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "2c462d83fa59788eb948d0446d5af45a505c7e6c",
+    "node_id": "C_kwDOU3hqGNoAKDJjNDYyZDgzZmE1OTc4OGViOTQ4ZDA0NDZkNWFmNDVhNTA1YzdlNmM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/2c462d83fa59788eb948d0446d5af45a505c7e6c",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/2c462d83fa59788eb948d0446d5af45a505c7e6c",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T21:01:27Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T21:01:27Z"
+    },
+    "tree": {
+      "sha": "186085dc5136c7ac90e6a5f46ad3436f5bfddd4a",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/186085dc5136c7ac90e6a5f46ad3436f5bfddd4a"
+    },
+    "message": "Save the namespace or entity map a world really holds, not an old row\n\nA world whose model_state was stored in its __dict__, or a namespace or an entity written past\nNamespaceTable or IdMap, is valid, so nothing stopped the save, and capture wrote the bytes of a row\nnothing follows any more. The state was lost silently. Capture now asks the same as rust_validated\nand encodes the Python objects when the rows are not what the world holds.\n\nA write to an entity's __dict__ still does not reach a save; a test pins that and the lane doc says\nwhy it stays. The doc also records the decision on writes past a tracked dict, and that movement_v1\nnow has a row.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "86f6743c356a534e78bef3e4dd5b2b08328e3af5",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/86f6743c356a534e78bef3e4dd5b2b08328e3af5",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/86f6743c356a534e78bef3e4dd5b2b08328e3af5"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34799749141,
+    "node_id": "ME_lADOU3hqGM8AAAABbfjhEs8AAAAIGjoIFQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34799749141",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "3401c52a7701ab2acb0620a0a2372db280c51fa0",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/3401c52a7701ab2acb0620a0a2372db280c51fa0",
+    "created_at": "2026-10-31T21:52:06Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34799749211,
+    "node_id": "CE_lADOU3hqGM8AAAABbfjhEs8AAAAIGjoIWw",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34799749211",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-31T21:52:06Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34799750624,
+    "node_id": "HRDE_lADOU3hqGM8AAAABbfjhEs8AAAAIGjoN4A",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34799750624",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-31T21:52:08Z",
+    "performed_via_github_app": null
+  }
+]
+

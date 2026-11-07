@@ -1,0 +1,543 @@
+﻿2026-10-29T18:21:37.4798695Z Current runner version: '2.338.0'
+2026-10-29T18:21:37.4824521Z ##[group]Runner Image Provisioner
+2026-10-29T18:21:37.4825311Z Hosted Compute Agent
+2026-10-29T18:21:37.4825823Z Version: 20261021.618
+2026-10-29T18:21:37.4826412Z Commit: 21505ad2541d5be6135ed84fc33697146cf75b8e
+2026-10-29T18:21:37.4827088Z Build Date: 2026-10-21T00:45:21Z
+2026-10-29T18:21:37.4827746Z Worker ID: {8ce23c3b-6c13-4164-84d3-b17ad8da96fa}
+2026-10-29T18:21:37.4828388Z Region: westus
+2026-10-29T18:21:37.4828857Z Cloud: Azure
+2026-10-29T18:21:37.4829346Z ##[endgroup]
+2026-10-29T18:21:37.4830608Z ##[group]Operating System
+2026-10-29T18:21:37.4831233Z Microsoft Windows Server 2025
+2026-10-29T18:21:37.4831789Z 10.0.26100
+2026-10-29T18:21:37.4832268Z Datacenter
+2026-10-29T18:21:37.4832733Z ##[endgroup]
+2026-10-29T18:21:37.4833232Z ##[group]Runner Image
+2026-10-29T18:21:37.4833797Z Image: windows-2025-vs2026
+2026-10-29T18:21:37.4834394Z Version: 20261021.278.1
+2026-10-29T18:21:37.4835833Z Included Software: https://github.com/actions/runner-images/blob/win25-vs2026/20261021.278/images/windows/Windows2025-VS2026-Readme.md
+2026-10-29T18:21:37.4837446Z Image Release: https://github.com/actions/runner-images/releases/tag/win25-vs2026%2F20261021.278
+2026-10-29T18:21:37.4838366Z ##[endgroup]
+2026-10-29T18:21:37.4839377Z ##[group]GITHUB_TOKEN Permissions
+2026-10-29T18:21:37.4841197Z Contents: read
+2026-10-29T18:21:37.4842054Z Metadata: read
+2026-10-29T18:21:37.4842761Z ##[endgroup]
+2026-10-29T18:21:37.4844880Z Secret source: Actions
+2026-10-29T18:21:37.4845746Z Cache mode: write
+2026-10-29T18:21:37.4846432Z Prepare workflow directory
+2026-10-29T18:21:37.5283398Z Prepare all required actions
+2026-10-29T18:21:37.5353690Z Getting action download info
+2026-10-29T18:21:37.8781130Z Download action repository 'actions/checkout@v4' (SHA:11d5960a326750d5838078e36cf38b85af677262)
+2026-10-29T18:21:38.0182913Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+2026-10-29T18:21:38.1793880Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-10-29T18:21:38.5568512Z Complete job name: test (windows-latest)
+2026-10-29T18:21:38.7163810Z ##[group]Run actions/checkout@v4
+2026-10-29T18:21:38.7165284Z with:
+2026-10-29T18:21:38.7165762Z   repository: jphacks/tkb_2615
+2026-10-29T18:21:38.7170718Z   token: ***
+2026-10-29T18:21:38.7171187Z   ssh-strict: true
+2026-10-29T18:21:38.7171644Z   ssh-user: git
+2026-10-29T18:21:38.7172104Z   persist-credentials: true
+2026-10-29T18:21:38.7172616Z   clean: true
+2026-10-29T18:21:38.7173078Z   sparse-checkout-cone-mode: true
+2026-10-29T18:21:38.7173637Z   fetch-depth: 1
+2026-10-29T18:21:38.7174084Z   fetch-tags: false
+2026-10-29T18:21:38.7174554Z   show-progress: true
+2026-10-29T18:21:38.7175006Z   lfs: false
+2026-10-29T18:21:38.7175429Z   submodules: false
+2026-10-29T18:21:38.7175894Z   set-safe-directory: true
+2026-10-29T18:21:38.7176431Z   allow-unsafe-pr-checkout: false
+2026-10-29T18:21:38.7177469Z env:
+2026-10-29T18:21:38.7177895Z   SHELTERSIM_LLM_MODE: offline
+2026-10-29T18:21:38.7178410Z ##[endgroup]
+2026-10-29T18:21:38.8660145Z Syncing repository: jphacks/tkb_2615
+2026-10-29T18:21:38.8662123Z ##[group]Getting Git version info
+2026-10-29T18:21:38.8662818Z Working directory is 'D:\a\tkb_2615\tkb_2615'
+2026-10-29T18:21:38.9601749Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-29T18:21:39.3169299Z git version 2.56.0.windows.2
+2026-10-29T18:21:39.3219776Z ##[endgroup]
+2026-10-29T18:21:39.3239896Z Temporarily overriding HOME='D:\a\_temp\c39410d2-26f0-43f0-9a84-0e9b771cc167' before making global git config changes
+2026-10-29T18:21:39.3242061Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-29T18:21:39.3250720Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\tkb_2615\tkb_2615
+2026-10-29T18:21:39.3920533Z Deleting the contents of 'D:\a\tkb_2615\tkb_2615'
+2026-10-29T18:21:39.3926586Z ##[group]Initializing the repository
+2026-10-29T18:21:39.3935771Z [command]"C:\Program Files\Git\bin\git.exe" init D:\a\tkb_2615\tkb_2615
+2026-10-29T18:21:39.4948244Z Initialized empty Git repository in D:/a/tkb_2615/tkb_2615/.git/
+2026-10-29T18:21:39.5001766Z [command]"C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/jphacks/tkb_2615
+2026-10-29T18:21:39.5740909Z ##[endgroup]
+2026-10-29T18:21:39.5745006Z ##[group]Disabling automatic garbage collection
+2026-10-29T18:21:39.5749755Z [command]"C:\Program Files\Git\bin\git.exe" config --local gc.auto 0
+2026-10-29T18:21:39.6152223Z ##[endgroup]
+2026-10-29T18:21:39.6154049Z ##[group]Setting up auth
+2026-10-29T18:21:39.6164983Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-29T18:21:39.6551929Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-29T18:21:41.2675829Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-29T18:21:41.3081876Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-29T18:21:41.8846829Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-29T18:21:41.9256167Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-29T18:21:42.5186444Z [command]"C:\Program Files\Git\bin\git.exe" config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ***"
+2026-10-29T18:21:42.5584296Z ##[endgroup]
+2026-10-29T18:21:42.5585655Z ##[group]Fetching the repository
+2026-10-29T18:21:42.5615669Z [command]"C:\Program Files\Git\bin\git.exe" -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +a4a290b58357d68bfb1fec372dc71cfb2ea506b2:refs/remotes/origin/ci/three-platforms
+2026-10-29T18:21:44.3259679Z From https://github.com/jphacks/tkb_2615
+2026-10-29T18:21:44.3260715Z  * [new ref]         a4a290b58357d68bfb1fec372dc71cfb2ea506b2 -> origin/ci/three-platforms
+2026-10-29T18:21:44.3298650Z ##[endgroup]
+2026-10-29T18:21:44.3299323Z ##[group]Determining the checkout info
+2026-10-29T18:21:44.3301874Z ##[endgroup]
+2026-10-29T18:21:44.3311818Z [command]"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+2026-10-29T18:21:44.3842709Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+2026-10-29T18:21:44.4219394Z ##[group]Checking out the ref
+2026-10-29T18:21:44.4229676Z [command]"C:\Program Files\Git\bin\git.exe" checkout --progress --force -B ci/three-platforms refs/remotes/origin/ci/three-platforms
+2026-10-29T18:21:44.8949875Z Switched to a new branch 'ci/three-platforms'
+2026-10-29T18:21:44.8976390Z branch 'ci/three-platforms' set up to track 'origin/ci/three-platforms'.
+2026-10-29T18:21:44.9045205Z ##[endgroup]
+2026-10-29T18:21:44.9521182Z [command]"C:\Program Files\Git\bin\git.exe" log -1 --format=%H
+2026-10-29T18:21:44.9868727Z a4a290b58357d68bfb1fec372dc71cfb2ea506b2
+2026-10-29T18:21:45.0402592Z ##[group]Run actions/setup-python@v5
+2026-10-29T18:21:45.0402983Z with:
+2026-10-29T18:21:45.0403197Z   python-version: 3.12
+2026-10-29T18:21:45.0403434Z   cache: pip
+2026-10-29T18:21:45.0403656Z   cache-dependency-path: pyproject.toml
+2026-10-29T18:21:45.0403958Z   check-latest: false
+2026-10-29T18:21:45.0406919Z   token: ***
+2026-10-29T18:21:45.0407156Z   update-environment: true
+2026-10-29T18:21:45.0407430Z   allow-prereleases: false
+2026-10-29T18:21:45.0407662Z   freethreaded: false
+2026-10-29T18:21:45.0407854Z env:
+2026-10-29T18:21:45.0408025Z   SHELTERSIM_LLM_MODE: offline
+2026-10-29T18:21:45.0409019Z ##[endgroup]
+2026-10-29T18:21:45.2009210Z ##[group]Installed versions
+2026-10-29T18:21:45.2208238Z (node:7536) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-29T18:21:45.2209616Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-29T18:21:45.2211118Z Successfully set up CPython (3.12.10)
+2026-10-29T18:21:45.2211954Z ##[endgroup]
+2026-10-29T18:21:48.2855496Z pip cache is not found
+2026-10-29T18:21:48.3186567Z ##[group]Run python -m pip install -e ".[dev]"
+2026-10-29T18:21:48.3187067Z [36;1mpython -m pip install -e ".[dev]"[0m
+2026-10-29T18:21:48.3875611Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-29T18:21:48.3876236Z env:
+2026-10-29T18:21:48.3876509Z   SHELTERSIM_LLM_MODE: offline
+2026-10-29T18:21:48.3877000Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T18:21:48.3877740Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.12.10\x64/lib/pkgconfig
+2026-10-29T18:21:48.3878478Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T18:21:48.3879106Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T18:21:48.3879743Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T18:21:48.3880243Z ##[endgroup]
+2026-10-29T18:21:51.2892775Z Obtaining file:///D:/a/tkb_2615/tkb_2615
+2026-10-29T18:21:51.2929909Z   Installing build dependencies: started
+2026-10-29T18:21:54.2723863Z   Installing build dependencies: finished with status 'done'
+2026-10-29T18:21:54.2740650Z   Checking if build backend supports build_editable: started
+2026-10-29T18:21:54.7398148Z   Checking if build backend supports build_editable: finished with status 'done'
+2026-10-29T18:21:54.7425720Z   Getting requirements to build editable: started
+2026-10-29T18:21:55.3799741Z   Getting requirements to build editable: finished with status 'done'
+2026-10-29T18:21:55.3829120Z   Preparing editable metadata (pyproject.toml): started
+2026-10-29T18:21:55.8052215Z   Preparing editable metadata (pyproject.toml): finished with status 'done'
+2026-10-29T18:21:56.2974954Z Collecting pydantic==2.11.9 (from sheltersim==0.1.0)
+2026-10-29T18:21:56.5615619Z   Downloading pydantic-2.11.9-py3-none-any.whl.metadata (68 kB)
+2026-10-29T18:21:56.8111624Z Collecting reportlab<5,>=4.4 (from sheltersim==0.1.0)
+2026-10-29T18:21:56.8336258Z   Downloading reportlab-4.5.1-py3-none-any.whl.metadata (1.7 kB)
+2026-10-29T18:21:56.8926649Z Collecting pytest==8.3.5 (from sheltersim==0.1.0)
+2026-10-29T18:21:56.9148067Z   Downloading pytest-8.3.5-py3-none-any.whl.metadata (7.6 kB)
+2026-10-29T18:21:56.9700437Z Collecting pytest-xdist==3.8.0 (from sheltersim==0.1.0)
+2026-10-29T18:21:56.9935938Z   Downloading pytest_xdist-3.8.0-py3-none-any.whl.metadata (3.0 kB)
+2026-10-29T18:21:57.0408800Z Collecting pytest-cov==7.0.0 (from sheltersim==0.1.0)
+2026-10-29T18:21:57.0651886Z   Downloading pytest_cov-7.0.0-py3-none-any.whl.metadata (31 kB)
+2026-10-29T18:21:57.5632170Z Collecting coverage==7.10.7 (from sheltersim==0.1.0)
+2026-10-29T18:21:57.5882747Z   Downloading coverage-7.10.7-cp312-cp312-win_amd64.whl.metadata (9.2 kB)
+2026-10-29T18:21:58.0016637Z Collecting ruff==0.11.0 (from sheltersim==0.1.0)
+2026-10-29T18:21:58.0263084Z   Downloading ruff-0.11.0-py3-none-win_amd64.whl.metadata (26 kB)
+2026-10-29T18:21:58.0880098Z Collecting pypdf<6,>=5 (from sheltersim==0.1.0)
+2026-10-29T18:21:58.1116454Z   Downloading pypdf-5.9.0-py3-none-any.whl.metadata (7.1 kB)
+2026-10-29T18:21:58.2541667Z Collecting pypdfium2<5,>=4.30 (from sheltersim==0.1.0)
+2026-10-29T18:21:58.2777189Z   Downloading pypdfium2-4.30.0-py3-none-win_amd64.whl.metadata (48 kB)
+2026-10-29T18:21:58.3277052Z Collecting annotated-types>=0.6.0 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-29T18:21:58.3493582Z   Downloading annotated_types-0.8.0-py3-none-any.whl.metadata (15 kB)
+2026-10-29T18:21:59.1525837Z Collecting pydantic-core==2.33.2 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-29T18:21:59.1774174Z   Downloading pydantic_core-2.33.2-cp312-cp312-win_amd64.whl.metadata (6.9 kB)
+2026-10-29T18:21:59.2318902Z Collecting typing-extensions>=4.12.2 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-29T18:21:59.2536085Z   Downloading typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+2026-10-29T18:21:59.2996203Z Collecting typing-inspection>=0.4.0 (from pydantic==2.11.9->sheltersim==0.1.0)
+2026-10-29T18:21:59.3215404Z   Downloading typing_inspection-0.4.4-py3-none-any.whl.metadata (2.6 kB)
+2026-10-29T18:21:59.3437553Z Requirement already satisfied: colorama in C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\site-packages (from pytest==8.3.5->sheltersim==0.1.0) (0.4.6)
+2026-10-29T18:21:59.3640613Z Collecting iniconfig (from pytest==8.3.5->sheltersim==0.1.0)
+2026-10-29T18:21:59.3858434Z   Downloading iniconfig-2.3.1-py3-none-any.whl.metadata (2.8 kB)
+2026-10-29T18:21:59.4073703Z Requirement already satisfied: packaging in C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\site-packages (from pytest==8.3.5->sheltersim==0.1.0) (26.3)
+2026-10-29T18:21:59.4319542Z Collecting pluggy<2,>=1.5 (from pytest==8.3.5->sheltersim==0.1.0)
+2026-10-29T18:21:59.4553119Z   Downloading pluggy-1.7.0-py3-none-any.whl.metadata (5.0 kB)
+2026-10-29T18:21:59.5061407Z Collecting execnet>=2.1 (from pytest-xdist==3.8.0->sheltersim==0.1.0)
+2026-10-29T18:21:59.5296805Z   Downloading execnet-2.1.2-py3-none-any.whl.metadata (2.9 kB)
+2026-10-29T18:21:59.7720598Z Collecting pillow>=9.0.0 (from reportlab<5,>=4.4->sheltersim==0.1.0)
+2026-10-29T18:21:59.7947013Z   Downloading pillow-13.0.0-cp312-cp312-win_amd64.whl.metadata (9.3 kB)
+2026-10-29T18:21:59.9671321Z Collecting charset-normalizer (from reportlab<5,>=4.4->sheltersim==0.1.0)
+2026-10-29T18:21:59.9897619Z   Downloading charset_normalizer-3.5.2-cp312-cp312-win_amd64.whl.metadata (47 kB)
+2026-10-29T18:22:00.0548122Z Downloading coverage-7.10.7-cp312-cp312-win_amd64.whl (221 kB)
+2026-10-29T18:22:00.1225694Z Downloading pydantic-2.11.9-py3-none-any.whl (444 kB)
+2026-10-29T18:22:00.1993849Z Downloading pydantic_core-2.33.2-cp312-cp312-win_amd64.whl (2.0 MB)
+2026-10-29T18:22:00.2699707Z    ---------------------------------------- 2.0/2.0 MB 26.9 MB/s  0:00:00
+2026-10-29T18:22:00.2928880Z Downloading pytest-8.3.5-py3-none-any.whl (343 kB)
+2026-10-29T18:22:00.3390244Z Downloading pytest_cov-7.0.0-py3-none-any.whl (22 kB)
+2026-10-29T18:22:00.3765072Z Downloading pytest_xdist-3.8.0-py3-none-any.whl (46 kB)
+2026-10-29T18:22:00.4201556Z Downloading ruff-0.11.0-py3-none-win_amd64.whl (11.4 MB)
+2026-10-29T18:22:00.5572500Z    ---------------------------------------- 11.4/11.4 MB 89.2 MB/s  0:00:00
+2026-10-29T18:22:00.5792281Z Downloading pluggy-1.7.0-py3-none-any.whl (27 kB)
+2026-10-29T18:22:00.6180231Z Downloading pypdf-5.9.0-py3-none-any.whl (313 kB)
+2026-10-29T18:22:00.6691370Z Downloading pypdfium2-4.30.0-py3-none-win_amd64.whl (2.9 MB)
+2026-10-29T18:22:00.7099973Z    ---------------------------------------- 2.9/2.9 MB 84.8 MB/s  0:00:00
+2026-10-29T18:22:00.7320618Z Downloading reportlab-4.5.1-py3-none-any.whl (2.0 MB)
+2026-10-29T18:22:00.7801067Z    ---------------------------------------- 2.0/2.0 MB 36.1 MB/s  0:00:00
+2026-10-29T18:22:00.8069858Z Downloading annotated_types-0.8.0-py3-none-any.whl (13 kB)
+2026-10-29T18:22:00.8453706Z Downloading execnet-2.1.2-py3-none-any.whl (40 kB)
+2026-10-29T18:22:00.8829561Z Downloading pillow-13.0.0-cp312-cp312-win_amd64.whl (7.3 MB)
+2026-10-29T18:22:00.9655130Z    ---------------------------------------- 7.3/7.3 MB 89.9 MB/s  0:00:00
+2026-10-29T18:22:00.9890208Z Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+2026-10-29T18:22:01.1713191Z Downloading typing_inspection-0.4.4-py3-none-any.whl (14 kB)
+2026-10-29T18:22:01.2092402Z Downloading charset_normalizer-3.5.2-cp312-cp312-win_amd64.whl (207 kB)
+2026-10-29T18:22:01.2531344Z Downloading iniconfig-2.3.1-py3-none-any.whl (7.6 kB)
+2026-10-29T18:22:01.3876469Z Building wheels for collected packages: sheltersim
+2026-10-29T18:22:01.3910992Z   Building editable for sheltersim (pyproject.toml): started
+2026-10-29T18:22:01.8507641Z   Building editable for sheltersim (pyproject.toml): finished with status 'done'
+2026-10-29T18:22:01.8548516Z   Created wheel for sheltersim: filename=sheltersim-0.1.0-0.editable-py3-none-any.whl size=9166 sha256=b27c85f0eb7ddb59adaf6a294a88e9b6c4ffa604e573fb809f4de6baae4b12dc
+2026-10-29T18:22:01.8551145Z   Stored in directory: C:\Users\runneradmin\AppData\Local\Temp\pip-ephem-wheel-cache-ugicrwbr\wheels\25\d6\ee\5ab6036338aeb6b14bbca7511bc844e3df1f8d61f449109643
+2026-10-29T18:22:01.8584005Z Successfully built sheltersim
+2026-10-29T18:22:01.9194872Z Installing collected packages: typing-extensions, ruff, pypdfium2, pypdf, pluggy, pillow, iniconfig, execnet, coverage, charset-normalizer, annotated-types, typing-inspection, reportlab, pytest, pydantic-core, pytest-xdist, pytest-cov, pydantic, sheltersim
+2026-10-29T18:22:07.6460112Z 
+2026-10-29T18:22:07.6491893Z Successfully installed annotated-types-0.8.0 charset-normalizer-3.5.2 coverage-7.10.7 execnet-2.1.2 iniconfig-2.3.1 pillow-13.0.0 pluggy-1.7.0 pydantic-2.11.9 pydantic-core-2.33.2 pypdf-5.9.0 pypdfium2-4.30.0 pytest-8.3.5 pytest-cov-7.0.0 pytest-xdist-3.8.0 reportlab-4.5.1 ruff-0.11.0 sheltersim-0.1.0 typing-extensions-4.16.0 typing-inspection-0.4.4
+2026-10-29T18:22:08.0675521Z ##[group]Run python -m pytest -m "not long_simulation" -n auto
+2026-10-29T18:22:08.0676091Z [36;1mpython -m pytest -m "not long_simulation" -n auto[0m
+2026-10-29T18:22:08.0752821Z shell: C:\Program Files\PowerShell\7\pwsh.EXE -command ". '{0}'"
+2026-10-29T18:22:08.0753190Z env:
+2026-10-29T18:22:08.0753387Z   SHELTERSIM_LLM_MODE: offline
+2026-10-29T18:22:08.0753728Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T18:22:08.0754829Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.12.10\x64/lib/pkgconfig
+2026-10-29T18:22:08.0755451Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T18:22:08.0756027Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T18:22:08.0756463Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T18:22:08.0756815Z ##[endgroup]
+2026-10-29T18:22:18.2523251Z ============================= test session starts =============================
+2026-10-29T18:22:18.2527177Z platform win32 -- Python 3.12.10, pytest-8.3.5, pluggy-1.7.0
+2026-10-29T18:22:18.2529325Z rootdir: D:\a\tkb_2615\tkb_2615
+2026-10-29T18:22:18.2533756Z configfile: pyproject.toml
+2026-10-29T18:22:18.2535668Z testpaths: tests
+2026-10-29T18:22:18.2536321Z plugins: platformdirs-4.13.5, cov-7.0.0, xdist-3.8.0
+2026-10-29T18:22:18.2537440Z created: 4/4 workers
+2026-10-29T18:22:18.2537963Z 4 workers [1336 items]
+2026-10-29T18:22:18.2538336Z 
+2026-10-29T18:22:21.7666249Z .............................F.......................................... [  5%]
+2026-10-29T18:22:26.7187266Z ......................F................................................. [ 10%]
+2026-10-29T18:22:41.1681346Z ........................................................................ [ 16%]
+2026-10-29T18:23:04.0060392Z .....................................F..........F....................... [ 21%]
+2026-10-29T18:23:20.0365433Z .......................................................FF..........
+2026-10-29T18:23:20.0366231Z ================================== FAILURES ===================================
+2026-10-29T18:23:20.0367446Z ___ test_a_project_is_prepared_computed_forked_and_cleaned_up_from_the_cli ____
+2026-10-29T18:23:20.0369155Z [gw0] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-29T18:23:20.0370199Z 
+2026-10-29T18:23:20.0371128Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw0/test_a_project_is_prepared_com0')
+2026-10-29T18:23:20.0372611Z capsys = <_pytest.capture.CaptureFixture object at 0x000001C430B8AE40>
+2026-10-29T18:23:20.0373871Z monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001C42EDD6510>
+2026-10-29T18:23:20.0375945Z public_data = <support.public_data.FakePublicData object at 0x000001C42F590260>
+2026-10-29T18:23:20.0376917Z generated_request = <function _generated_request at 0x000001C42ACD5A80>
+2026-10-29T18:23:20.0377472Z 
+2026-10-29T18:23:20.0377864Z     def test_a_project_is_prepared_computed_forked_and_cleaned_up_from_the_cli(
+2026-10-29T18:23:20.0378746Z         tmp_path, capsys, monkeypatch, public_data, generated_request
+2026-10-29T18:23:20.0379364Z     ):
+2026-10-29T18:23:20.0379794Z         monkeypatch.setenv("SHELTERSIM_LLM_MODE", "offline")
+2026-10-29T18:23:20.0380489Z         project = ProjectCli(tmp_path / "projects", capsys)
+2026-10-29T18:23:20.0381087Z         request = tmp_path / "request.json"
+2026-10-29T18:23:20.0381877Z >       request.write_text(json.dumps({"request": generated_request()}, ensure_ascii=False))
+2026-10-29T18:23:20.0382539Z 
+2026-10-29T18:23:20.0382717Z tests\e2e\test_cli_project.py:42: 
+2026-10-29T18:23:20.0383280Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-29T18:23:20.0384141Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\pathlib.py:1048: in write_text
+2026-10-29T18:23:20.0384918Z     return f.write(data)
+2026-10-29T18:23:20.0387373Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-29T18:23:20.0387923Z 
+2026-10-29T18:23:20.0388328Z self = <encodings.cp1252.IncrementalEncoder object at 0x000001C42EFBC380>
+2026-10-29T18:23:20.0390255Z input = '{"request": {"municipality": "\u5408\u6210\u5e02", "disaster": "\u5730\u9707", "evacuees": 20, "duration_days": 0.25, "field_origins": {"municipality": "user", "disaster": "user", "evacuees": "user", "duration_days": "user"}}}'
+2026-10-29T18:23:20.0391919Z final = False
+2026-10-29T18:23:20.0392125Z 
+2026-10-29T18:23:20.0392300Z     def encode(self, input, final=False):
+2026-10-29T18:23:20.0392998Z >       return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+2026-10-29T18:23:20.0394576Z E       UnicodeEncodeError: 'charmap' codec can't encode characters in position 30-32: character maps to <undefined>
+2026-10-29T18:23:20.0395443Z 
+2026-10-29T18:23:20.0395936Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\encodings\cp1252.py:19: UnicodeEncodeError
+2026-10-29T18:23:20.0396977Z _____________________ test_cli_prints_the_capacity_report _____________________
+2026-10-29T18:23:20.0397918Z [gw1] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-29T18:23:20.0398525Z 
+2026-10-29T18:23:20.0399067Z generated_scenario_with = <function generated_scenario_with.<locals>.build at 0x000001C69963DB20>
+2026-10-29T18:23:20.0400689Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw1/test_cli_prints_the_capacity_r0')
+2026-10-29T18:23:20.0402123Z capsys = <_pytest.capture.CaptureFixture object at 0x000001C699A2B290>
+2026-10-29T18:23:20.0402736Z 
+2026-10-29T18:23:20.0403264Z     def test_cli_prints_the_capacity_report(generated_scenario_with, tmp_path, capsys) -> None:
+2026-10-29T18:23:20.0404201Z         path = tmp_path / "scenario.json"
+2026-10-29T18:23:20.0404915Z >       path.write_text(generated_scenario_with(evacuees=100).canonical_json())
+2026-10-29T18:23:20.0405494Z 
+2026-10-29T18:23:20.0405732Z tests\integration\test_service_capacity_cli.py:16: 
+2026-10-29T18:23:20.0406385Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-29T18:23:20.0407241Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\pathlib.py:1048: in write_text
+2026-10-29T18:23:20.0408007Z     return f.write(data)
+2026-10-29T18:23:20.0408496Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-29T18:23:20.0408937Z 
+2026-10-29T18:23:20.0410754Z self = <encodings.cp1252.IncrementalEncoder object at 0x000001C6994F04D0>
+2026-10-29T18:23:20.0413537Z input = '{"duration_minutes":360,"facilities":[{"capacity":1,"id":"accessible_toilet_01","kind":"toilet","working_units":1,"zo...y":980.0,"id":"staff","name":"\u904b\u55b6\u672c\u90e8"},{"capacity":100,"display_x":100.0,"display_y":740.0,"id":"toilet","name":"\u30c8\u30a4\u30ec"}]}'
+2026-10-29T18:23:20.0415689Z final = False
+2026-10-29T18:23:20.0415891Z 
+2026-10-29T18:23:20.0416069Z     def encode(self, input, final=False):
+2026-10-29T18:23:20.0416762Z >       return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+2026-10-29T18:23:20.0418010Z E       UnicodeEncodeError: 'charmap' codec can't encode characters in position 186672-186673: character maps to <undefined>
+2026-10-29T18:23:20.0418909Z 
+2026-10-29T18:23:20.0419392Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\encodings\cp1252.py:19: UnicodeEncodeError
+2026-10-29T18:23:20.0420495Z ___ test_enabled_policy_is_checkpointable_and_writes_compact_contact_trace ____
+2026-10-29T18:23:20.0421497Z [gw1] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-29T18:23:20.0422113Z 
+2026-10-29T18:23:20.0422989Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw1/test_enabled_policy_is_checkpo0')
+2026-10-29T18:23:20.0424069Z 
+2026-10-29T18:23:20.0424456Z     def test_enabled_policy_is_checkpointable_and_writes_compact_contact_trace(
+2026-10-29T18:23:20.0425970Z         tmp_path: Path,
+2026-10-29T18:23:20.0426384Z     ) -> None:
+2026-10-29T18:23:20.0426957Z         document = json.loads(SCENARIO_100_AGENTS.read_text(encoding="utf-8"))
+2026-10-29T18:23:20.0427697Z         document["duration_minutes"] = 3
+2026-10-29T18:23:20.0428204Z         document["scheduled_events"] = []
+2026-10-29T18:23:20.0428773Z         document["profiles"] = document["profiles"][:2]
+2026-10-29T18:23:20.0429424Z         document["model_configs"]["social_propagation"] = {
+2026-10-29T18:23:20.0430007Z             "enabled": True,
+2026-10-29T18:23:20.0430437Z             "max_contacts_per_agent": 1,
+2026-10-29T18:23:20.0430933Z             "minimum_contact_minutes": 1,
+2026-10-29T18:23:20.0431700Z             "stress_spread_per_minute": 0.01,
+2026-10-29T18:23:20.0432246Z             "natural_recovery_per_minute": 0.001,
+2026-10-29T18:23:20.0432771Z             "cooldown_minutes": 5,
+2026-10-29T18:23:20.0433195Z         }
+2026-10-29T18:23:20.0433609Z         scenario = ScenarioSpec.model_validate(document)
+2026-10-29T18:23:20.0434151Z     
+2026-10-29T18:23:20.0434580Z         world = run_scenario(scenario, tmp_path / "social-run")
+2026-10-29T18:23:20.0435196Z         untraced_world = run_scenario(
+2026-10-29T18:23:20.0435650Z             scenario,
+2026-10-29T18:23:20.0436049Z             tmp_path / "social-run-off-trace",
+2026-10-29T18:23:20.0436583Z             trace_level=TraceLevel.OFF,
+2026-10-29T18:23:20.0437035Z         )
+2026-10-29T18:23:20.0437327Z     
+2026-10-29T18:23:20.0437658Z         assert world.schema_version == 5
+2026-10-29T18:23:20.0438315Z         assert world.canonical_json() == untraced_world.canonical_json()
+2026-10-29T18:23:20.0439223Z         assert world.model_state["social_propagation_v1"]["schema_version"] == 1
+2026-10-29T18:23:20.0440052Z         restored = Checkpoint.capture(world).restore_world()
+2026-10-29T18:23:20.0440721Z         assert restored.model_state == world.model_state
+2026-10-29T18:23:20.0441421Z         assert restored.canonical_json() == world.canonical_json()
+2026-10-29T18:23:20.0442291Z >       manifest = json.loads((tmp_path / "social-run" / "manifest.json").read_text())
+2026-10-29T18:23:20.0442889Z 
+2026-10-29T18:23:20.0443124Z tests\integration\test_stress_propagation.py:56: 
+2026-10-29T18:23:20.0443771Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-29T18:23:20.0444627Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\pathlib.py:1028: in read_text
+2026-10-29T18:23:20.0445364Z     return f.read()
+2026-10-29T18:23:20.0445817Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-29T18:23:20.0446264Z 
+2026-10-29T18:23:20.0446824Z self = <encodings.cp1252.IncrementalDecoder object at 0x000001C69B47AED0>
+2026-10-29T18:23:20.0448717Z input = b'{\n  "application_version": "0.1.0",\n  "artifact_schema_version": 2,\n  "decision_count": 2,\n  "duration_minutes":...n      "zone_id": "information_desk"\n    }\n  ],\n  "trace_level": "summary",\n  "world_state_schema_version": 5\n}\n'
+2026-10-29T18:23:20.0450382Z final = True
+2026-10-29T18:23:20.0450573Z 
+2026-10-29T18:23:20.0450751Z     def decode(self, input, final=False):
+2026-10-29T18:23:20.0451662Z >       return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+2026-10-29T18:23:20.0452826Z E       UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 1817: character maps to <undefined>
+2026-10-29T18:23:20.0453649Z 
+2026-10-29T18:23:20.0454127Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\encodings\cp1252.py:23: UnicodeDecodeError
+2026-10-29T18:23:20.0455310Z _ test_generated_scenario_propagation_is_checkpointable_and_writes_compact_contact_trace _
+2026-10-29T18:23:20.0456425Z [gw1] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-29T18:23:20.0457025Z 
+2026-10-29T18:23:20.0457920Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw1/test_generated_scenario_propag0')
+2026-10-29T18:23:20.0459667Z generated_previews = <function generated_previews.<locals>.preview at 0x000001C6998E2F20>
+2026-10-29T18:23:20.0460369Z 
+2026-10-29T18:23:20.0460886Z     def test_generated_scenario_propagation_is_checkpointable_and_writes_compact_contact_trace(
+2026-10-29T18:23:20.0461802Z         tmp_path: Path, generated_previews
+2026-10-29T18:23:20.0462280Z     ) -> None:
+2026-10-29T18:23:20.0462766Z         document = copy.deepcopy(generated_previews()["scenario"])
+2026-10-29T18:23:20.0463471Z         document["duration_minutes"] = GENERATED_MINUTES
+2026-10-29T18:23:20.0464108Z         scenario = ScenarioSpec.model_validate(document)
+2026-10-29T18:23:20.0464779Z         config = scenario.model_configs["social_propagation"]
+2026-10-29T18:23:20.0465396Z         assert config["enabled"] is True
+2026-10-29T18:23:20.0465850Z     
+2026-10-29T18:23:20.0466282Z         world = run_scenario(scenario, tmp_path / "social-run")
+2026-10-29T18:23:20.0466897Z         untraced_world = run_scenario(
+2026-10-29T18:23:20.0467368Z             scenario,
+2026-10-29T18:23:20.0467771Z             tmp_path / "social-run-off-trace",
+2026-10-29T18:23:20.0468299Z             trace_level=TraceLevel.OFF,
+2026-10-29T18:23:20.0468750Z         )
+2026-10-29T18:23:20.0469045Z     
+2026-10-29T18:23:20.0469533Z         assert world.canonical_json() == untraced_world.canonical_json()
+2026-10-29T18:23:20.0470311Z         restored = Checkpoint.capture(world).restore_world()
+2026-10-29T18:23:20.0470970Z         assert restored.model_state == world.model_state
+2026-10-29T18:23:20.0471902Z         assert restored.canonical_json() == world.canonical_json()
+2026-10-29T18:23:20.0472771Z >       manifest = json.loads((tmp_path / "social-run" / "manifest.json").read_text())
+2026-10-29T18:23:20.0473377Z 
+2026-10-29T18:23:20.0473614Z tests\integration\test_stress_propagation.py:100: 
+2026-10-29T18:23:20.0474265Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-29T18:23:20.0475195Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\pathlib.py:1028: in read_text
+2026-10-29T18:23:20.0475948Z     return f.read()
+2026-10-29T18:23:20.0476392Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-29T18:23:20.0476831Z 
+2026-10-29T18:23:20.0477209Z self = <encodings.cp1252.IncrementalDecoder object at 0x000001C69AE90F20>
+2026-10-29T18:23:20.0479047Z input = b'{\n  "application_version": "0.1.0",\n  "artifact_schema_version": 2,\n  "decision_count": 22,\n  "duration_minutes"..."\n      ],\n      "zone_id": "food"\n    }\n  ],\n  "trace_level": "summary",\n  "world_state_schema_version": 6\n}\n'
+2026-10-29T18:23:20.0480645Z final = True
+2026-10-29T18:23:20.0481000Z 
+2026-10-29T18:23:20.0481169Z     def decode(self, input, final=False):
+2026-10-29T18:23:20.0481849Z >       return codecs.charmap_decode(input,self.errors,decoding_table)[0]
+2026-10-29T18:23:20.0483018Z E       UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 3428: character maps to <undefined>
+2026-10-29T18:23:20.0483837Z 
+2026-10-29T18:23:20.0484319Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\encodings\cp1252.py:23: UnicodeDecodeError
+2026-10-29T18:23:20.0485371Z ________ test_each_live_model_check_run_fits_its_call_and_budget_caps _________
+2026-10-29T18:23:20.0486343Z [gw2] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-29T18:23:20.0486954Z 
+2026-10-29T18:23:20.0487375Z self = <sheltersim.llm.provider.AnthropicProvider object at 0x0000018BBD3C5E80>
+2026-10-29T18:23:20.0488140Z api_key = 'mock-key'
+2026-10-29T18:23:20.0488373Z 
+2026-10-29T18:23:20.0488717Z     def __init__(self, api_key: str, *, client: object | None = None) -> None:
+2026-10-29T18:23:20.0489396Z         if not api_key:
+2026-10-29T18:23:20.0490049Z             raise LLMProviderError("ANTHROPIC_API_KEY is required for Claude API mode")
+2026-10-29T18:23:20.0490822Z         if client is None:
+2026-10-29T18:23:20.0491199Z             try:
+2026-10-29T18:23:20.0491916Z >               import anthropic
+2026-10-29T18:23:20.0492475Z E               ModuleNotFoundError: No module named 'anthropic'
+2026-10-29T18:23:20.0492930Z 
+2026-10-29T18:23:20.0493187Z src\sheltersim\llm\provider.py:60: ModuleNotFoundError
+2026-10-29T18:23:20.0493627Z 
+2026-10-29T18:23:20.0493965Z The above exception was the direct cause of the following exception:
+2026-10-29T18:23:20.0494506Z 
+2026-10-29T18:23:20.0494836Z live_model_check = <function _live_model_check at 0x0000018BB82E6840>
+2026-10-29T18:23:20.0496225Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw2/test_each_live_model_check_run0')
+2026-10-29T18:23:20.0497301Z 
+2026-10-29T18:23:20.0497844Z     def test_each_live_model_check_run_fits_its_call_and_budget_caps(live_model_check, tmp_path: Path):
+2026-10-29T18:23:20.0499037Z         # tests/live/test_live_api.py runs this case against the real API only when asked, so
+2026-10-29T18:23:20.0500111Z         # a ledger rule that denies one of its calls went unnoticed for days (#148). A second
+2026-10-29T18:23:20.0500996Z         # run in the same usage store must get its own allowance.
+2026-10-29T18:23:20.0501610Z         for run in ("first", "second"):
+2026-10-29T18:23:20.0502151Z >           settings, router, tasks, _ = live_model_check(
+2026-10-29T18:23:20.0503007Z                 LLMSettings(api_key="mock-key"), tmp_path / f"{run}.json", provider=_AckProvider()
+2026-10-29T18:23:20.0503781Z             )
+2026-10-29T18:23:20.0503973Z 
+2026-10-29T18:23:20.0504155Z tests\unit\llm\test_accounting.py:509: 
+2026-10-29T18:23:20.0504740Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-29T18:23:20.0505384Z tests\support\llm.py:66: in _live_model_check
+2026-10-29T18:23:20.0505917Z     router = LLMRouter(settings)
+2026-10-29T18:23:20.0506412Z src\sheltersim\llm\provider.py:211: in __init__
+2026-10-29T18:23:20.0507097Z     provider = AnthropicProvider(self.settings.api_key or "")
+2026-10-29T18:23:20.0507812Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-29T18:23:20.0508256Z 
+2026-10-29T18:23:20.0508679Z self = <sheltersim.llm.provider.AnthropicProvider object at 0x0000018BBD3C5E80>
+2026-10-29T18:23:20.0509444Z api_key = 'mock-key'
+2026-10-29T18:23:20.0509680Z 
+2026-10-29T18:23:20.0510010Z     def __init__(self, api_key: str, *, client: object | None = None) -> None:
+2026-10-29T18:23:20.0510679Z         if not api_key:
+2026-10-29T18:23:20.0511328Z             raise LLMProviderError("ANTHROPIC_API_KEY is required for Claude API mode")
+2026-10-29T18:23:20.0512342Z         if client is None:
+2026-10-29T18:23:20.0513961Z             try:
+2026-10-29T18:23:20.0514316Z                 import anthropic
+2026-10-29T18:23:20.0514768Z             except ImportError as exc:
+2026-10-29T18:23:20.0515265Z >               raise LLMProviderError(
+2026-10-29T18:23:20.0515938Z                     "install the optional LLM dependencies with `pip install .[llm]`"
+2026-10-29T18:23:20.0516638Z                 ) from exc
+2026-10-29T18:23:20.0517576Z E               sheltersim.llm.contracts.LLMProviderError: install the optional LLM dependencies with `pip install .[llm]`
+2026-10-29T18:23:20.0518432Z 
+2026-10-29T18:23:20.0518666Z src\sheltersim\llm\provider.py:62: LLMProviderError
+2026-10-29T18:23:20.0519866Z ___________ test_each_live_source_search_run_fits_its_own_allowance ___________
+2026-10-29T18:23:20.0520689Z [gw2] win32 -- Python 3.12.10 C:\hostedtoolcache\windows\Python\3.12.10\x64\python.exe
+2026-10-29T18:23:20.0521130Z 
+2026-10-29T18:23:20.0521402Z self = <sheltersim.llm.provider.AnthropicProvider object at 0x0000018BBD2212E0>
+2026-10-29T18:23:20.0521893Z api_key = 'mock-key'
+2026-10-29T18:23:20.0522046Z 
+2026-10-29T18:23:20.0522257Z     def __init__(self, api_key: str, *, client: object | None = None) -> None:
+2026-10-29T18:23:20.0522678Z         if not api_key:
+2026-10-29T18:23:20.0523926Z             raise LLMProviderError("ANTHROPIC_API_KEY is required for Claude API mode")
+2026-10-29T18:23:20.0545948Z         if client is None:
+2026-10-29T18:23:20.0546373Z             try:
+2026-10-29T18:23:20.0546730Z >               import anthropic
+2026-10-29T18:23:20.0547277Z E               ModuleNotFoundError: No module named 'anthropic'
+2026-10-29T18:23:20.0547563Z 
+2026-10-29T18:23:20.0547761Z src\sheltersim\llm\provider.py:60: ModuleNotFoundError
+2026-10-29T18:23:20.0548037Z 
+2026-10-29T18:23:20.0548257Z The above exception was the direct cause of the following exception:
+2026-10-29T18:23:20.0548588Z 
+2026-10-29T18:23:20.0548857Z live_source_search_check = <function _live_source_search_check at 0x0000018BB831C860>
+2026-10-29T18:23:20.0549778Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw2/test_each_live_source_search_r0')
+2026-10-29T18:23:20.0550416Z 
+2026-10-29T18:23:20.0550601Z     def test_each_live_source_search_run_fits_its_own_allowance(
+2026-10-29T18:23:20.0551044Z         live_source_search_check, tmp_path: Path
+2026-10-29T18:23:20.0551374Z     ):
+2026-10-29T18:23:20.0551754Z         # Like the live model check, the search check reserved on one fixed account, so its
+2026-10-29T18:23:20.0552721Z         # 2-call cap covered every run on the machine (#152).
+2026-10-29T18:23:20.0553112Z         for run in ("first", "second", "third"):
+2026-10-29T18:23:20.0553501Z >           _, router, task, campaign = live_source_search_check(
+2026-10-29T18:23:20.0554045Z                 LLMSettings(api_key="mock-key"), tmp_path / f"{run}.json", _SourceSearchProvider()
+2026-10-29T18:23:20.0554534Z             )
+2026-10-29T18:23:20.0554670Z 
+2026-10-29T18:23:20.0554809Z tests\unit\llm\test_accounting.py:546: 
+2026-10-29T18:23:20.0555176Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-29T18:23:20.0555603Z tests\support\llm.py:125: in _live_source_search_check
+2026-10-29T18:23:20.0555984Z     router = LLMRouter(settings)
+2026-10-29T18:23:20.0556320Z src\sheltersim\llm\provider.py:211: in __init__
+2026-10-29T18:23:20.0556754Z     provider = AnthropicProvider(self.settings.api_key or "")
+2026-10-29T18:23:20.0557211Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-10-29T18:23:20.0557486Z 
+2026-10-29T18:23:20.0557747Z self = <sheltersim.llm.provider.AnthropicProvider object at 0x0000018BBD2212E0>
+2026-10-29T18:23:20.0558231Z api_key = 'mock-key'
+2026-10-29T18:23:20.0558393Z 
+2026-10-29T18:23:20.0558622Z     def __init__(self, api_key: str, *, client: object | None = None) -> None:
+2026-10-29T18:23:20.0559048Z         if not api_key:
+2026-10-29T18:23:20.0559463Z             raise LLMProviderError("ANTHROPIC_API_KEY is required for Claude API mode")
+2026-10-29T18:23:20.0560189Z         if client is None:
+2026-10-29T18:23:20.0560450Z             try:
+2026-10-29T18:23:20.0560689Z                 import anthropic
+2026-10-29T18:23:20.0560986Z             except ImportError as exc:
+2026-10-29T18:23:20.0561312Z >               raise LLMProviderError(
+2026-10-29T18:23:20.0561743Z                     "install the optional LLM dependencies with `pip install .[llm]`"
+2026-10-29T18:23:20.0562191Z                 ) from exc
+2026-10-29T18:23:20.0562761Z E               sheltersim.llm.contracts.LLMProviderError: install the optional LLM dependencies with `pip install .[llm]`
+2026-10-29T18:23:20.0563291Z 
+2026-10-29T18:23:20.0563461Z src\sheltersim\llm\provider.py:62: LLMProviderError
+2026-10-29T18:23:20.0563882Z =========================== short test summary info ===========================
+2026-10-29T18:23:20.0565038Z FAILED tests/e2e/test_cli_project.py::test_a_project_is_prepared_computed_forked_and_cleaned_up_from_the_cli - UnicodeEncodeError: 'charmap' codec can't encode characters in position 30-32: character maps to <undefined>
+2026-10-29T18:23:20.0566836Z FAILED tests/integration/test_service_capacity_cli.py::test_cli_prints_the_capacity_report - UnicodeEncodeError: 'charmap' codec can't encode characters in position 186672-186673: character maps to <undefined>
+2026-10-29T18:23:20.0569405Z FAILED tests/integration/test_stress_propagation.py::test_enabled_policy_is_checkpointable_and_writes_compact_contact_trace - UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 1817: character maps to <undefined>
+2026-10-29T18:23:20.0572752Z FAILED tests/integration/test_stress_propagation.py::test_generated_scenario_propagation_is_checkpointable_and_writes_compact_contact_trace - UnicodeDecodeError: 'charmap' codec can't decode byte 0x81 in position 3428: character maps to <undefined>
+2026-10-29T18:23:20.0576769Z FAILED tests/unit/llm/test_accounting.py::test_each_live_model_check_run_fits_its_call_and_budget_caps - sheltersim.llm.contracts.LLMProviderError: install the optional LLM dependencies with `pip install .[llm]`
+2026-10-29T18:23:20.0578619Z FAILED tests/unit/llm/test_accounting.py::test_each_live_source_search_run_fits_its_own_allowance - sheltersim.llm.contracts.LLMProviderError: install the optional LLM dependencies with `pip install .[llm]`
+2026-10-29T18:23:20.0579716Z !!!!!!!!!!!!!!!!!!!!!!!!!!!!!! KeyboardInterrupt !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+2026-10-29T18:23:20.0580286Z C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\threading.py:359: KeyboardInterrupt
+2026-10-29T18:23:20.0580886Z (to show a full traceback on KeyboardInterrupt use --full-trace)
+2026-10-29T18:23:20.0581377Z ================== 6 failed, 349 passed in 70.92s (0:01:10) ===================
+2026-10-29T18:23:20.0584234Z test results: 6 failed, 349 passed; failed: tests/e2e/test_cli_project.py::test_a_project_is_prepared_computed_forked_and_cleaned_up_from_the_cli, tests/integration/test_service_capacity_cli.py::test_cli_prints_the_capacity_report, tests/integration/test_stress_propagation.py::test_enabled_policy_is_checkpointable_and_writes_compact_contact_trace, tests/integration/test_stress_propagation.py::test_generated_scenario_propagation_is_checkpointable_and_writes_compact_contact_trace, tests/unit/llm/test_accounting.py::test_each_live_model_check_run_fits_its_call_and_budget_caps (+1 more); tracebacks in .test-results\20261029T182208Z-9040\summary.txt
+2026-10-29T18:23:20.1333746Z ##[error]Process completed with exit code 1.
+2026-10-29T18:23:20.1565385Z ##[group]Run actions/upload-artifact@v4
+2026-10-29T18:23:20.1565769Z with:
+2026-10-29T18:23:20.1565989Z   name: test-results-windows-latest
+2026-10-29T18:23:20.1566285Z   path: .test-results/
+2026-10-29T18:23:20.1566509Z   retention-days: 7
+2026-10-29T18:23:20.1566724Z   if-no-files-found: ignore
+2026-10-29T18:23:20.1566962Z   compression-level: 6
+2026-10-29T18:23:20.1567179Z   overwrite: false
+2026-10-29T18:23:20.1567395Z   include-hidden-files: false
+2026-10-29T18:23:20.1567840Z env:
+2026-10-29T18:23:20.1568023Z   SHELTERSIM_LLM_MODE: offline
+2026-10-29T18:23:20.1568370Z   pythonLocation: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T18:23:20.1568892Z   PKG_CONFIG_PATH: C:\hostedtoolcache\windows\Python\3.12.10\x64/lib/pkgconfig
+2026-10-29T18:23:20.1569419Z   Python_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T18:23:20.1569867Z   Python2_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T18:23:20.1570347Z   Python3_ROOT_DIR: C:\hostedtoolcache\windows\Python\3.12.10\x64
+2026-10-29T18:23:20.1570698Z ##[endgroup]
+2026-10-29T18:23:20.3514285Z (node:1948) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-29T18:23:20.3515113Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-29T18:23:20.3577335Z No files were found with the provided path: .test-results/. No artifacts will be uploaded.
+2026-10-29T18:23:20.4011706Z Post job cleanup.
+2026-10-29T18:23:20.6094500Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-10-29T18:23:20.6460370Z git version 2.56.0.windows.2
+2026-10-29T18:23:20.6534648Z Temporarily overriding HOME='D:\a\_temp\431212aa-8f9f-49f6-84e5-a499856b2316' before making global git config changes
+2026-10-29T18:23:20.6535508Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-29T18:23:20.6545995Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\tkb_2615\tkb_2615
+2026-10-29T18:23:20.6964526Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-10-29T18:23:20.7475618Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-10-29T18:23:21.3397679Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-29T18:23:21.3735599Z http.https://github.com/.extraheader
+2026-10-29T18:23:21.3782830Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset-all http.https://github.com/.extraheader
+2026-10-29T18:23:21.4174719Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-10-29T18:23:22.0110303Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-29T18:23:22.0496762Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-10-29T18:23:22.6412657Z Cleaning up orphan processes
+2026-10-29T18:23:22.6951326Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-python@v5, actions/upload-artifact@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+

@@ -1,0 +1,354 @@
+{
+  "total_count": 3,
+  "jobs": [
+    {
+      "id": 123655801583,
+      "run_id": 40932915808,
+      "workflow_name": "オフラインCI",
+      "head_branch": "ci/three-platforms",
+      "run_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/runs/40932915808",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOU3hqGM8AAAAcynXK7w",
+      "head_sha": "ff1dcedb29653146a8e7df9a314608720072d5a2",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/jobs/123655801583",
+      "html_url": "https://github.com/jphacks/tkb_2615/actions/runs/40932915808/job/123655801583",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-29T18:39:50Z",
+      "started_at": "2026-10-29T18:39:52Z",
+      "completed_at": "2026-10-29T18:46:15Z",
+      "name": "test (ubuntu-latest)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-29T18:39:52Z",
+          "completed_at": "2026-10-29T18:39:53Z"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-29T18:39:53Z",
+          "completed_at": "2026-10-29T18:39:55Z"
+        },
+        {
+          "name": "Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-29T18:39:55Z",
+          "completed_at": "2026-10-29T18:39:56Z"
+        },
+        {
+          "name": "packageと開発toolを導入",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-29T18:39:56Z",
+          "completed_at": "2026-10-29T18:40:03Z"
+        },
+        {
+          "name": "短時間offline test",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-29T18:40:03Z",
+          "completed_at": "2026-10-29T18:46:10Z"
+        },
+        {
+          "name": "test結果を保存",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-29T18:46:10Z",
+          "completed_at": "2026-10-29T18:46:11Z"
+        },
+        {
+          "name": "lintを確認",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 7,
+          "started_at": "2026-10-29T18:46:11Z",
+          "completed_at": "2026-10-29T18:46:11Z"
+        },
+        {
+          "name": "formatを確認",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 8,
+          "started_at": "2026-10-29T18:46:11Z",
+          "completed_at": "2026-10-29T18:46:11Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-29T18:46:11Z",
+          "completed_at": "2026-10-29T18:46:13Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-29T18:46:13Z",
+          "completed_at": "2026-10-29T18:46:13Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-29T18:46:13Z",
+          "completed_at": "2026-10-29T18:46:13Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/jphacks/tkb_2615/check-runs/123655801583",
+      "labels": [
+        "ubuntu-latest"
+      ],
+      "runner_id": 1000023244,
+      "runner_name": "GitHub Actions 1000023244",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 123655802058,
+      "run_id": 40932915808,
+      "workflow_name": "オフラインCI",
+      "head_branch": "ci/three-platforms",
+      "run_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/runs/40932915808",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOU3hqGM8AAAAcynXMyg",
+      "head_sha": "ff1dcedb29653146a8e7df9a314608720072d5a2",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/jobs/123655802058",
+      "html_url": "https://github.com/jphacks/tkb_2615/actions/runs/40932915808/job/123655802058",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-10-29T18:39:50Z",
+      "started_at": "2026-10-29T18:39:52Z",
+      "completed_at": "2026-10-29T19:05:56Z",
+      "name": "test (windows-latest)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-29T18:39:53Z",
+          "completed_at": "2026-10-29T18:39:54Z"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-29T18:39:54Z",
+          "completed_at": "2026-10-29T18:40:00Z"
+        },
+        {
+          "name": "Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-29T18:40:00Z",
+          "completed_at": "2026-10-29T18:40:04Z"
+        },
+        {
+          "name": "packageと開発toolを導入",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-29T18:40:04Z",
+          "completed_at": "2026-10-29T18:40:24Z"
+        },
+        {
+          "name": "短時間offline test",
+          "status": "completed",
+          "conclusion": "failure",
+          "number": 5,
+          "started_at": "2026-10-29T18:40:24Z",
+          "completed_at": "2026-10-29T19:05:52Z"
+        },
+        {
+          "name": "test結果を保存",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-29T19:05:52Z",
+          "completed_at": "2026-10-29T19:05:53Z"
+        },
+        {
+          "name": "lintを確認",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 7,
+          "started_at": "2026-10-29T19:05:53Z",
+          "completed_at": "2026-10-29T19:05:53Z"
+        },
+        {
+          "name": "formatを確認",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-10-29T19:05:53Z",
+          "completed_at": "2026-10-29T19:05:53Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 15,
+          "started_at": "2026-10-29T19:05:53Z",
+          "completed_at": "2026-10-29T19:05:53Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-29T19:05:53Z",
+          "completed_at": "2026-10-29T19:05:55Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-29T19:05:55Z",
+          "completed_at": "2026-10-29T19:05:55Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/jphacks/tkb_2615/check-runs/123655802058",
+      "labels": [
+        "windows-latest"
+      ],
+      "runner_id": 1000023245,
+      "runner_name": "GitHub Actions 1000023245",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    },
+    {
+      "id": 123655802212,
+      "run_id": 40932915808,
+      "workflow_name": "オフラインCI",
+      "head_branch": "ci/three-platforms",
+      "run_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/runs/40932915808",
+      "run_attempt": 1,
+      "node_id": "CR_kwDOU3hqGM8AAAAcynXNZA",
+      "head_sha": "ff1dcedb29653146a8e7df9a314608720072d5a2",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/jobs/123655802212",
+      "html_url": "https://github.com/jphacks/tkb_2615/actions/runs/40932915808/job/123655802212",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-29T18:39:50Z",
+      "started_at": "2026-10-29T18:39:54Z",
+      "completed_at": "2026-10-29T18:46:15Z",
+      "name": "test (macos-latest)",
+      "steps": [
+        {
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 1,
+          "started_at": "2026-10-29T18:39:54Z",
+          "completed_at": "2026-10-29T18:39:55Z"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 2,
+          "started_at": "2026-10-29T18:39:55Z",
+          "completed_at": "2026-10-29T18:39:58Z"
+        },
+        {
+          "name": "Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 3,
+          "started_at": "2026-10-29T18:39:58Z",
+          "completed_at": "2026-10-29T18:40:00Z"
+        },
+        {
+          "name": "packageと開発toolを導入",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 4,
+          "started_at": "2026-10-29T18:40:00Z",
+          "completed_at": "2026-10-29T18:40:11Z"
+        },
+        {
+          "name": "短時間offline test",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 5,
+          "started_at": "2026-10-29T18:40:11Z",
+          "completed_at": "2026-10-29T18:46:04Z"
+        },
+        {
+          "name": "test結果を保存",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 6,
+          "started_at": "2026-10-29T18:46:04Z",
+          "completed_at": "2026-10-29T18:46:06Z"
+        },
+        {
+          "name": "lintを確認",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 7,
+          "started_at": "2026-10-29T18:46:06Z",
+          "completed_at": "2026-10-29T18:46:06Z"
+        },
+        {
+          "name": "formatを確認",
+          "status": "completed",
+          "conclusion": "skipped",
+          "number": 8,
+          "started_at": "2026-10-29T18:46:06Z",
+          "completed_at": "2026-10-29T18:46:06Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v5",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 15,
+          "started_at": "2026-10-29T18:46:06Z",
+          "completed_at": "2026-10-29T18:46:09Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 16,
+          "started_at": "2026-10-29T18:46:09Z",
+          "completed_at": "2026-10-29T18:46:10Z"
+        },
+        {
+          "name": "Complete job",
+          "status": "completed",
+          "conclusion": "success",
+          "number": 17,
+          "started_at": "2026-10-29T18:46:10Z",
+          "completed_at": "2026-10-29T18:46:12Z"
+        }
+      ],
+      "check_run_url": "https://api.github.com/repos/jphacks/tkb_2615/check-runs/123655802212",
+      "labels": [
+        "macos-latest"
+      ],
+      "runner_id": 1000023246,
+      "runner_name": "GitHub Actions 1000023246",
+      "runner_group_id": 0,
+      "runner_group_name": "GitHub Actions"
+    }
+  ]
+}
+

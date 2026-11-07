@@ -1,0 +1,396 @@
+[
+  {
+    "sha": "821c5d2e33706f6abf868c3da1a61fbb46faafff",
+    "node_id": "C_kwDOU3hqGNoAKDgyMWM1ZDJlMzM3MDZmNmFiZjg2OGMzZGExYTYxZmJiNDZmYWFmZmY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/821c5d2e33706f6abf868c3da1a61fbb46faafff",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/821c5d2e33706f6abf868c3da1a61fbb46faafff",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T05:27:19Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T05:27:19Z"
+    },
+    "tree": {
+      "sha": "ae4dc210a936ee5500684f66dbfdc2f45523020e",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/ae4dc210a936ee5500684f66dbfdc2f45523020e"
+    },
+    "message": "Move staff_dynamics_v1 and the rules of domain/staff_dynamics.py to Rust\n\nRust owns the namespace in a typed row. update_staff_dynamics, the two availability readers,\nadd_staff, create_staff_dynamics_state, the canonical config and the shift-window override all run\nas kernels first, and the Python rules stay as the comparison base and for every value a kernel\ndoes not decide, which is where error texts come from.\n\nThe template gains Maybe<T> for a key a record may not have, str_enum! for a closed set of strings,\nthe exact_* readers of a kernel's inputs, kernel_first for a rule other modules call as a plain\nfunction, and shadow_kit.py with one file per shadow.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "dd6a2948741f9e4a41f566e43735b49976c53f19",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/dd6a2948741f9e4a41f566e43735b49976c53f19",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/dd6a2948741f9e4a41f566e43735b49976c53f19"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "7f4a51cd0142c5b7ffa9dcd81654adce132bb2a2",
+    "node_id": "C_kwDOU3hqGNoAKDdmNGE1MWNkMDE0MmM1YjdmZmE5ZGNkODE2NTRhZGNlMTMyYmIyYTI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7f4a51cd0142c5b7ffa9dcd81654adce132bb2a2",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/7f4a51cd0142c5b7ffa9dcd81654adce132bb2a2",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T05:28:33Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T05:28:33Z"
+    },
+    "tree": {
+      "sha": "6abd5d1f0baa967a56b8f347043ded8c41203d57",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/6abd5d1f0baa967a56b8f347043ded8c41203d57"
+    },
+    "message": "Shorten a docstring\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "821c5d2e33706f6abf868c3da1a61fbb46faafff",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/821c5d2e33706f6abf868c3da1a61fbb46faafff",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/821c5d2e33706f6abf868c3da1a61fbb46faafff"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "240babd1bd72a11bb5f7209000203c702f441c68",
+    "node_id": "C_kwDOU3hqGNoAKDI0MGJhYmQxYmQ3MmExMWJiNWY3MjA5MDAwMjAzYzcwMmY0NDFjNjg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/240babd1bd72a11bb5f7209000203c702f441c68",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/240babd1bd72a11bb5f7209000203c702f441c68",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T10:21:00Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T10:21:00Z"
+    },
+    "tree": {
+      "sha": "1b98f8e575bb863f5e4a8f0d6c3b53bf2e48d003",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/1b98f8e575bb863f5e4a8f0d6c3b53bf2e48d003"
+    },
+    "message": "Merge feature/rust-port (lanes B and C) into the staff dynamics pilot\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "7f4a51cd0142c5b7ffa9dcd81654adce132bb2a2",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7f4a51cd0142c5b7ffa9dcd81654adce132bb2a2",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/7f4a51cd0142c5b7ffa9dcd81654adce132bb2a2"
+      },
+      {
+        "sha": "7b635d2dfcee53ee96878566c9afb49b44743f41",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7b635d2dfcee53ee96878566c9afb49b44743f41",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/7b635d2dfcee53ee96878566c9afb49b44743f41"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "60d714931b1fc27a92819c1610de724fb50fd0b8",
+    "node_id": "C_kwDOU3hqGNoAKDYwZDcxNDkzMWIxZmMyN2E5MjgxOWMxNjEwZGU3MjRmYjUwZmQwYjg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/60d714931b1fc27a92819c1610de724fb50fd0b8",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/60d714931b1fc27a92819c1610de724fb50fd0b8",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T10:21:00Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T10:21:00Z"
+    },
+    "tree": {
+      "sha": "a39f13b453dfa4c79a6264f3d21fc466e88fb694",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/a39f13b453dfa4c79a6264f3d21fc466e88fb694"
+    },
+    "message": "Add set_all and namespace_is_absent to the row template\n\nA rule writes a planned record with one call, and a kernel of a namespace a world may not have needs\nno exception to say so.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "240babd1bd72a11bb5f7209000203c702f441c68",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/240babd1bd72a11bb5f7209000203c702f441c68",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/240babd1bd72a11bb5f7209000203c702f441c68"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "c486d8e9b78dbe13fa4e55b25b4353565dff53bf",
+    "node_id": "C_kwDOU3hqGNoAKGM0ODZkOGU5Yjc4ZGJlMTNmYTRlNTViMjViNDM1MzU2NWRmZjUzYmY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c486d8e9b78dbe13fa4e55b25b4353565dff53bf",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/c486d8e9b78dbe13fa4e55b25b4353565dff53bf",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T11:33:20Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T11:33:20Z"
+    },
+    "tree": {
+      "sha": "8ceed3e168c1347bc6465cb717138c1465b4e20d",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/8ceed3e168c1347bc6465cb717138c1465b4e20d"
+    },
+    "message": "Record the staff dynamics pilot\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "60d714931b1fc27a92819c1610de724fb50fd0b8",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/60d714931b1fc27a92819c1610de724fb50fd0b8",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/60d714931b1fc27a92819c1610de724fb50fd0b8"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "5b50a540ebc8456025b749cfbdbb5e38f6522611",
+    "node_id": "C_kwDOU3hqGNoAKDViNTBhNTQwZWJjODQ1NjAyNWI3NDljZmJkYmI1ZTM4ZjY1MjI2MTE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/5b50a540ebc8456025b749cfbdbb5e38f6522611",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/5b50a540ebc8456025b749cfbdbb5e38f6522611",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T11:42:53Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T11:42:53Z"
+    },
+    "tree": {
+      "sha": "2dc7da1214224534c6f7b4d4788ddb84b26180fb",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/2dc7da1214224534c6f7b4d4788ddb84b26180fb"
+    },
+    "message": "Record the results of the staff dynamics pilot\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "c486d8e9b78dbe13fa4e55b25b4353565dff53bf",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c486d8e9b78dbe13fa4e55b25b4353565dff53bf",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/c486d8e9b78dbe13fa4e55b25b4353565dff53bf"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "33ce2704816778f82bd50309338a4dd4cb0d6323",
+    "node_id": "C_kwDOU3hqGNoAKDMzY2UyNzA0ODE2Nzc4ZjgyYmQ1MDMwOTMzOGE0ZGQ0Y2IwZDYzMjM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/33ce2704816778f82bd50309338a4dd4cb0d6323",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/33ce2704816778f82bd50309338a4dd4cb0d6323",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T14:02:38Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T14:02:38Z"
+    },
+    "tree": {
+      "sha": "6cc86d4de21a734a05425b771d2a1dab806aa80c",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/6cc86d4de21a734a05425b771d2a1dab806aa80c"
+    },
+    "message": "Merge feature/rust-port (lanes A, B, C, P4-P6) into the staff dynamics pilot\n\nThe two conflicts keep both sides: the sink test lists name both new row\ntests, and the shadow's docstring names both ways of adding a shadow.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "5b50a540ebc8456025b749cfbdbb5e38f6522611",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/5b50a540ebc8456025b749cfbdbb5e38f6522611",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/5b50a540ebc8456025b749cfbdbb5e38f6522611"
+      },
+      {
+        "sha": "1506f2b490c3d765fcb01f295cbe1fa90f4e87d4",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/1506f2b490c3d765fcb01f295cbe1fa90f4e87d4",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/1506f2b490c3d765fcb01f295cbe1fa90f4e87d4"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "f6eb4a5c093ed1bf53fd724143e877836f3b8487",
+    "node_id": "C_kwDOU3hqGNoAKGY2ZWI0YTVjMDkzZWQxYmY1M2ZkNzI0MTQzZTg3NzgzNmYzYjg0ODc",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f6eb4a5c093ed1bf53fd724143e877836f3b8487",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/f6eb4a5c093ed1bf53fd724143e877836f3b8487",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T15:47:44Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T15:47:44Z"
+    },
+    "tree": {
+      "sha": "99fe539e78ffa9d2568e984a5dc5d3e6c482664d",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/99fe539e78ffa9d2568e984a5dc5d3e6c482664d"
+    },
+    "message": "Record the merged results and the M2-M6 estimate of the staff dynamics pilot\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "33ce2704816778f82bd50309338a4dd4cb0d6323",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/33ce2704816778f82bd50309338a4dd4cb0d6323",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/33ce2704816778f82bd50309338a4dd4cb0d6323"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34781870547,
+    "node_id": "ME_lADOU3hqGM8AAAABbcdzvc8AAAAIGSk50w",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34781870547",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "a8e97ec854967fd747a262adb262ba048bcdb474",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/a8e97ec854967fd747a262adb262ba048bcdb474",
+    "created_at": "2026-10-31T16:03:51Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34781870638,
+    "node_id": "CE_lADOU3hqGM8AAAABbcdzvc8AAAAIGSk6Lg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34781870638",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-31T16:03:51Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34786933303,
+    "node_id": "HRDE_lADOU3hqGM8AAAABbcdzvc8AAAAIGXZ6Nw",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34786933303",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-31T17:32:18Z",
+    "performed_via_github_app": null
+  }
+]
+

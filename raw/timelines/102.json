@@ -1,0 +1,170 @@
+[
+  {
+    "sha": "b01d22e134d8bdf3f99d9e17fe8424629fdb8d2a",
+    "node_id": "C_kwDOU3hqGNoAKGIwMWQyMmUxMzRkOGJkZjNmOTlkOWUxN2ZlODQyNDYyOWZkYjhkMmE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/b01d22e134d8bdf3f99d9e17fe8424629fdb8d2a",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/b01d22e134d8bdf3f99d9e17fe8424629fdb8d2a",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T09:53:15Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T09:53:15Z"
+    },
+    "tree": {
+      "sha": "925fd72c5972e69962df59e2b3d4f78e0a9f1a6c",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/925fd72c5972e69962df59e2b3d4f78e0a9f1a6c"
+    },
+    "message": "Move test_installed_facility_rendering.py under tests/integration\n\nOnly the file move, so its history stays traceable. The next commit\nswitches it to the shared generated Scenario (#88).\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "3150d72d6b0cb78d4e6047f5565e406a88f3b343",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/3150d72d6b0cb78d4e6047f5565e406a88f3b343",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/3150d72d6b0cb78d4e6047f5565e406a88f3b343"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "dc35df3bd767153df94b9b569ce6bf2a24ed34cd",
+    "node_id": "C_kwDOU3hqGNoAKGRjMzVkZjNiZDc2NzE1M2RmOTRiOWI1NjljZTZiZjJhMjRlZDM0Y2Q",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/dc35df3bd767153df94b9b569ce6bf2a24ed34cd",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/dc35df3bd767153df94b9b569ce6bf2a24ed34cd",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T09:56:11Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T09:56:11Z"
+    },
+    "tree": {
+      "sha": "12b1443946359021cbe349aed2a2dd82fc7900b9",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/12b1443946359021cbe349aed2a2dd82fc7900b9"
+    },
+    "message": "Render installed toilets from the shared generated Scenario\n\nThe rendering tests built their own Scenario with InitialScenarioBuilder\n(20 evacuees, six hours, seed 0) instead of the Scenario the UI makes.\nTheir module fixture now copies the shared generated preview (#88).\nAll five tests run the timeline, so the file stays whole under\ntests/integration; the path to the static files follows the move.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "b01d22e134d8bdf3f99d9e17fe8424629fdb8d2a",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/b01d22e134d8bdf3f99d9e17fe8424629fdb8d2a",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/b01d22e134d8bdf3f99d9e17fe8424629fdb8d2a"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34352293427,
+    "node_id": "ME_lADOU3hqGM8AAAABaQTE3s8AAAAH_45mMw",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34352293427",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "3c5c15d53586fc167db31cff2dabcd1a5a7376ba",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/3c5c15d53586fc167db31cff2dabcd1a5a7376ba",
+    "created_at": "2026-10-27T09:58:19Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34352293575,
+    "node_id": "CE_lADOU3hqGM8AAAABaQTE3s8AAAAH_45mxw",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34352293575",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T09:58:19Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34352299361,
+    "node_id": "HRDE_lADOU3hqGM8AAAABaQTE3s8AAAAH_459YQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34352299361",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T09:58:24Z",
+    "performed_via_github_app": null
+  }
+]
+

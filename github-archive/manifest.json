@@ -1,0 +1,39 @@
+{
+  "source": "jphacks/tkb_2615",
+  "destination": "mizukidayo1025/-IF-",
+  "generated_at_utc": "2026-11-07T08:40:38.472721+00:00",
+  "source_modified": false,
+  "native_issues": 89,
+  "open_issues": 15,
+  "closed_issues": 74,
+  "archived_prs": 270,
+  "issue_and_pr_comments": 147,
+  "reviews": 0,
+  "review_comments": 0,
+  "timeline_events": 3047,
+  "actions_run_metadata": 108,
+  "actions_jobs": 333,
+  "job_logs_saved": 333,
+  "artifacts_listed": 144,
+  "artifacts_saved": 142,
+  "artifacts_download_404": [
+    13036686862,
+    13036266911
+  ],
+  "attachment_urls_only": 14,
+  "attachments_blocked_http_403": 14,
+  "fully_equivalent_github_copy": false,
+  "settings_written": false,
+  "limitations": [
+    "PRs are archival records, not native imported PRs.",
+    "Native issue authors/timestamps/numbers are migration values; originals are recorded in bodies and JSON.",
+    "Original comments are included in native issue bodies, not recreated native comment records.",
+    "Attachment binary files are not copied; original URLs remain in source text.",
+    "Actions execution history cannot be imported as native runs. Logs and 142 artifact ZIPs are archived; 2 artifact downloads return HTTP 404.",
+    "Administrative settings are blocked or not exposed by the connector; see settings.md."
+  ],
+  "original_branches_archived": 8,
+  "original_tags_archived": 14,
+  "git_snapshot_refs_verified": 292,
+  "destination_named_refs_preserved_as_current": true
+}

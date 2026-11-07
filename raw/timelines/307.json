@@ -1,0 +1,355 @@
+[
+  {
+    "sha": "4afdf0f1bb0f5263655c93d3e58db4e2122e3336",
+    "node_id": "C_kwDOU3hqGNoAKDRhZmRmMGYxYmIwZjUyNjM2NTVjOTNkM2U1OGRiNGUyMTIyZTMzMzY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4afdf0f1bb0f5263655c93d3e58db4e2122e3336",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/4afdf0f1bb0f5263655c93d3e58db4e2122e3336",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T20:06:03Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T20:06:03Z"
+    },
+    "tree": {
+      "sha": "76dd1ab7f1474b617d0c8cfdc4344f296094ec99",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/76dd1ab7f1474b617d0c8cfdc4344f296094ec99"
+    },
+    "message": "Read the indexing process's pipe on its own thread so a save does not wait for the ingest in progress\n\nA save's message is larger than the pipe's buffer, so its send blocked until the\nindexing process finished the ingest before it: about 25.8 s of a seven-day run.\nThe benchmark now times the parts of a save outside capture and the store's write.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "478feaee5c45527260266b615095c0dcd199a159",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/478feaee5c45527260266b615095c0dcd199a159",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/478feaee5c45527260266b615095c0dcd199a159"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "7186f6938c9bf55556739dcb9dbbd11227b6a3c8",
+    "node_id": "C_kwDOU3hqGNoAKDcxODZmNjkzOGM5YmY1NTU1NjczOWRjYjlkYmJkMTEyMjdiNmEzYzg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7186f6938c9bf55556739dcb9dbbd11227b6a3c8",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/7186f6938c9bf55556739dcb9dbbd11227b6a3c8",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T20:53:46Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T20:53:46Z"
+    },
+    "tree": {
+      "sha": "09aadae0d70d5b8267bc14c4afdd559611a8199e",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/09aadae0d70d5b8267bc14c4afdd559611a8199e"
+    },
+    "message": "Encode each world field once in a capture and read the restore check's records from their bytes\n\nThe hash tree encoded the JSON the document was parsed from again; each field now\nkeeps its bytes for the document, its hash and its archive chunks. The restore check\nshows the live records are exactly what their saved bytes restore without building\nthem, and compares restored records for anything it can not show exactly. Adds the\nindex_row kernel the next commits use.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "4afdf0f1bb0f5263655c93d3e58db4e2122e3336",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/4afdf0f1bb0f5263655c93d3e58db4e2122e3336",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/4afdf0f1bb0f5263655c93d3e58db4e2122e3336"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "ec9b3fcb2579ebc6054f5854ee7c06bfb754088c",
+    "node_id": "C_kwDOU3hqGNoAKGVjOWIzZmNiMjU3OWViYzYwNTRmNTg1NGVlN2MwNmJmYjc1NDA4OGM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ec9b3fcb2579ebc6054f5854ee7c06bfb754088c",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/ec9b3fcb2579ebc6054f5854ee7c06bfb754088c",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T20:53:46Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T20:53:46Z"
+    },
+    "tree": {
+      "sha": "9115020cd888263848108fdad3d4a3a65f5a0ebd",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/9115020cd888263848108fdad3d4a3a65f5a0ebd"
+    },
+    "message": "Compress a save's chunks on a few threads and drop repeated work in saves and frames\n\nThe save still waits for the threads and writes on its own thread; the bytes are the\nsame. A frame encodes in Rust and no longer copies what its final dump copies, and a\nnew chunk asks for a v1/v2 chunk file only where such a directory exists.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "7186f6938c9bf55556739dcb9dbbd11227b6a3c8",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7186f6938c9bf55556739dcb9dbbd11227b6a3c8",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/7186f6938c9bf55556739dcb9dbbd11227b6a3c8"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "e23d53c024e418dbaceddc3eb99ac5fa0dc258a0",
+    "node_id": "C_kwDOU3hqGNoAKGUyM2Q1M2MwMjRlNDE4ZGJhY2VkZGMzZWI5OWFjNWZhMGRjMjU4YTA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/e23d53c024e418dbaceddc3eb99ac5fa0dc258a0",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/e23d53c024e418dbaceddc3eb99ac5fa0dc258a0",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T20:53:46Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T20:53:46Z"
+    },
+    "tree": {
+      "sha": "98300e70075f7b6533c8686d65d96b4ea34d3b66",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/98300e70075f7b6533c8686d65d96b4ea34d3b66"
+    },
+    "message": "Make the indexing process cheap enough not to hold the computation back\n\nThe index was the limit of a long computation: 168 s of CPU over 336 saves. A new\nindex no longer has entity_time, which no query reads, and entity_turn_order holds\nonly conversations, so a commit journals and writes far fewer random pages. The\nindexing process keeps one connection and a larger cache between saves, a current\nfile is not written just to open it, rows are read in one pass in Rust, and the\nprivacy check's key cache holds every relationship key of a save.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "ec9b3fcb2579ebc6054f5854ee7c06bfb754088c",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ec9b3fcb2579ebc6054f5854ee7c06bfb754088c",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/ec9b3fcb2579ebc6054f5854ee7c06bfb754088c"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "6cd6d0c16376c2ad4ce4a9b28cedc89543ab2b97",
+    "node_id": "C_kwDOU3hqGNoAKDZjZDZkMGMxNjM3NmMyYWQ0Y2U0YTliMjhjZWRjODk1NDNhYjJiOTc",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/6cd6d0c16376c2ad4ce4a9b28cedc89543ab2b97",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/6cd6d0c16376c2ad4ce4a9b28cedc89543ab2b97",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T21:21:44Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T21:21:44Z"
+    },
+    "tree": {
+      "sha": "8b3fa7233be3e799696624d7496b35ab1b1f9e9e",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/8b3fa7233be3e799696624d7496b35ab1b1f9e9e"
+    },
+    "message": "Encode a new EventLog record from its frozen fields without thawing it\n\nrecord_json gives the bytes record.to_dict() gave, for a record of frozen plain values;\nany other record takes the Python path. Checkpoints and frames of the seven-day gate\nare byte-identical.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "e23d53c024e418dbaceddc3eb99ac5fa0dc258a0",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/e23d53c024e418dbaceddc3eb99ac5fa0dc258a0",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/e23d53c024e418dbaceddc3eb99ac5fa0dc258a0"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "e2af3feb2d78e58953e7063d41a84910e6ae7643",
+    "node_id": "C_kwDOU3hqGNoAKGUyYWYzZmViMmQ3OGU1ODk1M2U3MDYzZDQxYTg0OTEwZTZhZTc2NDM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/e2af3feb2d78e58953e7063d41a84910e6ae7643",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/e2af3feb2d78e58953e7063d41a84910e6ae7643",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T21:37:14Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T21:37:14Z"
+    },
+    "tree": {
+      "sha": "ed28b899c2364f5e805068dd728c6511fb60a85c",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/ed28b899c2364f5e805068dd728c6511fb60a85c"
+    },
+    "message": "Record what the remaining save cost was and what removed it\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "6cd6d0c16376c2ad4ce4a9b28cedc89543ab2b97",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/6cd6d0c16376c2ad4ce4a9b28cedc89543ab2b97",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/6cd6d0c16376c2ad4ce4a9b28cedc89543ab2b97"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "5f2223b91c26853522b24f334f94720eec24fda1",
+    "node_id": "C_kwDOU3hqGNoAKDVmMjIyM2I5MWMyNjg1MzUyMmIyNGYzMzRmOTQ3MjBlZWMyNGZkYTE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/5f2223b91c26853522b24f334f94720eec24fda1",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/5f2223b91c26853522b24f334f94720eec24fda1",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T21:38:31Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-30T21:38:31Z"
+    },
+    "tree": {
+      "sha": "1cc3948a1dc9e11e3442ac83f0a6f7f4a3cacc8c",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/1cc3948a1dc9e11e3442ac83f0a6f7f4a3cacc8c"
+    },
+    "message": "Merge feature/rust-port into rust/a-save-rest\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "e2af3feb2d78e58953e7063d41a84910e6ae7643",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/e2af3feb2d78e58953e7063d41a84910e6ae7643",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/e2af3feb2d78e58953e7063d41a84910e6ae7643"
+      },
+      {
+        "sha": "38ff1fda96a1dd373e7a695329b2576d26e30eca",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/38ff1fda96a1dd373e7a695329b2576d26e30eca",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/38ff1fda96a1dd373e7a695329b2576d26e30eca"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34736496903,
+    "node_id": "ME_lADOU3hqGM8AAAABbTqWGc8AAAAIFnThBw",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34736496903",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "21d6ec285a02f3d2a6272e1432bcd3ea5834fd9e",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/21d6ec285a02f3d2a6272e1432bcd3ea5834fd9e",
+    "created_at": "2026-10-30T22:05:10Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34736497060,
+    "node_id": "CE_lADOU3hqGM8AAAABbTqWGc8AAAAIFnThpA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34736497060",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-30T22:05:11Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34736504990,
+    "node_id": "HRDE_lADOU3hqGM8AAAABbTqWGc8AAAAIFnUAng",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34736504990",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-30T22:05:18Z",
+    "performed_via_github_app": null
+  }
+]
+

@@ -1,0 +1,170 @@
+[
+  {
+    "sha": "9f0d3047b79ebde54e6cf25ef4794b4709fee040",
+    "node_id": "C_kwDOU3hqGNoAKDlmMGQzMDQ3Yjc5ZWJkZTU0ZTZjZjI1ZWY0Nzk0YjQ3MDlmZWUwNDA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/9f0d3047b79ebde54e6cf25ef4794b4709fee040",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/9f0d3047b79ebde54e6cf25ef4794b4709fee040",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:07:28Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:07:28Z"
+    },
+    "tree": {
+      "sha": "a8991d10bfcb52df6492a88a962d54e0e846b303",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/a8991d10bfcb52df6492a88a962d54e0e846b303"
+    },
+    "message": "Move test_resource_loss_without_operational_state.py under tests/integration\n\nOnly the file move, renamed after the feature instead of the bug, so\nits history stays traceable. The next commit moves its unit tests next\nto the other WorldState unit tests and switches the file to the shared\ngenerated Scenario (#88).\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "f0e9c929605903ee28a05a7df8814dfcde1d079c",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f0e9c929605903ee28a05a7df8814dfcde1d079c",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/f0e9c929605903ee28a05a7df8814dfcde1d079c"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "e46d7967060331d15a30651cb6c660d0ccbba666",
+    "node_id": "C_kwDOU3hqGNoAKGU0NmQ3OTY3MDYwMzMxZDE1YTMwNjUxY2I2YzY2MGQwY2NiYmE2NjY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/e46d7967060331d15a30651cb6c660d0ccbba666",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/e46d7967060331d15a30651cb6c660d0ccbba666",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:10:43Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:10:43Z"
+    },
+    "tree": {
+      "sha": "6603379ab1f5d2545ee09ce0fcb7218ef8cf8b4b",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/6603379ab1f5d2545ee09ce0fcb7218ef8cf8b4b"
+    },
+    "message": "Check resource losses on the shared generated Scenario\n\nThe resource-loss tests built their own Scenario with\nInitialScenarioBuilder (12 evacuees, seed 7) to schedule a loss or a\nstaff absence. They now pass those operational conditions to the\nshared generated_scenario_with fixture (#88).\n\nThe two per-tick check tests join the other WorldState unit tests; the\nrun to the end stays here as the integration test.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "9f0d3047b79ebde54e6cf25ef4794b4709fee040",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/9f0d3047b79ebde54e6cf25ef4794b4709fee040",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/9f0d3047b79ebde54e6cf25ef4794b4709fee040"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34353430568,
+    "node_id": "ME_lADOU3hqGM8AAAABaQgudc8AAAAH_5_AKA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34353430568",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "c6c30bc620875639305a91928d223c3af8eba84c",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/c6c30bc620875639305a91928d223c3af8eba84c",
+    "created_at": "2026-10-27T10:11:10Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34353430734,
+    "node_id": "CE_lADOU3hqGM8AAAABaQgudc8AAAAH_5_Azg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34353430734",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T10:11:11Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34353435993,
+    "node_id": "HRDE_lADOU3hqGM8AAAABaQgudc8AAAAH_5_VWQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34353435993",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T10:11:14Z",
+    "performed_via_github_app": null
+  }
+]
+

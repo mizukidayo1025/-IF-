@@ -1,0 +1,2046 @@
+[
+  {
+    "source_snapshot_ref": "refs/heads/feat/core-model-scientific-validation",
+    "source_snapshot_sha": "cefc2a9c6d9501bdd8cc2cf9fc1d07f40112d56a",
+    "destination_archive_ref": "refs/archive/source/heads/feat/core-model-scientific-validation",
+    "archive_verified": true,
+    "current_named_ref_sha": "cefc2a9c6d9501bdd8cc2cf9fc1d07f40112d56a"
+  },
+  {
+    "source_snapshot_ref": "refs/heads/feat/research-based-mathematical-models",
+    "source_snapshot_sha": "8132cf7899a96f0ef5932dfe65357f1c8d3592d8",
+    "destination_archive_ref": "refs/archive/source/heads/feat/research-based-mathematical-models",
+    "archive_verified": true,
+    "current_named_ref_sha": "8132cf7899a96f0ef5932dfe65357f1c8d3592d8"
+  },
+  {
+    "source_snapshot_ref": "refs/heads/feature/pdf-report-export",
+    "source_snapshot_sha": "6c6aa453f93c84198366cf88ec7e02c1ad391b4e",
+    "destination_archive_ref": "refs/archive/source/heads/feature/pdf-report-export",
+    "archive_verified": true,
+    "current_named_ref_sha": "6c6aa453f93c84198366cf88ec7e02c1ad391b4e"
+  },
+  {
+    "source_snapshot_ref": "refs/heads/feature/rust-port",
+    "source_snapshot_sha": "729756f779c589ca97a3fad0b70ff26295313711",
+    "destination_archive_ref": "refs/archive/source/heads/feature/rust-port",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/heads/feature/ui",
+    "source_snapshot_sha": "f39972b03190d88f86c0a7f874e54e608c96175d",
+    "destination_archive_ref": "refs/archive/source/heads/feature/ui",
+    "archive_verified": true,
+    "current_named_ref_sha": "f39972b03190d88f86c0a7f874e54e608c96175d"
+  },
+  {
+    "source_snapshot_ref": "refs/heads/feature/ui-backup-20261025",
+    "source_snapshot_sha": "9211f270fdfe1cc265e40a99397821ec49a6a934",
+    "destination_archive_ref": "refs/archive/source/heads/feature/ui-backup-20261025",
+    "archive_verified": true,
+    "current_named_ref_sha": "9211f270fdfe1cc265e40a99397821ec49a6a934"
+  },
+  {
+    "source_snapshot_ref": "refs/heads/investigate/chronic-high-distress",
+    "source_snapshot_sha": "aaa2dc2f4eb42992eaa538c4edcf3123c6c1e827",
+    "destination_archive_ref": "refs/archive/source/heads/investigate/chronic-high-distress",
+    "archive_verified": true,
+    "current_named_ref_sha": "aaa2dc2f4eb42992eaa538c4edcf3123c6c1e827"
+  },
+  {
+    "source_snapshot_ref": "refs/heads/main",
+    "source_snapshot_sha": "32a28b4e7360e414d688680b7c711aa82b0385c1",
+    "destination_archive_ref": "refs/archive/source/heads/main",
+    "archive_verified": true,
+    "current_named_ref_sha": "9ce45a31edabd880de90243d354a0dad1b136e0a"
+  },
+  {
+    "source_snapshot_ref": "refs/pull/1/head",
+    "source_snapshot_sha": "2b7e2de0773bf5c75a1a1af079390878fe885e4d",
+    "destination_archive_ref": "refs/archive/pull/1/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/10/head",
+    "source_snapshot_sha": "694d14dcc860e5d82b6035c51844e11055efe42c",
+    "destination_archive_ref": "refs/archive/pull/10/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/100/head",
+    "source_snapshot_sha": "6cace4f420b765268031faf09616bc36b20fc3d7",
+    "destination_archive_ref": "refs/archive/pull/100/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/101/head",
+    "source_snapshot_sha": "cebeb0b3429f02feb62591af29ecc47357e71e2c",
+    "destination_archive_ref": "refs/archive/pull/101/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/102/head",
+    "source_snapshot_sha": "dc35df3bd767153df94b9b569ce6bf2a24ed34cd",
+    "destination_archive_ref": "refs/archive/pull/102/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/103/head",
+    "source_snapshot_sha": "c4cf12e88a3e02177c037bada8b57d9ad1dab372",
+    "destination_archive_ref": "refs/archive/pull/103/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/104/head",
+    "source_snapshot_sha": "7632b65981c201a4ea0e1113f8be3b7de9a019d4",
+    "destination_archive_ref": "refs/archive/pull/104/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/105/head",
+    "source_snapshot_sha": "e46d7967060331d15a30651cb6c660d0ccbba666",
+    "destination_archive_ref": "refs/archive/pull/105/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/106/head",
+    "source_snapshot_sha": "dc12f18148eba3accbcd981288928cbe01f65bf2",
+    "destination_archive_ref": "refs/archive/pull/106/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/107/head",
+    "source_snapshot_sha": "ffe40014bc7468d4d85a273f762e8eb78981f272",
+    "destination_archive_ref": "refs/archive/pull/107/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/108/head",
+    "source_snapshot_sha": "d6bb5c205ae5fa3a374ea61b0909a9ddd220b631",
+    "destination_archive_ref": "refs/archive/pull/108/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/109/head",
+    "source_snapshot_sha": "2254e0cb4bf3043f9c4f21a673daaa7f6424d52f",
+    "destination_archive_ref": "refs/archive/pull/109/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/11/head",
+    "source_snapshot_sha": "0e0bf9f01c08458590d7dbbf9b02c0adbc5080d3",
+    "destination_archive_ref": "refs/archive/pull/11/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/110/head",
+    "source_snapshot_sha": "5daf2137b92dfe3807516185ad94e0f2cad5d40d",
+    "destination_archive_ref": "refs/archive/pull/110/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/111/head",
+    "source_snapshot_sha": "62edb4845ee4015a96eeb2909583014a067593a7",
+    "destination_archive_ref": "refs/archive/pull/111/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/112/head",
+    "source_snapshot_sha": "210c7936ea33b28322347649eebbfa11d1945e34",
+    "destination_archive_ref": "refs/archive/pull/112/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/113/head",
+    "source_snapshot_sha": "e9eba3fe2d81a9bfaa57366b02957198e6052478",
+    "destination_archive_ref": "refs/archive/pull/113/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/114/head",
+    "source_snapshot_sha": "0d2fc1b51c79450d6780dd85af4c1f5b91e54ca1",
+    "destination_archive_ref": "refs/archive/pull/114/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/116/head",
+    "source_snapshot_sha": "2a009b1bc2cc35816a207ba7620a075814cb7fe1",
+    "destination_archive_ref": "refs/archive/pull/116/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/117/head",
+    "source_snapshot_sha": "de3722b80404f97a402896978c3813a86e6df798",
+    "destination_archive_ref": "refs/archive/pull/117/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/119/head",
+    "source_snapshot_sha": "b932b9cc3689f7eed3d1e98db319fe802b460bbc",
+    "destination_archive_ref": "refs/archive/pull/119/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/12/head",
+    "source_snapshot_sha": "64521fbf7ed5159a816e4b123c02d02e9ad6ac0b",
+    "destination_archive_ref": "refs/archive/pull/12/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/120/head",
+    "source_snapshot_sha": "87210a31a13a53a5828208f133431fbbe5de11e3",
+    "destination_archive_ref": "refs/archive/pull/120/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/121/head",
+    "source_snapshot_sha": "4ca42ed479ad68002eec4b3b55fb4f14c3d98f7b",
+    "destination_archive_ref": "refs/archive/pull/121/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/122/head",
+    "source_snapshot_sha": "21cdf2c2b7f5770ee7081146bb1667cc02754442",
+    "destination_archive_ref": "refs/archive/pull/122/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/123/head",
+    "source_snapshot_sha": "b315b7b8ba20c47190f8c33d59644336017fb2c5",
+    "destination_archive_ref": "refs/archive/pull/123/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/124/head",
+    "source_snapshot_sha": "55e35f448c613bebe6bf87206f25db266a0ede48",
+    "destination_archive_ref": "refs/archive/pull/124/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/125/head",
+    "source_snapshot_sha": "73f729e67b9a7f13f64b8ab9d345d328cfb3ce9c",
+    "destination_archive_ref": "refs/archive/pull/125/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/127/head",
+    "source_snapshot_sha": "8bbf40866b1856a67b88d43c6ffc4ccf49542ad8",
+    "destination_archive_ref": "refs/archive/pull/127/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/128/head",
+    "source_snapshot_sha": "9c8bbd872212d0d1211054a0a5119409c2bd4702",
+    "destination_archive_ref": "refs/archive/pull/128/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/129/head",
+    "source_snapshot_sha": "fff0888380c5d6d7f98824a61a950a9d91571019",
+    "destination_archive_ref": "refs/archive/pull/129/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/13/head",
+    "source_snapshot_sha": "aaa2dc2f4eb42992eaa538c4edcf3123c6c1e827",
+    "destination_archive_ref": "refs/archive/pull/13/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/130/head",
+    "source_snapshot_sha": "3ffd30c5aed765648b9587c460c9414ec41b2324",
+    "destination_archive_ref": "refs/archive/pull/130/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/131/head",
+    "source_snapshot_sha": "c5fbe9d162901f6c97c63587e72a62ab606f9ad1",
+    "destination_archive_ref": "refs/archive/pull/131/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/132/head",
+    "source_snapshot_sha": "11b39f31349eb01879841e26238c1d1fbec93870",
+    "destination_archive_ref": "refs/archive/pull/132/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/133/head",
+    "source_snapshot_sha": "72c13875600333c05bc55e5227c9c84ce624cb99",
+    "destination_archive_ref": "refs/archive/pull/133/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/134/head",
+    "source_snapshot_sha": "57a1d30a38e1e034eaec5f87436fa6e46668f951",
+    "destination_archive_ref": "refs/archive/pull/134/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/135/head",
+    "source_snapshot_sha": "eabc341af81f4c4a30f89663ae0eaf6349a8067b",
+    "destination_archive_ref": "refs/archive/pull/135/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/14/head",
+    "source_snapshot_sha": "b262549bdca4d7c88771d7487e65b7ba450445da",
+    "destination_archive_ref": "refs/archive/pull/14/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/140/head",
+    "source_snapshot_sha": "c4e543bf4cc37e87182f093a05b5975e1208330c",
+    "destination_archive_ref": "refs/archive/pull/140/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/142/head",
+    "source_snapshot_sha": "39e772717ea44dfb8d670ef8d8d699cf46741866",
+    "destination_archive_ref": "refs/archive/pull/142/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/144/head",
+    "source_snapshot_sha": "5e468da2daa17bd89af677f1d305394b6f2f3d80",
+    "destination_archive_ref": "refs/archive/pull/144/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/147/head",
+    "source_snapshot_sha": "fb715258680c1c37ef27fc938555e0d17b38650e",
+    "destination_archive_ref": "refs/archive/pull/147/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/149/head",
+    "source_snapshot_sha": "8903f8c6c1e5d06278ac4dae3e161fa97fd9df15",
+    "destination_archive_ref": "refs/archive/pull/149/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/150/head",
+    "source_snapshot_sha": "2459fc922f93d4395f75cf9480f023a377175c58",
+    "destination_archive_ref": "refs/archive/pull/150/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/151/head",
+    "source_snapshot_sha": "1cfaaad612bcd1ed7434db1901154227a1bfb114",
+    "destination_archive_ref": "refs/archive/pull/151/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/153/head",
+    "source_snapshot_sha": "dd2a0f05378034b2362025733cf88d8241a40002",
+    "destination_archive_ref": "refs/archive/pull/153/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/154/head",
+    "source_snapshot_sha": "2094cab840e0ad83273ce51b843304d4e88bcc1f",
+    "destination_archive_ref": "refs/archive/pull/154/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/155/head",
+    "source_snapshot_sha": "133e9b8dc38e9796060cd02e77bd59c236436173",
+    "destination_archive_ref": "refs/archive/pull/155/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/156/head",
+    "source_snapshot_sha": "4b751369e182bb1d925e48db724803a38267e23c",
+    "destination_archive_ref": "refs/archive/pull/156/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/158/head",
+    "source_snapshot_sha": "a236144b90fe53bd4c7f2a2993e22864c11d6544",
+    "destination_archive_ref": "refs/archive/pull/158/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/16/head",
+    "source_snapshot_sha": "cefc2a9c6d9501bdd8cc2cf9fc1d07f40112d56a",
+    "destination_archive_ref": "refs/archive/pull/16/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/162/head",
+    "source_snapshot_sha": "3c44f19aa1c2c54a792bc585f5fe6beaa39868e9",
+    "destination_archive_ref": "refs/archive/pull/162/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/163/head",
+    "source_snapshot_sha": "8e434acf957ec5e510bbb8527ac81e79bde60702",
+    "destination_archive_ref": "refs/archive/pull/163/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/164/head",
+    "source_snapshot_sha": "60d4f91093db26cf0909d4439bf9afca35043400",
+    "destination_archive_ref": "refs/archive/pull/164/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/165/head",
+    "source_snapshot_sha": "54c5624cff38ce3c2bf54dbc192dcd21fb8b093b",
+    "destination_archive_ref": "refs/archive/pull/165/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/166/head",
+    "source_snapshot_sha": "c41ebe48f92b652a9e10ad3cda8e4fe531ef7851",
+    "destination_archive_ref": "refs/archive/pull/166/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/167/head",
+    "source_snapshot_sha": "9beef82898b871ba07f415c580b9e4c1159132ef",
+    "destination_archive_ref": "refs/archive/pull/167/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/168/head",
+    "source_snapshot_sha": "05ab0b61f2d468b4f7edf83411e0b6c5ecb62636",
+    "destination_archive_ref": "refs/archive/pull/168/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/17/head",
+    "source_snapshot_sha": "b90f3f879f94c17433a22091b14a2e9f6de0e05e",
+    "destination_archive_ref": "refs/archive/pull/17/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/170/head",
+    "source_snapshot_sha": "7e3adc3f208c00f7448cfecb39d664bb7b57339a",
+    "destination_archive_ref": "refs/archive/pull/170/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/172/head",
+    "source_snapshot_sha": "b1d91668d2b7c8e305c8f1d2bcb0dab1a0ff1963",
+    "destination_archive_ref": "refs/archive/pull/172/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/173/head",
+    "source_snapshot_sha": "3e5b8892711be840167d8755ba2df2525df7360d",
+    "destination_archive_ref": "refs/archive/pull/173/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/174/head",
+    "source_snapshot_sha": "91e02002a4578dcea146421ca8af0b9305de02dd",
+    "destination_archive_ref": "refs/archive/pull/174/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/175/head",
+    "source_snapshot_sha": "f13bd205ae2dde149200770da934c2cf19f271af",
+    "destination_archive_ref": "refs/archive/pull/175/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/176/head",
+    "source_snapshot_sha": "19e8928c7456b9ec5eac9650f490970df3e21f17",
+    "destination_archive_ref": "refs/archive/pull/176/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/177/head",
+    "source_snapshot_sha": "6a6654671f81c543c81c2b4d427241763cd7d0cc",
+    "destination_archive_ref": "refs/archive/pull/177/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/18/head",
+    "source_snapshot_sha": "511fc3f4c8374029afba4ab932b371bcd28b761e",
+    "destination_archive_ref": "refs/archive/pull/18/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/182/head",
+    "source_snapshot_sha": "9f67aa8c143def91529c656d175383ebb661b939",
+    "destination_archive_ref": "refs/archive/pull/182/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/183/head",
+    "source_snapshot_sha": "8ecf8850b568192264e006be1349b9e42252fed3",
+    "destination_archive_ref": "refs/archive/pull/183/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/184/head",
+    "source_snapshot_sha": "092c4a16e20174fe315f818ff9e1e99280738a57",
+    "destination_archive_ref": "refs/archive/pull/184/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/186/head",
+    "source_snapshot_sha": "29606c694eb469ee10c8522abacbd31cd1de679e",
+    "destination_archive_ref": "refs/archive/pull/186/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/189/head",
+    "source_snapshot_sha": "30bc2fed0a7e86995c0ebaf9a6975736745d6be7",
+    "destination_archive_ref": "refs/archive/pull/189/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/19/head",
+    "source_snapshot_sha": "a899b5c05405b0051f3260a5ec24ab2ff0bb8a70",
+    "destination_archive_ref": "refs/archive/pull/19/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/191/head",
+    "source_snapshot_sha": "3db6b74d3da2e4e9feba0099a821ac81cb28e86c",
+    "destination_archive_ref": "refs/archive/pull/191/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/192/head",
+    "source_snapshot_sha": "438cc1dfdfd7ccc865d43822fe6b173641e90ef5",
+    "destination_archive_ref": "refs/archive/pull/192/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/193/head",
+    "source_snapshot_sha": "fba13e335dd04ef912bb1589dbb7c0fccc7735ee",
+    "destination_archive_ref": "refs/archive/pull/193/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/197/head",
+    "source_snapshot_sha": "5f6481c13d66097f9d574a5811d7f65895913c20",
+    "destination_archive_ref": "refs/archive/pull/197/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/198/head",
+    "source_snapshot_sha": "8ac56fea61d135ee9deb76a3e390e6760fd6197e",
+    "destination_archive_ref": "refs/archive/pull/198/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/199/head",
+    "source_snapshot_sha": "e9548e2a12e4389d30c86106f5bbe8ea272f85c6",
+    "destination_archive_ref": "refs/archive/pull/199/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/2/head",
+    "source_snapshot_sha": "ad7f643cbb0efbffa271f4e80e4e736b642e1984",
+    "destination_archive_ref": "refs/archive/pull/2/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/20/head",
+    "source_snapshot_sha": "34125037c00d26d793a02b161f1588013636ac7b",
+    "destination_archive_ref": "refs/archive/pull/20/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/203/head",
+    "source_snapshot_sha": "7f65fd2e5dff439ac47166ee5ead1ea2b1ebf533",
+    "destination_archive_ref": "refs/archive/pull/203/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/205/head",
+    "source_snapshot_sha": "ffbaf33dc68fe1d850eb488351b8d347a64a1b4c",
+    "destination_archive_ref": "refs/archive/pull/205/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/206/head",
+    "source_snapshot_sha": "6048e4b511782daa05dc8cd69fe84514200df5fd",
+    "destination_archive_ref": "refs/archive/pull/206/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/207/head",
+    "source_snapshot_sha": "9d7327d1209c583d51e565cb473e4fe4bfd5b67f",
+    "destination_archive_ref": "refs/archive/pull/207/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/21/head",
+    "source_snapshot_sha": "68f2a969d129468d9a3c2518df17bb0bf9df6615",
+    "destination_archive_ref": "refs/archive/pull/21/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/210/head",
+    "source_snapshot_sha": "79cb552348966d4741783f891ff414f8ab39e8f6",
+    "destination_archive_ref": "refs/archive/pull/210/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/211/head",
+    "source_snapshot_sha": "2686c73ed6223171f0bc75350b8f5fa9ab1fc003",
+    "destination_archive_ref": "refs/archive/pull/211/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/212/head",
+    "source_snapshot_sha": "fe17436bc8902a28bffd992a63db42660d452825",
+    "destination_archive_ref": "refs/archive/pull/212/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/214/head",
+    "source_snapshot_sha": "be2881a314c8458c1eeb321547fa890270d0030a",
+    "destination_archive_ref": "refs/archive/pull/214/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/215/head",
+    "source_snapshot_sha": "aced8b14846cd99cf8e25baa1f180f7dbe2201c2",
+    "destination_archive_ref": "refs/archive/pull/215/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/216/head",
+    "source_snapshot_sha": "08c91fcd2cac1413821f684354a1990936e643a5",
+    "destination_archive_ref": "refs/archive/pull/216/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/217/head",
+    "source_snapshot_sha": "6fda72d08df74e3262e2f109ed141c3c7eb7742d",
+    "destination_archive_ref": "refs/archive/pull/217/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/218/head",
+    "source_snapshot_sha": "28002efe2e4aa2d8d18a5800cffeed35a31852be",
+    "destination_archive_ref": "refs/archive/pull/218/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/219/head",
+    "source_snapshot_sha": "19dd63af8dcf6476563017bfbfb82221bf14ded8",
+    "destination_archive_ref": "refs/archive/pull/219/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/222/head",
+    "source_snapshot_sha": "1271dc0fe4516a04957860d75cccdeba6cc1af49",
+    "destination_archive_ref": "refs/archive/pull/222/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/224/head",
+    "source_snapshot_sha": "22e63be4d06eb3e9b743b452a337fe8e4e3da7dc",
+    "destination_archive_ref": "refs/archive/pull/224/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/225/head",
+    "source_snapshot_sha": "3341ba07874255ef2073a7f0531954a11805c254",
+    "destination_archive_ref": "refs/archive/pull/225/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/226/head",
+    "source_snapshot_sha": "ba7bd0146821b0887e419c71f2be8cc6a7194df4",
+    "destination_archive_ref": "refs/archive/pull/226/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/227/head",
+    "source_snapshot_sha": "22af21794cde030890c89aecaa867d00940e501a",
+    "destination_archive_ref": "refs/archive/pull/227/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/229/head",
+    "source_snapshot_sha": "5fae83bda458b74203fed98f4ebec57df3fc28a0",
+    "destination_archive_ref": "refs/archive/pull/229/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/23/head",
+    "source_snapshot_sha": "e92cf24c0aa3e88de8d9053cc03f20e4e76e8b42",
+    "destination_archive_ref": "refs/archive/pull/23/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/230/head",
+    "source_snapshot_sha": "772e7c5587794e51066dfc0dad00d2dc9861249f",
+    "destination_archive_ref": "refs/archive/pull/230/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/231/head",
+    "source_snapshot_sha": "63a750f31f34e86eedb3ced899ac2efb5f28c474",
+    "destination_archive_ref": "refs/archive/pull/231/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/232/head",
+    "source_snapshot_sha": "d05df789421aed1d9c01378e8a663b0bcde76afb",
+    "destination_archive_ref": "refs/archive/pull/232/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/233/head",
+    "source_snapshot_sha": "d46e2c0b0a0937c7716ba096ac5a5e0e0c3da7d4",
+    "destination_archive_ref": "refs/archive/pull/233/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/235/head",
+    "source_snapshot_sha": "249514d7a0f8ea5d45c5b30b9f3d532af03725de",
+    "destination_archive_ref": "refs/archive/pull/235/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/236/head",
+    "source_snapshot_sha": "426bb7c6c5a1a3851cdea0174748caa3a21ac37e",
+    "destination_archive_ref": "refs/archive/pull/236/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/238/head",
+    "source_snapshot_sha": "c1c7117933785b2b4cd7fb7c7d29c13363a9b6f8",
+    "destination_archive_ref": "refs/archive/pull/238/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/239/head",
+    "source_snapshot_sha": "b5c41ebffeca24385f8fa8d48e6c812749e4c745",
+    "destination_archive_ref": "refs/archive/pull/239/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/240/head",
+    "source_snapshot_sha": "232a41fdaab8b73238a05b548cd41bf9cc44ea60",
+    "destination_archive_ref": "refs/archive/pull/240/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/241/head",
+    "source_snapshot_sha": "44e500c137f09aaec727b36fdd651ad9b2d166c3",
+    "destination_archive_ref": "refs/archive/pull/241/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/242/head",
+    "source_snapshot_sha": "93b48b25a1a268ed9b6ea721da76211fae04cec1",
+    "destination_archive_ref": "refs/archive/pull/242/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/243/head",
+    "source_snapshot_sha": "c9097423cb87bf6e4bf4a3a833cada21eb3bf2a3",
+    "destination_archive_ref": "refs/archive/pull/243/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/244/head",
+    "source_snapshot_sha": "99d7b6b108ea44a1c37878642bc9a3778e1ba533",
+    "destination_archive_ref": "refs/archive/pull/244/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/245/head",
+    "source_snapshot_sha": "19d4784b2e6b1badbf7983ca9bf339f4b56e11e7",
+    "destination_archive_ref": "refs/archive/pull/245/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/246/head",
+    "source_snapshot_sha": "9223b3eb7adce30152d21a42f73cb7e9adaee70c",
+    "destination_archive_ref": "refs/archive/pull/246/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/247/head",
+    "source_snapshot_sha": "09f58cf6b542e892bb2019731038e1e6cd4a4e9d",
+    "destination_archive_ref": "refs/archive/pull/247/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/248/head",
+    "source_snapshot_sha": "50a5510f8c69230c6692231525f6c6baa23f29c7",
+    "destination_archive_ref": "refs/archive/pull/248/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/249/head",
+    "source_snapshot_sha": "81775b78ff7c80e8c99f58f8f0df9114743540b1",
+    "destination_archive_ref": "refs/archive/pull/249/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/25/head",
+    "source_snapshot_sha": "adeeec1288d09bfd0690e931f295ffe2bc0e29e8",
+    "destination_archive_ref": "refs/archive/pull/25/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/250/head",
+    "source_snapshot_sha": "0c6093d3233c8119d5593ab8c8ad67c054fb384f",
+    "destination_archive_ref": "refs/archive/pull/250/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/251/head",
+    "source_snapshot_sha": "e9ffd2f564ae1d3ef55ffa3fadded9c2710bebf7",
+    "destination_archive_ref": "refs/archive/pull/251/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/252/head",
+    "source_snapshot_sha": "0248b0d1c87207c1d2cf977000aaa7df14b4e65a",
+    "destination_archive_ref": "refs/archive/pull/252/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/253/head",
+    "source_snapshot_sha": "1171d64bbcb57dfb0c6bcf57df8db9c209621b92",
+    "destination_archive_ref": "refs/archive/pull/253/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/254/head",
+    "source_snapshot_sha": "c1b9a2f96dc3ecb6f4aa8ea3ad597d26a08cdf60",
+    "destination_archive_ref": "refs/archive/pull/254/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/255/head",
+    "source_snapshot_sha": "3390f7ee57bf81b48ac070fbb2e66ba9d08455cc",
+    "destination_archive_ref": "refs/archive/pull/255/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/257/head",
+    "source_snapshot_sha": "ebe31f574979d488b3b932c58888e1dd14f32d8d",
+    "destination_archive_ref": "refs/archive/pull/257/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/258/head",
+    "source_snapshot_sha": "2663f674fa62ab3b8b0742d7345ac558b75705de",
+    "destination_archive_ref": "refs/archive/pull/258/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/26/head",
+    "source_snapshot_sha": "aa83d48f19b33841bdb4961690cb2eac16daa56b",
+    "destination_archive_ref": "refs/archive/pull/26/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/260/head",
+    "source_snapshot_sha": "8df0b17c3d7a02a69ec13d263036708a280132cf",
+    "destination_archive_ref": "refs/archive/pull/260/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/261/head",
+    "source_snapshot_sha": "856645f6045a9efef3a8869e92adfae9b33cc2c4",
+    "destination_archive_ref": "refs/archive/pull/261/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/263/head",
+    "source_snapshot_sha": "ae970c398c588ceb4c1c8d84a2f9408d74e59f80",
+    "destination_archive_ref": "refs/archive/pull/263/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/264/head",
+    "source_snapshot_sha": "603d413aded4a79e003e1880d74dbaed3cf705a3",
+    "destination_archive_ref": "refs/archive/pull/264/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/265/head",
+    "source_snapshot_sha": "ccef45aca88be733caf232d702cb7f002b00fa22",
+    "destination_archive_ref": "refs/archive/pull/265/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/266/head",
+    "source_snapshot_sha": "32bc91c7eeb76861f15f2945cd5349b4eaaa0baa",
+    "destination_archive_ref": "refs/archive/pull/266/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/268/head",
+    "source_snapshot_sha": "4c20095dbcbc9ef91077ee7efa1da53988fd7d2c",
+    "destination_archive_ref": "refs/archive/pull/268/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/27/head",
+    "source_snapshot_sha": "3bc4b3fbe1ed6f7f4c6a666804817c1aaa6060b1",
+    "destination_archive_ref": "refs/archive/pull/27/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/270/head",
+    "source_snapshot_sha": "bd89eef9732e2ae824364245dcfeec5a1c996c2b",
+    "destination_archive_ref": "refs/archive/pull/270/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/271/head",
+    "source_snapshot_sha": "357e9c27ff4c0b7e4e93f6701f95d14b59076dcc",
+    "destination_archive_ref": "refs/archive/pull/271/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/273/head",
+    "source_snapshot_sha": "c28af8b076018c94ad2959d226b7a4d6a3c27a04",
+    "destination_archive_ref": "refs/archive/pull/273/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/274/head",
+    "source_snapshot_sha": "6b7b9b56fe8ca4c77c1a873a8c55cc38b10102a1",
+    "destination_archive_ref": "refs/archive/pull/274/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/275/head",
+    "source_snapshot_sha": "6b6e950a8936a54f05620c725a3fc49a15a95f28",
+    "destination_archive_ref": "refs/archive/pull/275/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/276/head",
+    "source_snapshot_sha": "1d0e66cb90cb94e57dd2c1be0ff883e799b9474b",
+    "destination_archive_ref": "refs/archive/pull/276/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/277/head",
+    "source_snapshot_sha": "fc331acf482e8e649580ed334621e62478f2c1b8",
+    "destination_archive_ref": "refs/archive/pull/277/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/278/head",
+    "source_snapshot_sha": "19a2a0b1c3a9e3bdcc588b7ef56805328dace309",
+    "destination_archive_ref": "refs/archive/pull/278/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/279/head",
+    "source_snapshot_sha": "d395df3c0670d48fdc84189118e2c8d2ca733d2a",
+    "destination_archive_ref": "refs/archive/pull/279/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/28/head",
+    "source_snapshot_sha": "69e8df74ed6a39e31a8c01028a9b6be2e85df012",
+    "destination_archive_ref": "refs/archive/pull/28/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/280/head",
+    "source_snapshot_sha": "079fd0d307cea71dfd91c75698963e98d57116b7",
+    "destination_archive_ref": "refs/archive/pull/280/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/281/head",
+    "source_snapshot_sha": "d8f5cd6ee033cc801b23913a95abee7d319422c7",
+    "destination_archive_ref": "refs/archive/pull/281/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/282/head",
+    "source_snapshot_sha": "06dd714af80b91971e9646465e3156d37828b3a0",
+    "destination_archive_ref": "refs/archive/pull/282/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/283/head",
+    "source_snapshot_sha": "94941562fef8c46fe1e58a5f255fdac4f7e79aea",
+    "destination_archive_ref": "refs/archive/pull/283/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/284/head",
+    "source_snapshot_sha": "51628dabadcb2b92f40aac01db414c33176233e1",
+    "destination_archive_ref": "refs/archive/pull/284/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/285/head",
+    "source_snapshot_sha": "c031061f05dadea13eb894835a2e5b2e6eec9ff7",
+    "destination_archive_ref": "refs/archive/pull/285/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/286/head",
+    "source_snapshot_sha": "a24f47d3af493a586a920f98b308ff66c58c78c5",
+    "destination_archive_ref": "refs/archive/pull/286/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/287/head",
+    "source_snapshot_sha": "f37cd81f7da29304b6e6cdd362b5d58db46ef74d",
+    "destination_archive_ref": "refs/archive/pull/287/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/289/head",
+    "source_snapshot_sha": "3fe2622f65bbec7021d0682e0bb57ea884ecaf11",
+    "destination_archive_ref": "refs/archive/pull/289/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/29/head",
+    "source_snapshot_sha": "9211f270fdfe1cc265e40a99397821ec49a6a934",
+    "destination_archive_ref": "refs/archive/pull/29/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/290/head",
+    "source_snapshot_sha": "fb3bed509ee9391badf566dbda191ff02b935a66",
+    "destination_archive_ref": "refs/archive/pull/290/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/291/head",
+    "source_snapshot_sha": "055e3dae19e6b6e3a069310a1797206b996eca67",
+    "destination_archive_ref": "refs/archive/pull/291/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/292/head",
+    "source_snapshot_sha": "6f29d11f15f8bb09f5bc2da1db15add98a1e0cb5",
+    "destination_archive_ref": "refs/archive/pull/292/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/293/head",
+    "source_snapshot_sha": "b0b22aba3f775f058b9bfe9d09bad1ac82f500c7",
+    "destination_archive_ref": "refs/archive/pull/293/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/294/head",
+    "source_snapshot_sha": "13a7611fe78501f2b11b39eb2c8b8a512e5140f6",
+    "destination_archive_ref": "refs/archive/pull/294/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/295/head",
+    "source_snapshot_sha": "ffd759b85d9b30344cb315602084a298b31e720b",
+    "destination_archive_ref": "refs/archive/pull/295/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/296/head",
+    "source_snapshot_sha": "32a28b4e7360e414d688680b7c711aa82b0385c1",
+    "destination_archive_ref": "refs/archive/pull/296/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/297/head",
+    "source_snapshot_sha": "83551b27427eb555c9365a3ca48e6ad28a5985ec",
+    "destination_archive_ref": "refs/archive/pull/297/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/298/head",
+    "source_snapshot_sha": "a088efd2bb44f4da56d7559e0394b6cfa5b1ea38",
+    "destination_archive_ref": "refs/archive/pull/298/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/299/head",
+    "source_snapshot_sha": "4b34565e701687eb15b794f0b9319af4be9d8fb6",
+    "destination_archive_ref": "refs/archive/pull/299/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/3/head",
+    "source_snapshot_sha": "48241cfaa4077650b053314af0fdd1dadc71c6e5",
+    "destination_archive_ref": "refs/archive/pull/3/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/30/head",
+    "source_snapshot_sha": "f05197f682f8a5b30857d397f6c0489af45c965f",
+    "destination_archive_ref": "refs/archive/pull/30/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/300/head",
+    "source_snapshot_sha": "03f146b94564de9b79f227a3dcff764fabe6d72e",
+    "destination_archive_ref": "refs/archive/pull/300/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/302/head",
+    "source_snapshot_sha": "38ed12ff3ab08562a55ae316ddfb6118cdccc492",
+    "destination_archive_ref": "refs/archive/pull/302/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/303/head",
+    "source_snapshot_sha": "f687b206eb9896965b0cd63b4e30393dbcc0d510",
+    "destination_archive_ref": "refs/archive/pull/303/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/304/head",
+    "source_snapshot_sha": "420b4a5b9df28d70e0a2750916b8b1c44cf08258",
+    "destination_archive_ref": "refs/archive/pull/304/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/305/head",
+    "source_snapshot_sha": "de5dbc39eb3199a39086c76d6365a76fc081c4a3",
+    "destination_archive_ref": "refs/archive/pull/305/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/306/head",
+    "source_snapshot_sha": "dacfdff3146f774e922309a4e8d6c743a6695b82",
+    "destination_archive_ref": "refs/archive/pull/306/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/307/head",
+    "source_snapshot_sha": "5f2223b91c26853522b24f334f94720eec24fda1",
+    "destination_archive_ref": "refs/archive/pull/307/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/308/head",
+    "source_snapshot_sha": "cd05eba9a5e3c0dd15cd9688c7f7da305f290658",
+    "destination_archive_ref": "refs/archive/pull/308/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/31/head",
+    "source_snapshot_sha": "0d6cfef40ff6539c6acfa9d0f53560ce0e7c3d83",
+    "destination_archive_ref": "refs/archive/pull/31/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/311/head",
+    "source_snapshot_sha": "204b97ff3d3bac34e746ebfbc303ee63ac61ad0c",
+    "destination_archive_ref": "refs/archive/pull/311/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/312/head",
+    "source_snapshot_sha": "a58a917f53584f9d2758ba2a6f1b9973296fde1e",
+    "destination_archive_ref": "refs/archive/pull/312/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/313/head",
+    "source_snapshot_sha": "3627349f0b2e469cf65fa6b6eb2e449cc9376d21",
+    "destination_archive_ref": "refs/archive/pull/313/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/314/head",
+    "source_snapshot_sha": "f739cd2cb7a8c98f122a1148400cb6e2afefcea5",
+    "destination_archive_ref": "refs/archive/pull/314/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/315/head",
+    "source_snapshot_sha": "46e8ec7c0870660efc035979dd40b44ba18dc024",
+    "destination_archive_ref": "refs/archive/pull/315/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/316/head",
+    "source_snapshot_sha": "938114639426c116804ddfdd60f37950e28d807c",
+    "destination_archive_ref": "refs/archive/pull/316/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/317/head",
+    "source_snapshot_sha": "6760936fe49d26325f0f13c1349f2664db85e063",
+    "destination_archive_ref": "refs/archive/pull/317/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/318/head",
+    "source_snapshot_sha": "d8e286facf85e2b6ab438510df71e91938987014",
+    "destination_archive_ref": "refs/archive/pull/318/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/319/head",
+    "source_snapshot_sha": "e051fdd593b74ac35b8e0ccff7acfcaf01050f11",
+    "destination_archive_ref": "refs/archive/pull/319/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/32/head",
+    "source_snapshot_sha": "56a45a6082208b288bdb5c24038fbb794cd4d94a",
+    "destination_archive_ref": "refs/archive/pull/32/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/320/head",
+    "source_snapshot_sha": "74e2d797ec7ce8f5e597ea4f39078b900ca699c8",
+    "destination_archive_ref": "refs/archive/pull/320/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/321/head",
+    "source_snapshot_sha": "49276be39812203407bcdf3f2188e924a707491b",
+    "destination_archive_ref": "refs/archive/pull/321/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/322/head",
+    "source_snapshot_sha": "f6eb4a5c093ed1bf53fd724143e877836f3b8487",
+    "destination_archive_ref": "refs/archive/pull/322/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/323/head",
+    "source_snapshot_sha": "9fa8923b8517a5200d2e2df6cbfda637bec41bc9",
+    "destination_archive_ref": "refs/archive/pull/323/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/324/head",
+    "source_snapshot_sha": "6f07f3de4eaeecfc8788864477c7a17b91bc8b8b",
+    "destination_archive_ref": "refs/archive/pull/324/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/325/head",
+    "source_snapshot_sha": "7d7390e66a0807f2dea9790e2dd5c9ca9c93e1cf",
+    "destination_archive_ref": "refs/archive/pull/325/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/326/head",
+    "source_snapshot_sha": "2c462d83fa59788eb948d0446d5af45a505c7e6c",
+    "destination_archive_ref": "refs/archive/pull/326/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/327/head",
+    "source_snapshot_sha": "7f56fe376daef24bc19d04d26d6f8a1896a28b9d",
+    "destination_archive_ref": "refs/archive/pull/327/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/328/head",
+    "source_snapshot_sha": "c60555b233f122e8a6742be4395e152269c8d3c5",
+    "destination_archive_ref": "refs/archive/pull/328/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/329/head",
+    "source_snapshot_sha": "faf9df769801d858a2b650c33204ce7fb6b88a02",
+    "destination_archive_ref": "refs/archive/pull/329/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/33/head",
+    "source_snapshot_sha": "48e61a5ba6f79026bc4c0781921e23a3b3466e09",
+    "destination_archive_ref": "refs/archive/pull/33/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/330/head",
+    "source_snapshot_sha": "1257aac3485138229624b0217e3d68e986b6b03e",
+    "destination_archive_ref": "refs/archive/pull/330/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/331/head",
+    "source_snapshot_sha": "85d62f1c29309bade11ba8cd6c54af116f6aa4d6",
+    "destination_archive_ref": "refs/archive/pull/331/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/332/head",
+    "source_snapshot_sha": "ea6972181d8bbe9d8778d958f08cb3dbce1edd80",
+    "destination_archive_ref": "refs/archive/pull/332/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/333/head",
+    "source_snapshot_sha": "54d64b1197ff5fefde138342fd97234df53f05d6",
+    "destination_archive_ref": "refs/archive/pull/333/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/334/head",
+    "source_snapshot_sha": "b4c723fa5b1b87bc0f441f161a2a7239d69525d5",
+    "destination_archive_ref": "refs/archive/pull/334/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/335/head",
+    "source_snapshot_sha": "641ca13829be7c6f5d96d951e14fe288e9174bbb",
+    "destination_archive_ref": "refs/archive/pull/335/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/336/head",
+    "source_snapshot_sha": "26771e06f706ea1c85fb423861508bbad208a5ed",
+    "destination_archive_ref": "refs/archive/pull/336/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/337/head",
+    "source_snapshot_sha": "e2621adc0d471626c28c95013803fe9727c3c023",
+    "destination_archive_ref": "refs/archive/pull/337/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/338/head",
+    "source_snapshot_sha": "ad3c95b61f5435591205473e36352738859b455b",
+    "destination_archive_ref": "refs/archive/pull/338/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/339/head",
+    "source_snapshot_sha": "98f10f16e9b444b45fa38d5045ecaf022da52d35",
+    "destination_archive_ref": "refs/archive/pull/339/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/34/head",
+    "source_snapshot_sha": "41e36ff72f856cd7cf32cad6561c8fa985dda209",
+    "destination_archive_ref": "refs/archive/pull/34/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/340/head",
+    "source_snapshot_sha": "daadbfbbb5324b18cae3072452fb91da059c44de",
+    "destination_archive_ref": "refs/archive/pull/340/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/341/head",
+    "source_snapshot_sha": "ebfd8a0c6064c9e400916a5f4a49588b43923372",
+    "destination_archive_ref": "refs/archive/pull/341/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/342/head",
+    "source_snapshot_sha": "ff170112e505f68e80e51086dc96922868aaac17",
+    "destination_archive_ref": "refs/archive/pull/342/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/343/head",
+    "source_snapshot_sha": "db1288177a80b53041f86f63de55b45fcf2e20fd",
+    "destination_archive_ref": "refs/archive/pull/343/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/344/head",
+    "source_snapshot_sha": "4ebab936b2aa898c25182d0a9d38610886d78494",
+    "destination_archive_ref": "refs/archive/pull/344/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/345/head",
+    "source_snapshot_sha": "79c60db15731a65be2b78ddfab79548244228451",
+    "destination_archive_ref": "refs/archive/pull/345/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/346/head",
+    "source_snapshot_sha": "5b203f1f5a605611270f4eccc5cee35e0de0c41c",
+    "destination_archive_ref": "refs/archive/pull/346/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/347/head",
+    "source_snapshot_sha": "8c474118ce8218c5fd18d3468a9422285a7f79bd",
+    "destination_archive_ref": "refs/archive/pull/347/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/348/head",
+    "source_snapshot_sha": "fbe5a129e84e4ff11004fa00ceceac3046b97c2c",
+    "destination_archive_ref": "refs/archive/pull/348/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/349/head",
+    "source_snapshot_sha": "585d9f91741ddcdb4d75050893e907407ff078d7",
+    "destination_archive_ref": "refs/archive/pull/349/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/350/head",
+    "source_snapshot_sha": "36df77ebca704a5e8922d5210a09ec36e368c56b",
+    "destination_archive_ref": "refs/archive/pull/350/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/351/head",
+    "source_snapshot_sha": "7ae54d05005f9f91e50a24e02003aeee5de2c6d6",
+    "destination_archive_ref": "refs/archive/pull/351/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/352/head",
+    "source_snapshot_sha": "2d049648654ce9719982ef4a27732c2630217d14",
+    "destination_archive_ref": "refs/archive/pull/352/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/353/head",
+    "source_snapshot_sha": "543a196a3f4dd8005ea1c76de978610641c76894",
+    "destination_archive_ref": "refs/archive/pull/353/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/354/head",
+    "source_snapshot_sha": "98c4ded9b1c7e7b844e03bc3a603f639e0ebb12c",
+    "destination_archive_ref": "refs/archive/pull/354/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/355/head",
+    "source_snapshot_sha": "44f6aecf0527329c796ebba5f5240828c864cd85",
+    "destination_archive_ref": "refs/archive/pull/355/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/356/head",
+    "source_snapshot_sha": "3a53fb470b1e7c12d978d129915411b9d846de0f",
+    "destination_archive_ref": "refs/archive/pull/356/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/357/head",
+    "source_snapshot_sha": "552a276a5402e4411602aa83afc7b450bb3b1aef",
+    "destination_archive_ref": "refs/archive/pull/357/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/358/head",
+    "source_snapshot_sha": "f80797cf5bf86e5696419b0ab58e5578cba7d503",
+    "destination_archive_ref": "refs/archive/pull/358/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/359/head",
+    "source_snapshot_sha": "e70f354413f108e0d67f34649111094d03748173",
+    "destination_archive_ref": "refs/archive/pull/359/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/36/head",
+    "source_snapshot_sha": "5dafde39cbd9e3e26990c7b98f625ef65145b27e",
+    "destination_archive_ref": "refs/archive/pull/36/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/37/head",
+    "source_snapshot_sha": "a6709bf21c6fd6405edf69159e6d9e02989bbc39",
+    "destination_archive_ref": "refs/archive/pull/37/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/38/head",
+    "source_snapshot_sha": "1a2ea1db5a9d362d0acae5db5f59504faeafc0f9",
+    "destination_archive_ref": "refs/archive/pull/38/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/39/head",
+    "source_snapshot_sha": "cbbc27dd51d6c7c3b490e14202fb245758bd5f1f",
+    "destination_archive_ref": "refs/archive/pull/39/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/4/head",
+    "source_snapshot_sha": "7863e28abdcf4a0b3d3226b28a360b68c161d27e",
+    "destination_archive_ref": "refs/archive/pull/4/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/40/head",
+    "source_snapshot_sha": "fbc078a1c0e1267b12b6a1bf314d4010ada4991c",
+    "destination_archive_ref": "refs/archive/pull/40/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/41/head",
+    "source_snapshot_sha": "5768a571ffc7cc411957fe5afc595a47384a4834",
+    "destination_archive_ref": "refs/archive/pull/41/head",
+    "archive_verified": true,
+    "current_named_ref_sha": "5e0eace63ab75913bcf02b60b5a4d265a87c899d"
+  },
+  {
+    "source_snapshot_ref": "refs/pull/42/head",
+    "source_snapshot_sha": "86b4b055e9e5dc06042d30b5a3164b0233b9163f",
+    "destination_archive_ref": "refs/archive/pull/42/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/43/head",
+    "source_snapshot_sha": "ced9051099b7f36899519d68ae54da4f916543af",
+    "destination_archive_ref": "refs/archive/pull/43/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/49/head",
+    "source_snapshot_sha": "f39972b03190d88f86c0a7f874e54e608c96175d",
+    "destination_archive_ref": "refs/archive/pull/49/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/5/head",
+    "source_snapshot_sha": "da7167c1d5566c89e094e00ab0cbe9b4bf8b77f0",
+    "destination_archive_ref": "refs/archive/pull/5/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/51/head",
+    "source_snapshot_sha": "6c162e35dc044a55d5755b9164921f532f7ebf30",
+    "destination_archive_ref": "refs/archive/pull/51/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/52/head",
+    "source_snapshot_sha": "a09b5d8c3588638ab65c9ca63d446509bfcdea82",
+    "destination_archive_ref": "refs/archive/pull/52/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/54/head",
+    "source_snapshot_sha": "6c6aa453f93c84198366cf88ec7e02c1ad391b4e",
+    "destination_archive_ref": "refs/archive/pull/54/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/56/head",
+    "source_snapshot_sha": "b355aefa3fa31fd14877bd5ca7717fe6ea617091",
+    "destination_archive_ref": "refs/archive/pull/56/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/6/head",
+    "source_snapshot_sha": "8132cf7899a96f0ef5932dfe65357f1c8d3592d8",
+    "destination_archive_ref": "refs/archive/pull/6/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/62/head",
+    "source_snapshot_sha": "c5814659eae8108cf4cb7b5276db751d70096bf6",
+    "destination_archive_ref": "refs/archive/pull/62/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/63/head",
+    "source_snapshot_sha": "1f6947d35e8f81d7079018ca7b3e014bc1673480",
+    "destination_archive_ref": "refs/archive/pull/63/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/64/head",
+    "source_snapshot_sha": "7454882ff934e4a365d56eb926864579e6c33f3e",
+    "destination_archive_ref": "refs/archive/pull/64/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/7/head",
+    "source_snapshot_sha": "920bef5c64cbddc35bee7b87a6d45aa0911bd67a",
+    "destination_archive_ref": "refs/archive/pull/7/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/70/head",
+    "source_snapshot_sha": "4e3750dfb536671cba270f1f6905519b533b74bb",
+    "destination_archive_ref": "refs/archive/pull/70/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/71/head",
+    "source_snapshot_sha": "a4c746af7f18cabe21db3ca39fcca92d8aa70527",
+    "destination_archive_ref": "refs/archive/pull/71/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/77/head",
+    "source_snapshot_sha": "7010e33006a344a235aa282fd7f1fa148eed8bcf",
+    "destination_archive_ref": "refs/archive/pull/77/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/8/head",
+    "source_snapshot_sha": "9541131f778d440a8dee0731d80391e4c6719046",
+    "destination_archive_ref": "refs/archive/pull/8/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/81/head",
+    "source_snapshot_sha": "2e73d75ddfb023555ee69732009848bc6d0a73cf",
+    "destination_archive_ref": "refs/archive/pull/81/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/85/head",
+    "source_snapshot_sha": "58ab5b2a38b3842a8a6096c46911263ff96f6dc3",
+    "destination_archive_ref": "refs/archive/pull/85/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/86/head",
+    "source_snapshot_sha": "745f983507a9346c020a7b64d7402c779839fb59",
+    "destination_archive_ref": "refs/archive/pull/86/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/89/head",
+    "source_snapshot_sha": "e9f1326119c6130c2ed650a31c2813f5b7c26c50",
+    "destination_archive_ref": "refs/archive/pull/89/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/9/head",
+    "source_snapshot_sha": "ced1c5beb982c8ee5c19e3ccea234a5dc320a117",
+    "destination_archive_ref": "refs/archive/pull/9/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/90/head",
+    "source_snapshot_sha": "e2797b2f8500eb6ebfb99c86821c0051d9bbd30b",
+    "destination_archive_ref": "refs/archive/pull/90/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/92/head",
+    "source_snapshot_sha": "b5290f444cd0ab6538ae1c48ab738266800c3b1f",
+    "destination_archive_ref": "refs/archive/pull/92/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/93/head",
+    "source_snapshot_sha": "83f507af9f2d04050ff4797d475278597dbdaf57",
+    "destination_archive_ref": "refs/archive/pull/93/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/94/head",
+    "source_snapshot_sha": "24e275b04c400fdda21cb9fe3a85fc714bee1d9c",
+    "destination_archive_ref": "refs/archive/pull/94/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/95/head",
+    "source_snapshot_sha": "eabbc79819f6d692491e51e9c2dd776759864bf2",
+    "destination_archive_ref": "refs/archive/pull/95/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/96/head",
+    "source_snapshot_sha": "a075e5229e4fac47ed889a0a75b03d496d9b1770",
+    "destination_archive_ref": "refs/archive/pull/96/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/97/head",
+    "source_snapshot_sha": "50cb01a4d4ef597861a0dee52097a57a6e36d132",
+    "destination_archive_ref": "refs/archive/pull/97/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/98/head",
+    "source_snapshot_sha": "4bd49130888b488ac89199cae2f64a5db637fdaa",
+    "destination_archive_ref": "refs/archive/pull/98/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/pull/99/head",
+    "source_snapshot_sha": "3089128a2d8fffc0f7756ace51536277a35dc9d4",
+    "destination_archive_ref": "refs/archive/pull/99/head",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/tags/develop-final",
+    "source_snapshot_sha": "bd8948e31503480537dbc7568f29738e724577c4",
+    "destination_archive_ref": "refs/archive/source/tags/develop-final",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/tags/python-perf-2026-10-30",
+    "source_snapshot_sha": "d264ea9c42bc1ae859e14747c02654f5efc3a388",
+    "destination_archive_ref": "refs/archive/source/tags/python-perf-2026-10-30",
+    "archive_verified": true,
+    "current_named_ref_sha": "d264ea9c42bc1ae859e14747c02654f5efc3a388"
+  },
+  {
+    "source_snapshot_ref": "refs/tags/rust-identical-2026-10-31",
+    "source_snapshot_sha": "6c38e23cbff0b8ac644e2c3051730f10c8d82d6e",
+    "destination_archive_ref": "refs/archive/source/tags/rust-identical-2026-10-31",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/tags/rust-identical-final-2026-11-03",
+    "source_snapshot_sha": "38ea78f29d0f4f13ff0cb6c0f25f80f10a4ced4a",
+    "destination_archive_ref": "refs/archive/source/tags/rust-identical-final-2026-11-03",
+    "archive_verified": true,
+    "current_named_ref_sha": "38ea78f29d0f4f13ff0cb6c0f25f80f10a4ced4a"
+  },
+  {
+    "source_snapshot_ref": "refs/tags/rust-identical-m1-2026-11-01",
+    "source_snapshot_sha": "c9b70b0477c63c40f55546df4d9afc7553c4b378",
+    "destination_archive_ref": "refs/archive/source/tags/rust-identical-m1-2026-11-01",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/tags/rust-identical-m2-2026-11-01",
+    "source_snapshot_sha": "e03ec3a28677308cc53b03761b03024e856a5b55",
+    "destination_archive_ref": "refs/archive/source/tags/rust-identical-m2-2026-11-01",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/tags/rust-identical-m4-part1-2026-11-01",
+    "source_snapshot_sha": "82ab4e42c1ed55e6be33e7baac53f62c9cae97a1",
+    "destination_archive_ref": "refs/archive/source/tags/rust-identical-m4-part1-2026-11-01",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/tags/rust-identical-m5-2026-11-02",
+    "source_snapshot_sha": "934fd1ddbbab3f5e5a9aa343813c3e8847831eb7",
+    "destination_archive_ref": "refs/archive/source/tags/rust-identical-m5-2026-11-02",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/tags/rust-identical-m6-2026-11-02",
+    "source_snapshot_sha": "5e5a8e163214c53ac45bbc3b00414545d8bc115b",
+    "destination_archive_ref": "refs/archive/source/tags/rust-identical-m6-2026-11-02",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/tags/rust-identical-prelude-2026-10-31",
+    "source_snapshot_sha": "74ecac5d635a1a4e8b414b7295a6e8aa01a6bf5e",
+    "destination_archive_ref": "refs/archive/source/tags/rust-identical-prelude-2026-10-31",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/tags/rust-identical-prelude-p3-2026-10-31",
+    "source_snapshot_sha": "4b85c79472fd7602f0a0dfe3dacef66267e02b4e",
+    "destination_archive_ref": "refs/archive/source/tags/rust-identical-prelude-p3-2026-10-31",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/tags/rust-identical-prelude-p4-2026-10-31",
+    "source_snapshot_sha": "1dac09dad1d0cfcbedf3fbb60fc323fb5b4d0715",
+    "destination_archive_ref": "refs/archive/source/tags/rust-identical-prelude-p4-2026-10-31",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/tags/rust-identical-prelude-p6-2026-10-31",
+    "source_snapshot_sha": "b734841b233a031ef42e59bbcde54ad02fcf46e2",
+    "destination_archive_ref": "refs/archive/source/tags/rust-identical-prelude-p6-2026-10-31",
+    "archive_verified": true,
+    "current_named_ref_sha": null
+  },
+  {
+    "source_snapshot_ref": "refs/tags/submission",
+    "source_snapshot_sha": "db44e1205ea8b0a63755566d35f7e64f83b5e38e",
+    "destination_archive_ref": "refs/archive/source/tags/submission",
+    "archive_verified": true,
+    "current_named_ref_sha": "db44e1205ea8b0a63755566d35f7e64f83b5e38e"
+  }
+]

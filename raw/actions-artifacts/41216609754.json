@@ -1,0 +1,66 @@
+{
+  "total_count": 3,
+  "artifacts": [
+    {
+      "id": 13048975669,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA0ODk3NTY2OQ==",
+      "name": "test-results-windows-latest",
+      "size_in_bytes": 55669,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13048975669",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13048975669/zip",
+      "expired": false,
+      "digest": "sha256:cb7286e7b52afdf4b778f4504d86ac56dceeab34f8556c60f4f6b44bb9d2eb0c",
+      "created_at": "2026-10-31T16:03:15Z",
+      "updated_at": "2026-10-31T16:03:15Z",
+      "expires_at": "2026-11-07T16:03:14Z",
+      "workflow_run": {
+        "id": 41216609754,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/m1-staff-pilot",
+        "head_sha": "f6eb4a5c093ed1bf53fd724143e877836f3b8487"
+      }
+    },
+    {
+      "id": 13048427051,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA0ODQyNzA1MQ==",
+      "name": "test-results-macos-latest",
+      "size_in_bytes": 54836,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13048427051",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13048427051/zip",
+      "expired": false,
+      "digest": "sha256:0354604cad00101d1148550e03edcfa053f31a14bb89a12f8255f1c2e9ef51a0",
+      "created_at": "2026-10-31T15:54:53Z",
+      "updated_at": "2026-10-31T15:54:53Z",
+      "expires_at": "2026-11-07T15:54:52Z",
+      "workflow_run": {
+        "id": 41216609754,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/m1-staff-pilot",
+        "head_sha": "f6eb4a5c093ed1bf53fd724143e877836f3b8487"
+      }
+    },
+    {
+      "id": 13047807934,
+      "node_id": "MDg6QXJ0aWZhY3QxMzA0NzgwNzkzNA==",
+      "name": "test-results-ubuntu-latest",
+      "size_in_bytes": 109358,
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13047807934",
+      "archive_download_url": "https://api.github.com/repos/jphacks/tkb_2615/actions/artifacts/13047807934/zip",
+      "expired": false,
+      "digest": "sha256:0e97ceacb263dcd536120ffcd42ded733fbbf49ce6ca0305a188bbeb516c473a",
+      "created_at": "2026-10-31T15:56:44Z",
+      "updated_at": "2026-10-31T15:56:44Z",
+      "expires_at": "2026-11-07T15:56:43Z",
+      "workflow_run": {
+        "id": 41216609754,
+        "repository_id": 1400400408,
+        "head_repository_id": 1400400408,
+        "head_branch": "rust/m1-staff-pilot",
+        "head_sha": "f6eb4a5c093ed1bf53fd724143e877836f3b8487"
+      }
+    }
+  ]
+}
+

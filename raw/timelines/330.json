@@ -1,0 +1,401 @@
+[
+  {
+    "sha": "da1651787d248fb25f728a2fff2c477e316ef1ec",
+    "node_id": "C_kwDOU3hqGNoAKGRhMTY1MTc4N2QyNDhmYjI1ZjcyOGEyZmZmMmM0NzdlMzE2ZWYxZWM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/da1651787d248fb25f728a2fff2c477e316ef1ec",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/da1651787d248fb25f728a2fff2c477e316ef1ec",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T21:58:24Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T21:58:24Z"
+    },
+    "tree": {
+      "sha": "18c84a90319d85bc442b7cf9c7e72e9f9506b186",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/18c84a90319d85bc442b7cf9c7e72e9f9506b186"
+    },
+    "message": "Own social_network_v1 in Rust, with its rules, the state context and the social action\n\nThe row knows which records were written, so the check of a tick reads only those; this retires\nsocial_relationships_valid and the social use of RecordWatch. observe_event, the observed contacts\nof the social step, capture and validation of the state context, and the handler's social action\nthat goes through run in Rust. Python rules stay the comparison base and say every refusal. The\nsocial shadow ignores key order only in a run that reverses dicts.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "b0159454f635f7b23bbc59b66936503a5d28a9d8",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/b0159454f635f7b23bbc59b66936503a5d28a9d8",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/b0159454f635f7b23bbc59b66936503a5d28a9d8"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "f1865ebddafaea781ca626bfbdb0f1cdb18b9220",
+    "node_id": "C_kwDOU3hqGNoAKGYxODY1ZWJkZGFmYWVhNzgxY2E2MjZiZmJkYjBmMWNkYjE4YjkyMjA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f1865ebddafaea781ca626bfbdb0f1cdb18b9220",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/f1865ebddafaea781ca626bfbdb0f1cdb18b9220",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T21:58:41Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-31T21:58:41Z"
+    },
+    "tree": {
+      "sha": "c1776455605f63b597a101151890ddc9665ca953",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/c1776455605f63b597a101151890ddc9665ca953"
+    },
+    "message": "Merge origin/feature/rust-port into the social network lane\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "da1651787d248fb25f728a2fff2c477e316ef1ec",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/da1651787d248fb25f728a2fff2c477e316ef1ec",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/da1651787d248fb25f728a2fff2c477e316ef1ec"
+      },
+      {
+        "sha": "41bde2f08f6f2cccaf45a88850d06c03be4c1845",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/41bde2f08f6f2cccaf45a88850d06c03be4c1845",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/41bde2f08f6f2cccaf45a88850d06c03be4c1845"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "988a3d30cf54d59b8a8f3afadbd09ea5987729c5",
+    "node_id": "C_kwDOU3hqGNoAKDk4OGEzZDMwY2Y1NGQ1OWI4YThmM2FmYWRiZDA5ZWE1OTg3NzI5YzU",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/988a3d30cf54d59b8a8f3afadbd09ea5987729c5",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/988a3d30cf54d59b8a8f3afadbd09ea5987729c5",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T00:03:59Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T00:03:59Z"
+    },
+    "tree": {
+      "sha": "ee300df26cac664d4631dc456bcdd1710e995fa4",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/ee300df26cac664d4631dc456bcdd1710e995fa4"
+    },
+    "message": "Show the social network lane's shadow numbers are about the row, and document the lane\n\nThe per-tick shadow also covers social_network_v1, so a kernel's yes is compared with the rule and\nprobed with a broken copy. Adds the lane's document and the contracts in native/README.md.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "f1865ebddafaea781ca626bfbdb0f1cdb18b9220",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f1865ebddafaea781ca626bfbdb0f1cdb18b9220",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/f1865ebddafaea781ca626bfbdb0f1cdb18b9220"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "dacbe68317877932496d5cc2f289ae12b647758d",
+    "node_id": "C_kwDOU3hqGNoAKGRhY2JlNjgzMTc4Nzc5MzI0OTZkNWNjMmYyODlhZTEyYjY0Nzc1OGQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/dacbe68317877932496d5cc2f289ae12b647758d",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/dacbe68317877932496d5cc2f289ae12b647758d",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T00:18:07Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T00:18:07Z"
+    },
+    "tree": {
+      "sha": "5fc5bc78af33adc1221f7a013275e1c2785284fe",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/5fc5bc78af33adc1221f7a013275e1c2785284fe"
+    },
+    "message": "Say the right share of the other social interactions\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "988a3d30cf54d59b8a8f3afadbd09ea5987729c5",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/988a3d30cf54d59b8a8f3afadbd09ea5987729c5",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/988a3d30cf54d59b8a8f3afadbd09ea5987729c5"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "3788de1cf86d1e0102233c3d97b25485f5b19891",
+    "node_id": "C_kwDOU3hqGNoAKDM3ODhkZTFjZjg2ZDFlMDEwMjIzM2MzZDk3YjI1NDg1ZjViMTk4OTE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/3788de1cf86d1e0102233c3d97b25485f5b19891",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/3788de1cf86d1e0102233c3d97b25485f5b19891",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T00:18:28Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T00:18:28Z"
+    },
+    "tree": {
+      "sha": "cb87cdc889329f598eb31ab3e6f69595890aa308",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/cb87cdc889329f598eb31ab3e6f69595890aa308"
+    },
+    "message": "Merge origin/feature/rust-port (lane H) into the social network lane\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "dacbe68317877932496d5cc2f289ae12b647758d",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/dacbe68317877932496d5cc2f289ae12b647758d",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/dacbe68317877932496d5cc2f289ae12b647758d"
+      },
+      {
+        "sha": "de984627eac6c92d44083a6dfeea33f4e91a47f4",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/de984627eac6c92d44083a6dfeea33f4e91a47f4",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/de984627eac6c92d44083a6dfeea33f4e91a47f4"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "7dfca7c46cc0e7af15f70e5d3f11e7f8315b0efc",
+    "node_id": "C_kwDOU3hqGNoAKDdkZmNhN2M0NmNjMGU3YWYxNWY3MGU1ZDNmMTFlN2Y4MzE1YjBlZmM",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7dfca7c46cc0e7af15f70e5d3f11e7f8315b0efc",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/7dfca7c46cc0e7af15f70e5d3f11e7f8315b0efc",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T01:21:03Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T01:21:03Z"
+    },
+    "tree": {
+      "sha": "6de9920aa32b4333e2838ee07887b9d6e23b6e71",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/6de9920aa32b4333e2838ee07887b9d6e23b6e71"
+    },
+    "message": "Record the social network lane's results\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "3788de1cf86d1e0102233c3d97b25485f5b19891",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/3788de1cf86d1e0102233c3d97b25485f5b19891",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/3788de1cf86d1e0102233c3d97b25485f5b19891"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "f10f7498cf0a618d825ebd55bbcaee5388e62482",
+    "node_id": "C_kwDOU3hqGNoAKGYxMGY3NDk4Y2YwYTYxOGQ4MjVlYmQ1NWJiY2FlZTUzODhlNjI0ODI",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f10f7498cf0a618d825ebd55bbcaee5388e62482",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/f10f7498cf0a618d825ebd55bbcaee5388e62482",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T01:21:30Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T01:21:30Z"
+    },
+    "tree": {
+      "sha": "26e641e7923213c06b9b43565b259ad508932989",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/26e641e7923213c06b9b43565b259ad508932989"
+    },
+    "message": "Merge origin/feature/rust-port (lane F) into the social network lane\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "7dfca7c46cc0e7af15f70e5d3f11e7f8315b0efc",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7dfca7c46cc0e7af15f70e5d3f11e7f8315b0efc",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/7dfca7c46cc0e7af15f70e5d3f11e7f8315b0efc"
+      },
+      {
+        "sha": "3aefc030f1bf45e21beb6ed1a08f3428036b9717",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/3aefc030f1bf45e21beb6ed1a08f3428036b9717",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/3aefc030f1bf45e21beb6ed1a08f3428036b9717"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "1257aac3485138229624b0217e3d68e986b6b03e",
+    "node_id": "C_kwDOU3hqGNoAKDEyNTdhYWMzNDg1MTM4MjI5NjI0YjAyMTdlM2Q2OGU5ODZiNmIwM2U",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/1257aac3485138229624b0217e3d68e986b6b03e",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/1257aac3485138229624b0217e3d68e986b6b03e",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T01:33:27Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T01:33:27Z"
+    },
+    "tree": {
+      "sha": "edd7c9e2132521117673a4b2ec4c71a9d7f50d49",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/edd7c9e2132521117673a4b2ec4c71a9d7f50d49"
+    },
+    "message": "Say which checks ran again after merging the action lifecycle lane\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "f10f7498cf0a618d825ebd55bbcaee5388e62482",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/f10f7498cf0a618d825ebd55bbcaee5388e62482",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/f10f7498cf0a618d825ebd55bbcaee5388e62482"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34808747155,
+    "node_id": "ME_lADOU3hqGM8AAAABbhdOFc8AAAAIGsNUkw",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34808747155",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "ac275dfcd3ba504f085bc4090c149521dace5dee",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/ac275dfcd3ba504f085bc4090c149521dace5dee",
+    "created_at": "2026-11-01T01:53:01Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34808747210,
+    "node_id": "CE_lADOU3hqGM8AAAABbhdOFc8AAAAIGsNUyg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34808747210",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-11-01T01:53:01Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34808748526,
+    "node_id": "HRDE_lADOU3hqGM8AAAABbhdOFc8AAAAIGsNZ7g",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34808748526",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-11-01T01:53:03Z",
+    "performed_via_github_app": null
+  }
+]
+

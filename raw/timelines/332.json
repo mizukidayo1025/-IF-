@@ -1,0 +1,833 @@
+[
+  {
+    "sha": "c453a2db1d6d833868f8276e66fd7293438bb186",
+    "node_id": "C_kwDOU3hqGNoAKGM0NTNhMmRiMWQ2ZDgzMzg2OGY4Mjc2ZTY2ZmQ3MjkzNDM4YmIxODY",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c453a2db1d6d833868f8276e66fd7293438bb186",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/c453a2db1d6d833868f8276e66fd7293438bb186",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T00:39:05Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T00:39:05Z"
+    },
+    "tree": {
+      "sha": "43cd680662a24c8811773c54ea878df1b4e5d79e",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/43cd680662a24c8811773c54ea878df1b4e5d79e"
+    },
+    "message": "Record a decision in Rust, and keep proposals as rows until something reads their object\n\nrules/decisions.rs: _propose_due returns ProposalRow and _observed_state ObservedRow, which answer\nwhat _apply_proposal's Python body reads. The new step _record_outcome writes the sink's row as JSON\nbytes, then commit_action and remember_decision, falling back rule by rule. The index reads the bytes.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "faf9df769801d858a2b650c33204ce7fb6b88a02",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/faf9df769801d858a2b650c33204ce7fb6b88a02",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/faf9df769801d858a2b650c33204ce7fb6b88a02"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "33904ef63533323d8fda7f5631a4adc5c7f12174",
+    "node_id": "C_kwDOU3hqGNoAKDMzOTA0ZWY2MzUzMzMyM2Q4ZmRhN2Y1NjMxYTRhZGM1YzdmMTIxNzQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/33904ef63533323d8fda7f5631a4adc5c7f12174",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/33904ef63533323d8fda7f5631a4adc5c7f12174",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T00:39:05Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T00:39:05Z"
+    },
+    "tree": {
+      "sha": "43cd680662a24c8811773c54ea878df1b4e5d79e",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/43cd680662a24c8811773c54ea878df1b4e5d79e"
+    },
+    "message": "Merge origin/feature/rust-port (lane F) into the decisions lane\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "c453a2db1d6d833868f8276e66fd7293438bb186",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/c453a2db1d6d833868f8276e66fd7293438bb186",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/c453a2db1d6d833868f8276e66fd7293438bb186"
+      },
+      {
+        "sha": "3aefc030f1bf45e21beb6ed1a08f3428036b9717",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/3aefc030f1bf45e21beb6ed1a08f3428036b9717",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/3aefc030f1bf45e21beb6ed1a08f3428036b9717"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "a94d9a41e8634b273828c33879576b7cd8ff0ef8",
+    "node_id": "C_kwDOU3hqGNoAKGE5NGQ5YTQxZTg2MzRiMjczODI4YzMzODc5NTc2YjdjZDhmZjBlZjg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/a94d9a41e8634b273828c33879576b7cd8ff0ef8",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/a94d9a41e8634b273828c33879576b7cd8ff0ef8",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T00:46:06Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T00:46:06Z"
+    },
+    "tree": {
+      "sha": "ea8c7d196d6b60d00b01b20334d14d1c1dcc0ed2",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/ea8c7d196d6b60d00b01b20334d14d1c1dcc0ed2"
+    },
+    "message": "Say in the docs what rules/decisions.rs does, and keep the shadow's docstrings within the line limit\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "33904ef63533323d8fda7f5631a4adc5c7f12174",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/33904ef63533323d8fda7f5631a4adc5c7f12174",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/33904ef63533323d8fda7f5631a4adc5c7f12174"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "7a1a9dff5d0d8972577ebfdc98aefccef75a37cd",
+    "node_id": "C_kwDOU3hqGNoAKDdhMWE5ZGZmNWQwZDg5NzI1NzdlYmZkYzk4YWVmY2NlZjc1YTM3Y2Q",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7a1a9dff5d0d8972577ebfdc98aefccef75a37cd",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/7a1a9dff5d0d8972577ebfdc98aefccef75a37cd",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T02:01:36Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T02:01:36Z"
+    },
+    "tree": {
+      "sha": "ab49fe6bf18d06f5130bdd6c3a5406ec49e49763",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/ab49fe6bf18d06f5130bdd6c3a5406ec49e49763"
+    },
+    "message": "Record the decisions lane: what moved, what it refuses, and the measurements so far\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "a94d9a41e8634b273828c33879576b7cd8ff0ef8",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/a94d9a41e8634b273828c33879576b7cd8ff0ef8",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/a94d9a41e8634b273828c33879576b7cd8ff0ef8"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "ebb1d99f525746cface954db56d3c60156a5edad",
+    "node_id": "C_kwDOU3hqGNoAKGViYjFkOTlmNTI1NzQ2Y2ZhY2U5NTRkYjU2ZDNjNjAxNTZhNWVkYWQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ebb1d99f525746cface954db56d3c60156a5edad",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/ebb1d99f525746cface954db56d3c60156a5edad",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T02:01:45Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T02:01:45Z"
+    },
+    "tree": {
+      "sha": "ab81d9967bcb0394c88513ffc31c8a60e6b80062",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/ab81d9967bcb0394c88513ffc31c8a60e6b80062"
+    },
+    "message": "Merge origin/feature/rust-port (lane M3 social network) into the decisions lane\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "7a1a9dff5d0d8972577ebfdc98aefccef75a37cd",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/7a1a9dff5d0d8972577ebfdc98aefccef75a37cd",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/7a1a9dff5d0d8972577ebfdc98aefccef75a37cd"
+      },
+      {
+        "sha": "ac275dfcd3ba504f085bc4090c149521dace5dee",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ac275dfcd3ba504f085bc4090c149521dace5dee",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/ac275dfcd3ba504f085bc4090c149521dace5dee"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "e66d0cf86d3f57ae08ea3fb71f5ad38864f5ab31",
+    "node_id": "C_kwDOU3hqGNoAKGU2NmQwY2Y4NmQzZjU3YWUwOGVhM2ZiNzFmNWFkMzg4NjRmNWFiMzE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/e66d0cf86d3f57ae08ea3fb71f5ad38864f5ab31",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/e66d0cf86d3f57ae08ea3fb71f5ad38864f5ab31",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T02:03:25Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T02:03:25Z"
+    },
+    "tree": {
+      "sha": "9230d7a0d65c480fff0313060d05faeecde39c83",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/9230d7a0d65c480fff0313060d05faeecde39c83"
+    },
+    "message": "Keep one line for the proposal kernels in the architecture document\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "ebb1d99f525746cface954db56d3c60156a5edad",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ebb1d99f525746cface954db56d3c60156a5edad",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/ebb1d99f525746cface954db56d3c60156a5edad"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "e4a4966b169780af361515d65863ebf9026a9738",
+    "node_id": "C_kwDOU3hqGNoAKGU0YTQ5NjZiMTY5NzgwYWYzNjE1MTVkNjU4NjNlYmY5MDI2YTk3Mzg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/e4a4966b169780af361515d65863ebf9026a9738",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/e4a4966b169780af361515d65863ebf9026a9738",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T04:08:38Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T04:08:38Z"
+    },
+    "tree": {
+      "sha": "2549e15624fecc443ad1b4c4da17e37524a89e18",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/2549e15624fecc443ad1b4c4da17e37524a89e18"
+    },
+    "message": "Record the decisions lane's results on the merged code\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "e66d0cf86d3f57ae08ea3fb71f5ad38864f5ab31",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/e66d0cf86d3f57ae08ea3fb71f5ad38864f5ab31",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/e66d0cf86d3f57ae08ea3fb71f5ad38864f5ab31"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "ea6972181d8bbe9d8778d958f08cb3dbce1edd80",
+    "node_id": "C_kwDOU3hqGNoAKGVhNjk3MjE4MWQ4YmJlOWQ4Nzc4ZDk1OGYwOGNiM2RiY2UxZWRkODA",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ea6972181d8bbe9d8778d958f08cb3dbce1edd80",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/ea6972181d8bbe9d8778d958f08cb3dbce1edd80",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T04:19:34Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-11-01T04:19:34Z"
+    },
+    "tree": {
+      "sha": "bd39146516603e397bbdc42552470216a74696f0",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/bd39146516603e397bbdc42552470216a74696f0"
+    },
+    "message": "Merge remote-tracking branch 'origin/feature/rust-port' into rust/m2-decisions",
+    "parents": [
+      {
+        "sha": "e4a4966b169780af361515d65863ebf9026a9738",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/e4a4966b169780af361515d65863ebf9026a9738",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/e4a4966b169780af361515d65863ebf9026a9738"
+      },
+      {
+        "sha": "408ad515df8d52b2fca5a74c9f1ce0e7093ee669",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/408ad515df8d52b2fca5a74c9f1ce0e7093ee669",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/408ad515df8d52b2fca5a74c9f1ce0e7093ee669"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34814031332,
+    "node_id": "ME_lADOU3hqGM8AAAABbikm388AAAAIGxP15A",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34814031332",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "022c302f549fe60664f0464da9003405f513b3d7",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/022c302f549fe60664f0464da9003405f513b3d7",
+    "created_at": "2026-11-01T04:34:11Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34814031389,
+    "node_id": "CE_lADOU3hqGM8AAAABbikm388AAAAIGxP2HQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34814031389",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-11-01T04:34:11Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34814032642,
+    "node_id": "HRDE_lADOU3hqGM8AAAABbikm388AAAAIGxP7Ag",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34814032642",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-11-01T04:34:14Z",
+    "performed_via_github_app": null
+  },
+  {
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "created_at": "2026-11-01T05:41:04Z",
+    "updated_at": "2026-11-01T05:41:04Z",
+    "source": {
+      "type": "issue",
+      "issue": {
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/333",
+        "repository_url": "https://api.github.com/repos/jphacks/tkb_2615",
+        "labels_url": "https://api.github.com/repos/jphacks/tkb_2615/issues/333/labels{/name}",
+        "comments_url": "https://api.github.com/repos/jphacks/tkb_2615/issues/333/comments",
+        "events_url": "https://api.github.com/repos/jphacks/tkb_2615/issues/333/events",
+        "html_url": "https://github.com/jphacks/tkb_2615/pull/333",
+        "id": 6143707086,
+        "node_id": "PR_kwDOU3hqGM8AAAABMERe1Q",
+        "number": 333,
+        "title": "移動の規則を Rust へ移す（M4）",
+        "user": {
+          "login": "WaTeR-7",
+          "id": 128142265,
+          "node_id": "U_kgDOB6NLuQ",
+          "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/WaTeR-7",
+          "html_url": "https://github.com/WaTeR-7",
+          "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+          "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+          "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+          "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+          "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+          "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "labels": [],
+        "state": "closed",
+        "locked": false,
+        "assignees": [],
+        "milestone": null,
+        "comments": 0,
+        "created_at": "2026-11-01T05:41:03Z",
+        "updated_at": "2026-11-01T05:54:10Z",
+        "closed_at": "2026-11-01T05:54:08Z",
+        "assignee": null,
+        "author_association": "COLLABORATOR",
+        "issue_field_values": [],
+        "type": null,
+        "active_lock_reason": null,
+        "draft": false,
+        "repository": {
+          "id": 1400400408,
+          "node_id": "R_kgDOU3hqGA",
+          "name": "tkb_2615",
+          "full_name": "jphacks/tkb_2615",
+          "private": false,
+          "owner": {
+            "login": "jphacks",
+            "id": 10176253,
+            "node_id": "MDEyOk9yZ2FuaXphdGlvbjEwMTc2MjUz",
+            "avatar_url": "https://avatars.githubusercontent.com/u/10176253?v=4",
+            "gravatar_id": "",
+            "url": "https://api.github.com/users/jphacks",
+            "html_url": "https://github.com/jphacks",
+            "followers_url": "https://api.github.com/users/jphacks/followers",
+            "following_url": "https://api.github.com/users/jphacks/following{/other_user}",
+            "gists_url": "https://api.github.com/users/jphacks/gists{/gist_id}",
+            "starred_url": "https://api.github.com/users/jphacks/starred{/owner}{/repo}",
+            "subscriptions_url": "https://api.github.com/users/jphacks/subscriptions",
+            "organizations_url": "https://api.github.com/users/jphacks/orgs",
+            "repos_url": "https://api.github.com/users/jphacks/repos",
+            "events_url": "https://api.github.com/users/jphacks/events{/privacy}",
+            "received_events_url": "https://api.github.com/users/jphacks/received_events",
+            "type": "Organization",
+            "user_view_type": "public",
+            "site_admin": false
+          },
+          "html_url": "https://github.com/jphacks/tkb_2615",
+          "description": "避難者の行動・心理状態・感情伝播まで再現し、途中介入・A/B比較・AI分析を通じて、避難所運営の「もしも」を事前に検証できるシミュレーター",
+          "fork": false,
+          "url": "https://api.github.com/repos/jphacks/tkb_2615",
+          "forks_url": "https://api.github.com/repos/jphacks/tkb_2615/forks",
+          "keys_url": "https://api.github.com/repos/jphacks/tkb_2615/keys{/key_id}",
+          "collaborators_url": "https://api.github.com/repos/jphacks/tkb_2615/collaborators{/collaborator}",
+          "teams_url": "https://api.github.com/repos/jphacks/tkb_2615/teams",
+          "hooks_url": "https://api.github.com/repos/jphacks/tkb_2615/hooks",
+          "issue_events_url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events{/number}",
+          "events_url": "https://api.github.com/repos/jphacks/tkb_2615/events",
+          "assignees_url": "https://api.github.com/repos/jphacks/tkb_2615/assignees{/user}",
+          "branches_url": "https://api.github.com/repos/jphacks/tkb_2615/branches{/branch}",
+          "tags_url": "https://api.github.com/repos/jphacks/tkb_2615/tags",
+          "blobs_url": "https://api.github.com/repos/jphacks/tkb_2615/git/blobs{/sha}",
+          "git_tags_url": "https://api.github.com/repos/jphacks/tkb_2615/git/tags{/sha}",
+          "git_refs_url": "https://api.github.com/repos/jphacks/tkb_2615/git/refs{/sha}",
+          "trees_url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees{/sha}",
+          "statuses_url": "https://api.github.com/repos/jphacks/tkb_2615/statuses/{sha}",
+          "languages_url": "https://api.github.com/repos/jphacks/tkb_2615/languages",
+          "stargazers_url": "https://api.github.com/repos/jphacks/tkb_2615/stargazers",
+          "contributors_url": "https://api.github.com/repos/jphacks/tkb_2615/contributors",
+          "subscribers_url": "https://api.github.com/repos/jphacks/tkb_2615/subscribers",
+          "subscription_url": "https://api.github.com/repos/jphacks/tkb_2615/subscription",
+          "commits_url": "https://api.github.com/repos/jphacks/tkb_2615/commits{/sha}",
+          "git_commits_url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits{/sha}",
+          "comments_url": "https://api.github.com/repos/jphacks/tkb_2615/comments{/number}",
+          "issue_comment_url": "https://api.github.com/repos/jphacks/tkb_2615/issues/comments{/number}",
+          "contents_url": "https://api.github.com/repos/jphacks/tkb_2615/contents/{+path}",
+          "compare_url": "https://api.github.com/repos/jphacks/tkb_2615/compare/{base}...{head}",
+          "merges_url": "https://api.github.com/repos/jphacks/tkb_2615/merges",
+          "archive_url": "https://api.github.com/repos/jphacks/tkb_2615/{archive_format}{/ref}",
+          "downloads_url": "https://api.github.com/repos/jphacks/tkb_2615/downloads",
+          "issues_url": "https://api.github.com/repos/jphacks/tkb_2615/issues{/number}",
+          "pulls_url": "https://api.github.com/repos/jphacks/tkb_2615/pulls{/number}",
+          "milestones_url": "https://api.github.com/repos/jphacks/tkb_2615/milestones{/number}",
+          "notifications_url": "https://api.github.com/repos/jphacks/tkb_2615/notifications{?since,all,participating}",
+          "labels_url": "https://api.github.com/repos/jphacks/tkb_2615/labels{/name}",
+          "releases_url": "https://api.github.com/repos/jphacks/tkb_2615/releases{/id}",
+          "deployments_url": "https://api.github.com/repos/jphacks/tkb_2615/deployments",
+          "created_at": "2026-10-01T16:49:45Z",
+          "updated_at": "2026-10-30T15:34:58Z",
+          "pushed_at": "2026-11-02T18:36:17Z",
+          "git_url": "git://github.com/jphacks/tkb_2615.git",
+          "ssh_url": "git@github.com:jphacks/tkb_2615.git",
+          "clone_url": "https://github.com/jphacks/tkb_2615.git",
+          "svn_url": "https://github.com/jphacks/tkb_2615",
+          "homepage": "",
+          "size": 12247,
+          "stargazers_count": 0,
+          "watchers_count": 0,
+          "language": "Python",
+          "has_issues": true,
+          "has_projects": true,
+          "has_downloads": false,
+          "has_wiki": true,
+          "has_pages": false,
+          "has_discussions": false,
+          "forks_count": 0,
+          "mirror_url": null,
+          "archived": false,
+          "disabled": false,
+          "open_issues_count": 15,
+          "license": {
+            "key": "mit",
+            "name": "MIT License",
+            "spdx_id": "MIT",
+            "url": "https://api.github.com/licenses/mit",
+            "node_id": "MDc6TGljZW5zZTEz"
+          },
+          "allow_forking": true,
+          "is_template": false,
+          "web_commit_signoff_required": false,
+          "has_pull_requests": true,
+          "pull_request_creation_policy": "all",
+          "topics": [],
+          "visibility": "public",
+          "forks": 0,
+          "open_issues": 15,
+          "watchers": 0,
+          "default_branch": "main",
+          "permissions": {
+            "admin": true,
+            "maintain": true,
+            "push": true,
+            "triage": true,
+            "pull": true
+          }
+        },
+        "pull_request": {
+          "url": "https://api.github.com/repos/jphacks/tkb_2615/pulls/333",
+          "html_url": "https://github.com/jphacks/tkb_2615/pull/333",
+          "diff_url": "https://github.com/jphacks/tkb_2615/pull/333.diff",
+          "patch_url": "https://github.com/jphacks/tkb_2615/pull/333.patch",
+          "merged_at": "2026-11-01T05:54:08Z"
+        },
+        "body": "## 概要\n\nM4 のうち移動の規則を Rust へ移しました。結果は変わらず、tick は約 15% 速くなりました。\n\n詳細は `docs/rust-port/lanes/m4-movement.md` にあります。\n\n## 移した処理\n\n- `native/src/rules/movement.rs`：`advance_movement`、`start_movement`、`finish_movement`、`route_with_movement_time`、`route_is_physically_clear`、`plan_in_room_route`、`_queue_slot_position`、`facility_approach_route`、`movement_v1` の検証\n- `native/src/rules/movement_geometry.rs`：データとしての間取りと幾何\n\n順序に依存する枝は再現せず、拒否します。列の旅の引き直し（`_replan_physical_queue_trip` の4か所）と、歩く途中で列の枠に置く人がいる tick では、`advance_movement` は何も変えずに `Unsupported` を返し、その tick は全部 Python の規則が動きます。\n\n## 確認結果\n\n全テスト、ゲート、予算、シャドーは `045f78f`（`408ad51` の上）で実行しました。そのあとの変更はレーン文書と、#332 を含む `feature/rust-port` のマージです。\n\n| 確認 | 結果 |\n|---|---|\n| Rust ありのテスト | 3,517 件通過、6 件スキップ |\n| `SHELTERSIM_NATIVE=0` のテスト | 2,073 件通過、1,450 件スキップ |\n| ゲート（正順、`--reversed-order`、`SHELTERSIM_MOVEMENT_REVERSED=1`） | 各 55 シナリオ、問題 0 |\n| 7 日間のハッシュ（通常、シャドー） | world `69aba6590f6b`、events `5e4c7645ef7f`、KPI `94c8cbb26041` |\n| `rule_shadow` | ゲート・7 日間とも差 0 |\n| `ruff check`、`ruff format --check`、clippy | 通過 |\n\n#332 とのマージ後は、ゲート（55 シナリオ、問題 0）と 7 日間のハッシュを確認しました。全テストは CI で確認します。ミラーゲートは次のまとめ確認で実行します。`core/state_mirror.py` は変更していません。\n\nシャドーの比較数（ゲート / 7 日間）：`advance_movement` 618 万 / 682 万、`start_movement` 949 万 / 1,695 万、`finish_movement` 308 万 / 667 万。\n\nkernel の実行は、7 日間で全 kernel の拒否が 0 でした（`advance_movement` 10,080 / 10,080 など）。ゲートでは拒否が 3,274 件あります（`independent` FIFO の枠 1,897、測量済みのサービス地点 1,285、世界が別の移動の状態を持つ 92）。最後の 92 件はコピーと差し替えのシナリオと見ていますが、追跡はしていません。\n\n## 速度\n\n予算：比 **0.847**（0.846、0.855、0.847）、A/A 1.000（0.963、1.016、1.000）、ベース `408ad51`、状態は同一、負荷は約 20。\n\n| 部分（cProfile 下、µs/tick、#331 のマージ前） | ベース | レーン |\n|---|---:|---:|\n| tick 全体 | 9,236 | 6,378 |\n| `_update_movement` | 780 | 37 |\n| `facility_approach_route` | 292 | 55 |\n| `start_movement` | 222 | 37 |\n| `route_is_physically_clear` | 162 | 約 2 |\n| `route_with_movement_time` | 102 | 19 |\n| `finish_movement` | 82 | 11 |\n\n## 分かっている弱点\n\n- **シャドーの穴：** 1% の変更のうち、辺の進み、混雑時間、列の間隔はシャドーとハッシュで検出できましたが、既定の密度、既定の速さ 72、占有域の余裕、部屋の進み 1 未満、余裕 0.25 はシャドーで差 0、ハッシュも通りました。比較に使ったシナリオがこれらを通らないためです。テストを足し、密度、占有域の余裕、部屋の進み、余裕 0.25、既定の速さ 36 で失敗することを確認しました。速さ 72 そのものはテストで試していません。\n- 拒否する枝は、ゲートと 7 日間では通らず、テストでしか比較していません。\n- `SHELTERSIM_MOVEMENT_REVERSED=1` は Python の規則だけを逆順にします。kernel に順序がないことは、tick の開始時の行から計画するという設計によるもので、逆順で実行してはいません。この枝は手順 4 の並列化の障害として残ります。\n- 値が変わらない記録は差し替えなくなり、復元した記録は次に書かれるまで JSON のキー順を保ちます。tick をまたいで記録を持つコードは検索で見つかりませんでしたが、検索しただけです。\n- `Geo` の計画キャッシュは、行の外のプロセス共通のリストに、最大 8 件の Python ハンドルを持ちます。\n- Linux 以外は CI に任せます。新しい C API は `PyDict_DelItem`（stable ABI）だけです。\n\n## 残り\n\n`domain/movement.py` に残る Python は tick の約 2%（約 140 µs/tick、呼ぶ kernel を含む）です。`progress_physical_queue_positions`、`progress_physical_queue_head_to_service`、`shared_passage_edge_loads`、`physical_service_capacity`、イベントを割り当てる `_schedule_queue_trip` と `_replan_physical_queue_trip`、`independent` FIFO の枠、測量済みのサービス地点の経路などです。\n\n## モデル担当の確認事項\n\n式と値は変えていません。対応表はレーン文書にあります。Rust にも持つようになった係数は次のとおりです。\n\n- 速さの既定値 72 / 36 / 48 m/分（自立 / 介助 / 車いす）\n- 混雑：減速 0.12、上限 2.5、密度 0.5 から、基準 1.0、最小 1 分\n- 歩行の余裕 0.25 / 0.4 / 0.45、経路の節点で +0.05\n- 列の間隔 0.6 / 0.9 / 1.0、64 周の探索、側 0, 1, -1, 2, -2\n- 占有域の余裕 0.30 / 0.45 / 0.50\n- 許容差と上限：1e-8、1e-9、1e-10、1e-12、1e-18、マイター上限 20.0、8 桁への丸め、凹形の中心のずらし 1e-7、1e-5、1e-3、1e-2、経路のメモ上限 4096\n- Rust だけの新しい条件：1e100 を超える座標は Python へ回します（`Point2D` がエラーにする場合のオーバーフローを避けるため）\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+        "reactions": {
+          "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/333/reactions",
+          "total_count": 0,
+          "+1": 0,
+          "-1": 0,
+          "laugh": 0,
+          "hooray": 0,
+          "confused": 0,
+          "heart": 0,
+          "rocket": 0,
+          "eyes": 0
+        },
+        "timeline_url": "https://api.github.com/repos/jphacks/tkb_2615/issues/333/timeline",
+        "performed_via_github_app": null,
+        "state_reason": null
+      }
+    },
+    "event": "cross-referenced"
+  },
+  {
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "created_at": "2026-11-01T09:43:45Z",
+    "updated_at": "2026-11-01T09:43:45Z",
+    "source": {
+      "type": "issue",
+      "issue": {
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/335",
+        "repository_url": "https://api.github.com/repos/jphacks/tkb_2615",
+        "labels_url": "https://api.github.com/repos/jphacks/tkb_2615/issues/335/labels{/name}",
+        "comments_url": "https://api.github.com/repos/jphacks/tkb_2615/issues/335/comments",
+        "events_url": "https://api.github.com/repos/jphacks/tkb_2615/issues/335/events",
+        "html_url": "https://github.com/jphacks/tkb_2615/pull/335",
+        "id": 6145021537,
+        "node_id": "PR_kwDOU3hqGM8AAAABMFS0kA",
+        "number": 335,
+        "title": "資源の台帳を Rust の行で持つ（M4）",
+        "user": {
+          "login": "WaTeR-7",
+          "id": 128142265,
+          "node_id": "U_kgDOB6NLuQ",
+          "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+          "gravatar_id": "",
+          "url": "https://api.github.com/users/WaTeR-7",
+          "html_url": "https://github.com/WaTeR-7",
+          "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+          "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+          "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+          "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+          "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+          "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+          "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+          "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+          "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+          "type": "User",
+          "user_view_type": "public",
+          "site_admin": false
+        },
+        "labels": [],
+        "state": "closed",
+        "locked": false,
+        "assignees": [],
+        "milestone": null,
+        "comments": 0,
+        "created_at": "2026-11-01T09:43:44Z",
+        "updated_at": "2026-11-01T09:59:30Z",
+        "closed_at": "2026-11-01T09:59:30Z",
+        "assignee": null,
+        "author_association": "COLLABORATOR",
+        "issue_field_values": [],
+        "type": null,
+        "active_lock_reason": null,
+        "draft": false,
+        "repository": {
+          "id": 1400400408,
+          "node_id": "R_kgDOU3hqGA",
+          "name": "tkb_2615",
+          "full_name": "jphacks/tkb_2615",
+          "private": false,
+          "owner": {
+            "login": "jphacks",
+            "id": 10176253,
+            "node_id": "MDEyOk9yZ2FuaXphdGlvbjEwMTc2MjUz",
+            "avatar_url": "https://avatars.githubusercontent.com/u/10176253?v=4",
+            "gravatar_id": "",
+            "url": "https://api.github.com/users/jphacks",
+            "html_url": "https://github.com/jphacks",
+            "followers_url": "https://api.github.com/users/jphacks/followers",
+            "following_url": "https://api.github.com/users/jphacks/following{/other_user}",
+            "gists_url": "https://api.github.com/users/jphacks/gists{/gist_id}",
+            "starred_url": "https://api.github.com/users/jphacks/starred{/owner}{/repo}",
+            "subscriptions_url": "https://api.github.com/users/jphacks/subscriptions",
+            "organizations_url": "https://api.github.com/users/jphacks/orgs",
+            "repos_url": "https://api.github.com/users/jphacks/repos",
+            "events_url": "https://api.github.com/users/jphacks/events{/privacy}",
+            "received_events_url": "https://api.github.com/users/jphacks/received_events",
+            "type": "Organization",
+            "user_view_type": "public",
+            "site_admin": false
+          },
+          "html_url": "https://github.com/jphacks/tkb_2615",
+          "description": "避難者の行動・心理状態・感情伝播まで再現し、途中介入・A/B比較・AI分析を通じて、避難所運営の「もしも」を事前に検証できるシミュレーター",
+          "fork": false,
+          "url": "https://api.github.com/repos/jphacks/tkb_2615",
+          "forks_url": "https://api.github.com/repos/jphacks/tkb_2615/forks",
+          "keys_url": "https://api.github.com/repos/jphacks/tkb_2615/keys{/key_id}",
+          "collaborators_url": "https://api.github.com/repos/jphacks/tkb_2615/collaborators{/collaborator}",
+          "teams_url": "https://api.github.com/repos/jphacks/tkb_2615/teams",
+          "hooks_url": "https://api.github.com/repos/jphacks/tkb_2615/hooks",
+          "issue_events_url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events{/number}",
+          "events_url": "https://api.github.com/repos/jphacks/tkb_2615/events",
+          "assignees_url": "https://api.github.com/repos/jphacks/tkb_2615/assignees{/user}",
+          "branches_url": "https://api.github.com/repos/jphacks/tkb_2615/branches{/branch}",
+          "tags_url": "https://api.github.com/repos/jphacks/tkb_2615/tags",
+          "blobs_url": "https://api.github.com/repos/jphacks/tkb_2615/git/blobs{/sha}",
+          "git_tags_url": "https://api.github.com/repos/jphacks/tkb_2615/git/tags{/sha}",
+          "git_refs_url": "https://api.github.com/repos/jphacks/tkb_2615/git/refs{/sha}",
+          "trees_url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees{/sha}",
+          "statuses_url": "https://api.github.com/repos/jphacks/tkb_2615/statuses/{sha}",
+          "languages_url": "https://api.github.com/repos/jphacks/tkb_2615/languages",
+          "stargazers_url": "https://api.github.com/repos/jphacks/tkb_2615/stargazers",
+          "contributors_url": "https://api.github.com/repos/jphacks/tkb_2615/contributors",
+          "subscribers_url": "https://api.github.com/repos/jphacks/tkb_2615/subscribers",
+          "subscription_url": "https://api.github.com/repos/jphacks/tkb_2615/subscription",
+          "commits_url": "https://api.github.com/repos/jphacks/tkb_2615/commits{/sha}",
+          "git_commits_url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits{/sha}",
+          "comments_url": "https://api.github.com/repos/jphacks/tkb_2615/comments{/number}",
+          "issue_comment_url": "https://api.github.com/repos/jphacks/tkb_2615/issues/comments{/number}",
+          "contents_url": "https://api.github.com/repos/jphacks/tkb_2615/contents/{+path}",
+          "compare_url": "https://api.github.com/repos/jphacks/tkb_2615/compare/{base}...{head}",
+          "merges_url": "https://api.github.com/repos/jphacks/tkb_2615/merges",
+          "archive_url": "https://api.github.com/repos/jphacks/tkb_2615/{archive_format}{/ref}",
+          "downloads_url": "https://api.github.com/repos/jphacks/tkb_2615/downloads",
+          "issues_url": "https://api.github.com/repos/jphacks/tkb_2615/issues{/number}",
+          "pulls_url": "https://api.github.com/repos/jphacks/tkb_2615/pulls{/number}",
+          "milestones_url": "https://api.github.com/repos/jphacks/tkb_2615/milestones{/number}",
+          "notifications_url": "https://api.github.com/repos/jphacks/tkb_2615/notifications{?since,all,participating}",
+          "labels_url": "https://api.github.com/repos/jphacks/tkb_2615/labels{/name}",
+          "releases_url": "https://api.github.com/repos/jphacks/tkb_2615/releases{/id}",
+          "deployments_url": "https://api.github.com/repos/jphacks/tkb_2615/deployments",
+          "created_at": "2026-10-01T16:49:45Z",
+          "updated_at": "2026-10-30T15:34:58Z",
+          "pushed_at": "2026-11-02T18:36:17Z",
+          "git_url": "git://github.com/jphacks/tkb_2615.git",
+          "ssh_url": "git@github.com:jphacks/tkb_2615.git",
+          "clone_url": "https://github.com/jphacks/tkb_2615.git",
+          "svn_url": "https://github.com/jphacks/tkb_2615",
+          "homepage": "",
+          "size": 12247,
+          "stargazers_count": 0,
+          "watchers_count": 0,
+          "language": "Python",
+          "has_issues": true,
+          "has_projects": true,
+          "has_downloads": false,
+          "has_wiki": true,
+          "has_pages": false,
+          "has_discussions": false,
+          "forks_count": 0,
+          "mirror_url": null,
+          "archived": false,
+          "disabled": false,
+          "open_issues_count": 15,
+          "license": {
+            "key": "mit",
+            "name": "MIT License",
+            "spdx_id": "MIT",
+            "url": "https://api.github.com/licenses/mit",
+            "node_id": "MDc6TGljZW5zZTEz"
+          },
+          "allow_forking": true,
+          "is_template": false,
+          "web_commit_signoff_required": false,
+          "has_pull_requests": true,
+          "pull_request_creation_policy": "all",
+          "topics": [],
+          "visibility": "public",
+          "forks": 0,
+          "open_issues": 15,
+          "watchers": 0,
+          "default_branch": "main",
+          "permissions": {
+            "admin": true,
+            "maintain": true,
+            "push": true,
+            "triage": true,
+            "pull": true
+          }
+        },
+        "pull_request": {
+          "url": "https://api.github.com/repos/jphacks/tkb_2615/pulls/335",
+          "html_url": "https://github.com/jphacks/tkb_2615/pull/335",
+          "diff_url": "https://github.com/jphacks/tkb_2615/pull/335.diff",
+          "patch_url": "https://github.com/jphacks/tkb_2615/pull/335.patch",
+          "merged_at": "2026-11-01T09:59:30Z"
+        },
+        "body": "## 概要\n\n資源の台帳 `resource_ledger_v1` を Rust の行で持つようにしました。在庫の操作はその場で書くので、名前空間を丸ごと置き換える処理は tick からなくなりました。結果は変わりません。\n\n`resource_service.py` と `care_receipts.py` の規則は Python に残しています。\n\n詳細は `docs/rust-port/lanes/m4-resources.md` にあります。\n\n## 移した処理\n\n- 行：`native/src/state/resource_ledger.rs`。口座は型付きで、監査記録は1件ごとの正準バイト列です。資源ごとの最新の記録だけ型付きで持ちます。\n- kernel：`native/src/rules/resources.rs` の `apply_operation`、`metric_values`、`reservation_id_was_used`。毎 tick の検証 `validate` は行のファイルにあります。\n- 保存時の監査の再生は Python のままです。`core/world.py` が Python の検査を省くのは tick の経路だけです。\n\n## Python に残した処理\n\n| 処理 | 理由 |\n|---|---|\n| `arbitrate` | 大半が列の処理で、このレーンの開始時には未移植でした。#333、#334 で移せるようになりました |\n| `complete`、`request` | 各 tick の約 0.5%。`arbitrate` と一緒に移します |\n| `resource_service_v1` | 使う kernel がなく、持つと転送の費用だけ増えます |\n| `care_receipt_for_request` | 1 回約 1 µs で、kernel 呼び出しのほうが高くつきます |\n| ほかのケアの受領 | 費用は pydantic と `record_shared_operation` で、`common_operations` と一緒に移します |\n| 保存時の再生、`care_history_by_agent`、エラー文 | tick の経路の外、または手順 4 の対象 |\n\n## 確認結果\n\n全テストはレーンの最終版で実行しました。シャドー、予算、感度の実行は Rust が同じ以前の commit です。`feature/rust-port`（#332〜#334）とのマージ後は、ビルド、clippy、ゲート、関連テスト 166 件、7 日間のハッシュを確認しました。全テストは CI で確認します。\n\n| 確認 | 結果 |\n|---|---|\n| Rust ありのテスト | 3,475 件通過、6 件スキップ |\n| `SHELTERSIM_NATIVE=0` のテスト | 2,047 件通過、1,434 件スキップ |\n| ゲート（マージ後、`--reversed-order` とシャドーはマージ前） | 各 55 シナリオ、問題 0、差 0 |\n| 7 日間のハッシュ | world `69aba6590f6b`、events `5e4c7645ef7f`、KPI `94c8cbb26041` |\n| `ruff check`、`ruff format --check`、clippy | 通過 |\n\nミラーゲートは次のまとめ確認で実行します。`core/state_mirror.py` の変更は登録の2行だけです。\n\n| kernel | ゲート（実行 / 拒否） | 7 日間（実行 / 拒否） |\n|---|---:|---:|\n| `apply` | 4,075 / 0 | 8,024 / 0 |\n| `metric` | 31,757 / 0 | 10,417 / 0 |\n| `used` | 14,501 / 0 | 16,201 / 0 |\n| `validate`（受理 / 拒否） | 29,210 / 0 | 10,080 / 0 |\n\nシャドーの比較値は、ゲート 695 万、7 日間 5.96 億で、差は 0 です。\n\n## 速度\n\n予算：比 **0.963**（0.963、1.023、0.877）、A/A 1.020（1.038、1.010、1.020）、負荷 25–46、状態は同一です。揺れの範囲内なので、tick 全体が速くなったとは言えません。\n\n| 部品（7 日間 1 組、計測の費用を含む） | ベース（秒） | レーン（秒） |\n|---|---:|---:|\n| `apply_resource_operation`（8,024 回） | 2.71 | 0.24 |\n| `validate_resource_ledger_state`（36,545 回） | 2.89 | 呼ばれない |\n| `resource_metric_values` | 1.25 | 0.13 |\n| `_reservation_id_is_in_use` | 1.72 | 0.21 |\n| 保存時の再生 `validate_resource_ledger` | 0.75 | 0.87（やや悪化） |\n\n## 分かっている弱点\n\n- **7 日間のシャドーは台帳のものだけです。** 全シャドーの実行は、制限の 7,000 秒に分 9,570 で達して結果が残りませんでした。ゲートでは全シャドーを動かしました。\n- **持ち続けた参照の動きが変わります。** `world.model_state[KEY]` を持ち続けると、これまでは古い値のままでしたが、今後は以後の操作が見えます。`src/` にそのような使い方はありませんでした（目視で、網羅的な走査ではありません）。\n- **操作後の検査は kernel で省いています。** 前の検査から導けるという論証によるもので、kernel では実行しません。ランダムな操作列のテストと全シャドーの操作で裏づけています。\n- ハッシュは監査のバイト列だけの変化を検出しません（シャドーは検出します）。`validate` の最新の記録の比較は、ゲートが正しい状態しか作らないため見えず、テスト 2 件で検出します。\n- 7 日間の `release` と `loss`、`reservation_id_was_used` が `True` を返す場合、拒否の経路は、主にテストだけで確かめています（ゲートは `release` と `loss` を各 1 回通ります）。\n- `dict.__setitem__` が木の節点に直接書くと行に届きません。T のレーンと同じ既知の穴です。\n- RSS は測っていません。監査の記録 1 件につき行が約 400 バイト増えます。\n- 既存のテスト 2 件（`test_resources.py`）は Python の規則の置き換えとメモを書いていたので、Python の規則を直接呼ぶように変えました。\n- Linux 以外は CI に任せます。新しい C API はありません（`PyDict_DelItem` は #333 で入っています）。\n- マージで、#333 と同じ処理の関数ができていたので `NamespaceMirror::remove_through` に統一しました。木にパスがないときのエラーは `Unsupported` から `RuntimeError` に変わります。行を書いた後に Python の規則へ戻ると二重に実行されるためです。\n\n## モデル担当の確認事項\n\n係数と小数の計算は移していません。Rust に移った会計の規則は `apply_resource_operation`、`resource_metric_values`、`validate_resource_ledger_state` です。サービスの量と `hydration_relief`、`hunger_relief` は Python に残っています。\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n",
+        "reactions": {
+          "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/335/reactions",
+          "total_count": 0,
+          "+1": 0,
+          "-1": 0,
+          "laugh": 0,
+          "hooray": 0,
+          "confused": 0,
+          "heart": 0,
+          "rocket": 0,
+          "eyes": 0
+        },
+        "timeline_url": "https://api.github.com/repos/jphacks/tkb_2615/issues/335/timeline",
+        "performed_via_github_app": null,
+        "state_reason": null
+      }
+    },
+    "event": "cross-referenced"
+  }
+]
+

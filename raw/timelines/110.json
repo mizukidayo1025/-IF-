@@ -1,0 +1,170 @@
+[
+  {
+    "sha": "ec0a56e23364597afee079a3226c2aeda826be41",
+    "node_id": "C_kwDOU3hqGNoAKGVjMGE1NmUyMzM2NDU5N2FmZWUwNzlhMzIyNmMyYWVkYTgyNmJlNDE",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ec0a56e23364597afee079a3226c2aeda826be41",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/ec0a56e23364597afee079a3226c2aeda826be41",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:31:57Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:31:57Z"
+    },
+    "tree": {
+      "sha": "67df4b3fa87c7193f0caaf833ca34b6f09d0ea06",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/67df4b3fa87c7193f0caaf833ca34b6f09d0ea06"
+    },
+    "message": "Move test_household_correction.py under tests/unit/web\n\nOnly the file move, named after the module whose route it tests\n(web/workspace.py), so its history stays traceable. The next commit\nbuilds its drafts through the Project screen's preview instead of a\nseed-42 InitialScenarioBuilder draft (#88).\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "ac4a1e8334a1dac6188b7d78e8de760671ed77c3",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ac4a1e8334a1dac6188b7d78e8de760671ed77c3",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/ac4a1e8334a1dac6188b7d78e8de760671ed77c3"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "sha": "5daf2137b92dfe3807516185ad94e0f2cad5d40d",
+    "node_id": "C_kwDOU3hqGNoAKDVkYWYyMTM3YjkyZGZlMzgwNzUxNjE4NWFkOTRlMGYyY2FkNWQ0MGQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/5daf2137b92dfe3807516185ad94e0f2cad5d40d",
+    "html_url": "https://github.com/jphacks/tkb_2615/commit/5daf2137b92dfe3807516185ad94e0f2cad5d40d",
+    "author": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:35:55Z"
+    },
+    "committer": {
+      "name": "water7",
+      "email": "m_tomoki_0724@outlook.jp",
+      "date": "2026-10-27T10:35:55Z"
+    },
+    "tree": {
+      "sha": "00ff59c4b27faea2d3928c98376a4c435d5433f7",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/git/trees/00ff59c4b27faea2d3928c98376a4c435d5433f7"
+    },
+    "message": "Correct generated households through the Project screen's preview\n\nThe household correction tests built a seed-42 draft with\nInitialScenarioBuilder, injected it into the preview cache and pinned\nthe generated people (A005 aged 6, H000002, A002, three minors). They\nnow create the draft through the same Scenario preview route the\nscreen uses and find a correctable minor, their household and a\npossible parent in it (#88).\n\nOne test needs every minor to be correctable, which the shared seed\ndoes not give, so it keeps passing seed 0 at 10 people, now through the\npreview. The legacy-cache test still injects its preview on purpose.\n\ntests/conftest.py gains ui_project_api, the Project screen's API kept\nopen for one test, and generated_request; the shared previews are\nbuilt with the same helper.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>",
+    "parents": [
+      {
+        "sha": "ec0a56e23364597afee079a3226c2aeda826be41",
+        "url": "https://api.github.com/repos/jphacks/tkb_2615/git/commits/ec0a56e23364597afee079a3226c2aeda826be41",
+        "html_url": "https://github.com/jphacks/tkb_2615/commit/ec0a56e23364597afee079a3226c2aeda826be41"
+      }
+    ],
+    "verification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "event": "committed"
+  },
+  {
+    "id": 34355767834,
+    "node_id": "ME_lADOU3hqGM8AAAABaQ4GZ88AAAAH_8NqGg",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34355767834",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "merged",
+    "commit_id": "10bcaba38511eeb7cccf4d34c11550d8a811e1c2",
+    "commit_url": "https://api.github.com/repos/jphacks/tkb_2615/commits/10bcaba38511eeb7cccf4d34c11550d8a811e1c2",
+    "created_at": "2026-10-27T10:39:07Z",
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34355767979,
+    "node_id": "CE_lADOU3hqGM8AAAABaQ4GZ88AAAAH_8Nqqw",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34355767979",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "closed",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T10:39:07Z",
+    "state_reason": null,
+    "intent": null,
+    "performed_via_github_app": null
+  },
+  {
+    "id": 34355772521,
+    "node_id": "HRDE_lADOU3hqGM8AAAABaQ4GZ88AAAAH_8N8aQ",
+    "url": "https://api.github.com/repos/jphacks/tkb_2615/issues/events/34355772521",
+    "actor": {
+      "login": "WaTeR-7",
+      "id": 128142265,
+      "node_id": "U_kgDOB6NLuQ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/128142265?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/WaTeR-7",
+      "html_url": "https://github.com/WaTeR-7",
+      "followers_url": "https://api.github.com/users/WaTeR-7/followers",
+      "following_url": "https://api.github.com/users/WaTeR-7/following{/other_user}",
+      "gists_url": "https://api.github.com/users/WaTeR-7/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/WaTeR-7/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/WaTeR-7/subscriptions",
+      "organizations_url": "https://api.github.com/users/WaTeR-7/orgs",
+      "repos_url": "https://api.github.com/users/WaTeR-7/repos",
+      "events_url": "https://api.github.com/users/WaTeR-7/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/WaTeR-7/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "event": "head_ref_deleted",
+    "commit_id": null,
+    "commit_url": null,
+    "created_at": "2026-10-27T10:39:10Z",
+    "performed_via_github_app": null
+  }
+]
+

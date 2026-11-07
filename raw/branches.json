@@ -1,0 +1,67 @@
+[
+  {
+    "name": "feat/core-model-scientific-validation",
+    "commit": {
+      "sha": "cefc2a9c6d9501bdd8cc2cf9fc1d07f40112d56a",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/commits/cefc2a9c6d9501bdd8cc2cf9fc1d07f40112d56a"
+    },
+    "protected": false
+  },
+  {
+    "name": "feat/research-based-mathematical-models",
+    "commit": {
+      "sha": "8132cf7899a96f0ef5932dfe65357f1c8d3592d8",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/commits/8132cf7899a96f0ef5932dfe65357f1c8d3592d8"
+    },
+    "protected": false
+  },
+  {
+    "name": "feature/pdf-report-export",
+    "commit": {
+      "sha": "6c6aa453f93c84198366cf88ec7e02c1ad391b4e",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/commits/6c6aa453f93c84198366cf88ec7e02c1ad391b4e"
+    },
+    "protected": false
+  },
+  {
+    "name": "feature/rust-port",
+    "commit": {
+      "sha": "729756f779c589ca97a3fad0b70ff26295313711",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/commits/729756f779c589ca97a3fad0b70ff26295313711"
+    },
+    "protected": false
+  },
+  {
+    "name": "feature/ui",
+    "commit": {
+      "sha": "f39972b03190d88f86c0a7f874e54e608c96175d",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/commits/f39972b03190d88f86c0a7f874e54e608c96175d"
+    },
+    "protected": false
+  },
+  {
+    "name": "feature/ui-backup-20261025",
+    "commit": {
+      "sha": "9211f270fdfe1cc265e40a99397821ec49a6a934",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/commits/9211f270fdfe1cc265e40a99397821ec49a6a934"
+    },
+    "protected": false
+  },
+  {
+    "name": "investigate/chronic-high-distress",
+    "commit": {
+      "sha": "aaa2dc2f4eb42992eaa538c4edcf3123c6c1e827",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/commits/aaa2dc2f4eb42992eaa538c4edcf3123c6c1e827"
+    },
+    "protected": false
+  },
+  {
+    "name": "main",
+    "commit": {
+      "sha": "32a28b4e7360e414d688680b7c711aa82b0385c1",
+      "url": "https://api.github.com/repos/jphacks/tkb_2615/commits/32a28b4e7360e414d688680b7c711aa82b0385c1"
+    },
+    "protected": false
+  }
+]
+
