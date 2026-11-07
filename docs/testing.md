@@ -25,7 +25,7 @@ ruff format --check .
 
 - `-n auto`（pytest-xdist）で並列に実行します。`pyproject.toml`の`--dist worksteal`で、手の空いたworkerが残りのテストを引き取ります。
 - `long_simulation`の印は、7日間のsimulationを実行するテストと、1件で30秒以上（直列）かかるテストに付けます。`tests/conftest.py`の`pytest_collection_modifyitems`が、並列のときにこれらを各workerの塊の先頭に1本ずつ置くので、長いテストは最初から並んで走ります。
-- 開発中は`-m "not long_simulation"`で長いテストを除けます。印のない`pytest`は全件を実行します。`オフラインCI`（`.github/workflows/ci.yml`）は、mainへのPull Requestごとに自動で、または手動で、Linux・Windows・macOSの3つでRustのkernelを作って導入し、長いテストを除いた全件を`-n auto`で実行します。3つのOSで動くことを確かめるためです（#48）。Linuxだけの確認（kernelなしのテスト、全経路のハッシュ、lint・format・clippy）は、待ち時間が延びないよう、それぞれ別のjobとして並べて動かします。手動実行の`長時間simulation回帰`（`.github/workflows/long-regression.yml`）の`long`は、長いテストだけをLinuxで実行します。
+- 開発中は`-m "not long_simulation"`で長いテストを除けます。印のない`pytest`は全件を実行します。`オフラインCI`（`.github/workflows/ci.yml`）は、mainへのPull Requestごとに自動で、または手動で、Linux・Windows・macOSの3つでRustのkernelを作って導入し、長いテストを除いた全件を`-n auto`で実行します。3つのOSで動くことを確かめるためです（#48）。Linuxだけの確認（kernelなしのテスト、全経路のハッシュ、lint・format・clippy）は、待ち時間が延びないよう、それぞれ別のjobとして並べて動かします。手動実行の`長時間simulation回帰`（`.github/workflows/long-regression.yml`）の`long`は、長いテストだけをLinuxで実行します。`オフラインCI`と同じく、Rustのkernelを作って導入してから実行します。
 
 ### 結果の残り方と見方
 
