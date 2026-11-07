@@ -1,0 +1,3 @@
+# The preset dictionaries of the history index are pinned by their SHA-256 (#80):
+# never convert or diff them as text.
+*.zdict binary
