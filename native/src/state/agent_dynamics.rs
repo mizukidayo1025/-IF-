@@ -1,15 +1,15 @@
 //! `agent_dynamics_v1`: each agent's decision memory and known facilities. The rules that write and
-//! read it are `rules/agent_dynamics.rs`; `domain/agent_dynamics.py` stays the comparison base and
-//! gives every error text (docs/rust-port/lanes/f-action-lifecycle.md).
+//! read it are `rules/agent_dynamics.rs`; `domain/agent_dynamics.py` keeps the validation of a saved
+//! namespace (docs/rust-port/lanes/f-action-lifecycle.md).
 
 use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
 
-use crate::core::row::{
-    attribute, exact_dict, exact_int, exact_str, load_row, namespace_is_absent, state_row, unsupported, IdMap,
-};
+use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
+
+use crate::core::row::{attribute, exact_dict, load_row, namespace_is_absent, state_row, unsupported, IdMap};
 use crate::core::world_core::{mirror_of, NamespaceMirror, RowType};
 use crate::state::entities::{entities_of, EntityStore, FacilityRow, Table};
 
@@ -58,43 +58,99 @@ fn has_no_repeats(ids: &[Arc<str>]) -> bool {
     ordered.windows(2).all(|pair| pair[0] != pair[1])
 }
 
-/// `canonical_agent_dynamics_config(raw)["policy_version"]`; Unsupported where the Python rule
-/// raises, or takes a value of another type, such as `schema_version: 1.0`.
-pub(crate) fn canonical_policy(raw: Option<&Bound<'_, PyAny>>) -> PyResult<&'static str> {
+/// The texts of `canonical_agent_dynamics_config`'s ValueError, in its order of checks.
+pub(crate) const UNSUPPORTED_FIELDS: &str = "agent_dynamics config has unsupported fields";
+pub(crate) const UNSUPPORTED_VERSION: &str = "agent_dynamics config has an unsupported version";
+pub(crate) const V1_SOURCE: &str = "agent_dynamics v1 has no orientation source";
+pub(crate) const MUST_CITE: &str = "agent_dynamics v2/v3 must cite the intake orientation assumption";
+
+/// `value == 1` of Python for a config's schema, or Unsupported for a type whose `==` this can't
+/// tell (a subclass, any other object).
+fn equals_one(value: &Bound<'_, PyAny>) -> PyResult<bool> {
+    if value.is_exact_instance_of::<PyBool>() {
+        return value.is_truthy();
+    }
+    if let Ok(number) = value.downcast_exact::<PyInt>() {
+        return Ok(number.extract::<i64>().is_ok_and(|number| number == 1));
+    }
+    if let Ok(number) = value.downcast_exact::<PyFloat>() {
+        return Ok(number.value() == 1.0);
+    }
+    if value.is_none()
+        || value.is_exact_instance_of::<PyString>()
+        || value.is_exact_instance_of::<PyList>()
+        || value.is_exact_instance_of::<PyDict>()
+    {
+        return Ok(false);
+    }
+    unsupported("a schema of another type")
+}
+
+/// `canonical_agent_dynamics_config(raw)["policy_version"]`, or the text of the ValueError it
+/// raises. Unsupported for what Python would decide by a subclass's `==`, or raise TypeError for (an
+/// unhashable policy).
+pub(crate) fn canonical_policy_or_text(raw: Option<&Bound<'_, PyAny>>) -> PyResult<Result<&'static str, &'static str>> {
     let Some(raw) = raw.filter(|raw| !raw.is_none()) else {
-        return Ok(POLICY_V1);
+        return Ok(Ok(POLICY_V1));
     };
     let py = raw.py();
+    if !raw.is_instance_of::<PyDict>() {
+        return Ok(Err(UNSUPPORTED_FIELDS));
+    }
     let raw = exact_dict(raw)?;
     for (key, _) in raw.iter() {
-        if !matches!(exact_str(&key)?, "schema_version" | "policy_version" | "source_id") {
-            return unsupported("the config has other fields");
+        match key.downcast_exact::<PyString>() {
+            Ok(key) => {
+                if !matches!(key.to_str()?, "schema_version" | "policy_version" | "source_id") {
+                    return Ok(Err(UNSUPPORTED_FIELDS));
+                }
+            }
+            Err(_) if key.is_instance_of::<PyString>() => return unsupported("a key is a str of another class"),
+            Err(_) => return Ok(Err(UNSUPPORTED_FIELDS)),
         }
     }
     if let Some(schema) = raw.get_item(intern!(py, "schema_version"))? {
-        if exact_int(&schema)? != 1 {
-            return unsupported("another schema");
+        if !equals_one(&schema)? {
+            return Ok(Err(UNSUPPORTED_VERSION));
         }
     }
     let policy = match raw.get_item(intern!(py, "policy_version"))? {
-        Some(version) => match exact_str(&version)? {
-            POLICY_V1 => POLICY_V1,
-            POLICY_V2 => POLICY_V2,
-            POLICY_V3 => POLICY_V3,
-            _ => return unsupported("another policy"),
-        },
         None => POLICY_V1,
+        Some(version) => match version.downcast_exact::<PyString>() {
+            Ok(version) => match version.to_str()? {
+                POLICY_V1 => POLICY_V1,
+                POLICY_V2 => POLICY_V2,
+                POLICY_V3 => POLICY_V3,
+                _ => return Ok(Err(UNSUPPORTED_VERSION)),
+            },
+            Err(_) if version.is_instance_of::<PyString>() => return unsupported("a policy is a str of another class"),
+            // `in` a set hashes it: an int, a float, None or a bool is not one of the three.
+            Err(_) if version.hash().is_ok() => return Ok(Err(UNSUPPORTED_VERSION)),
+            Err(_) => return unsupported("an unhashable policy"),
+        },
     };
     let source = raw.get_item(intern!(py, "source_id"))?;
-    match (policy, source) {
-        (POLICY_V1, Some(_)) => return unsupported("v1 has no orientation source"),
-        (POLICY_V1, None) => {}
-        (_, Some(source)) if exact_str(&source)? != ORIENTATION_SOURCE => {
-            return unsupported("another orientation source");
-        }
-        _ => {}
+    if policy == POLICY_V1 {
+        return Ok(if source.is_some() { Err(V1_SOURCE) } else { Ok(POLICY_V1) });
     }
-    Ok(policy)
+    match source {
+        None => Ok(Ok(policy)),
+        Some(source) => match source.downcast_exact::<PyString>() {
+            Ok(source) if source.to_str()? == ORIENTATION_SOURCE => Ok(Ok(policy)),
+            Ok(_) => Ok(Err(MUST_CITE)),
+            Err(_) if source.is_instance_of::<PyString>() => unsupported("a source is a str of another class"),
+            Err(_) => Ok(Err(MUST_CITE)),
+        },
+    }
+}
+
+/// `canonical_agent_dynamics_config(raw)["policy_version"]` for a rule that reads it: Unsupported
+/// where the Python rule raises. A Scenario's config was checked, with its text, when it was loaded.
+pub(crate) fn canonical_policy(raw: Option<&Bound<'_, PyAny>>) -> PyResult<&'static str> {
+    match canonical_policy_or_text(raw)? {
+        Ok(policy) => Ok(policy),
+        Err(_) => unsupported("a config the Python rule refuses"),
+    }
 }
 
 /// The policy `world.model_configs` selects.

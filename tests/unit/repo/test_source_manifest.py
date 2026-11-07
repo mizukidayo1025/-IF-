@@ -2,7 +2,8 @@
 
 AGENTS.md asks that a new coefficient is registered in the source manifest. This
 test finds the assumption (ASM-) and source (SRC-) IDs written as fixed strings
-in src/ and fails when one is neither in the manifest nor a known gap below.
+in src/ and in the string literals of native/src/ (the kernels that write provenance) and fails
+when one is neither in the manifest nor a known gap below.
 IDs built at runtime (SRC-PLAN-<digest>, ASM-POLICY-OVERRIDE-<hash>) and
 prefixes passed to str.startswith are not IDs and are skipped.
 """
@@ -18,6 +19,8 @@ from support.paths import SOURCE_MANIFEST
 
 ROOT = Path(__file__).parents[3]
 EVIDENCE_ID = re.compile(r"\b(?:ASM|SRC)-[A-Z0-9]+(?:-[A-Z0-9]+)*(?![-A-Z0-9])")
+# A Rust string literal, with its escapes: the IDs of comments are not cited.
+RUST_STRING = re.compile(r'"(?:[^"\\]|\\.)*"')
 
 # Gaps found on 2026-10-27 (#61). Remove an ID once the manifest records it.
 # What to record for an assumption is the model owner's decision, so never add
@@ -140,12 +143,20 @@ def _ids_in_python(text: str) -> set[str]:
     }
 
 
+def _ids_in_rust(text: str) -> set[str]:
+    """The IDs in the string literals of a Rust file: the kernels write some into provenance."""
+    literals = RUST_STRING.findall(text)
+    return {found for literal in literals for found in EVIDENCE_ID.findall(literal)}
+
+
 def _cited_ids() -> set[str]:
     cited: set[str] = set()
     for path in (ROOT / "src").rglob("*.py"):
         cited |= _ids_in_python(path.read_text(encoding="utf-8"))
     for path in (ROOT / "src").rglob("*.json"):
         cited |= set(EVIDENCE_ID.findall(path.read_text(encoding="utf-8")))
+    for path in (ROOT / "native" / "src").rglob("*.rs"):
+        cited |= _ids_in_rust(path.read_text(encoding="utf-8"))
     return cited
 
 

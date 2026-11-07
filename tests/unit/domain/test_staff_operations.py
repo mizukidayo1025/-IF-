@@ -10,7 +10,6 @@ are checked on the 100-person fixture with two workers whose shifts meet.
 
 from __future__ import annotations
 
-import copy
 import json
 import math
 from pathlib import Path
@@ -18,7 +17,6 @@ from pathlib import Path
 import pytest
 from support.paths import SCENARIO_100_AGENTS, SMALL_REPLAY
 
-from sheltersim import native
 from sheltersim.contracts.workspace import HistoryQuery
 from sheltersim.core.checkpoint import Checkpoint
 from sheltersim.core.world import WorldState
@@ -908,16 +906,25 @@ def test_a_closed_route_stops_a_trip_as_the_rule_says() -> None:
         payload={"op": "set_route_access", "parameters": {"accessible": False}},
         source_id="ASM-TEST",
     )
-    kernel = native.rules("staff_operation_events").interrupt_trips
-    rule = interrupt_staff_trips_on_closed_routes.__wrapped__
-    # Open: nobody stops.
-    other = copy.deepcopy(world)
-    assert kernel(world, event) == rule(other, event) == ()
-    assert world.canonical_json() == other.canonical_json()
+    task_id = state["task_id"]
+    route_zone_ids = list(state["route_zone_ids"])
+    # Open: nobody stops, and nothing changes.
+    before = world.canonical_json()
+    assert interrupt_staff_trips_on_closed_routes(world, event) == ()
+    assert world.canonical_json() == before
     world.zone_edges[state["route_edge_ids"][0]].closed = True
-    other = copy.deepcopy(world)
-    assert kernel(world, event) == rule(other, event) == ("S01",)
-    assert world.canonical_json() == other.canonical_json()
-    assert [item.event_id for item in world.event_queue.pending()] == [
-        item.event_id for item in other.event_queue.pending()
+    assert interrupt_staff_trips_on_closed_routes(world, event) == ("S01",)
+    # `interrupt_staff_operation` at minute 0: the walker is still where it began, its record is
+    # idle, its history says interrupted, and its arrival and completion are no longer pending.
+    assert world.model_state[STAFF_OPERATIONS_STATE_KEY]["staff"]["S01"]["phase"] == "idle"
+    assert world.staff["S01"].zone_id == route_zone_ids[0]
+    assert world.staff["S01"].active_task_id is None
+    assert task_id not in world.active_tasks
+    last = world.model_state[STAFF_OPERATIONS_STATE_KEY]["history"][-1]
+    assert (last["task_id"], last["status"], last["complete_minute"]) == (task_id, "interrupted", 0)
+    assert "route-closed" in last["causation_event_ids"]
+    assert not [
+        item.event_id
+        for item in world.event_queue.pending()
+        if item.payload.get("task_id") == task_id
     ]

@@ -1,8 +1,9 @@
 """Versioned staff shift and fatigue memory built on existing staff tasks.
 
-Rust owns the namespace and each rule below runs in native/src/rules/staff_dynamics.rs when the
-kernels are installed. The Python rule stays as the comparison base and for any value a kernel does
-not decide, which is also where every error text comes from.
+Rust owns the namespace, and its rules are native/src/rules/staff_dynamics.rs's kernels
+(`kernel_only`): a value they refuse is KernelRefusal, before anything changes. The checks of a
+Scenario's config, of an override and of a saved namespace stay here, in Python (they run outside
+the tick).
 """
 
 from __future__ import annotations
@@ -13,10 +14,9 @@ import re
 from typing import Any
 
 from sheltersim import native
-from sheltersim.core.kernels import kernel_first
+from sheltersim.core.kernels import kernel_only
 from sheltersim.core.state_mirror import register_rust_validator
 from sheltersim.core.world import WorldState
-from sheltersim.domain.operational import staff_is_available
 
 STAFF_DYNAMICS_STATE_KEY = "staff_dynamics_v1"
 STAFF_DYNAMICS_POLICY_VERSION = "continuous-duty-fatigue-v1"
@@ -35,9 +35,12 @@ _CONFIG_FIELDS = {
 }
 
 
-@kernel_first("staff_dynamics", "canonical_config")
 def canonical_staff_dynamics_config(raw: Any) -> dict[str, Any]:
-    """Validate the bounded, replaceable shift/rest assumptions."""
+    """Validate the bounded, replaceable shift/rest assumptions.
+
+    A Scenario's check, outside the tick. `create_staff_dynamics_state`'s kernel makes the same
+    config in Rust.
+    """
     if raw is None:
         raw = {}
     if not isinstance(raw, dict) or set(raw) - _CONFIG_FIELDS:
@@ -141,7 +144,6 @@ def canonical_staff_dynamics_config(raw: Any) -> dict[str, Any]:
     return config
 
 
-@kernel_first("staff_dynamics", "validate_override")
 def validate_staff_shift_windows_override(
     value: Any,
     *,
@@ -186,30 +188,17 @@ def validate_staff_shift_windows_override(
     return normalized
 
 
-@kernel_first("staff_dynamics", "create_state")
+@kernel_only("staff_dynamics", "create_state")
 def create_staff_dynamics_state(world: WorldState) -> dict[str, Any]:
-    """Create an independent runtime namespace for each configured staff member."""
-    config = canonical_staff_dynamics_config(world.model_configs.get("staff_dynamics"))
-    persisted_config = dict(config)
-    if not persisted_config["max_continuous_work_minutes_by_staff"]:
-        persisted_config.pop("max_continuous_work_minutes_by_staff")
-    return {
-        "schema_version": 1,
-        "policy_version": config["policy_version"],
-        "source_id": config["source_id"],
-        "config": persisted_config,
-        "staff": {
-            staff_id: {
-                "consecutive_work_minutes": 0,
-                "total_work_minutes": 0,
-                "total_rest_minutes": 0,
-                "fatigue": 0.0,
-                "rest_until_minute": 0,
-                "last_activity": "off_duty",
-            }
-            for staff_id in sorted(world.staff)
-        },
-    }
+    """Create an independent runtime namespace for each configured staff member.
+
+    `{"schema_version": 1, "policy_version", "source_id", "config", "staff"}`: the config is
+    `canonical_staff_dynamics_config` of `model_configs["staff_dynamics"]`, without
+    `max_continuous_work_minutes_by_staff` when that is empty; each staff member, in ID order,
+    starts with no work or rest minutes, fatigue 0.0, `rest_until_minute` 0 and "off_duty". The
+    config's ValueError, in its words; a config of a type the kernel does not take (a
+    `schema_version` that is not an int, a source of a str subclass) is KernelRefusal.
+    """
 
 
 def validate_staff_dynamics_state(world: WorldState) -> None:
@@ -285,104 +274,46 @@ def validate_staff_dynamics_state(world: WorldState) -> None:
             raise ValueError(f"staff_dynamics_v1 activity for {staff_id!r} is invalid")
 
 
-@kernel_first("staff_dynamics", "update")
+@kernel_only("staff_dynamics", "update")
 def update_staff_dynamics(world: WorldState, minute: int) -> None:
-    """Account for work and automatic recovery without cancelling assigned tasks."""
-    state = world.model_state.get(STAFF_DYNAMICS_STATE_KEY)
-    if state is None:
-        return
-    from sheltersim.policies.registry import create_staff_fatigue_formula
+    """Account for work and automatic recovery without cancelling assigned tasks.
 
-    fatigue_formula = create_staff_fatigue_formula(world.model_configs)
-    config = state["config"]
-    for staff_id, staff in sorted(world.staff.items()):
-        record = state["staff"][staff_id]
-        maximum = fatigue_formula.maximum_minutes(config["max_continuous_work_minutes"], staff_id)
-        if staff.active_task_id is not None:
-            record["consecutive_work_minutes"] += 1
-            record["total_work_minutes"] += 1
-            record["fatigue"] = fatigue_formula.fatigue(record["consecutive_work_minutes"], maximum)
-            record["last_activity"] = "working"
-            continue
-        if not staff_is_available(world, staff_id) or not _on_shift(state, staff_id, minute):
-            record["last_activity"] = "off_duty"
-            record["consecutive_work_minutes"] = 0
-            record["total_rest_minutes"] += 1
-            record["fatigue"] = max(
-                0.0, record["fatigue"] - config["off_shift_fatigue_recovery_per_minute"]
-            )
-            continue
-        if minute < record["rest_until_minute"]:
-            record["total_rest_minutes"] += 1
-            record["last_activity"] = "resting"
-            continue
-        if record["rest_until_minute"]:
-            record["consecutive_work_minutes"] = 0
-            record["fatigue"] = 0.0
-            record["rest_until_minute"] = 0
-        if record["consecutive_work_minutes"] >= maximum:
-            record["rest_until_minute"] = min(
-                world.duration_minutes, minute + config["rest_minutes"]
-            )
-            record["last_activity"] = "resting"
-        else:
-            record["last_activity"] = "off_duty"
+    Nothing without the namespace. For each staff member in ID order, with the maximum of the
+    selected fatigue formula (`staff_fatigue` of `policy_registry`, a per-staff limit first):
+    working (an active task) adds a minute of work and sets the formula's fatigue; unavailable
+    (`operational_events_v1`) or off shift (the weekly `[start, end)` windows of the config; no
+    windows for a person is always on) ends the run of work, adds a minute of rest and takes the
+    off-shift recovery off the fatigue, down to 0.0; before `rest_until_minute` adds a minute of
+    rest; else a finished rest clears the run of work, the fatigue and the rest, and a run of work
+    at the maximum starts a rest of `rest_minutes`, cut at the Run's end. A record or a status the
+    namespace lacks is KernelRefusal.
+    """
 
 
-@kernel_first("staff_dynamics", "is_available")
+@kernel_only("staff_dynamics", "is_available")
 def staff_dynamics_is_available(world: WorldState, staff_id: str, minute: int) -> bool:
-    """Exclude staff members who are off shift or in a required recovery break."""
-    state = world.model_state.get(STAFF_DYNAMICS_STATE_KEY)
-    if state is None:
-        return True
-    record = state["staff"].get(staff_id)
-    operations = world.model_state.get("staff_operations_v1", {})
-    operation = operations.get("staff", {}).get(staff_id) if isinstance(operations, dict) else None
-    return (
-        record is not None
-        and _on_shift(state, staff_id, minute)
-        and minute >= record["rest_until_minute"]
-        and staff_is_available(world, staff_id)
-        and (operation is None or operation.get("phase") == "idle")
-    )
+    """Exclude staff members who are off shift or in a required recovery break.
+
+    True without the namespace. Else the member must have a record, be on shift and past
+    `rest_until_minute` at this minute, be available (`operational_events_v1`), and have no
+    `staff_operations_v1` task (or an "idle" one).
+    """
 
 
-@kernel_first("staff_dynamics", "on_shift")
+@kernel_only("staff_dynamics", "on_shift")
 def staff_dynamics_on_shift(world: WorldState, staff_id: str, minute: int) -> bool:
-    """Report shift/rest eligibility without treating an active assignment as a block."""
-    state = world.model_state.get(STAFF_DYNAMICS_STATE_KEY)
-    if state is None:
-        return True
-    record = state["staff"].get(staff_id)
-    return (
-        record is not None
-        and _on_shift(state, staff_id, minute)
-        and minute >= record["rest_until_minute"]
-    )
+    """Report shift/rest eligibility without treating an active assignment as a block.
+
+    True without the namespace; else whether the member has a record, is on shift at this minute
+    and is past `rest_until_minute`. A config with no `shift_windows_by_staff` (an older saved
+    form) is KernelRefusal.
+    """
 
 
-def _on_shift(state: dict[str, Any], staff_id: str, minute: int) -> bool:
-    """Use recurring week-minute intervals; unspecified staff remain continuously rostered."""
-    rows = state["config"]["shift_windows_by_staff"].get(staff_id)
-    if rows is None:
-        return True
-    week_minute = minute % 10_080
-    return any(row["start_minute"] <= week_minute < row["end_minute"] for row in rows)
-
-
-@kernel_first("staff_dynamics", "add_staff")
+@kernel_only("staff_dynamics", "add_staff")
 def add_staff(world: WorldState, staff_id: str) -> None:
-    """Initialize the runtime record after a typed event adds a staff member."""
-    state = world.model_state.get(STAFF_DYNAMICS_STATE_KEY)
-    if state is not None:
-        state["staff"][staff_id] = {
-            "consecutive_work_minutes": 0,
-            "total_work_minutes": 0,
-            "total_rest_minutes": 0,
-            "fatigue": 0.0,
-            "rest_until_minute": 0,
-            "last_activity": "off_duty",
-        }
+    """Initialize the runtime record after a typed event adds a staff member: the record
+    `create_staff_dynamics_state` gives each one. Nothing without the namespace."""
 
 
 register_rust_validator(STAFF_DYNAMICS_STATE_KEY, native.state("staff_dynamics").validate)

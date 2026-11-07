@@ -6,11 +6,10 @@ import hashlib
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from sheltersim.core.kernels import kernel_first
+from sheltersim.core.kernels import kernel_only
 from sheltersim.core.world import WorldState
 from sheltersim.domain.care_receipts import care_receipt_for_request
 from sheltersim.domain.models import (
-    ActiveTask,
     Activity,
     SupportRequestState,
     SupportRequestStatus,
@@ -22,8 +21,6 @@ from sheltersim.domain.staff_dynamics import (
 )
 from sheltersim.events.models import (
     EventKind,
-    EventLogRecord,
-    EventStatus,
     ScheduledEvent,
 )
 from sheltersim.policies.space import ZoneRoute
@@ -39,7 +36,6 @@ _CARE_SKILL_ALTERNATIVES = {
     "hygiene_support": {"hygiene", "support"},
     "language_access": {"interpreter", "language_access"},
 }
-_SUPPORT_PREEMPTION_SOURCE_ID = "ASM-URGENT-STAFF-SUPPORT-PREEMPTION-V1"
 STAFF_SUPPORT_POLICY_VERSION = "staff-support-fifo-aging-v2"
 STAFF_SUPPORT_SOURCE_ID = "ASM-STAFF-SUPPORT-LIFECYCLE-V1"
 
@@ -165,190 +161,25 @@ class StaffService:
             world.validate()
         return SupportRequestReceipt(request_id, agent_id, request_minute)
 
-    @kernel_first("staff", "assign_pending")
+    @kernel_only("staff", "assign_pending")
     def assign_pending(self, minute: int, *, validate_state: bool = True) -> tuple[str, ...]:
-        """Start FIFO requests on idle staff whose skills include ``support``."""
-        world = self.world
-        if minute != world.minute_index:
-            raise ValueError("staff assignment minute must match WorldState")
-        assigned: list[str] = []
-        available_staff = sorted(
-            (
-                person
-                for person in world.staff.values()
-                if (
-                    person.active_task_id is None
-                    and staff_is_available(world, person.id)
-                    and staff_dynamics_is_available(world, person.id, minute)
-                )
-            ),
-            key=lambda person: person.id,
-        )
-        pending = sorted(
-            (
-                request
-                for request in world.unsettled_support_requests()
-                if request.status is SupportRequestStatus.PENDING
-            ),
-            key=lambda request: _support_assignment_order(
-                world,
-                request,
-                minute=minute,
-                fairness_after_minutes=self.fairness_after_minutes,
-            ),
-        )
-        # Skills do not change here; requests of one kind need the same staff.
-        qualified_by_kind: dict[str, list[Any]] = {}
+        """Start FIFO requests on idle staff whose skills include ``support``.
 
-        def qualified_for(support_kind: str) -> list[Any]:
-            qualified = qualified_by_kind.get(support_kind)
-            if qualified is None:
-                required = _CARE_SKILL_ALTERNATIVES.get(support_kind, {"support"})
-                qualified = qualified_by_kind[support_kind] = [
-                    staff for staff in world.staff.values() if required.intersection(staff.skills)
-                ]
-            return qualified
-
-        no_qualified_worker_count = sum(
-            not qualified_for(_support_kind(world, request.id)) for request in pending
-        )
-        record_wait_metrics = (
-            world.metric_state.get("support_assignment_metrics_minute", -1.0) != minute
-        )
-        blocker_exposure = {
-            "support_wait_staff_busy_request_minutes": 0,
-            "support_wait_staff_off_shift_request_minutes": 0,
-        }
-        if record_wait_metrics:
-            world.metric_state["support_no_qualified_worker_request_minutes"] = (
-                world.metric_state.get("support_no_qualified_worker_request_minutes", 0.0)
-                + no_qualified_worker_count
-            )
-        for request in pending:
-            request.last_assignment_attempt_minute = minute
-            request.last_assignment_wait_reason_code = "no_available_qualified_staff"
-            care_receipt = care_receipt_for_request(world, request.id)
-            support_kind = (
-                care_receipt.get("support_kind", "emotional_support")
-                if care_receipt is not None
-                else "emotional_support"
-            )
-            required_skills = _CARE_SKILL_ALTERNATIVES.get(support_kind, {"support"})
-            person = next(
-                (staff for staff in available_staff if required_skills.intersection(staff.skills)),
-                None,
-            )
-            if person is None and _support_priority(world, request.id) > 0:
-                person = _preempt_background_staff(
-                    world,
-                    request_id=request.id,
-                    minute=minute,
-                    required_skills=required_skills,
-                    agent_id=request.agent_id,
-                    route_resolver=self.route_resolver,
-                    task_duration_minutes=self.task_duration_minutes,
-                )
-                if person is not None:
-                    available_staff.append(person)
-            if person is None:
-                if record_wait_metrics:
-                    qualified = qualified_for(support_kind)
-                    if any(staff.active_task_id is not None for staff in qualified):
-                        blocker_exposure["support_wait_staff_busy_request_minutes"] += 1
-                    # "Off shift" covers every qualified worker who is not working
-                    # now: outside a shift window or away (set_staff_availability, #74).
-                    if any(
-                        not staff_dynamics_on_shift(world, staff.id, minute)
-                        or not staff_is_available(world, staff.id)
-                        for staff in qualified
-                    ):
-                        blocker_exposure["support_wait_staff_off_shift_request_minutes"] += 1
-                continue
-            agent = world.agents[request.agent_id]
-            route = None
-            travel_minutes = 0
-            if self.route_resolver is not None:
-                route = self.route_resolver(agent.zone_id, person.zone_id, agent.id)
-                if route is None:
-                    request.last_assignment_wait_reason_code = "route_unavailable_at_assignment"
-                    continue
-                travel_minutes = route.travel_minutes
-            due_minute = minute + travel_minutes + self.task_duration_minutes
-            if due_minute >= world.duration_minutes:
-                request.last_assignment_wait_reason_code = "insufficient_run_time"
-                continue
-            sequence = world.allocate_event_sequence()
-            task_id = f"staff-support-{sequence}"
-            event_id = f"staff-support-complete-{sequence}"
-            if travel_minutes > 0:
-                if self.travel_scheduler is None or route is None:
-                    request.last_assignment_wait_reason_code = "resident_travel_schedule_rejected"
-                    continue
-                if not self.travel_scheduler(agent.id, route, request.id, person.id, minute):
-                    request.last_assignment_wait_reason_code = "resident_travel_schedule_rejected"
-                    continue
-            task = ActiveTask(
-                id=task_id,
-                kind="staff_support",
-                agent_id=request.agent_id,
-                resource_id=None,
-                start_minute=minute + travel_minutes,
-                due_minute=due_minute,
-                staff_id=person.id,
-            )
-            event = ScheduledEvent(
-                event_id=event_id,
-                kind=EventKind.COMPLETION,
-                due_minute=due_minute,
-                priority=0,
-                sequence=sequence,
-                event_type="staff_support_complete",
-                payload={
-                    "request_id": request.id,
-                    "agent_id": request.agent_id,
-                    "staff_id": person.id,
-                    "task_id": task_id,
-                    "support_duration_minutes": self.task_duration_minutes,
-                },
-                source_id=task_id,
-                causation_id=request.id,
-                provenance={
-                    "source_type": "assumption",
-                    "source_id": STAFF_SUPPORT_SOURCE_ID,
-                    "policy_version": self.policy_version,
-                    "assignment_wait_minutes": minute - request.requested_minute,
-                    "fairness_promoted": (
-                        _support_priority(world, request.id) == 0
-                        and minute - request.requested_minute >= self.fairness_after_minutes
-                    ),
-                },
-            )
-            world.active_tasks[task_id] = task
-            person.active_task_id = task_id
-            person.work_queue[:] = [task_id]
-            person.busy_until = due_minute
-            request.status = SupportRequestStatus.ASSIGNED
-            request.assigned_staff_id = person.id
-            request.task_id = task_id
-            request.last_assignment_wait_reason_code = None
-            world.schedule_event(event)
-            if event.provenance["fairness_promoted"]:
-                world.metric_state["support_fairness_promoted_assignment_count"] = (
-                    world.metric_state.get("support_fairness_promoted_assignment_count", 0.0) + 1.0
-                )
-            assigned.append(request.id)
-            available_staff.remove(person)
-        if record_wait_metrics:
-            for metric, count in blocker_exposure.items():
-                # Keep the additive observation absent when it has never occurred.
-                # Metrics read absence as zero; omitting new zero-only keys preserves
-                # canonical hashes for existing runs with no support-wait exposure.
-                if count:
-                    world.metric_state[metric] = world.metric_state.get(metric, 0.0) + count
-            world.metric_state["support_assignment_metrics_minute"] = float(minute)
-        if validate_state:
-            world.validate()
-        return tuple(assigned)
+        Returns the IDs of the requests it assigned. ValueError "staff assignment minute must
+        match WorldState" first, for another minute than the world's. Pending requests go urgent
+        (an LLM priority above 0) or aged past `fairness_after_minutes` first, then by request
+        minute and ID; each records this attempt and "no_available_qualified_staff", and takes the
+        first idle, available, on-shift member (in ID order) with a skill of its care kind, or for
+        an urgent one the first such member on a routed background task, whose task is interrupted
+        (a `staff_operation_preempted` record). Without one the minute's exposure counts it (a
+        qualified member busy, or one off shift or away). With a route resolver, no route is
+        "route_unavailable_at_assignment"; a task that would end at or past the Run's end is
+        "insufficient_run_time"; a trip the travel scheduler rejects (or can't make) is
+        "resident_travel_schedule_rejected". An assigned request gets its `staff-support-{sequence}`
+        task, the member's queue and busy minute, and a `staff_support_complete` event. The
+        minute's metrics (no qualified worker, busy and off-shift exposure, fairness promotions)
+        are counted once per minute. With `validate_state`, the world is validated at the end.
+        """
 
 
 def complete_support_task(
@@ -399,13 +230,6 @@ def complete_support_task(
     world.metric_state["support_resolved_count"] = (
         world.metric_state.get("support_resolved_count", 0.0) + 1.0
     )
-
-
-def _support_priority(world: WorldState, request_id: str) -> int:
-    state = world.model_state.get("llm", {})
-    priorities = state.get("support_priorities", {}) if isinstance(state, dict) else {}
-    value = priorities.get(request_id, 0) if isinstance(priorities, dict) else 0
-    return value if isinstance(value, int) and not isinstance(value, bool) else 0
 
 
 def _support_kind(world: WorldState, request_id: str) -> str:
@@ -610,92 +434,3 @@ def default_support_fairness_minutes(unresolved_after_minutes: int) -> int:
     if type(unresolved_after_minutes) is not int or unresolved_after_minutes <= 0:
         return 30
     return max(1, min(30, unresolved_after_minutes - 1))
-
-
-def _support_assignment_order(
-    world: WorldState,
-    request: SupportRequestState,
-    *,
-    minute: int,
-    fairness_after_minutes: int,
-) -> tuple[int, int, str]:
-    """Keep urgent work first while aging ordinary requests into FIFO service."""
-    urgent = _support_priority(world, request.id) > 0
-    promoted = minute - request.requested_minute >= fairness_after_minutes
-    effective_priority = int(urgent or promoted)
-    return (-effective_priority, request.requested_minute, request.id)
-
-
-def _preempt_background_staff(
-    world: WorldState,
-    *,
-    request_id: str,
-    minute: int,
-    required_skills: set[str],
-    agent_id: str,
-    route_resolver: Callable[[str, str, str], ZoneRoute | None] | None,
-    task_duration_minutes: int,
-) -> Any | None:
-    """Free one qualified routed worker for a priority-1 resident support request."""
-    from sheltersim.domain.staff_operations import (
-        STAFF_OPERATIONS_STATE_KEY,
-        interrupt_staff_operation,
-    )
-
-    state = world.model_state.get(STAFF_OPERATIONS_STATE_KEY)
-    if not isinstance(state, dict):
-        return None
-    candidates = [
-        staff
-        for staff_id, staff in sorted(world.staff.items())
-        if required_skills.intersection(staff.skills)
-        and staff.active_task_id is not None
-        and state.get("staff", {}).get(staff_id, {}).get("phase") != "idle"
-        and staff_is_available(world, staff_id)
-        and staff_dynamics_on_shift(world, staff_id, minute)
-        and (
-            route_resolver is None
-            or (
-                (route := route_resolver(world.agents[agent_id].zone_id, staff.zone_id, agent_id))
-                is not None
-                and minute + route.travel_minutes + task_duration_minutes < world.duration_minutes
-            )
-        )
-    ]
-    if not candidates:
-        return None
-    staff = candidates[0]
-    record = state["staff"][staff.id]
-    sequence = world.allocate_event_sequence()
-    event = ScheduledEvent(
-        event_id=f"staff-operation-preempted-{sequence}",
-        kind=EventKind.ENDOGENOUS,
-        due_minute=minute,
-        priority=-10,
-        sequence=sequence,
-        event_type="staff_operation_preempted",
-        payload={
-            "staff_id": staff.id,
-            "task_id": record["task_id"],
-            "request_id": request_id,
-            "reason_code": "urgent_resident_support",
-        },
-        source_id="urgent-resident-support-preemption-v1",
-        causation_id=request_id,
-        provenance={
-            "source_type": "assumption",
-            "source_id": _SUPPORT_PREEMPTION_SOURCE_ID,
-            "policy_version": "urgent-staff-support-preemption-v1",
-        },
-    )
-    world.event_log.append(
-        EventLogRecord(
-            event=event,
-            realized_minute=minute,
-            status=EventStatus.APPLIED,
-            detail="A priority-1 support request preempted a routed background staff task.",
-        )
-    )
-    if not interrupt_staff_operation(world, staff.id, event):
-        raise ValueError("urgent support preemption lost its active staff operation")
-    return staff

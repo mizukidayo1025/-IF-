@@ -1,16 +1,15 @@
-//! `domain/staff_dynamics.py`: staff shift, rest and fatigue. The Python rules stay as the
-//! comparison base and for every value these kernels do not decide, which is also how a bad value
-//! gets its error text (docs/rust-port/lanes/s-staff-dynamics.md).
+//! `domain/staff_dynamics.py`: staff shift, rest and fatigue. Its rules are these kernels alone (lane
+//! L10, `kernel_only`), and what they refuse is a KernelRefusal there; the checks of a Scenario's
+//! config and of an override stay in Python (docs/rust-port/lanes/s-staff-dynamics.md).
 //!
-//! `update` plans everything from the rows first, so an Unsupported changes nothing and the Python
-//! rule then raises at the record it would have reached. Every other kernel only reads, or builds
-//! a new value.
+//! `update` plans everything from the rows first, so an Unsupported changes nothing. Every other
+//! kernel only reads, or builds a new value.
 
 use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PySet, PyString};
+use pyo3::types::{PyBool, PyDict, PyFloat, PyList, PyString};
 
 use crate::core::errors;
 use crate::core::mathx::{exp, py_max, py_min};
@@ -275,7 +274,7 @@ pub(crate) fn update(world: &Bound<'_, PyAny>, minute: &Bound<'_, PyAny>) -> PyR
             saturating: formula.saturating,
             default_maximum: row.config.max_continuous_work_minutes,
             rest_minutes: row.config.rest_minutes,
-            recovery: row.config.off_shift_fatigue_recovery_per_minute.0,
+            recovery: row.config.off_shift_fatigue_recovery_per_minute.0.map(|recovery| recovery.value),
             duration,
             minute,
         };
@@ -406,27 +405,6 @@ fn staff_key<'a>(key: &'a Bound<'_, PyAny>) -> PyResult<&'a str> {
     Ok(id)
 }
 
-fn shift_of(row: &Bound<'_, PyAny>) -> PyResult<Shift> {
-    let py = row.py();
-    let row = exact_dict(row)?;
-    let (Some(start), Some(end), 2) = (
-        row.get_item(intern!(py, "start_minute"))?,
-        row.get_item(intern!(py, "end_minute"))?,
-        row.len(),
-    ) else {
-        return unsupported("a shift has other keys");
-    };
-    Ok(Shift { start_minute: exact_int(&start)?, end_minute: exact_int(&end)? })
-}
-
-fn shifts_of(rows: &Bound<'_, PyList>) -> PyResult<Vec<Shift>> {
-    let shifts = rows.iter().map(|row| shift_of(&row)).collect::<PyResult<Vec<Shift>>>()?;
-    if !shifts_are_valid(&shifts) {
-        return unsupported("the shifts of a person are not valid");
-    }
-    Ok(shifts)
-}
-
 /// What a check of the Python rule says of a value: it fails, it passes, or the rows can't tell
 /// (a type the Python rule may take, such as `schema_version: 1.0`).
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -459,9 +437,57 @@ fn config_error<T>(text: &str) -> PyResult<T> {
     Err(errors::value_error(text))
 }
 
-/// `canonical_staff_dynamics_config`: the new dict, or the Python rule's ValueError in its order,
-/// or Unsupported for the Python rule to take a value of another type that it accepts, such as
-/// `schema_version: 1.0`.
+/// `bool(value)` of a plain value; Unsupported for an object whose truth runs Python code.
+fn truth(value: &Bound<'_, PyAny>) -> PyResult<bool> {
+    if let Some(dict) = crate::core::tracked::as_readable_dict(value) {
+        return Ok(!dict.is_empty());
+    }
+    let plain = value.is_none()
+        || value.is_exact_instance_of::<PyList>()
+        || value.is_exact_instance_of::<PyString>()
+        || value.is_exact_instance_of::<PyBool>()
+        || value.is_exact_instance_of::<pyo3::types::PyInt>()
+        || value.is_exact_instance_of::<PyFloat>();
+    if !plain {
+        return unsupported("a value whose truth is another class's");
+    }
+    value.is_truthy()
+}
+
+/// `value != 0.0` of a plain value: an int or a float by its value (a bool too), and anything else
+/// is not equal. Unsupported for an object whose `!=` runs Python code.
+fn not_zero(value: &Bound<'_, PyAny>) -> PyResult<bool> {
+    if let Ok(number) = value.downcast_exact::<PyFloat>() {
+        return Ok(number.value() != 0.0);
+    }
+    if value.is_exact_instance_of::<PyBool>() {
+        return value.is_truthy();
+    }
+    if let Some(number) = errors::wide_int_not_bool(value)? {
+        return Ok(number != errors::Wide::Int(0));
+    }
+    let plain = value.is_none()
+        || value.is_exact_instance_of::<PyList>()
+        || value.is_exact_instance_of::<PyString>()
+        || crate::core::tracked::as_readable_dict(value).is_some();
+    if !plain {
+        return unsupported("a value whose != is another class's");
+    }
+    Ok(true)
+}
+
+/// The recovery the range check passes: a float, or an int that is not a bool, finite and in 0..1.
+fn recovery_in_range(value: &Bound<'_, PyAny>) -> PyResult<bool> {
+    if let Ok(number) = value.downcast_exact::<PyFloat>() {
+        let number = number.value();
+        return Ok(number.is_finite() && (0.0..=1.0).contains(&number));
+    }
+    Ok(matches!(errors::wide_int_not_bool(value)?, Some(errors::Wide::Int(0 | 1))))
+}
+
+/// `canonical_staff_dynamics_config`, which `domain/staff_dynamics.py` keeps for a Scenario's
+/// check: the new dict, or its ValueError in its order, or Unsupported for a value of a type it
+/// takes that the rows do not (`schema_version: 1.0`, a str subclass).
 fn canonical_config<'py>(raw: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>> {
     let py = raw.py();
     let empty;
@@ -474,9 +500,10 @@ fn canonical_config<'py>(raw: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>
         exact_dict(raw)?
     };
     for (key, _) in raw.iter() {
-        if !key.downcast::<PyString>().is_ok_and(|key| key.to_str().is_ok_and(|key| CONFIG_FIELDS.contains(&key))) {
-            exact_str(&key)?;
-            return config_error("staff_dynamics config has unsupported fields");
+        match key.downcast_exact::<PyString>() {
+            Ok(key) if CONFIG_FIELDS.contains(&key.to_str()?) => {}
+            Err(_) if key.is_instance_of::<PyString>() => return unsupported("a key is a str of another class"),
+            _ => return config_error("staff_dynamics config has unsupported fields"),
         }
     }
     let windows = raw.get_item(intern!(py, "shift_windows_by_staff"))?;
@@ -486,7 +513,9 @@ fn canonical_config<'py>(raw: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>
     let legacy = match &policy {
         Some(version) => match version.downcast_exact::<PyString>() {
             Ok(version) => version.to_str()? == POLICY_V1,
-            Err(_) => return unsupported("another policy"),
+            Err(_) if version.is_instance_of::<PyString>() => return unsupported("another policy"),
+            // Not V1, and the check of the policy below fails it.
+            Err(_) => false,
         },
         None => windows.is_none() && recovery.is_none(),
     };
@@ -504,14 +533,13 @@ fn canonical_config<'py>(raw: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>
     };
     let policy_verdict = match &policy {
         None => Verdict::Passes,
-        Some(version) => {
-            let version = exact_str(version)?;
-            if version == POLICY_V1 || version == POLICY_V2 {
-                Verdict::Passes
-            } else {
-                Verdict::Fails
-            }
-        }
+        Some(version) => match version.downcast_exact::<PyString>() {
+            Ok(version) if matches!(version.to_str()?, POLICY_V1 | POLICY_V2) => Verdict::Passes,
+            Ok(_) => Verdict::Fails,
+            // `in` a set hashes it: an int, a float, None or a bool is neither, and a list raises.
+            Err(_) if version.hash().is_ok() => Verdict::Fails,
+            Err(_) => Verdict::Unknown,
+        },
     };
     let source = raw.get_item(intern!(py, "source_id"))?;
     let source_verdict = match &source {
@@ -530,29 +558,19 @@ fn canonical_config<'py>(raw: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>
     if checks.contains(&Verdict::Unknown) {
         return unsupported("another schema or source");
     }
-    // Policy v1 with shifts or a recovery.
-    let any_windows = match &windows {
-        None => false,
-        Some(windows) => match crate::core::tracked::as_readable_dict(windows) {
-            Some(windows) => !windows.is_empty(),
-            None => return unsupported("the shift windows are another value"),
-        },
-    };
-    let recovery_value = match &recovery {
-        Some(recovery) => match recovery.downcast_exact::<pyo3::types::PyFloat>() {
-            Ok(recovery) => recovery.value(),
-            Err(_) => return unsupported("the recovery is another value"),
-        },
-        None => {
-            if legacy {
-                0.0
-            } else {
-                0.005
-            }
+    // Policy v1 with shifts or a recovery: `config["shift_windows_by_staff"] or recovery != 0.0`.
+    if legacy {
+        let any_windows = match &windows {
+            None => false,
+            Some(windows) => truth(windows)?,
+        };
+        let any_recovery = match &recovery {
+            None => false,
+            Some(recovery) => not_zero(recovery)?,
+        };
+        if any_windows || any_recovery {
+            return config_error("staff shift and off-shift recovery assumptions require policy v2");
         }
-    };
-    if legacy && (any_windows || recovery_value != 0.0) {
-        return config_error("staff shift and off-shift recovery assumptions require policy v2");
     }
     for (name, default, upper) in [
         (intern!(py, "max_continuous_work_minutes"), 240, MINUTES_PER_DAY),
@@ -587,6 +605,9 @@ fn canonical_config<'py>(raw: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>
         }
     }
     if let Some(windows) = &windows {
+        if !windows.is_instance_of::<PyDict>() {
+            return config_error("staff_dynamics shift_windows_by_staff must be an object");
+        }
         let windows = exact_dict(windows)?;
         for (id, rows) in windows.iter() {
             let id_passes = id.is_instance_of::<PyString>() && !id.is_empty()?;
@@ -626,8 +647,10 @@ fn canonical_config<'py>(raw: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>
             }
         }
     }
-    if !(0.0..=1.0).contains(&recovery_value) {
-        return config_error("staff_dynamics off-shift recovery must be within 0..1 per minute");
+    if let Some(recovery) = &recovery {
+        if !recovery_in_range(recovery)? {
+            return config_error("staff_dynamics off-shift recovery must be within 0..1 per minute");
+        }
     }
     let policy = if legacy { POLICY_V1 } else { POLICY_V2 };
 
@@ -651,14 +674,9 @@ fn canonical_config<'py>(raw: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>
     take(intern!(py, "shift_windows_by_staff"), PyDict::new(py).into_any())?;
     take(
         intern!(py, "off_shift_fatigue_recovery_per_minute"),
-        pyo3::types::PyFloat::new(py, recovery_value).into_any(),
+        PyFloat::new(py, if legacy { 0.0 } else { 0.005 }).into_any(),
     )?;
     Ok(config)
-}
-
-#[pyfunction(name = "canonical_config")]
-fn canonical_config_of<'py>(raw: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>> {
-    canonical_config(raw)
 }
 
 /// `create_staff_dynamics_state`.
@@ -698,89 +716,6 @@ fn create_state<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>> 
     Ok(state)
 }
 
-/// `re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,63}", id)`.
-fn is_override_id(id: &str) -> bool {
-    let bytes = id.as_bytes();
-    (1..=64).contains(&bytes.len())
-        && bytes[0].is_ascii_alphanumeric()
-        && bytes[1..]
-            .iter()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'))
-}
-
-/// The length of `json.dumps(value, separators=(",", ":"))` once every ID is `is_override_id`, so
-/// nothing needs an escape, and every row has its two keys.
-fn override_json_length(rows_by_id: &[(&str, Vec<Shift>, &Bound<'_, PyAny>)]) -> usize {
-    let digits = |value: i64| itoa::Buffer::new().format(value).len();
-    let mut total = 2 + rows_by_id.len().saturating_sub(1);
-    for (id, shifts, _) in rows_by_id {
-        total += id.len() + 3 + 2 + shifts.len().saturating_sub(1);
-        for shift in shifts {
-            total += r#"{"start_minute":,"end_minute":}"#.len()
-                + digits(shift.start_minute)
-                + digits(shift.end_minute);
-        }
-    }
-    total
-}
-
-/// `validate_staff_shift_windows_override`.
-#[pyfunction]
-#[pyo3(signature = (value, *, known_staff_ids=None))]
-fn validate_override<'py>(
-    value: &Bound<'py, PyAny>,
-    known_staff_ids: Option<&Bound<'py, PyAny>>,
-) -> PyResult<Bound<'py, PyDict>> {
-    let py = value.py();
-    if !value.is_instance_of::<PyDict>() {
-        return config_error("shift-window overrides require 1..100 staff IDs");
-    }
-    let value = exact_dict(value)?;
-    if !(1..=100).contains(&value.len()) {
-        return config_error("shift-window overrides require 1..100 staff IDs");
-    }
-    let known = match known_staff_ids {
-        Some(known) if !known.is_none() => match known.downcast_exact::<PySet>() {
-            Ok(known) => Some(known.clone()),
-            Err(_) => return unsupported("the known IDs are not a set"),
-        },
-        _ => None,
-    };
-    let entries: Vec<(Bound<'py, PyAny>, Bound<'py, PyAny>)> = value.iter().collect();
-    let mut parsed: Vec<(&str, Vec<Shift>, &Bound<'py, PyAny>)> = Vec::with_capacity(entries.len());
-    for (id, rows) in &entries {
-        let text = exact_str(id)?;
-        if !is_override_id(text) {
-            return unsupported("an invalid staff ID");
-        }
-        if let Some(known) = &known {
-            if !known.contains(id)? {
-                return unsupported("an unknown staff ID");
-            }
-        }
-        parsed.push((text, shifts_of(exact_list(rows)?)?, rows));
-    }
-    // The rule's second check; what Unsupported above leaves to it may fail an earlier one.
-    if override_json_length(&parsed) > 16_384 {
-        return config_error("shift-window overrides exceed the 16 KiB limit");
-    }
-    parsed.sort_unstable_by(|a, b| a.0.as_bytes().cmp(b.0.as_bytes()));
-    let normalized = PyDict::new(py);
-    for (id, shifts, rows) in &parsed {
-        let mut order: Vec<usize> = (0..shifts.len()).collect();
-        order.sort_by_key(|index| (shifts[*index].start_minute, shifts[*index].end_minute));
-        let rows = exact_list(rows)?;
-        let sorted = PyList::empty(py);
-        for index in order {
-            // dict(row): a plain copy, its keys in the row's order.
-            let row = rows.get_item(index)?;
-            sorted.append(exact_dict(&row)?.copy()?)?;
-        }
-        normalized.set_item(*id, sorted)?;
-    }
-    Ok(normalized)
-}
-
 /// The fatigue formula alone, for the bit comparison of the tests.
 #[pyfunction]
 fn fatigue_value(saturating: bool, consecutive: i64, maximum: i64) -> PyResult<f64> {
@@ -793,9 +728,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(on_shift_now, m)?)?;
     m.add_function(wrap_pyfunction!(is_available_now, m)?)?;
     m.add_function(wrap_pyfunction!(add_staff, m)?)?;
-    m.add_function(wrap_pyfunction!(canonical_config_of, m)?)?;
     m.add_function(wrap_pyfunction!(create_state, m)?)?;
-    m.add_function(wrap_pyfunction!(validate_override, m)?)?;
     m.add_function(wrap_pyfunction!(fatigue_value, m)?)?;
     Ok(())
 }

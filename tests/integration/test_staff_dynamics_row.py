@@ -1,16 +1,20 @@
 """staff_dynamics_v1 owned by Rust, with the rules of domain/staff_dynamics.py.
 
-native/src/rules/staff_dynamics.rs moves the rules; the Python rules stay as the comparison base and
-give every error text (docs/rust-port/lanes/s-staff-dynamics.md). The whole rule is compared on the
-gate by benchmarks/rule_shadow; here, on small worlds and on values no scenario reaches.
+native/src/rules/staff_dynamics.rs holds the rules (docs/rust-port/lanes/s-staff-dynamics.md). Their
+Python bodies are gone (lane L10, `kernel_only`): a run of a rule is checked against what the Python
+rule gave, written down from it before it went (the rule's formula, or a digest of its answers on
+the same random inputs), and a value the kernels refuse is KernelRefusal. The checks of a config, of
+an override and of a saved namespace stay in Python and are the reference for the Rust ones.
 """
 
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import math
 import random
+import sys
 from types import SimpleNamespace
 from typing import Any
 
@@ -18,6 +22,7 @@ import pytest
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.state_mirror import detach, rust_validated
 from sheltersim.core.world import WorldState
 from sheltersim.domain.models import StaffState
@@ -33,7 +38,6 @@ from sheltersim.domain.staff_dynamics import (
     staff_dynamics_on_shift,
     update_staff_dynamics,
     validate_staff_dynamics_state,
-    validate_staff_shift_windows_override,
 )
 from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.runner import OfflineSimulationController
@@ -73,17 +77,21 @@ def _mirror(world: WorldState) -> Any:
     return world._core.mirror(KEY)
 
 
-def _plain_twin(world: WorldState) -> tuple[Any, SimpleNamespace]:
-    """A plain copy of the namespace, and a world for the Python rule that holds it."""
-    plain = json.loads(json.dumps(_state(world)))
-    table = dict(world.model_state)
-    table[KEY] = plain
-    return plain, SimpleNamespace(
-        model_state=table,
-        staff=world.staff,
-        model_configs=world.model_configs,
-        duration_minutes=world.duration_minutes,
-    )
+def _digest(texts: list[str]) -> str:
+    """A digest of the texts a rule's answers gave, to pin what the Python rule gave."""
+    return hashlib.sha256("\n".join(texts).encode("utf-8")).hexdigest()[:16]
+
+
+def _new_record() -> dict[str, Any]:
+    """The record `create_staff_dynamics_state` and `add_staff` give a staff member."""
+    return {
+        "consecutive_work_minutes": 0,
+        "total_work_minutes": 0,
+        "total_rest_minutes": 0,
+        "fatigue": 0.0,
+        "rest_until_minute": 0,
+        "last_activity": "off_duty",
+    }
 
 
 # ---- The row ----
@@ -138,23 +146,49 @@ def test_a_config_key_an_older_schema_lacks_is_absent_from_the_row_and_its_bytes
         (lambda state: state["staff"]["S01"].__delitem__("fatigue"), "which fields"),
         (lambda state: state["config"].__setitem__("rest_minutes", 30.0), "not an int"),
         (
-            lambda state: state["config"].__setitem__("off_shift_fatigue_recovery_per_minute", 0),
-            "not a float",
+            lambda state: state["config"].__setitem__(
+                "off_shift_fatigue_recovery_per_minute", True
+            ),
+            "not a float or an int",
         ),
         (lambda state: state["config"].__delitem__("rest_minutes"), "which fields"),
         (lambda state: state["config"].__setitem__("other", 1), "no field"),
         (lambda state: state["config"].__setitem__("shift_windows_by_staff", None), "not a dict"),
     ],
 )
-def test_a_value_the_row_cant_hold_taints_it_and_the_python_rules_still_run(
-    write: Any, reason: str
-) -> None:
+def test_a_value_the_row_cant_hold_taints_it_and_the_rules_refuse(write: Any, reason: str) -> None:
     world = _world()
     write(_state(world))
     assert reason in _mirror(world).tainted
     with pytest.raises(native.Unsupported):
         _kernels().update(world, 0)
+    before = _text(_state(world))
+    with pytest.raises(KernelRefusal):
+        update_staff_dynamics(world, 0)
+    assert _text(_state(world)) == before
     assert not rust_validated(world, KEY)
+
+
+@pytest.mark.parametrize("recovery", [0, 1])
+def test_an_int_recovery_is_held_as_the_int_and_recovers_as_its_float(recovery: int) -> None:
+    """`canonical_staff_dynamics_config` takes 0 and 1 and keeps the int; the Python rule took it
+    off the fatigue as the float of its value, which the row does too."""
+    world = _world(off_shift_fatigue_recovery_per_minute=recovery)
+    assert _state(world)["config"]["off_shift_fatigue_recovery_per_minute"] == recovery
+    assert type(_state(world)["config"]["off_shift_fatigue_recovery_per_minute"]) is int
+    assert _mirror(world).has_row
+    assert _mirror(world).row_json() == native.canonical_json(_state(world))
+    world.model_state["operational_events_v1"] = {"staff_status": {"S01": {"available": False}}}
+    _state(world)["staff"]["S01"]["fatigue"] = 0.75
+    update_staff_dynamics(world, 0)
+    record = _state(world)["staff"]["S01"]
+    # `max(0.0, record["fatigue"] - recovery)`.
+    assert record["fatigue"] == max(0.0, 0.75 - recovery)
+    assert type(record["fatigue"]) is float
+    assert record["last_activity"] == "off_duty"
+    assert record["total_rest_minutes"] == 1
+    assert _mirror(world).verify()
+    assert rust_validated(world, KEY)
 
 
 def test_forwarded_writes_reach_the_row() -> None:
@@ -188,7 +222,8 @@ def test_the_rule_the_callers_use_runs_the_kernel() -> None:
     world = _world()
     update_staff_dynamics(world, 0)
     assert _state(world)["staff"]["S01"]["total_rest_minutes"] == 0
-    assert update_staff_dynamics.__wrapped__ is not update_staff_dynamics
+    with pytest.raises(KernelRefusal, match="has no Python rule"):
+        update_staff_dynamics.__wrapped__(world, 0)
 
 
 def _random_world(rng: random.Random) -> WorldState:
@@ -225,30 +260,88 @@ def _random_world(rng: random.Random) -> WorldState:
     return world
 
 
-@pytest.mark.parametrize("seed", range(40))
-def test_update_writes_what_the_python_rule_writes(seed: int) -> None:
+def _update_run(seed: int) -> list[str]:
+    """The namespace after each of 30 updates of a random world, as text."""
     rng = random.Random(seed)
     world = _random_world(rng)
     minutes = sorted(rng.randrange(0, 12_000) for _ in range(30))
+    texts = []
     for minute in minutes:
         for staff_id in IDS:
             world.staff[staff_id].active_task_id = "t" if rng.random() < 0.4 else None
-        plain, twin = _plain_twin(world)
-        update_staff_dynamics.__wrapped__(twin, minute)
-        _kernels().update(world, minute)
-        assert _text(_state(world)) == _text(plain)
+        update_staff_dynamics(world, minute)
+        texts.append(_text(_state(world)))
         assert _mirror(world).verify()
+    return texts
 
 
-def test_the_comparison_sees_a_one_percent_change() -> None:
+# The digests of `_update_run` with the Python rule, taken before it went (lane L10). The fatigue
+# of the saturating formula is libm's `exp`, so they are pinned on Linux, as the gate's hashes are.
+UPDATE_DIGESTS = {
+    0: "eec89a7a17e1ad1f",
+    1: "0f784670ff938487",
+    2: "c0d429b464a37812",
+    3: "463a9147fa747d9e",
+    4: "303fc713c0b14fc7",
+    5: "0fc54bc9fad202df",
+    6: "77117a11a74284e6",
+    7: "85d4068377c9dcde",
+    8: "40dea20e9e6d7477",
+    9: "af311a3fe1dc51f5",
+    10: "675c5f9791dec9ac",
+    11: "5106039608f3d262",
+    12: "5599c4a498120dd9",
+    13: "588bef82ab3c19de",
+    14: "b289b355c894cd4f",
+    15: "14100b62c635a78d",
+    16: "16400d4588f9ce5a",
+    17: "a712b1f1ebe95ef1",
+    18: "cf42c9342b71e104",
+    19: "0f13a2ccafa59e68",
+    20: "77863d357e49ba78",
+    21: "01a6d436e81f845a",
+    22: "453cc99226950e5c",
+    23: "0c575b6c2e0d0068",
+    24: "903db27c64a6d0cc",
+    25: "2c80af006a9a3081",
+    26: "7b145ad176bd8daa",
+    27: "c57a59c8a8f15a8d",
+    28: "a29cdb887c0666cc",
+    29: "022d27ac1850fe16",
+    30: "f242001e3056f4ef",
+    31: "e9c29278b8a0a675",
+    32: "8cc685b38c281b73",
+    33: "8c365486bef77dc4",
+    34: "673e093662a1851a",
+    35: "38fd495096b7580d",
+    36: "62d505f4312dcaa6",
+    37: "1ef875a5a57b5b05",
+    38: "763c01150c88ff26",
+    39: "bb3e7f0ddef2e792",
+}
+
+
+@pytest.mark.parametrize("seed", range(40))
+def test_update_writes_what_the_python_rule_wrote(seed: int) -> None:
+    texts = _update_run(seed)
+    if sys.platform == "linux":
+        assert _digest(texts) == UPDATE_DIGESTS[seed]
+
+
+def test_a_working_minute_is_the_formula_s_fatigue() -> None:
+    """The linear formula's fatigue is `min(1.0, consecutive / maximum)`, 240 by default."""
     world = _world()
     world.staff["S01"].active_task_id = "t"
-    plain, twin = _plain_twin(world)
-    update_staff_dynamics.__wrapped__(twin, 0)
-    _kernels().update(world, 0)
-    assert _text(_state(world)) == _text(plain)
-    plain["staff"]["S01"]["fatigue"] *= 1.01
-    assert _text(_state(world)) != _text(plain)
+    update_staff_dynamics(world, 0)
+    assert _state(world)["staff"]["S01"] == {
+        "consecutive_work_minutes": 1,
+        "total_work_minutes": 1,
+        "total_rest_minutes": 0,
+        "fatigue": 1 / 240,
+        "rest_until_minute": 0,
+        "last_activity": "working",
+    }
+    assert _state(world)["staff"]["S02"] == {**_new_record(), "total_rest_minutes": 0}
 
 
 @pytest.mark.parametrize("model_id", ["staff-fatigue-linear-v1", "staff-fatigue-saturating-v1"])
@@ -287,25 +380,18 @@ def test_a_fatigue_value_has_the_bits_of_the_python_formula(model_id: str) -> No
         (lambda world: world.model_configs.__setitem__("policy_registry", 1), AttributeError),
     ],
 )
-def test_a_bad_value_changes_nothing_and_the_python_rule_gives_its_error(
-    corrupt: Any, error: type[Exception]
-) -> None:
+def test_a_bad_value_changes_nothing_and_is_refused(corrupt: Any, error: type[Exception]) -> None:
+    """A state no rule writes: the Python rule raised `error` at the record it reached (a KeyError,
+    an AttributeError); the kernel refuses before any change."""
     world = _world()
     corrupt(world)
-    expected = None
-    try:
-        _, twin = _plain_twin(world)
-        update_staff_dynamics.__wrapped__(twin, 0)
-    except Exception as raised:  # noqa: BLE001 - the text is what is compared
-        expected = raised
-    assert isinstance(expected, error)
     before = _text(_state(world))
     with pytest.raises(native.Unsupported):
         _kernels().update(world, 0)
     assert _text(_state(world)) == before
-    with pytest.raises(error) as raised_here:
+    with pytest.raises(KernelRefusal):
         update_staff_dynamics(world, 0)
-    assert str(raised_here.value) == str(expected)
+    assert _text(_state(world)) == before
 
 
 @pytest.mark.parametrize(
@@ -333,7 +419,7 @@ def test_what_the_kernel_does_not_handle_is_unsupported_before_any_change(prepar
 
 
 @pytest.mark.parametrize("minute", [True, 1.0, 2**70, "1"])
-def test_a_minute_of_another_type_goes_to_python(minute: Any) -> None:
+def test_a_minute_of_another_type_is_refused(minute: Any) -> None:
     world = _world()
     for kernel in (_kernels().update, lambda w, m: _kernels().on_shift(w, "S01", m)):
         with pytest.raises(native.Unsupported):
@@ -352,7 +438,7 @@ def test_a_world_without_the_namespace_answers_as_the_python_rule_does() -> None
     assert KEY not in world.model_state
 
 
-def test_a_world_of_another_class_reaches_the_python_rule() -> None:
+def test_a_world_of_another_class_without_the_namespace_is_answered() -> None:
     other = SimpleNamespace(model_state={})
     update_staff_dynamics(other, 0)
     assert staff_dynamics_on_shift(other, "S01", 0) is True
@@ -361,8 +447,8 @@ def test_a_world_of_another_class_reaches_the_python_rule() -> None:
 # ---- The readers ----
 
 
-@pytest.mark.parametrize("seed", range(40))
-def test_the_readers_answer_what_the_python_rules_answer(seed: int) -> None:
+def _reader_answers(seed: int) -> list[str]:
+    """The answers of the two readers to 300 random questions on a random world."""
     rng = random.Random(seed)
     world = _random_world(rng)
     if rng.random() < 0.7:
@@ -373,44 +459,98 @@ def test_the_readers_answer_what_the_python_rules_answer(seed: int) -> None:
                 if rng.random() < 0.7
             }
         }
-    answers = set()
+    answers = []
     for _ in range(300):
         staff_id = rng.choice((*IDS, "unknown"))
         minute = rng.choice((rng.randrange(0, 300), rng.randrange(0, 40_000)))
-        for kernel, rule in (
-            (_kernels().on_shift, staff_dynamics_on_shift),
-            (_kernels().is_available, staff_dynamics_is_available),
-        ):
-            answer = kernel(world, staff_id, minute)
-            assert answer is rule.__wrapped__(world, staff_id, minute)
-            answers.add(answer)
-    assert answers == {True, False}
+        for rule in (staff_dynamics_on_shift, staff_dynamics_is_available):
+            answer = rule(world, staff_id, minute)
+            assert type(answer) is bool
+            answers.append(str(answer))
+    return answers
+
+
+# The digests of `_reader_answers` with the Python rules, taken before they went (lane L10).
+READER_DIGESTS = {
+    0: "be865b6a855b551b",
+    1: "5ce1671b6e3cced0",
+    2: "a2b27daea81b210d",
+    3: "0cb3252518fe4a71",
+    4: "d5239bf961fde5af",
+    5: "c29f08cbea2f6474",
+    6: "96e8d4a585544fcf",
+    7: "18a69749a07982ca",
+    8: "abfc4c1316a3095b",
+    9: "35c84c9c574d69ae",
+    10: "51c0b3136652e507",
+    11: "25dd85596477fc97",
+    12: "69ace248974238f7",
+    13: "df767b4fb890ebf7",
+    14: "1dd5af005c701d42",
+    15: "94e14a5ca03c418e",
+    16: "43a6451bd54f2d3b",
+    17: "cb607a53e43865c4",
+    18: "870b7f3bcc9fcf6f",
+    19: "57a3fa7f7a783140",
+    20: "ebf91eb61076c9a7",
+    21: "6b6218aeb793fdf8",
+    22: "7aa93d87035ca0e1",
+    23: "79d036b90df5a078",
+    24: "0389dc684fc48437",
+    25: "3159f67d7cd55ad4",
+    26: "27bdbfac1556e848",
+    27: "73e37e74e3661bc8",
+    28: "b742dbd43bf0ec1e",
+    29: "0831bc9fe6e3e442",
+    30: "97e7c7e658469c42",
+    31: "da66fc2f37f57089",
+    32: "217fa39fddd1cbe9",
+    33: "51d052de08f1ebec",
+    34: "3febcd9a1e3116b7",
+    35: "5ab3757cd355ad6d",
+    36: "1b33cb153b09974d",
+    37: "73d48e3682d5e5f9",
+    38: "2077ef40a7055a33",
+    39: "32c7c219ea66522f",
+}
+
+
+@pytest.mark.parametrize("seed", range(40))
+def test_the_readers_answer_what_the_python_rules_answered(seed: int) -> None:
+    answers = _reader_answers(seed)
+    assert set(answers) == {"True", "False"}
+    assert _digest(answers) == READER_DIGESTS[seed]
 
 
 @pytest.mark.parametrize(
-    "operations",
+    ("operations", "available"),
     [
-        {"staff": {"S01": {}}},
-        {"staff": {"S01": None}},
-        {"staff": {}},
-        {},
-        None,
+        # `operation is None or operation.get("phase") == "idle"`.
+        ({"staff": {"S01": {}}}, False),
+        ({"staff": {"S01": {"phase": "idle"}}}, True),
+        ({"staff": {"S01": {"phase": "travel"}}}, False),
+        ({"staff": {"S01": None}}, True),
+        ({"staff": {}}, True),
+        ({}, True),
+        (None, True),
     ],
 )
-def test_the_availability_reader_takes_each_shape_of_the_operations_state(operations: Any) -> None:
+def test_the_availability_reader_takes_each_shape_of_the_operations_state(
+    operations: Any, available: bool
+) -> None:
     world = _world()
     world.model_state["staff_operations_v1"] = operations
-    assert _kernels().is_available(world, "S01", 0) is (
-        staff_dynamics_is_available.__wrapped__(world, "S01", 0)
-    )
+    assert staff_dynamics_is_available(world, "S01", 0) is available
 
 
-def test_a_config_without_windows_leaves_the_readers_to_the_python_rule() -> None:
+def test_a_config_without_windows_is_refused_by_the_readers() -> None:
+    """A config of the oldest schema has no `shift_windows_by_staff`; the Python rule raised
+    KeyError there."""
     world = _world()
     del _state(world)["config"]["shift_windows_by_staff"]
     with pytest.raises(native.Unsupported):
         _kernels().on_shift(world, "S01", 0)
-    with pytest.raises(KeyError):
+    with pytest.raises(KernelRefusal):
         staff_dynamics_on_shift(world, "S01", 0)
 
 
@@ -418,15 +558,14 @@ def test_a_config_without_windows_leaves_the_readers_to_the_python_rule() -> Non
 
 
 @pytest.mark.parametrize("staff_id", ["S09", "S01"])
-def test_add_staff_writes_what_the_python_rule_writes_and_the_tree_stays_tracked(
-    staff_id: str,
-) -> None:
+def test_add_staff_writes_a_new_record_and_the_tree_stays_tracked(staff_id: str) -> None:
     world = _world()
     _state(world)["staff"]["S01"]["fatigue"] = 0.5
-    plain, twin = _plain_twin(world)
-    add_staff.__wrapped__(twin, staff_id)
+    expected = json.loads(_text(_state(world)))
+    # `state["staff"][staff_id] = {...}`: a known ID keeps its place, a new one goes last.
+    expected["staff"][staff_id] = _new_record()
     add_staff(world, staff_id)
-    assert _text(_state(world)) == _text(plain)
+    assert _text(_state(world)) == _text(expected)
     assert _mirror(world).verify()
     _state(world)["staff"][staff_id]["fatigue"] = 0.25
     assert _mirror(world).verify()
@@ -441,7 +580,7 @@ def test_add_staff_writes_what_the_python_rule_writes_and_the_tree_stays_tracked
         {"shift_windows_by_staff": {"S02": [{"start_minute": 1, "end_minute": 2}]}},
     ],
 )
-def test_create_state_builds_what_the_python_rule_builds(raw: Any) -> None:
+def test_create_state_builds_what_the_python_rule_built(raw: Any) -> None:
     world = WorldState(
         "s",
         1,
@@ -450,9 +589,23 @@ def test_create_state_builds_what_the_python_rule_builds(raw: Any) -> None:
     )
     if raw is not None:
         world.model_configs["staff_dynamics"] = raw
-    assert _text(_kernels().create_state(world)) == _text(
-        create_staff_dynamics_state.__wrapped__(world)
-    )
+    assert _text(create_staff_dynamics_state(world)) == _text(_python_state(raw))
+
+
+def _python_state(raw: Any) -> dict[str, Any]:
+    """What `create_staff_dynamics_state` built: the config of `canonical_staff_dynamics_config`
+    without empty per-staff limits, and a new record for each member in ID order (by code point)."""
+    config = canonical_staff_dynamics_config(copy.deepcopy(raw))
+    persisted = dict(config)
+    if not persisted["max_continuous_work_minutes_by_staff"]:
+        persisted.pop("max_continuous_work_minutes_by_staff")
+    return {
+        "schema_version": 1,
+        "policy_version": config["policy_version"],
+        "source_id": config["source_id"],
+        "config": persisted,
+        "staff": {staff_id: _new_record() for staff_id in ("S01", "S02", "é")},
+    }
 
 
 # ---- The validators ----
@@ -532,129 +685,52 @@ def _outcome(rule: Any, *arguments: Any, **options: Any) -> tuple[str, str]:
     try:
         return "value", _text(rule(*arguments, **options))
     except ValueError as error:
-        return "error", str(error)
+        return "error", f"{type(error).__name__}: {error}"
 
 
-@pytest.mark.parametrize("raw", CONFIGS, ids=[f"config{i}" for i in range(len(CONFIGS))])
-def test_the_config_kernel_gives_the_python_result_or_leaves_it_to_python(raw: Any) -> None:
-    """The kernel's value, or the Python rule's ValueError, class and text, or Unsupported for a
-    value of another type (docs/rust-port/lanes/l8-texts-rest.md)."""
-    python = canonical_staff_dynamics_config.__wrapped__
-    expected = _outcome(python, copy.deepcopy(raw))
-    try:
-        actual: tuple[str, str] | None = _outcome(_kernels().canonical_config, copy.deepcopy(raw))
-    except native.Unsupported:
-        actual = None
-    if actual is not None:
-        assert actual == expected
-    # What every caller sees is the same whichever of the two ran.
-    assert _outcome(canonical_staff_dynamics_config, copy.deepcopy(raw)) == expected
+# The configs the kernel's canonical config does not take, of types the rows do not hold, and the
+# ones whose `in` raises TypeError in Python (an unhashable policy).
+REFUSED_CONFIGS = {9, 10}
 
 
-def test_the_config_kernel_runs_on_the_shapes_of_a_real_config() -> None:
-    for raw in (
-        None,
-        {},
-        {"policy_version": SHIFT_STAFF_DYNAMICS_POLICY_VERSION},
-        {"shift_windows_by_staff": {"S01": [_shift()]}},
-        {"max_continuous_work_minutes_by_staff": {"S01": 1}},
-        {"off_shift_fatigue_recovery_per_minute": 0.01, "rest_minutes": 45},
-        canonical_staff_dynamics_config.__wrapped__({"rest_minutes": 45}),
-    ):
-        assert _text(_kernels().canonical_config(raw)) == _text(
-            canonical_staff_dynamics_config.__wrapped__(raw)
-        )
-
-
-def test_the_config_kernel_shares_what_the_python_rule_shares() -> None:
-    windows = {"S01": [_shift()]}
-    assert _kernels().canonical_config({"shift_windows_by_staff": windows})[
-        "shift_windows_by_staff"
-    ] is (windows)
-
-
-OVERRIDES: list[Any] = [
-    {"S01": [_shift()]},
-    {"b": [_shift(10, 20), _shift(0, 10)], "a": []},
-    {"a.b_c:d-e": [_shift()]},
-    {"-a": [_shift()]},
-    {"é": [_shift()]},
-    {"a" * 64: []},
-    {"a" * 65: []},
-    {},
-    [],
-    {f"s{i}": [] for i in range(100)},
-    {f"s{i}": [] for i in range(101)},
-    {"S01": "x"},
-    {"S01": [_shift(i * 2, i * 2 + 1) for i in range(21)]},
-    {"S01": [_shift(i * 2, i * 2 + 1) for i in range(22)]},
-    {"S01": [_shift(0, 11), _shift(10, 20)]},
-    {"S01": [_shift(0, True)]},
-    {"S01": [{"end_minute": 10, "start_minute": 0}]},
-    {1: []},
-    {f"staff{i:03d}": [_shift(j * 2, j * 2 + 1) for j in range(5)] for i in range(70)},
-    {f"staff{i:03d}": [_shift(j * 2, j * 2 + 1) for j in range(5)] for i in range(99)},
-    {f"staff{i:03d}": [_shift(j * 2, j * 2 + 1) for j in range(6)] for i in range(99)},
-    {f"staff{i:03d}": [_shift(j * 2, j * 2 + 1) for j in range(7)] for i in range(99)},
-]
-
-
-@pytest.mark.parametrize("known", [None, {"S01"}, {"S01", "a", "b"}])
-@pytest.mark.parametrize("value", OVERRIDES, ids=[f"override{i}" for i in range(len(OVERRIDES))])
-def test_the_override_kernel_gives_the_python_result_or_leaves_it_to_python(
-    value: Any, known: Any
-) -> None:
-    python = validate_staff_shift_windows_override.__wrapped__
-    try:
-        expected: tuple[str, str] = "value", _text(python(value, known_staff_ids=known))
-    except (ValueError, TypeError) as error:
-        expected = "error", str(error)
-    try:
-        actual: tuple[str, str] | None = (
-            "value",
-            _text(_kernels().validate_override(value, known_staff_ids=known)),
-        )
-    except native.Unsupported:
-        actual = None
-    except ValueError as error:
-        # The Python rule's class and text (docs/rust-port/lanes/l8-texts-rest.md).
-        assert type(error) is ValueError
-        actual = "error", str(error)
-    if actual is not None:
-        assert actual == expected
-
-
-def _override_of_size(size: int) -> dict[str, Any]:
-    value: dict[str, Any] = {
-        f"staff{i:03d}": [_shift(j * 2, j * 2 + 1) for j in range(5)] for i in range(85)
-    }
-
-    def length() -> int:
-        return len(json.dumps(value, separators=(",", ":")))
-
-    number = 0
-    while (left := size - length()) > 0:
-        # A comma, two quotes, a colon and two brackets, beside the ID.
-        pad = 64 if left > 140 else (left - 6 if left <= 70 else 10)
-        value[f"p{number:02d}".ljust(pad, "x")] = []
-        number += 1
-    assert length() == size
-    return value
-
-
-@pytest.mark.parametrize(("size", "accepted"), [(16_383, True), (16_384, True), (16_385, False)])
-def test_the_override_kernel_counts_the_json_limit_to_the_byte(size: int, accepted: bool) -> None:
-    """The limit is on the length of json.dumps, so the kernel adds that length up without it."""
-    value = _override_of_size(size)
-    python = validate_staff_shift_windows_override.__wrapped__
-    if accepted:
-        assert _text(_kernels().validate_override(value)) == _text(python(value))
+@pytest.mark.parametrize(
+    "index", range(len(CONFIGS)), ids=[f"config{i}" for i in range(len(CONFIGS))]
+)
+def test_a_new_namespace_has_the_config_of_the_python_check(index: int) -> None:
+    """`create_staff_dynamics_state` makes its config in Rust: what
+    `canonical_staff_dynamics_config` gives, which a Scenario's check keeps in Python, or its
+    ValueError's text, or KernelRefusal for a value of a type the rows do not hold
+    (`schema_version: 1.0`, `True`)."""
+    raw = CONFIGS[index]
+    world = WorldState("s", 1, 100, staff={"S01": StaffState("S01", "z", ())})
+    world.model_configs["staff_dynamics"] = copy.deepcopy(raw)
+    if index in REFUSED_CONFIGS:
+        with pytest.raises(KernelRefusal):
+            create_staff_dynamics_state(world)
         return
-    with pytest.raises(ValueError) as ours:
-        _kernels().validate_override(value)
-    with pytest.raises(ValueError, match="16 KiB") as theirs:
-        python(value)
-    assert str(ours.value) == str(theirs.value)
+    expected = _outcome(canonical_staff_dynamics_config, copy.deepcopy(raw))
+    try:
+        state = create_staff_dynamics_state(world)
+    except ValueError as error:
+        assert type(error) is ValueError
+        assert ("error", f"ValueError: {error}") == expected
+        return
+    config = canonical_staff_dynamics_config(copy.deepcopy(raw))
+    if not config["max_continuous_work_minutes_by_staff"]:
+        config.pop("max_continuous_work_minutes_by_staff")
+    assert expected[0] == "value"
+    assert _text(state["config"]) == _text(config)
+
+
+def test_a_new_namespace_shares_the_config_s_windows_as_the_python_rule_did() -> None:
+    """`{**defaults, **raw}` keeps the config's own objects, and so did the state's config."""
+    windows = {"S01": [_shift()]}
+    world = WorldState("s", 1, 100, staff={"S01": StaffState("S01", "z", ())})
+    world.model_configs["staff_dynamics"] = {"shift_windows_by_staff": windows}
+    state = create_staff_dynamics_state(world)
+    held = world.model_configs["staff_dynamics"]["shift_windows_by_staff"]
+    assert held == windows
+    assert state["config"]["shift_windows_by_staff"] is held
 
 
 def _valid_for_python(world: WorldState) -> bool:

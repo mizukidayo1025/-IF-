@@ -2,74 +2,27 @@
 
 Lifecycle records are synthetic state-transition evidence. They contain no generated
 utterance and are separate from selected-policy proposals and completion events.
+
+The four rules below are native/src/rules/action_lifecycle.rs's kernels (`kernel_only`). They keep
+the open actions in the store `active_action_store` makes (the Rust rows); a plain dict is not one,
+and a kernel raises TypeError for it. A receipt the kernels can't write as the receipts' model would
+(`ActionLifecycleReceipt`: a reason past 120 characters, an ID that is not stable, a value that is
+not finite, a transition before its start, an event ID or sequence the log already holds) is
+refused before anything changes: KernelRefusal.
 """
 
 from __future__ import annotations
 
-import math
-import re
-from collections.abc import Callable, Mapping
-from functools import wraps
-from typing import Any, TypeVar
+from collections.abc import Mapping
+from typing import Any
 
 from sheltersim import native
-from sheltersim.contracts.operations import ActionLifecycleReceipt
+from sheltersim.core.kernels import kernel_only
 from sheltersim.core.world import WorldState
-from sheltersim.domain.models import AgentState
-from sheltersim.events.models import EventKind, EventLogRecord, EventStatus, ScheduledEvent
+from sheltersim.events.models import ScheduledEvent
 
 ACTION_LIFECYCLE_SOURCE_ID = "ASM-ACTION-LIFECYCLE-V1"
 ACTION_LIFECYCLE_POLICY_VERSION = "applied-action-lifecycle-v2"
-
-_TRANSITIONS = frozenset(
-    {"started", "continued", "completed", "interrupted", "abandoned", "censored"}
-)
-# The pattern of contracts.extensions.Identifier.
-_STABLE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$")
-_COMPLETION_ACTIONS = {
-    "toilet_service_complete": {"request_toilet"},
-    "resource_service_complete": {"fetch_water", "collect_meal"},
-    "staff_support_complete": {"seek_help", "seek_information"},
-    "social_interaction": {"socialize", "care_family", "help_others"},
-}
-_ABANDONED_ACTIONS = {"facility_queue_abandon": {"request_toilet", "fetch_water", "collect_meal"}}
-_INTERRUPTED_ACTIONS = {
-    "resource_service_cancel": {"fetch_water", "collect_meal"},
-    "support_request_timeout": {"seek_help", "seek_information"},
-}
-
-
-Rule = TypeVar("Rule", bound=Callable[..., Any])
-
-
-def _kernel_first(name: str) -> Callable[[Rule], Rule]:
-    """Try native/src/rules/action_lifecycle.rs's kernel on a store of open actions.
-
-    A kernel says Unsupported before it changes anything. The Python rule then runs on the store's
-    plain dict, which holds the actions from then on. A plain dict given by a caller stays with the
-    Python rule. `__wrapped__` is the Python rule. Like core.kernels.kernel_first, but for rules
-    with a store to hand over.
-    """
-
-    def decorate(python_rule: Rule) -> Rule:
-        rules = native.rules("action_lifecycle")
-        kernel = getattr(rules, name)
-        store = rules.ActiveActions
-        unsupported = native.Unsupported
-
-        @wraps(python_rule)
-        def run(*arguments: Any, active_actions: Any, **options: Any) -> Any:
-            if type(active_actions) is not store:
-                return python_rule(*arguments, active_actions=active_actions, **options)
-            try:
-                return kernel(*arguments, active_actions=active_actions, **options)
-            except unsupported:
-                plain = active_actions.as_plain()
-                return python_rule(*arguments, active_actions=plain, **options)
-
-        return run  # type: ignore[return-value]
-
-    return decorate
 
 
 def active_action_store(world: WorldState) -> Any:
@@ -116,353 +69,75 @@ def active_action_index(world: WorldState) -> dict[str, dict[str, Any]]:
     return active
 
 
-@_kernel_first("record_action_proposal")
+@kernel_only("action_lifecycle", "record_action_proposal")
 def record_action_proposal(
     world: WorldState,
     proposal: Any,
     *,
     target_id: str | None,
     committed: bool,
-    active_actions: dict[str, dict[str, Any]],
+    active_actions: Any,
 ) -> None:
-    """Start/continue an action only when the selected proposal changed actor state."""
-    if not committed:
-        return
-    agent_id = proposal.agent_id
-    agent = world.agents.get(agent_id)
-    if agent is None:
-        return
-    current = active_actions.get(agent_id)
-    action = proposal.action.value
-    if current is not None:
-        if current.get("action") == action and current.get("target_id") == target_id:
-            if not current.get("continued", False):
-                _append_transition(
-                    world,
-                    current,
-                    "continued",
-                    minute=proposal.minute_index,
-                    reason_code=proposal.trigger,
-                    activity=agent.activity.value,
-                )
-                current["continued"] = True
-            return
-        status, cause = _completion_status(current, agent, world)
-        _append_transition(
-            world,
-            current,
-            status,
-            minute=proposal.minute_index,
-            reason_code="superseded_by_new_applied_action",
-            causation_id=cause,
-            activity=agent.activity.value,
-        )
-        active_actions.pop(agent_id, None)
-    sequence = world.allocate_event_sequence()
-    record = {
-        "action_id": f"action-{sequence}",
-        "agent_id": agent_id,
-        "action": action,
-        "target_id": target_id,
-        "start_minute": proposal.minute_index,
-        "reason_code": proposal.trigger,
-        "start_activity": agent.activity.value,
-        "start_needs": _need_snapshot(agent, world),
-        "model_id": ACTION_LIFECYCLE_POLICY_VERSION,
-        "model_source_id": ACTION_LIFECYCLE_SOURCE_ID,
-    }
-    _append_transition(
-        world,
-        record,
-        "started",
-        minute=proposal.minute_index,
-        reason_code=proposal.trigger,
-        activity=agent.activity.value,
-        sequence=sequence,
-    )
-    record["continued"] = False
-    active_actions[agent_id] = record
+    """Start or continue an action only when the selected proposal changed actor state.
+
+    Nothing for an uncommitted proposal or an agent not in the world. The same action and target as
+    the open one appends one "continued" receipt, the first time. Another one closes the open action
+    ("completed" for a `wait` begun before this minute, or a `rest`/`sleep` whose fatigue, or sleep
+    debt, fell since its start; else "interrupted"; reason "superseded_by_new_applied_action") and
+    opens the new one: a "started" receipt with ID `action-{sequence}`, the agent's activity and
+    needs at the start.
+
+    Each receipt is an APPLIED `agent_action_lifecycle` event `action-lifecycle-{sequence}` with the
+    detail "autonomous action {transition}"; its sequence is allocated from the world's counter.
+    """
 
 
-@_kernel_first("record_applied_action_completion")
+@kernel_only("action_lifecycle", "record_applied_action_completion")
 def record_applied_action_completion(
     world: WorldState,
     event: ScheduledEvent,
     minute: int,
     *,
-    active_actions: dict[str, dict[str, Any]],
+    active_actions: Any,
 ) -> None:
-    """Close matching active actions only when their typed applied event exists."""
-    applied_record = world.event_log.find(event.event_id)
-    if (
-        applied_record is None
-        or applied_record.status is not EventStatus.APPLIED
-        or (applied_record.event is not event and applied_record.event.to_dict() != event.to_dict())
-    ):
-        return
-    agent_id = event.payload.get("agent_id")
-    if not isinstance(agent_id, str):
-        agent_id = event.payload.get("sender_agent_id")
-    if not isinstance(agent_id, str):
-        return
-    current = active_actions.get(agent_id)
-    if current is None:
-        return
-    event_type = event.event_type
-    expected_target = current.get("target_id")
-    target_keys = (
-        ("request_id", "staff_id")
-        if event_type in {"staff_support_complete", "support_request_timeout"}
-        else ("facility_id", "participant_agent_id", "staff_id", "request_id")
-    )
-    observed_target = next(
-        (event.payload.get(key) for key in target_keys if isinstance(event.payload.get(key), str)),
-        None,
-    )
-    if (
-        isinstance(expected_target, str)
-        and isinstance(observed_target, str)
-        and expected_target != observed_target
-    ):
-        return
-    if event.due_minute < current.get("start_minute", 0):
-        return
-    if current.get("action") not in _COMPLETION_ACTIONS.get(event_type, set()):
-        if current.get("action") not in _ABANDONED_ACTIONS.get(event_type, set()):
-            if current.get("action") not in _INTERRUPTED_ACTIONS.get(event_type, set()):
-                return
-            status = "interrupted"
-        else:
-            status = "abandoned"
-    else:
-        status = "completed"
-    _append_transition(
-        world,
-        current,
-        status,
-        minute=minute,
-        reason_code=event_type,
-        causation_id=event.event_id,
-        activity=world.agents.get(agent_id).activity.value if agent_id in world.agents else None,
-    )
-    active_actions.pop(agent_id, None)
+    """Close the open action an applied typed event ends.
+
+    Only when the log holds the event APPLIED (that object, or one whose row is the same), its
+    `agent_id` (or `sender_agent_id`) has an open action, the event's target (`request_id` or
+    `staff_id` for support events; `facility_id`, `participant_agent_id`, `staff_id` or `request_id`
+    otherwise) is not another one, and its minute is not before the action's start. A toilet,
+    resource or support completion and a social interaction complete the actions they serve; a queue
+    abandonment abandons them; a resource cancellation and a support timeout interrupt them. The
+    receipt's reason is the event's type and its causation the event.
+    """
 
 
-@_kernel_first("record_applied_population_exit")
+@kernel_only("action_lifecycle", "record_applied_population_exit")
 def record_applied_population_exit(
     world: WorldState,
     event: ScheduledEvent,
     minute: int,
     *,
-    active_actions: dict[str, dict[str, Any]],
+    active_actions: Any,
 ) -> None:
-    """Interrupt actions for residents removed by an applied population event."""
-    applied_record = world.event_log.find(event.event_id)
-    if (
-        event.event_type != "effect_program_population"
-        or applied_record is None
-        or applied_record.status is not EventStatus.APPLIED
-        or applied_record.event.to_dict() != event.to_dict()
-    ):
-        return
+    """Interrupt the open actions of residents an applied population event took away.
 
-    causes: dict[str, str] = {}
-    lifecycle = world.model_state.get("population_lifecycle_v1")
-    history = lifecycle.get("history", ()) if isinstance(lifecycle, dict) else ()
-    for row in history:
-        if not isinstance(row, dict) or row.get("event_id") != event.event_id:
-            continue
-        action = row.get("action")
-        agent_id = row.get("agent_id")
-        if action in {"temporary_exit", "transferred"} and isinstance(agent_id, str):
-            causes[agent_id] = (
-                "population_temporary_exit" if action == "temporary_exit" else "population_transfer"
-            )
-
-    population = world.model_state.get("population_dynamics_v1")
-    departures = population.get("departures", ()) if isinstance(population, dict) else ()
-    for row in departures:
-        if (
-            isinstance(row, dict)
-            and row.get("event_id") == event.event_id
-            and isinstance(row.get("agent_id"), str)
-        ):
-            causes[row["agent_id"]] = "population_departure"
-
-    for agent_id, reason_code in sorted(causes.items()):
-        current = active_actions.pop(agent_id, None)
-        if current is None:
-            continue
-        _append_transition(
-            world,
-            current,
-            "interrupted",
-            minute=minute,
-            reason_code=reason_code,
-            causation_id=event.event_id,
-            activity=None,
-        )
+    For an APPLIED `effect_program_population` event: its rows in `population_lifecycle_v1`'s
+    history (a temporary exit or a transfer) and in `population_dynamics_v1`'s departures (which
+    win) give each agent's reason; their open actions close "interrupted", in agent ID order, with
+    no activity and the event as cause.
+    """
 
 
-@_kernel_first("finalize_active_actions")
+@kernel_only("action_lifecycle", "finalize_active_actions")
 def finalize_active_actions(
     world: WorldState,
     minute: int,
     *,
-    active_actions: dict[str, dict[str, Any]],
+    active_actions: Any,
 ) -> None:
-    """Close run-open actions as completed only with observed need relief; otherwise censor."""
-    for agent_id, current in sorted(tuple(active_actions.items())):
-        agent = world.agents.get(agent_id)
-        if agent is None:
-            status = "censored"
-            activity = None
-        else:
-            candidate, _ = _completion_status(current, agent, world)
-            status = "completed" if candidate == "completed" else "censored"
-            activity = agent.activity.value
-        _append_transition(
-            world,
-            current,
-            status,
-            minute=minute,
-            reason_code="simulation_end_right_censor",
-            activity=activity,
-        )
-        active_actions.pop(agent_id, None)
+    """Close every action still open at the end of a Run, in agent ID order.
 
-
-def _completion_status(
-    action: dict[str, Any], agent: AgentState, world: WorldState
-) -> tuple[str, str | None]:
-    action_name = action.get("action")
-    if action_name == "wait":
-        return (
-            ("completed", None)
-            if world.minute_index > action.get("start_minute", 0)
-            else ("interrupted", None)
-        )
-    if action_name in {"rest", "sleep"}:
-        current = _need_snapshot(agent, world)
-        started = action.get("start_needs", {})
-        fields = ("fatigue", "sleep_debt_minutes") if action_name == "sleep" else ("fatigue",)
-        if any(
-            isinstance(started.get(name), (int, float))
-            and isinstance(current.get(name), (int, float))
-            and current[name] < started[name]
-            for name in fields
-        ):
-            return "completed", None
-    # Typed completion/cancellation hooks close resource, support, toilet and social
-    # actions at the applied event boundary. Remaining actions were displaced before
-    # completing, so do not infer success from elapsed time alone.
-    return "interrupted", None
-
-
-def _need_snapshot(agent: AgentState, world: WorldState) -> dict[str, float]:
-    body = world.model_state.get("body_state_v1", {}).get("agents", {}).get(agent.profile.id, {})
-    return {
-        "toilet_urgency": agent.needs.toilet_urgency,
-        "hunger": agent.needs.hunger,
-        "hydration_need": agent.needs.hydration_need,
-        "fatigue": agent.needs.fatigue,
-        "sleep_debt_minutes": float(body.get("sleep_debt_minutes", 0.0)),
-        "hygiene_need": float(body.get("hygiene_need", 0.0)),
-    }
-
-
-def _is_plain_receipt(payload: dict[str, Any]) -> bool:
-    """Whether ActionLifecycleReceipt accepts this payload and dumps the same values.
-
-    Only for values of exactly the declared types; the model decides anything else and
-    raises any error. A receipt is made for most actions, about 18 per tick.
+    "completed" only with the need relief `record_action_proposal` asks for; otherwise, or for an
+    agent no longer in the world, "censored". The reason is "simulation_end_right_censor".
     """
-    start, minute = payload["start_minute"], payload["transition_minute"]
-    reason_code, activity = payload["reason_code"], payload["activity"]
-    start_activity, target_id = payload["start_activity"], payload["target_id"]
-    plain = (
-        type(start) is int
-        and type(minute) is int
-        and 0 <= start <= minute
-        and payload["duration_minutes"] == minute - start
-        and payload["transition"] in _TRANSITIONS
-        and type(reason_code) is str
-        and 1 <= len(reason_code) <= 120
-        and (activity is None or (type(activity) is str and len(activity) <= 80))
-        and (start_activity is None or (type(start_activity) is str and len(start_activity) <= 80))
-        and (target_id is None or _is_identifier(target_id))
-    )
-    if not plain:
-        return False
-    for name in ("action_id", "agent_id", "action", "model_id", "model_source_id"):
-        if not _is_identifier(payload[name]):
-            return False
-    for needs in (payload["start_needs"], payload["current_needs"]):
-        for key, value in needs.items():
-            if type(key) is not str or type(value) is not float or not math.isfinite(value):
-                return False
-    return True
-
-
-def _is_identifier(value: Any) -> bool:
-    return type(value) is str and _STABLE_ID.fullmatch(value) is not None
-
-
-def _append_transition(
-    world: WorldState,
-    action: dict[str, Any],
-    transition: str,
-    *,
-    minute: int,
-    reason_code: str,
-    activity: str | None,
-    causation_id: str | None = None,
-    sequence: int | None = None,
-) -> None:
-    sequence = world.allocate_event_sequence() if sequence is None else sequence
-    payload = {
-        "schema_version": 1,
-        "action_id": action["action_id"],
-        "agent_id": action["agent_id"],
-        "action": action["action"],
-        "target_id": action.get("target_id"),
-        "transition": transition,
-        "start_minute": action["start_minute"],
-        "transition_minute": minute,
-        "duration_minutes": max(0, minute - action["start_minute"]),
-        "reason_code": reason_code,
-        "activity": activity,
-        "start_activity": action.get("start_activity"),
-        "start_needs": dict(action.get("start_needs", {})),
-        "current_needs": _need_snapshot(world.agents[action["agent_id"]], world)
-        if action["agent_id"] in world.agents
-        else {},
-        "model_id": action["model_id"],
-        "model_source_id": action["model_source_id"],
-    }
-    if not _is_plain_receipt(payload):
-        payload = ActionLifecycleReceipt.model_validate(payload).model_dump(mode="json")
-    event = ScheduledEvent(
-        event_id=f"action-lifecycle-{sequence}",
-        kind=EventKind.ENDOGENOUS,
-        due_minute=minute,
-        priority=0,
-        sequence=sequence,
-        event_type="agent_action_lifecycle",
-        payload=payload,
-        source_id=ACTION_LIFECYCLE_POLICY_VERSION,
-        causation_id=causation_id,
-        provenance={
-            "source_type": "assumption",
-            "source_id": ACTION_LIFECYCLE_SOURCE_ID,
-            "policy_version": ACTION_LIFECYCLE_POLICY_VERSION,
-        },
-    )
-    world.event_log.append(
-        EventLogRecord(
-            event=event,
-            realized_minute=minute,
-            status=EventStatus.APPLIED,
-            detail=f"autonomous action {transition}",
-        )
-    )

@@ -1,6 +1,6 @@
-//! `domain/agent_dynamics.py`: decision memory and facility awareness. The Python rules stay as the
-//! comparison base and for every value these kernels do not decide, which is also how a bad value
-//! gets its error text (docs/rust-port/lanes/f-action-lifecycle.md).
+//! `domain/agent_dynamics.py`: decision memory and facility awareness. Its rules are these kernels
+//! alone (lane L10, `kernel_only`), and what they refuse is a KernelRefusal there
+//! (docs/rust-port/lanes/f-action-lifecycle.md).
 //!
 //! Each kernel reads the rows and what it was given, computes, and writes the row and its tree. No
 //! Python runs in between. `remember_decision` is what a Rust caller uses (lane J).
@@ -17,7 +17,7 @@ use crate::core::row::{
 };
 use crate::core::world_core::{mirror_of, NamespaceMirror};
 use crate::state::agent_dynamics::{
-    canonical_policy, policy_of, AgentDynamicsRow, AgentMemory, NAME, ORIENTATION_SOURCE, POLICY_V1, POLICY_V3,
+    canonical_policy_or_text, policy_of, AgentDynamicsRow, AgentMemory, NAME, ORIENTATION_SOURCE, POLICY_V1, POLICY_V3,
 };
 use crate::state::entities::{entities_of, AgentRow, Entities, EntityStore};
 use crate::state::events::is_stable_id;
@@ -394,11 +394,11 @@ fn announce_installed_facility(world: &Bound<'_, PyAny>, facility_id: &Bound<'_,
     Ok(())
 }
 
-/// `canonical_agent_dynamics_config`: a new dict.
+/// `canonical_agent_dynamics_config`: a new dict, or its ValueError in its words.
 #[pyfunction]
 fn canonical_config<'py>(raw: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>> {
     let py = raw.py();
-    let policy = canonical_policy(Some(raw))?;
+    let policy = canonical_policy_or_text(Some(raw))?.map_err(crate::core::errors::value_error)?;
     let config = PyDict::new(py);
     config.set_item(intern!(py, "schema_version"), 1_i64)?;
     config.set_item(intern!(py, "policy_version"), PyString::new(py, policy))?;

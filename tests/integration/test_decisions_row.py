@@ -15,6 +15,7 @@ import pytest
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine, TraceLevel
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.domain.population_lifecycle import current_household_id
@@ -324,25 +325,28 @@ def test_a_long_observed_state_is_measured_by_python(
     assert sink.observations[-1]["observed_state_status"] == status
 
 
-def test_a_lifecycle_kernel_refusal_after_the_row_runs_the_python_rule_once(
+def test_a_lifecycle_kernel_refusal_after_the_row_is_a_kernel_refusal(
     generated_scenario: Any,
 ) -> None:
+    """An event counter no Run reaches: the lifecycle's rule (`kernel_only`) refuses it, with no
+    receipt, after the row."""
     world, controller, sink = _indexed_controller(generated_scenario)
     view, rows = _step_until_due(world, controller)
     row = rows[0]
     observed = _rules().observed_row(controller, view, row.agent_id)
     world.id_counters["event"] = 2**62 + 1
     before = len(world.event_log)
-    _record(controller, row, observed)
+    with pytest.raises(KernelRefusal):
+        _record(controller, row, observed)
     assert len(sink.observations) == 1 and type(sink.observations[0]) is bytes
-    assert world.id_counters["event"] > 2**62 + 1
-    assert len(world.event_log) > before
-    assert row.has_object
+    assert world.id_counters["event"] == 2**62 + 1
+    assert len(world.event_log) == before
 
 
-def test_a_memory_kernel_refusal_after_the_row_runs_the_python_rule_once(
+def test_a_memory_kernel_refusal_after_the_row_is_a_kernel_refusal(
     generated_scenario: Any,
 ) -> None:
+    """A record no rule writes: the memory's rule (`kernel_only`) refuses it, after the row."""
     world, controller, sink = _indexed_controller(generated_scenario)
     view, rows = _step_until_due(world, controller)
     row = rows[0]
@@ -350,9 +354,10 @@ def test_a_memory_kernel_refusal_after_the_row_runs_the_python_rule_once(
     record = world.model_state["agent_dynamics_v1"]["agents"][row.agent_id]
     record["last_decision_minute"] = "not a minute"
     assert world._core.mirror("agent_dynamics_v1").tainted is not None
-    _record(controller, row, observed)
+    with pytest.raises(KernelRefusal):
+        _record(controller, row, observed)
     assert len(sink.observations) == 1
-    assert record["last_decision_minute"] == row.minute_index
+    assert record["last_decision_minute"] == "not a minute"
 
 
 def test_an_uncommitted_decision_opens_nothing(generated_scenario: Any) -> None:

@@ -1,14 +1,16 @@
 """staff_operations_v1 and shared_operations_v1 owned by Rust, with the rules of a tick.
 
 native/src/rules/staff.rs and common_operations.rs move the rules of the staff's assignment and a
-care receipt; the Python rules stay as the comparison base and give every error text
-(docs/rust-port/lanes/m4-staff.md, l2-staff.md). The rules are compared on the gate by
-benchmarks/rule_shadow; here, on small worlds and on the values no scenario reaches.
+care receipt (docs/rust-port/lanes/m4-staff.md, l2-staff.md). The staff's rules of a tick have no
+Python body left (lane L10, `kernel_only`): they are checked against the Python rule's formula, or
+a digest of what it gave on the same random inputs, taken before it went. The rules that still have
+a Python rule are compared with it, on the gate by benchmarks/rule_shadow and here.
 """
 
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import random
 from typing import Any
@@ -18,6 +20,7 @@ from support.paths import SMALL_REPLAY
 
 from sheltersim import native
 from sheltersim.contracts.operations import SHARED_OPERATIONS_KEY, NumericStateChange
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.state_mirror import rust_validated
 from sheltersim.core.world import WorldState
 from sheltersim.domain.care_receipts import (
@@ -130,20 +133,39 @@ def test_a_forwarded_task_reaches_the_row_and_a_finished_task_too() -> None:
     assert _mirror(world).verify()
 
 
-def test_a_value_the_row_cant_hold_taints_it_and_the_python_rule_still_runs() -> None:
-    world, plain = _twins()
-    for each in (world, plain):
-        zone = _zones(each)[0]
-        each.model_state[KEY]["zones"][zone]["sanitation"] = 1
+def test_a_value_the_row_cant_hold_taints_it_and_the_rule_refuses() -> None:
+    world = _world()
+    zone = _zones(world)[0]
+    world.model_state[KEY]["zones"][zone]["sanitation"] = 1
     assert not _mirror(world).has_row
     with pytest.raises(native.Unsupported):
         native.rules("staff").update_operations(world, 5)
-    update_staff_operations(world, 5)
-    update_staff_operations.__wrapped__(plain, 5)
-    assert _text(world.model_state[KEY]) == _text(plain.model_state[KEY])
+    before = _text(world.model_state[KEY])
+    with pytest.raises(KernelRefusal):
+        update_staff_operations(world, 5)
+    assert _text(world.model_state[KEY]) == before
 
 
 # ---- update_staff_operations ----
+
+
+def _python_sanitation(world: WorldState, state: dict[str, Any], minute: int) -> dict[str, Any]:
+    """The zones as `update_staff_operations` left them: each zone's sanitation falls by
+    `load * rate * elapsed`, down to 0.0, and its `updated_minute` is the minute."""
+    zones = json.loads(json.dumps(state["zones"]))
+    config = state["config"]
+    for zone_id in sorted(world.zones):
+        load = sum(agent.zone_id == zone_id for agent in world.agents.values())
+        zone = zones[zone_id]
+        elapsed = max(0, minute - zone["updated_minute"])
+        rate = (
+            config["effects_by_zone"]
+            .get(zone_id, {})
+            .get("sanitation_use_per_person_minute", config["sanitation_use_per_person_minute"])
+        )
+        zone["sanitation"] = max(0.0, zone["sanitation"] - load * rate * elapsed)
+        zone["updated_minute"] = minute
+    return zones
 
 
 def test_the_sanitation_is_the_python_rules_on_random_rates() -> None:
@@ -151,20 +173,19 @@ def test_the_sanitation_is_the_python_rules_on_random_rates() -> None:
     for _round in range(40):
         rate = generator.uniform(0.0, 1.0) ** 3
         zone_rate = generator.uniform(0.0, 0.01)
-        world, plain = _twins()
+        world = _world()
         zone = generator.choice(_zones(world))
-        for each in (world, plain):
-            config = each.model_state[KEY]["config"]
-            config["sanitation_use_per_person_minute"] = rate
-            config["effects_by_zone"] = {zone: {"sanitation_use_per_person_minute": zone_rate}}
+        config = world.model_state[KEY]["config"]
+        config["sanitation_use_per_person_minute"] = rate
+        config["effects_by_zone"] = {zone: {"sanitation_use_per_person_minute": zone_rate}}
         minute = 0
         for _step in range(4):
             minute += generator.randrange(0, 90)
+            expected = _python_sanitation(world, world.model_state[KEY], minute)
             kernel_before = dict(_mirror(world).stats())
-            native.rules("staff").update_operations(world, minute)
+            update_staff_operations(world, minute)
             assert _mirror(world).stats()["whole_writes"] == kernel_before["whole_writes"]
-            update_staff_operations.__wrapped__(plain, minute)
-            assert _text(world.model_state[KEY]) == _text(plain.model_state[KEY])
+            assert _text(world.model_state[KEY]["zones"]) == _text(expected)
         assert _mirror(world).verify()
 
 
@@ -180,34 +201,37 @@ def test_a_rate_of_one_percent_more_shows() -> None:
     "spoil",
     [
         lambda config, _zone: config.__setitem__("sanitation_use_per_person_minute", 0),
-        lambda config, _zone: config.pop("effects_by_zone"),
+        lambda config, _zone: config.__setitem__("sanitation_use_per_person_minute", 1),
         lambda config, zone: config.__setitem__(
             "effects_by_zone", {zone: {"sanitation_use_per_person_minute": 0}}
         ),
     ],
 )
-def test_what_the_update_doesnt_decide_changes_nothing_and_goes_to_the_python_rule(
-    spoil: Any,
-) -> None:
-    world, plain = _twins()
+def test_an_int_rate_the_config_takes_is_the_python_rule_s(spoil: Any) -> None:
+    """`canonical_staff_operations_config` takes an int rate in its range (0, or 1 for the global
+    one); the Python rule's product was then an int, taken off the sanitation as its float."""
+    world = _world()
     zone = _zones(world)[0]
-    for each in (world, plain):
-        spoil(each.model_state[KEY]["config"], zone)
+    spoil(world.model_state[KEY]["config"], zone)
+    for agent in world.agents.values():
+        agent.zone_id = zone
+    world.model_state[KEY]["zones"][zone]["sanitation"] = 0.75
+    expected = _python_sanitation(world, world.model_state[KEY], 50)
+    update_staff_operations(world, 50)
+    assert _text(world.model_state[KEY]["zones"]) == _text(expected)
+    assert _mirror(world).verify()
+
+
+def test_a_config_without_its_table_changes_nothing_and_is_refused() -> None:
+    """`config["effects_by_zone"]`: the Python rule raised KeyError for a config no rule writes."""
+    world = _world()
+    world.model_state[KEY]["config"].pop("effects_by_zone")
     before = _text(world.model_state[KEY])
     with pytest.raises(native.Unsupported):
         native.rules("staff").update_operations(world, 50)
+    with pytest.raises(KernelRefusal):
+        update_staff_operations(world, 50)
     assert _text(world.model_state[KEY]) == before
-    outcomes = []
-    for rule, each in (
-        (update_staff_operations, world),
-        (update_staff_operations.__wrapped__, plain),
-    ):
-        try:
-            outcomes.append(rule(each, 50))
-        except KeyError as error:
-            outcomes.append(repr(error))
-    assert outcomes[0] == outcomes[1]
-    assert _text(world.model_state[KEY]) == _text(plain.model_state[KEY])
 
 
 # ---- assign_staff_operations, schedule_staff_operation_relief ----
@@ -308,17 +332,15 @@ def test_a_repair_reads_the_router_and_another_formula_goes_to_the_python_rule()
 
 
 @pytest.mark.parametrize("skills", [("support",), ("patrol",), ("cleaning",), ("repair",), ("x",)])
-def test_a_tick_with_nothing_to_start_changes_nothing_as_in_the_python_rule(
-    skills: tuple[str, ...],
-) -> None:
+def test_a_tick_with_nothing_to_start_changes_nothing(skills: tuple[str, ...]) -> None:
     world = _world(skills=skills)
     before = world.state_digest()
     assert native.rules("staff").relief(world, 3) == ()
-    assert schedule_staff_operation_relief.__wrapped__(world, 3) == ()
+    assert schedule_staff_operation_relief(world, 3) == ()
     assert native.rules("staff").assign_operations(world, 3, object()) == ()
     assert world.state_digest() == before
     graph = ZoneGraph.from_states(world.zones, world.zone_edges)
-    assert assign_staff_operations.__wrapped__(world, 3, SpaceRouter(graph)) == ()
+    assert assign_staff_operations(world, 3, SpaceRouter(graph)) == ()
     assert world.state_digest() == before
 
 
@@ -466,50 +488,47 @@ def _busy(world: WorldState, staff_id: str) -> None:
     world.staff[staff_id].active_task_id = f"task-{staff_id}"
 
 
+def _pending_round(generator: random.Random) -> str:
+    """The waiting fields and metrics of one random round of requests that all stay pending, as
+    text; after a second call at the same minute too."""
+    world = _world(skills=generator.choice([("support",), ("nursing",), ("hygiene",)]))
+    minute = 0
+    people = sorted(world.agents)
+    kinds = [generator.choice(KINDS[:-1]) for _ in people]
+    world.minute_index = minute
+    for number, (agent_id, kind) in enumerate(zip(people, kinds)):
+        request = _request(world, number, agent_id)
+        if number % 2:
+            _care(world, request, kind)
+    for staff_id in world.staff:
+        _busy(world, staff_id)
+    service = StaffService(world)
+    assert service.assign_pending(minute, validate_state=False) == ()
+    first = _text([_waiting_fields(world), dict(world.metric_state)])
+    # A second call at the same minute adds nothing, as in the rule.
+    assert service.assign_pending(minute, validate_state=False) == ()
+    return first + _text(dict(world.metric_state))
+
+
+# The digest of the 30 rounds' texts with the Python rule, taken before it went (lane L10).
+PENDING_DIGEST = "9762d43e25ebc4eb"
+
+
 def test_requests_that_stay_pending_are_the_python_rules() -> None:
     generator = random.Random(11)
-    for _round in range(30):
-        world, plain = _twins(skills=generator.choice([("support",), ("nursing",), ("hygiene",)]))
-        minute = 0
-        people = sorted(world.agents)
-        kinds = [generator.choice(KINDS[:-1]) for _ in people]
-        for each in (world, plain):
-            each.minute_index = minute
-            for number, (agent_id, kind) in enumerate(zip(people, kinds)):
-                request = _request(each, number, agent_id)
-                if number % 2:
-                    _care(each, request, kind)
-            for staff_id in each.staff:
-                _busy(each, staff_id)
-        service = StaffService(world)
-        twin = StaffService(plain)
-        ran = 0
-        try:
-            first = native.rules("staff").assign_pending(service, minute, validate_state=False)
-            ran = 1
-        except native.Unsupported:
-            first = service.assign_pending(minute, validate_state=False)
-        second = StaffService.assign_pending.__wrapped__(twin, minute, validate_state=False)
-        assert first == second == ()
-        assert ran == 1
-        assert _waiting_fields(world) == _waiting_fields(plain)
-        assert _text(dict(world.metric_state)) == _text(dict(plain.metric_state))
-        # A second call at the same minute adds nothing, as in the rule.
-        native.rules("staff").assign_pending(service, minute, validate_state=False)
-        assert _text(dict(world.metric_state)) == _text(dict(plain.metric_state))
+    texts = [_pending_round(generator) for _round in range(30)]
+    assert hashlib.sha256("\n".join(texts).encode()).hexdigest()[:16] == PENDING_DIGEST
 
 
 def test_the_wait_counts_staff_off_shift_away_and_busy_as_the_python_rule_does() -> None:
     windows = {"S01": [{"start_minute": 100, "end_minute": 110}]}
     configs = {"staff_dynamics": {"shift_windows_by_staff": windows}}
-    world, plain = _twins(configs=configs)
-    for each in (world, plain):
-        for staff_id in ("S02", "S03"):
-            _busy(each, staff_id)
-        _request(each, 1, sorted(each.agents)[0])
-    assert native.rules("staff").assign_pending(StaffService(world), 0, validate_state=False) == ()
-    StaffService.assign_pending.__wrapped__(StaffService(plain), 0, validate_state=False)
-    assert _text(dict(world.metric_state)) == _text(dict(plain.metric_state))
+    world = _world(configs=configs)
+    for staff_id in ("S02", "S03"):
+        _busy(world, staff_id)
+    _request(world, 1, sorted(world.agents)[0])
+    assert StaffService(world).assign_pending(0, validate_state=False) == ()
+    assert world.metric_state["support_assignment_metrics_minute"] == 0.0
     assert world.metric_state["support_wait_staff_off_shift_request_minutes"] == 1.0
     assert world.metric_state["support_wait_staff_busy_request_minutes"] == 1.0
     assert world.metric_state["support_no_qualified_worker_request_minutes"] == 0.0

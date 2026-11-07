@@ -12,8 +12,9 @@ Also here: the other social events (`complaint_response`, `cooperation`, `inform
 untyped one), the walks to a bed and of a relocation, `ingest`, and which requests
 `_consider_due_complaints` asks the policy about.
 
-The handlers of rules/handlers.rs, information_events.rs and staff_operation_events.rs and
-`_reject_room_approach` have no Python rule left to compare (`kernel_only`, lane L10).
+The handlers of rules/handlers.rs, information_events.rs and staff_operation_events.rs,
+`_reject_room_approach`, `interrupt_staff_trips_on_closed_routes` and `StaffService.assign_pending`
+have no Python rule left to compare (`kernel_only`, lane L10).
 """
 
 from __future__ import annotations
@@ -167,30 +168,6 @@ def prepare(output: str) -> None:
         lambda: handlers().AgentTravelCompletionHandler.apply.__wrapped__,
     )
 
-    closures = native.rules("staff_operation_events")
-    interrupt_trips_kernel = closures.interrupt_trips
-
-    def interrupt_trips(world: Any, event: Any) -> Any:
-        from sheltersim.domain import staff_operations
-
-        recorder.seen["interrupt_trips.calls"] += 1
-        python_world, kernel_world = _worlds(world)
-        rule = staff_operations.interrupt_staff_trips_on_closed_routes.__wrapped__
-        expected = rule(python_world, event)
-        try:
-            actual = interrupt_trips_kernel(kernel_world, event)
-        except native.Unsupported as reason:
-            recorder.reasons[f"interrupt_trips: {reason}"] += 1
-            raise
-        recorder.seen["interrupt_trips.kernel_ran"] += 1
-        recorder.seen["interrupt_trips.people"] += len(actual)
-        if actual != expected:
-            recorder.differ(f"interrupt_trips: {actual!r:.300} is not {expected!r:.300}")
-        compare_worlds(recorder, "interrupt_trips", python_world, kernel_world)
-        return interrupt_trips_kernel(world, event)
-
-    closures.interrupt_trips = interrupt_trips
-
     receipts = native.rules("care_receipts")
     ingest_kernel = receipts.ingest
 
@@ -274,55 +251,6 @@ def prepare(output: str) -> None:
         return result
 
     staff.consider_due_complaints = consider_due_complaints
-
-    work_kernel = staff.assign_work
-
-    def assign_work(service: Any, minute: Any, *, validate_state: bool = True) -> Any:
-        recorder.seen["assign_work.calls"] += 1
-        try:
-            python_world, kernel_world = _worlds(service.world)
-        except Exception as raised:  # noqa: BLE001 - a world in the middle of a phase
-            recorder.reasons[f"assign_work: the copy raised {type(raised).__name__}"] += 1
-            return work_kernel(service, minute, validate_state=validate_state)
-
-        def twin(world: Any) -> Any:
-            copied = copy.copy(service)
-            copied.world = world
-            for name in ("route_resolver", "travel_scheduler"):
-                bound = getattr(service, name)
-                owner = getattr(bound, "__self__", None)
-                if owner is None:
-                    continue
-                controller = copy.copy(owner)
-                controller.world = world
-                for key, value in vars(owner).items():
-                    if isinstance(value, (dict, list, set)):
-                        setattr(controller, key, copy.copy(value))
-                setattr(copied, name, getattr(controller, bound.__name__))
-            return copied
-
-        from sheltersim.domain.staff import StaffService
-
-        rule = StaffService.assign_pending.__wrapped__
-        expected = _outcome(lambda: rule(twin(python_world), minute, validate_state=validate_state))
-        actual = _outcome(
-            lambda: work_kernel(twin(kernel_world), minute, validate_state=validate_state)
-        )
-        if actual[0] == "Unsupported":
-            recorder.reasons[f"assign_work: {actual[1]}"] += 1
-            if expected[0] == "applied":
-                recorder.differ(f"assign_work: refused what the Python rule applied: {actual[1]}")
-        else:
-            recorder.seen["assign_work.kernel_ran"] += 1
-            if actual[0] == "applied":
-                recorder.seen["assign_work.assigned"] += len(actual[1])
-            if text(actual) != text(expected):
-                recorder.differ(f"assign_work: {actual!r:.300} is not {expected!r:.300}")
-            elif actual[0] == "applied":
-                compare_worlds(recorder, "assign_work", python_world, kernel_world)
-        return work_kernel(service, minute, validate_state=validate_state)
-
-    staff.assign_work = assign_work
 
 
 def _comparing() -> bool:

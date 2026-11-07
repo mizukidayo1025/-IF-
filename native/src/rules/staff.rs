@@ -325,7 +325,8 @@ fn assign_work<'py>(service: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>, val
         let world = attribute(service, intern!(py, "world"))?;
         let at = exact_int(minute)?;
         if at != minute_of(&world)? {
-            return unsupported("the minute is not the world's");
+            // The rule's first check, before any change; marked, so that the step's catch lets it by.
+            return Err(crate::core::errors::marked_value_error(py, "staff assignment minute must match WorldState"));
         }
         let table = table_of(&world)?;
         let kinds = CareKinds::of(&table)?;
@@ -596,10 +597,11 @@ fn preempt_worker<'py>(
         intern!(py, "append"),
         (log_record(py, &event, at.into_pyobject(py)?.as_any(), "APPLIED", Some("A priority-1 support request preempted a routed background staff task."))?,),
     )?;
-    // Its reads refuse first, and then its Python rule takes it, as `kernel_first` would.
+    // Its reads refuse first, with nothing changed; its entry (`kernel_only`) then raises that
+    // refusal as KernelRefusal, past the event above.
     let interrupted = match crate::rules::staff_operation_events::interrupt_operation(world, &worker.id, &event, None) {
         Err(error) if error.is_instance_of::<Unsupported>(py) => {
-            py.import("sheltersim.domain.staff_operations")?.getattr("interrupt_staff_operation")?.getattr("__wrapped__")?.call1((world, &*worker.id, &event))?.is_truthy()?
+            py.import("sheltersim.domain.staff_operations")?.getattr("interrupt_staff_operation")?.call1((world, &*worker.id, &event))?.is_truthy()?
         }
         other => other?,
     };
@@ -1203,10 +1205,20 @@ fn zone_override<'a>(config: &'a V, table: &str, zone: &str, name: &str, require
     }
 }
 
-fn exact_rate(value: &V) -> PyResult<f64> {
-    match value {
-        V::Float(rate) => Ok(*rate),
-        _ => unsupported("a rate is not a float"),
+/// `load * rate * elapsed` of `update_staff_operations`, from the left, as the float Python takes
+/// off the sanitation. `canonical_staff_operations_config` takes an int rate too (0 or 1 in its
+/// range): its product is an int, exact, which the float subtraction then reads as its float.
+fn used_sanitation(rate: &V, load: i64, elapsed: i64) -> PyResult<f64> {
+    match rate {
+        V::Float(rate) => Ok(load as f64 * rate * elapsed as f64),
+        V::Int(rate) => {
+            let used = i128::from(load) * i128::from(*rate) * i128::from(elapsed);
+            if used.unsigned_abs() > FLOAT_EXACT_INT as u128 {
+                return unsupported("the sanitation used does not fit a float");
+            }
+            Ok(used as f64)
+        }
+        _ => unsupported("a rate is not a number"),
     }
 }
 
@@ -1259,9 +1271,7 @@ pub(crate) fn update_operations(world: &Bound<'_, PyAny>, minute: &Bound<'_, PyA
             }
             let rate = zone_override(&row.config, "effects_by_zone", zone_id, "sanitation_use_per_person_minute", true)?
                 .unwrap_or(global);
-            let rate = exact_rate(rate)?;
-            // `load * rate * elapsed`, from the left.
-            let used = *load as f64 * rate * elapsed as f64;
+            let used = used_sanitation(rate, *load, elapsed)?;
             plan.push((index, py_max(0.0, record.sanitation - used)));
         }
         Ok(plan)
