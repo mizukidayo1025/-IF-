@@ -1,11 +1,12 @@
 """Compare the kernels of the handlers' rules with their Python rules at each call.
 
-rules/care_receipts.rs and the seeks of rules/proposals.rs. The Python rule runs first on a
-copy of everything it writes (shadow_service.py's, with the receipts, the requests and the body
-state too), and the kernel then runs on the world. All of it must come out the same, floats by their
-bits, with each event's repr and each record. What the kernel refuses isn't compared: the Python
-rule runs on the world then. `seek_help` and `seek_information` are `seek` here, which
-shadow_proposals.py calls.
+The seeks of rules/proposals.rs (the rules of rules/care_receipts.rs, rules/toilet.rs,
+rules/support.rs and `after_arrival` of rules/travel_completion.rs have no Python rule left, lane
+L10). The Python rule runs first on a copy of everything it writes (shadow_service.py's, with the
+receipts, the requests and the body state too), and the kernel then runs on the world. All of it
+must come out the same, floats by their bits, with each event's repr and each record. What the
+kernel refuses isn't compared: the Python rule runs on the world then. `seek_help` and
+`seek_information` are `seek` here, which shadow_proposals.py calls.
 
 The hooks of the LLM (`consider_support_request`, `_prioritize_support_request`) record what they
 decide, so the copy leaves them out: they are the same Python on both sides of the port. With a
@@ -211,24 +212,8 @@ def prepare(output: str) -> None:
 
         return run
 
-    care = native.rules("care_receipts")
-    care_kernel = care.append_transition
-
-    def care_rule(twin: Any, _world: Any, **options: Any) -> Any:
-        from sheltersim.domain import care_receipts
-
-        care_receipts.append_applied_care_transition.__wrapped__(twin, **options)
-
-    def care_detail(_result: Any, _arguments: Any, options: dict[str, Any]) -> None:
-        recorder.seen[f"append_transition.{options['status']}"] += 1
-
-    care.append_transition = compared(
-        "append_transition",
-        care_kernel,
-        care_rule,
-        lambda world: world,
-        detail=care_detail,
-    )
+    # `care_receipts.append_transition` has no Python rule left to compare (`kernel_only`,
+    # lane L10).
 
     # rules/toilet.rs (the request, the facilities to serve, the room, the head's start and the
     # completion), rules/support.rs (the end and the timeout of support) and `after_arrival` of

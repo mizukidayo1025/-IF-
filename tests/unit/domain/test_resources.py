@@ -523,37 +523,6 @@ def test_operations_keep_both_checks_passing() -> None:
     assert world.model_state[RESOURCE_LEDGER_KEY]["used_reservation_ids"] == ["r-1", "r-2"]
 
 
-def test_a_successful_operation_leaves_the_previous_ledger_untouched() -> None:
-    """The Python rule's way to be atomic. The kernel writes in place, after all its checks."""
-    world = _operated_world()
-    previous = world.model_state[RESOURCE_LEDGER_KEY]
-    snapshot = copy.deepcopy(previous)
-    python_rule = getattr(apply_resource_operation, "__wrapped__", apply_resource_operation)
-
-    python_rule(
-        world,
-        ScheduledEvent(
-            event_id="python-delivery",
-            kind=EventKind.EXOGENOUS,
-            due_minute=world.minute_index,
-            priority=0,
-            sequence=9000,
-            event_type="resource_delivery",
-            payload={
-                "warehouse_id": "warehouse-main",
-                "resource_id": "food_meal_units",
-                "quantity": 3,
-            },
-            source_id="ASM-H01-TEST-RESOURCE-OPERATION-V1",
-        ),
-        "delivery",
-    )
-
-    assert previous == snapshot
-    assert world.model_state[RESOURCE_LEDGER_KEY] is not previous
-    assert len(world.model_state[RESOURCE_LEDGER_KEY]["audit"]) == len(previous["audit"]) + 1
-
-
 def test_a_rejected_operation_changes_nothing() -> None:
     world = _operated_world()
     before = world.canonical_json()

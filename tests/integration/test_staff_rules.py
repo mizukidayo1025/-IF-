@@ -13,6 +13,7 @@ import copy
 import hashlib
 import json
 import random
+import sys
 from typing import Any
 
 import pytest
@@ -564,6 +565,15 @@ def test_what_the_plain_kernel_doesnt_decide_goes_to_assign_work() -> None:
 
 
 # ---- What the metrics read ----
+#
+# `_support_wait_snapshot` and `record_shared_operation` have no Python rule left (lane L10,
+# `kernel_only`): what they gave here was recorded from them, as digests (`_digest`).
+
+
+def _digest(text: str) -> str:
+    import hashlib
+
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
 def _both_snapshots(world: WorldState, minute: int) -> str:
@@ -575,10 +585,7 @@ def _both_snapshots(world: WorldState, minute: int) -> str:
         ),
         key=lambda request: request.id,
     )
-    first = native.rules("staff").wait_snapshot(world, active, minute)
-    second = metrics._support_wait_snapshot.__wrapped__(world, active, minute)
-    assert _text(first) == _text(second)
-    return _text(first)
+    return _text(metrics._support_wait_snapshot(world, active, minute))
 
 
 @pytest.mark.parametrize("kind", KINDS)
@@ -604,6 +611,7 @@ def test_each_kind_asks_for_the_skills_of_the_table(kind: str) -> None:
 def test_the_reasons_are_the_python_rules_on_random_staff() -> None:
     generator = random.Random(23)
     reasons_seen: set[str] = set()
+    answers: list[str] = []
     for _round in range(120):
         windows = {
             "S01": [{"start_minute": 0, "end_minute": generator.choice([1, 60])}],
@@ -640,9 +648,10 @@ def test_the_reasons_are_the_python_rules_on_random_staff() -> None:
                 world.agents[agent_id].activity = generator.choice(
                     [Activity.MOVING, Activity.SEEKING_HELP]
                 )
-        answer = json.loads(_both_snapshots(world, minute))
-        for detail in answer[0].values():
+        answers.append(_both_snapshots(world, minute))
+        for detail in json.loads(answers[-1])[0].values():
             reasons_seen.update(detail["reason_codes"])
+    assert _digest("\n".join(answers)) == "a4fb2a9f6acf083b"
     assert {
         "staff_busy",
         "staff_on_other_operation",
@@ -655,8 +664,9 @@ def test_the_reasons_are_the_python_rules_on_random_staff() -> None:
 def test_a_free_worker_s_route_is_read_as_the_python_rule_reads_it() -> None:
     world = _world()
     _request(world, 1, sorted(world.agents)[0])
-    answer = json.loads(_both_snapshots(world, 0))
-    assert answer[0]
+    text = _both_snapshots(world, 0)
+    assert json.loads(text)[0]
+    assert _digest(text) == "af5c0d0aa04d98b8"
 
 
 # ---- record_shared_operation ----
@@ -676,18 +686,8 @@ def _receipt(world: WorldState, number: int, status: str, **fields: Any) -> Any:
     return receipt
 
 
-def _python_twin(world: WorldState) -> Any:
-    class Twin:
-        def __init__(self) -> None:
-            self.model_state = dict(world.model_state)
-            self.model_state[SHARED] = copy.deepcopy(
-                json.loads(json.dumps(world.model_state[SHARED]))
-            )
-
-        def __getattr__(self, name: str) -> Any:
-            return getattr(world, name)
-
-    return Twin()
+def _record(world: Any, receipt: Any) -> None:
+    native.rules("common_operations").record_shared_operation(world, receipt)
 
 
 def test_a_request_s_receipts_are_the_python_rules_and_kept_in_the_row() -> None:
@@ -700,7 +700,7 @@ def test_a_request_s_receipts_are_the_python_rules_and_kept_in_the_row() -> None
         after=world.agents[sorted(world.agents)[0]].stress,
         unit="index",
     )
-    kernel = native.rules("common_operations").record_shared_operation
+    states = []
     for status, fields in (
         ("requested", {}),
         ("assigned", {"staff_id": "S01"}),
@@ -716,20 +716,26 @@ def test_a_request_s_receipts_are_the_python_rules_and_kept_in_the_row() -> None
     ):
         world.minute_index += 1
         receipt = _receipt(world, 1, status, **fields)
-        twin = _python_twin(world)
-        kernel(world, receipt)
-        record_shared_operation.__wrapped__(twin, receipt)
-        assert _text(world.model_state[SHARED]) == _text(twin.model_state[SHARED])
+        _record(world, receipt)
+        states.append(_text(world.model_state[SHARED]))
         assert _mirror(world, SHARED).verify()
+        head = world.model_state[SHARED]["support_requests"].get("request-1")
+        assert (head or {}).get("status") == (None if status == "completed" else status)
     assert world.model_state[SHARED]["support_requests"] == {}
     assert len(world.model_state[SHARED]["history"]) == 4
+    # The stress after it is a float of the run (libm), as the gate's hashes are.
+    if sys.platform == "linux":
+        assert _digest("\n".join(states)) == "39e19ebf3cd90657"
 
 
 @pytest.mark.parametrize(
     ("spoil", "text"),
     [
-        (lambda world, receipt: setattr(world, "minute_index", 9), "current simulation boundary"),
-        (lambda world, receipt: None, "already been recorded"),
+        (
+            lambda world, receipt: setattr(world, "minute_index", 9),
+            "shared operation receipt must use the current simulation boundary minute",
+        ),
+        (lambda world, receipt: None, "shared operation event ID has already been recorded"),
     ],
 )
 def test_a_receipt_the_rule_refuses_changes_nothing_and_has_its_text(spoil: Any, text: str) -> None:
@@ -740,11 +746,10 @@ def test_a_receipt_the_rule_refuses_changes_nothing_and_has_its_text(spoil: Any,
         record_shared_operation(world, receipt)
     spoil(world, receipt)
     before = _text(world.model_state[SHARED])
-    with pytest.raises(native.Unsupported):
-        native.rules("common_operations").record_shared_operation(world, receipt)
-    assert _text(world.model_state[SHARED]) == before
-    with pytest.raises(ValueError, match=text):
+    with pytest.raises(ValueError) as raised:
         record_shared_operation(world, receipt)
+    assert type(raised.value) is ValueError
+    assert str(raised.value) == text
     assert _text(world.model_state[SHARED]) == before
 
 
@@ -806,29 +811,24 @@ def test_a_restored_receipt_is_read_by_the_python_rule_once_and_then_trusted() -
 
     copied = copy.deepcopy(world)
     assert not _TICK_VALID(copied)
-    kernel = native.rules("common_operations").record_shared_operation
     # What the kernel did not check, the contract does, as in the Python rule.
-    twin = copy.deepcopy(copied)
-    kernel(copied, _receipt(copied, 2, "requested"))
-    record_shared_operation.__wrapped__(twin, _receipt(twin, 2, "requested"))
+    _record(copied, _receipt(copied, 2, "requested"))
     assert _mirror(copied, SHARED).verify()
-    assert json.dumps(copied.model_state[SHARED]) == json.dumps(twin.model_state[SHARED])
+    assert _digest(json.dumps(copied.model_state[SHARED])) == "0ceb8b43d18e84a9"
     world_two = copy.deepcopy(world)
     assert not _TICK_VALID(world_two)
     validate_shared_operations_state(world_two, validate_event_history=False)
     assert _TICK_VALID(world_two)
     world_two.minute_index = 4
-    kernel(world_two, _receipt(world_two, 3, "requested"))
+    _record(world_two, _receipt(world_two, 3, "requested"))
     assert _mirror(world_two, SHARED).verify()
 
 
-def _same_receipt(world: WorldState, record: Any) -> None:
-    """The kernel on the world and the rule on a copy leave the same document."""
-    twin = copy.deepcopy(world)
-    native.rules("common_operations").record_shared_operation(world, record)
-    record_shared_operation.__wrapped__(twin, record)
+def _same_receipt(world: WorldState, record: Any, digest: str) -> None:
+    """The kernel leaves the document the rule left, by its digest recorded from the rule."""
+    _record(world, record)
     assert _mirror(world, SHARED).verify()
-    assert json.dumps(world.model_state[SHARED]) == json.dumps(twin.model_state[SHARED])
+    assert _digest(json.dumps(world.model_state[SHARED])) == digest
 
 
 def test_a_facility_s_recovery_receipt_is_the_rule_s() -> None:
@@ -846,12 +846,13 @@ def test_a_facility_s_recovery_receipt_is_the_rule_s() -> None:
     )
     event_record, receipt = made
     world.event_log.append(event_record)
-    _same_receipt(world, receipt)
+    _same_receipt(world, receipt, "97fa51c95ba42e42")
     # The rule turns down a second receipt of one event.
-    with pytest.raises(native.Unsupported):
-        native.rules("common_operations").record_shared_operation(world, receipt)
-    with pytest.raises(ValueError, match="already been recorded"):
-        record_shared_operation.__wrapped__(world, receipt)
+    before = json.dumps(world.model_state[SHARED])
+    with pytest.raises(ValueError) as raised:
+        record_shared_operation(world, receipt)
+    assert str(raised.value) == "shared operation event ID has already been recorded"
+    assert json.dumps(world.model_state[SHARED]) == before
 
 
 def test_a_recovery_receipt_of_another_state_is_left_to_the_rule_s_text() -> None:
@@ -870,11 +871,12 @@ def test_a_recovery_receipt_of_another_state_is_left_to_the_rule_s_text() -> Non
     world.event_log.append(event_record)
     facility.working_units -= 1
     before = json.dumps(world.model_state[SHARED])
-    with pytest.raises(native.Unsupported):
-        native.rules("common_operations").record_shared_operation(world, receipt)
+    with pytest.raises(ValueError) as raised:
+        record_shared_operation(world, receipt)
+    assert str(raised.value) == (
+        "facility recovery receipt does not match the applied facility state"
+    )
     assert json.dumps(world.model_state[SHARED]) == before
-    with pytest.raises(ValueError, match="does not match the applied facility state"):
-        record_shared_operation.__wrapped__(world, receipt)
 
 
 def test_a_passed_staff_receipt_stays_with_the_python_rule() -> None:

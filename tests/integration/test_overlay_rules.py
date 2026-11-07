@@ -1986,6 +1986,37 @@ def _resource_queues(world: WorldState) -> tuple[str, str] | None:
     return None
 
 
+# The water and meal service has no Python rule left (lane L10, `kernel_only`). What its rules
+# made of each case, recorded from them: the results and worlds, by sha256 (Linux: the worlds hold
+# floats of libm, as the gate's hashes do).
+RESOURCE_FIFO = {
+    "serves": "ae7d2fe0bddcb8cd",
+    "interrupted": "0a0181bb6cbb94b8",
+    "cancelled-operator_cancelled": "41226e92a37ea317",
+    "cancelled-facility_stopped": "41226e92a37ea317",
+    "cancelled-staff_unavailable": "1820a6203f51d466",
+    "cancelled-place": "272f389bc92cfc29",
+    "completed": "74ebe88f8e58b979",
+}
+
+
+def _is_the_python_rules(answers: list[str], case: str) -> None:
+    import hashlib
+    import sys
+
+    if sys.platform == "linux":
+        digest = hashlib.sha256("\n".join(answers).encode()).hexdigest()[:16]
+        assert digest == RESOURCE_FIFO[case]
+
+
+def _rows_follow(world: WorldState) -> None:
+    for name in ("resource_service_v1", "resource_ledger_v1", "facility_queues_v1"):
+        mirror = world.model_state._mirrors.get(name)
+        if mirror is not None and name in world.model_state:
+            assert mirror.tainted is None
+            assert mirror.verify()
+
+
 def test_a_resource_fifo_serves_as_the_python_rule_does(queued: WorldState) -> None:
     found = _resource_queues(queued)
     assert found is not None
@@ -1998,56 +2029,53 @@ def test_a_resource_fifo_serves_as_the_python_rule_does(queued: WorldState) -> N
     queued.agents[agent_id].zone_id = zone
     queued.model_state["movement_v1"]["positions"][agent_id]["zone_id"] = zone
     kernel = _rules("service")
+    answers: list[str] = []
     # The request.
-    ours, theirs = _copy(queued), _copy(queued)
-    theirs_receipt = ResourceServiceManager.request.__wrapped__(
-        ResourceServiceManager(theirs), agent_id, facility_id, validate_state=False
-    )
+    ours = _copy(queued)
     our_receipt = kernel.request(
         ResourceServiceManager(ours), agent_id, facility_id, validate_state=False
     )
-    assert repr(our_receipt) == repr(theirs_receipt)
-    _same_world(ours, theirs)
+    assert (our_receipt.agent_id, our_receipt.facility_id, our_receipt.queue_position) == (
+        agent_id,
+        facility_id,
+        1,
+    )
+    answers += [repr(our_receipt), _bytes(ours)]
+    _rows_follow(ours)
     manager.request(agent_id, facility_id, validate_state=False)
     # Each stop and the start of a service, on a world that walks no further.
     queued.model_state["movement_v1"]["positions"][agent_id]["point"] = queued.model_configs[
         "facility_geometry"
     ]["facility_points"][facility_id]
-    method = ResourceServiceManager._serve_independent_head.__wrapped__
     minute = queued.minute_index
 
-    def compare(world: WorldState, quantity: int | None = None) -> Any:
-        ours, theirs = _copy(world), _copy(world)
-        managers = ResourceServiceManager(ours), ResourceServiceManager(theirs)
+    def serve(world: WorldState, quantity: int | None = None) -> Any:
+        ours = _copy(world)
+        each = ResourceServiceManager(ours)
         if quantity is not None:
             key = (
                 "water_ml_per_service" if resource == "water_ml" else "food_meal_units_per_service"
             )
-            for each in managers:
-                each.config[key] = quantity
-        expected = method(managers[1], facility_id, resource, queue_id, minute)
-        result = kernel.serve_independent_head(managers[0], facility_id, resource, queue_id, minute)
-        assert tuple(result) == tuple(expected)
-        _same_world(ours, theirs)
-        assert [repr(event) for event in ours.event_queue.pending()] == [
-            repr(event) for event in theirs.event_queue.pending()
-        ]
+            each.config[key] = quantity
+        result = kernel.serve_independent_head(each, facility_id, resource, queue_id, minute)
+        answers.extend([repr(tuple(result)), _bytes(ours)])
+        _rows_follow(ours)
         return result
 
-    started = compare(queued)
+    started = serve(queued)
     assert started[0] is not None or started[1] is None or started[1][1]
     # No staff.
     without = _copy(queued)
     for staff in without.staff.values():
         staff.zone_id = "corridor"
-    assert compare(without)[1][1] == "staff"
+    assert serve(without)[1][1] == "staff"
     # No stock.
-    assert compare(queued, quantity=10**12)[1][1] == "stock"
+    assert serve(queued, quantity=10**12)[1][1] == "stock"
     # The Run's end.
     late = _copy(queued)
     late.minute_index = late.duration_minutes - 1
     minute = late.minute_index
-    assert compare(late)[1][1] == "run_end"
+    assert serve(late)[1][1] == "run_end"
     minute = queued.minute_index
     # Its stall records: the head's kept, or the first queue's new.
     stalls = [(agent_id, "staff")]
@@ -2058,14 +2086,13 @@ def test_a_resource_fifo_serves_as_the_python_rule_does(queued: WorldState) -> N
         ([], None),
         (stalls, {"agent_id": "A", "reason": "stock"}),
     ):
-        ours, theirs = _copy(queued), _copy(queued)
-        ResourceServiceManager._record_independent_queue_stall.__wrapped__(
-            ResourceServiceManager(theirs), facility_id, list(wanted), known
-        )
+        ours = _copy(queued)
         kernel.record_independent_stall(
             ResourceServiceManager(ours), facility_id, list(wanted), known
         )
-        _same_world(ours, theirs)
+        answers.append(_bytes(ours))
+        _rows_follow(ours)
+    _is_the_python_rules(answers, "serves")
 
 
 def _serving(queued: WorldState) -> tuple[str, str]:
@@ -2113,15 +2140,12 @@ def test_a_service_interrupted_goes_back_first_in_its_fifo_as_the_python_rule_sa
         payload={"staff_id": staff_id},
         source_id="ASM-TEST",
     )
-    ours, theirs = _copy(queued), _copy(queued)
-    ResourceServiceManager.interrupt_for_staff.__wrapped__(
-        ResourceServiceManager(theirs), staff_id, causation_event=cause
-    )
+    ours = _copy(queued)
     _rules("handlers").interrupt_for_staff(
         ResourceServiceManager(ours), staff_id, causation_event=cause
     )
-    _same_world(ours, theirs)
-    assert ours.id_counters == theirs.id_counters
+    _rows_follow(ours)
+    _is_the_python_rules([_bytes(ours)], "interrupted")
     records = [
         record.event.payload
         for record in ours.event_log.records
@@ -2144,11 +2168,12 @@ def test_a_cancelled_service_is_the_python_rule_s(queued: WorldState, reason: st
         payload={"task_id": task_id, "reason": reason},
         source_id="ASM-TEST",
     )
-    ours, theirs = _copy(queued), _copy(queued)
-    ResourceServiceManager.cancel.__wrapped__(ResourceServiceManager(theirs), event)
+    ours = _copy(queued)
     _rules("handlers").cancel(ResourceServiceManager(ours), event)
-    _same_world(ours, theirs)
+    _rows_follow(ours)
+    _is_the_python_rules([_bytes(ours)], f"cancelled-{reason}")
     assert task_id in ours.model_state["resource_service_v1"]["cancelled_task_ids"]
+    assert task_id not in ours.active_tasks
 
 
 def test_a_cancelled_place_in_a_queue_is_the_python_rule_s(queued: WorldState) -> None:
@@ -2167,10 +2192,11 @@ def test_a_cancelled_place_in_a_queue_is_the_python_rule_s(queued: WorldState) -
         payload={"task_id": receipt.queue_task_id, "reason": "operator_cancelled"},
         source_id="ASM-TEST",
     )
-    ours, theirs = _copy(queued), _copy(queued)
-    ResourceServiceManager.cancel.__wrapped__(ResourceServiceManager(theirs), event)
+    ours = _copy(queued)
     _rules("handlers").cancel(ResourceServiceManager(ours), event)
-    _same_world(ours, theirs)
+    _rows_follow(ours)
+    _is_the_python_rules([_bytes(ours)], "cancelled-place")
+    assert "A001" not in ours.facilities[facility_id].resource_queue_agent_ids
 
 
 def test_a_completed_service_leaves_its_fifo_as_the_python_rule_does(queued: WorldState) -> None:
@@ -2206,10 +2232,10 @@ def test_a_completed_service_leaves_its_fifo_as_the_python_rule_does(queued: Wor
     assert pending, "the service never started"
     event = pending[0]
     queued.minute_index = event.due_minute
-    ours, theirs = _copy(queued), _copy(queued)
-    ResourceServiceManager.complete.__wrapped__(ResourceServiceManager(theirs), event)
+    ours = _copy(queued)
     _rules("service").complete(ResourceServiceManager(ours), event)
-    _same_world(ours, theirs)
+    _rows_follow(ours)
+    _is_the_python_rules([_bytes(ours)], "completed")
     assert not ours.model_state[facility_queues.FACILITY_QUEUES_STATE_KEY]["requests"]
 
 

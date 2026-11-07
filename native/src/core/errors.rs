@@ -364,6 +364,19 @@ mod invariant_class {
 #[allow(unused_imports)]
 pub(crate) use invariant_class::StateInvariantError;
 
+mod ledger_class {
+    use super::*;
+    python_class!(ResourceLedgerError, "sheltersim.domain.resources", "ResourceLedgerError");
+}
+pub(crate) use ledger_class::ResourceLedgerError;
+
+/// `raise ResourceLedgerError(text)` of `domain/resources.py`'s operation: a ValueError whose text
+/// the ledger's handler and the water and meal service save inside their own.
+#[track_caller]
+pub(crate) fn ledger_error(text: impl Into<String>) -> PyErr {
+    ResourceLedgerError::new_err(text)
+}
+
 /// `raise ValueError(text)` of a Python rule.
 #[track_caller]
 pub(crate) fn value_error(text: impl Into<String>) -> PyErr {

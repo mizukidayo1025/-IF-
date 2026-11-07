@@ -8,13 +8,12 @@ the real world.
 A refusal of what the Python rule applied is a difference: the world's validation can turn down a
 wrong result, and the Python rule then quietly gets it right, which no hash would ever see.
 
-Here: `interrupt_trips`, `ingest`, and which requests `_consider_due_complaints` asks the policy
-about.
+Here: which requests `_consider_due_complaints` asks the policy about.
 
 The handlers of rules/handlers.rs, information_events.rs, staff_operation_events.rs,
 social_interaction.rs and travel_completion.rs, `_reject_room_approach`,
-`interrupt_staff_trips_on_closed_routes` and `StaffService.assign_pending` have no Python rule left
-to compare (`kernel_only`, lane L10).
+`interrupt_staff_trips_on_closed_routes`, `StaffService.assign_pending` and the receipts' `ingest`
+have no Python rule left to compare (`kernel_only`, lane L10).
 """
 
 from __future__ import annotations
@@ -26,16 +25,6 @@ from typing import Any
 
 from shadow_effects import report_stats
 from shadow_kit import Recorder, text, values_in
-
-RECEIPT_TYPES = frozenset(
-    {
-        "care_support_transition",
-        "staff_support_continuity",
-        "facility_recovery_transition",
-        "staff_handoff",
-        "staff_operation_transition",
-    }
-)
 
 
 def _outcome(call: Any) -> tuple[str, Any]:
@@ -91,39 +80,7 @@ def prepare(output: str) -> None:
     # tick and report nothing while every hash passes.
     native.rules("tick").python_path_only(True)
 
-    receipts = native.rules("care_receipts")
-    ingest_kernel = receipts.ingest
-
-    def ingest(world: Any, outcomes: Any) -> Any:
-        from sheltersim.domain import care_receipts
-
-        if not any(
-            getattr(getattr(outcome, "event", None), "event_type", None) in RECEIPT_TYPES
-            for outcome in outcomes
-        ):
-            return ingest_kernel(world, outcomes)
-        recorder.seen["ingest.calls"] += 1
-        try:
-            python_world, kernel_world = _worlds(world)
-        except Exception as raised:  # noqa: BLE001 - a world in the middle of a phase
-            recorder.reasons[f"ingest: the copy raised {type(raised).__name__}"] += 1
-            return ingest_kernel(world, outcomes)
-        rule = care_receipts.ingest_applied_shared_operation_records.__wrapped__
-        expected = _outcome(lambda: rule(python_world, outcomes))
-        actual = _outcome(lambda: ingest_kernel(kernel_world, outcomes))
-        if actual[0] == "Unsupported":
-            recorder.reasons[f"ingest: {actual[1]}"] += 1
-            if expected[0] == "applied":
-                recorder.differ(f"ingest: refused what the Python rule applied: {actual[1]}")
-        else:
-            recorder.seen["ingest.kernel_ran"] += 1
-            if text(actual) != text(expected):
-                recorder.differ(f"ingest: {actual!r:.300} is not {expected!r:.300}")
-            else:
-                compare_worlds(recorder, "ingest", python_world, kernel_world)
-        return ingest_kernel(world, outcomes)
-
-    receipts.ingest = ingest
+    # `care_receipts.ingest` has no Python rule left to compare (`kernel_only`, lane L10).
 
     staff = native.rules("staff")
     complaints_kernel = staff.consider_due_complaints

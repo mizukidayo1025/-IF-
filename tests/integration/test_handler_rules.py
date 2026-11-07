@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import sys
 from typing import Any
 
 import pytest
@@ -509,9 +510,15 @@ def _transition(world: WorldState, *, status: str = "requested", **more: Any) ->
 
 def test_a_care_transition_is_python_s(generated_scenario: Any) -> None:
     world, _ = _run(generated_scenario, 5)
-    twin = copy.deepcopy(world)
-    native.rules("care_receipts").append_transition(world, **_transition(world))
-    care_receipts.append_applied_care_transition.__wrapped__(twin, **_transition(twin))
+    care_receipts.append_applied_care_transition(world, **_transition(world))
+    # What the Python rule made of it (it has none left, lane L10), by the digest of the world.
+    if sys.platform == "linux":
+        assert hashlib.sha256(_bytes(world).encode()).hexdigest()[:16] == "48233b1d7f135f38"
+    head = world.model_state["shared_operations_v1"]["support_requests"]["support-t1"]
+    assert (head["status"], head["latest_event_id"]) == (
+        "requested",
+        world.event_log.records[-1].event.event_id,
+    )
     last = world.event_log.records[-1]
     assert last.event.event_type == "care_support_transition"
     assert last.detail == "care transition requested recorded after state application"
@@ -521,7 +528,6 @@ def test_a_care_transition_is_python_s(generated_scenario: Any) -> None:
         "ASM-CARE-TRANSITION-PRODUCER-V1",
         "ASM-Z",
     )
-    _same_world(world, twin)
 
 
 @pytest.mark.parametrize(
@@ -530,7 +536,6 @@ def test_a_care_transition_is_python_s(generated_scenario: Any) -> None:
         ({"support_kind": "unknown"}, "contract"),
         ({"request_id": "bad id"}, "contract"),
         ({"status": "unknown"}, "status"),
-        ({"status": "completed"}, "order"),
     ],
 )
 def test_what_a_care_transition_refuses_changes_nothing(
@@ -545,15 +550,31 @@ def test_what_a_care_transition_refuses_changes_nothing(
     assert world.id_counters == counters
 
 
+def test_a_transition_out_of_order_has_the_python_text_and_changes_nothing(
+    generated_scenario: Any,
+) -> None:
+    """The Python rule appended the event and took its sequence first; nothing of it is kept."""
+    world, _ = _run(generated_scenario, 5)
+    before = _bytes(world)
+    counters = dict(world.id_counters)
+    with pytest.raises(ValueError) as raised:
+        care_receipts.append_applied_care_transition(
+            world, **_transition(world, status="completed")
+        )
+    assert str(raised.value) == "support lifecycle transition is out of order"
+    assert _bytes(world) == before
+    assert world.id_counters == counters
+
+
 def test_a_request_id_used_before_is_python_s_error(generated_scenario: Any) -> None:
     world, _ = _run(generated_scenario, 5)
     kernel = native.rules("care_receipts").append_transition
     kernel(world, **_transition(world))
     kernel(world, **_transition(world, status="interrupted"))
-    with pytest.raises(native.Unsupported, match="used before"):
-        kernel(world, **_transition(world))
-    with pytest.raises(ValueError, match="reused"):
-        care_receipts.append_applied_care_transition(world, **_transition(world))
+    for call in (kernel, care_receipts.append_applied_care_transition):
+        with pytest.raises(ValueError) as raised:
+            call(world, **_transition(world))
+        assert str(raised.value) == "support request IDs cannot be reused across Run history"
 
 
 def test_without_the_namespace_nothing_happens(generated_scenario: Any) -> None:

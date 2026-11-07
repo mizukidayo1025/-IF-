@@ -751,8 +751,7 @@ fn receipt_is_recorded(world: &Bound<'_, PyAny>, event_id: &str, recent: bool, m
     })
 }
 
-/// `ingest_applied_shared_operation_records`. The receipts' contract stays Python's, and so does
-/// `record_shared_operation` of what isn't a care receipt.
+/// `ingest_applied_shared_operation_records`. The receipts' contract stays Python's (pydantic).
 #[pyfunction]
 fn ingest<'py>(world: &Bound<'py, PyAny>, outcomes: &Bound<'py, PyAny>) -> PyResult<()> {
     let py = world.py();
@@ -765,7 +764,6 @@ fn ingest<'py>(world: &Bound<'py, PyAny>, outcomes: &Bound<'py, PyAny>) -> PyRes
     }
     let applied = status_member(py, "APPLIED")?;
     let module = py.import("sheltersim.domain.care_receipts")?;
-    let shared = py.import("sheltersim.domain.common_operations")?;
     let mut first = true;
     for outcome in outcomes.try_iter()? {
         let outcome = outcome?;
@@ -800,14 +798,9 @@ fn ingest<'py>(world: &Bound<'py, PyAny>, outcomes: &Bound<'py, PyAny>) -> PyRes
         }
         let adapter = module.getattr(intern!(py, "_operation_record_adapter"))?.call0()?;
         let receipt = adapter.call_method1(intern!(py, "validate_python"), (attribute(&event, intern!(py, "payload"))?,))?;
-        match crate::rules::common_operations::record_shared_operation(world, &receipt) {
-            // What only the rule's text can say. Nothing of this receipt was written.
-            Err(error) if !first && error.is_instance_of::<Unsupported>(py) => {
-                crate::core::census::caught(py, "__wrapped__ record_shared_operation (after writes)", &error);
-                shared.getattr(intern!(py, "record_shared_operation"))?.getattr(intern!(py, "__wrapped__"))?.call1((world, receipt))?;
-            }
-            other => other?,
-        }
+        // A refusal past the first receipt leaves the earlier ones written, as the Python rule's
+        // error did.
+        crate::rules::common_operations::record_shared_operation(world, &receipt)?;
         first = false;
     }
     Ok(())

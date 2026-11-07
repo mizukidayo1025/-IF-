@@ -74,8 +74,7 @@ PORTED_NAMES = frozenset(
         "_queue_slot_position",
         "_zone_center",
         # domain/staff.py, domain/staff_operations.py, experiments/metrics.py: rules/staff.rs.
-        # The mark runs `_support_wait_snapshot`'s Python rule; the others have kernels of
-        # `kernel_first` that a test reaches through `__wrapped__`.
+        # These have kernels of `kernel_first` that a test reaches through `__wrapped__`.
         "support_wait_reason_codes",
         "support_waited_minutes",
         "support_required_skills",
@@ -91,7 +90,6 @@ PORTED_NAMES = frozenset(
         "_current_journey_edge",
         # domain/common_operations.py: rules/common_operations.rs, likewise.
         "_event_payload_matches",
-        "_validate_observed_state_changes",
         # experiments/metrics.py: rules/metrics.rs. core/world.py: rules/tick_validation.rs.
         "_snapshot_fields",
         "_validate_entity_rules",
@@ -246,7 +244,6 @@ def without_kernels(monkeypatch: pytest.MonkeyPatch) -> None:
     """The mark's change, for a test that compares both within one test."""
     from sheltersim.core import state_mirror
     from sheltersim.core import world as world_module
-    from sheltersim.experiments import metrics
     from sheltersim.experiments.phases.segments import SEGMENTS
     from sheltersim.experiments.runner import OfflineSimulationController
 
@@ -254,8 +251,4 @@ def without_kernels(monkeypatch: pytest.MonkeyPatch) -> None:
         # install_segments set it on this class, and the phases' mixins keep the Python step.
         monkeypatch.delattr(OfflineSimulationController, step)
     monkeypatch.setattr(state_mirror, "_RUST_VALIDATORS", {})
-    monkeypatch.setattr(
-        metrics, "_support_wait_snapshot", metrics._support_wait_snapshot.__wrapped__
-    )
-    monkeypatch.setattr(metrics, "_snapshot_fields", metrics._snapshot_fields.__wrapped__)
     monkeypatch.setattr(world_module, "_entity_rules_kernel", None)

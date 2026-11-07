@@ -20,6 +20,7 @@ from support.paths import BASELINE_100_7D
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.world import ResourceServiceConfig, StateInvariantError, WorldState
 from sheltersim.core.world import _entity_rules_kernel as entity_kernel
 from sheltersim.domain.models import (
@@ -626,25 +627,41 @@ def test_the_population_kernel_leaves_someone_pending_to_the_rule(documents) -> 
 # ---- The KPI columns ---------------------------------------------------------------------------
 
 
-def _fields_of_both(world: WorldState) -> tuple[list, list]:
+# `_snapshot_fields` and `operational_kpi_values` have no Python rule left (lane L10,
+# `kernel_only`). What they gave on the worlds of the run, recorded from them: a digest of the
+# columns (Linux: they hold floats of libm, as the gate's hashes do), and the order of the KPIs.
+SNAPSHOTS_OF_THE_RUN = "b486e7a17d3d3943"
+KPIS_OF_THE_RUN = "e5d613691486b7e3"
+KPI_ORDER = "1f099193412561a6"
+
+
+def _fields(world: WorldState) -> list:
     unsettled = list(world.unsettled_support_requests())
-    kernel = native.rules("metrics").snapshot_fields(world, unsettled, world.minute_index)
-    python = metrics._snapshot_fields.__wrapped__(world, unsettled, world.minute_index)
-    return json.loads(json.dumps(kernel)), json.loads(json.dumps(python))
+    fields = metrics._snapshot_fields(world, unsettled, world.minute_index)
+    return json.loads(json.dumps(fields))
 
 
-def _snapshot_or_refusal(world: WorldState) -> bool:
-    try:
-        kernel, python = _fields_of_both(world)
-    except native.Unsupported:
-        return False
-    assert kernel == python
-    return True
+def _digest(value: Any) -> str:
+    import hashlib
+
+    return hashlib.sha256(json.dumps(value).encode("utf-8")).hexdigest()[:16]
+
+
+def _is_the_python_rules(value: Any, digest: str) -> None:
+    import sys
+
+    if sys.platform == "linux":
+        assert _digest(value) == digest
+
+
+def _source_ids(world: WorldState) -> dict[str, Any]:
+    return json.loads(_fields(world)[14])
 
 
 def test_the_snapshot_is_the_python_rules_on_the_worlds_of_a_run(documents) -> None:
-    ran = sum(_snapshot_or_refusal(_world(document)) for document in documents)
-    assert ran > 0
+    _is_the_python_rules(
+        [_fields(_world(document)) for document in documents], SNAPSHOTS_OF_THE_RUN
+    )
 
 
 def test_the_stress_threshold_is_where_the_python_rule_has_it(documents) -> None:
@@ -653,10 +670,17 @@ def test_the_stress_threshold_is_where_the_python_rule_has_it(documents) -> None
     agents[0].stress = 0.7
     agents[1].stress = 0.6999999999999999
     agents[2].stress = 0.707
-    assert _snapshot_or_refusal(world)
+    # The Python rule: `agent.stress >= 0.7`.
+    high = sorted(agent.id for agent in world.agents.values() if agent.stress >= 0.7)
+    assert agents[0].id in high and agents[1].id not in high and agents[2].id in high
+    fields = _fields(world)
+    assert fields[9] == len(high)
+    assert json.loads(fields[14])["high_stress_agents"] == high
 
 
 def test_a_person_with_two_open_requests_is_the_last_in_the_snapshot(documents) -> None:
+    """The Python rule's dict by agent: the later of two requests of one person, in the order of
+    the unsettled requests, is the one kept; the list of who waits names the person twice."""
     for document in documents:
         world = _world(document)
         active = [
@@ -666,44 +690,73 @@ def test_a_person_with_two_open_requests_is_the_last_in_the_snapshot(documents) 
         ]
         if len(active) >= 2:
             active[1].agent_id = active[0].agent_id
-            if _snapshot_or_refusal(world):
-                return
-    pytest.fail("no document had two pending requests the kernel takes")
+            source_ids = _source_ids(world)
+            person = active[0].agent_id
+            assert source_ids["support_wait_by_agent"][person]["request_id"] == active[1].id
+            assert source_ids["unresolved_support_agents"].count(person) == 2
+            return
+    pytest.fail("no document had two pending requests")
 
 
-def test_a_kind_that_is_not_ascii_is_left_to_the_python_rule(documents) -> None:
+@pytest.mark.parametrize(
+    ("kind", "like"),
+    [
+        # `"toilet" in kind.casefold()`: ß folds to ss and the rest to lower case.
+        ("Straße-TOILET", "toilet"),
+        # İ folds to i and a combining dot, so "toilet" is not in it.
+        ("TOİLET", "storage"),
+    ],
+)
+def test_a_kind_that_is_not_ascii_is_folded_as_python_folds_it(
+    documents, kind: str, like: str
+) -> None:
     world = _world(documents[0])
-    next(iter(world.facilities.values())).kind = "TOİLET"
-    with pytest.raises(native.Unsupported):
-        native.rules("metrics").snapshot_fields(
-            world, list(world.unsettled_support_requests()), world.minute_index
-        )
+    twin = _world(documents[0])
+    facility_id = next(iter(world.facilities))
+    world.facilities[facility_id].kind = kind
+    twin.facilities[facility_id].kind = like
+    assert _fields(world) == _fields(twin)
 
 
-def test_a_tainted_metric_state_is_left_to_the_python_rule(documents) -> None:
+def test_a_metric_state_that_is_not_floats_is_refused(documents) -> None:
+    """A Run's metric_state holds floats only; an int there taints its row."""
     world = _world(documents[0])
     world.metric_state["toilet_wait_count"] = 1
-    assert metrics.MetricSnapshot.from_world(world).toilet_wait_count == 1
+    with pytest.raises(KernelRefusal):
+        metrics.MetricSnapshot.from_world(world)
 
 
 def test_the_kpi_columns_are_the_python_rules_on_the_worlds_of_a_run(documents) -> None:
+    columns = []
     for document in documents:
         world = _world(document)
         snapshot = metrics.MetricSnapshot.from_world(world)
-        kernel = native.rules("metrics").kpi_values(world, snapshot)
-        python = operational_kpi_values.__wrapped__(world, snapshot)
-        assert json.dumps(kernel) == json.dumps(python)
-        assert list(kernel) == list(python)
+        values = operational_kpi_values(world, snapshot)
+        assert _digest(list(values)) == KPI_ORDER
+        columns.append(values)
+    _is_the_python_rules(columns, KPIS_OF_THE_RUN)
 
 
-def test_kpi_columns_with_no_one_are_left_to_the_python_rule(documents) -> None:
+def test_kpi_columns_with_no_one_divide_by_zero_as_the_python_rule_did(documents) -> None:
     world = _world(documents[0])
     snapshot = metrics.MetricSnapshot.from_world(world)
     world.agents.clear()
-    with pytest.raises(native.Unsupported):
-        native.rules("metrics").kpi_values(world, snapshot)
-    with pytest.raises(ZeroDivisionError):
+    with pytest.raises(ZeroDivisionError, match="division by zero"):
         operational_kpi_values(world, snapshot)
+
+
+def test_kpi_columns_of_another_world_or_minute_have_the_python_text(documents) -> None:
+    world = _world(documents[0])
+    snapshot = metrics.MetricSnapshot.from_world(world)
+    world.minute_index += 1
+    with pytest.raises(ValueError) as raised:
+        operational_kpi_values(world, snapshot)
+    assert str(raised.value) == "operational KPI minute must match WorldState"
+    world.minute_index -= 1
+    world.schema_version = 5
+    with pytest.raises(ValueError) as raised:
+        operational_kpi_values(world, snapshot)
+    assert str(raised.value) == "operational KPIs require resource-service WorldState v6"
 
 
 def test_a_changed_environment_config_is_read_again_at_the_next_tick(documents) -> None:

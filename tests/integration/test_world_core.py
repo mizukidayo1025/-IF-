@@ -551,8 +551,9 @@ def _run_world(scenario: Any, minutes: int, check: Any = None) -> WorldState:
 # shared_operations_v1, movement_v1, body_state_v1, agent_dynamics_v1 and staff_operations_v1:
 # `prepare_facility_queue`, the steps of experiments/phases/dispatch.py that follow an event
 # (`_record_staff_support_started`, `_schedule_return_to_initial_zone`), a toilet completion, the
-# decision memory and the staff's tasks read their own typed rows and have no Python rule left to
-# run on a generic one (`kernel_only`, lane L10).
+# decision memory, the staff's tasks and the metrics' wait of each support request
+# (`_support_wait_snapshot`) read their own typed rows and have no Python rule left to run on a
+# generic one (`kernel_only`, lane L10).
 REAL_NAMESPACES = (
     "information_spread_v1",
     "psychological_distress_v1",

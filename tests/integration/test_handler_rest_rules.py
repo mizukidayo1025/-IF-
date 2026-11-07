@@ -769,13 +769,15 @@ def test_ingest_of_a_record_of_this_tick_is_python_s(generated_scenario: Any) ->
         causation_id="cause-1",
     )[0]
     world.event_log.append(record)
-    twin = copy.deepcopy(world)
-    native.rules("care_receipts").ingest(world, (record,))
-    care_receipts.ingest_applied_shared_operation_records.__wrapped__(twin, (record,))
-    assert _bytes(world) == _bytes(twin)
+    care_receipts.ingest_applied_shared_operation_records(world, (record,))
+    history = world.model_state["shared_operations_v1"]["history"]
+    assert history[-1]["event_id"] == record.event.event_id
+    # What the Python rule made of it (it has none left, lane L10), by the digest of the world.
+    once = _bytes(world)
+    _is_the_python_rules_run(world, "9d84ddda5f8d0fd2")
     # Recorded once: the second time it is found.
-    native.rules("care_receipts").ingest(world, (record,))
-    assert _bytes(world) == _bytes(twin)
+    care_receipts.ingest_applied_shared_operation_records(world, (record,))
+    assert _bytes(world) == once
 
 
 def test_the_kernels_are_what_ran(generated_scenario: Any) -> None:

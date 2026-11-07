@@ -8,11 +8,10 @@ compare with (lane L10, `kernel_only`).
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from shadow_handlers_rest import _outcome, _worlds, compare_worlds
-from shadow_kit import Recorder, text, values_in
+from shadow_kit import Recorder, text
 
 KEY = "staff_operations_v1"
 ROW_CHECK_EVERY = 25
@@ -43,20 +42,7 @@ def prepare(output: str) -> None:
 
     # The driver calls these kernels without going through the module.
     native.rules("tick").python_path_only(True)
-    rules = native.rules("staff")
     recorder = Recorder(output, "staff")
-    unsupported = native.Unsupported
-    module: dict[str, Any] = {}
-
-    def operations() -> Any:
-        if "operations" not in module:
-            from sheltersim.domain import staff_operations as loaded
-
-            module["operations"] = loaded
-        return module["operations"]
-
-    snapshot_kernel = rules.wait_snapshot
-
     travel = native.rules("travel")
     route_kernel = travel.route
 
@@ -96,42 +82,8 @@ def prepare(output: str) -> None:
 
     travel.route = route
 
-    def wait_snapshot(world: Any, active_support: Any, sample_minute: Any) -> Any:
-        recorder.seen["snapshot.calls"] += 1
-        try:
-            result = snapshot_kernel(world, active_support, sample_minute)
-        except unsupported as reason:
-            recorder.reasons[f"snapshot: {reason}"] += 1
-            raise
-        recorder.seen["snapshot.kernel_ran"] += 1
-        from sheltersim.experiments import metrics
-
-        expected = metrics._support_wait_snapshot.__wrapped__(world, active_support, sample_minute)
-        if text(expected) != text(result):
-            recorder.differ(
-                f"snapshot at {sample_minute}: {text(result)[:300]} and {text(expected)[:300]}"
-            )
-        else:
-            recorder.seen["snapshot.values_compared"] += values_in(expected[0]) + len(expected[1])
-            for detail in expected[0].values():
-                for reason_code in detail["reason_codes"]:
-                    recorder.seen[f"snapshot.{reason_code}"] += 1
-            recorder.seen["snapshot.no_qualified_people"] += len(expected[1])
-        return result
-
-    rules.wait_snapshot = wait_snapshot
-
-    # A minute's metrics read the same waits inside `snapshot_fields`, past this module.
-    metric_rules = native.rules("metrics")
-    fields_kernel = metric_rules.snapshot_fields
-
-    def snapshot_fields(world: Any, unsettled: Any, sample_minute: Any) -> Any:
-        active = [item for item in unsettled if item.status.value in ("pending", "assigned")]
-        if active:
-            wait_snapshot(world, active, sample_minute)
-        return fields_kernel(world, unsettled, sample_minute)
-
-    metric_rules.snapshot_fields = snapshot_fields
+    # `wait_snapshot` (experiments/metrics.py's `_support_wait_snapshot`) and the minute's
+    # `snapshot_fields` around it have no Python rule left to compare (`kernel_only`, lane L10).
 
     # domain/staff_operations.py registers `validate` when it is imported, later than this.
     state_rules = native.state("staff_operations")
@@ -157,20 +109,8 @@ def prepare(output: str) -> None:
 SHARED = "shared_operations_v1"
 
 
-def _comparable(state: dict[str, Any], tail: int) -> dict[str, Any]:
-    """The namespace with the last items of its history, in plain containers."""
-    history = state["history"]
-    return {
-        **json.loads(json.dumps({key: value for key, value in state.items() if key != "history"})),
-        "history": json.loads(json.dumps(history[-tail:] if tail else [])),
-    }
-
-
 def _prepare_common(native: Any, recorder: Recorder) -> None:
-    rules = native.rules("common_operations")
     state_rules = native.state("shared_operations")
-    unsupported = native.Unsupported
-    record_kernel = rules.record_shared_operation
     tick_kernel = state_rules.validate_tick
     module: list[Any] = []
 
@@ -180,46 +120,6 @@ def _prepare_common(native: Any, recorder: Recorder) -> None:
 
             module.append(common_operations)
         return module[0]
-
-    def record_shared_operation(world: Any, record: Any) -> None:
-        recorder.seen["record.calls"] += 1
-        state = world.model_state.get(SHARED)
-        if not isinstance(state, dict) or not isinstance(state.get("history"), list):
-            recorder.seen["record.no_namespace"] += 1
-            record_kernel(world, record)
-            return
-        # The Python rule reads the recent records only, unless the list is at its limit.
-        size = len(state["history"])
-        tail = size if size >= 19_999 else min(size, 64)
-        before = _comparable(state, tail)
-        try:
-            record_kernel(world, record)
-        except unsupported as reason:
-            recorder.reasons[f"record: {reason}"] += 1
-            raise
-        recorder.seen["record.kernel_ran"] += 1
-        recorder.seen[f"record.{record.status}"] += 1
-        recorder.seen[f"record.{type(record).__name__}"] += 1
-        recorder.seen["record.with_state_changes"] += bool(getattr(record, "state_changes", ()))
-        table = dict(world.model_state)
-        table[SHARED] = before
-        try:
-            common().record_shared_operation.__wrapped__(_Twin(world, model_state=table), record)
-        except ValueError as error:
-            recorder.differ(f"record: the kernel took what Python turned down: {error}")
-            return
-        state = world.model_state[SHARED]
-        after = _comparable(state, len(before["history"]))
-        if text(before) != text(after):
-            recorder.differ(
-                f"record of {record.event_id}: {text(before)[-400:]} and {text(after)[-400:]}"
-            )
-        recorder.seen["record.values_compared"] += values_in(before)
-        if (
-            recorder.seen["record.calls"] % ROW_CHECK_EVERY == 0
-            and not world._core.mirror(SHARED).verify()
-        ):
-            recorder.differ(f"record of {record.event_id}: the row and the tree")
 
     inside = [False]
 
@@ -241,5 +141,5 @@ def _prepare_common(native: Any, recorder: Recorder) -> None:
             inside[0] = False
         return accepted
 
-    rules.record_shared_operation = record_shared_operation
+    # `record_shared_operation` has no Python rule left to compare (`kernel_only`, lane L10).
     state_rules.validate_tick = validate_tick

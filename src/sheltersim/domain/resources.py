@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import re
-from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
 from sheltersim import native
 from sheltersim.core.history import records_since_previous_tick
-from sheltersim.core.kernels import kernel_first
+from sheltersim.core.kernels import kernel_only
 from sheltersim.core.state_mirror import register_rust_validator
 
 if TYPE_CHECKING:
@@ -493,171 +492,35 @@ def _validate_audit_record(record: Any, ledger: dict[str, Any]) -> None:
             raise ResourceLedgerError(f"resource audit {name} must be non-negative")
 
 
-@kernel_first("resources", "apply_operation")
+@kernel_only("resources", "apply_operation")
 def apply_resource_operation(world: Any, event: ScheduledEvent, operation: str) -> None:
-    """Apply one inventory event to detached candidates, then commit atomically."""
-    if RESOURCE_LEDGER_KEY not in world.model_state:
-        raise ResourceLedgerError("resource ledger is not enabled for this scenario")
-    current = world.model_state[RESOURCE_LEDGER_KEY]
-    validate_resource_ledger_state(
-        current,
-        world.resources,
-        set(world.agents),
-        set(world.zones),
-        minute_index=world.minute_index,
-    )
-    # Only the accounts change in place; the ID and audit lists are only appended to,
-    # so copying the lists (not their records) keeps the candidate detached.
-    ledger = {
-        **current,
-        "accounts": deepcopy(current["accounts"]),
-        "used_reservation_ids": list(current["used_reservation_ids"]),
-        "audit": list(current["audit"]),
-    }
-    resources = dict(world.resources)
+    """Apply one inventory event (native/src/rules/resources.rs), all of it or nothing.
 
-    required = {
-        "delivery": {"warehouse_id", "resource_id", "quantity"},
-        "loss": {"warehouse_id", "resource_id", "quantity"},
-        "reserve": {"warehouse_id", "resource_id", "reservation_id", "agent_id", "quantity"},
-        "release": {"warehouse_id", "resource_id", "reservation_id", "agent_id"},
-        "consume": {"warehouse_id", "resource_id", "reservation_id", "agent_id", "quantity"},
-    }.get(operation)
-    if required is None:
-        raise ResourceLedgerError(f"unknown resource operation {operation!r}")
-    payload = dict(event.payload)
-    if set(payload) != required:
-        raise ResourceLedgerError(f"resource {operation} payload fields do not match")
-    warehouse_id = payload.get("warehouse_id")
-    if not _valid_id(warehouse_id) or warehouse_id != ledger["warehouse_id"]:
-        raise ResourceLedgerError(f"unknown resource warehouse ID {warehouse_id!r}")
-    resource_id = payload.get("resource_id")
-    if not isinstance(resource_id, str) or resource_id not in RESOURCE_IDS:
-        raise ResourceLedgerError(f"unknown resource ID {resource_id!r}")
-    source_id = event.source_id
-    if source_id is None:
-        raise ResourceLedgerError("resource events require a source_id")
-    account = ledger["accounts"][resource_id]
-    quantity = payload.get("quantity")
-    if operation in ("delivery", "loss", "reserve", "consume"):
-        if not isinstance(quantity, int) or isinstance(quantity, bool) or quantity <= 0:
-            raise ResourceLedgerError("resource quantity must be a positive integer")
+    `operation` is delivery, loss, reserve, release or consume. The ledger's account of the
+    payload's resource_id changes: a delivery adds to delivered and remaining, a loss to losses
+    and takes from remaining, a reserve holds a quantity for an Agent under a new reservation_id
+    (kept in used_reservation_ids), a release drops a reservation, and a consume serves part or all
+    of one. The event's source_id joins the account's source_ids, an audit record of the balances
+    after it is appended, and `world.resources` becomes a new dict with the new remaining.
 
-    reservation_id = payload.get("reservation_id")
-    agent_id = payload.get("agent_id")
-    if operation in ("reserve", "release", "consume"):
-        if not _valid_id(agent_id) or agent_id not in world.agents:
-            raise ResourceLedgerError(f"unknown resource Agent ID {agent_id!r}")
-    if operation == "delivery":
-        account["delivered"] += quantity
-        account["remaining"] += quantity
-    elif operation == "loss":
-        if quantity > account["remaining"] - account["reserved"]:
-            raise ResourceLedgerError("resource loss exceeds unreserved remaining inventory")
-        account["losses"] += quantity
-        account["remaining"] -= quantity
-    elif operation == "reserve":
-        if not _valid_id(reservation_id):
-            raise ResourceLedgerError("resource reservation_id must be a stable ID")
-        if reservation_id in ledger["used_reservation_ids"]:
-            raise ResourceLedgerError(
-                f"resource reservation ID {reservation_id!r} was already used"
-            )
-        if quantity > account["remaining"] - account["reserved"]:
-            raise ResourceLedgerError("resource reservation exceeds available inventory")
-        account["reservations"][reservation_id] = {
-            "reservation_id": reservation_id,
-            "resource_id": resource_id,
-            "agent_id": agent_id,
-            "quantity": quantity,
-        }
-        account["reserved"] += quantity
-        ledger["used_reservation_ids"].append(reservation_id)
-    elif operation == "release":
-        if not _valid_id(reservation_id):
-            raise ResourceLedgerError("resource reservation_id must be a stable ID")
-        record = account["reservations"].get(reservation_id)
-        if record is None:
-            raise ResourceLedgerError(f"unknown resource reservation {reservation_id!r}")
-        if record["agent_id"] != agent_id:
-            raise ResourceLedgerError("resource reservation belongs to a different Agent")
-        quantity = record["quantity"]
-        account["reserved"] -= quantity
-        del account["reservations"][reservation_id]
-    else:
-        if not _valid_id(reservation_id):
-            raise ResourceLedgerError("resource reservation_id must be a stable ID")
-        record = account["reservations"].get(reservation_id)
-        if record is None:
-            raise ResourceLedgerError(f"unknown resource reservation {reservation_id!r}")
-        if record["agent_id"] != agent_id:
-            raise ResourceLedgerError("resource reservation belongs to a different Agent")
-        reserved = record["quantity"]
-        if quantity > reserved:
-            raise ResourceLedgerError("resource consume exceeds the reservation")
-        account["served"] += quantity
-        account["remaining"] -= quantity
-        account["reserved"] -= quantity
-        if quantity == reserved:
-            del account["reservations"][reservation_id]
-        else:
-            record["quantity"] = reserved - quantity
-
-    if source_id not in account["source_ids"]:
-        account["source_ids"].append(source_id)
-    resources[resource_id] = account["remaining"]
-    ledger["audit"].append(
-        {
-            "schema_version": RESOURCE_AUDIT_SCHEMA_VERSION,
-            "minute": world.minute_index,
-            "event_id": event.event_id,
-            "operation": operation,
-            "resource_id": resource_id,
-            "quantity": quantity,
-            "reservation_id": reservation_id,
-            "agent_id": agent_id,
-            "source_id": source_id,
-            "source_ids": account["source_ids"].copy(),
-            "warehouse_id": warehouse_id,
-            **{name: account[name] for name in _BALANCE_FIELDS},
-        }
-    )
-    validate_resource_ledger_state(
-        ledger,
-        resources,
-        set(world.agents),
-        set(world.zones),
-        minute_index=world.minute_index,
-    )
-    world.model_state[RESOURCE_LEDGER_KEY] = ledger
-    world.resources = resources
+    ResourceLedgerError, before any change, in this order: no ledger in the scenario, an unknown
+    operation, payload fields other than the operation's, a warehouse_id that is not the ledger's,
+    an unknown resource_id, no source_id, a quantity that is not a positive int (not for a
+    release), an unknown Agent (reserve, release, consume), a reservation_id that is not a stable
+    ID, and then a loss or a reserve past what is unreserved, a reservation ID used before, an
+    unknown reservation, another Agent's reservation, a consume past its reservation.
+    """
 
 
-@kernel_first("resources", "metric_values")
+@kernel_only("resources", "metric_values")
 def resource_metric_values(world: Any) -> dict[str, int] | None:
-    """Return optional KPI columns for ledger-enabled scenarios."""
-    ledger = world.model_state.get(RESOURCE_LEDGER_KEY)
-    if ledger is None:
-        return None
-    validate_resource_ledger_state(
-        ledger,
-        world.resources,
-        set(world.agents),
-        set(world.zones),
-        minute_index=world.minute_index,
-    )
-    result: dict[str, int] = {}
-    for resource_id in RESOURCE_IDS:
-        account = ledger["accounts"][resource_id]
-        for name in ("initial", "delivered", "served", "losses", "remaining", "reserved"):
-            result[f"{resource_id}_{name}"] = account[name]
-    return result
+    """The ledger's KPI columns: initial, delivered, served, losses, remaining and reserved of
+    water_ml and then food_meal_units (RESOURCE_METRIC_FIELDS), or None without a ledger."""
 
 
-@kernel_first("resources", "reservation_id_was_used")
+@kernel_only("resources", "reservation_id_was_used")
 def reservation_id_was_used(world: Any, reservation_id: str) -> bool:
     """Whether this ID ever reserved anything: the list is only appended to, and never read back."""
-    return reservation_id in world.model_state[RESOURCE_LEDGER_KEY]["used_reservation_ids"]
 
 
 def _valid_id(value: Any) -> bool:

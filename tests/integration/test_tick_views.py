@@ -199,25 +199,39 @@ def test_the_proposal_view_equals_a_read_view_with_full_traces(
     assert len(views) == 20
 
 
-@pytest.mark.python_rules
-def test_requests_of_one_kind_get_the_reasons_they_get_alone(
-    generated_scenario, tmp_path, monkeypatch
-) -> None:
+def test_requests_of_one_kind_get_the_reasons_they_get_alone(generated_scenario) -> None:
+    """The snapshot reads the reasons of one kind once for all its requests; each request's are
+    what `support_wait_reason_codes` gives it alone."""
+    from sheltersim.core.engine import TickEngine
+    from sheltersim.core.world import WorldState
+    from sheltersim.domain.models import SupportRequestStatus
     from sheltersim.domain.staff import support_wait_reason_codes
     from sheltersim.experiments import metrics
+    from sheltersim.experiments.runner import OfflineSimulationController
+    from sheltersim.experiments.timeline import _MetricSink
 
     document = generated_scenario.model_dump(mode="json")
     document["duration_minutes"] = 360
-    compared = []
-
-    def checked(world, request_id, *, minute=None, staff_memo=None):
-        shared = support_wait_reason_codes(world, request_id, minute=minute, staff_memo=staff_memo)
-        assert shared == support_wait_reason_codes(world, request_id, minute=minute)
-        compared.append(shared)
-        return shared
-
-    monkeypatch.setattr(metrics, "support_wait_reason_codes", checked)
-    run_scenario(ScenarioSpec.model_validate(document), tmp_path, trace_level=TraceLevel.OFF)
+    world = WorldState.from_scenario(ScenarioSpec.model_validate(document))
+    engine = TickEngine(
+        world,
+        phase_handler=OfflineSimulationController(world, _MetricSink(metrics.MetricsRecorder())),
+    )
+    compared = 0
+    for _ in range(360):
+        engine.step()
+        active = [
+            request
+            for request in world.unsettled_support_requests()
+            if request.status in (SupportRequestStatus.PENDING, SupportRequestStatus.ASSIGNED)
+        ]
+        details, _ = metrics._support_wait_snapshot(world, active, world.minute_index)
+        for detail in details.values():
+            alone = support_wait_reason_codes(
+                world, detail["request_id"], minute=world.minute_index
+            )
+            assert detail["reason_codes"] == list(alone)
+            compared += 1
     assert compared
 
 

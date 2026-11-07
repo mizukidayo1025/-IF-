@@ -3,11 +3,11 @@
 `ResourceServiceManager.complete`, `cancel` and `interrupt_for_staff` raise `EventSuppressed`
 and `EventApplicationError`, whose texts the dispatcher saves as an event's `detail`. A request
 the queue turns down raises a `ValueError` whose text the propose step saves as the request's
-`detail`. Each case builds a state that reaches one check and asks the Python rule, on a copy,
-what it says. The kernel must raise the same class and text itself (not a refusal the Python rule
-then words) and leave the world as it was, or, for a request, write what the Python rule writes
-(docs/rust-port/lanes/l8-texts-events.md). The toilet completion's and the ledger handler's wraps
-of their rules' `ValueError` are here too.
+`detail`. Each case builds a state that reaches one check. The kernel must raise the class and
+text the Python rule raised there itself (not a refusal) and leave the world as it was, or, for a
+request, write what the Python rule wrote (docs/rust-port/lanes/l8-texts-events.md). These rules
+have no Python rule left (lane L10, `kernel_only`): the texts below were the Python rules'. The
+toilet completion's and the ledger handler's wraps of their rules' `ValueError` are here too.
 """
 
 from __future__ import annotations
@@ -50,12 +50,15 @@ def _bytes(world: WorldState) -> str:
     return world._canonical_text(world._canonical_data())
 
 
-def _says(world: WorldState, call: Any, rule: Any, expected: type, text: str) -> None:
-    """`rule(copy)` raises `expected` with `text`, and `call(world)` raises it itself.
+def _says(
+    world: WorldState, call: Any, rule: Any, expected: type, text: str, change: Any = None
+) -> None:
+    """`call(world)` raises `expected` with `text` itself, as `rule(copy)` does.
 
     `call` runs the kernel (through its Python entry); `rule` is the Python rule alone. The world
     `call` ran on must end as the copy the rule ran on does: unchanged for an event's outcome. A
-    handler with no Python rule left (`kernel_only`, lane L10) passes None: `text` was its rule's.
+    rule with no Python rule left (`kernel_only`, lane L10) passes None: `text` was its rule's, and
+    `change` makes on the copy what the rule wrote before it raised, if anything.
     """
     twin = copy.deepcopy(world)
     if rule is not None:
@@ -63,6 +66,8 @@ def _says(world: WorldState, call: Any, rule: Any, expected: type, text: str) ->
             rule(twin)
         assert type(said.value) is expected
         assert str(said.value) == text
+    elif change is not None:
+        change(twin)
     before = _bytes(world)
     with pytest.raises(expected) as made:
         call(world)
@@ -119,15 +124,7 @@ _DROP = object()
 
 
 def _complete_says(world: WorldState, event: ScheduledEvent, expected: type, text: str) -> None:
-    _says(
-        world,
-        lambda state: ResourceServiceManager(state).complete(event),
-        lambda state: ResourceServiceManager.complete.__wrapped__(
-            ResourceServiceManager(state), event
-        ),
-        expected,
-        text,
-    )
+    _says(world, lambda state: ResourceServiceManager(state).complete(event), None, expected, text)
 
 
 @pytest.mark.parametrize(
@@ -275,15 +272,12 @@ def test_a_completion_in_a_world_not_v6_fails_with_the_handler_s_text(
 
 
 def _cancel_says(world: WorldState, event: ScheduledEvent, expected: type, text: str) -> None:
-    def rule(state: WorldState) -> None:
-        ResourceServiceManager.cancel.__wrapped__(ResourceServiceManager(state), event)
-
     _says(
         world,
         lambda state: ResourceServiceCancellationHandler(ResourceServiceManager(state)).apply(
             state, event
         ),
-        rule,
+        None,
         expected,
         text,
     )
@@ -450,18 +444,12 @@ def test_an_interruption_s_texts_are_python_s(
     else:
         world.model_state[SERVICE]["active_reservation_ids"].remove(task_id)
     cause = _event("staff_unavailable", {"staff_id": staff_id, "until_minute": 5})
-
-    def rule(state: WorldState) -> None:
-        ResourceServiceManager.interrupt_for_staff.__wrapped__(
-            ResourceServiceManager(state), staff_id, causation_event=cause
-        )
-
     _says(
         world,
         lambda state: ResourceServiceManager(state).interrupt_for_staff(
             staff_id, causation_event=cause
         ),
-        rule,
+        None,
         EventApplicationError,
         text,
     )
@@ -470,19 +458,13 @@ def test_an_interruption_s_texts_are_python_s(
 def test_an_interruption_of_a_cancelled_task_is_the_cancellation_s_text(
     resource_service_scenario: Any,
 ) -> None:
-    """The cancellation inside raises its own text, after the Python rule took a sequence."""
+    """The cancellation inside raises its own text (the Python rule's had taken a sequence)."""
     world, completion = _started(resource_service_scenario)
     task_id = completion.payload["task_id"]
     staff_id = completion.payload["staff_id"]
     world.model_state[SERVICE]["cancelled_task_ids"].append(task_id)
     cause = _event("staff_unavailable", {"staff_id": staff_id, "until_minute": 5})
-    twin = copy.deepcopy(world)
-    rule = ResourceServiceManager.interrupt_for_staff
-    rule = getattr(rule, "__wrapped__", rule)
-    with pytest.raises(EventSuppressed) as said:
-        rule(ResourceServiceManager(twin), staff_id, causation_event=cause)
     text = f"resource service task {task_id!r} was already cancelled"
-    assert str(said.value) == text
     before = _bytes(world)
     with pytest.raises(EventSuppressed) as made:
         native.rules("handlers").interrupt_for_staff(
@@ -498,20 +480,26 @@ def test_an_interruption_of_a_cancelled_task_is_the_cancellation_s_text(
 
 
 def _request_says(
-    world: WorldState, agent_id: Any, facility_id: Any, text: str, **options: Any
+    world: WorldState,
+    agent_id: Any,
+    facility_id: Any,
+    text: str,
+    change: Any = None,
+    **options: Any,
 ) -> None:
-    def rule(state: WorldState) -> None:
-        manager = ResourceServiceManager(state)
-        request = ResourceServiceManager.request
-        getattr(request, "__wrapped__", request)(manager, agent_id, facility_id, **options)
-
     _says(
         world,
         lambda state: ResourceServiceManager(state).request(agent_id, facility_id, **options),
-        rule,
+        None,
         ValueError,
         text,
+        change,
     )
+
+
+def _took_a_task_id(state: WorldState) -> None:
+    """The Python rule's write before it found no queue: the counter after the task's ID."""
+    state.id_counters["resource_task"] = state.id_counters.get("resource_task", 0) + 1
 
 
 @pytest.mark.parametrize(
@@ -609,11 +597,13 @@ def test_no_open_independent_queue_is_python_s_refusal(
 ) -> None:
     world = _restricted(generated_scenario_with_split_queues)
     _place_at(world, "A001", "water_station_main")
+    assert not world.active_tasks
     _request_says(
         world,
         "A001",
         "water_station_main",
         "no accessible independent resource service queue is available",
+        _took_a_task_id,
         validate_state=False,
     )
 

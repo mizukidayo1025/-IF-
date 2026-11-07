@@ -22,10 +22,8 @@ from sheltersim.contracts.operations import (
     StaffSupportContinuityReceipt,
 )
 from sheltersim.contracts.population import population_context_people
-from sheltersim.core.history import records_since_previous_tick
-from sheltersim.core.kernels import kernel_first
+from sheltersim.core.kernels import kernel_only
 from sheltersim.core.world import WorldState
-from sheltersim.domain.common_operations import record_shared_operation
 from sheltersim.events.models import EventKind, EventLogRecord, EventStatus, ScheduledEvent
 
 CARE_RECEIPT_SOURCE_ID = "ASM-CARE-TRANSITION-PRODUCER-V1"
@@ -327,7 +325,7 @@ def make_staff_support_continuity_record(
     )
 
 
-@kernel_first("care_receipts", "append_transition")
+@kernel_only("care_receipts", "append_transition")
 def append_applied_care_transition(
     world: WorldState,
     *,
@@ -340,64 +338,30 @@ def append_applied_care_transition(
     causation_id: str | None = None,
     source_ids: tuple[str, ...] = (),
 ) -> None:
-    """Append and project a care transition after its backing operation has applied."""
-    if SHARED_OPERATIONS_KEY not in world.model_state:
-        return
-    event_record, receipt = make_care_transition_record(
-        world,
-        request_id=request_id,
-        agent_id=agent_id,
-        household_id=household_id,
-        support_kind=support_kind,
-        status=status,
-        staff_id=staff_id,
-        causation_id=causation_id,
-        source_ids=source_ids,
-    )
-    world.event_log.append(event_record)
-    record_shared_operation(world, receipt)
+    """Append and project a care transition after its backing operation has applied.
+
+    Nothing without shared_operations_v1. Else `make_care_transition_record`'s applied record goes
+    to the EventLog and its receipt to `record_shared_operation`, whose ValueError it raises.
+    """
 
 
 @lru_cache(maxsize=1)
 def _operation_record_adapter() -> TypeAdapter:
-    # Building a TypeAdapter takes about a millisecond.
+    # Building a TypeAdapter takes about a millisecond. native/src/rules/care_receipts.rs reads
+    # the receipts of `ingest_applied_shared_operation_records` with it.
     return TypeAdapter(OperationHistoryRecord)
 
 
-@kernel_first("care_receipts", "ingest")
+@kernel_only("care_receipts", "ingest")
 def ingest_applied_shared_operation_records(world: WorldState, outcomes: tuple[Any, ...]) -> None:
-    """Project typed shared receipts only after EventLog APPLIED insertion."""
-    if SHARED_OPERATIONS_KEY not in world.model_state:
-        return
-    for outcome in outcomes:
-        event = getattr(outcome, "event", None)
-        if (
-            getattr(outcome, "status", None) is not EventStatus.APPLIED
-            or event is None
-            or event.event_type
-            not in {
-                "care_support_transition",
-                "staff_support_continuity",
-                "facility_recovery_transition",
-                "staff_handoff",
-                "staff_operation_transition",
-            }
-        ):
-            continue
-        state = world.model_state.get(SHARED_OPERATIONS_KEY, {})
-        history = state.get("history", ()) if isinstance(state, dict) else ()
-        # A record carries its event's realized minute (record_shared_operation), so the
-        # record of an event realized now is among the newest ones.
-        if getattr(outcome, "realized_minute", None) == world.minute_index and isinstance(
-            history, list
-        ):
-            history = records_since_previous_tick(history, world.minute_index)
-        if isinstance(state, dict) and any(
-            row.get("event_id") == event.event_id for row in history if isinstance(row, dict)
-        ):
-            continue
-        receipt = _operation_record_adapter().validate_python(event.payload)
-        record_shared_operation(world, receipt)
+    """Project typed shared receipts only after EventLog APPLIED insertion.
+
+    Nothing without shared_operations_v1. Each APPLIED outcome of a care_support_transition,
+    staff_support_continuity, facility_recovery_transition, staff_handoff or
+    staff_operation_transition event whose event_id has no record yet (among the records since the
+    previous tick when it was realized now, else among all) goes to `record_shared_operation` as
+    the receipt `_operation_record_adapter` reads from its payload.
+    """
 
 
 def care_receipt_for_request(world: WorldState, request_id: str) -> dict[str, Any] | None:

@@ -1,15 +1,21 @@
 """The kernels of rules/proposals.rs, rules/service.rs and rules/travel.rs against the Python rules.
 
 Each case runs the kernel on a world and the Python rule on a copy made before it, and compares the
-whole world in canonical JSON. benchmarks/rule_shadow/shadow_service.py and shadow_proposals.py do
-this on the runs of the gate; here, the branches those runs may not reach, the configured values
-at what changes the result, and the state of resource_service_v1
-(docs/rust-port/lanes/m4-service.md).
+whole world in canonical JSON. benchmarks/rule_shadow/shadow_proposals.py does this on the runs of
+the gate; here, the branches those runs may not reach, the configured values at what changes the
+result, and the state of resource_service_v1 (docs/rust-port/lanes/m4-service.md).
+
+The water and meal service has no Python rule left (lane L10, `kernel_only`): its cases compare the
+world with what the Python rule made, written down from it before it went (`_is_python_s`, a digest
+of the world, pinned on Linux as the gate's hashes are), and with what the rule says it writes.
 """
 
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
+import sys
 from types import SimpleNamespace
 from typing import Any
 
@@ -47,6 +53,30 @@ def _run(scenario: Any, minutes: int) -> tuple[WorldState, OfflineSimulationCont
 
 def _bytes(world: WorldState) -> str:
     return world._canonical_text(world._canonical_data())
+
+
+def _row_follows(world: WorldState) -> None:
+    mirror = world._core.mirror(KEY)
+    assert mirror.tainted is None
+    assert mirror.verify()
+    assert mirror.row_json() == native.canonical_json(world.model_state[KEY])
+    assert world._core.entities().verify(world) is None
+
+
+def _is_python_s(world: WorldState, digest: str) -> None:
+    """The world, its counters and its pending events are what the Python rule made: their digest,
+    taken from that rule. Pinned on Linux (libm), as the gate's hashes are."""
+    _row_follows(world)
+    text = json.dumps(
+        [
+            _bytes(world),
+            world.id_counters,
+            [repr(event) for event in world.event_queue.pending()],
+        ],
+        sort_keys=True,
+    )
+    if sys.platform == "linux":
+        assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == digest
 
 
 def _same_world(world: WorldState, twin: WorldState) -> None:
@@ -505,16 +535,15 @@ def _at_service(world: WorldState, kind: str = "water_station") -> tuple[Any, st
     return facility, agent_id
 
 
-def _serve(world: WorldState, facility: Any, resource: str = "water_ml") -> Any:
-    twin = copy.deepcopy(world)
+def _serve(
+    world: WorldState, facility: Any, resource: str = "water_ml", digest: str | None = None
+) -> Any:
     manager = ResourceServiceManager(world)
-    python_manager = ResourceServiceManager(twin)
     result = native.rules("service").serve_head(manager, facility.id, resource, world.minute_index)
-    expected = ResourceServiceManager._serve_head.__wrapped__(
-        python_manager, facility.id, resource, world.minute_index
-    )
-    assert result == expected
-    _same_world(world, twin)
+    if digest is not None:
+        _is_python_s(world, digest)
+    else:
+        _row_follows(world)
     return result
 
 
@@ -529,14 +558,23 @@ def test_a_head_at_the_point_starts_its_service(generated_scenario: Any) -> None
     world, _ = _run(generated_scenario, 5)
     facility, agent_id = _at_service(world)
     _free_all_staff(world, facility)
-    event_id = _serve(world, facility)
+    event_id = _serve(world, facility, digest="2a3c0767c9e08409")
     assert event_id is not None
     assert world.agents[agent_id].activity is Activity.IN_SERVICE
     assert world.event_queue.find(event_id).event_type == "resource_service_complete"
     assert world.metric_state["water_service_wait_count"] >= 1.0
 
 
-@pytest.mark.parametrize("reason", ["capacity", "staff", "stock", "run_end", "water_outage"])
+WAITS = {
+    "capacity": "bb6a050583414052",
+    "staff": "aea91f1779cd9538",
+    "stock": "83e5c9064839b2b3",
+    "run_end": "62eee99e27894a3c",
+    "water_outage": "1b96482b22525348",
+}
+
+
+@pytest.mark.parametrize("reason", sorted(WAITS))
 def test_each_wait_is_python_s_record(generated_scenario: Any, reason: str) -> None:
     world, _ = _run(generated_scenario, 5)
     facility, agent_id = _at_service(world)
@@ -557,30 +595,22 @@ def test_each_wait_is_python_s_record(generated_scenario: Any, reason: str) -> N
             "target_kind": "facility",
             "target_id": facility.id,
         }
-    if reason == "stock":
-        manager = ResourceServiceManager(world)
-        twin = copy.deepcopy(world)
-        python_manager = ResourceServiceManager(twin)
-        assert (
-            native.rules("service").serve_head(manager, facility.id, "water_ml", world.minute_index)
-            is None
-        )
-        assert (
-            ResourceServiceManager._serve_head.__wrapped__(
-                python_manager, facility.id, "water_ml", world.minute_index
-            )
-            is None
-        )
-        _same_world(world, twin)
-    else:
-        assert _serve(world, facility) is None
+    count = world.metric_state.get(f"resource_service_wait_{reason}_count", 0.0)
+    assert _serve(world, facility, digest=WAITS[reason]) is None
     record = world.model_state[KEY]["stall_state"][facility.id]
     assert record == {"agent_id": agent_id, "reason": reason}
     history = list(world.model_state[KEY]["queue_stall_history"])
+    assert history[-1] == {
+        "minute": world.minute_index,
+        "facility_id": facility.id,
+        "agent_id": agent_id,
+        "reason": reason,
+    }
+    assert world.metric_state[f"resource_service_wait_{reason}_count"] == count + 1.0
     # The same wait the next minute adds nothing.
-    if reason != "stock":
-        assert _serve(world, facility) is None
-        assert list(world.model_state[KEY]["queue_stall_history"]) == history
+    before = _bytes(world)
+    assert _serve(world, facility) is None
+    assert _bytes(world) == before
 
 
 def test_a_taken_reservation_id_is_python_s_error(generated_scenario: Any) -> None:
@@ -588,13 +618,12 @@ def test_a_taken_reservation_id_is_python_s_error(generated_scenario: Any) -> No
     facility, agent_id = _at_service(world)
     world.model_state["resource_ledger_v1"]["used_reservation_ids"].append(f"queue-task-{agent_id}")
     before = _bytes(world)
-    with pytest.raises(native.Unsupported, match="reservation"):
-        native.rules("service").serve_head(
-            ResourceServiceManager(world), facility.id, "water_ml", world.minute_index
-        )
-    assert _bytes(world) == before
-    with pytest.raises(StateInvariantError, match="conflicts with an H01 reservation"):
+    with pytest.raises(StateInvariantError) as raised:
         ResourceServiceManager(world)._serve_head(facility.id, "water_ml", world.minute_index)
+    assert str(raised.value) == (
+        f"resource service task ID 'queue-task-{agent_id}' conflicts with an H01 reservation"
+    )
+    assert _bytes(world) == before
 
 
 def test_only_the_queues_with_people_are_served(generated_scenario: Any) -> None:
@@ -611,32 +640,36 @@ def test_only_the_queues_with_people_are_served(generated_scenario: Any) -> None
 # ---- complete -----------------------------------------------------------------------------------
 
 
-def _started(world: WorldState, kind: str, resource: str) -> tuple[Any, str, Any]:
+def _started(
+    world: WorldState, kind: str, resource: str, digest: str | None = None
+) -> tuple[Any, str, Any]:
     facility, agent_id = _at_service(world, kind)
     _free_all_staff(world, facility)
-    event_id = _serve(world, facility, resource)
+    event_id = _serve(world, facility, resource, digest)
     return world.event_queue.find(event_id), agent_id, facility
 
 
 @pytest.mark.parametrize(
-    ("kind", "resource", "need"),
+    ("kind", "resource", "need", "started", "completed"),
     [
-        ("water_station", "water_ml", "hydration_need"),
-        ("meal_distribution", "food_meal_units", "hunger"),
+        ("water_station", "water_ml", "hydration_need", "2a3c0767c9e08409", "4f39327b201771c8"),
+        ("meal_distribution", "food_meal_units", "hunger", "0d30579820e3bf95", "46c48784b7891a9e"),
     ],
 )
 def test_a_completion_relieves_python_s_need(
-    generated_scenario: Any, kind: str, resource: str, need: str
+    generated_scenario: Any, kind: str, resource: str, need: str, started: str, completed: str
 ) -> None:
     world, _ = _run(generated_scenario, 5)
-    event, agent_id, _ = _started(world, kind, resource)
+    event, agent_id, facility = _started(world, kind, resource, started)
     setattr(world.agents[agent_id].needs, need, 0.812345)
-    twin = copy.deepcopy(world)
-    python_manager = ResourceServiceManager(twin)
-    native.rules("service").complete(ResourceServiceManager(world), event)
-    ResourceServiceManager.complete.__wrapped__(python_manager, event)
-    _same_world(world, twin)
+    manager = ResourceServiceManager(world)
+    relief = manager.config["hydration_relief" if need == "hydration_need" else "hunger_relief"]
+    native.rules("service").complete(manager, event)
+    _is_python_s(world, completed)
+    assert getattr(world.agents[agent_id].needs, need) == max(0.0, 0.812345 - relief)
     assert world.agents[agent_id].activity is Activity.IDLE
+    assert agent_id not in facility.resource_active_agent_ids
+    assert event.payload["task_id"] not in world.active_tasks
 
 
 def test_the_relief_is_read_at_its_value_and_stops_at_zero(generated_scenario: Any) -> None:
@@ -669,15 +702,13 @@ def test_a_completion_that_does_not_match_is_python_s_error(
     world, _ = _run(generated_scenario, 5)
     event, agent_id, _ = _started(world, "water_station", "water_ml")
     change(world, event, agent_id)
-    twin = copy.deepcopy(world)
     before = _bytes(world)
     with pytest.raises(EventApplicationError) as ours:
         native.rules("service").complete(ResourceServiceManager(world), event)
     assert _bytes(world) == before
-    with pytest.raises(EventApplicationError) as theirs:
-        ResourceServiceManager.complete.__wrapped__(ResourceServiceManager(twin), event)
-    assert str(ours.value) == str(theirs.value)
-    assert "does not match its full reservation" in str(ours.value)
+    assert str(ours.value) == (
+        "resource service completion does not match its full reservation, slot, or staff"
+    )
 
 
 # ---- request and its record ---------------------------------------------------------------------
@@ -696,15 +727,21 @@ def _at_facility(world: WorldState, kind: str = "water_station") -> tuple[Any, s
 def test_a_request_is_python_s(generated_scenario: Any) -> None:
     world, _ = _run(generated_scenario, 5)
     facility, agent_id = _at_facility(world)
-    twin = copy.deepcopy(world)
+    counter = world.id_counters.get("resource_task", 0)
     result = native.rules("service").request(
         ResourceServiceManager(world), agent_id, facility.id, validate_state=False
     )
-    expected = ResourceServiceManager.request.__wrapped__(
-        ResourceServiceManager(twin), agent_id, facility.id, validate_state=False
+    _is_python_s(world, "22667c113d8b86dd")
+    task_id = f"resource-service-task-{counter}"
+    assert (result.agent_id, result.facility_id, result.resource_id) == (
+        agent_id,
+        facility.id,
+        "water_ml",
     )
-    assert repr(result) == repr(expected)
-    _same_world(world, twin)
+    assert (result.requested_at, result.queue_task_id) == (world.minute_index, task_id)
+    assert result.queue_position == len(facility.resource_queue_agent_ids)
+    assert world.agents[agent_id].activity is Activity.QUEUED
+    assert world.active_tasks[task_id].kind == "resource_service_queue"
 
 
 @pytest.mark.parametrize(
@@ -712,11 +749,11 @@ def test_a_request_is_python_s(generated_scenario: Any) -> None:
     [
         (
             lambda world, agent_id: world.agents[agent_id].__setattr__("zone_id", "kitchen"),
-            "must arrive",
+            "Agent must arrive at the resource service facility before queueing",
         ),
         (
             lambda world, agent_id: world.agents[agent_id].__setattr__("activity", Activity.MOVING),
-            "while active",
+            "Agent {agent} cannot request resource service while active",
         ),
     ],
 )
@@ -729,30 +766,23 @@ def test_a_request_refused_has_python_s_text(
     if world.agents[agent_id].zone_id == facility.zone_id and "arrive" in text:
         pytest.skip("the scenario's facility is in that zone")
     manager = ResourceServiceManager(world)
-    twin = copy.deepcopy(world)
     before = _bytes(world)
     # The kernel raises the Python rule's ValueError itself, before it writes anything.
-    with pytest.raises(ValueError, match=text) as ours:
+    with pytest.raises(ValueError) as ours:
         native.rules("service").request(manager, agent_id, facility.id, validate_state=False)
     assert _bytes(world) == before
-    with pytest.raises(ValueError, match=text) as theirs:
-        ResourceServiceManager.request.__wrapped__(
-            ResourceServiceManager(twin), agent_id, facility.id, validate_state=False
-        )
-    assert str(ours.value) == str(theirs.value)
+    assert str(ours.value) == text.format(agent=repr(agent_id))
 
 
 def test_a_request_validates_the_whole_world_when_asked_to(generated_scenario: Any) -> None:
     world, _ = _run(generated_scenario, 5)
-    twin = copy.deepcopy(world)
     facility, agent_id = _at_facility(world)
-    other = _at_facility(twin)[0]
-    # This world has someone moved by hand, which the whole validation turns down in both.
+    # This world has someone moved by hand, which the whole validation turns down first.
+    with pytest.raises(StateInvariantError) as validated:
+        world.validate()
     with pytest.raises(StateInvariantError) as ours:
         native.rules("service").request(ResourceServiceManager(world), agent_id, facility.id)
-    with pytest.raises(StateInvariantError) as theirs:
-        ResourceServiceManager.request.__wrapped__(ResourceServiceManager(twin), agent_id, other.id)
-    assert str(ours.value) == str(theirs.value)
+    assert str(ours.value) == str(validated.value)
 
 
 def test_a_record_of_a_request_is_python_s(generated_scenario: Any) -> None:
@@ -769,9 +799,8 @@ def test_a_record_of_a_request_is_python_s(generated_scenario: Any) -> None:
         "detail": "text",
     }
     native.rules("service").record_request_outcome(ResourceServiceManager(world), **options)
-    ResourceServiceManager.record_request_outcome.__wrapped__(
-        ResourceServiceManager(twin), **options
-    )
+    # The Python rule appended the record, with the world's minute, and wrote nothing else.
+    twin.model_state[KEY]["request_history"].append({"minute": twin.minute_index, **options})
     _same_world(world, twin)
 
 

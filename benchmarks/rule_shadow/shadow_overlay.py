@@ -33,7 +33,6 @@ from shadow_kit import Recorder, text, values_in
 OVERLAY_MODULE = "sheltersim.domain.geometry_overlay"
 SPACES_MODULE = "sheltersim.domain.temporary_spaces"
 QUEUES_MODULE = "sheltersim.domain.facility_queues"
-SERVICE_MODULE = "sheltersim.domain.resource_service"
 QUEUES_KEY = "facility_queues_v1"
 OVERLAY_KEY = "geometry_overlay_v1"
 
@@ -42,22 +41,9 @@ READERS = {
     "facility_queues": (("queue_head_agent_ids", QUEUES_MODULE, "queue_head_agent_ids"),),
 }
 # (rules module, kernel, module of the manager, its class, its method)
-SERVICE_WRITERS = (
-    (
-        "service",
-        "serve_independent_head",
-        SERVICE_MODULE,
-        "ResourceServiceManager",
-        "_serve_independent_head",
-    ),
-    (
-        "service",
-        "record_independent_stall",
-        SERVICE_MODULE,
-        "ResourceServiceManager",
-        "_record_independent_queue_stall",
-    ),
-)
+# The toilet's, the water and meal service's have no Python rule left to compare (`kernel_only`,
+# lane L10).
+SERVICE_WRITERS: tuple[tuple[str, str, str, str, str], ...] = ()
 VALIDATORS = (
     ("overlay", "validate_spaces", SPACES_MODULE, "validate_temporary_spaces_state"),
     ("overlay", "validate_overlay", OVERLAY_MODULE, "validate_geometry_overlay_state"),

@@ -1,17 +1,17 @@
-"""Compare native/src/rules/metrics.rs and tick_validation.rs with their Python rules at each call.
+"""Compare native/src/rules/tick_validation.rs with its Python rules at each call.
 
-The KPI kernels only read, so the Python rule runs on the same world and the two must be the same
-text of JSON. The check kernels answer yes or Unsupported, so at each yes the Python rules run too
-and must pass; a yes alone says little on a good state, so every PROBE_EVERY-th yes also writes a
-value past the rules into a restored copy, one rule at a time, and the kernel must turn each down.
+The check kernels answer yes or Unsupported, so at each yes the Python rules run too and must
+pass; a yes alone says little on a good state, so every PROBE_EVERY-th yes also writes a value
+past the rules into a restored copy, one rule at a time, and the kernel must turn each down. The KPI
+kernels of native/src/rules/metrics.rs have no Python rule left to compare (`kernel_only`, lane
+L10).
 """
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
-from shadow_kit import Recorder, pure_shadow, values_in
+from shadow_kit import Recorder
 
 PROBE_EVERY = 997
 
@@ -51,36 +51,7 @@ def prepare(output: str) -> None:
 
     recorder = Recorder(output, "metrics")
     unsupported = native.Unsupported
-    metric_rules = native.rules("metrics")
     check_rules = native.rules("tick_validation")
-
-    def snapshot_rule() -> Any:
-        from sheltersim.experiments import metrics
-
-        return metrics._snapshot_fields.__wrapped__
-
-    def kpi_rule() -> Any:
-        from sheltersim.experiments import operational_kpis
-
-        return operational_kpis.operational_kpi_values.__wrapped__
-
-    def snapshot_values(fields: Any) -> None:
-        # The fields of the snapshot, and each value in its JSON.
-        recorder.seen["snapshot.values_compared"] += (
-            len(fields) - 1 + values_in(json.loads(fields[14]))
-        )
-
-    metric_rules.snapshot_fields = pure_shadow(
-        recorder,
-        "snapshot",
-        metric_rules.snapshot_fields,
-        snapshot_rule,
-        unsupported,
-        detail=snapshot_values,
-    )
-    metric_rules.kpi_values = pure_shadow(
-        recorder, "kpi", metric_rules.kpi_values, kpi_rule, unsupported
-    )
 
     entity_kernel = check_rules.entity_rules
     population_kernel = check_rules.population_dynamics
