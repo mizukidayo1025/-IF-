@@ -1,9 +1,10 @@
 //! `domain/facility_queues.py`: the independent FIFO of each service point.
 //!
 //! Each kernel reads the row of `facility_queues_v1`, plans, and writes through the tree, whose
-//! writes reach the row. What a kernel doesn't take says Unsupported before any write, and the
-//! Python rule raises its own text (docs/rust-port/lanes/m6-overlay.md). The pydantic contract of
-//! the receipt stays Python's: `transition_row` calls it where the Python rule does.
+//! writes reach the row. Where the Python rule raised its own ValueError, the kernel raises it with
+//! the same text, before any write; what else it doesn't take says Unsupported before any write
+//! (docs/rust-port/lanes/m6-overlay.md). The pydantic contract of the receipt stays Python's:
+//! `transition_row` calls it where the Python rule did.
 
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
@@ -13,6 +14,7 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PySet, PyTuple};
 
+use crate::core::errors;
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, unsupported};
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::V;
@@ -30,6 +32,7 @@ const LEGACY_KEY: &str = "facility_queues_legacy_mode_v1";
 const POLICY_VERSION: &str = "independent-facility-queues-v1";
 const SOURCE_ID: &str = "ASM-FACILITY-QUEUES-V1";
 const MAX_REQUESTS: usize = 100_000;
+const NOT_INSTALLED_OR_TAKEN: &str = "service queue is not installed or request ID is already in use";
 
 // ---- Reading -------------------------------------------------------------------------------------
 
@@ -248,7 +251,8 @@ pub(crate) fn write_transition(writer: &EventWriter<'_>, row: &EventRow, minute:
 
 static LAST_PARSE: Mutex<Option<(Py<PyAny>, bool)>> = Mutex::new(None);
 
-/// `independent_queues_required`. One parsed config gives one answer.
+/// `independent_queues_required`. One parsed config gives one answer. A config the parse turns
+/// down raises the parse's own error, as the Python rule did.
 #[pyfunction]
 fn independent_queues_required(configs: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = configs.py();
@@ -262,7 +266,7 @@ fn independent_queues_required(configs: &Bound<'_, PyAny>) -> PyResult<bool> {
         .import(intern!(py, "sheltersim.domain.geometry_overlay"))?
         .getattr(intern!(py, "parsed_facility_geometry"))?
         .call1((&raw,))
-        .map_err(|_| Unsupported::new_err("the Python rule's parse raises"))?;
+        .map_err(|error| errors::relayed(py, error))?;
     if let Ok(last) = LAST_PARSE.lock() {
         if let Some((known, answer)) = &*last {
             if known.as_ptr() == parsed.as_ptr() {
@@ -323,7 +327,7 @@ fn create_facility_queue_state<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound
     let py = world.py();
     let configs = attribute(world, intern!(py, "model_configs"))?;
     if !independent_queues_required(&configs)? {
-        return unsupported("the config has no independent service points");
+        return Err(errors::value_error("facility_queues_v1 requires independent explicit service points"));
     }
     let geo = Geo::of(world)?;
     let Some(layout) = &geo.layout else {
@@ -519,12 +523,14 @@ fn enqueue(
 ) -> PyResult<()> {
     let (queue_id, request_id) = (exact_str(queue_id)?, exact_str(request_id)?);
     let geo = Geo::of(world)?;
-    let Some(point) = point_of(&geo, queue_id) else {
-        return unsupported("no such service point");
+    let found = with_queues(world, |row| Ok((row.requests.contains_key(request_id), row.queues.contains_key(queue_id))))?;
+    // Not installed, no signed point of that queue, or the ID taken: the Python rule's one text.
+    let (Some((false, has_queue)), Some(point)) = (found, point_of(&geo, queue_id)) else {
+        return Err(errors::value_error(NOT_INSTALLED_OR_TAKEN));
     };
-    let fits = with_queues(world, |row| Ok(!row.requests.contains_key(request_id) && row.queues.contains_key(queue_id)))?;
-    if fits != Some(true) {
-        return unsupported("the queue is not installed or the request's ID is in use");
+    if !has_queue {
+        // A signed point whose queue the state lacks, which its check turns down.
+        return unsupported("a signed point has no queue");
     }
     write_enqueue(world, point, request_id, exact_str(task_id)?, exact_str(agent_id)?, exact_str(service_kind)?, exact_int(requested_minute)?)
 }
