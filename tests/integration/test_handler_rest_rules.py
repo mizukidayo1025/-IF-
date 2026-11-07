@@ -167,8 +167,7 @@ def _is_the_python_rules_run(world: WorldState, digest: str) -> None:
 
     Pinned on Linux, as the gate's hashes are (libm).
     """
-    if sys.platform == "linux":
-        assert _digest(_bytes(world)) == digest
+    assert _digest(_bytes(world)) == digest
 
 
 def test_conditions_of_the_form_are_python_s() -> None:
@@ -511,9 +510,8 @@ def _care_is_python_s(world: WorldState, kind: str, digest: str) -> dict[str, An
     records = native.rules("support").complete_support(handler, world, event)
     assert world._core.mirror("body_state_v1").verify()
     assert len(records) == 1
-    if sys.platform == "linux":
-        found = {"records": [item.to_dict() for item in records], "world": _bytes(world)}
-        assert _digest(found) == digest
+    found = {"records": [item.to_dict() for item in records], "world": _bytes(world)}
+    assert _digest(found) == digest
     return records[0].event.payload
 
 

@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import sys
 from typing import Any
 
 import pytest
@@ -511,8 +510,7 @@ def test_a_care_transition_is_python_s(generated_scenario: Any) -> None:
     world, _ = _run(generated_scenario, 5)
     care_receipts.append_applied_care_transition(world, **_transition(world))
     # What the Python rule made of it (it has none left, lane L10), by the digest of the world.
-    if sys.platform == "linux":
-        assert hashlib.sha256(_bytes(world).encode()).hexdigest()[:16] == "48233b1d7f135f38"
+    assert hashlib.sha256(_bytes(world).encode()).hexdigest()[:16] == "48233b1d7f135f38"
     head = world.model_state["shared_operations_v1"]["support_requests"]["support-t1"]
     assert (head["status"], head["latest_event_id"]) == (
         "requested",
@@ -632,8 +630,7 @@ def _seek(
     assert tuple(result) == expected
     assert type(result[2]) is bool
     assert world._core.entities().verify(world) is None
-    if sys.platform == "linux":
-        assert world_digest(world) == digest
+    assert world_digest(world) == digest
     return result
 
 

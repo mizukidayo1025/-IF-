@@ -57,7 +57,6 @@ def _with_a_bug(self, *args, **kwargs):
 
 TickEngine.__init__ = _with_a_bug
 """
-LINUX_ONLY = pytest.mark.skipif(sys.platform != "linux", reason="hashes are pinned on Linux")
 
 
 def _tool(*arguments: object, paths: tuple[Path, ...] = ()) -> subprocess.CompletedProcess[str]:
@@ -107,7 +106,6 @@ def base_stream(tmp_path_factory: pytest.TempPathFactory) -> Path:
     return _recorded(tmp_path_factory.mktemp("base") / "stream")
 
 
-@LINUX_ONLY
 def test_recording_leaves_the_expected_hashes(base_stream: Path) -> None:
     """Digests and observed draws are invisible to the run."""
     result = json.loads((base_stream / "result.json").read_text(encoding="utf-8"))

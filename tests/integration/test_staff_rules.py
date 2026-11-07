@@ -13,7 +13,6 @@ import copy
 import hashlib
 import json
 import random
-import sys
 from typing import Any
 
 import pytest
@@ -724,8 +723,7 @@ def test_a_request_s_receipts_are_the_python_rules_and_kept_in_the_row() -> None
     assert world.model_state[SHARED]["support_requests"] == {}
     assert len(world.model_state[SHARED]["history"]) == 4
     # The stress after it is a float of the run (libm), as the gate's hashes are.
-    if sys.platform == "linux":
-        assert _digest("\n".join(states)) == "39e19ebf3cd90657"
+    assert _digest("\n".join(states)) == "39e19ebf3cd90657"
 
 
 @pytest.mark.parametrize(

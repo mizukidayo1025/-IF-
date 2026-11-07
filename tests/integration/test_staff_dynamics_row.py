@@ -18,7 +18,6 @@ import hashlib
 import json
 import math
 import random
-import sys
 from types import SimpleNamespace
 from typing import Any
 
@@ -326,8 +325,7 @@ UPDATE_DIGESTS = {
 @pytest.mark.parametrize("seed", range(40))
 def test_update_writes_what_the_python_rule_wrote(seed: int) -> None:
     texts = _update_run(seed)
-    if sys.platform == "linux":
-        assert _digest(texts) == UPDATE_DIGESTS[seed]
+    assert _digest(texts) == UPDATE_DIGESTS[seed]
 
 
 def test_a_working_minute_is_the_formula_s_fatigue() -> None:

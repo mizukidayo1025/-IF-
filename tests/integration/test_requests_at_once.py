@@ -8,7 +8,6 @@ pinned on Linux as the gate's hashes are.
 
 from __future__ import annotations
 
-import sys
 from types import SimpleNamespace
 from typing import Any
 
@@ -62,8 +61,7 @@ def _effect(
     result = native.rules("proposals").apply_effect(controller, _proposal(action, agent_id, world))
     assert tuple(result) == expected
     assert type(result[2]) is bool
-    if sys.platform == "linux":
-        assert world_digest(world) == digest
+    assert world_digest(world) == digest
     return result
 
 
@@ -251,8 +249,7 @@ def test_a_capacity_wait_comes_before_a_request_at_once() -> None:
     ]
     assert waits == [("zone-edge-capacity-wait-1", 1, "toilet_corridor")]
     assert world.id_counters == {"agent": 100, "event": 2}
-    if sys.platform == "linux":
-        assert world_digest(world) == "2cc71f44ef0c8a6b"
+    assert world_digest(world) == "2cc71f44ef0c8a6b"
 
 
 # ---- A request closed at once --------------------------------------------------------------------

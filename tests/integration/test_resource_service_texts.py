@@ -640,8 +640,7 @@ def test_a_request_at_once_the_queue_turns_down_keeps_python_s_text(
     assert history[-1]["reason"] == "request_rejected"
     assert history[-1]["detail"] == texts[why]
     assert world.metric_state["resource_service_request_rejected_count"] == 1.0
-    if sys.platform == "linux":
-        assert world_digest(world) == digest
+    assert world_digest(world) == digest
 
 
 # ---- The wraps: a toilet visit's completion, and the ledger --------------------------------------
@@ -650,7 +649,6 @@ def test_a_request_at_once_the_queue_turns_down_keeps_python_s_text(
 @pytest.fixture(scope="module")
 def visiting() -> tuple[WorldState, str]:
     """A generated world at the first minute someone is being served at a toilet."""
-    import sys
     from pathlib import Path
 
     root = str(Path(__file__).resolve().parents[2] / "benchmarks")

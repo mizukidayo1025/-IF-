@@ -153,8 +153,7 @@ def _dispatched(
     controller._run_dispatch_phase(controller.world, 0)
     after = _counts()
     text = json.dumps(_saved(controller), sort_keys=True)
-    if sys.platform == "linux":
-        assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == python_saved
+    assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == python_saved
     record = controller.world.event_log.find(event_id)
     return record, before, after
 

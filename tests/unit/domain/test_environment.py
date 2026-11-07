@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sys
 from types import SimpleNamespace
 
 import pytest
@@ -494,8 +493,7 @@ def test_the_trace_of_a_noisy_zone_is_the_deleted_python_rule_s(level: TraceLeve
     native.rules("trace").record_psychology_trace(controller, result, result.deltas, minute)
     (document,) = documents
     digest = hashlib.sha256(document.encode()).hexdigest()
-    if sys.platform == "linux":
-        assert digest == NOISY_ZONE_DOCUMENTS[level.value]
+    assert digest == NOISY_ZONE_DOCUMENTS[level.value]
     reached = json.loads(document)[0]["agents"]
     assert any("zone_environment" in person for person in reached)
     assert any(

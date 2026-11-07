@@ -17,7 +17,6 @@ import copy
 import hashlib
 import json
 import random
-import sys
 from dataclasses import replace
 from enum import Enum
 from pathlib import Path
@@ -96,8 +95,7 @@ class _Bits:
         return value
 
     def check(self, digest: str) -> None:
-        if sys.platform == "linux":
-            assert self._hash.hexdigest()[:16] == digest
+        assert self._hash.hexdigest()[:16] == digest
 
 
 def _proposals(bits: _Bits, policy: Any, view: WorldView, seed: int = 11) -> tuple[Any, ...]:

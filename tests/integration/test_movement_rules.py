@@ -13,7 +13,6 @@ import copy
 import hashlib
 import math
 import random
-import sys
 from collections.abc import Iterator
 from dataclasses import replace
 from typing import Any
@@ -80,7 +79,7 @@ def _answers_are_the_deleted_rule_s(request: pytest.FixtureRequest) -> Iterator[
     _NODE[0] = request.node.name
     yield
     chain = _CHAINS.pop(request.node.name, None)
-    if chain is not None and sys.platform == "linux":
+    if chain is not None:
         assert chain.hexdigest() == ANSWERS[request.node.name]
 
 
@@ -1117,8 +1116,7 @@ def test_random_floor_plans_are_the_deleted_rules_bit_for_bit() -> None:
     }
     # The points and lengths are floats of the platform's libm, recorded on Linux. Lane L13 pins
     # them on every OS; until then the counts above are what macOS and Windows check.
-    if sys.platform == "linux":
-        assert _digest(answers) == RANDOM_PLAN_ANSWERS
+    assert _digest(answers) == RANDOM_PLAN_ANSWERS
 
 
 def test_the_route_of_a_plan_is_found_again_the_same(generated_scenario: Any) -> None:

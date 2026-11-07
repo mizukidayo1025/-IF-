@@ -17,7 +17,6 @@ import copy
 import hashlib
 import json
 import random
-import sys
 from collections.abc import Mapping
 from types import SimpleNamespace
 from typing import Any, get_args
@@ -768,9 +767,8 @@ def _proximity_world(scenario_with: Any, **options: Any) -> WorldState:
 
 def _is_python_s(answers: list[str], digest: str) -> None:
     """The answers, each as JSON, are what the Python rule gave: `digest` of them all."""
-    if sys.platform == "linux":
-        text = "\n".join(answers)
-        assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == digest
+    text = "\n".join(answers)
+    assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == digest
 
 
 def _sample(world: WorldState, config: dict[str, Any], answers: list[str]) -> list[Any]:

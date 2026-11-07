@@ -15,7 +15,6 @@ import copy
 import hashlib
 import json
 import random
-import sys
 from types import SimpleNamespace
 from typing import Any
 
@@ -118,8 +117,7 @@ def _digest(value: Any) -> str:
 
 def _is_what_python_did(label: str, value: Any) -> None:
     """Pinned on Linux, as the gate's hashes are: the needs of the generated world are floats."""
-    if sys.platform == "linux":
-        assert _digest(value) == PYTHON_DIGESTS[label]
+    assert _digest(value) == PYTHON_DIGESTS[label]
 
 
 def _proposal(

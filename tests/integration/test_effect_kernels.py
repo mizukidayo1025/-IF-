@@ -17,7 +17,6 @@ import copy
 import hashlib
 import json
 import random
-import sys
 from collections.abc import Mapping
 from typing import Any
 
@@ -143,8 +142,7 @@ def _as_recorded(
     result = kernel(handler, kernel_world, event)
     if KEY in kernel_world.model_state:
         assert kernel_world.model_state._mirrors[KEY].verify()
-    if sys.platform == "linux":
-        assert _digest(kernel_world, result) == digest
+    assert _digest(kernel_world, result) == digest
     return kernel_world
 
 

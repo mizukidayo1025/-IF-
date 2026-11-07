@@ -195,16 +195,14 @@ def _answers(name: str, texts: list[str]) -> None:
         with open(_RECORD, "a", encoding="utf-8") as file:
             file.write(json.dumps({name: digest.hexdigest()}) + "\n")
         return
-    if sys.platform == "linux":
-        assert digest.hexdigest() == ANSWERS[name], name
+    assert digest.hexdigest() == ANSWERS[name], name
 
 
 def _psychology_answers(name: str, texts: list[str]) -> None:
     digest = hashlib.sha256()
     for text in texts:
         digest.update(text.encode() + b"\n")
-    if sys.platform == "linux":
-        assert digest.hexdigest() == PSYCHOLOGY_ANSWERS[name], name
+    assert digest.hexdigest() == PSYCHOLOGY_ANSWERS[name], name
 
 
 def _python_contact_steps(patch: pytest.MonkeyPatch) -> None:

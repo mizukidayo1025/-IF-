@@ -9,7 +9,6 @@ taken once from that step (45a9bc9) before it went, and pinned on Linux, as the 
 from __future__ import annotations
 
 import hashlib
-import sys
 from typing import Any
 
 import pytest
@@ -92,8 +91,7 @@ def _is_python_s(world: WorldState, digest: str) -> None:
         _records(world),
         list(world.model_state[KEY]["journeys"]),
     ]
-    if sys.platform == "linux":
-        assert hashlib.sha256(repr(data).encode("utf-8")).hexdigest()[:16] == digest
+    assert hashlib.sha256(repr(data).encode("utf-8")).hexdigest()[:16] == digest
     mirror = world._core.mirror(KEY)
     assert mirror.tainted is None
     assert mirror.verify()

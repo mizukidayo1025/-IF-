@@ -14,7 +14,6 @@ import copy
 import hashlib
 import json
 import re
-import sys
 from typing import Any
 
 import pytest
@@ -188,8 +187,7 @@ def _python_gave(*values: Any) -> None:
     """These values (results, worlds) are what the Python rule gave at this call of the test."""
     name, index = _SCOPE
     _SCOPE[1] += 1
-    if sys.platform == "linux":
-        assert _digest(*values) == PYTHON_GAVE[name][index]
+    assert _digest(*values) == PYTHON_GAVE[name][index]
 
 
 def _event(event_id: str = "arrival-event", minute: int = 0, **payload: Any) -> ScheduledEvent:

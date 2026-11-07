@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import hashlib
 import random
-import sys
 from collections.abc import Iterator
 from typing import Any
 
@@ -91,7 +90,7 @@ def _answers_are_the_deleted_rule_s(request: pytest.FixtureRequest) -> Iterator[
     _NODE[0] = request.node.name
     yield
     chain = _CHAINS.pop(request.node.name, None)
-    if chain is not None and sys.platform == "linux":
+    if chain is not None:
         assert chain.hexdigest() == ANSWERS[request.node.name]
 
 

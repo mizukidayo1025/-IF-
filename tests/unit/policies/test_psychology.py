@@ -16,7 +16,6 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import sys
 from dataclasses import replace
 from types import SimpleNamespace
 from typing import Any
@@ -75,8 +74,7 @@ def _answers(name: str, values: list[float]) -> None:
     digest = hashlib.sha256()
     for value in values:
         digest.update(value.hex().encode() + b"\n")
-    if sys.platform == "linux":
-        assert digest.hexdigest() == ANSWERS[name], name
+    assert digest.hexdigest() == ANSWERS[name], name
 
 
 def _one_person_world() -> WorldState:

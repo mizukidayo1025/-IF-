@@ -15,7 +15,6 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-import sys
 from types import SimpleNamespace
 from typing import Any
 
@@ -77,8 +76,7 @@ def _is_python_s(world: WorldState, digest: str) -> None:
         ],
         sort_keys=True,
     )
-    if sys.platform == "linux":
-        assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == digest
+    assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == digest
 
 
 def _same_world(world: WorldState, twin: WorldState) -> None:
@@ -136,8 +134,7 @@ def _effect(
     assert tuple(result) == expected
     assert type(result[2]) is bool
     _row_follows(world)
-    if sys.platform == "linux":
-        assert world_digest(world) == digest
+    assert world_digest(world) == digest
     return result
 
 
@@ -476,9 +473,8 @@ def test_every_route_is_python_s_for_every_mobility(generated_scenario: Any) -> 
                 found.append(repr(controller._route(origin, destination, agent_id)))
     assert seen
     assert len(found) == 192 and "None" not in found
-    if sys.platform == "linux":
-        digest = hashlib.sha256(json.dumps(found).encode("utf-8")).hexdigest()[:16]
-        assert digest == "c5d1362fa0212f15"
+    digest = hashlib.sha256(json.dumps(found).encode("utf-8")).hexdigest()[:16]
+    assert digest == "c5d1362fa0212f15"
 
 
 def test_an_equal_time_goes_to_the_lower_edge_id(generated_scenario: Any) -> None:

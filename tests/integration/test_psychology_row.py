@@ -15,7 +15,6 @@ import copy
 import hashlib
 import json
 import random
-import sys
 from types import SimpleNamespace
 from typing import Any
 
@@ -63,8 +62,7 @@ def _answers(name: str, texts: list[str]) -> None:
     digest = hashlib.sha256()
     for text in texts:
         digest.update(text.encode() + b"\n")
-    if sys.platform == "linux":
-        assert digest.hexdigest() == ANSWERS[name], name
+    assert digest.hexdigest() == ANSWERS[name], name
 
 
 def _state(*agents: str) -> dict[str, Any]:

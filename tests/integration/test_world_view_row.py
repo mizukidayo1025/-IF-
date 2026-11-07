@@ -17,7 +17,6 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-import sys
 from collections.abc import Mapping
 from dataclasses import replace
 from typing import Any
@@ -119,8 +118,7 @@ def test_each_view_of_a_run_has_the_bits_of_the_python_rule(generated_scenario: 
     document["duration_minutes"] = 120
     digest, count = _views_of_a_run(ScenarioSpec.model_validate(document))
     assert count == 240
-    if sys.platform == "linux":
-        assert digest == "f1bc3977da991e96"
+    assert digest == "f1bc3977da991e96"
 
 
 def test_views_with_false_claims_have_the_bits_of_the_python_rule(
@@ -135,8 +133,7 @@ def test_views_with_false_claims_have_the_bits_of_the_python_rule(
     configs["information_spread"] = configs["information_spread"] | information_spread_config()
     digest, count = _views_of_a_run(ScenarioSpec.model_validate(document))
     assert count == 120
-    if sys.platform == "linux":
-        assert digest == "77460590f6646c41"
+    assert digest == "77460590f6646c41"
 
 
 def _world_with_views(scenario: Any) -> tuple[WorldState, OfflineSimulationController]:
@@ -417,7 +414,6 @@ _HASHES = {
 }
 
 
-@pytest.mark.skipif(sys.platform != "linux", reason="the people's floats come from libm")
 def test_the_rust_view_hash_covers_each_form_of_the_document(generated_scenario: Any) -> None:
     for schema_version in (None, 6):
         for information in (False, True):

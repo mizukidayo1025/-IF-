@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sys
 from copy import deepcopy
 from typing import Any
 
@@ -125,8 +124,7 @@ def _answer(world: WorldState, call: Any, *arguments: Any, **options: Any) -> tu
 def _recorded(name: str, result: Any, after: WorldState) -> None:
     """The result and the world after it are the deleted rule's (RECORDED)."""
     text = json.dumps(_plain(result)) + "\n" + _bytes(after)
-    if sys.platform == "linux":
-        assert hashlib.sha256(text.encode()).hexdigest() == RECORDED[name], name
+    assert hashlib.sha256(text.encode()).hexdigest() == RECORDED[name], name
 
 
 def _same(world: WorldState, kernel: Any, rule: Any, *arguments: Any, **options: Any) -> Any:
@@ -1467,8 +1465,7 @@ def test_sleep_in_a_room_is_the_python_step_s(world: WorldState, at_bed: bool, d
     result = kernel(_controller(ours), _sleep_proposal(ours, agent_id))
     assert tuple(result) == ("bed-ec7532def0b0c01715ae0abb", 5, True)
     assert ours.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["bed_reservations"]
-    if sys.platform == "linux":
-        assert world_digest(ours) == digest
+    assert world_digest(ours) == digest
 
 
 def test_sleep_past_the_run_s_end_releases_the_bed(world: WorldState) -> None:
@@ -1483,8 +1480,7 @@ def test_sleep_past_the_run_s_end_releases_the_bed(world: WorldState) -> None:
     )
     assert tuple(result) == (None, 364, True)
     assert not ours.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["bed_reservations"]
-    if sys.platform == "linux":
-        assert world_digest(ours) == "bf284ac247d7f46c"
+    assert world_digest(ours) == "bf284ac247d7f46c"
 
 
 # ---- Independent queues --------------------------------------------------------------------------
@@ -2000,11 +1996,9 @@ RESOURCE_FIFO = {
 
 def _is_the_python_rules(answers: list[str], case: str) -> None:
     import hashlib
-    import sys
 
-    if sys.platform == "linux":
-        digest = hashlib.sha256("\n".join(answers).encode()).hexdigest()[:16]
-        assert digest == RESOURCE_FIFO[case]
+    digest = hashlib.sha256("\n".join(answers).encode()).hexdigest()[:16]
+    assert digest == RESOURCE_FIFO[case]
 
 
 def _rows_follow(world: WorldState) -> None:

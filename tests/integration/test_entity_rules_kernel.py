@@ -665,10 +665,7 @@ def _digest(value: Any) -> str:
 
 
 def _is_the_python_rules(value: Any, digest: str) -> None:
-    import sys
-
-    if sys.platform == "linux":
-        assert _digest(value) == digest
+    assert _digest(value) == digest
 
 
 def _source_ids(world: WorldState) -> dict[str, Any]:

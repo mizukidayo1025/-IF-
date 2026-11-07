@@ -13,7 +13,6 @@ import copy
 import hashlib
 import json
 import random
-import sys
 from types import SimpleNamespace
 from typing import Any
 
@@ -95,8 +94,7 @@ def _python_gave(*values: Any) -> None:
     """These values are what the Python rule gave at this call of the test."""
     name, index = _SCOPE
     _SCOPE[1] += 1
-    if sys.platform == "linux":
-        assert _digest(*values) == PYTHON_GAVE[name][index]
+    assert _digest(*values) == PYTHON_GAVE[name][index]
 
 
 @pytest.fixture(scope="module")

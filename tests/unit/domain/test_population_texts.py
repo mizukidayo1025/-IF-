@@ -14,7 +14,6 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-import sys
 from typing import Any
 
 import pytest
@@ -182,8 +181,7 @@ def _python_gave(*values: Any) -> None:
     """These values (an outcome's class, worlds) are what the Python rule gave at this call."""
     name, index = _SCOPE
     _SCOPE[1] += 1
-    if sys.platform == "linux":
-        assert _digest(*values) == PYTHON_GAVE[name][index]
+    assert _digest(*values) == PYTHON_GAVE[name][index]
 
 
 def _says(rule: Any, world: WorldState, text: str, *arguments: Any, **options: Any) -> None:
