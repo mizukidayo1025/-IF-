@@ -333,17 +333,20 @@
     "order-maintenance": "EffectProgram could not be scheduled: effect 'staff_task_order-1' maintenance order has no currently repairable facility unit"
    }
   },
-  "known_stops": {
+  "run_stops": {
    "runs": {
+    "expiry-at-a-timeout": {
+     "world_hash": "ac9abfe05be37f9c613491607d473b6ea17f5e2a509100fc67fff8cb1a6fdaf8",
+     "events_hash": "d3ab84a1d31d56b5e15df5abe57c30da9952f37f910fd424d2ee9a2beba3759f",
+     "metrics_hash": "adda3f5dae57facd654e6b4a66a817d71e529ef979bc7d016995895cdc61b31e"
+    },
     "guarded-absence": {
      "world_hash": "c0b7bffbb6d5ba2d7936977a03fe84726d0cf39cb1ec256373fd70a2ff3a699a",
      "events_hash": "8882b8930f86a96d0a586a9ca9a9ca681eb0e43ba2a3de2fdae34fca10a56c3d",
      "metrics_hash": "b00d05c8acd3326312b7af2b7239efa7d2729cdbdfbd4d97cde5b3dac9947ee9"
     }
    },
-   "refused": {
-    "expiry-at-a-timeout": "stopped: invalid simulator extension state: shared_operations_v1 care status disagrees with the persisted support request"
-   }
+   "refused": {}
   },
   "llm_tape": {
    "runs": {

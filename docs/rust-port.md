@@ -487,12 +487,9 @@ Linux で確かめた結果です。Windows と macOS では実行していま�
 
 ### 有効な入力で Run が止まるもの
 
-main にもあります（`known_stops` の Scenario が今の結果として固定しています）。
+今は見つかっていません。見つけたものは `run_stops` の Scenario に止まった結果として固定し、直したものは同じ Scenario に Run として残してハッシュで固定します。直したもの：
 
-1. **介入の終わりと支援の時間切れが同じ分：** `set_route_access` の期限切れと `support_request_timeout` が同じ分に来ると、`StateInvariantError`（`shared_operations_v1 care status disagrees with the persisted support request`）で止まります。共有の運営の記録は due のイベントのまとまりの後で書かれ、効果の処理はまとまりの途中で `world.to_dict()` を呼んで検証するためです。
-
-直したものは、`known_stops` の Scenario に Run として残し、ハッシュで固定します。
-
+- **介入の終わりと支援の時間切れが同じ分（#88、元 #309）：** `set_route_access` の期限切れと `support_request_timeout` が同じ分に来ると、`StateInvariantError`（`shared_operations_v1 care status disagrees with the persisted support request`）で止まっていました。時間切れは due のイベントのまとまりの中で要望を閉じ、ケアの中断の記録はまとまりの後で書かれます（Python の `_record_applied_outcomes`、Rust の `rules/dispatch.rs` も同じ順）。その間に、期限切れの処理が `world.to_dict()` で世界を写して検証していたためです。検証は、その分に適用された要望の時間切れがあるときだけ、記録の前の状態を認めます（`domain/common_operations.py` の `_care_interruption_due`）。分が進んでも記録がなければ、tick の後の検証で止まります。
 - **期限のある職員の不在の guard（#89、元 #310）：** `set_staff_availability` に `end_minute` と guard があると、復帰のイベントが guard を写して `only a start event may store a guard` で止まっていました。guard は始まりのイベントだけが持ち、始まりが予定に入れるイベント（職員の復帰、遅らせた配送、到着の歩きの終わり）は写しません（`events/effects.py` の `derived_effect_marker`）。`modify_supply_schedule` と、歩いて来る `add_evacuees` も同じ理由で止まっていました。
 
 ### 時間
