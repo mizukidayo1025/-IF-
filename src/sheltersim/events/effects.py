@@ -805,6 +805,38 @@ def available_primitives(
     ]
 
 
+def _effect_candidate(world: WorldState) -> WorldState:
+    """The copy an effect changes and checks before it takes the world's place.
+
+    It is `WorldState.from_dict(world.to_dict())` except for the EventLog: the copy holds the
+    world's own EventLog instead of a copy made from its documents. At day 4 of a 7-day Run the
+    log has some 270,000 records, and turning them into documents and back was nearly all of a
+    20 s stall at each effect's start. Every other part goes through the same canonical JSON as
+    before, with its key order and checks; the world is validated first, as canonical_json does,
+    and the copy is validated with its full history, as from_dict does. Nothing an effect does
+    on the copy writes the EventLog (the engine records the event after the handler returns),
+    so a refused effect leaves the shared log as it was.
+    """
+    from sheltersim.core.world import StateInvariantError
+    from sheltersim.core.world import WorldState as MutableWorldState
+
+    world.validate()
+    document = json.loads(
+        MutableWorldState._canonical_text(world._canonical_data(include_event_log=False))
+    )
+    # The document is new and only this copy holds it, so its containers are not copied again.
+    candidate = MutableWorldState.from_dict(document, _validate=False, _borrow=True)
+    candidate.event_log = world.event_log
+    try:
+        candidate.validate()
+    except (KeyError, TypeError, ValueError) as exc:
+        # As from_dict wraps what its validation raises.
+        if isinstance(exc, StateInvariantError):
+            raise
+        raise StateInvariantError(f"invalid WorldState document: {exc}") from exc
+    return candidate
+
+
 def _toilet_placement_issues(world: WorldState, additions: list[tuple[str, str, int]]) -> list[str]:
     """Check that every added toilet gets a floor-plan point in the current state."""
     if not installed_facility_placement_enabled(world):
@@ -814,10 +846,9 @@ def _toilet_placement_issues(world: WorldState, additions: list[tuple[str, str, 
             for label, _, _ in additions
         ]
 
-    from sheltersim.core.world import WorldState as MutableWorldState
     from sheltersim.domain.models import FacilityState
 
-    candidate = MutableWorldState.from_dict(world.to_dict())
+    candidate = _effect_candidate(world)
     for label, zone_id, count in additions:
         if zone_id not in candidate.zones:
             continue
@@ -1593,13 +1624,12 @@ def schedule_effect_program(
     registry: PrimitiveRegistry = DEFAULT_PRIMITIVE_REGISTRY,
 ) -> ScheduledEffectProgram:
     """Atomically add a validated program and all its start/expiry events."""
-    from sheltersim.core.world import WorldState as MutableWorldState
     from sheltersim.domain.operational import OPERATIONAL_EVENTS_KEY
 
     issues = list(validate_effect_program(world, program, registry=registry))
     if issues:
         raise EffectProgramValidationError(issues)
-    candidate = MutableWorldState.from_dict(world.to_dict())
+    candidate = _effect_candidate(world)
     state = candidate.model_state.setdefault(
         EFFECT_PROGRAM_STATE_KEY,
         {"schema_version": 1, "programs": {}, "active_facility_modifiers": {}},
@@ -2121,7 +2151,6 @@ class EffectProgramGeometryHandler:
 
     @kernel_first("effects", "geometry")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        from sheltersim.core.world import WorldState as MutableWorldState
         from sheltersim.domain.geometry_overlay import apply_geometry_change
 
         payload = event.payload
@@ -2162,7 +2191,7 @@ class EffectProgramGeometryHandler:
                 ).get("modifiers", {})
             if not active:
                 raise EventSuppressed("geometry modifier was not applied or already expired")
-        candidate = MutableWorldState.from_dict(world.to_dict())
+        candidate = _effect_candidate(world)
         try:
             apply_geometry_change(candidate, event, expire=self.expire)
             candidate.validate()
@@ -2180,9 +2209,7 @@ class EffectProgramTemporarySpaceHandler:
 
     @kernel_first("effects", "temporary_space")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        from sheltersim.core.world import WorldState as MutableWorldState
-
-        candidate = MutableWorldState.from_dict(world.to_dict())
+        candidate = _effect_candidate(world)
         self._apply(candidate, event)
         candidate.validate()
         world.__dict__.clear()
@@ -2293,9 +2320,7 @@ class EffectProgramFacilityHandler:
 
     @kernel_first("effects", "facility")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        from sheltersim.core.world import WorldState as MutableWorldState
-
-        candidate = MutableWorldState.from_dict(world.to_dict())
+        candidate = _effect_candidate(world)
         self._apply(candidate, event)
         candidate.validate()
         world.__dict__.clear()
@@ -2400,7 +2425,6 @@ class EffectProgramStructureHandler:
 
     @kernel_first("effects", "structure")
     def apply(self, world: WorldState, event: ScheduledEvent) -> tuple[Any, ...] | None:
-        from sheltersim.core.world import WorldState as MutableWorldState
         from sheltersim.domain.models import FacilityState, StaffState
 
         staff_order_fields = {
@@ -2447,7 +2471,7 @@ class EffectProgramStructureHandler:
                     f"staff task order parameters are invalid: {exc}"
                 ) from exc
             effect_event_guard_or_suppress(world, event)
-            candidate = MutableWorldState.from_dict(world.to_dict())
+            candidate = _effect_candidate(world)
             from sheltersim.domain.staff_operations import order_staff_operation
 
             order_staff_operation(
@@ -2509,7 +2533,7 @@ class EffectProgramStructureHandler:
             ):
                 raise EventApplicationError("staff handoff participants or task are invalid")
             effect_event_guard_or_suppress(world, event)
-            candidate = MutableWorldState.from_dict(world.to_dict())
+            candidate = _effect_candidate(world)
             operations = candidate.model_state.get("staff_operations_v1")
             task = candidate.active_tasks[handoff.task_id]
             old_record = (
@@ -2710,7 +2734,7 @@ class EffectProgramStructureHandler:
                 role = _StaffRoleParameters.model_validate({"skills": event.payload.get("skills")})
             except ValueError as exc:
                 raise EventApplicationError(f"staff-role event skills are invalid: {exc}") from exc
-            candidate = MutableWorldState.from_dict(world.to_dict())
+            candidate = _effect_candidate(world)
             staff = candidate.staff[staff_id]
             operations = (
                 candidate.model_state.get("staff_operations_v1", {}).get("staff", {}).get(staff_id)
@@ -2754,7 +2778,7 @@ class EffectProgramStructureHandler:
             or zone_id not in world.zones
         ):
             raise EventApplicationError("structural primitive target or operation is invalid")
-        candidate = MutableWorldState.from_dict(world.to_dict())
+        candidate = _effect_candidate(world)
         suffix = event.payload["modifier_id"].removeprefix("modifier-")
         if op == "add_staff":
             if len(candidate.staff) + count > 100:
@@ -2825,9 +2849,7 @@ class EffectProgramEnvironmentHandler:
 
     @kernel_first("effects", "environment")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
-        from sheltersim.core.world import WorldState as MutableWorldState
-
-        candidate = MutableWorldState.from_dict(world.to_dict())
+        candidate = _effect_candidate(world)
         try:
             self._apply(candidate, event)
             candidate.validate()
