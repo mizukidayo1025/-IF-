@@ -212,7 +212,5 @@ def prepare(output: str) -> None:
 
         return run
 
-    for name, module in (
-        ("progress_physical_queue_positions", "movement"),
-    ):
+    for name, module in (("progress_physical_queue_positions", "movement"),):
         setattr(rules, name, writer(name, module, getattr(rules, name)))

@@ -1218,7 +1218,7 @@ L0 の前に文を読んで付けた分類です。到達は**推測で、上の
 
 **L10 の進み：** 最初の部分（Rust の拡張を必須にし、`SHELTERSIM_NATIVE`、`native.available()`、CI の「Rust なし」の回を消す）は済みました。`_PythonEventLog` と、それだけが通る道（`keeps_saved_bytes`、`CheckpointHistoryCache` の記録を同一性で追う道）も消しました。`_PythonEventQueue` は残します。i64 に収まらない順序を持つキュー（`_LargeOrderEventQueue`）が中で使うからです。
 
-**L10 の進め方（2026-11-08 に決めたこと）：** Python の規則を消す関数は `kernel_first` を `core/kernels.py` の `kernel_only` に替え、本体を消して、名前、引数、docstring だけを残します。kernel の断りは `KernelRefusal`（`ValueError` の派生）になり、`__wrapped__` も同じ例外を出します（driver の `rule_of` が断りの後にだけ呼びます）。消す前に、Python の規則が出していた文のうち、呼び手が保存したり `match=` で確かめたりするものは、Rust から同じ文で出すようにします。Python の規則と比べていたテストは、規則から書き起こした固定の期待値と比べる形にします。最初は `domain/temporary_spaces.py` です。
+**L10 の進め方（2026-11-08 に決めたこと）：** Python の規則を消す関数は `kernel_first` を `core/kernels.py` の `kernel_only` に替え、本体を消して、名前、引数、docstring だけを残します。kernel の断りは `KernelRefusal`（`ValueError` の派生）になり、`__wrapped__` も同じ例外を出します（driver の `rule_of` が断りの後にだけ呼びます）。消す前に、Python の規則が出していた文のうち、呼び手が保存したり `match=` で確かめたりするものは、Rust から同じ文で出すようにします。Python の規則と比べていたテストは、規則から書き起こした固定の期待値と比べる形にします。最初は `domain/temporary_spaces.py` です。続いて `domain/facility_queues.py`（`queue_head_agent_ids` を除く）、`domain/queueing.py`、`domain/geometry_overlay.py`（`reserve_sleep_bed` と状態の検証を除く）、`experiments/phases/dispatch.py` の3つの手順、`domain/movement.py`（`advance_movement`、`staff_position_snapshots`、`progress_physical_queue_positions` を除く）を消しました。除いたものは、テストで kernel が断る場面があったものです。
 
 **一番危ないのは L9 です。** 読んで確かめたこと：
 
