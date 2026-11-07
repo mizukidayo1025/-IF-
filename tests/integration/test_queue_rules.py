@@ -5,8 +5,9 @@ whole world in canonical JSON, which keeps a float's bits. benchmarks/rule_shado
 does this on the runs of the gate; here, the values those runs don't decide: each coefficient at
 the two sides of where it changes the result, and each branch the kernel refuses.
 
-`prepare_facility_queue` has no Python rule left (`kernel_only`): its cases check what the rule
-wrote, values derived from the deleted Python rule.
+`prepare_facility_queue` and `progress_physical_queue_head_to_service` have no Python rule left
+(`kernel_only`): their cases check what the rule returned and wrote, values derived from the
+deleted Python rules.
 """
 
 from __future__ import annotations
@@ -30,7 +31,6 @@ from sheltersim.experiments.timeline import _MetricSink
 
 MODULES = {
     "progress_physical_queue_positions": movement,
-    "progress_physical_queue_head_to_service": movement,
 }
 QUEUE_POLICY = "need-weighted-physical-queue-v1"
 
@@ -77,6 +77,19 @@ def _same_after(world: WorldState, name: str, *arguments: Any, **options: Any) -
 def _prepared(world: WorldState, facility_id: str, **options: Any) -> None:
     """`prepare_facility_queue`, with the movement row still its tree's."""
     assert queueing.prepare_facility_queue(world, facility_id, **options) is None
+    _row_is_tree(world)
+
+
+def _to_service(world: WorldState, facility: str, *, changes: bool, **options: Any) -> bool:
+    """The head's walk to service, which writes only when it schedules one."""
+    before = _bytes(world)
+    result = movement.progress_physical_queue_head_to_service(world, facility, **options)
+    assert (_bytes(world) != before) is changes
+    _row_is_tree(world)
+    return result
+
+
+def _row_is_tree(world: WorldState) -> None:
     mirror = world._core.mirror(KEY)
     assert mirror.tainted is None
     assert mirror.verify()
@@ -705,12 +718,7 @@ def test_the_first_who_is_not_in_their_place_walks_there(generated_scenario: Any
         )
         is True
     )
-    assert (
-        _same_after(
-            world, "progress_physical_queue_head_to_service", toilet, resource=False, minute=minute
-        )
-        is True
-    )
+    assert _to_service(world, toilet, changes=False, resource=False, minute=minute) is True
 
 
 def test_someone_who_is_moved_from_another_activity_is_queued_by_the_walk(
@@ -776,11 +784,10 @@ def test_a_head_with_no_route_holds_the_queue_and_a_follower_only_those_behind(
     )
     world.agents[first].zone_id = other_zone
     minute = world.minute_index
-    moved = _same_after(
-        world, "progress_physical_queue_head_to_service", toilet, resource=False, minute=minute
-    )
+    moved = _to_service(world, toilet, changes=True, resource=False, minute=minute)
     assert moved is True
     assert _metric(world) == 1.0
+    assert first not in world.model_state[KEY]["journeys"]
 
 
 @pytest.mark.parametrize("phase", ["position", "service"])
@@ -806,7 +813,11 @@ def test_a_walk_s_minutes_turn_over_where_python_s_do(generated_scenario: Any, p
     )
     speeds = config["speed_m_per_minute_by_mobility"]
     speeds[agent.profile.mobility.value] = length * crowding / 4.99
-    assert _same_after(world, name, toilet, resource=False, minute=world.minute_index) is True
+    if phase == "position":
+        assert _same_after(world, name, toilet, resource=False, minute=world.minute_index) is True
+    else:
+        options = {"resource": False, "minute": world.minute_index}
+        assert _to_service(world, toilet, changes=True, **options) is True
     journey = world.model_state[KEY]["journeys"][person]
     assert journey["due_minute"] - journey["started_minute"] == 5
 
@@ -830,14 +841,22 @@ def test_the_head_walks_from_its_slot_to_the_service_point(generated_scenario: A
     person = _people(world, 1)[0]
     _line_up(world, toilet, [person])
     minute = world.minute_index
-    assert (
-        _same_after(
-            world, "progress_physical_queue_head_to_service", toilet, resource=False, minute=minute
-        )
-        is True
-    )
+    route, path = movement.facility_approach_route(world, person, toilet)
+    assert _to_service(world, toilet, changes=True, resource=False, minute=minute) is True
     journey = world.model_state[KEY]["journeys"][person]
     assert journey["purpose"] == "toilet_queue_service"
+    assert journey["route_points"] == [point.model_dump(mode="json") for point in path]
+    assert journey["due_minute"] == minute + route.travel_minutes
+    event = next(
+        item for item in world.event_queue.pending() if item.event_id == journey["event_id"]
+    )
+    assert event.event_type == "agent_travel_complete"
+    assert event.due_minute == journey["due_minute"]
+    assert event.payload["purpose"] == "toilet_queue_service"
+    assert event.payload["task_id"] == f"queue-task-{person}"
+    assert event.provenance["queue_phase"] == "service"
+    assert event.provenance["fifo_position"] == 0
+    assert world.agents[person].activity is Activity.QUEUED
     # At the point, the walk is over and service may start.
     world = _world(generated_scenario)
     toilet = _facility(world, "toilet")
@@ -848,12 +867,7 @@ def test_the_head_walks_from_its_slot_to_the_service_point(generated_scenario: A
         "x": route[1][-1].x,
         "y": route[1][-1].y,
     }
-    assert (
-        _same_after(
-            world, "progress_physical_queue_head_to_service", toilet, resource=False, minute=minute
-        )
-        is False
-    )
+    assert _to_service(world, toilet, changes=False, resource=False, minute=minute) is False
     assert (
         _same_after(
             world, "progress_physical_queue_positions", toilet, resource=False, minute=minute
@@ -866,9 +880,11 @@ def test_an_empty_queue_and_a_missing_facility(generated_scenario: Any) -> None:
     world = _world(generated_scenario)
     toilet = _facility(world, "toilet")
     minute = world.minute_index
-    for name in ("progress_physical_queue_positions", "progress_physical_queue_head_to_service"):
-        assert _same_after(world, name, toilet, resource=False, minute=minute) is False
-        assert _same_after(world, name, "nowhere", resource=False, minute=minute) is True
+    name = "progress_physical_queue_positions"
+    assert _same_after(world, name, toilet, resource=False, minute=minute) is False
+    assert _same_after(world, name, "nowhere", resource=False, minute=minute) is True
+    assert _to_service(world, toilet, changes=False, resource=False, minute=minute) is False
+    assert _to_service(world, "nowhere", changes=False, resource=False, minute=minute) is True
 
 
 def test_without_a_task_python_raises_its_own_error(generated_scenario: Any) -> None:
@@ -910,6 +926,7 @@ def test_a_tick_of_a_queue_forwards_no_whole_namespace(generated_scenario: Any) 
 
 
 def test_each_tick_of_a_run_is_python_s_at_every_facility(generated_scenario: Any) -> None:
+    """The walk to service has no Python rule left; the gate's hashes hold it in a run."""
     world = WorldState.from_scenario(generated_scenario)
     controller = OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
     engine = TickEngine(world, phase_handler=controller)
@@ -928,6 +945,5 @@ def test_each_tick_of_a_run_is_python_s_at_every_facility(generated_scenario: An
             )
             options = {"resource": resource, "minute": minute}
             _same_after(world, "progress_physical_queue_positions", facility, **options)
-            _same_after(world, "progress_physical_queue_head_to_service", facility, **options)
             _prepared(world, facility, **options)
     assert reached

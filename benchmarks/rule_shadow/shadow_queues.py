@@ -1,5 +1,8 @@
 """Compare the kernels of native/src/rules/queues.rs with their Python rules at each call.
 
+`prepare_facility_queue` and `progress_physical_queue_head_to_service` have no Python rule left to
+compare (`kernel_only`).
+
 A writer's kernel runs on the world first, and the Python rule then runs on a copy made before it:
 plain copies of the movement state, the metrics, the event counter, the facilities and the people,
 and a list of what it schedules. Everything those hold must come out the same, floats by their bits,
@@ -211,6 +214,5 @@ def prepare(output: str) -> None:
 
     for name, module in (
         ("progress_physical_queue_positions", "movement"),
-        ("progress_physical_queue_head_to_service", "movement"),
     ):
         setattr(rules, name, writer(name, module, getattr(rules, name)))

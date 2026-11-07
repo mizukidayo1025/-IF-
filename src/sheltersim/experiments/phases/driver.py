@@ -115,8 +115,8 @@ def install_driver(controller: type) -> None:
     ) -> bool:
         """One tick in Rust, or false with nothing changed."""
         self._refresh_config_scopes(world, minute)
-        first, second, third = self._config_scopes()
-        with first, second, third:
+        first, second = self._config_scopes()
+        with first, second:
             try:
                 run_kernel(self, world, minute, rng, observer)
             except unsupported:

@@ -14,6 +14,7 @@ import pytest
 from support.paths import SCENARIO_100_AGENTS
 
 from sheltersim import native
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.world import WorldState
 from sheltersim.domain import movement
 from sheltersim.domain.agent_dynamics import learn_facility
@@ -25,6 +26,7 @@ from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _MetricSink
 from sheltersim.policies.behavior import ActionKind
+from sheltersim.policies.space import ZoneRoute
 
 SEEKS = (ActionKind.SEEK_HELP, ActionKind.SEEK_INFORMATION)
 
@@ -251,9 +253,11 @@ def test_a_person_in_a_cooldown_is_turned_down_in_the_last_minute_too(
 # ---- Having arrived ------------------------------------------------------------------------------
 
 
-def _same_answer(world: WorldState, name: str, *arguments: Any) -> bool:
-    answer = getattr(native.rules("movement"), name)(world, *arguments)
-    assert answer == getattr(movement, name).__wrapped__(world, *arguments)
+def _answer(world: WorldState, name: str, *arguments: Any) -> bool:
+    """The kernel's answer; the cases below list the deleted Python rule's, recorded from it."""
+    before = _bytes(world)
+    answer = getattr(movement, name)(world, *arguments)
+    assert _bytes(world) == before
     return answer
 
 
@@ -271,13 +275,13 @@ def test_having_arrived_at_a_slot_or_the_service_point(generated_scenario: Any) 
         for where in (None, point):
             if where is not None:
                 state["positions"][agent_id]["point"] = dict(where)
-            answers.append(_same_answer(world, "agent_is_at_queue_slot", agent_id, "toilet_01"))
+            answers.append(_answer(world, "agent_is_at_queue_slot", agent_id, "toilet_01"))
             answers.append(
-                _same_answer(world, "agent_is_at_facility_service_point", agent_id, "toilet_01")
+                _answer(world, "agent_is_at_facility_service_point", agent_id, "toilet_01")
             )
-    assert True in answers
-    assert False in answers
-    assert not _same_answer(world, "agent_is_at_queue_slot", "A001", "no_such_facility")
+    # Each person: (slot, service point) where they stood, then at the facility's point.
+    assert answers == [False, False, False, True] * 3
+    assert not _answer(world, "agent_is_at_queue_slot", "A001", "no_such_facility")
 
 
 def test_having_arrived_at_the_end_of_a_trip(generated_scenario: Any) -> None:
@@ -286,25 +290,25 @@ def test_having_arrived_at_the_end_of_a_trip(generated_scenario: Any) -> None:
     target = {"x": 1.5, "y": 2.5}
     journey = {"route_points": [{"x": 0.5, "y": 0.5}, target]}
     state["positions"]["A001"]["point"] = dict(target)
-    assert _same_answer(world, "agent_is_at_queue_trip_destination", "A001", journey)
+    assert _answer(world, "agent_is_at_queue_trip_destination", "A001", journey)
     state["positions"]["A001"]["point"] = {"x": 1.5, "y": 2.5502}
-    assert not _same_answer(world, "agent_is_at_queue_trip_destination", "A001", journey)
+    assert not _answer(world, "agent_is_at_queue_trip_destination", "A001", journey)
     state["positions"]["A001"]["point"] = {"x": 1.5, "y": 2.5499}
-    assert _same_answer(world, "agent_is_at_queue_trip_destination", "A001", journey)
-    assert not _same_answer(world, "agent_is_at_queue_trip_destination", "A001", {})
-    assert not _same_answer(world, "agent_is_at_queue_trip_destination", "A001", None)
-    assert not _same_answer(
-        world, "agent_is_at_queue_trip_destination", "A001", {"route_points": []}
-    )
+    assert _answer(world, "agent_is_at_queue_trip_destination", "A001", journey)
+    assert not _answer(world, "agent_is_at_queue_trip_destination", "A001", {})
+    assert not _answer(world, "agent_is_at_queue_trip_destination", "A001", None)
+    assert not _answer(world, "agent_is_at_queue_trip_destination", "A001", {"route_points": []})
 
 
-def test_a_journey_in_a_dict_of_another_kind_is_the_python_rule_s(generated_scenario: Any) -> None:
+def test_a_journey_in_a_dict_of_another_kind_is_a_kernel_refusal(generated_scenario: Any) -> None:
+    """Callers pass the journey of the movement row, a plain dict."""
+
     class Other(dict):
         pass
 
     world = WorldState.from_scenario(generated_scenario)
-    with pytest.raises(native.Unsupported):
-        native.rules("movement").agent_is_at_queue_trip_destination(world, "A001", Other())
+    with pytest.raises(KernelRefusal, match="another kind of dict"):
+        movement.agent_is_at_queue_trip_destination(world, "A001", Other())
 
 
 def test_having_arrived_with_an_independent_queue(
@@ -317,9 +321,12 @@ def test_having_arrived_with_an_independent_queue(
     queue_id = min(key for key, row in queues.items() if row["facility_id"] == "toilet_01")
     point_id = queues[queue_id]["service_point_id"]
     controller.toilet_service.request("A001", "toilet_01", queue_id=queue_id, validate_state=False)
-    _same_answer(world, "agent_is_at_queue_slot", "A001", "toilet_01", queue_id)
-    _same_answer(world, "agent_is_at_facility_service_point", "A001", "toilet_01", point_id)
-    _same_answer(world, "agent_is_at_facility_service_point", "A001", "toilet_01", "no_such_point")
+    # Standing where they were placed, neither in the slot nor at the point.
+    assert not _answer(world, "agent_is_at_queue_slot", "A001", "toilet_01", queue_id)
+    assert not _answer(world, "agent_is_at_facility_service_point", "A001", "toilet_01", point_id)
+    assert not _answer(
+        world, "agent_is_at_facility_service_point", "A001", "toilet_01", "no_such_point"
+    )
 
 
 @pytest.mark.parametrize("boundary", [None, 0, 7])
@@ -341,8 +348,11 @@ def test_without_the_movement_state_or_a_floor_plan() -> None:
     facility_id = _facility_of(world, "toilet")
     if KEY in world.model_state:
         del world.model_state[KEY]
-    _same_answer(world, "agent_is_at_queue_slot", agent_id, facility_id)
-    assert _same_answer(world, "agent_is_at_facility_service_point", agent_id, facility_id)
-    kernel = native.rules("movement").facility_approach_route(world, agent_id, facility_id)
-    rule = movement.facility_approach_route.__wrapped__(world, agent_id, facility_id)
-    assert repr(kernel) == repr(rule)
+    assert not _answer(world, "agent_is_at_queue_slot", agent_id, facility_id)
+    assert _answer(world, "agent_is_at_facility_service_point", agent_id, facility_id)
+    # No plan: a route of no edges and no minutes from where the person is, and no points.
+    zone_id = world.agents[agent_id].zone_id
+    assert movement.facility_approach_route(world, agent_id, facility_id) == (
+        ZoneRoute(zone_id, world.facilities[facility_id].zone_id, (zone_id,), (), 0),
+        (),
+    )

@@ -1835,6 +1835,19 @@ struct MovementModel {
     maximum_slowdown: f64,
 }
 
+/// A coefficient as `canonical_movement_config` takes it: a float, or an int that is not a bool.
+/// The Python rule's arithmetic used such an int as the float of the same value.
+fn coefficient(value: &Bound<'_, PyAny>) -> PyResult<f64> {
+    if value.downcast_exact::<PyInt>().is_err() {
+        return exact_float(value);
+    }
+    let number = exact_int(value)?;
+    if number.abs() >= EXACT_INT {
+        return unsupported("a coefficient is too large for a float");
+    }
+    Ok(number as f64)
+}
+
 fn movement_model(raw: Option<Bound<'_, PyAny>>) -> PyResult<MovementModel> {
     let mut model = MovementModel {
         independent: SPEED_INDEPENDENT,
@@ -1871,7 +1884,7 @@ fn movement_model(raw: Option<Bound<'_, PyAny>>) -> PyResult<MovementModel> {
                 }
                 let speed = |name| -> PyResult<f64> {
                     let value = speeds.get_item(name)?.ok_or_else(|| Unsupported::new_err("a speed is missing"))?;
-                    let speed = exact_float(&value)?;
+                    let speed = coefficient(&value)?;
                     if !speed.is_finite() || speed <= 0.0 {
                         return unsupported("a speed is not positive");
                     }
@@ -1882,13 +1895,13 @@ fn movement_model(raw: Option<Bound<'_, PyAny>>) -> PyResult<MovementModel> {
                 model.wheelchair = speed(intern!(py, "wheelchair"))?;
             }
             "density_slowdown_per_person_m2" => {
-                model.density_slowdown = exact_float(&value)?;
+                model.density_slowdown = coefficient(&value)?;
                 if !model.density_slowdown.is_finite() || model.density_slowdown < 0.0 {
                     return unsupported("a slowdown is not a plain value");
                 }
             }
             "maximum_density_slowdown" => {
-                model.maximum_slowdown = exact_float(&value)?;
+                model.maximum_slowdown = coefficient(&value)?;
                 if !model.maximum_slowdown.is_finite() || model.maximum_slowdown < 1.0 {
                     return unsupported("a slowdown is not a plain value");
                 }

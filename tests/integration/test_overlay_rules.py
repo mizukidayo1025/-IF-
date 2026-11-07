@@ -1259,6 +1259,13 @@ def test_a_change_expires_as_the_python_rule_did(world: WorldState, op: str) -> 
     )
 
 
+MOVED_TOILET_WALK = (
+    "(ZoneRoute(origin_zone_id='toilet', destination_zone_id='toilet', zone_ids=('toilet', "
+    "'toilet'), edge_ids=(), travel_minutes=1), (Point2D(x=14.074175621006717, "
+    "y=7.091391873668907), Point2D(x=13.87417562100671, y=10.477882672817003)))"
+)
+
+
 def test_a_moved_facility_keeps_its_plan_in_rust(world: WorldState) -> None:
     """A move changes the plan, its service points and footprints, for the rules that read them."""
     toilet = next(key for key, item in world.facilities.items() if item.kind == "toilet")
@@ -1274,13 +1281,17 @@ def test_a_moved_facility_keeps_its_plan_in_rust(world: WorldState) -> None:
     agent_id = next(iter(world.agents))
     rule = geometry_overlay.effective_geometry(world)
     assert rule.facility_points[toilet].x == pytest.approx(point["x"] + 0.1)
-    movement = native.rules("movement")
-    world.agents[agent_id].zone_id = world.facilities[toilet].zone_id
-    from sheltersim.domain.movement import facility_approach_route
-
+    zone_id = world.facilities[toilet].zone_id
+    world.agents[agent_id].zone_id = zone_id
+    center = movement._zone_center(rule, zone_id)
+    world.model_state["movement_v1"]["positions"][agent_id]["point"] = {
+        "x": center.x,
+        "y": center.y,
+    }
     found = movement.facility_approach_route(world, agent_id, toilet)
-    expected = facility_approach_route.__wrapped__(world, agent_id, toilet)
-    assert repr(found) == repr(expected)
+    # The deleted Python rule's walk to the moved toilet, recorded from it.
+    assert found is not None
+    assert repr(found) == MOVED_TOILET_WALK
 
 
 @pytest.mark.parametrize(
@@ -1839,8 +1850,18 @@ def test_a_fifo_keeps_its_order_and_only_a_wait_ends_it(queued: WorldState) -> N
     )
 
 
+# The deleted Python rules' walks to service, slots and approaches of each FIFO, recorded from
+# them: the results, and the whole world after a walk to service, by sha256.
+FIFO_WALKS = {
+    "toilet_01-left-fifo": "e9cd3a9fc6b9775b9ca03f45bbe8fb3c32218a1bc6bde5f704f1630c39cce095",
+    "toilet_01-right-fifo": "e1eae6eeec33fb20dd747df6cf6913b369f7da1fe5a2826157698925488573c6",
+}
+
+
 @pytest.mark.parametrize("queue_id", ["toilet_01-left-fifo", "toilet_01-right-fifo"])
 def test_walks_of_a_fifo_are_the_python_rule_s(queued: WorldState, queue_id: str) -> None:
+    import hashlib
+
     from sheltersim.domain import movement
 
     queues = _rules("queues")
@@ -1859,34 +1880,26 @@ def test_walks_of_a_fifo_are_the_python_rule_s(queued: WorldState, queue_id: str
     journeys = journey_world.model_state["movement_v1"]["journeys"]
     assert all(journey.get("queue_id") == queue_id for journey in journeys.values())
     assert first in (True, False)
-    _same(
-        queued,
-        queues.progress_physical_queue_head_to_service,
-        movement.progress_physical_queue_head_to_service.__wrapped__,
-        "toilet_01",
-        **options,
-    )
-    _same(
-        queued,
-        queues.progress_physical_queue_head_to_service,
-        movement.progress_physical_queue_head_to_service.__wrapped__,
-        "toilet_01",
-        resource=False,
-        minute=minute,
-    )
-    world_move = native.rules("movement")
+    answers = []
+    for extra in ({"queue_id": queue_id}, {}):
+        walked = _copy(queued)
+        answers.append(
+            repr(
+                movement.progress_physical_queue_head_to_service(
+                    walked, "toilet_01", resource=False, minute=minute, **extra
+                )
+            )
+        )
+        answers.append(hashlib.sha256(_bytes(walked).encode()).hexdigest())
     geometry = geometry_overlay.effective_geometry(queued)
     for agent_id in ("A001", "A002", "A003"):
-        found = world_move.queue_slot_position(queued, geometry, agent_id, "toilet_01", queue_id)
-        expected = movement._queue_slot_position.__wrapped__(
-            queued, geometry, agent_id, "toilet_01", queue_id
+        answers.append(
+            repr(movement._queue_slot_position(queued, geometry, agent_id, "toilet_01", queue_id))
         )
-        assert repr(found) == repr(expected)
     point = next(item for item in geometry.service_points if item.queue_id == queue_id)
-    found = world_move.facility_approach_route(queued, "A001", "toilet_01", point.id)
-    expected = movement.facility_approach_route.__wrapped__(queued, "A001", "toilet_01", point.id)
-    assert repr(found) == repr(expected)
-    assert world_move.facility_approach_route(queued, "A001", "toilet_01", "none") is None
+    answers.append(repr(movement.facility_approach_route(queued, "A001", "toilet_01", point.id)))
+    assert hashlib.sha256("\n".join(answers).encode()).hexdigest() == FIFO_WALKS[queue_id]
+    assert movement.facility_approach_route(queued, "A001", "toilet_01", "none") is None
 
 
 def _resource_queues(world: WorldState) -> tuple[str, str] | None:
