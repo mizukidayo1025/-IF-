@@ -1,6 +1,6 @@
 # sheltersim_native
 
-Rust kernels for ShelterSim, on the `feature/rust-port` branch. The port moves the
+Rust kernels for ShelterSim, merged into `main` on 2026-11-07. The port moves the
 state the tick computes on into Rust in stages; each stage must keep the world,
 events and KPI hashes of a seven-day Run (`benchmarks/investigate_performance.py
 --expect`). The plan and the measurements are in issue #272.
@@ -8,8 +8,8 @@ events and KPI hashes of a seven-day Run (`benchmarks/investigate_performance.py
 `sheltersim.native` uses the extension when it can be imported and
 `SHELTERSIM_NATIVE` is not `0`; otherwise every caller runs its Python code, which
 stays the reference. `tests/integration/test_native_kernels.py` compares each kernel
-with that Python code at every tick and is skipped without the extension. CI on this
-branch builds and installs the extension on Linux, Windows and macOS, and on Linux
+with that Python code at every tick and is skipped without the extension. CI
+builds and installs the extension on Linux, Windows and macOS, and on Linux
 runs the tests once more without it.
 
 ## Build and use without installing

@@ -51,6 +51,6 @@
 ## チーム開発とコーディングエージェント
 
 - `main`からfeatureブランチを作り、`main`へPull Requestを通して統合します。`main`へ実装commitを直接pushしません。審査提出版はタグ`submission`で参照します。
-- Rustへの移植は`feature/rust-port`で進め、完成するまで`main`へ統合しません。
+- Rustのkernel（`native/`）はチームの承認を得て`main`へ統合しました。残りの移植作業も、ほかの変更と同じく`main`からのfeatureブランチとPull Requestで進めます。
 - エージェントは関連コードとテストを先に確認し、この文書に従い、実行した確認を明記します。利用者が所有する未commit変更を上書きしてはいけません。
 - 通常の実装でリポジトリ設定、branch protection、CIトリガー、外部サービスを変更しません。依頼で明示された場合に限ります。
