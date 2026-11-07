@@ -54,13 +54,15 @@ def _says(world: WorldState, call: Any, rule: Any, expected: type, text: str) ->
     """`rule(copy)` raises `expected` with `text`, and `call(world)` raises it itself.
 
     `call` runs the kernel (through its Python entry); `rule` is the Python rule alone. The world
-    `call` ran on must end as the copy the rule ran on does: unchanged for an event's outcome.
+    `call` ran on must end as the copy the rule ran on does: unchanged for an event's outcome. A
+    handler with no Python rule left (`kernel_only`, lane L10) passes None: `text` was its rule's.
     """
     twin = copy.deepcopy(world)
-    with pytest.raises(expected) as said:
-        rule(twin)
-    assert type(said.value) is expected
-    assert str(said.value) == text
+    if rule is not None:
+        with pytest.raises(expected) as said:
+            rule(twin)
+        assert type(said.value) is expected
+        assert str(said.value) == text
     before = _bytes(world)
     with pytest.raises(expected) as made:
         call(world)
@@ -729,12 +731,10 @@ def test_a_toilet_completion_wraps_python_s_text(
         sequence=world.id_counters["event"] + 50,
     )
     handler = ToiletServiceCompletionHandler()
-    rule = ToiletServiceCompletionHandler.apply
-    rule = getattr(rule, "__wrapped__", rule)
     _says(
         world,
         lambda state: handler.apply(state, event),
-        lambda state: rule(handler, state, event),
+        None,
         EventApplicationError,
         text.format(water=water, task=task.id, agent=agent_id, toilet=toilet),
     )
@@ -787,12 +787,10 @@ def test_the_ledger_handler_wraps_python_s_text(
     world, _ = _started(resource_service_scenario)
     event = _event(f"resource_{operation}", payload, sequence=world.id_counters["event"] + 50)
     handler = ResourceLedgerHandler(operation)
-    rule = ResourceLedgerHandler.apply
-    rule = getattr(rule, "__wrapped__", rule)
     _says(
         world,
         lambda state: handler.apply(state, event),
-        lambda state: rule(handler, state, event),
+        None,
         EventApplicationError,
         text,
     )

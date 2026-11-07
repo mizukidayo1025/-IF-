@@ -4,8 +4,9 @@
 loop in rules/dispatch.rs asks it in Rust: a false guard is a suppressed event, a guard the contract
 turns down or with no target a failed one, each with the Python rule's text (saved as the record's
 `detail`); a guard that holds goes on to the handler. Each case runs the same event through the Rust
-loop and through the Python step with the Python rule of the guard, and compares all that was saved
-(docs/rust-port/lanes/l8-texts-events.md).
+loop and through the Python step, compares all that was saved, and checks the record against the
+outcome the guard's Python rule gave, written down from it: that rule is gone (`kernel_only`,
+docs/rust-port/lanes/l8-texts-events.md).
 """
 
 from __future__ import annotations
@@ -19,7 +20,6 @@ import pytest
 
 from sheltersim import native
 from sheltersim.core.world import WorldState
-from sheltersim.events import effects
 from sheltersim.events.effects import (
     DEFAULT_PRIMITIVE_REGISTRY,
     EffectProgram,
@@ -130,27 +130,15 @@ def _scheduled(guard: dict[str, Any]) -> Callable[[WorldState], str]:
     return arrange
 
 
-def _python_guard(world: WorldState, event: ScheduledEvent) -> tuple[EventStatus, str] | None:
-    """What `effect_event_guard_or_suppress` makes of the event with the guard's Python rule."""
-    from sheltersim.events.models import EventApplicationError
-
-    try:
-        holds = effects.should_apply_effect_guard.__wrapped__(world, event)
-    except EventApplicationError as error:
-        return EventStatus.FAILED, str(error)
-    return None if holds else (EventStatus.SUPPRESSED, "EffectProgram guard evaluated false")
-
-
 def _both_ways(
     scenario: Any, event: ScheduledEvent | Callable[[WorldState], str]
 ) -> tuple[Any, dict[str, int], dict[str, int]]:
     """The event's record from the Rust loop; the Python step saves the same.
 
-    The Python step asks the guard through its kernel too, so the guard's Python rule is asked
-    here on its own, before either step: where the dispatcher asks the guard, the record is its
-    outcome. A crafted marker of no program makes a world `validate()` turns down, which neither
-    the guard nor the dispatch loop reads; an event whose guard holds goes to its handler, so it
-    comes from a program scheduled as an operator's would be.
+    The Python step asks the guard through its kernel too; each test checks the record against the
+    guard's Python outcome. A crafted marker of no program makes a world `validate()` turns down,
+    which neither the guard nor the dispatch loop reads; an event whose guard holds goes to its
+    handler, so it comes from a program scheduled as an operator's would be.
     """
     by_kernel = OfflineSimulationController(WorldState.from_scenario(scenario), Sink())
     by_python = OfflineSimulationController(WorldState.from_scenario(scenario), Sink())
@@ -160,18 +148,12 @@ def _both_ways(
             event_id = event.event_id
         else:
             event_id = event(controller.world)
-    pending = next(
-        item for item in by_python.world.event_queue.pending() if item.event_id == event_id
-    )
-    python_guard = _python_guard(by_python.world, pending)
     before = _counts()
     by_kernel._run_dispatch_phase(by_kernel.world, 0)
     after = _counts()
     DispatchPhase._run_dispatch_phase(by_python, by_python.world, 0)
     assert _saved(by_kernel) == _saved(by_python)
     record = by_kernel.world.event_log.find(event_id)
-    if python_guard is not None and not (record.detail or "").startswith("no handler registered"):
-        assert (record.status, record.detail) == python_guard
     return record, before, after
 
 
@@ -327,9 +309,23 @@ def test_a_marked_event_of_the_table_is_python_s(scenario: Any) -> None:
     assert after["guard_suppressed"] == before["guard_suppressed"]
 
 
-def test_a_guard_rust_cannot_read_is_left_to_python(scenario: Any) -> None:
-    """An int past 64 bits is the contract's to take, and Python's to compare."""
-    guard = {"operator": "lt", "field": "simulation.minute", "value": 2**70}
+@pytest.mark.parametrize(
+    ("value", "applies"),
+    [(2**70, True), (-(2**70), False), (2**63, True), (-(2**63) - 1, False)],
+)
+def test_a_guard_value_past_64_bits_compares_by_value_in_rust(
+    scenario: Any, value: int, applies: bool
+) -> None:
+    """An int past 64 bits is the contract's to take (StrictInt), and Rust compares it as Python."""
+    guard = {"operator": "lt", "field": "simulation.minute", "value": value}
     record, before, after = _both_ways(scenario, _scheduled(guard))
-    assert (record.status, record.detail) == (EventStatus.APPLIED, None)
-    _grew(before, after, "guard_refused", "events_python")
+    if applies:
+        assert (record.status, record.detail) == (EventStatus.APPLIED, None)
+        _grew(before, after, "guard_passed", "events_rust")
+    else:
+        assert (record.status, record.detail) == (
+            EventStatus.SUPPRESSED,
+            "EffectProgram guard evaluated false",
+        )
+        _grew(before, after, "guard_suppressed", "events_rust")
+    assert after["guard_refused"] == before["guard_refused"]

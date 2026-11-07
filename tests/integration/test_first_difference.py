@@ -31,8 +31,8 @@ TOOL = BENCHMARKS / "first_difference.py"
 SOURCE = BENCHMARKS.parent / "src"
 TESTS = BENCHMARKS.parent / "tests"
 # Put on PYTHONPATH, it runs the recorded process on the Python rules, whose draws the recorder logs
-# and which _patched_source can edit: the `python_rules` mark, and the Python rule of the contact
-# handler that carries a correction.
+# and which _patched_source can edit: the `python_rules` mark. (The contact handler's Python rule,
+# whose correction draw a second case edited, is gone: lane L10.)
 PYTHON_RULES_SITE = f"""\
 import sys
 
@@ -41,20 +41,11 @@ import pytest
 sys.path.insert(0, {str(TESTS)!r})
 from support.python_rules import without_kernels
 
-from sheltersim.events.handlers import InformationContactHandler
-
 without_kernels(pytest.MonkeyPatch())
-InformationContactHandler.apply = InformationContactHandler.apply.__wrapped__
 """
 # Rumors, corrections and the Python information rule, in a few seconds.
 RUMORS = "model__information__evidence-aware-rumor-v1"
 FORGETTING = "forget_probability = -math.expm1(-self.config.forgetting_rate_per_minute)"
-CORRECTION = """\
-                    recipient_id,
-                    message_id,
-                )
-                < probability
-            )"""
 LINUX_ONLY = pytest.mark.skipif(sys.platform != "linux", reason="hashes are pinned on Linux")
 
 
@@ -151,14 +142,8 @@ def test_an_injected_bug_is_named_by_minute_phase_part_path_and_hex(
             FORGETTING,
             f"{FORGETTING} * 1.01",
         ),
-        (
-            "contact-correction-acceptance-v1",
-            "sheltersim/events/handlers.py",
-            CORRECTION,
-            CORRECTION.replace("< probability", "< probability * 0.99"),
-        ),
     ],
-    ids=["forgetting_plus_one_percent", "correction_acceptance_minus_one_percent"],
+    ids=["forgetting_plus_one_percent"],
 )
 def test_a_one_percent_change_of_a_probability_is_caught_though_no_comparison_flips(
     base_stream: Path, tmp_path: Path, label: str, relative: str, before: str, after: str

@@ -4,9 +4,10 @@ The environment, temporary-space, geometry and structure handlers of events/effe
 (native/src/rules/effects.rs). These texts are saved: the dispatcher writes them to the event's
 record as `detail`. Each case checks that the kernel raises the outcome itself (not a refusal the
 Python rule then words), that nothing changed, and that the Python rule on a copy raises the same
-class with the same text (support/world.py `kernel_says_python_s_text`). A handoff needs a
-staff operation under way, so its world is run with TickEngine to that point
-(docs/rust-port/lanes/l8-texts-events.md).
+class with the same text (support/world.py `kernel_says_python_s_text`). The environment and
+geometry handlers have no Python rule left (`kernel_only`): their cases check the class and text
+that rule gave, written down from it. A handoff needs a staff operation under way, so its world is
+run with TickEngine to that point (docs/rust-port/lanes/l8-texts-events.md).
 """
 
 from __future__ import annotations
@@ -20,7 +21,9 @@ from support.world import kernel_says_python_s_text
 from sheltersim import native
 from sheltersim.core.engine import TickEngine
 from sheltersim.core.world import WorldState
+from sheltersim.domain.geometry_overlay import RouteAccessParameters
 from sheltersim.events.effects import (
+    _PARAMETER_MODELS,
     DEFAULT_PRIMITIVE_REGISTRY,
     EffectProgram,
     EffectProgramEnvironmentHandler,
@@ -35,7 +38,9 @@ from sheltersim.events.effects import (
     schedule_effect_program,
 )
 from sheltersim.events.models import (
+    EventApplicationError,
     EventKind,
+    EventSuppressed,
     ScheduledEvent,
 )
 from sheltersim.experiments.metrics import MetricsRecorder
@@ -129,7 +134,9 @@ def _says(
     handler: Any, world: WorldState, event: Any, outcome: str, text: str, *, prefix: bool = False
 ) -> None:
     """The handler's outcome is `outcome` with `text` (or a text starting with it), the kernel's."""
-    said = kernel_says_python_s_text(handler, world, event)
+    classes = {FAILED: EventApplicationError, SUPPRESSED: EventSuppressed}
+    expected = None if prefix else (classes[outcome], text)
+    said = kernel_says_python_s_text(handler, world, event, expected)
     assert said[0] == outcome, said
     if prefix:
         assert said[1].startswith(text) and len(said[1]) > len(text), said
@@ -219,13 +226,14 @@ def test_a_zone_environment_event_s_texts_are_python_s(world: WorldState) -> Non
         ),
     ):
         _says(handler, world, event, outcome, text)
+    with pytest.raises(ValueError) as contract:
+        _PARAMETER_MODELS["set_ambient_noise"].model_validate({"level": 9.0})
     _says(
         apply,
         world,
         _changed(start, {"parameters": {"level": 9.0}}),
         FAILED,
-        "zone environment parameters are invalid: ",
-        prefix=True,
+        f"zone environment parameters are invalid: {contract.value}",
     )
 
     apply.apply(world, start)
@@ -251,8 +259,8 @@ def test_a_start_the_check_of_the_world_turns_down_is_python_s_text(world: World
         world,
         _changed(start, {"parameters": {"level": 0.25}}),
         FAILED,
-        "zone environment modifier is invalid: ",
-        prefix=True,
+        "zone environment modifier is invalid: invalid zone environment state: zone environment "
+        "modifier has invalid start/expiry event links",
     )
 
 
@@ -382,8 +390,13 @@ def test_a_geometry_event_s_texts_are_python_s(world: WorldState) -> None:
     ):
         _says(handler, world, event, outcome, text)
     # What apply_geometry_change raises is the text, as the Python rule words it.
-    for change in ({"target_id": "no-such-route"}, {"parameters": {"accessible": "yes"}}):
-        kernel_says_python_s_text(apply, world, _changed(start, change))
+    with pytest.raises(ValueError) as contract:
+        RouteAccessParameters.model_validate({"accessible": "yes"})
+    for change, text in (
+        ({"target_id": "no-such-route"}, "target_missing: route does not exist"),
+        ({"parameters": {"accessible": "yes"}}, str(contract.value)),
+    ):
+        _says(apply, world, _changed(start, change), FAILED, text)
 
 
 # ---- EffectProgramStructureHandler: additions, roles, repairs ------------------------------------

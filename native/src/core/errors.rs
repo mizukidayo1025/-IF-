@@ -156,6 +156,29 @@ pub(crate) fn int_not_bool(value: &Bound<'_, PyAny>) -> PyResult<Option<i64>> {
     crate::core::row::exact_int(value).map(Some)
 }
 
+/// An int of any size, as a rule compares it with an i64: within i64, or past either end.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Wide {
+    Int(i64),
+    Above,
+    Below,
+}
+
+/// `int_not_bool` that also answers for an exact int past 64 bits, which a Scenario's payload may
+/// hold (a JSON int has no bound): Python compares it with the rule's i64 values, and so does this.
+pub(crate) fn wide_int_not_bool(value: &Bound<'_, PyAny>) -> PyResult<Option<Wide>> {
+    if value.is_instance_of::<PyBool>() || !value.is_instance_of::<PyInt>() {
+        return Ok(None);
+    }
+    if let Ok(number) = value.downcast_exact::<PyInt>() {
+        if let Ok(number) = number.extract::<i64>() {
+            return Ok(Some(Wide::Int(number)));
+        }
+        return Ok(Some(if number.gt(0)? { Wide::Above } else { Wide::Below }));
+    }
+    crate::core::row::exact_int(value).map(|number| Some(Wide::Int(number)))
+}
+
 /// `type(value) is int`: Some(value), None when it isn't.
 pub(crate) fn exactly_int(value: &Bound<'_, PyAny>) -> PyResult<Option<i64>> {
     if !value.is_exact_instance_of::<PyInt>() {

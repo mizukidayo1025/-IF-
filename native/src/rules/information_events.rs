@@ -12,7 +12,7 @@ use std::sync::Arc;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
-use pyo3::types::{PyDict, PyString};
+use pyo3::types::{PyDict, PyInt, PyString};
 
 use crate::core::errors;
 use crate::core::mathx::{py_max, py_min};
@@ -47,9 +47,26 @@ pub(crate) fn runtime_state<'py>(world: &Bound<'py, PyAny>) -> PyResult<(Bound<'
     if !config.getattr(intern!(py, "enabled"))?.is_truthy()? || !state.is_instance_of::<PyDict>() {
         return errors::failed(py, "information spread is not enabled for this run");
     }
+    // `upgrade_information_runtime_state(state)`: a save of schema 1, which a Run may still continue
+    // (core/model_version.py `LEGACY_SHAPES_TICKABLE`), becomes schema 2 in place, here as in the
+    // Python rule, before any check of the event. Its records may not have fit the row, which then
+    // reads the upgraded tree again.
+    if get(&state, "schema_version")?.ne(SCHEMA_VERSION)? {
+        let upgrade = py.import("sheltersim.domain.information")?.getattr("upgrade_information_runtime_state")?;
+        match upgrade.call1((&state,)) {
+            Ok(_) => {}
+            Err(error) if error.is_instance_of::<PyValueError>(py) => {
+                return errors::failed(py, format!("invalid information-spread state: {}", error.value(py).str()?));
+            }
+            Err(error) => return Err(error),
+        }
+    }
     let mirror = mirror_of(world, NAME)?;
     if !mirror.try_borrow()?.root_is(&state) {
         return unsupported("the world holds another document than the row's");
+    }
+    if !mirror.getattr(intern!(py, "has_row"))?.is_truthy()? {
+        mirror.call_method0(intern!(py, "refit"))?;
     }
     let version = NamespaceMirror::with_row::<InformationRow, _>(&mirror, |row| Ok(row.schema_version))?;
     if version != SCHEMA_VERSION {
@@ -70,12 +87,17 @@ fn information_model<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAn
     py.import("sheltersim.contracts.policies")?.getattr("selected_models")?.call1((attribute(world, intern!(py, "model_configs"))?,))?.get_item("information")
 }
 
+/// `CounterRNG(world.seed)`, whose key is `str(seed)`: a Scenario's seed is any int from 0, past 64
+/// bits too.
 fn seed_of(world: &Bound<'_, PyAny>) -> PyResult<KeyedDraws> {
-    let seed = exact_int(&attribute(world, intern!(world.py(), "seed"))?)?;
-    if seed < 0 {
+    let seed = attribute(world, intern!(world.py(), "seed"))?;
+    let Ok(seed) = seed.downcast_exact::<PyInt>() else {
+        return unsupported("a seed is not an int");
+    };
+    if seed.lt(0)? {
         return unsupported("a negative seed");
     }
-    Ok(KeyedDraws::new(&seed.to_string()))
+    Ok(KeyedDraws::new(seed.str()?.to_str()?))
 }
 
 /// `CounterRNG(world.seed).random(label, minute, event_id, agent_id, message_id)`.

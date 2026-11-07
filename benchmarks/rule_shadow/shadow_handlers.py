@@ -248,26 +248,7 @@ def prepare(output: str) -> None:
     toilet.request = compared(
         "toilet_request", request_kernel, request_rule, lambda manager, *_: manager.world, repr
     )
-    complete_kernel = toilet.complete
-
-    def complete_rule(twin: Any, handler: Any, _world: Any, event: Any) -> None:
-        # What the completion leads to is `schedule_return`, which has no Python rule left.
-        copy = type(handler)(after_complete=None)
-        type(handler).apply.__wrapped__(copy, twin, event)
-
-    def complete_on_its_own(handler: Any, world: Any, event: Any) -> None:
-        if isinstance(world, _ServiceTwin):
-            raise unsupported("a shadow's copy")
-        # The kernel of the release alone: the same as the rule above reads.
-        compared_complete(type(handler)(after_complete=None), world, event)
-        after = handler.after_complete
-        if after is not None:
-            after(world, event)
-
-    compared_complete = compared(
-        "toilet_complete", complete_kernel, complete_rule, lambda _handler, world, _event: world
-    )
-    toilet.complete = complete_on_its_own
+    # `toilet.complete` has no Python rule left to compare (`kernel_only`, lane L10).
     list_kernel = toilet.facilities_to_serve
 
     def facilities_to_serve(manager: Any) -> Any:
@@ -323,14 +304,8 @@ def prepare(output: str) -> None:
         detail=start_detail,
     )
 
+    # `support.timeout` has no Python rule left to compare (`kernel_only`, lane L10).
     support = native.rules("support")
-
-    def timeout_rule(twin: Any, handler: Any, _world: Any, event: Any) -> None:
-        type(handler).apply.__wrapped__(handler, twin, event)
-
-    support.timeout = compared(
-        "timeout", support.timeout, timeout_rule, lambda _handler, world, _event: world
-    )
 
     def support_rule(twin: Any, handler: Any, _world: Any, event: Any) -> Any:
         return type(handler).apply.__wrapped__(handler, twin, event)

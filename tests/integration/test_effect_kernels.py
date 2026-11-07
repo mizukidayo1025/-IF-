@@ -5,7 +5,9 @@ native/src/rules/effects.rs (docs/rust-port/lanes/m6-effects.md). An effect's ev
 on two copies of one world, and the whole documents must be the same text of JSON. Anything but a
 success must leave the world as it was: an expected outcome is the Python rule's class and text,
 raised by the kernel (more cases in test_effect_program_texts.py), and a value the kernel is unsure
-of says Unsupported, so the Python rule decides.
+of says Unsupported, so the Python rule decides. The environment and geometry handlers, the guard
+and the modifier checks have no Python rule left (`kernel_only`): their cases compare with what that
+rule gave, written down from it, and the guard's with `_guard_answer` below, the rule restated.
 """
 
 from __future__ import annotations
@@ -13,14 +15,19 @@ from __future__ import annotations
 import copy
 import json
 import random
+from collections.abc import Mapping
 from typing import Any
 
 import pytest
 
 from sheltersim import native
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.state_mirror import rust_validated
 from sheltersim.core.world import WorldState
+from sheltersim.domain.environment import ScenarioZoneEnvironmentConfig
+from sheltersim.domain.operational import staff_is_available
 from sheltersim.events.effects import (
+    _PARAMETER_MODELS,
     DEFAULT_PRIMITIVE_REGISTRY,
     EFFECT_EVENT_TYPES,
     EffectProgram,
@@ -135,17 +142,44 @@ def _refused(kernel: Any, handler: Any, world: WorldState, event: ScheduledEvent
     assert _text(world) == before
 
 
-def _python_s_outcome(kernel: Any, handler: Any, world: WorldState, event: ScheduledEvent) -> str:
-    """The kernel raises the Python rule's outcome itself, same class and text, changing nothing."""
+def _python_s_outcome(
+    kernel: Any,
+    handler: Any,
+    world: WorldState,
+    event: ScheduledEvent,
+    expected: tuple[type, str] | None = None,
+) -> str:
+    """The kernel raises the Python rule's outcome itself, same class and text, changing nothing.
+
+    A handler with no Python rule left (`kernel_only`) is compared with `expected`, that rule's
+    outcome written down from it; given, it is checked in either case.
+    """
     before = _text(world)
     python_world = _copy(world)
     with pytest.raises((EventSuppressed, EventApplicationError)) as made:
         kernel(handler, world, event)
     assert _text(world) == before
-    with pytest.raises((EventSuppressed, EventApplicationError)) as said:
+    outcome = (type(made.value), str(made.value))
+    if expected is not None:
+        assert outcome == expected
+    try:
         type(handler).apply.__wrapped__(handler, python_world, event)
-    assert (type(made.value), str(made.value)) == (type(said.value), str(said.value))
+    except KernelRefusal:
+        assert expected is not None, "a handler with no Python rule needs its outcome"
+    except (EventSuppressed, EventApplicationError) as said:
+        assert outcome == (type(said), str(said))
+    else:
+        pytest.fail("the Python rule raised nothing")
     return str(made.value)
+
+
+def _kernel_s(kernel: Any, handler: Any, world: WorldState, event: ScheduledEvent) -> WorldState:
+    """The kernel's result on a copy of the world, whose rows still read as its tree."""
+    kernel_world = _copy(world)
+    assert kernel(handler, kernel_world, event) is None
+    if KEY in kernel_world.model_state:
+        assert kernel_world.model_state._mirrors[KEY].verify()
+    return kernel_world
 
 
 def _a_facility(world: WorldState, kind: str = "toilet") -> str:
@@ -283,12 +317,36 @@ def test_a_zone_condition_starts_and_expires(world: WorldState, rules: Any, op: 
     expiry = _event(world, "effect_program_environment_expire")
     apply = EffectProgramEnvironmentHandler()
     expire = EffectProgramEnvironmentHandler(expire=True)
-    _python_s_outcome(rules.environment, expire, world, expiry)
-    state = _same_in_both(rules.environment, apply, world, start)
-    assert state.model_state["zone_environment_v1"]["modifiers"]
-    _python_s_outcome(rules.environment, apply, state, start)
-    state = _same_in_both(rules.environment, expire, state, expiry)
-    assert not state.model_state["zone_environment_v1"]["modifiers"]
+    not_active = (EventSuppressed, "zone environment modifier is not active")
+    _python_s_outcome(rules.environment, expire, world, expiry, not_active)
+    state = _kernel_s(rules.environment, apply, world, start)
+    # The start writes its modifier's record and nothing else.
+    marker = start.provenance[KEY]
+    expected = _copy(world)
+    expected.model_state["zone_environment_v1"]["modifiers"][start.payload["modifier_id"]] = {
+        "modifier_id": start.payload["modifier_id"],
+        "program_id": start.payload["program_id"],
+        "effect_id": start.payload["effect_id"],
+        "op": op,
+        "zone_id": start.payload["zone_id"],
+        "parameters": _PARAMETER_MODELS[op]
+        .model_validate(start.payload["parameters"])
+        .model_dump(mode="json"),
+        "start_event_id": start.event_id,
+        "end_event_id": expiry.event_id,
+        "start_minute": start.due_minute,
+        "end_minute": start.payload["end_minute"],
+        "source_id": ScenarioZoneEnvironmentConfig.model_validate(
+            world.model_configs["zone_environment"]
+        ).source_id,
+        "assumption_ids": sorted(set(marker["assumption_ids"])),
+    }
+    assert _text(state) == _text(expected)
+    already = (EventSuppressed, "zone environment modifier is already active")
+    _python_s_outcome(rules.environment, apply, state, start, already)
+    # The expiry takes it away again.
+    state = _kernel_s(rules.environment, expire, state, expiry)
+    assert _text(state) == _text(world)
 
 
 def test_invalid_zone_parameters_are_the_contract_s_text(world: WorldState, rules: Any) -> None:
@@ -298,7 +356,11 @@ def test_invalid_zone_parameters_are_the_contract_s_text(world: WorldState, rule
     document = _event(world, "effect_program_environment").to_dict()
     document["payload"]["parameters"] = {"level": 9.0}
     event = ScheduledEvent(**document)
-    text = _python_s_outcome(rules.environment, EffectProgramEnvironmentHandler(), world, event)
+    with pytest.raises(ValueError) as contract:
+        _PARAMETER_MODELS["set_lighting"].model_validate({"level": 9.0})
+    text = f"zone environment parameters are invalid: {contract.value}"
+    handler = EffectProgramEnvironmentHandler()
+    _python_s_outcome(rules.environment, handler, world, event, (EventApplicationError, text))
     assert text.startswith("zone environment parameters are invalid: 1 validation error")
 
 
@@ -593,6 +655,108 @@ def _guard_cases(world: WorldState) -> list[tuple[dict[str, Any], dict[str, Any]
     return cases
 
 
+def _guard_answer(world: WorldState, event: ScheduledEvent) -> bool:
+    """`should_apply_effect_guard` as its Python rule was (events/effects.py before lane L10).
+
+    The rule is gone (`kernel_only`); this restates it as what the kernel must answer.
+    """
+    marker = event.provenance.get(KEY)
+    guard = marker.get("guard") if isinstance(marker, Mapping) else None
+    if guard is None:
+        return True
+    try:
+        expression = GuardExpression.model_validate(guard)
+    except ValueError as exc:
+        raise EventApplicationError(f"EffectProgram guard is invalid: {exc}") from exc
+    return _guard_node(world, event, expression)
+
+
+def _guard_node(world: WorldState, event: ScheduledEvent, guard: GuardExpression) -> bool:
+    if guard.operator == "and":
+        return all(_guard_node(world, event, item) for item in guard.operands)
+    if guard.operator == "or":
+        return any(_guard_node(world, event, item) for item in guard.operands)
+    field_name = guard.field
+    target_id = next(
+        (
+            event.payload.get(name)
+            for name in ("facility_id", "staff_id", "zone_id", "resource_id", "target_id")
+            if isinstance(event.payload.get(name), str)
+        ),
+        None,
+    )
+    if target_id is None:
+        program_id = event.provenance.get(KEY, {}).get("program_id")
+        program = world.model_state.get(KEY, {}).get("programs", {}).get(program_id)
+        if program and len(program.get("effect_ids", [])) == 1:
+            target_id = event.payload.get("shipment_id")
+    if field_name == "simulation.minute":
+        actual: Any = world.minute_index
+    elif field_name in {"target.capacity", "target.working_units", "target.queue_length"}:
+        facility = world.facilities.get(target_id or "")
+        if facility is None:
+            raise EventApplicationError(f"guard field {field_name!r} has no facility target")
+        actual = {
+            "target.capacity": facility.capacity,
+            "target.working_units": facility.working_units,
+            "target.queue_length": len(facility.queue_agent_ids)
+            + len(facility.resource_queue_agent_ids),
+        }[field_name]
+    elif field_name == "zone.occupancy":
+        zone_id = event.payload.get("zone_id") or (
+            world.facilities.get(target_id or "").zone_id
+            if target_id in world.facilities
+            else target_id
+        )
+        if zone_id not in world.zones:
+            raise EventApplicationError("guard zone.occupancy has no known zone target")
+        actual = sum(agent.zone_id == zone_id for agent in world.agents.values())
+    elif field_name == "resource.available_quantity":
+        ledger = world.model_state.get("resource_ledger_v1")
+        resource_id = event.payload.get("resource_id")
+        if not isinstance(ledger, dict) or resource_id not in ledger["accounts"]:
+            raise EventApplicationError("guard resource.available_quantity has no ledger target")
+        account = ledger["accounts"][resource_id]
+        actual = account["remaining"] - account["reserved"]
+    elif field_name == "staff.available":
+        staff_id = event.payload.get("staff_id") or target_id
+        if staff_id not in world.staff:
+            raise EventApplicationError("guard staff.available has no known staff target")
+        actual = staff_is_available(world, staff_id)
+    else:
+        raise EventApplicationError(f"guard field {field_name!r} is not implemented")
+    expected = guard.value
+    numeric = all(
+        isinstance(item, (int, float)) and not isinstance(item, bool) for item in (actual, expected)
+    )
+    if guard.operator == "eq":
+        return (
+            actual == expected if numeric else type(actual) is type(expected) and actual == expected
+        )
+    if guard.operator == "ne":
+        return (
+            actual != expected
+            if numeric
+            else type(actual) is not type(expected) or actual != expected
+        )
+    if not isinstance(actual, (int, float)) or isinstance(actual, bool):
+        return False
+    return {
+        "gt": actual > expected,
+        "gte": actual >= expected,
+        "lt": actual < expected,
+        "lte": actual <= expected,
+    }[guard.operator]
+
+
+def _guard_outcome(call: Any) -> Any:
+    """The answer, or (EventApplicationError, its text)."""
+    try:
+        return call()
+    except EventApplicationError as said:
+        return EventApplicationError, str(said)
+
+
 def test_each_guard_is_python_s_answer_or_python_s_to_give(world: WorldState, rules: Any) -> None:
     generator = random.Random(7)
     cases = _guard_cases(world)
@@ -600,23 +764,14 @@ def test_each_guard_is_python_s_answer_or_python_s_to_give(world: WorldState, ru
     answered = said = 0
     for guard, payload in cases[:6000]:
         event = _guarded(world, guard, payload)
-        try:
-            expected: Any = should_apply_effect_guard.__wrapped__(world, event)
-        except Exception as raised:  # noqa: BLE001 - only that it raised
-            expected = raised
-        try:
-            answer = rules.should_apply_guard(world, event)
-        except native.Unsupported:
-            continue
-        except EventApplicationError as made:
+        expected = _guard_outcome(lambda event=event: _guard_answer(world, event))
+        answer = _guard_outcome(lambda event=event: rules.should_apply_guard(world, event))
+        assert answer == expected, (guard, payload, answer, expected)
+        if isinstance(answer, bool):
+            answered += 1
+        else:
             # An invalid guard or a missing target: the Python rule's text (l8-texts-events.md).
             said += 1
-            assert type(expected) is EventApplicationError, (guard, payload, made, expected)
-            assert str(made) == str(expected), (guard, payload)
-            continue
-        answered += 1
-        assert answer is expected, (guard, payload, answer, expected)
-    # The test means nothing if the kernel only ever refuses.
     assert answered > 500 and said > 500
 
 
@@ -649,21 +804,15 @@ def test_a_guard_the_contract_refuses_has_the_contract_s_text(
     for _ in range(1500):
         guard = _random_guard(generator)
         event = _guarded(world, guard, payload)
-        try:
-            answer = rules.should_apply_guard(world, event)
-        except native.Unsupported:
-            continue
-        except EventApplicationError as made:
+        answer = _guard_outcome(lambda event=event: should_apply_effect_guard(world, event))
+        assert answer == _guard_outcome(lambda event=event: _guard_answer(world, event))
+        if not isinstance(answer, bool):
             refused_by_contract += 1
-            with pytest.raises(EventApplicationError) as said:
-                should_apply_effect_guard.__wrapped__(world, event)
-            assert str(made) == str(said.value)
-            assert str(made).startswith("EffectProgram guard is invalid: ")
+            assert answer[1].startswith("EffectProgram guard is invalid: ")
             continue
         accepted += 1
-        # What the kernel takes, the contract takes, with the same answer.
+        # What the kernel takes, the contract takes.
         GuardExpression.model_validate(event.provenance[KEY]["guard"])
-        assert answer is should_apply_effect_guard.__wrapped__(world, event)
     assert accepted > 50 and refused_by_contract > 50
 
 
@@ -700,14 +849,12 @@ def test_the_bounds_of_a_guard_are_the_contract_s(
     world: WorldState, rules: Any, taken: dict[str, Any], turned_down: dict[str, Any]
 ) -> None:
     event = _guarded(world, taken, {})
-    assert rules.should_apply_guard(world, event) is should_apply_effect_guard.__wrapped__(
-        world, event
-    )
+    assert rules.should_apply_guard(world, event) is _guard_answer(world, event)
     event = _guarded(world, turned_down, {})
     with pytest.raises(EventApplicationError) as made:
         rules.should_apply_guard(world, event)
     with pytest.raises(EventApplicationError) as said:
-        should_apply_effect_guard.__wrapped__(world, event)
+        _guard_answer(world, event)
     assert str(made.value) == str(said.value)
 
 
@@ -722,24 +869,43 @@ def test_the_size_of_a_guard_counts_to_twenty(world: WorldState, rules: Any) -> 
 
     event = _guarded(world, tree(20), {})
     assert rules.should_apply_guard(world, event) is True
-    assert should_apply_effect_guard.__wrapped__(world, event) is True
     event = _guarded(world, tree(21), {})
     with pytest.raises(EventApplicationError) as made:
         rules.should_apply_guard(world, event)
-    with pytest.raises(EventApplicationError) as said:
-        should_apply_effect_guard.__wrapped__(world, event)
-    assert str(made.value) == str(said.value)
+    with pytest.raises(ValueError, match="guard AST cannot exceed 20 nodes") as said:
+        GuardExpression.model_validate(event.provenance[KEY]["guard"])
+    assert str(made.value) == f"EffectProgram guard is invalid: {said.value}"
 
 
-def test_large_int_against_a_float_is_python_s(world: WorldState, rules: Any) -> None:
-    """Python compares exactly; a cast to f64 would round 2**53 + 1."""
-    world.minute_index = 2**53 + 1
-    event = _guarded(
-        world, {"operator": "eq", "field": "simulation.minute", "value": float(2**53)}, {}
-    )
-    with pytest.raises(native.Unsupported):
-        rules.should_apply_guard(world, event)
-    assert should_apply_effect_guard.__wrapped__(world, event) is False
+@pytest.mark.parametrize(
+    ("minute", "operator", "value", "answer"),
+    [
+        # A cast to f64 would round 2**53 + 1 to 2**53.
+        (2**53 + 1, "eq", float(2**53), False),
+        (2**53 + 1, "gt", float(2**53), True),
+        (2**53, "eq", float(2**53), True),
+        (2**53 + 1, "lt", 2.0**53 + 2.0, True),
+        (5, "lt", 5.5, True),
+        (5, "gte", 5.5, False),
+        (-5, "gt", -5.5, True),
+        (2**62, "lt", 2.0**63, True),
+        (2**62, "lt", 1e300, True),
+        (2**62, "gt", -1e300, True),
+        (2**62, "lt", 2**70, True),
+        (2**62, "gt", -(2**70), True),
+        (2**62, "eq", 2**70, False),
+        (2**62, "ne", 2**70, True),
+    ],
+)
+def test_a_large_int_and_a_float_or_a_wider_int_compare_as_python_s(
+    world: WorldState, rules: Any, minute: int, operator: str, value: Any, answer: bool
+) -> None:
+    """Python compares an int with a float, or with an int past 64 bits, exactly."""
+    world.minute_index = minute
+    guard = {"operator": operator, "field": "simulation.minute", "value": value}
+    event = _guarded(world, guard, {})
+    assert rules.should_apply_guard(world, event) is answer
+    assert _guard_answer(world, event) is answer
 
 
 def test_an_event_without_a_marker_applies(world: WorldState, rules: Any) -> None:
@@ -769,7 +935,8 @@ def test_a_pending_modifier_is_seen(world: WorldState, rules: Any) -> None:
         _program(_action("set_facility_availability", "facility", facility, {"working_units": 0})),
     )
     assert rules.has_pending_modifier(world, facility) is True
-    assert has_pending_facility_modifier.__wrapped__(world, facility) is True
+    assert has_pending_facility_modifier(world, facility) is True
+    assert not has_pending_facility_modifier(world, "no-such-facility")
 
 
 def test_the_operators_and_event_types_are_the_registry_s(rules: Any) -> None:

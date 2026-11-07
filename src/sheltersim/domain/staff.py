@@ -401,36 +401,6 @@ def complete_support_task(
     )
 
 
-def timeout_support_request(
-    world: WorldState,
-    *,
-    request_id: str,
-    agent_id: str,
-    minute: int,
-    cooldown_minutes: int,
-) -> bool:
-    """Mark an unassigned request unresolved; assigned work remains in service."""
-    request = world.support_requests.get(request_id)
-    if request is None or request.agent_id != agent_id:
-        raise ValueError(f"support request {request_id!r} does not match its Agent")
-    if request.status is SupportRequestStatus.ASSIGNED:
-        return False
-    if request.status is not SupportRequestStatus.PENDING:
-        return False
-    agent = world.agents[agent_id]
-    request.status = SupportRequestStatus.UNRESOLVED
-    request.resolved_minute = minute
-    request.cooldown_until = minute + cooldown_minutes
-    agent.support_request_id = None
-    agent.support_cooldown_until = request.cooldown_until
-    agent.activity = Activity.IDLE
-    agent.target_id = None
-    world.metric_state["support_unresolved_count"] = (
-        world.metric_state.get("support_unresolved_count", 0.0) + 1.0
-    )
-    return True
-
-
 def _support_priority(world: WorldState, request_id: str) -> int:
     state = world.model_state.get("llm", {})
     priorities = state.get("support_priorities", {}) if isinstance(state, dict) else {}

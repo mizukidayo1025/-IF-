@@ -81,7 +81,11 @@ pub(crate) fn refused_by_python<T>(py: Python<'_>, result: PyResult<T>) -> PyRes
             error
         } else {
             let kind = error.get_type(py).name().map_or_else(|_| "?".to_owned(), |name| name.to_string());
-            Unsupported::new_err(format!("a call raised {kind}"))
+            // The call's own exception goes along as the cause, for a kernel with no Python rule
+            // behind it (`kernel_only`), whose refusal is then the error.
+            let refusal = Unsupported::new_err(format!("a call raised {kind}"));
+            refusal.set_cause(py, Some(error));
+            refusal
         }
     })
 }
@@ -437,11 +441,12 @@ fn parse_guard<'a>(value: &'a V, depth: usize, nodes: &mut usize) -> Option<Guar
     }
     let value = leaf_value?;
     let numeric = match value {
-        V::Int(_) => true,
+        // An int past 64 bits is a StrictInt too.
+        V::Int(_) | V::Big(_) => true,
         V::Float(number) if number.is_finite() => true,
         V::Bool(_) => false,
         V::Str(text) if text.chars().count() <= 256 => false,
-        // An int past 64 bits, or what the contract refuses.
+        // What the contract refuses.
         _ => return None,
     };
     if !numeric && !matches!(compare, Compare::Eq | Compare::Ne) {
@@ -465,19 +470,29 @@ enum Actual {
     Bool(bool),
 }
 
-/// Above this an int doesn't always fit a float; Python compares the two exactly.
-const FLOAT_EXACT_INT: i64 = 1 << 53;
-
-/// `actual` against `expected` by value, or Unsupported where the cast could round.
+/// `actual` against `expected` by value, exactly, as Python compares an int with an int or a float.
 fn numeric_order(actual: i64, expected: &V) -> PyResult<std::cmp::Ordering> {
+    use std::cmp::Ordering::{Equal, Greater, Less};
     match expected {
         V::Int(expected) => Ok(actual.cmp(expected)),
-        V::Float(expected) => {
-            if actual.abs() > FLOAT_EXACT_INT {
-                return unsupported("a guard compares a large int with a float");
+        // `int.__repr__` of an int past 64 bits: below i64 when negative, above it otherwise.
+        V::Big(text) => Ok(if text.starts_with('-') { Greater } else { Less }),
+        V::Float(expected) if expected.is_finite() => {
+            // The float's integral part is exact; past i64 it is past `actual`. Within, the ints
+            // compare, and on a tie the fraction decides.
+            let whole = expected.trunc();
+            if whole >= 9_223_372_036_854_775_808.0 {
+                return Ok(Less);
             }
-            (actual as f64).partial_cmp(expected).map_or_else(|| unsupported("a guard's value is not finite"), Ok)
+            if whole < -9_223_372_036_854_775_808.0 {
+                return Ok(Greater);
+            }
+            Ok(match actual.cmp(&(whole as i64)) {
+                Equal => (0.0).partial_cmp(&(expected - whole)).unwrap_or(Equal),
+                order => order,
+            })
         }
+        V::Float(_) => unsupported("a guard's value is not finite"),
         _ => unsupported("a guard's value is not a number"),
     }
 }
@@ -485,7 +500,7 @@ fn numeric_order(actual: i64, expected: &V) -> PyResult<std::cmp::Ordering> {
 fn compare_guard(compare: Compare, actual: &Actual, expected: &V) -> PyResult<bool> {
     use std::cmp::Ordering::{Equal, Greater, Less};
     let number = match actual {
-        Actual::Int(number) if matches!(expected, V::Int(_) | V::Float(_)) => Some(*number),
+        Actual::Int(number) if matches!(expected, V::Int(_) | V::Big(_) | V::Float(_)) => Some(*number),
         _ => None,
     };
     let equal = match (number, actual, expected) {

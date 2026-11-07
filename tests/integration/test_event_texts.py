@@ -2,10 +2,11 @@
 
 These texts are saved: the dispatcher writes them to the event's record as `detail`. Each case
 here builds a world that reaches one branch and checks that the kernel raises the outcome itself
-(not a refusal the Python rule then words), that nothing changed, and that the Python rule on a copy
-raises the same class with the same text (support/world.py `kernel_says_python_s_text`).
-benchmarks/rule_shadow/text_check.py does the same on whole runs
-(docs/rust-port/lanes/l8-texts-events.md).
+(not a refusal the Python rule then words), that nothing changed, and that it is the class and
+text the Python rule raises (support/world.py `kernel_says_python_s_text`): the rule on a copy
+where it is left, else the text written down here from it, whose class is EventSuppressed for the
+texts of `SUPPRESSIONS` (lane L10 made those handlers `kernel_only`). See
+docs/rust-port/lanes/l8-texts-events.md.
 """
 
 from __future__ import annotations
@@ -39,9 +40,13 @@ from sheltersim.events.handlers import (
     StaffUnavailabilityHandler,
     WaterOutageHandler,
     WaterRestorationHandler,
-    _current_information_contact_basis,
 )
-from sheltersim.events.models import EventKind, ScheduledEvent
+from sheltersim.events.models import (
+    EventApplicationError,
+    EventKind,
+    EventSuppressed,
+    ScheduledEvent,
+)
 from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
@@ -137,11 +142,28 @@ def operational_world() -> WorldState:
     return _run(gate.generated(evacuees=20, minutes=120, operational_conditions=_CONDITIONS), 25)
 
 
+# The texts below that the handlers raise as EventSuppressed; the others are EventApplicationError.
+SUPPRESSIONS = frozenset(
+    {
+        "zero-unit facility outage has no effect",
+        "zero-unit facility recovery has no effect",
+        "staff unavailability was already applied",
+        "staff restoration belongs to an older unavailability",
+        "contact sender no longer knows the message",
+        "contact sender belief changed before transmission",
+        "sampled contact basis is no longer current",
+        "recipient already has an equally strong belief",
+        "staff relief is stale or its replacement is no longer available",
+    }
+)
+
+
 def _says(handler: Any, world: WorldState, event: ScheduledEvent, text: str) -> None:
     import copy
 
     world = copy.deepcopy(world)
-    name, said = kernel_says_python_s_text(handler, world, event)
+    kind = EventSuppressed if text in SUPPRESSIONS else EventApplicationError
+    name, said = kernel_says_python_s_text(handler, world, event, (kind, text))
     assert said == text, (name, said)
 
 
@@ -338,7 +360,8 @@ def test_a_delay_s_texts_are_python_s(
     _says(handler, operational_world, event, "delivery delay references an unknown shipment")
     shipments = operational_world.model_state["operational_events_v1"]["shipments"]
     shipment_id = sorted(shipments)[0]
-    for to_minute in (True, 26, 10_000):
+    # A Scenario's to_minute is any int: past 64 bits, past the Run's end or before the delivery.
+    for to_minute in (True, 26, 10_000, 10**20, -(10**20)):
         event = _event(
             operational_world,
             "delivery_delayed",
@@ -588,6 +611,25 @@ def test_correction_texts_are_python_s(rumor_world: WorldState) -> None:
         _says(handler, rumor_world, event, text)
 
 
+def _contact_basis(world: WorldState, sender_id: str, recipient_id: str) -> str | None:
+    """The basis a contact's rule takes as current: same or open adjacent zone, family first."""
+    from sheltersim.domain.population_lifecycle import current_household_id
+
+    sender, recipient = world.agents[sender_id], world.agents[recipient_id]
+    same_zone = sender.zone_id == recipient.zone_id
+    adjacent = any(
+        not edge.closed
+        and {edge.from_zone_id, edge.to_zone_id} == {sender.zone_id, recipient.zone_id}
+        for edge in world.zone_edges.values()
+    )
+    if not same_zone and not adjacent:
+        return None
+    household = current_household_id(world, sender_id)
+    if household is not None and household == current_household_id(world, recipient_id):
+        return "family"
+    return "same_zone" if same_zone else "adjacent_zone"
+
+
 def _contact(
     world: WorldState, sender: str, recipient: str, message_id: str, **change: Any
 ) -> ScheduledEvent:
@@ -598,7 +640,7 @@ def _contact(
         "sender_agent_id": sender,
         "recipient_agent_id": recipient,
         "belief": known["belief"],
-        "contact_basis": _current_information_contact_basis(world, sender, recipient),
+        "contact_basis": _contact_basis(world, sender, recipient),
         "contact_minutes": 5,
     }
     provenance = {
