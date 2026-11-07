@@ -411,6 +411,7 @@ EventLog の比較の保証：`same_saved_records` は保存した bytes を読�
 3. **main へは、移植が終わるまで戻さない：** `feature/rust-port` で最後まで進め、終わってからまとめて戻す。main の変更は、必要に応じてこのブランチに取り込む。
    - 開発は、作業の区切りごとに作業ブランチから `feature/rust-port` への Pull Request で統合する。全テスト、ハッシュの一致、7日分の計測結果を Pull Request に書く。
    - `オフラインCI` はこの Pull Request でも自動で動く。main へ戻すときに、`ci.yml` の `pull_request` の宛先を `[main]` に戻す。
+   - 2026-11-07 に、チームの承認を得て、移植の途中（タグ `rust-identical-final-2026-11-03`）で main へ統合した（#41）。`feature/rust-port` は廃止し、`ci.yml` の宛先は `[main]` に戻した。
 4. **B1 から始める。**
 
 期間の目安：
