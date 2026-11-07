@@ -2065,5 +2065,4 @@ def _position_record(
     }
 
 
-if native.available():
-    register_rust_validator(MOVEMENT_STATE_KEY, native.rules("movement").validate)
+register_rust_validator(MOVEMENT_STATE_KEY, native.rules("movement").validate)

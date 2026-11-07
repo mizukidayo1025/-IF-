@@ -40,8 +40,6 @@ sys.path.insert(0, str(BENCHMARKS))
 
 from gate_scenarios import _model_scenario  # noqa: E402
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 TRACE_FILES = (
     "psychology_contributions.jsonl",
     "psychology_contributions_hourly.jsonl",

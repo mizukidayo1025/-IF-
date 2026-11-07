@@ -35,8 +35,6 @@ from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.inspection.traces import RunArtifactWriter
 from sheltersim.policies.space import SpaceRouter
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 KEY = STAFF_OPERATIONS_STATE_KEY
 
 

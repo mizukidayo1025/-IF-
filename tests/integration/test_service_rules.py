@@ -31,8 +31,6 @@ from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
 from sheltersim.policies.behavior import ActionKind
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 
 def _controller(world: WorldState) -> OfflineSimulationController:
     return OfflineSimulationController(world, _MetricSink(MetricsRecorder()))

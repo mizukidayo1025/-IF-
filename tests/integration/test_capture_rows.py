@@ -31,9 +31,6 @@ from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _IndexedMetricSink, _MetricSink
 from sheltersim.storage.checkpoints import CheckpointArchive
 
-needs_kernels = pytest.mark.skipif(
-    not native.available(), reason="rows exist only with the sheltersim_native extension"
-)
 _ENTITIES = ("agents", "facilities", "staff", "support_requests", "active_tasks")
 
 
@@ -59,7 +56,6 @@ def _python_items(world: WorldState) -> dict[str, list[bytes]]:
     return {name: [canonical_bytes(item) for item in data[name]] for name in _ENTITIES}
 
 
-@needs_kernels
 @pytest.mark.parametrize("version", [6, 5])
 def test_each_row_writes_the_bytes_of_its_python_document(finished_document, version) -> None:
     world = _world(finished_document)
@@ -68,7 +64,6 @@ def test_each_row_writes_the_bytes_of_its_python_document(finished_document, ver
     assert dict(world._core.entities().rows_json(version)) == _python_items(world)
 
 
-@needs_kernels
 def test_rows_write_optional_fields_text_and_numbers_as_python_does(finished_document) -> None:
     world = _world(finished_document)
     agent = next(iter(world.agents.values()))
@@ -86,7 +81,6 @@ def test_rows_write_optional_fields_text_and_numbers_as_python_does(finished_doc
     assert dict(world._core.entities().rows_json(6)) == _python_items(world)
 
 
-@needs_kernels
 def test_a_row_nothing_wrote_keeps_its_bytes_object(finished_document) -> None:
     world = _world(finished_document)
     store = world._core.entities()
@@ -107,7 +101,6 @@ def test_a_row_nothing_wrote_keeps_its_bytes_object(finished_document) -> None:
     assert store.rows_json(6)["facilities"][0] is not third["facilities"][0]
 
 
-@needs_kernels
 def test_a_rust_rule_writing_a_row_changes_its_bytes(finished_document) -> None:
     world = _world(finished_document)
     store = world._core.entities()
@@ -119,7 +112,6 @@ def test_a_rust_rule_writing_a_row_changes_its_bytes(finished_document) -> None:
     assert dict(store.rows_json(6)) == _python_items(world)
 
 
-@needs_kernels
 def test_entities_added_and_removed_are_in_the_order_of_their_ids(finished_document) -> None:
     world = _world(finished_document)
     store = world._core.entities()
@@ -187,7 +179,6 @@ def test_the_archive_of_a_capture_from_rows_is_the_archive_of_the_objects(
     assert archived("objects") == with_rows
 
 
-@needs_kernels
 def test_entity_lists_of_a_capture_are_rows_bytes(finished_document) -> None:
     saved = _capture_twice(finished_document)[1]
     for name in _ENTITIES:
@@ -202,8 +193,6 @@ def test_a_tainted_store_or_namespace_saves_the_same_checkpoint(
     finished_document, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def taint(world: WorldState) -> None:
-        if not native.available():
-            return
         world._core.entities().taint_now("for the test")
         world._core.mirror("psychological_distress_v1").taint("for the test")
         world._core.mirror("metric_state").taint("for the test")
@@ -213,7 +202,6 @@ def test_a_tainted_store_or_namespace_saves_the_same_checkpoint(
     assert tainted.checkpoint_hash == _capture_twice(finished_document)[1].checkpoint_hash
 
 
-@needs_kernels
 def test_an_entity_map_stored_past_the_world_is_not_taken_from_its_old_rows(
     finished_document,
 ) -> None:
@@ -255,7 +243,6 @@ def _namespace_past_the_table(world: WorldState) -> None:
     dict.__setitem__(world.model_state, name, _new_table_with_other_distress(world)[name])
 
 
-@needs_kernels
 @pytest.mark.parametrize("swap", [_table_in_the_world_dict, _namespace_past_the_table])
 def test_a_namespace_stored_past_the_table_is_saved_as_the_world_holds_it(
     finished_document, monkeypatch: pytest.MonkeyPatch, swap
@@ -268,7 +255,6 @@ def test_a_namespace_stored_past_the_table_is_saved_as_the_world_holds_it(
     assert saved == _capture_twice(finished_document, swap)[1]
 
 
-@needs_kernels
 def test_a_namespace_taken_away_past_the_table_is_not_saved_from_its_old_row(
     finished_document,
 ) -> None:
@@ -281,7 +267,6 @@ def test_a_namespace_taken_away_past_the_table_is_not_saved_from_its_old_row(
     assert name not in saved.world_state["model_state"]
 
 
-@needs_kernels
 def test_an_entity_taken_away_past_its_map_is_not_saved_from_its_old_row(
     finished_document,
 ) -> None:
@@ -294,7 +279,6 @@ def test_an_entity_taken_away_past_its_map_is_not_saved_from_its_old_row(
     )
 
 
-@needs_kernels
 def test_a_write_to_the_dict_of_an_entity_does_not_reach_a_save(finished_document) -> None:
     """A gap, kept visible: no identity shows this write, and the rows are what is saved.
 
@@ -308,7 +292,6 @@ def test_a_write_to_the_dict_of_an_entity_does_not_reach_a_save(finished_documen
     assert saved.world_state["agents"][0]["stress"] != 0.4321
 
 
-@needs_kernels
 def test_metric_state_assigned_whole_is_not_taken_from_its_old_row(finished_document) -> None:
     def assign(world: WorldState) -> None:
         world.metric_state = {**world.metric_state, "assigned": 1.0}
@@ -335,7 +318,6 @@ def test_nan_in_a_row_fails_as_it_does_without_rows(
     assert outcome() == with_rows != "saved"
 
 
-@needs_kernels
 def test_a_restore_check_restores_only_rows_that_changed(
     finished_document, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -367,7 +349,6 @@ def test_a_restore_check_restores_only_rows_that_changed(
     )
 
 
-@needs_kernels
 def test_a_restore_check_world_has_no_rows_and_shares_nothing_with_the_live_world(
     finished_document, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -452,7 +433,6 @@ def test_saves_of_a_running_world_are_the_saves_from_the_objects(
     assert run() == with_rows
 
 
-@needs_kernels
 def test_a_new_owned_row_is_captured_by_its_declaration_alone(
     finished_document, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -475,7 +455,6 @@ def test_a_new_owned_row_is_captured_by_its_declaration_alone(
     assert saved.checkpoint_hash == Checkpoint.capture(_world(finished_document)).checkpoint_hash
 
 
-@needs_kernels
 def test_each_owned_namespace_and_field_of_a_world_comes_from_its_row(finished_document) -> None:
     """social_propagation_v1 needed only its state_row! and its line in OWNED_NAMESPACES."""
     world = _world(finished_document)
@@ -494,7 +473,6 @@ def test_each_owned_namespace_and_field_of_a_world_comes_from_its_row(finished_d
     assert saved.world_state["model_state"]["social_propagation_v1"] == json.loads(raw)
 
 
-@needs_kernels
 def test_a_namespace_with_histories_hashed_apart_stays_on_the_python_path(
     finished_document, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -520,7 +498,6 @@ def _history() -> tuple[list, list]:
     return items, json.loads(json.dumps(items))
 
 
-@needs_kernels
 def test_pins_say_unchanged_only_while_entries_hold_the_same_objects() -> None:
     items, documents = _history()
     pins = native.history_pins()
@@ -544,7 +521,6 @@ def test_pins_say_unchanged_only_while_entries_hold_the_same_objects() -> None:
         assert not pins.unchanged(changed, 0, 5)
 
 
-@needs_kernels
 def test_pins_hold_what_they_compare_so_an_address_cannot_come_back_with_a_new_value() -> None:
     items, documents = _history()
     pins = native.history_pins()
@@ -555,7 +531,6 @@ def test_pins_hold_what_they_compare_so_an_address_cannot_come_back_with_a_new_v
         items[1]["inner"]["x"] = 0.5 + number
 
 
-@needs_kernels
 def test_pins_follow_a_history_that_drops_old_entries_and_grows() -> None:
     items, documents = _history()
     pins = native.history_pins()
@@ -578,7 +553,6 @@ def test_pins_follow_a_history_that_drops_old_entries_and_grows() -> None:
         assert pins.unchanged(many[start:], 0, 100 - start)
 
 
-@needs_kernels
 def test_pins_refuse_entries_their_documents_do_not_read_back_as() -> None:
     for entry, document in (
         ({"a": (1, 2)}, {"a": [1, 2]}),
@@ -590,7 +564,6 @@ def test_pins_refuse_entries_their_documents_do_not_read_back_as() -> None:
         assert not pins.unchanged([entry], 0, 1)
 
 
-@needs_kernels
 def test_an_old_entry_equal_in_another_order_is_still_reused() -> None:
     """Pins say false for a new order, and comparing with the documents decides."""
     from sheltersim.core.checkpoint_cache import _SealedItems, _world_json
@@ -636,7 +609,6 @@ def _random_json(rng: random.Random, depth: int = 0) -> Any:
     }
 
 
-@needs_kernels
 def test_the_dumps_length_kernel_counts_what_json_dumps_writes() -> None:
     rng = random.Random(2026)
     for _ in range(2000):

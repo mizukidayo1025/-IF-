@@ -29,9 +29,7 @@ from sheltersim.domain.body_state import (
 from sheltersim.domain.models import ordered_pair_key
 from sheltersim.events.models import EventKind, ScheduledEvent
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
-PYTHON_RULE = body_state.record_social_event.__wrapped__ if native.available() else None
+PYTHON_RULE = body_state.record_social_event.__wrapped__
 
 
 def _kernel() -> Any:

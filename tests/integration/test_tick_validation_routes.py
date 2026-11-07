@@ -56,8 +56,7 @@ def _checked_world(document: dict) -> WorldState:
     world = WorldState.from_dict(copy.deepcopy(document))
     world.validate_after_tick()
     world.validate_after_tick()
-    if native.available():
-        assert all(rust_validated(world, name) for name in OWNED)
+    assert all(rust_validated(world, name) for name in OWNED)
     return world
 
 
@@ -216,7 +215,7 @@ def test_a_broken_namespace_stops_the_tick_whichever_way_it_was_written(
 def test_a_good_namespace_written_whole_is_still_accepted(finished_world, name) -> None:
     world = _checked_world(finished_world)
     world.model_state[name] = _plain(world.model_state[name])
-    assert rust_validated(world, name) is native.available()
+    assert rust_validated(world, name)
     world.validate_after_tick()
 
 
@@ -297,7 +296,7 @@ def test_the_distress_kernel_takes_only_what_the_python_rule_passes(
     agents = world.model_state[PSYCHOLOGY]["agents"]
     agents[next(iter(agents))] = {**DISTRESS_RECORD, **change}
     _same_as_python(world, monkeypatch, PSYCHOLOGY)
-    if not change and native.available():
+    if not change:
         assert rust_validated(world, PSYCHOLOGY)
 
 
@@ -327,7 +326,7 @@ def test_the_information_kernel_takes_only_the_contacts_the_python_rule_passes(
     record = {"last_seen_minute": 3, "consecutive_minutes": 2, **change}
     world.model_state[INFORMATION]["contacts"][f'["{first}","{second}"]'] = record
     _same_as_python(world, monkeypatch, INFORMATION)
-    if not change and native.available():
+    if not change:
         assert rust_validated(world, INFORMATION)
 
 
@@ -521,7 +520,7 @@ def test_the_rows_are_trusted_again_on_the_next_world(finished_world) -> None:
     world = _checked_world(finished_world)
     _staff_in_world_dict(world)
     restored = WorldState.from_dict(copy.deepcopy(finished_world))
-    assert all(rust_validated(restored, name) for name in OWNED) is native.available()
+    assert all(rust_validated(restored, name) for name in OWNED)
 
 
 # ---- What a row cannot see ----------------------------------------------------------------------
@@ -541,9 +540,6 @@ def test_a_write_past_a_tracked_dict_is_seen_only_by_the_python_rules(
     dict.__setitem__(record, "long_term_distress", 2.0)
     expected = _python_error(world, monkeypatch)
     assert expected is not None and expected[0] == PSYCHOLOGY_RANGE
-    if not native.available():
-        assert _error_of(world.validate_after_tick) == expected
-        return
     assert rust_validated(world, PSYCHOLOGY)
     assert _error_of(world.validate_after_tick) is None
     assert not world.__dict__["_core"].mirror(PSYCHOLOGY).verify()

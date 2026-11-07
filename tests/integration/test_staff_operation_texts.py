@@ -35,8 +35,6 @@ from sheltersim.events.handlers import (
 )
 from sheltersim.events.models import EventApplicationError, EventSuppressed
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 
 def _gate() -> Any:
     root = str(Path(__file__).resolve().parents[2] / "benchmarks")

@@ -57,8 +57,6 @@ from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _MetricSink
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 KERNELS = {
     "ProximityContactHandler": ("handlers", "proximity"),
     "InformationRumorHandler": ("information_events", "rumor"),

@@ -17,12 +17,11 @@ import pytest
 from support.paths import SCENARIO_100_AGENTS
 from support.world import kernel_says_python_s_text
 
-from sheltersim import native
 from sheltersim.core.engine import TickEngine
 from sheltersim.core.world import WorldState
 from sheltersim.domain.models import Activity
 from sheltersim.events.handlers import AgentTravelCompletionHandler
-from sheltersim.events.models import EventApplicationError, EventStatus, ScheduledEvent
+from sheltersim.events.models import EventStatus, ScheduledEvent
 from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.phases.dispatch import DispatchPhase
 from sheltersim.experiments.runner import OfflineSimulationController
@@ -111,15 +110,8 @@ def _text(world: WorldState) -> str:
 
 
 def _says(handler: Any, world: WorldState, event: Any, text: str) -> None:
-    """The handler fails the walk with `text` and changes nothing; with Rust, the kernel says it."""
-    if native.available():
-        assert kernel_says_python_s_text(handler, world, event) == ("EventApplicationError", text)
-        return
-    before = _text(world)
-    with pytest.raises(EventApplicationError) as said:
-        handler.apply(world, event)
-    assert str(said.value) == text
-    assert _text(world) == before
+    """The handler fails the walk with `text` and changes nothing: the kernel says it."""
+    assert kernel_says_python_s_text(handler, world, event) == ("EventApplicationError", text)
 
 
 def _handler(controller: OfflineSimulationController) -> Any:

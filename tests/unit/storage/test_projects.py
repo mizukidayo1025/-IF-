@@ -722,8 +722,6 @@ def test_the_privacy_check_of_chunk_bytes_decides_as_the_check_of_the_document()
 
 def test_the_strings_rust_leaves_out_can_not_match_the_privacy_patterns() -> None:
     """Every string the kernel does not return is one safe_document() leaves as it is."""
-    if not native.available():
-        pytest.skip("the sheltersim_native extension is not installed")
     generator = random.Random(2615)
     pieces = [
         *'@-  .:_+\n\t"\\',
@@ -760,8 +758,6 @@ def test_the_strings_rust_leaves_out_can_not_match_the_privacy_patterns() -> Non
 def test_every_string_redaction_changes_is_returned_by_the_rust_scan() -> None:
     """Random strings near the patterns, with the characters that make them hard to read:
     other digits and spaces, case folds to ASCII, escapes in the JSON, surrogate pairs."""
-    if not native.available():
-        pytest.skip("the sheltersim_native extension is not installed")
     generator = random.Random(20261031)
     pieces = [
         *"019-+().@_ax",

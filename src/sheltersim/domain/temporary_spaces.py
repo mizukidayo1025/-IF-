@@ -290,5 +290,4 @@ def _append_history(
         del state["history"][: len(state["history"]) - MAX_TEMPORARY_SPACE_HISTORY]
 
 
-if native.available():
-    register_rust_validator(TEMPORARY_SPACES_STATE_KEY, native.rules("overlay").validate_spaces)
+register_rust_validator(TEMPORARY_SPACES_STATE_KEY, native.rules("overlay").validate_spaces)

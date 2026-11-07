@@ -37,8 +37,6 @@ from sheltersim.experiments.phases.update import UpdatePhase
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 ALTERNATE = "route_sleeping_toilet_alt"
 FIRST_LEG = "route_sleeping_corridor"
 SLOW = 0.2

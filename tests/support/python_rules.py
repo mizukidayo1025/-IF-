@@ -4,7 +4,6 @@ A kernel doesn't call the Python functions it replaces, so a test that patches o
 patch nothing. `@pytest.mark.python_rules` removes the kernels of experiments/phases/segments.py
 and the validators of core/state_mirror.py for that test. Python functions then run, on the same
 rows and mirrors. Patches don't reach a spawned worker of `ProjectAPI`, so neither does this mark.
-Without the kernels (`SHELTERSIM_NATIVE=0`) it changes nothing.
 
 tests/unit/repo/test_python_rules_lint.py fails when a name below is patched without the mark.
 A lane adds the names of the Python functions its kernel stops calling.
@@ -275,15 +274,12 @@ def _python_rules(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatc
 
 def without_kernels(monkeypatch: pytest.MonkeyPatch) -> None:
     """The mark's change, for a test that compares both within one test."""
-    from sheltersim import native
     from sheltersim.core import state_mirror
     from sheltersim.core import world as world_module
     from sheltersim.experiments import metrics
     from sheltersim.experiments.phases.segments import SEGMENTS
     from sheltersim.experiments.runner import OfflineSimulationController
 
-    if not native.available():
-        return
     for step in SEGMENTS:
         # install_segments set it on this class, and the phases' mixins keep the Python step.
         monkeypatch.delattr(OfflineSimulationController, step)

@@ -41,8 +41,6 @@ from sheltersim.policies.information import (
 )
 from sheltersim.policies.world_view import WorldView
 
-needs_kernels = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 MODELS = (InformationSpreadPolicy, HazardInformationPolicy, EvidenceAwareInformationPolicy)
 
 
@@ -276,7 +274,6 @@ def _world_with_claims(scenario: Any, *, believers: int = 3) -> WorldState:
 # ---- The row ------------------------------------------------------------------------------------
 
 
-@needs_kernels
 def test_a_row_writes_the_bytes_of_the_tree_after_real_ticks(rumors: Any) -> None:
     def check(world: WorldState) -> None:
         mirror = _mirror(world)
@@ -289,7 +286,6 @@ def test_a_row_writes_the_bytes_of_the_tree_after_real_ticks(rumors: Any) -> Non
     assert _mirror(world).row_json() == native.canonical_json(state)
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     ("write", "reason"),
     [
@@ -309,7 +305,6 @@ def test_a_value_the_row_cant_hold_taints_the_namespace(
     assert not rust_validated(world, KEY)
 
 
-@needs_kernels
 def test_single_writes_from_python_reach_the_row(generated_scenario: Any) -> None:
     world = _world_with_claims(generated_scenario)
     state = world.model_state[KEY]
@@ -330,7 +325,6 @@ def test_single_writes_from_python_reach_the_row(generated_scenario: Any) -> Non
 # ---- The kernel runs, and writes values in place ------------------------------------------------
 
 
-@needs_kernels
 def test_ticks_never_write_the_whole_namespace(rumors: Any) -> None:
     seen: dict[int, tuple[Any, Any, int]] = {}
 
@@ -347,7 +341,6 @@ def test_ticks_never_write_the_whole_namespace(rumors: Any) -> None:
     assert world.model_state[KEY]["counters"]["contact_deliveries"] > 0
 
 
-@needs_kernels
 def test_a_tick_keeps_nodes_for_later_writes_from_python(generated_scenario: Any) -> None:
     """The contact records are reused under new keys, and the table must know the new keys."""
     world = _run_ticks(generated_scenario, 5)
@@ -365,7 +358,6 @@ def test_a_tick_keeps_nodes_for_later_writes_from_python(generated_scenario: Any
     assert _mirror(world).verify()
 
 
-@needs_kernels
 def test_fewer_contacts_release_the_nodes_left_over(generated_scenario: Any) -> None:
     world = WorldState.from_scenario(generated_scenario)
     neighbors = {zone: () for zone in world.zones}
@@ -388,7 +380,6 @@ def test_fewer_contacts_release_the_nodes_left_over(generated_scenario: Any) -> 
     _assert_same_as_python(world, policy, neighbors, 1)
 
 
-@needs_kernels
 @pytest.mark.parametrize("model", ["evidence-aware-rumor-v1", "sparse-information-contact-v1"])
 def test_the_rust_step_and_the_python_step_make_the_same_world(
     rumors: Any, monkeypatch: pytest.MonkeyPatch, model: str
@@ -418,7 +409,6 @@ def test_the_rust_step_and_the_python_step_make_the_same_world(
 # ---- Identity of the rule with the Python rule --------------------------------------------------
 
 
-@needs_kernels
 @pytest.mark.parametrize("model", MODELS)
 def test_claims_pass_as_the_python_rule_passes_them(generated_scenario: Any, model: Any) -> None:
     config = InformationSpreadConfig(
@@ -438,7 +428,6 @@ def test_claims_pass_as_the_python_rule_passes_them(generated_scenario: Any, mod
     assert proposals > 0
 
 
-@needs_kernels
 def test_random_states_have_the_python_rules_bits(generated_scenario: Any) -> None:
     """Models, settings, beliefs, zones, households and last tick's contacts no gate has."""
     draw = random.Random(20261031)
@@ -510,7 +499,6 @@ def test_random_states_have_the_python_rules_bits(generated_scenario: Any) -> No
     assert transfers > 100 and forgotten > 100
 
 
-@needs_kernels
 def test_ids_json_escapes_and_a_zone_next_to_itself_have_the_python_rules_bits(
     generated_scenario: Any,
 ) -> None:
@@ -575,7 +563,6 @@ def test_ids_json_escapes_and_a_zone_next_to_itself_have_the_python_rules_bits(
     assert transfers > 50
 
 
-@needs_kernels
 def test_a_probability_has_the_bits_of_the_python_rule_and_one_percent_shows() -> None:
     draw = random.Random(5)
     for _ in range(2000):
@@ -616,7 +603,6 @@ def test_a_probability_has_the_bits_of_the_python_rule_and_one_percent_shows() -
 # ---- What the kernel leaves to the Python rule --------------------------------------------------
 
 
-@needs_kernels
 def test_what_the_kernel_does_not_handle_changes_nothing(generated_scenario: Any) -> None:
     world = _world_with_claims(generated_scenario)
     policy = InformationSpreadPolicy(InformationSpreadConfig(enabled=True))
@@ -642,7 +628,6 @@ def test_what_the_kernel_does_not_handle_changes_nothing(generated_scenario: Any
     assert world.canonical_json() == before
 
 
-@needs_kernels
 def test_no_model_is_nothing_to_do(generated_scenario: Any) -> None:
     world = WorldState.from_scenario(generated_scenario)
     before = world.canonical_json()
@@ -671,7 +656,6 @@ def _unparsable_states() -> list[Any]:
     ]
 
 
-@needs_kernels
 @pytest.mark.parametrize("corrupt", _unparsable_states())
 def test_a_state_the_python_rule_may_raise_on_goes_to_it(
     generated_scenario: Any, corrupt: Any
@@ -689,7 +673,6 @@ def test_a_state_the_python_rule_may_raise_on_goes_to_it(
     assert not rust_validated(world, KEY)
 
 
-@needs_kernels
 def test_a_tainted_namespace_runs_the_python_step(generated_scenario: Any) -> None:
     world = _run_ticks(generated_scenario, 2)
     state = world.model_state[KEY]
@@ -759,7 +742,6 @@ def _corruptions() -> list[Any]:
     ]
 
 
-@needs_kernels
 @pytest.mark.parametrize("corrupt", _corruptions())
 def test_the_validator_never_takes_what_the_python_rule_turns_down(
     generated_scenario: Any, corrupt: Any
@@ -786,7 +768,6 @@ def test_the_validator_never_takes_what_the_python_rule_turns_down(
     assert str(raised.value) == str(expected.value)
 
 
-@needs_kernels
 def test_the_validator_takes_what_the_python_rule_passes(rumors: Any) -> None:
     def check(world: WorldState) -> None:
         assert rust_validated(world, KEY)

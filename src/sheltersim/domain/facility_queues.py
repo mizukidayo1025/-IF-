@@ -484,5 +484,4 @@ def record_queue_transition(
     )
 
 
-if native.available():
-    register_rust_validator(FACILITY_QUEUES_STATE_KEY, native.rules("facility_queues").validate)
+register_rust_validator(FACILITY_QUEUES_STATE_KEY, native.rules("facility_queues").validate)

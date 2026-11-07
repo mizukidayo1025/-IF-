@@ -7,10 +7,7 @@ mirrors (native/src/state/entities.rs, docs/rust-port/lanes/p6-entity-windows.md
 from __future__ import annotations
 
 import copy
-import os
 import pickle
-import subprocess
-import sys
 from dataclasses import asdict, fields
 from types import SimpleNamespace
 from typing import Any
@@ -39,8 +36,6 @@ from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _MetricSink
-
-needs_kernels = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
 
 
 def _valid_world() -> WorldState:
@@ -106,7 +101,6 @@ def _row_of(world: WorldState, field: str, key: str) -> dict[str, Any]:
     return _store(world).row(field, key)
 
 
-@needs_kernels
 def test_a_new_world_holds_id_maps_with_a_row_equal_to_each_object() -> None:
     world = _world()
     for name in ("agents", "facilities", "staff", "support_requests", "active_tasks"):
@@ -123,7 +117,6 @@ def test_a_new_world_holds_id_maps_with_a_row_equal_to_each_object() -> None:
     assert row["activity"] is agent.activity
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     ("value", "expected"),
     [(0.25, 0.25), (0.0, 0.0), (1.0, 1.0)],
@@ -139,7 +132,6 @@ def test_a_write_to_a_float_reaches_the_row(value: float, expected: float) -> No
     _in_step(world)
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     ("pick", "field_name", "value", "table"),
     [
@@ -185,7 +177,6 @@ def test_a_write_to_a_field_reaches_the_row(
     _in_step(world)
 
 
-@needs_kernels
 def test_enums_and_ids_keep_their_identity() -> None:
     world = _world()
     agent = _agent(world)
@@ -202,7 +193,6 @@ def test_enums_and_ids_keep_their_identity() -> None:
     assert agent.zone_id is zone
 
 
-@needs_kernels
 def test_a_property_setter_reaches_the_row_through_the_field() -> None:
     world = _world()
     agent = _agent(world)
@@ -217,7 +207,6 @@ def test_a_property_setter_reaches_the_row_through_the_field() -> None:
     _in_step(world)
 
 
-@needs_kernels
 def test_replacing_needs_moves_the_row_to_the_new_object() -> None:
     world = _world()
     agent = _agent(world)
@@ -252,7 +241,6 @@ LIST_WRITES = [
 ]
 
 
-@needs_kernels
 @pytest.mark.parametrize("write", LIST_WRITES)
 @pytest.mark.parametrize(
     ("owner", "field_name"),
@@ -275,7 +263,6 @@ def test_a_write_to_an_id_list_reaches_the_row(owner: str, field_name: str, writ
     _in_step(world)
 
 
-@needs_kernels
 def test_assigning_an_id_list_copies_it_and_frees_the_old_one() -> None:
     world = _world()
     facility = _facility(world)
@@ -295,7 +282,6 @@ def test_assigning_an_id_list_copies_it_and_frees_the_old_one() -> None:
     _in_step(world)
 
 
-@needs_kernels
 def test_a_list_of_one_entity_assigned_to_another_is_copied() -> None:
     world = _world()
     first, second = list(world.facilities.values())[:2]
@@ -308,7 +294,6 @@ def test_a_list_of_one_entity_assigned_to_another_is_copied() -> None:
     _in_step(world)
 
 
-@needs_kernels
 def test_a_list_reassigned_as_itself_changes_nothing() -> None:
     world = _world()
     facility = _facility(world)
@@ -319,7 +304,6 @@ def test_a_list_reassigned_as_itself_changes_nothing() -> None:
     assert _row_of(world, "facilities", facility.id)["queue_agent_ids"] == ["x"]
 
 
-@needs_kernels
 def test_rust_reads_rows_and_writes_row_and_object_without_coming_back() -> None:
     world = _world()
     agent = _agent(world)
@@ -359,7 +343,6 @@ BAD_WRITES = [
 ]
 
 
-@needs_kernels
 @pytest.mark.parametrize("write", BAD_WRITES)
 def test_a_value_that_does_not_fit_taints_the_store_and_python_keeps_it(write: Any) -> None:
     world = _world()
@@ -373,7 +356,6 @@ def test_a_value_that_does_not_fit_taints_the_store_and_python_keeps_it(write: A
         _rules().add_agent_stress(world, _agent(world).id, 0.1)
 
 
-@needs_kernels
 def test_the_python_object_keeps_the_exact_value_that_tainted_the_store() -> None:
     world = _valid_world()
     agent = _agent(world)
@@ -386,7 +368,6 @@ def test_the_python_object_keeps_the_exact_value_that_tainted_the_store() -> Non
         world.validate()
 
 
-@needs_kernels
 def test_a_tainted_store_takes_writes_and_fits_again() -> None:
     world = _world()
     agent = _agent(world)
@@ -414,7 +395,6 @@ def test_a_tainted_store_takes_writes_and_fits_again() -> None:
     _in_step(world)
 
 
-@needs_kernels
 def test_what_left_a_tainted_world_can_not_write_to_a_row_after_it_fits_again() -> None:
     world = _world()
     first, second = list(world.agents.values())[:2]
@@ -436,7 +416,6 @@ def test_what_left_a_tainted_world_can_not_write_to_a_row_after_it_fits_again() 
     _in_step(world)
 
 
-@needs_kernels
 def test_deleting_a_field_taints_the_store() -> None:
     world = _world()
     del _agent(world).needs.hunger
@@ -444,7 +423,6 @@ def test_deleting_a_field_taints_the_store() -> None:
     assert "hunger" not in vars(_agent(world).needs)
 
 
-@needs_kernels
 def test_an_id_map_attaches_what_comes_in_and_detaches_what_leaves() -> None:
     world = _world()
     tasks = world.active_tasks
@@ -484,7 +462,6 @@ def test_an_id_map_attaches_what_comes_in_and_detaches_what_leaves() -> None:
     _in_step(world)
 
 
-@needs_kernels
 def test_replacing_a_key_keeps_its_place_and_detaches_the_old_object() -> None:
     world = _world()
     tasks = world.active_tasks
@@ -501,7 +478,6 @@ def test_replacing_a_key_keeps_its_place_and_detaches_the_old_object() -> None:
     _in_step(world)
 
 
-@needs_kernels
 def test_an_entity_in_two_worlds_taints_the_second_and_leaves_the_first() -> None:
     world = _world()
     other = _world()
@@ -513,7 +489,6 @@ def test_an_entity_in_two_worlds_taints_the_second_and_leaves_the_first() -> Non
     assert other.active_tasks["T9"].due_minute == 3
 
 
-@needs_kernels
 def test_assigning_a_whole_map_keeps_what_stays_and_detaches_the_rest() -> None:
     world = _world()
     world.support_requests["R2"] = _request("R2", _agent(world).id)
@@ -546,7 +521,6 @@ def test_assigning_a_whole_map_keeps_what_stays_and_detaches_the_rest() -> None:
     _in_step(world)
 
 
-@needs_kernels
 def test_assigning_a_map_with_one_object_under_two_keys_taints() -> None:
     world = _world()
     task = world.active_tasks["T1"]
@@ -555,7 +529,6 @@ def test_assigning_a_map_with_one_object_under_two_keys_taints() -> None:
     assert world.active_tasks["a"] is world.active_tasks["b"]
 
 
-@needs_kernels
 def test_copy_and_swap_moves_the_rows_with_the_state() -> None:
     world = _valid_world()
     agent = _agent(world)
@@ -581,7 +554,6 @@ def test_copy_and_swap_moves_the_rows_with_the_state() -> None:
     _in_step(world)
 
 
-@needs_kernels
 def test_a_deep_copy_has_its_own_rows() -> None:
     world = _world()
     _facility(world).queue_agent_ids.append("x")
@@ -599,7 +571,6 @@ def test_a_deep_copy_has_its_own_rows() -> None:
     _in_step(world)
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     "copier", [copy.copy, copy.deepcopy, lambda item: pickle.loads(pickle.dumps(item))]
 )
@@ -635,7 +606,6 @@ def test_a_copy_or_pickle_of_an_attached_entity_is_out_of_the_world(copier: Any)
     _in_step(world)
 
 
-@needs_kernels
 def test_the_links_are_not_in_the_objects_state() -> None:
     world = _world()
     agent = _agent(world)
@@ -675,7 +645,6 @@ def test_to_dict_copies_lists_and_keeps_a_value_that_is_not_a_list() -> None:
     assert bad.to_dict() == asdict(bad)
 
 
-@needs_kernels
 def test_a_settled_request_still_reports_its_writes() -> None:
     world = _world()
     request = world.support_requests["R1"]
@@ -691,7 +660,6 @@ def test_a_settled_request_still_reports_its_writes() -> None:
     _in_step(world)
 
 
-@needs_kernels
 def test_kernels_read_an_id_map_as_a_plain_dict() -> None:
     world = _world()
     assert native.world_agents_valid(
@@ -701,7 +669,6 @@ def test_kernels_read_an_id_map_as_a_plain_dict() -> None:
     assert native.canonical_json(_facility(world).queue_agent_ids) == b"[]"
 
 
-@needs_kernels
 def test_rules_over_real_ticks_keep_every_row_equal_to_its_object(generated_scenario: Any) -> None:
     world = WorldState.from_scenario(generated_scenario)
     controller = OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
@@ -713,36 +680,3 @@ def test_rules_over_real_ticks_keep_every_row_equal_to_its_object(generated_scen
         forwards = max(forwards, _store(world).stats()["forwards"])
     assert forwards > 100
     assert world.same_state(WorldState.from_dict(world.to_dict()))
-
-
-def test_without_kernels_entities_are_plain_dataclasses() -> None:
-    script = """
-from dataclasses import asdict
-from sheltersim import native
-from sheltersim.core.world import WorldState
-from sheltersim.domain.models import ActiveTask, AgentState, FacilityState, NeedState
-from sheltersim.domain.models import StaffState, SupportRequestState
-assert not native.available()
-for kind in (AgentState, NeedState, FacilityState, StaffState, ActiveTask):
-    assert kind.__setattr__ is object.__setattr__, kind
-    assert kind.__new__ is object.__new__, kind
-needs = NeedState()
-needs.hunger = 1
-assert vars(needs) == asdict(needs) and needs.hunger == 1
-world = WorldState(scenario_id="s", seed=1, duration_minutes=1)
-assert type(world.agents) is dict and "_core" not in world.__dict__
-print("ok")
-"""
-    result = subprocess.run(
-        [sys.executable, "-c", script],
-        env={
-            **os.environ,
-            "SHELTERSIM_NATIVE": "0",
-            "PYTHONPATH": os.pathsep.join(sys.path),
-        },
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "ok"

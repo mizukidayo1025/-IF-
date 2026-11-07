@@ -275,7 +275,7 @@ def test_a_guarded_absence_with_an_end_brings_the_member_back(main_line):
         ("staff_restored", "derived", False, "applied"),
     ]
     assert [record.realized_minute for record in records] == [START, STOP]
-    assert _kernel_runs("staff_unavailable") - before == int(native.available())
+    assert _kernel_runs("staff_unavailable") - before == 1
 
 
 def _kernel_runs(label):
@@ -284,8 +284,6 @@ def _kernel_runs(label):
     Its error on a broken world makes the Python rule run instead, so a result alone doesn't show
     that the kernel builds the same events.
     """
-    if not native.available():
-        return 0
     counts, _ = native.rules("handlers").stats()
     return counts.get(label, 0)
 
@@ -324,7 +322,7 @@ def test_a_guarded_delay_moves_the_delivery_and_delivers_it(operations_line):
         ("resource_delivery", "derived", False, "applied"),
     ]
     assert [record.realized_minute for record in records] == [START, STOP]
-    assert _kernel_runs("delivery_delay") - before == int(native.available())
+    assert _kernel_runs("delivery_delay") - before == 1
 
 
 def test_a_guarded_arrival_on_foot_completes_its_approach(operations_line):

@@ -174,12 +174,9 @@ def test_an_audit_checks_only_new_records_while_earlier_ones_are_unchanged(make_
 def test_both_event_logs_answer_alike(make_event, implementation) -> None:
     """The EventLog held in Rust (feature/rust-port) answers every method as the Python
     one does, refuses the same duplicates, and audits realization times."""
-    from sheltersim import native
     from sheltersim.events.models import EventKind, ScheduledEvent
     from sheltersim.events.queue import _NativeEventLog, _PythonEventLog
 
-    if implementation == "native" and not native.available():
-        pytest.skip("the sheltersim_native extension is not installed")
     log_type = _NativeEventLog if implementation == "native" else _PythonEventLog
 
     def record(index, event_type, status="applied", payload=None, provenance=None):
@@ -273,7 +270,6 @@ def test_both_event_logs_answer_alike(make_event, implementation) -> None:
 def test_an_event_log_read_back_from_saved_bytes_makes_records_when_read(implementation) -> None:
     """from_saved builds the indexes from the saved canonical JSON; the native store
     makes a record object only when one is read, equal to the record saved."""
-    from sheltersim import native
     from sheltersim.events.queue import (
         _NativeEventLog,
         _PythonEventLog,
@@ -281,8 +277,6 @@ def test_an_event_log_read_back_from_saved_bytes_makes_records_when_read(impleme
         record_from_bytes,
     )
 
-    if implementation == "native" and not native.available():
-        pytest.skip("the sheltersim_native extension is not installed")
     log_type = _NativeEventLog if implementation == "native" else _PythonEventLog
     records = _records(6, kinds=("a", "b"))
     saved = [record_bytes(record) for record in records]

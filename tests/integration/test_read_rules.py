@@ -41,8 +41,6 @@ from sheltersim.experiments.timeline import _MetricSink
 from sheltersim.policies.proximity import DistanceSampledProximityPolicy, ProximityPair
 from sheltersim.policies.world_view import WorldView, _fields_of_person
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="only with the Rust kernels")
-
 PROXIMITY = "distance-sampled-proximity-v1"
 FORMULAS = {
     "zone_environment": ("zone-temperature-comfort-band-v1", "zone-temperature-midpoint-v1"),

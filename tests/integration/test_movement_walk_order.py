@@ -25,8 +25,6 @@ from sheltersim.domain.models import ActiveTask, Activity
 from sheltersim.domain.movement import MOVEMENT_STATE_KEY as KEY
 from sheltersim.events.models import EventKind, EventStatus, ScheduledEvent
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 TOILET = "toilet_01"
 SLOW = 0.2
 

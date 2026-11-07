@@ -93,9 +93,9 @@ def _event_from_document(document: dict[str, Any]) -> ScheduledEvent:
 # native/src/rules/after_tick.rs: validate_after_tick in one call, with its memo. The entity rules
 # it calls are native/src/rules/tick_validation.rs; benchmarks/rule_shadow and the python_rules mark
 # replace this one.
-_entity_rules_kernel = native.rules("tick_validation").entity_rules if native.available() else None
-_after_tick_kernel = native.rules("after_tick").after_tick if native.available() else None
-_TickMemo = native.rules("after_tick").TickMemo if native.available() else None
+_entity_rules_kernel = native.rules("tick_validation").entity_rules
+_after_tick_kernel = native.rules("after_tick").after_tick
+_TickMemo = native.rules("after_tick").TickMemo
 
 
 @dataclass
@@ -124,8 +124,7 @@ class WorldState:
     schema_version: int = 5
 
     def __post_init__(self) -> None:
-        if native.available():
-            state_mirror.start_core(self)
+        state_mirror.start_core(self)
 
     def __setattr__(self, name: str, value: Any) -> None:
         # A whole model_state assigned to a world with owned namespaces (core/state_mirror.py).
@@ -1452,10 +1451,10 @@ class WorldState:
     def validate_after_tick(self) -> None:
         """The per-tick validation: validate(validate_event_history=False), as one Rust call.
 
-        With the rust kernels each world keeps the memo of the last check the kernel passed
+        Each world keeps the memo of the last check the kernel passed
         (native/src/rules/after_tick.rs), which skips what is proven unchanged since; it does not
-        outlive a failed check. A state the kernel doesn't take, and every world without the
-        kernels, gets the Python check, which passes or raises its own text.
+        outlive a failed check. A state the kernel doesn't take, and a test with the python_rules
+        mark, gets the Python check, which passes or raises its own text.
         """
         if _after_tick_kernel is None:
             self.validate(validate_event_history=False)

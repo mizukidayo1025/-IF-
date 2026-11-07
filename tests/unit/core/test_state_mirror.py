@@ -22,8 +22,6 @@ from support.tracked_mirror import strict_difference
 from sheltersim import native
 from sheltersim.core.state_mirror import NamespaceTable, TrackedDict, TrackedList
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 
 def _tree(document: Any) -> tuple[Any, Any]:
     mirror = native.world_core().own("x", native.state("sample_namespace").VALUE_ROW)

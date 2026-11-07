@@ -382,7 +382,7 @@ class CheckpointArchive:
             return self._get(node["chunk"])
         if node.get("kind") == "list_v2" and set(node) == {"kind", "chunks", "starts", "length"}:
             self._indexed_list_metadata(node)
-            if saved and path == _SAVED_EVENT_LOG and native.available():
+            if saved and path == _SAVED_EVENT_LOG:
                 return self._saved_items(node)
             values = []
             for index, key in enumerate(node["chunks"]):
@@ -425,7 +425,6 @@ class CheckpointArchive:
                 items = native.split_json_array(self._get_raw(key))
             except ValueError as exc:
                 raise CheckpointError("list chunk has incompatible type") from exc
-            assert items is not None
             raws.extend(items)
         if len(raws) != node["length"]:
             raise CheckpointError("indexed list length mismatch")

@@ -664,5 +664,4 @@ def _valid_id(value: Any) -> bool:
     return isinstance(value, str) and _STABLE_ID.fullmatch(value) is not None
 
 
-if native.available():
-    register_rust_validator(RESOURCE_LEDGER_KEY, native.state("resource_ledger").validate)
+register_rust_validator(RESOURCE_LEDGER_KEY, native.state("resource_ledger").validate)

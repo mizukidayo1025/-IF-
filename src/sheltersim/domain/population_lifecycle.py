@@ -119,7 +119,7 @@ def initialize_population_lifecycle_state(world: WorldState) -> dict[str, Any]:
 # Unsupported.
 register_rust_validator(
     POPULATION_LIFECYCLE_STATE_KEY,
-    native.rules("population_lifecycle").validate if native.available() else None,
+    native.rules("population_lifecycle").validate,
 )
 
 

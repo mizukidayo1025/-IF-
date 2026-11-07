@@ -188,7 +188,4 @@ def validate_psychological_state(state: Any) -> None:
 
 
 # Rust holds this namespace in native/src/state/psychological_distress.rs.
-if native.available():
-    register_rust_validator(
-        PSYCHOLOGICAL_STATE_KEY, native.state("psychological_distress").validate
-    )
+register_rust_validator(PSYCHOLOGICAL_STATE_KEY, native.state("psychological_distress").validate)

@@ -403,5 +403,4 @@ def _sync_body_trust(world: WorldState, recipient_id: str, source_id: str) -> No
         social_record["trust"] = body_record["trust"]
 
 
-if native.available():
-    register_rust_validator(SOCIAL_NETWORK_STATE_KEY, native.state("social_network").validate)
+register_rust_validator(SOCIAL_NETWORK_STATE_KEY, native.state("social_network").validate)

@@ -765,5 +765,4 @@ def _install_rows() -> None:
     )
 
 
-if native.available():
-    _install_rows()
+_install_rows()

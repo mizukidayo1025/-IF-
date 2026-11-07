@@ -28,8 +28,6 @@ from sheltersim.domain.simulator_state import initialize_simulator_extensions
 from sheltersim.domain.temporary_spaces import create_temporary_spaces_state
 from sheltersim.events.models import EventKind, ScheduledEvent
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="the Rust kernels")
-
 ROOM_ZONE = "sleeping"
 
 

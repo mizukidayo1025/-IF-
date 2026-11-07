@@ -31,8 +31,6 @@ from sheltersim.policies.social import (
     StressPropagationPolicy,
 )
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 KEY = SOCIAL_RUNTIME_STATE_KEY
 BOSSE = "ASM-BOSSE-AFFECT-CONTAGION-V1"
 DEGROOT = "ASM-DEGROOT-CONTACT-V1"

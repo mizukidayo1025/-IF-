@@ -302,7 +302,6 @@ def _canonical(item) -> bytes:
     ).encode()
 
 
-@pytest.mark.skipif(not native.available(), reason="needs the Rust EventLog")
 def test_a_checkpoint_with_saved_event_bytes_restores_without_making_records(
     live_checkpoint_world,
 ) -> None:
@@ -318,7 +317,6 @@ def test_a_checkpoint_with_saved_event_bytes_restores_without_making_records(
     assert world.canonical_json() == live_checkpoint_world.canonical_json()
 
 
-@pytest.mark.skipif(not native.available(), reason="needs the Rust EventLog")
 def test_a_saved_event_record_that_is_not_canonical_json_fails_closed(
     live_checkpoint_world,
 ) -> None:
@@ -453,22 +451,20 @@ def test_any_change_of_a_document_changes_the_v2_hash(change) -> None:
 
 
 def test_the_v2_hash_of_spliced_bytes_is_the_hash_of_the_document(monkeypatch) -> None:
-    """Hashes from cached item bytes, by Rust or Python, equal those of a plain document."""
+    """Hashes from cached item bytes, by Rust, equal those of a plain document."""
     document = _tree_v2_document()
     expected = Checkpoint.document_hashes(document)
-    for kernel in (native.chunk_hashes, lambda *_: None):
-        monkeypatch.setattr(native, "chunk_hashes", kernel)
-        encoder = CanonicalEncoder()
-        world = dict(document["world_state"])
-        raws = [_canonical(item) for item in world["event_log"]]
-        world["event_log"] = list(world["event_log"])
-        encoder.splice(world["event_log"], raws, world)
-        assert encoder.world_tree_digest(world) == expected[0]
-        # A second digest reuses the chunk hashes: only a new chunk's items are read.
-        repeat = CanonicalEncoder(encoder.chunk_keys)
-        repeat.splice(world["event_log"], raws, world)
-        monkeypatch.setattr(native, "chunk_hashes", lambda *_: pytest.fail("hashed again"))
-        assert repeat.world_tree_digest(world) == expected[0]
+    encoder = CanonicalEncoder()
+    world = dict(document["world_state"])
+    raws = [_canonical(item) for item in world["event_log"]]
+    world["event_log"] = list(world["event_log"])
+    encoder.splice(world["event_log"], raws, world)
+    assert encoder.world_tree_digest(world) == expected[0]
+    # A second digest reuses the chunk hashes: only a new chunk's items are read.
+    repeat = CanonicalEncoder(encoder.chunk_keys)
+    repeat.splice(world["event_log"], raws, world)
+    monkeypatch.setattr(native, "chunk_hashes", lambda *_: pytest.fail("hashed again"))
+    assert repeat.world_tree_digest(world) == expected[0]
 
 
 def _v1_document(checkpoint: Checkpoint) -> dict:
@@ -520,7 +516,6 @@ def test_a_tampered_v1_or_relabelled_checkpoint_fails_closed(live_checkpoint_wor
         Checkpoint.from_dict(dict(current.to_dict(), schema_version=1))
 
 
-@pytest.mark.skipif(not native.available(), reason="needs the Rust EventLog")
 def test_a_changed_saved_event_record_fails_closed_under_the_tree_hash(
     live_checkpoint_world,
 ) -> None:

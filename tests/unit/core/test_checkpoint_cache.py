@@ -13,7 +13,6 @@ from dataclasses import replace
 
 import pytest
 
-from sheltersim import native
 from sheltersim.core.checkpoint import Checkpoint, CheckpointError
 from sheltersim.core.checkpoint_cache import CheckpointHistoryCache, canonical_bytes
 from sheltersim.core.saved_items import SavedItems
@@ -134,10 +133,7 @@ def test_cached_capture_is_the_full_capture_and_restores_only_new_records(
         assert cached.checkpoint_hash == full.checkpoint_hash
     # Each cached capture restores only the records added since the previous one. The Rust
     # EventLog wrote its records' bytes, so its restore check reads the log itself.
-    if native.available():
-        assert reused == [(1, 1), (2, 2), (3, 3)]
-    else:
-        assert reused == [(0, 1), (1, 2), (2, 3)]
+    assert reused == [(1, 1), (2, 2), (3, 3)]
 
 
 def test_a_new_world_object_is_converted_and_restored_again(live_checkpoint_world) -> None:
@@ -151,49 +147,6 @@ def test_a_new_world_object_is_converted_and_restored_again(live_checkpoint_worl
     assert first.to_json() == Checkpoint.capture(world).to_json()
 
 
-@pytest.mark.skipif(native.available(), reason="the Python EventLog only")
-def test_a_cache_seeded_with_a_restored_event_log_captures_what_a_full_capture_does(
-    live_checkpoint_world, monkeypatch
-) -> None:
-    """A load or a fork seeds the EventLog its restore made, so the first save reuses it.
-
-    This is the Python EventLog, which follows records by identity.
-    """
-    world = live_checkpoint_world
-    _realize(world, "cache-event-1")
-    saved = Checkpoint.capture(world)
-    restored = WorldState.from_dict(json.loads(json.dumps(saved.world_state)))
-    documents = saved.world_state["event_log"]
-    parsed = []
-    original = WorldState.from_dict.__func__
-
-    def from_dict(cls, document, **kwargs):
-        if "_restored_events" in kwargs:
-            parsed.append(len(document["event_log"]) - _restored_before(kwargs))
-        return original(cls, document, **kwargs)
-
-    monkeypatch.setattr(WorldState, "from_dict", classmethod(from_dict))
-    cache = CheckpointHistoryCache()
-    assert cache.seed_events(restored.event_log, documents)
-    _realize(restored, "cache-event-2")
-    cached = Checkpoint.capture(restored, history_cache=cache)
-    assert cached.to_json() == Checkpoint.capture(restored).to_json()
-    # Only the record added after the seed was restored from its document.
-    assert parsed == [1]
-
-    # A document that a record does not convert back to is never seeded.
-    extra = [dict(documents[0], note="older field"), *documents[1:]]
-    unseeded = CheckpointHistoryCache()
-    assert not unseeded.seed_events(restored.event_log, extra)
-    # Nor are more documents than the log has records.
-    more = [*documents, *documents, *documents]
-    assert len(more) > len(restored.event_log)
-    assert not unseeded.seed_events(restored.event_log, more)
-    cached = Checkpoint.capture(restored, history_cache=unseeded)
-    assert cached.to_json() == Checkpoint.capture(restored).to_json()
-
-
-@pytest.mark.skipif(not native.available(), reason="needs the Rust EventLog")
 def test_a_cache_seeded_with_saved_event_bytes_reads_none_of_them(
     live_checkpoint_world, monkeypatch
 ) -> None:
@@ -266,10 +219,7 @@ def test_a_restored_world_equal_to_the_captured_one_is_not_validated_again(
         monkeypatch.setattr(WorldState, "validate", validate)
         assert cached.to_json() == Checkpoint.capture(world).to_json()
         monkeypatch.setattr(WorldState, "validate", counting_validate)
-    if native.available():
-        assert compared == [(1, 1, True), (2, 2, True), (3, 3, True)]
-    else:
-        assert compared == [(0, 1, True), (1, 2, True), (2, 3, True)]
+    assert compared == [(1, 1, True), (2, 2, True), (3, 3, True)]
 
 
 def test_a_restored_world_that_differs_is_validated_and_compared_in_full_next_time(
@@ -301,7 +251,7 @@ def test_a_restored_world_that_differs_is_validated_and_compared_in_full_next_ti
     # A different (still valid) restored world is validated as a whole.
     assert validated == [True, False]
     # What differs is not the EventLog, which the Rust log's restore check does not build.
-    assert cache.restored_events_equal() == (len(world.event_log) if native.available() else 0)
+    assert cache.restored_events_equal() == len(world.event_log)
 
     def broken(self, *args, **kwargs):
         document, status = restore(self, *args, **kwargs)
@@ -342,14 +292,10 @@ def test_a_restore_check_extends_the_last_checks_eventlog(
             _realize(world, name)
         Checkpoint.capture(world, history_cache=cache)
         logs.append(cache.restored_log())
-    if native.available():
-        # The log wrote its records' bytes, so restoring them gives the log itself.
-        assert received == [world.event_log] * 3
-        assert all(received[index] is world.event_log for index in range(3))
-        assert logs == [world.event_log] * 3
-    else:
-        assert received[0] is None
-        assert received[1] is logs[0] and received[2] is logs[0] and logs[2] is logs[0]
+    # The log wrote its records' bytes, so restoring them gives the log itself.
+    assert received == [world.event_log] * 3
+    assert all(received[index] is world.event_log for index in range(3))
+    assert logs == [world.event_log] * 3
     fresh = EventLog(list(world.event_log.records))
     log = logs[2]
     assert len(log) == len(world.event_log)
@@ -417,8 +363,6 @@ def test_a_history_entry_changed_in_place_is_compared_again_by_the_restore_check
 
 
 def test_the_saved_bytes_of_a_replaced_event_log_are_read_anew(live_checkpoint_world) -> None:
-    if not native.available():
-        pytest.skip("the sheltersim_native extension is not installed")
     world = live_checkpoint_world
     cache = CheckpointHistoryCache()
     Checkpoint.capture(world, history_cache=cache)

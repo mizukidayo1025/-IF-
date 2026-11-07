@@ -182,7 +182,7 @@ def canonical_body_config(raw: Any) -> dict[str, Any]:
 
 
 # Accepts the header, records and relationships from the row (native/src/state/body_state.rs).
-_ROWS_VALID = native.state("body_state").rows_valid if native.available() else None
+_ROWS_VALID = native.state("body_state").rows_valid
 
 
 def create_body_state(world: WorldState) -> dict[str, Any]:

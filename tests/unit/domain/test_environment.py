@@ -456,7 +456,6 @@ def test_unseen_stories_compile_to_the_same_registered_environment_operators(
     assert all(item.target_selector.target_id == "sleeping" for item in result.draft_plan.effects)
 
 
-@pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
 @pytest.mark.parametrize(
     "level", [TraceLevel.SUMMARY, TraceLevel.FULL], ids=lambda item: item.value
 )

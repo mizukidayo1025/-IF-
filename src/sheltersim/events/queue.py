@@ -256,7 +256,7 @@ class _LargeOrderEventQueue(_NativeEventQueue):
         self._python.validate()
 
 
-EventQueue: Any = _NativeEventQueue if native.available() else _PythonEventQueue
+EventQueue: Any = _NativeEventQueue
 
 
 def record_bytes(record: EventLogRecord) -> bytes:
@@ -734,7 +734,7 @@ class _NativeEventLog:
             raise ValueError("event log is outside the scenario duration")
 
 
-EventLog: Any = _NativeEventLog if native.available() else _PythonEventLog
+EventLog: Any = _NativeEventLog
 
 
 def saved_realized_minute(raw: bytes) -> int:

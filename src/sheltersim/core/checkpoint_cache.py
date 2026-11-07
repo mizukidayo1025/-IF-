@@ -306,10 +306,7 @@ class CanonicalEncoder:
             missing = [index for index, key in enumerate(keys) if key is None]
             if missing:
                 wanted = [chunks[index] for index in missing]
-                hashes = native.chunk_hashes(items, wanted) or [
-                    hashlib.sha256(b"[" + b",".join(items[start : start + size]) + b"]").hexdigest()
-                    for start, size in wanted
-                ]
+                hashes = native.chunk_hashes(items, wanted)
                 for index, (start, size), key in zip(missing, wanted, hashes, strict=True):
                     keys[index] = key
                     self.remember_chunk(items, start, size, key)
@@ -446,10 +443,7 @@ class _SealedItems:
 
 def _still_documents(current: Sequence[Any], documents: list[Any], start: int, count: int) -> bool:
     """Whether current[:count] still are documents[start:start + count]."""
-    same = native.same_json_items(current, documents, start, count)
-    if same is None:
-        return all(map(operator.eq, current[:count], documents[start : start + count]))
-    return same
+    return native.same_json_items(current, documents, start, count)
 
 
 def _world_json(value: Any) -> Any:
@@ -553,14 +547,12 @@ class CheckpointHistoryCache:
             self._signatures = (key, model_signatures(configs))
         return self._signatures[1]
 
-    def validation_memo(self, world: WorldState) -> SaveValidationMemo | None:
-        """The memo for validating world before this save, without the rust kernels None.
+    def validation_memo(self, world: WorldState) -> SaveValidationMemo:
+        """The memo for validating world before this save.
 
         Compares the histories with the documents of the last save, once for both the
         validation and the documents() that follows it.
         """
-        if not native.available():
-            return None
         if self._validation is None:
             self._validation = SaveValidationMemo()
         unchanged = {}

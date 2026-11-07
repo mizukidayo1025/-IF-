@@ -385,5 +385,4 @@ def add_staff(world: WorldState, staff_id: str) -> None:
         }
 
 
-if native.available():
-    register_rust_validator(STAFF_DYNAMICS_STATE_KEY, native.state("staff_dynamics").validate)
+register_rust_validator(STAFF_DYNAMICS_STATE_KEY, native.state("staff_dynamics").validate)

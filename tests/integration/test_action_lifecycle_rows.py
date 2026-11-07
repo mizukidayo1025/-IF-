@@ -47,8 +47,6 @@ from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.policies.behavior import ActionKind
 
-needs_kernels = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 KEY = "agent_dynamics_v1"
 
 
@@ -171,7 +169,6 @@ def _same_as_python(
 # ---- agent_dynamics_v1: the row ----
 
 
-@needs_kernels
 def test_a_row_writes_the_bytes_of_the_tree_and_a_write_reaches_it(world) -> None:
     mirror = world._core.mirror(KEY)
     assert mirror.row_json() == native.canonical_json(world.model_state[KEY])
@@ -182,7 +179,6 @@ def test_a_row_writes_the_bytes_of_the_tree_and_a_write_reaches_it(world) -> Non
     assert mirror.row_json() == native.canonical_json(world.model_state[KEY])
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     "key,value",
     [
@@ -210,7 +206,6 @@ def test_a_value_the_row_cannot_hold_taints_it_and_the_python_rule_decides(
         )
 
 
-@needs_kernels
 def test_the_kernels_write_no_whole_namespace(world) -> None:
     mirror = world._core.mirror(KEY)
     before = mirror.stats()["whole_writes"]
@@ -224,7 +219,6 @@ def test_the_kernels_write_no_whole_namespace(world) -> None:
 # ---- agent_dynamics_v1: the rules against the Python rules ----
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     "raw",
     [
@@ -244,7 +238,6 @@ def test_the_canonical_config_is_the_python_rules(raw: Any) -> None:
     assert _text(kernel(raw)) == _text(canonical_agent_dynamics_config.__wrapped__(raw))
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     "raw",
     [
@@ -272,7 +265,6 @@ def test_a_config_the_python_rule_refuses_or_coerces_is_left_to_it(raw: Any) -> 
         assert str(error) == python_outcome
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     "awareness",
     [
@@ -300,7 +292,6 @@ def test_a_new_namespace_and_agent_are_the_python_rules(
     assert _text(kernel(world)) == _text(create_agent_dynamics_state.__wrapped__(world))
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     "awareness",
     [
@@ -320,7 +311,6 @@ def test_an_awareness_config_the_model_decides_is_left_to_it(world, awareness: A
         native.rules("agent_dynamics").create_state(world)
 
 
-@needs_kernels
 def test_the_writers_are_the_python_rules_on_random_calls(world) -> None:
     rng = random.Random(7)
     agents = sorted(world.agents)
@@ -359,7 +349,6 @@ def test_the_writers_are_the_python_rules_on_random_calls(world) -> None:
     assert world.model_state[KEY]["policy_version"] == state_policy
 
 
-@needs_kernels
 def test_a_learned_list_that_comes_out_the_same_is_not_written(world) -> None:
     agent_id = _agent_id(world)
     facility_id = sorted(world.facilities)[0]
@@ -369,7 +358,6 @@ def test_a_learned_list_that_comes_out_the_same_is_not_written(world) -> None:
     assert world.model_state[KEY]["agents"][agent_id]["known_facility_ids"] is known
 
 
-@needs_kernels
 def test_a_known_list_out_of_order_is_sorted_as_the_python_rule_does(world) -> None:
     agent_id = _agent_id(world)
     two = sorted(world.facilities)[:2]
@@ -380,7 +368,6 @@ def test_a_known_list_out_of_order_is_sorted_as_the_python_rule_does(world) -> N
     assert _text(plain) == _text(world.model_state[KEY])
 
 
-@needs_kernels
 def test_adding_an_agent_is_the_python_rule(world) -> None:
     agent_id = _agent_id(world)
     world.model_state[KEY]["agents"][agent_id]["last_action"] = "wait"
@@ -484,14 +471,12 @@ def test_each_way_of_breaking_the_namespace_stops_with_the_python_text(
     assert found == _python_error(world, monkeypatch)
 
 
-@needs_kernels
 def test_an_agent_who_leaves_the_world_is_seen_by_the_row_kernel(world) -> None:
     assert rust_validated(world, KEY)
     world.agents.pop(_agent_id(world))
     assert not rust_validated(world, KEY)
 
 
-@needs_kernels
 def test_a_good_namespace_is_accepted_and_python_agrees(world) -> None:
     assert rust_validated(world, KEY)
     validate_agent_dynamics_state(world)
@@ -513,7 +498,6 @@ def _store(world: WorldState) -> Any:
     return active_action_store(world)
 
 
-@needs_kernels
 def test_the_store_holds_rows_and_gives_a_dict_to_a_python_rule(world) -> None:
     store = _store(world)
     assert store.in_rows()
@@ -542,7 +526,6 @@ def test_the_store_holds_rows_and_gives_a_dict_to_a_python_rule(world) -> None:
     assert store.in_rows() and store.snapshot()[agent_id]["continued"] is True
 
 
-@needs_kernels
 def test_a_store_that_does_not_fit_stays_with_the_python_rules(world) -> None:
     store = _store(world)
     agent_id = _agent_id(world)
@@ -567,7 +550,6 @@ def test_a_store_that_does_not_fit_stays_with_the_python_rules(world) -> None:
     assert store.snapshot()[agent_id]["action"] == "rest"
 
 
-@needs_kernels
 def test_a_restored_log_gives_a_store_in_rows(world) -> None:
     store = _store(world)
     agent_id = _agent_id(world)
@@ -592,7 +574,6 @@ def test_a_restored_log_gives_a_store_in_rows(world) -> None:
 # ---- The rules against the Python rules, on every path ----
 
 
-@needs_kernels
 def test_a_sequence_of_actions_gives_the_python_rules_receipts(world) -> None:
     rng = random.Random(11)
     store = _store(world)
@@ -627,7 +608,6 @@ def test_a_sequence_of_actions_gives_the_python_rules_receipts(world) -> None:
         assert document["event"]["event_id"] == f"action-lifecycle-{document['event']['sequence']}"
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     "event_type,action,keys",
     [
@@ -657,7 +637,6 @@ def test_an_applied_event_gives_the_python_rules_receipt(
     _same_as_python(world, record_applied_action_completion, store, event, 3)
 
 
-@needs_kernels
 def test_events_that_end_nothing_change_nothing(world) -> None:
     store = _store(world)
     agent_id = _agent_id(world)
@@ -681,7 +660,6 @@ def test_events_that_end_nothing_change_nothing(world) -> None:
     assert not _same_as_python(world, record_applied_action_completion, store, nobody, 7)
 
 
-@needs_kernels
 def test_an_agent_gone_from_the_world_closes_without_needs(world) -> None:
     store = _store(world)
     agent_id = _agent_id(world)
@@ -699,7 +677,6 @@ def test_an_agent_gone_from_the_world_closes_without_needs(world) -> None:
     assert receipts[0].event.payload["activity"] is None
 
 
-@needs_kernels
 def test_a_population_exit_gives_the_python_rules_receipts(world) -> None:
     store = _store(world)
     agents = sorted(world.agents)
@@ -734,7 +711,6 @@ def test_a_population_exit_gives_the_python_rules_receipts(world) -> None:
     assert not _same_as_python(world, record_applied_population_exit, store, other, 3)
 
 
-@needs_kernels
 @pytest.mark.parametrize(
     "body",
     [{"sleep_debt_minutes": 3, "hygiene_need": 0.25}, {}, {"sleep_debt_minutes": 1.5}],
@@ -768,19 +744,16 @@ def _refused(world: WorldState, store: Any, proposal: Any, target_id: Any = None
     assert (len(world.event_log), dict(world.id_counters), _text(store.snapshot())) == before
 
 
-@needs_kernels
 @pytest.mark.parametrize("reason", ["", "x" * 121, 5, None])
 def test_a_reason_the_receipts_model_decides_is_left_to_it(world, reason: Any) -> None:
     _refused(world, _store(world), _proposal(_agent_id(world), ActionKind.WAIT, 0, reason))
 
 
-@needs_kernels
 @pytest.mark.parametrize("target", ["not stable", 5, "é"])
 def test_a_target_the_receipts_model_decides_is_left_to_it(world, target: Any) -> None:
     _refused(world, _store(world), _proposal(_agent_id(world), ActionKind.WAIT, 0), target)
 
 
-@needs_kernels
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), "x", None, True, 2**60])
 def test_a_body_value_the_rule_decides_is_left_to_it(world, value: Any) -> None:
     agent_id = _agent_id(world)
@@ -788,7 +761,6 @@ def test_a_body_value_the_rule_decides_is_left_to_it(world, value: Any) -> None:
     _refused(world, _store(world), _proposal(agent_id, ActionKind.WAIT, 0))
 
 
-@needs_kernels
 def test_a_transition_before_its_start_is_left_to_the_receipts_model(world) -> None:
     store = _store(world)
     agent_id = _agent_id(world)
@@ -810,7 +782,6 @@ def test_a_transition_before_its_start_is_left_to_the_receipts_model(world) -> N
         )
 
 
-@needs_kernels
 def test_a_sequence_the_log_holds_is_left_to_the_python_rule_and_its_error(world) -> None:
     store = _store(world)
     agent_id = _agent_id(world)
@@ -829,7 +800,6 @@ def test_a_sequence_the_log_holds_is_left_to_the_python_rule_and_its_error(world
         )
 
 
-@needs_kernels
 def test_a_tainted_namespace_or_entity_leaves_a_proposal_to_python(world) -> None:
     agent_id = _agent_id(world)
     world.agents[agent_id].needs.fatigue = 1
@@ -844,7 +814,6 @@ def test_a_tainted_namespace_or_entity_leaves_a_proposal_to_python(world) -> Non
         )
 
 
-@needs_kernels
 def test_a_committed_flag_that_is_not_a_bool_is_left_to_python(world) -> None:
     with pytest.raises(native.Unsupported):
         native.rules("action_lifecycle").record_action_proposal(
@@ -856,7 +825,6 @@ def test_a_committed_flag_that_is_not_a_bool_is_left_to_python(world) -> None:
         )
 
 
-@needs_kernels
 def _open_fetch(world, store) -> str:
     agent_id = _agent_id(world)
     record_action_proposal(
@@ -869,7 +837,6 @@ def _open_fetch(world, store) -> str:
     return agent_id
 
 
-@needs_kernels
 def test_another_object_of_the_same_row_is_the_event_the_log_holds(world) -> None:
     store = _store(world)
     agent_id = _open_fetch(world, store)
@@ -881,7 +848,6 @@ def test_another_object_of_the_same_row_is_the_event_the_log_holds(world) -> Non
     assert agent_id not in store
 
 
-@needs_kernels
 def test_a_record_a_row_cannot_tell_from_the_event_is_left_to_the_python_rule(world) -> None:
     store = _store(world)
     agent_id = _open_fetch(world, store)
@@ -896,7 +862,6 @@ def test_a_record_a_row_cannot_tell_from_the_event_is_left_to_the_python_rule(wo
     assert agent_id not in store
 
 
-@needs_kernels
 def test_a_counter_a_rule_could_overflow_is_left_to_the_python_rule(world) -> None:
     store = _store(world)
     agent_id = _agent_id(world)
@@ -920,7 +885,6 @@ def test_a_counter_a_rule_could_overflow_is_left_to_the_python_rule(world) -> No
     assert world.event_log.find(f"action-lifecycle-{2**62 + 2}") is not None
 
 
-@needs_kernels
 def test_a_record_taken_past_the_tree_leaves_the_writers_to_python_with_the_row_as_it_was(
     world,
 ) -> None:
@@ -969,7 +933,6 @@ def test_a_run_saves_the_same_receipts_with_and_without_the_kernels(
     ]
 
 
-@needs_kernels
 def test_a_tick_makes_no_lifecycle_object_and_writes_no_whole_namespace(generated_scenario) -> None:
     from sheltersim.core.engine import TickEngine
     from sheltersim.experiments.metrics import MetricsRecorder
@@ -1003,5 +966,5 @@ def test_two_identical_runs_with_a_restore_between_keep_the_open_actions(
     restored = WorldState.from_dict(world.to_dict())
     store = active_action_store(restored)
     index = active_action_index(world)
-    keys = store.snapshot() if native.available() else store
+    keys = store.snapshot()
     assert set(keys) == set(index)

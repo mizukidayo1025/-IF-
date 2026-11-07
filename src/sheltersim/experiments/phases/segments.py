@@ -46,8 +46,6 @@ def install_segments(
     controller: type, segments: Mapping[str, tuple[str, str] | Callable[..., Any]] = SEGMENTS
 ) -> None:
     """Replace each listed step of this class. Its bases keep the Python step."""
-    if not native.available():
-        return
     for step, kernel in segments.items():
         if not callable(getattr(controller, step, None)):
             raise ValueError(f"the controller has no step {step}")

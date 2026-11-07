@@ -41,8 +41,6 @@ from sheltersim.events.effects import (
 from sheltersim.events.models import EventApplicationError, EventSuppressed, ScheduledEvent
 from sheltersim.experiments.scenario import ScenarioSpec
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 KEY = "effect_program_v1"
 START, END = 5, 30
 

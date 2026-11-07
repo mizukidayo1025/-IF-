@@ -892,7 +892,6 @@ def test_normal_priority_support_does_not_preempt_routed_background_task() -> No
     )
 
 
-@pytest.mark.skipif(not native.available(), reason="the Rust kernels")
 def test_a_closed_route_stops_a_trip_as_the_rule_says() -> None:
     world = _relief_world("sleeping")
     router = SpaceRouter(ZoneGraph.from_states(world.zones, world.zone_edges))

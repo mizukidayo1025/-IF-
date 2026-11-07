@@ -34,8 +34,6 @@ from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.inspection.traces import RunArtifactWriter
 
-pytestmark = pytest.mark.skipif(not native.available(), reason="needs the Rust kernels")
-
 
 class Sink:
     """What the controller writes to, which these tests don't read."""
