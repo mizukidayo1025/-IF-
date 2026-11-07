@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 
 from sheltersim import native
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.world import WorldState
 from sheltersim.domain import (
     facility_queues,
@@ -165,90 +166,155 @@ def spaces(world: WorldState) -> WorldState:
     return world
 
 
-def test_a_space_registers_and_expires_as_the_python_rule_does(spaces: WorldState) -> None:
-    zone = next(iter(spaces.zones))
-    register = temporary_spaces.register_temporary_space.__wrapped__
-    expire = temporary_spaces.expire_temporary_space.__wrapped__
-    _same(spaces, _rules().register_temporary_space, register, _space("a", zone), event_id="e1")
-    register(spaces, _space("a", zone), event_id="e1")
-    assert (
-        _same(
-            spaces, _rules().expire_temporary_space, expire, "a", event_id="e2", causation_id="e1"
-        )
-        is True
-    )
-    assert (
-        _same(
-            spaces, _rules().expire_temporary_space, expire, "b", event_id="e2", causation_id=None
-        )
-        is False
-    )
-    expire(spaces, "a", event_id="e2", causation_id="e1")
-    assert (
-        _same(
-            spaces, _rules().expire_temporary_space, expire, "a", event_id="e3", causation_id=None
-        )
-        is False
-    )
+def _history_row(event_id: str, space_id: str, zone: str, transition: str, **fields: Any) -> dict:
+    return {
+        "event_id": event_id,
+        "space_id": space_id,
+        "zone_id": zone,
+        "minute": fields.get("minute", 0),
+        "transition": transition,
+        "causation_id": fields.get("causation_id"),
+    }
 
 
-def test_the_limits_of_spaces_are_the_python_rule_s(spaces: WorldState) -> None:
+def test_a_space_registers_and_expires(spaces: WorldState) -> None:
     zone = next(iter(spaces.zones))
     state = spaces.model_state[temporary_spaces.TEMPORARY_SPACES_STATE_KEY]
-    register = temporary_spaces.register_temporary_space.__wrapped__
+    spaces.minute_index = 4
+    temporary_spaces.register_temporary_space(spaces, _space("a", zone), event_id="e1")
+    assert state["spaces"]["a"] == _space("a", zone)
+    assert state["history"] == [_history_row("e1", "a", zone, "activated", minute=4)]
+    before = _bytes(spaces)
+    assert not temporary_spaces.expire_temporary_space(
+        spaces, "b", event_id="e2", causation_id=None
+    )
+    assert _bytes(spaces) == before
+    spaces.minute_index = 9
+    assert temporary_spaces.expire_temporary_space(spaces, "a", event_id="e2", causation_id="e1")
+    assert state["spaces"]["a"]["active"] is False
+    assert state["spaces"]["a"]["end_event_id"] == "e2"
+    assert state["history"][1:] == [
+        _history_row("e2", "a", zone, "expired", minute=9, causation_id="e1")
+    ]
+    before = _bytes(spaces)
+    assert not temporary_spaces.expire_temporary_space(
+        spaces, "a", event_id="e3", causation_id=None
+    )
+    assert _bytes(spaces) == before
+    for name in ("temporary_spaces_v1",):
+        mirror = spaces.model_state._mirrors.get(name)
+        assert mirror is None or (mirror.tainted is None and mirror.verify())
+
+
+def test_the_limits_of_spaces_say_the_python_rule_s_text(spaces: WorldState) -> None:
+    zone = next(iter(spaces.zones))
+    state = spaces.model_state[temporary_spaces.TEMPORARY_SPACES_STATE_KEY]
     for index in range(temporary_spaces.MAX_TEMPORARY_SPACES - 1):
         state["spaces"][f"s{index}"] = _space(f"s{index}", zone)
-    _same(spaces, _rules().register_temporary_space, register, _space("x", zone), event_id="e")
+    full = _copy(spaces)
+    temporary_spaces.register_temporary_space(full, _space("x", zone), event_id="e")
+    assert len(full.model_state[temporary_spaces.TEMPORARY_SPACES_STATE_KEY]["spaces"]) == (
+        temporary_spaces.MAX_TEMPORARY_SPACES
+    )
     state["spaces"]["full"] = _space("full", zone)
-    _refused(spaces, _rules().register_temporary_space, register, _space("x", zone), event_id="e")
-    _refused(spaces, _rules().register_temporary_space, register, _space("s0", zone), event_id="e")
+    before = _bytes(spaces)
+    # The ID is checked before the limit, as the Python rule did.
+    for space_id, text in (
+        ("x", "temporary space runtime limit reached"),
+        ("s0", "temporary space ID already exists"),
+    ):
+        with pytest.raises(ValueError) as said:
+            temporary_spaces.register_temporary_space(spaces, _space(space_id, zone), event_id="e")
+        assert type(said.value) is ValueError
+        assert str(said.value) == text
+        assert _bytes(spaces) == before
+
+
+def test_spaces_not_installed_say_the_python_rule_s_text(world: WorldState) -> None:
+    world.model_state.pop(temporary_spaces.TEMPORARY_SPACES_STATE_KEY, None)
+    zone = next(iter(world.zones))
+    for call in (
+        lambda: temporary_spaces.register_temporary_space(world, _space("a", zone), event_id="e"),
+        lambda: temporary_spaces.expire_temporary_space(
+            world, "a", event_id="e", causation_id=None
+        ),
+    ):
+        with pytest.raises(ValueError) as said:
+            call()
+        assert type(said.value) is ValueError
+        assert str(said.value) == "temporary_spaces_v1 is not installed"
 
 
 def test_a_full_history_drops_its_oldest_record(spaces: WorldState) -> None:
     zone = next(iter(spaces.zones))
     state = spaces.model_state[temporary_spaces.TEMPORARY_SPACES_STATE_KEY]
-    state["history"].extend(
-        {
-            "event_id": f"old{index}",
-            "space_id": "gone",
-            "zone_id": zone,
-            "minute": 0,
-            "transition": "activated",
-            "causation_id": None,
-        }
+    old = [
+        _history_row(f"old{index}", "gone", zone, "activated")
         for index in range(temporary_spaces.MAX_TEMPORARY_SPACE_HISTORY)
-    )
-    _same(
-        spaces,
-        _rules().register_temporary_space,
-        temporary_spaces.register_temporary_space.__wrapped__,
-        _space("a", zone),
-        event_id="e",
-    )
+    ]
+    state["history"].extend(deepcopy(old))
+    temporary_spaces.register_temporary_space(spaces, _space("a", zone), event_id="e")
+    assert state["history"] == [*old[1:], _history_row("e", "a", zone, "activated")]
+
+
+def test_an_input_outside_the_contract_is_a_kernel_refusal(spaces: WorldState) -> None:
+    with pytest.raises(KernelRefusal, match="overlay.capacity_metrics refused"):
+        temporary_spaces.capacity_metrics(spaces, "no-such-zone")
+    with pytest.raises(KernelRefusal, match="has no Python rule"):
+        temporary_spaces.capacity_metrics.__wrapped__(spaces, "no-such-zone")
 
 
 @pytest.mark.parametrize("occupancy", [None, 0, 3, 10_000])
-def test_capacity_is_the_python_rule_s(spaces: WorldState, occupancy: int | None) -> None:
-    zone = next(iter(spaces.zones))
+def test_capacity_adds_active_spaces_and_keeps_expired_ones_while_people_need_them(
+    spaces: WorldState, occupancy: int | None
+) -> None:
+    zone = next(zone for zone in spaces.zones if zone != "corridor")
     state = spaces.model_state[temporary_spaces.TEMPORARY_SPACES_STATE_KEY]
     state["spaces"]["active"] = _space("active", zone)
     state["spaces"]["old"] = _space("old", zone, active=False, people=7)
     state["spaces"]["other"] = _space("other", "corridor", people=9)
     spaces.zones[zone].capacity = 2
-    for name, kernel in (
-        ("capacity_metrics", _rules().capacity_metrics),
-        ("effective_zone_capacity", _rules().effective_zone_capacity),
-        ("effective_total_zone_capacity", _rules().effective_total_zone_capacity),
-    ):
-        rule = getattr(temporary_spaces, name).__wrapped__
-        assert kernel(spaces, zone, occupancy=occupancy) == rule(spaces, zone, occupancy=occupancy)
+    current = (
+        sum(agent.zone_id == zone for agent in spaces.agents.values())
+        if occupancy is None
+        else occupancy
+    )
+    retained = min(7, max(0, current - 2 - 5))
+    expected = {
+        "nominal_capacity": 2,
+        "effective_capacity": 7 + retained,
+        "temporary_people_capacity": 5,
+        "retained_expired_capacity": retained,
+        "temporary_sleeping_capacity": 2,
+        "physical_room_capacity": 0,
+        "active_room_admissions": 0,
+        "retained_expired_room_admissions": 0,
+        "effective_total_capacity": 7 + retained,
+    }
+    assert temporary_spaces.capacity_metrics(spaces, zone, occupancy=occupancy) == expected
+    assert temporary_spaces.effective_zone_capacity(spaces, zone, occupancy=occupancy) == (
+        7 + retained
+    )
+    assert temporary_spaces.effective_total_zone_capacity(spaces, zone, occupancy=occupancy) == (
+        7 + retained
+    )
     spaces.zones[zone].capacity = None
-    assert _rules().capacity_metrics(
-        spaces, zone, occupancy=occupancy
-    ) == temporary_spaces.capacity_metrics.__wrapped__(spaces, zone, occupancy=occupancy)
+    assert temporary_spaces.capacity_metrics(spaces, zone, occupancy=occupancy) == {
+        "nominal_capacity": None,
+        "effective_capacity": None,
+        "temporary_people_capacity": 0,
+        "retained_expired_capacity": 0,
+        "temporary_sleeping_capacity": 0,
+        "physical_room_capacity": 0,
+        "active_room_admissions": 0,
+        "retained_expired_room_admissions": 0,
+        "effective_total_capacity": None,
+    }
 
 
-def test_capacity_counts_rooms_by_the_python_rule(world: WorldState) -> None:
+def test_capacity_counts_signed_rooms_and_the_people_an_expired_room_admitted(
+    world: WorldState,
+) -> None:
     room = _room_world(world, people=3)
     state = world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]
     state["room_admissions"]["A001"] = {
@@ -259,38 +325,52 @@ def test_capacity_counts_rooms_by_the_python_rule(world: WorldState) -> None:
         "source_ids": [],
     }
     world.zones[ROOM_ZONE].capacity = 2
-    rule = temporary_spaces.capacity_metrics.__wrapped__
-    assert _rules().capacity_metrics(world, ROOM_ZONE, occupancy=9) == rule(
-        world, ROOM_ZONE, occupancy=9
-    )
+    world.model_state.pop(temporary_spaces.TEMPORARY_SPACES_STATE_KEY, None)
+
+    def metrics(rooms: int, admitted: int, retained: int) -> dict[str, int]:
+        return {
+            "nominal_capacity": 2,
+            "effective_capacity": 2,
+            "temporary_people_capacity": 0,
+            "retained_expired_capacity": 0,
+            "temporary_sleeping_capacity": 0,
+            "physical_room_capacity": rooms,
+            "active_room_admissions": admitted,
+            "retained_expired_room_admissions": retained,
+            "effective_total_capacity": 2 + rooms + retained,
+        }
+
+    assert world.model_configs["geometry_overlay"]["schema_version"] in {3, 4}
+    assert temporary_spaces.capacity_metrics(world, ROOM_ZONE, occupancy=9) == metrics(3, 1, 0)
     state["temporary_rooms"][room]["active"] = False
     state["temporary_rooms"][room]["end_event_id"] = "end"
-    assert _rules().capacity_metrics(world, ROOM_ZONE, occupancy=9) == rule(
-        world, ROOM_ZONE, occupancy=9
-    )
+    assert temporary_spaces.capacity_metrics(world, ROOM_ZONE, occupancy=9) == metrics(0, 0, 1)
+    # Before schema 3 a room adds no capacity, though its admissions are counted.
     world.model_configs["geometry_overlay"]["schema_version"] = 2
     state["temporary_rooms"][room]["active"] = True
     state["temporary_rooms"][room]["end_event_id"] = None
-    assert _rules().capacity_metrics(world, ROOM_ZONE, occupancy=9) == rule(
-        world, ROOM_ZONE, occupancy=9
-    )
+    assert temporary_spaces.capacity_metrics(world, ROOM_ZONE, occupancy=9) == metrics(0, 1, 0)
 
 
-def test_incoming_travelers_are_the_python_rule_s(world: WorldState) -> None:
+def test_incoming_travelers_are_the_people_walking_to_the_zone_or_its_facilities(
+    world: WorldState,
+) -> None:
     from sheltersim.domain.models import Activity
 
+    assert all(agent.activity is not Activity.MOVING for agent in world.agents.values())
     first, second = list(world.agents)[:2]
     world.agents[first].activity = Activity.MOVING
     world.agents[first].target_id = ROOM_ZONE
     toilet = next(key for key, item in world.facilities.items() if "toilet" in item.kind)
     world.agents[second].activity = Activity.MOVING
     world.agents[second].target_id = toilet
-    rule = temporary_spaces.incoming_travelers.__wrapped__
+    targets = {first: ROOM_ZONE, second: world.facilities[toilet].zone_id}
     for zone in (ROOM_ZONE, world.facilities[toilet].zone_id, "corridor"):
         for excluding in (None, first, second):
-            assert _rules().incoming_travelers(world, zone, excluding=excluding) == rule(
-                world, zone, excluding=excluding
+            expected = sum(
+                target == zone and agent_id != excluding for agent_id, target in targets.items()
             )
+            assert temporary_spaces.incoming_travelers(world, zone, excluding=excluding) == expected
 
 
 @pytest.mark.parametrize(

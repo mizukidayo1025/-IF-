@@ -13,6 +13,8 @@ A handler of events/effects.py calls these rules in Rust, past this file: to com
 shadow_effects.py with this one, whose Python rule comes here (docs/rust-port/lanes/m6-overlay.md).
 
 SHELTERSIM_DISPATCH_COUNT_ONLY=1 only writes `overlay.stats()`, for a plain run.
+
+The rules of domain/temporary_spaces.py have no Python rule left to compare (`kernel_only`).
 """
 
 from __future__ import annotations
@@ -38,10 +40,6 @@ OVERLAY_KEY = "geometry_overlay_v1"
 # (kernel, module of the rule, rule)
 READERS = {
     "overlay": (
-        ("capacity_metrics", SPACES_MODULE, "capacity_metrics"),
-        ("effective_zone_capacity", SPACES_MODULE, "effective_zone_capacity"),
-        ("effective_total_zone_capacity", SPACES_MODULE, "effective_total_zone_capacity"),
-        ("incoming_travelers", SPACES_MODULE, "incoming_travelers"),
         ("available_temporary_room", OVERLAY_MODULE, "available_temporary_room"),
         ("room_admission_point", OVERLAY_MODULE, "room_admission_point"),
         (
@@ -67,8 +65,6 @@ READERS = {
 }
 WRITERS = {
     "overlay": (
-        ("register_temporary_space", SPACES_MODULE, "register_temporary_space"),
-        ("expire_temporary_space", SPACES_MODULE, "expire_temporary_space"),
         ("release_sleep_bed", OVERLAY_MODULE, "release_sleep_bed"),
         ("release_temporary_room_admission", OVERLAY_MODULE, "release_temporary_room_admission"),
         ("admit_to_temporary_room", OVERLAY_MODULE, "admit_to_temporary_room"),
