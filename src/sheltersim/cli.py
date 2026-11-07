@@ -27,6 +27,7 @@ from sheltersim.llm.outcomes import fallback_warning, summarize_call_outcomes
 from sheltersim.llm.prepare import generate_scenario_draft
 from sheltersim.llm.provider import LLMRouter
 from sheltersim.llm.report import review_saved_run
+from sheltersim.storage.projects import DEFAULT_MAX_BYTES
 
 
 def _new_cli_account_id(scope: str) -> str:
@@ -293,6 +294,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=2,
         help="Runs computed at once, each in its own process (default: 2)",
     )
+    web.add_argument(
+        "--project-storage-gb",
+        type=_positive_int,
+        default=DEFAULT_MAX_BYTES // 1_000_000_000,
+        help="saved data the projects directory may hold, in GB of 10^9 bytes (default: 10)",
+    )
     return parser
 
 
@@ -370,6 +377,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             port=arguments.port,
             demo_scenario=arguments.demo_scenario,
             max_parallel_runs=arguments.max_parallel_runs,
+            project_storage_bytes=arguments.project_storage_gb * 1_000_000_000,
         )
         return 0
     if arguments.command == "profiles-preview":

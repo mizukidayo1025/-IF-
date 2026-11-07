@@ -15,7 +15,7 @@ WorkingDirectory=/var/lib/sheltersim/slot%i
 ExecStart=/opt/sheltersim/venv/bin/sheltersim web \
   --runs-dir /var/lib/sheltersim/slot%i/demo_replay/runs \
   --demo-scenario /opt/sheltersim/app/fixtures/scenarios/baseline_100_7d.json \
-  --host 127.0.0.1 --port ${PORT} --max-parallel-runs 1
+  --host 127.0.0.1 --port ${PORT} --max-parallel-runs 1 --project-storage-gb ${STORAGE_GB}
 Restart=on-failure
 RestartSec=3
 MemoryMax=8G

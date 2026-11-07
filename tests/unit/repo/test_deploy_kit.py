@@ -21,6 +21,7 @@ def _exec_start() -> list[str]:
     joined = unit.replace("\\\n", " ")
     line = next(row for row in joined.splitlines() if row.startswith("ExecStart="))
     command = line.removeprefix("ExecStart=").replace("%i", "1").replace("${PORT}", "8801")
+    command = command.replace("${STORAGE_GB}", "14")
     return shlex.split(command)
 
 
@@ -31,6 +32,7 @@ def test_the_slot_unit_starts_sheltersim_web_with_options_the_cli_accepts() -> N
     assert args.command == "web"
     assert args.host == "127.0.0.1"
     assert args.max_parallel_runs == 1
+    assert args.project_storage_gb == 14
 
 
 def test_the_files_the_kit_reads_from_the_app_exist_in_the_repository() -> None:

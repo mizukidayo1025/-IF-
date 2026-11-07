@@ -213,10 +213,15 @@ def _reject_sensitive_checkpoint_content(chunks: list[tuple[Any, bytes | None]])
                 raise StorageError("checkpoint contains sensitive data")
 
 
+# The saved data one projects directory may hold, unless `sheltersim web --project-storage-gb`
+# sets another limit.
+DEFAULT_MAX_BYTES = 10_000_000_000
+
+
 class ProjectStore:
     """Local cloud-disk store; callers provide opaque IDs, never filesystem paths."""
 
-    def __init__(self, root: str | Path, *, max_bytes: int = 10_000_000_000) -> None:
+    def __init__(self, root: str | Path, *, max_bytes: int = DEFAULT_MAX_BYTES) -> None:
         self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         if type(max_bytes) is not int or max_bytes <= 0:
