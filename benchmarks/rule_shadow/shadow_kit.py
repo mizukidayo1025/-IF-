@@ -2,7 +2,7 @@
 
 A lane adds benchmarks/rule_shadow/shadow_<name>.py with `prepare(output)`. sitecustomize.py runs
 each one before it imports the simulator, so a shadow can replace a kernel in its module before
-`core.kernels.kernel_first` looks it up. shadow_staff_dynamics.py is the example.
+`core.kernels.kernel_first` looks it up.
 """
 
 from __future__ import annotations

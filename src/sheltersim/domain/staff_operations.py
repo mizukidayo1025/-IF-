@@ -1,4 +1,9 @@
-"""Autonomous, routed staff assignments with bounded causal task histories."""
+"""Autonomous, routed staff assignments with bounded causal task histories.
+
+The rules of the tick are native/src/rules/staff.rs's and staff_operation_events.rs's kernels
+(`kernel_only`): a value they refuse is KernelRefusal, before anything changes. The checks of a
+config, of a saved namespace and of an operator's order stay here.
+"""
 
 from __future__ import annotations
 
@@ -7,22 +12,14 @@ from typing import Any
 
 from sheltersim import native
 from sheltersim.contracts.operations import SHARED_OPERATIONS_KEY
-from sheltersim.core.kernels import kernel_first
+from sheltersim.core.kernels import kernel_only
 from sheltersim.core.state_mirror import register_rust_validator
 from sheltersim.core.world import WorldState
 from sheltersim.domain.models import ActiveTask
 from sheltersim.domain.movement import shared_passage_edge_loads
 from sheltersim.domain.operational import staff_is_available
-from sheltersim.domain.staff_dynamics import (
-    staff_dynamics_is_available,
-    staff_dynamics_on_shift,
-)
-from sheltersim.events.models import (
-    EventKind,
-    EventLogRecord,
-    EventStatus,
-    ScheduledEvent,
-)
+from sheltersim.domain.staff_dynamics import staff_dynamics_is_available
+from sheltersim.events.models import EventKind, ScheduledEvent
 from sheltersim.policies.space import SpaceRouter
 
 STAFF_OPERATIONS_STATE_KEY = "staff_operations_v1"
@@ -402,275 +399,34 @@ def add_staff_operations_agent(world: WorldState, staff_id: str) -> None:
         state["staff"][staff_id] = _idle_record()
 
 
-@kernel_first("staff", "update_operations")
+@kernel_only("staff", "update_operations")
 def update_staff_operations(world: WorldState, minute: int) -> None:
-    """Apply occupancy-linked sanitation demand using bounded per-person rates."""
-    state = world.model_state.get(STAFF_OPERATIONS_STATE_KEY)
-    if state is None:
-        return
-    for zone_id in sorted(world.zones):
-        load = sum(agent.zone_id == zone_id for agent in world.agents.values())
-        zone = state["zones"][zone_id]
-        elapsed = max(0, minute - zone["updated_minute"])
-        rate = (
-            state["config"]["effects_by_zone"]
-            .get(zone_id, {})
-            .get(
-                "sanitation_use_per_person_minute",
-                state["config"]["sanitation_use_per_person_minute"],
-            )
-        )
-        zone["sanitation"] = max(0.0, zone["sanitation"] - load * rate * elapsed)
-        zone["updated_minute"] = minute
+    """Apply occupancy-linked sanitation demand using bounded per-person rates.
+
+    Nothing without the namespace. For each zone in ID order: its sanitation falls by
+    `load * rate * elapsed`, down to 0.0, where load is the agents in it, rate its
+    `effects_by_zone` rate or the config's `sanitation_use_per_person_minute` (a float, or an int
+    taken as the float of its value), and elapsed the minutes since its `updated_minute` (none
+    before it); `updated_minute` becomes this minute.
+    """
 
 
-@kernel_first("staff", "assign_operations")
+@kernel_only("staff", "assign_operations")
 def assign_staff_operations(world: WorldState, minute: int, router: SpaceRouter) -> tuple[str, ...]:
-    """Choose the highest-need available task by role, urgency and reachable travel time."""
-    state = world.model_state.get(STAFF_OPERATIONS_STATE_KEY)
-    if state is None:
-        return ()
-    from sheltersim.policies.registry import create_staff_operations_formula
+    """Choose the highest-need available task by role, urgency and reachable travel time.
 
-    formula = create_staff_operations_formula(world.model_configs)
-    formula_selected = "staff_operations" in world.model_configs.get("policy_registry", {})
-    formula_source_id = formula.source_id if formula_selected else STAFF_OPERATIONS_SOURCE_ID
-    formula_policy_id = formula.model_id if formula_selected else STAFF_OPERATIONS_POLICY_VERSION
-    event_source_id = formula_source_id if formula_selected else STAFF_OPERATIONS_POLICY_VERSION
-    assigned: list[str] = []
-    # Rotate eligible staff by recent and cumulative workload so stable IDs do
-    # not always win same-minute ties. Only tasks the staff member can perform
-    # enter their candidate set below.
-    recent_cutoff = max(0, minute - 240)
-    workload: dict[str, tuple[int, int]] = {
-        staff_id: (
-            sum(
-                item["staff_id"] == staff_id and item["complete_minute"] >= recent_cutoff
-                for item in state["history"]
-            ),
-            sum(item["staff_id"] == staff_id for item in state["history"]),
-        )
-        for staff_id in world.staff
-    }
-    staff_dynamics = world.model_state.get("staff_dynamics_v1", {}).get("staff", {})
-    passage_loads = shared_passage_edge_loads(world, minute)
-    body = world.model_state.get("body_state_v1", {}).get("agents", {})
-    reserved_operations = {
-        (record["task_kind"], record["target_zone_id"], record["target_id"])
-        for record in state["staff"].values()
-        if record["phase"] != "idle"
-    }
-    for staff_id, staff in sorted(
-        world.staff.items(),
-        key=lambda item: (
-            *workload[item[0]],
-            round(1000 * staff_dynamics.get(item[0], {}).get("fatigue", 0.0)),
-            item[0],
-        ),
-    ):
-        if (
-            staff.active_task_id is not None
-            or state["staff"][staff_id]["phase"] != "idle"
-            or not staff_is_available(world, staff_id)
-            or not staff_dynamics_is_available(world, staff_id, minute)
-        ):
-            continue
-        candidates: list[tuple[float, str, str, str | None, str]] = []
-        skills = set(staff.skills)
-        zone_thresholds = state["config"].get("thresholds_by_zone", {})
-        if skills & {"cleaning", "sanitation"}:
-            for zone_id, record in sorted(state["zones"].items()):
-                cleaning_threshold = zone_thresholds.get(zone_id, {}).get(
-                    "cleaning_sanitation_below", 0.85
-                )
-                if (
-                    record["sanitation"] < cleaning_threshold
-                    and ("cleaning", zone_id, None) not in reserved_operations
-                ):
-                    candidates.append(
-                        (
-                            1.0 - record["sanitation"],
-                            "cleaning",
-                            zone_id,
-                            None,
-                            f"sanitation_index_below_{cleaning_threshold:g}",
-                        )
-                    )
-        if skills & {"maintenance", "repair"}:
-            for facility in sorted(world.facilities.values(), key=lambda item: item.id):
-                deficit = facility.capacity - facility.working_units
-                if (
-                    deficit > 0
-                    and not _maintenance_blocked(world, facility.id)
-                    and ("maintenance", facility.zone_id, facility.id) not in reserved_operations
-                ):
-                    candidates.append(
-                        (
-                            float(deficit),
-                            "maintenance",
-                            facility.zone_id,
-                            facility.id,
-                            "facility_working_units_below_capacity",
-                        )
-                    )
-        if skills & {"support", "information"} and body:
-            by_zone: dict[str, list[float]] = {}
-            for agent_id, agent in world.agents.items():
-                record = body.get(agent_id)
-                if record is not None:
-                    by_zone.setdefault(agent.zone_id, []).append(record["uncertainty"])
-            for zone_id, values in sorted(by_zone.items()):
-                mean = math.fsum(values) / len(values)
-                outreach_threshold = zone_thresholds.get(zone_id, {}).get(
-                    "outreach_uncertainty_at_least", 0.45
-                )
-                if (
-                    mean >= outreach_threshold
-                    and ("information_outreach", zone_id, None) not in reserved_operations
-                ):
-                    candidates.append(
-                        (
-                            mean,
-                            "information_outreach",
-                            zone_id,
-                            None,
-                            f"mean_information_uncertainty_at_least_{outreach_threshold:g}",
-                        )
-                    )
-        if skills & {"support", "patrol"}:
-            for zone_id in sorted(world.zones):
-                occupants = [agent for agent in world.agents.values() if agent.zone_id == zone_id]
-                if occupants:
-                    mean_stress = math.fsum(agent.stress for agent in occupants) / len(occupants)
-                    patrol_threshold = zone_thresholds.get(zone_id, {}).get(
-                        "patrol_stress_at_least", 0.6
-                    )
-                    if (
-                        mean_stress >= patrol_threshold
-                        and ("patrol", zone_id, None) not in reserved_operations
-                    ):
-                        candidates.append(
-                            (
-                                mean_stress * 0.5,
-                                "patrol",
-                                zone_id,
-                                None,
-                                f"mean_zone_stress_at_least_{patrol_threshold:g}",
-                            )
-                        )
-        ranked: list[
-            tuple[
-                tuple[float, float, str, str, str],
-                tuple[float, str, str, str | None, str, Any],
-            ]
-        ] = []
-        for urgency, kind, zone_id, target_id, reason in candidates:
-            route = router.route(staff.zone_id, zone_id, staff_id, edge_loads=passage_loads)
-            if route is not None:
-                ranked.append(
-                    (
-                        formula.rank_key(urgency, route.travel_minutes, kind, zone_id, target_id),
-                        (urgency, kind, zone_id, target_id, reason, route),
-                    )
-                )
-        if not ranked:
-            continue
-        _, (_, task_kind, target_zone, target_id, reason, route) = max(
-            ranked, key=lambda item: item[0]
-        )
-        travel_minutes = route.travel_minutes
-        work_minutes = state["config"]["task_duration_minutes"][task_kind]
-        due = minute + travel_minutes + work_minutes
-        if due >= world.duration_minutes:
-            continue
-        sequence = world.allocate_event_sequence()
-        task_id = f"staff-operation-{sequence}"
-        arrival_minute = minute + travel_minutes
-        record = {
-            "phase": "travel" if travel_minutes else "working",
-            "task_id": task_id,
-            "task_kind": task_kind,
-            "target_id": target_id,
-            "target_zone_id": target_zone,
-            "reason": reason,
-            "started_minute": minute,
-            "travel_due_minute": arrival_minute if travel_minutes else None,
-            "arrival_minute": arrival_minute if not travel_minutes else None,
-            "due_minute": due,
-            "route_zone_ids": list(route.zone_ids) if travel_minutes else [],
-            "route_edge_ids": list(route.edge_ids) if travel_minutes else [],
-            "travel_minutes": travel_minutes,
-            "causation_event_ids": [],
-        }
-        state["staff"][staff_id] = record
-        for edge_id in route.edge_ids:
-            passage_loads[edge_id] = passage_loads.get(edge_id, 0) + 1
-        world.active_tasks[task_id] = ActiveTask(
-            id=task_id,
-            kind="staff_operation",
-            agent_id=None,
-            resource_id=None,
-            start_minute=minute,
-            due_minute=due,
-            staff_id=staff_id,
-        )
-        staff.active_task_id = task_id
-        staff.work_queue[:] = [task_id]
-        staff.busy_until = due
-        if travel_minutes:
-            world.schedule_event(
-                ScheduledEvent(
-                    event_id=f"staff-operation-arrive-{sequence}",
-                    kind=EventKind.COMPLETION,
-                    due_minute=arrival_minute,
-                    priority=5,
-                    sequence=sequence,
-                    event_type="staff_operation_arrive",
-                    payload={
-                        "staff_id": staff_id,
-                        "task_id": task_id,
-                        "target_zone_id": target_zone,
-                    },
-                    source_id=event_source_id,
-                    provenance={
-                        "source_type": "assumption",
-                        "source_id": formula_source_id,
-                        "policy_version": formula_policy_id,
-                    },
-                )
-            )
-        completion_sequence = world.allocate_event_sequence()
-        world.schedule_event(
-            ScheduledEvent(
-                event_id=f"staff-operation-complete-{completion_sequence}",
-                kind=EventKind.COMPLETION,
-                due_minute=due,
-                priority=5,
-                sequence=completion_sequence,
-                event_type="staff_operation_complete",
-                payload={
-                    "staff_id": staff_id,
-                    "task_id": task_id,
-                    "task_kind": task_kind,
-                    "target_id": target_id,
-                    "target_zone_id": target_zone,
-                },
-                source_id=event_source_id,
-                provenance={
-                    "source_type": "assumption",
-                    "source_id": formula_source_id,
-                    "policy_version": formula_policy_id,
-                    "reason": reason,
-                },
-            )
-        )
-        reserved_operations.add((task_kind, target_zone, target_id))
-        assigned.append(task_id)
-    if assigned and "movement_v1" in world.model_state:
-        from sheltersim.domain.movement import staff_position_snapshots
-
-        staff_position_snapshots(world, boundary_minute=minute + 1)
-    return tuple(assigned)
+    Returns the new task IDs; () without the namespace. Staff go in order of recent (240 minutes)
+    and total completed tasks, fatigue (rounded to thousandths) and ID; each one idle, available
+    and on shift (`staff_dynamics_is_available`) takes, of the tasks its skills allow that no
+    other task holds (cleaning a zone below its sanitation threshold, maintaining a facility with
+    units out and no outage or modifier, information outreach to a zone whose mean uncertainty is
+    at least its threshold, a patrol of a zone whose mean stress is), the one the staff-operations
+    formula ranks first among those the router reaches with the passages' loads. A task that would
+    end at or past the Run's end is not taken. It writes the operation record, the active task and
+    the staff member's queue, and schedules `staff_operation_arrive` (when there is travel) and
+    `staff_operation_complete`, with the formula's source and policy as provenance; with
+    `movement_v1`, the staff positions after the minute.
+    """
 
 
 _TASK_NAMES = {
@@ -803,7 +559,7 @@ def order_staff_operation(
     source_id: str | None,
 ) -> str:
     """Start one explicit typed staff task using the normal routed task lifecycle."""
-    from sheltersim.events.models import EventApplicationError, EventKind, ScheduledEvent
+    from sheltersim.events.models import EventApplicationError, ScheduledEvent
     from sheltersim.policies.registry import create_staff_operations_formula
 
     route = validate_staff_operation_order(
@@ -909,109 +665,23 @@ def order_staff_operation(
     return task_id
 
 
-@kernel_first("staff", "relief")
+@kernel_only("staff", "relief")
 def schedule_staff_operation_relief(world: WorldState, minute: int) -> tuple[str, ...]:
     """Schedule same-site relief before a working or traveling staff member goes off shift.
 
     A replacement already at the task destination can take over the same typed task.
     If the former worker was still traveling, the replacement starts the work interval
     from that destination; no partial task effect is inferred or retained.
+
+    Returns the IDs of the `staff_operation_relief` events it scheduled for the next minute; () when
+    there is no namespace or the next minute is the Run's end. Only for a task with no relief
+    pending whose worker is unavailable or off shift at the next minute, that is theirs, ends after
+    it and whose work fits before the Run's end; the replacement is the idle, available member at
+    its target zone with a skill of the task and the least recent and total work, fatigue and ID.
     """
-    state = world.model_state.get(STAFF_OPERATIONS_STATE_KEY)
-    if not isinstance(state, dict) or minute + 1 >= world.duration_minutes:
-        return ()
-    handoffs: list[str] = []
-    pending_handoffs = {
-        event.payload.get("task_id")
-        for event in world.event_queue.pending()
-        if event.event_type == "staff_operation_relief"
-    }
-    skills_by_task = {
-        "cleaning": {"cleaning", "sanitation"},
-        "maintenance": {"maintenance", "repair"},
-        "information_outreach": {"support", "information"},
-        "intake": {"support", "intake"},
-        "patrol": {"support", "patrol"},
-    }
-    recent_cutoff = max(0, minute - 240)
-    workload = {
-        staff_id: (
-            sum(
-                row["staff_id"] == staff_id and row["complete_minute"] >= recent_cutoff
-                for row in state["history"]
-            ),
-            sum(row["staff_id"] == staff_id for row in state["history"]),
-            round(
-                1000
-                * world.model_state.get("staff_dynamics_v1", {})
-                .get("staff", {})
-                .get(staff_id, {})
-                .get("fatigue", 0.0)
-            ),
-            staff_id,
-        )
-        for staff_id in world.staff
-    }
-    for staff_id, operation in sorted(state["staff"].items()):
-        if operation["phase"] == "idle" or operation["task_id"] in pending_handoffs:
-            continue
-        handoff_minute = minute + 1
-        unavailable = not staff_is_available(world, staff_id) or not staff_dynamics_on_shift(
-            world, staff_id, handoff_minute
-        )
-        if not unavailable:
-            continue
-        task = world.active_tasks.get(operation["task_id"])
-        if task is None or task.staff_id != staff_id:
-            continue
-        if operation["due_minute"] <= handoff_minute:
-            continue
-        target_zone = operation["target_zone_id"]
-        work_minutes = state["config"]["task_duration_minutes"][operation["task_kind"]]
-        if handoff_minute + work_minutes >= world.duration_minutes:
-            continue
-        required = skills_by_task[operation["task_kind"]]
-        replacements = [
-            candidate
-            for candidate in world.staff.values()
-            if candidate.id != staff_id
-            and candidate.zone_id == target_zone
-            and required.intersection(candidate.skills)
-            and candidate.active_task_id is None
-            and state["staff"][candidate.id]["phase"] == "idle"
-            and staff_is_available(world, candidate.id)
-            and staff_dynamics_is_available(world, candidate.id, handoff_minute)
-        ]
-        if not replacements:
-            continue
-        replacement = min(replacements, key=lambda candidate: workload[candidate.id])
-        sequence = world.allocate_event_sequence()
-        event = ScheduledEvent(
-            event_id=f"staff-operation-relief-{sequence}",
-            kind=EventKind.ENDOGENOUS,
-            due_minute=handoff_minute,
-            priority=-5,
-            sequence=sequence,
-            event_type="staff_operation_relief",
-            payload={
-                "task_id": operation["task_id"],
-                "previous_staff_id": staff_id,
-                "replacement_staff_id": replacement.id,
-                "reason_code": "shift_or_availability_boundary",
-            },
-            source_id=STAFF_RELIEF_POLICY_VERSION,
-            provenance={
-                "source_type": "assumption",
-                "source_id": STAFF_RELIEF_SOURCE_ID,
-                "policy_version": STAFF_RELIEF_POLICY_VERSION,
-            },
-        )
-        world.schedule_event(event)
-        handoffs.append(event.event_id)
-    return tuple(handoffs)
 
 
-@kernel_first("staff_operation_events", "interrupt_trips")
+@kernel_only("staff_operation_events", "interrupt_trips")
 def interrupt_staff_trips_on_closed_routes(
     world: WorldState, event: ScheduledEvent
 ) -> tuple[str, ...]:
@@ -1021,34 +691,14 @@ def interrupt_staff_trips_on_closed_routes(
     interruption logic records the incomplete work and moves staff to the nearest
     reached zone. The ordinary allocator then considers the work again using the
     refreshed, closure-aware graph.
+
+    Returns the staff IDs whose travel it interrupted (`interrupt_staff_operation`), in ID order:
+    those with an edge of their route gone, closed or not physically clear for independent
+    walkers. With `movement_v1`, the staff positions at the event's minute.
     """
-    from sheltersim.domain.movement import route_is_physically_clear
-
-    state = world.model_state.get(STAFF_OPERATIONS_STATE_KEY)
-    if not isinstance(state, dict):
-        return ()
-    interrupted: list[str] = []
-    for staff_id, record in sorted(state["staff"].items()):
-        if record.get("phase") != "travel":
-            continue
-        blocked = any(
-            edge_id not in world.zone_edges
-            or world.zone_edges[edge_id].closed
-            or not route_is_physically_clear(world, edge_id, mobility="independent")
-            for edge_id in record.get("route_edge_ids", ())
-        )
-        if blocked and interrupt_staff_operation(
-            world, staff_id, event, current_event_id=event.event_id
-        ):
-            interrupted.append(staff_id)
-    if interrupted and "movement_v1" in world.model_state:
-        from sheltersim.domain.movement import staff_position_snapshots
-
-        staff_position_snapshots(world, boundary_minute=event.due_minute)
-    return tuple(interrupted)
 
 
-@kernel_first("staff_operation_events", "interrupt")
+@kernel_only("staff_operation_events", "interrupt")
 def interrupt_staff_operation(
     world: WorldState,
     staff_id: str,
@@ -1056,89 +706,16 @@ def interrupt_staff_operation(
     *,
     current_event_id: str | None = None,
 ) -> bool:
-    """Cancel an autonomous task and its pending events at an unavailability boundary."""
-    state = world.model_state.get(STAFF_OPERATIONS_STATE_KEY)
-    staff = world.staff.get(staff_id)
-    record = state["staff"].get(staff_id) if isinstance(state, dict) else None
-    if staff is None or not isinstance(record, dict) or record.get("phase") == "idle":
-        return False
-    task_id = record["task_id"]
-    if record["phase"] == "travel":
-        elapsed = max(0, min(record["travel_minutes"], event.due_minute - record["started_minute"]))
-        cumulative = 0
-        nearest_zone = record["route_zone_ids"][0]
-        for index, edge_id in enumerate(record["route_edge_ids"]):
-            edge_minutes = world.zone_edges[edge_id].travel_minutes
-            if edge_minutes and elapsed < cumulative + edge_minutes:
-                progress = (elapsed - cumulative) / edge_minutes
-                nearest_zone = (
-                    record["route_zone_ids"][index]
-                    if progress < 0.5
-                    else record["route_zone_ids"][index + 1]
-                )
-                break
-            cumulative += edge_minutes
-            nearest_zone = record["route_zone_ids"][index + 1]
-            if elapsed <= cumulative:
-                break
-        staff.zone_id = nearest_zone
+    """Cancel an autonomous task and its pending events at an unavailability boundary.
 
-    causation_ids = set(record["causation_event_ids"])
-    causation_ids.add(event.event_id)
-    for pending in world.event_queue.pending():
-        if (
-            pending.event_id == current_event_id
-            or pending.event_type not in {"staff_operation_arrive", "staff_operation_complete"}
-            or pending.payload.get("task_id") != task_id
-        ):
-            continue
-        world.event_queue.remove(pending.event_id)
-        causation_ids.add(pending.event_id)
-        world.event_log.append(
-            EventLogRecord(
-                event=pending,
-                realized_minute=event.due_minute,
-                status=EventStatus.SUPPRESSED,
-                detail="Staff operation was interrupted by staff unavailability",
-            )
-        )
-
-    elapsed = max(0, min(record["travel_minutes"], event.due_minute - record["started_minute"]))
-    arrival_minute = record["arrival_minute"]
-    if (
-        arrival_minute is None
-        and record["travel_minutes"] > 0
-        and elapsed >= record["travel_minutes"]
-    ):
-        arrival_minute = record["started_minute"] + record["travel_minutes"]
-    state["history"].append(
-        {
-            "task_id": task_id,
-            "staff_id": staff_id,
-            "task_kind": record["task_kind"],
-            "target_id": record["target_id"],
-            "target_zone_id": record["target_zone_id"],
-            "reason": record["reason"],
-            "status": "interrupted",
-            "start_minute": record["started_minute"],
-            "arrival_minute": arrival_minute,
-            "complete_minute": event.due_minute,
-            "travel_minutes": record["travel_minutes"],
-            "causation_event_ids": sorted(causation_ids),
-        }
-    )
-    if len(state["history"]) > MAX_STAFF_HISTORY:
-        del state["history"][: len(state["history"]) - MAX_STAFF_HISTORY]
-    world.active_tasks.pop(task_id, None)
-    staff.work_queue.clear()
-    staff.active_task_id = None
-    staff.busy_until = 0
-    state["staff"][staff_id] = _idle_record()
-    if "movement_v1" in world.model_state:
-        from sheltersim.domain.movement import staff_position_snapshots
-
-        staff_position_snapshots(world, boundary_minute=event.due_minute)
-    return True
+    False for an unknown or idle staff member. A traveling one moves to the route's zone nearest
+    where the event's minute finds them (past half an edge is its end). Its pending arrive and
+    complete events, except `current_event_id`, leave the queue as SUPPRESSED records ("Staff
+    operation was interrupted by staff unavailability"). The history gets an "interrupted" item
+    (causes: the record's, the event and the removed events, sorted), kept to MAX_STAFF_HISTORY;
+    the task, the queue and the busy minute are cleared and the record is idle again. With
+    `movement_v1`, the staff positions at the event's minute.
+    """
 
 
 def _maintenance_blocked(world: WorldState, facility_id: str) -> bool:

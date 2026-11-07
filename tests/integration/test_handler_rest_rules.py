@@ -614,23 +614,29 @@ def _route(minutes: int) -> Any:
     return SimpleNamespace(travel_minutes=minutes)
 
 
-def _assign_both(
-    world: WorldState, *, resolver: Any = None, scheduler: Any = None
-) -> tuple[Any, WorldState]:
-    twin = copy.deepcopy(world)
-    expected = StaffService.assign_pending.__wrapped__(
-        StaffService(twin, route_resolver=resolver, travel_scheduler=scheduler),
-        world.minute_index,
-        validate_state=False,
-    )
+# The world after `StaffService.assign_pending`'s Python rule, by test: a digest taken before the
+# rule went (lane L10, `kernel_only`).
+ASSIGNED_DIGESTS = {
+    "free_worker": "b2e57bbfee3b75ed",
+    "promoted": "d00be4ea83ec3799",
+    "route.None.True": "7c41fe3c5d8b72fb",
+    "route.1000000.True": "c814b2051a10d9ca",
+    "route.3.False": "d0f21eb6a7cee0ad",
+    "route.3.True": "4cc8d4c48df97a4d",
+}
+
+
+def _assign(
+    label: str, world: WorldState, *, resolver: Any = None, scheduler: Any = None, **options: Any
+) -> Any:
+    """`assign_work`, the kernel that assigns, and the world it leaves against the Python rule's."""
     actual = native.rules("staff").assign_work(
-        StaffService(world, route_resolver=resolver, travel_scheduler=scheduler),
+        StaffService(world, route_resolver=resolver, travel_scheduler=scheduler, **options),
         world.minute_index,
         validate_state=False,
     )
-    assert actual == expected
-    assert _bytes(world) == _bytes(twin)
-    return actual, twin
+    _is_the_python_rules_run(world, ASSIGNED_DIGESTS[label])
+    return actual
 
 
 def _staffed_world() -> WorldState:
@@ -672,7 +678,7 @@ def _open_request(world: WorldState, *, age: int = 0) -> str:
 def test_a_free_worker_takes_a_request_as_in_python() -> None:
     world = _staffed_world()
     request_id = _open_request(world)
-    assigned, _ = _assign_both(world)
+    assigned = _assign("free_worker", world)
     assert request_id in assigned
     assert world.support_requests[request_id].status is SupportRequestStatus.ASSIGNED
 
@@ -680,16 +686,7 @@ def test_a_free_worker_takes_a_request_as_in_python() -> None:
 def test_an_old_request_is_promoted_as_in_python() -> None:
     world = _staffed_world()
     request_id = _open_request(world, age=5)
-    twin = copy.deepcopy(world)
-    args = {"fairness_after_minutes": 3}
-    expected = StaffService.assign_pending.__wrapped__(
-        StaffService(twin, **args), world.minute_index, validate_state=False
-    )
-    actual = native.rules("staff").assign_work(
-        StaffService(world, **args), world.minute_index, validate_state=False
-    )
-    assert actual == expected == (request_id,)
-    assert _bytes(world) == _bytes(twin)
+    assert _assign("promoted", world, fairness_after_minutes=3) == (request_id,)
     assert world.metric_state["support_fairness_promoted_assignment_count"] >= 1.0
 
 
@@ -708,7 +705,12 @@ def test_a_route_decides_as_in_python(
     world = _staffed_world()
     request_id = _open_request(world)
     route = None if minutes is None else _route(minutes)
-    _assign_both(world, resolver=lambda *_: route, scheduler=lambda *_: scheduled)
+    _assign(
+        f"route.{minutes}.{scheduled}",
+        world,
+        resolver=lambda *_: route,
+        scheduler=lambda *_: scheduled,
+    )
     assert world.support_requests[request_id].last_assignment_wait_reason_code == reason
 
 

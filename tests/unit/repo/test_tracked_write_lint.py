@@ -63,9 +63,6 @@ NOT_INSERTED_INTO_STATE: dict[tuple[str, str, str], str] = {
     ("core/checkpoint_cache.py", "_tree_node", "node"): "encoder memo; a str",
     ("domain/geometry_overlay.py", "_parsed_config", "parsed"): "memo of parsed objects",
     ("domain/population.py", "queue_arrivals", "admitted"): "an int",
-    ("domain/staff.py", "assign_pending", "qualified"): "local memo of StaffState lists",
-    ("domain/staff.py", "qualified_for", "qualified"): "local memo of StaffState lists",
-    ("domain/staff.py", "assign_pending", "person"): "a StaffState put in a local list",
     ("domain/staff_operations.py", "order_staff_operation", "task_id"): "a str",
     ("events/queue.py", "__deepcopy__", "copied"): "deepcopy's memo",
     ("experiments/metrics.py", "capture", "snapshot"): "a MetricSnapshot in MetricsRecorder",
@@ -76,12 +73,11 @@ NOT_INSERTED_INTO_STATE: dict[tuple[str, str, str], str] = {
     ): "memo of the controller",
     ("policies/world_view.py", "_zone_environment", "view"): "memo of a parsed view",
 }
-# Not state either: a validation memo in __dict__, a local memo of StaffState lists, and memos of
-# parsed views and of people's fields.
+# Not state either: a validation memo in __dict__, and memos of parsed views and of people's
+# fields.
 CHAINS_ON_MEMOS = frozenset(
     {
         "core/world.py memo = self.__dict__['_tick_memo'] = _TickMemo()",
-        "domain/staff.py qualified = qualified_by_kind[support_kind] = [staff for sta",
         "policies/world_view.py view = views[zone_id] = zone_environment_view(world, zone_id",
         "policies/world_view.py entry = cache[identity] = (*entry, _fields_of_person(context",
     }

@@ -86,13 +86,10 @@ PORTED_NAMES = frozenset(
         "support_waited_minutes",
         "support_required_skills",
         "_support_kind",
-        "_support_priority",
-        "_support_assignment_order",
         "_route_candidates",
         "_support_route_wait_reasons",
         # domain/staff.py, domain/staff_operations.py, experiments/phases/*: rules/staff.rs,
         # travel.rs, support.rs. A test reaches a `kernel_first` rule through `__wrapped__`.
-        "_preempt_background_staff",
         "_maintenance_blocked",
         "shared_passage_edge_loads",
         "_active_route_edge_loads",

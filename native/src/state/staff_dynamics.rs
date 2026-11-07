@@ -1,12 +1,16 @@
 //! `staff_dynamics_v1`: shift and fatigue memory of each staff member. The rules that write and
-//! read it are `rules/staff_dynamics.rs`; `domain/staff_dynamics.py` stays the comparison base
-//! (docs/rust-port/lanes/s-staff-dynamics.md).
+//! read it are `rules/staff_dynamics.rs`; `domain/staff_dynamics.py` keeps the checks of a config
+//! and of a saved namespace (docs/rust-port/lanes/s-staff-dynamics.md).
 
 use pyo3::intern;
 use pyo3::prelude::*;
 
-use crate::core::row::{load_row, namespace_is_absent, state_row, str_enum, IdMap, Maybe};
-use crate::core::world_core::{mirror_of, NamespaceMirror, RowType};
+use pyo3::types::{PyFloat, PyInt};
+use pyo3::IntoPyObjectExt;
+
+use crate::core::row::{load_row, namespace_is_absent, state_row, str_enum, Field, IdMap, Maybe};
+use crate::core::world_core::{mirror_of, Misfit, NamespaceMirror, RowType};
+use crate::Encoder;
 use crate::state::entities::{entities_of, EntityStore};
 
 pub(crate) const NAME: &str = "staff_dynamics_v1";
@@ -41,6 +45,46 @@ state_row! {
     }
 }
 
+/// The off-shift recovery as a config holds it: a float, or an int (0 or 1, its range) that the
+/// Python rule's arithmetic used as the float of the same value. The tree keeps the int, and so does
+/// the row, for the bytes.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Recovery {
+    pub(crate) value: f64,
+    int: bool,
+}
+
+impl Field for Recovery {
+    fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
+        if let Ok(number) = value.downcast_exact::<PyFloat>() {
+            return Ok(Self { value: number.value(), int: false });
+        }
+        // bool is an int subclass, so the exact check turns it down too.
+        let number: i64 = value.downcast_exact::<PyInt>().map_err(|_| Misfit::new("not a float or an int"))?.extract()?;
+        if number.unsigned_abs() > 1 << 53 {
+            return Err(Misfit::new("an int a float can't hold"));
+        }
+        Ok(Self { value: number as f64, int: true })
+    }
+
+    fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        if self.int {
+            (self.value as i64).into_bound_py_any(py)
+        } else {
+            Ok(PyFloat::new(py, self.value).into_any())
+        }
+    }
+
+    fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
+        if self.int {
+            encoder.out.extend_from_slice(itoa::Buffer::new().format(self.value as i64).as_bytes());
+            Ok(())
+        } else {
+            encoder.float(self.value)
+        }
+    }
+}
+
 state_row! {
     // A world keeps this as `canonical_staff_dynamics_config` left it, less the keys below that
     // an older schema of the namespace did not have.
@@ -52,7 +96,7 @@ state_row! {
         max_continuous_work_minutes_by_staff: Maybe<IdMap<i64>>,
         rest_minutes: i64,
         shift_windows_by_staff: Maybe<IdMap<Vec<Shift>>>,
-        off_shift_fatigue_recovery_per_minute: Maybe<f64>,
+        off_shift_fatigue_recovery_per_minute: Maybe<Recovery>,
     }
 }
 
@@ -128,7 +172,7 @@ impl ConfigRow {
         if !limits_are_valid {
             return false;
         }
-        match (&self.shift_windows_by_staff.0, self.off_shift_fatigue_recovery_per_minute.0) {
+        match (&self.shift_windows_by_staff.0, self.off_shift_fatigue_recovery_per_minute.0.map(|recovery| recovery.value)) {
             (Some(windows), Some(recovery)) => {
                 (0.0..=1.0).contains(&recovery)
                     && (!v1 || (windows.is_empty() && recovery == 0.0))
@@ -152,7 +196,7 @@ impl StaffDynamicsRow {
     }
 }
 
-/// `validate_staff_dynamics_state`: accepts, or leaves it to the Python rules and their error text.
+/// `validate_staff_dynamics_state`: accepts, or leaves it to its Python checks and their error text.
 #[pyfunction]
 fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = world.py();

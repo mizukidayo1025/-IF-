@@ -1,18 +1,14 @@
-"""Compare every kernel of native/src/rules/staff.rs with its Python rule at each call.
+"""Compare the kernels of native/src/rules/staff.rs that have a Python rule with it at each call.
 
-A kernel runs on the world, and when it takes the call the Python rule runs on a twin of the world:
-copies of what the rule writes, and every event counter closed. A Python rule that starts something
-reaches `allocate_event_sequence` first: then both run, each on its own copy of the world, and the
-results and the whole documents are compared. `assign_none`'s None hands the step to `assign_work`,
-which shadow_handlers_rest.py compares. The validator is compared on what it accepts: the Python
-rule must accept that too.
+A kernel runs on the world, and the Python rule on a twin of the world or on its own copy of it.
+The validator is compared on what it accepts: the Python rule must accept that too.
+`update_operations`, `assign_operations`, `relief` and `assign_pending` have no Python rule left to
+compare with (lane L10, `kernel_only`).
 """
 
 from __future__ import annotations
 
 import json
-from dataclasses import fields
-from types import SimpleNamespace
 from typing import Any
 
 from shadow_handlers_rest import _outcome, _worlds, compare_worlds
@@ -42,10 +38,6 @@ class _Twin:
         raise _WouldStart
 
 
-def _no_route(*_arguments: Any) -> None:
-    raise _WouldStart
-
-
 def prepare(output: str) -> None:
     from sheltersim import native
 
@@ -56,13 +48,6 @@ def prepare(output: str) -> None:
     unsupported = native.Unsupported
     module: dict[str, Any] = {}
 
-    def staff() -> Any:
-        if "staff" not in module:
-            from sheltersim.domain import staff as loaded
-
-            module["staff"] = loaded
-        return module["staff"]
-
     def operations() -> Any:
         if "operations" not in module:
             from sheltersim.domain import staff_operations as loaded
@@ -70,76 +55,7 @@ def prepare(output: str) -> None:
             module["operations"] = loaded
         return module["operations"]
 
-    update_kernel = rules.update_operations
-    assign_kernel = rules.assign_operations
-    relief_kernel = rules.relief
-    pending_kernel = rules.assign_none
     snapshot_kernel = rules.wait_snapshot
-
-    def update_operations(world: Any, minute: Any) -> None:
-        recorder.seen["update.calls"] += 1
-        state = world.model_state.get(KEY)
-        if state is None:
-            recorder.seen["update.no_namespace"] += 1
-            update_kernel(world, minute)
-            return
-        before = json.loads(json.dumps(state))
-        order = list(state["zones"])
-        try:
-            update_kernel(world, minute)
-        except unsupported as reason:
-            recorder.reasons[f"update: {reason}"] += 1
-            raise
-        recorder.seen["update.kernel_ran"] += 1
-        table = dict(world.model_state)
-        table[KEY] = before
-        operations().update_staff_operations.__wrapped__(_Twin(world, model_state=table), minute)
-        state = world.model_state[KEY]
-        if text(before) != text(state) or order != list(state["zones"]):
-            recorder.differ(f"update at {minute}: {text(before)[:300]} and {text(state)[:300]}")
-        recorder.seen["update.values_compared"] += values_in(before)
-        if (
-            recorder.seen["update.calls"] % ROW_CHECK_EVERY == 0
-            and not world._core.mirror(KEY).verify()
-        ):
-            recorder.differ(f"update at {minute}: the row and the tree")
-        recorder.seen["update.zones_with_people"] += sum(
-            zone["sanitation"] < 1.0 for zone in state["zones"].values()
-        )
-
-    def starting(label: str, kernel: Any, rule: Any) -> Any:
-        def shadow(world: Any, minute: Any, *rest: Any) -> Any:
-            recorder.seen[f"{label}.calls"] += 1
-            python_rule = rule().__wrapped__
-            try:
-                expected = python_rule(_Twin(world), minute, *rest)
-            except _WouldStart:
-                python_world, kernel_world = _worlds(world)
-                wanted = _outcome(lambda: python_rule(python_world, minute, *rest))
-                actual = _outcome(lambda: kernel(kernel_world, minute, *rest))
-                recorder.seen[f"{label}.starts"] += 1
-                if actual[0] == "Unsupported":
-                    recorder.reasons[f"{label}: {actual[1]}"] += 1
-                    if wanted[0] == "applied":
-                        recorder.differ(f"{label} at {minute}: refused: {actual[1]}")
-                elif text(actual) != text(wanted):
-                    recorder.differ(f"{label} at {minute}: {actual!r:.300} and {wanted!r:.300}")
-                elif actual[0] == "applied":
-                    compare_worlds(recorder, label, python_world, kernel_world)
-                    recorder.seen[f"{label}.started"] += len(actual[1])
-                return kernel(world, minute, *rest)
-            try:
-                result = kernel(world, minute, *rest)
-            except unsupported as reason:
-                recorder.reasons[f"{label}: {reason}"] += 1
-                raise
-            recorder.seen[f"{label}.kernel_ran"] += 1
-            if expected != result:
-                recorder.differ(f"{label} at {minute}: {result!r} and {expected!r}")
-            recorder.seen[f"{label}.values_compared"] += 1
-            return result
-
-        return shadow
 
     travel = native.rules("travel")
     route_kernel = travel.route
@@ -180,67 +96,6 @@ def prepare(output: str) -> None:
 
     travel.route = route
 
-    def assign_pending(service: Any, minute: Any, *, validate_state: bool = True) -> Any:
-        recorder.seen["pending.calls"] += 1
-        world = service.world
-        metrics_before = dict(world.metric_state)
-        requests = list(world.unsettled_support_requests())
-        copies = {item.id: replace_request(item) for item in requests}
-        try:
-            result = pending_kernel(service, minute, validate_state=validate_state)
-        except unsupported as reason:
-            recorder.reasons[f"pending: {reason}"] += 1
-            raise
-        if result is None:
-            recorder.seen["pending.to_assign_work"] += 1
-            return result
-        recorder.seen["pending.kernel_ran"] += 1
-        twin_world = _Twin(
-            world,
-            metric_state=metrics_before,
-            support_requests=copies,
-            unsettled_support_requests=lambda: list(copies.values()),
-        )
-        twin = SimpleNamespace(
-            world=twin_world,
-            fairness_after_minutes=service.fairness_after_minutes,
-            route_resolver=_no_route,
-            travel_scheduler=_no_route,
-            task_duration_minutes=service.task_duration_minutes,
-            policy_version=service.policy_version,
-        )
-        try:
-            expected = staff().StaffService.assign_pending.__wrapped__(
-                twin, minute, validate_state=False
-            )
-        except _WouldStart:
-            recorder.differ(f"pending at {minute}: the Python rule starts something")
-            return result
-        if expected != result:
-            recorder.differ(f"pending at {minute}: {result!r} and {expected!r}")
-        fresh = dict(world.metric_state)
-        if text(metrics_before) != text(fresh):
-            recorder.differ(f"pending at {minute}: metrics differ")
-        recorder.seen["pending.values_compared"] += len(fresh)
-        waiting = 0
-        for item in requests:
-            copy = copies[item.id]
-            first = (item.last_assignment_attempt_minute, item.last_assignment_wait_reason_code)
-            second = (copy.last_assignment_attempt_minute, copy.last_assignment_wait_reason_code)
-            if text(first) != text(second):
-                recorder.differ(f"pending at {minute}: {item.id} has {first} and {second}")
-            recorder.seen["pending.values_compared"] += 2
-            waiting += item.status.value == "pending"
-        recorder.seen["pending.requests_waiting"] += waiting
-        return result
-
-    def replace_request(item: Any) -> Any:
-        from sheltersim.domain.models import SupportRequestState
-
-        return SupportRequestState(
-            **{field.name: getattr(item, field.name) for field in fields(SupportRequestState)}
-        )
-
     def wait_snapshot(world: Any, active_support: Any, sample_minute: Any) -> Any:
         recorder.seen["snapshot.calls"] += 1
         try:
@@ -264,14 +119,6 @@ def prepare(output: str) -> None:
             recorder.seen["snapshot.no_qualified_people"] += len(expected[1])
         return result
 
-    rules.update_operations = update_operations
-    rules.assign_operations = starting(
-        "assign", assign_kernel, lambda: operations().assign_staff_operations
-    )
-    rules.relief = starting(
-        "relief", relief_kernel, lambda: operations().schedule_staff_operation_relief
-    )
-    rules.assign_none = assign_pending
     rules.wait_snapshot = wait_snapshot
 
     # A minute's metrics read the same waits inside `snapshot_fields`, past this module.

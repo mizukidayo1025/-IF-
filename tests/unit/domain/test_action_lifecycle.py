@@ -13,6 +13,7 @@ from support.paths import SMALL_REPLAY
 from sheltersim.core.world import WorldState
 from sheltersim.domain.action_lifecycle import (
     active_action_index,
+    active_action_store,
     record_action_proposal,
     record_applied_action_completion,
 )
@@ -37,7 +38,7 @@ def proposal(action: ActionKind, minute: int) -> SimpleNamespace:
 
 def test_wait_lifecycle_records_completion_and_restores_open_action() -> None:
     world = make_world()
-    active: dict[str, dict[str, object]] = {}
+    active = active_action_store(world)
     record_action_proposal(
         world,
         proposal(ActionKind.WAIT, 0),
@@ -75,7 +76,7 @@ def test_wait_lifecycle_records_completion_and_restores_open_action() -> None:
 
 def test_action_completion_requires_matching_applied_event_log_record() -> None:
     world = make_world()
-    active: dict[str, dict[str, object]] = {}
+    active = active_action_store(world)
     record_action_proposal(
         world,
         proposal(ActionKind.FETCH_WATER, 0),
@@ -142,7 +143,7 @@ def test_every_behavior_action_has_a_supported_lifecycle_terminal() -> None:
     }
     for action in ActionKind:
         world = make_world()
-        active: dict[str, dict[str, object]] = {}
+        active = active_action_store(world)
         if action in {ActionKind.REST, ActionKind.SLEEP}:
             world.agents["A001"].needs.fatigue = 0.5
         target_id = (
@@ -306,10 +307,9 @@ _PLAIN_RECEIPT = {
 
 
 def test_a_plain_receipt_dumps_to_the_same_values() -> None:
+    """The kernels write a receipt of plain values as they are: the model's dump of it."""
     from sheltersim.contracts.operations import ActionLifecycleReceipt
-    from sheltersim.domain.action_lifecycle import _is_plain_receipt
 
-    assert _is_plain_receipt(_PLAIN_RECEIPT)
     dumped = ActionLifecycleReceipt.model_validate(_PLAIN_RECEIPT).model_dump(mode="json")
     assert dumped == _PLAIN_RECEIPT and list(dumped) == list(_PLAIN_RECEIPT)
 
@@ -335,24 +335,22 @@ def test_a_plain_receipt_dumps_to_the_same_values() -> None:
         {"current_needs": {"hunger": float("inf")}},
     ],
 )
-def test_anything_else_is_left_to_the_receipt_model(changes) -> None:
-    """Each leaves the plain path, where the model refuses it or converts its values."""
+def test_anything_else_the_receipt_model_refuses(changes) -> None:
+    """What the kernels refuse to write (KernelRefusal, see
+    tests/integration/test_action_lifecycle_rows.py), the model refuses too."""
     from pydantic import ValidationError
 
     from sheltersim.contracts.operations import ActionLifecycleReceipt
-    from sheltersim.domain.action_lifecycle import _is_plain_receipt
 
     payload = {**_PLAIN_RECEIPT, **changes}
-    assert not _is_plain_receipt(payload)
     with pytest.raises(ValidationError):
         ActionLifecycleReceipt.model_validate(payload)
 
 
-def test_needs_the_model_would_convert_are_left_to_it() -> None:
+def test_needs_the_model_would_convert_are_floats_in_its_dump() -> None:
+    """The kernels' needs are floats already: an int need is the model's float."""
     from sheltersim.contracts.operations import ActionLifecycleReceipt
-    from sheltersim.domain.action_lifecycle import _is_plain_receipt
 
     payload = {**_PLAIN_RECEIPT, "current_needs": {"hunger": 1}}
-    assert not _is_plain_receipt(payload)
     dumped = ActionLifecycleReceipt.model_validate(payload).model_dump(mode="json")
     assert type(dumped["current_needs"]["hunger"]) is float

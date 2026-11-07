@@ -548,17 +548,16 @@ def _run_world(scenario: Any, minutes: int, check: Any = None) -> WorldState:
 
 
 # Every namespace of the first ticks that the ledger's size doesn't make slow here, but
-# shared_operations_v1, movement_v1 and body_state_v1: `prepare_facility_queue`, the steps of
-# experiments/phases/dispatch.py that follow an event (`_record_staff_support_started`,
-# `_schedule_return_to_initial_zone`) and a toilet completion read their own typed rows and have no
-# Python rule left to run on a generic one (`kernel_only`, lane L10).
+# shared_operations_v1, movement_v1, body_state_v1, agent_dynamics_v1 and staff_operations_v1:
+# `prepare_facility_queue`, the steps of experiments/phases/dispatch.py that follow an event
+# (`_record_staff_support_started`, `_schedule_return_to_initial_zone`), a toilet completion, the
+# decision memory and the staff's tasks read their own typed rows and have no Python rule left to
+# run on a generic one (`kernel_only`, lane L10).
 REAL_NAMESPACES = (
-    "agent_dynamics_v1",
     "information_spread_v1",
     "psychological_distress_v1",
     "social_network_v1",
     "social_propagation_v1",
-    "staff_operations_v1",
 )
 
 

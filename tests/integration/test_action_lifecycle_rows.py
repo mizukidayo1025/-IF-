@@ -1,16 +1,21 @@
 """agent_dynamics_v1 owned by Rust, and the open actions and receipts of the action lifecycle.
 
-native/src/rules/{agent_dynamics,action_lifecycle}.rs move the rules; the Python rules stay as the
-comparison base and give every error text (docs/rust-port/lanes/f-action-lifecycle.md). The whole
-rule is compared on the gate by benchmarks/rule_shadow; here, on small worlds and on values no
-scenario reaches.
+native/src/rules/{agent_dynamics,action_lifecycle}.rs hold the rules
+(docs/rust-port/lanes/f-action-lifecycle.md). Their Python bodies are gone (lane L10,
+`kernel_only`): what a rule writes is checked against what the Python rule wrote on the same
+inputs, written down from it before it went (its values, or a digest of its receipts, open actions
+and records, pinned on Linux as the gate's hashes are), and what the kernels refuse is
+KernelRefusal. The validation of a saved namespace stays in Python and is compared with the Rust
+one.
 """
 
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import random
+import sys
 from types import SimpleNamespace
 from typing import Any
 
@@ -18,6 +23,7 @@ import pytest
 
 from sheltersim import native
 from sheltersim.core import state_mirror
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.state_mirror import rust_validated
 from sheltersim.core.world import StateInvariantError, WorldState
 from sheltersim.domain.action_lifecycle import (
@@ -42,7 +48,7 @@ from sheltersim.domain.agent_dynamics import (
 )
 from sheltersim.domain.simulator_state import initialize_simulator_extensions
 from sheltersim.events.models import EventKind, EventLogRecord, EventStatus, ScheduledEvent
-from sheltersim.events.queue import DuplicateEventError, EventLog
+from sheltersim.events.queue import EventLog
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.policies.behavior import ActionKind
@@ -65,16 +71,55 @@ def world(generated_scenario) -> WorldState:
     return made
 
 
-def _plain_twin(world: WorldState) -> tuple[Any, SimpleNamespace]:
-    plain = json.loads(json.dumps(world.model_state[KEY]))
-    table = dict(world.model_state)
-    table[KEY] = plain
-    return plain, SimpleNamespace(
-        model_state=table,
-        agents=world.agents,
-        facilities=world.facilities,
-        model_configs=world.model_configs,
-    )
+# What the Python rules gave, by the label of a call or a test: a digest of the receipts, the event
+# counter and the open actions after it, or of a namespace, taken before they went (lane L10).
+PYTHON_DIGESTS = {
+    "create_state.None.None": "86de3321654fb7bc",
+    "create_state.{}.None": "e3cb592715432d77",
+    "create_state.discover_co_located_facilities_on_arrival.None": "e3cb592715432d77",
+    "create_state.schema_version.source_type.None": "e3cb592715432d77",
+    "create_state.None.v3": "dffd9bb8892d86cf",
+    "create_state.{}.v3": "dffd9bb8892d86cf",
+    "create_state.discover_co_located_facilities_on_arrival.v3": "dffd9bb8892d86cf",
+    "create_state.schema_version.source_type.v3": "dffd9bb8892d86cf",
+    "writers": "e83cfb888c9bc24f",
+    "sequence": "2ae9f2d61d0c4fba",
+    "applied.0.toilet_service_complete.request_toilet.T1": "608d02a896f0b406",
+    "applied.0.resource_service_complete.fetch_water.T1": "77fe70358ce22375",
+    "applied.0.staff_support_complete.seek_help.T1.S": "017cb551e27c7304",
+    "applied.0.support_request_timeout.seek_help.T1": "c03ffd51c163cf93",
+    "applied.0.social_interaction.socialize.T1": "f2b126883535bed3",
+    "applied.0.facility_queue_abandon.collect_meal.T1": "9d776d98181f1ff2",
+    "applied.0.resource_service_cancel.collect_meal.T1": "a6f74e2e980f0754",
+    "applied.0.resource_service_cancel.collect_meal.other": "81a953b53781a70f",
+    "applied.0.social_interaction.rest.T1": "609e15dd62e42f5b",
+    "applied.0.agent_travel_complete.rest.T1": "609e15dd62e42f5b",
+    "applied.1.toilet_service_complete.request_toilet.T1": "608d02a896f0b406",
+    "applied.1.resource_service_complete.fetch_water.T1": "77fe70358ce22375",
+    "applied.1.staff_support_complete.seek_help.T1.S": "017cb551e27c7304",
+    "applied.1.support_request_timeout.seek_help.T1": "c03ffd51c163cf93",
+    "applied.1.social_interaction.socialize.T1": "f2b126883535bed3",
+    "applied.1.facility_queue_abandon.collect_meal.T1": "9d776d98181f1ff2",
+    "applied.1.resource_service_cancel.collect_meal.T1": "a6f74e2e980f0754",
+    "applied.1.resource_service_cancel.collect_meal.other": "81a953b53781a70f",
+    "applied.1.social_interaction.rest.T1": "609e15dd62e42f5b",
+    "applied.1.agent_travel_complete.rest.T1": "609e15dd62e42f5b",
+    "gone": "b775ac3301d454ed",
+    "population": "220f4152957a9cd0",
+    'body.{"sleep_debt_minutes": 3, "hygiene_need": 0.25}': "04ef1c3190d28c0f",
+    "body.{}": "d42b92163d7a135c",
+    'body.{"sleep_debt_minutes": 1.5}': "4d54bbbbcadc1210",
+}
+
+
+def _digest(value: Any) -> str:
+    return hashlib.sha256(json.dumps(value).encode()).hexdigest()[:16]
+
+
+def _is_what_python_did(label: str, value: Any) -> None:
+    """Pinned on Linux, as the gate's hashes are: the needs of the generated world are floats."""
+    if sys.platform == "linux":
+        assert _digest(value) == PYTHON_DIGESTS[label]
 
 
 def _proposal(
@@ -109,61 +154,24 @@ def _lifecycle_documents(world: WorldState) -> list[Any]:
     return [record.to_dict() for record in world.event_log.of_types({"agent_action_lifecycle"})]
 
 
-class _CollectingLog:
-    def __init__(self, log: Any) -> None:
-        self.log = log
-        self.appended: list[Any] = []
-
-    def find(self, event_id: str) -> Any:
-        return self.log.find(event_id)
-
-    def append(self, record: Any) -> None:
-        self.appended.append(record)
-
-
-def _python_twin(world: WorldState) -> Any:
-    log = _CollectingLog(world.event_log)
-    counter = [world.id_counters.get("event", 0)]
-
-    def allocate() -> int:
-        counter[0] += 1
-        return counter[0] - 1
-
-    return SimpleNamespace(
-        agents=world.agents,
-        model_state=world.model_state,
-        minute_index=world.minute_index,
-        event_log=log,
-        allocate_event_sequence=allocate,
-        counter=counter,
-    )
-
-
-def _same_as_python(
-    world: WorldState, rule: Any, store: Any, *arguments: Any, **options: Any
+def _receipts(
+    label: str | None, world: WorldState, rule: Any, store: Any, *arguments: Any, **options: Any
 ) -> list[Any]:
-    """Run the kernel on the world and the Python rule on a twin: the same receipts and actions."""
-    plain = copy.deepcopy(store.snapshot())
-    twin = _python_twin(world)
-    rule.__wrapped__(twin, *arguments, active_actions=plain, **options)
-    before, counter = len(world.event_log), world.id_counters.get("event", 0)
-    kernel = getattr(native.rules("action_lifecycle"), rule.__name__)
-    kernel(world, *arguments, active_actions=store, **options)
+    """Run a rule, and check what it wrote against what the Python rule wrote: its receipts, the
+    event counter and the open actions. The receipts, as documents."""
+    before = len(world.event_log)
+    rule(world, *arguments, active_actions=store, **options)
     raws = world.event_log.items_bytes(before, len(world.event_log))
-    assert raws == [
-        json.dumps(
-            record.to_dict(),
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=False,
-            allow_nan=False,
-        ).encode()
-        for record in twin.event_log.appended
-    ]
-    assert world.id_counters.get("event", 0) == twin.counter[0]
-    assert counter + len(raws) == twin.counter[0]
-    assert _text(store.snapshot()) == _text(plain)
-    return twin.event_log.appended
+    if label is not None:
+        _is_what_python_did(
+            label,
+            [
+                [raw.decode() for raw in raws],
+                world.id_counters.get("event", 0),
+                _text(store.snapshot()),
+            ],
+        )
+    return [json.loads(raw) for raw in raws]
 
 
 # ---- agent_dynamics_v1: the row ----
@@ -219,50 +227,90 @@ def test_the_kernels_write_no_whole_namespace(world) -> None:
 # ---- agent_dynamics_v1: the rules against the Python rules ----
 
 
-@pytest.mark.parametrize(
-    "raw",
-    [
-        None,
-        {},
-        {"schema_version": 1},
-        {"policy_version": "need-led-autonomy-memory-v1"},
-        {"policy_version": "need-led-autonomy-memory-v2"},
-        {
-            "policy_version": ANNOUNCED_FACILITY_AGENT_DYNAMICS_POLICY_VERSION,
-            "source_id": ORIENTATION_FACILITY_SOURCE_ID,
-        },
-    ],
-)
-def test_the_canonical_config_is_the_python_rules(raw: Any) -> None:
-    kernel = native.rules("agent_dynamics").canonical_config
-    assert _text(kernel(raw)) == _text(canonical_agent_dynamics_config.__wrapped__(raw))
+V1 = {"schema_version": 1, "policy_version": "need-led-autonomy-memory-v1"}
+ORIENTED = {"schema_version": 1, "source_id": ORIENTATION_FACILITY_SOURCE_ID}
 
 
 @pytest.mark.parametrize(
-    "raw",
+    ("raw", "expected"),
     [
-        [],
-        {"other": 1},
-        {"schema_version": 2},
-        {"schema_version": 1.0},
-        {"schema_version": True},
-        {"policy_version": "later"},
-        {"policy_version": "need-led-autonomy-memory-v1", "source_id": "x"},
-        {"policy_version": "need-led-autonomy-memory-v2", "source_id": "x"},
+        (None, V1),
+        ({}, V1),
+        ({"schema_version": 1}, V1),
+        ({"policy_version": "need-led-autonomy-memory-v1"}, V1),
+        (
+            {"policy_version": "need-led-autonomy-memory-v2"},
+            {**ORIENTED, "policy_version": "need-led-autonomy-memory-v2"},
+        ),
+        (
+            {
+                "policy_version": ANNOUNCED_FACILITY_AGENT_DYNAMICS_POLICY_VERSION,
+                "source_id": ORIENTATION_FACILITY_SOURCE_ID,
+            },
+            {**ORIENTED, "policy_version": ANNOUNCED_FACILITY_AGENT_DYNAMICS_POLICY_VERSION},
+        ),
+        # `raw.get("schema_version", 1) != 1` is false for these: the config is v1's.
+        ({"schema_version": 1.0}, V1),
+        ({"schema_version": True}, V1),
     ],
 )
-def test_a_config_the_python_rule_refuses_or_coerces_is_left_to_it(raw: Any) -> None:
-    with pytest.raises(native.Unsupported):
-        native.rules("agent_dynamics").canonical_config(raw)
-    python_outcome: Any
-    try:
-        python_outcome = canonical_agent_dynamics_config.__wrapped__(raw)
-    except ValueError as error:
-        python_outcome = str(error)
-    try:
-        assert canonical_agent_dynamics_config(raw) == python_outcome
-    except ValueError as error:
-        assert str(error) == python_outcome
+def test_the_canonical_config_is_the_python_rules(raw: Any, expected: Any) -> None:
+    config = canonical_agent_dynamics_config(raw)
+    assert _text(config) == _text(
+        {"schema_version": 1, "policy_version": expected["policy_version"], **expected}
+    )
+
+
+FIELDS = "agent_dynamics config has unsupported fields"
+VERSION = "agent_dynamics config has an unsupported version"
+
+
+@pytest.mark.parametrize(
+    ("raw", "text"),
+    [
+        ([], FIELDS),
+        ("x", FIELDS),
+        ({"other": 1}, FIELDS),
+        ({1: 1}, FIELDS),
+        ({"schema_version": 2}, VERSION),
+        ({"schema_version": "1"}, VERSION),
+        ({"schema_version": None}, VERSION),
+        ({"schema_version": 2**70}, VERSION),
+        ({"schema_version": False}, VERSION),
+        ({"policy_version": "later"}, VERSION),
+        ({"policy_version": 1}, VERSION),
+        ({"policy_version": None}, VERSION),
+        # The schema is checked first, so the unhashable policy is never looked up.
+        ({"schema_version": 2, "policy_version": []}, VERSION),
+        (
+            {"policy_version": "need-led-autonomy-memory-v1", "source_id": "x"},
+            "agent_dynamics v1 has no orientation source",
+        ),
+        (
+            {"policy_version": "need-led-autonomy-memory-v1", "source_id": None},
+            "agent_dynamics v1 has no orientation source",
+        ),
+        (
+            {"policy_version": "need-led-autonomy-memory-v2", "source_id": "x"},
+            "agent_dynamics v2/v3 must cite the intake orientation assumption",
+        ),
+        (
+            {"policy_version": "need-led-autonomy-memory-v3", "source_id": 1},
+            "agent_dynamics v2/v3 must cite the intake orientation assumption",
+        ),
+    ],
+)
+def test_a_config_the_python_rule_refuses_gets_its_text(raw: Any, text: str) -> None:
+    with pytest.raises(ValueError) as raised:
+        canonical_agent_dynamics_config(raw)
+    assert type(raised.value) is ValueError
+    assert str(raised.value) == text
+
+
+def test_an_unhashable_policy_is_refused() -> None:
+    """Python's `in` of a set raised TypeError for it."""
+    with pytest.raises(KernelRefusal):
+        canonical_agent_dynamics_config({"policy_version": []})
 
 
 @pytest.mark.parametrize(
@@ -288,8 +336,10 @@ def test_a_new_namespace_and_agent_are_the_python_rules(
         }
     if policy is not None:
         configs["agent_dynamics"] = {"policy_version": policy}
-    kernel = native.rules("agent_dynamics").create_state
-    assert _text(kernel(world)) == _text(create_agent_dynamics_state.__wrapped__(world))
+    label = (
+        f"create_state.{'.'.join(sorted(awareness or {})) or awareness}.{policy and policy[-2:]}"
+    )
+    _is_what_python_did(label, _text(create_agent_dynamics_state(world)))
 
 
 @pytest.mark.parametrize(
@@ -312,6 +362,7 @@ def test_an_awareness_config_the_model_decides_is_left_to_it(world, awareness: A
 
 
 def test_the_writers_are_the_python_rules_on_random_calls(world) -> None:
+    """400 random calls: the namespace after each, as the Python rules left it (a digest)."""
     rng = random.Random(7)
     agents = sorted(world.agents)
     facilities = sorted(world.facilities)
@@ -322,31 +373,27 @@ def test_the_writers_are_the_python_rules_on_random_calls(world) -> None:
     world.model_state[KEY]["agents"][agents[0]]["known_facility_ids"] = []
     state = world.model_state[KEY]
     state_policy = state["policy_version"]
+    texts = []
     for step in range(400):
-        plain, twin = _plain_twin(world)
         agent_id = rng.choice([*agents, "nobody"])
         facility_id = rng.choice([*facilities, "nowhere"])
         kind = step % 4
         if kind == 0:
             proposal = _proposal(agent_id, rng.choice(list(ActionKind)), step)
             target = rng.choice([None, facility_id])
-            if agent_id in plain["agents"]:
-                record_proposal.__wrapped__(twin, proposal, target_id=target)
-            rules.record_proposal(world, proposal, target_id=target)
+            record_proposal(world, proposal, target_id=target)
         elif kind == 1:
-            learn_facility.__wrapped__(twin, agent_id, facility_id)
-            rules.learn_facility(world, agent_id, facility_id)
+            learn_facility(world, agent_id, facility_id)
         elif kind == 2:
             if rng.random() < 0.05:
-                announce_installed_facility.__wrapped__(twin, facility_id)
-                rules.announce_installed_facility(world, facility_id)
+                announce_installed_facility(world, facility_id)
         else:
-            assert rules.agent_knows_facility(
-                world, agent_id, facility_id
-            ) == agent_knows_facility.__wrapped__(world, agent_id, facility_id)
-        assert _text(plain) == _text(world.model_state[KEY])
+            texts.append(str(agent_knows_facility(world, agent_id, facility_id)))
+        texts.append(_text(world.model_state[KEY]))
         assert world._core.mirror(KEY).verify()
     assert world.model_state[KEY]["policy_version"] == state_policy
+    assert rules is native.rules("agent_dynamics")
+    _is_what_python_did("writers", texts)
 
 
 def test_a_learned_list_that_comes_out_the_same_is_not_written(world) -> None:
@@ -362,19 +409,29 @@ def test_a_known_list_out_of_order_is_sorted_as_the_python_rule_does(world) -> N
     agent_id = _agent_id(world)
     two = sorted(world.facilities)[:2]
     world.model_state[KEY]["agents"][agent_id]["known_facility_ids"] = list(reversed(two))
-    plain, twin = _plain_twin(world)
-    learn_facility.__wrapped__(twin, agent_id, two[0])
-    native.rules("agent_dynamics").learn_facility(world, agent_id, two[0])
-    assert _text(plain) == _text(world.model_state[KEY])
+    expected = json.loads(_text(world.model_state[KEY]))
+    # `sorted(set(known) | discovered)`, with the facilities of its zone when the config asks.
+    discovered = {two[0]}
+    awareness = world.model_configs.get("facility_awareness")
+    if isinstance(awareness, dict) and awareness.get(
+        "discover_co_located_facilities_on_arrival", True
+    ):
+        zone = world.facilities[two[0]].zone_id
+        discovered |= {item.id for item in world.facilities.values() if item.zone_id == zone}
+    expected["agents"][agent_id]["known_facility_ids"] = sorted(set(two) | discovered)
+    learn_facility(world, agent_id, two[0])
+    assert _text(world.model_state[KEY]) == _text(expected)
 
 
 def test_adding_an_agent_is_the_python_rule(world) -> None:
     agent_id = _agent_id(world)
     world.model_state[KEY]["agents"][agent_id]["last_action"] = "wait"
-    plain, twin = _plain_twin(world)
-    add_agent.__wrapped__(twin, agent_id)
-    native.rules("agent_dynamics").add_agent(world, agent_id)
-    assert _text(plain) == _text(world.model_state[KEY])
+    expected = json.loads(_text(world.model_state[KEY]))
+    # The record `create_agent_dynamics_state` gives the agent, in its place.
+    expected["agents"][agent_id] = create_agent_dynamics_state(world)["agents"][agent_id]
+    assert expected["agents"][agent_id]["last_action"] is None
+    add_agent(world, agent_id)
+    assert _text(world.model_state[KEY]) == _text(expected)
     native.rules("agent_dynamics").add_agent(world, "nobody")
     assert world._core.mirror(KEY).verify()
 
@@ -498,7 +555,7 @@ def _store(world: WorldState) -> Any:
     return active_action_store(world)
 
 
-def test_the_store_holds_rows_and_gives_a_dict_to_a_python_rule(world) -> None:
+def test_the_store_holds_rows_and_takes_its_plain_dict_back(world) -> None:
     store = _store(world)
     assert store.in_rows()
     agent_id = _agent_id(world)
@@ -526,7 +583,8 @@ def test_the_store_holds_rows_and_gives_a_dict_to_a_python_rule(world) -> None:
     assert store.in_rows() and store.snapshot()[agent_id]["continued"] is True
 
 
-def test_a_store_that_does_not_fit_stays_with_the_python_rules(world) -> None:
+def test_a_store_that_does_not_fit_its_rows_is_refused(world) -> None:
+    """No rule writes an int need: the store can't take it back into its rows."""
     store = _store(world)
     agent_id = _agent_id(world)
     record_action_proposal(
@@ -537,17 +595,17 @@ def test_a_store_that_does_not_fit_stays_with_the_python_rules(world) -> None:
         active_actions=store,
     )
     store.as_plain()[agent_id]["start_needs"]["fatigue"] = 1
-    before = len(world.event_log)
-    record_action_proposal(
-        world,
-        _proposal(agent_id, ActionKind.REST, 1),
-        target_id=None,
-        committed=True,
-        active_actions=store,
-    )
+    before = len(world.event_log), dict(world.id_counters), _text(store.snapshot())
+    with pytest.raises(KernelRefusal):
+        record_action_proposal(
+            world,
+            _proposal(agent_id, ActionKind.REST, 1),
+            target_id=None,
+            committed=True,
+            active_actions=store,
+        )
     assert not store.in_rows()
-    assert len(world.event_log) == before + 2
-    assert store.snapshot()[agent_id]["action"] == "rest"
+    assert (len(world.event_log), dict(world.id_counters), _text(store.snapshot())) == before
 
 
 def test_a_restored_log_gives_a_store_in_rows(world) -> None:
@@ -571,7 +629,7 @@ def test_a_restored_log_gives_a_store_in_rows(world) -> None:
     assert again.snapshot()[agent_id] == store.snapshot()[agent_id]
 
 
-# ---- The rules against the Python rules, on every path ----
+# ---- The rules against what the Python rules wrote, on every path ----
 
 
 def test_a_sequence_of_actions_gives_the_python_rules_receipts(world) -> None:
@@ -586,7 +644,8 @@ def test_a_sequence_of_actions_gives_the_python_rules_receipts(world) -> None:
         if rng.random() < 0.3:
             world.agents[agent_id].needs.fatigue = rng.random()
         target = rng.choice([None, None, "T1"])
-        receipts = _same_as_python(
+        receipts = _receipts(
+            None,
             world,
             record_action_proposal,
             store,
@@ -594,11 +653,15 @@ def test_a_sequence_of_actions_gives_the_python_rules_receipts(world) -> None:
             target_id=target,
             committed=rng.random() < 0.9,
         )
-        seen.update(record.event.payload["transition"] for record in receipts)
+        seen.update(record["event"]["payload"]["transition"] for record in receipts)
     world.minute_index = 300
-    receipts = _same_as_python(world, finalize_active_actions, store, 300)
-    seen.update(record.event.payload["transition"] for record in receipts)
+    receipts = _receipts(None, world, finalize_active_actions, store, 300)
+    seen.update(record["event"]["payload"]["transition"] for record in receipts)
     assert len(store) == 0
+    _is_what_python_did(
+        "sequence",
+        [[raw.decode() for raw in world.event_log.items_bytes(0, len(world.event_log))]],
+    )
     assert {"started", "continued", "completed", "interrupted", "censored"} <= seen
     for document in _lifecycle_documents(world):
         assert document["status"] == "applied"
@@ -634,7 +697,8 @@ def test_an_applied_event_gives_the_python_rules_receipt(
     )
     who = {"sender_agent_id": agent_id} if sender else {"agent_id": agent_id}
     event = _applied(world, _event("e-1", event_type, 900, 3, **who, **keys), 3)
-    _same_as_python(world, record_applied_action_completion, store, event, 3)
+    label = f"applied.{int(sender)}.{event_type}.{action.value}.{'.'.join(keys.values())}"
+    _receipts(label, world, record_applied_action_completion, store, event, 3)
 
 
 def test_events_that_end_nothing_change_nothing(world) -> None:
@@ -647,17 +711,19 @@ def test_events_that_end_nothing_change_nothing(world) -> None:
         committed=True,
         active_actions=store,
     )
+    open_actions = _text(store.snapshot())
     failed = _event("e-failed", "resource_service_complete", 901, 6, agent_id=agent_id)
     world.event_log.append(EventLogRecord(failed, 6, EventStatus.FAILED))
-    assert not _same_as_python(world, record_applied_action_completion, store, failed, 6)
+    assert not _receipts(None, world, record_applied_action_completion, store, failed, 6)
     unknown = _event("e-absent", "resource_service_complete", 902, 6, agent_id=agent_id)
-    assert not _same_as_python(world, record_applied_action_completion, store, unknown, 6)
+    assert not _receipts(None, world, record_applied_action_completion, store, unknown, 6)
     early = _applied(
         world, _event("e-early", "resource_service_complete", 903, 2, agent_id=agent_id), 6
     )
-    assert not _same_as_python(world, record_applied_action_completion, store, early, 6)
+    assert not _receipts(None, world, record_applied_action_completion, store, early, 6)
     nobody = _applied(world, _event("e-no", "resource_service_complete", 904, 7, agent_id=5), 7)
-    assert not _same_as_python(world, record_applied_action_completion, store, nobody, 7)
+    assert not _receipts(None, world, record_applied_action_completion, store, nobody, 7)
+    assert _text(store.snapshot()) == open_actions
 
 
 def test_an_agent_gone_from_the_world_closes_without_needs(world) -> None:
@@ -672,9 +738,9 @@ def test_an_agent_gone_from_the_world_closes_without_needs(world) -> None:
     )
     event = _applied(world, _event("e-1", "resource_service_cancel", 901, 6, agent_id=agent_id), 6)
     world.agents.pop(agent_id)
-    receipts = _same_as_python(world, record_applied_action_completion, store, event, 6)
-    assert receipts[0].event.payload["current_needs"] == {}
-    assert receipts[0].event.payload["activity"] is None
+    receipts = _receipts("gone", world, record_applied_action_completion, store, event, 6)
+    assert receipts[0]["event"]["payload"]["current_needs"] == {}
+    assert receipts[0]["event"]["payload"]["activity"] is None
 
 
 def test_a_population_exit_gives_the_python_rules_receipts(world) -> None:
@@ -702,13 +768,13 @@ def test_a_population_exit_gives_the_python_rules_receipts(world) -> None:
         "departures": [{"event_id": "pop-1", "agent_id": agents[1]}, {"event_id": "pop-2"}]
     }
     world.agents.pop(agents[1])
-    receipts = _same_as_python(world, record_applied_population_exit, store, event, 3)
-    assert [record.event.payload["reason_code"] for record in receipts] == [
+    receipts = _receipts("population", world, record_applied_population_exit, store, event, 3)
+    assert [record["event"]["payload"]["reason_code"] for record in receipts] == [
         "population_departure",
         "population_temporary_exit",
     ]
     other = _event("o-1", "toilet_service_complete", 901, 3, agent_id=agents[0])
-    assert not _same_as_python(world, record_applied_population_exit, store, other, 3)
+    assert not _receipts(None, world, record_applied_population_exit, store, other, 3)
 
 
 @pytest.mark.parametrize(
@@ -719,7 +785,8 @@ def test_the_body_record_is_read_as_the_python_rule_reads_it(world, body: dict[s
     agent_id = _agent_id(world)
     world.model_state["body_state_v1"]["agents"][agent_id] = body
     store = _store(world)
-    receipts = _same_as_python(
+    receipts = _receipts(
+        f"body.{_text(body)}",
         world,
         record_action_proposal,
         store,
@@ -727,41 +794,48 @@ def test_the_body_record_is_read_as_the_python_rule_reads_it(world, body: dict[s
         target_id=None,
         committed=True,
     )
-    assert receipts[0].event.payload["start_needs"]["sleep_debt_minutes"] == float(
+    assert receipts[0]["event"]["payload"]["start_needs"]["sleep_debt_minutes"] == float(
         body.get("sleep_debt_minutes", 0.0)
     )
 
 
-# ---- What is left to the Python rules, with nothing changed ----
+# ---- What the kernels refuse, with nothing changed ----
 
 
 def _refused(world: WorldState, store: Any, proposal: Any, target_id: Any = None) -> None:
+    """Where the Python rule's receipts' model refused or converted a value, or its log raised."""
     before = len(world.event_log), dict(world.id_counters), _text(store.snapshot())
     with pytest.raises(native.Unsupported):
         native.rules("action_lifecycle").record_action_proposal(
+            world, proposal, target_id=target_id, committed=True, active_actions=store
+        )
+    with pytest.raises(KernelRefusal):
+        record_action_proposal(
             world, proposal, target_id=target_id, committed=True, active_actions=store
         )
     assert (len(world.event_log), dict(world.id_counters), _text(store.snapshot())) == before
 
 
 @pytest.mark.parametrize("reason", ["", "x" * 121, 5, None])
-def test_a_reason_the_receipts_model_decides_is_left_to_it(world, reason: Any) -> None:
+def test_a_reason_the_receipts_model_decides_is_refused(world, reason: Any) -> None:
     _refused(world, _store(world), _proposal(_agent_id(world), ActionKind.WAIT, 0, reason))
 
 
 @pytest.mark.parametrize("target", ["not stable", 5, "é"])
-def test_a_target_the_receipts_model_decides_is_left_to_it(world, target: Any) -> None:
+def test_a_target_the_receipts_model_decides_is_refused(world, target: Any) -> None:
     _refused(world, _store(world), _proposal(_agent_id(world), ActionKind.WAIT, 0), target)
 
 
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), "x", None, True, 2**60])
-def test_a_body_value_the_rule_decides_is_left_to_it(world, value: Any) -> None:
+def test_a_body_value_the_rule_decides_is_refused(world, value: Any) -> None:
     agent_id = _agent_id(world)
     world.model_state["body_state_v1"]["agents"][agent_id] = {"hygiene_need": value}
     _refused(world, _store(world), _proposal(agent_id, ActionKind.WAIT, 0))
 
 
-def test_a_transition_before_its_start_is_left_to_the_receipts_model(world) -> None:
+def test_a_transition_before_its_start_is_refused(world) -> None:
+    """The receipts' model raised "action transition cannot precede its start"; minutes of a Run
+    only go forward."""
     store = _store(world)
     agent_id = _agent_id(world)
     record_action_proposal(
@@ -772,17 +846,10 @@ def test_a_transition_before_its_start_is_left_to_the_receipts_model(world) -> N
         active_actions=store,
     )
     _refused(world, store, _proposal(agent_id, ActionKind.WAIT, 4))
-    with pytest.raises(ValueError, match="action transition cannot precede its start"):
-        record_action_proposal(
-            world,
-            _proposal(agent_id, ActionKind.WAIT, 4),
-            target_id=None,
-            committed=True,
-            active_actions=store,
-        )
 
 
-def test_a_sequence_the_log_holds_is_left_to_the_python_rule_and_its_error(world) -> None:
+def test_a_sequence_the_log_holds_is_refused(world) -> None:
+    """The log raised DuplicateEventError for it: a counter behind the log, which no rule leaves."""
     store = _store(world)
     agent_id = _agent_id(world)
     next_sequence = world.id_counters.get("event", 0)
@@ -790,17 +857,9 @@ def test_a_sequence_the_log_holds_is_left_to_the_python_rule_and_its_error(world
         EventLogRecord(_event("taken", "other_type", next_sequence, 0), 0, EventStatus.APPLIED)
     )
     _refused(world, store, _proposal(agent_id, ActionKind.WAIT, 0))
-    with pytest.raises(DuplicateEventError, match="already realized"):
-        record_action_proposal(
-            world,
-            _proposal(agent_id, ActionKind.WAIT, 0),
-            target_id=None,
-            committed=True,
-            active_actions=store,
-        )
 
 
-def test_a_tainted_namespace_or_entity_leaves_a_proposal_to_python(world) -> None:
+def test_a_tainted_namespace_or_entity_refuses_a_proposal(world) -> None:
     agent_id = _agent_id(world)
     world.agents[agent_id].needs.fatigue = 1
     store = _store(world)
@@ -814,7 +873,7 @@ def test_a_tainted_namespace_or_entity_leaves_a_proposal_to_python(world) -> Non
         )
 
 
-def test_a_committed_flag_that_is_not_a_bool_is_left_to_python(world) -> None:
+def test_a_committed_flag_that_is_not_a_bool_is_refused(world) -> None:
     with pytest.raises(native.Unsupported):
         native.rules("action_lifecycle").record_action_proposal(
             world,
@@ -848,7 +907,7 @@ def test_another_object_of_the_same_row_is_the_event_the_log_holds(world) -> Non
     assert agent_id not in store
 
 
-def test_a_record_a_row_cannot_tell_from_the_event_is_left_to_the_python_rule(world) -> None:
+def test_a_record_a_row_cannot_tell_from_the_event_is_refused(world) -> None:
     store = _store(world)
     agent_id = _open_fetch(world, store)
     _applied(world, _event("e-1", "resource_service_complete", 900, 2, agent_id=agent_id, n=1), 2)
@@ -858,11 +917,12 @@ def test_a_record_a_row_cannot_tell_from_the_event_is_left_to_the_python_rule(wo
         native.rules("action_lifecycle").record_applied_action_completion(
             world, copied, 2, active_actions=store
         )
-    record_applied_action_completion(world, copied, 2, active_actions=store)
-    assert agent_id not in store
+    with pytest.raises(KernelRefusal):
+        record_applied_action_completion(world, copied, 2, active_actions=store)
+    assert agent_id in store
 
 
-def test_a_counter_a_rule_could_overflow_is_left_to_the_python_rule(world) -> None:
+def test_a_counter_a_rule_could_overflow_is_refused(world) -> None:
     store = _store(world)
     agent_id = _agent_id(world)
     record_action_proposal(
@@ -874,18 +934,9 @@ def test_a_counter_a_rule_could_overflow_is_left_to_the_python_rule(world) -> No
     )
     world.id_counters["event"] = 2**62 + 1
     _refused(world, store, _proposal(agent_id, ActionKind.REST, 1))
-    record_action_proposal(
-        world,
-        _proposal(agent_id, ActionKind.REST, 1),
-        target_id=None,
-        committed=True,
-        active_actions=store,
-    )
-    assert world.id_counters["event"] == 2**62 + 3
-    assert world.event_log.find(f"action-lifecycle-{2**62 + 2}") is not None
 
 
-def test_a_record_taken_past_the_tree_leaves_the_writers_to_python_with_the_row_as_it_was(
+def test_a_record_taken_past_the_tree_is_refused_by_the_writers_with_the_row_as_it_was(
     world,
 ) -> None:
     agent_id = _agent_id(world)
@@ -904,33 +955,6 @@ def test_a_record_taken_past_the_tree_leaves_the_writers_to_python_with_the_row_
 
 
 # ---- A Run: the kernels really run, and saved identities are kept ----
-
-
-def test_a_run_saves_the_same_receipts_with_and_without_the_kernels(
-    generated_scenario, tmp_path, monkeypatch
-) -> None:
-    from sheltersim.experiments.runner import run_scenario
-
-    document = generated_scenario.model_dump(mode="json")
-    document["duration_minutes"] = 90
-    scenario = ScenarioSpec.model_validate(document)
-    kept = run_scenario(scenario, tmp_path / "kept")
-    with monkeypatch.context() as patch:
-        from sheltersim.domain import action_lifecycle
-
-        patch.setattr(
-            action_lifecycle,
-            "active_action_store",
-            lambda world: active_action_index(world),
-        )
-        from sheltersim.experiments import runner
-
-        patch.setattr(runner, "active_action_store", active_action_index)
-        python = run_scenario(scenario, tmp_path / "python")
-    assert kept.canonical_json() == python.canonical_json()
-    assert [record.to_dict() for record in kept.event_log.records] == [
-        record.to_dict() for record in python.event_log.records
-    ]
 
 
 def test_a_tick_makes_no_lifecycle_object_and_writes_no_whole_namespace(generated_scenario) -> None:

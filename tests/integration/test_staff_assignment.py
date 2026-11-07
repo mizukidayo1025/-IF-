@@ -1,14 +1,19 @@
 """The staff's assignment in Rust: a task, a relief, a route's wait and a preemption.
 
-native/src/rules/staff.rs and travel.rs against their Python rules on twin worlds, on what the gate
-reaches rarely or never (docs/rust-port/lanes/l2-staff.md). No Run reaches
-`_preempt_background_staff`, so a Run here does, through the driver and through the phases.
+native/src/rules/staff.rs and travel.rs on what the gate reaches rarely or never
+(docs/rust-port/lanes/l2-staff.md). `assign_staff_operations` and `schedule_staff_operation_relief`
+have no Python body left (lane L10, `kernel_only`): what they start is checked against a digest of
+what the Python rule started on the same world (its answer, the world, its records and events),
+taken before it went, pinned on Linux as the gate's hashes are. No Run reaches the preemption of a
+background task, so a Run here does, through the driver and through the phases.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import random
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +22,7 @@ from support.paths import SCENARIO_100_AGENTS
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine, TraceLevel
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.world import WorldState
 from sheltersim.domain.models import SupportRequestState, SupportRequestStatus
 from sheltersim.domain.movement import shared_passage_edge_loads
@@ -95,13 +101,50 @@ def _zones(world: WorldState) -> list[str]:
     return sorted(world.zones)
 
 
-def _both_assign(first: WorldState, second: WorldState, minute: int, **options: Any) -> Any:
-    router = options.pop("router", None)
-    answer = native.rules("staff").assign_operations(first, minute, router or _router(first))
-    expected = assign_staff_operations.__wrapped__(second, minute, router or _router(second))
-    assert answer == expected
-    assert json.dumps(_state(first)) == json.dumps(_state(second))
-    assert first._core.mirror(KEY).verify()
+# What the Python rules started, by the label of the call: a digest of the answer and `_state`
+# after it, taken before they went (lane L10).
+PYTHON_DIGESTS = {
+    "ranks.None": "7da4f6ec183639af",
+    "ranks.staff-urgency-first-v1": "0a361a1c16e7d532",
+    "ranks.staff-travel-first-v1": "9b591b8fac3c7782",
+    "zone_threshold": "3e1aecc8255f15d4",
+    "rotation.0.0005": "fe1a9f6b18252347",
+    "rotation.0.0015": "bf315e3139710a99",
+    "rotation.0.0025": "12ac201e10b4c1df",
+    "rotation.0.001": "65082333055b238e",
+    "patrol_urgency.0.598": "2462696bf8fe417f",
+    "patrol_urgency.0.602": "c235dab606e85b15",
+    "recent_work": "d3535c084e011d31",
+    "fatigue_rounds": "f4f886f4b8462b42",
+    "travel_first": "b294e15f8056d14c",
+    "urgency_first": "8b18793a5e14593f",
+    "equal_ranks": "f3c1783863594513",
+    "small_threshold": "bea27665c28fd976",
+    "full_passage": "efff7d4ce6533e45",
+    "passage_loads.0": "a93d4ab3da46b5fe",
+    "passage_loads.1": "0f0fb0bf34700171",
+    "trip_under_way": "84e9301a84f3442f",
+    "relief": "708bac4aa204b371",
+    "relief_least_work": "e4690399fa7ab401",
+}
+
+
+def _is_what_python_did(label: str, answer: Any, world: WorldState) -> None:
+    text = json.dumps([list(answer), _state(world)])
+    if sys.platform == "linux":
+        assert hashlib.sha256(text.encode()).hexdigest()[:16] == PYTHON_DIGESTS[label]
+
+
+def _assign(label: str, world: WorldState, minute: int, router: Any = None) -> Any:
+    answer = assign_staff_operations(world, minute, router or _router(world))
+    _is_what_python_did(label, answer, world)
+    assert world._core.mirror(KEY).verify()
+    return answer
+
+
+def _relief(label: str, world: WorldState, minute: int) -> Any:
+    answer = schedule_staff_operation_relief(world, minute)
+    _is_what_python_did(label, answer, world)
     return answer
 
 
@@ -148,8 +191,8 @@ def test_a_worker_takes_the_task_the_python_rule_ranks_first(policy: str | None)
         world.facilities[facility].working_units = world.facilities[facility].capacity - 1
         return world
 
-    first, second = make(), make()
-    answer = _both_assign(first, second, 0)
+    first = make()
+    answer = _assign(f"ranks.{policy}", first, 0)
     assert len(answer) == 2
     kinds = {record["task_kind"] for record in first.model_state[KEY]["staff"].values()}
     assert len(kinds) >= 2
@@ -166,8 +209,8 @@ def test_a_zone_s_threshold_names_the_reason_as_python_formats_it() -> None:
         world.model_state[KEY]["zones"]["toilet"]["sanitation"] = 0.99
         return world
 
-    first, second = make(), make()
-    assert _both_assign(first, second, 0)
+    first = make()
+    assert _assign("zone_threshold", first, 0)
     assert first.model_state[KEY]["staff"]["S01"]["reason"] == "sanitation_index_below_1"
 
 
@@ -182,8 +225,7 @@ def test_the_rotation_reads_the_history_and_the_fatigue() -> None:
 
     # 1000 * 0.0005 is half way: round() goes to even, and the ties go by ID.
     for fatigue in (0.0005, 0.0015, 0.0025, 0.001):
-        first, second = make(fatigue), make(fatigue)
-        answer = _both_assign(first, second, 0)
+        answer = _assign(f"rotation.{fatigue}", make(fatigue), 0)
         assert len(answer) == 1
 
 
@@ -198,8 +240,8 @@ def test_a_patrol_s_urgency_is_half_the_mean_stress_against_another_task() -> No
         return world
 
     for sanitation, kind in ((0.598, "cleaning"), (0.602, "patrol")):
-        first, second = make(sanitation), make(sanitation)
-        assert _both_assign(first, second, 0)
+        first = make(sanitation)
+        assert _assign(f"patrol_urgency.{sanitation}", first, 0)
         assert first.model_state[KEY]["staff"]["S01"]["task_kind"] == kind
 
 
@@ -225,8 +267,8 @@ def test_the_rotation_counts_recent_work_from_four_hours_back() -> None:
         history.append({**entry, "staff_id": "S1", "complete_minute": 59})
         return world
 
-    first, second = make(), make()
-    assert _both_assign(first, second, 300)
+    first = make()
+    assert _assign("recent_work", first, 300)
     state = first.model_state[KEY]["staff"]
     assert state["S1"]["phase"] != "idle" and state["S0"]["phase"] == "idle"
 
@@ -240,8 +282,8 @@ def test_a_fatigue_rounds_at_a_thousandth_in_the_rotation() -> None:
         state["S1"]["fatigue"] = 0.0498
         return world
 
-    first, second = make(), make()
-    assert _both_assign(first, second, 0)
+    first = make()
+    assert _assign("fatigue_rounds", first, 0)
     # Both round to 50, so the ID decides; 1010 * fatigue would give 51 and 50.
     assert first.model_state[KEY]["staff"]["S0"]["phase"] != "idle"
 
@@ -256,12 +298,12 @@ def test_the_travel_first_formula_takes_the_nearer_task() -> None:
             record["sanitation"] = 0.8 if zone == "toilet" else 0.2
         return world
 
-    near = make("staff-travel-first-v1"), make("staff-travel-first-v1")
-    assert _both_assign(*near, 0)
-    assert near[0].model_state[KEY]["staff"]["S01"]["target_zone_id"] == "toilet"
-    urgent = make("staff-urgency-first-v1"), make("staff-urgency-first-v1")
-    assert _both_assign(*urgent, 0)
-    assert urgent[0].model_state[KEY]["staff"]["S01"]["target_zone_id"] != "toilet"
+    near = make("staff-travel-first-v1")
+    assert _assign("travel_first", near, 0)
+    assert near.model_state[KEY]["staff"]["S01"]["target_zone_id"] == "toilet"
+    urgent = make("staff-urgency-first-v1")
+    assert _assign("urgency_first", urgent, 0)
+    assert urgent.model_state[KEY]["staff"]["S01"]["target_zone_id"] != "toilet"
 
 
 def test_equal_ranks_go_by_the_kind_as_python_compares_them() -> None:
@@ -273,8 +315,8 @@ def test_equal_ranks_go_by_the_kind_as_python_compares_them() -> None:
         return world
 
     assert 1.0 - 0.6 == 0.8 * 0.5
-    first, second = make(), make()
-    assert _both_assign(first, second, 0)
+    first = make()
+    assert _assign("equal_ranks", first, 0)
     assert first.model_state[KEY]["staff"]["S01"]["task_kind"] == "patrol"
 
 
@@ -292,8 +334,8 @@ def test_a_small_threshold_names_the_reason_with_an_exponent() -> None:
             record["sanitation"] = 0.0 if zone == "toilet" else 1.0
         return world
 
-    first, second = make(), make()
-    assert _both_assign(first, second, 0)
+    first = make()
+    assert _assign("small_threshold", first, 0)
     assert first.model_state[KEY]["staff"]["S01"]["reason"] == "sanitation_index_below_1e-05"
 
 
@@ -312,27 +354,26 @@ def test_a_full_passage_keeps_a_worker_from_a_task() -> None:
         return world, SpaceRouter(graph)
 
     first, first_router = make()
-    second, second_router = make()
-    answer = native.rules("staff").assign_operations(first, 0, first_router)
-    expected = assign_staff_operations.__wrapped__(second, 0, second_router)
-    assert answer == expected and len(answer) == 1
-    assert json.dumps(_state(first)) == json.dumps(_state(second))
+    answer = _assign("full_passage", first, 0, first_router)
+    assert len(answer) == 1
 
 
-def test_an_unknown_formula_and_a_corrupt_value_stay_the_python_rule_s() -> None:
+def test_an_unknown_formula_and_a_corrupt_value_are_refused() -> None:
+    """A fatigue no rule writes (the Python rule's `round` raised OverflowError on it) and a formula
+    the kernel doesn't know: KernelRefusal, with nothing changed."""
     world = _world(staff=[_member("S01", "toilet", "patrol")])
     _spread(world, "toilet", 0.9)
     before = json.dumps(_state(world))
     world.model_state["staff_dynamics_v1"]["staff"]["S01"]["fatigue"] = float("inf")
     with pytest.raises(native.Unsupported):
         native.rules("staff").assign_operations(world, 0, _router(world))
-    with pytest.raises(OverflowError):
-        assign_staff_operations.__wrapped__(world, 0, _router(world))
+    with pytest.raises(KernelRefusal):
+        assign_staff_operations(world, 0, _router(world))
     world.model_state["staff_dynamics_v1"]["staff"]["S01"]["fatigue"] = 0.0
-    assert json.loads(before)["counters"] == dict(world.id_counters)
+    assert json.dumps(_state(world)) == before
     world.model_configs["policy_registry"] = {"staff_operations": "a-later-formula"}
-    with pytest.raises(native.Unsupported):
-        native.rules("staff").assign_operations(world, 0, _router(world))
+    with pytest.raises(KernelRefusal):
+        assign_staff_operations(world, 0, _router(world))
 
 
 def test_the_passage_loads_are_the_python_rule_s() -> None:
@@ -343,14 +384,12 @@ def test_the_passage_loads_are_the_python_rule_s() -> None:
         _spread(world, "sleeping", 0.9)
         return world
 
-    first, second = make(), make()
-    _both_assign(first, second, 0)
-    assert shared_passage_edge_loads(first, 1) == shared_passage_edge_loads(second, 1)
+    first = make()
+    _assign("passage_loads.0", first, 0)
     assert shared_passage_edge_loads(first, 1)
-    for each in (first, second):
-        each.minute_index = 1
+    first.minute_index = 1
     # The zones stay reserved, so a later minute starts nothing new on them and reads the loads.
-    _both_assign(first, second, 1)
+    _assign("passage_loads.1", first, 1)
 
 
 def test_a_trip_under_way_loads_the_edge_its_share_of_the_time_has_reached() -> None:
@@ -387,12 +426,8 @@ def test_a_trip_under_way_loads_the_edge_its_share_of_the_time_has_reached() -> 
         return world, SpaceRouter(graph)
 
     first, first_router = make()
-    second, second_router = make()
     assert shared_passage_edge_loads(first, 496) == {"sleeping_corridor": 1}
-    answer = native.rules("staff").assign_operations(first, 496, first_router)
-    assert answer == assign_staff_operations.__wrapped__(second, 496, second_router)
-    assert answer
-    assert json.dumps(_state(first)) == json.dumps(_state(second))
+    assert _assign("trip_under_way", first, 496, first_router)
 
 
 # ---- schedule_staff_operation_relief ----
@@ -433,15 +468,12 @@ def _on_a_task() -> WorldState:
 
 
 def test_a_relief_goes_to_the_replacement_the_python_rule_picks() -> None:
-    first, second = _on_a_task(), _on_a_task()
-    first.minute_index = second.minute_index = 1
-    answer = native.rules("staff").relief(first, 1)
-    expected = schedule_staff_operation_relief.__wrapped__(second, 1)
-    assert answer == expected and len(answer) == 1
-    assert json.dumps(_state(first)) == json.dumps(_state(second))
+    first = _on_a_task()
+    first.minute_index = 1
+    answer = _relief("relief", first, 1)
+    assert len(answer) == 1
     # The one scheduled is not asked for again, and neither is one at a later minute.
-    assert native.rules("staff").relief(first, 1) == ()
-    assert schedule_staff_operation_relief.__wrapped__(second, 1) == ()
+    assert schedule_staff_operation_relief(first, 1) == ()
     assert next(
         event.payload["replacement_staff_id"]
         for event in first.event_queue.pending()
@@ -456,10 +488,8 @@ def test_a_relief_goes_to_the_replacement_with_the_least_work() -> None:
         world.model_state["staff_dynamics_v1"]["staff"]["S02"]["fatigue"] = 0.5
         return world
 
-    first, second = make(), make()
-    answer = native.rules("staff").relief(first, 1)
-    assert answer == schedule_staff_operation_relief.__wrapped__(second, 1)
-    assert json.dumps(_state(first)) == json.dumps(_state(second))
+    first = make()
+    _relief("relief_least_work", first, 1)
     assert (
         next(
             event.payload["replacement_staff_id"]
@@ -472,12 +502,12 @@ def test_a_relief_goes_to_the_replacement_with_the_least_work() -> None:
 
 def test_no_relief_for_a_worker_still_on_shift_or_too_near_the_end() -> None:
     world = _on_a_task()
-    assert native.rules("staff").relief(world, 0) == ()
-    assert schedule_staff_operation_relief.__wrapped__(world, 0) == ()
+    before = json.dumps(_state(world))
+    assert schedule_staff_operation_relief(world, 0) == ()
     world.model_state[KEY]["staff"]["S01"]["due_minute"] = 2
     world.minute_index = 1
-    assert native.rules("staff").relief(world, 1) == ()
-    assert schedule_staff_operation_relief.__wrapped__(world, 1) == ()
+    assert schedule_staff_operation_relief(world, 1) == ()
+    assert json.loads(json.dumps(_state(world)))["pending"] == json.loads(before)["pending"]
 
 
 # ---- What the metrics read, with routes ----
