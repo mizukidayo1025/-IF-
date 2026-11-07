@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import math
-from copy import deepcopy
 from typing import Any
 
+from sheltersim import native
+from sheltersim.core.state_mirror import register_rust_validator
 from sheltersim.domain.models import validate_unit_interval
 
 PSYCHOLOGICAL_STATE_KEY = "psychological_distress_v1"
@@ -70,8 +71,9 @@ def update_psychological_state(
         ("high_distress_threshold", high_distress_threshold),
     ):
         validate_unit_interval(name, value)
-    result = deepcopy(state)
-    agents = result["agents"]
+    # Validated above: each record holds numbers only, so this is a deep copy.
+    agents = {agent_id: dict(record) for agent_id, record in state["agents"].items()}
+    result = {**state, "agents": agents}
     for agent_id, acute in sorted(acute_by_agent.items()):
         validate_unit_interval(f"acute distress for {agent_id}", acute)
         record = agents.get(agent_id)
@@ -97,16 +99,12 @@ def update_psychological_state(
             observed = record["daily_observed_minutes"]
             if observed == 0:
                 continue
-            mean_acute = record["daily_acute_sum"] / observed
-            high_fraction = record["daily_high_distress_minutes"] / observed
-            baseline = record["baseline_distress"]
-            next_value = (
-                baseline
-                + retention * (record["long_term_distress"] - baseline)
-                + acute_weight * (mean_acute - baseline)
-                + high_distress_weight * high_fraction
+            record["long_term_distress"] = next_long_term_distress(
+                record,
+                retention=retention,
+                acute_weight=acute_weight,
+                high_distress_weight=high_distress_weight,
             )
-            record["long_term_distress"] = min(1.0, max(0.0, next_value))
             record["daily_acute_sum"] = 0.0
             record["daily_high_distress_minutes"] = 0
             record["daily_observed_minutes"] = 0
@@ -114,6 +112,27 @@ def update_psychological_state(
     result["last_updated_minute"] = minute
     validate_psychological_state(result)
     return result
+
+
+def next_long_term_distress(
+    record: dict[str, Any],
+    *,
+    retention: float,
+    acute_weight: float,
+    high_distress_weight: float,
+) -> float:
+    """The day's end value of D for a record with observed minutes."""
+    observed = record["daily_observed_minutes"]
+    mean_acute = record["daily_acute_sum"] / observed
+    high_fraction = record["daily_high_distress_minutes"] / observed
+    baseline = record["baseline_distress"]
+    next_value = (
+        baseline
+        + retention * (record["long_term_distress"] - baseline)
+        + acute_weight * (mean_acute - baseline)
+        + high_distress_weight * high_fraction
+    )
+    return min(1.0, max(0.0, next_value))
 
 
 def validate_psychological_state(state: Any) -> None:
@@ -166,3 +185,10 @@ def validate_psychological_state(state: Any) -> None:
             raise ValueError("psychological distress high minutes are invalid")
         if type(days) is not int or days < 0 or total < 0 or total > observed + 1e-9:
             raise ValueError("psychological distress daily accumulation is invalid")
+
+
+# Rust holds this namespace in native/src/state/psychological_distress.rs.
+if native.available():
+    register_rust_validator(
+        PSYCHOLOGICAL_STATE_KEY, native.state("psychological_distress").validate
+    )

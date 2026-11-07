@@ -7,6 +7,8 @@ from collections.abc import Mapping
 from dataclasses import replace
 from typing import Any
 
+from sheltersim import native
+from sheltersim.core.state_mirror import register_rust_validator
 from sheltersim.domain.models import (
     AgentInformationState,
     InformationBeliefStatus,
@@ -315,3 +317,8 @@ def information_spread_summary(state: Mapping[str, Any], *, agent_count: int) ->
         "support_requests": state["counters"]["support_requests"],
         "counters": dict(state["counters"]),
     }
+
+
+# Rust holds this namespace in native/src/state/information.rs.
+if native.available():
+    register_rust_validator(INFORMATION_SPREAD_STATE_KEY, native.state("information").validate)

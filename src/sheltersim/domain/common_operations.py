@@ -6,6 +6,7 @@ from typing import Any
 
 from pydantic import TypeAdapter
 
+from sheltersim import native
 from sheltersim.contracts.operations import (
     MAX_SHARED_OPERATION_HISTORY,
     SHARED_OPERATIONS_KEY,
@@ -21,9 +22,18 @@ from sheltersim.contracts.operations import (
     StaffSupportContinuityReceipt,
 )
 from sheltersim.core.history import records_since_previous_tick
+from sheltersim.core.kernels import kernel_first
+from sheltersim.core.state_mirror import rust_accepts
+from sheltersim.core.tick_validation import saved_json
 from sheltersim.core.world import WorldState
 from sheltersim.domain.geometry_overlay import parsed_facility_geometry
 from sheltersim.events.models import EventStatus
+
+# native/src/state/shared_operations.rs: what accepts a tick's state with no replay of the history,
+# and what tells the row that these rules accepted its recent receipts.
+_TICK_VALID = native.state("shared_operations").validate_tick if native.available() else None
+_TICK_PASSED = native.state("shared_operations").recent_passed if native.available() else None
+_HISTORY_PASSED = native.state("shared_operations").history_passed if native.available() else None
 
 _CARE_TRANSITIONS = {
     None: {"requested"},
@@ -44,10 +54,20 @@ def create_shared_operations_state() -> dict[str, Any]:
 
 
 def validate_shared_operations_state(
-    world: WorldState, *, validate_event_history: bool = True
+    world: WorldState,
+    *,
+    validate_event_history: bool = True,
+    history_memo: Any = None,
 ) -> None:
     state = world.model_state.get(SHARED_OPERATIONS_KEY)
     if state is None:
+        return
+    if (
+        not validate_event_history
+        and history_memo is None
+        and _TICK_VALID is not None
+        and rust_accepts(world, SHARED_OPERATIONS_KEY, _TICK_VALID)
+    ):
         return
     # Per-tick validation parses only the records from the tick that just ended (each
     # was checked against its event when appended); the run-boundary validation
@@ -56,16 +76,27 @@ def validate_shared_operations_state(
     history = state.get("history") if isinstance(state, dict) else None
     if not validate_event_history and isinstance(history, list):
         checked = {**state, "history": records_since_previous_tick(history, world.minute_index)}
+    # A save's validation continues the replay after the records unchanged since the
+    # last one; a truncated history has no fixed start to replay from.
+    seen_events: set[str] = set()
+    care: dict[str, CareRequestState] = {}
+    last_minute = 0
+    replay_memo = history_memo if isinstance(history, list) and not _truncated(state) else None
+    if replay_memo is not None:
+        kept = replay_memo.resume((SHARED_OPERATIONS_KEY, "history"), _staff_operations_json(world))
+        if kept is not None:
+            start, (seen_events, care, last_minute) = kept
+            checked = {**state, "history": history[start:]}
     try:
         parsed = SharedOperationsState.model_validate(checked)
     except (TypeError, ValueError) as exc:
         raise ValueError("shared_operations_v1 has an invalid exact schema") from exc
-    if len(state["history"]) > MAX_SHARED_OPERATION_HISTORY or any(
-        a.minute > b.minute for a, b in zip(parsed.history, parsed.history[1:])
+    if (
+        len(state["history"]) > MAX_SHARED_OPERATION_HISTORY
+        or any(a.minute > b.minute for a, b in zip(parsed.history, parsed.history[1:]))
+        or (parsed.history and last_minute > parsed.history[0].minute)
     ):
         raise ValueError("shared_operations_v1 history is over limit or out of time order")
-    seen_events: set[str] = set()
-    care: dict[str, CareRequestState] = {}
     for item in parsed.history:
         if item.minute > world.minute_index or item.event_id in seen_events:
             raise ValueError(
@@ -227,8 +258,41 @@ def validate_shared_operations_state(
         )
         if not receipt_matches or not _event_payload_matches(record, latest):
             raise ValueError("truncated care request head disagrees with its applied event")
+    if replay_memo is not None:
+        last_minute = parsed.history[-1].minute if parsed.history else last_minute
+        replay_memo.keep(
+            (SHARED_OPERATIONS_KEY, "history"), len(history), (seen_events, care, last_minute)
+        )
+    _tell_the_row_they_passed(world, validate_event_history, history_memo)
 
 
+def _tell_the_row_they_passed(
+    world: WorldState, validate_event_history: bool, history_memo: Any
+) -> None:
+    """A tick's kernels trust the receipts these rules have just passed: the recent ones of a tick,
+    or all of them after a replay of the whole history."""
+    if _TICK_PASSED is None or _HISTORY_PASSED is None:
+        return
+    try:
+        if validate_event_history:
+            _HISTORY_PASSED(world)
+        elif history_memo is None:
+            _TICK_PASSED(world)
+    except native.Unsupported:
+        pass
+
+
+def _truncated(state: Any) -> bool:
+    return not isinstance(state, dict) or state.get("history_truncated") is not False
+
+
+def _staff_operations_json(world: WorldState) -> bytes | None:
+    """What the rule for an old StaffOperationReceipt reads besides the receipt."""
+    operations = world.model_state.get("staff_operations_v1", {})
+    return saved_json(operations.get("history", ()) if isinstance(operations, dict) else ())
+
+
+@kernel_first("common_operations", "record_shared_operation")
 def record_shared_operation(world: WorldState, record: OperationHistoryRecord) -> None:
     """Append a receipt only after its matching state-changing event is applied."""
     state = world.model_state.get(SHARED_OPERATIONS_KEY)

@@ -21,13 +21,17 @@ os.environ.pop("ANTHROPIC_API_KEY", None)
 from sheltersim.contracts.policies import model_signatures
 from sheltersim.core.checkpoint import Checkpoint
 from sheltersim.core.engine import TickEngine, TraceLevel
+from sheltersim.core.world import WorldState
 from sheltersim.experiments.benchmark import build_benchmark_scenario, environment_manifest
-from sheltersim.experiments.runner import OfflineSimulationController, run_scenario
+from sheltersim.experiments.runner import run_scenario
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import TimelineStore, _IndexedMetricSink
+from sheltersim.inspection import frames as inspection_frames
 from sheltersim.inspection.traces import RunArtifactWriter
 from sheltersim.storage.checkpoints import CheckpointArchive
+from sheltersim.storage.frames import FrameCache
 from sheltersim.storage.history_index import HistoryIndex
+from sheltersim.storage.index_writer import BackgroundIndexer
 from sheltersim.storage.projects import ProjectStore, digest
 from sheltersim.web.projects import ProjectAPI
 from sheltersim.web.workspace import ProjectWorkspace
@@ -124,8 +128,6 @@ def main() -> None:
         def measured(*values, **kwargs):
             nonlocal last
             key = label or f"{owner.__name__}.{name}"
-            if name == "__call__":
-                key = "phase." + values[1].value
             wall, cpu = time.perf_counter(), time.thread_time()
             try:
                 return original(*values, **kwargs)
@@ -136,7 +138,7 @@ def main() -> None:
                 row["calls"] += 1
                 row["wall_seconds"] += time.perf_counter() - wall
                 row["thread_seconds"] += time.thread_time() - cpu
-                if owner is TimelineStore:
+                if owner is TimelineStore and name == "record":
                     directory = values[0].store.root
                     progress.append(
                         {
@@ -159,9 +161,31 @@ def main() -> None:
 
         setattr(owner, name, measured)
 
+    # A patch of a controller's step would send each tick past the Rust driver (rules/tick.rs), so
+    # the phases are timed between them: this is what a Run does.
+    build_engine = TickEngine.__init__
+
+    def engine_with_phase_times(engine, *values, **kwargs):
+        build_engine(engine, *values, **kwargs)
+        marks = {}
+
+        def phase_time(phase, before):
+            if before:
+                marks["wall"], marks["cpu"] = time.perf_counter(), time.thread_time()
+                return
+            row = totals.setdefault(
+                "phase." + phase.value, {"calls": 0, "wall_seconds": 0.0, "thread_seconds": 0.0}
+            )
+            row["calls"] += 1
+            row["wall_seconds"] += time.perf_counter() - marks["wall"]
+            row["thread_seconds"] += time.thread_time() - marks["cpu"]
+
+        engine.phase_observer = phase_time
+
+    TickEngine.__init__ = engine_with_phase_times
     for owner, name in (
         (TickEngine, "step"),
-        (OfflineSimulationController, "__call__"),
+        (WorldState, "validate_after_tick"),
         (_IndexedMetricSink, "record_decision"),
         (_IndexedMetricSink, "record_social_decision"),
         (_IndexedMetricSink, "capture_metric"),
@@ -181,8 +205,29 @@ def main() -> None:
         ),
         (HistoryIndex, "ingest"),
         (ProjectWorkspace, "finish_review"),
+        # The parts of a save outside capture and the store's write.
+        (TimelineStore, "_cache_frame"),
+        (FrameCache, "put"),
+        (BackgroundIndexer, "submit"),
+        (BackgroundIndexer, "_receive"),
+        (ProjectStore, "branch_reference"),
     ):
         wrap(owner, name, "CheckpointArchive.encode" if owner is CheckpointArchive else None)
+    wrap(inspection_frames, "world_frame", "world_frame")
+    close_indexer = BackgroundIndexer.close
+
+    def close_and_record(indexer):
+        close_indexer(indexer)
+        times = indexer.ingest_seconds
+        late = sorted(wall for wall, _ in times[-len(times) // 10 :])
+        totals["index process ingest"] = {
+            "calls": len(times),
+            "wall_seconds": sum(wall for wall, _ in times),
+            "thread_seconds": sum(cpu for _, cpu in times),
+            "late_median_seconds": late[len(late) // 2] if late else 0.0,
+        }
+
+    BackgroundIndexer.close = close_and_record
     # Preserve the classmethod descriptor while timing capture.
     capture = Checkpoint.capture.__func__
     Checkpoint.capture = capture

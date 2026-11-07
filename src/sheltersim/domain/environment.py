@@ -22,6 +22,18 @@ ZONE_ENVIRONMENT_POLICY = "zone_environment_v1"
 ZONE_ENVIRONMENT_SOURCE_ID = "ASM-H19-ZONE-ENVIRONMENT-V2"
 _LEGACY_ZONE_ENVIRONMENT_SOURCE_ID = "ASM-H19-ZONE-ENVIRONMENT-V1"
 MAX_ZONE_ENVIRONMENT_MODIFIERS = 16
+# Fields an older canonical config lacks, which a config may still lack.
+LEGACY_ZONE_ENVIRONMENT_FIELDS = frozenset(
+    {
+        "lighting_sleep_efficiency_loss",
+        "ventilation_hygiene_growth_per_minute",
+        "privacy_discontent_per_minute",
+        "temperature_stress_per_degree_minute",
+        "comfortable_min_temperature_c",
+        "comfortable_max_temperature_c",
+        "baseline_by_zone",
+    }
+)
 
 _StableId = Annotated[
     str,
@@ -374,6 +386,15 @@ def zone_environment_view(world: WorldState, zone_id: str) -> ZoneEnvironmentVie
     )
 
 
+def _has_exact_schema(state: Any) -> bool:
+    return (
+        isinstance(state, dict)
+        and set(state) == {"schema_version", "modifiers"}
+        and state.get("schema_version") == 1
+        and isinstance(state.get("modifiers"), dict)
+    )
+
+
 def validate_zone_environment_runtime_state(
     world: WorldState,
     *,
@@ -401,27 +422,13 @@ def validate_zone_environment_runtime_state(
     legacy_config = {
         key: value
         for key, value in canonical_config.items()
-        if key
-        not in {
-            "lighting_sleep_efficiency_loss",
-            "ventilation_hygiene_growth_per_minute",
-            "privacy_discontent_per_minute",
-            "temperature_stress_per_degree_minute",
-            "comfortable_min_temperature_c",
-            "comfortable_max_temperature_c",
-            "baseline_by_zone",
-        }
+        if key not in LEGACY_ZONE_ENVIRONMENT_FIELDS
     }
     if config_data not in (canonical_config, legacy_config):
         raise ValueError("zone_environment config must contain canonical v1 values")
     if set(config.baseline_by_zone) - set(world.zones):
         raise ValueError("zone environment baseline references an unknown zone")
-    if (
-        not isinstance(state, dict)
-        or set(state) != {"schema_version", "modifiers"}
-        or state.get("schema_version") != 1
-        or not isinstance(state.get("modifiers"), dict)
-    ):
+    if not _has_exact_schema(state):
         raise ValueError("zone_environment_v1 has an invalid exact schema")
 
     if not validate_event_history:

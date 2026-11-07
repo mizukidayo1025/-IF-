@@ -8,8 +8,12 @@ import math
 import re
 from typing import Any
 
+from sheltersim import native
 from sheltersim.core.history import records_since_previous_tick
+from sheltersim.core.kernels import kernel_first
+from sheltersim.core.state_mirror import rust_accepts
 from sheltersim.core.world import WorldState
+from sheltersim.domain.models import ordered_pair_key
 from sheltersim.policies.affect import create_affect_policy
 
 BODY_STATE_KEY = "body_state_v1"
@@ -177,6 +181,10 @@ def canonical_body_config(raw: Any) -> dict[str, Any]:
     return config
 
 
+# Accepts the header, records and relationships from the row (native/src/state/body_state.rs).
+_ROWS_VALID = native.state("body_state").rows_valid if native.available() else None
+
+
 def create_body_state(world: WorldState) -> dict[str, Any]:
     """Initialize a detached record for each active Agent before checkpoint zero."""
     config, _ = _body_config_for_world(world)
@@ -220,6 +228,10 @@ def _relationship_key(key: Any) -> tuple[tuple[Any, ...] | None, bool] | None:
 _cached_relationship_key = functools.lru_cache(maxsize=65_536)(_relationship_key)
 
 
+def _parse_key(key: Any) -> tuple[tuple[Any, ...] | None, bool] | None:
+    return _cached_relationship_key(key) if type(key) is str else _relationship_key(key)
+
+
 _RELATIONSHIP_FIELDS = frozenset(
     {
         "contact_count",
@@ -232,34 +244,10 @@ _RELATIONSHIP_FIELDS = frozenset(
 )
 
 
-def validate_body_state(world: WorldState, *, validate_event_history: bool = True) -> None:
-    """Reject partial state, unknown people, out-of-range values and malformed evidence."""
-    state = world.model_state.get(BODY_STATE_KEY)
-    if state is None:
-        return
-    if (
-        not isinstance(state, dict)
-        or set(state)
-        != {
-            "schema_version",
-            "policy_version",
-            "source_id",
-            "config",
-            "agents",
-            "relationships",
-            "history",
-        }
-        or state.get("schema_version") != 1
-        or state.get("policy_version") != BODY_POLICY_VERSION
-        or state.get("source_id") != BODY_SOURCE_ID
-        or not isinstance(state.get("agents"), dict)
-        or set(state["agents"]) != set(world.agents)
-        or not isinstance(state.get("relationships"), dict)
-        or len(state["relationships"]) > MAX_SOCIAL_RELATIONSHIPS
-        or not isinstance(state.get("history"), list)
-        or len(state["history"]) > MAX_SOCIAL_HISTORY
-    ):
-        raise ValueError("body_state_v1 has an invalid exact schema")
+def validate_body_config(world: WorldState, state: dict[str, Any]) -> set[str]:
+    """Check the saved config; return the people its per-person parameters name. Past the saved
+    config and the configs, the check reads only whether each of them is here now or in the
+    population state's history (native/src/rules/after_tick.rs checks that at each tick)."""
     config = canonical_body_config(state["config"])
     per_agent_fields = (
         "sleep_debt_stress_rate_by_agent",
@@ -278,7 +266,8 @@ def validate_body_state(world: WorldState, *, validate_event_history: bool = Tru
         "dependent_assistance_reassurance_gain_by_agent",
     )
     configured_agent_ids = set().union(*(set(config.get(field, {})) for field in per_agent_fields))
-    if configured_agent_ids - set(world.agents):
+    past_residents = configured_agent_ids - set(world.agents)
+    if past_residents:
         population = world.model_state.get("population_dynamics_v1", {})
         historical_ids = set(world.agents)
         if isinstance(population, dict):
@@ -319,6 +308,11 @@ def validate_body_state(world: WorldState, *, validate_event_history: bool = Tru
         or any(saved[key] is not config[key] and saved[key] != config[key] for key in saved)
     ):
         raise ValueError("body_state_v1 config is not canonical")
+    return configured_agent_ids
+
+
+def _validate_body_rows(world: WorldState, state: dict[str, Any]) -> None:
+    """The rules of the records and relationships, when the kernel has not accepted them."""
     fields = {
         "sleep_debt_minutes",
         "uncertainty",
@@ -341,8 +335,6 @@ def validate_body_state(world: WorldState, *, validate_event_history: bool = Tru
             ):
                 raise ValueError(f"body_state_v1 {name} for {agent_id!r} is invalid")
     agents = world.agents
-    # Every tick checks every relationship, so each record is checked inline,
-    # accepting exactly what the field-by-field rules accept.
     for key, record in state["relationships"].items():
         parsed = _cached_relationship_key(key) if type(key) is str else _relationship_key(key)
         if parsed is None:
@@ -375,6 +367,47 @@ def validate_body_state(world: WorldState, *, validate_event_history: bool = Tru
             raise ValueError("body_state_v1 trust must be within 0..1")
         if minute is not None and (type(minute) is not int or minute < 0):
             raise ValueError("body_state_v1 contact minute is invalid")
+
+
+def validate_body_state(
+    world: WorldState,
+    *,
+    validate_event_history: bool = True,
+    history_memo: Any = None,
+) -> None:
+    """Reject partial state, unknown people, out-of-range values and malformed evidence."""
+    state = world.model_state.get(BODY_STATE_KEY)
+    if state is None:
+        return
+    # True says the row holds what these rules would accept, so a config or history error below
+    # keeps its place: everything before it passed. False says nothing, and they all run.
+    rows_accepted = _ROWS_VALID is not None and rust_accepts(world, BODY_STATE_KEY, _ROWS_VALID)
+    if not rows_accepted and (
+        not isinstance(state, dict)
+        or set(state)
+        != {
+            "schema_version",
+            "policy_version",
+            "source_id",
+            "config",
+            "agents",
+            "relationships",
+            "history",
+        }
+        or state.get("schema_version") != 1
+        or state.get("policy_version") != BODY_POLICY_VERSION
+        or state.get("source_id") != BODY_SOURCE_ID
+        or not isinstance(state.get("agents"), dict)
+        or set(state["agents"]) != set(world.agents)
+        or not isinstance(state.get("relationships"), dict)
+        or len(state["relationships"]) > MAX_SOCIAL_RELATIONSHIPS
+        or not isinstance(state.get("history"), list)
+        or len(state["history"]) > MAX_SOCIAL_HISTORY
+    ):
+        raise ValueError("body_state_v1 has an invalid exact schema")
+    validate_body_config(world, state)
+    if not rows_accepted:
+        _validate_body_rows(world, state)
     population = world.model_state.get("population_dynamics_v1", {})
     historical_ids = set(world.agents)
     if isinstance(population, dict):
@@ -388,6 +421,8 @@ def validate_body_state(world: WorldState, *, validate_event_history: bool = Tru
     history = state["history"]
     if not validate_event_history:
         history = records_since_previous_tick(history, world.minute_index)
+    elif history_memo is not None:
+        history = history_memo.unread((BODY_STATE_KEY, "history"), history, historical_ids)
     for item in history:
         expected = {"event_id", "minute", "kind", "actor_ids", "topic_id", "causation_id", "deltas"}
         if (
@@ -432,6 +467,7 @@ def remove_body_agent(world: WorldState, agent_id: str) -> dict[str, Any] | None
     return removed
 
 
+@kernel_first("body_state", "record_social_event")
 def record_social_event(world: WorldState, event: Any, minute: int) -> None:
     """Apply bounded affect and trust changes only from typed, applied simulation events."""
     state = world.model_state.get(BODY_STATE_KEY)
@@ -706,7 +742,7 @@ def _recorded_contact_distance(world: WorldState, first_id: str, second_id: str)
 
 
 def _relationship_trust(state: dict[str, Any], recipient: str, sender: str) -> float:
-    key = json.dumps([recipient, sender], separators=(",", ":"))
+    key = ordered_pair_key(recipient, sender)
     record = state["relationships"].get(key)
     value = record.get("trust") if isinstance(record, dict) else None
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0.5
@@ -735,13 +771,13 @@ def _record_relationship(
     causation_id: str | None = None,
     model_configs: dict[str, dict[str, Any]] | None = None,
 ) -> None:
-    key = json.dumps([recipient, sender], separators=(",", ":"))
+    key = ordered_pair_key(recipient, sender)
     relationships = state["relationships"]
     record = relationships.get(key)
     if record is None:
         if len(relationships) >= MAX_SOCIAL_RELATIONSHIPS:
             return
-        record = relationships[key] = {
+        relationships[key] = {
             "contact_count": 0,
             "trust": 0.5,
             "contact_minutes": 0,
@@ -749,6 +785,7 @@ def _record_relationship(
             "last_interaction": None,
             "topic_ids": [],
         }
+        record = relationships[key]
     previous_minute = record["last_contact_minute"]
     elapsed = 0 if previous_minute is None else max(0, minute - previous_minute)
     gain = state["config"]["relationship_trust_gain"]

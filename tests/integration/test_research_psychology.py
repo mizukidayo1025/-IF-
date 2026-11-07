@@ -160,6 +160,7 @@ def test_full_runner_combines_social_synchrony_with_natural_recovery(
     assert world.agents[low_id].stress > 0.1
 
 
+@pytest.mark.python_rules
 def test_a_tick_without_a_psychology_trace_gets_the_same_deltas(
     generated_scenario, tmp_path, monkeypatch
 ) -> None:
@@ -189,5 +190,7 @@ def test_a_tick_without_a_psychology_trace_gets_the_same_deltas(
         return fast
 
     monkeypatch.setattr(IntegratedDistressLifeStatePolicy, "deltas_without_traces", checked)
+    # The Rust kernel, when installed, is compared with this path in
+    # tests/integration/test_native_kernels.py.
     run_scenario(scenario, tmp_path, trace_level=TraceLevel.OFF)
     assert compared == list(range(360))

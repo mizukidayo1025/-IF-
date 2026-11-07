@@ -7,6 +7,7 @@ import json
 from collections.abc import Mapping
 from typing import Any
 
+from sheltersim import native
 from sheltersim.contracts.extensions import PersonTraits
 from sheltersim.contracts.population import (
     DynamicArrivalPersonContext,
@@ -18,6 +19,8 @@ from sheltersim.contracts.presence import (
     PresenceState,
     PresenceTransition,
 )
+from sheltersim.core.kernels import kernel_first
+from sheltersim.core.state_mirror import register_rust_validator
 from sheltersim.core.world import WorldState
 from sheltersim.domain.agent_dynamics import (
     add_agent as add_agent_dynamics,
@@ -79,6 +82,14 @@ def create_population_dynamics_state(world: WorldState) -> dict[str, Any]:
     }
 
 
+# The state with no one pending: native/src/rules/tick_validation.rs.
+register_rust_validator(
+    POPULATION_DYNAMICS_STATE_KEY,
+    native.rules("tick_validation").population_dynamics if native.available() else None,
+)
+
+
+@kernel_first("population", "validate_population_dynamics_state")
 def validate_population_dynamics_state(world: WorldState) -> None:
     """Validate dynamic profile snapshots, admission order, and immutable history."""
     state = world.model_state.get(POPULATION_DYNAMICS_STATE_KEY)
@@ -263,6 +274,7 @@ def validate_population_dynamics_state(world: WorldState) -> None:
         PersonTraits.model_validate(pending["traits"])
 
 
+@kernel_first("population", "queue_arrivals")
 def queue_arrivals(
     world: WorldState,
     *,
@@ -551,6 +563,7 @@ def _schedule_arrival_approach_completion(
     world.schedule_event(completion)
 
 
+@kernel_first("population", "apply_arrival_approach_completion")
 def apply_arrival_approach_completion(world: WorldState, event: ScheduledEvent) -> None:
     """Commit the APPLIED arrival at the entrance and retain its event-linked history."""
     expected = {"program_id", "effect_id", "agent_id", "arrival_event_id", "route_id", "zone_id"}
@@ -679,6 +692,7 @@ def _generated_arrival_context(items: list[dict[str, Any]]) -> dict[str, dict[st
     return contexts
 
 
+@kernel_first("population", "admit_pending_arrivals")
 def admit_pending_arrivals(world: WorldState, minute: int) -> tuple[str, ...]:
     """Admit waiting synthetic residents in event/ID order when space opens."""
     state = world.model_state.get(POPULATION_DYNAMICS_STATE_KEY)
@@ -708,7 +722,10 @@ def admit_pending_arrivals(world: WorldState, minute: int) -> tuple[str, ...]:
             item["admitted_minute"] = minute
         else:
             remaining.append(item)
-    state["pending_arrivals"] = remaining
+    pending = state["pending_arrivals"]
+    # Everyone stays where they were on most ticks, and a new list is converted again.
+    if len(remaining) != len(pending) or any(a is not b for a, b in zip(remaining, pending)):
+        state["pending_arrivals"] = remaining
     if admitted:
         world.metric_state["population_arrival_count"] = world.metric_state.get(
             "population_arrival_count", 0.0
@@ -726,6 +743,7 @@ def admit_pending_arrivals(world: WorldState, minute: int) -> tuple[str, ...]:
     return tuple(admitted)
 
 
+@kernel_first("population", "queue_departures")
 def queue_departures(
     world: WorldState,
     *,
@@ -1007,7 +1025,7 @@ def _record_waiting_presence(world: WorldState, item: dict[str, Any]) -> None:
         to_household_id=household_id,
         source_ids=tuple(sorted({POPULATION_SOURCE_ID, *route_sources})),
     )
-    raw["history"] = [*raw["history"], transition.model_dump(mode="json")][-20_000:]
+    _append_presence_history(raw, transition)
 
 
 def _record_approach_completed(
@@ -1054,7 +1072,7 @@ def _record_approach_completed(
             )
         ),
     )
-    raw["history"] = [*raw["history"], transition.model_dump(mode="json")][-20_000:]
+    _append_presence_history(raw, transition)
 
 
 def _record_presence_transition(
@@ -1109,7 +1127,13 @@ def _record_presence_transition(
         to_household_id=household,
         source_ids=(source_id,),
     )
-    raw["history"] = [*raw["history"], transition.model_dump(mode="json")][-20_000:]
+    _append_presence_history(raw, transition)
+
+
+def _append_presence_history(raw: dict[str, Any], transition: PresenceTransition) -> None:
+    # In place: a new list would be converted again, record by record, at every transition.
+    raw["history"].append(transition.model_dump(mode="json"))
+    del raw["history"][:-20_000]
 
 
 def _add_information_state(world: WorldState, agent_id: str) -> None:
@@ -1196,6 +1220,7 @@ def _event_agent_ids(event: ScheduledEvent) -> set[str]:
     }
 
 
+@kernel_first("population", "schedule_population_retry")
 def schedule_population_retry(
     world: WorldState,
     event: ScheduledEvent,
@@ -1253,6 +1278,7 @@ def _state(world: WorldState) -> dict[str, Any]:
     return world.model_state[POPULATION_DYNAMICS_STATE_KEY]
 
 
+@kernel_first("population", "zone_has_room")
 def _zone_has_room(world: WorldState, zone_id: str) -> bool:
     from sheltersim.domain.temporary_spaces import effective_zone_capacity, incoming_travelers
 
@@ -1264,6 +1290,7 @@ def _zone_has_room(world: WorldState, zone_id: str) -> bool:
     return occupancy + incoming_travelers(world, zone_id) < capacity
 
 
+@kernel_first("population", "choose_admission_target")
 def _choose_admission_target(
     world: WorldState, item: dict[str, Any]
 ) -> tuple[str, str | None] | None:

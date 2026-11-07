@@ -16,6 +16,16 @@ from sheltersim.core.checkpoint_cache import (
     CheckpointHistoryCache,
     canonical_bytes,
 )
+from sheltersim.core.model_version import (
+    ModelVersionStatus,
+    SavedPointView,
+    ViewOnlyRunError,
+    mark_view,
+    model_version_status,
+    require_tickable,
+    unreadable_status,
+)
+from sheltersim.core.saved_items import SavedItems, json_default
 from sheltersim.core.world import StateInvariantError, WorldState
 from sheltersim.events.models import EventLogRecord
 from sheltersim.experiments.metrics import MetricsRecorder
@@ -43,7 +53,11 @@ class Checkpoint:
     # Set by a capture with a history cache, for saving the just-captured object.
     _encoder: CanonicalEncoder | None = field(default=None, init=False, repr=False, compare=False)
 
-    CURRENT_SCHEMA_VERSION = 1
+    # v1 hashes are the SHA-256 of the canonical JSON of the whole document; v2 hashes
+    # are trees over chunk hashes (core/checkpoint_cache.py). Saves write the current
+    # version; a v1 Checkpoint keeps loading and verifying under its own rule.
+    CURRENT_SCHEMA_VERSION = 2
+    SUPPORTED_SCHEMA_VERSIONS = (1, 2)
 
     @classmethod
     def capture(
@@ -61,7 +75,12 @@ class Checkpoint:
         history_cache: history converted and restore-checked by an earlier capture
         is reused, and the result is the same Checkpoint.
         """
-        return cls._capture(world, metrics, runtime_state, model_versions, history_cache)[0]
+        try:
+            return cls._capture(world, metrics, runtime_state, model_versions, history_cache)[0]
+        except BaseException:
+            if history_cache is not None:
+                history_cache.forget_validation()
+            raise
 
     @classmethod
     def capture_restored(
@@ -90,10 +109,12 @@ class Checkpoint:
         history_cache: CheckpointHistoryCache | None,
     ) -> tuple[Checkpoint, tuple[WorldState, MetricsRecorder] | None]:
         # The restored objects are returned only when they share nothing.
-        world.validate()
-        encoder = None
-        digest = _digest
+        require_tickable(world, "saved as a new Checkpoint")
+        world.validate(
+            _history_memo=None if history_cache is None else history_cache.validation_memo(world)
+        )
         if history_cache is None:
+            encoder = CanonicalEncoder()
             world_document = world.to_dict()
             metric_document = (
                 metrics.to_dict() if metrics is not None else {"schema_version": 3, "snapshots": []}
@@ -101,8 +122,10 @@ class Checkpoint:
         else:
             # world.to_dict() would validate the same world again.
             world_document, metric_document, encoder = history_cache.documents(world, metrics)
-            digest = encoder.digest
-        versions = _model_versions(world)
+        signatures = (
+            None if history_cache is None else history_cache.model_signatures(world.model_configs)
+        )
+        versions = _model_versions(world, signatures)
         if model_versions is not None:
             versions.update(deepcopy(model_versions))
         body = {
@@ -110,14 +133,14 @@ class Checkpoint:
             "world_state_schema_version": world.schema_version,
             "scenario_id": world.scenario_id,
             "simulation_minute": world.minute_index,
-            "state_hash": digest(world_document),
+            "state_hash": encoder.world_tree_digest(world_document),
             "model_versions": versions,
             "world_state": world_document,
             "metrics_state": metric_document,
             "runtime_state": deepcopy(runtime_state or {}),
         }
         try:
-            checkpoint_hash = digest(body)
+            checkpoint_hash = encoder.body_tree_digest(body)
         except (TypeError, ValueError) as exc:
             raise CheckpointError(
                 f"checkpoint state must contain finite JSON values: {exc}"
@@ -129,22 +152,30 @@ class Checkpoint:
             return checkpoint, checkpoint._validate(hashes_verified=True)
         # EventLog documents an earlier capture restored are not parsed again. The
         # restored world equals the world validated above, or is validated itself.
-        restored, _ = checkpoint._validate(
+        restored, restored_metrics = checkpoint._validate(
             hashes_verified=True,
             restored_events=history_cache.restored_events(),
             restored_log=history_cache.restored_log(),
+            restored_samples=history_cache.restored_metrics(),
             shared=encoder.spliced_lists(),
             validate_world=False,
+            installed_signatures=signatures,
+            known_rows=history_cache.restored_row_objects(),
         )
-        equal = restored.same_state(world, known_equal_events=history_cache.restored_events_equal())
+        equal = restored.same_state(
+            world,
+            known_equal_events=history_cache.restored_events_equal(),
+            known_equal_histories=history_cache.known_equal_histories(),
+            known_equal_rows=history_cache.known_equal_rows(),
+        )
         if not equal:
             try:
                 restored.validate()
             except StateInvariantError as exc:
                 raise CheckpointError(f"checkpoint payload is invalid: {exc}") from exc
-        history_cache.remember_restored(
-            restored.event_log.records, equal=equal, log=restored.event_log
-        )
+        history_cache.remember_restored(restored.event_log, equal=equal)
+        history_cache.remember_restored_rows(restored, equal=equal)
+        history_cache.remember_restored_metrics(restored_metrics)
         object.__setattr__(checkpoint, "_encoder", encoder)
         # The restored world shares the history lists of the captured documents.
         return checkpoint, None
@@ -160,53 +191,56 @@ class Checkpoint:
             raise CheckpointError("checkpoint model versions do not match the active runtime")
         return world
 
-    def _legacy_queue_migration_required(self) -> bool:
-        installed = model_signatures(self.world_state.get("model_configs", {}))
-        recorded = {
-            key: value
-            for key, value in self.model_versions.items()
-            if key.startswith(("policy:", "simulator:", "state:", "operator:"))
-            or key == "model_suite"
-        }
-        if recorded == installed:
-            return False
-        queue_signature = "simulator:facility_queues_v1"
-        configs = self.world_state.get("model_configs", {})
-        state = self.world_state.get("model_state", {})
-        compatible = (
-            queue_signature in installed
-            and queue_signature not in recorded
-            and "facility_queues_v1" not in state
-            and "facility_geometry" in configs
-            and {key: value for key, value in recorded.items() if key != queue_signature}
-            == {key: value for key, value in installed.items() if key != queue_signature}
-        )
-        if not compatible and (
-            recorded
-            or "state_contracts" in configs
-            or any(key.startswith("operator:") for key in installed)
-        ):
-            raise CheckpointError(
-                "installed model implementation/state versions differ; explicit migration required"
+    def model_status(
+        self, installed: dict[str, str] | None = None, *, view: bool = False
+    ) -> ModelVersionStatus:
+        """How the recorded versions compare with the installed model (core/model_version.py).
+
+        For a view, configs the installed code can't sign make an old-model status
+        instead of an error.
+        """
+        try:
+            return model_version_status(
+                self.model_versions,
+                self.world_state.get("model_configs", {}),
+                lambda: self.world_state.get("model_state", {}),
+                installed,
             )
-        return compatible
+        except (ValueError, TypeError, KeyError):
+            if not view:
+                raise
+            return unreadable_status(self.model_versions)
 
     def _world_document_for_restore(
-        self, shared: Sequence[Any] = (), *, raw: bytes | None = None, borrow: bool = False
-    ) -> dict[str, Any]:
-        # raw is the canonical JSON of world_state. Saved and captured documents are
-        # read from canonical JSON, so reading it again copies them, key order
-        # included, faster than deepcopy. With borrow the caller only reads the world
-        # it restores and discards it, so the document itself is returned when it
-        # needs no migration.
-        migration = self._legacy_queue_migration_required()
+        self,
+        shared: Sequence[Any] = (),
+        *,
+        encoder: CanonicalEncoder | None = None,
+        borrow: bool = False,
+        installed_signatures: dict[str, str] | None = None,
+        view: bool = False,
+    ) -> tuple[dict[str, Any], ModelVersionStatus]:
+        # encoder holds the canonical JSON of world_state. Saved and captured
+        # documents are read from canonical JSON, so reading it again copies them,
+        # key order included, faster than deepcopy; SavedItems are immutable and
+        # shared. With borrow the caller only reads the world it restores and
+        # discards it, so the document itself is returned when it needs no migration.
+        # Only a view restores a save of another model version; a tick path is refused.
+        status = self.model_status(installed_signatures, view=view)
+        if not status.current and not view:
+            raise ViewOnlyRunError(status)
+        migration = status.migration == "legacy_queue"
         if borrow and not migration:
-            return self.world_state
-        world_document = (
-            json.loads(raw)
-            if raw is not None
-            else deepcopy(self.world_state, {id(item): item for item in shared})
-        )
+            return self.world_state, status
+        if encoder is None:
+            world_document = deepcopy(self.world_state, {id(item): item for item in shared})
+        elif isinstance(self.world_state.get("event_log"), SavedItems):
+            world_document = {
+                key: value if isinstance(value, SavedItems) else json.loads(encoder.encode(value))
+                for key, value in self.world_state.items()
+            }
+        else:
+            world_document = json.loads(encoder.encode(self.world_state))
         if migration:
             from sheltersim.domain.facility_queues import (
                 FACILITY_QUEUES_LEGACY_MODE,
@@ -221,7 +255,7 @@ class Checkpoint:
             world_document["model_state"][FACILITY_QUEUES_LEGACY_MODE_KEY] = dict(
                 FACILITY_QUEUES_LEGACY_MODE
             )
-        return world_document
+        return world_document, status
 
     def restore_metrics(self) -> MetricsRecorder:
         """Restore KPI samples and accumulation history captured with this checkpoint."""
@@ -231,6 +265,16 @@ class Checkpoint:
     def restore_state(self) -> tuple[WorldState, MetricsRecorder]:
         """Validate once and return independent world/metric continuation objects."""
         return self._validate()
+
+    def restore_view(self) -> tuple[WorldState, MetricsRecorder]:
+        """Restore for reading only, also a save of another model version.
+
+        Hashes and the restored state are checked as for restore_state(). The world is
+        marked as a view of this saved point (core/model_version.py): a tick, a
+        BranchRuntime or a new Checkpoint refuses it, and its mark holds the model
+        status.
+        """
+        return self._validate(view=True)
 
     def to_dict(self) -> dict[str, Any]:
         """Return a detached checkpoint document."""
@@ -263,6 +307,7 @@ class Checkpoint:
             separators=(",", ":"),
             ensure_ascii=False,
             allow_nan=False,
+            default=json_default,
         )
 
     @classmethod
@@ -272,12 +317,13 @@ class Checkpoint:
 
     @classmethod
     def _load(
-        cls, document: dict[str, Any]
+        cls, document: dict[str, Any], *, view: bool = False
     ) -> tuple[Checkpoint, tuple[WorldState, MetricsRecorder]]:
         """from_dict() of a document the caller hands over, and the restore it checked.
 
         The Checkpoint keeps document's objects, so the caller must not use them
-        afterwards. The restored world and metrics are what restore_state() returns.
+        afterwards. The restored world and metrics are what restore_state() returns, or
+        with view what restore_view() returns.
         """
         expected_fields = {
             "schema_version",
@@ -293,12 +339,12 @@ class Checkpoint:
         }
         if not isinstance(document, dict) or set(document) != expected_fields:
             raise CheckpointError("checkpoint fields do not match the supported schema")
-        if document.get("schema_version") != cls.CURRENT_SCHEMA_VERSION:
+        if document.get("schema_version") not in cls.SUPPORTED_SCHEMA_VERSIONS:
             raise CheckpointError(
                 f"unsupported checkpoint schema version: {document.get('schema_version')!r}"
             )
         checkpoint = cls(**document)
-        return checkpoint, checkpoint._validate()
+        return checkpoint, checkpoint._validate(view=view)
 
     @classmethod
     def from_json(cls, value: str) -> Checkpoint:
@@ -330,8 +376,12 @@ class Checkpoint:
         shared: Sequence[Any] = (),
         validate_world: bool = True,
         restored_log: Any = None,
+        restored_samples: Any = ([], []),
+        installed_signatures: dict[str, str] | None = None,
+        known_rows: Any = None,
+        view: bool = False,
     ) -> tuple[WorldState, MetricsRecorder]:
-        if self.schema_version != self.CURRENT_SCHEMA_VERSION:
+        if self.schema_version not in self.SUPPORTED_SCHEMA_VERSIONS:
             raise CheckpointError(f"unsupported checkpoint schema version: {self.schema_version}")
         if self.world_state_schema_version not in (5, 6):
             raise CheckpointError(
@@ -353,54 +403,95 @@ class Checkpoint:
             raise CheckpointError("checkpoint scenario ID does not match its WorldState")
         if self.world_state.get("minute_index") != self.simulation_minute:
             raise CheckpointError("checkpoint minute does not match its WorldState")
-        world_raw = None
+        encoder = None
         if not hashes_verified:
-            world_raw = self._verified_world_bytes()
+            encoder = self._verified_world_encoder()
         try:
             if restored_events is None:
-                world = WorldState.from_dict(
-                    self._world_document_for_restore(raw=world_raw), _saved_json=True
-                )
+                # The document for restore is a new copy (its SavedItems are immutable),
+                # so the world keeps its objects.
+                document, status = self._world_document_for_restore(encoder=encoder, view=view)
+                world = WorldState.from_dict(document, _saved_json=True, _borrow=True)
                 metrics = MetricsRecorder.from_dict(deepcopy(self.metrics_state))
             else:
                 # A capture's restore check only reads the restored world and then
                 # discards it, so it is built on the captured documents, not copies.
+                document, status = self._world_document_for_restore(
+                    shared, borrow=True, installed_signatures=installed_signatures
+                )
                 world = WorldState.from_dict(
-                    self._world_document_for_restore(shared, borrow=True),
+                    document,
                     _restored_events=restored_events,
                     _shared=shared,
                     _validate=validate_world,
                     _saved_json=True,
                     _borrow=True,
                     _restored_log=restored_log,
+                    _known_rows=known_rows,
                 )
                 metrics = MetricsRecorder.from_dict(
-                    deepcopy(self.metrics_state, {id(item): item for item in shared})
+                    deepcopy(self.metrics_state, {id(item): item for item in shared}),
+                    _leading=restored_samples,
                 )
+        except ViewOnlyRunError:
+            # A changed document is reported as such, not as a Run of another model.
+            if encoder is not None:
+                self._verify_body_hash(encoder)
+            raise
         except (StateInvariantError, ValueError, TypeError) as exc:
             raise CheckpointError(f"checkpoint payload is invalid: {exc}") from exc
-        if world_raw is not None:
-            self._verify_body_hash(world_raw)
+        if encoder is not None:
+            self._verify_body_hash(encoder)
+        if view:
+            minute = self.simulation_minute
+            mark_view(world, SavedPointView(status, saved_minute=minute, requested_minute=minute))
         return world, metrics
 
-    def _verified_world_bytes(self) -> bytes:
-        """The canonical JSON of world_state, after checking it against state_hash."""
-        # The body hash covers the same world bytes, so the world is encoded once.
-        world_raw = canonical_bytes(self.world_state)
-        if hashlib.sha256(world_raw).hexdigest() != self.state_hash:
-            raise CheckpointError("checkpoint WorldState integrity hash mismatch")
-        return world_raw
+    def _verified_world_encoder(self) -> CanonicalEncoder:
+        """An encoder of world_state, after checking world_state against state_hash.
 
-    def _verify_body_hash(self, world_raw: bytes) -> None:
-        body = self._body_dict()
+        The body hash covers the same world bytes, so the world is encoded once. Saved
+        EventLog records (SavedItems) are hashed from their bytes; restoring them
+        checks that each is the canonical JSON of a valid record.
+        """
         encoder = CanonicalEncoder()
-        encoder.remember(self.world_state, world_raw, body)
-        if encoder.digest(body) != self.checkpoint_hash:
+        events = self.world_state.get("event_log")
+        if isinstance(events, SavedItems):
+            encoder.splice(events, events.raws, self.world_state)
+        if self.schema_version != 1:
+            digest = encoder.world_tree_digest(self.world_state)
+        elif isinstance(events, SavedItems):
+            digest = encoder.digest(self.world_state)
+        else:
+            world_raw = canonical_bytes(self.world_state)
+            encoder.remember(self.world_state, world_raw)
+            digest = hashlib.sha256(world_raw).hexdigest()
+        if digest != self.state_hash:
+            raise CheckpointError("checkpoint WorldState integrity hash mismatch")
+        return encoder
+
+    def _verify_body_hash(self, encoder: CanonicalEncoder) -> None:
+        body = self._body_dict()
+        encoder.contain(body)
+        digest = encoder.body_tree_digest if self.schema_version != 1 else encoder.digest
+        if digest(body) != self.checkpoint_hash:
             raise CheckpointError("checkpoint integrity hash mismatch")
 
     def _verify_hashes(self) -> None:
         """Check both hashes without restoring, for a document restored before."""
-        self._verify_body_hash(self._verified_world_bytes())
+        self._verify_body_hash(self._verified_world_encoder())
+
+    @staticmethod
+    def document_hashes(document: dict[str, Any]) -> tuple[str, str]:
+        """The state_hash and checkpoint_hash a Checkpoint document should hold.
+
+        Follows the rule of the document's own schema_version; the document is only read.
+        """
+        body = {key: value for key, value in document.items() if key != "checkpoint_hash"}
+        if document.get("schema_version") == 1:
+            return _digest(document["world_state"]), _digest(body)
+        encoder = CanonicalEncoder()
+        return encoder.world_tree_digest(document["world_state"]), encoder.body_tree_digest(body)
 
     def _body_dict(self) -> dict[str, Any]:
         return {
@@ -448,7 +539,7 @@ def _digest(value: Any) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _model_versions(world: WorldState) -> dict[str, str]:
+def _model_versions(world: WorldState, signatures: dict[str, str] | None = None) -> dict[str, str]:
     versions: dict[str, str] = {}
     for name, config in sorted(world.model_configs.items()):
         declared = config.get("model_version", config.get("model_id", config.get("version")))
@@ -456,5 +547,5 @@ def _model_versions(world: WorldState) -> dict[str, str]:
     effect_state = world.model_state.get("effect_program_v1")
     if effect_state is not None:
         versions["effect_program_interpreter"] = str(effect_state.get("schema_version", "invalid"))
-    versions.update(model_signatures(world.model_configs))
+    versions.update(model_signatures(world.model_configs) if signatures is None else signatures)
     return versions

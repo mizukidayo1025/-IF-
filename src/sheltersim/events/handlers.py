@@ -6,7 +6,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Callable, Protocol
 
+from sheltersim import native
 from sheltersim.contracts.operations import NumericStateChange
+from sheltersim.core.kernels import kernel_first
 from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.domain.care_receipts import (
@@ -119,99 +121,117 @@ class EventDispatcher:
         """Apply due events in order; observe each committed outcome before the next."""
         outcomes: list[EventLogRecord] = []
         for event in world.event_queue.due(minute):
-            current = next(
-                (
-                    pending
-                    for pending in world.event_queue.pending()
-                    if pending.event_id == event.event_id
-                ),
-                None,
-            )
-            if current is None:
-                # A preceding event in this same due batch may cancel this
-                # snapshot entry (departure, shift interruption, or replacement).
-                # The cancellation path already emitted the single audit record.
-                continue
-            if current is not None and current.to_dict() != event.to_dict():
-                # A preceding due event may have replaced this item with a new schedule.
-                continue
-            handler = self.handlers.get(event.event_type)
-            additional_records: tuple[EventLogRecord, ...] = ()
-            if handler is None:
-                status = EventStatus.FAILED
-                detail = f"no handler registered for event type {event.event_type!r}"
-            else:
-                try:
-                    effect_event_guard_or_suppress(world, event)
-                    additional_records = handler.apply(world, event) or ()
-                except EventSuppressed as exc:
-                    status = EventStatus.SUPPRESSED
-                    detail = str(exc)
-                except EventApplicationError as exc:
-                    status = EventStatus.FAILED
-                    detail = str(exc)
-                else:
-                    status = EventStatus.APPLIED
-                    detail = None
-                    if event.event_type in {
-                        "information_contact_update",
-                        "social_interaction",
-                        "information_correction",
-                        "proximity_contact_update",
-                    }:
-                        from sheltersim.domain.body_state import record_social_event
-                        from sheltersim.domain.social_network import (
-                            SOCIAL_NETWORK_STATE_KEY,
-                            observe_event,
-                        )
-
-                        record_social_event(world, event, minute)
-                        if SOCIAL_NETWORK_STATE_KEY in world.model_state:
-                            observe_event(world, event, minute)
-
-            if any(pending.event_id == event.event_id for pending in world.event_queue.pending()):
-                world.event_queue.remove(event.event_id)
-            record = world.event_log.find(event.event_id)
-            if record is not None:
-                if record.event.to_dict() != event.to_dict() or record.status is not status:
-                    raise ValueError(
-                        "transactional event record disagrees with its dispatch result"
-                    )
-            else:
-                record = EventLogRecord(
-                    event=event,
-                    realized_minute=minute,
-                    status=status,
-                    detail=detail,
-                )
-                world.event_log.append(record)
-            event_outcomes = [record]
-            outcomes.append(record)
-            for additional in additional_records:
-                existing = world.event_log.find(additional.event.event_id)
-                if existing is not None:
-                    if (
-                        existing.event.to_dict() != additional.event.to_dict()
-                        or existing.status is not additional.status
-                    ):
-                        raise ValueError(
-                            "transactional follow-up record disagrees with dispatch result"
-                        )
-                    outcomes.append(existing)
-                    event_outcomes.append(existing)
-                else:
-                    world.event_log.append(additional)
-                    outcomes.append(additional)
-                    event_outcomes.append(additional)
-            if after_event is not None:
-                after_event(tuple(event_outcomes))
+            outcomes.extend(self.dispatch_one(world, event, minute, after_event=after_event))
         return tuple(outcomes)
+
+    def dispatch_one(
+        self,
+        world: WorldState,
+        event: ScheduledEvent,
+        minute: int,
+        *,
+        after_event: Callable[[tuple[EventLogRecord, ...]], None] | None = None,
+    ) -> list[EventLogRecord]:
+        """Apply one event of a due snapshot; its outcomes, or none if it left the queue meanwhile.
+
+        native/src/rules/dispatch.rs calls this for each event it has no Rust function for.
+        """
+        current = world.event_queue.find(event.event_id)
+        if current is None:
+            # A preceding event in this same due batch may cancel this
+            # snapshot entry (departure, shift interruption, or replacement).
+            # The cancellation path already emitted the single audit record.
+            return []
+        if current is not event and current.to_dict() != event.to_dict():
+            # A preceding due event may have replaced this item with a new schedule.
+            return []
+        handler = self.handlers.get(event.event_type)
+        additional_records: tuple[EventLogRecord, ...] = ()
+        if handler is None:
+            status = EventStatus.FAILED
+            detail = f"no handler registered for event type {event.event_type!r}"
+        else:
+            try:
+                effect_event_guard_or_suppress(world, event)
+                additional_records = handler.apply(world, event) or ()
+            except EventSuppressed as exc:
+                status = EventStatus.SUPPRESSED
+                detail = str(exc)
+            except EventApplicationError as exc:
+                status = EventStatus.FAILED
+                detail = str(exc)
+            else:
+                status = EventStatus.APPLIED
+                detail = None
+                if event.event_type in {
+                    "information_contact_update",
+                    "social_interaction",
+                    "information_correction",
+                    "proximity_contact_update",
+                }:
+                    from sheltersim.domain.body_state import record_social_event
+                    from sheltersim.domain.social_network import (
+                        SOCIAL_NETWORK_STATE_KEY,
+                        observe_event,
+                    )
+
+                    record_social_event(world, event, minute)
+                    if SOCIAL_NETWORK_STATE_KEY in world.model_state:
+                        observe_event(world, event, minute)
+
+        record = self.settle(world, event, minute, status, detail)
+        event_outcomes = [record]
+        for additional in additional_records:
+            existing = world.event_log.find(additional.event.event_id)
+            if existing is not None:
+                if (
+                    existing.event.to_dict() != additional.event.to_dict()
+                    or existing.status is not additional.status
+                ):
+                    raise ValueError(
+                        "transactional follow-up record disagrees with dispatch result"
+                    )
+                event_outcomes.append(existing)
+            else:
+                world.event_log.append(additional)
+                event_outcomes.append(additional)
+        if after_event is not None:
+            after_event(tuple(event_outcomes))
+        return event_outcomes
+
+    def settle(
+        self,
+        world: WorldState,
+        event: ScheduledEvent,
+        minute: int,
+        status: EventStatus,
+        detail: str | None,
+    ) -> EventLogRecord:
+        """Take a handled event off the queue and record its outcome, unless its handler did."""
+        if world.event_queue.find(event.event_id) is not None:
+            world.event_queue.remove(event.event_id)
+        record = world.event_log.find(event.event_id)
+        if record is not None:
+            if (
+                record.event is not event and record.event.to_dict() != event.to_dict()
+            ) or record.status is not status:
+                raise ValueError("transactional event record disagrees with its dispatch result")
+            return record
+        record = EventLogRecord(
+            event=event,
+            realized_minute=minute,
+            status=status,
+            detail=detail,
+        )
+        world.event_log.append(record)
+        return record
 
 
 @dataclass(frozen=True)
 class ProximityContactHandler:
     """Accept a sampled physical encounter without asserting a conversation."""
 
+    @kernel_first("handlers", "proximity")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
         import math
 
@@ -314,6 +334,7 @@ class ProximityContactHandler:
 class InformationRumorHandler:
     """Seed one local Agent with a typed, provenance-linked claim."""
 
+    @kernel_first("information_events", "rumor")
     def apply(self, world: WorldState, event: ScheduledEvent) -> tuple[EventLogRecord, ...] | None:
         state = _information_runtime_state(world)
         from sheltersim.contracts.policies import selected_models
@@ -378,6 +399,7 @@ class InformationRumorHandler:
 class InformationCorrectionHandler:
     """Publish a zone-scoped, source-linked correction to one existing claim."""
 
+    @kernel_first("information_events", "correction")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
         state = _information_runtime_state(world)
         from sheltersim.contracts.policies import selected_models
@@ -523,6 +545,7 @@ class InformationCorrectionHandler:
 class InformationContactHandler:
     """Apply one sampled, still-local contact at the next tick boundary."""
 
+    @kernel_first("information_events", "contact")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
         state = _information_runtime_state(world)
         expected = {
@@ -812,6 +835,7 @@ class ResourceLedgerHandler:
 
     operation: str
 
+    @kernel_first("handlers", "resource_ledger")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
         ledger_event = event
         if self.operation == "delivery" and "shipment_id" in event.payload:
@@ -869,6 +893,7 @@ class ResourceLedgerHandler:
 class FacilityOutageHandler:
     """Reduce a facility's working capacity after validating the full change."""
 
+    @kernel_first("handlers", "facility_outage")
     def apply(self, world: WorldState, event: ScheduledEvent) -> tuple[EventLogRecord, ...] | None:
         if set(event.payload) != {"facility_id", "units_out"}:
             raise EventApplicationError("facility outage payload fields do not match")
@@ -919,6 +944,7 @@ class FacilityOutageHandler:
 class FacilityRecoveryHandler:
     """Restore operational units without exceeding installed capacity."""
 
+    @kernel_first("handlers", "facility_recovery")
     def apply(self, world: WorldState, event: ScheduledEvent) -> tuple[EventLogRecord, ...] | None:
         if set(event.payload) != {"facility_id", "units_restored"}:
             raise EventApplicationError("facility recovery payload fields do not match")
@@ -967,6 +993,7 @@ class FacilityRecoveryHandler:
 class InfrastructureEventHandler:
     """Apply versioned outages, time-bounded environment stress, and route disruptions."""
 
+    @kernel_first("handlers", "infrastructure")
     def apply(self, world: WorldState, event: ScheduledEvent) -> tuple[EventLogRecord, ...] | None:
         previous_units = {
             facility_id: facility.working_units
@@ -1363,6 +1390,7 @@ def _recalculate_infrastructure_capacity(world: WorldState, cause: ScheduledEven
 class SocialInteractionHandler:
     """Apply one allowlisted, bounded social proposal at its scheduled minute."""
 
+    @kernel_first("social_interaction", "apply")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
         interaction_type = event.payload.get("interaction_type")
         if interaction_type is not None:
@@ -1704,6 +1732,7 @@ class SocialInteractionHandler:
 class EffectProgramPopulationHandler:
     """Apply typed population primitives through the approved EffectProgram record."""
 
+    @kernel_first("handlers", "population")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
         from sheltersim.core.world import WorldState as MutableWorldState
         from sheltersim.domain.population import (
@@ -1824,6 +1853,7 @@ class ToiletServiceCompletionHandler:
 
     after_complete: Callable[[WorldState, ScheduledEvent], None] | None = None
 
+    @kernel_first("toilet", "complete")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
         facility_id = event.payload.get("facility_id")
         agent_id = event.payload.get("agent_id")
@@ -1861,6 +1891,7 @@ class AgentTravelCompletionHandler:
     resource_service: ResourceServiceManager | None = None
     validate_request_state: bool = True
 
+    @kernel_first("travel_completion", "apply")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
         agent_id = event.payload.get("agent_id")
         task_id = event.payload.get("task_id")
@@ -2131,6 +2162,22 @@ class AgentTravelCompletionHandler:
             from sheltersim.domain.population_lifecycle import complete_presence_relocation
 
             complete_presence_relocation(world, event)
+        self._after_arrival(
+            world, event, agent_id, purpose, facility_id, destination_zone_id, origin_zone_id
+        )
+
+    @kernel_first("travel_completion", "after_arrival")
+    def _after_arrival(
+        self,
+        world: WorldState,
+        event: ScheduledEvent,
+        agent_id: str,
+        purpose: str,
+        facility_id: Any,
+        destination_zone_id: str,
+        origin_zone_id: Any,
+    ) -> None:
+        """What a walk to a service leads to. rules/travel_completion.rs has the kernel."""
         if (
             purpose in {"toilet_request", "resource_request"}
             and "facility_geometry" in world.model_configs
@@ -2178,6 +2225,7 @@ class AgentTravelCompletionHandler:
                 )
             except ValueError as exc:
                 # Arrival has completed; failed admission leaves the Agent idle at the facility.
+                facility = world.facilities[facility_id]
                 resource_id = ResourceServiceManager.resource_for_facility(facility.kind)
                 action = "fetch_water" if resource_id == "water_ml" else "collect_meal"
                 self.resource_service.record_request_outcome(
@@ -2265,6 +2313,7 @@ class AgentTravelCompletionHandler:
             )
         return True
 
+    @kernel_first("travel_completion", "reject_room_approach")
     def _reject_room_approach(
         self,
         world: WorldState,
@@ -2317,6 +2366,7 @@ class ResourceServiceCancellationHandler:
 
     service: ResourceServiceManager
 
+    @kernel_first("handlers", "service_cancellation")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
         if world.schema_version != 6:
             raise EventApplicationError("resource service cancellation requires WorldState v6")
@@ -2327,6 +2377,7 @@ class ResourceServiceCancellationHandler:
 class DeliveryDelayHandler:
     """Reschedule one pending shipment without changing its stable identity."""
 
+    @kernel_first("handlers", "delivery_delay")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
         def apply(candidate: WorldState) -> None:
             if set(event.payload) != {"shipment_id", "to_minute"} or event.source_id is None:
@@ -2395,6 +2446,7 @@ class DeliveryDelayHandler:
 class WaterOutageHandler:
     """Block new staffed water service at an explicitly named target."""
 
+    @kernel_first("handlers", "water_outage")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
         def apply(candidate: WorldState) -> None:
             if event.source_id is None or set(event.payload) not in (
@@ -2432,6 +2484,7 @@ class WaterOutageHandler:
 class WaterRestorationHandler:
     """Restore new water service starts for one correlated outage."""
 
+    @kernel_first("handlers", "water_restoration")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
         def apply(candidate: WorldState) -> None:
             if event.source_id is None or set(event.payload) != {"outage_id"}:
@@ -2454,6 +2507,7 @@ class WaterRestorationHandler:
 class StaffUnavailabilityHandler:
     """Remove one staff member from assignment and safely interrupt active work."""
 
+    @kernel_first("handlers", "staff_unavailable")
     def apply(self, world: WorldState, event: ScheduledEvent) -> tuple[EventLogRecord, ...]:
         def apply(candidate: WorldState) -> tuple[EventLogRecord, ...]:
             additional_records: list[EventLogRecord] = []
@@ -2566,6 +2620,7 @@ class StaffUnavailabilityHandler:
 class StaffRestorationHandler:
     """Restore staff only when the event still matches the latest absence token."""
 
+    @kernel_first("handlers", "staff_restoration")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
         def apply(candidate: WorldState) -> None:
             if event.source_id is None or set(event.payload) != {
@@ -2602,7 +2657,7 @@ def _interrupt_support_task(
     request = next(
         (
             request
-            for request in world.support_requests.values()
+            for request in world.unsettled_support_requests()
             if request.status is SupportRequestStatus.ASSIGNED and request.task_id == task_id
         ),
         None,
@@ -2796,6 +2851,7 @@ class StaffSupportCompletionHandler:
     cooldown_minutes: int = 30
     require_colocated: bool = False
 
+    @kernel_first("support", "complete_support")
     def apply(self, world: WorldState, event: ScheduledEvent) -> tuple[EventLogRecord, ...] | None:
         values = tuple(
             event.payload.get(key) for key in ("request_id", "agent_id", "staff_id", "task_id")
@@ -3086,6 +3142,7 @@ class StaffSupportCompletionHandler:
 class StaffOperationArrivalHandler:
     """Move a staff member to the assigned task after its actual route time."""
 
+    @kernel_first("staff_operation_events", "arrive")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
         from sheltersim.domain.staff_operations import arrive_staff_operation
 
@@ -3098,6 +3155,7 @@ class StaffOperationArrivalHandler:
 class StaffOperationReliefHandler:
     """Transfer an in-flight staff operation at an applied relief boundary."""
 
+    @kernel_first("staff_operation_events", "relief")
     def apply(self, world: WorldState, event: ScheduledEvent) -> tuple[EventLogRecord, ...] | None:
         from sheltersim.domain.staff_operations import handoff_staff_operation
 
@@ -3109,6 +3167,7 @@ class StaffOperationReliefHandler:
 class StaffOperationCompletionHandler:
     """Apply routed cleaning, repair, intake, outreach or patrol work."""
 
+    @kernel_first("staff_operation_events", "complete")
     def apply(self, world: WorldState, event: ScheduledEvent) -> tuple[EventLogRecord, ...] | None:
         task_kind = event.payload.get("task_kind")
         target_id = event.payload.get("target_id")
@@ -3222,6 +3281,7 @@ class SupportRequestTimeoutHandler:
 
     cooldown_minutes: int = 30
 
+    @kernel_first("support", "timeout")
     def apply(self, world: WorldState, event: ScheduledEvent) -> None:
         request_id = event.payload.get("request_id")
         agent_id = event.payload.get("agent_id")
@@ -3239,3 +3299,55 @@ class SupportRequestTimeoutHandler:
             raise EventApplicationError(str(exc)) from exc
         if not changed:
             raise EventSuppressed("support request is no longer pending")
+
+
+# The event types with a Rust function in rules/dispatch.rs. A patch of `apply` shows here, and the
+# handler then goes to Python. The EffectProgram handlers are there for an event whose guard held:
+# the loop asks the guard as `dispatch_one` does, then calls `apply`.
+if native.available():
+    from sheltersim.events.effects import (
+        EffectProgramEnvironmentHandler,
+        EffectProgramFacilityHandler,
+        EffectProgramGeometryHandler,
+        EffectProgramStructureHandler,
+        EffectProgramTemporarySpaceHandler,
+    )
+
+    native.rules("dispatch").install_table(
+        (SocialInteractionHandler, SocialInteractionHandler.apply),
+        (AgentTravelCompletionHandler, AgentTravelCompletionHandler.apply),
+        (ToiletServiceCompletionHandler, ToiletServiceCompletionHandler.apply),
+        (ResourceServiceCompletionHandler, ResourceServiceCompletionHandler.apply),
+        (SupportRequestTimeoutHandler, SupportRequestTimeoutHandler.apply),
+        (StaffSupportCompletionHandler, StaffSupportCompletionHandler.apply),
+        [
+            (handler, handler.apply)
+            for handler in (
+                ProximityContactHandler,
+                InformationRumorHandler,
+                InformationCorrectionHandler,
+                InformationContactHandler,
+                ResourceLedgerHandler,
+                FacilityOutageHandler,
+                FacilityRecoveryHandler,
+                InfrastructureEventHandler,
+                ResourceServiceCancellationHandler,
+                EffectProgramPopulationHandler,
+                DeliveryDelayHandler,
+                WaterOutageHandler,
+                WaterRestorationHandler,
+                StaffUnavailabilityHandler,
+                StaffRestorationHandler,
+                StaffOperationArrivalHandler,
+                StaffOperationReliefHandler,
+                StaffOperationCompletionHandler,
+                EffectProgramFacilityHandler,
+                EffectProgramEnvironmentHandler,
+                EffectProgramTemporarySpaceHandler,
+                EffectProgramGeometryHandler,
+                EffectProgramStructureHandler,
+            )
+        ],
+        AgentTravelCompletionHandler._after_arrival,
+        EventDispatcher,
+    )

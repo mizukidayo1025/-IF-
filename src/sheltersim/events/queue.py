@@ -3,22 +3,43 @@
 from __future__ import annotations
 
 import heapq
+import json
 import operator
+from bisect import bisect_left, insort
 from collections.abc import Collection, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
+from typing import Any
 
-from sheltersim.events.models import EventLogRecord, ScheduledEvent
+from sheltersim import native
+from sheltersim.events.models import EventLogRecord, EventStatus, ScheduledEvent
 
 
 class DuplicateEventError(ValueError):
     """Raised when an event ID or sequence number is reused."""
 
 
+def _queue_order(event: ScheduledEvent) -> tuple[int, int, int]:
+    return event.due_minute, event.priority, event.sequence
+
+
 @dataclass
-class EventQueue:
+class _PythonEventQueue:
     """Mutable future queue ordered by due minute, priority, and sequence."""
 
     _events: list[ScheduledEvent] = field(default_factory=list)
+    # The same events by ID and by sequence, and in the order pending() returns them. All
+    # are kept by the methods below, the only writers of _events. A tick reads them dozens
+    # of times, with about a hundred events pending.
+    _by_id: dict[str, ScheduledEvent] = field(init=False, repr=False, compare=False)
+    _sequences: set[int] = field(init=False, repr=False, compare=False)
+    _ordered: list[ScheduledEvent] = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        self._by_id = {}
+        for event in self._events:
+            self._by_id.setdefault(event.event_id, event)
+        self._sequences = {event.sequence for event in self._events}
+        self._ordered = sorted(self._events, key=_queue_order)
 
     def __len__(self) -> int:
         return len(self._events)
@@ -28,32 +49,44 @@ class EventQueue:
 
     def pending(self) -> tuple[ScheduledEvent, ...]:
         """Return a stable immutable view of pending events."""
-        return tuple(
-            sorted(
-                self._events,
-                key=lambda event: (event.due_minute, event.priority, event.sequence),
-            )
-        )
+        return tuple(self._ordered)
+
+    def find(self, event_id: str) -> ScheduledEvent | None:
+        """The pending event with this ID, if any."""
+        # A handler may ask with an unchecked payload value.
+        return self._by_id.get(event_id) if isinstance(event_id, str) else None
 
     def schedule(self, event: ScheduledEvent) -> None:
         """Add an event, rejecting ambiguous or repeated identities."""
-        if any(item.event_id == event.event_id for item in self._events):
+        if event.event_id in self._by_id:
             raise DuplicateEventError(f"duplicate event ID {event.event_id!r}")
-        if any(item.sequence == event.sequence for item in self._events):
+        if event.sequence in self._sequences:
             raise DuplicateEventError(f"duplicate event sequence {event.sequence}")
         self._events.append(event)
+        self._by_id[event.event_id] = event
+        self._sequences.add(event.sequence)
+        insort(self._ordered, event, key=_queue_order)
 
     def due(self, minute: int) -> tuple[ScheduledEvent, ...]:
         """Snapshot all events due through ``minute`` without removing them."""
         if minute < 0:
             raise ValueError("minute cannot be negative")
-        return tuple(event for event in self.pending() if event.due_minute <= minute)
+        due = []
+        for event in self._ordered:
+            if event.due_minute > minute:
+                break
+            due.append(event)
+        return tuple(due)
 
     def remove(self, event_id: str) -> ScheduledEvent:
         """Remove and return one event after its handler has finished."""
         for index, event in enumerate(self._events):
             if event.event_id == event_id:
-                return self._events.pop(index)
+                del self._events[index]
+                del self._by_id[event_id]
+                self._sequences.discard(event.sequence)
+                del self._ordered[bisect_left(self._ordered, _queue_order(event), key=_queue_order)]
+                return event
         raise KeyError(event_id)
 
     def replace(self, event_id: str, event: ScheduledEvent) -> None:
@@ -70,6 +103,9 @@ class EventQueue:
             ):
                 raise DuplicateEventError("replacement event identity is already in use")
             self._events[index] = event
+            self._by_id[event_id] = event
+            del self._ordered[bisect_left(self._ordered, _queue_order(current), key=_queue_order)]
+            insort(self._ordered, event, key=_queue_order)
             return
         raise KeyError(event_id)
 
@@ -82,8 +118,174 @@ class EventQueue:
             raise ValueError("event queue contains duplicate event sequences")
 
 
+class _NativeEventQueue:
+    """The EventQueue held in Rust (native/src/state/events.rs); the same methods and errors as
+    _PythonEventQueue. A Rust rule's event has no object until one of these reads it.
+
+    An order outside i64, which no Scenario can reach, makes this queue _LargeOrderEventQueue.
+    """
+
+    __slots__ = ("_store", "_python")
+    __hash__ = None  # type: ignore[assignment]
+
+    def __init__(self, _events: Iterable[ScheduledEvent] = ()) -> None:
+        events = list(_events)
+        self._store = native.state("events").QueueStore()
+        if not self._store.load(events):
+            self._leave_rust(events)
+
+    def _leave_rust(self, events: list[ScheduledEvent]) -> None:
+        self._store = None
+        self.__class__ = _LargeOrderEventQueue  # type: ignore[assignment]
+        self._python = _PythonEventQueue(events)  # type: ignore[attr-defined]
+
+    @property
+    def _events(self) -> list[ScheduledEvent]:
+        return self._store.events()
+
+    def __len__(self) -> int:
+        return len(self._store)
+
+    def __iter__(self) -> Iterator[ScheduledEvent]:
+        return iter(self.pending())
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, (_NativeEventQueue, _PythonEventQueue)):
+            return NotImplemented
+        return self._events == other._events
+
+    def __repr__(self) -> str:
+        return f"EventQueue(_events={self._events!r})"
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> _NativeEventQueue:
+        # Events are frozen and shared, like the records of a copied EventLog.
+        copied = _NativeEventQueue.__new__(_NativeEventQueue)
+        copied._store = self._store.copy()
+        memo[id(self)] = copied
+        return copied
+
+    def pending(self) -> tuple[ScheduledEvent, ...]:
+        """Return a stable immutable view of pending events."""
+        return self._store.pending()
+
+    def find(self, event_id: str) -> ScheduledEvent | None:
+        """The pending event with this ID, if any."""
+        return self._store.find(event_id)
+
+    def schedule(self, event: ScheduledEvent) -> None:
+        """Add an event, rejecting ambiguous or repeated identities."""
+        refused = self._store.schedule(event)
+        if refused == 1:
+            raise DuplicateEventError(f"duplicate event ID {event.event_id!r}")
+        if refused == 2:
+            raise DuplicateEventError(f"duplicate event sequence {event.sequence}")
+        if refused == 3:
+            self._leave_rust(self._events)
+            self.schedule(event)
+
+    def due(self, minute: int) -> tuple[ScheduledEvent, ...]:
+        """Snapshot all events due through ``minute`` without removing them."""
+        if minute < 0:
+            raise ValueError("minute cannot be negative")
+        due = self._store.due(minute)
+        if due is None:
+            return tuple(event for event in self.pending() if not event.due_minute > minute)
+        return due
+
+    def remove(self, event_id: str) -> ScheduledEvent:
+        """Remove and return one event after its handler has finished."""
+        return self._store.remove(event_id)
+
+    def replace(self, event_id: str, event: ScheduledEvent) -> None:
+        """Atomically replace one pending event while preserving its identity."""
+        refused = self._store.replace(event_id, event)
+        if refused == 1:
+            raise DuplicateEventError("replacement event must preserve ID and sequence")
+        if refused == 2:
+            raise DuplicateEventError("replacement event identity is already in use")
+        if refused == 3:
+            self._leave_rust(self._events)
+            self.replace(event_id, event)
+
+    def validate(self) -> None:
+        problem = self._store.validate()
+        if problem == 1:
+            raise ValueError("event queue contains duplicate event IDs")
+        if problem == 2:
+            raise ValueError("event queue contains duplicate event sequences")
+
+
+class _LargeOrderEventQueue(_NativeEventQueue):
+    """A queue holding an order outside i64, in Python. EventWriter says Unsupported for it."""
+
+    __slots__ = ()
+
+    @property
+    def _events(self) -> list[ScheduledEvent]:
+        return self._python._events
+
+    def __len__(self) -> int:
+        return len(self._python)
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> _LargeOrderEventQueue:
+        copied = _LargeOrderEventQueue.__new__(_LargeOrderEventQueue)
+        copied._store = None
+        copied._python = _PythonEventQueue(self._python._events)
+        memo[id(self)] = copied
+        return copied
+
+    def pending(self) -> tuple[ScheduledEvent, ...]:
+        return self._python.pending()
+
+    def find(self, event_id: str) -> ScheduledEvent | None:
+        return self._python.find(event_id)
+
+    def schedule(self, event: ScheduledEvent) -> None:
+        self._python.schedule(event)
+
+    def due(self, minute: int) -> tuple[ScheduledEvent, ...]:
+        return self._python.due(minute)
+
+    def remove(self, event_id: str) -> ScheduledEvent:
+        return self._python.remove(event_id)
+
+    def replace(self, event_id: str, event: ScheduledEvent) -> None:
+        self._python.replace(event_id, event)
+
+    def validate(self) -> None:
+        self._python.validate()
+
+
+EventQueue: Any = _NativeEventQueue if native.available() else _PythonEventQueue
+
+
+def record_bytes(record: EventLogRecord) -> bytes:
+    """The canonical JSON of record.to_dict(), as a Checkpoint saves the record."""
+    encoded = native.record_json(record, EventLogRecord, ScheduledEvent)
+    if encoded is not None:
+        return encoded
+    document = record.to_dict()
+    encoded = native.canonical_json(document)
+    if encoded is not None:
+        return encoded
+    return json.dumps(
+        document, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
+    ).encode()
+
+
+def record_from_bytes(raw: bytes) -> EventLogRecord:
+    """The record of saved canonical JSON, as WorldState.from_dict builds it."""
+    document = json.loads(raw)
+    return EventLogRecord(
+        event=ScheduledEvent.from_saved(document["event"]),
+        realized_minute=document["realized_minute"],
+        status=EventStatus(document["status"]),
+        detail=document["detail"],
+    )
+
+
 @dataclass
-class EventLog:
+class _PythonEventLog:
     """Append-only outcomes for events that were attempted at a due minute."""
 
     _records: list[EventLogRecord] = field(default_factory=list, repr=False)
@@ -104,6 +306,8 @@ class EventLog:
     _by_minute: dict[int, list[EventLogRecord]] = field(
         default_factory=dict, init=False, repr=False, compare=False
     )
+    # Results derived from the records so far, kept by readers for when the log has grown.
+    derived: dict[Any, Any] = field(default_factory=dict, init=False, repr=False, compare=False)
     # Each event type's records with their append positions, for validators that
     # check a few types and need not read the whole log.
     _by_type: dict[str, list[tuple[int, EventLogRecord]]] = field(
@@ -161,6 +365,10 @@ class EventLog:
     def at_minute(self, minute: int) -> tuple[EventLogRecord, ...]:
         return tuple(self._by_minute.get(minute, ()))
 
+    def event_ids_at_minute(self, minute: int) -> list[str]:
+        """The event IDs of at_minute(minute)."""
+        return [record.event.event_id for record in self._by_minute.get(minute, ())]
+
     def event_types(self) -> frozenset[str]:
         """The event types of the realized records."""
         return frozenset(self._by_type)
@@ -176,10 +384,45 @@ class EventLog:
             return [record for _, record in lists[0]]
         return [record for _, record in heapq.merge(*lists, key=operator.itemgetter(0))]
 
+    def of_types_from(self, event_types: Collection[str], start: int) -> list[EventLogRecord]:
+        """The records of event_types at position start or later, in append order."""
+        lists = [
+            rows[bisect_left(rows, start, key=operator.itemgetter(0)) :]
+            for rows in (self._by_type[kind] for kind in event_types if kind in self._by_type)
+        ]
+        if len(lists) == 1:
+            return [record for _, record in lists[0]]
+        return [record for _, record in heapq.merge(*lists, key=operator.itemgetter(0))]
+
     @property
     def records(self) -> tuple[EventLogRecord, ...]:
         """Read-only view of realized outcomes in append order."""
         return tuple(self._records)
+
+    def records_from(self, start: int = 0) -> list[EventLogRecord]:
+        """The records from position start on, in append order."""
+        return self._records[start:]
+
+    def last(self) -> EventLogRecord | None:
+        return self._records[-1] if self._records else None
+
+    @classmethod
+    def from_saved(cls, items: Iterable[bytes]) -> _PythonEventLog:
+        """The EventLog of saved records, each the canonical JSON of its to_dict()."""
+        return cls([record_from_bytes(raw) for raw in items])
+
+    def extend_saved(self, items: Iterable[bytes]) -> None:
+        """Append saved records, each the canonical JSON of its to_dict()."""
+        for raw in items:
+            self.append(record_from_bytes(raw))
+
+    def items_bytes(self, start: int, end: int) -> list[bytes]:
+        """The canonical JSON of the records from start to end."""
+        return [record_bytes(record) for record in self._records[start:end]]
+
+    def event_ids(self) -> list[str]:
+        """The realized event IDs in append order."""
+        return [record.event.event_id for record in self._records]
 
     def __len__(self) -> int:
         return len(self._records)
@@ -304,6 +547,212 @@ class EventLog:
         self._audit_bounds = (minute_index, duration_minutes)
 
 
+class _NativeEventLog:
+    """The EventLog with its indexes held in Rust (sheltersim_native.EventStore,
+    docs/rust-port.md stage B1); the same methods and errors as _PythonEventLog.
+
+    Records are the frozen EventLogRecord objects appended; they are only appended,
+    so IDs and sequences stay unique and the audit checks realization times.
+    """
+
+    __hash__ = None  # type: ignore[assignment]
+
+    def __init__(self, _records: Iterable[EventLogRecord] = ()) -> None:
+        self._store = native.event_store()
+        self._store.set_codecs(record_bytes, record_from_bytes, EventLogRecord, ScheduledEvent)
+        # Results derived from the records so far, kept by readers for when the log has grown.
+        self.derived: dict[Any, Any] = {}
+        for record in _records:
+            self.append(record)
+
+    @classmethod
+    def from_saved(cls, items: Iterable[bytes]) -> _NativeEventLog:
+        """The EventLog of saved records, each the canonical JSON of its to_dict().
+
+        Their indexes are read from the bytes; a record object is made when read.
+        """
+        log = cls()
+        log.extend_saved(items)
+        return log
+
+    def extend_saved(self, items: Iterable[bytes]) -> None:
+        """Append saved records, each the canonical JSON of its to_dict().
+
+        Each must be the canonical JSON of a valid record, or ValueError is raised.
+        """
+        if self._store.extend_saved(items):
+            raise DuplicateEventError("saved EventLog repeats an event ID or sequence")
+
+    def items_bytes(self, start: int, end: int) -> list[bytes]:
+        """The canonical JSON of the records from start to end."""
+        return self._store.items_bytes(start, end)
+
+    def unread(self) -> int:
+        """How many records read back from saved bytes have no object yet."""
+        return self._store.unread()
+
+    def all_encoded(self) -> bool:
+        """Whether the log's bytes restore to exactly this log, so a save need not check it.
+
+        True when Rust wrote or checked each record's bytes, from exact frozen values. A record
+        with another value, such as a str subclass in a payload, makes this false for good.
+        """
+        return self._store.all_encoded()
+
+    def append(self, record: EventLogRecord) -> None:
+        refused = self._store.append(record)
+        if refused == 1:
+            raise DuplicateEventError(f"event {record.event.event_id!r} already realized")
+        if refused == 2:
+            raise DuplicateEventError(f"event sequence {record.event.sequence} already realized")
+
+    def contains_id(self, event_id: str) -> bool:
+        return isinstance(event_id, str) and self._store.contains_id(event_id)
+
+    def find(self, event_id: str) -> EventLogRecord | None:
+        """Return one immutable realized event in constant time from the derived index."""
+        return self._store.find(event_id)
+
+    def has_prior_care_request(self, request_id: str, current_event_id: str) -> bool:
+        """Detect request-ID reuse across full EventLog history, including expired state tails."""
+        first = self._store.first_care_request_event(request_id)
+        return first is not None and first != current_event_id
+
+    def completed_support_kinds(self, agent_id: str) -> frozenset[str]:
+        """Return support types with applied completion records for one Agent."""
+        return frozenset(self._store.completed_support_kinds(agent_id))
+
+    def applied_facility_event_ids(self, facility_id: str) -> frozenset[str]:
+        """Return applied outage/recovery IDs associated with one facility."""
+        return frozenset(self._store.applied_facility_event_ids(facility_id))
+
+    def contains_sequence(self, sequence: int) -> bool:
+        return self._store.contains_sequence(sequence)
+
+    @property
+    def max_sequence(self) -> int:
+        """Highest realized sequence, maintained as outcomes are appended."""
+        return self._store.max_sequence
+
+    def at_minute(self, minute: int) -> tuple[EventLogRecord, ...]:
+        return tuple(self._store.at_minute(minute))
+
+    def event_ids_at_minute(self, minute: int) -> list[str]:
+        """The event IDs of at_minute(minute), making no record object."""
+        return self._store.event_ids_at_minute(minute)
+
+    def event_types(self) -> frozenset[str]:
+        """The event types of the realized records."""
+        return frozenset(self._store.event_types())
+
+    def with_provenance_object(self, key: str) -> list[EventLogRecord]:
+        """The records whose event provenance holds an object at key, in append order."""
+        return self._store.with_provenance_object(key)
+
+    def of_types(self, event_types: Collection[str]) -> list[EventLogRecord]:
+        """The records whose event has one of event_types, in append order."""
+        return self._store.of_types(event_types)
+
+    def of_types_from(self, event_types: Collection[str], start: int) -> list[EventLogRecord]:
+        """The records of event_types at position start or later, in append order."""
+        return self._store.of_types_from(event_types, start)
+
+    def active_lifecycle_records(self) -> list[EventLogRecord]:
+        """The agent_action_lifecycle records a pass needs for each agent's active action."""
+        return self._store.active_lifecycle_records()
+
+    @property
+    def records(self) -> tuple[EventLogRecord, ...]:
+        """Read-only view of realized outcomes in append order."""
+        return tuple(self._store.records_from(0))
+
+    def records_from(self, start: int = 0) -> list[EventLogRecord]:
+        """The records from position start on, in append order."""
+        return self._store.records_from(start)
+
+    def last(self) -> EventLogRecord | None:
+        return self._store.last()
+
+    def event_ids(self) -> list[str]:
+        """The realized event IDs in append order."""
+        return self._store.event_ids()
+
+    def __len__(self) -> int:
+        return len(self._store)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, (_NativeEventLog, _PythonEventLog)):
+            return NotImplemented
+        return len(self) == len(other) and self.records_from(0) == other.records_from(0)
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> _NativeEventLog:
+        # Records are frozen and shared, as a deepcopy with them in its memo shares them.
+        copied = _NativeEventLog.__new__(_NativeEventLog)
+        copied._store = self._store.copy()
+        copied.derived = {}
+        memo[id(self)] = copied
+        return copied
+
+    def __repr__(self) -> str:
+        return f"EventLog({len(self)} records)"
+
+    def recent(self, limit: int = 100) -> tuple[EventLogRecord, ...]:
+        """Bounded observational tail; avoids copying the complete realized log."""
+        if type(limit) is not int or not 1 <= limit <= 1000:
+            raise ValueError("invalid event tail limit")
+        return tuple(self._store.recent(limit))
+
+    def recent_matching(
+        self,
+        event_types: frozenset[str],
+        *,
+        limit: int = 200,
+        scan_limit: int = 5000,
+    ) -> tuple[tuple[EventLogRecord, ...], bool]:
+        if (
+            type(limit) is not int
+            or not 1 <= limit <= 1000
+            or type(scan_limit) is not int
+            or not 1 <= scan_limit <= 10000
+        ):
+            raise ValueError("invalid event tail search limit")
+        found, more = self._store.recent_matching(event_types, limit, scan_limit)
+        return tuple(found), more
+
+    def validate(
+        self, *, minute_index: int | None = None, duration_minutes: int | None = None
+    ) -> None:
+        """Audit realization times before minute_index and within duration_minutes.
+
+        Records are only appended, with unique IDs and sequences; records an earlier
+        audit checked, at an earlier or the same minute, are not checked again.
+        """
+        problem = self._store.audit(minute_index, duration_minutes)
+        if problem == 3:
+            raise ValueError("event log cannot contain future realization times")
+        if problem == 4:
+            raise ValueError("event log is outside the scenario duration")
+
+
+EventLog: Any = _NativeEventLog if native.available() else _PythonEventLog
+
+
+def saved_realized_minute(raw: bytes) -> int:
+    """The realized_minute of a record saved as canonical JSON, without parsing it.
+
+    Canonical JSON orders a record's keys detail, event, realized_minute, status, so
+    the last ',"realized_minute":' is the record's own: any later one would sit in
+    the status, which is one of the EventStatus values.
+    """
+    start = raw.rindex(b',"realized_minute":') + 19
+    return int(raw[start : raw.index(b",", start)])
+
+
+def keeps_saved_bytes(log: Any) -> bool:
+    """Whether log is the Rust EventLog, which keeps each record's saved bytes."""
+    return isinstance(log, _NativeEventLog)
+
+
 class EventsById(Mapping[str, ScheduledEvent]):
     """Pending and realized events by ID, read through the EventLog index.
 
@@ -321,7 +770,7 @@ class EventsById(Mapping[str, ScheduledEvent]):
 
     def __iter__(self) -> Iterator[str]:
         yield from (event_id for event_id in self._pending if not self._log.contains_id(event_id))
-        yield from (record.event.event_id for record in self._log._records)
+        yield from self._log.event_ids()
 
     def __len__(self) -> int:
         return len(self._log) + sum(

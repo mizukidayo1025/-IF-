@@ -6,16 +6,27 @@ utterance and are separate from selected-policy proposals and completion events.
 
 from __future__ import annotations
 
-from typing import Any
+import math
+import re
+from collections.abc import Callable, Mapping
+from functools import wraps
+from typing import Any, TypeVar
 
+from sheltersim import native
 from sheltersim.contracts.operations import ActionLifecycleReceipt
 from sheltersim.core.world import WorldState
 from sheltersim.domain.models import AgentState
 from sheltersim.events.models import EventKind, EventLogRecord, EventStatus, ScheduledEvent
+from sheltersim.events.queue import keeps_saved_bytes
 
 ACTION_LIFECYCLE_SOURCE_ID = "ASM-ACTION-LIFECYCLE-V1"
 ACTION_LIFECYCLE_POLICY_VERSION = "applied-action-lifecycle-v2"
 
+_TRANSITIONS = frozenset(
+    {"started", "continued", "completed", "interrupted", "abandoned", "censored"}
+)
+# The pattern of contracts.extensions.Identifier.
+_STABLE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$")
 _COMPLETION_ACTIONS = {
     "toilet_service_complete": {"request_toilet"},
     "resource_service_complete": {"fetch_water", "collect_meal"},
@@ -29,13 +40,66 @@ _INTERRUPTED_ACTIONS = {
 }
 
 
+Rule = TypeVar("Rule", bound=Callable[..., Any])
+
+
+def _kernel_first(name: str) -> Callable[[Rule], Rule]:
+    """Try native/src/rules/action_lifecycle.rs's kernel on a store of open actions.
+
+    A kernel says Unsupported before it changes anything. The Python rule then runs on the store's
+    plain dict, which holds the actions from then on. A plain dict given by a caller stays with the
+    Python rule. `__wrapped__` is the Python rule. Like core.kernels.kernel_first, but for rules
+    with a store to hand over.
+    """
+
+    def decorate(python_rule: Rule) -> Rule:
+        if not native.available():
+            return python_rule
+        rules = native.rules("action_lifecycle")
+        kernel = getattr(rules, name)
+        store = rules.ActiveActions
+        unsupported = native.Unsupported
+
+        @wraps(python_rule)
+        def run(*arguments: Any, active_actions: Any, **options: Any) -> Any:
+            if type(active_actions) is not store:
+                return python_rule(*arguments, active_actions=active_actions, **options)
+            try:
+                return kernel(*arguments, active_actions=active_actions, **options)
+            except unsupported:
+                plain = active_actions.as_plain()
+                return python_rule(*arguments, active_actions=plain, **options)
+
+        return run  # type: ignore[return-value]
+
+    return decorate
+
+
+def active_action_store(world: WorldState) -> Any:
+    """What a controller keeps of the open actions: Rust rows, or a dict without the kernels."""
+    index = active_action_index(world)
+    if not native.available():
+        return index
+    # A restored record's needs are a frozen payload's.
+    for record in index.values():
+        if isinstance(record["start_needs"], Mapping):
+            record["start_needs"] = dict(record["start_needs"])
+    return native.rules("action_lifecycle").ActiveActions(index)
+
+
 def active_action_index(world: WorldState) -> dict[str, dict[str, Any]]:
     """Rebuild transient lookup state from persisted event evidence after restore."""
     active: dict[str, dict[str, Any]] = {}
-    for row in world.event_log.records:
+    # The Rust EventLog knows which records decide the result, so a restored log makes
+    # only those objects. They give the same dict, in the same order, as all of them.
+    log = world.event_log
+    rows = (
+        log.active_lifecycle_records()
+        if keeps_saved_bytes(log)
+        else log.of_types({"agent_action_lifecycle"})
+    )
+    for row in rows:
         event = row.event
-        if event.event_type != "agent_action_lifecycle":
-            continue
         payload = event.payload
         agent_id = payload.get("agent_id")
         if not isinstance(agent_id, str):
@@ -63,6 +127,7 @@ def active_action_index(world: WorldState) -> dict[str, dict[str, Any]]:
     return active
 
 
+@_kernel_first("record_action_proposal")
 def record_action_proposal(
     world: WorldState,
     proposal: Any,
@@ -130,6 +195,7 @@ def record_action_proposal(
     active_actions[agent_id] = record
 
 
+@_kernel_first("record_applied_action_completion")
 def record_applied_action_completion(
     world: WorldState,
     event: ScheduledEvent,
@@ -142,7 +208,7 @@ def record_applied_action_completion(
     if (
         applied_record is None
         or applied_record.status is not EventStatus.APPLIED
-        or applied_record.event.to_dict() != event.to_dict()
+        or (applied_record.event is not event and applied_record.event.to_dict() != event.to_dict())
     ):
         return
     agent_id = event.payload.get("agent_id")
@@ -193,6 +259,7 @@ def record_applied_action_completion(
     active_actions.pop(agent_id, None)
 
 
+@_kernel_first("record_applied_population_exit")
 def record_applied_population_exit(
     world: WorldState,
     event: ScheduledEvent,
@@ -248,6 +315,7 @@ def record_applied_population_exit(
         )
 
 
+@_kernel_first("finalize_active_actions")
 def finalize_active_actions(
     world: WorldState,
     minute: int,
@@ -314,6 +382,43 @@ def _need_snapshot(agent: AgentState, world: WorldState) -> dict[str, float]:
     }
 
 
+def _is_plain_receipt(payload: dict[str, Any]) -> bool:
+    """Whether ActionLifecycleReceipt accepts this payload and dumps the same values.
+
+    Only for values of exactly the declared types; the model decides anything else and
+    raises any error. A receipt is made for most actions, about 18 per tick.
+    """
+    start, minute = payload["start_minute"], payload["transition_minute"]
+    reason_code, activity = payload["reason_code"], payload["activity"]
+    start_activity, target_id = payload["start_activity"], payload["target_id"]
+    plain = (
+        type(start) is int
+        and type(minute) is int
+        and 0 <= start <= minute
+        and payload["duration_minutes"] == minute - start
+        and payload["transition"] in _TRANSITIONS
+        and type(reason_code) is str
+        and 1 <= len(reason_code) <= 120
+        and (activity is None or (type(activity) is str and len(activity) <= 80))
+        and (start_activity is None or (type(start_activity) is str and len(start_activity) <= 80))
+        and (target_id is None or _is_identifier(target_id))
+    )
+    if not plain:
+        return False
+    for name in ("action_id", "agent_id", "action", "model_id", "model_source_id"):
+        if not _is_identifier(payload[name]):
+            return False
+    for needs in (payload["start_needs"], payload["current_needs"]):
+        for key, value in needs.items():
+            if type(key) is not str or type(value) is not float or not math.isfinite(value):
+                return False
+    return True
+
+
+def _is_identifier(value: Any) -> bool:
+    return type(value) is str and _STABLE_ID.fullmatch(value) is not None
+
+
 def _append_transition(
     world: WorldState,
     action: dict[str, Any],
@@ -346,7 +451,8 @@ def _append_transition(
         "model_id": action["model_id"],
         "model_source_id": action["model_source_id"],
     }
-    payload = ActionLifecycleReceipt.model_validate(payload).model_dump(mode="json")
+    if not _is_plain_receipt(payload):
+        payload = ActionLifecycleReceipt.model_validate(payload).model_dump(mode="json")
     event = ScheduledEvent(
         event_id=f"action-lifecycle-{sequence}",
         kind=EventKind.ENDOGENOUS,

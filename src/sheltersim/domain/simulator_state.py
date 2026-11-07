@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Any
 
 from sheltersim.contracts.operations import (
@@ -10,6 +11,7 @@ from sheltersim.contracts.operations import (
     validate_shared_operations_config,
 )
 from sheltersim.contracts.policies import selected_models
+from sheltersim.core.state_mirror import rust_validated
 from sheltersim.core.world import WorldState
 from sheltersim.domain.action_lifecycle import ACTION_LIFECYCLE_POLICY_VERSION
 from sheltersim.domain.agent_dynamics import (
@@ -293,12 +295,17 @@ def initialize_simulator_extensions(world: WorldState) -> None:
 
 
 def validate_simulator_extensions(
-    world: WorldState, *, validate_event_history: bool = True
+    world: WorldState,
+    *,
+    validate_event_history: bool = True,
+    history_memo: Any = None,
 ) -> None:
     """Validate each extension independently for checkpoint and restore hooks.
 
     Per-tick validation passes ``validate_event_history=False``: append-only histories
-    are then checked only for records from the tick that just ended.
+    are then checked only for records from the tick that just ended. A save's complete
+    validation passes a history_memo to skip unchanged old entries
+    (core/save_validation.py).
     """
     required = {
         key.removeprefix("simulator:")
@@ -321,23 +328,43 @@ def validate_simulator_extensions(
         )
     if missing:
         raise ValueError(f"required simulator state is missing: {sorted(missing)}")
-    validate_agent_dynamics_state(world)
-    validate_body_state(world, validate_event_history=validate_event_history)
-    validate_population_dynamics_state(world)
-    validate_population_lifecycle_state(world)
-    validate_social_network_state(world)
-    validate_staff_dynamics_state(world)
-    validate_staff_operations_state(world)
-    validate_temporary_spaces_state(world)
-    validate_movement_runtime_state(world)
-    validate_geometry_overlay_state(world)
-    validate_facility_queue_state(world)
+    if not rust_validated(world, "agent_dynamics_v1"):
+        validate_agent_dynamics_state(world)
+    if not rust_validated(world, "body_state_v1"):
+        validate_body_state(
+            world,
+            validate_event_history=validate_event_history,
+            history_memo=history_memo,
+        )
+    if not rust_validated(world, "population_dynamics_v1"):
+        validate_population_dynamics_state(world)
+    if not rust_validated(world, "population_lifecycle_v1"):
+        validate_population_lifecycle_state(world)
+    if not rust_validated(world, "social_network_v1"):
+        validate_social_network_state(world)
+    if not rust_validated(world, "staff_dynamics_v1"):
+        validate_staff_dynamics_state(world)
+    if not rust_validated(world, "staff_operations_v1"):
+        validate_staff_operations_state(world)
+    if not rust_validated(world, "temporary_spaces_v1"):
+        validate_temporary_spaces_state(world)
+    if not rust_validated(world, "movement_v1"):
+        validate_movement_runtime_state(world)
+    if not rust_validated(world, "geometry_overlay_v1"):
+        validate_geometry_overlay_state(world)
+    if not rust_validated(world, "facility_queues_v1"):
+        validate_facility_queue_state(world)
     if (
         SHARED_OPERATIONS_KEY in world.model_state
         and "shared_operations" not in world.model_configs
     ):
         raise ValueError("shared_operations_v1 requires its signed Scenario contract")
-    validate_shared_operations_state(world, validate_event_history=validate_event_history)
+    if not rust_validated(world, SHARED_OPERATIONS_KEY):
+        validate_shared_operations_state(
+            world,
+            validate_event_history=validate_event_history,
+            history_memo=history_memo,
+        )
 
 
 def restore_simulator_extensions(world: WorldState, model_state: dict[str, Any]) -> None:
@@ -522,3 +549,77 @@ def simulator_state_catalog() -> dict[str, Any]:
             "external_validation": False,
         },
     }
+
+
+def _install_after_tick_kernel() -> None:
+    """Tell native/src/rules/after_tick.rs what the Python check would call, as defined here.
+
+    A patch of one of these, and the python_rules mark, leave a tick to the Python check.
+    """
+    from sheltersim import native
+
+    if not native.available():
+        return
+    from sheltersim.contracts import runtime
+    from sheltersim.core import state_mirror, tick_validation
+    from sheltersim.core import world as world_module
+    from sheltersim.domain import body_state, common_operations
+    from sheltersim.events import effects
+
+    this_module = sys.modules[__name__]
+    watched = [
+        (this_module, name)
+        for name in (
+            "validate_simulator_extensions",
+            "validate_agent_dynamics_state",
+            "validate_body_state",
+            "validate_population_dynamics_state",
+            "validate_population_lifecycle_state",
+            "validate_social_network_state",
+            "validate_staff_dynamics_state",
+            "validate_staff_operations_state",
+            "validate_temporary_spaces_state",
+            "validate_movement_runtime_state",
+            "validate_geometry_overlay_state",
+            "validate_facility_queue_state",
+            "validate_shared_operations_state",
+            "is_legacy_queue_checkpoint",
+        )
+    ]
+    watched += [
+        (world_module, name)
+        for name in (
+            "_entity_rules_kernel",
+            "validate_information_runtime_state",
+            "validate_psychological_state",
+            "validate_operational_events_state",
+            "validate_infrastructure_runtime_state",
+            "validate_zone_environment_runtime_state",
+            "validate_resource_ledger_state",
+        )
+    ]
+    watched += [
+        (WorldState, "validate"),
+        (WorldState, "_validate_entity_rules"),
+        (WorldState, "_validate_event_rules"),
+        (state_mirror, "_RUST_VALIDATORS"),
+        (runtime, "validate_declared_states"),
+        (effects, "validate_effect_program_state"),
+        (tick_validation, "tick_plan"),
+        (tick_validation, "body_config_ids"),
+        (body_state, "_ROWS_VALID"),
+        (body_state, "validate_body_config"),
+        (common_operations, "_TICK_VALID"),
+    ]
+    native.rules("after_tick").install(
+        watched,
+        state_mirror._RUST_VALIDATORS,
+        body_state._ROWS_VALID,
+        common_operations._TICK_VALID,
+        native.rules("effects").validate_state,
+        (tick_validation.tick_plan, tick_validation.body_config_ids),
+        (world_module.InitialNeedProfile, world_module.NeedState),
+    )
+
+
+_install_after_tick_kernel()

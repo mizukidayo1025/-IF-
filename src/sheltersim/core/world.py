@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
-from collections.abc import Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from copy import deepcopy
-from dataclasses import asdict, dataclass, field, fields
+from dataclasses import dataclass, field, fields
 from enum import Enum
 from typing import Any
 
+from sheltersim import native
 from sheltersim.contracts.policies import selected_models
+from sheltersim.core import state_mirror
+from sheltersim.core.context import ContextScope
 from sheltersim.core.history import records_since_previous_tick
+from sheltersim.core.save_validation import SaveValidationMemo
+from sheltersim.core.saved_items import SavedItems
+from sheltersim.core.state_mirror import rust_validated
 from sheltersim.domain.environment import (
     ZONE_ENVIRONMENT_STATE_KEY,
     create_zone_environment_runtime_state,
@@ -68,7 +73,12 @@ from sheltersim.events.models import (
     EventStatus,
     ScheduledEvent,
 )
-from sheltersim.events.queue import DuplicateEventError, EventLog, EventQueue
+from sheltersim.events.queue import (
+    DuplicateEventError,
+    EventLog,
+    EventQueue,
+    keeps_saved_bytes,
+)
 from sheltersim.experiments.scenario import ResourceServiceConfig, ScenarioSpec
 
 
@@ -78,6 +88,14 @@ class StateInvariantError(ValueError):
 
 def _event_from_document(document: dict[str, Any]) -> ScheduledEvent:
     return ScheduledEvent(**document)
+
+
+# native/src/rules/after_tick.rs: validate_after_tick in one call, with its memo. The entity rules
+# it calls are native/src/rules/tick_validation.rs; benchmarks/rule_shadow and the python_rules mark
+# replace this one.
+_entity_rules_kernel = native.rules("tick_validation").entity_rules if native.available() else None
+_after_tick_kernel = native.rules("after_tick").after_tick if native.available() else None
+_TickMemo = native.rules("after_tick").TickMemo if native.available() else None
 
 
 @dataclass
@@ -104,6 +122,23 @@ class WorldState:
     model_configs: dict[str, dict[str, Any]] = field(default_factory=dict)
     model_state: dict[str, Any] = field(default_factory=dict)
     schema_version: int = 5
+
+    def __post_init__(self) -> None:
+        if native.available():
+            state_mirror.start_core(self)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        # A whole model_state assigned to a world with owned namespaces (core/state_mirror.py).
+        if "_core" in self.__dict__:
+            if name == "model_state":
+                value = state_mirror.model_state_assigned(self, value)
+            elif name in state_mirror.ENTITY_FIELDS:
+                # A whole map of entities, such as world.support_requests = {...}.
+                value = state_mirror.entities_assigned(self, name, value)
+        object.__setattr__(self, name, value)
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> WorldState:
+        return state_mirror.deepcopy_world(self, memo)
 
     @classmethod
     def from_scenario(cls, scenario: ScenarioSpec) -> WorldState:
@@ -255,8 +290,15 @@ class WorldState:
         *,
         _in_flight_event: ScheduledEvent | None = None,
         validate_event_history: bool = True,
+        _history_memo: SaveValidationMemo | None = None,
     ) -> None:
-        """Check world invariants, optionally auditing immutable EventLog history."""
+        """Check world invariants, optionally auditing immutable EventLog history.
+
+        _history_memo is for a Checkpoint capture only: entries of append-only histories
+        that are unchanged since they last passed are not read again
+        (core/save_validation.py). native/src/rules/after_tick.rs stands in front of the
+        per-tick check (validate_event_history=False), so a rule added here belongs there too.
+        """
         if (
             not isinstance(self.schema_version, int)
             or isinstance(self.schema_version, bool)
@@ -266,7 +308,7 @@ class WorldState:
                 f"unsupported world-state schema version: {self.schema_version}"
             )
         try:
-            selected_models(self.model_configs)
+            psychology_model = selected_models(self.model_configs)["psychology"]
             from sheltersim.contracts.runtime import validate_declared_states
 
             validate_declared_states(self)
@@ -291,7 +333,11 @@ class WorldState:
             from sheltersim.domain.simulator_state import validate_simulator_extensions
 
             try:
-                validate_simulator_extensions(self, validate_event_history=validate_event_history)
+                validate_simulator_extensions(
+                    self,
+                    validate_event_history=validate_event_history,
+                    history_memo=_history_memo,
+                )
             except (ValueError, KeyError, TypeError) as exc:
                 raise StateInvariantError("invalid simulator extension state") from exc
         resource_service_enabled = "resource_service" in self.model_configs
@@ -299,6 +345,7 @@ class WorldState:
             raise StateInvariantError(
                 "resource_service requires WorldState v6; v6 requires resource_service"
             )
+        resource_config = None
         if resource_service_enabled:
             try:
                 resource_config = ResourceServiceConfig.model_validate(
@@ -312,151 +359,175 @@ class WorldState:
                 )
             if RESOURCE_LEDGER_KEY not in self.model_state:
                 raise StateInvariantError("WorldState v6 requires a resource ledger")
-            service_state = self.model_state.get("resource_service_v1")
-            if (
-                not isinstance(service_state, dict)
-                or set(service_state)
-                != {
-                    "schema_version",
-                    "cancelled_task_ids",
-                    "active_reservation_ids",
-                    "request_history",
-                    "queue_stall_history",
-                    "stall_state",
-                }
-                or service_state.get("schema_version") != 1
-                or not isinstance(service_state.get("cancelled_task_ids"), list)
-                or any(
-                    not isinstance(value, str) or not value
-                    for value in service_state["cancelled_task_ids"]
-                )
-                or len(service_state["cancelled_task_ids"])
-                != len(set(service_state["cancelled_task_ids"]))
-                or not isinstance(service_state.get("active_reservation_ids"), list)
-                or any(
-                    not isinstance(value, str) or not value
-                    for value in service_state["active_reservation_ids"]
-                )
-                or len(service_state["active_reservation_ids"])
-                != len(set(service_state["active_reservation_ids"]))
-                or not isinstance(service_state.get("request_history"), list)
-                or not isinstance(service_state.get("queue_stall_history"), list)
-                or not isinstance(service_state.get("stall_state"), dict)
-            ):
-                raise StateInvariantError("resource_service_v1 state is invalid")
-            valid_actions = {"fetch_water", "collect_meal"}
-            valid_outcomes = {"queued", "travel_scheduled", "rejected"}
-            valid_request_reasons = {
-                "arrived_at_facility",
-                "route_available",
-                "in_room_route_available",
-                "room_route_blocked",
-                "no_facility",
-                "no_route",
-                "request_rejected",
-                "travel_rejected",
-                "service_disabled",
-            }
-            request_history = service_state["request_history"]
-            stall_history = service_state["queue_stall_history"]
-            # People away on a temporary exit or transfer keep their place in the
-            # population lifecycle archive; their past service records stay valid (#79).
-            lifecycle = self.model_state.get("population_lifecycle_v1")
-            retained_ids = (
-                set(lifecycle.get("people", {}))
-                if isinstance(lifecycle, dict) and isinstance(lifecycle.get("people"), dict)
-                else set()
-            )
-            known_agent_ids = set(self.agents) | retained_ids
-            if not validate_event_history:
-                request_history = records_since_previous_tick(request_history, self.minute_index)
-                stall_history = records_since_previous_tick(stall_history, self.minute_index)
-            for record in request_history:
+            if validate_event_history or not rust_validated(self, "resource_service_v1"):
+                service_state = self.model_state.get("resource_service_v1")
                 if (
-                    not isinstance(record, dict)
-                    or set(record)
+                    not isinstance(service_state, dict)
+                    or set(service_state)
                     != {
-                        "minute",
-                        "agent_id",
-                        "action",
-                        "outcome",
-                        "reason",
-                        "facility_id",
-                        "origin_zone_id",
-                        "detail",
+                        "schema_version",
+                        "cancelled_task_ids",
+                        "active_reservation_ids",
+                        "request_history",
+                        "queue_stall_history",
+                        "stall_state",
                     }
-                    or not isinstance(record["minute"], int)
-                    or isinstance(record["minute"], bool)
-                    or not 0 <= record["minute"] <= self.minute_index
-                    or record["agent_id"] not in known_agent_ids
-                    or record["action"] not in valid_actions
-                    or record["outcome"] not in valid_outcomes
-                    or record["reason"] not in valid_request_reasons
-                    or record["origin_zone_id"] not in self.zones
-                    or (
-                        record["facility_id"] is not None
-                        and record["facility_id"] not in self.facilities
+                    or service_state.get("schema_version") != 1
+                    or not isinstance(service_state.get("cancelled_task_ids"), list)
+                    or any(
+                        not isinstance(value, str) or not value
+                        for value in service_state["cancelled_task_ids"]
                     )
-                    or (record["detail"] is not None and not isinstance(record["detail"], str))
+                    or len(service_state["cancelled_task_ids"])
+                    != len(set(service_state["cancelled_task_ids"]))
+                    or not isinstance(service_state.get("active_reservation_ids"), list)
+                    or any(
+                        not isinstance(value, str) or not value
+                        for value in service_state["active_reservation_ids"]
+                    )
+                    or len(service_state["active_reservation_ids"])
+                    != len(set(service_state["active_reservation_ids"]))
+                    or not isinstance(service_state.get("request_history"), list)
+                    or not isinstance(service_state.get("queue_stall_history"), list)
+                    or not isinstance(service_state.get("stall_state"), dict)
                 ):
-                    raise StateInvariantError("resource service request history is invalid")
-                expected_kind = (
-                    "water_station" if record["action"] == "fetch_water" else "meal_distribution"
+                    raise StateInvariantError("resource_service_v1 state is invalid")
+                valid_actions = {"fetch_water", "collect_meal"}
+                valid_outcomes = {"queued", "travel_scheduled", "rejected"}
+                valid_request_reasons = {
+                    "arrived_at_facility",
+                    "route_available",
+                    "in_room_route_available",
+                    "room_route_blocked",
+                    "no_facility",
+                    "no_route",
+                    "request_rejected",
+                    "travel_rejected",
+                    "service_disabled",
+                }
+                request_history = service_state["request_history"]
+                stall_history = service_state["queue_stall_history"]
+                # People away on a temporary exit or transfer keep their place in the
+                # population lifecycle archive; their past service records stay valid (#79).
+                lifecycle = self.model_state.get("population_lifecycle_v1")
+                retained_ids = (
+                    set(lifecycle.get("people", {}))
+                    if isinstance(lifecycle, dict) and isinstance(lifecycle.get("people"), dict)
+                    else set()
                 )
-                facility_id = record["facility_id"]
-                if facility_id is not None and self.facilities[facility_id].kind != expected_kind:
-                    raise StateInvariantError("resource service request history has wrong facility")
-                if (record["outcome"], record["reason"]) not in {
-                    ("queued", "arrived_at_facility"),
-                    ("travel_scheduled", "route_available"),
-                    # Agents already in the facility's zone walk an in-room route instead.
-                    ("travel_scheduled", "in_room_route_available"),
-                    ("rejected", "room_route_blocked"),
-                    ("rejected", "no_facility"),
-                    ("rejected", "no_route"),
-                    ("rejected", "request_rejected"),
-                    ("rejected", "travel_rejected"),
-                    ("rejected", "service_disabled"),
-                }:
-                    raise StateInvariantError("resource service request outcome is inconsistent")
-            known_reasons = {"capacity", "staff", "stock", "run_end", "water_outage"}
-            previous_stall_minute = -1
-            for record in stall_history:
-                if (
-                    not isinstance(record, dict)
-                    or set(record) != {"minute", "facility_id", "agent_id", "reason"}
-                    or not isinstance(record["minute"], int)
-                    or isinstance(record["minute"], bool)
-                    or record["minute"] < 0
-                    or record["minute"] < previous_stall_minute
-                    or record["minute"] > self.minute_index
-                    or not isinstance(record["facility_id"], str)
-                    or record["facility_id"] not in self.facilities
-                    or not isinstance(record["agent_id"], str)
-                    or record["agent_id"] not in known_agent_ids
-                    or record["reason"] not in known_reasons
-                ):
-                    raise StateInvariantError("resource queue stall history is invalid")
-                previous_stall_minute = record["minute"]
-            for facility_id, record in service_state["stall_state"].items():
-                if (
-                    facility_id not in self.facilities
-                    or not isinstance(record, dict)
-                    or set(record) != {"agent_id", "reason"}
-                    or record["agent_id"] not in self.agents
-                    or record["reason"] not in known_reasons
-                ):
-                    raise StateInvariantError("resource queue stall state is invalid")
-                from sheltersim.domain.facility_queues import queue_head_agent_ids
-
-                # A facility with independent queues has one head per queue (#118).
-                if self.facilities[facility_id].kind not in (
-                    "water_station",
-                    "meal_distribution",
-                ) or record["agent_id"] not in queue_head_agent_ids(self, facility_id):
-                    raise StateInvariantError(
-                        "resource queue stall must describe the current facility queue head"
+                known_agent_ids = set(self.agents) | retained_ids
+                if not validate_event_history:
+                    request_history = records_since_previous_tick(
+                        request_history, self.minute_index
                     )
+                    stall_history = records_since_previous_tick(stall_history, self.minute_index)
+                elif _history_memo is not None:
+                    inputs = (
+                        known_agent_ids,
+                        set(self.zones),
+                        {key: facility.kind for key, facility in self.facilities.items()},
+                    )
+                    request_history = _history_memo.unread(
+                        ("resource_service_v1", "request_history"), request_history, inputs
+                    )
+                    stall_history = _history_memo.unread(
+                        ("resource_service_v1", "queue_stall_history"), stall_history, inputs
+                    )
+                for record in request_history:
+                    if (
+                        not isinstance(record, dict)
+                        or set(record)
+                        != {
+                            "minute",
+                            "agent_id",
+                            "action",
+                            "outcome",
+                            "reason",
+                            "facility_id",
+                            "origin_zone_id",
+                            "detail",
+                        }
+                        or not isinstance(record["minute"], int)
+                        or isinstance(record["minute"], bool)
+                        or not 0 <= record["minute"] <= self.minute_index
+                        or record["agent_id"] not in known_agent_ids
+                        or record["action"] not in valid_actions
+                        or record["outcome"] not in valid_outcomes
+                        or record["reason"] not in valid_request_reasons
+                        or record["origin_zone_id"] not in self.zones
+                        or (
+                            record["facility_id"] is not None
+                            and record["facility_id"] not in self.facilities
+                        )
+                        or (record["detail"] is not None and not isinstance(record["detail"], str))
+                    ):
+                        raise StateInvariantError("resource service request history is invalid")
+                    expected_kind = (
+                        "water_station"
+                        if record["action"] == "fetch_water"
+                        else "meal_distribution"
+                    )
+                    facility_id = record["facility_id"]
+                    if (
+                        facility_id is not None
+                        and self.facilities[facility_id].kind != expected_kind
+                    ):
+                        raise StateInvariantError(
+                            "resource service request history has wrong facility"
+                        )
+                    if (record["outcome"], record["reason"]) not in {
+                        ("queued", "arrived_at_facility"),
+                        ("travel_scheduled", "route_available"),
+                        # Agents already in the facility's zone walk an in-room route instead.
+                        ("travel_scheduled", "in_room_route_available"),
+                        ("rejected", "room_route_blocked"),
+                        ("rejected", "no_facility"),
+                        ("rejected", "no_route"),
+                        ("rejected", "request_rejected"),
+                        ("rejected", "travel_rejected"),
+                        ("rejected", "service_disabled"),
+                    }:
+                        raise StateInvariantError(
+                            "resource service request outcome is inconsistent"
+                        )
+                known_reasons = {"capacity", "staff", "stock", "run_end", "water_outage"}
+                previous_stall_minute = -1
+                for record in stall_history:
+                    if (
+                        not isinstance(record, dict)
+                        or set(record) != {"minute", "facility_id", "agent_id", "reason"}
+                        or not isinstance(record["minute"], int)
+                        or isinstance(record["minute"], bool)
+                        or record["minute"] < 0
+                        or record["minute"] < previous_stall_minute
+                        or record["minute"] > self.minute_index
+                        or not isinstance(record["facility_id"], str)
+                        or record["facility_id"] not in self.facilities
+                        or not isinstance(record["agent_id"], str)
+                        or record["agent_id"] not in known_agent_ids
+                        or record["reason"] not in known_reasons
+                    ):
+                        raise StateInvariantError("resource queue stall history is invalid")
+                    previous_stall_minute = record["minute"]
+                for facility_id, record in service_state["stall_state"].items():
+                    if (
+                        facility_id not in self.facilities
+                        or not isinstance(record, dict)
+                        or set(record) != {"agent_id", "reason"}
+                        or record["agent_id"] not in self.agents
+                        or record["reason"] not in known_reasons
+                    ):
+                        raise StateInvariantError("resource queue stall state is invalid")
+                    from sheltersim.domain.facility_queues import queue_head_agent_ids
+
+                    # A facility with independent queues has one head per queue (#118).
+                    if self.facilities[facility_id].kind not in (
+                        "water_station",
+                        "meal_distribution",
+                    ) or record["agent_id"] not in queue_head_agent_ids(self, facility_id):
+                        raise StateInvariantError(
+                            "resource queue stall must describe the current facility queue head"
+                        )
         elif "resource_service_v1" in self.model_state:
             raise StateInvariantError("resource_service state requires WorldState v6")
         try:
@@ -472,45 +543,50 @@ class WorldState:
                 )
         if information_config.enabled:
             try:
-                validate_information_runtime_state(
-                    self.model_state.get(INFORMATION_SPREAD_STATE_KEY),
-                    agent_ids=set(self.agents),
-                    zone_ids=set(self.zones),
-                    duration_minutes=self.duration_minutes,
-                )
+                if not rust_validated(self, INFORMATION_SPREAD_STATE_KEY):
+                    validate_information_runtime_state(
+                        self.model_state.get(INFORMATION_SPREAD_STATE_KEY),
+                        agent_ids=set(self.agents),
+                        zone_ids=set(self.zones),
+                        duration_minutes=self.duration_minutes,
+                    )
             except ValueError as exc:
                 raise StateInvariantError(f"invalid information-spread state: {exc}") from exc
         elif INFORMATION_SPREAD_STATE_KEY in self.model_state:
             raise StateInvariantError(
                 "information-spread state requires an enabled information_spread model"
             )
-        if selected_models(self.model_configs)["psychology"] in MEAN_REVERTING_PSYCHOLOGY_POLICIES:
+        if psychology_model in MEAN_REVERTING_PSYCHOLOGY_POLICIES:
             try:
-                validate_psychological_state(self.model_state.get(PSYCHOLOGICAL_STATE_KEY))
+                if not rust_validated(self, PSYCHOLOGICAL_STATE_KEY):
+                    validate_psychological_state(self.model_state.get(PSYCHOLOGICAL_STATE_KEY))
             except ValueError as exc:
                 raise StateInvariantError(f"invalid psychological distress state: {exc}") from exc
         elif PSYCHOLOGICAL_STATE_KEY in self.model_state:
             raise StateInvariantError("psychological distress state requires its registered model")
         try:
-            validate_operational_events_state(
-                self,
-                in_flight_event=_in_flight_event,
-                validate_event_history=validate_event_history,
-            )
+            if not rust_validated(self, OPERATIONAL_EVENTS_KEY):
+                validate_operational_events_state(
+                    self,
+                    in_flight_event=_in_flight_event,
+                    validate_event_history=validate_event_history,
+                )
         except ValueError as exc:
             raise StateInvariantError(f"invalid operational events state: {exc}") from exc
         try:
-            validate_infrastructure_runtime_state(
-                self,
-                in_flight_event=_in_flight_event,
-                validate_event_history=validate_event_history,
-            )
+            if not rust_validated(self, INFRASTRUCTURE_STATE_KEY):
+                validate_infrastructure_runtime_state(
+                    self,
+                    in_flight_event=_in_flight_event,
+                    validate_event_history=validate_event_history,
+                )
         except ValueError as exc:
             raise StateInvariantError(f"invalid infrastructure state: {exc}") from exc
         try:
-            validate_zone_environment_runtime_state(
-                self, validate_event_history=validate_event_history
-            )
+            if not rust_validated(self, ZONE_ENVIRONMENT_STATE_KEY):
+                validate_zone_environment_runtime_state(
+                    self, validate_event_history=validate_event_history
+                )
         except ValueError as exc:
             raise StateInvariantError(f"invalid zone environment state: {exc}") from exc
         try:
@@ -519,6 +595,75 @@ class WorldState:
             validate_effect_program_state(self, validate_event_history=validate_event_history)
         except ValueError as exc:
             raise StateInvariantError(f"invalid EffectProgram state: {exc}") from exc
+        pending_events = self._validate_entity_rules(resource_config)
+        # The kernel answers for the state of a tick; replaying the audit trail stays in Python.
+        if RESOURCE_LEDGER_KEY in self.model_state and (
+            validate_event_history or not rust_validated(self, RESOURCE_LEDGER_KEY)
+        ):
+            try:
+                population_state = self.model_state.get("population_dynamics_v1", {})
+                archived_agent_ids: set[str] = set()
+                if population_state:
+                    if (
+                        not isinstance(population_state, dict)
+                        or population_state.get("schema_version") != 1
+                        or not isinstance(population_state.get("initial_agent_ids"), list)
+                        or not isinstance(population_state.get("profile_traits"), dict)
+                        or not isinstance(population_state.get("pending_arrivals"), list)
+                        or not isinstance(population_state.get("arrivals"), list)
+                    ):
+                        raise ValueError("population_dynamics_v1 identity history is invalid")
+                    historical_ids = set(population_state["initial_agent_ids"])
+                    historical_ids.update(
+                        item.get("profile", {}).get("id")
+                        for item in population_state["pending_arrivals"]
+                        if isinstance(item, dict) and isinstance(item.get("profile"), dict)
+                    )
+                    historical_ids.update(
+                        item.get("agent_id")
+                        for item in population_state["arrivals"]
+                        if isinstance(item, dict) and isinstance(item.get("agent_id"), str)
+                    )
+                    profile_ids = set(population_state["profile_traits"])
+                    if not profile_ids <= historical_ids:
+                        raise ValueError("population_dynamics_v1 contains an unknown profile ID")
+                    archived_agent_ids = set(population_state["initial_agent_ids"]) | {
+                        item["agent_id"]
+                        for item in population_state["arrivals"]
+                        if isinstance(item, dict) and isinstance(item.get("agent_id"), str)
+                    }
+                ledger_arguments = (
+                    self.model_state[RESOURCE_LEDGER_KEY],
+                    self.resources,
+                    set(self.agents) | archived_agent_ids,
+                    set(self.zones),
+                )
+                if validate_event_history:
+                    validate_resource_ledger(*ledger_arguments, history_memo=_history_memo)
+                else:
+                    validate_resource_ledger_state(
+                        *ledger_arguments, minute_index=self.minute_index
+                    )
+            except ValueError as exc:
+                raise StateInvariantError(f"invalid resource ledger: {exc}") from exc
+        self._validate_event_rules(pending_events, validate_event_history)
+
+    def _validate_zone_capacity(self, zone_id: str, occupancy: int) -> None:
+        from sheltersim.domain.temporary_spaces import effective_total_zone_capacity
+
+        capacity = effective_total_zone_capacity(self, zone_id, occupancy=occupancy)
+        if capacity is not None and occupancy > capacity:
+            raise StateInvariantError(
+                f"zone {zone_id!r} exceeds nominal plus approved temporary or "
+                "physical-room capacity"
+            )
+
+    def _validate_entity_rules(self, resource_config: Any) -> tuple[ScheduledEvent, ...]:
+        """The rules of entities and of the events that serve them; returns the pending events.
+
+        native/src/rules/tick_validation.rs stands in front of these and the event rules at the
+        end of a tick, so a change here belongs there too.
+        """
         if self.duration_minutes <= 0 or not 0 <= self.minute_index <= self.duration_minutes:
             raise StateInvariantError("world clock is outside the scenario duration")
         if self.seed < 0:
@@ -572,7 +717,13 @@ class WorldState:
                 raise StateInvariantError("layout route capacity configuration is invalid")
 
         zone_occupancy: dict[str, int] = dict.fromkeys(self.zones, 0)
-        for agent in self.agents.values():
+        agents_valid = self.schema_version == 6 and native.world_agents_valid(
+            self.agents, self.zones, Activity, InitialNeedProfile, NeedState
+        )
+        if agents_valid:
+            for agent in self.agents.values():
+                zone_occupancy[agent.zone_id] += 1
+        for agent in () if agents_valid else self.agents.values():
             if agent.zone_id not in self.zones:
                 raise StateInvariantError(
                     f"Agent {agent.profile.id!r} references unknown zone {agent.zone_id!r}"
@@ -624,15 +775,8 @@ class WorldState:
                 raise StateInvariantError(
                     f"Agent {agent.profile.id!r} has invalid support cooldown"
                 )
-        from sheltersim.domain.temporary_spaces import effective_total_zone_capacity
-
         for zone_id, occupancy in zone_occupancy.items():
-            capacity = effective_total_zone_capacity(self, zone_id, occupancy=occupancy)
-            if capacity is not None and occupancy > capacity:
-                raise StateInvariantError(
-                    f"zone {zone_id!r} exceeds nominal plus approved temporary or "
-                    "physical-room capacity"
-                )
+            self._validate_zone_capacity(zone_id, occupancy)
 
         for facility in self.facilities.values():
             if facility.zone_id not in self.zones:
@@ -774,7 +918,9 @@ class WorldState:
         resource_completion_events_by_task: dict[str, list[ScheduledEvent]] = {}
         travel_events_by_task: dict[str, list[ScheduledEvent]] = {}
         staff_events_by_task: dict[str, list[ScheduledEvent]] = {}
-        for event in self.event_queue.pending():
+        # Nothing below changes the queue, and pending() sorts it at every call.
+        pending_events = self.event_queue.pending()
+        for event in pending_events:
             if event.event_type not in (
                 "toilet_service_complete",
                 "resource_service_complete",
@@ -966,13 +1112,10 @@ class WorldState:
             reservation = self.model_state[RESOURCE_LEDGER_KEY]["accounts"][resource_id][
                 "reservations"
             ].get(task.id)
-            service_config = ResourceServiceConfig.model_validate(
-                self.model_configs["resource_service"]
-            )
             expected_quantity = (
-                service_config.water_ml_per_service
+                resource_config.water_ml_per_service
                 if resource_id == "water_ml"
-                else service_config.food_meal_units_per_service
+                else resource_config.food_meal_units_per_service
             )
             if (
                 not isinstance(reservation, dict)
@@ -987,9 +1130,10 @@ class WorldState:
                 )
             active_resource_reservations.add(task.id)
             staff_member = self.staff.get(task.staff_id or "")
-            config = ResourceServiceConfig.model_validate(self.model_configs["resource_service"])
             required_skill = (
-                config.water_staff_skill if resource_id == "water_ml" else config.meal_staff_skill
+                resource_config.water_staff_skill
+                if resource_id == "water_ml"
+                else resource_config.meal_staff_skill
             )
             if (
                 staff_member is None
@@ -1002,7 +1146,7 @@ class WorldState:
                 raise StateInvariantError(
                     f"resource service task {task.id!r} needs one matching idle-skilled staff owner"
                 )
-        for event in self.event_queue.pending():
+        for event in pending_events:
             if event.event_type != "resource_service_complete":
                 continue
             task_id = event.payload.get("task_id")
@@ -1099,6 +1243,7 @@ class WorldState:
                 )
 
         requests_by_agent: dict[str, list[SupportRequestState]] = {}
+        timeouts_by_request: dict[Any, list[ScheduledEvent]] | None = None
         for request in self.support_requests.values():
             if not request.id or request.id not in self.support_requests:
                 raise StateInvariantError("support request mapping key must match its stable ID")
@@ -1136,12 +1281,13 @@ class WorldState:
                 raise StateInvariantError(
                     f"support request {request.id!r} has invalid assignment-wait reason"
                 )
-            try:
-                request.status = SupportRequestStatus(request.status)
-            except (TypeError, ValueError) as exc:
-                raise StateInvariantError(
-                    f"support request {request.id!r} has invalid status"
-                ) from exc
+            if type(request.status) is not SupportRequestStatus:
+                try:
+                    request.status = SupportRequestStatus(request.status)
+                except (TypeError, ValueError) as exc:
+                    raise StateInvariantError(
+                        f"support request {request.id!r} has invalid status"
+                    ) from exc
             requests_by_agent.setdefault(request.agent_id, []).append(request)
             if request.status is SupportRequestStatus.ASSIGNED:
                 staff_member = self.staff.get(request.assigned_staff_id or "")
@@ -1204,12 +1350,14 @@ class WorldState:
                         f"support request {request.id!r} has assignment without assigned status"
                     )
             if request.status is SupportRequestStatus.PENDING:
-                expirations = [
-                    event
-                    for event in self.event_queue.pending()
-                    if event.event_type == "support_request_timeout"
-                    and event.payload.get("request_id") == request.id
-                ]
+                if timeouts_by_request is None:
+                    timeouts_by_request = {}
+                    for event in pending_events:
+                        if event.event_type == "support_request_timeout":
+                            timeouts_by_request.setdefault(
+                                event.payload.get("request_id"), []
+                            ).append(event)
+                expirations = timeouts_by_request.get(request.id, [])
                 if request.timeout_minute < self.duration_minutes and (
                     len(expirations) != 1 or expirations[0].due_minute != request.timeout_minute
                 ):
@@ -1267,53 +1415,11 @@ class WorldState:
             for value in self.resources.values()
         ):
             raise StateInvariantError("resource inventory must contain non-negative integers")
-        if RESOURCE_LEDGER_KEY in self.model_state:
-            try:
-                population_state = self.model_state.get("population_dynamics_v1", {})
-                archived_agent_ids: set[str] = set()
-                if population_state:
-                    if (
-                        not isinstance(population_state, dict)
-                        or population_state.get("schema_version") != 1
-                        or not isinstance(population_state.get("initial_agent_ids"), list)
-                        or not isinstance(population_state.get("profile_traits"), dict)
-                        or not isinstance(population_state.get("pending_arrivals"), list)
-                        or not isinstance(population_state.get("arrivals"), list)
-                    ):
-                        raise ValueError("population_dynamics_v1 identity history is invalid")
-                    historical_ids = set(population_state["initial_agent_ids"])
-                    historical_ids.update(
-                        item.get("profile", {}).get("id")
-                        for item in population_state["pending_arrivals"]
-                        if isinstance(item, dict) and isinstance(item.get("profile"), dict)
-                    )
-                    historical_ids.update(
-                        item.get("agent_id")
-                        for item in population_state["arrivals"]
-                        if isinstance(item, dict) and isinstance(item.get("agent_id"), str)
-                    )
-                    profile_ids = set(population_state["profile_traits"])
-                    if not profile_ids <= historical_ids:
-                        raise ValueError("population_dynamics_v1 contains an unknown profile ID")
-                    archived_agent_ids = set(population_state["initial_agent_ids"]) | {
-                        item["agent_id"]
-                        for item in population_state["arrivals"]
-                        if isinstance(item, dict) and isinstance(item.get("agent_id"), str)
-                    }
-                ledger_arguments = (
-                    self.model_state[RESOURCE_LEDGER_KEY],
-                    self.resources,
-                    set(self.agents) | archived_agent_ids,
-                    set(self.zones),
-                )
-                if validate_event_history:
-                    validate_resource_ledger(*ledger_arguments)
-                else:
-                    validate_resource_ledger_state(
-                        *ledger_arguments, minute_index=self.minute_index
-                    )
-            except ValueError as exc:
-                raise StateInvariantError(f"invalid resource ledger: {exc}") from exc
+        return pending_events
+
+    def _validate_event_rules(
+        self, pending_events: tuple[ScheduledEvent, ...], validate_event_history: bool
+    ) -> None:
         if any(value < 0 for value in self.id_counters.values()):
             raise StateInvariantError("ID counters cannot be negative")
         if not isinstance(self.event_queue, EventQueue) or not isinstance(self.event_log, EventLog):
@@ -1328,7 +1434,7 @@ class WorldState:
                 )
         except ValueError as exc:
             raise StateInvariantError(str(exc)) from exc
-        queued_events = self.event_queue.pending()
+        queued_events = pending_events
         queue_ids = {event.event_id for event in queued_events}
         queue_sequences = {event.sequence for event in queued_events}
         if any(self.event_log.contains_id(event_id) for event_id in queue_ids):
@@ -1342,6 +1448,45 @@ class WorldState:
         max_queued_sequence = max((event.sequence for event in queued_events), default=-1)
         if self.id_counters.get("event", 0) <= max(max_queued_sequence, max_realized_sequence):
             raise StateInvariantError("event ID counter must be greater than scheduled sequences")
+
+    def validate_after_tick(self) -> None:
+        """The per-tick validation: validate(validate_event_history=False), as one Rust call.
+
+        With the rust kernels each world keeps the memo of the last check the kernel passed
+        (native/src/rules/after_tick.rs), which skips what is proven unchanged since; it does not
+        outlive a failed check. A state the kernel doesn't take, and every world without the
+        kernels, gets the Python check, which passes or raises its own text.
+        """
+        if _after_tick_kernel is None:
+            self.validate(validate_event_history=False)
+            return
+        memo = self.__dict__.get("_tick_memo")
+        # Rules bound past times by the clock, so a memo only holds going forward.
+        if memo is None or memo.minute > self.minute_index:
+            memo = self.__dict__["_tick_memo"] = _TickMemo()
+        # The parsed geometry configs are kept across ticks while the configs stand.
+        from sheltersim.domain.geometry_overlay import _CONFIG_SCOPE
+
+        try:
+            with ContextScope(_CONFIG_SCOPE, memo.geometry_scope):
+                try:
+                    _after_tick_kernel(self, memo)
+                    return
+                except native.Unsupported:
+                    pass
+                self.validate(validate_event_history=False)
+        except BaseException:
+            self.__dict__.pop("_tick_memo", None)
+            raise
+
+    def unsettled_support_requests(self) -> Iterable[SupportRequestState]:
+        """Every request that is pending or assigned, in the order of support_requests,
+        and possibly some that are not, so a caller reads each status. Most requests of
+        a long Run are settled; the last end-of-tick check knows which.
+        """
+        memo = self.__dict__.get("_tick_memo")
+        unsettled = None if memo is None else memo.unsettled_requests(self.support_requests)
+        return self.support_requests.values() if unsettled is None else unsettled
 
     def allocate_event_sequence(self) -> int:
         """Reserve the next stable sequence number for a newly generated event."""
@@ -1365,34 +1510,53 @@ class WorldState:
         self.validate()
         return self._canonical_text(self._canonical_data())
 
-    def _canonical_data(self, *, include_event_log: bool = True) -> dict[str, Any]:
+    def _canonical_data(
+        self, *, include_event_log: bool = True, without_entities: bool = False
+    ) -> dict[str, Any]:
         """The canonical_json() document before encoding; it shares live model state.
 
         Without the EventLog its "event_log" is empty, for a caller that adds
-        records it already converted.
+        records it already converted. without_entities leaves out what a caller holding
+        the rows' bytes takes from them (EntityStore.rows_json).
         """
+        if without_entities:
+            return {
+                **self._canonical_scalars(),
+                "zones": [
+                    zone.to_dict() for zone in sorted(self.zones.values(), key=lambda item: item.id)
+                ],
+                "zone_edges": [
+                    edge.to_dict()
+                    for edge in sorted(self.zone_edges.values(), key=lambda item: item.id)
+                ],
+                "resources": self.resources,
+                "event_queue": [event.to_dict() for event in self.event_queue.pending()],
+                "event_log": [],
+                "rng_state": self.rng_state,
+                "id_counters": self.id_counters,
+                "metric_state": self.metric_state,
+                "model_configs": self.model_configs,
+                "model_state": self.model_state,
+            }
         return {
-            "schema_version": self.schema_version,
-            "scenario_id": self.scenario_id,
-            "seed": self.seed,
-            "duration_minutes": self.duration_minutes,
-            "minute_index": self.minute_index,
+            **self._canonical_scalars(),
             "agents": [
                 self._agent_data(agent)
                 for agent in sorted(self.agents.values(), key=lambda item: item.profile.id)
             ],
             "zones": [
-                asdict(zone) for zone in sorted(self.zones.values(), key=lambda item: item.id)
+                zone.to_dict() for zone in sorted(self.zones.values(), key=lambda item: item.id)
             ],
             "zone_edges": [
-                asdict(edge) for edge in sorted(self.zone_edges.values(), key=lambda item: item.id)
+                edge.to_dict()
+                for edge in sorted(self.zone_edges.values(), key=lambda item: item.id)
             ],
             "facilities": [
                 self._facility_data(facility)
                 for facility in sorted(self.facilities.values(), key=lambda item: item.id)
             ],
             "staff": [
-                asdict(person) for person in sorted(self.staff.values(), key=lambda item: item.id)
+                person.to_dict() for person in sorted(self.staff.values(), key=lambda item: item.id)
             ],
             "support_requests": [
                 self._support_request_data(request)
@@ -1400,7 +1564,7 @@ class WorldState:
             ],
             "resources": self.resources,
             "active_tasks": [
-                asdict(task)
+                task.to_dict()
                 for task in sorted(self.active_tasks.values(), key=lambda item: item.id)
             ],
             "event_queue": [event.to_dict() for event in self.event_queue.pending()],
@@ -1412,6 +1576,15 @@ class WorldState:
             "metric_state": self.metric_state,
             "model_configs": self.model_configs,
             "model_state": self.model_state,
+        }
+
+    def _canonical_scalars(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "scenario_id": self.scenario_id,
+            "seed": self.seed,
+            "duration_minutes": self.duration_minutes,
+            "minute_index": self.minute_index,
         }
 
     @classmethod
@@ -1430,9 +1603,12 @@ class WorldState:
         return json.loads(self.canonical_json())
 
     def state_digest(self) -> str:
-        """The SHA-256 of canonical_json(): storage digest(to_dict()), whose canonical
-        JSON is the same text, without parsing it back and encoding it again."""
-        return hashlib.sha256(self.canonical_json().encode("utf-8")).hexdigest()
+        """The state_hash a Checkpoint of this world holds, from a validated world."""
+        from sheltersim.core.checkpoint_cache import CheckpointHistoryCache
+
+        self.validate()
+        document, _, encoder = CheckpointHistoryCache().documents(self, None)
+        return encoder.world_tree_digest(document)
 
     @classmethod
     def from_dict(
@@ -1445,6 +1621,7 @@ class WorldState:
         _saved_json: bool = False,
         _borrow: bool = False,
         _restored_log: EventLog | None = None,
+        _known_rows: Mapping[str, Mapping[int, tuple[bytes, Any, str]]] | None = None,
     ) -> WorldState:
         """Restore the exact current schema; older or unknown schemas fail closed.
 
@@ -1456,9 +1633,18 @@ class WorldState:
         _saved_json the document was read from hash-checked canonical JSON, so event
         payloads are not encoded again to check they are JSON (ScheduledEvent.from_saved).
         With _borrow the new world keeps the document's objects instead of copies; only
-        a caller that reads the world and discards it may pass it. _restored_log is
+        a caller that reads the world and discards it, or that owns a new document,
+        may pass it. _restored_log is
         such a discarded world's EventLog of the leading event_log documents; the new
         records are appended to it, keeping its indexes, instead of building a new one.
+
+        An event_log read back as item bytes (SavedItems) builds the EventLog from
+        them; each record is made when read (EventLog.from_saved).
+
+        With _known_rows, for a restore check that only reads the world and discards it, an
+        entity list held as SavedItems takes the objects of the bytes objects an earlier
+        check restored and showed equal, by id(raw). Those objects are shared, so the new
+        world is bare: no core and no rows (_bare_world).
         """
         if not isinstance(document, dict):
             raise StateInvariantError("WorldState document must be an object")
@@ -1490,11 +1676,11 @@ class WorldState:
         if not isinstance(version, int) or isinstance(version, bool) or version not in (5, 6):
             raise StateInvariantError(f"unsupported world-state schema version: {version!r}")
         try:
-            agents: dict[str, AgentState] = {}
             need_fields = {"toilet_urgency", "hunger", "fatigue"}
             if version == 6:
                 need_fields.add("hydration_need")
-            for item in document["agents"]:
+
+            def agent_from(item: dict[str, Any]) -> AgentState:
                 if set(item) != {
                     "profile",
                     "zone_id",
@@ -1557,7 +1743,13 @@ class WorldState:
                     support_request_id=item["support_request_id"],
                     support_cooldown_until=item["support_cooldown_until"],
                 )
-                agents[agent.id] = agent
+                return agent
+
+            def rows_of(name: str, build: Any, *, by_id: bool = True) -> dict[str, Any]:
+                known = (_known_rows or {}).get(name)
+                return _restored_rows(document[name], known, build, by_id)
+
+            agents = rows_of("agents", agent_from, by_id=False)
             zones = {item["id"]: ZoneState(**item) for item in document["zones"]}
             zone_edges = {item["id"]: ZoneEdgeState(**item) for item in document["zone_edges"]}
             facility_fields = {
@@ -1571,24 +1763,27 @@ class WorldState:
             }
             if version == 6:
                 facility_fields.update({"resource_active_agent_ids", "resource_queue_agent_ids"})
-            for item in document["facilities"]:
-                if not isinstance(item, dict) or set(item) != facility_fields:
-                    raise StateInvariantError(f"facility fields do not match WorldState v{version}")
-            facilities = {item["id"]: FacilityState(**item) for item in document["facilities"]}
-            staff = {
-                item["id"]: StaffState(
+            # A row wrote these with exactly its fields.
+            if not isinstance(document["facilities"], SavedItems):
+                for item in document["facilities"]:
+                    if not isinstance(item, dict) or set(item) != facility_fields:
+                        raise StateInvariantError(
+                            f"facility fields do not match WorldState v{version}"
+                        )
+
+            def staff_from(item: dict[str, Any]) -> StaffState:
+                return StaffState(
                     **{
                         **item,
                         "skills": tuple(item["skills"]),
                         "work_queue": list(item["work_queue"]),
                     }
                 )
-                for item in document["staff"]
-            }
-            support_requests = {
-                item["id"]: SupportRequestState(**item) for item in document["support_requests"]
-            }
-            active_tasks = {item["id"]: ActiveTask(**item) for item in document["active_tasks"]}
+
+            facilities = rows_of("facilities", lambda item: FacilityState(**item))
+            staff = rows_of("staff", staff_from)
+            support_requests = rows_of("support_requests", lambda item: SupportRequestState(**item))
+            active_tasks = rows_of("active_tasks", lambda item: ActiveTask(**item))
 
             def copy(value: Any, memo: dict[int, Any] | None = None) -> Any:
                 return value if _borrow else deepcopy(value, memo)
@@ -1598,22 +1793,28 @@ class WorldState:
             leading = _restored_log if _restored_log is not None else _restored_events
             if len(leading) > len(document["event_log"]):
                 raise StateInvariantError("restored EventLog records exceed the document")
-            new_records = (
-                EventLogRecord(
-                    event=event_from(item["event"]),
-                    realized_minute=item["realized_minute"],
-                    status=EventStatus(item["status"]),
-                    detail=item["detail"],
-                )
-                for item in document["event_log"][len(leading) :]
-            )
-            if _restored_log is not None:
-                log = _restored_log
-                for record in new_records:
-                    log.append(record)
+            saved = document["event_log"]
+            if isinstance(saved, SavedItems):
+                log = _restored_log if _restored_log is not None else EventLog(_restored_events)
+                log.extend_saved(saved.raws[len(log) :])
             else:
-                log = EventLog([*_restored_events, *new_records])
-            world = cls(
+                new_records = (
+                    EventLogRecord(
+                        event=event_from(item["event"]),
+                        realized_minute=item["realized_minute"],
+                        status=EventStatus(item["status"]),
+                        detail=item["detail"],
+                    )
+                    for item in saved[len(leading) :]
+                )
+                if _restored_log is not None:
+                    log = _restored_log
+                    for record in new_records:
+                        log.append(record)
+                else:
+                    log = EventLog([*_restored_events, *new_records])
+            make = cls if _known_rows is None else cls._bare_world
+            world = make(
                 scenario_id=document["scenario_id"],
                 seed=document["seed"],
                 duration_minutes=document["duration_minutes"],
@@ -1643,23 +1844,62 @@ class WorldState:
                 raise
             raise StateInvariantError(f"invalid WorldState document: {exc}") from exc
 
-    def same_state(self, other: WorldState, *, known_equal_events: int = 0) -> bool:
+    @classmethod
+    def _bare_world(cls, **state: Any) -> WorldState:
+        """A world of exactly these objects, with no core: plain containers, nothing attached.
+
+        For a restore check, which only reads it. It holds entities earlier bare worlds held.
+        """
+        world = object.__new__(cls)
+        world.__dict__.update(state)
+        return world
+
+    def same_state(
+        self,
+        other: WorldState,
+        *,
+        known_equal_events: int = 0,
+        known_equal_histories: Mapping[tuple[str, str], int] | None = None,
+        known_equal_rows: Mapping[str, set[str]] | None = None,
+    ) -> bool:
         """Whether two worlds hold equal state, so they pass the same validation.
 
         The first known_equal_events EventLog records of both worlds are already known
-        to be equal and are not compared. Pending events compare in queue order.
+        to be equal and are not compared, and likewise the first entries of each
+        model_state list in known_equal_histories, by its (name, field). Pending events
+        compare in queue order. known_equal_rows names, by entity field, the entities known
+        to be equal.
         """
+        known_rows = known_equal_rows or {}
         for item in fields(self):
             if item.name in {"event_queue", "event_log"}:
                 continue
-            if getattr(self, item.name) != getattr(other, item.name):
+            known = known_rows.get(item.name)
+            if known is not None:
+                if not _same_rows(getattr(self, item.name), getattr(other, item.name), known):
+                    return False
+            elif item.name == "model_state" and known_equal_histories:
+                if not _same_model_state(
+                    self.model_state, other.model_state, known_equal_histories
+                ):
+                    return False
+            elif getattr(self, item.name) != getattr(other, item.name):
                 return False
-        mine, theirs = self.event_log._records, other.event_log._records
+        mine, theirs = self.event_log, other.event_log
+        if self.event_queue.pending() != other.event_queue.pending() or len(mine) != len(theirs):
+            return False
+        # The kernel shows other's records are exactly the ones my bytes restore, without
+        # building those; anything it can not show exactly is compared here.
+        records = theirs.records_from(known_equal_events)
         return (
-            self.event_queue.pending() == other.event_queue.pending()
-            and len(mine) == len(theirs)
-            and mine[known_equal_events:] == theirs[known_equal_events:]
-        )
+            keeps_saved_bytes(mine)
+            and native.same_saved_records(
+                records,
+                mine.items_bytes(known_equal_events, len(mine)),
+                EventLogRecord,
+                ScheduledEvent,
+            )
+        ) or mine.records_from(known_equal_events) == records
 
     @classmethod
     def from_json(cls, value: str) -> WorldState:
@@ -1752,3 +1992,66 @@ class WorldState:
         if isinstance(value, set):
             return sorted(value)
         raise TypeError(f"value of type {type(value).__name__} is not JSON serializable")
+
+
+def _restored_rows(
+    saved: Any, known: Mapping[int, tuple[bytes, Any, str]] | None, build: Any, by_id: bool
+) -> dict[str, Any]:
+    """The entities of a saved list by their IDs; known holds those restored before, by id(raw).
+
+    by_id says a broken document fails on its "id" before anything else of an item is read.
+    """
+    if known is None or not isinstance(saved, SavedItems):
+        if by_id:
+            return {item["id"]: build(item) for item in saved}
+        rows = {}
+        for item in saved:
+            row = build(item)
+            rows[row.id] = row
+        return rows
+    rows = {}
+    # The kept bytes are alive, so the same address is the same bytes object.
+    for raw, kept in zip(saved.raws, map(known.get, map(id, saved.raws)), strict=True):
+        if kept is not None:
+            rows[kept[2]] = kept[1]
+        else:
+            row = build(json.loads(raw))
+            rows[row.id] = row
+    return rows
+
+
+def _same_rows(mine: dict[str, Any], theirs: dict[str, Any], known: set[str]) -> bool:
+    """mine == theirs, except for the entities known to be equal."""
+    if not isinstance(mine, dict) or not isinstance(theirs, dict):
+        return mine == theirs
+    if mine.keys() != theirs.keys():
+        return False
+    return all(row == theirs[key] for key, row in mine.items() if key not in known)
+
+
+def _same_model_state(
+    mine: dict[str, Any], theirs: dict[str, Any], known: Mapping[tuple[str, str], int]
+) -> bool:
+    """mine == theirs, except for the leading list entries known to be equal."""
+    if mine.keys() != theirs.keys():
+        return False
+    fields_of = {}
+    for name, field_name in known:
+        fields_of.setdefault(name, set()).add(field_name)
+    for name, state in mine.items():
+        other = theirs[name]
+        lists = fields_of.get(name)
+        if lists is None or not isinstance(state, dict) or not isinstance(other, dict):
+            if state != other:
+                return False
+            continue
+        if state.keys() != other.keys():
+            return False
+        for key, value in state.items():
+            count = known.get((name, key), 0) if key in lists else 0
+            if not count:
+                if value != other[key]:
+                    return False
+            elif len(value) != len(other[key]) or value[count:] != other[key][count:]:
+                return False
+    return True

@@ -8,7 +8,7 @@
 2. `main`を宛先にPull Requestを作成します。
 3. 下記のローカル確認を終えたら、作成者自身がPull Requestをマージします。
 
-`main`へ実装commitを直接pushしないでください。審査提出版はタグ`submission`で参照できます。Rustへの移植は`feature/rust-port`で進め、完成するまで`main`へ統合しません。このリポジトリではGitHub branch protectionは設定されていません。`オフラインCI`は`main`へのPull Requestごとに自動で実行され、手動でも実行できます。トリガーやリポジトリ設定を変える場合は、プロジェクトオーナーと相談してください。
+`main`へ実装commitを直接pushしないでください。審査提出版はタグ`submission`で参照できます。Rustのkernel（`native/`）は`main`に統合済みで、残りの移植作業も`main`からのfeatureブランチとPull Requestで進めます。このリポジトリではGitHub branch protectionは設定されていません。`オフラインCI`は`main`へのPull Requestごとに自動で実行され、手動でも実行できます。トリガーやリポジトリ設定を変える場合は、プロジェクトオーナーと相談してください。
 
 ## ローカル確認
 

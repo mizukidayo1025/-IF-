@@ -12,19 +12,30 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import sys
 from pathlib import Path
 
 import pytest
 from support.paths import SCENARIO_100_AGENTS, SMALL_REPLAY
 
+from sheltersim import native
 from sheltersim.contracts.api import BranchReference
 from sheltersim.core.checkpoint import Checkpoint, CheckpointError
 from sheltersim.core.world import WorldState
 from sheltersim.experiments.branch import BranchRuntime
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.storage.checkpoints import CheckpointArchive
-from sheltersim.storage.projects import ProjectStore, StorageError, digest, safe_document
+from sheltersim.storage.projects import (
+    ProjectStore,
+    StorageError,
+    _redact,
+    _reject_sensitive_checkpoint_content,
+    canonical,
+    digest,
+    safe_document,
+    safe_row,
+)
 
 try:
     import fcntl
@@ -199,8 +210,6 @@ def test_sensitive_checkpoint_is_rejected_before_anything_is_written(
 
 
 def test_split_object_field_names_are_privacy_checked(tmp_path):
-    from sheltersim.storage.projects import _reject_sensitive_checkpoint_content
-
     archive = CheckpointArchive(tmp_path, content_check=_reject_sensitive_checkpoint_content)
     with pytest.raises(StorageError, match="sensitive"):
         archive._prepare_validated_document(
@@ -338,6 +347,56 @@ def _store_with_run(root: Path) -> ProjectStore:
     saved = store.save_scenario("project", scenario, approved_hash=approved)
     store.create_run("project", "run", scenario.id, saved["scenario_version"])
     return store
+
+
+def test_a_transaction_on_windows_keeps_waiting_for_a_long_held_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """msvcrt gives up after about 10 seconds with EDEADLK; another process may hold on longer."""
+    import errno
+    import types
+
+    import sheltersim.storage.projects as projects_module
+
+    calls = []
+
+    def locking(fd: int, mode: int, size: int) -> None:
+        calls.append(mode)
+        if len(calls) < 3:
+            raise OSError(errno.EDEADLK, "Resource deadlock avoided")
+
+    monkeypatch.setattr(projects_module, "fcntl", None)
+    monkeypatch.setattr(
+        projects_module,
+        "msvcrt",
+        types.SimpleNamespace(LK_LOCK=1, LK_NBLCK=2, LK_UNLCK=0, locking=locking),
+        raising=False,
+    )
+    with ProjectStore(tmp_path).transaction():
+        assert calls == [1, 1, 1]
+    assert calls == [1, 1, 1, 0]
+
+
+def test_a_transaction_on_windows_reports_other_lock_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import types
+
+    import sheltersim.storage.projects as projects_module
+
+    def locking(fd: int, mode: int, size: int) -> None:
+        raise PermissionError(13, "locked")
+
+    monkeypatch.setattr(projects_module, "fcntl", None)
+    monkeypatch.setattr(
+        projects_module,
+        "msvcrt",
+        types.SimpleNamespace(LK_LOCK=1, LK_NBLCK=2, LK_UNLCK=0, locking=locking),
+        raising=False,
+    )
+    with pytest.raises(PermissionError):
+        with ProjectStore(tmp_path).transaction():
+            pass
 
 
 @needs_ofd_locks
@@ -613,3 +672,165 @@ def test_a_file_shared_for_a_moment_on_windows_is_tried_again(monkeypatch):
 
     with pytest.raises(PermissionError):
         projects.retry_while_shared(always_shared, attempts=3)
+
+
+_PRIVATE_DOCUMENTS = [
+    {"api_key": "x"},
+    {"nested": [{"Full Name": 1}]},
+    ["call 090-1234-5678"],
+    ["+81 90-1234-5678"],
+    ["０９０-１２３４-５６７８"],
+    {"note": "write to person@example.org today"},
+    ["token sk-abcdefghijkl0123"],
+    ["token sk-ant-abcdefgh"],
+    ["Token SK-ABCDEFGHIJKL"],
+    ["token ſk-abcdefghijkl"],
+    ["token sK-abcdefghijkl"],
+    ["BEARER abc"],
+    ["line\nBearer\tabc"],
+    ['quoted "person@example.org"'],
+    ["あ 090-1234-5678"],
+]
+_CLEAN_DOCUMENTS = [
+    {"task-1": "task-1", "id": "task-abcdefghijk", "text": "あいう"},
+    [1.5, -2, None, True, "2026-10-31", 'a "quoted" \\ \n string'],
+    ["bearing", "1-2", "١", "minute 12-34"],
+    {"a": {"b": [{"c": "no-digits - here"}]}},
+    [],
+    {},
+]
+
+
+def test_the_privacy_check_of_chunk_bytes_decides_as_the_check_of_the_document() -> None:
+    """A chunk's bytes are checked in Rust when possible; nothing sensitive gets through."""
+
+    def verdict(document: object, raw: bytes | None) -> bool:
+        try:
+            _reject_sensitive_checkpoint_content([(document, raw)])
+        except StorageError:
+            return False
+        return True
+
+    for document, clean in [
+        *((item, False) for item in _PRIVATE_DOCUMENTS),
+        *((item, True) for item in _CLEAN_DOCUMENTS),
+    ]:
+        raw = canonical(document).encode()
+        assert verdict(document, None) is clean, document
+        assert verdict(document, raw) is clean, document
+
+
+def test_the_strings_rust_leaves_out_can_not_match_the_privacy_patterns() -> None:
+    """Every string the kernel does not return is one safe_document() leaves as it is."""
+    if not native.available():
+        pytest.skip("the sheltersim_native extension is not installed")
+    generator = random.Random(2615)
+    pieces = [
+        *'@-  .:_+\n\t"\\',
+        *"0123456789abKkSsfz",
+        "ſ",
+        "K",
+        "١",
+        "１",
+        "²",
+        "あ",
+        "sk-",
+        "SK-",
+        "ant-",
+        "abcdefghijkl",
+        "bearer ",
+        "Bearer",
+        "090",
+        "1234",
+        "5678",
+        "person@example.org",
+    ]
+    returned = 0
+    for _ in range(20_000):
+        text = "".join(generator.choices(pieces, k=generator.randrange(1, 9)))
+        _, strings = native.sensitive_candidates([canonical([text]).encode()])
+        if strings:
+            assert strings == [text]
+            returned += 1
+        else:
+            assert safe_document(text) == text, text
+    assert returned > 1000
+
+
+def test_every_string_redaction_changes_is_returned_by_the_rust_scan() -> None:
+    """Random strings near the patterns, with the characters that make them hard to read:
+    other digits and spaces, case folds to ASCII, escapes in the JSON, surrogate pairs."""
+    if not native.available():
+        pytest.skip("the sheltersim_native extension is not installed")
+    generator = random.Random(20261031)
+    pieces = [
+        *"019-+().@_ax",
+        " ",
+        "\t",
+        "\n",
+        "\u00a0",
+        "\u3000",
+        "\u2003",
+        "\u2009",
+        "\u0660",
+        "\u0967",
+        "\uff11",
+        "\uff0d",
+        "\u2010",
+        "\u2212",
+        "12",
+        "555",
+        "/",
+        "b.co",
+        "sk-",
+        "SK-",
+        "\u017fk-",
+        "s\u212a-",
+        "ant-",
+        "abcdefghijkl",
+        "bearer",
+        "BEARER",
+        "Bearer ",
+        "\u00e9",
+        "\u3042",
+        "task-1",
+        "\U0001f600",
+        '"',
+        "\\",
+        "\x00",
+        "\x1f",
+    ]
+    changed = 0
+    for _ in range(30_000):
+        text = "".join(generator.choices(pieces, k=generator.randint(1, 14)))
+        if _redact(text) != text:
+            changed += 1
+            _, strings = native.sensitive_candidates([canonical([{"k": text}]).encode()])
+            assert text in strings, text
+    assert changed > 3000
+
+
+def test_a_changed_item_of_a_history_chunk_is_checked_at_the_next_save(tmp_path) -> None:
+    """Items already stored are not what makes a chunk safe: new bytes are always read."""
+    archive = CheckpointArchive(
+        tmp_path / "archive", content_check=_reject_sensitive_checkpoint_content
+    )
+    items = [{"value": index} for index in range(300)]
+    checkpoint_hash = "0" * 64
+    archive._encode_validated_document({"items": items}, checkpoint_hash=checkpoint_hash)
+    items[10] = {"value": "person@example.org"}
+    with pytest.raises(StorageError, match="sensitive"):
+        archive._encode_validated_document({"items": items}, checkpoint_hash=checkpoint_hash)
+
+
+@pytest.mark.parametrize("row", [*_PRIVATE_DOCUMENTS, *_CLEAN_DOCUMENTS, {"pair": (1, "a")}])
+def test_safe_row_gives_what_safe_document_gives(row) -> None:
+    if not isinstance(row, dict):
+        row = {"items": row}
+    try:
+        expected = safe_document(row)
+    except StorageError:
+        with pytest.raises(StorageError):
+            safe_row(row)
+        return
+    assert safe_row(row) == (expected, canonical(expected))

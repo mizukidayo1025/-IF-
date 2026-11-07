@@ -7,7 +7,11 @@ import json
 import math
 from typing import Any, Mapping
 
+from sheltersim import native
+from sheltersim.core.kernels import kernel_first
+from sheltersim.core.state_mirror import register_rust_validator
 from sheltersim.core.world import WorldState
+from sheltersim.domain.models import ordered_pair_key
 from sheltersim.events.models import ScheduledEvent
 
 SOCIAL_NETWORK_STATE_KEY = "social_network_v1"
@@ -135,8 +139,10 @@ def validate_social_network_state(world: WorldState) -> None:
         or len(state["relationships"]) > MAX_RELATIONSHIPS
     ):
         raise ValueError("social_network_v1 has an invalid exact schema")
-    # Every tick checks every relationship, so each record is checked inline,
-    # accepting exactly what the field-by-field rules accept.
+    # With the Rust kernels, state/social_network.rs accepts first (rust_validated at the caller),
+    # and reads only the records written since its last check. Without them, or for a value it
+    # leaves to Python, these rules decide. Every tick checks every relationship here, so each
+    # record is checked inline, accepting exactly what the field-by-field rules accept.
     for pair_key, record in state["relationships"].items():
         problem = (
             _cached_pair_key_problem(pair_key)
@@ -206,6 +212,14 @@ def record_observed_contact(
     state["interaction_count"] += 1
 
 
+def record_observed_contacts(world: WorldState, pairs: list[tuple[str, str]], minute: int) -> None:
+    """record_observed_contact of each (recipient, source), for the Rust social kernel."""
+    for recipient_id, source_id in pairs:
+        record_observed_contact(
+            world, recipient_id=recipient_id, source_id=source_id, minute=minute
+        )
+
+
 def record_interaction(
     world: WorldState,
     *,
@@ -240,6 +254,7 @@ def record_interaction(
     state["interaction_count"] += 1
 
 
+@kernel_first("social_network", "observe_event")
 def observe_event(world: WorldState, event: ScheduledEvent, minute: int) -> None:
     """Extract only allowlisted, structured contact data from an applied event."""
     payload = event.payload
@@ -355,7 +370,7 @@ def _state(world: WorldState) -> dict[str, Any]:
 
 
 def _relationship(state: dict[str, Any], recipient_id: str, sender_id: str) -> dict[str, Any]:
-    key = json.dumps([recipient_id, sender_id], separators=(",", ":"))
+    key = ordered_pair_key(recipient_id, sender_id)
     relationships = state["relationships"]
     if key not in relationships:
         if len(relationships) >= MAX_RELATIONSHIPS:
@@ -376,7 +391,7 @@ def _sync_body_trust(world: WorldState, recipient_id: str, source_id: str) -> No
     """Mirror the body policy's one computed directed trust value into the graph."""
     body = world.model_state.get("body_state_v1", {})
     body_relationships = body.get("relationships", {}) if isinstance(body, dict) else {}
-    key = json.dumps([recipient_id, source_id], separators=(",", ":"))
+    key = ordered_pair_key(recipient_id, source_id)
     body_record = body_relationships.get(key) if isinstance(body_relationships, dict) else None
     social = world.model_state.get(SOCIAL_NETWORK_STATE_KEY)
     social_record = (
@@ -386,3 +401,7 @@ def _sync_body_trust(world: WorldState, recipient_id: str, source_id: str) -> No
     )
     if body_record is not None and social_record is not None:
         social_record["trust"] = body_record["trust"]
+
+
+if native.available():
+    register_rust_validator(SOCIAL_NETWORK_STATE_KEY, native.state("social_network").validate)

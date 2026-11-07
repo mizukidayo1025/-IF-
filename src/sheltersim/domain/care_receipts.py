@@ -6,6 +6,7 @@ It does not create a support request or claim a completed outcome by itself.
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Any
 
 from pydantic import TypeAdapter
@@ -21,6 +22,8 @@ from sheltersim.contracts.operations import (
     StaffSupportContinuityReceipt,
 )
 from sheltersim.contracts.population import population_context_people
+from sheltersim.core.history import records_since_previous_tick
+from sheltersim.core.kernels import kernel_first
 from sheltersim.core.world import WorldState
 from sheltersim.domain.common_operations import record_shared_operation
 from sheltersim.events.models import EventKind, EventLogRecord, EventStatus, ScheduledEvent
@@ -324,6 +327,7 @@ def make_staff_support_continuity_record(
     )
 
 
+@kernel_first("care_receipts", "append_transition")
 def append_applied_care_transition(
     world: WorldState,
     *,
@@ -335,10 +339,10 @@ def append_applied_care_transition(
     staff_id: str | None = None,
     causation_id: str | None = None,
     source_ids: tuple[str, ...] = (),
-) -> CareTransitionReceipt | None:
+) -> None:
     """Append and project a care transition after its backing operation has applied."""
     if SHARED_OPERATIONS_KEY not in world.model_state:
-        return None
+        return
     event_record, receipt = make_care_transition_record(
         world,
         request_id=request_id,
@@ -352,9 +356,15 @@ def append_applied_care_transition(
     )
     world.event_log.append(event_record)
     record_shared_operation(world, receipt)
-    return receipt
 
 
+@lru_cache(maxsize=1)
+def _operation_record_adapter() -> TypeAdapter:
+    # Building a TypeAdapter takes about a millisecond.
+    return TypeAdapter(OperationHistoryRecord)
+
+
+@kernel_first("care_receipts", "ingest")
 def ingest_applied_shared_operation_records(world: WorldState, outcomes: tuple[Any, ...]) -> None:
     """Project typed shared receipts only after EventLog APPLIED insertion."""
     if SHARED_OPERATIONS_KEY not in world.model_state:
@@ -375,13 +385,18 @@ def ingest_applied_shared_operation_records(world: WorldState, outcomes: tuple[A
         ):
             continue
         state = world.model_state.get(SHARED_OPERATIONS_KEY, {})
+        history = state.get("history", ()) if isinstance(state, dict) else ()
+        # A record carries its event's realized minute (record_shared_operation), so the
+        # record of an event realized now is among the newest ones.
+        if getattr(outcome, "realized_minute", None) == world.minute_index and isinstance(
+            history, list
+        ):
+            history = records_since_previous_tick(history, world.minute_index)
         if isinstance(state, dict) and any(
-            row.get("event_id") == event.event_id
-            for row in state.get("history", ())
-            if isinstance(row, dict)
+            row.get("event_id") == event.event_id for row in history if isinstance(row, dict)
         ):
             continue
-        receipt = TypeAdapter(OperationHistoryRecord).validate_python(event.payload)
+        receipt = _operation_record_adapter().validate_python(event.payload)
         record_shared_operation(world, receipt)
 
 
@@ -415,17 +430,16 @@ def care_history_by_agent(world: WorldState, *, limit: int = 20) -> dict[str, li
 
     if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
         raise ValueError("care history limit must be between 1 and 100")
-    rows: dict[str, list[dict[str, Any]]] = {}
-    for record in world.event_log.records:
+    # A writer renders a frame at every save. The EventLog only grows, so the rows made
+    # for its earlier records are kept with it and only the new records are read.
+    log = world.event_log
+    position, rows = log.derived.get(("care_history", limit), (0, {}))
+    # The care event types' records, in append order, without reading the others.
+    for record in log.of_types_from(
+        {"care_support_transition", "staff_support_continuity"}, position
+    ):
         event = record.event
-        if (
-            event.event_type
-            not in {
-                "care_support_transition",
-                "staff_support_continuity",
-            }
-            or record.status is not EventStatus.APPLIED
-        ):
+        if record.status is not EventStatus.APPLIED:
             continue
         if event.event_type == "staff_support_continuity":
             receipt = StaffSupportContinuityReceipt.model_validate(event.payload)
@@ -465,7 +479,8 @@ def care_history_by_agent(world: WorldState, *, limit: int = 20) -> dict[str, li
             history = rows.setdefault(identity, [])
             history.append(person_row)
             del history[:-limit]
-    return rows
+    log.derived[("care_history", limit)] = (len(log), rows)
+    return {identity: [dict(row) for row in history] for identity, history in rows.items()}
 
 
 def support_kind_for_agent(world: WorldState, agent_id: str) -> str:

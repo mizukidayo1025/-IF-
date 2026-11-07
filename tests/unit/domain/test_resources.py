@@ -88,7 +88,7 @@ def test_resource_ledger_is_opt_in_strict_and_world_checkpoint_roundtrips(
     metrics = MetricsRecorder()
     metrics.capture(world, minute=0)
     checkpoint = Checkpoint.from_json(Checkpoint.capture(world, metrics=metrics).to_json())
-    assert checkpoint.schema_version == 1
+    assert checkpoint.schema_version == 2
     assert checkpoint.world_state_schema_version == 5
     assert checkpoint.restore_world().canonical_json() == world.canonical_json()
     assert checkpoint.restore_metrics().to_dict() == metrics.to_dict()
@@ -524,11 +524,30 @@ def test_operations_keep_both_checks_passing() -> None:
 
 
 def test_a_successful_operation_leaves_the_previous_ledger_untouched() -> None:
+    """The Python rule's way to be atomic. The kernel writes in place, after all its checks."""
     world = _operated_world()
     previous = world.model_state[RESOURCE_LEDGER_KEY]
     snapshot = copy.deepcopy(previous)
+    python_rule = getattr(apply_resource_operation, "__wrapped__", apply_resource_operation)
 
-    _apply(world, 20, "delivery", resource_id="food_meal_units", quantity=3)
+    python_rule(
+        world,
+        ScheduledEvent(
+            event_id="python-delivery",
+            kind=EventKind.EXOGENOUS,
+            due_minute=world.minute_index,
+            priority=0,
+            sequence=9000,
+            event_type="resource_delivery",
+            payload={
+                "warehouse_id": "warehouse-main",
+                "resource_id": "food_meal_units",
+                "quantity": 3,
+            },
+            source_id="ASM-H01-TEST-RESOURCE-OPERATION-V1",
+        ),
+        "delivery",
+    )
 
     assert previous == snapshot
     assert world.model_state[RESOURCE_LEDGER_KEY] is not previous
@@ -583,3 +602,31 @@ def test_the_full_check_rejects_a_reused_reservation_id() -> None:
 
     with pytest.raises(ResourceLedgerError, match="reservation ID was reused"):
         _check_full(world)
+
+
+def test_a_refused_operation_leaves_no_trace_in_the_ledger() -> None:
+    world = _operated_world()
+    _check_state(world)
+    _apply(world, 20, "delivery", resource_id="water_ml", quantity=1)
+    before = copy.deepcopy(world.model_state[RESOURCE_LEDGER_KEY])
+    with pytest.raises(ResourceLedgerError):
+        _apply(
+            world,
+            20,
+            "reserve",
+            resource_id="water_ml",
+            reservation_id="r-1",
+            agent_id=next(iter(world.agents)),
+            quantity=1,
+        )
+    assert world.model_state[RESOURCE_LEDGER_KEY] == before
+    _apply(
+        world,
+        20,
+        "reserve",
+        resource_id="water_ml",
+        reservation_id="r-3",
+        agent_id=next(iter(world.agents)),
+        quantity=1,
+    )
+    assert world.model_state[RESOURCE_LEDGER_KEY]["used_reservation_ids"] == ["r-1", "r-2", "r-3"]

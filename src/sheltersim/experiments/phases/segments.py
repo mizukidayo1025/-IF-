@@ -1,0 +1,90 @@
+"""Rust segments that replace a step of a phase, so a lane doesn't edit the phase's steps.
+
+A phase's `_run_*_phase` lists its steps, each a method. A lane adds one line to SEGMENTS, and the
+controller's step tries the kernel first. A kernel gets the controller and the step's arguments,
+and returns what the step returns. Unsupported, raised before it has changed anything, runs the
+Python step, so it says what the kernel doesn't handle: a tainted namespace, a policy it doesn't
+know. Without the Rust kernels, or with nothing listed, the steps stay the plain methods
+and a tick has nothing to pay. See docs/rust-port/lanes/p4-world-core.md.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable, Mapping
+from functools import wraps
+from typing import Any
+
+from sheltersim import native
+from sheltersim.core import kernels
+
+# Name of a step's method -> (the module of native/src/rules/, the name of its kernel).
+SEGMENTS: dict[str, tuple[str, str]] = {
+    "_run_dispatch_phase": ("dispatch", "run_phase"),
+    "_view_after_movement": ("world_view", "view_after_movement"),
+    "_view_for_proposals": ("world_view", "view_for_proposals"),
+    "_propose_due": ("decisions", "propose_rows"),
+    "_observed_state": ("decisions", "observed_row"),
+    "_record_outcome": ("decisions", "record_outcome"),
+    "_apply_effect": ("proposals", "apply_effect"),
+    "_assign_staff_support": ("support", "assign_staff_support"),
+    "_consider_due_complaints": ("staff", "consider_due_complaints"),
+    "_replan_journeys": ("replan", "replan_journeys"),
+    "_route": ("travel", "route"),
+    "_schedule_travel": ("travel", "schedule_travel"),
+    "_schedule_staff_support_travel": ("travel", "schedule_support_travel"),
+    "_psychology_update": ("psychology", "update_psychology"),
+    "_update_long_term_psychology": ("psychology", "update_long_term"),
+    "_apply_state_deltas": ("psychology", "apply_deltas"),
+    "_sample_information_contacts": ("information", "sample_contacts"),
+    "_sample_proximity_contacts": ("proximity", "sample_contacts"),
+    "_social_propagation": ("social_propagation", "update_social_propagation"),
+    "_record_psychology_trace": ("trace", "record_psychology_trace"),
+}
+
+
+def install_segments(
+    controller: type, segments: Mapping[str, tuple[str, str] | Callable[..., Any]] = SEGMENTS
+) -> None:
+    """Replace each listed step of this class. Its bases keep the Python step."""
+    if not native.available():
+        return
+    for step, kernel in segments.items():
+        if not callable(getattr(controller, step, None)):
+            raise ValueError(f"the controller has no step {step}")
+        if not callable(kernel):
+            kernel = getattr(native.rules(kernel[0]), kernel[1])
+        setattr(controller, step, _with_kernel(controller, step, kernel))
+
+
+def _with_kernel(controller: type, step: str, kernel: Callable[..., Any]) -> Callable[..., Any]:
+    python_step = getattr(controller, step)
+
+    @wraps(python_step)
+    def run(self: Any, *arguments: Any, **options: Any) -> Any:
+        other = kernels._error_check
+        seen = kernels._fell_back
+        if other is None and seen is None:
+            try:
+                return kernel(self, *arguments, **options)
+            except native.Unsupported:
+                # Found on the bases at each call, so a test's patch of the Python step applies.
+                return getattr(super(controller, self), step)(*arguments, **options)
+        # The checks of core/kernels.py, on the Python step.
+        rule = getattr(super(controller, self), step)
+        mine = None if other is None else other.before(rule, arguments, options)
+        try:
+            return kernel(self, *arguments, **options)
+        except native.Unsupported as refusal:
+            if seen is None:
+                return rule(*arguments, **options)
+            try:
+                return rule(*arguments, **options)
+            except Exception as error:
+                seen.fell_back(f"segment {step}", refusal, error)
+                raise
+        except Exception as error:
+            if other is not None:
+                other.after(rule, arguments, options, error, mine)
+            raise
+
+    return run

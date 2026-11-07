@@ -6,7 +6,10 @@ import re
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any
 
+from sheltersim import native
 from sheltersim.core.history import records_since_previous_tick
+from sheltersim.core.kernels import kernel_first
+from sheltersim.core.state_mirror import register_rust_validator
 
 if TYPE_CHECKING:
     from sheltersim.events.models import ScheduledEvent
@@ -113,8 +116,14 @@ def validate_resource_ledger(
     resources: Any,
     agent_ids: set[str] | None = None,
     zone_ids: set[str] | None = None,
+    *,
+    history_memo: Any = None,
 ) -> None:
-    """Replay the exact audit schema and compare it with current balances."""
+    """Replay the exact audit schema and compare it with current balances.
+
+    With a history_memo, records unchanged since the last save's replay are not read
+    again; the replay continues from its state after them (core/save_validation.py).
+    """
     used_ids = _validate_ledger_balances(ledger, resources, agent_ids, zone_ids)
     accounts = ledger["accounts"]
     audit = ledger.get("audit")
@@ -127,7 +136,15 @@ def validate_resource_ledger(
     used_history_set: set[str] = set()
     event_ids: set[str] = set()
     last_audit_minute = 0
-    for index, record in enumerate(audit):
+    start = 0
+    if history_memo is not None:
+        kept = history_memo.resume(
+            (RESOURCE_LEDGER_KEY, "audit"), (ledger["warehouse_id"], agent_ids)
+        )
+        if kept is not None:
+            start, resumed = kept
+            replay_accounts, used_history, used_history_set, event_ids, last_audit_minute = resumed
+    for index, record in enumerate(audit[start:], start):
         _validate_audit_record(record, ledger)
         if record["minute"] < last_audit_minute:
             raise ResourceLedgerError("resource audit minutes must be non-decreasing")
@@ -260,6 +277,12 @@ def validate_resource_ledger(
             raise ResourceLedgerError(f"resource {resource_id!r} source IDs do not match audit")
         if account["reservations"] != replay["reservations"]:
             raise ResourceLedgerError(f"resource {resource_id!r} reservations do not match audit")
+    if history_memo is not None:
+        history_memo.keep(
+            (RESOURCE_LEDGER_KEY, "audit"),
+            len(audit),
+            (replay_accounts, used_history, used_history_set, event_ids, last_audit_minute),
+        )
 
 
 def validate_resource_ledger_state(
@@ -277,7 +300,11 @@ def validate_resource_ledger_state(
     the whole audit trail at Run boundaries and Checkpoint restore.
     """
     _validate_ledger_balances(
-        ledger, resources, agent_ids, zone_ids, check_every_reservation_id=False
+        ledger,
+        resources,
+        agent_ids,
+        zone_ids,
+        check_every_reservation_id=False,
     )
     audit = ledger.get("audit")
     if not isinstance(audit, list):
@@ -466,6 +493,7 @@ def _validate_audit_record(record: Any, ledger: dict[str, Any]) -> None:
             raise ResourceLedgerError(f"resource audit {name} must be non-negative")
 
 
+@kernel_first("resources", "apply_operation")
 def apply_resource_operation(world: Any, event: ScheduledEvent, operation: str) -> None:
     """Apply one inventory event to detached candidates, then commit atomically."""
     if RESOURCE_LEDGER_KEY not in world.model_state:
@@ -605,6 +633,7 @@ def apply_resource_operation(world: Any, event: ScheduledEvent, operation: str) 
     world.resources = resources
 
 
+@kernel_first("resources", "metric_values")
 def resource_metric_values(world: Any) -> dict[str, int] | None:
     """Return optional KPI columns for ledger-enabled scenarios."""
     ledger = world.model_state.get(RESOURCE_LEDGER_KEY)
@@ -625,5 +654,15 @@ def resource_metric_values(world: Any) -> dict[str, int] | None:
     return result
 
 
+@kernel_first("resources", "reservation_id_was_used")
+def reservation_id_was_used(world: Any, reservation_id: str) -> bool:
+    """Whether this ID ever reserved anything: the list is only appended to, and never read back."""
+    return reservation_id in world.model_state[RESOURCE_LEDGER_KEY]["used_reservation_ids"]
+
+
 def _valid_id(value: Any) -> bool:
     return isinstance(value, str) and _STABLE_ID.fullmatch(value) is not None
+
+
+if native.available():
+    register_rust_validator(RESOURCE_LEDGER_KEY, native.state("resource_ledger").validate)

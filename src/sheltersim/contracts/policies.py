@@ -5,6 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from contextlib import AbstractContextManager, nullcontext
+from contextvars import ContextVar
 from copy import deepcopy
 from importlib.resources import files
 from typing import Any, Literal
@@ -12,6 +14,7 @@ from typing import Any, Literal
 from pydantic import ConfigDict, Field, model_validator
 
 from sheltersim.contracts.extensions import ExtensionModel, Identifier
+from sheltersim.core.context import ContextScope
 from sheltersim.domain.psychological_state import (
     INTEGRATED_PSYCHOLOGY_POLICY_VERSION,
     LIFE_STATE_PSYCHOLOGY_POLICIES,
@@ -150,8 +153,41 @@ class PolicyModelDefinition(ExtensionModel):
         return self
 
 
+# Each person's social event and each proposal asks for the selection several times per
+# tick. Inside a scope (one tick phase, in which no model_configs changes), the selection
+# of a configs object is computed once and shared, so callers must not change it.
+_SELECTION_SCOPE: ContextVar[list[tuple[Any, dict[str, str]]] | None] = ContextVar(
+    "selected_models_scope", default=None
+)
+
+
+def selected_models_scope(
+    selections: list[tuple[Any, dict[str, str]]] | None = None,
+) -> AbstractContextManager[None]:
+    """Reuse the selection of each model_configs object while it cannot change.
+
+    ``selections`` carries the results of an earlier scope; the caller clears it when the
+    configs may have changed.
+    """
+    if _SELECTION_SCOPE.get() is not None:
+        return nullcontext()
+    return ContextScope(_SELECTION_SCOPE, [] if selections is None else selections)
+
+
 def selected_models(configs: dict[str, dict[str, Any]]) -> dict[str, str]:
     """Opt-in selectors are separate from legacy coefficient schema versions."""
+    scope = _SELECTION_SCOPE.get()
+    if scope is None:
+        return _select_models(configs)
+    for known, selection in scope:
+        if known is configs:
+            return selection
+    selection = _select_models(configs)
+    scope.append((configs, selection))
+    return selection
+
+
+def _select_models(configs: dict[str, dict[str, Any]]) -> dict[str, str]:
     from sheltersim.contracts.bootstrap import ensure_builtin_contracts
 
     ensure_builtin_contracts()
@@ -400,6 +436,7 @@ def _model_parameter_config(
 
 def model_signatures(configs: dict[str, dict[str, Any]]) -> dict[str, str]:
     from sheltersim.contracts.runtime import state_signatures
+    from sheltersim.core.model_version import engine_signatures
     from sheltersim.domain.simulator_state import simulator_signatures
 
     catalog = model_catalog()
@@ -571,6 +608,8 @@ def model_signatures(configs: dict[str, dict[str, Any]]) -> dict[str, str]:
         **policies,
         **simulator_signatures(configs),
         **state_signatures(configs),
+        # The whole-model version and the RNG algorithm (core/model_version.py).
+        **engine_signatures(),
     }
     if suite_id is not None:
         implicit = SUITE_RUNTIME_RESOLVED_DOMAINS - set(configs["policy_registry"])

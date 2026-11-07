@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, nullcontext
 from contextvars import ContextVar
-from typing import Any, Iterator, Literal
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
+from sheltersim import native
 from sheltersim.contracts.extensions import (
     ExtensionModel,
     FacilityGeometry,
@@ -27,6 +28,9 @@ from sheltersim.contracts.operations import (
     TemporaryRoomGeometry,
 )
 from sheltersim.contracts.spatial import SpatialConstraints, SpatialObstacle
+from sheltersim.core.context import ContextScope
+from sheltersim.core.kernels import kernel_first
+from sheltersim.core.state_mirror import register_rust_validator
 
 GEOMETRY_OVERLAY_KEY = "geometry_overlay_v1"
 
@@ -41,17 +45,17 @@ _CONFIG_SCOPE: ContextVar[dict[tuple[str, int], tuple[Any, Any]] | None] = Conte
 _EMPTY_SPATIAL_CONSTRAINTS: dict[str, Any] = {}
 
 
-@contextmanager
-def geometry_config_scope() -> Iterator[None]:
-    """Reuse parsed facility geometry configs while model_configs cannot change."""
+def geometry_config_scope(
+    parsed: dict[tuple[str, int], tuple[Any, Any]] | None = None,
+) -> AbstractContextManager[None]:
+    """Reuse parsed facility geometry configs while model_configs cannot change.
+
+    ``parsed`` carries the parses from an earlier scope; the caller clears it when the
+    configs may have changed.
+    """
     if _CONFIG_SCOPE.get() is not None:
-        yield
-        return
-    token = _CONFIG_SCOPE.set({})
-    try:
-        yield
-    finally:
-        _CONFIG_SCOPE.reset(token)
+        return nullcontext()
+    return ContextScope(_CONFIG_SCOPE, {} if parsed is None else parsed)
 
 
 def _parsed_config(name: str, raw: Any, model: Any) -> Any:
@@ -245,6 +249,7 @@ def create_geometry_overlay_state(world: Any) -> dict[str, Any]:
     }
 
 
+@kernel_first("overlay", "reserve_sleep_bed")
 def reserve_sleep_bed(world: Any, agent_id: str) -> dict[str, Any] | None:
     """Reserve a free bed in the Agent's current zone and return a measured route."""
     from sheltersim.domain.movement import (
@@ -272,7 +277,7 @@ def reserve_sleep_bed(world: Any, agent_id: str) -> dict[str, Any] | None:
     raw_position = movement.get("positions", {}).get(agent_id, {})
     raw_start = raw_position.get("point") if isinstance(raw_position, dict) else None
     start = Point2D.model_validate(raw_start) if isinstance(raw_start, dict) else None
-    points_by_cell: dict[tuple[int, int], list[tuple[str, Point2D]]] = {}
+    points_by_cell: dict[tuple[int, int], list[tuple[float, float]]] = {}
     for other_id, other in world.agents.items():
         if other_id == agent_id or other.zone_id != agent.zone_id:
             continue
@@ -280,9 +285,19 @@ def reserve_sleep_bed(world: Any, agent_id: str) -> dict[str, Any] | None:
         other_raw_point = other_record.get("point") if isinstance(other_record, dict) else None
         if not isinstance(other_raw_point, dict):
             continue
-        other_point = Point2D.model_validate(other_raw_point)
-        cell = (math.floor(other_point.x / 0.75), math.floor(other_point.y / 0.75))
-        points_by_cell.setdefault(cell, []).append((other_id, other_point))
+        other_x, other_y = other_raw_point.get("x"), other_raw_point.get("y")
+        # Only a position Point2D would not take as it is needs parsing, or raises.
+        if (
+            type(other_x) is not float
+            or type(other_y) is not float
+            or len(other_raw_point) != 2
+            or not math.isfinite(other_x)
+            or not math.isfinite(other_y)
+        ):
+            parsed_point = Point2D.model_validate(other_raw_point)
+            other_x, other_y = parsed_point.x, parsed_point.y
+        cell = (math.floor(other_x / 0.75), math.floor(other_y / 0.75))
+        points_by_cell.setdefault(cell, []).append((other_x, other_y))
     occupied = {
         (row["room_id"], row["bed_index"]) for row in reservations.values() if isinstance(row, dict)
     }
@@ -311,10 +326,10 @@ def reserve_sleep_bed(world: Any, agent_id: str) -> dict[str, Any] | None:
                 point
                 for dx in (-1, 0, 1)
                 for dy in (-1, 0, 1)
-                for _, point in points_by_cell.get((cell[0] + dx, cell[1] + dy), ())
+                for point in points_by_cell.get((cell[0] + dx, cell[1] + dy), ())
             )
             another_person_is_using_bed = any(
-                (point.x - bed.x) ** 2 + (point.y - bed.y) ** 2 <= 0.75**2
+                (point[0] - bed.x) ** 2 + (point[1] - bed.y) ** 2 <= 0.75**2
                 for point in neighboring_positions
             )
             if another_person_is_using_bed:
@@ -365,12 +380,14 @@ def reserve_sleep_bed(world: Any, agent_id: str) -> dict[str, Any] | None:
     }
 
 
+@kernel_first("overlay", "release_sleep_bed")
 def release_sleep_bed(world: Any, agent_id: str) -> bool:
     state = world.model_state.get(GEOMETRY_OVERLAY_KEY)
     reservations = state.get("bed_reservations") if isinstance(state, dict) else None
     return isinstance(reservations, dict) and reservations.pop(agent_id, None) is not None
 
 
+@kernel_first("overlay", "available_temporary_room")
 def available_temporary_room(world: Any, zone_id: str) -> str | None:
     """Return the first active physical room with an available admission slot."""
     config = world.model_configs.get("geometry_overlay", {})
@@ -398,6 +415,7 @@ def available_temporary_room(world: Any, zone_id: str) -> str | None:
     return None
 
 
+@kernel_first("overlay", "admit_to_temporary_room")
 def admit_to_temporary_room(
     world: Any,
     *,
@@ -430,12 +448,14 @@ def admit_to_temporary_room(
     return point
 
 
+@kernel_first("overlay", "release_temporary_room_admission")
 def release_temporary_room_admission(world: Any, agent_id: str) -> bool:
     state = world.model_state.get(GEOMETRY_OVERLAY_KEY)
     admissions = state.get("room_admissions") if isinstance(state, dict) else None
     return isinstance(admissions, dict) and admissions.pop(agent_id, None) is not None
 
 
+@kernel_first("overlay", "room_admission_point")
 def room_admission_point(world: Any, room_id: str) -> Point2D | None:
     """Find a deterministic walkable point in a room, avoiding assigned residents."""
     state = world.model_state.get(GEOMETRY_OVERLAY_KEY)
@@ -558,6 +578,7 @@ def effective_geometry(world: Any) -> FacilityGeometry | None:
     )
 
 
+@kernel_first("overlay", "installed_facility_placement_enabled")
 def installed_facility_placement_enabled(world: Any) -> bool:
     """Whether this Scenario places installed facilities on its floor plan."""
     config = world.model_configs.get("geometry_overlay", {})
@@ -568,6 +589,7 @@ def installed_facility_placement_enabled(world: Any) -> bool:
     )
 
 
+@kernel_first("overlay", "installed_facility_point")
 def installed_facility_point(world: Any, facility_id: str) -> Point2D | None:
     """Choose a free generator-grid slot in the facility's zone, or None if none fits.
 
@@ -622,6 +644,7 @@ def installed_facility_point(world: Any, facility_id: str) -> Point2D | None:
     return None
 
 
+@kernel_first("overlay", "place_installed_facility")
 def place_installed_facility(
     world: Any, facility_id: str, *, event_id: str, source_ids: tuple[str, ...]
 ) -> Point2D:
@@ -936,6 +959,7 @@ def _validate_facility_room_clearance(
                 )
 
 
+@kernel_first("overlay", "validate_geometry_change")
 def validate_geometry_change(
     world: Any, op: str, target: str, parameters: dict[str, Any], end_minute: int | None
 ) -> None:
@@ -1415,6 +1439,7 @@ def validate_geometry_change(
         raise ValueError("unsupported_geometry_operator")
 
 
+@kernel_first("overlay", "apply_geometry_change")
 def apply_geometry_change(world: Any, event: Any, *, expire: bool = False) -> None:
     payload = event.payload
     op, target, modifier = payload["op"], payload["target_id"], payload["modifier_id"]
@@ -1565,3 +1590,7 @@ def _zones_are_connected(world: Any, source_zone_id: str, destination_zone_id: s
                 visited.add(next_zone)
                 pending.append(next_zone)
     return False
+
+
+if native.available():
+    register_rust_validator(GEOMETRY_OVERLAY_KEY, native.rules("overlay").validate_overlay)

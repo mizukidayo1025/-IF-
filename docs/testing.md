@@ -91,15 +91,22 @@ python -m coverage report --sort=cover
 | `support/generated.py` | UIで作る生成ScenarioとProject画面のAPI | `generated_scenario`、`generated_scenario_with`、`generated_previews`、`ui_project_api`、`generated_request`、`place_three_at_facility`、`add_toilets_program` |
 | `support/fixture_scenarios.py` | `fixtures/`のScenarioを基に、1つの仕組みを確かめるために組み立てたScenario | `small_replay_scenario`、`small_benchmark_scenario`、`resource_service_scenario`、`information_spread_scenario`、`research_psychology_scenario` |
 | `support/demo.py` | 旧UIのdemo（`web/demo.py`）と、その計画・HTTP | `small_replay_demo`、`failure_day3_demo`、`day3_demo`、`day4_plan`、`multi_plan_draft`、`wait_for_job`、`demo_world_hash` |
-| `support/storage.py` | Projectの保存、保存済みRunとCheckpoint、ほかのOSでの保存 | `project_store_at`、`saved_timeline`、`no_checkpoint_decode`、`windows_like` |
+| `support/storage.py` | Projectの保存、保存済みRunとCheckpoint、ほかのOSでの保存 | `project_store_at`、`saved_timeline`、`engine_v1_run`、`newer_engine`、`no_checkpoint_decode`、`windows_like` |
 | `support/web.py` | 保存したRunのinspectorと、socketのないrequest handler | `demo_timeline_inspector`、`audit_inspector`、`full_trace_inspector`、`bare_request_handler` |
 | `support/llm.py` | 偽のLLM Providerと、有料APIのライブの確認 | `counting_provider`、`recording_router`、`live_model_check`、`live_source_search_check` |
 | `support/reports.py` | PDFレポートの保存済みRun、根拠つきの文章、偽のOpus | `report_saved_run`、`prose_document`、`report_router`、`install_report_router` |
 | `support/plans.py` | 取り込む図面：合成の避難所の図面（画像・GeoJSON）と、手で描いたそのトレース | `shelter_trace`、`upload_plan` |
 | `support/public_data.py` | 地域の調べが呼ぶ公開サービス（国土地理院の住所検索・指定緊急避難場所、e-Stat、気象庁の予報、設定した地域の公開データ）の偽物。存在しない自治体（合成県合成市）の合成の記録を返し、`fail()`で接続の失敗を起こせる。ネットワークには出ない | `public_data`、`researching_project_api`、`research_request` |
 | `support/world.py` | WorldState・イベント・検証の部品 | `make_event`、`record_handler`、`stress_delta`、`count_validations`、`live_checkpoint_world` |
+| `support/python_rules.py` | `python_rules`の印：そのテストではRustのkernelを切り、Pythonの規則を動かす | `_python_rules`（自動） |
 
 `support/paths.py`（`fixtures/`のファイルのパス）と`support/isolation.py`（隔離の処理）は、fixtureを持たない部品です。テストで使う`fixtures/`のファイルが増えたら、`support/paths.py`に定数を足します。
+
+`support/tracked_mirror.py`も、fixtureを持たない部品です。Rust移植の「`model_state`への書き込みを転送する入れ物」（`core/state_mirror.py`）に、Rustの代わりにPythonの影の文書を相手として渡し、世界のすべての文書を載せて、転送の漏れを探します。`src/`からは使いません。全テストをこの入れ物の上で動かすときは、`PYTHONPATH`に`tests`を足して`pytest -p support.tracked_mirror_plugin`を実行します。素の実行と各段階で比べるときは、`benchmarks/tracked_mirror_gate.py`を使います。使い方と結果は[rust-port/lanes/p1-tracked-mirror.md](rust-port/lanes/p1-tracked-mirror.md)にあります。
+
+Rustのkernelが置き換えたPythonの関数をpatchするテストには、`@pytest.mark.python_rules`を付けます。kernelはその関数を呼ばないので、印がないとpatchは何にも届きません。`tests/unit/repo/test_python_rules_lint.py`は、`support/python_rules.py`の名前を印なしでpatchしていると失敗します。規則を移すレーンは、kernelが呼ばなくなった関数の名前をここに足します。コントローラーの手順そのもの（`OfflineSimulationController._psychology_update`など）をpatchするのは、kernelごと置き換えるので印は要りません。
+
+`tests/unit/repo/test_tracked_write_lint.py`は、tick側のコードで、入れ物に入れた値を元の名前のまま書き換える書き方（`record = relationships[key] = {...}`のあとの`record["trust"] = x`）を見つけると失敗します。入れたあとは`record = relationships[key]`で読み直します。
 
 関数を返すfixtureは、呼ぶたびに新しいものを作るだけで状態を持ちません。そのうち`saved_timeline`、`add_toilets_program`、`demo_world_hash`、`recording_router`はsession単位にして、module単位のfixtureからも使えるようにしています。テストファイルの中のhelperがこれらを使うときは、テストが受け取ったfixtureを引数で渡します（例：`integration/test_intervention_outcomes.py`の`_main_and_child`）。
 
@@ -138,6 +145,58 @@ UIで作るScenarioは、必ず図面（`facility_geometry`）と認知（`agent
 - 作業の引き継ぎのように、別の介入で作った状態が前提になるものは、介入したBranchからさらに分岐させます。
 - 仕切りや設備の移設のように、KPIに現れにくい空間の変化は、人の歩く経路（`movement_v1`の`journeys`）や移動の完了イベントが通る区画で確かめます。移動時間は分単位なので、数メートルの違いは時間に出ません。
 - 区画の環境（騒音、明るさ、換気、プライバシー、気温、行動の起こりやすさ）は、続いている間に人の状態（疲れ、衛生の必要度、不満、ストレス）へ積み上がります。期限が切れる時刻に、まだ効いていることを確かめてから比べます。疲れ・衛生・不満はKPIにないので、全員の平均を直接比べます。
+
+## 全経路の確認（Rust移植のゲート）
+
+7日分のハッシュの確認は、生成Scenarioが通る処理しか確かめません（メッセージや信念、介入、記録した応答などを通りません）。tickのコードを移す前に、`benchmarks/gate_all_paths.py`で、そこを通る小さなofflineのScenarioの結果も確かめます。移植の段階の合格の条件のひとつです。結果と届いていない処理は[rust-port.md](rust-port.md)に書きます。
+
+~~~shell
+python benchmarks/gate_all_paths.py --output 出力先 --expect fixtures/gate-all-paths.json
+python benchmarks/gate_all_paths.py --output 出力先 --determinism
+python benchmarks/gate_all_paths.py --output 出力先 --coverage
+~~~
+
+- 各Scenarioは自分のプロセスで動き、終わりの世界ごとにworld・events・KPIのハッシュと時間を`出力先/summary.json`に書きます。ネットワークへの接続は失敗させます。LLMの応答は、手元の台本のProviderが書いた応答テープとその再生だけを使います。
+- `--expect`：`fixtures/gate-all-paths.json`のハッシュと比べます。モデルや規則を意図して変えてハッシュが変わったときは、理由をPull Requestに書いて、`--write-expected`で更新します。理由が説明できない変化は不具合として調べます。この値はLinuxのものです（OSをまたいだ一致は段階B5で確かめます）。
+- `--determinism`：別のプロセス、別の`PYTHONHASHSEED`、保存を読むScenarioでは別の`RAYON_NUM_THREADS`、Rustのkernelなし（`SHELTERSIM_NATIVE=0`）で動かして、1回目と比べます。WindowsとmacOSでは`--no-python-kernels`を付けます（RustとPythonの数学関数が同じなのはLinuxだけです）。
+- 分岐・再開・Checkpointの往復は、1つのScenarioの中でまっすぐのRunと比べます（`must_match`）。tickの順序に効くものを省いて同じになることは、この比較で確かめます。
+- `--coverage`：tick側のコード（`core`、`domain`、`events`、`policies`、`experiments/runner.py`、`experiments/phases/`）のどの行に届いたかを、ファイルごとに`coverage-native.md`（Rustのkernelあり）と`coverage-both.md`（なしの回も合わせたもの）に書きます。
+- `policies`のモデルや、EffectProgramの操作を足したら、ここにもScenarioを足します。`tests/integration/test_all_paths_gate.py`は、モデルの一覧がここに入っていないと失敗します。
+- 介入が拒否された結果と、有効な入力でRunが止まる結果（`known_stops`のScenario）も、期待値に入れます。直したら期待値が変わるので気づけます。止まるものは、見つけたときにIssueにします。
+- `--reversed-order`：`world.agents`と`model_state`のすべてのdictの順序を、各段階の終わりに逆にする回（`reversed_order`）と、段階の途中でも逆にする回（`reversed_within_phase`）を動かして、1回目と比べます。結果が変わったScenarioは、dictの順序に頼る処理があるということです。途中で逆にする場所は`benchmarks/tick_probe.py`の`WITHIN_PHASE`にあり、処理を移したら一緒に直します。
+- 全件を動かすテストには`long_simulation`の印を付けます。通常のpytestは、1つの小さなScenarioだけを動かします。
+
+### 最初に違った場所を探す（`benchmarks/first_difference.py`）
+
+ハッシュが変わったときは、原因をこの道具で絞ります。移植のレーンは、Rustの規則をPythonの規則と比べるのに使います。手順と計測は[lanes/p0-digest.md](rust-port/lanes/p0-digest.md)に書きます。
+
+~~~shell
+python benchmarks/first_difference.py --both Scenario名 --output 出力先
+python benchmarks/first_difference.py --record Scenario名 --output A --draws
+python benchmarks/first_difference.py A B
+~~~
+
+- 段階ごとに、`model_state`の名前空間、人、作業、イベントの列、イベント記録などの部分ごとのdigestを書きます。比べると、最初に違った分、段階、部分を示し、そこまでもう一度実行して、違う値をJSONのパスと浮動小数点の16進で示します。
+- `--both`は`SHELTERSIM_NATIVE=1`と`=0`で動かして比べます。Rustの側はRunと同じ経路（`native/src/rules/tick.rs`のdriver）を、段階の間で見ます（`tick_probe.install`は`TickEngine.phase_observer`を使います）。`benchmarks/rule_shadow`は`phase_handler`の経路を動かすので、driverの比較にはなりません。Runが書くファイルをバイト単位で比べるのは`benchmarks/trace_bytes.py`です（`--models`で各モデルを完全なtraceつきで動かします）。ハッシュはtraceの文書を見ないので、traceの文書を変えたらこれを通します。
+- `--draws`は、乱数の抽選ごとに鍵と値、比べた相手の値を記録して比べます。確率がわずかに違っても比較の結果が変わらなければ世界もハッシュも変わらないので、確率の式を移すときはこれを使います。Rustの中の抽選は記録されないので、Rustの確率の式は、レーンの文書の手順で`tests/integration/test_native_kernels.py`にビット単位の比較を足して確かめます。
+- ハッシュは、kernelが動いたことを示しません。`Unsupported`ならPythonが動いて同じハッシュになるからです。kernelを足したら、`benchmarks/rule_shadow`（kernelとPythonの規則を毎回比べ、`Unsupported`を理由ごとに数える）を同じ手順で通し、kernelが動いた回数を確かめます。手順は[lanes/p5-template-namespace.md](rust-port/lanes/p5-template-namespace.md)に書きます。driverの経路も含めて、すべての`Unsupported`を作られた行と理由ごとに数えるには`benchmarks/rule_shadow/refusal_census.py`（`SHELTERSIM_REFUSAL_CENSUS`）を使います。
+- これらのフックはベンチマークの側にあり、`src/`には何も足しません。`--draws`や`--reverse`は、`--expect`と同じ最終のハッシュになるはずです。ならなければ不具合として調べます。
+- digestは、辞書の順序を区別しません（キーでそろえた正規のJSONです）。順序に頼る処理は`--reversed-order`で確かめます。追記だけの履歴の古い項目の書き換えは、一定の間隔（`--full-every-minutes`）でしか見えません。
+
+## 振る舞いの比較
+
+ハッシュが変わる変更（段階B5など）では、合格の条件はハッシュの一致ではなく決定性になります。どれだけ振る舞いが変わったかは、`benchmarks/compare_behaviour.py`で確かめます。
+
+~~~shell
+python benchmarks/compare_behaviour.py --collect 変更前の出力先
+python benchmarks/compare_behaviour.py --collect 変更後の出力先    # 変更したコードで
+python benchmarks/compare_behaviour.py 変更前の出力先 変更後の出力先
+~~~
+
+- KPIごとの平均、seedごとのばらつき、差をMarkdownの表に書きます。ラベルは結果の画面と同じ日本語です。
+- 同じseedどうしなら各seedを比べ、違うseedなら2つの集団として比べます。差が標準誤差の2倍を超えたKPIを「揺れより大きい」とします。何も変えていなくても、20個に1個ほどは偶然ここに入ります。
+- 同じコードの別のseedどうしを比べると、何も変えていないときの差の大きさが分かります。
+- 比べるのは差の大きさまでで、どちらが正しいかは決めません。係数の多くは実測で校正されていません。
 
 ## 不具合を見つけたとき
 

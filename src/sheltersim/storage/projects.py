@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import functools
 import gc
 import hashlib
@@ -23,12 +24,22 @@ except ImportError:  # pragma: no cover - exercised on Windows.
     fcntl = None
     import msvcrt
 
+from sheltersim import native
 from sheltersim.contracts.api import BranchReference, EvidenceReference, RunReference
 from sheltersim.contracts.policies import model_signatures
+from sheltersim.core import model_version
 from sheltersim.core.checkpoint import Checkpoint, CheckpointError
 from sheltersim.core.checkpoint_cache import CanonicalEncoder
 from sheltersim.core.collection import fewer_collections
+from sheltersim.core.model_version import (
+    ModelVersionStatus,
+    ViewOnlyRunError,
+    model_version_status,
+    unreadable_status,
+)
+from sheltersim.core.saved_items import SavedItems
 from sheltersim.core.world import WorldState
+from sheltersim.events.queue import keeps_saved_bytes
 from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.storage.checkpoints import ARCHIVE_STORAGE_TYPES, CheckpointArchive
@@ -62,6 +73,12 @@ class StorageError(ValueError):
         )
 
 
+def view_only_error(error: ViewOnlyRunError | ModelVersionStatus) -> StorageError:
+    """The error of continuing, forking or changing a Run of another model version."""
+    status = error.status if isinstance(error, ViewOnlyRunError) else error
+    return StorageError(str(ViewOnlyRunError(status)), code=ViewOnlyRunError.code)
+
+
 def canonical(value: Any) -> str:
     return json.dumps(
         value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
@@ -69,10 +86,13 @@ def canonical(value: Any) -> str:
 
 
 def digest(value: Any) -> str:
-    return hashlib.sha256(canonical(value).encode()).hexdigest()
+    encoded = native.canonical_json(value)
+    return hashlib.sha256(canonical(value).encode() if encoded is None else encoded).hexdigest()
 
 
-@functools.lru_cache(maxsize=4096)
+# Large enough for every key of a large Run: relationship keys alone are one per pair
+# of people, and a save reads them all again in order, which a smaller cache never holds.
+@functools.lru_cache(maxsize=1 << 18)
 def _private_field(key: str) -> bool:
     # Saved records reuse a small set of field names; match each name once (#47).
     return _PRIVATE.search(key) is not None
@@ -122,7 +142,7 @@ def safe_document(value: Any) -> Any:
             if not isinstance(key, str) or _private_field(key):
                 raise StorageError("sensitive fields cannot be persisted")
         return {key: safe_document(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, (list, tuple, SavedItems)):
         return [safe_document(item) for item in value]
     if isinstance(value, str):
         return _redact(value)
@@ -138,6 +158,22 @@ def safe_document(value: Any) -> Any:
     raise StorageError("saved data must be finite JSON")
 
 
+def safe_row(row: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    """safe_document(row) and its canonical() text.
+
+    Rust reads the row's canonical JSON for the keys and strings to check, so a row with
+    nothing sensitive, nearly all of them, is not walked in Python: its JSON read back is
+    the same plain value.
+    """
+    raw = native.canonical_json(row)
+    if raw is not None:
+        keys, strings = native.sensitive_candidates([raw])
+        if not strings and not any(_private_field(key) for key in keys):
+            return json.loads(raw), raw.decode()
+    safe = safe_document(row)
+    return safe, canonical(safe)
+
+
 # Kept restored worlds are dropped once no read has used them for this long, so the
 # local server does not hold their memory after the reads (#46).
 _RESTORED_IDLE_SECONDS = 60.0
@@ -147,14 +183,34 @@ def _copy_restored(
     world: WorldState, metrics: MetricsRecorder
 ) -> tuple[WorldState, MetricsRecorder]:
     """An independent copy; EventLog records and scheduled events are frozen and shared."""
-    memo: dict[int, Any] = {id(record): record for record in world.event_log.records}
+    # The Rust EventLog's copy shares its records already, made or not.
+    memo: dict[int, Any] = (
+        {} if keeps_saved_bytes(world.event_log) else {id(r): r for r in world.event_log.records}
+    )
     memo.update({id(event): event for event in world.event_queue.pending()})
     return deepcopy(world, memo), deepcopy(metrics)
 
 
-def _reject_sensitive_checkpoint_content(value: Any) -> None:
-    if safe_document(value) != value:
-        raise StorageError("checkpoint contains sensitive data")
+def _reject_sensitive_checkpoint_content(chunks: list[tuple[Any, bytes | None]]) -> None:
+    """Reject (value, canonical JSON if known) pairs: chunks not stored before.
+
+    From the bytes, the same keys and strings are checked as in safe_document(), with the
+    same functions, but each distinct one once and without building or walking a document.
+    A value may be a function returning the document, for when only Python reads it.
+    """
+    raws = [raw for _, raw in chunks if raw is not None]
+    candidates = native.sensitive_candidates(raws) if raws else None
+    if candidates is not None:
+        keys, strings = candidates
+        if any(_private_field(key) for key in keys):
+            raise StorageError("sensitive fields cannot be persisted")
+        if any(safe_document(text) != text for text in strings):
+            raise StorageError("checkpoint contains sensitive data")
+    for value, raw in chunks:
+        if raw is None or candidates is None:
+            document = value() if callable(value) else value
+            if safe_document(document) != document:
+                raise StorageError("checkpoint contains sensitive data")
 
 
 class ProjectStore:
@@ -175,6 +231,8 @@ class ProjectStore:
         # by checkpoint hash (#46). The same verified document restores the same state.
         self._restored: dict[tuple[str, str, str], tuple[WorldState, MetricsRecorder]] = {}
         self._restored_lock = threading.Lock()
+        # checkpoint_model_status() of immutable Checkpoints, for the installed engine.
+        self._model_statuses: dict[tuple[str, ...], ModelVersionStatus] = {}
         self._restored_idle_seconds = _RESTORED_IDLE_SECONDS
         self._restored_used = 0.0
         self._restored_timer: threading.Timer | None = None
@@ -191,7 +249,14 @@ class ProjectStore:
                     lock.write(b"\0")
                     lock.flush()
                 lock.seek(0)
-                msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
+                # LK_LOCK gives up after 10 tries, a second apart; wait as flock does.
+                while True:
+                    try:
+                        msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
+                        break
+                    except OSError as exc:
+                        if exc.errno != errno.EDEADLK:
+                            raise
             try:
                 yield
             finally:
@@ -698,8 +763,13 @@ class ProjectStore:
         encoder: CanonicalEncoder | None = None,
     ) -> None:
         with self.transaction(), self._usage_measured_once():
-            run = self.run(project_id, reference.run_id)
-            scenario = self.scenario(project_id, run["scenario_id"], run["scenario_version"])
+            # A Run's Scenario is immutable, so one writer reads it once.
+            inputs = {} if encoder is None else encoder.run_inputs
+            scenario = inputs.get((project_id, reference.run_id))
+            if scenario is None:
+                run = self.run(project_id, reference.run_id)
+                scenario = self.scenario(project_id, run["scenario_id"], run["scenario_version"])
+                inputs[(project_id, reference.run_id)] = scenario
             document = document_source()
             world = document["world_state"]
             if (
@@ -756,19 +826,21 @@ class ProjectStore:
             # Chunks of the branch's previous save (or of this Checkpoint, saved by
             # another branch) are referred to where they are, not written again.
             known = checkpoint_path if checkpoint_path.exists() else None
-            if known is None and path.exists():
-                known = checkpoint_path.with_name(f"{prior['checkpoint_hash']}.json")
-            origin = checkpoint.runtime_state.get("fork_origin")
-            if (
-                known is None
-                and reference.parent_branch_id is not None
-                and isinstance(origin, dict)
-            ):
-                # A new child's first save shares most chunks with the Checkpoint it was
-                # forked from.
-                origin_hash = origin.get("checkpoint_hash")
-                if isinstance(origin_hash, str) and re.fullmatch(r"[a-f0-9]{64}", origin_hash):
-                    known = checkpoint_path.with_name(f"{origin_hash}.json")
+            # A writer's later saves know the locations of its earlier saves' chunks.
+            if known is None and not (encoder is not None and encoder.pack_locations):
+                if path.exists():
+                    known = checkpoint_path.with_name(f"{prior['checkpoint_hash']}.json")
+                origin = checkpoint.runtime_state.get("fork_origin")
+                if (
+                    known is None
+                    and reference.parent_branch_id is not None
+                    and isinstance(origin, dict)
+                ):
+                    # A new child's first save shares most chunks with the Checkpoint it
+                    # was forked from.
+                    origin_hash = origin.get("checkpoint_hash")
+                    if isinstance(origin_hash, str) and re.fullmatch(r"[a-f0-9]{64}", origin_hash):
+                        known = checkpoint_path.with_name(f"{origin_hash}.json")
             archive = CheckpointArchive(
                 checkpoint_path.parent,
                 max_new_bytes=max(0, self.max_bytes - self.usage()["bytes"] - 65_536),
@@ -955,6 +1027,12 @@ class ProjectStore:
                 self._restored[key] = kept
                 self._use_restored()
         archived = document.get("storage_type") in ARCHIVE_STORAGE_TYPES
+        if kept is not None:
+            # A kept world was restored by a tick path; the model it may continue with
+            # is still the installed one.
+            status = self.checkpoint_model_status(project_id, run_id, checkpoint_hash)
+            if not status.current:
+                raise view_only_error(status)
         if kept is not None and archived:
             # Seeks, comparisons and replays read the same Checkpoint again. Its document
             # is still decoded and its hashes checked, but the world is a copy of the one
@@ -983,6 +1061,9 @@ class ProjectStore:
                 if not keep:
                     return checkpoint, restored
                 copy = _copy_restored(*restored)
+        except ViewOnlyRunError as exc:
+            # A Run of another model version is read with load_view_checkpoint().
+            raise view_only_error(exc) from exc
         except (CheckpointError, ValueError, TypeError, KeyError) as exc:
             raise StorageError("checkpoint_incompatible_or_corrupt") from exc
         with self._restored_lock:
@@ -991,6 +1072,83 @@ class ProjectStore:
                 del self._restored[next(iter(self._restored))]
             self._use_restored()
         return checkpoint, restored
+
+    def load_view_checkpoint(
+        self, project_id: str, run_id: str, checkpoint_hash: str
+    ) -> tuple[Checkpoint, tuple[WorldState, MetricsRecorder]]:
+        """A saved Checkpoint restored for reading only, also of another model version.
+
+        Hashes and the restored state are checked as load_checkpoint() checks them; the
+        world is marked as a view (Checkpoint.restore_view()), so it can't be ticked,
+        continued or saved. Nothing is kept for later reads.
+        """
+        path = self._path(project_id, "runs", run_id, "checkpoints", f"{checkpoint_hash}.json")
+        document = self._read(path)
+        try:
+            with fewer_collections():
+                if document.get("storage_type") in ARCHIVE_STORAGE_TYPES:
+                    checkpoint, restored = CheckpointArchive(path.parent).decode_restored(
+                        document, view=True
+                    )
+                else:
+                    checkpoint, restored = Checkpoint._load(document, view=True)
+        except (CheckpointError, ValueError, TypeError, KeyError) as exc:
+            raise StorageError("checkpoint_incompatible_or_corrupt") from exc
+        if checkpoint.checkpoint_hash != checkpoint_hash:
+            raise StorageError("checkpoint_pointer_corrupt")
+        return checkpoint, restored
+
+    def checkpoint_model_status(
+        self, project_id: str, run_id: str, checkpoint_hash: str
+    ) -> ModelVersionStatus:
+        """How a saved Checkpoint's model versions compare with the installed model.
+
+        Reads the recorded versions and configs without restoring the WorldState; the
+        model_state is read only when the signatures differ.
+        """
+        key = (project_id, run_id, checkpoint_hash, model_version.ENGINE_VERSION)
+        status = self._model_statuses.get(key)
+        if status is None:
+            status = self._checkpoint_model_status(project_id, run_id, checkpoint_hash)
+            if len(self._model_statuses) >= 256:
+                self._model_statuses.clear()
+            self._model_statuses[key] = status
+        return status
+
+    def _checkpoint_model_status(
+        self, project_id: str, run_id: str, checkpoint_hash: str
+    ) -> ModelVersionStatus:
+        path = self._path(project_id, "runs", run_id, "checkpoints", f"{checkpoint_hash}.json")
+        record = self._read(path)
+        if record.get("checkpoint_hash") != checkpoint_hash:
+            raise StorageError("checkpoint_pointer_corrupt")
+        try:
+            if record.get("storage_type") in ARCHIVE_STORAGE_TYPES:
+                archive = CheckpointArchive(path.parent)
+                versions = archive.project(record, ("model_versions",))
+                configs = archive.project(record, ("world_state", "model_configs"))
+
+                def state() -> Any:
+                    return archive.project(record, ("world_state", "model_state"))
+
+            else:
+                versions = record["model_versions"]
+                configs = record["world_state"].get("model_configs", {})
+
+                def state() -> Any:
+                    return record["world_state"].get("model_state", {})
+
+            if not isinstance(versions, dict) or not isinstance(configs, dict):
+                raise StorageError("checkpoint_recorded_document_structure_invalid")
+        except (CheckpointError, ValueError, TypeError, KeyError) as exc:
+            if isinstance(exc, StorageError):
+                raise
+            raise StorageError("checkpoint_incompatible_or_corrupt") from exc
+        try:
+            return model_version_status(versions, configs, state)
+        except (ValueError, TypeError, KeyError):
+            # Configs the installed code can't sign belong to another model.
+            return unreadable_status(versions)
 
     def _use_restored(self) -> None:
         """Note a use of the kept worlds and make sure they expire; holds _restored_lock."""
@@ -1044,11 +1202,9 @@ class ProjectStore:
             not isinstance(document, dict)
             or set(document) != fields
             or type(document["schema_version"]) is not int
-            or document["schema_version"] != 1
+            or document["schema_version"] not in Checkpoint.SUPPORTED_SCHEMA_VERSIONS
             or document["checkpoint_hash"] != checkpoint_hash
-            or digest({k: v for k, v in document.items() if k != "checkpoint_hash"})
-            != checkpoint_hash
-            or digest(document["world_state"]) != document["state_hash"]
+            or Checkpoint.document_hashes(document) != (document["state_hash"], checkpoint_hash)
             or safe_document(document) != document
         ):
             raise StorageError("checkpoint_recorded_document_integrity_mismatch")
@@ -1074,8 +1230,10 @@ class ProjectStore:
         if record.get("storage_type") in ARCHIVE_STORAGE_TYPES:
             archive = CheckpointArchive(path.parent)
             return {field: archive.project(record, (field,)) for field in fields}
-        checkpoint = Checkpoint.from_dict(record)
-        return {field: checkpoint.to_dict()[field] for field in fields}
+        # Validated like from_dict(), also when the save is of another model version.
+        checkpoint = Checkpoint._load(record, view=True)[0]
+        document = checkpoint._document_view()
+        return {field: deepcopy(document[field]) for field in fields}
 
     def save_turn(
         self, project_id: str, run_id: str, branch_id: str, turn_id: str, turn: dict[str, Any]

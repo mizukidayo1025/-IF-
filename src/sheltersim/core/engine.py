@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from sheltersim.core.clock import ClockExhaustedError, SimulationClock
+from sheltersim.core.model_version import require_tickable
 from sheltersim.core.rng import CounterRNG, KeyedRandom
 from sheltersim.core.world import WorldState
 
@@ -61,6 +62,8 @@ class TickTrace:
 
 
 PhaseHandler = Callable[[TickPhase, WorldState, int, KeyedRandom], None]
+# Told of each phase, before (True) and after (False) it, on either path of a tick.
+PhaseObserver = Callable[[TickPhase, bool], None]
 TraceSink = Callable[[TickTrace], None]
 
 
@@ -89,12 +92,15 @@ class TickEngine:
         level = TraceLevel(trace_level)
         if level is not TraceLevel.OFF and trace_sink is None:
             raise ValueError("a trace sink is required when tracing is enabled")
+        # A world restored for viewing is never ticked (core/model_version.py).
+        require_tickable(world, "ticked")
         self.world = world
         self.clock = SimulationClock(world.duration_minutes, world.minute_index)
         self.phase_handler = phase_handler
         self.rng = rng or CounterRNG(world.seed)
         self.trace_level = level
         self.trace_sink = trace_sink
+        self.phase_observer: PhaseObserver | None = None
         self.world.rng_state = dict(self.rng.metadata)
         self.world.validate()
 
@@ -104,21 +110,46 @@ class TickEngine:
             raise ClockExhaustedError("cannot step a completed simulation")
         if self.world.minute_index != self.clock.minute_index:
             raise TickExecutionError("WorldState clock was changed outside the TickEngine")
+        require_tickable(self.world, "ticked")
 
         minute = self.clock.minute_index
-        for phase in TICK_PHASE_ORDER:
-            self.phase_handler(phase, self.world, minute, self.rng)
-            if self.world.minute_index != minute:
-                raise TickExecutionError("tick phase attempted to change the engine-owned clock")
-            if self.trace_level is TraceLevel.FULL:
-                self._emit(TickTrace(minute_index=minute, phase=phase))
+        # A handler with `run_tick` may run the phases in Rust (experiments/phases/driver.py), and
+        # says false for a tick left to the phases below.
+        run_tick = getattr(self.phase_handler, "run_tick", None)
+        if run_tick is None or not run_tick(self.world, minute, self.rng, self._observer(minute)):
+            self._run_phases(minute)
 
         self.clock.advance()
         self.world.minute_index = self.clock.minute_index
-        self.world.validate(validate_event_history=False)
+        self.world.validate_after_tick()
         if self.trace_level is TraceLevel.SUMMARY:
             self._emit(TickTrace(minute_index=minute, phase=None))
         return self.world
+
+    def _observer(self, minute: int) -> PhaseObserver | None:
+        """The phase observer of a tick: also the record of each phase in a full trace."""
+        observer = self.phase_observer
+        if self.trace_level is not TraceLevel.FULL:
+            return observer
+
+        def observe(phase: TickPhase, before: bool) -> None:
+            if observer is not None:
+                observer(phase, before)
+            if not before:
+                self._emit(TickTrace(minute_index=minute, phase=phase))
+
+        return observe
+
+    def _run_phases(self, minute: int) -> None:
+        observer = self._observer(minute)
+        for phase in TICK_PHASE_ORDER:
+            if observer is not None:
+                observer(phase, True)
+            self.phase_handler(phase, self.world, minute, self.rng)
+            if self.world.minute_index != minute:
+                raise TickExecutionError("tick phase attempted to change the engine-owned clock")
+            if observer is not None:
+                observer(phase, False)
 
     def run(self, steps: int | None = None) -> WorldState:
         """Run up to ``steps`` minutes, or continue until duration is reached."""

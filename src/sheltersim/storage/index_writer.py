@@ -3,7 +3,9 @@
 A long computation saves every 30 minutes and indexed each save before computing
 on. BackgroundIndexer sends each save's new records to one process that indexes
 them in order with HistoryIndex.ingest, so the computation waits for the index
-only at its end (and when the index falls more than a few saves behind).
+only at its end (and when the index falls more than a few saves behind). That
+process reads the pipe on its own thread: a send larger than the pipe's buffer
+would otherwise wait for the ingest in progress to end.
 
 Only what ingest reads is sent: the EventLog records, KPI samples and resource
 samples added since the last save, the model_state history entries from the
@@ -15,14 +17,20 @@ does not continue the index is never indexed as if it did.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import multiprocessing
+import queue
+import threading
+import time
 from bisect import bisect_left
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+from sheltersim.core.saved_items import SavedItems
+from sheltersim.events.queue import saved_realized_minute
 from sheltersim.storage.projects import StorageError
 
 # The model_state histories ingest indexes, with the field holding each entry's minute.
@@ -63,12 +71,19 @@ class _Tail(Sequence[Any]):
         return iter(self.items)
 
 
+def _realized_minute(record: Any) -> int:
+    return saved_realized_minute(record) if isinstance(record, bytes) else record["realized_minute"]
+
+
 def _send_document(
     checkpoint: Any, events_from: int, kpis_from: int, previous_minute: int
 ) -> dict[str, Any]:
     world, metrics = checkpoint.world_state, checkpoint.metrics_state
     events = world["event_log"]
-    new_events = events[events_from:]
+    # Saved records go as their bytes, and the indexing process parses them.
+    new_events = (
+        events.raws[events_from:] if isinstance(events, SavedItems) else events[events_from:]
+    )
     model_state: dict[str, Any] = {name: {} for name in world["model_state"]}
     for name, field in _HISTORIES:
         state = world["model_state"].get(name)
@@ -78,7 +93,7 @@ def _send_document(
         since = max(0, previous_minute - 1)
         if name == "body_state_v1" and new_events:
             # Dialogue rows of the new events read their body-state effects.
-            since = min(since, min(record["realized_minute"] for record in new_events))
+            since = min(since, min(map(_realized_minute, new_events)))
         first = bisect_left(history, since, key=lambda row: row[field])
         model_state[name] = {"history": history[first:]}
     snapshots = metrics["snapshots"]
@@ -102,12 +117,18 @@ def _view(document: dict[str, Any]) -> SimpleNamespace:
     """A checkpoint as ingest reads it, from a sent document."""
     # A history sent from its minute on is read from its start (see _send_document).
     resources = _Tail(*document["resources"])
+    total, start, sent_events = document["events"]
+    new_events = [json.loads(item) if isinstance(item, bytes) else item for item in sent_events]
     return SimpleNamespace(
+        # The key of an event's row is the digest of its document: the SHA-256 of what was sent.
+        event_keys=[hashlib.sha256(item).hexdigest() for item in sent_events]
+        if all(isinstance(item, bytes) for item in sent_events)
+        else None,
         simulation_minute=document["simulation_minute"],
         checkpoint_hash=document["checkpoint_hash"],
         state_hash=document["state_hash"],
         world_state={
-            "event_log": _Tail(*document["events"]),
+            "event_log": _Tail(total, start, new_events),
             "model_state": document["model_state"],
             "model_configs": document["model_configs"],
         },
@@ -118,24 +139,50 @@ def _view(document: dict[str, Any]) -> SimpleNamespace:
     )
 
 
+# What _read_sent queues when the computation's end of the pipe is gone.
+_SENDER_GONE = object()
+
+
+def _read_sent(connection: Any, sent: queue.SimpleQueue[Any]) -> None:
+    """Queue each message as it arrives, up to the final None."""
+    while True:
+        try:
+            message = connection.recv()
+        except (EOFError, OSError):
+            sent.put(_SENDER_GONE)
+            return
+        sent.put(message)
+        if message is None:
+            return
+
+
 def _index_saves(connection: Any, root: str, max_bytes: int, project_id: str, run_id: str) -> None:
     """The indexing process: ingest each sent save in order and answer each one."""
     from sheltersim.storage.history_index import HistoryIndex
     from sheltersim.storage.projects import ProjectStore
 
-    index = HistoryIndex(ProjectStore(Path(root), max_bytes=max_bytes), project_id, run_id)
-    while True:
-        message = connection.recv()
-        if message is None:
-            connection.send(None)
-            return
-        branch, document, observations = message
-        try:
-            index.ingest(branch, _view(document), observations=observations)
-        except Exception as exc:  # The computation reports it and stops.
-            connection.send(f"{type(exc).__name__}: {exc}")
-            return
-        connection.send(None)
+    store = ProjectStore(Path(root), max_bytes=max_bytes)
+    index = HistoryIndex(store, project_id, run_id, keep_writer=True)
+    sent: queue.SimpleQueue[Any] = queue.SimpleQueue()
+    threading.Thread(target=_read_sent, args=(connection, sent), daemon=True).start()
+    try:
+        while True:
+            message = sent.get()
+            if message is _SENDER_GONE:
+                return
+            if message is None:
+                connection.send(None)
+                return
+            branch, document, observations = message
+            started, cpu_started = time.perf_counter(), time.thread_time()
+            try:
+                index.ingest(branch, _view(document), observations=observations)
+            except Exception as exc:  # The computation reports it and stops.
+                connection.send(f"{type(exc).__name__}: {exc}")
+                return
+            connection.send((time.perf_counter() - started, time.thread_time() - cpu_started))
+    finally:
+        index.close()
 
 
 class BackgroundIndexer:
@@ -180,8 +227,10 @@ class BackgroundIndexer:
         child.close()
         self._pending = 0
         self._error: str | None = None
+        # The wall and thread seconds of each ingest answered so far.
+        self.ingest_seconds: list[tuple[float, float]] = []
 
-    def submit(self, checkpoint: Any, observations: list[dict[str, Any]]) -> None:
+    def submit(self, checkpoint: Any, observations: list[dict[str, Any] | bytes]) -> None:
         """Send one saved Checkpoint and the observations recorded since the last save."""
         while self._pending >= self.max_pending:
             self._receive()
@@ -216,7 +265,9 @@ class BackgroundIndexer:
         except EOFError:
             answer = "the indexing process ended without answering"
         self._pending -= 1
-        if answer is not None and self._error is None:
+        if isinstance(answer, tuple):
+            self.ingest_seconds.append(answer)
+        elif answer is not None and self._error is None:
             self._error = answer
             self._pending = 0
 

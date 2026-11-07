@@ -4,13 +4,21 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
-from typing import Any
+from typing import Any, NamedTuple
 
+from sheltersim import native
 from sheltersim.contracts.api import BranchReference
 from sheltersim.core.checkpoint import Checkpoint
 from sheltersim.core.checkpoint_cache import CheckpointHistoryCache
 from sheltersim.core.collection import fewer_collections
 from sheltersim.core.engine import TickEngine, TraceLevel
+from sheltersim.core.model_version import (
+    ModelVersionStatus,
+    SavedPointView,
+    mark_view,
+    saved_point_view,
+)
+from sheltersim.core.world import WorldState
 from sheltersim.domain.population_lifecycle import current_household_id
 from sheltersim.experiments.branch import BranchRuntime
 from sheltersim.experiments.metrics import MetricsRecorder
@@ -19,21 +27,45 @@ from sheltersim.llm.cache import ResponseTape
 from sheltersim.llm.config import LLMErrorPolicy, LLMMode, LLMSettings, ModelPrice
 from sheltersim.llm.contracts import LLMContractError, LLMTask, validate_task_output
 from sheltersim.llm.provider import LLMRouter, OfflineProvider
-from sheltersim.storage.projects import ProjectStore, StorageError, digest
+from sheltersim.storage.projects import ProjectStore, StorageError, digest, view_only_error
 
 
 class TimelineError(StorageError):
     """Unavailable minute, incompatible continuation or missing historical decision."""
 
 
+class TimelineView(NamedTuple):
+    """A branch's state at a minute, restored for reading only (TimelineStore.view_at)."""
+
+    world: WorldState
+    metrics: MetricsRecorder
+    view: SavedPointView
+    # The typed commands accepted on the branch up to the shown state.
+    command_log: list[Any]
+    # The runtime_state saved with the shown state (fork receipt, response tape).
+    runtime_state: dict[str, Any]
+
+
+def requested_minute(world: Any) -> int:
+    """The minute a yielded world answers: for a rounded view, the minute asked for."""
+    view = saved_point_view(world)
+    return world.minute_index if view is None else view.requested_minute
+
+
 class _MetricSink:
     trace_level = TraceLevel.OFF
+    # What rules/decisions.rs may do instead of calling record_decision; it reads its own class's.
+    decision_sink = "silent"
 
     def __init__(self, metrics: MetricsRecorder) -> None:
         self.metrics = metrics
 
     def capture_metric(self, world: Any, *, minute: int | None = None) -> None:
         self.metrics.capture(world, minute=minute)
+
+    # rules/tick.rs calls rules/metrics.rs's capture on `self.metrics` while the method is this one,
+    # so a subclass or a patch that changes it is called.
+    capture_metric_as_defined = capture_metric
 
     def record_decision(self, *_args: Any, **_kwargs: Any) -> None:
         pass
@@ -46,10 +78,13 @@ class _MetricSink:
 
 
 class _IndexedMetricSink(_MetricSink):
+    decision_sink = "indexed"
+
     def __init__(self, metrics: MetricsRecorder, world: Any) -> None:
         super().__init__(metrics)
         self.world = world
-        self.observations: list[dict[str, Any]] = []
+        # Dicts, and the JSON of the rows rules/decisions.rs writes instead.
+        self.observations: list[dict[str, Any] | bytes] = []
         from sheltersim.contracts.policies import model_catalog
 
         self.policy_sources = {
@@ -59,9 +94,12 @@ class _IndexedMetricSink(_MetricSink):
     def record_decision(self, proposal: Any, *, observed_state: Any = None) -> None:
         agent = self.world.agents.get(proposal.agent_id)
         observed = dict(observed_state) if observed_state is not None else None
-        omitted = (
-            observed is not None and len(json.dumps(observed, ensure_ascii=False).encode()) > 16384
-        )
+        omitted = False
+        if observed is not None:
+            size = native.dumps_length(observed)
+            if size is None:
+                size = len(json.dumps(observed, ensure_ascii=False).encode())
+            omitted = size > 16384
         candidates = [
             {
                 "action": c.action.value,
@@ -326,7 +364,7 @@ class TimelineStore:
         *,
         fork_minute: int = 0,
         router: LLMRouter | None = None,
-        observations: list[dict[str, Any]] | None = None,
+        observations: list[dict[str, Any] | bytes] | None = None,
         history_cache: CheckpointHistoryCache | None = None,
         inherit_index_from: str | None = None,
         indexer: Any = None,
@@ -428,8 +466,62 @@ class TimelineStore:
             raise TimelineError("no checkpoint exists before requested minute")
         return nearest
 
+    def model_status(self, branch_id: str) -> ModelVersionStatus:
+        """How the model the branch's head was computed with compares with the installed one."""
+        reference = self.store.branch_reference(self.project_id, self.run_id, branch_id)
+        return self.store.checkpoint_model_status(
+            self.project_id, self.run_id, reference.checkpoint_hash
+        )
+
+    def require_current_model(self, branch_id: str) -> None:
+        """Refuse continuing, forking or changing a Run of another model version."""
+        status = self.model_status(branch_id)
+        if not status.current:
+            raise view_only_error(status)
+
     def seek(self, branch_id: str, minute: int) -> BranchRuntime:
+        """The branch at minute, as a runtime that may be continued.
+
+        A Run of another model version can't be continued, so it is refused with the
+        view-only error; view_at() reads it.
+        """
         return self._seek(branch_id, minute)[0]
+
+    def view_at(self, branch_id: str, minute: int) -> TimelineView:
+        """The branch at minute, for reading only.
+
+        A Run of the installed model is reconstructed exactly, as seek() does. A Run of
+        another model version shows the saved point at or before minute and is not
+        computed again (D2); the view's mark says so. The world can't be ticked.
+        """
+        reference = self.store.branch_reference(self.project_id, self.run_id, branch_id)
+        if (
+            type(minute) is not int
+            or not reference.fork_minute <= minute <= reference.computed_until
+        ):
+            raise TimelineError("minute is outside this branch's computed range")
+        status = self.store.checkpoint_model_status(
+            self.project_id, self.run_id, reference.checkpoint_hash
+        )
+        if status.current:
+            runtime = self.seek(branch_id, minute)
+            view = SavedPointView(status, saved_minute=minute, requested_minute=minute)
+            mark_view(runtime.world, view)
+            return TimelineView(
+                runtime.world, runtime.metrics, view, runtime.command_log, runtime.runtime_state
+            )
+        saved_minute, checkpoint_hash = self._nearest_checkpoint(branch_id, minute, reference)
+        checkpoint, (world, metrics) = self.store.load_view_checkpoint(
+            self.project_id, self.run_id, checkpoint_hash
+        )
+        view = saved_point_view(world)
+        assert view is not None and view.saved_minute == saved_minute
+        view.requested_minute = minute
+        branch = checkpoint.runtime_state.get("branch", {})
+        commands = branch.get("command_log", []) if isinstance(branch, dict) else []
+        return TimelineView(
+            world, metrics, view, deepcopy(commands), deepcopy(checkpoint.runtime_state)
+        )
 
     def _seek(
         self, branch_id: str, minute: int, *, keep: bool = True
@@ -494,14 +586,24 @@ class TimelineStore:
 
         A history_cache is seeded with the EventLog of the Checkpoint the replay
         starts from, for a caller that captures documents of the yielded worlds.
+
+        For a Run of another model version one world is yielded per minute too, but it
+        is the saved point at or before that minute, restored for viewing and never
+        computed again (D2): requested_minute() and its saved_point_view() mark say
+        which minute it answers and which it shows. The history_cache is not seeded.
         """
         reference = self.store.branch_reference(self.project_id, self.run_id, branch_id)
         if not reference.fork_minute <= start <= end <= reference.computed_until:
             raise TimelineError("replay interval outside computed range")
+        status = self.store.checkpoint_model_status(
+            self.project_id, self.run_id, reference.checkpoint_hash
+        )
+        if not status.current:
+            yield from self._saved_points(branch_id, start, end, reference)
+            return
         runtime, checkpoint = self._seek(branch_id, start)
         if history_cache is not None:
-            events = checkpoint.world_state["event_log"]
-            history_cache.seed_events(runtime.world.event_log.records[: len(events)], events)
+            history_cache.seed_events(runtime.world.event_log, checkpoint.world_state["event_log"])
         # Observe the exact saved boundary before controller initialization can
         # install any missing optional state. A one-frame read needs no controller.
         yield runtime.world
@@ -524,6 +626,24 @@ class TimelineStore:
         while runtime.world.minute_index < end:
             engine.step()
             yield runtime.world
+
+    def _saved_points(
+        self, branch_id: str, start: int, end: int, reference: BranchReference
+    ) -> Any:
+        """iter_worlds() of a Run of another model version: saved points only."""
+        loaded = None
+        world = None
+        for minute in range(start, end + 1):
+            _, checkpoint_hash = self._nearest_checkpoint(branch_id, minute, reference)
+            if checkpoint_hash != loaded:
+                _, (world, _) = self.store.load_view_checkpoint(
+                    self.project_id, self.run_id, checkpoint_hash
+                )
+                loaded = checkpoint_hash
+            view = saved_point_view(world)
+            assert view is not None
+            view.requested_minute = minute
+            yield world
 
     def advance(
         self,
@@ -638,7 +758,7 @@ class TimelineStore:
         # Each save reuses the history this loop saved before; the first one reuses
         # the EventLog of the head it continues from.
         history_cache = CheckpointHistoryCache()
-        history_cache.seed_events(runtime.world.event_log.records, head.world_state["event_log"])
+        history_cache.seed_events(runtime.world.event_log, head.world_state["event_log"])
         indexer = None
         if (target_minute - head.simulation_minute) // checkpoint_interval >= (
             BACKGROUND_INDEX_MIN_SAVES
@@ -727,8 +847,16 @@ class TimelineStore:
             )
         else:
             child, checkpoint = source.fork_with_checkpoint(child_id)
-        if expected_state_hash is not None and checkpoint.state_hash != expected_state_hash:
-            raise TimelineError("source state changed; preview the intervention again")
+        if expected_state_hash is not None:
+            # A preview hashes the world under the current rule; a Checkpoint of an older
+            # version holds its hash under its own rule.
+            current = (
+                checkpoint.state_hash
+                if checkpoint.schema_version == Checkpoint.CURRENT_SCHEMA_VERSION
+                else child.world.state_digest()
+            )
+            if current != expected_state_hash:
+                raise TimelineError("source state changed; preview the intervention again")
         child.runtime_state["fork_origin"] = {
             "branch_id": branch_id,
             "minute": minute,
@@ -750,10 +878,7 @@ class TimelineStore:
         # The child's world was restored from this Checkpoint, so its first save
         # reuses the Checkpoint's EventLog.
         history_cache = CheckpointHistoryCache()
-        history_cache.seed_events(
-            child.world.event_log.records[: len(checkpoint.world_state["event_log"])],
-            checkpoint.world_state["event_log"],
-        )
+        history_cache.seed_events(child.world.event_log, checkpoint.world_state["event_log"])
         try:
             self.record(
                 child,
@@ -769,6 +894,11 @@ class TimelineStore:
         return child
 
     def frame(self, branch_id: str, minute: int) -> dict[str, Any]:
+        """The frame of a branch at minute.
+
+        For a Run of another model version it is the frame of the saved point at or
+        before minute, with model_view and, when rounded, saved_point_rounding (D2).
+        """
         reference = self.store.branch_reference(self.project_id, self.run_id, branch_id)
         if type(minute) is int and reference.fork_minute <= minute <= reference.computed_until:
             # A saved boundary renders the same frame the writer cached when it was
@@ -777,6 +907,30 @@ class TimelineStore:
 
             saved_minute, checkpoint_hash = self._nearest_checkpoint(branch_id, minute, reference)
             cache = FrameCache(self.store, self.project_id, self.run_id)
+            status = self.store.checkpoint_model_status(
+                self.project_id, self.run_id, reference.checkpoint_hash
+            )
+            if not status.current:
+                view = SavedPointView(status, saved_minute=saved_minute, requested_minute=minute)
+                cached = cache.get(checkpoint_hash)
+                if cached is None or (
+                    cached.get("run_id"),
+                    cached.get("branch_id"),
+                    cached.get("minute"),
+                ) != (self.run_id, branch_id, saved_minute):
+                    from sheltersim.inspection.frames import world_frame
+
+                    checkpoint, (world, _) = self.store.load_view_checkpoint(
+                        self.project_id, self.run_id, checkpoint_hash
+                    )
+                    cached = world_frame(
+                        world,
+                        run_id=self.run_id,
+                        branch_id=branch_id,
+                        computed_until=reference.computed_until,
+                        state_hash=checkpoint.state_hash,
+                    )
+                return {**cached, "computed_until": reference.computed_until, **view.describe()}
             cached = cache.get(checkpoint_hash) if saved_minute == minute else None
             identity = (self.run_id, branch_id, minute)
             if (

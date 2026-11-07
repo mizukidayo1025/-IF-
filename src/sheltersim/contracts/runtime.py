@@ -11,6 +11,7 @@ from pydantic import Field, model_validator
 
 from sheltersim.contracts.extensions import ExtensionModel, Finite, Identifier
 from sheltersim.contracts.workspace import StateDescriptor
+from sheltersim.core.state_mirror import rust_validated
 
 if TYPE_CHECKING:
     from sheltersim.core.rng import KeyedRandom
@@ -193,7 +194,9 @@ def initialize_declared_states(world: Any) -> None:
 
 
 def validate_declared_states(world: Any) -> None:
-    for namespace, descriptor in declared_states(world.model_configs).items():
+    """Check the declared namespaces."""
+    descriptors = declared_states(world.model_configs)
+    for namespace, descriptor in descriptors.items():
         state = world.model_state.get(namespace)
         if (
             not isinstance(state, dict)
@@ -202,7 +205,8 @@ def validate_declared_states(world: Any) -> None:
         ):
             raise ValueError("missing or incompatible required model-state namespace")
         try:
-            _CONTRACTS[namespace][1](world, state)
+            if not rust_validated(world, namespace):
+                _CONTRACTS[namespace][1](world, state)
         except (TypeError, KeyError, ValueError) as exc:
             raise ValueError("declared model-state validation failed") from exc
 

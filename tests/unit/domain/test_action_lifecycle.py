@@ -4,8 +4,10 @@ behavior action has a lifecycle terminal."""
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from types import SimpleNamespace
 
+import pytest
 from support.paths import SMALL_REPLAY
 
 from sheltersim.core.world import WorldState
@@ -15,6 +17,7 @@ from sheltersim.domain.action_lifecycle import (
     record_applied_action_completion,
 )
 from sheltersim.events.models import EventKind, EventLogRecord, EventStatus, ScheduledEvent
+from sheltersim.events.queue import EventLog, keeps_saved_bytes
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.policies.behavior import ActionKind
 
@@ -209,3 +212,147 @@ def test_every_behavior_action_has_a_supported_lifecycle_terminal() -> None:
         assert transitions[0] == "started"
         assert transitions[-1] == "completed"
         assert action.value not in active
+
+
+def _lifecycle_record(sequence: int, agent_id: object, transition: object) -> EventLogRecord:
+    return EventLogRecord(
+        event=ScheduledEvent(
+            event_id=f"lifecycle-{sequence}",
+            kind=EventKind.ENDOGENOUS,
+            due_minute=sequence,
+            priority=0,
+            sequence=sequence,
+            event_type="agent_action_lifecycle",
+            payload={
+                "agent_id": agent_id,
+                "transition": transition,
+                "action_id": f"action-{sequence}",
+                "action": "rest",
+                "target_id": None,
+                "start_minute": sequence,
+                "reason_code": "test",
+                "start_activity": "idle",
+                "start_needs": {},
+                "model_id": "model",
+                "model_source_id": "source",
+            },
+        ),
+        realized_minute=sequence,
+        status=EventStatus.APPLIED,
+    )
+
+
+def test_a_restored_event_log_gives_the_active_actions_without_reading_every_record() -> None:
+    """Fork and resume read only the records that decide the result, in the same dict order."""
+    if not keeps_saved_bytes(EventLog()):
+        pytest.skip("the sheltersim_native extension is not installed")
+    steps = [
+        ("a", "started"),
+        ("b", "started"),
+        ("c", "started"),
+        ("a", "continued"),  # Keeps a's place in the dict.
+        ("b", "completed"),
+        ("c", "paused"),  # Not a transition the index knows: changes nothing.
+        ("b", "started"),  # Comes after c now.
+        ("d", "started"),
+        ("d", "censored"),
+        (7, "started"),  # Not a str: skipped.
+        ("c", "continued"),
+    ]
+    log = EventLog()
+    for sequence, (agent, transition) in enumerate(steps):
+        log.append(_lifecycle_record(sequence, agent, transition))
+    full = SimpleNamespace(event_log=SimpleNamespace(of_types=log.of_types))
+    expected = active_action_index(full)
+    assert [(agent, row["action_id"], row["continued"]) for agent, row in expected.items()] == [
+        ("a", "action-3", True),
+        ("c", "action-10", True),
+        ("b", "action-6", False),
+    ]
+    live = active_action_index(SimpleNamespace(event_log=log))
+    assert list(live) == list(expected) and live == expected
+
+    restored = EventLog.from_saved(log.items_bytes(0, len(log)))
+    assert restored.unread() == len(steps)
+    index = active_action_index(SimpleNamespace(event_log=restored))
+    assert list(index) == list(expected) and index == expected
+    assert restored.unread() == len(steps) - len(expected)
+
+    # A copy goes on from the same state, and only the copy changes.
+    copied = deepcopy(restored)
+    copied.append(_lifecycle_record(len(steps), "a", "completed"))
+    assert list(active_action_index(SimpleNamespace(event_log=copied))) == ["c", "b"]
+    assert list(active_action_index(SimpleNamespace(event_log=restored))) == ["a", "c", "b"]
+
+
+_PLAIN_RECEIPT = {
+    "schema_version": 1,
+    "action_id": "action-1",
+    "agent_id": "A001",
+    "action": "rest",
+    "target_id": None,
+    "transition": "started",
+    "start_minute": 2,
+    "transition_minute": 5,
+    "duration_minutes": 3,
+    "reason_code": "scheduled_decision",
+    "activity": "resting",
+    "start_activity": None,
+    "start_needs": {"hunger": 0.5},
+    "current_needs": {},
+    "model_id": "model-1",
+    "model_source_id": "ASM-1",
+}
+
+
+def test_a_plain_receipt_dumps_to_the_same_values() -> None:
+    from sheltersim.contracts.operations import ActionLifecycleReceipt
+    from sheltersim.domain.action_lifecycle import _is_plain_receipt
+
+    assert _is_plain_receipt(_PLAIN_RECEIPT)
+    dumped = ActionLifecycleReceipt.model_validate(_PLAIN_RECEIPT).model_dump(mode="json")
+    assert dumped == _PLAIN_RECEIPT and list(dumped) == list(_PLAIN_RECEIPT)
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"start_minute": -1, "duration_minutes": 6},
+        {"start_minute": True},
+        {"transition_minute": 1, "duration_minutes": -1},
+        {"duration_minutes": 4},
+        {"transition": "paused"},
+        {"reason_code": ""},
+        {"reason_code": "x" * 121},
+        {"activity": "x" * 81},
+        {"start_activity": 1},
+        {"target_id": "bad id"},
+        {"action_id": "-bad"},
+        {"agent_id": None},
+        {"model_id": "x" * 65},
+        {"model_source_id": "ok\n"},
+        {"start_needs": {"hunger": float("nan")}},
+        {"current_needs": {"hunger": float("inf")}},
+    ],
+)
+def test_anything_else_is_left_to_the_receipt_model(changes) -> None:
+    """Each leaves the plain path, where the model refuses it or converts its values."""
+    from pydantic import ValidationError
+
+    from sheltersim.contracts.operations import ActionLifecycleReceipt
+    from sheltersim.domain.action_lifecycle import _is_plain_receipt
+
+    payload = {**_PLAIN_RECEIPT, **changes}
+    assert not _is_plain_receipt(payload)
+    with pytest.raises(ValidationError):
+        ActionLifecycleReceipt.model_validate(payload)
+
+
+def test_needs_the_model_would_convert_are_left_to_it() -> None:
+    from sheltersim.contracts.operations import ActionLifecycleReceipt
+    from sheltersim.domain.action_lifecycle import _is_plain_receipt
+
+    payload = {**_PLAIN_RECEIPT, "current_needs": {"hunger": 1}}
+    assert not _is_plain_receipt(payload)
+    dumped = ActionLifecycleReceipt.model_validate(payload).model_dump(mode="json")
+    assert type(dumped["current_needs"]["hunger"]) is float
