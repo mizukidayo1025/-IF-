@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sys
 from copy import deepcopy
 from typing import Any
 
@@ -89,8 +88,7 @@ def _plain(value: Any) -> Any:
 
 
 # Digests of what the deleted Python rules of `kernel_only` kernels answered and left, recorded once
-# from them (2d8fb46) on Linux: route points and lengths are floats of the platform's libm. Lane L13
-# pins them on every OS; until then the plain checks next to each are what macOS and Windows check.
+# from them (2d8fb46) on Linux: route points and lengths are floats, the same bits on every OS.
 RECORDED = {
     "bed": "b440c65f6d9298df3e2fce977042b27f157b5f63c9c5158f71cdfbdbdef112b9",
     "bed again": "bb5a2af0d667ae832e0c38f384480b82a31f3c1cb59cb955da9c2063f26d29dc",
@@ -125,8 +123,7 @@ def _answer(world: WorldState, call: Any, *arguments: Any, **options: Any) -> tu
 def _recorded(name: str, result: Any, after: WorldState) -> None:
     """The result and the world after it are the deleted rule's (RECORDED)."""
     text = json.dumps(_plain(result)) + "\n" + _bytes(after)
-    if sys.platform == "linux":
-        assert hashlib.sha256(text.encode()).hexdigest() == RECORDED[name], name
+    assert hashlib.sha256(text.encode()).hexdigest() == RECORDED[name], name
 
 
 def _same(world: WorldState, kernel: Any, rule: Any, *arguments: Any, **options: Any) -> Any:
@@ -1454,7 +1451,7 @@ def _sleep_proposal(world: WorldState, agent_id: str) -> Any:
 )
 def test_sleep_in_a_room_is_the_python_step_s(world: WorldState, at_bed: bool, digest: str) -> None:
     """The result and the world (`world_digest`) of the Python step, recorded from it on 45a9bc9
-    before it went (lane L10), pinned on Linux."""
+    before it went (lane L10), pinned on every OS."""
     room = _room_record(world, "room")
     world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["temporary_rooms"]["room"] = room
     agent_id = _person_in_room_zone(world)
@@ -1467,8 +1464,7 @@ def test_sleep_in_a_room_is_the_python_step_s(world: WorldState, at_bed: bool, d
     result = kernel(_controller(ours), _sleep_proposal(ours, agent_id))
     assert tuple(result) == ("bed-ec7532def0b0c01715ae0abb", 5, True)
     assert ours.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["bed_reservations"]
-    if sys.platform == "linux":
-        assert world_digest(ours) == digest
+    assert world_digest(ours) == digest
 
 
 def test_sleep_past_the_run_s_end_releases_the_bed(world: WorldState) -> None:
@@ -1483,8 +1479,7 @@ def test_sleep_past_the_run_s_end_releases_the_bed(world: WorldState) -> None:
     )
     assert tuple(result) == (None, 364, True)
     assert not ours.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["bed_reservations"]
-    if sys.platform == "linux":
-        assert world_digest(ours) == "bf284ac247d7f46c"
+    assert world_digest(ours) == "bf284ac247d7f46c"
 
 
 # ---- Independent queues --------------------------------------------------------------------------
@@ -1985,8 +1980,8 @@ def _resource_queues(world: WorldState) -> tuple[str, str] | None:
 
 
 # The water and meal service has no Python rule left (lane L10, `kernel_only`). What its rules
-# made of each case, recorded from them: the results and worlds, by sha256 (Linux: the worlds hold
-# floats of libm, as the gate's hashes do).
+# made of each case, recorded from them: the results and worlds, by sha256 (on every OS, as the
+# gate's hashes).
 RESOURCE_FIFO = {
     "serves": "ae7d2fe0bddcb8cd",
     "interrupted": "0a0181bb6cbb94b8",
@@ -2000,11 +1995,9 @@ RESOURCE_FIFO = {
 
 def _is_the_python_rules(answers: list[str], case: str) -> None:
     import hashlib
-    import sys
 
-    if sys.platform == "linux":
-        digest = hashlib.sha256("\n".join(answers).encode()).hexdigest()[:16]
-        assert digest == RESOURCE_FIFO[case]
+    digest = hashlib.sha256("\n".join(answers).encode()).hexdigest()[:16]
+    assert digest == RESOURCE_FIFO[case]
 
 
 def _rows_follow(world: WorldState) -> None:

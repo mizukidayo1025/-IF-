@@ -4,9 +4,9 @@ native/src/rules/staff.rs and travel.rs on what the gate reaches rarely or never
 (docs/rust-port/lanes/l2-staff.md). `assign_staff_operations`, `schedule_staff_operation_relief`
 and the controller's `_route` have no Python body left (lane L10): what they start is checked
 against a digest of what the Python rule started on the same world (its answer, the world, its
-records and events),
-taken before it went, pinned on Linux as the gate's hashes are. No Run reaches the preemption of a
-background task, so a Run here does, through the driver and through the phases.
+records and events), taken before it went, pinned on every OS as the gate's hashes are. No Run
+reaches the preemption of a background task, so a Run here does, through the driver and through
+the phases.
 """
 
 from __future__ import annotations
@@ -15,7 +15,6 @@ import contextlib
 import hashlib
 import json
 import random
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -133,8 +132,7 @@ PYTHON_DIGESTS = {
 
 def _is_what_python_did(label: str, answer: Any, world: WorldState) -> None:
     text = json.dumps([list(answer), _state(world)])
-    if sys.platform == "linux":
-        assert hashlib.sha256(text.encode()).hexdigest()[:16] == PYTHON_DIGESTS[label]
+    assert hashlib.sha256(text.encode()).hexdigest()[:16] == PYTHON_DIGESTS[label]
 
 
 def _assign(label: str, world: WorldState, minute: int, router: Any = None) -> Any:
@@ -727,8 +725,7 @@ def _capacity_controller(
 def _is_what_python_left(world: WorldState, digest: str) -> None:
     """The world, its records and events, as `_route` of the Python rule left them: `digest`."""
     text = json.dumps(_state(world))
-    if sys.platform == "linux":
-        assert hashlib.sha256(text.encode()).hexdigest()[:16] == digest
+    assert hashlib.sha256(text.encode()).hexdigest()[:16] == digest
 
 
 def test_a_route_with_a_full_edge_records_its_wait_as_the_python_rule_does(tmp_path: Path) -> None:

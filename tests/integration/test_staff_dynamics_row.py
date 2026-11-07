@@ -18,7 +18,6 @@ import hashlib
 import json
 import math
 import random
-import sys
 from types import SimpleNamespace
 from typing import Any
 
@@ -278,7 +277,7 @@ def _update_run(seed: int) -> list[str]:
 
 
 # The digests of `_update_run` with the Python rule, taken before it went (lane L10). The fatigue
-# of the saturating formula is libm's `exp`, so they are pinned on Linux, as the gate's hashes are.
+# of the saturating formula is the pinned libm crate's `exp`: the same bits on every OS.
 UPDATE_DIGESTS = {
     0: "eec89a7a17e1ad1f",
     1: "0f784670ff938487",
@@ -326,8 +325,7 @@ UPDATE_DIGESTS = {
 @pytest.mark.parametrize("seed", range(40))
 def test_update_writes_what_the_python_rule_wrote(seed: int) -> None:
     texts = _update_run(seed)
-    if sys.platform == "linux":
-        assert _digest(texts) == UPDATE_DIGESTS[seed]
+    assert _digest(texts) == UPDATE_DIGESTS[seed]
 
 
 def test_a_working_minute_is_the_formula_s_fatigue() -> None:

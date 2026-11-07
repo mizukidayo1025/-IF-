@@ -1,5 +1,5 @@
-# 手動実行の長時間・全件offline回帰suite。オフラインCIと同じく、Rustのkernel（native/）を
-# 作って導入してから実行する。
+# 手動実行の長時間・全件offline回帰suite。オフラインCIと同じく、Linux・Windows・macOSの3つで
+# Rustのkernel（native/）を作って導入してから実行する。固定のハッシュは3つのOSで同じ（L13）。
 name: 長時間simulation回帰
 
 on:
@@ -20,7 +20,11 @@ permissions:
 jobs:
   long_simulation:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.suite == 'long' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     env:
       SHELTERSIM_LLM_MODE: offline
     steps:
@@ -34,6 +38,7 @@ jobs:
         with:
           workspaces: native
       - name: Rustのkernelを作って導入
+        shell: bash
         run: |
           rustup toolchain install stable --profile minimal
           python -m pip install "maturin>=1.7,<2"
@@ -45,7 +50,11 @@ jobs:
 
   full_release_regression:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.suite == 'full' }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     env:
       SHELTERSIM_LLM_MODE: offline
     steps:
@@ -59,6 +68,7 @@ jobs:
         with:
           workspaces: native
       - name: Rustのkernelを作って導入
+        shell: bash
         run: |
           rustup toolchain install stable --profile minimal
           python -m pip install "maturin>=1.7,<2"

@@ -12,7 +12,6 @@ support/world.py `kernel_says_python_s_text` checks that it did. The Python rule
 from __future__ import annotations
 
 import hashlib
-import sys
 from typing import Any
 
 import pytest
@@ -373,7 +372,7 @@ def test_a_walk_that_does_not_fit_is_saved_with_its_text_as_the_python_phase_sav
     """A walk event of another purpose, before the real one in the same minute, fails alone.
 
     The records and the world are what the Python step saved, written down from it (45a9bc9)
-    before it went (lane L10): the world as a digest, pinned on Linux as the gate's hashes are.
+    before it went (lane L10): the world as a digest, pinned on every OS as the gate's hashes are.
     """
     controller = _hundred()
     world = controller.world
@@ -396,6 +395,5 @@ def test_a_walk_that_does_not_fit_is_saved_with_its_text_as_the_python_phase_sav
         ("walk-of-another-purpose", EventStatus.FAILED, "unsupported travel purpose 'another'"),
         (event.event_id, EventStatus.APPLIED, None),
     ]
-    if sys.platform == "linux":
-        digest = hashlib.sha256(world.canonical_json().encode("utf-8")).hexdigest()[:16]
-        assert digest == "4ffcda3a4d1d53c0"
+    digest = hashlib.sha256(world.canonical_json().encode("utf-8")).hexdigest()[:16]
+    assert digest == "4ffcda3a4d1d53c0"

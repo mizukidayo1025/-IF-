@@ -13,7 +13,6 @@ import copy
 import hashlib
 import json
 import random
-import sys
 from types import SimpleNamespace
 from typing import Any
 
@@ -49,7 +48,7 @@ ACTIONS = {
 # ---- What the Python rules gave ---------------------------------------------------------------
 # observe_event and the two of the social dialogue have no Python rule left (lane L10,
 # `kernel_only`). Each case was run with them once (2d8fb46): what they returned and wrote is pinned
-# here, per test and in call order, as a digest compared on Linux (libm), as the gate's hashes are.
+# here, per test and in call order, as a digest compared on every OS, as the gate's hashes are.
 
 PYTHON_GAVE: dict[str, list[str]] = {
     "test_capture_gives_what_the_python_rule_gives": [
@@ -95,8 +94,7 @@ def _python_gave(*values: Any) -> None:
     """These values are what the Python rule gave at this call of the test."""
     name, index = _SCOPE
     _SCOPE[1] += 1
-    if sys.platform == "linux":
-        assert _digest(*values) == PYTHON_GAVE[name][index]
+    assert _digest(*values) == PYTHON_GAVE[name][index]
 
 
 @pytest.fixture(scope="module")

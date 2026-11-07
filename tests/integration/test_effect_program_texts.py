@@ -14,7 +14,6 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-import sys
 from typing import Any
 
 import pytest
@@ -716,17 +715,16 @@ def test_a_handoff_s_texts_are_python_s(
     operations = kernel_world.model_state["staff_operations_v1"]["staff"]
     assert (operations[worker]["phase"], operations[replacement]["phase"]) == ("idle", "working")
     # The whole world and the receipt as the Python rule left them, recorded once from it
-    # (2d8fb46). Floats of the platform's libm, recorded on Linux; lane L13 pins other OSes.
-    if sys.platform == "linux":
-        documents = (
-            json.dumps(kernel_world.to_dict(), ensure_ascii=False)
-            + "\n"
-            + json.dumps([item.to_dict() for item in made], ensure_ascii=False)
-        )
-        assert (
-            hashlib.sha256(documents.encode()).hexdigest()
-            == "b2c8d110332d533d9bdfed71f81b3b614ddcf4427b52e91e989a5f7b10a14d41"
-        )
+    # (2d8fb46) on Linux; the same bits on every OS.
+    documents = (
+        json.dumps(kernel_world.to_dict(), ensure_ascii=False)
+        + "\n"
+        + json.dumps([item.to_dict() for item in made], ensure_ascii=False)
+    )
+    assert (
+        hashlib.sha256(documents.encode()).hexdigest()
+        == "b2c8d110332d533d9bdfed71f81b3b614ddcf4427b52e91e989a5f7b10a14d41"
+    )
 
     approved = "staff handoff does not reference an approved program"
     for change in (

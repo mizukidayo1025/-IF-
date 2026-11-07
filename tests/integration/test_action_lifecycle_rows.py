@@ -4,7 +4,7 @@ native/src/rules/{agent_dynamics,action_lifecycle}.rs hold the rules
 (docs/rust-port/lanes/f-action-lifecycle.md). Their Python bodies are gone (lane L10,
 `kernel_only`): what a rule writes is checked against what the Python rule wrote on the same
 inputs, written down from it before it went (its values, or a digest of its receipts, open actions
-and records, pinned on Linux as the gate's hashes are), and what the kernels refuse is
+and records, pinned on every OS as the gate's hashes are), and what the kernels refuse is
 KernelRefusal. The validation of a saved namespace stays in Python and is compared with the Rust
 one.
 """
@@ -15,7 +15,6 @@ import copy
 import hashlib
 import json
 import random
-import sys
 from types import SimpleNamespace
 from typing import Any
 
@@ -117,9 +116,8 @@ def _digest(value: Any) -> str:
 
 
 def _is_what_python_did(label: str, value: Any) -> None:
-    """Pinned on Linux, as the gate's hashes are: the needs of the generated world are floats."""
-    if sys.platform == "linux":
-        assert _digest(value) == PYTHON_DIGESTS[label]
+    """Pinned on every OS, as the gate's hashes are: the needs of the generated world are floats."""
+    assert _digest(value) == PYTHON_DIGESTS[label]
 
 
 def _proposal(

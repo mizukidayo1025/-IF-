@@ -38,7 +38,7 @@ SCENARIOS = (
 SEEDS = (2**64 + 7, 2**63, 10**30)
 
 # The first 16 hex digits of the SHA-256 of each Scenario's `{"refused": ..., "runs": ...}`
-# (`_digest`), from the Python rules. Pinned on Linux only: other systems have other math libraries.
+# (`_digest`), from the Python rules. The same on every OS, as the gate's hashes.
 PYTHON_RULES_DIGESTS: dict[int, dict[str, str]] = {
     2**64 + 7: {
         "model__behavior__sleep-aware-utility-softmax-v2": "6ba0ad6bb25a5cdb",
@@ -113,8 +113,7 @@ def test_a_seed_past_64_bits_gives_the_python_rules_results_and_no_kernel_refuse
 ) -> None:
     digests, raised = _run(seed, SCENARIOS, tmp_path)
     assert raised == []
-    if sys.platform == "linux":
-        assert digests == {name: PYTHON_RULES_DIGESTS[seed][name] for name in SCENARIOS}
+    assert digests == {name: PYTHON_RULES_DIGESTS[seed][name] for name in SCENARIOS}
 
 
 @pytest.mark.long_simulation
@@ -125,5 +124,4 @@ def test_arrivals_and_departures_with_a_seed_past_64_bits_give_the_python_rules_
     for seed in SEEDS:
         digests, raised = _run(seed, ("population",), tmp_path / str(seed))
         assert raised == []
-        if sys.platform == "linux":
-            assert digests == {"population": PYTHON_RULES_DIGESTS[seed]["population"]}
+        assert digests == {"population": PYTHON_RULES_DIGESTS[seed]["population"]}

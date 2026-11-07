@@ -3,7 +3,7 @@
 The step is rules/social_propagation.rs alone (docs/rust-port/lanes/b-social-propagation.md): the
 Python rules of policies/social.py and policies/alternatives.py are gone. What they answered, on
 small worlds and on values no scenario reaches, was recorded once as digests (ANSWERS), which the
-kernel's answers must equal on Linux; a float's bits are compared through its hex.
+kernel's answers must equal on every OS; a float's bits are compared through its hex.
 """
 
 from __future__ import annotations
@@ -12,7 +12,6 @@ import hashlib
 import json
 import os
 import random
-import sys
 from dataclasses import asdict, replace
 from types import SimpleNamespace
 from typing import Any
@@ -210,8 +209,7 @@ def _answers(name: str, texts: list[str]) -> None:
         with open(_RECORD, "a", encoding="utf-8") as file:
             file.write(json.dumps({name: digest.hexdigest()}) + "\n")
         return
-    if sys.platform == "linux":
-        assert digest.hexdigest() == ANSWERS[name], name
+    assert digest.hexdigest() == ANSWERS[name], name
 
 
 def _small(

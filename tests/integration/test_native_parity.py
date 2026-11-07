@@ -20,6 +20,7 @@ import sys
 from enum import StrEnum
 
 import pytest
+import sheltersim_native
 
 from sheltersim import native
 from sheltersim.core.rng import CounterRNG
@@ -250,6 +251,54 @@ def test_power_is_the_pinned_bits(parity) -> None:
 def test_fma_rounds_once(parity) -> None:
     for (x, y, z), bits in FMA_VECTORS:
         assert _bits(parity.fma([(x, y, z)])[0]) == bits, (x, y, z)
+
+
+# ---- hypot, fsum, sum, round, repr and draws: the same bits on every OS -------------------------
+# The tests below compare these with CPython on the OS they run on; these digests pin them to one
+# set of bits, so a platform whose CPython differs too (C fma in hypot, dtoa) still fails here.
+
+
+def _portable_rows(rng: random.Random) -> list[list[float]]:
+    values = _portable_floats(rng, 2000)
+    rows = [[values[i], values[(i * 7 + 1) % len(values)]] for i in range(len(values))]
+    rows += [[rng.uniform(-30.0, 30.0), rng.uniform(-30.0, 30.0)] for _ in range(2000)]
+    rows += [[rng.random() * 2e-310, rng.random() * 2e-310] for _ in range(200)]
+    rows += [[rng.random() * 1e308, rng.random() * 1e308] for _ in range(200)]
+    rows += [[rng.uniform(-5.0, 5.0) for _ in range(rng.randint(3, 6))] for _ in range(500)]
+    return rows + [[x, y] for x in EDGES for y in EDGES] + [[value] for value in EDGES] + [[]]
+
+
+def test_hypot_fsum_and_sum_are_the_pinned_bits(parity) -> None:
+    rows = _portable_rows(random.Random(21))
+    assert _bits(parity.hypot([[3.0, 4.0]])[0]) == "4014000000000000"
+    assert _bits(parity.hypot([[0.1, 0.2, 0.3]])[0]) == "3fd7f254dab9cc3a"
+    assert _digest(parity.hypot(rows)) == "188d1b6d61a6fb66"
+    finite = [[value for value in row if math.isfinite(value)] for row in rows]
+    sums = [math.nan if value is None else value for value in parity.fsum(finite)]
+    assert _digest(sums) == "11599aeafc4f961c"
+    assert _digest(parity.sum_floats(finite)) == "3892f0b878ff84bf"
+
+
+def test_round_and_repr_are_the_pinned_bits(parity) -> None:
+    rng = random.Random(22)
+    values = _portable_floats(rng, 4000)
+    values += [(2 * rng.randrange(1, 100_000) + 1) / 512 for _ in range(500)]
+    rounded = [math.nan if v is None else v for v in parity.round_digits(values, 8)]
+    assert _digest(rounded) == "4c8dbb0458b5385e"
+    integers = parity.round_int(values)
+    assert hashlib.sha256(repr(integers).encode()).hexdigest()[:16] == "7cdab211b29eb809"
+    finite = [value for value in values if math.isfinite(value)]
+    written = "\n".join(sheltersim_native.float_repr(value) for value in finite)
+    assert hashlib.sha256(written.encode()).hexdigest()[:16] == "6dff661ec0f8de33"
+    assert parity.value_json([0.1, 1e16, 1e-7, 5e-324, 1.7976931348623157e308, -0.0]) == (
+        b"[0.1,1e+16,1e-07,5e-324,1.7976931348623157e+308,-0.0]"
+    )
+
+
+def test_draws_are_the_pinned_bits(parity) -> None:
+    keys = [["rumor-acceptance-v1", minute, f"agent-{minute % 97}", "m1"] for minute in range(2000)]
+    draws = parity.draws("20261108", keys)
+    assert _digest(draws) == "ff5986936ee5229a"
 
 
 def _ulps(first: float, second: float) -> int:

@@ -17,7 +17,6 @@ import copy
 import hashlib
 import json
 import random
-import sys
 from collections.abc import Mapping
 from typing import Any
 
@@ -135,16 +134,14 @@ def _as_recorded(
     """The kernel's result on a copy, whose rows still read as its tree.
 
     The world and the receipts must be the deleted Python rule's: `digest` was recorded once from
-    that rule on the same world (2d8fb46). The documents hold floats of the platform's libm,
-    recorded on Linux; lane L13 pins them on every OS, and until then the case's own checks are
-    what macOS and Windows run.
+    that rule on the same world (2d8fb46). The documents hold floats, recorded
+    on Linux and the same bits on every OS.
     """
     kernel_world = _copy(world)
     result = kernel(handler, kernel_world, event)
     if KEY in kernel_world.model_state:
         assert kernel_world.model_state._mirrors[KEY].verify()
-    if sys.platform == "linux":
-        assert _digest(kernel_world, result) == digest
+    assert _digest(kernel_world, result) == digest
     return kernel_world
 
 

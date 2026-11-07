@@ -2,7 +2,7 @@
 
 The phase has no Python step left (lane L10). Each case runs events through rules/dispatch.rs and
 compares everything saved with what the Python step saved from the same events: a digest of it,
-taken once from that step (45a9bc9) before it went, pinned on Linux, as the gate's hashes are.
+taken once from that step (45a9bc9) before it went, pinned on every OS, as the gate's hashes are.
 See docs/rust-port/lanes/m3-dispatch.md.
 """
 
@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -98,8 +97,7 @@ def _is_python_s(controller: OfflineSimulationController, python_saved: str) -> 
     """All the controller's world saved is what the Python step saved: `python_saved`, the digest
     of `_saved`."""
     text = json.dumps(_saved(controller), sort_keys=True)
-    if sys.platform == "linux":
-        assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == python_saved
+    assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == python_saved
 
 
 def _dispatched(
@@ -720,6 +718,5 @@ def test_a_run_through_the_kernel_is_what_the_python_step_made(
     assert after["travel_refused"] == before["travel_refused"]
     assert after["completion_refused"] == before["completion_refused"]
     assert after["sync_refused"] == before["sync_refused"]
-    if sys.platform == "linux":
-        text = json.dumps(direct, sort_keys=True)
-        assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == "9bea40ea3b5cd8b4"
+    text = json.dumps(direct, sort_keys=True)
+    assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == "9bea40ea3b5cd8b4"

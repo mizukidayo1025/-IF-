@@ -1,7 +1,8 @@
 # offline CI on Linux, Windows and macOS (#48), on every pull request to main and
-# by hand. Each OS builds and installs the Rust kernels (native/)
-# and runs the tests with them. The Linux-only checks run as jobs of their own beside
-# them: the tests without the kernels, the hashes of every path, and lint.
+# by hand. Each OS builds and installs the Rust kernels (native/), runs the tests with
+# them and checks the hashes of every path against the same fixture: on Linux in a job
+# of its own beside the tests, on Windows and macOS as a step after them. Lint runs on
+# Linux only.
 name: オフラインCI
 
 on:
@@ -42,6 +43,7 @@ jobs:
         with:
           workspaces: native
       - name: Rustのkernelを作って導入
+        id: native
         shell: bash
         run: |
           rustup toolchain install stable --profile minimal
@@ -51,6 +53,13 @@ jobs:
           python -c "import sheltersim.native"
       - name: 短時間offline test
         run: python -m pytest -m "not long_simulation" -n auto
+      # The same expected hashes as on Linux, where the gate job checks them (step 4, L13): a Run
+      # gives the same bytes on every OS. Runs even when a test failed, so both report.
+      - name: 全経路のハッシュを確認
+        id: gate
+        if: ${{ runner.os != 'Linux' && !cancelled() && steps.native.outcome == 'success' }}
+        shell: bash
+        run: python benchmarks/gate_all_paths.py --output "$RUNNER_TEMP/gate" --expect fixtures/gate-all-paths.json
       - name: test結果を保存
         if: always()
         uses: actions/upload-artifact@v4
@@ -61,6 +70,14 @@ jobs:
           if-no-files-found: ignore
           # .test-results is a dot directory, which upload-artifact skips by default.
           include-hidden-files: true
+      - name: 全経路のハッシュを保存
+        if: ${{ !cancelled() && steps.gate.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate-${{ matrix.os }}
+          path: ${{ runner.temp }}/gate/summary.json
+          retention-days: 7
+          if-no-files-found: ignore
 
   gate:
     name: hashes of every path (ubuntu-latest)

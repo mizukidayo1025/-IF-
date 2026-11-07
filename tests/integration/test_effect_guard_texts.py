@@ -7,8 +7,8 @@ turns down or with no target a failed one, each with the Python rule's text (sav
 loop, compares all that was saved with what the Python step saved from it, and checks the record
 against the outcome the guard's Python rule gave. Both are gone (`kernel_only`,
 docs/rust-port/lanes/l8-texts-events.md, and lane L10 for the step): the outcome is written down
-from the rule, and what the step saved is a digest taken once from it (45a9bc9), pinned on Linux,
-as the gate's hashes are.
+from the rule, and what the step saved is a digest taken once from it (45a9bc9), pinned on every
+OS, as the gate's hashes are.
 """
 
 from __future__ import annotations
@@ -153,8 +153,7 @@ def _dispatched(
     controller._run_dispatch_phase(controller.world, 0)
     after = _counts()
     text = json.dumps(_saved(controller), sort_keys=True)
-    if sys.platform == "linux":
-        assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == python_saved
+    assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == python_saved
     record = controller.world.event_log.find(event_id)
     return record, before, after
 

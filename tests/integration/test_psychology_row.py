@@ -5,8 +5,8 @@ only rule of the distress monitor and the long-term distress
 (docs/rust-port/lanes/p5-template-namespace.md): the Python rules of domain/psychological_state.py
 and domain/distress_monitor.py are gone (lane L10). What they answered, on small worlds, on values
 no scenario reaches and on whole ticks, was recorded once as digests (ANSWERS), which the kernel's
-answers must equal on Linux. What their checks turned down, the step refuses (KernelRefusal) before
-anything changes.
+answers must equal on every OS. What their checks turned down, the step refuses (KernelRefusal)
+before anything changes.
 """
 
 from __future__ import annotations
@@ -15,7 +15,6 @@ import copy
 import hashlib
 import json
 import random
-import sys
 from types import SimpleNamespace
 from typing import Any
 
@@ -63,8 +62,7 @@ def _answers(name: str, texts: list[str]) -> None:
     digest = hashlib.sha256()
     for text in texts:
         digest.update(text.encode() + b"\n")
-    if sys.platform == "linux":
-        assert digest.hexdigest() == ANSWERS[name], name
+    assert digest.hexdigest() == ANSWERS[name], name
 
 
 def _state(*agents: str) -> dict[str, Any]:

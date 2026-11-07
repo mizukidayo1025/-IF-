@@ -16,7 +16,6 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-import sys
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -60,9 +59,8 @@ def _digest(value: Any) -> str:
 
 def _python_s(value: Any, digest: str) -> None:
     """`value`'s digest is the one of what the Python steps made, recorded from them on 45a9bc9.
-    Pinned on Linux (libm), as the gate's hashes are."""
-    if sys.platform == "linux":
-        assert _digest(value) == digest
+    Pinned on every OS, as the gate's hashes are."""
+    assert _digest(value) == digest
 
 
 def _indexed_controller(scenario: Any) -> tuple[WorldState, OfflineSimulationController, Any]:

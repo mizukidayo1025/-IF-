@@ -165,10 +165,9 @@ def _run_comparing(scenario: Any, seen: Counter[str]) -> WorldState:
 def _is_the_python_rules_run(world: WorldState, digest: str) -> None:
     """The world at the end is the one the Python rules made: its digest, taken from that run.
 
-    Pinned on Linux, as the gate's hashes are (libm).
+    Pinned on every OS, as the gate's hashes are.
     """
-    if sys.platform == "linux":
-        assert _digest(_bytes(world)) == digest
+    assert _digest(_bytes(world)) == digest
 
 
 def test_conditions_of_the_form_are_python_s() -> None:
@@ -504,16 +503,15 @@ def _assigned_care(world: WorldState, kind: str) -> tuple[ScheduledEvent, str]:
 
 def _care_is_python_s(world: WorldState, kind: str, digest: str) -> dict[str, Any]:
     """The kernel's care: its records and world are the deleted Python rule's, by the digest of
-    what that rule returned and left, recorded once. Pinned on Linux (floats of the platform's
-    libm); lane L13 pins them on every OS."""
+    what that rule returned and left, recorded once. Pinned on every OS, as the gate's
+    hashes are."""
     event, _ = _assigned_care(world, kind)
     handler = StaffSupportCompletionHandler(cooldown_minutes=30, require_colocated=True)
     records = native.rules("support").complete_support(handler, world, event)
     assert world._core.mirror("body_state_v1").verify()
     assert len(records) == 1
-    if sys.platform == "linux":
-        found = {"records": [item.to_dict() for item in records], "world": _bytes(world)}
-        assert _digest(found) == digest
+    found = {"records": [item.to_dict() for item in records], "world": _bytes(world)}
+    assert _digest(found) == digest
     return records[0].event.payload
 
 

@@ -18,9 +18,6 @@ from support.paths import BENCHMARKS, GATE_ALL_PATHS
 GATE = BENCHMARKS / "gate_all_paths.py"
 # Starts and ends quickly, on Scenarios small enough for two runs of each variant.
 SMALL = "branch_commands"
-# The expected hashes hold on Linux only: the other systems have other math libraries until
-# stage B5 (docs/rust-port.md).
-LINUX_ONLY = pytest.mark.skipif(sys.platform != "linux", reason="hashes are pinned on Linux")
 
 
 def _gate(*arguments: object) -> subprocess.CompletedProcess[str]:
@@ -34,7 +31,6 @@ def _gate(*arguments: object) -> subprocess.CompletedProcess[str]:
     )
 
 
-@LINUX_ONLY
 def test_a_scenario_matches_its_expected_hashes_and_writes_hashes_and_timing(tmp_path: Path):
     done = _gate("--output", tmp_path / "run", "--only", SMALL, "--expect", GATE_ALL_PATHS)
 
@@ -98,7 +94,6 @@ def test_the_expected_hashes_list_every_scenario_and_every_selectable_model(tmp_
     assert {f"model__{domain}__{model_id}" for domain, model_id in models} <= expected
 
 
-@LINUX_ONLY
 @pytest.mark.long_simulation
 def test_every_scenario_of_the_gate_matches_its_expected_hashes(tmp_path: Path):
     done = _gate("--output", tmp_path / "run", "--expect", GATE_ALL_PATHS)

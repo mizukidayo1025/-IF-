@@ -5,7 +5,7 @@ so the kernel must raise what the rule raises, in the rule's order of checks, af
 writes and no others. Each case reaches one check: the outcome must be the kernel's own (not a
 refusal), with the rule's text. The Python rules are gone (lane L10, `kernel_only`): each case was
 run with them once (2d8fb46), and the class they raised and the world they left are pinned in
-PYTHON_GAVE, per test and in call order, as a digest compared on Linux (libm), as the gate's
+PYTHON_GAVE, per test and in call order, as a digest compared on every OS, as the gate's
 hashes are. docs/rust-port/lanes/l8-texts-events.md.
 """
 
@@ -14,7 +14,6 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-import sys
 from typing import Any
 
 import pytest
@@ -182,8 +181,7 @@ def _python_gave(*values: Any) -> None:
     """These values (an outcome's class, worlds) are what the Python rule gave at this call."""
     name, index = _SCOPE
     _SCOPE[1] += 1
-    if sys.platform == "linux":
-        assert _digest(*values) == PYTHON_GAVE[name][index]
+    assert _digest(*values) == PYTHON_GAVE[name][index]
 
 
 def _says(rule: Any, world: WorldState, text: str, *arguments: Any, **options: Any) -> None:

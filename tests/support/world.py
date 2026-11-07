@@ -222,8 +222,8 @@ def world_digest(world: Any) -> str:
     metric state, the number of log records and the open tasks' IDs.
 
     For a step whose Python rule is gone (`kernel_only`): the digest that rule's world had, written
-    down from it before it went, against the kernel's world. Floats come from libm, so a test
-    compares it on Linux only, as the gate's hashes are pinned.
+    down from it before it went, against the kernel's world. Its floats are the same bits on
+    every OS, as the gate's hashes are.
     """
     import hashlib
     import json

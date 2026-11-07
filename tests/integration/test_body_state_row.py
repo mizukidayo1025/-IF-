@@ -2,8 +2,8 @@
 
 (docs/rust-port/lanes/m3-body-state.md). The Python rule is gone (lane L10, `kernel_only`): each
 case of small worlds and values no scenario reaches was run with it once (2d8fb46), and the tree it
-left is pinned in PYTHON_GAVE, per test and in call order, as a digest compared on Linux (libm), as
-the gate's hashes are.
+left is pinned in PYTHON_GAVE, per test and in call order, as a digest compared on every OS, as the
+gate's hashes are.
 """
 
 from __future__ import annotations
@@ -12,7 +12,6 @@ import copy
 import hashlib
 import json
 import random
-import sys
 from types import MappingProxyType
 from typing import Any
 
@@ -72,8 +71,7 @@ def _python_gave(*values: Any) -> None:
     """These values are what the Python rule left at this call of the test."""
     name, index = _SCOPE
     _SCOPE[1] += 1
-    if sys.platform == "linux":
-        assert _digest(*values) == PYTHON_GAVE[name][index]
+    assert _digest(*values) == PYTHON_GAVE[name][index]
 
 
 def _kernel() -> Any:

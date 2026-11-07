@@ -2,7 +2,7 @@
 
 The Python rules of policies/psychology.py and policies/alternatives.py are gone (lane L10). What
 they answered, on worlds whose values no scenario reaches and on whole ticks, was recorded once as
-digests (ANSWERS), which the kernel's answers must equal on Linux; a float's bits all show in the
+digests (ANSWERS), which the kernel's answers must equal on every OS; a float's bits all show in the
 JSON text. What the deleted rules' checks turned down, the kernels turn down, and the steps raise
 KernelRefusal before anything changes.
 """
@@ -13,7 +13,6 @@ import copy
 import hashlib
 import json
 import random
-import sys
 from dataclasses import fields, replace
 from types import SimpleNamespace
 from typing import Any
@@ -70,8 +69,7 @@ def _answers(name: str, texts: list[str]) -> None:
     digest = hashlib.sha256()
     for text in texts:
         digest.update(text.encode() + b"\n")
-    if sys.platform == "linux":
-        assert digest.hexdigest() == ANSWERS[name], name
+    assert digest.hexdigest() == ANSWERS[name], name
 
 
 def _rules() -> Any:

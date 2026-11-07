@@ -12,7 +12,6 @@ import copy
 import hashlib
 import json
 import struct
-import sys
 
 import pytest
 
@@ -56,8 +55,7 @@ def test_the_psychology_kernel_gives_the_deltas_of_the_deleted_python_step(
     monkeypatch.setattr(OfflineSimulationController, "_psychology_update", checked)
     run_scenario(scenario, tmp_path, trace_level=TraceLevel.OFF)
     assert compared == list(range(360))
-    if sys.platform == "linux":
-        assert digest.hexdigest() == PSYCHOLOGY_DELTAS
+    assert digest.hexdigest() == PSYCHOLOGY_DELTAS
 
 
 def _outcome(validate, world) -> str:
@@ -507,7 +505,6 @@ _VIEW_HASHES = {
 }
 
 
-@pytest.mark.skipif(sys.platform != "linux", reason="the people's floats come from libm")
 @pytest.mark.parametrize("information", [False, True])
 @pytest.mark.parametrize("schema_version", [None, 6])
 @pytest.mark.parametrize("life_context", [False, True])
