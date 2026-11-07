@@ -105,11 +105,6 @@ class _Check:
     AFTER_CHANGE = frozenset(
         {
             "EffectProgramPopulationHandler.apply",
-            "apply_population_presence_command",
-            "_apply_presence_action",
-            "queue_arrivals",
-            "queue_departures",
-            "apply_arrival_approach_completion",
             "AgentTravelCompletionHandler.apply",
             # A worker who became unavailable: the operation stops, then the event is suppressed.
             "StaffOperationArrivalHandler.apply",

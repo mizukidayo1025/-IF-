@@ -17,7 +17,7 @@ import pytest
 from sheltersim import native
 from sheltersim.core.state_mirror import field_stamp, namespace_stamp, same_stamp
 from sheltersim.core.world import StateInvariantError, WorldState
-from sheltersim.domain.population import _append_presence_history, admit_pending_arrivals
+from sheltersim.domain.population import admit_pending_arrivals
 from sheltersim.domain.simulator_state import validate_simulator_extensions
 from sheltersim.experiments.runner import run_scenario
 from sheltersim.experiments.scenario import ScenarioSpec
@@ -324,24 +324,6 @@ def test_a_broken_pending_arrival_stops_the_check(finished_world) -> None:
     world.model_state["population_dynamics_v1"]["pending_arrivals"].append({"broken": True})
     with pytest.raises((StateInvariantError, ValueError, KeyError)):
         world.validate_after_tick()
-
-
-def test_the_presence_history_grows_in_place_up_to_its_bound() -> None:
-    class Transition:
-        def __init__(self, number: int) -> None:
-            self.number = number
-
-        def model_dump(self, mode: str) -> dict[str, int]:
-            assert mode == "json"
-            return {"number": self.number}
-
-    held = {"history": [{"number": number} for number in range(20_000)]}
-    history = held["history"]
-    _append_presence_history(held, Transition(20_000))  # type: ignore[arg-type]
-    assert held["history"] is history
-    assert len(history) == 20_000
-    assert history[0] == {"number": 1}
-    assert history[-1] == {"number": 20_000}
 
 
 def test_a_waiting_list_that_stays_the_same_is_not_written(finished_world) -> None:

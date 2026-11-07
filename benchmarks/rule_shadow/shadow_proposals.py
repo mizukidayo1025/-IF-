@@ -127,9 +127,10 @@ def prepare(output: str) -> None:
         recorder.seen[f"action.{action}"] += 1
         where = f"{action} of {proposal.agent_id} at {world.minute_index}"
         stand_in = SimpleNamespace(world=twin)
-        # The rule itself: its kernel would read the world's rows, not the copy.
+        # The kernel of the capture reads the world's rows, not the copy's: the proposal changed
+        # none of the values it copies.
         capture = propose.capture_social_state_context
-        propose.capture_social_state_context = capture.__wrapped__
+        propose.capture_social_state_context = lambda _twin, ids: capture(world, ids)
         try:
             expected = propose.ProposePhase._apply_effect(stand_in, proposal)
         except Exception as raised:  # noqa: BLE001 - only compared with what the kernel did

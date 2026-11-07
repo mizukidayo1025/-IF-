@@ -89,7 +89,7 @@ def prepare(output: str) -> None:
             if seen[name] != now[name]:
                 recorder.differ(f"{flag} unchanged at {world.minute_index}, but its bytes changed")
         if unchanged["dynamics"]:
-            # Here: shadow_population_rules.py replaces this rule's kernel before it is imported.
+            # The whole validation, which the skip stands for.
             from sheltersim.domain.population import validate_population_dynamics_state
 
             try:

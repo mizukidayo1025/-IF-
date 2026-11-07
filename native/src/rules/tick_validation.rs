@@ -1143,7 +1143,8 @@ fn population_dynamics(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     }
     if !no_context || !exact_list(&pending)?.is_empty() {
         // Someone waits, or has a context: `validate_population_dynamics_state` reads those.
-        crate::rules::population::validate_population_dynamics_state(world)?;
+        // Its ValueError is the validation's to raise: this says Unsupported.
+        crate::rules::population::as_refusal(crate::rules::population::validate_population_dynamics_state(world))?;
         return Ok(true);
     }
     let initial = exact_list(&initial)?;
