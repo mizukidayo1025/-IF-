@@ -6,11 +6,10 @@ from typing import Any
 
 from sheltersim import native
 from sheltersim.contracts.extensions import FacilityServicePoint
-from sheltersim.core.kernels import kernel_first
+from sheltersim.core.kernels import kernel_first, kernel_only
 from sheltersim.core.state_mirror import register_rust_validator
 from sheltersim.core.world import WorldState
 from sheltersim.domain.geometry_overlay import parsed_facility_geometry
-from sheltersim.events.models import EventKind, EventLogRecord, EventStatus, ScheduledEvent
 
 FACILITY_QUEUES_STATE_KEY = "facility_queues_v1"
 FACILITY_QUEUES_POLICY_VERSION = "independent-facility-queues-v1"
@@ -30,50 +29,33 @@ def service_points(world: WorldState) -> tuple[FacilityServicePoint, ...]:
     return parsed_facility_geometry(raw).service_points
 
 
-@kernel_first("facility_queues", "independent_queues_required")
+@kernel_only("facility_queues", "independent_queues_required")
 def independent_queues_required(configs: dict[str, Any]) -> bool:
-    """Opt in only when queue IDs change legacy one-FIFO-per-facility semantics."""
-    raw = configs.get("facility_geometry")
-    if not isinstance(raw, dict):
-        return False
-    points = parsed_facility_geometry(raw).service_points
-    by_facility: dict[str, int] = {}
-    for point in points:
-        by_facility[point.facility_id] = by_facility.get(point.facility_id, 0) + 1
-    return any(point.queue_id != point.facility_id for point in points) or any(
-        count > 1 for count in by_facility.values()
-    )
+    """Opt in only when queue IDs change legacy one-FIFO-per-facility semantics.
+
+    True when the signed `facility_geometry` config has a service point whose queue ID is not its
+    facility's ID, or a facility with two points; False without a config dict. A config that
+    `parsed_facility_geometry` turns down raises its error.
+    """
 
 
-@kernel_first("facility_queues", "is_legacy_queue_checkpoint")
+@kernel_only("facility_queues", "is_legacy_queue_checkpoint")
 def is_legacy_queue_checkpoint(world: WorldState) -> bool:
-    return (
-        independent_queues_required(world.model_configs)
-        and world.model_state.get(FACILITY_QUEUES_STATE_KEY) is None
-        and world.model_state.get(FACILITY_QUEUES_LEGACY_MODE_KEY) == FACILITY_QUEUES_LEGACY_MODE
-    )
+    """A checkpoint from before independent queues, migrated with the legacy marker.
+
+    True when independent queues are required, `facility_queues_v1` is absent (or None), and
+    `facility_queues_legacy_mode_v1` equals FACILITY_QUEUES_LEGACY_MODE.
+    """
 
 
-@kernel_first("facility_queues", "create_facility_queue_state")
+@kernel_only("facility_queues", "create_facility_queue_state")
 def create_facility_queue_state(world: WorldState) -> dict[str, Any]:
-    points = service_points(world)
-    if not independent_queues_required(world.model_configs):
-        raise ValueError("facility_queues_v1 requires independent explicit service points")
-    return {
-        "schema_version": 1,
-        "policy_version": FACILITY_QUEUES_POLICY_VERSION,
-        "queues": {
-            point.queue_id: {
-                "facility_id": point.facility_id,
-                "service_point_id": point.id,
-                "queued_request_ids": [],
-                "active_request_ids": [],
-                "last_stall": None,
-            }
-            for point in sorted(points, key=lambda row: row.queue_id)
-        },
-        "requests": {},
-    }
+    """The empty `facility_queues_v1` state: one queue per signed service point, by queue ID.
+
+    Each queue holds its facility and point IDs, empty `queued_request_ids` and
+    `active_request_ids`, and no `last_stall`. ValueError("facility_queues_v1 requires
+    independent explicit service points") when independent queues are not required.
+    """
 
 
 def validate_facility_queue_state(world: WorldState) -> None:
@@ -244,52 +226,29 @@ def validate_facility_queue_state(world: WorldState) -> None:
             raise ValueError("queue movement journey has no matching queued request")
 
 
-@kernel_first("facility_queues", "choose_queue_id")
+@kernel_only("facility_queues", "choose_queue_id")
 def choose_queue_id(world: WorldState, facility_id: str, agent_id: str) -> str | None:
-    """Choose an accessible queue by current load and stable queue ID."""
-    state = world.model_state.get(FACILITY_QUEUES_STATE_KEY)
-    if not isinstance(state, dict):
-        return None
-    traits = world.model_configs.get("population", {}).get("people", {}).get(agent_id, {})
-    access_tags = set(traits.get("accessibility_needs", ()))
-    agent = world.agents.get(agent_id)
-    if agent is not None:
-        access_tags.add(agent.profile.mobility.value)
-    candidates: list[tuple[int, str]] = []
-    for point in service_points(world):
-        if point.facility_id != facility_id:
-            continue
-        if (
-            point.access.accessibility == "restricted"
-            and not set(point.access.required_access_tags) <= access_tags
-        ):
-            continue
-        queue = state["queues"][point.queue_id]
-        candidates.append(
-            (len(queue["queued_request_ids"]) + len(queue["active_request_ids"]), point.queue_id)
-        )
-    return min(candidates)[1] if candidates else None
+    """Choose an accessible queue by current load and stable queue ID.
+
+    Among the facility's signed points, a restricted point counts only for an Agent with all its
+    `required_access_tags` (the person's `accessibility_needs` and mobility). The queue with the
+    fewest queued and active requests wins, then the smaller queue ID. None without the state or
+    without such a point.
+    """
 
 
 def point_for_queue(world: WorldState, queue_id: str) -> FacilityServicePoint | None:
     return next((point for point in service_points(world) if point.queue_id == queue_id), None)
 
 
-@kernel_first("facility_queues", "queue_ids_for_facility")
+@kernel_only("facility_queues", "queue_ids_for_facility")
 def queue_ids_for_facility(world: WorldState, facility_id: str) -> tuple[str, ...]:
-    return tuple(
-        sorted(
-            point.queue_id for point in service_points(world) if point.facility_id == facility_id
-        )
-    )
+    """The queue IDs of the facility's signed service points, sorted."""
 
 
-@kernel_first("facility_queues", "facility_has_independent_queues")
+@kernel_only("facility_queues", "facility_has_independent_queues")
 def facility_has_independent_queues(world: WorldState, facility_id: str) -> bool:
-    state = world.model_state.get(FACILITY_QUEUES_STATE_KEY)
-    return isinstance(state, dict) and any(
-        row.get("facility_id") == facility_id for row in state.get("queues", {}).values()
-    )
+    """Whether `facility_queues_v1` holds a queue of this facility."""
 
 
 @kernel_first("facility_queues", "queue_head_agent_ids")
@@ -305,49 +264,31 @@ def queue_head_agent_ids(world: WorldState, facility_id: str) -> set[str]:
     return set(world.facilities[facility_id].resource_queue_agent_ids[:1])
 
 
-@kernel_first("facility_queues", "request_for_task")
+@kernel_only("facility_queues", "request_for_task")
 def request_for_task(world: WorldState, task_id: str) -> dict[str, Any] | None:
-    state = world.model_state.get(FACILITY_QUEUES_STATE_KEY)
-    request = state.get("requests", {}).get(task_id) if isinstance(state, dict) else None
-    if request is not None:
-        return request
-    if isinstance(state, dict):
-        return next(
-            (row for row in state["requests"].values() if row["active_task_id"] == task_id), None
-        )
-    return None
+    """The live request whose ID is task_id, else the one whose `active_task_id` is task_id.
+
+    The state's own record, or None.
+    """
 
 
-@kernel_first("facility_queues", "request_for_agent")
+@kernel_only("facility_queues", "request_for_agent")
 def request_for_agent(
     world: WorldState, agent_id: str, *, queue_id: str | None = None
 ) -> dict[str, Any] | None:
-    """Return the live queue reservation owned by an Agent."""
-    state = world.model_state.get(FACILITY_QUEUES_STATE_KEY)
-    if not isinstance(state, dict):
-        return None
-    return next(
-        (
-            row
-            for row in state["requests"].values()
-            if row["agent_id"] == agent_id and (queue_id is None or row["queue_id"] == queue_id)
-        ),
-        None,
-    )
+    """Return the live queue reservation owned by an Agent.
+
+    The first request of the Agent, in the queue `queue_id` when given: the state's own record,
+    or None.
+    """
 
 
-@kernel_first("facility_queues", "queue_agent_ids")
+@kernel_only("facility_queues", "queue_agent_ids")
 def queue_agent_ids(world: WorldState, queue_id: str) -> list[str]:
-    state = world.model_state.get(FACILITY_QUEUES_STATE_KEY)
-    if not isinstance(state, dict) or queue_id not in state["queues"]:
-        return []
-    return [
-        state["requests"][request_id]["agent_id"]
-        for request_id in state["queues"][queue_id]["queued_request_ids"]
-    ]
+    """The Agents of the queue's queued requests, in order; [] for an unknown queue."""
 
 
-@kernel_first("facility_queues", "enqueue")
+@kernel_only("facility_queues", "enqueue")
 def enqueue(
     world: WorldState,
     *,
@@ -358,70 +299,40 @@ def enqueue(
     service_kind: str,
     requested_minute: int,
 ) -> None:
-    state = world.model_state.get(FACILITY_QUEUES_STATE_KEY)
-    point = point_for_queue(world, queue_id)
-    if not isinstance(state, dict) or point is None or request_id in state["requests"]:
-        raise ValueError("service queue is not installed or request ID is already in use")
-    state["requests"][request_id] = {
-        "request_id": request_id,
-        "queue_id": queue_id,
-        "service_point_id": point.id,
-        "facility_id": point.facility_id,
-        "agent_id": agent_id,
-        "service_kind": service_kind,
-        "requested_minute": requested_minute,
-        "status": "queued",
-        "queue_task_id": task_id,
-        "active_task_id": task_id,
-    }
-    state["queues"][queue_id]["queued_request_ids"].append(request_id)
+    """Add a queued request at the end of the queue.
+
+    The record names the queue's signed point and facility, with `queue_task_id` and
+    `active_task_id` both task_id. ValueError("service queue is not installed or request ID is
+    already in use") when the state is missing, the queue has no signed point, or the request ID is
+    taken.
+    """
 
 
-@kernel_first("facility_queues", "start_service")
+@kernel_only("facility_queues", "start_service")
 def start_service(world: WorldState, request_id: str, active_task_id: str) -> dict[str, Any]:
-    state = world.model_state[FACILITY_QUEUES_STATE_KEY]
-    request = state["requests"][request_id]
-    queue = state["queues"][request["queue_id"]]
-    queue["queued_request_ids"].remove(request_id)
-    queue["active_request_ids"].append(request_id)
-    request["status"] = "active"
-    request["active_task_id"] = active_task_id
-    queue["last_stall"] = None
-    return request
+    """Move a queued request to the queue's active list and return its record.
+
+    The request becomes "active" with active_task_id, and the queue's `last_stall` is cleared.
+    """
 
 
-@kernel_first("facility_queues", "finish_service")
+@kernel_only("facility_queues", "finish_service")
 def finish_service(world: WorldState, task_id: str, *, status: str) -> dict[str, Any] | None:
-    state = world.model_state.get(FACILITY_QUEUES_STATE_KEY)
-    if not isinstance(state, dict):
-        return None
-    request = request_for_task(world, task_id)
-    if request is None:
-        return None
-    queue = state["queues"][request["queue_id"]]
-    collection = "queued_request_ids" if request["status"] == "queued" else "active_request_ids"
-    if request["request_id"] in queue[collection]:
-        queue[collection].remove(request["request_id"])
-    request = dict(request)
-    request["status"] = status
-    state["requests"].pop(request["request_id"], None)
-    queue["last_stall"] = None
-    return request
+    """End the request request_for_task finds: a copy of it with `status`, or None.
+
+    The request leaves its queue's list and the state, and the queue's `last_stall` is cleared.
+    """
 
 
-@kernel_first("facility_queues", "mark_stall")
+@kernel_only("facility_queues", "mark_stall")
 def mark_stall(world: WorldState, queue_id: str, request_id: str, reason: str) -> None:
-    state = world.model_state.get(FACILITY_QUEUES_STATE_KEY)
-    if not isinstance(state, dict) or queue_id not in state["queues"]:
-        return
-    state["queues"][queue_id]["last_stall"] = {
-        "minute": world.minute_index,
-        "request_id": request_id,
-        "reason": reason,
-    }
+    """Record why the queue's head waits: `last_stall` with the minute, request and reason.
+
+    Nothing for an unknown queue or without the state.
+    """
 
 
-@kernel_first("facility_queues", "record_queue_transition")
+@kernel_only("facility_queues", "record_queue_transition")
 def record_queue_transition(
     world: WorldState,
     request: dict[str, Any],
@@ -431,57 +342,13 @@ def record_queue_transition(
     wait_minutes: int | None = None,
     causation_id: str | None = None,
 ) -> None:
-    """Persist typed queue evidence into EventLog without inventing a scheduled event."""
-    sequence = world.allocate_event_sequence()
-    point = point_for_queue(world, request["queue_id"])
-    queue_row = world.model_state[FACILITY_QUEUES_STATE_KEY]["queues"][request["queue_id"]]
-    queued_ids = queue_row["queued_request_ids"]
-    payload = {
-        "schema_version": 1,
-        "record_type": "operations",
-        "event_type": "facility_queue_transition",
-        "event_id": f"facility-queue-transition-{sequence}",
-        "request_id": request["request_id"],
-        "queue_id": request["queue_id"],
-        "service_point_id": request["service_point_id"],
-        "facility_id": request["facility_id"],
-        "agent_id": request["agent_id"],
-        "service_kind": request["service_kind"],
-        "transition": transition,
-        "minute": world.minute_index,
-        "requested_minute": request["requested_minute"],
-        "task_id": task_id,
-        "queue_position": (
-            queued_ids.index(request["request_id"]) + 1
-            if request["request_id"] in queued_ids
-            else None
-        ),
-        "service_capacity_concurrent": point.service_capacity if point is not None else None,
-        "wait_minutes": wait_minutes,
-        "causation_id": causation_id,
-    }
-    event = ScheduledEvent(
-        event_id=f"facility-queue-transition-{sequence}",
-        kind=EventKind.ENDOGENOUS,
-        due_minute=world.minute_index,
-        priority=0,
-        sequence=sequence,
-        event_type="facility_queue_transition",
-        payload=payload,
-        source_id=FACILITY_QUEUES_POLICY_VERSION,
-        causation_id=causation_id,
-        provenance={
-            "source_type": "assumption",
-            "source_id": "ASM-FACILITY-QUEUES-V1",
-            "policy_version": FACILITY_QUEUES_POLICY_VERSION,
-        },
-    )
-    from sheltersim.contracts.operations import FacilityQueueTransitionReceipt
+    """Persist typed queue evidence into EventLog without inventing a scheduled event.
 
-    FacilityQueueTransitionReceipt.model_validate(payload)
-    world.event_log.append(
-        EventLogRecord(event=event, realized_minute=world.minute_index, status=EventStatus.APPLIED)
-    )
+    Takes the next event sequence and appends an applied `facility_queue_transition` record,
+    `facility-queue-transition-<sequence>`, whose payload FacilityQueueTransitionReceipt checks:
+    the request's IDs, the transition, the minute, its place in the queue (1-based, or None when
+    not queued), the point's concurrent capacity, the wait and the cause.
+    """
 
 
 register_rust_validator(FACILITY_QUEUES_STATE_KEY, native.rules("facility_queues").validate)

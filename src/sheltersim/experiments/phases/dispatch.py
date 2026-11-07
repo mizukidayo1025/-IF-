@@ -6,26 +6,20 @@ from collections.abc import Mapping
 from typing import Any
 
 from sheltersim import native
-from sheltersim.core.kernels import kernel_first
+from sheltersim.core.kernels import kernel_only
 from sheltersim.core.world import WorldState
 from sheltersim.domain.action_lifecycle import (
     record_applied_action_completion,
     record_applied_population_exit,
 )
 from sheltersim.domain.agent_dynamics import learn_facility
-from sheltersim.domain.care_receipts import (
-    append_applied_care_transition,
-    care_receipt_for_request,
-    care_source_ids_for_agent,
-    ingest_applied_shared_operation_records,
-)
+from sheltersim.domain.care_receipts import ingest_applied_shared_operation_records
 from sheltersim.domain.information import INFORMATION_SPREAD_STATE_KEY
 from sheltersim.domain.models import (
     Activity,
     AgentInformationState,
     InformationBeliefStatus,
     InformationTruthStatus,
-    SupportRequestStatus,
     TypedMessage,
 )
 from sheltersim.domain.movement import MOVEMENT_STATE_KEY, finish_movement
@@ -87,52 +81,25 @@ class DispatchPhase:
                 if outcome.event.event_type == "support_request_timeout":
                     self._record_request_interrupted(world, outcome.event)
 
-    @kernel_first("support", "record_started")
+    @kernel_only("support", "record_started")
     def _record_staff_support_started(self, world: WorldState, event: ScheduledEvent) -> None:
-        request_id = event.payload.get("request_id")
-        request = world.support_requests.get(request_id)
-        prior = care_receipt_for_request(world, request_id)
-        # A request keeps the household it was made in, as its
-        # completion does; a later reunion must not change it (#179).
-        if (
-            request is not None
-            and prior is not None
-            and request.status is SupportRequestStatus.ASSIGNED
-            and request.assigned_staff_id == event.payload.get("staff_id")
-            and world.agents[request.agent_id].activity is Activity.SEEKING_HELP
-        ):
-            append_applied_care_transition(
-                world,
-                request_id=request.id,
-                agent_id=request.agent_id,
-                household_id=prior.get("household_id"),
-                support_kind=prior["support_kind"],
-                status="started",
-                staff_id=request.assigned_staff_id,
-                causation_id=request.task_id,
-                source_ids=care_source_ids_for_agent(world, request.agent_id),
-            )
+        """Append the "started" care transition of a staff trip's arrival at its request.
 
-    @kernel_first("support", "record_interrupted")
+        Only for a request with a care receipt that is still ASSIGNED to the trip's staff member,
+        whose person is SEEKING_HELP. The transition keeps the household the receipt was made in,
+        as the completion does; a later reunion must not change it (#179). Its causation is the
+        request's task, its staff the assigned one, and its sources the person's. Nothing for an
+        event without a request.
+        """
+
+    @kernel_only("support", "record_interrupted")
     def _record_request_interrupted(self, world: WorldState, event: ScheduledEvent) -> None:
-        request_id = event.payload.get("request_id")
-        request = world.support_requests.get(request_id)
-        prior = care_receipt_for_request(world, request_id) if isinstance(request_id, str) else None
-        if (
-            request is not None
-            and prior is not None
-            and request.status is SupportRequestStatus.UNRESOLVED
-        ):
-            append_applied_care_transition(
-                world,
-                request_id=request.id,
-                agent_id=request.agent_id,
-                household_id=prior.get("household_id"),
-                support_kind=prior["support_kind"],
-                status="interrupted",
-                causation_id=event.event_id,
-                source_ids=care_source_ids_for_agent(world, request.agent_id),
-            )
+        """Append the "interrupted" care transition of an applied support_request_timeout.
+
+        Only for an UNRESOLVED request with a care receipt; the receipt's household and kind, the
+        timeout event as the causation, and the person's sources. Nothing for an event without a
+        request.
+        """
 
     def _refresh_space_after_geometry_change(self, outcomes: tuple[Any, ...]) -> None:
         geometry_changed = any(
@@ -270,29 +237,16 @@ class DispatchPhase:
                 trigger_event_id=event.event_id,
             )
 
-    @kernel_first("travel", "schedule_return")
+    @kernel_only("travel", "schedule_return")
     def _schedule_return_to_initial_zone(
         self, world: WorldState, service_event: ScheduledEvent
     ) -> None:
-        agent_id = service_event.payload.get("agent_id")
-        if not isinstance(agent_id, str) or agent_id not in world.agents:
-            return
-        agent = world.agents[agent_id]
-        destination = agent.profile.initial_zone_id
-        if agent.zone_id == destination:
-            return
-        route = self._route(agent.zone_id, destination, agent.id)
-        if route is None:
-            return
-        self._schedule_travel(
-            agent_id=agent.id,
-            route=route,
-            purpose="return",
-            facility_id=None,
-            minute=world.minute_index,
-            causation_id=service_event.event_id,
-            validate_state=False,
-        )
+        """Walk the event's person back to their initial zone after a service.
+
+        Nothing for an unknown person, one already there, or no route (`_route`). Otherwise a
+        "return" trip of `_schedule_travel` from this minute, caused by the service event, without
+        a facility and without validating the whole state.
+        """
 
 
 # Which step a toilet's completion leads to, for the table of rules/dispatch.rs. A patch of the

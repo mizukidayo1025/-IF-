@@ -1,4 +1,7 @@
-"""Compare every kernel of native/src/rules/movement.rs with its Python rule at each call.
+"""Compare the kernels of native/src/rules/movement.rs with their Python rules at each call.
+
+`advance_movement` is compared. The other rules of domain/movement.py have no Python rule left to
+compare (`kernel_only`).
 
 A writer's kernel runs on the world first, on a plain copy taken before it, and the Python rule then
 runs on that copy with the world's other parts: it must give the same document and result. Key order
@@ -142,49 +145,7 @@ def prepare(output: str) -> None:
 
         return run
 
-    for name in ("advance_movement", "start_movement", "finish_movement"):
-        setattr(rules, name, writer(name, getattr(rules, name)))
-
-    def reader(kernel_name: str, rule_name: str) -> Any:
-        """A kernel that changes nothing: the repr of the rule's result, which shows float bits."""
-        kernel = getattr(rules, kernel_name)
-
-        def run(world: Any, *arguments: Any, **options: Any) -> Any:
-            if isinstance(world, _Twin):
-                raise unsupported("a shadow's copy")
-            recorder.seen[f"{kernel_name}.calls"] += 1
-            try:
-                result = kernel(world, *arguments, **options)
-            except unsupported as reason:
-                recorder.reasons[f"{kernel_name}: {reason}"] += 1
-                raise
-            recorder.seen[f"{kernel_name}.kernel_ran"] += 1
-            try:
-                expected = getattr(domain(), rule_name).__wrapped__(world, *arguments, **options)
-            except Exception as raised:  # noqa: BLE001 - only compared with what the kernel did
-                recorder.differ(
-                    f"{kernel_name}: the kernel took what Python turned down: {raised!r:.300}"
-                )
-                return result
-            if repr(result) != repr(expected):
-                recorder.differ(
-                    f"{kernel_name} {arguments!r:.120} {options!r:.120}: "
-                    f"{result!r:.300} is not {expected!r:.300}"
-                )
-            recorder.seen[f"{kernel_name}.values_compared"] += 1
-            recorder.seen[f"{kernel_name}.none"] += result is None
-            return result
-
-        return run
-
-    for kernel_name, rule_name in (
-        ("route_with_movement_time", "route_with_movement_time"),
-        ("route_is_physically_clear", "route_is_physically_clear"),
-        ("plan_in_room_route", "plan_in_room_route"),
-        ("queue_slot_position", "_queue_slot_position"),
-        ("facility_approach_route", "facility_approach_route"),
-    ):
-        setattr(rules, kernel_name, reader(kernel_name, rule_name))
+    rules.advance_movement = writer("advance_movement", rules.advance_movement)
 
     validate_kernel = rules.validate
 

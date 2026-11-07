@@ -16,11 +16,7 @@ from sheltersim.domain.facilities import ToiletServiceManager
 from sheltersim.domain.geometry_overlay import geometry_config_scope
 from sheltersim.domain.infrastructure import INFRASTRUCTURE_EVENT_TYPES
 from sheltersim.domain.models import InformationSpreadConfig
-from sheltersim.domain.movement import (
-    MOVEMENT_STATE_KEY,
-    room_route_scope,
-    route_is_physically_clear,
-)
+from sheltersim.domain.movement import MOVEMENT_STATE_KEY, route_is_physically_clear
 from sheltersim.domain.resource_service import ResourceServiceManager
 from sheltersim.domain.simulator_state import (
     initialize_simulator_extensions,
@@ -132,7 +128,6 @@ class OfflineSimulationController(
         self._config_scopes_stamp: tuple[Any, int] | None = None
         self._parsed_configs: dict[tuple[str, int], tuple[Any, Any]] = {}
         self._model_selections: list[tuple[Any, dict[str, str]]] = []
-        self._room_routes: dict[str, Any] = {"routes": {}}
         self._zone_environments: dict[str, Any] = {}
         initialize_simulator_extensions(world)
         validate_simulator_extensions(world)
@@ -364,8 +359,8 @@ class OfflineSimulationController(
 
     def __call__(self, phase: TickPhase, world: WorldState, minute: int, rng: KeyedRandom) -> None:
         self._refresh_config_scopes(world, minute)
-        first, second, third = self._config_scopes()
-        with first, second, third:
+        first, second = self._config_scopes()
+        with first, second:
             self._run_phase(phase, world, minute, rng)
 
     def _refresh_config_scopes(self, world: WorldState, minute: int) -> None:
@@ -386,14 +381,12 @@ class OfflineSimulationController(
                 self._config_scopes_configs = deepcopy(world.model_configs)
                 self._parsed_configs.clear()
                 self._model_selections.clear()
-                self._room_routes = {"routes": {}}
                 self._zone_environments = {}
 
-    def _config_scopes(self) -> tuple[Any, Any, Any]:
+    def _config_scopes(self) -> tuple[Any, Any]:
         return (
             geometry_config_scope(self._parsed_configs),
             selected_models_scope(self._model_selections),
-            room_route_scope(self._room_routes),
         )
 
     def _run_phase(

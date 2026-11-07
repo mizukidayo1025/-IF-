@@ -1,7 +1,7 @@
 """Compare the kernels of the handlers' rules with their Python rules at each call.
 
-rules/care_receipts.rs, rules/toilet.rs, rules/support.rs, `after_arrival` of
-rules/travel_completion.rs and `schedule_return` of rules/travel.rs. The Python rule runs first on a
+rules/care_receipts.rs, rules/toilet.rs, rules/support.rs and `after_arrival` of
+rules/travel_completion.rs. The Python rule runs first on a
 copy of everything it writes (shadow_service.py's, with the receipts, the requests and the body
 state too), and the kernel then runs on the world. All of it must come out the same, floats by their
 bits, with each event's repr and each record. What the kernel refuses isn't compared: the Python
@@ -251,7 +251,7 @@ def prepare(output: str) -> None:
     complete_kernel = toilet.complete
 
     def complete_rule(twin: Any, handler: Any, _world: Any, event: Any) -> None:
-        # What the completion leads to is `schedule_return`, compared by itself.
+        # What the completion leads to is `schedule_return`, which has no Python rule left.
         copy = type(handler)(after_complete=None)
         type(handler).apply.__wrapped__(copy, twin, event)
 
@@ -346,35 +346,8 @@ def prepare(output: str) -> None:
         records,
     )
 
-    def step_rule(name: str) -> Any:
-        def rule(twin: Any, controller: Any, _world: Any, event: Any) -> None:
-            from sheltersim.experiments.phases.dispatch import DispatchPhase
-
-            stand_in = controller_stand_in(controller, twin)
-            getattr(DispatchPhase, name).__wrapped__(stand_in, twin, event)
-
-        return rule
-
-    support.record_interrupted = compared(
-        "record_interrupted",
-        support.record_interrupted,
-        step_rule("_record_request_interrupted"),
-        lambda _controller, world, _event: world,
-    )
-    support.record_started = compared(
-        "record_started",
-        support.record_started,
-        step_rule("_record_staff_support_started"),
-        lambda _controller, world, _event: world,
-    )
-
-    travel = native.rules("travel")
-    travel.schedule_return = compared(
-        "schedule_return",
-        travel.schedule_return,
-        step_rule("_schedule_return_to_initial_zone"),
-        lambda _controller, world, _event: world,
-    )
+    # The steps of experiments/phases/dispatch.py that follow an event (`record_interrupted`,
+    # `record_started`, `schedule_return`) have no Python rule left to compare (`kernel_only`).
 
     walks = native.rules("travel_completion")
 

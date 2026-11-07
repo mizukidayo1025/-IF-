@@ -1,6 +1,7 @@
 //! The physical queues of a facility: `prepare_facility_queue` (`domain/queueing.py`) and what
-//! `domain/movement.py` does for them. The Python rules stay as the comparison base and for every
-//! value these kernels do not decide, which is also how a bad value gets its error text
+//! `domain/movement.py` does for them. The Python rules of `domain/movement.py` stay as the
+//! comparison base and for every value these kernels do not decide. Those of `domain/queueing.py`
+//! are gone (`kernel_only`): their kernels raise the rule's ValueError texts themselves
 //! (docs/rust-port/lanes/m4-queues.md).
 //!
 //! Each kernel is one call that plans, with nothing changed, and then writes. It reads the rows at
@@ -143,19 +144,23 @@ enum Service {
     Meal,
 }
 
-/// `_service_name`.
-fn service_of(kind: &str) -> PyResult<Service> {
-    if !kind.is_ascii() {
-        return unsupported("a facility kind that casefold may change");
-    }
-    if kind.to_ascii_lowercase().contains("toilet") {
+/// `_service_name`: `"toilet" in kind.casefold()`, then the two resource kinds, else its ValueError.
+/// Python folds a kind that is not ASCII, so this runs outside the rows' closures.
+fn service_of(py: Python<'_>, kind: &str) -> PyResult<Service> {
+    let toilet = if kind.is_ascii() {
+        kind.to_ascii_lowercase().contains("toilet")
+    } else {
+        let folded = PyString::new(py, kind).call_method0(intern!(py, "casefold"))?;
+        folded.downcast_exact::<PyString>()?.to_str()?.contains("toilet")
+    };
+    if toilet {
         Ok(Service::Toilet)
     } else if kind == "water_station" {
         Ok(Service::Water)
     } else if kind == "meal_distribution" {
         Ok(Service::Meal)
     } else {
-        unsupported("not a queue service's kind")
+        Err(errors::value_error(format!("unsupported queue service facility kind {}", errors::repr_str(py, kind)?)))
     }
 }
 
@@ -227,11 +232,8 @@ fn config_errors(raw: &Bound<'_, PyAny>, need_weighted: bool) -> PyResult<()> {
         }
     }
     if let Some(schema) = config.get_item(intern!(py, "schema_version"))? {
-        // `1.0` and `True` pass the Python rule: for it to decide.
-        let Some(schema) = errors::exactly_int(&schema)? else {
-            return unsupported("another schema version");
-        };
-        if schema != 1 {
+        // Python's `!=`: `1.0` and `True` pass, as they did in the Python rule.
+        if schema.ne(1)? {
             return config_error("facility_queues requires schema_version 1");
         }
     }
@@ -303,12 +305,8 @@ fn policy_of(world: &Bound<'_, PyAny>) -> PyResult<Policy> {
     let mut retry = None;
     for (key, value) in config.iter() {
         match exact_str(&key)? {
-            "schema_version" => {
-                if exact_int(&value)? != 1 {
-                    return unsupported("another schema version");
-                }
-            }
-            "queue_capacity_by_facility" => {}
+            // `config_errors` has passed it.
+            "schema_version" | "queue_capacity_by_facility" => {}
             "abandon_after_minutes_by_service" => {
                 let Some(given) = as_readable_dict(&value) else {
                     return unsupported("the queue limits are not a dict");
@@ -438,12 +436,12 @@ pub(crate) fn prepare_facility_queue<'py>(
     let facility_name = exact_str(facility_id)?;
     let resource = exact_bool(resource)?;
     let store = entities_of(world)?;
-    let is_empty = EntityStore::with_rows(&store, |rows| {
-        Ok(rows.facilities.get(facility_name).is_none_or(|facility| members(facility, resource).is_empty()))
+    let kind = EntityStore::with_rows(&store, |rows| {
+        Ok(rows.facilities.get(facility_name).filter(|facility| !members(facility, resource).is_empty()).map(|facility| facility.kind.clone()))
     })?;
-    if is_empty {
+    let Some(kind) = kind else {
         return Ok(());
-    }
+    };
     let minute = plain_minute(minute)?;
     let policy = policy_of(world)?;
     let model_state = attribute(world, intern!(py, "model_state"))?;
@@ -457,11 +455,11 @@ pub(crate) fn prepare_facility_queue<'py>(
             return Ok(());
         }
     }
-    let (current, new_order, leaving, service) = EntityStore::with_rows(&store, |rows| {
+    let service = service_of(py, &kind)?;
+    let (current, new_order, leaving) = EntityStore::with_rows(&store, |rows| {
         let Some(facility) = rows.facilities.get(facility_name) else {
             return unsupported("no such facility");
         };
-        let service = service_of(&facility.kind)?;
         let kind = if resource { "resource_service_queue" } else { "toilet_queue" };
         let mut tasks: BTreeMap<&str, (i64, &Arc<str>)> = BTreeMap::new();
         for (_, task) in rows.active_tasks.iter() {
@@ -508,7 +506,7 @@ pub(crate) fn prepare_facility_queue<'py>(
             new_order.push(agent_id);
             leaving.extend(leaves);
         }
-        Ok((queue.clone(), new_order, leaving, service))
+        Ok((queue.clone(), new_order, leaving))
     })?;
     let leave = LeaveCall { world, facility_id, facility_name, resource, minute, service, retry: policy_retry(&policy), queue_id: None };
     plan_all_leaving(&leave, &leaving)?;
@@ -575,11 +573,15 @@ pub(crate) fn prepare_independent_facility_queue<'py>(
     }
     let policy = policy_of(world)?;
     let store = entities_of(world)?;
-    let (leaving, service) = EntityStore::with_rows(&store, |rows| {
+    let kind = EntityStore::with_rows(&store, |rows| Ok(rows.facilities.get(&*facility_id).map(|facility| facility.kind.clone())))?;
+    let Some(kind) = kind else {
+        return unsupported("no such facility");
+    };
+    let service = service_of(py, &kind)?;
+    let leaving = EntityStore::with_rows(&store, |rows| {
         let Some(facility) = rows.facilities.get(&*facility_id) else {
             return unsupported("no such facility");
         };
-        let service = service_of(&facility.kind)?;
         let mut leaving = Vec::new();
         for (agent_id, task_id) in &requests {
             let Some(task) = rows.active_tasks.get(task_id) else {
@@ -598,7 +600,7 @@ pub(crate) fn prepare_independent_facility_queue<'py>(
                 leaving.push(Leaving { agent_id: agent_id.clone(), task_id: task.id.clone(), start: task.start_minute });
             }
         }
-        Ok((leaving, service))
+        Ok(leaving)
     })?;
     if leaving.is_empty() {
         return Ok(());

@@ -14,14 +14,16 @@ shadow_effects.py with this one, whose Python rule comes here (docs/rust-port/la
 
 SHELTERSIM_DISPATCH_COUNT_ONLY=1 only writes `overlay.stats()`, for a plain run.
 
-The rules of domain/temporary_spaces.py have no Python rule left to compare (`kernel_only`).
+The rules of domain/temporary_spaces.py, those of domain/facility_queues.py but
+`queue_head_agent_ids`, `prepare_independent_facility_queue`, and those of
+domain/geometry_overlay.py but `reserve_sleep_bed` and the check of the state have no Python rule
+left to compare (`kernel_only`).
 """
 
 from __future__ import annotations
 
 import copy
 import importlib
-import json
 import os
 from typing import Any
 
@@ -31,7 +33,6 @@ from shadow_kit import Recorder, text, values_in
 OVERLAY_MODULE = "sheltersim.domain.geometry_overlay"
 SPACES_MODULE = "sheltersim.domain.temporary_spaces"
 QUEUES_MODULE = "sheltersim.domain.facility_queues"
-QUEUEING_MODULE = "sheltersim.domain.queueing"
 SERVICE_MODULE = "sheltersim.domain.resource_service"
 TOILET_MODULE = "sheltersim.domain.facilities"
 QUEUES_KEY = "facility_queues_v1"
@@ -39,54 +40,11 @@ OVERLAY_KEY = "geometry_overlay_v1"
 
 # (kernel, module of the rule, rule)
 READERS = {
-    "overlay": (
-        ("available_temporary_room", OVERLAY_MODULE, "available_temporary_room"),
-        ("room_admission_point", OVERLAY_MODULE, "room_admission_point"),
-        (
-            "installed_facility_placement_enabled",
-            OVERLAY_MODULE,
-            "installed_facility_placement_enabled",
-        ),
-        ("installed_facility_point", OVERLAY_MODULE, "installed_facility_point"),
-        ("validate_geometry_change", OVERLAY_MODULE, "validate_geometry_change"),
-    ),
-    "facility_queues": (
-        ("independent_queues_required", QUEUES_MODULE, "independent_queues_required"),
-        ("is_legacy_queue_checkpoint", QUEUES_MODULE, "is_legacy_queue_checkpoint"),
-        ("facility_has_independent_queues", QUEUES_MODULE, "facility_has_independent_queues"),
-        ("create_facility_queue_state", QUEUES_MODULE, "create_facility_queue_state"),
-        ("choose_queue_id", QUEUES_MODULE, "choose_queue_id"),
-        ("queue_ids_for_facility", QUEUES_MODULE, "queue_ids_for_facility"),
-        ("queue_head_agent_ids", QUEUES_MODULE, "queue_head_agent_ids"),
-        ("request_for_task", QUEUES_MODULE, "request_for_task"),
-        ("request_for_agent", QUEUES_MODULE, "request_for_agent"),
-        ("queue_agent_ids", QUEUES_MODULE, "queue_agent_ids"),
-    ),
+    "facility_queues": (("queue_head_agent_ids", QUEUES_MODULE, "queue_head_agent_ids"),),
 }
 WRITERS = {
-    "overlay": (
-        ("release_sleep_bed", OVERLAY_MODULE, "release_sleep_bed"),
-        ("release_temporary_room_admission", OVERLAY_MODULE, "release_temporary_room_admission"),
-        ("admit_to_temporary_room", OVERLAY_MODULE, "admit_to_temporary_room"),
-        ("reserve_sleep_bed", OVERLAY_MODULE, "reserve_sleep_bed"),
-        ("place_installed_facility", OVERLAY_MODULE, "place_installed_facility"),
-        ("apply_geometry_change", OVERLAY_MODULE, "apply_geometry_change"),
-    ),
-    "queues": (
-        (
-            "prepare_independent_facility_queue",
-            QUEUEING_MODULE,
-            "prepare_independent_facility_queue",
-        ),
-    ),
+    "overlay": (("reserve_sleep_bed", OVERLAY_MODULE, "reserve_sleep_bed"),),
 }
-QUEUE_WRITERS = (
-    "enqueue",
-    "start_service",
-    "finish_service",
-    "mark_stall",
-    "record_queue_transition",
-)
 # (rules module, kernel, module of the manager, its class, its method)
 SERVICE_WRITERS = (
     (
@@ -116,11 +74,6 @@ VALIDATORS = (
     ("overlay", "validate_overlay", OVERLAY_MODULE, "validate_geometry_overlay_state"),
     ("facility_queues", "validate", QUEUES_MODULE, "validate_facility_queue_state"),
 )
-# When a writer has nothing to write there is no copy to pay for.
-EMPTY_RELEASE = {
-    "release_sleep_bed": "bed_reservations",
-    "release_temporary_room_admission": "room_admissions",
-}
 
 
 def _plain(value: Any) -> Any:
@@ -153,25 +106,6 @@ def _on_copy(first: Any) -> bool:
     if isinstance(first, dict):
         return False
     return not isinstance(getattr(first, "world", first), WorldState)
-
-
-class _QueueStandIn:
-    """What the rules of domain/facility_queues.py read of a world, as plain copies.
-
-    Those rules run in the middle of others, on a world that isn't valid yet, so it can't be copied
-    through `to_dict`.
-    """
-
-    def __init__(self, world: Any) -> None:
-        self.model_state = {QUEUES_KEY: json.loads(json.dumps(world.model_state[QUEUES_KEY]))}
-        self.model_configs = world.model_configs
-        self.minute_index = world.minute_index
-        self.next_sequence = world.id_counters.get("event", 0)
-        self.event_log = []
-
-    def allocate_event_sequence(self) -> int:
-        self.next_sequence += 1
-        return self.next_sequence - 1
 
 
 def _verify(recorder: Recorder, world: Any, where: str) -> None:
@@ -267,14 +201,10 @@ def prepare(output: str) -> None:
             if inside[0] or _on_copy(world):
                 raise unsupported("a shadow's Python rule")
             recorder.seen[f"{label}.calls"] += 1
-            part = EMPTY_RELEASE.get(label)
             overlay = world.model_state.get(OVERLAY_KEY)
-            trivial = (
-                part is not None
-                and not (isinstance(overlay, dict) and arguments[0] in overlay.get(part, ()))
-            ) or (
-                label == "reserve_sleep_bed"
-                and not (isinstance(overlay, dict) and overlay.get("temporary_rooms"))
+            # Without a room there is no bed to reserve, and no copy to pay for.
+            trivial = label == "reserve_sleep_bed" and not (
+                isinstance(overlay, dict) and overlay.get("temporary_rooms")
             )
             if not trivial:
                 try:
@@ -296,46 +226,6 @@ def prepare(output: str) -> None:
                 recorder.reasons[f"{label}: {reason}"] += 1
                 raise
             recorder.seen[f"{label}.kernel_ran"] += 1
-            return result
-
-        return run
-
-    def queue_writer(label: str, kernel: Any) -> Any:
-        def run(world: Any, *arguments: Any, **options: Any) -> Any:
-            if inside[0] or _on_copy(world):
-                raise unsupported("a shadow's Python rule")
-            recorder.seen[f"{label}.calls"] += 1
-            if QUEUES_KEY not in world.model_state:
-                return kernel(world, *arguments, **options)
-            stand_in = _QueueStandIn(world)
-            before = len(world.event_log.records)
-            expected = python_rule(
-                _unwrapped(_rule(QUEUES_MODULE, label)), stand_in, *arguments, **options
-            )
-            try:
-                result = kernel(world, *arguments, **options)
-            except unsupported as reason:
-                recorder.reasons[f"{label}: {reason}"] += 1
-                if expected[0] == "ok":
-                    recorder.seen[f"{label}.refused_a_success"] += 1
-                raise
-            recorder.seen[f"{label}.kernel_ran"] += 1
-            where = f"{label} at {world.minute_index}"
-            mine = world.model_state[QUEUES_KEY]
-            if expected[0] != "ok":
-                recorder.differ(f"{where}: the kernel took what Python turned down: {expected}")
-            elif text(_plain(result)) != text(expected[1]):
-                recorder.differ(f"{where}: {result!r:.200} is not {expected[1]!r:.200}")
-            elif text(mine) != text(stand_in.model_state[QUEUES_KEY]):
-                recorder.differ(f"{where}: the state differs")
-            else:
-                recorder.seen[f"{label}.values_compared"] += values_in(mine)
-            records = list(world.event_log.records)[before:]
-            if world.id_counters.get("event", 0) != stand_in.next_sequence or json.dumps(
-                [record.to_dict() for record in records], sort_keys=True
-            ) != json.dumps([record.to_dict() for record in stand_in.event_log], sort_keys=True):
-                recorder.differ(f"{where}: the log or the sequence differs")
-            _verify(recorder, world, where)
             return result
 
         return run
@@ -408,11 +298,6 @@ def prepare(output: str) -> None:
                 kernel_name,
                 writer(kernel_name, getattr(rules, kernel_name), rule_module, rule_name),
             )
-    queue_rules = native.rules("facility_queues")
-    for kernel_name in QUEUE_WRITERS:
-        setattr(
-            queue_rules, kernel_name, queue_writer(kernel_name, getattr(queue_rules, kernel_name))
-        )
     for rules_module, kernel_name, module, class_name, method in SERVICE_WRITERS:
         rules = native.rules(rules_module)
         setattr(

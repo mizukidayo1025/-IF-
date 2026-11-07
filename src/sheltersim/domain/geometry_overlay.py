@@ -8,7 +8,6 @@ geometry operator; zone-only capacity never pretends to be a surveyed room.
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
 from contextlib import AbstractContextManager, nullcontext
 from contextvars import ContextVar
 from typing import Any, Literal
@@ -23,13 +22,9 @@ from sheltersim.contracts.extensions import (
     Point2D,
     point_in_polygon,
 )
-from sheltersim.contracts.operations import (
-    EquipmentTransferParameters,
-    TemporaryRoomGeometry,
-)
 from sheltersim.contracts.spatial import SpatialConstraints, SpatialObstacle
 from sheltersim.core.context import ContextScope
-from sheltersim.core.kernels import kernel_first
+from sheltersim.core.kernels import kernel_first, kernel_only
 from sheltersim.core.state_mirror import register_rust_validator
 
 GEOMETRY_OVERLAY_KEY = "geometry_overlay_v1"
@@ -380,42 +375,22 @@ def reserve_sleep_bed(world: Any, agent_id: str) -> dict[str, Any] | None:
     }
 
 
-@kernel_first("overlay", "release_sleep_bed")
+@kernel_only("overlay", "release_sleep_bed")
 def release_sleep_bed(world: Any, agent_id: str) -> bool:
-    state = world.model_state.get(GEOMETRY_OVERLAY_KEY)
-    reservations = state.get("bed_reservations") if isinstance(state, dict) else None
-    return isinstance(reservations, dict) and reservations.pop(agent_id, None) is not None
+    """Drop the Agent's bed reservation; True if it held one."""
 
 
-@kernel_first("overlay", "available_temporary_room")
+@kernel_only("overlay", "available_temporary_room")
 def available_temporary_room(world: Any, zone_id: str) -> str | None:
-    """Return the first active physical room with an available admission slot."""
-    config = world.model_configs.get("geometry_overlay", {})
-    state = world.model_state.get(GEOMETRY_OVERLAY_KEY)
-    if (
-        not isinstance(config, dict)
-        or config.get("schema_version") not in {3, 4}
-        or not isinstance(state, dict)
-    ):
-        return None
-    counts: dict[str, int] = {}
-    admissions = state.get("room_admissions", {})
-    if isinstance(admissions, dict):
-        for row in admissions.values():
-            if isinstance(row, dict) and isinstance(row.get("room_id"), str):
-                counts[row["room_id"]] = counts.get(row["room_id"], 0) + 1
-    for room_id, room in sorted(state.get("temporary_rooms", {}).items()):
-        if (
-            room.get("active") is True
-            and room.get("zone_id") == zone_id
-            and counts.get(room_id, 0) < room.get("people_capacity", 0)
-            and room_admission_point(world, room_id) is not None
-        ):
-            return room_id
-    return None
+    """Return the first active physical room with an available admission slot.
+
+    Rooms of zone_id in room ID order: the first active one with fewer admissions than its
+    people_capacity and a room_admission_point. None before geometry_overlay schema_version 3 or
+    without the overlay state.
+    """
 
 
-@kernel_first("overlay", "admit_to_temporary_room")
+@kernel_only("overlay", "admit_to_temporary_room")
 def admit_to_temporary_room(
     world: Any,
     *,
@@ -424,105 +399,31 @@ def admit_to_temporary_room(
     minute: int,
     event_id: str,
 ) -> Point2D:
-    """Persist a physical room assignment and return a clear in-room arrival point."""
-    state = world.model_state.get(GEOMETRY_OVERLAY_KEY)
-    room = state.get("temporary_rooms", {}).get(room_id) if isinstance(state, dict) else None
-    admissions = state.get("room_admissions") if isinstance(state, dict) else None
-    point = room_admission_point(world, room_id)
-    if (
-        not isinstance(admissions, dict)
-        or room is None
-        or room.get("active") is not True
-        or agent_id not in world.agents
-        or point is None
-        or minute < 0
-    ):
-        raise ValueError("temporary room admission is no longer available")
-    admissions[agent_id] = {
-        "agent_id": agent_id,
-        "room_id": room_id,
-        "admitted_minute": minute,
-        "event_id": event_id,
-        "source_ids": sorted({TEMPORARY_ROOM_INTAKE_SOURCE_ID, *room["source_ids"]}),
-    }
-    return point
+    """Persist a physical room assignment and return a clear in-room arrival point.
+
+    The point is room_admission_point's. The admission record keeps the minute, the event and the
+    room's source_ids with TEMPORARY_ROOM_INTAKE_SOURCE_ID, sorted. ValueError("temporary room
+    admission is no longer available") when the room is unknown or not active, the Agent is
+    unknown, the room has no free point, or minute is negative; nothing is written then.
+    """
 
 
-@kernel_first("overlay", "release_temporary_room_admission")
+@kernel_only("overlay", "release_temporary_room_admission")
 def release_temporary_room_admission(world: Any, agent_id: str) -> bool:
-    state = world.model_state.get(GEOMETRY_OVERLAY_KEY)
-    admissions = state.get("room_admissions") if isinstance(state, dict) else None
-    return isinstance(admissions, dict) and admissions.pop(agent_id, None) is not None
+    """Drop the Agent's room admission; True if it had one."""
 
 
-@kernel_first("overlay", "room_admission_point")
+@kernel_only("overlay", "room_admission_point")
 def room_admission_point(world: Any, room_id: str) -> Point2D | None:
-    """Find a deterministic walkable point in a room, avoiding assigned residents."""
-    state = world.model_state.get(GEOMETRY_OVERLAY_KEY)
-    room = state.get("temporary_rooms", {}).get(room_id) if isinstance(state, dict) else None
-    if not isinstance(room, dict):
-        return None
-    polygon = tuple(Point2D.model_validate(point) for point in room.get("polygon_m", ()))
-    if len(polygon) < 3:
-        return None
-    from sheltersim.contracts.extensions import point_in_polygon
-    from sheltersim.domain.movement import MOVEMENT_STATE_KEY, plan_in_room_route
+    """Find a deterministic walkable point in a room, avoiding assigned residents.
 
-    min_x, max_x = min(point.x for point in polygon), max(point.x for point in polygon)
-    min_y, max_y = min(point.y for point in polygon), max(point.y for point in polygon)
-    admissions = state.get("room_admissions", {})
-    occupied_points = []
-    movement = world.model_state.get(MOVEMENT_STATE_KEY, {})
-    positions = movement.get("positions", {}) if isinstance(movement, dict) else {}
-    for agent_id, admission in admissions.items() if isinstance(admissions, dict) else ():
-        if not isinstance(admission, dict) or admission.get("room_id") != room_id:
-            continue
-        record = positions.get(agent_id, {}) if isinstance(positions, dict) else {}
-        raw_point = record.get("point") if isinstance(record, dict) else None
-        if isinstance(raw_point, dict):
-            occupied_points.append(Point2D.model_validate(raw_point))
-    candidates = [Point2D.model_validate(point) for point in room.get("bed_points_m", ())]
-    step = 0.75
-    x = min_x + step / 2.0
-    inspected = 0
-    while x < max_x and inspected < MAX_ROOM_ADMISSION_POINTS:
-        y = min_y + step / 2.0
-        while y < max_y and inspected < MAX_ROOM_ADMISSION_POINTS:
-            candidate = Point2D(x=x, y=y)
-            if point_in_polygon(candidate, polygon):
-                candidates.append(candidate)
-            inspected += 1
-            y += step
-        x += step
-    unique = {(round(point.x, 8), round(point.y, 8)): point for point in candidates}
-    center_x = sum(point.x for point in polygon) / len(polygon)
-    center_y = sum(point.y for point in polygon) / len(polygon)
-    ordered = sorted(
-        unique.values(),
-        key=lambda point: (
-            (point.x - center_x) ** 2 + (point.y - center_y) ** 2,
-            point.x,
-            point.y,
-        ),
-    )
-    zone_id = room.get("zone_id")
-    for candidate in ordered[:MAX_ROOM_ADMISSION_POINTS]:
-        if any(
-            (candidate.x - occupied.x) ** 2 + (candidate.y - occupied.y) ** 2 < 0.5**2
-            for occupied in occupied_points
-        ):
-            continue
-        if (
-            plan_in_room_route(
-                world,
-                zone_id=zone_id,
-                start=candidate,
-                destination=candidate,
-            )
-            is not None
-        ):
-            return candidate
-    return None
+    The candidates are the room's bed points, then the centres of a 0.75 m grid over the room's
+    bounding box that lie in its polygon (at most MAX_ROOM_ADMISSION_POINTS inspected), one per
+    point rounded to 8 places. The first MAX_ROOM_ADMISSION_POINTS of them, nearest the mean of
+    the polygon's vertices first (then by x, y), are tried: a candidate within 0.5 m of an admitted
+    resident's position is passed by, and the first with an in-room route to itself is returned.
+    None for an unknown room, a polygon of fewer than 3 points, or no such point.
+    """
 
 
 def _bed_target_id(room_id: str, bed_index: int) -> str:
@@ -578,103 +479,43 @@ def effective_geometry(world: Any) -> FacilityGeometry | None:
     )
 
 
-@kernel_first("overlay", "installed_facility_placement_enabled")
+@kernel_only("overlay", "installed_facility_placement_enabled")
 def installed_facility_placement_enabled(world: Any) -> bool:
-    """Whether this Scenario places installed facilities on its floor plan."""
-    config = world.model_configs.get("geometry_overlay", {})
-    return (
-        isinstance(config, dict)
-        and config.get("schema_version") == 4
-        and isinstance(world.model_state.get(GEOMETRY_OVERLAY_KEY), dict)
-    )
+    """Whether this Scenario places installed facilities on its floor plan.
+
+    geometry_overlay schema_version 4, with the overlay state.
+    """
 
 
-@kernel_first("overlay", "installed_facility_point")
+@kernel_only("overlay", "installed_facility_point")
 def installed_facility_point(world: Any, facility_id: str) -> Point2D | None:
     """Choose a free generator-grid slot in the facility's zone, or None if none fits.
 
     Existing facilities keep their points. The grid of the zone's facilities plus
     this one is searched in slot order, then grown, for a walkable, reachable
     point at least the narrowest queue spacing away from every other facility.
+
+    The grids are facility_grid_point's for counts from the zone's other positioned facilities
+    plus one, MAX_INSTALLED_FACILITY_GRID_GROWTH of them. A slot must be walkable past the
+    obstacles, equipment footprints and active temporary rooms, reachable by an in-room route, and
+    at least INSTALLED_FACILITY_MIN_SEPARATION_M from the others. None for an unknown facility, no
+    facility geometry, or a zone without a polygon.
     """
-    from sheltersim.domain.movement import _point_walkable, plan_in_room_route
-    from sheltersim.region.facility import facility_grid_point
-
-    facility = world.facilities.get(facility_id)
-    geometry = effective_geometry(world)
-    if facility is None or geometry is None:
-        return None
-    zone = next((row for row in geometry.zones if row.zone_id == facility.zone_id), None)
-    if zone is None:
-        return None
-    others = [
-        geometry.facility_points[key]
-        for key, item in sorted(world.facilities.items())
-        if key != facility_id
-        and item.zone_id == facility.zone_id
-        and key in geometry.facility_points
-    ]
-    constraints = effective_spatial_constraints(world)
-    state = world.model_state.get(GEOMETRY_OVERLAY_KEY, {})
-    blocked = (
-        *(item.polygon for item in constraints.obstacles),
-        *(item.polygon for item in constraints.equipment_footprints),
-        *(
-            tuple(Point2D.model_validate(point) for point in room["polygon_m"])
-            for room in state.get("temporary_rooms", {}).values()
-            if room.get("active")
-        ),
-    )
-    for count in range(len(others) + 1, len(others) + 1 + MAX_INSTALLED_FACILITY_GRID_GROWTH):
-        for index in range(count):
-            point = facility_grid_point(zone.polygon, index, count)
-            if (
-                _point_walkable(point, zone.polygon, blocked)
-                and all(
-                    math.hypot(point.x - other.x, point.y - other.y)
-                    >= INSTALLED_FACILITY_MIN_SEPARATION_M
-                    for other in others
-                )
-                and plan_in_room_route(
-                    world, zone_id=facility.zone_id, start=None, destination=point
-                )
-                is not None
-            ):
-                return point
-    return None
 
 
-@kernel_first("overlay", "place_installed_facility")
+@kernel_only("overlay", "place_installed_facility")
 def place_installed_facility(
     world: Any, facility_id: str, *, event_id: str, source_ids: tuple[str, ...]
 ) -> Point2D:
-    """Record the floor-plan point of a facility installed during the Run."""
-    point = installed_facility_point(world, facility_id)
-    if point is None:
-        raise ValueError(f"no free floor-plan point for installed facility {facility_id!r}")
-    state = world.model_state[GEOMETRY_OVERLAY_KEY]
-    common = {
-        "event_id": event_id,
-        "source_ids": sorted({*source_ids, INSTALLED_FACILITY_PLACEMENT_SOURCE_ID}),
-        "minute": world.minute_index,
-    }
-    state["facility_points"][facility_id] = {"point_m": point.model_dump(mode="json"), **common}
-    import hashlib
+    """Record the floor-plan point of a facility installed during the Run.
 
-    digest = hashlib.sha256(f"{event_id}:{facility_id}".encode()).hexdigest()[:24]
-    transition_id = f"install-{digest}"
-    state["history"].append(
-        {
-            "transition_id": transition_id,
-            "op": "install_facility",
-            "target_id": facility_id,
-            "status": "applied",
-            "causation_id": event_id,
-            **common,
-        }
-    )
-    del state["history"][:-20000]
-    return point
+    The point is installed_facility_point's, written to facility_points with event_id, the minute
+    and source_ids plus INSTALLED_FACILITY_PLACEMENT_SOURCE_ID, sorted, and an "install_facility"
+    history row whose transition_id is "install-" and the first 24 hex digits of
+    sha256(f"{event_id}:{facility_id}"); the history keeps its last 20000 rows. ValueError(f"no
+    free floor-plan point for installed facility {facility_id!r}") when there is none, with nothing
+    written.
+    """
 
 
 def effective_spatial_constraints(world: Any) -> SpatialConstraints:
@@ -914,682 +755,50 @@ def _polygons_overlap(left: tuple[Point2D, ...], right: tuple[Point2D, ...]) -> 
     )
 
 
-def _validate_facility_room_clearance(
-    world: Any,
-    facility_id: str,
-    zone_id: str,
-    point: Point2D,
-    geometry: FacilityGeometry,
-    constraints: SpatialConstraints,
-) -> None:
-    state = world.model_state.get(GEOMETRY_OVERLAY_KEY, {})
-    rooms = state.get("temporary_rooms", {})
-    old_point = geometry.facility_points[facility_id]
-    dx, dy = point.x - old_point.x, point.y - old_point.y
-    for room in rooms.values():
-        if not room.get("active") or room.get("zone_id") != zone_id:
-            continue
-        polygon = tuple(Point2D.model_validate(item) for item in room["polygon_m"])
-        if point_in_polygon(point, polygon):
-            raise ValueError("facility_in_use: facility move would enter an active temporary room")
-        if any(
-            service_point.facility_id == facility_id
-            and point_in_polygon(
-                Point2D(
-                    x=service_point.point_m.x + dx,
-                    y=service_point.point_m.y + dy,
-                ),
-                polygon,
-            )
-            for service_point in geometry.service_points
-        ):
-            raise ValueError(
-                "facility_in_use: moved service point would enter an active temporary room"
-            )
-        footprint = next(
-            (item for item in constraints.equipment_footprints if item.facility_id == facility_id),
-            None,
-        )
-        if footprint is not None:
-            shifted = tuple(Point2D(x=item.x + dx, y=item.y + dy) for item in footprint.polygon)
-            if _polygons_overlap(shifted, polygon):
-                raise ValueError(
-                    "facility_in_use: moved equipment footprint would enter an active "
-                    "temporary room"
-                )
-
-
-@kernel_first("overlay", "validate_geometry_change")
+@kernel_only("overlay", "validate_geometry_change")
 def validate_geometry_change(
     world: Any, op: str, target: str, parameters: dict[str, Any], end_minute: int | None
 ) -> None:
-    if GEOMETRY_OVERLAY_KEY not in world.model_state:
-        raise ValueError(
-            "geometry_overlay_required: declare the versioned geometry overlay before "
-            "approving effects"
-        )
-    geometry = effective_geometry(world)
-    if geometry is None:
-        raise ValueError("geometry_unavailable")
-    from sheltersim.domain.movement import _segment_clear_of_polygon
+    """Check an approved geometry change against the world now; None when it may be applied.
 
-    constraints = effective_spatial_constraints(world)
-    if op == "set_route_access":
-        data = RouteAccessParameters.model_validate(parameters)
-        if target not in world.zone_edges:
-            raise ValueError("target_missing: route does not exist")
-        if end_minute is None:
-            raise ValueError("expiry_required: route-access changes require a bounded end")
-        # The approved geometry event is dispatched before the movement phase. The
-        # controller atomically suppresses active completions, stops evacuee journeys,
-        # and reassigns staff against the refreshed graph in that same simulation tick.
-        if data.accessible and world.zone_edges[target].closed:
-            raise ValueError(
-                "unsupported_reopening: this operation cannot override a prior graph closure"
-            )
-        if not data.accessible:
-            rooms = world.model_state.get(GEOMETRY_OVERLAY_KEY, {}).get("temporary_rooms", {})
-            for room in rooms.values():
-                if not room.get("active") or target not in room.get("route_edge_ids", ()):
-                    continue
-                room_zone = room.get("zone_id")
-                remaining_incoming = any(
-                    edge_id != target
-                    and edge_id in world.zone_edges
-                    and not world.zone_edges[edge_id].closed
-                    and world.zone_edges[edge_id].to_zone_id == room_zone
-                    and any(
-                        route.edge_id == edge_id and route.accessible for route in geometry.routes
-                    )
-                    for edge_id in room.get("route_edge_ids", ())
-                )
-                remaining_outgoing = any(
-                    edge_id != target
-                    and edge_id in world.zone_edges
-                    and not world.zone_edges[edge_id].closed
-                    and world.zone_edges[edge_id].from_zone_id == room_zone
-                    and any(
-                        route.edge_id == edge_id and route.accessible for route in geometry.routes
-                    )
-                    for edge_id in room.get("route_edge_ids", ())
-                )
-                if not remaining_incoming or not remaining_outgoing:
-                    raise ValueError(
-                        "route_in_use: closure would disconnect an active temporary room"
-                    )
-    elif op == "transfer_equipment":
-        data = EquipmentTransferParameters.model_validate(parameters)
-        facility = world.facilities.get(target)
-        if facility is None or target not in geometry.facility_points:
-            raise ValueError("target_missing: equipment must identify a positioned facility")
-        if data.equipment_id != target:
-            raise ValueError("target_mismatch: equipment_id must match the selected facility")
-        if data.from_zone_id != facility.zone_id or data.to_zone_id not in world.zones:
-            raise ValueError(
-                "precondition_failed: equipment source/destination zone does not match"
-            )
-        if end_minute is not None:
-            raise ValueError("unsupported_transfer_expiry: equipment transfers are permanent")
-        if any(
-            (
-                facility.queue_agent_ids,
-                facility.active_agent_ids,
-                facility.resource_queue_agent_ids,
-                facility.resource_active_agent_ids,
-            )
-        ):
-            raise ValueError("facility_in_use: equipment queues and services must be empty")
-        if any(
-            row.get("target_id") == target
-            for row in world.model_state.get("staff_operations_v1", {}).get("staff", {}).values()
-            if isinstance(row, dict)
-        ):
-            raise ValueError("facility_in_use: an active staff task targets this equipment")
-        source_zone = next(
-            (row for row in geometry.zones if row.zone_id == data.from_zone_id), None
-        )
-        destination_zone = next(
-            (row for row in geometry.zones if row.zone_id == data.to_zone_id), None
-        )
-        if source_zone is None or destination_zone is None:
-            raise ValueError("target_missing: equipment zone has no surveyed polygon")
-        if not point_in_polygon(data.point_m, destination_zone.polygon):
-            raise ValueError("area_invalid: transfer point must lie inside the destination zone")
-        _validate_facility_room_clearance(
-            world, target, data.to_zone_id, data.point_m, geometry, constraints
-        )
-        if not _zones_are_connected(world, data.from_zone_id, data.to_zone_id):
-            raise ValueError("route_unavailable: equipment zones have no open directed route")
-        _require_service_staff_in_zone(world, facility, data.to_zone_id, geometry)
-        from sheltersim.domain.movement import _point_segment_distance, plan_in_room_route
+    A refusal is a ValueError whose text starts with its code ("target_missing: ...",
+    "area_invalid: ...", "facility_in_use: ..."). The texts are shown to the operator (the approval
+    preview of validate_effect_program, branch commands) and saved as a failed event's detail, so
+    each check raises its own text in a fixed order, and the first that fails decides. A
+    parameter's contract (RouteAccessParameters, MoveFacilityParameters, PartitionParameters,
+    EquipmentTransferParameters, TemporaryRoomGeometry) raises its own validation error.
 
-        if any(
-            _point_segment_distance(data.point_m, wall.start, wall.end) < 0.5
-            for wall in constraints.walls
-        ):
-            raise ValueError(
-                "clear_width_insufficient: transferred equipment must remain half a metre "
-                "from walls"
-            )
-        if (
-            plan_in_room_route(
-                world, zone_id=data.to_zone_id, start=data.point_m, destination=data.point_m
-            )
-            is None
-        ):
-            raise ValueError("clear_width_insufficient: transfer point is not walkable")
-        old_point = geometry.facility_points[target]
-        dx, dy = data.point_m.x - old_point.x, data.point_m.y - old_point.y
-        for service_point in geometry.service_points:
-            if service_point.facility_id != target:
-                continue
-            shifted = Point2D(
-                x=service_point.point_m.x + dx,
-                y=service_point.point_m.y + dy,
-            )
-            if not point_in_polygon(shifted, destination_zone.polygon):
-                raise ValueError(
-                    "area_invalid: transferred service point leaves its destination zone"
-                )
-            if (
-                any(
-                    _point_segment_distance(shifted, wall.start, wall.end) < 0.5
-                    for wall in constraints.walls
-                )
-                or plan_in_room_route(
-                    world, zone_id=data.to_zone_id, start=shifted, destination=shifted
-                )
-                is None
-            ):
-                raise ValueError(
-                    "clear_width_insufficient: transferred service point is not walkable"
-                )
-        footprint = next(
-            (item for item in constraints.equipment_footprints if item.facility_id == target),
-            None,
-        )
-        if footprint is not None:
-            shifted_polygon = tuple(
-                Point2D(x=point.x + dx, y=point.y + dy) for point in footprint.polygon
-            )
-            if any(
-                not point_in_polygon(point, destination_zone.polygon) for point in shifted_polygon
-            ):
-                raise ValueError(
-                    "area_invalid: transferred equipment footprint leaves its destination zone"
-                )
-            from sheltersim.region.facility import (
-                _segment_distance_to_polygon,
-                _segment_intersection_points,
-            )
-
-            if any(
-                _segment_intersection_points(a, b, wall.start, wall.end)
-                for a, b in zip(shifted_polygon, (*shifted_polygon[1:], shifted_polygon[0]))
-                for wall in constraints.walls
-            ):
-                raise ValueError(
-                    "clear_width_insufficient: transferred equipment footprint crosses a wall"
-                )
-            blocked = [
-                item.polygon
-                for item in (*constraints.obstacles, *constraints.equipment_footprints)
-                if item.facility_id != target
-            ]
-            if any(
-                point_in_polygon(point, shape) or point_in_polygon(shape[0], shifted_polygon)
-                for shape in blocked
-                for point in shifted_polygon
-            ) or any(
-                _segment_distance_to_polygon(a, b, shape) < 1e-8
-                for shape in blocked
-                for a, b in zip(shifted_polygon, (*shifted_polygon[1:], shifted_polygon[0]))
-            ):
-                raise ValueError("area_invalid: transferred equipment overlaps another obstacle")
-    elif op == "move_facility":
-        point = MoveFacilityParameters.model_validate(parameters).point_m
-        facility = world.facilities.get(target)
-        if facility is None or target not in geometry.facility_points:
-            raise ValueError("target_missing: facility has no surveyed position")
-        if end_minute is not None:
-            raise ValueError(
-                "unsupported_move_expiry: same-zone moves are permanent; approve an explicit "
-                "later move"
-            )
-        if any(
-            (
-                facility.queue_agent_ids,
-                facility.active_agent_ids,
-                facility.resource_queue_agent_ids,
-                facility.resource_active_agent_ids,
-            )
-        ):
-            raise ValueError("facility_in_use: queues and services must be empty")
-        if any(
-            row.get("target_id") == target
-            for row in world.model_state.get("staff_operations_v1", {}).get("staff", {}).values()
-            if isinstance(row, dict)
-        ):
-            raise ValueError("facility_in_use: an active staff task targets this facility")
-        zone = next(z for z in geometry.zones if z.zone_id == facility.zone_id)
-        if not point_in_polygon(point, zone.polygon):
-            raise ValueError("area_invalid: cross-zone facility moves are unsupported")
-        _validate_facility_room_clearance(
-            world, target, facility.zone_id, point, geometry, constraints
-        )
-        from sheltersim.domain.movement import _point_segment_distance
-
-        if any(
-            _point_segment_distance(point, wall.start, wall.end) < 0.5 for wall in constraints.walls
-        ):
-            raise ValueError(
-                "clear_width_insufficient: moved service point requires half a metre from walls"
-            )
-        old_point = geometry.facility_points[target]
-        for service_point in geometry.service_points:
-            if service_point.facility_id != target:
-                continue
-            shifted = Point2D(
-                x=service_point.point_m.x + point.x - old_point.x,
-                y=service_point.point_m.y + point.y - old_point.y,
-            )
-            if not point_in_polygon(shifted, zone.polygon):
-                raise ValueError(
-                    "area_invalid: moved facility would move a service point outside its zone"
-                )
-            if any(
-                _point_segment_distance(shifted, wall.start, wall.end) < 0.5
-                for wall in constraints.walls
-            ):
-                raise ValueError(
-                    "clear_width_insufficient: moved service point is too close to a wall"
-                )
-            from sheltersim.domain.movement import plan_in_room_route
-
-            if (
-                plan_in_room_route(
-                    world, zone_id=facility.zone_id, start=shifted, destination=shifted
-                )
-                is None
-            ):
-                raise ValueError("clear_width_insufficient: moved service point is not walkable")
-        # Reuse the exact room/wall/obstacle planner for the moved service point.
-        from sheltersim.domain.movement import plan_in_room_route
-
-        if (
-            plan_in_room_route(world, zone_id=facility.zone_id, start=point, destination=point)
-            is None
-        ):
-            raise ValueError("clear_width_insufficient: moved service point is not walkable")
-        existing = next(
-            (r for r in constraints.equipment_footprints if r.facility_id == target), None
-        )
-        if existing is not None:
-            old = geometry.facility_points[target]
-            shifted = tuple(
-                Point2D(x=p.x + point.x - old.x, y=p.y + point.y - old.y) for p in existing.polygon
-            )
-            if any(not point_in_polygon(p, zone.polygon) for p in shifted):
-                raise ValueError("area_invalid: moved footprint leaves its zone")
-            from sheltersim.region.facility import (
-                _segment_distance_to_polygon,
-                _segment_intersection_points,
-            )
-
-            if any(
-                _segment_intersection_points(a, b, wall.start, wall.end)
-                for a, b in zip(shifted, (*shifted[1:], shifted[0]))
-                for wall in constraints.walls
-            ):
-                raise ValueError("clear_width_insufficient: moved equipment crosses a wall")
-            blocked = [r.polygon for r in constraints.obstacles] + [
-                r.polygon for r in constraints.equipment_footprints if r.facility_id != target
-            ]
-            if any(
-                point_in_polygon(p, shape) or point_in_polygon(shape[0], shifted)
-                for shape in blocked
-                for p in shifted
-            ):
-                raise ValueError(
-                    "area_invalid: moved footprint overlaps existing obstacles or equipment"
-                )
-            if any(
-                _segment_distance_to_polygon(a, b, shape) < 1e-8
-                for a, b in zip(shifted, (*shifted[1:], shifted[0]))
-                for shape in blocked
-            ):
-                raise ValueError("clear_width_insufficient: moved equipment intersects an obstacle")
-    elif op == "set_partition":
-        data = PartitionParameters.model_validate(parameters)
-        zone = next((z for z in geometry.zones if z.zone_id == target), None)
-        if zone is None:
-            raise ValueError("target_missing: zone does not exist")
-        if end_minute is None:
-            raise ValueError("expiry_required: partitions require an explicit bounded end")
-        _validate_partition_polygon(zone.polygon, data.polygon_m)
-        if any(
-            point_in_polygon(point, data.polygon_m) for point in geometry.facility_points.values()
-        ):
-            raise ValueError("area_invalid: partition covers a facility")
-        from sheltersim.region.facility import _segment_distance_to_polygon
-
-        if any(
-            point_in_polygon(p, shape)
-            or point_in_polygon(shape[0], data.polygon_m)
-            or any(
-                _segment_distance_to_polygon(a, b, shape) < 1e-8
-                for a, b in zip(data.polygon_m, (*data.polygon_m[1:], data.polygon_m[0]))
-            )
-            for shape in (
-                item.polygon for item in (*constraints.obstacles, *constraints.equipment_footprints)
-            )
-            for p in data.polygon_m
-        ):
-            raise ValueError("area_invalid: partition overlaps equipment or another obstacle")
-        positions = world.model_state.get("movement_v1", {}).get("positions", {})
-        if any(
-            row.get("point")
-            and point_in_polygon(Point2D.model_validate(row["point"]), data.polygon_m)
-            for row in positions.values()
-        ):
-            raise ValueError("route_in_use: partition covers a current person")
-        for staff in world.staff.values():
-            staff_zone = next((z for z in geometry.zones if z.zone_id == staff.zone_id), None)
-            if staff_zone is not None:
-                from sheltersim.domain.movement import _zone_center
-
-                centre = _zone_center(geometry, staff.zone_id)
-                if centre is not None and point_in_polygon(centre, data.polygon_m):
-                    raise ValueError("route_in_use: partition covers a staff standing point")
-        # Reject all intersections with declared transit paths; do not leave staff
-        # graph-only planners believing an unsafe narrowed passage is available.
-        if any(
-            not _segment_clear_of_polygon(a, b, data.polygon_m, route.width_m / 2)
-            for route in geometry.routes
-            for a, b in zip(route.points, route.points[1:])
-        ):
-            raise ValueError("clear_width_insufficient: partition obstructs a declared passage")
-        for journey in world.model_state.get("movement_v1", {}).get("journeys", {}).values():
-            points = tuple(Point2D.model_validate(p) for p in journey.get("route_points", ()))
-            if any(
-                not _segment_clear_of_polygon(a, b, data.polygon_m, 0.5)
-                for a, b in zip(points, points[1:])
-            ):
-                if journey.get("purpose") not in {
-                    "toilet_queue_position",
-                    "resource_queue_position",
-                    "toilet_queue_service",
-                    "resource_queue_service",
-                }:
-                    raise ValueError("route_in_use: partition intersects current room travel")
-    elif op == "temporary_room_geometry":
-        data = TemporaryRoomGeometry.model_validate(parameters)
-        if data.zone_id != target:
-            raise ValueError("target_mismatch: temporary room zone must match its selected zone")
-        if end_minute is None or end_minute >= world.duration_minutes:
-            raise ValueError("expiry_required: temporary rooms need an in-run expiry")
-        zone = next((row for row in geometry.zones if row.zone_id == target), None)
-        if zone is None:
-            raise ValueError("target_missing: temporary room zone has no surveyed polygon")
-        _validate_room_polygon(zone.polygon, data.polygon_m)
-        for edge_id in data.route_edge_ids:
-            edge = world.zone_edges.get(edge_id)
-            route = next((row for row in geometry.routes if row.edge_id == edge_id), None)
-            if (
-                edge is None
-                or route is None
-                or target
-                not in {
-                    edge.from_zone_id,
-                    edge.to_zone_id,
-                }
-            ):
-                raise ValueError(
-                    "route_unavailable: temporary room access route must connect to its zone"
-                )
-            if edge.closed or not route.accessible:
-                raise ValueError(
-                    "route_unavailable: temporary room access route is closed or inaccessible"
-                )
-        incoming = any(world.zone_edges[item].to_zone_id == target for item in data.route_edge_ids)
-        outgoing = any(
-            world.zone_edges[item].from_zone_id == target for item in data.route_edge_ids
-        )
-        if not incoming or not outgoing:
-            raise ValueError(
-                "route_unavailable: temporary room requires directed ingress and egress routes"
-            )
-        overlay_state = world.model_state.get(GEOMETRY_OVERLAY_KEY, {})
-        existing_rooms = overlay_state.get("temporary_rooms", {})
-        if data.room_id in existing_rooms:
-            raise ValueError("room_exists: temporary room ID already exists")
-        for row in existing_rooms.values():
-            if (
-                row.get("active")
-                and row.get("zone_id") == target
-                and _polygons_overlap(
-                    data.polygon_m, tuple(Point2D.model_validate(p) for p in row["polygon_m"])
-                )
-            ):
-                raise ValueError("area_invalid: temporary room overlaps another active room")
-        if any(
-            point_in_polygon(point, data.polygon_m) for point in geometry.facility_points.values()
-        ):
-            raise ValueError("area_invalid: temporary room covers a facility")
-        reservations = overlay_state.get("bed_reservations", {})
-        existing_rooms_by_id = overlay_state.get("temporary_rooms", {})
-        for reservation in reservations.values():
-            existing_room = existing_rooms_by_id.get(reservation.get("room_id"), {})
-            index = reservation.get("bed_index")
-            bed_points = existing_room.get("bed_points_m", [])
-            if (
-                type(index) is int
-                and 0 <= index < len(bed_points)
-                and point_in_polygon(Point2D.model_validate(bed_points[index]), data.polygon_m)
-            ):
-                raise ValueError("room_in_use: temporary room would cover a reserved sleep bed")
-        if any(
-            _polygons_overlap(data.polygon_m, item.polygon)
-            for item in (*constraints.obstacles, *constraints.equipment_footprints)
-        ):
-            raise ValueError(
-                "area_invalid: temporary room overlaps an obstacle or equipment footprint"
-            )
-        from sheltersim.region.facility import _segment_intersection_points
-
-        if any(
-            _segment_intersection_points(first, second, wall.start, wall.end)
-            for first, second in zip(data.polygon_m, (*data.polygon_m[1:], data.polygon_m[0]))
-            for wall in constraints.walls
-        ):
-            raise ValueError("area_invalid: temporary room boundary crosses a declared wall")
-        movement = world.model_state.get("movement_v1", {})
-        if any(
-            row.get("point")
-            and point_in_polygon(Point2D.model_validate(row["point"]), data.polygon_m)
-            for row in movement.get("positions", {}).values()
-        ):
-            raise ValueError("room_in_use: temporary room would cover a current person")
-        if any(
-            row.get("point")
-            and point_in_polygon(Point2D.model_validate(row["point"]), data.polygon_m)
-            for row in movement.get("staff_positions", {}).values()
-        ):
-            raise ValueError("room_in_use: temporary room would cover a current staff member")
-        from sheltersim.domain.movement import _zone_center, plan_in_room_route
-
-        entry_points = []
-        for edge_id in data.route_edge_ids:
-            edge = world.zone_edges[edge_id]
-            route = next(row for row in geometry.routes if row.edge_id == edge_id)
-            entry_points.append(route.points[-1] if edge.to_zone_id == target else route.points[0])
-        center = _zone_center(geometry, target)
-        access_points = [*entry_points, *([center] if center is not None else [])]
-        if data.bed_points_m and not all(
-            any(
-                plan_in_room_route(world, zone_id=target, start=entry, destination=bed) is not None
-                for entry in access_points
-            )
-            for bed in data.bed_points_m
-        ):
-            raise ValueError(
-                "route_unavailable: every bed must be reachable from a room access point"
-            )
-    else:
-        raise ValueError("unsupported_geometry_operator")
-
-
-@kernel_first("overlay", "apply_geometry_change")
-def apply_geometry_change(world: Any, event: Any, *, expire: bool = False) -> None:
-    payload = event.payload
-    op, target, modifier = payload["op"], payload["target_id"], payload["modifier_id"]
-    state = world.model_state.get(GEOMETRY_OVERLAY_KEY)
-    if state is None:
-        raise ValueError("geometry_overlay_required")
-    if not expire:
-        validate_geometry_change(world, op, target, payload["parameters"], payload["end_minute"])
-    marker = event.provenance.get("effect_program_v1", {})
-    parameter_sources = payload.get("parameters", {}).get("source_ids", ())
-    assumption_sources = marker.get("assumption_ids", ()) if isinstance(marker, Mapping) else ()
-    source_ids = {
-        source_id
-        for source_id in (event.source_id, *parameter_sources, *assumption_sources)
-        if isinstance(source_id, str) and source_id
-    }
-    common = {
-        "event_id": event.event_id,
-        "source_ids": sorted(source_ids),
-        "minute": world.minute_index,
-    }
-    if op in {"move_facility", "transfer_equipment"}:
-        if op == "transfer_equipment":
-            transfer = EquipmentTransferParameters.model_validate(payload["parameters"])
-            world.facilities[target].zone_id = transfer.to_zone_id
-            point = transfer.point_m
-        else:
-            point = MoveFacilityParameters.model_validate(payload["parameters"]).point_m
-        state["facility_points"][target] = {"point_m": point.model_dump(mode="json"), **common}
-    elif op == "set_partition":
-        if expire:
-            state["partitions"].pop(modifier, None)
-        else:
-            partition = PartitionParameters.model_validate(payload["parameters"])
-            polygon = partition.model_dump(mode="json")["polygon_m"]
-            state["partitions"][modifier] = {
-                "zone_id": target,
-                "polygon_m": polygon,
-                **common,
-                "end_minute": payload["end_minute"],
-            }
-    elif op == "set_route_access":
-        record = state["route_modifiers"].setdefault(
-            target, {"base_closed": world.zone_edges[target].closed, "modifiers": {}}
-        )
-        if expire:
-            record["modifiers"].pop(modifier, None)
-        else:
-            record["modifiers"][modifier] = {
-                "accessible": payload["parameters"]["accessible"],
-                **common,
-                "end_minute": payload["end_minute"],
-            }
-        world.zone_edges[target].closed = record["base_closed"] or any(
-            not r["accessible"] for r in record["modifiers"].values()
-        )
-        if not record["modifiers"]:
-            del state["route_modifiers"][target]
-    elif op == "temporary_room_geometry":
-        parameters = TemporaryRoomGeometry.model_validate(payload["parameters"])
-        rooms = state.setdefault("temporary_rooms", {})
-        if expire:
-            record = rooms[parameters.room_id]
-            record["active"] = False
-            record["end_event_id"] = event.event_id
-        else:
-            rooms[parameters.room_id] = {
-                **parameters.model_dump(mode="json"),
-                "start_minute": world.minute_index,
-                "end_minute": payload["end_minute"],
-                "active": True,
-                "start_event_id": event.event_id,
-                "end_event_id": None,
-                "program_id": payload["program_id"],
-                "effect_id": payload["effect_id"],
-                "source_ids": common["source_ids"],
-            }
-    else:
-        raise ValueError("unsupported_geometry_operator")
-    history_target = (
-        TemporaryRoomGeometry.model_validate(payload["parameters"]).room_id
-        if op == "temporary_room_geometry"
-        else target
-    )
-    state["history"].append(
-        {
-            "transition_id": event.event_id,
-            "op": op,
-            "target_id": history_target,
-            "status": "expired" if expire else "applied",
-            "causation_id": event.causation_id,
-            **common,
-        }
-    )
-    del state["history"][:-20000]
-
-
-def _require_service_staff_in_zone(
-    world: Any, facility: Any, zone_id: str, geometry: FacilityGeometry
-) -> None:
-    """Refuse moving a staffed water or meal station away from its workers (#83).
-
-    Resource service gives a station only to staff in the station's own zone, and
-    nothing moves them with it, so without one there the station is never served.
+    - Without the overlay state: "geometry_overlay_required: ...". Without facility geometry:
+      "geometry_unavailable". Another op: "unsupported_geometry_operator".
+    - set_route_access: a known route, a bounded end, no reopening of a closed route, and a closure
+      that leaves every active temporary room on it a directed ingress and egress.
+    - move_facility: a positioned facility, no end, no queue, service or staff task on it; the
+      point, its service points and its footprint stay in its zone, clear of active temporary
+      rooms, half a metre from walls, walkable, and clear of obstacles and other equipment.
+    - transfer_equipment: the same for the destination zone, with matching IDs and zones, no end,
+      an open directed route between the zones, and staff with the station's skills there.
+    - set_partition: a known zone, a bounded end, a simple polygon inside it, covering no facility,
+      equipment, obstacle, person or staff standing point, declared passage or current room travel.
+    - temporary_room_geometry: the selected zone, an end before the Run's, a simple polygon inside
+      it, open access routes into and out of it, a new room ID, and no overlap with active rooms,
+      facilities, reserved beds, obstacles, equipment, walls, people or staff; every bed reachable
+      from an access point.
     """
-    from sheltersim.domain.resource_service import ResourceServiceManager
-
-    resource_id = ResourceServiceManager.resource_for_facility(facility.kind)
-    config = world.model_configs.get("resource_service")
-    if (
-        resource_id is None
-        or not isinstance(config, Mapping)
-        or "resource_service_v1" not in world.model_state
-    ):
-        return
-    skill = config.get("water_staff_skill" if resource_id == "water_ml" else "meal_staff_skill")
-    if not isinstance(skill, str):
-        return
-    required = {skill}
-    for point in geometry.service_points:
-        if point.facility_id == facility.id:
-            required.update(point.access.required_staff_skills)
-    if not any(
-        staff.zone_id == zone_id and required <= set(staff.skills) for staff in world.staff.values()
-    ):
-        raise ValueError(
-            f"staff_unavailable: no staff with {', '.join(sorted(required))} works in "
-            f"{zone_id!r}, so the moved station would not be served"
-        )
 
 
-def _zones_are_connected(world: Any, source_zone_id: str, destination_zone_id: str) -> bool:
-    """Require an existing directed, currently open route for transferred equipment."""
-    if source_zone_id == destination_zone_id:
-        return False
-    edges: dict[str, list[str]] = {}
-    for edge in world.zone_edges.values():
-        if not edge.closed:
-            edges.setdefault(edge.from_zone_id, []).append(edge.to_zone_id)
-    pending = [source_zone_id]
-    visited = {source_zone_id}
-    while pending:
-        zone_id = pending.pop(0)
-        for next_zone in sorted(edges.get(zone_id, ())):
-            if next_zone == destination_zone_id:
-                return True
-            if next_zone not in visited:
-                visited.add(next_zone)
-                pending.append(next_zone)
-    return False
+@kernel_only("overlay", "apply_geometry_change")
+def apply_geometry_change(world: Any, event: Any, *, expire: bool = False) -> None:
+    """Apply an approved geometry event to the overlay, or end it with expire=True.
+
+    Before applying, validate_geometry_change's checks run and raise. Without the overlay state:
+    ValueError("geometry_overlay_required"). A record keeps the event's ID, the minute and its
+    sources: the event's source_id, the parameters' source_ids and the effect program's
+    assumption_ids, non-empty, sorted. Moves and transfers write facility_points (a transfer also
+    the facility's zone); a partition is written or popped; a route-access modifier is written or
+    popped and the route's closure recomputed from its base and modifiers; a temporary room is
+    written active or ended. Each change appends a history row, "applied" or "expired", and the
+    history keeps its last 20000 rows.
+    """
 
 
 register_rust_validator(GEOMETRY_OVERLAY_KEY, native.rules("overlay").validate_overlay)

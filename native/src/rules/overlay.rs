@@ -4,7 +4,10 @@
 //!
 //! Each call plans with nothing changed and then writes through the namespace's tree, whose writes
 //! reach the rows. Anything but a plain success says Unsupported before any write: the Python rule
-//! then runs from the start and raises its own text (docs/rust-port/lanes/m6-overlay.md). The
+//! then runs from the start and raises its own text (docs/rust-port/lanes/m6-overlay.md). A rule
+//! whose Python body is gone (`kernel_only`: all but `reserve_sleep_bed` and the checks of the
+//! states) raises the texts its callers save or show itself, and says Unsupported, a `KernelRefusal`
+//! in Python, only for an input outside its contract. The
 //! pydantic contracts of the parameters stay Python's: a rule calls `model_validate` where its
 //! Python rule does.
 
@@ -947,21 +950,27 @@ fn admit_to_temporary_room<'py>(
         let (agent_text, room_text) = (exact_str(agent_id)?, exact_str(room_id)?);
         let minute = exact_int(minute)?;
         exact_str(event_id)?;
+        // The Python rule's one text for each of these.
+        let not_available = || Err(errors::value_error("temporary room admission is no longer available"));
         let Some(state) = state_of(world, OVERLAY_KEY)? else {
-            return unsupported("no overlay");
+            return not_available();
         };
-        let admissions = required(&state, "room_admissions")?;
+        let Some(admissions) = child(&state, "room_admissions")? else {
+            return not_available();
+        };
         exact_dict(&admissions)?;
         let rooms = part(&state, "temporary_rooms")?;
-        let Some(V::Map(room)) = map_of(&rooms)?.get(room_text) else {
-            return unsupported("no such room");
+        let room = match map_of(&rooms)?.get(room_text) {
+            Some(V::Map(room)) => room,
+            None => return not_available(),
+            Some(_) => return unsupported("a room is another value"),
         };
         let agents = attribute(world, intern!(py, "agents"))?;
         if !matches!(room.get("active"), Some(V::Bool(true))) || minute < 0 || raw_dict_get(&agents, agent_id)?.is_none() {
-            return unsupported("the admission is not available");
+            return not_available();
         }
         let Some(point) = admission_point(world, &state, room_text)? else {
-            return unsupported("the room has no point");
+            return not_available();
         };
         let sources = list_of(room.get("source_ids").unwrap_or(&V::Null))?;
         let mut names = vec![INTAKE_SOURCE];
@@ -1322,7 +1331,7 @@ fn installed_point(world: &Bound<'_, PyAny>, facility_id: &str) -> PyResult<Opti
 pub(crate) fn place_facility(world: &Bound<'_, PyAny>, facility_id: &str, event_id: &str, source_ids: &[&str]) -> PyResult<Pt> {
     let py = world.py();
     let Some(point) = installed_point(world, facility_id)? else {
-        return unsupported("no free floor-plan point");
+        return Err(errors::value_error(format!("no free floor-plan point for installed facility {}", errors::repr_str(py, facility_id)?)));
     };
     let state = state_of(world, OVERLAY_KEY)?.ok_or_else(|| Unsupported::new_err("no overlay"))?;
     let points = required(&state, "facility_points")?;
@@ -2263,7 +2272,7 @@ pub(crate) fn apply_change(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, e
     };
     let (op, target, modifier) = (str_of(payload, "op")?, str_of(payload, "target_id")?, str_of(payload, "modifier_id")?);
     let Some(state) = state_of(world, OVERLAY_KEY)? else {
-        return unsupported("no overlay");
+        return Err(errors::value_error("geometry_overlay_required"));
     };
     exact_dict(&state)?;
     let raw_parameters = event.getattr(intern!(py, "payload"))?.get_item(intern!(py, "parameters")).map_err(|_| Unsupported::new_err("no parameters"))?;
@@ -2431,7 +2440,7 @@ pub(crate) fn apply_change(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, e
             }
             history_target = room_id;
         }
-        _ => return unsupported("another operator"),
+        _ => return invalid("unsupported_geometry_operator"),
     }
     let entry = stamped_record(
         py,

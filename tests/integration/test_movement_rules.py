@@ -1,16 +1,22 @@
 """The kernels of native/src/rules/movement.rs against the Python rules of domain/movement.py.
 
-Each case runs the kernel on a world and the Python rule on a copy of that world made before it, and
-compares the whole world in canonical JSON, which keeps a float's bits. The state of a tick the gate
-reaches is benchmarks/rule_shadow/shadow_movement.py; here, the branches it doesn't reach, and the
-branches the kernel refuses because they depend on the order of the walk.
+For `advance_movement` and `staff_position_snapshots`, each case runs the kernel on a world and the
+Python rule on a copy of that world made before it, and compares the whole world in canonical JSON,
+which keeps a float's bits. The state of a tick the gate reaches is
+benchmarks/rule_shadow/shadow_movement.py; here, the branches it doesn't reach, and the branches the
+kernel refuses because they depend on the order of the walk.
+
+The other rules of domain/movement.py have no Python rule left (`kernel_only`). Their cases compare
+with values written out from the deleted rule, or with digests of its answers recorded once.
 """
 
 from __future__ import annotations
 
 import copy
+import hashlib
 import math
 import random
+import sys
 from dataclasses import replace
 from typing import Any
 
@@ -19,6 +25,7 @@ import pytest
 from sheltersim import native
 from sheltersim.contracts.extensions import FacilityGeometry, Point2D
 from sheltersim.core.engine import TickEngine
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.domain import movement
@@ -69,6 +76,35 @@ def _same_after(world: WorldState, name: str, *arguments: Any, **options: Any) -
     assert _mirror(world).verify()
     assert _mirror(world).row_json() == native.canonical_json(world.model_state[KEY])
     return result
+
+
+def _kernel_after(world: WorldState, name: str, *arguments: Any, **options: Any) -> Any:
+    """A rule of no Python rule, with the mirror of the namespace still the row's."""
+    result = getattr(movement, name)(world, *arguments, **options)
+    assert _mirror(world).tainted is None
+    assert _mirror(world).verify()
+    assert _mirror(world).row_json() == native.canonical_json(world.model_state[KEY])
+    return result
+
+
+def _digest(texts: list[str]) -> str:
+    """Answers by their repr, whose floats are exact: recorded once from the deleted rules."""
+    digest = hashlib.sha256()
+    for text in texts:
+        digest.update(text.encode() + b"\n")
+    return digest.hexdigest()
+
+
+def _record(
+    zone_id: str, point: Any, kind: str, edge_id: Any = None, progress: float = 0.0
+) -> dict:
+    return {
+        "zone_id": zone_id,
+        "point": None if point is None else {"x": point.x, "y": point.y},
+        "edge_id": edge_id,
+        "progress": progress,
+        "position_kind": kind,
+    }
 
 
 def _refuses(world: WorldState, name: str, *arguments: Any, **options: Any) -> str:
@@ -468,9 +504,24 @@ def test_finishing_one_trip_may_read_the_slots(generated_scenario: Any) -> None:
         world.agents[agent_id].target_id = facility.id
         world.agents[agent_id].zone_id = facility.zone_id
         facility.queue_agent_ids.append(agent_id)
+    geometry = movement._geometry(world)
+    placed = 0
     for agent_id in ids:
-        _same_after(world, "finish_movement", agent_id)
-        assert state["positions"][agent_id]["position_kind"] == "physical"
+        journey = state["journeys"].get(agent_id)
+        if journey is not None and journey["purpose"] in movement._QUEUE_TRIP_PURPOSES:
+            # The end of a queue trip keeps the point the person walked to.
+            expected = {**state["positions"][agent_id], "edge_id": None, "progress": 0.0}
+            expected["position_kind"] = "physical"
+        else:
+            # Otherwise a queued person stands in the slot behind those already placed.
+            slot = movement._queue_slot_position(world, geometry, agent_id, facility.id)
+            point = slot or movement._zone_center(geometry, facility.zone_id)
+            expected = _record(facility.zone_id, point, "physical")
+            placed += slot is not None
+        _kernel_after(world, "finish_movement", agent_id)
+        assert agent_id not in state["journeys"]
+        assert state["positions"][agent_id] == expected
+    assert placed
 
 
 # ---- What the kernels take ----------------------------------------------------------------------
@@ -531,7 +582,7 @@ def test_a_moved_facility_is_seen_by_value(generated_scenario: Any) -> None:
         center = movement._zone_center(geometry, zone_id)
         world.agents[agent_id].zone_id = zone_id
         world.model_state[KEY]["positions"][agent_id]["point"] = {"x": center.x, "y": center.y}
-        before = _same_after(world, "facility_approach_route", agent_id, facility_id)
+        before = _kernel_after(world, "facility_approach_route", agent_id, facility_id)
         original = world.model_configs["facility_geometry"]["facility_points"][facility_id]
         moved = {"x": (original["x"] * 3 + center.x) / 4, "y": (original["y"] * 3 + center.y) / 4}
         world.model_state["geometry_overlay_v1"]["facility_points"][facility_id] = {
@@ -540,9 +591,12 @@ def test_a_moved_facility_is_seen_by_value(generated_scenario: Any) -> None:
             "source_ids": [],
             "event_id": "moved",
         }
-        after = _same_after(world, "facility_approach_route", agent_id, facility_id)
+        after = _kernel_after(world, "facility_approach_route", agent_id, facility_id)
         assert before is not None and after is not None
         assert repr(before) != repr(after)
+        # Without a footprint the walk ends at the facility's point, where it is now.
+        assert (before[1][-1].x, before[1][-1].y) == (original["x"], original["y"])
+        assert (after[1][-1].x, after[1][-1].y) == (moved["x"], moved["y"])
 
 
 def _python_center(world: WorldState, zone_id: str) -> tuple[float, float] | None:
@@ -555,7 +609,7 @@ def _python_center(world: WorldState, zone_id: str) -> tuple[float, float] | Non
 
 @pytest.mark.parametrize("started_offset", [0, 1, -1])
 @pytest.mark.parametrize("kind", ["edges", "points", "nothing", "support", "queue"])
-def test_start_movement_is_python_s(
+def test_start_movement_writes_the_journey_and_the_first_position(
     generated_scenario: Any, kind: str, started_offset: int
 ) -> None:
     world = _run(generated_scenario, 5)
@@ -581,7 +635,50 @@ def test_start_movement_is_python_s(
         options.update(support_request_id="request", support_staff_id="staff")
     if kind == "queue":
         options.update(queue_id="queue")
-    _same_after(
+    expected = _plain(state)
+    expected["journeys"][agent_id] = {
+        "event_id": "e",
+        "task_id": "t",
+        "purpose": "walk",
+        "facility_id": None,
+        "destination_zone_id": edge.to_zone_id,
+        "route_zone_ids": [edge.from_zone_id, edge.to_zone_id],
+        "route_edge_ids": list(route.edge_ids),
+        "route_points": [
+            point.model_dump(mode="json") for point in options.get("route_points", ())
+        ],
+        "started_minute": started,
+        "due_minute": started + 7,
+        **({"queue_id": "queue"} if kind == "queue" else {}),
+        **(
+            {"support_request_id": "request", "support_staff_id": "staff"}
+            if kind == "support"
+            else {}
+        ),
+    }
+    # One minute along the route when movement was already advanced at its start.
+    elapsed = 1 if started_offset <= 0 else 0
+    progress = elapsed / 7
+    origin = edge.from_zone_id
+    geometry = movement._geometry(world)
+    if kind == "points":
+        if elapsed:
+            # 1/7 of the 8.5 m polyline lies on its first 5 m segment, from (1, 2) to (4, 6).
+            ratio = math.fsum([5.0, 3.5]) * progress / 5.0
+            point = Point2D(x=1.0 + 3.0 * ratio, y=2.0 + 4.0 * ratio)
+        else:
+            point = Point2D(x=1.0, y=2.0)
+        position = _record(origin, point, "physical", progress=progress)
+    elif route.edge_ids:
+        point = movement._route_point(geometry, edge.id, progress, origin, world)
+        kind_of = "physical" if point is not None else "unavailable"
+        position = _record(origin, point, kind_of, edge.id, progress)
+    else:
+        # No route to stand on: the centre of the zone, though not a place on a walk.
+        point = movement._zone_center(geometry, origin)
+        position = _record(origin, point, "unavailable", progress=progress)
+    expected["positions"][agent_id] = position
+    _kernel_after(
         world,
         "start_movement",
         agent_id=agent_id,
@@ -594,6 +691,7 @@ def test_start_movement_is_python_s(
         task_id="t",
         **options,
     )
+    assert native.canonical_json(state) == native.canonical_json(expected)
 
 
 def test_start_movement_with_only_half_of_the_support_writes_neither(
@@ -604,7 +702,7 @@ def test_start_movement_with_only_half_of_the_support_writes_neither(
     route = ZoneRoute(
         edge.from_zone_id, edge.to_zone_id, (edge.from_zone_id, edge.to_zone_id), (edge.id,), 3
     )
-    _same_after(
+    _kernel_after(
         world,
         "start_movement",
         agent_id=sorted(world.agents)[2],
@@ -646,18 +744,38 @@ def test_start_movement_refuses_what_it_does_not_decide(
     _refuses(world, "start_movement", **arguments)
 
 
-def test_finish_movement_of_each_kind_is_python_s(generated_scenario: Any) -> None:
+def test_finish_movement_of_each_kind(generated_scenario: Any) -> None:
     world = _run(generated_scenario, 5)
     agent_id = _walker(world)
     state = world.model_state[KEY]
     state["journeys"][agent_id]["purpose"] = "toilet_queue_position"
-    _same_after(world, "finish_movement", agent_id)
-    assert state["positions"][agent_id]["edge_id"] is None
-    # No journey now: the person stands where a person stands.
+    state["positions"][agent_id].update(edge_id=next(iter(world.zone_edges)), progress=0.5)
+    point = dict(state["positions"][agent_id]["point"])
+    zone_id = state["positions"][agent_id]["zone_id"]
+    _kernel_after(world, "finish_movement", agent_id)
+    # Still reserved in the queue: the person keeps their point, off the edge.
+    assert agent_id not in state["journeys"]
+    assert state["positions"][agent_id] == {
+        "zone_id": zone_id,
+        "point": point,
+        "edge_id": None,
+        "progress": 0.0,
+        "position_kind": "physical",
+    }
+    # No journey now: the person stands where a person stands, the centre of their zone.
     world.agents[agent_id].activity = Activity.IDLE
-    _same_after(world, "finish_movement", agent_id)
+    _kernel_after(world, "finish_movement", agent_id)
+    zone_id = world.agents[agent_id].zone_id
+    center = movement._zone_center(movement._geometry(world), zone_id)
+    assert state["positions"][agent_id] == _record(zone_id, center, "physical")
     # Nobody by that name: nothing to place.
-    _same_after(world, "finish_movement", "nobody")
+    before = _bytes(world)
+    _kernel_after(world, "finish_movement", "nobody")
+    assert _bytes(world) == before
+    # Without the namespace, nothing at all.
+    del world.model_state[KEY]
+    movement.finish_movement(world, agent_id)
+    assert KEY not in world.model_state
 
 
 def _routes_of(world: WorldState) -> list[ZoneRoute]:
@@ -680,6 +798,32 @@ def _routes_of(world: WorldState) -> list[ZoneRoute]:
     return routes
 
 
+def _minutes(world: WorldState, agent_id: str, route: ZoneRoute) -> ZoneRoute:
+    """The deleted rule: the longer of the declared and the surveyed walk, at the person's speed,
+    slowed by the most crowded zone of the route."""
+    if not route.edge_ids:
+        return route
+    config = movement.canonical_movement_config(world.model_configs.get("movement_model"))
+    speeds = config["speed_m_per_minute_by_mobility"]
+    geometry = movement._geometry(world)
+    surveyed = {item.edge_id: item.points for item in geometry.routes}
+    distance = math.fsum(
+        math.fsum(movement._distance(a, b) for a, b in zip(points, points[1:]))
+        for points in (surveyed[edge_id] for edge_id in route.edge_ids if edge_id in surveyed)
+    )
+    physical = distance / speeds["independent"] if distance > 0 else float(route.travel_minutes)
+    density = movement._max_route_density(world, route.zone_ids, geometry)
+    crowding = min(
+        config["maximum_density_slowdown"],
+        1.0 + config["density_slowdown_per_person_m2"] * max(0.0, density - 0.5),
+    )
+    mobility = world.agents[agent_id].profile.mobility
+    duration = (
+        max(route.travel_minutes, physical) * (speeds["independent"] / speeds[mobility]) * crowding
+    )
+    return replace(route, travel_minutes=max(1, math.ceil(duration)))
+
+
 # Areas that leave a route uncrowded, crowded, and at the most crowding counts for.
 @pytest.mark.parametrize("area", [None, 5.0, 0.2])
 @pytest.mark.parametrize(
@@ -695,9 +839,15 @@ def _routes_of(world: WorldState) -> list[ZoneRoute]:
             "density_slowdown_per_person_m2": 0.3,
             "maximum_density_slowdown": 1.75,
         },
+        # A Scenario may give whole numbers: the rule computed with them as floats.
+        {
+            "speed_m_per_minute_by_mobility": {"independent": 60, "assisted": 21, "wheelchair": 33},
+            "density_slowdown_per_person_m2": 1,
+            "maximum_density_slowdown": 2,
+        },
     ],
 )
-def test_a_route_s_minutes_are_python_s(
+def test_a_route_s_minutes_follow_speed_and_crowding(
     generated_scenario: Any, model: dict[str, Any] | None, area: float | None
 ) -> None:
     world = _run(generated_scenario, 5)
@@ -716,8 +866,8 @@ def test_a_route_s_minutes_are_python_s(
         agent = world.agents[agent_id]
         agent.profile = _with_mobility(agent.profile, mobilities[index])
         for route in _routes_of(world):
-            assert repr(_rules().route_with_movement_time(world, agent_id, route)) == repr(
-                _rule("route_with_movement_time")(world, agent_id, route)
+            assert repr(movement.route_with_movement_time(world, agent_id, route)) == repr(
+                _minutes(world, agent_id, route)
             )
 
 
@@ -738,20 +888,22 @@ def test_a_route_s_minutes_without_a_model_leave_the_route(generated_scenario: A
     [
         {"extra": 1},
         {"speed_m_per_minute_by_mobility": {"independent": 60}},
-        {"speed_m_per_minute_by_mobility": {"independent": 60, "assisted": 21, "wheelchair": 33}},
         {"maximum_density_slowdown": 0.5},
-        {"density_slowdown_per_person_m2": 1},
+        {"density_slowdown_per_person_m2": True},
         {"schema_version": 2},
     ],
 )
-def test_a_model_the_kernel_does_not_decide_goes_to_python(
+def test_a_model_a_scenario_turns_down_is_a_kernel_refusal(
     generated_scenario: Any, model: dict[str, Any]
 ) -> None:
+    """A Scenario's movement_model passes canonical_movement_config, so no Run holds these."""
+    with pytest.raises(ValueError, match="movement_model"):
+        movement.canonical_movement_config(model)
     world = _run(generated_scenario, 5)
     world.model_configs["movement_model"] = model
     route = _routes_of(world)[0]
-    with pytest.raises(native.Unsupported):
-        _rules().route_with_movement_time(world, sorted(world.agents)[0], route)
+    with pytest.raises(KernelRefusal, match="route_with_movement_time refused"):
+        movement.route_with_movement_time(world, sorted(world.agents)[0], route)
 
 
 # ---- Random floor plans -------------------------------------------------------------------------
@@ -855,10 +1007,15 @@ def _inside(rng: random.Random, polygon: list[dict[str, float]]) -> Point2D:
     )
 
 
-def test_random_floor_plans_are_python_s_bit_for_bit() -> None:
+# The deleted Python rules' answers on the plans below, recorded from them before they went.
+RANDOM_PLAN_ANSWERS = "8ac3860105498b78fbf55ebe38d7ef2f34a92a17138af65026c7d05a06d662a2"
+
+
+def test_random_floor_plans_are_the_deleted_rules_bit_for_bit() -> None:
     rng = random.Random(20261101)
     seen = {"centers": 0, "clear": 0, "blocked": 0, "routes": 0, "no_route": 0, "turns": 0}
     seen["turned_down"] = 1
+    answers: list[str] = []
     for _ in range(250):
         geometry, constraints = _random_plan(rng)
         try:
@@ -878,12 +1035,10 @@ def test_random_floor_plans_are_python_s_bit_for_bit() -> None:
             seen["centers"] += 1
         for route in geometry["routes"]:
             for mobility in ("independent", "assisted", "wheelchair", "other"):
-                clear = _rules().route_is_physically_clear(
+                clear = movement.route_is_physically_clear(
                     world, route["edge_id"], mobility=mobility
                 )
-                assert clear == _rule("route_is_physically_clear")(
-                    world, route["edge_id"], mobility=mobility
-                )
+                answers.append(repr(clear))
                 seen["clear" if clear else "blocked"] += 1
         for zone in geometry["zones"]:
             for mobility in ("independent", "assisted", "wheelchair"):
@@ -895,11 +1050,23 @@ def test_random_floor_plans_are_python_s_bit_for_bit() -> None:
                     "destination": destination,
                     "mobility": mobility,
                 }
-                path = _rules().plan_in_room_route(world, **options)
-                assert repr(path) == repr(_rule("plan_in_room_route")(world, **options))
+                path = movement.plan_in_room_route(world, **options)
+                answers.append(repr(path))
                 seen["routes" if path else "no_route"] += 1
                 seen["turns"] += bool(path) and len(path) > 2
-    assert all(seen.values()), seen
+    assert seen == {
+        "centers": 660,
+        "clear": 791,
+        "blocked": 2509,
+        "routes": 1409,
+        "no_route": 571,
+        "turns": 7,
+        "turned_down": 86,
+    }
+    # The points and lengths are floats of the platform's libm, recorded on Linux. Lane L13 pins
+    # them on every OS; until then the counts above are what macOS and Windows check.
+    if sys.platform == "linux":
+        assert _digest(answers) == RANDOM_PLAN_ANSWERS
 
 
 def test_the_route_of_a_plan_is_found_again_the_same(generated_scenario: Any) -> None:
@@ -982,7 +1149,13 @@ def test_the_validator_takes_nothing_the_python_rule_refuses(
 # ---- The walk to a facility's footprint ---------------------------------------------------------
 
 
-def test_the_walk_to_a_facility_with_a_footprint_is_python_s(generated_scenario: Any) -> None:
+# The deleted Python rule's walks below, recorded from it before it went.
+FOOTPRINT_WALKS = "f6bffc4d462570280cb0f397235bf44a9317d89f801f352d3d01847fee95a55b"
+
+
+def test_the_walk_to_a_facility_with_a_footprint_is_the_deleted_rule_s(
+    generated_scenario: Any,
+) -> None:
     """The points around a footprint, for each mobility: its clearances are in Rust too."""
     from sheltersim.domain.models import Mobility
 
@@ -992,6 +1165,7 @@ def test_the_walk_to_a_facility_with_a_footprint_is_python_s(generated_scenario:
     ids = sorted(world.agents)[:3]
     mobilities = (Mobility.INDEPENDENT, Mobility.ASSISTED, Mobility.WHEELCHAIR)
     found = 0
+    walks: list[str] = []
     for facility_id, point in sorted(geometry.facility_points.items()):
         zone_id = world.facilities[facility_id].zone_id
         center = movement._zone_center(geometry, zone_id)
@@ -1010,6 +1184,12 @@ def test_the_walk_to_a_facility_with_a_footprint_is_python_s(generated_scenario:
             agent.profile = _with_mobility(agent.profile, mobility)
             agent.zone_id = zone_id
             world.model_state[KEY]["positions"][agent_id]["point"] = {"x": center.x, "y": center.y}
-            route = _same_after(world, "facility_approach_route", agent_id, facility_id)
+            route = _kernel_after(world, "facility_approach_route", agent_id, facility_id)
+            walks.append(repr(route))
             found += route is not None and len(route[1]) >= 2
+            # A walk ends beside the footprint, never inside it.
+            if route is not None:
+                end = route[1][-1]
+                assert not (abs(end.x - point.x) < half and abs(end.y - point.y) < half)
     assert found
+    assert _digest(walks) == FOOTPRINT_WALKS

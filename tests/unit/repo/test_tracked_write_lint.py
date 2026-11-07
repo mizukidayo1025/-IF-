@@ -62,7 +62,6 @@ NOT_INSERTED_INTO_STATE: dict[tuple[str, str, str], str] = {
     ("core/checkpoint_cache.py", "_leaf", "raw"): "encoder memo; bytes",
     ("core/checkpoint_cache.py", "_tree_node", "node"): "encoder memo; a str",
     ("domain/geometry_overlay.py", "_parsed_config", "parsed"): "memo of parsed objects",
-    ("domain/movement.py", "plan_in_room_route", "route"): "memo of a route, not world state",
     ("domain/population.py", "queue_arrivals", "admitted"): "an int",
     ("domain/staff.py", "assign_pending", "qualified"): "local memo of StaffState lists",
     ("domain/staff.py", "qualified_for", "qualified"): "local memo of StaffState lists",

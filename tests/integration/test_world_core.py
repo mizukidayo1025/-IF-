@@ -547,14 +547,16 @@ def _run_world(scenario: Any, minutes: int, check: Any = None) -> WorldState:
     return world
 
 
-# Every namespace of the first ticks that the ledger's size doesn't make slow here.
+# Every namespace of the first ticks that the ledger's size doesn't make slow here, but
+# shared_operations_v1 and movement_v1: `prepare_facility_queue` and the steps of
+# experiments/phases/dispatch.py that follow an event (`_record_staff_support_started`,
+# `_schedule_return_to_initial_zone`) read their own rows and have no Python rule left to take
+# another row (`kernel_only`, lane L10).
 REAL_NAMESPACES = (
     "agent_dynamics_v1",
     "body_state_v1",
     "information_spread_v1",
-    "movement_v1",
     "psychological_distress_v1",
-    "shared_operations_v1",
     "social_network_v1",
     "social_propagation_v1",
     "staff_operations_v1",

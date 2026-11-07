@@ -639,7 +639,11 @@ def test_the_end_of_support_that_does_not_fit_is_python_s(generated_scenario: An
 # ---- what follows in the dispatch phase ----------------------------------------------------------
 
 
-def test_the_interrupted_and_started_receipts_are_python_s(generated_scenario: Any) -> None:
+def _unchanged(world: WorldState) -> tuple[str, int, int]:
+    return _bytes(world), len(world.event_log.records), len(world.event_queue.pending())
+
+
+def test_a_timeout_records_the_interruption_of_a_care_request(generated_scenario: Any) -> None:
     world, controller = _run(generated_scenario, 5)
     agent_id = _idle_person(world)
     _open_request(world, agent_id)
@@ -653,9 +657,93 @@ def test_the_interrupted_and_started_receipts_are_python_s(generated_scenario: A
     )
     world.support_requests["support-t1"].status = SupportRequestStatus.UNRESOLVED
     event = _timeout_event(world, agent_id)
+    # Without a request in the event there is nothing to record.
+    before = _unchanged(world)
+    timeout = _timeout_event(world, agent_id).to_dict()
+    without = ScheduledEvent.from_saved({**timeout, "payload": {"agent_id": agent_id}})
+    DispatchPhase._record_request_interrupted(controller, world, without)
+    assert _unchanged(world) == before
     twin = copy.deepcopy(world)
-    native.rules("support").record_interrupted(controller, world, event)
-    DispatchPhase._record_request_interrupted.__wrapped__(controller, twin, event)
+    DispatchPhase._record_request_interrupted(controller, world, event)
+    assert _unchanged(world) != before
+    # What the Python rule appended: the receipt's household and kind, the timeout as the cause.
+    care_receipts.append_applied_care_transition(
+        twin,
+        request_id="support-t1",
+        agent_id=agent_id,
+        household_id=None,
+        support_kind="emotional_support",
+        status="interrupted",
+        causation_id=event.event_id,
+        source_ids=care_receipts.care_source_ids_for_agent(twin, agent_id),
+    )
+    _same_world(world, twin)
+
+
+def test_a_staff_arrival_records_the_start_of_care(generated_scenario: Any) -> None:
+    world, controller = _run(generated_scenario, 5)
+    agent_id = _idle_person(world)
+    _open_request(world, agent_id)
+    care_receipts.append_applied_care_transition(
+        world,
+        request_id="support-t1",
+        agent_id=agent_id,
+        household_id=None,
+        support_kind="emotional_support",
+        status="requested",
+    )
+    staff_id = sorted(world.staff)[0]
+    request = world.support_requests["support-t1"]
+    request.status = SupportRequestStatus.ASSIGNED
+    request.assigned_staff_id = staff_id
+    request.task_id = "staff-support-test"
+
+    def arrival(**payload: Any) -> ScheduledEvent:
+        return ScheduledEvent(
+            event_id="staff-arrival-test",
+            kind=EventKind.COMPLETION,
+            due_minute=world.minute_index,
+            priority=0,
+            sequence=900_003,
+            event_type="agent_travel_complete",
+            payload={"purpose": "staff_support_travel", **payload},
+            source_id="staff-support-test",
+            provenance={"source_type": "assumption", "source_id": "ASM-TEST"},
+        )
+
+    before = _unchanged(world)
+    # Nothing without the request, for another staff member, or for a person not seeking help.
+    for event in (
+        arrival(staff_id=staff_id),
+        arrival(request_id="support-t1", staff_id="someone-else"),
+        arrival(request_id="no-such-request", staff_id=staff_id),
+    ):
+        DispatchPhase._record_staff_support_started(controller, world, event)
+        assert _unchanged(world) == before
+    world.agents[agent_id].activity = Activity.IDLE
+    idle = _unchanged(world)
+    DispatchPhase._record_staff_support_started(
+        controller, world, arrival(request_id="support-t1", staff_id=staff_id)
+    )
+    assert _unchanged(world) == idle
+    world.agents[agent_id].activity = Activity.SEEKING_HELP
+    twin = copy.deepcopy(world)
+    DispatchPhase._record_staff_support_started(
+        controller, world, arrival(request_id="support-t1", staff_id=staff_id)
+    )
+    assert _unchanged(world) != before
+    # What the Python rule appended: the assigned staff member, the request's task as the cause.
+    care_receipts.append_applied_care_transition(
+        twin,
+        request_id="support-t1",
+        agent_id=agent_id,
+        household_id=None,
+        support_kind="emotional_support",
+        status="started",
+        staff_id=staff_id,
+        causation_id="staff-support-test",
+        source_ids=care_receipts.care_source_ids_for_agent(twin, agent_id),
+    )
     _same_world(world, twin)
 
 
@@ -703,14 +791,34 @@ def test_a_manager_s_own_request_is_what_an_arrival_calls(generated_scenario: An
         )
 
 
-def test_the_journey_home_after_a_toilet_is_python_s(generated_scenario: Any) -> None:
+def test_the_journey_home_after_a_toilet_is_a_return_trip(generated_scenario: Any) -> None:
     world, controller = _run(generated_scenario, 5)
     agent_id = _idle_person(world)
     agent = world.agents[agent_id]
-    agent.zone_id = next(zone for zone in sorted(world.zones) if zone != agent.zone_id)
+    home = agent.profile.initial_zone_id
     event = _timeout_event(world, agent_id)
+    # Nothing for someone at home or someone unknown.
+    before = _unchanged(world)
+    assert agent.zone_id == home
+    DispatchPhase._schedule_return_to_initial_zone(controller, world, event)
+    stranger = _timeout_event(world, "nobody")
+    DispatchPhase._schedule_return_to_initial_zone(controller, world, stranger)
+    assert _unchanged(world) == before
+    agent.zone_id = next(zone for zone in sorted(world.zones) if zone != home)
     twin = copy.deepcopy(world)
     python_controller = _controller(twin)
-    native.rules("travel").schedule_return(controller, world, event)
-    DispatchPhase._schedule_return_to_initial_zone.__wrapped__(python_controller, twin, event)
+    DispatchPhase._schedule_return_to_initial_zone(controller, world, event)
+    assert agent.activity is Activity.MOVING
+    # What the Python rule did: the controller's route home and a "return" trip on it.
+    route = python_controller._route(twin.agents[agent_id].zone_id, home, agent_id)
+    assert route is not None
+    python_controller._schedule_travel(
+        agent_id=agent_id,
+        route=route,
+        purpose="return",
+        facility_id=None,
+        minute=twin.minute_index,
+        causation_id=event.event_id,
+        validate_state=False,
+    )
     _same_world(world, twin)

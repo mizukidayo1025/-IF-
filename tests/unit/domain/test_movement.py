@@ -30,7 +30,6 @@ from sheltersim.domain.movement import (
     plan_in_room_route,
     progress_physical_queue_head_to_service,
     progress_physical_queue_positions,
-    room_route_scope,
     route_is_physically_clear,
 )
 from sheltersim.domain.resource_service import ResourceServiceManager
@@ -276,39 +275,22 @@ def _route_inputs(world: WorldState) -> tuple[str, Point2D, Point2D]:
     )
 
 
-# The memo is the Python rule's: the kernel keeps its own in the plan of the floor.
-_python_plan = getattr(plan_in_room_route, "__wrapped__", plan_in_room_route)
-
-
-def test_a_remembered_room_route_is_the_planned_route(generated_scenario) -> None:
-    world = WorldState.from_scenario(generated_scenario)
-    zone_id, start, destination = _route_inputs(world)
-    planned = _python_plan(world, zone_id=zone_id, start=start, destination=destination)
-    memo = {"routes": {}}
-    with room_route_scope(memo):
-        first = _python_plan(world, zone_id=zone_id, start=start, destination=destination)
-        again = _python_plan(world, zone_id=zone_id, start=start, destination=destination)
-    assert first == planned
-    assert again is first
-    assert len(memo["routes"]) == 1
-
-
-def test_a_remembered_room_route_is_dropped_when_what_it_read_changes(generated_scenario) -> None:
+def test_a_room_route_follows_what_it_read_when_that_changes(generated_scenario) -> None:
+    """The kernel remembers routes per floor plan; a partition or another config is another."""
     world = WorldState.from_scenario(generated_scenario)
     zone_id, start, destination = _route_inputs(world)
     world.model_state.setdefault(
         "geometry_overlay_v1",
         {"facility_points": {}, "partitions": {}, "route_modifiers": {}, "temporary_rooms": {}},
     )
-    memo = {"routes": {}}
 
     def planned() -> tuple:
-        with room_route_scope(memo):
-            remembered = _python_plan(world, zone_id=zone_id, start=start, destination=destination)
-        assert remembered == _python_plan(
-            world, zone_id=zone_id, start=start, destination=destination
+        first = plan_in_room_route(world, zone_id=zone_id, start=start, destination=destination)
+        assert (
+            plan_in_room_route(world, zone_id=zone_id, start=start, destination=destination)
+            == first
         )
-        return remembered
+        return first
 
     open_route = planned()
     overlay = world.model_state["geometry_overlay_v1"]
@@ -332,20 +314,6 @@ def test_a_remembered_room_route_is_dropped_when_what_it_read_changes(generated_
     # Another raw config object is another geometry.
     world.model_configs["spatial_constraints"] = dict(world.model_configs["spatial_constraints"])
     assert planned() == open_route
-    assert memo["constraints"] is world.model_configs["spatial_constraints"]
-    # No overlay is another kind of plan.
+    # No overlay is another kind of plan, of the same walls here.
     del world.model_state["geometry_overlay_v1"]
-    planned()
-    assert memo["has_overlay"] is False
-
-
-def test_zero_coordinates_are_not_remembered(generated_scenario) -> None:
-    """0.0 and -0.0 are one dict key, but the plan returns the points it was given."""
-    world = WorldState.from_scenario(generated_scenario)
-    zone_id, start, destination = _route_inputs(world)
-    memo = {"routes": {}}
-    with room_route_scope(memo):
-        _python_plan(
-            world, zone_id=zone_id, start=Point2D(x=0.0, y=start.y), destination=destination
-        )
-    assert memo["routes"] == {}
+    assert planned() == open_route

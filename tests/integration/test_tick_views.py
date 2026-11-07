@@ -122,7 +122,7 @@ def test_a_change_after_the_update_phase_would_be_seen_only_through_a_read_view(
 
 
 def test_a_config_edited_between_ticks_is_seen_by_the_next_phases(generated_scenario) -> None:
-    """Parses and routes are kept between ticks only while model_configs keeps its values."""
+    """Parses and views are kept between ticks only while model_configs keeps its values."""
     from sheltersim.core.engine import TickEngine
     from sheltersim.core.world import WorldState
     from sheltersim.domain.geometry_overlay import _CONFIG_SCOPE, effective_geometry
@@ -138,7 +138,6 @@ def test_a_config_edited_between_ticks_is_seen_by_the_next_phases(generated_scen
     assert parsed
     engine.step()
     assert controller._parsed_configs.keys() == parsed.keys()
-    routes = controller._room_routes
     environments = controller._zone_environments
 
     facility_id, point = next(
@@ -157,7 +156,6 @@ def test_a_config_edited_between_ticks_is_seen_by_the_next_phases(generated_scen
     controller._run_phase = run_phase
     engine.step()
     assert seen and all(value == moved_x for value in seen)
-    assert controller._room_routes is not routes
     assert controller._zone_environments is not environments
 
 
@@ -177,7 +175,6 @@ def test_a_tick_with_kept_inputs_gives_the_state_of_one_with_none(generated_scen
             if drop:
                 controller._parsed_configs.clear()
                 controller._model_selections.clear()
-                controller._room_routes = {"routes": {}}
                 controller._zone_environments = {}
                 controller._view_before_proposals = None
             controller(phase, world_, minute, rng)

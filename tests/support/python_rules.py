@@ -71,7 +71,6 @@ PORTED_NAMES = frozenset(
         "route_is_physically_clear",
         "plan_in_room_route",
         "facility_approach_route",
-        "_plan_in_room_route",
         "_queue_slot_position",
         "_set_stationary_position",
         "_room_path_is_clear",
