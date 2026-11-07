@@ -405,15 +405,17 @@
     }
     return { progress: result, distance: best };
   }
-  function trimPath(path, start, end) {
+  function trimPath(path, start, end, reversed = false) {
     const total = path
       .slice(1)
       .reduce((sum, p, i) => sum + distance(p, path[i]), 0);
     const first = progressAt(path, start),
       last = progressAt(path, end);
     if (first.distance > 0.025 || last.distance > 0.025) return null;
+    // A path that turns back over itself can put the start after the end both ways
+    // round; reverse once only and leave such a path to the next candidate.
     if (first.progress > last.progress)
-      return trimPath([...path].reverse(), start, end);
+      return reversed ? null : trimPath([...path].reverse(), start, end, true);
     const points = [start];
     let walked = 0;
     for (let i = 1; i < path.length; i++) {
