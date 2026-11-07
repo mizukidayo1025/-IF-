@@ -10,6 +10,7 @@ test_movement_walk_order.py has the branches that depend on the order of the wal
 from __future__ import annotations
 
 import copy
+import decimal
 import hashlib
 import math
 import random
@@ -72,9 +73,8 @@ _NODE = [""]
 def _answers_are_the_deleted_rule_s(request: pytest.FixtureRequest) -> Iterator[None]:
     """After each test, its chained answers against the deleted Python rule's (ANSWERS).
 
-    The worlds hold floats of the platform's libm (the floor plan's lengths and points), recorded
-    on Linux. Lane L13 pins them on every OS; until then the checks in each test are what macOS
-    and Windows check.
+    The worlds hold floats (the floor plan's lengths and points), recorded on Linux; they are the
+    same bits on every OS, as the gate's hashes are (lane L13).
     """
     _NODE[0] = request.node.name
     yield
@@ -960,18 +960,39 @@ def test_a_model_a_scenario_turns_down_is_a_kernel_refusal(
 # ---- Random floor plans -------------------------------------------------------------------------
 
 
+def _cos_sin(angle: float) -> tuple[float, float]:
+    """cos and sin of `angle` by their series in decimal, rounded once to a float: the same bits on
+    every OS. math.cos and math.sin are the platform's libm, whose last bits differ between glibc
+    and macOS (and glibc's are not always rounded correctly)."""
+    with decimal.localcontext() as context:
+        context.prec = 60
+        x = decimal.Decimal(angle)
+        # The terms x**n / n! with their signs: cos takes n = 0, 2, 4, ..., sin n = 1, 3, 5, ...
+        sums = [decimal.Decimal(0)] * 4
+        term = decimal.Decimal(1)
+        n = 0
+        while n < 8 or abs(term) > decimal.Decimal("1e-58"):
+            sums[n % 4] += term
+            n += 1
+            term = term * x / n
+        return float(sums[0] - sums[2]), float(sums[1] - sums[3])
+
+
 def _random_polygon(
     rng: random.Random, cx: float, cy: float, radius: float
 ) -> list[dict[str, float]]:
     count = rng.randint(3, 9)
     angles = sorted(rng.uniform(0.0, math.tau) for _ in range(count))
-    return [
-        {
-            "x": cx + rng.uniform(0.2, 1.0) * radius * math.cos(angle),
-            "y": cy + rng.uniform(0.2, 1.0) * radius * math.sin(angle),
-        }
-        for angle in angles
-    ]
+    points = []
+    for angle in angles:
+        cos, sin = _cos_sin(angle)
+        points.append(
+            {
+                "x": cx + rng.uniform(0.2, 1.0) * radius * cos,
+                "y": cy + rng.uniform(0.2, 1.0) * radius * sin,
+            }
+        )
+    return points
 
 
 def _random_plan(rng: random.Random) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -1114,8 +1135,7 @@ def test_random_floor_plans_are_the_deleted_rules_bit_for_bit() -> None:
         "turns": 7,
         "turned_down": 86,
     }
-    # The points and lengths are floats of the platform's libm, recorded on Linux. Lane L13 pins
-    # them on every OS; until then the counts above are what macOS and Windows check.
+    # The same bits on every OS: the plans are drawn without the platform's libm (_cos_sin).
     assert _digest(answers) == RANDOM_PLAN_ANSWERS
 
 
