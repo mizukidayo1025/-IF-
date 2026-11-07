@@ -518,7 +518,7 @@ EventLog の比較の保証：`same_saved_records` は保存した bytes を読�
 
 55個の Scenario すべてで、次がそろって同じでした（別のプロセス、`PYTHONHASHSEED` を変える、Rust の部品なし：各55回。保存を読む8個は `RAYON_NUM_THREADS` を1と4に変える）。分岐（保存の間の時刻、保存の時刻、分岐の分岐）、別のストアからの再開、Checkpoint の JSON の往復、記録と再生、trace level、保存の有無も、1つの Scenario の中でまっすぐの Run と同じでした。決定的でない Scenario はありません。
 
-Linux で確かめた結果です。Windows と macOS では実行していません。
+Linux で確かめた結果です。Windows と macOS では `--determinism` を実行していません。`--expect` は、手順4の L13 から CI が3つの OS で同じ `fixtures/gate-all-paths.json` と比べ、55個すべてが同じです。
 
 ### 有効な入力で Run が止まるもの
 
