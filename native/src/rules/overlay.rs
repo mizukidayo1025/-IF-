@@ -253,7 +253,7 @@ fn trim_history(history: &Bound<'_, PyAny>, limit: usize) -> PyResult<()> {
 pub(crate) fn register_space(world: &Bound<'_, PyAny>, record: &Bound<'_, PyAny>, event_id: &str) -> PyResult<()> {
     let py = world.py();
     let Some(state) = state_of(world, SPACES_KEY)? else {
-        return unsupported("temporary_spaces_v1 is not installed");
+        return Err(errors::value_error("temporary_spaces_v1 is not installed"));
     };
     let fields = exact_dict(record)?;
     let Some(space_id) = fields.get_item(intern!(py, "space_id"))? else {
@@ -266,10 +266,10 @@ pub(crate) fn register_space(world: &Bound<'_, PyAny>, record: &Bound<'_, PyAny>
     let spaces = required(&state, "spaces")?;
     let history = required(&state, "history")?;
     if exact_dict(&spaces)?.contains(space_text)? {
-        return unsupported("the space's ID already exists");
+        return Err(errors::value_error("temporary space ID already exists"));
     }
     if spaces.len()? >= MAX_SPACES {
-        return unsupported("the space limit is reached");
+        return Err(errors::value_error("temporary space runtime limit reached"));
     }
     let minute = attribute(world, intern!(py, "minute_index"))?;
     let entry = dict_of(
@@ -292,7 +292,7 @@ pub(crate) fn register_space(world: &Bound<'_, PyAny>, record: &Bound<'_, PyAny>
 pub(crate) fn expire_space(world: &Bound<'_, PyAny>, space_id: &str, event_id: &str, causation_id: Option<&str>) -> PyResult<bool> {
     let py = world.py();
     let Some(state) = state_of(world, SPACES_KEY)? else {
-        return unsupported("temporary_spaces_v1 is not installed");
+        return Err(errors::value_error("temporary_spaces_v1 is not installed"));
     };
     let spaces = required(&state, "spaces")?;
     let Some(record) = child(&spaces, space_id)? else {

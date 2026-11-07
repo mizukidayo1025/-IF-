@@ -1,9 +1,8 @@
-"""A tick on the test-only tracked mirror matches the plain tick, phase by phase.
+"""The test-only tracked mirror names the minute, phase and namespace of a write that goes astray.
 
 Rust will own model_state and unported Python will write to it through tracked containers
-(docs/rust-port/lanes/p1-tracked-mirror.md). benchmarks/tracked_mirror_gate.py runs this over many
-scenarios; here it runs over the common generated Scenario, and the harness itself must name the
-minute, phase and namespace of a write that goes astray.
+(docs/rust-port/lanes/p1-tracked-mirror.md). A whole Run on these containers needs the Python rules
+the kernels leave them to, so as lane L10 deletes those rules, a Run is no longer compared here.
 """
 
 from __future__ import annotations
@@ -16,32 +15,6 @@ from support.tracked_mirror import Drift, Session, TrackedDict, TrackedList, mir
 
 from sheltersim.core.engine import TickEngine, TickPhase
 from sheltersim.core.world import WorldState
-from sheltersim.experiments.metrics import MetricsRecorder
-from sheltersim.experiments.runner import OfflineSimulationController
-from sheltersim.experiments.timeline import _MetricSink
-
-MINUTES = 40
-
-
-def _run(scenario: Any, session: Session) -> dict[str, Any]:
-    with session:
-        world = WorldState.from_scenario(scenario)
-        metrics = MetricsRecorder()
-        controller = OfflineSimulationController(world, _MetricSink(metrics))
-        TickEngine(world, phase_handler=controller).run(steps=MINUTES)
-        return world.to_dict()
-
-
-def test_tracked_and_reversed_runs_match_the_plain_run_at_every_phase(generated_scenario) -> None:
-    plain = Session(tracked=False, record=True)
-    expected = _run(generated_scenario, plain)
-
-    for options in ({}, {"reverse_at_phase_end": True}, {"reverse_reads": True}):
-        session = Session(expect=plain.stream, **options)
-        assert _run(generated_scenario, session) == expected
-        assert session.drifts == []
-        assert session.compared_phases == MINUTES * len(TickPhase)
-        assert session.compared_shadow == MINUTES * len(TickPhase)
 
 
 def test_a_world_keeps_tracked_documents_through_copy_and_swap(generated_scenario) -> None:

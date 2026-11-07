@@ -93,3 +93,41 @@ def _checked(
         if other is not None:
             other.after(python_rule, arguments, options, error, mine)
         raise
+
+
+class KernelRefusal(ValueError):
+    """A kernel with no Python rule behind it said Unsupported.
+
+    Its Python rule was deleted (lane L10, docs/rust-port/step4-plan.md): no Run reached a refusal
+    of it, and only an input outside the rule's contract does. A ValueError, so a caller that turns
+    a rule's ValueError into an event's failure does so with this one too.
+    """
+
+
+def kernel_only(module: str, name: str) -> Callable[[Rule], Rule]:
+    """native/src/rules/<module>.rs's kernel, under the decorated function's name and signature.
+
+    The decorated function keeps the signature and the docstring and has no body. A refusal of the
+    kernel raises KernelRefusal. `__wrapped__` raises it too, for the driver's call-backs to the
+    Python rule (`rule_of` in native/src/rules/tick.rs), which run only after a refusal.
+    """
+
+    def decorate(entry: Rule) -> Rule:
+        kernel = getattr(native.rules(module), name)
+        unsupported = native.Unsupported
+        label = f"{module}.{name}"
+
+        @wraps(entry)
+        def run(*arguments: Any, **options: Any) -> Any:
+            try:
+                return kernel(*arguments, **options)
+            except unsupported as refusal:
+                raise KernelRefusal(f"{label} refused: {refusal}") from refusal
+
+        def no_rule(*arguments: Any, **options: Any) -> Any:
+            raise KernelRefusal(f"{label} has no Python rule")
+
+        run.__wrapped__ = no_rule  # type: ignore[attr-defined]
+        return run  # type: ignore[return-value]
+
+    return decorate

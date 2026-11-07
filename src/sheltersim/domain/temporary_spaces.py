@@ -9,10 +9,9 @@ from __future__ import annotations
 from typing import Any
 
 from sheltersim import native
-from sheltersim.core.kernels import kernel_first
+from sheltersim.core.kernels import kernel_only
 from sheltersim.core.state_mirror import register_rust_validator
 from sheltersim.core.world import WorldState
-from sheltersim.domain.models import Activity
 
 TEMPORARY_SPACES_STATE_KEY = "temporary_spaces_v1"
 TEMPORARY_SPACES_POLICY_VERSION = "typed-temporary-capacity-v1"
@@ -106,188 +105,56 @@ def validate_temporary_spaces_state(world: WorldState) -> None:
             raise ValueError("temporary_spaces_v1 history record is invalid")
 
 
-@kernel_first("overlay", "capacity_metrics")
+@kernel_only("overlay", "capacity_metrics")
 def capacity_metrics(
     world: WorldState, zone_id: str, *, occupancy: int | None = None
 ) -> dict[str, int | None]:
-    """Return zone-only capacity and separately measured physical room intake."""
-    zone = world.zones[zone_id]
-    nominal = zone.capacity
-    if nominal is None:
-        return {
-            "nominal_capacity": None,
-            "effective_capacity": None,
-            "temporary_people_capacity": 0,
-            "retained_expired_capacity": 0,
-            "temporary_sleeping_capacity": 0,
-            "physical_room_capacity": 0,
-            "active_room_admissions": 0,
-            "retained_expired_room_admissions": 0,
-            "effective_total_capacity": None,
-        }
-    current = (
-        sum(agent.zone_id == zone_id for agent in world.agents.values())
-        if occupancy is None
-        else occupancy
-    )
-    state = world.model_state.get(TEMPORARY_SPACES_STATE_KEY, {})
-    records = (
-        [row for row in state.get("spaces", {}).values() if row.get("zone_id") == zone_id]
-        if isinstance(state, dict)
-        else []
-    )
-    active_people = sum(row["people_capacity"] for row in records if row["active"])
-    expired_people = sum(row["people_capacity"] for row in records if not row["active"])
-    retained = min(expired_people, max(0, current - nominal - active_people))
-    effective = nominal + active_people + retained
-    overlay_config = world.model_configs.get("geometry_overlay", {})
-    geometry_overlay = world.model_state.get("geometry_overlay_v1", {})
-    physical_rooms = (
-        geometry_overlay.get("temporary_rooms", {}) if isinstance(geometry_overlay, dict) else {}
-    )
-    room_admissions = (
-        geometry_overlay.get("room_admissions", {}) if isinstance(geometry_overlay, dict) else {}
-    )
-    room_rows = (
-        [
-            row
-            for row in physical_rooms.values()
-            if isinstance(row, dict) and row.get("zone_id") == zone_id
-        ]
-        if isinstance(physical_rooms, dict)
-        else []
-    )
-    room_capacity = (
-        sum(row["people_capacity"] for row in room_rows if row.get("active"))
-        if isinstance(overlay_config, dict) and overlay_config.get("schema_version") in {3, 4}
-        else 0
-    )
-    active_room_ids = {row["room_id"] for row in room_rows if row.get("active")}
-    room_counts: dict[str, int] = {}
-    if isinstance(room_admissions, dict):
-        for row in room_admissions.values():
-            if isinstance(row, dict) and isinstance(row.get("room_id"), str):
-                room_counts[row["room_id"]] = room_counts.get(row["room_id"], 0) + 1
-    active_admissions = sum(room_counts.get(room_id, 0) for room_id in active_room_ids)
-    expired_admissions = sum(
-        room_counts.get(row["room_id"], 0) for row in room_rows if not row.get("active")
-    )
-    retained_room_capacity = min(
-        sum(row["people_capacity"] for row in room_rows if not row.get("active")),
-        expired_admissions,
-    )
-    return {
-        "nominal_capacity": nominal,
-        "effective_capacity": effective,
-        "temporary_people_capacity": active_people,
-        "retained_expired_capacity": retained,
-        "temporary_sleeping_capacity": sum(
-            row["sleeping_capacity"] for row in records if row["active"]
-        ),
-        "physical_room_capacity": room_capacity,
-        "active_room_admissions": active_admissions,
-        "retained_expired_room_admissions": retained_room_capacity,
-        "effective_total_capacity": effective + room_capacity + retained_room_capacity,
-    }
+    """Zone-only capacity and separately measured physical room intake.
+
+    `nominal_capacity` is the zone's own (None: unbounded, and so is every total). Active
+    temporary spaces add their people; an expired one keeps holding the people still above the
+    rest (`retained_expired_capacity`). Signed physical rooms (geometry overlay schema 3 or 4)
+    add their people, and an expired room keeps the people it admitted.
+    """
 
 
-@kernel_first("overlay", "effective_zone_capacity")
+@kernel_only("overlay", "effective_zone_capacity")
 def effective_zone_capacity(
     world: WorldState, zone_id: str, *, occupancy: int | None = None
 ) -> int | None:
-    return capacity_metrics(world, zone_id, occupancy=occupancy)["effective_capacity"]
+    """capacity_metrics(...)["effective_capacity"]."""
 
 
-@kernel_first("overlay", "effective_total_zone_capacity")
+@kernel_only("overlay", "effective_total_zone_capacity")
 def effective_total_zone_capacity(
     world: WorldState, zone_id: str, *, occupancy: int | None = None
 ) -> int | None:
     """Capacity bound for WorldState validation, including signed physical rooms."""
-    return capacity_metrics(world, zone_id, occupancy=occupancy)["effective_total_capacity"]
 
 
-@kernel_first("overlay", "incoming_travelers")
+@kernel_only("overlay", "incoming_travelers")
 def incoming_travelers(world: WorldState, zone_id: str, *, excluding: str | None = None) -> int:
     """People walking to zone_id, directly or to one of its facilities.
 
     Travel admission holds their place from departure, so every other admission into
     the zone must count them too, or their arrival overfills it (#180).
     """
-    count = 0
-    for agent_id, agent in world.agents.items():
-        if agent_id == excluding or agent.activity is not Activity.MOVING:
-            continue
-        target = agent.target_id
-        if target in world.facilities:
-            target = world.facilities[target].zone_id
-        count += target == zone_id
-    return count
 
 
-@kernel_first("overlay", "register_temporary_space")
+@kernel_only("overlay", "register_temporary_space")
 def register_temporary_space(world: WorldState, record: dict[str, Any], *, event_id: str) -> None:
-    state = world.model_state.get(TEMPORARY_SPACES_STATE_KEY)
-    if not isinstance(state, dict):
-        raise ValueError("temporary_spaces_v1 is not installed")
-    if record["space_id"] in state["spaces"]:
-        raise ValueError("temporary space ID already exists")
-    if len(state["spaces"]) >= MAX_TEMPORARY_SPACES:
-        raise ValueError("temporary space runtime limit reached")
-    state["spaces"][record["space_id"]] = record
-    _append_history(
-        state,
-        event_id=event_id,
-        record=record,
-        minute=world.minute_index,
-        transition="activated",
-        causation_id=None,
-    )
+    """Add an active space and its "activated" history row.
+
+    ValueError when the namespace is not installed, the ID exists, or MAX_TEMPORARY_SPACES are
+    held. The history keeps its last MAX_TEMPORARY_SPACE_HISTORY rows.
+    """
 
 
-@kernel_first("overlay", "expire_temporary_space")
+@kernel_only("overlay", "expire_temporary_space")
 def expire_temporary_space(
     world: WorldState, space_id: str, *, event_id: str, causation_id: str | None
 ) -> bool:
-    state = world.model_state.get(TEMPORARY_SPACES_STATE_KEY)
-    if not isinstance(state, dict):
-        raise ValueError("temporary_spaces_v1 is not installed")
-    record = state["spaces"].get(space_id)
-    if record is None or not record["active"]:
-        return False
-    record["active"] = False
-    record["end_event_id"] = event_id
-    _append_history(
-        state,
-        event_id=event_id,
-        record=record,
-        minute=world.minute_index,
-        transition="expired",
-        causation_id=causation_id,
-    )
-    return True
-
-
-def _append_history(
-    state: dict[str, Any],
-    *,
-    event_id: str,
-    record: dict[str, Any],
-    minute: int,
-    transition: str,
-    causation_id: str | None,
-) -> None:
-    state["history"].append(
-        {
-            "event_id": event_id,
-            "space_id": record["space_id"],
-            "zone_id": record["zone_id"],
-            "minute": minute,
-            "transition": transition,
-            "causation_id": causation_id,
-        }
-    )
-    if len(state["history"]) > MAX_TEMPORARY_SPACE_HISTORY:
-        del state["history"][: len(state["history"]) - MAX_TEMPORARY_SPACE_HISTORY]
+    """End an active space, with its "expired" history row; False for one unknown or ended."""
 
 
 register_rust_validator(TEMPORARY_SPACES_STATE_KEY, native.rules("overlay").validate_spaces)
