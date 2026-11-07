@@ -272,8 +272,6 @@ def _compare(recorder: Recorder, where: str, world: Any, twin: Any, pending_befo
 def prepare(output: str) -> None:
     from sheltersim import native
 
-    if not native.available():
-        return
     unsupported = native.Unsupported
     recorder = Recorder(output, "service")
 

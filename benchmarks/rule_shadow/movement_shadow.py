@@ -3,7 +3,8 @@
 sitecustomize.py installs this with the others; `summary.py DIR` adds up what it saw. The movement
 rules are still Python (docs/rust-port/lanes/i-movement.md), so what moved is the state: after the
 movement step and at the end of each tick, the row must write the bytes of the tree, and it must
-not be tainted. The tree's values against plain dicts are `first_difference.py --both`.
+not be tainted. The tree's values were compared with plain dicts by `first_difference.py --both`,
+which ran without the Rust extension; that mode went when the extension became required.
 
 `seen` has how many values were compared, how many writes were forwarded, and which branches were
 reached, since a branch no scenario takes is not compared.
@@ -75,8 +76,6 @@ def install(seen: Counter[str], reasons: Counter[str], differences: list[str]) -
     from sheltersim.experiments.phases import update
     from sheltersim.experiments.phases.update import UpdatePhase
 
-    if not native.available():
-        return
     if os.environ.get("SHELTERSIM_MOVEMENT_REVERSED"):
         reverse_advance_movement()
     # The one kernel that reads this tree. Refusing it costs time and changes no hash.

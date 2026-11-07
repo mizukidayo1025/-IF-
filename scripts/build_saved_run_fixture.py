@@ -6,11 +6,12 @@ computed to 60, so both may be continued to 90. Only the files a Run needs to be
 are kept, with its history index (history.sqlite) as the writer left it; the frame
 cache, the write ledger, locks and worker leases are left out.
 
-fixtures/saved_runs/engine-v1-small was built with this script (SHELTERSIM_NATIVE=0
-and SHELTERSIM_LLM_MODE=offline) in a worktree of 6d5662c, before
-Checkpoints recorded the whole-model version (engine:model). It is a Run as every
-Run saved before then is: the version it was computed with is the unrecorded version
-1 (core/model_version.py). Building it again with later code records the version
+fixtures/saved_runs/engine-v1-small was built with this script in a worktree of 6d5662c,
+with SHELTERSIM_NATIVE=0 and SHELTERSIM_LLM_MODE=offline: that commit could still run
+without the Rust extension, and the variable is gone since the extension became required.
+That was before Checkpoints recorded the whole-model version (engine:model). It is a Run
+as every Run saved before then is: the version it was computed with is the unrecorded
+version 1 (core/model_version.py). Building it again with later code records the version
 of that code, so it is not built again; keep the committed files.
 
     PYTHONPATH=src python scripts/build_saved_run_fixture.py OUTPUT_DIRECTORY

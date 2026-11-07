@@ -50,12 +50,8 @@ def write(scope: str = "") -> None:
 
 def install(output: str) -> None:
     global NATIVE, TARGET
-    if os.environ.get("SHELTERSIM_NATIVE", "1") == "0":
-        return
-    try:
-        import sheltersim_native as native
-    except ImportError:
-        return
+    import sheltersim_native as native
+
     Path(output).mkdir(parents=True, exist_ok=True)
     from sheltersim.core import kernels
 

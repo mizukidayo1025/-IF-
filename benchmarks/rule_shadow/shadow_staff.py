@@ -49,8 +49,6 @@ def _no_route(*_arguments: Any) -> None:
 def prepare(output: str) -> None:
     from sheltersim import native
 
-    if not native.available():
-        return
     # The driver calls these kernels without going through the module.
     native.rules("tick").python_path_only(True)
     rules = native.rules("staff")

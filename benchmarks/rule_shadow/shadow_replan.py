@@ -24,8 +24,6 @@ def _pending(world: Any) -> list[Any]:
 def prepare(output: str) -> None:
     from sheltersim import native
 
-    if not native.available():
-        return
     # The driver calls the kernel in Rust: this shadow sees the Python step's call.
     native.rules("tick").python_path_only(True)
     rules = native.rules("replan")

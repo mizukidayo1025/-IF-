@@ -95,8 +95,6 @@ def _breaks(world: Any) -> list[tuple[str, Any]]:
 def prepare(output: str) -> None:
     from sheltersim import native
 
-    if not native.available():
-        return
     recorder = Recorder(output, "after_tick")
     unsupported = native.Unsupported
     rules = native.rules("after_tick")

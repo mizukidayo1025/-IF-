@@ -19,7 +19,6 @@ from typing import Any
 
 
 def install(output: str) -> None:
-    from sheltersim import native
     from sheltersim.core import state_mirror
     from sheltersim.core.checkpoint_cache import (
         _WORLD_TREE,
@@ -28,8 +27,6 @@ def install(output: str) -> None:
     )
     from sheltersim.core.world import WorldState
 
-    if not native.available():
-        return
     seen: Counter[str] = Counter()
     fallbacks: Counter[str] = Counter()
     differences: list[str] = []

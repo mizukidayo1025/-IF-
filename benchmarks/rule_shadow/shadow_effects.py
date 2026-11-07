@@ -121,8 +121,6 @@ def _handler_shadow(recorder: Recorder, label: str, kernel: Any, rule: Any) -> A
 def prepare(output: str) -> None:
     from sheltersim import native
 
-    if not native.available():
-        return
     recorder = Recorder(output, "effects")
     rules = native.rules("effects")
     report_stats(recorder, rules)

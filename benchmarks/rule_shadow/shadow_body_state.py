@@ -51,9 +51,6 @@ def _sorted_text(value: Any) -> str:
 
 def prepare(output: str) -> None:
     from sheltersim import native
-
-    if not native.available():
-        return
     from sheltersim.domain.models import ordered_pair_key
 
     rules = native.rules("body_state")

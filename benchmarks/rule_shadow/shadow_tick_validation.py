@@ -52,10 +52,6 @@ def _beyond_the_bound(world: Any, name: str) -> bool:
 
 
 def prepare(output: str) -> None:
-    from sheltersim import native
-
-    if not native.available():
-        return
     from sheltersim.contracts import runtime
     from sheltersim.core import state_mirror
     from sheltersim.core import world as world_module

@@ -31,9 +31,6 @@ NAMES = (
 
 def prepare(output: str) -> None:
     from sheltersim import native
-
-    if not native.available():
-        return
     from sheltersim.core import state_mirror, tick_validation
 
     recorder = Recorder(output, "population")

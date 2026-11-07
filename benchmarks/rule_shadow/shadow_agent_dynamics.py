@@ -26,8 +26,6 @@ ROW_CHECK_EVERY = 25
 def prepare(output: str) -> None:
     from sheltersim import native
 
-    if not native.available():
-        return
     rules = native.rules("agent_dynamics")
     state_module = native.state("agent_dynamics")
     recorder = Recorder(output, "agent_dynamics")

@@ -21,8 +21,6 @@ PURE = (
 def prepare(output: str) -> None:
     from sheltersim import native
 
-    if not native.available():
-        return
     rules = native.rules("staff_dynamics")
     recorder = Recorder(output, "staff_dynamics")
     unsupported = native.Unsupported

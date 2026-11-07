@@ -140,8 +140,6 @@ def _request_values(request: Any) -> tuple[Any, ...]:
 def prepare(output: str) -> None:
     from sheltersim import native
 
-    if not native.available():
-        return
     recorder = Recorder(output, "handlers")
     unsupported = native.Unsupported
 

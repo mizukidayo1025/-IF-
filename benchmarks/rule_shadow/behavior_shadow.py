@@ -82,8 +82,6 @@ def install(output: str) -> None:
     from sheltersim.experiments.phases.propose import ProposePhase
     from sheltersim.experiments.runner import OfflineSimulationController
 
-    if not native.available():
-        return
     seen: Counter[str] = Counter()
     reasons: Counter[str] = Counter()
     differences: list[str] = []

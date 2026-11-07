@@ -18,8 +18,7 @@ from sheltersim import native
 
 # Under a census of the tests themselves, its switch is not these tests' to turn.
 pytestmark = pytest.mark.skipif(
-    not native.available() or "SHELTERSIM_REFUSAL_CENSUS" in os.environ,
-    reason="needs the Rust kernels, with no census running",
+    "SHELTERSIM_REFUSAL_CENSUS" in os.environ, reason="a census of the tests is running"
 )
 
 _ROOT = FIXTURES.parent

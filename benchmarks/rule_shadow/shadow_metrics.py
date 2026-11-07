@@ -49,8 +49,6 @@ def _breaks(world: Any) -> list[tuple[str, Any]]:
 def prepare(output: str) -> None:
     from sheltersim import native
 
-    if not native.available():
-        return
     recorder = Recorder(output, "metrics")
     unsupported = native.Unsupported
     metric_rules = native.rules("metrics")

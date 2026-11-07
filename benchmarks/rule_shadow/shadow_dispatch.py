@@ -64,8 +64,6 @@ def _person(person: Any) -> tuple[Any, ...]:
 def prepare(output: str) -> None:
     from sheltersim import native
 
-    if not native.available():
-        return
     recorder = Recorder(output, "dispatch")
     module = native.rules("dispatch")
 

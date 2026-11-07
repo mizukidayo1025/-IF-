@@ -63,8 +63,6 @@ def _written(person: Any) -> list[str]:
 def prepare(output: str) -> None:
     from sheltersim import native
 
-    if not native.available():
-        return
     recorder = Recorder(output, "social_network")
     unsupported = native.Unsupported
     rules = native.rules("social_network")

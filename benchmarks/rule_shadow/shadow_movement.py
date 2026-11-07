@@ -65,8 +65,6 @@ def _count_branches(recorder: Recorder, state: dict[str, Any]) -> None:
 def prepare(output: str) -> None:
     from sheltersim import native
 
-    if not native.available():
-        return
     rules = native.rules("movement")
     recorder = Recorder(output, "movement")
     unsupported = native.Unsupported

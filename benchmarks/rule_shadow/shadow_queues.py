@@ -160,8 +160,6 @@ def _whole(world: Any) -> str:
 def prepare(output: str) -> None:
     from sheltersim import native
 
-    if not native.available():
-        return
     # The driver calls its kernels directly, past these stand-ins.
     native.rules("tick").python_path_only(True)
     rules = native.rules("queues")
