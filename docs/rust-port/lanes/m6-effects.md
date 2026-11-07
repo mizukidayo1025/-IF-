@@ -58,7 +58,7 @@ Python のイベントの処理を包んで数えました（`98f10f1`、ゲー�
 
 ## 決めたこと
 
-**写して差し替える流れは変えていません。** `step3-design.md` の決定どおりです。Rust の規則も `WorldState.from_dict(world.to_dict())`、`validate()`、`__dict__` の差し替えを同じ順で呼びます。1回あたりの費用も同じです。その場で書く形にしなかったのは、`candidate.validate()` の失敗で世界が変わらないこと（失敗したイベントとして記録されること）をそのまま保つためです。`facility_repair` だけは Python の規則がもともとその場で書くので、同じくその場で書きます。
+**写して差し替える流れは変えていません。** `step3-design.md` の決定どおりです。Rust の規則も写し（`events/effects.py` の `_effect_candidate`、Rust では `effect_copy_of`）、`validate()`、`__dict__` の差し替えを同じ順で呼びます。1回あたりの費用も同じです。写しは `WorldState.from_dict(world.to_dict())` と同じ正準 JSON を通しますが、EventLog だけは作り直さず世界のものを持ちます（効果は EventLog に書かないため）。7日の Run の4日目では EventLog が約27万件あり、その往復が効果の開始ごとの約20秒のほぼすべてだったためです。世界の検証（前）と写しの履歴つきの検証（後）は前と同じに行います。その場で書く形にしなかったのは、`candidate.validate()` の失敗で世界が変わらないこと（失敗したイベントとして記録されること）をそのまま保つためです。`facility_repair` だけは Python の規則がもともとその場で書くので、同じくその場で書きます。
 
 **成功以外は Python の規則が言います。** 抑止と失敗はどちらも、世界を変えずに `Unsupported` を返します。写しの上の例外もすべてです。Python の規則は最初から動いて同じ文を出します。例外を通すのは、世界がすでに変わったあとの2か所だけで、Python の規則と同じです（`facility_repair` の `world.validate()`、差し替えのあとの受領記録）。
 

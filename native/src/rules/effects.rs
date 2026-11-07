@@ -2,7 +2,7 @@
 //! events, what other modules ask of the modifier stacks, and the check of `effect_program_v1`.
 //!
 //! A handler's Python rule makes a copy of the world, changes the copy, checks it and swaps it in.
-//! The rules here do the same through the same calls (`copy_of`, `commit`). That transaction is the
+//! The rules here do the same through the same calls (`effect_copy_of`, `commit`). That transaction is the
 //! design's until `core.fork()`: docs/rust-port/step3-design.md.
 //!
 //! A suppressed or failed effect raises the Python rule's text, in its order of checks, through
@@ -275,6 +275,13 @@ pub(crate) fn copy_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyA
     let py = world.py();
     let class = py.import(intern!(py, "sheltersim.core.world"))?.getattr(intern!(py, "WorldState"))?;
     class.call_method1(intern!(py, "from_dict"), (world.call_method0(intern!(py, "to_dict"))?,))
+}
+
+/// `_effect_candidate(world)` of `events/effects.py`: the copy an effect changes, which holds the
+/// world's own EventLog instead of one made again from 270,000 documents at day 4 of a 7-day Run.
+pub(crate) fn effect_copy_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    let py = world.py();
+    py.import(intern!(py, "sheltersim.events.effects"))?.getattr(intern!(py, "_effect_candidate"))?.call1((world,))
 }
 
 fn validate(candidate: &Bound<'_, PyAny>) -> PyResult<()> {
@@ -949,7 +956,7 @@ fn facility_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: boo
         Err((outcome, text)) => return Err(errors::error(py, outcome, text)),
     };
 
-    let candidate = copy_of(world)?;
+    let candidate = effect_copy_of(world)?;
     let records = model_state(&candidate)?
         .get_item(intern!(py, "effect_program_v1"))?
         .get_item(intern!(py, "active_facility_modifiers"))?;
@@ -1088,7 +1095,7 @@ fn environment_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: 
         {
             return errors::failed(py, "zone environment expiry does not match its start");
         }
-        let candidate = copy_of(world)?;
+        let candidate = effect_copy_of(world)?;
         model_state(&candidate)?
             .get_item(ENVIRONMENT_STATE)?
             .get_item(intern!(py, "modifiers"))?
@@ -1188,7 +1195,7 @@ fn environment_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: 
     record.set_item("source_id", attribute(&config, intern!(py, "source_id"))?)?;
     record.set_item("assumption_ids", PyList::new(py, assumptions)?)?;
 
-    let candidate = copy_of(world)?;
+    let candidate = effect_copy_of(world)?;
     model_state(&candidate)?
         .get_item(ENVIRONMENT_STATE)?
         .get_item(intern!(py, "modifiers"))?
@@ -1274,7 +1281,7 @@ fn temporary_space_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expi
         if !matches {
             return errors::suppressed(py, "temporary-space effect did not start or does not match its expiry");
         }
-        let candidate = copy_of(world)?;
+        let candidate = effect_copy_of(world)?;
         // False only for a space that is gone or not active, which the checks above saw it is not.
         if !overlay::expire_space(&candidate, modifier, &row.event_id, row.causation_id.as_deref())? {
             return errors::suppressed(py, "temporary-space effect is already expired");
@@ -1320,7 +1327,7 @@ fn temporary_space_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expi
     record.set_item("effect_id", &**effect_id)?;
     record.set_item("source_ids", PyList::new(py, sources)?)?;
     record.set_item("geometry_status", "zone_only_capacity")?;
-    let candidate = copy_of(world)?;
+    let candidate = effect_copy_of(world)?;
     // By name, as the Python rule calls it (its kernel first), for the text of its ValueError.
     let keywords = PyDict::new(py);
     keywords.set_item("event_id", &*row.event_id)?;
@@ -1407,7 +1414,7 @@ fn geometry_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: boo
             return errors::suppressed(py, "geometry modifier was not applied or already expired");
         }
     }
-    let candidate = copy_of(world)?;
+    let candidate = effect_copy_of(world)?;
     // By name, as the Python rule calls it (its kernel first), for the text of what it raises.
     let applied = (|| {
         let keywords = PyDict::new(py);
@@ -1464,7 +1471,7 @@ fn staff_task_order(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, row: &Ev
         causation_event_id: &row.event_id,
         source_id: row.source_id.as_deref(),
     };
-    let candidate = copy_of(world)?;
+    let candidate = effect_copy_of(world)?;
     // Its checks raise the rule's text before any change, on the copy; the world stays as it was.
     order_operation(&candidate, &order)?;
     commit(world, &candidate)
@@ -1594,7 +1601,7 @@ fn staff_handoff_on_copy<'py>(
     let replacement_id: String = replacement_id.extract()?;
     guard_passes(world, row, event)?;
 
-    let candidate = copy_of(world)?;
+    let candidate = effect_copy_of(world)?;
     let minute = exact_int(&attribute(&candidate, intern!(py, "minute_index"))?)?;
     let table = model_state(&candidate)?;
     let operations = get_or_none(&table, "staff_operations_v1")?.filter(is_dict);
@@ -1860,7 +1867,7 @@ fn set_staff_role(world: &Bound<'_, PyAny>, row: &EventRow, event: &Bound<'_, Py
             return errors::failed(py, format!("staff-role event skills are invalid: {text}"));
         }
     };
-    let candidate = copy_of(world)?;
+    let candidate = effect_copy_of(world)?;
     let staff = attribute(&candidate, intern!(py, "staff"))?.get_item(&**staff_id)?;
     // `candidate.model_state.get("staff_operations_v1", {}).get("staff", {}).get(staff_id)`.
     let operations = get_or_empty(&get_or_empty(&model_state(&candidate)?, "staff_operations_v1")?, "staff")?
@@ -1971,7 +1978,7 @@ fn add_structure(world: &Bound<'_, PyAny>, row: &EventRow) -> PyResult<&'static 
     // `.removeprefix` of a value that is not a str raises, for the Python rule to raise.
     let modifier = required_str(payload, "modifier_id")?;
     let suffix = modifier.strip_prefix("modifier-").unwrap_or(modifier);
-    let candidate = copy_of(world)?;
+    let candidate = effect_copy_of(world)?;
     if &**op == "add_staff" {
         let staff = attribute(&candidate, intern!(py, "staff"))?;
         let room = 100 - staff.len()? as i64;

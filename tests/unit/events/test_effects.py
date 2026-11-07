@@ -18,7 +18,7 @@ import pytest
 from support.paths import SMALL_REPLAY
 
 from sheltersim.core.checkpoint import Checkpoint
-from sheltersim.core.world import WorldState
+from sheltersim.core.world import StateInvariantError, WorldState
 from sheltersim.domain.operational import water_service_blocked
 from sheltersim.domain.resources import RESOURCE_LEDGER_KEY
 from sheltersim.events.effects import (
@@ -37,6 +37,7 @@ from sheltersim.events.effects import (
     should_apply_effect_guard,
     validate_effect_program,
 )
+from sheltersim.events.effects import _effect_candidate as effect_candidate
 from sheltersim.events.handlers import (
     DeliveryDelayHandler,
     EventDispatcher,
@@ -47,6 +48,7 @@ from sheltersim.events.handlers import (
     WaterRestorationHandler,
 )
 from sheltersim.events.models import EventKind, EventStatus, ScheduledEvent
+from sheltersim.events.queue import EventLog
 from sheltersim.experiments.branch import (
     BranchError,
     BranchRuntime,
@@ -741,3 +743,101 @@ def test_guard_equality_compares_numbers_by_value_but_not_with_booleans(
     )
 
     assert should_apply_effect_guard(world, event) is expected
+
+
+def _outage_due() -> tuple[WorldState, ScheduledEvent]:
+    """A world at the start of an approved toilet_2 outage, and the start event."""
+    world = _world()
+    schedule_effect_program(
+        world,
+        _program(
+            _effect(
+                "toilet-failure",
+                "set_facility_availability",
+                "facility",
+                "toilet_2",
+                {"working_units": 0},
+                "facility_unit",
+                ["facility_capacity"],
+                end=5,
+            )
+        ),
+    )
+    world.minute_index = 1
+    (event,) = (
+        item for item in world.event_queue.pending() if item.event_type == "effect_program_apply"
+    )
+    return world, event
+
+
+def _facility_rule(rule: str) -> Any:
+    """The facility start as the tick calls it (kernel first), or its Python rule alone."""
+    handler = EffectProgramFacilityHandler()
+    if rule == "kernel":
+        return handler.apply
+    python_rule = getattr(type(handler).apply, "__wrapped__", type(handler).apply)
+    return lambda world, event: python_rule(handler, world, event)
+
+
+@pytest.mark.parametrize("rule", ["kernel", "python"])
+def test_an_effect_start_keeps_the_event_log_and_equals_the_full_copy_result(rule: str) -> None:
+    """The copy an effect changes holds the world's EventLog instead of rebuilding it from its
+    documents, which took ~20 s at day 4 of a 7-day Run; the result is the full copy's."""
+    world, event = _outage_due()
+    log = world.event_log
+    expected = WorldState.from_dict(world.to_dict())
+    EffectProgramFacilityHandler()._apply(expected, event)
+    expected.validate()
+
+    _facility_rule(rule)(world, event)
+
+    assert world.event_log is log
+    assert world.facilities["toilet_2"].working_units == 0
+    assert world.canonical_json() == expected.canonical_json()
+
+
+@pytest.mark.parametrize("rule", ["kernel", "python"])
+def test_an_effect_whose_result_fails_validation_leaves_the_world_unchanged(
+    rule: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The changed copy is still checked before it takes the world's place: a broken result
+    raises, and the world, its entities and its EventLog stay as they were."""
+    world, event = _outage_due()
+    before = world.canonical_json()
+    log, length = world.event_log, len(world.event_log)
+    facility = world.facilities["toilet_2"]
+    validate = WorldState.validate
+
+    def refuse_closed_toilet(self: WorldState, **options: Any) -> None:
+        validate(self, **options)
+        if self.facilities["toilet_2"].working_units == 0:
+            raise StateInvariantError("test: toilet_2 must stay open")
+
+    monkeypatch.setattr(WorldState, "validate", refuse_closed_toilet)
+    with pytest.raises(StateInvariantError, match="toilet_2 must stay open"):
+        _facility_rule(rule)(world, event)
+    monkeypatch.undo()
+
+    assert world.canonical_json() == before
+    assert world.facilities["toilet_2"] is facility
+    assert facility.working_units == 1
+    assert world.event_log is log and len(log) == length
+
+
+def test_the_effect_copy_still_audits_the_event_history(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Sharing the EventLog does not skip its audit: a broken history refuses the copy."""
+    world, _ = _outage_due()
+    candidate = effect_candidate(world)
+    assert candidate.event_log is world.event_log
+    assert candidate.canonical_json() == world.canonical_json()
+    candidate.facilities["toilet_2"].working_units = 0
+    candidate.model_state["effect_program_v1"]["active_facility_modifiers"]["toilet_2"] = {}
+    assert world.facilities["toilet_2"].working_units == 1
+    assert world.model_state["effect_program_v1"]["active_facility_modifiers"] == {}
+
+    def broken_history(self: Any, **options: Any) -> None:
+        raise ValueError("test: broken history")
+
+    monkeypatch.setattr(EventLog, "validate", broken_history)
+    with pytest.raises(StateInvariantError, match="broken history"):
+        effect_candidate(world)
