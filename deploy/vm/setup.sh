@@ -96,7 +96,9 @@ chown root:sheltersim "$ETC/env"
 chmod 640 "$ETC/env"
 
 if [[ ! -f $ETC/basic-auth ]]; then
-  BASIC_PASS="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16)"
+  # Not `tr </dev/urandom | head`: under pipefail, tr's SIGPIPE ends the script silently.
+  BASIC_PASS="$(python3 -c 'import secrets, string
+print("".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(16)))')"
   printf '%s\n%s\n' "$BASIC_USER" "$BASIC_PASS" > "$ETC/basic-auth"
   chmod 600 "$ETC/basic-auth"
 fi
