@@ -134,33 +134,12 @@ def test_events_by_id_reads_realized_events_first_without_copying_the_log(make_e
         events["missing"]
 
 
-def test_an_audit_checks_only_new_records_while_earlier_ones_are_unchanged(make_event) -> None:
-    """The Python EventLog, whose record list code could edit directly."""
-    from sheltersim.events.queue import _PythonEventLog as EventLog
-
+def test_an_audit_checks_times_again_for_an_earlier_minute_or_another_duration() -> None:
     records = _records(4)
     log = EventLog(_records=records[:3])
     log.validate(minute_index=3, duration_minutes=10)
-    assert log._audited == records[:3]
     log.append(records[3])
     log.validate(minute_index=4, duration_minutes=10)
-    assert log._audited == records
-
-    # A record placed without append, or a replaced record, is found.
-    bypass = EventLogRecord(
-        event=make_event("e9", sequence=9), realized_minute=4, status=EventStatus.APPLIED
-    )
-    log._records.append(bypass)
-    with pytest.raises(ValueError, match="indexes do not match"):
-        log.validate(minute_index=4, duration_minutes=10)
-    log._records.pop()
-    duplicate = EventLogRecord(
-        event=make_event("e0", sequence=0), realized_minute=2, status=EventStatus.APPLIED
-    )
-    log._records[1] = duplicate
-    with pytest.raises(ValueError, match="duplicate event IDs"):
-        log.validate(minute_index=4, duration_minutes=10)
-    log._records[1] = records[1]
 
     # An earlier minute or another duration audits every record again.
     with pytest.raises(ValueError, match="future realization"):
@@ -170,14 +149,10 @@ def test_an_audit_checks_only_new_records_while_earlier_ones_are_unchanged(make_
     log.validate(minute_index=4, duration_minutes=10)
 
 
-@pytest.mark.parametrize("implementation", ["python", "native"])
-def test_both_event_logs_answer_alike(make_event, implementation) -> None:
-    """The EventLog held in Rust (feature/rust-port) answers every method as the Python
-    one does, refuses the same duplicates, and audits realization times."""
+def test_the_event_log_answers_from_its_indexes_and_refuses_duplicates() -> None:
+    """The EventLog held in Rust answers every method from its indexes, refuses repeated
+    IDs and sequences, and audits realization times."""
     from sheltersim.events.models import EventKind, ScheduledEvent
-    from sheltersim.events.queue import _NativeEventLog, _PythonEventLog
-
-    log_type = _NativeEventLog if implementation == "native" else _PythonEventLog
 
     def record(index, event_type, status="applied", payload=None, provenance=None):
         return EventLogRecord(
@@ -213,27 +188,30 @@ def test_both_event_logs_answer_alike(make_event, implementation) -> None:
         record(5, "a", "failed"),
         record(6, "care_support_transition", payload={"request_id": "req", "status": "x"}),
     ]
-    log = log_type(_records=records)
-    expected = _PythonEventLog(_records=records)
-    assert len(log) == len(expected) == 7
-    assert log.records == expected.records and log == expected
+    log = EventLog(_records=records)
+    assert len(log) == 7
+    assert log.records == tuple(records) and log == EventLog(_records=records)
+    assert log != EventLog(_records=records[:6])
     assert log.find("e3") is records[3] and log.find("missing") is None
     assert log.contains_id("e2") and not log.contains_id("e9")
     assert log.contains_sequence(4) and not log.contains_sequence(9)
     assert log.max_sequence == 6
-    assert log.at_minute(1) == expected.at_minute(1) == (records[2], records[3])
-    assert log.event_types() == expected.event_types()
-    assert log.of_types({"b", "a"}) == expected.of_types({"b", "a"})
+    assert log.at_minute(1) == (records[2], records[3])
+    assert log.at_minute(9) == ()
+    assert log.event_types() == frozenset(
+        {"a", "b", "care_support_transition", "facility_outage", "facility_recovery"}
+    )
+    assert log.of_types({"b", "a"}) == [records[0], records[4], records[5]]
     assert log.of_types(["facility_outage"]) == [records[2]]
-    assert log.with_provenance_object("marker") == expected.with_provenance_object("marker")
+    assert log.with_provenance_object("marker") == [records[0], records[4]]
     assert log.with_provenance_object("plain") == []
     assert log.has_prior_care_request("req", "e6") and not log.has_prior_care_request("req", "e1")
     assert log.completed_support_kinds("A1") == frozenset({"meal"})
     assert log.applied_facility_event_ids("f1") == frozenset({"e2"})
-    assert log.recent(3) == expected.recent(3)
-    assert log.recent_matching(frozenset({"a"}), limit=5, scan_limit=3) == (
-        expected.recent_matching(frozenset({"a"}), limit=5, scan_limit=3)
-    )
+    assert log.recent(3) == tuple(records[4:])
+    # Only applied records count, and the scan stops after scan_limit records.
+    assert log.recent_matching(frozenset({"a"}), limit=5, scan_limit=3) == ((), True)
+    assert log.recent_matching(frozenset({"a"}), limit=5, scan_limit=7) == ((records[0],), False)
     assert log.records_from(5) == records[5:] and log.last() is records[6]
     assert log.event_ids() == [f"e{index}" for index in range(7)]
     with pytest.raises(DuplicateEventError, match="already realized"):
@@ -266,33 +244,25 @@ def test_both_event_logs_answer_alike(make_event, implementation) -> None:
     assert len(copied) == 8 and len(log) == 7
 
 
-@pytest.mark.parametrize("implementation", ["python", "native"])
-def test_an_event_log_read_back_from_saved_bytes_makes_records_when_read(implementation) -> None:
-    """from_saved builds the indexes from the saved canonical JSON; the native store
-    makes a record object only when one is read, equal to the record saved."""
-    from sheltersim.events.queue import (
-        _NativeEventLog,
-        _PythonEventLog,
-        record_bytes,
-        record_from_bytes,
-    )
+def test_an_event_log_read_back_from_saved_bytes_makes_records_when_read() -> None:
+    """from_saved builds the indexes from the saved canonical JSON, and makes a record
+    object only when one is read, equal to the record saved."""
+    from sheltersim.events.queue import record_bytes, record_from_bytes
 
-    log_type = _NativeEventLog if implementation == "native" else _PythonEventLog
     records = _records(6, kinds=("a", "b"))
     saved = [record_bytes(record) for record in records]
     assert [record_from_bytes(raw) for raw in saved] == records
-    log = log_type.from_saved(saved)
-    if implementation == "native":
-        assert log._store.unread() == 6
-        assert log.find("e3") == records[3]
-        assert log._store.unread() == 5
-        assert log.of_types({"b"}) == [records[1], records[3], records[5]]
-        assert log._store.unread() == 3
+    log = EventLog.from_saved(saved)
+    assert log.unread() == 6
+    assert log.find("e3") == records[3]
+    assert log.unread() == 5
+    assert log.of_types({"b"}) == [records[1], records[3], records[5]]
+    assert log.unread() == 3
     assert log.records == tuple(records)
     assert log.items_bytes(0, 6) == saved
     assert log.with_provenance_object("marker") == records[1::2]
     with pytest.raises(DuplicateEventError):
-        log_type.from_saved([saved[0], saved[0]])
+        EventLog.from_saved([saved[0], saved[0]])
 
 
 def test_the_realized_minute_of_saved_bytes_is_the_records_own() -> None:

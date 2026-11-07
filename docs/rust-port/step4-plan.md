@@ -1016,7 +1016,7 @@ L0 の前に文を読んで付けた分類です。到達は**推測で、上の
 | 種類 | 行 | 例 | どうするか |
 |---|--:|---|---|
 | `validate_*`、`canonical_*` | 4,393 | `validate_effect_program`（727）、`validate_resource_ledger`、`validate_body_state`、`validate_movement_runtime_state` | **残す**（決定 D3）。読み込みの完全検証と、介入の承認の境界 |
-| dataclass、pydantic の契約 | 3,283 | `domain/models.py` の実体（591）、`events/queue.py`（493）、`EffectProgram`、`ActionProposal`、`WorldView` と `AgentView` | 残す。`_PythonEventQueue`、`_PythonEventLog` は消す |
+| dataclass、pydantic の契約 | 3,283 | `domain/models.py` の実体（591）、`events/queue.py`（493）、`EffectProgram`、`ActionProposal`、`WorldView` と `AgentView` | 残す。`_PythonEventLog` は消す（`_PythonEventQueue` は `_LargeOrderEventQueue` が使うので残す） |
 | `create_*`、`initialize_*`、`add_*` | 554 | `initialize_simulator_extensions`、`create_movement_runtime_state` | 残す（世界の組み立て）。`create_population_*` は V の断りを閉じるのに使う |
 | その他 | 3,117 | 下 | 下 |
 
@@ -1216,7 +1216,7 @@ L0 の前に文を読んで付けた分類です。到達は**推測で、上の
 | **L13** | 3つの OS | 9節。CI の変更 |  | L11（L12 と同時でよい） | L12 と | 中 |
 | **L14**（任意） | 木の切り離し | 5節 |  | L10 | L12 と調整 | 低〜中 |
 
-**L10 の進み：** 最初の部分（Rust の拡張を必須にし、`SHELTERSIM_NATIVE`、`native.available()`、CI の「Rust なし」の回を消す）は済みました。
+**L10 の進み：** 最初の部分（Rust の拡張を必須にし、`SHELTERSIM_NATIVE`、`native.available()`、CI の「Rust なし」の回を消す）は済みました。`_PythonEventLog` と、それだけが通る道（`keeps_saved_bytes`、`CheckpointHistoryCache` の記録を同一性で追う道）も消しました。`_PythonEventQueue` は残します。i64 に収まらない順序を持つキュー（`_LargeOrderEventQueue`）が中で使うからです。
 
 **一番危ないのは L9 です。** 読んで確かめたこと：
 

@@ -43,8 +43,8 @@ def _sample(metrics: MetricsRecorder, minute: int) -> None:
 
 def _restored_before(kwargs: dict) -> int:
     """How many records a restore check's from_dict had restored before."""
-    log = kwargs.get("_restored_log")
-    return len(log) if log is not None else len(kwargs["_restored_events"])
+    log = kwargs["_restored_log"]
+    return len(log) if log is not None else 0
 
 
 def _full_documents(world: WorldState, metrics: MetricsRecorder) -> tuple[dict, dict]:
@@ -118,7 +118,7 @@ def test_cached_capture_is_the_full_capture_and_restores_only_new_records(
     original = WorldState.from_dict.__func__
 
     def from_dict(cls, document, **kwargs):
-        if "_restored_events" in kwargs:
+        if "_restored_log" in kwargs:
             reused.append((_restored_before(kwargs), len(document["event_log"])))
         return original(cls, document, **kwargs)
 

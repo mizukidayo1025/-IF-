@@ -77,7 +77,6 @@ from sheltersim.events.queue import (
     DuplicateEventError,
     EventLog,
     EventQueue,
-    keeps_saved_bytes,
 )
 from sheltersim.experiments.scenario import ResourceServiceConfig, ScenarioSpec
 
@@ -1614,7 +1613,6 @@ class WorldState:
         cls,
         document: dict[str, Any],
         *,
-        _restored_events: Sequence[EventLogRecord] = (),
         _shared: Sequence[Any] = (),
         _validate: bool = True,
         _saved_json: bool = False,
@@ -1625,17 +1623,16 @@ class WorldState:
         """Restore the exact current schema; older or unknown schemas fail closed.
 
         The private arguments are for the restore check of Checkpoint.capture only:
-        _restored_events are records restored before from the same leading
-        event_log documents, which are not parsed again, and the new world may keep
-        the _shared model_state lists instead of copies. Without _validate the caller
-        validates the world, or shows it equals one validated already. With
-        _saved_json the document was read from hash-checked canonical JSON, so event
-        payloads are not encoded again to check they are JSON (ScheduledEvent.from_saved).
-        With _borrow the new world keeps the document's objects instead of copies; only
-        a caller that reads the world and discards it, or that owns a new document,
-        may pass it. _restored_log is
-        such a discarded world's EventLog of the leading event_log documents; the new
-        records are appended to it, keeping its indexes, instead of building a new one.
+        the new world may keep the _shared model_state lists instead of copies. Without
+        _validate the caller validates the world, or shows it equals one validated
+        already. With _saved_json the document was read from hash-checked canonical JSON,
+        so event payloads are not encoded again to check they are JSON
+        (ScheduledEvent.from_saved). With _borrow the new world keeps the document's
+        objects instead of copies; only a caller that reads the world and discards it, or
+        that owns a new document, may pass it. _restored_log is such a discarded world's
+        EventLog of the leading event_log documents, or the live log those documents were
+        written from; the new records are appended to it, keeping its indexes, instead of
+        building a new one.
 
         An event_log read back as item bytes (SavedItems) builds the EventLog from
         them; each record is made when read (EventLog.from_saved).
@@ -1789,29 +1786,22 @@ class WorldState:
 
             event_from = ScheduledEvent.from_saved if _saved_json else _event_from_document
             queue = EventQueue([event_from(item) for item in document["event_queue"]])
-            leading = _restored_log if _restored_log is not None else _restored_events
-            if len(leading) > len(document["event_log"]):
-                raise StateInvariantError("restored EventLog records exceed the document")
+            log = _restored_log if _restored_log is not None else EventLog()
             saved = document["event_log"]
+            if len(log) > len(saved):
+                raise StateInvariantError("restored EventLog records exceed the document")
             if isinstance(saved, SavedItems):
-                log = _restored_log if _restored_log is not None else EventLog(_restored_events)
                 log.extend_saved(saved.raws[len(log) :])
             else:
-                new_records = (
-                    EventLogRecord(
-                        event=event_from(item["event"]),
-                        realized_minute=item["realized_minute"],
-                        status=EventStatus(item["status"]),
-                        detail=item["detail"],
+                for item in saved[len(log) :]:
+                    log.append(
+                        EventLogRecord(
+                            event=event_from(item["event"]),
+                            realized_minute=item["realized_minute"],
+                            status=EventStatus(item["status"]),
+                            detail=item["detail"],
+                        )
                     )
-                    for item in saved[len(leading) :]
-                )
-                if _restored_log is not None:
-                    log = _restored_log
-                    for record in new_records:
-                        log.append(record)
-                else:
-                    log = EventLog([*_restored_events, *new_records])
             make = cls if _known_rows is None else cls._bare_world
             world = make(
                 scenario_id=document["scenario_id"],
@@ -1891,14 +1881,14 @@ class WorldState:
         # building those; anything it can not show exactly is compared here.
         records = theirs.records_from(known_equal_events)
         return (
-            keeps_saved_bytes(mine)
-            and native.same_saved_records(
+            native.same_saved_records(
                 records,
                 mine.items_bytes(known_equal_events, len(mine)),
                 EventLogRecord,
                 ScheduledEvent,
             )
-        ) or mine.records_from(known_equal_events) == records
+            or mine.records_from(known_equal_events) == records
+        )
 
     @classmethod
     def from_json(cls, value: str) -> WorldState:

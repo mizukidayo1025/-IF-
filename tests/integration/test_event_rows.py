@@ -21,7 +21,6 @@ from sheltersim.events.queue import (
     _LargeOrderEventQueue,
     _NativeEventLog,
     _NativeEventQueue,
-    _PythonEventLog,
     _PythonEventQueue,
 )
 from sheltersim.experiments.scenario import ScenarioSpec
@@ -385,21 +384,23 @@ def test_a_rules_record_fills_the_indexes_of_a_python_record(
     state = _state()
     world = _world()
     state.record_row(world, event, 0, status)
-    theirs = _PythonEventLog()
     record = EventLogRecord(event, 0, EventStatus(status))
-    theirs.append(record)
     python_native = _NativeEventLog()
     python_native.append(record)
+    care = event_type == "care_support_transition"
+    applied = status == "applied"
+    facility = event_type in {"facility_outage", "facility_recovery"}
     for log in (world.event_log, python_native):
-        assert log.event_types() == theirs.event_types()
-        assert log.has_prior_care_request("r", "other") == theirs.has_prior_care_request(
-            "r", "other"
+        assert log.event_types() == frozenset({event_type})
+        # A care request is known by its first event whatever its outcome.
+        assert log.has_prior_care_request("r", "other") is care
+        assert log.completed_support_kinds("A") == frozenset({"k"} if care and applied else ())
+        assert log.applied_facility_event_ids("f") == frozenset(
+            {"a"} if facility and applied else ()
         )
-        assert log.completed_support_kinds("A") == theirs.completed_support_kinds("A")
-        assert log.applied_facility_event_ids("f") == theirs.applied_facility_event_ids("f")
-        assert log.with_provenance_object("marker") == theirs.with_provenance_object("marker")
+        assert log.with_provenance_object("marker") == [record]
         assert log.with_provenance_object("plain") == []
-        assert log.at_minute(0) == theirs.at_minute(0)
+        assert log.at_minute(0) == (record,)
     assert world.event_log.active_lifecycle_records() == python_native.active_lifecycle_records()
 
 
@@ -422,6 +423,10 @@ def test_a_handler_gets_a_rules_event_like_any_other() -> None:
     assert world.event_log.items_bytes(0, 1) == twin.event_log.items_bytes(0, 1)
 
 
+class _NotRustsLog:
+    """A world's event log that holds no Rust store, which a rule's writer refuses."""
+
+
 def test_a_writer_refuses_a_world_that_is_not_rusts_and_changes_nothing() -> None:
     state = _state()
     unsupported = native._native.Unsupported
@@ -432,7 +437,7 @@ def test_a_writer_refuses_a_world_that_is_not_rusts_and_changes_nothing() -> Non
     with pytest.raises(unsupported):
         state.schedule_row(world, event)
     world.id_counters = before
-    world.event_log = _PythonEventLog()
+    world.event_log = _NotRustsLog()
     with pytest.raises(unsupported):
         state.schedule_row(world, event)
     world = _world()

@@ -4,8 +4,9 @@ A Checkpoint holds the whole WorldState and KPI history, and its hashes and arch
 chunks cover the canonical JSON of all of it. Most of that is history that only
 grows: realized EventLog records, KPI and resource samples, and model_state histories
 such as the body-state window. A writer that saves every 30 minutes keeps, for each
-item it saved before, the JSON document, its canonical bytes and (for EventLog
-records) the record that the save's restore check made from that document. The next
+item it saved before, the JSON document, its canonical bytes and (for KPI and
+resource samples) what the save's restore check made from that document. The EventLog
+keeps each record's bytes itself, and the cache follows them by position. The next
 save converts, encodes and restores only the new items, and still produces the bytes,
 hashes and chunks of a full capture.
 
@@ -17,11 +18,11 @@ is hashed as the hashes of its fields. The rule reads nothing but the document, 
 reader without any of these caches gets the same hashes.
 
 Items are matched by identity, and the cache holds a reference to each one so an
-id is never reused while it is cached. EventLog records and KPI snapshots are
-frozen. The other histories are plain dicts that are appended and never edited;
-such an entry is reused only while it still equals its saved document. With the rust
-kernels that comparison also tells 1 from True and a tuple from a list, and its result
-also tells the save's validation which entries it need not read (core/save_validation.py).
+id is never reused while it is cached. KPI snapshots are frozen. The other histories
+are plain dicts that are appended and never edited; such an entry is reused only while
+it still equals its saved document. With the rust kernels that comparison also tells 1
+from True and a tuple from a list, and its result also tells the save's validation which
+entries it need not read (core/save_validation.py).
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ import hashlib
 import json
 import operator
 from collections.abc import Callable, Iterator, Sequence
-from dataclasses import asdict, fields
+from dataclasses import asdict
 from typing import Any
 
 from sheltersim import native
@@ -39,8 +40,7 @@ from sheltersim.core.save_validation import SaveValidationMemo
 from sheltersim.core.saved_items import SavedItems, json_default
 from sheltersim.core.state_mirror import owned_row_bytes
 from sheltersim.core.world import WorldState
-from sheltersim.events.models import EventLogRecord, ScheduledEvent
-from sheltersim.events.queue import EventLog, keeps_saved_bytes
+from sheltersim.events.queue import EventLog
 from sheltersim.experiments.metrics import MetricsRecorder
 
 
@@ -354,10 +354,8 @@ class _SealedItems:
         self.items: list[Any] = []
         self.documents: list[Any] = []
         self.raws: list[bytes] = []
-        # What a restore check made from the leading documents, if anything, and how
-        # many of them are known to equal their items.
+        # What a restore check made from the leading documents, if anything.
         self.restored: list[Any] = []
-        self.restored_equal = 0
         # How many leading items the last update() found equal to their documents.
         self.known_equal = 0
         # The result of compare() for the update() of the same list that follows it.
@@ -419,7 +417,6 @@ class _SealedItems:
             documents.append(document)
             raws.append(canonical_bytes(document))
         del self.restored[:start], self.restored[kept:]
-        self.restored_equal = max(0, min(self.restored_equal - start, kept))
         self.known_equal = kept if self._still_equal else 0
         self.items = list(current)
         pins = self._pins
@@ -455,14 +452,6 @@ def _world_json(value: Any) -> Any:
 
 def _is_str(value: Any) -> bool:
     return isinstance(value, str)
-
-
-def _event_document(record: EventLogRecord) -> Any:
-    return _world_json(record.to_dict())
-
-
-_RECORD_FIELDS = {item.name for item in fields(EventLogRecord)}
-_EVENT_FIELDS = {item.name for item in fields(ScheduledEvent)}
 
 
 # Append-only model_state histories (they may drop their oldest entries).
@@ -503,7 +492,6 @@ class CheckpointHistoryCache:
     """
 
     def __init__(self) -> None:
-        self._events = _SealedItems(_event_document)
         self._model_histories = {
             path: _SealedItems(_world_json, still_equal=True) for path in _MODEL_STATE_HISTORIES
         }
@@ -514,10 +502,10 @@ class CheckpointHistoryCache:
         self._run_inputs: dict[Any, Any] = {}
         # The EventLog of the last restore check (see restored_log()).
         self._log: EventLog | None = None
-        # For a Rust EventLog, which keeps each record's bytes, records are followed
-        # by position: the item bytes of the last documents() (the same objects
-        # while the log only grows), and how many leading restored records are known
-        # to equal the captured ones.
+        # The EventLog keeps each record's bytes, so records are followed by position:
+        # the item bytes of the last documents() (the same objects while the log only
+        # grows), and how many leading restored records are known to equal the
+        # captured ones.
         self._event_raws: list[bytes] | None = None
         # The world's own EventLog, while it is what restoring its records gives.
         self._live_log: EventLog | None = None
@@ -596,18 +584,11 @@ class CheckpointHistoryCache:
             world_document[name] = SavedItems(raws)
             encoder.splice_rows(world_document[name], raws)
         log = world.event_log
-        if keeps_saved_bytes(log):
-            raws = self._log_raws(log)
-            self._event_raws = raws
-            self._live_log = log if log.all_encoded() else None
-            world_document["event_log"] = SavedItems(raws)
-            encoder.splice(world_document["event_log"], raws, world_document)
-        else:
-            self._event_raws = None
-            self._live_log = None
-            self._events.update(log.records)
-            world_document["event_log"] = list(self._events.documents)
-            encoder.splice(world_document["event_log"], list(self._events.raws), world_document)
+        raws = self._log_raws(log)
+        self._event_raws = raws
+        self._live_log = log if log.all_encoded() else None
+        world_document["event_log"] = SavedItems(raws)
+        encoder.splice(world_document["event_log"], raws, world_document)
         for path in histories:
             cache = self._model_histories[path]
             cache.update(_containers(world.model_state, path)[-1][path[-1]])
@@ -673,8 +654,8 @@ class CheckpointHistoryCache:
         return document
 
     def _log_raws(self, log: EventLog) -> list[bytes]:
-        # A Rust EventLog that only grew returns the same bytes objects; a replaced
-        # one makes its bytes anew, and then nothing known about the old one holds.
+        # An EventLog that only grew returns the same bytes objects; a replaced one
+        # makes its bytes anew, and then nothing known about the old one holds.
         known = self._event_raws
         count = len(log)
         if known is not None and len(known) <= count:
@@ -692,32 +673,17 @@ class CheckpointHistoryCache:
         """Start from a log a Checkpoint restore made from its event_log documents.
 
         The first len(documents) records of log must be the records restored from
-        documents, and the documents must never change. A restored record converts
-        back to its document when the document has exactly the record's fields, so
-        the first capture then reuses both instead of converting and restoring the
-        whole EventLog. Returns whether the documents were used.
+        documents, and the documents must never change. Documents read back as item
+        bytes (SavedItems) are the bytes the log keeps, so the first capture then reuses
+        them instead of encoding and checking the whole EventLog. Returns whether the
+        documents were used.
         """
-        if keeps_saved_bytes(log):
-            if not isinstance(documents, SavedItems) or len(log) < len(documents):
-                return False
-            # The log was built from these bytes, so its leading records are the ones a
-            # restore check builds from them.
-            self._event_raws = log.items_bytes(0, len(documents))
-            self._raws_equal = len(documents)
-            self._log = None
-            return True
-        records = log.records[: len(documents)]
-        if len(records) != len(documents) or any(
-            set(document) != _RECORD_FIELDS or set(document["event"]) != _EVENT_FIELDS
-            for document in documents
-        ):
+        if not isinstance(documents, SavedItems) or len(log) < len(documents):
             return False
-        events = self._events
-        events.items, events.documents = list(records), list(documents)
-        events.raws = [canonical_bytes(document) for document in documents]
-        events.restored = list(records)
-        # The items are the restored records themselves.
-        events.restored_equal = len(records)
+        # The log was built from these bytes, so its leading records are the ones a
+        # restore check builds from them.
+        self._event_raws = log.items_bytes(0, len(documents))
+        self._raws_equal = len(documents)
         # They belong to a live world's EventLog, which a restore check never extends.
         self._log = None
         return True
@@ -768,23 +734,15 @@ class CheckpointHistoryCache:
         self._snapshots.restored = list(metrics.snapshots)
         self._resource_snapshots.restored = list(metrics.resource_snapshots or [])
 
-    def restored_events(self) -> list[EventLogRecord]:
-        """Records restored from the leading event_log documents of the last documents().
-
-        Empty for a Rust EventLog, whose restore check extends restored_log() instead.
-        """
-        return [] if self._event_raws is not None else list(self._events.restored)
-
     def restored_events_equal(self) -> int:
         """How many leading restored records are known to equal the captured records."""
         if self._live_log is not None:
             return len(self._event_raws)
-        if self._event_raws is not None:
-            return self._raws_equal
-        return self._events.restored_equal
+        return self._raws_equal
 
     def restored_log(self) -> EventLog | None:
-        """The EventLog of the last restore check, if it holds exactly restored_events().
+        """The EventLog of the last restore check, if it holds only records of the leading
+        event_log item bytes of the last documents().
 
         That restored world was discarded, so the next restore check may append the
         new records to its EventLog instead of indexing every record again.
@@ -797,20 +755,13 @@ class CheckpointHistoryCache:
         if self._live_log is not None:
             return self._live_log
         log = self._log
-        if log is None:
+        if log is None or self._event_raws is None:
             return None
-        if self._event_raws is not None:
-            # It was built from the leading item bytes of the last documents().
-            count = len(log)
-            if count > len(self._event_raws) or (
-                count and log.items_bytes(count - 1, count)[0] is not self._event_raws[count - 1]
-            ):
-                return None
-            return log
-        restored = self._events.restored
-        if len(log) != len(restored):
-            return None
-        if restored and log.last() is not restored[-1]:
+        # It was built from the leading item bytes of the last documents().
+        count = len(log)
+        if count > len(self._event_raws) or (
+            count and log.items_bytes(count - 1, count)[0] is not self._event_raws[count - 1]
+        ):
             return None
         return log
 
@@ -824,15 +775,7 @@ class CheckpointHistoryCache:
             # later capture has to build a restored log after all.
             self._raws_equal, self._log = len(log), None
             return
-        if self._event_raws is not None:
-            if len(log) != len(self._event_raws):
-                raise ValueError("restored EventLog does not match the captured documents")
-            self._raws_equal = len(log) if equal else 0
-            self._log = log
-            return
-        records = log.records
-        if len(records) != len(self._events.items):
+        if self._event_raws is None or len(log) != len(self._event_raws):
             raise ValueError("restored EventLog does not match the captured documents")
-        self._events.restored = list(records)
-        self._events.restored_equal = len(records) if equal else 0
+        self._raws_equal = len(log) if equal else 0
         self._log = log

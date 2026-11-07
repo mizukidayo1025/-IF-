@@ -17,7 +17,7 @@ from sheltersim.domain.action_lifecycle import (
     record_applied_action_completion,
 )
 from sheltersim.events.models import EventKind, EventLogRecord, EventStatus, ScheduledEvent
-from sheltersim.events.queue import EventLog, keeps_saved_bytes
+from sheltersim.events.queue import EventLog
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.policies.behavior import ActionKind
 
@@ -244,8 +244,6 @@ def _lifecycle_record(sequence: int, agent_id: object, transition: object) -> Ev
 
 def test_a_restored_event_log_gives_the_active_actions_without_reading_every_record() -> None:
     """Fork and resume read only the records that decide the result, in the same dict order."""
-    if not keeps_saved_bytes(EventLog()):
-        pytest.skip("the sheltersim_native extension is not installed")
     steps = [
         ("a", "started"),
         ("b", "started"),
@@ -262,7 +260,9 @@ def test_a_restored_event_log_gives_the_active_actions_without_reading_every_rec
     log = EventLog()
     for sequence, (agent, transition) in enumerate(steps):
         log.append(_lifecycle_record(sequence, agent, transition))
-    full = SimpleNamespace(event_log=SimpleNamespace(of_types=log.of_types))
+    # Every lifecycle record, not only the ones the log picks, gives the same index.
+    every = log.of_types({"agent_action_lifecycle"})
+    full = SimpleNamespace(event_log=SimpleNamespace(active_lifecycle_records=lambda: every))
     expected = active_action_index(full)
     assert [(agent, row["action_id"], row["continued"]) for agent, row in expected.items()] == [
         ("a", "action-3", True),
