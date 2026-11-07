@@ -2,7 +2,7 @@
 
 ## 対象と判定方法
 
-この監査はコード上の式、単位、更新順、Policy Registry、Trace、既存テストを突き合わせた内部監査である。文献はモデル構造の根拠として扱い、ShelterSimの係数・避難所での予測精度を証明するものとは扱わない。各項目の「適用」は保存済みScenarioの選択に従う。新規Scenarioの候補セットは [14-default-model-suite.md](14-default-model-suite.md) に記録した。
+この監査はコード上の式、単位、更新順、Policy Registry、Trace、既存テストを突き合わせた内部監査である。文献はモデル構造の根拠として扱い、避難所IF！の係数・避難所での予測精度を証明するものとは扱わない。各項目の「適用」は保存済みScenarioの選択に従う。新規Scenarioの候補セットは [14-default-model-suite.md](14-default-model-suite.md) に記録した。
 
 | 領域 | 実装・選択Policy | 状態式・単位・時間尺度 | 接続、根拠、仮定 | 主なテスト・問題 | 優先度 |
 |---|---|---|---|---|---|

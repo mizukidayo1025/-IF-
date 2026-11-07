@@ -372,8 +372,8 @@ class ExpressivenessChannelOpennessPolicy(StressPropagationPolicy):
     """Bosse-inspired bounded affect synchrony over sparse family/zone contacts.
 
     The cited expressiveness-channel-openness structure motivates the operator. The
-    contact weights and resident sensitivity mapping below remain ShelterSim
-    assumptions; this is not a calibrated implementation of the published model.
+    contact weights and resident sensitivity mapping below remain
+    assumptions of 避難所IF！; this is not a calibrated implementation of the published model.
     """
 
     policy_version = "expressiveness-channel-openness-v1"

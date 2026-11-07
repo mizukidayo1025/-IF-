@@ -71,7 +71,7 @@ def serve_inspector(
     projects = ProjectAPI(project_store, worker="process", max_jobs=max_parallel_runs)
     handler = _handler_for(service, demo, job_manager, projects)
     server = HTTPServer((host, port), handler)
-    print(f"ShelterSim inspector: http://{host}:{server.server_port}/")
+    print(f"避難所IF！: http://{host}:{server.server_port}/")
     try:
         server.serve_forever()
     finally:

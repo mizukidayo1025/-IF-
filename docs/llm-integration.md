@@ -56,7 +56,7 @@ sheltersim usage --unfreeze task-global-v1 --confirm task-global-v1 --reason "�
 
 - 解除で変わるのは凍結フラグだけで、記録済みの利用量は残ります。未決着（pending）の予約が残っている間は解除できません。
 - 解除した日時・理由・その時点のreceipt数は、利用記録とは別の監査ファイル（usage-audit/）に残ります。usage summaryの`unfreeze_events`に表示されます。
-- 利用記録の形式はv1のままです。PC全体で共有する記録なので、古い版のShelterSimからも引き続き読めます。
+- 利用記録の形式はv1のままです。PC全体で共有する記録なので、古い版の避難所IF！からも引き続き読めます。
 - Project Runの利用枠は、このコマンドの対象外です。
 
 ### 入力の大きさの上限

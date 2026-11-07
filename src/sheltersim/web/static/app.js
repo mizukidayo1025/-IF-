@@ -1010,7 +1010,7 @@ function setupMode() {
   const requestedMinute = params.get("minute");
   state.requestedMinute = requestedMinute !== null && /^\d+$/.test(requestedMinute) ? Number(requestedMinute) : null;
   document.body.dataset.mode = state.routeMode;
-  document.title = adminMode ? "記録・判断を検証 · ShelterSim" : "避難所運営シナリオ · ShelterSim";
+  document.title = adminMode ? "記録・判断を検証 · 避難所IF！" : "避難所運営シナリオ · 避難所IF！";
   $("page-eyebrow").textContent = adminMode ? "SHELTER SIM / ADMIN" : "SHELTER SIM / DEMO";
   $("page-title").textContent = adminMode ? "記録・判断を検証" : "避難所運営シナリオ";
   $("mode-description").textContent = adminMode ? "保存済みRun・参照専用" : "合成シナリオ・デモモード";

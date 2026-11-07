@@ -1,4 +1,4 @@
-"""Evidence-bounded, read-only questions about completed ShelterSim results."""
+"""Evidence-bounded, read-only questions about completed 避難所IF！ results."""
 
 from __future__ import annotations
 

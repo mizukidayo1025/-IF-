@@ -16,7 +16,7 @@ p_{ji}^m=\min(1,p_0 f_{duration} f_{trust} f_{channel} f_{correction}\; s_j^m\mi
 \]
 曝露hazard型は \(1-e^{-\lambda\Delta t}\) を `hazard-information-v1` で用います。共有停止傾向は1分あたり線形減衰、忘却は \(p_{forget}=1-e^{-\omega\Delta t}\) です。
 
-初回の主張受容は \(p_{rumor}=\operatorname{clip}_{[0,1]}\{p_r+2\eta_{rt}(T_i-0.5)+2\eta_{rs}(R_m-0.5)\}\) です。信頼度と発信源信頼性は未校正のShelterSim仮定です。訂正受容は独立した確率過程です。
+初回の主張受容は \(p_{rumor}=\operatorname{clip}_{[0,1]}\{p_r+2\eta_{rt}(T_i-0.5)+2\eta_{rs}(R_m-0.5)\}\) です。信頼度と発信源信頼性は未校正の避難所IF！の仮定です。訂正受容は独立した確率過程です。
 \[
 p_{accept}=\operatorname{clip}_{[0,0.95]}\{p_b+2\eta_t(T_i-0.5)+2\eta_s(R_m-0.5)\}.
 \]

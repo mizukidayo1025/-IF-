@@ -171,6 +171,6 @@ A_{t+1}=\rho A_t+g(bD_{t+1}+\cdots),
 
 経験サンプリング研究では、感情状態の基準点、外力への感度、回帰の強さを個人差のある動的特性として扱い、単一の平均回帰係数が全員に当てはまるとはしていない。一方、これらは避難所の0–1 stress、1分単位の係数や睡眠/水分need係数を与えるものではない。[Kuppens, Oravecz & Tuerlinckx (2010)](https://pubmed.ncbi.nlm.nih.gov/20853980/)。
 
-災害後の大規模縦断研究では、安定低値から高値持続まで複数のdistress軌跡が観察される。これは人口全員を同じstress軌道に置くことへの検証要求を示すが、個別研究の割合をShelterSimの合成Agentへ直接移せない。[Ko et al., WTC Health Registry 15-year trajectories](https://pubmed.ncbi.nlm.nih.gov/33823957/)。東日本大震災後のIwanuma高齢者コホートでも、発災前を含む3時点の追跡で、発症した症状の一部は5.5年までに回復し、群の有病率と個人軌跡は異なることが報告されている。[Long-term Trends in Mental Health Disorders After the 2011 Great East Japan Earthquake and Tsunami](https://pmc.ncbi.nlm.nih.gov/articles/PMC7428812/)。
+災害後の大規模縦断研究では、安定低値から高値持続まで複数のdistress軌跡が観察される。これは人口全員を同じstress軌道に置くことへの検証要求を示すが、個別研究の割合を避難所IF！の合成Agentへ直接移せない。[Ko et al., WTC Health Registry 15-year trajectories](https://pubmed.ncbi.nlm.nih.gov/33823957/)。東日本大震災後のIwanuma高齢者コホートでも、発災前を含む3時点の追跡で、発症した症状の一部は5.5年までに回復し、群の有病率と個人軌跡は異なることが報告されている。[Long-term Trends in Mental Health Disorders After the 2011 Great East Japan Earthquake and Tsunami](https://pmc.ncbi.nlm.nih.gov/articles/PMC7428812/)。
 
-これらの研究は状態の異質性や反復測定の必要性を支えるが、ShelterSimの係数を校正しない。今回の実験は内部機構の整合性確認であり、臨床的・実地の予測精度を示さない。
+これらの研究は状態の異質性や反復測定の必要性を支えるが、避難所IF！の係数を校正しない。今回の実験は内部機構の整合性確認であり、臨床的・実地の予測精度を示さない。

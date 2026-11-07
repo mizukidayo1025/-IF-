@@ -1,4 +1,4 @@
-"""Bounded read-only queries over saved ShelterSim run artifacts."""
+"""Bounded read-only queries over saved 避難所IF！ run artifacts."""
 
 from __future__ import annotations
 
