@@ -13,7 +13,6 @@ from sheltersim.core.world import WorldState
 from sheltersim.domain.movement import (
     facility_approach_route,
 )
-from sheltersim.experiments.phases.segments import no_python_step
 from sheltersim.llm.contracts import LLMStage, LLMTask
 from sheltersim.llm.runtime import LEGACY_SUPPORT_PRIORITY_POLICY_VERSION, support_priority_runtime
 from sheltersim.llm.schemas import SUPPORT_ADVICE_SCHEMA
@@ -41,7 +40,6 @@ class ProposePhase:
         raises KernelRefusal: a prior view no kernel made, a person of the prior view who has left,
         and what `_view_after_movement` turns down.
         """
-        raise no_python_step("_view_for_proposals")
 
     def _apply_due_proposals(self, view: WorldView, rng: KeyedRandom) -> None:
         for proposal in self._propose_due(view, rng):
@@ -66,7 +64,6 @@ class ProposePhase:
         values on which `ActionCandidate` or `ActionProposal` would raise (a bad temperature or
         decision interval).
         """
-        raise no_python_step("_propose_due")
 
     def _observed_state(self, view: WorldView, agent_id: str) -> Any:
         """What a decision records it observed of the person, made by native/src/rules/decisions.rs.
@@ -79,7 +76,6 @@ class ProposePhase:
         The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); a view no kernel made
         or a person not in it raises KernelRefusal.
         """
-        raise no_python_step("_observed_state")
 
     def _apply_proposal(
         self,
@@ -120,7 +116,6 @@ class ProposePhase:
         raises KernelRefusal: an action it does not know, a person not in the world, state of
         another type than the rows hold, a service manager whose `request` was replaced.
         """
-        raise no_python_step("_apply_effect")
 
     def _record_outcome(
         self,
@@ -144,7 +139,6 @@ class ProposePhase:
         The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what the rules it
         calls turn down raises KernelRefusal.
         """
-        raise no_python_step("_record_outcome")
 
     def _prioritize_support_request(self, request_id: str, proposal: Any) -> None:
         if self.llm_router is None or self.llm_router.mode.value == "offline":
@@ -247,7 +241,6 @@ class ProposePhase:
         raises KernelRefusal, with nothing changed: an unknown person or zone, a toilet or
         resource trip without a facility, a sequence whose IDs are taken.
         """
-        raise no_python_step("_schedule_travel")
 
     def _schedule_staff_support_travel(
         self,
@@ -263,7 +256,6 @@ class ProposePhase:
 
         The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS).
         """
-        raise no_python_step("_schedule_staff_support_travel")
 
     def _route(
         self, origin_zone_id: str, destination_zone_id: str, agent_id: str
@@ -282,7 +274,6 @@ class ProposePhase:
         raises KernelRefusal: an unknown person or zone, a route policy other than
         ShortestTravelTimePolicy.
         """
-        raise no_python_step("_route")
 
     def _facility_approach(
         self, agent_id: str, facility_id: str

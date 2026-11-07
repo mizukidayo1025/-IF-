@@ -1,7 +1,7 @@
-"""Run a domain rule in Rust first, for rules that other modules call as plain functions.
+"""A domain rule that is a Rust kernel, for rules that other modules call as plain functions.
 
 A step of a phase's list goes in experiments/phases/segments.py. A function such as
-staff_dynamics_on_shift is called from many modules and from tests, so it wraps itself where it is
+staff_dynamics_on_shift is called from many modules and from tests, so it is its kernel where it is
 defined, and every caller gets the kernel. See docs/rust-port/lanes/s-staff-dynamics.md.
 """
 
@@ -15,91 +15,14 @@ from sheltersim import native
 
 Rule = TypeVar("Rule", bound=Callable[..., Any])
 
-# benchmarks/rule_shadow/text_check.py sets this to compare a kernel's expected outcome
-# (EventSuppressed, EventApplicationError: saved texts) with what the Python rule raises for the
-# same input. It has before(python_rule, arguments, options) -> token, called before the kernel,
-# and after(python_rule, arguments, options, error, token) on a ValueError of the kernel. None:
-# nothing is called.
-_outcome_check: Any = None
-# benchmarks/rule_shadow/error_compare.py sets this, in the same form, to compare the kernels' other
-# errors in a Python rule's words (ValueError, StateInvariantError, a contract's: the exits of lane
-# L8b in native/src/core/errors.rs) with the rule's. Those come before any change, so its before()
-# keeps nothing. benchmarks/rule_shadow/refusal_census.py sets the last to count what the Python
-# rule raised after a refusal: fell_back(label, refusal, error). None: nothing is called.
-_error_check: Any = None
-_fell_back: Any = None
-
-
-def kernel_first(module: str, name: str) -> Callable[[Rule], Rule]:
-    """Try native/src/rules/<module>.rs's kernel, and on Unsupported run the decorated Python rule.
-
-    A kernel says Unsupported before it changes anything, so the Python rule then runs as if the
-    kernel weren't there and raises its own text. `__wrapped__` is the Python rule.
-
-    The kernel is looked up once, here, so benchmarks/rule_shadow replaces it before this runs.
-    """
-
-    def decorate(python_rule: Rule) -> Rule:
-        kernel = getattr(native.rules(module), name)
-        unsupported = native.Unsupported
-        label = f"kernel_first {module}.{name}"
-
-        @wraps(python_rule)
-        def run(*arguments: Any, **options: Any) -> Any:
-            check = _outcome_check
-            other = _error_check
-            seen = _fell_back
-            if check is None and other is None and seen is None:
-                try:
-                    return kernel(*arguments, **options)
-                except unsupported:
-                    return python_rule(*arguments, **options)
-            return _checked(
-                kernel, python_rule, label, check, other, seen, unsupported, arguments, options
-            )
-
-        return run  # type: ignore[return-value]
-
-    return decorate
-
-
-def _checked(
-    kernel: Any,
-    python_rule: Any,
-    label: str,
-    check: Any,
-    other: Any,
-    seen: Any,
-    unsupported: type[Exception],
-    arguments: tuple[Any, ...],
-    options: dict[str, Any],
-) -> Any:
-    """`run` of kernel_first while a tool watches it: the same result, and the tools' calls."""
-    token = None if check is None else check.before(python_rule, arguments, options)
-    mine = None if other is None else other.before(python_rule, arguments, options)
-    try:
-        return kernel(*arguments, **options)
-    except unsupported as refusal:
-        if seen is None:
-            return python_rule(*arguments, **options)
-        try:
-            return python_rule(*arguments, **options)
-        except Exception as error:
-            seen.fell_back(label, refusal, error)
-            raise
-    except Exception as error:
-        if check is not None and isinstance(error, ValueError):
-            check.after(python_rule, arguments, options, error, token)
-        if other is not None:
-            other.after(python_rule, arguments, options, error, mine)
-        raise
-
 
 class KernelRefusal(ValueError):
-    """A kernel with no Python rule behind it said Unsupported.
+    """A kernel said Unsupported: the input is outside the rule's contract.
 
-    Its Python rule was deleted (lane L10, docs/rust-port/step4-plan.md): no Run reached a refusal
-    of it, and only an input outside the rule's contract does. A ValueError, so a caller that turns
+    The rule has no Python body (lane L10, docs/rust-port/step4-plan.md): no Run reached a refusal
+    of it, and only an input outside the rule's contract does. The text names the kernel and gives
+    its reason: "<module>.<name> refused: <reason>". native/src/core/errors.rs (`kernel_refusal`)
+    raises the same for a kernel the Rust code calls directly. A ValueError, so a caller that turns
     a rule's ValueError into an event's failure does so with this one too.
     """
 
@@ -108,8 +31,7 @@ def kernel_only(module: str, name: str) -> Callable[[Rule], Rule]:
     """native/src/rules/<module>.rs's kernel, under the decorated function's name and signature.
 
     The decorated function keeps the signature and the docstring and has no body. A refusal of the
-    kernel raises KernelRefusal. `__wrapped__` raises it too, for the driver's call-backs to the
-    Python rule (`rule_of` in native/src/rules/tick.rs), which run only after a refusal.
+    kernel raises KernelRefusal.
     """
 
     def decorate(entry: Rule) -> Rule:
@@ -124,10 +46,8 @@ def kernel_only(module: str, name: str) -> Callable[[Rule], Rule]:
             except unsupported as refusal:
                 raise KernelRefusal(f"{label} refused: {refusal}") from refusal
 
-        def no_rule(*arguments: Any, **options: Any) -> Any:
-            raise KernelRefusal(f"{label} has no Python rule")
-
-        run.__wrapped__ = no_rule  # type: ignore[attr-defined]
+        # `wraps` points this at the body-less function, which must not be called.
+        del run.__wrapped__  # type: ignore[attr-defined]
         return run  # type: ignore[return-value]
 
     return decorate

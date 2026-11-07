@@ -222,8 +222,7 @@ def test_the_rule_the_callers_use_runs_the_kernel() -> None:
     world = _world()
     update_staff_dynamics(world, 0)
     assert _state(world)["staff"]["S01"]["total_rest_minutes"] == 0
-    with pytest.raises(KernelRefusal, match="has no Python rule"):
-        update_staff_dynamics.__wrapped__(world, 0)
+    assert not hasattr(update_staff_dynamics, "__wrapped__")
 
 
 def _random_world(rng: random.Random) -> WorldState:

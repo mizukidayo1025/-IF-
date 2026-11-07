@@ -508,36 +508,10 @@ def test_corruption_of_an_owned_namespace_keeps_the_exact_error(
     assert str(raised.value) == str(expected.value)
 
 
-def test_a_segment_replaces_a_step_and_unsupported_runs_the_python_step() -> None:
-    class Base:
-        def step(self, value: int) -> str:
-            return f"python {value}"
-
-    class Controller(Base):
-        pass
-
-    answers: list[Any] = ["rust"]
-
-    def kernel(_controller: Any, value: int) -> str:
-        answer = answers[0]
-        if answer is None:
-            raise native.Unsupported("not this one")
-        return f"{answer} {value}"
-
-    install_segments(Controller, {"step": kernel}, {})
-    assert Controller().step(1) == "rust 1"
-    answers[0] = None
-    assert Controller().step(2) == "python 2"
-    Base.step = lambda _self, value: f"patched {value}"  # type: ignore[method-assign]
-    assert Controller().step(3) == "patched 3"
-    with pytest.raises(ValueError, match="no step"):
-        install_segments(Controller, {"nope": kernel}, {})
-
-
-def test_a_kernel_only_segment_turns_unsupported_into_a_kernel_refusal() -> None:
+def test_a_segment_is_its_kernel_and_turns_unsupported_into_a_kernel_refusal() -> None:
     class Controller:
         def step(self, value: int) -> str:
-            raise AssertionError("a step of kernel_only has no Python step to run")
+            """The step's contract."""
 
     answers: list[Any] = ["rust"]
 
@@ -547,13 +521,14 @@ def test_a_kernel_only_segment_turns_unsupported_into_a_kernel_refusal() -> None
             raise native.Unsupported("not this one")
         return f"{answer} {value}"
 
-    install_segments(Controller, {}, {"step": kernel})
+    install_segments(Controller, {"step": kernel})
     assert Controller().step(1) == "rust 1"
+    assert Controller.step.__doc__ == "The step's contract."
     answers[0] = None
     with pytest.raises(KernelRefusal, match="step refused: not this one"):
         Controller().step(2)
     with pytest.raises(ValueError, match="no step"):
-        install_segments(Controller, {}, {"nope": kernel})
+        install_segments(Controller, {"nope": kernel})
 
 
 # ---- Real rules on a tree -------------------------------------------------------------------

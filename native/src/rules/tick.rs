@@ -8,11 +8,13 @@
 //! a Provider run here: the kernels write the trace's documents, and the Provider's hooks are Python
 //! that the kernels call where the phases call them.
 //!
-//! After that, a step goes as its `segments.py` wrapper or `kernel_first` does: the kernel, and on its
-//! Unsupported (nothing changed) the Python rule. No borrow is held across a call into Python.
+//! After that, each step is its kernel. No Python rule stands behind one (lane L10): a kernel's
+//! Unsupported is `KernelRefusal`, which names the kernel and gives its reason (`errors::kernel_refusal`),
+//! as the step's Python entry (`segments.py`, `kernel_only`) raises it. No borrow is held across a
+//! call into Python.
 
 use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
 use pyo3::exceptions::PyRuntimeError;
@@ -43,17 +45,12 @@ struct Table {
     rules: Vec<(Py<PyAny>, Py<PyString>, Py<PyAny>)>,
     /// `TICK_PHASE_ORDER`.
     phases: Vec<Py<PyAny>>,
-    arbitrate: Py<PyModule>,
-    update: Py<PyModule>,
-    facilities: Py<PyModule>,
     metrics_recorder: Py<PyType>,
     clock_error: Py<PyType>,
 }
 
 static TABLE: GILOnceCell<Table> = GILOnceCell::new();
 
-/// For benchmarks/rule_shadow, whose shadows replace kernels at their Python entries.
-static PYTHON_PATH_ONLY: AtomicBool = AtomicBool::new(false);
 static TICKS: AtomicU64 = AtomicU64::new(0);
 static KERNELS_REFUSED: AtomicU64 = AtomicU64::new(0);
 static REFUSALS: Mutex<BTreeMap<&'static str, u64>> = Mutex::new(BTreeMap::new());
@@ -67,50 +64,18 @@ fn refuse<T>(reason: &'static str) -> PyResult<T> {
     unsupported(reason)
 }
 
-/// Whether a kernel said Unsupported, which leaves the step to its Python rule.
-fn refused(py: Python<'_>, error: &PyErr, kernel: &str) -> bool {
-    if error.is_instance_of::<Unsupported>(py) {
-        census::caught(py, kernel, error);
-        KERNELS_REFUSED.fetch_add(1, Ordering::Relaxed);
-        if let Ok(mut reasons) = KERNEL_REASONS.lock() {
-            *reasons.entry(error.value(py).to_string()).or_default() += 1;
-        }
-        true
-    } else {
-        false
-    }
-}
-
-/// The kernel's result, or the Python rule's where the kernel refused.
-macro_rules! or_rule {
-    ($py:expr, $kernel:expr, $rule:expr) => {
-        match $kernel {
-            Err(error) if refused($py, &error, concat!("or_rule ", stringify!($kernel))) => {
-                let result = $rule;
-                if let Err(raised) = &result {
-                    census::fell_back($py, concat!("or_rule ", stringify!($kernel)), &error, raised);
-                }
-                result
+/// A kernel's result. Its refusal is counted and becomes `KernelRefusal` naming it (`module.name`).
+fn only<T>(py: Python<'_>, label: &str, result: PyResult<T>) -> PyResult<T> {
+    result.map_err(|error| {
+        if error.is_instance_of::<Unsupported>(py) {
+            census::caught(py, label, &error);
+            KERNELS_REFUSED.fetch_add(1, Ordering::Relaxed);
+            if let Ok(mut reasons) = KERNEL_REASONS.lock() {
+                *reasons.entry(error.value(py).to_string()).or_default() += 1;
             }
-            Err(error) => {
-                // A moved error while comparing (core/errors.rs): the Python rule on the same state.
-                match errors::moved_site($py, &error) {
-                    Some(site) => {
-                        let result = $rule;
-                        Err(errors::compared($py, site, &error, result.as_ref().err()).unwrap_or(error))
-                    }
-                    None => Err(error),
-                }
-            }
-            other => other,
         }
-    };
-}
-
-/// `getattr(holder, name).__wrapped__`: the Python rule behind `kernel_first`.
-fn rule_of<'py>(holder: &Bound<'py, PyAny>, name: &Bound<'py, PyString>) -> PyResult<Bound<'py, PyAny>> {
-    census::called_back(&name.to_string_lossy());
-    holder.getattr(name)?.getattr(intern!(holder.py(), "__wrapped__"))
+        errors::kernel_refusal(py, label, error)
+    })
 }
 
 struct Tick<'a, 'py> {
@@ -127,21 +92,9 @@ impl<'py> Tick<'_, 'py> {
         self.world.py()
     }
 
-    /// The Python step of the phases' mixins, past the wrapper of `segments.py`.
-    fn python_step(&self, name: &Bound<'py, PyString>) -> PyResult<Bound<'py, PyAny>> {
-        let py = self.py();
-        let proxy = py
-            .import(intern!(py, "builtins"))?
-            .getattr(intern!(py, "super"))?
-            .call1((self.table.controller.bind(py), self.controller))?;
-        proxy.getattr(name)
-    }
-
     fn dispatch(&self) -> PyResult<()> {
         let py = self.py();
-        or_rule!(py, dispatch::run_for_driver(self.controller, self.world, self.minute), {
-            self.python_step(intern!(py, "_run_dispatch_phase"))?.call1((self.world, self.minute)).map(|_| ())
-        })
+        only(py, "dispatch.run_phase", dispatch::run_for_driver(self.controller, self.world, self.minute))
     }
 
     fn update(&self) -> PyResult<()> {
@@ -150,65 +103,42 @@ impl<'py> Tick<'_, 'py> {
         // `_update_movement`.
         let table = attribute(world, intern!(py, "model_state"))?;
         if let Some(state) = raw_dict_get(&table, intern!(py, MOVEMENT).as_any())?.filter(|state| !state.is_none()) {
-            let moved = or_rule!(py, movement::advance_movement(world, minute).map(Bound::into_any), {
-                rule_of(self.table.update.bind(py).as_any(), intern!(py, "advance_movement"))?.call1((world, minute))
-            })?;
+            let moved = only(py, "movement.advance_movement", movement::advance_movement(world, minute).map(Bound::into_any))?;
             if moved.is_truthy()? {
-                or_rule!(py, replan::replan_journeys(controller, &state, &moved, minute), {
-                    self.python_step(intern!(py, "_replan_journeys"))?.call1((&state, &moved, minute)).map(|_| ())
-                })?;
+                only(py, "replan.replan_journeys", replan::replan_journeys(controller, &state, &moved, minute))?;
             }
         }
-        let view = or_rule!(py, world_view::view_after_movement(controller, world), {
-            self.python_step(intern!(py, "_view_after_movement"))?.call1((world,))
-        })?;
-        let result = or_rule!(py, psychology::update_psychology(controller, &view, minute), {
-            self.python_step(intern!(py, "_psychology_update"))?.call1((&view, minute))
-        })?;
+        let view = only(py, "world_view.view_after_movement", world_view::view_after_movement(controller, world))?;
+        let result = only(py, "psychology.update_psychology", psychology::update_psychology(controller, &view, minute))?;
         let base = result.getattr(intern!(py, "deltas"))?;
-        let deltas = or_rule!(py, social_propagation::update_social_propagation(controller, world, &view, &base, minute, self.rng), {
-            self.python_step(intern!(py, "_social_propagation"))?.call1((world, &view, &base, minute, self.rng))
-        })?;
-        or_rule!(py, trace::record_psychology_trace(controller, &result, &deltas, minute), {
-            self.python_step(intern!(py, "_record_psychology_trace"))?.call1((&result, &deltas, minute)).map(|_| ())
-        })?;
-        or_rule!(py, psychology::update_long_term(controller, world, &view, &deltas, minute), {
-            self.python_step(intern!(py, "_update_long_term_psychology"))?.call1((world, &view, &deltas, minute)).map(|_| ())
-        })?;
-        or_rule!(py, psychology::apply_deltas(controller, world, &deltas), {
-            self.python_step(intern!(py, "_apply_state_deltas"))?.call1((world, &deltas)).map(|_| ())
-        })?;
+        let deltas = only(
+            py,
+            "social_propagation.update_social_propagation",
+            social_propagation::update_social_propagation(controller, world, &view, &base, minute, self.rng),
+        )?;
+        only(py, "trace.record_psychology_trace", trace::record_psychology_trace(controller, &result, &deltas, minute))?;
+        only(py, "psychology.update_long_term", psychology::update_long_term(controller, world, &view, &deltas, minute))?;
+        only(py, "psychology.apply_deltas", psychology::apply_deltas(controller, world, &deltas))?;
         controller.setattr(intern!(py, "_view_before_proposals"), view)
     }
 
     fn propose(&self) -> PyResult<()> {
         let py = self.py();
         let (controller, world, minute) = (self.controller, self.world, self.minute);
-        let view = or_rule!(py, world_view::view_for_proposals(controller, world, minute), {
-            self.python_step(intern!(py, "_view_for_proposals"))?.call1((world, minute))
-        })?;
-        let proposals_due = or_rule!(py, decisions::propose_rows(controller, &view, self.rng), {
-            self.python_step(intern!(py, "_propose_due"))?.call1((&view, self.rng))
-        })?;
+        let view = only(py, "world_view.view_for_proposals", world_view::view_for_proposals(controller, world, minute))?;
+        let proposals_due = only(py, "decisions.propose_rows", decisions::propose_rows(controller, &view, self.rng))?;
         for proposal in proposals_due.try_iter()? {
             let proposal = proposal?;
             let agent_id = proposal.getattr(intern!(py, "agent_id"))?;
-            let observed = or_rule!(py, decisions::observed_row(controller, &view, &agent_id), {
-                self.python_step(intern!(py, "_observed_state"))?.call1((&view, &agent_id))
-            })?;
-            let effect = or_rule!(py, proposals::apply_effect(controller, &proposal).map(Bound::into_any), {
-                self.python_step(intern!(py, "_apply_effect"))?.call1((&proposal,))
-            })?;
+            let observed = only(py, "decisions.observed_row", decisions::observed_row(controller, &view, &agent_id))?;
+            let effect = only(py, "proposals.apply_effect", proposals::apply_effect(controller, &proposal).map(Bound::into_any))?;
             let effect = effect.downcast_into::<PyTuple>()?;
             let (target_id, next_decision_at, committed) = (effect.get_item(0)?, effect.get_item(1)?, effect.get_item(2)?);
-            or_rule!(py, decisions::record_outcome(controller, &proposal, &target_id, &next_decision_at, &committed, &observed), {
-                let options = PyDict::new(py);
-                options.set_item(intern!(py, "target_id"), &target_id)?;
-                options.set_item(intern!(py, "next_decision_at"), &next_decision_at)?;
-                options.set_item(intern!(py, "committed"), &committed)?;
-                options.set_item(intern!(py, "observed_state"), &observed)?;
-                self.python_step(intern!(py, "_record_outcome"))?.call((&proposal,), Some(&options)).map(|_| ())
-            })?;
+            only(
+                py,
+                "decisions.record_outcome",
+                decisions::record_outcome(controller, &proposal, &target_id, &next_decision_at, &committed, &observed),
+            )?;
         }
         Ok(())
     }
@@ -224,27 +154,17 @@ impl<'py> Tick<'_, 'py> {
     fn prepare_queue(&self, facility_id: &Bound<'py, PyAny>, resource: bool) -> PyResult<()> {
         let py = self.py();
         let flag = PyBool::new(py, resource).to_owned().into_any();
-        or_rule!(py, queues::prepare_facility_queue(self.world, facility_id, &flag, self.minute), {
-            let options = PyDict::new(py);
-            options.set_item(intern!(py, "resource"), resource)?;
-            options.set_item(intern!(py, "minute"), self.minute)?;
-            rule_of(self.table.facilities.bind(py).as_any(), intern!(py, "prepare_facility_queue"))?
-                .call((self.world, facility_id), Some(&options))
-                .map(|_| ())
-        })
+        only(py, "queues.prepare_facility_queue", queues::prepare_facility_queue(self.world, facility_id, &flag, self.minute))
     }
 
     fn prepare_independent_queue(&self, queue_id: &Bound<'py, PyAny>, resource: bool) -> PyResult<()> {
         let py = self.py();
         let flag = PyBool::new(py, resource).to_owned().into_any();
-        or_rule!(py, queues::prepare_independent_facility_queue(self.world, queue_id, self.minute, &flag), {
-            let options = PyDict::new(py);
-            options.set_item(intern!(py, "minute"), self.minute)?;
-            options.set_item(intern!(py, "resource"), resource)?;
-            rule_of(self.table.facilities.bind(py).as_any(), intern!(py, "prepare_independent_facility_queue"))?
-                .call((self.world, queue_id), Some(&options))
-                .map(|_| ())
-        })
+        only(
+            py,
+            "queues.prepare_independent_facility_queue",
+            queues::prepare_independent_facility_queue(self.world, queue_id, self.minute, &flag),
+        )
     }
 
     /// `progress_physical_queue_positions` or `progress_physical_queue_head_to_service`.
@@ -255,23 +175,19 @@ impl<'py> Tick<'_, 'py> {
     fn progress_fifo(&self, facility_id: &Bound<'py, PyAny>, resource: bool, head: bool, queue_id: Option<&Bound<'py, PyAny>>) -> PyResult<bool> {
         let py = self.py();
         let flag = PyBool::new(py, resource).to_owned().into_any();
-        let kernel = if head {
-            queues::progress_physical_queue_head_to_service(self.world, facility_id, &flag, self.minute, queue_id)
+        if head {
+            only(
+                py,
+                "queues.progress_physical_queue_head_to_service",
+                queues::progress_physical_queue_head_to_service(self.world, facility_id, &flag, self.minute, queue_id),
+            )
         } else {
-            queues::progress_physical_queue_positions(self.world, facility_id, &flag, self.minute, queue_id)
-        };
-        or_rule!(py, kernel, {
-            let options = PyDict::new(py);
-            options.set_item(intern!(py, "resource"), resource)?;
-            options.set_item(intern!(py, "minute"), self.minute)?;
-            if let Some(queue_id) = queue_id {
-                options.set_item(intern!(py, "queue_id"), queue_id)?;
-            }
-            let name = if head { intern!(py, "progress_physical_queue_head_to_service") } else { intern!(py, "progress_physical_queue_positions") };
-            rule_of(self.table.facilities.bind(py).as_any(), name)?
-                .call((self.world, facility_id), Some(&options))?
-                .is_truthy()
-        })
+            only(
+                py,
+                "queues.progress_physical_queue_positions",
+                queues::progress_physical_queue_positions(self.world, facility_id, &flag, self.minute, queue_id),
+            )
+        }
     }
 
     /// The queues of a facility with independent ones, each with the check of its signed point.
@@ -312,9 +228,7 @@ impl<'py> Tick<'_, 'py> {
                 if self.progress_fifo(id, false, false, Some(&queue_id))? {
                     break;
                 }
-                let started = or_rule!(py, toilet::serve_independent_head(manager, id, &queue_id, self.minute, self.rng).map(|event| event.map(Bound::into_any)), {
-                    rule_of(manager, intern!(py, "_serve_independent_head"))?.call1((manager, id, &queue_id, self.minute, self.rng)).map(|event| Some(event).filter(|event| !event.is_none()))
-                })?;
+                let started = only(py, "toilet.serve_independent_head", toilet::serve_independent_head(manager, id, &queue_id, self.minute, self.rng))?;
                 if started.is_none() {
                     break;
                 }
@@ -336,9 +250,7 @@ impl<'py> Tick<'_, 'py> {
                 if self.progress_fifo(id, true, false, Some(&queue_id))? {
                     break;
                 }
-                let served = or_rule!(py, service::serve_independent_head(manager, id, resource, &queue_id, self.minute).map(Bound::into_any), {
-                    rule_of(manager, intern!(py, "_serve_independent_head"))?.call1((manager, id, resource, &queue_id, self.minute))
-                })?;
+                let served = only(py, "service.serve_independent_head", service::serve_independent_head(manager, id, resource, &queue_id, self.minute))?;
                 let (started, stall) = (served.get_item(0)?, served.get_item(1)?);
                 if !stall.is_none() {
                     stalls.append(stall)?;
@@ -348,9 +260,7 @@ impl<'py> Tick<'_, 'py> {
                 }
             }
         }
-        or_rule!(py, service::record_independent_stall(manager, id, stalls.as_any(), &previous), {
-            rule_of(manager, intern!(py, "_record_independent_queue_stall"))?.call1((manager, id, &stalls, &previous)).map(|_| ())
-        })
+        only(py, "service.record_independent_stall", service::record_independent_stall(manager, id, stalls.as_any(), &previous))
     }
 
     /// `ToiletServiceManager.arbitrate`. Nothing reads what it returns here, so the started events
@@ -358,9 +268,7 @@ impl<'py> Tick<'_, 'py> {
     fn arbitrate_toilets(&self, manager: &Bound<'py, PyAny>) -> PyResult<()> {
         let py = self.py();
         let minute = self.minute;
-        let due = or_rule!(py, toilet::facilities_to_serve(manager).map(Bound::into_any), {
-            rule_of(manager, intern!(py, "_facilities_to_serve"))?.call1((manager,))
-        })?;
+        let due = only(py, "toilet.facilities_to_serve", toilet::facilities_to_serve(manager))?;
         for facility in due.try_iter()? {
             let id = facility?.getattr(intern!(py, "id"))?;
             if let Some(queues) = self.independent_queues(&id)? {
@@ -369,15 +277,11 @@ impl<'py> Tick<'_, 'py> {
             }
             self.prepare_queue(&id, false)?;
             loop {
-                let room = or_rule!(py, toilet::has_room(manager, &id), {
-                    rule_of(manager, intern!(py, "_has_room"))?.call1((manager, &id))?.is_truthy()
-                })?;
+                let room = only(py, "toilet.has_room", toilet::has_room(manager, &id))?;
                 if !room || self.progress_queue(&id, false, false)? || self.progress_queue(&id, false, true)? {
                     break;
                 }
-                let started = or_rule!(py, toilet::start_head(manager, &id, minute, self.rng).map(|event| event.map(Bound::into_any)), {
-                    rule_of(manager, intern!(py, "_start_head"))?.call1((manager, &id, minute, self.rng)).map(|event| Some(event).filter(|event| !event.is_none()))
-                })?;
+                let started = only(py, "toilet.start_head", toilet::start_head(manager, &id, minute, self.rng))?;
                 if started.is_none() {
                     break;
                 }
@@ -389,9 +293,7 @@ impl<'py> Tick<'_, 'py> {
     /// `ResourceServiceManager.arbitrate`.
     fn arbitrate_resources(&self, manager: &Bound<'py, PyAny>) -> PyResult<()> {
         let py = self.py();
-        let due = or_rule!(py, service::facilities_to_serve(manager).map(Bound::into_any), {
-            rule_of(manager, intern!(py, "_facilities_to_serve"))?.call1((manager,))
-        })?;
+        let due = only(py, "service.facilities_to_serve", service::facilities_to_serve(manager))?;
         for item in due.try_iter()? {
             let item = item?;
             let (facility, resource) = (item.get_item(0)?, item.get_item(1)?);
@@ -405,9 +307,7 @@ impl<'py> Tick<'_, 'py> {
                 if self.progress_queue(&id, true, false)? {
                     break;
                 }
-                let started = or_rule!(py, service::serve_head(manager, &id, &resource, self.minute).map(|event| event.map(Bound::into_any)), {
-                    rule_of(manager, intern!(py, "_serve_head"))?.call1((manager, &id, &resource, self.minute)).map(|event| Some(event).filter(|event| !event.is_none()))
-                })?;
+                let started = only(py, "service.serve_head", service::serve_head(manager, &id, &resource, self.minute))?;
                 if started.is_none() {
                     break;
                 }
@@ -419,13 +319,8 @@ impl<'py> Tick<'_, 'py> {
     fn arbitrate(&self) -> PyResult<()> {
         let py = self.py();
         let (controller, world, minute) = (self.controller, self.world, self.minute);
-        let module = self.table.arbitrate.bind(py).as_any();
-        or_rule!(py, staff_dynamics::update(world, minute), {
-            rule_of(module, intern!(py, "update_staff_dynamics"))?.call1((world, minute)).map(|_| ())
-        })?;
-        or_rule!(py, staff::update_operations(world, minute), {
-            rule_of(module, intern!(py, "update_staff_operations"))?.call1((world, minute)).map(|_| ())
-        })?;
+        only(py, "staff_dynamics.update", staff_dynamics::update(world, minute))?;
+        only(py, "staff.update_operations", staff::update_operations(world, minute))?;
         // `_arbitrate_services`.
         let toilets = controller.getattr(intern!(py, "toilet_service"))?;
         if !toilets.get_type().is(self.table.toilet.bind(py)) {
@@ -444,48 +339,28 @@ impl<'py> Tick<'_, 'py> {
         // `_assign_staff_support`.
         let service = controller.getattr(intern!(py, "staff_service"))?;
         let assigned = if service.get_type().is(self.table.staff.bind(py)) {
-            or_rule!(py, staff::assign_pending(&service, minute, false).map(Bound::into_any), {
-                let options = PyDict::new(py);
-                options.set_item(intern!(py, "validate_state"), false)?;
-                rule_of(&service, intern!(py, "assign_pending"))?.call((&service, minute), Some(&options))
-            })?
+            only(py, "staff.assign_pending", staff::assign_pending(&service, minute, false).map(Bound::into_any))?
         } else {
             let options = PyDict::new(py);
             options.set_item(intern!(py, "validate_state"), false)?;
             service.call_method(intern!(py, "assign_pending"), (minute,), Some(&options))?
         };
         if assigned.is_truthy()? {
-            // The kernel's receipts: past the service's writes nothing goes back to a Python rule.
-            support::record_assigned(world, &assigned).map_err(|error| {
-                if error.is_instance_of::<Unsupported>(py) {
-                    pyo3::exceptions::PyRuntimeError::new_err(format!("a receipt of an assignment was refused: {}", error.value(py)))
-                } else {
-                    error
-                }
-            })?;
+            // The kernel's receipts, as the step's kernel (`segments.py`) writes them.
+            only(py, "support.assign_staff_support", support::record_assigned(world, &assigned))?;
         }
         let router = controller.getattr(intern!(py, "staff_space"))?;
-        or_rule!(py, staff::assign_operations(world, minute, &router).map(|_| ()), {
-            rule_of(module, intern!(py, "assign_staff_operations"))?.call1((world, minute, &router)).map(|_| ())
-        })?;
+        only(py, "staff.assign_operations", staff::assign_operations(world, minute, &router).map(|_| ()))?;
         // Its decision is the policy's, called through `consider_complaint_response`.
-        or_rule!(py, staff::consider_due_complaints(controller, minute), {
-            self.python_step(intern!(py, "_consider_due_complaints"))?.call1((minute,)).map(|_| ())
-        })?;
-        or_rule!(py, staff::relief(world, minute).map(|_| ()), {
-            rule_of(module, intern!(py, "schedule_staff_operation_relief"))?.call1((world, minute)).map(|_| ())
-        })
+        only(py, "staff.consider_due_complaints", staff::consider_due_complaints(controller, minute))?;
+        only(py, "staff.relief", staff::relief(world, minute).map(|_| ()))
     }
 
     fn sample(&self) -> PyResult<()> {
         let py = self.py();
-        or_rule!(py, information::sample_contacts(self.controller, self.minute, self.rng), {
-            self.python_step(intern!(py, "_sample_information_contacts"))?.call1((self.minute, self.rng)).map(|_| ())
-        })?;
+        only(py, "information.sample_contacts", information::sample_contacts(self.controller, self.minute, self.rng))?;
         if !self.controller.getattr(intern!(py, "proximity_contact_config"))?.is_none() {
-            or_rule!(py, proximity::sample_contacts(self.controller, self.minute), {
-                self.python_step(intern!(py, "_sample_proximity_contacts"))?.call1((self.minute,)).map(|_| ())
-            })?;
+            only(py, "proximity.sample_contacts", proximity::sample_contacts(self.controller, self.minute))?;
         }
         Ok(())
     }
@@ -512,7 +387,15 @@ impl<'py> Tick<'_, 'py> {
             artifacts.call_method(intern!(py, "capture_metric"), (self.world,), Some(&options)).map(|_| ())
         };
         match &recorder {
-            Some(recorder) => or_rule!(py, metrics::capture(self.world, recorder, self.minute), by_sink())?,
+            // A refusal leaves the sample to `MetricsRecorder.capture`, which says what is wrong.
+            Some(recorder) => match metrics::capture(self.world, recorder, self.minute) {
+                Err(error) if error.is_instance_of::<Unsupported>(py) => {
+                    census::caught(py, "metrics.capture", &error);
+                    KERNELS_REFUSED.fetch_add(1, Ordering::Relaxed);
+                    by_sink()?
+                }
+                other => other?,
+            },
             None => by_sink()?,
         }
         // `_finalize_actions_at_end` reads it again, and acts at the Run's last minute.
@@ -562,9 +445,6 @@ impl<'py> Tick<'_, 'py> {
 /// Why Python runs this tick, before anything has changed.
 fn accept(table: &Table, controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>) -> PyResult<()> {
     let py = world.py();
-    if PYTHON_PATH_ONLY.load(Ordering::Relaxed) || dispatch::python_entries() {
-        return refuse("a benchmark's shadow is installed");
-    }
     let class = table.controller.bind(py);
     if !controller.get_type().is(class) {
         return refuse("another class of controller");
@@ -606,14 +486,8 @@ fn run_tick<'py>(
     accept(table, controller, world)?;
     let tick = Tick { table, controller, world, minute, minute_value: exact_int(minute)?, rng };
     TICKS.fetch_add(1, Ordering::Relaxed);
-    tick.run(observer).map_err(|error| {
-        // The tick has begun, so the Python path must not run over it.
-        if error.is_instance_of::<Unsupported>(py) {
-            PyRuntimeError::new_err(format!("a rule refused in the tick past its checks: {}", error.value(py)))
-        } else {
-            error
-        }
-    })
+    // The tick has begun, so the Python path must not run over it: a refusal is KernelRefusal.
+    tick.run(observer).map_err(|error| errors::kernel_refusal(py, "tick.run_tick", error))
 }
 
 /// What `experiments/phases/driver.py` gives once.
@@ -626,7 +500,6 @@ fn install<'py>(
     steps: Vec<Bound<'py, PyString>>,
     rules: Vec<(Bound<'py, PyAny>, Bound<'py, PyString>)>,
     phases: Vec<Bound<'py, PyAny>>,
-    modules: (Bound<'py, PyModule>, Bound<'py, PyModule>, Bound<'py, PyModule>),
     metrics_recorder: Bound<'py, PyType>,
     clock_error: Bound<'py, PyType>,
 ) -> PyResult<()> {
@@ -648,25 +521,11 @@ fn install<'py>(
         steps: defined_steps,
         rules: defined_rules,
         phases: phases.into_iter().map(Bound::unbind).collect(),
-        arbitrate: modules.0.unbind(),
-        update: modules.1.unbind(),
-        facilities: modules.2.unbind(),
         metrics_recorder: metrics_recorder.unbind(),
         clock_error: clock_error.unbind(),
     };
     let _ = TABLE.set(py, table);
     Ok(())
-}
-
-/// Every tick through `phase_handler`, for benchmarks/rule_shadow and comparisons.
-#[pyfunction]
-fn python_path_only(value: bool) {
-    PYTHON_PATH_ONLY.store(value, Ordering::Relaxed);
-}
-
-/// Whether a benchmark's shadows keep every tick on the Python path.
-pub(crate) fn path_is_python_only() -> bool {
-    PYTHON_PATH_ONLY.load(Ordering::Relaxed)
 }
 
 /// What has run in this process: `(counts, refused ticks and refused kernels by reason)`.
@@ -692,7 +551,6 @@ fn stats<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyDict>, Bound<'py, PyDic
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run_tick, m)?)?;
     m.add_function(wrap_pyfunction!(install, m)?)?;
-    m.add_function(wrap_pyfunction!(python_path_only, m)?)?;
     m.add_function(wrap_pyfunction!(stats, m)?)?;
     Ok(())
 }

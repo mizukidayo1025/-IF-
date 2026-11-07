@@ -73,23 +73,6 @@ fn counted<T>(py: Python<'_>, label: &'static str, result: PyResult<T>) -> PyRes
     result
 }
 
-/// An exception of the stage before any change: the Python rule decides, and raises its own. An
-/// outcome a kernel made with the rule's text (`core/errors.rs`) goes on as it is.
-pub(crate) fn refused_by_python<T>(py: Python<'_>, result: PyResult<T>) -> PyResult<T> {
-    result.map_err(|error| {
-        if error.is_instance_of::<Unsupported>(py) || errors::made_here(py, &error) {
-            error
-        } else {
-            let kind = error.get_type(py).name().map_or_else(|_| "?".to_owned(), |name| name.to_string());
-            // The call's own exception goes along as the cause, for a kernel with no Python rule
-            // behind it (`kernel_only`), whose refusal is then the error.
-            let refusal = Unsupported::new_err(format!("a call raised {kind}"));
-            refusal.set_cause(py, Some(error));
-            refusal
-        }
-    })
-}
-
 // ---- Reading -------------------------------------------------------------------------------------
 
 type Doc = IndexMap<Arc<str>, V>;
@@ -761,7 +744,7 @@ fn should_apply_guard(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyR
             Err(text) => errors::failed(py, text),
         }
     })();
-    counted(py, "guard", refused_by_python(py, result))
+    counted(py, "guard", result)
 }
 
 /// `effect_event_guard_or_suppress`, as `EventDispatcher.dispatch_one` asks it before the handler of
@@ -804,7 +787,7 @@ pub(crate) fn has_active_modifier(world: &Bound<'_, PyAny>, facility_id: &Bound<
                 .is_some_and(|record| !record.modifiers.is_empty()))
         })
     })();
-    counted(py, "has_active_modifier", refused_by_python(py, result))
+    counted(py, "has_active_modifier", result)
 }
 
 fn pending_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
@@ -834,7 +817,7 @@ fn has_pending_modifier(world: &Bound<'_, PyAny>, facility_id: &Bound<'_, PyAny>
         }
         Ok(false)
     })();
-    counted(py, "has_pending_modifier", refused_by_python(py, result))
+    counted(py, "has_pending_modifier", result)
 }
 
 /// `active_facility_outage`: `bool(infrastructure_event_context_ids(world, facility_id))`.
@@ -1015,7 +998,7 @@ fn facility_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: boo
 fn facility(handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
     let py = world.py();
     let result = expire_of(handler).and_then(|expire| facility_rule(world, event, expire));
-    counted(py, "facility", refused_by_python(py, result))
+    counted(py, "facility", result)
 }
 
 // ---- EffectProgramEnvironmentHandler -------------------------------------------------------------
@@ -1225,7 +1208,7 @@ fn environment_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: 
 fn environment(handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
     let py = world.py();
     let result = expire_of(handler).and_then(|expire| environment_rule(world, event, expire));
-    counted(py, "environment", refused_by_python(py, result))
+    counted(py, "environment", result)
 }
 
 // ---- EffectProgramTemporarySpaceHandler ----------------------------------------------------------
@@ -1360,7 +1343,7 @@ fn temporary_space_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expi
 fn temporary_space(handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
     let py = world.py();
     let result = expire_of(handler).and_then(|expire| temporary_space_rule(world, event, expire));
-    counted(py, "temporary_space", refused_by_python(py, result))
+    counted(py, "temporary_space", result)
 }
 
 // ---- EffectProgramGeometryHandler ----------------------------------------------------------------
@@ -1450,7 +1433,7 @@ fn geometry_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: boo
 fn geometry(handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
     let py = world.py();
     let result = expire_of(handler).and_then(|expire| geometry_rule(world, event, expire));
-    counted(py, "geometry", refused_by_python(py, result))
+    counted(py, "geometry", result)
 }
 
 // ---- EffectProgramStructureHandler ---------------------------------------------------------------
@@ -1760,7 +1743,7 @@ fn staff_handoff<'py>(
     row: &EventRow,
 ) -> PyResult<Bound<'py, PyAny>> {
     let py = world.py();
-    let (candidate, staff_id, replacement_id, task_id, reason_code, sources) = refused_by_python(py, (|| {
+    let (candidate, staff_id, replacement_id, task_id, reason_code, sources) = (|| {
         let (candidate, staff_id, replacement_id, task_id, reason_code) = staff_handoff_on_copy(world, event, row)?;
         validate(&candidate)?;
         // The checks saw the marker is a mapping.
@@ -1769,7 +1752,7 @@ fn staff_handoff<'py>(
         };
         let sources: Vec<String> = str_list(marker, "assumption_ids")?.iter().map(|item| item.to_string()).collect();
         Ok((candidate, staff_id, replacement_id, task_id, reason_code, sources))
-    })())?;
+    })()?;
     // Past here the world has changed, and what is raised goes on as the Python rule's does.
     swap(world, &candidate)?;
     let record = handoff_record(world, &task_id, &staff_id, &replacement_id, &reason_code, &row.event_id, sources)?;
@@ -1828,7 +1811,7 @@ fn facility_repair<'py>(
         sources.retain(|source| !source.is_empty());
         Ok((facility, working, restored, attribute(&repair, intern!(py, "component_id"))?, facility_id.clone(), sources))
     })();
-    let (facility, previous, restored, component, facility_id, sources) = refused_by_python(py, plan)?;
+    let (facility, previous, restored, component, facility_id, sources) = plan?;
     // In place, like the Python rule: a failed check of the world now goes on as its own error.
     facility.setattr(intern!(py, "working_units"), restored)?;
     if let Some(infrastructure) = get_or_none(&model_state(world)?, "infrastructure_v1")? {
@@ -2040,14 +2023,14 @@ fn structure<'py>(
 ) -> PyResult<Bound<'py, PyAny>> {
     let py = world.py();
     let none = || py.None().into_bound(py);
-    let row = refused_by_python(py, event_row(event))?;
-    let payload = refused_by_python(py, map_of(&row.payload))?;
+    let row = event_row(event)?;
+    let payload = map_of(&row.payload)?;
     let base = ["program_id", "effect_id", "modifier_id", "op"];
     let shape = |extra: &[&str]| payload.len() == 4 + extra.len() && base.iter().chain(extra).all(|name| payload.contains_key(*name));
     if shape(&["staff_id", "parameters"]) {
         if str_of(payload, "op").is_some_and(|op| &**op == "staff_task_order") {
             let result = staff_task_order(world, event, &row).map(|()| none());
-            return counted(py, "structure.staff_task_order", refused_by_python(py, result));
+            return counted(py, "structure.staff_task_order", result);
         }
         return counted(py, "structure.staff_handoff", staff_handoff(world, event, &row));
     }
@@ -2056,7 +2039,7 @@ fn structure<'py>(
     }
     if shape(&["staff_id", "skills"]) {
         let result = set_staff_role(world, &row, event).map(|()| none());
-        return counted(py, "structure.set_staff_role", refused_by_python(py, result));
+        return counted(py, "structure.set_staff_role", result);
     }
     let result = add_structure(world, &row).map(|label| {
         if let Ok(mut ran) = RAN.lock() {
@@ -2064,7 +2047,7 @@ fn structure<'py>(
         }
         none()
     });
-    counted(py, "structure.add", refused_by_python(py, result))
+    counted(py, "structure.add", result)
 }
 
 // ---- validate_effect_program_state -------------------------------------------------------------
@@ -2414,7 +2397,7 @@ fn check_state(world: &Bound<'_, PyAny>, history: bool) -> PyResult<()> {
 fn validate_state(world: &Bound<'_, PyAny>, validate_event_history: bool) -> PyResult<()> {
     let py = world.py();
     let label = if validate_event_history { "validate_state.history" } else { "validate_state.tick" };
-    counted(py, label, refused_by_python(py, check_state(world, validate_event_history)))
+    counted(py, label, check_state(world, validate_event_history))
 }
 
 /// For the test that compares this table with `EFFECT_EVENT_TYPES`.

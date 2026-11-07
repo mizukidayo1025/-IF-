@@ -303,10 +303,12 @@ def test_a_full_history_drops_its_oldest_record(spaces: WorldState) -> None:
 
 
 def test_an_input_outside_the_contract_is_a_kernel_refusal(spaces: WorldState) -> None:
-    with pytest.raises(KernelRefusal, match="overlay.capacity_metrics refused"):
+    with pytest.raises(KernelRefusal, match="overlay.capacity_metrics refused") as refused:
         temporary_spaces.capacity_metrics(spaces, "no-such-zone")
-    with pytest.raises(KernelRefusal, match="has no Python rule"):
-        temporary_spaces.capacity_metrics.__wrapped__(spaces, "no-such-zone")
+    # The kernel's own reason goes with it, and nothing stands behind it to call.
+    assert isinstance(refused.value.__cause__, native.Unsupported)
+    assert str(refused.value) == f"overlay.capacity_metrics refused: {refused.value.__cause__}"
+    assert not hasattr(temporary_spaces.capacity_metrics, "__wrapped__")
 
 
 @pytest.mark.parametrize("occupancy", [None, 0, 3, 10_000])
@@ -1560,9 +1562,10 @@ def test_reads_of_the_queues(queued: WorldState) -> None:
     assert facility_queues.queue_ids_for_facility(queued, "medical_desk") == ("medical_desk",)
     assert facility_queues.queue_ids_for_facility(queued, "none") == ()
     rules = _rules("facility_queues")
-    assert rules.queue_head_agent_ids(
+    # The Python reader (validate_* keeps it, D3) and its kernel agree.
+    assert rules.queue_head_agent_ids(queued, "toilet_01") == facility_queues.queue_head_agent_ids(
         queued, "toilet_01"
-    ) == facility_queues.queue_head_agent_ids.__wrapped__(queued, "toilet_01")
+    )
     request = facility_queues.request_for_task(queued, tasks[0])
     assert request == _request(tasks[0], "A001")
     # The state's own record, which a caller writes to.

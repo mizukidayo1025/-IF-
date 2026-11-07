@@ -427,8 +427,12 @@ def test_the_mark_keeps_the_kernels_of_steps_without_a_python_body(
     assert OfflineSimulationController._view_for_proposals is not ProposePhase._view_for_proposals
     world, controller = _world_with_views(generated_scenario)
     assert "_rust_view" in controller._view_after_movement(world).__dict__
-    with pytest.raises(KernelRefusal, match="no Python step"):
-        UpdatePhase._view_after_movement(controller, world)
+    # The mixin keeps the step's contract, which the controller's kernel carries.
+    assert UpdatePhase._view_after_movement.__doc__
+    assert (
+        OfflineSimulationController._view_after_movement.__doc__
+        == UpdatePhase._view_after_movement.__doc__
+    )
 
 
 def test_without_the_mark_the_kernels_run() -> None:

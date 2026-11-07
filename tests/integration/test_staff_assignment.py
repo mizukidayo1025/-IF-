@@ -11,6 +11,7 @@ background task, so a Run here does, through the driver and through the phases.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import random
@@ -20,6 +21,7 @@ from typing import Any
 
 import pytest
 from support.paths import SCENARIO_100_AGENTS
+from support.world import on_the_phases
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine, TraceLevel
@@ -766,23 +768,20 @@ def test_a_full_edge_in_a_request_records_the_wait_before_the_trip_s_sequence(
 ) -> None:
     """`_select_toilet` goes through `_route`, in the plan of `apply_effect`."""
 
-    def run(name: str, *, on_the_phases: bool) -> dict[str, Any]:
+    def run(name: str, *, phases: bool) -> dict[str, Any]:
         controller = _capacity_controller(tmp_path, name)
         world = controller.world
         for agent in world.agents.values():
             agent.zone_id = "sleeping"
         for edge in world.zone_edges:
             world.schedule_event(_trip(world, edge))
-        native.rules("tick").python_path_only(on_the_phases)
-        try:
+        with on_the_phases() if phases else contextlib.nullcontext():
             engine = TickEngine(world, phase_handler=controller)
             engine.run(30)
-        finally:
-            native.rules("tick").python_path_only(False)
         return _state(world)
 
-    driven = run("driven", on_the_phases=False)
-    phases = run("phases", on_the_phases=True)
+    driven = run("driven", phases=False)
+    phases = run("phases", phases=True)
     assert json.dumps(driven) == json.dumps(phases)
     assert any("zone_edge_capacity_wait" in record for record in driven["records"])
 
@@ -790,7 +789,7 @@ def test_a_full_edge_in_a_request_records_the_wait_before_the_trip_s_sequence(
 def test_a_trip_chosen_past_a_full_edge_takes_its_sequence_after_the_wait(tmp_path: Path) -> None:
     """One toilet behind the full edge, the others open: both happen in one proposal's plan."""
 
-    def run(name: str, *, on_the_phases: bool) -> dict[str, Any]:
+    def run(name: str, *, phases: bool) -> dict[str, Any]:
         document = _document(staff=[_member("S01", "toilet", "support")])
         for facility in document["facilities"][1:]:
             facility["zone_id"] = "information_desk"
@@ -803,15 +802,12 @@ def test_a_trip_chosen_past_a_full_edge_takes_its_sequence_after_the_wait(tmp_pa
         for agent in world.agents.values():
             agent.zone_id = "sleeping"
         world.schedule_event(_trip(world, "corridor_toilet"))
-        native.rules("tick").python_path_only(on_the_phases)
-        try:
+        with on_the_phases() if phases else contextlib.nullcontext():
             TickEngine(world, phase_handler=controller).run(40)
-        finally:
-            native.rules("tick").python_path_only(False)
         return _state(world)
 
-    driven = run("driven", on_the_phases=False)
-    assert json.dumps(driven) == json.dumps(run("phases", on_the_phases=True))
+    driven = run("driven", phases=False)
+    assert json.dumps(driven) == json.dumps(run("phases", phases=True))
     assert any("zone_edge_capacity_wait" in record for record in driven["records"])
     assert any("agent_travel_complete" in str(event) for event in driven["pending"][1:])
 
@@ -822,7 +818,7 @@ def test_a_trip_chosen_past_a_full_edge_takes_its_sequence_after_the_wait(tmp_pa
 def test_an_urgent_request_preempts_a_routed_task_in_a_run(tmp_path: Path) -> None:
     """The Run no Scenario of the gate has: a priority comes from the Provider's boundary only."""
 
-    def run(name: str, *, on_the_phases: bool) -> dict[str, Any]:
+    def run(name: str, *, phases: bool) -> dict[str, Any]:
         document = _document(
             duration=120,
             staff=[
@@ -850,8 +846,7 @@ def test_an_urgent_request_preempts_a_routed_task_in_a_run(tmp_path: Path) -> No
         artifacts.write_initial(world, execution_mode="offline")
         controller = OfflineSimulationController(world, artifacts)
         engine = TickEngine(world, phase_handler=controller)
-        native.rules("tick").python_path_only(on_the_phases)
-        try:
+        with on_the_phases() if phases else contextlib.nullcontext():
             for _ in range(60):
                 priorities = world.model_state.setdefault("llm", {}).setdefault(
                     "support_priorities", {}
@@ -859,14 +854,12 @@ def test_an_urgent_request_preempts_a_routed_task_in_a_run(tmp_path: Path) -> No
                 for request in world.unsettled_support_requests():
                     priorities[request.id] = 1
                 engine.step()
-        finally:
-            native.rules("tick").python_path_only(False)
         return _state(world)
 
     counts = native.rules("tick").stats()[0]
     ticks = counts["ticks"]
-    driven = run("driven", on_the_phases=False)
+    driven = run("driven", phases=False)
     assert native.rules("tick").stats()[0]["ticks"] == ticks + 60
-    phases = run("phases", on_the_phases=True)
+    phases = run("phases", phases=True)
     assert json.dumps(driven) == json.dumps(phases)
     assert any("staff_operation_preempted" in record for record in driven["records"])

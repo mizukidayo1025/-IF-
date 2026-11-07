@@ -193,7 +193,6 @@ def test_the_row_follows_the_rules_with_only_single_records_written(
     assert tracked.model_state[KEY]["positions"]
 
 
-@pytest.mark.python_rules
 def test_the_step_holds_the_tree_across_advance_movement_and_its_writes_reach_the_row(
     generated_scenario: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:

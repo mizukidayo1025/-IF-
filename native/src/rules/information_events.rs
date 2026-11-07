@@ -19,7 +19,6 @@ use crate::core::mathx::{py_max, py_min};
 use crate::core::rng::{Key, KeyedDraws};
 use crate::core::row::{attribute, exact_float, exact_int, exact_str, unsupported};
 use crate::core::world_core::{mirror_of, NamespaceMirror};
-use crate::rules::effects::refused_by_python;
 use crate::rules::handlers::{counted, fields_are, get, kind_is, number, text_is};
 use crate::rules::support::household_of;
 use crate::state::information::{belief_rank, is_stable_id, BeliefRow, InformationRow, NAME, SCHEMA_VERSION};
@@ -316,7 +315,7 @@ fn rumor<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &B
         let next = py_min(1.0, pressure + setting(&config, intern!(py, "query_pressure_per_claim"))?);
         Ok((state, message_id, origin, message, belief, next))
     })();
-    let (state, message_id, origin, message, belief, next) = counted(py, "rumor", refused_by_python(py, plan))?;
+    let (state, message_id, origin, message, belief, next) = counted(py, "rumor", plan)?;
     state.get_item("messages")?.set_item(&*message_id, message)?;
     state.get_item("beliefs")?.get_item(&*origin)?.set_item(&*message_id, belief.to_py(py)?)?;
     state.get_item("query_pressure")?.set_item(&*origin, next)?;
@@ -476,7 +475,7 @@ fn correction<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, even
         let new_truth = (&*truth == "unknown").then(|| if verified { "true" } else { "false" });
         Ok((state, message_id, new_truth, changes))
     })();
-    let (state, message_id, new_truth, changes) = counted(py, "correction", refused_by_python(py, plan))?;
+    let (state, message_id, new_truth, changes) = counted(py, "correction", plan)?;
     if let Some(truth) = new_truth {
         // `replace(message, truth_status=...).to_dict()`: the same fields in the same order.
         let messages = state.get_item("messages")?;
@@ -696,7 +695,7 @@ fn contact<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: 
         };
         Ok(Ok((state, message_id, recipient_id, record, next, !heard && accepted)))
     })();
-    let (state, message_id, recipient_id, record, next, delivered) = match counted(py, "contact", refused_by_python(py, plan))? {
+    let (state, message_id, recipient_id, record, next, delivered) = match counted(py, "contact", plan)? {
         Ok(planned) => planned,
         Err(text) => return errors::suppressed(py, text),
     };

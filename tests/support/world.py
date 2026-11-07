@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from typing import Any
 
 import pytest
@@ -149,39 +150,23 @@ def kernel_says_python_s_text(
 ) -> tuple[str, str]:
     """The handler's kernel raises its Python rule's outcome itself, with the same class and text.
 
-    `handler.apply` runs the kernel first; the outcome must be the kernel's own (not a refusal the
-    Python rule then worded) and the world must be as it was. Where the handler still has its
-    Python rule (`kernel_first`), that rule on a copy made before must raise the same class with the
-    same text. Where it has none (`kernel_only`: its `__wrapped__` raises KernelRefusal), `expected`
-    is the Python rule's outcome, written down from it: (EventSuppressed or EventApplicationError,
-    text). Given, it is checked in either case. The class name and text, for the caller.
-    (docs/rust-port/lanes/l8-texts-events.md)
+    `handler.apply` is the kernel; the outcome must be the kernel's own (not a refusal) and the
+    world must be as it was. The handler has no Python rule left (`kernel_only`), so `expected` is
+    the Python rule's outcome, written down from it: (EventSuppressed or EventApplicationError,
+    text). The class name and text, for the caller. (docs/rust-port/lanes/l8-texts-events.md)
     """
-    import copy
-
-    from sheltersim.core.kernels import KernelRefusal
     from sheltersim.events.models import EventApplicationError, EventSuppressed
 
     def text(state: Any) -> str:
         return state._canonical_text(state._canonical_data())
 
-    twin = copy.deepcopy(world)
+    assert expected is not None, "a handler with no Python rule needs the outcome it raised"
     before = text(world)
     with pytest.raises((EventSuppressed, EventApplicationError)) as made:
         handler.apply(world, event)
     assert getattr(made.value, NATIVE_OUTCOME, False), f"the kernel refused: {made.value}"
     assert text(world) == before
-    if expected is not None:
-        assert (type(made.value), str(made.value)) == expected
-    try:
-        type(handler).apply.__wrapped__(handler, twin, event)
-    except KernelRefusal:
-        assert expected is not None, "a handler with no Python rule needs the outcome it raised"
-    except (EventSuppressed, EventApplicationError) as said:
-        assert type(made.value) is type(said)
-        assert str(made.value) == str(said)
-    else:
-        pytest.fail("the Python rule raised nothing")
+    assert (type(made.value), str(made.value)) == expected
     return type(made.value).__name__, str(made.value)
 
 
@@ -234,3 +219,23 @@ def world_digest(world: Any) -> str:
         sort_keys=True,
     )
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
+@contextmanager
+def on_the_phases() -> Iterator[None]:
+    """Every tick through `phase_handler`, the phases' Python steps, instead of the driver.
+
+    The controller's metrics step is patched with one that calls it unchanged: the driver
+    (native/src/rules/tick.rs) then refuses each tick before anything changes, as it does for any
+    patch of a step. The steps are the same kernels either way.
+    """
+    from sheltersim.experiments.runner import OfflineSimulationController
+
+    step = OfflineSimulationController._run_metrics_phase
+
+    def same_step(self: Any, *arguments: Any, **options: Any) -> Any:
+        return step(self, *arguments, **options)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(OfflineSimulationController, "_run_metrics_phase", same_step)
+        yield

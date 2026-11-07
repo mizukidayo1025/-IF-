@@ -10,7 +10,6 @@ from sheltersim.domain.staff_operations import (
     schedule_staff_operation_relief,
     update_staff_operations,
 )
-from sheltersim.experiments.phases.segments import no_python_step
 
 
 class ArbitratePhase:
@@ -44,7 +43,6 @@ class ArbitratePhase:
         The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS). A receipt it cannot
         write after the service has assigned is a RuntimeError.
         """
-        raise no_python_step("_assign_staff_support")
 
     def _consider_due_complaints(self, minute: int) -> None:
         """Ask `social_policy` about each request at the minute its wait reaches the threshold,
@@ -60,4 +58,3 @@ class ArbitratePhase:
         The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
         raises KernelRefusal: a threshold or minute that is not an int, a request with no row.
         """
-        raise no_python_step("_consider_due_complaints")
