@@ -13,6 +13,7 @@ import html
 import json
 import runpy
 import shutil
+import sqlite3
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -190,6 +191,11 @@ def test_a_sample_is_rebuilt_only_when_a_build_now_would_give_another_result(
     monkeypatch.setattr(model_version, "ENGINE_VERSION", "test-next")
     assert check(summary).startswith("the model changed for branch main: engine:model")
     monkeypatch.undo()
+    # An index of an older version answers no history until rebuilt (#130).
+    index = tmp_path / "sample" / "sample" / "runs" / summary["run_id"] / "history.sqlite"
+    with sqlite3.connect(index) as db:
+        db.execute("PRAGMA user_version=3")
+    assert check(summary) == "the history index is of another version"
     shutil.rmtree(tmp_path / "sample" / "sample")
     monkeypatch.setenv("SHELTERSIM_LLM_MODE", "offline")
     assert check(summary).startswith("branch main cannot be read")

@@ -485,7 +485,7 @@ class ProjectServices:
             )
             return result
         if len(parts) == 4 and parts[1] == "runs" and parts[3] == "index":
-            from sheltersim.storage.history_index import HistoryIndex
+            from sheltersim.storage.history_index import HISTORY_INDEX_VERSION, HistoryIndex
 
             values = one_query(query, {"branch_id"})
             branch = values.get("branch_id", "main")
@@ -493,14 +493,19 @@ class ProjectServices:
             index = HistoryIndex(self.store, project_id, parts[2])
             status = "required"
             indexed = None
-            if index.path.exists():
-                with index.connect() as db:
+            version = index.version() if index.path.exists() else 0
+            if version:
+                # Heads have the same form in every version of the index.
+                with index.connect(saved_points=True) as db:
                     row = db.execute(
                         "SELECT hash,minute FROM heads WHERE branch=?", (branch,)
                     ).fetchone()
                     if row:
                         indexed = {"checkpoint_hash": row["hash"], "computed_until": row["minute"]}
                         status = "ready" if row["hash"] == reference.checkpoint_hash else "stale"
+                if version != HISTORY_INDEX_VERSION:
+                    # Written in an older form: rebuilding it (POST) replaces the file (#130).
+                    status = "rebuild_required"
             return {
                 "schema_version": 1,
                 "status": status,

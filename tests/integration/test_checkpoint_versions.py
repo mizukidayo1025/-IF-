@@ -34,6 +34,7 @@ from sheltersim.experiments.branch import BranchRuntime
 from sheltersim.experiments.timeline import TimelineError, TimelineStore, requested_minute
 from sheltersim.llm.provider import LLMRouter
 from sheltersim.storage.checkpoints import CheckpointArchive
+from sheltersim.storage.history_index import HistoryIndex
 from sheltersim.storage.projects import StorageError, digest
 from sheltersim.web.projects import ProjectAPI
 
@@ -210,6 +211,11 @@ def test_a_run_saved_before_the_model_version_was_recorded_is_of_engine_1(
         45,
         46,
     ]
+    # Its history index is of version 2, which takes no new rows until it is rebuilt.
+    with pytest.raises(StorageError) as refused:
+        timeline.advance("main", 90)
+    assert refused.value.code == "history_index_rebuild_required"
+    HistoryIndex(store, "p", "r").rebuild("main")
     timeline.advance("main", 90)
     _, head = store.load_branch("p", "r", "main")
     assert head.model_versions["engine:model"] == "1"

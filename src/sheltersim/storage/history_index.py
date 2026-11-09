@@ -31,35 +31,58 @@ from sheltersim.storage.projects import (
     safe_row,
 )
 
+# Version 4 (#130) keeps each record's key once, in records, with an integer id that the
+# entity, token and event link rows point to. Every other repeated text (branch, event and
+# cause ids, source, type, status, entities and tokens) is a row of names, held by its id, and
+# a record kind is a fixed code (KINDS). The SHA-256 of a payload is its 32 bytes. Only
+# record_key holds the key: the other indexes end at the minute, and rows of one minute are
+# put in key order by a sort, which a search reads no slower for the smaller indexes.
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS generations(branch TEXT NOT NULL, kind TEXT NOT NULL, value INTEGER NOT NULL, PRIMARY KEY(branch,kind));
 CREATE TABLE IF NOT EXISTS heads(branch TEXT PRIMARY KEY, hash TEXT NOT NULL, minute INTEGER NOT NULL, counts TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS checkpoints(branch TEXT NOT NULL, minute INTEGER NOT NULL, hash TEXT NOT NULL, state_hash TEXT NOT NULL, PRIMARY KEY(branch,minute));
-CREATE TABLE IF NOT EXISTS records(branch TEXT NOT NULL, kind TEXT NOT NULL, key TEXT NOT NULL, minute INTEGER NOT NULL, event_id TEXT, cause TEXT, source TEXT, event_type TEXT, status TEXT, payload TEXT NOT NULL, payload_hash TEXT NOT NULL, PRIMARY KEY(branch,kind,key));
-CREATE INDEX IF NOT EXISTS record_time ON records(branch,kind,minute,key);
-CREATE INDEX IF NOT EXISTS record_event ON records(branch,event_id,kind,minute,key);
-CREATE INDEX IF NOT EXISTS record_cause ON records(branch,cause,kind,minute,key);
-CREATE INDEX IF NOT EXISTS record_source ON records(branch,kind,source,minute,key);
-CREATE INDEX IF NOT EXISTS record_status ON records(branch,kind,status,minute,key);
-CREATE INDEX IF NOT EXISTS record_type ON records(branch,kind,event_type,minute,key);
-CREATE TABLE IF NOT EXISTS entities(branch TEXT NOT NULL, kind TEXT NOT NULL, key TEXT NOT NULL, entity TEXT NOT NULL, minute INTEGER NOT NULL, PRIMARY KEY(branch,kind,key,entity)) WITHOUT ROWID;
-CREATE INDEX IF NOT EXISTS entity_turn_order ON entities(branch,kind,entity,key) WHERE kind='conversations';
-CREATE TABLE IF NOT EXISTS tokens(branch TEXT NOT NULL, kind TEXT NOT NULL, token TEXT NOT NULL, minute INTEGER NOT NULL, key TEXT NOT NULL, PRIMARY KEY(branch,kind,token,minute,key)) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS lineage(branch TEXT PRIMARY KEY, parent TEXT NOT NULL, fork_minute INTEGER NOT NULL);
-PRAGMA user_version=3;
+CREATE TABLE IF NOT EXISTS kinds(code INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE);
+CREATE TABLE IF NOT EXISTS names(id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE);
+CREATE TABLE IF NOT EXISTS records(id INTEGER PRIMARY KEY, branch INTEGER NOT NULL, kind INTEGER NOT NULL, minute INTEGER NOT NULL, key TEXT NOT NULL, event INTEGER, cause INTEGER, source INTEGER, type INTEGER, status INTEGER, payload BLOB NOT NULL, payload_hash BLOB NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS record_key ON records(branch,kind,key);
+CREATE INDEX IF NOT EXISTS record_time ON records(branch,kind,minute);
+CREATE INDEX IF NOT EXISTS record_event ON records(event) WHERE kind=4;
+CREATE INDEX IF NOT EXISTS record_cause ON records(cause) WHERE kind=4;
+CREATE INDEX IF NOT EXISTS record_source ON records(branch,kind,source,minute);
+CREATE INDEX IF NOT EXISTS record_status ON records(branch,kind,status,minute);
+CREATE INDEX IF NOT EXISTS record_type ON records(branch,kind,type,minute);
+CREATE TABLE IF NOT EXISTS entities(entity INTEGER NOT NULL, record INTEGER NOT NULL, PRIMARY KEY(entity,record)) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS tokens(token INTEGER NOT NULL, record INTEGER NOT NULL, PRIMARY KEY(token,record)) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS links(event INTEGER NOT NULL, record INTEGER NOT NULL, PRIMARY KEY(event,record)) WITHOUT ROWID;
 """  # noqa: E501
-_SCHEMA_VERSION = 3
-# entity_turn_order orders the turns of a conversation and is read only with that kind.
-# Over the other kinds its keys are hashes, so nearly every row would change another page
-# for each commit to journal and write. A file made before it was partial keeps its index
-# and answers the same, and so does one that still has entity_time, an index on entities
-# that no query reads; all of these are version 2.
-# entities and tokens are nothing but their keys, so they have no table apart from them. Without
-# that each of their many small rows goes into two B-trees. A file made with rowids keeps them and
-# answers the same, since no query reads a rowid; that is version 2 too.
+_SCHEMA_VERSION = HISTORY_INDEX_VERSION = 4
+# The record kinds, coded in the order of their names, so that rows ordered by code are
+# ordered as their names were. A new kind takes a new index version.
+KINDS = (
+    "actions",
+    "care",
+    "conversations",
+    "dialogue",
+    "events",
+    "kpis",
+    "operations",
+    "social",
+    "staff",
+    "transitions",
+)
+_KIND_CODES = {name: code for code, name in enumerate(KINDS)}
+_EVENTS = _KIND_CODES["events"]  # record_event and record_cause name it as a literal.
+_CONVERSATIONS = _KIND_CODES["conversations"]
 _WRITE_CACHE_KIB = 16_384
 # The indexing process keeps its connection, and its cache, from one save to the next.
 _KEPT_WRITER_CACHE_KIB = 262_144
+# The names a writer remembers between its writes; the rest it reads again.
+_KEPT_NAMES = 200_000
+_REBUILD_REQUIRED = (
+    "history_index_rebuild_required: this Run's history index was written in an older "
+    "form; rebuild it (POST R/index) or compute the Run again"
+)
 
 
 def _storage_code(error: sqlite3.Error) -> str:
@@ -165,13 +188,22 @@ def _event_references(value: Any) -> set[str]:
     return result
 
 
-# Version 2 adds lineage: a branch forked from another reads the parent's rows before
-# its fork minute instead of copying them. Version 1 indexes have no lineage rows and
-# read the same; code that knows only version 1 refuses a version 2 index.
-# Version 3 stores the payloads of new rows compressed, as BLOBs (storage/history_payloads.py,
-# #80). Rows stored as TEXT before read as they did, so a version 1 or 2 file is read as it is
-# and becomes version 3 when written; code that knows only version 2 refuses version 3.
-_READABLE_VERSIONS = (1, 2, 3)
+# Version 2 added lineage: a branch forked from another reads the parent's rows before its
+# fork minute instead of copying them. Version 3 stored the payloads of new rows compressed,
+# as BLOBs (storage/history_payloads.py, #80). Version 4 holds keys and repeated texts once
+# (#130). A file of versions 1 to 3 is neither read nor written, nor converted: rebuilding the
+# Run's index from its Checkpoints replaces it. Code that knows only version 3 refuses
+# version 4.
+_OLDER_VERSIONS = (1, 2, 3)
+
+
+def _check_version(version: int, *, new: bool = False) -> None:
+    """Refuse a file of another version; with new, an empty file (version 0) is taken."""
+    if version == _SCHEMA_VERSION or (new and version == 0):
+        return
+    if version in _OLDER_VERSIONS:
+        raise StorageError(_REBUILD_REQUIRED)
+    raise StorageError("history_index_version_unsupported")
 
 
 def _segments(db: sqlite3.Connection, branch: str) -> list[tuple[str, int | None]]:
@@ -193,8 +225,18 @@ def _segments(db: sqlite3.Connection, branch: str) -> list[tuple[str, int | None
         segments.append((current, limit))
 
 
-def _scope(segments: list[tuple[str, int | None]], alias: str = "r") -> tuple[str, list[Any]]:
-    """A WHERE term selecting the rows segments name, and its arguments."""
+def _name_id(db: sqlite3.Connection, name: Any) -> int | None:
+    """The id of a stored name, or None, which no row holds, if none is stored."""
+    if name is None:
+        return None
+    row = db.execute("SELECT id FROM names WHERE name=?", (name,)).fetchone()
+    return row[0] if row is not None else None
+
+
+def _scope(
+    segments: list[tuple[int | None, int | None]], alias: str = "r"
+) -> tuple[str, list[Any]]:
+    """A WHERE term selecting the rows of segments of branch ids, and its arguments."""
     terms, args = [], []
     for name, limit in segments:
         if limit is None:
@@ -204,6 +246,25 @@ def _scope(segments: list[tuple[str, int | None]], alias: str = "r") -> tuple[st
             terms.append(f"({alias}.branch=? AND {alias}.minute<?)")
             args.extend((name, limit))
     return "(" + " OR ".join(terms) + ")", args
+
+
+def _conversation_turns(
+    db: sqlite3.Connection, branch: str, conversation_id: str | None, limit: int
+) -> list[sqlite3.Row]:
+    """The payloads of a branch's last conversation turns, newest first, of one conversation
+    or of all. A conversation's turns are found among the branch's, which are few."""
+    if conversation_id:
+        return db.execute(
+            "SELECT r.payload,r.payload_hash FROM records r WHERE r.branch=? AND "
+            f"r.kind={_CONVERSATIONS} AND EXISTS(SELECT 1 FROM entities e WHERE "
+            "e.entity=? AND e.record=r.id) ORDER BY r.key DESC LIMIT ?",
+            (_name_id(db, branch), _name_id(db, conversation_id), limit),
+        ).fetchall()
+    return db.execute(
+        f"SELECT payload,payload_hash FROM records WHERE branch=? AND kind={_CONVERSATIONS} "
+        "ORDER BY key DESC LIMIT ?",
+        (_name_id(db, branch), limit),
+    ).fetchall()
 
 
 def _virtual_utterance_example(
@@ -303,21 +364,32 @@ class _RecordBatch:
 
     Each table receives the new records' rows in the order they were put, as one insert
     per record did before (#47). A key already stored or put earlier must carry the same
-    payload, and then adds only event links its stored record may lack.
+    payload, and then adds only event links its stored record may lack. The batch numbers
+    its records itself, so that their entity, token and link rows can name them before
+    they are inserted; the write transaction keeps any other writer out meanwhile.
     """
 
     _FLUSH_RECORDS = 500
 
-    def __init__(self, db: sqlite3.Connection, branch: str) -> None:
+    def __init__(
+        self, db: sqlite3.Connection, branch: str, known: dict[Any, int] | None = None
+    ) -> None:
         self.db, self.branch = db, branch
+        # Name ids read in earlier, committed writes (kept by the caller), and those read
+        # or added in this one, which count only once it commits.
+        self.known = known if known is not None else {}
+        self.names: dict[Any, int] = {}
+        self.branch_id = self.name(branch)
         # The ancestors whose rows this branch reads (their minute limits); a row they
         # hold already is not stored again.
-        self.ancestors: list[tuple[str, int]] = []
-        self.pending: dict[tuple[str, str], str] = {}
+        self.ancestors: list[tuple[int | None, int]] = []
+        self.pending: dict[tuple[int, str], tuple[int, str]] = {}
+        self.next_id = db.execute("SELECT COALESCE(MAX(id),0)+1 FROM records").fetchone()[0]
         self.records: list[tuple[Any, ...]] = []
-        self.entities: list[tuple[Any, ...]] = []
-        self.tokens: list[tuple[Any, ...]] = []
-        self.references: list[tuple[Any, ...]] = []
+        self.entities: list[tuple[int, int]] = []
+        self.tokens: list[tuple[int, int]] = []
+        self.links: list[tuple[int, int]] = []
+        self.references: list[tuple[int, int]] = []
         self.added: dict[str, int] = {}
 
     def __enter__(self) -> _RecordBatch:
@@ -327,8 +399,31 @@ class _RecordBatch:
         if error is None:
             self.flush()
 
+    def name(self, name: Any) -> int | None:
+        """The id of a name, added to names if it is new; None stays None."""
+        if name is None:
+            return None
+        # Only texts are remembered: 1, 1.0 and True are one key of a dict, not of names.
+        text = type(name) is str
+        found = self.known.get(name) if text else None
+        if found is None and text:
+            found = self.names.get(name)
+        if found is None:
+            row = self.db.execute("SELECT id FROM names WHERE name=?", (name,)).fetchone()
+            if row is not None:
+                found = row[0]
+            else:
+                cursor = self.db.execute("INSERT INTO names(name) VALUES(?)", (name,))
+                found = cursor.lastrowid
+            if text:
+                self.names[name] = found
+        return found
+
     def put(self, kind: str, row: dict[str, Any], *, key: str | None = None) -> None:
-        branch = self.branch
+        code = _KIND_CODES.get(kind)
+        if code is None:
+            raise StorageError("history_index_kind_unknown")
+        branch = self.branch_id
         # A plain row with nothing the privacy check changes is read in one pass in Rust.
         read = native.index_row(row)
         # The token text of a container depends on its key order, here not yet sorted.
@@ -344,70 +439,75 @@ class _RecordBatch:
         if type(minute) is not int or minute < 0:
             raise StorageError("invalid_index_record_minute")
         key = key or payload_hash
-        existing = self.pending.get((kind, key))
+        existing = self.pending.get((code, key))
         if existing is None:
             stored = self.db.execute(
-                "SELECT payload FROM records WHERE branch=? AND kind=? AND key=?",
-                (branch, kind, key),
+                "SELECT id,payload FROM records WHERE branch=? AND kind=? AND key=?",
+                (branch, code, key),
             ).fetchone()
             # Compared as text: compressed bytes may differ between zlib builds (#80).
-            existing = history_payloads.decode(stored[0]) if stored is not None else None
-        if existing is None and kind != "conversations":
+            if stored is not None:
+                existing = (stored[0], history_payloads.decode(stored[1]))
+        if existing is None and code != _CONVERSATIONS:
             # An ancestor's rows before the fork minute are read as this branch's.
             for ancestor, limit in self.ancestors:
                 if minute >= limit:
                     break
                 stored = self.db.execute(
                     "SELECT payload FROM records WHERE branch=? AND kind=? AND key=? AND minute<?",
-                    (ancestor, kind, key, limit),
+                    (ancestor, code, key, limit),
                 ).fetchone()
                 if stored is not None:
                     if history_payloads.decode(stored[0]) != encoded:
                         raise StorageError("immutable_history_record_conflict")
                     return
         if existing is not None:
-            if existing != encoded:
+            if existing[1] != encoded:
                 raise StorageError("immutable_history_record_conflict")
-            self.references.extend(
-                (branch, kind, "@event:" + event, minute, key) for event in set(references)
-            )
+            record = existing[0]
+            self.references.extend((self.name(event), record) for event in sorted(set(references)))
             return
-        self.pending[(kind, key)] = encoded
+        record, self.next_id = self.next_id, self.next_id + 1
+        self.pending[(code, key)] = (record, encoded)
+        name = self.name
         self.records.append(
             (
+                record,
                 branch,
-                kind,
-                key,
+                code,
                 minute,
-                row.get("event_id"),
-                row.get("causation_id"),
-                row.get("source_id"),
-                row.get("event_type", row.get("action", row.get("kind"))),
-                row.get("status"),
+                key,
+                name(row.get("event_id")),
+                name(row.get("causation_id")),
+                name(row.get("source_id")),
+                name(row.get("event_type", row.get("action", row.get("kind")))),
+                name(row.get("status")),
                 history_payloads.encode(encoded),
-                payload_hash,
+                bytes.fromhex(payload_hash),
             )
         )
         self.added[kind] = self.added.get(kind, 0) + 1
-        self.entities.extend((branch, kind, key, item, minute) for item in set(identities))
+        # In sorted order, so that new names take the same ids in every process.
+        self.entities.extend((name(item), record) for item in sorted(set(identities)))
         # Index bounded metadata, never long answers, raw prompts or arbitrary prose.
         words = _terms(
             read[6]
             if read is not None
-            else " ".join(str(row.get(name, "")) for name in _TOKEN_FIELDS)
+            else " ".join(str(row.get(field, "")) for field in _TOKEN_FIELDS)
         )
-        words = sorted({*words, *("@event:" + event for event in references)})
-        self.tokens.extend((branch, kind, token, minute, key) for token in words)
+        self.tokens.extend((name(word), record) for word in words)
+        self.links.extend((name(event), record) for event in sorted(set(references)))
         if len(self.records) >= self._FLUSH_RECORDS:
             self.flush()
 
     def flush(self) -> None:
         db = self.db
-        db.executemany("INSERT INTO records VALUES(?,?,?,?,?,?,?,?,?,?,?)", self.records)
-        db.executemany("INSERT INTO entities VALUES(?,?,?,?,?)", self.entities)
-        db.executemany("INSERT INTO tokens VALUES(?,?,?,?,?)", self.tokens)
-        # Event links of records stored before; their own tokens are inserted above.
-        db.executemany("INSERT OR IGNORE INTO tokens VALUES(?,?,?,?,?)", self.references)
+        db.executemany("INSERT INTO records VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", self.records)
+        db.executemany("INSERT INTO entities VALUES(?,?)", self.entities)
+        db.executemany("INSERT INTO tokens VALUES(?,?)", self.tokens)
+        db.executemany("INSERT INTO links VALUES(?,?)", self.links)
+        # Event links of records stored before; their own links are inserted above.
+        db.executemany("INSERT OR IGNORE INTO links VALUES(?,?)", self.references)
         db.executemany(
             "INSERT INTO generations VALUES(?,?,?) ON CONFLICT(branch,kind) DO UPDATE SET "
             "value=value+excluded.value",
@@ -417,6 +517,7 @@ class _RecordBatch:
         self.records.clear()
         self.entities.clear()
         self.tokens.clear()
+        self.links.clear()
         self.references.clear()
         self.added.clear()
 
@@ -441,6 +542,8 @@ class HistoryIndex:
         # stays valid between them while no other connection writes; close() ends it.
         self._keep_writer = keep_writer
         self._writer: sqlite3.Connection | None = None
+        # The name ids of committed writes, which never change in a file.
+        self._names: dict[Any, int] = {}
 
     def close(self) -> None:
         """Close the kept write connection, if any."""
@@ -459,11 +562,17 @@ class HistoryIndex:
             # the mode stays until a later write; on other files this does nothing.
             connection.execute("PRAGMA journal_mode=DELETE")
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-            if version not in (0, *_READABLE_VERSIONS):
-                raise StorageError("history_index_version_unsupported")
+            _check_version(version, new=True)
             if version != _SCHEMA_VERSION:
-                # The script ends by setting the version, which is a write and a sync.
-                connection.executescript(_SCHEMA)
+                connection.executescript(
+                    "BEGIN;"
+                    + _SCHEMA
+                    + "".join(
+                        f"INSERT OR IGNORE INTO kinds VALUES({code},'{name}');"
+                        for code, name in enumerate(KINDS)
+                    )
+                    + f"PRAGMA user_version={_SCHEMA_VERSION};COMMIT;"
+                )
             page_size = connection.execute("PRAGMA page_size").fetchone()[0]
             # A derived file cannot individually exceed the configured disk cap.
             connection.execute(f"PRAGMA max_page_count={max(1, self.store.max_bytes // page_size)}")
@@ -478,7 +587,11 @@ class HistoryIndex:
         return connection
 
     @contextmanager
-    def connect(self, *, write: bool = False) -> Iterator[sqlite3.Connection]:
+    def connect(
+        self, *, write: bool = False, saved_points: bool = False
+    ) -> Iterator[sqlite3.Connection]:
+        """A transaction on the index. With saved_points, a read of only the heads and
+        checkpoints tables, whose form no version changed, and of a file of any version."""
         if not write and not self.path.exists():
             raise StorageError("history_index_required: explicitly rebuild the saved Run index")
         if self.path.is_symlink():
@@ -491,8 +604,8 @@ class HistoryIndex:
         connection.row_factory = sqlite3.Row
         try:
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-            if version not in _READABLE_VERSIONS:
-                raise StorageError("history_index_version_unsupported")
+            if not (saved_points and version in _OLDER_VERSIONS):
+                _check_version(version)
             connection.execute("PRAGMA query_only=ON")
             connection.execute("BEGIN")
             yield connection
@@ -545,7 +658,7 @@ class HistoryIndex:
         minute instead of storing them (#256); it stores only rows from the fork minute
         on, and none its ancestors hold already.
         """
-        with self.connect(write=True) as db, _RecordBatch(db, branch) as records:
+        with self.connect(write=True) as db, _RecordBatch(db, branch, self._names) as records:
             prior = db.execute("SELECT * FROM heads WHERE branch=?", (branch,)).fetchone()
             forked = inherit_from is not None and prior is None and not rebuild
             if forked:
@@ -561,11 +674,18 @@ class HistoryIndex:
                 # rebuild it without conflicting with rows derived by older code.
                 # Saved conversation turns are their own append-only source and are
                 # not reconstructed from simulation checkpoints, so retain them.
-                for table in ("records", "entities", "tokens", "generations"):
+                derived = "SELECT id FROM records WHERE branch=? AND kind!=" + str(_CONVERSATIONS)
+                for table in ("entities", "tokens", "links"):
                     db.execute(
-                        f"DELETE FROM {table} WHERE branch=? AND kind!='conversations'",
-                        (branch,),
+                        f"DELETE FROM {table} WHERE record IN ({derived})", (records.branch_id,)
                     )
+                db.execute(
+                    "DELETE FROM records WHERE branch=? AND kind!=?",
+                    (records.branch_id, _CONVERSATIONS),
+                )
+                db.execute(
+                    "DELETE FROM generations WHERE branch=? AND kind!='conversations'", (branch,)
+                )
                 for table in ("heads", "checkpoints"):
                     db.execute(f"DELETE FROM {table} WHERE branch=?", (branch,))
                 prior = None
@@ -574,7 +694,9 @@ class HistoryIndex:
             if rebuild:
                 previous_minute = -1
             records.ancestors = [
-                (name, limit) for name, limit in _segments(db, branch)[1:] if limit is not None
+                (_name_id(db, name), limit)
+                for name, limit in _segments(db, branch)[1:]
+                if limit is not None
             ]
             if forked:
                 # Events and KPI samples before the fork minute are the parent's rows;
@@ -869,9 +991,20 @@ class HistoryIndex:
                 ),
             )
 
+        self._remember(records.names)
+
+    def _remember(self, names: dict[Any, int]) -> None:
+        """Keep the name ids of a committed write for the next writes of a kept writer."""
+        if not self._keep_writer:
+            return
+        if len(self._names) + len(names) > _KEPT_NAMES:
+            self._names.clear()
+        self._names.update(names)
+
     def add_turn(self, branch: str, turn: dict[str, Any]) -> None:
-        with self.connect(write=True) as db, _RecordBatch(db, branch) as records:
+        with self.connect(write=True) as db, _RecordBatch(db, branch, self._names) as records:
             records.put("conversations", turn, key=turn["turn_id"])
+        self._remember(records.names)
 
     def ready(self, db: sqlite3.Connection, branch: str, anchor: str) -> None:
         row = db.execute("SELECT hash FROM heads WHERE branch=?", (branch,)).fetchone()
@@ -901,7 +1034,7 @@ class HistoryIndex:
     ) -> tuple[int, str] | None:
         """The latest saved Checkpoint at or before minute on a branch whose head is anchor;
         the anchor itself is the head at anchor_minute."""
-        with self.connect() as db:
+        with self.connect(saved_points=True) as db:
             answered, _ = self.answering_head(db, branch, anchor, anchor_minute)
             if answered != anchor and anchor_minute is not None and minute >= anchor_minute:
                 return anchor_minute, anchor
@@ -940,80 +1073,93 @@ class HistoryIndex:
             if query.kind == "causal" and query.include_related
             else (kind,)
         )
-        where, args = (
-            [
-                "r.branch=?",
-                "r.kind IN (" + ",".join("?" for _ in kinds) + ")",
-                "r.minute BETWEEN ? AND ?",
-            ],
-            [branch, *kinds, query.start, query.end],
-        )
-        if kind == "kpis":
-            where.append("(r.minute-?) % ? = 0")
-            args.extend([query.start, query.step])
-        for identity in (
-            query.agent_id,
-            query.household_id,
-            query.staff_id,
-            query.zone_id,
-            query.conversation_id,
-        ):
-            if identity:
-                where.append(
-                    "EXISTS(SELECT 1 FROM entities e WHERE e.branch=r.branch AND "
-                    "e.kind=r.kind AND e.key=r.key AND e.entity=?)"
-                )
-                args.append(identity)
-        for name, value in (
-            ("event_type", query.event_type),
-            ("source", query.source_id),
-            ("status", query.status),
-        ):
-            if value is not None:
-                where.append(f"r.{name}=?")
-                args.append(value)
-        if query.event_id and query.kind != "causal":
-            where.append(
-                "EXISTS(SELECT 1 FROM tokens t WHERE t.branch=r.branch AND t.kind=r.kind AND "
-                "t.key=r.key AND t.token=?)"
-            )
-            args.append("@event:" + query.event_id)
-        for term in _terms(query.text or ""):
-            where.append(
-                "EXISTS(SELECT 1 FROM tokens t WHERE t.branch=r.branch AND t.kind=r.kind AND "
-                "t.key=r.key AND t.token=?)"
-            )
-            args.append(term)
+        codes = [_KIND_CODES[name] for name in kinds]
         graph = None
         with self.connect() as db:
             anchor, indexed_minute = self.answering_head(db, branch, anchor, anchor_minute)
+            # A filter whose value no row holds takes the id None, which matches nothing.
+            ids: dict[Any, int | None] = {}
+
+            def name_id(name: Any) -> int | None:
+                if name not in ids:
+                    ids[name] = _name_id(db, name)
+                return ids[name]
+
+            where, args = (
+                [
+                    "r.branch=?",
+                    "r.kind IN (" + ",".join("?" for _ in codes) + ")",
+                    "r.minute BETWEEN ? AND ?",
+                ],
+                [None, *codes, query.start, query.end],
+            )
+            if kind == "kpis":
+                where.append("(r.minute-?) % ? = 0")
+                args.extend([query.start, query.step])
+            for identity in (
+                query.agent_id,
+                query.household_id,
+                query.staff_id,
+                query.zone_id,
+                query.conversation_id,
+            ):
+                if identity:
+                    where.append(
+                        "EXISTS(SELECT 1 FROM entities e WHERE e.entity=? AND e.record=r.id)"
+                    )
+                    args.append(name_id(identity))
+            for column, value in (
+                ("type", query.event_type),
+                ("source", query.source_id),
+                ("status", query.status),
+            ):
+                if value is not None:
+                    where.append(f"r.{column}=?")
+                    args.append(name_id(value))
+            if query.event_id and query.kind != "causal":
+                where.append("EXISTS(SELECT 1 FROM links l WHERE l.event=? AND l.record=r.id)")
+                args.append(name_id(query.event_id))
+            for term in _terms(query.text or ""):
+                where.append("EXISTS(SELECT 1 FROM tokens t WHERE t.token=? AND t.record=r.id)")
+                args.append(name_id(term))
             # Conversation turns belong to their branch; other rows are read through its
             # lineage.
-            segments = [(branch, None)] if kind == "conversations" else _segments(db, branch)
+            segments = [
+                (name_id(name), limit)
+                for name, limit in (
+                    [(branch, None)] if kind == "conversations" else _segments(db, branch)
+                )
+            ]
             scope, scope_args = _scope(segments)
             where[0] = scope
             args[:1] = scope_args
-            after = (
-                cursor_decode(query.cursor, scope, anchor)
-                if query.kind != "conversations"
-                else None
-            )
-            if after:
-                if ":" not in after[1]:
+
+            def position(cursor: tuple[int, str] | None, allowed: tuple[str, ...]) -> None:
+                if cursor is None:
+                    return
+                if ":" not in cursor[1]:
                     raise StorageError("stale_or_foreign_cursor")
-                after_kind, after_key = after[1].split(":", 1)
-                if after_kind not in kinds:
+                after_kind, after_key = cursor[1].split(":", 1)
+                if after_kind not in allowed:
                     raise StorageError("stale_or_foreign_cursor")
                 where.append("(r.minute,r.kind,r.key)>(?,?,?)")
-                args.extend((after[0], after_kind, after_key))
+                args.extend((cursor[0], _KIND_CODES[after_kind], after_key))
+
+            if query.kind != "conversations":
+                position(cursor_decode(query.cursor, scope, anchor), kinds)
             if query.kind == "causal":
-                visited, frontier = {query.event_id}, [query.event_id]
+                root = name_id(query.event_id)
+                # Event ids by name id; the root counts even if no row names it.
+                visited, frontier = {root}, [root]
                 link_limit_hit = False
                 while frontier and len(visited) < 500:
                     current = frontier.pop(0)
                     links = db.execute(
-                        f"SELECT r.event_id,r.cause FROM records r WHERE {scope} AND "
-                        "r.kind='events' AND (r.event_id=? OR r.cause=?) LIMIT 501",
+                        # Ordered, so that a graph cut off at 500 events keeps the same ones
+                        # whatever order the rows and names were written in (#48, #130).
+                        f"SELECT r.event,r.cause FROM records r WHERE {scope} AND "
+                        f"r.kind={_EVENTS} AND (r.event=? OR r.cause=?) "
+                        "ORDER BY r.minute,r.key LIMIT 501",
                         (*scope_args, current, current),
                     ).fetchall()
                     link_limit_hit = link_limit_hit or len(links) >= 501
@@ -1024,23 +1170,21 @@ class HistoryIndex:
                                     break
                                 visited.add(other)
                                 frontier.append(other)
+                linked = sorted(event for event in visited if event is not None)
                 where.append(
-                    (
-                        "EXISTS(SELECT 1 FROM tokens t WHERE t.branch=r.branch AND t.kind=r.kind "
-                        "AND t.key=r.key AND t.token IN ("
-                    )
-                    + ",".join("?" for _ in visited)
+                    "EXISTS(SELECT 1 FROM links l WHERE l.record=r.id AND l.event IN ("
+                    + ",".join("?" for _ in linked)
                     + "))"
                 )
-                args.extend("@event:" + event for event in sorted(visited))
+                args.extend(linked)
                 graph = {
                     "causal_graph_truncated": link_limit_hit
                     or bool(frontier)
                     or len(visited) >= 500,
                     "root_present": db.execute(
-                        f"SELECT 1 FROM records r WHERE {scope} AND r.kind='events' AND "
-                        "r.event_id=? LIMIT 1",
-                        (*scope_args, query.event_id),
+                        f"SELECT 1 FROM records r WHERE {scope} AND r.kind={_EVENTS} AND "
+                        "r.event=? LIMIT 1",
+                        (*scope_args, root),
                     ).fetchone()
                     is not None,
                 }
@@ -1050,15 +1194,7 @@ class HistoryIndex:
                     (branch,),
                 ).fetchone()
                 anchor = digest({"head": anchor, "turn_count": counter[0] if counter else 0})
-                after = cursor_decode(query.cursor, scope, anchor)
-                if after:
-                    if ":" not in after[1]:
-                        raise StorageError("stale_or_foreign_cursor")
-                    after_kind, after_key = after[1].split(":", 1)
-                    if after_kind != "conversations":
-                        raise StorageError("stale_or_foreign_cursor")
-                    where.append("(r.minute,r.kind,r.key)>(?,?,?)")
-                    args.extend((after[0], after_kind, after_key))
+                position(cursor_decode(query.cursor, scope, anchor), ("conversations",))
             # One ordered select per branch of the lineage keeps each on its index;
             # the compound select merges them in order.
             parts, part_args = [], []
@@ -1076,13 +1212,17 @@ class HistoryIndex:
             ).fetchall()
             coverage_rows = db.execute(
                 f"SELECT r.kind,MIN(r.minute),MAX(r.minute),COUNT(*) FROM records r WHERE {scope} "
-                "AND r.kind IN (" + ",".join("?" for _ in kinds) + ") "
+                "AND r.kind IN (" + ",".join("?" for _ in codes) + ") "
                 "AND r.minute BETWEEN ? AND ? GROUP BY r.kind",
-                (*scope_args, *kinds, query.start, query.end),
+                (*scope_args, *codes, query.start, query.end),
             ).fetchall()
             head = db.execute("SELECT counts FROM heads WHERE branch=?", (branch,)).fetchone()
         coverage_by_kind = {
-            row[0]: {"oldest_minute": row[1], "newest_minute": row[2], "indexed_records": row[3]}
+            KINDS[row[0]]: {
+                "oldest_minute": row[1],
+                "newest_minute": row[2],
+                "indexed_records": row[3],
+            }
             for row in coverage_rows
         }
         indexed_minutes = [
@@ -1096,16 +1236,16 @@ class HistoryIndex:
         items = []
         for row in selected:
             payload = json.loads(history_payloads.decode(row["payload"]))
-            if digest(payload) != row["payload_hash"]:
+            if digest(payload) != row["payload_hash"].hex():
                 raise StorageError("history_index_record_corrupt: rebuild from immutable source")
-            items.append({**payload, "record_kind": row["kind"]})
+            items.append({**payload, "record_kind": KINDS[row["kind"]]})
         following = (
             cursor_encode(
                 {
                     "scope": scope,
                     "anchor": anchor,
                     "minute": selected[-1]["minute"],
-                    "key": selected[-1]["kind"] + ":" + selected[-1]["key"],
+                    "key": KINDS[selected[-1]["kind"]] + ":" + selected[-1]["key"],
                 }
             )
             if len(rows) > query.limit
@@ -1146,8 +1286,11 @@ class HistoryIndex:
         """Explicit legacy migration, never a hidden GET side effect or simulation."""
         lease = self.store.claim_run(self.project_id, self.run_id)
         try:
-            from types import SimpleNamespace
-
+            if self.path.exists() and self.version() == 0:
+                # An empty file, left by a writer stopped before it made the tables.
+                self._remove()
+            if self.path.exists() and self.version() in _OLDER_VERSIONS:
+                return self._replace_older(branch)
             reference = self.store.branch_reference(self.project_id, self.run_id, branch)
             if self.path.exists():
                 with self.connect() as db:
@@ -1159,48 +1302,145 @@ class HistoryIndex:
                         "history_index_current: the index already matches the Branch head; "
                         "rebuilding it would drop the decisions recorded while computing"
                     )
-            document = self.store.checkpoint_document(
-                self.project_id, self.run_id, reference.checkpoint_hash
-            )
-            checkpoint = SimpleNamespace(**document)
-            self.ingest(branch, checkpoint, rebuild=True)
-            legacy = self.store._path(
-                self.project_id, "runs", self.run_id, "branches", branch, "timeline.json"
-            )
-            entries = self.store._read(legacy)["checkpoints"] if legacy.exists() else {}
-            with self.connect(write=True) as db:
-                for minute, key in entries.items():
-                    if (
-                        not re.fullmatch(r"[a-f0-9]{64}", key)
-                        or not reference.fork_minute <= int(minute) <= reference.computed_until
-                    ):
-                        raise StorageError("invalid_legacy_checkpoint_index")
-                    # The original checkpoint is hash-validated when selected for replay.
-                    known = db.execute(
-                        "SELECT hash FROM checkpoints WHERE branch=? AND minute=?",
-                        (branch, int(minute)),
-                    ).fetchone()
-                    if known and known[0] != key:
-                        raise StorageError("immutable_checkpoint_index_conflict")
-                    db.execute(
-                        "INSERT OR IGNORE INTO checkpoints VALUES(?,?,?,?)",
-                        (branch, int(minute), key, ""),
-                    )
-            for turn in self.store.conversations(self.project_id, self.run_id, branch):
-                self.add_turn(branch, turn)
-            return {
-                "schema_version": 1,
-                "status": "indexed_not_verified",
-                "branch_id": branch,
-                "checkpoint_hash": checkpoint.checkpoint_hash,
-                "limits": (
-                    "Legacy actions/expired contacts absent from source cannot be reconstructed "
-                    "by an index. Action and dialogue decisions recorded while computing are "
-                    "not in Checkpoints and are not restored."
-                ),
-            }
+            return self._rebuild_branch(branch, [])
         finally:
             self.store.release_run(lease)
+
+    def _replace_older(self, branch: str) -> dict[str, Any]:
+        """Rebuild every branch of a Run whose index is of an older version into a new file,
+        which then replaces the old one; until then the old file stays as it was (#130).
+
+        The saved points of the old file (its checkpoints table, the same in every version)
+        are kept; its other rows, the decisions recorded while computing among them, are
+        derived again from each branch's head or lost."""
+        with self.connect(saved_points=True) as db:
+            saved = [tuple(row) for row in db.execute("SELECT * FROM checkpoints")]
+        branches = sorted(
+            item["branch_id"] for item in self.store.branches(self.project_id, self.run_id)
+        )
+        if branch not in branches:
+            self.store.branch_reference(self.project_id, self.run_id, branch)
+        target = self.path.with_name(self.path.name + ".rebuild")
+        new = HistoryIndex(self.store, self.project_id, self.run_id)
+        new.path = target
+        new._remove()
+        try:
+            results = {
+                name: new._rebuild_branch(name, [row for row in saved if row[0] == name])
+                for name in branches
+            }
+            self.close()
+            # The new file takes the old one's place at once. On POSIX a reader keeps the
+            # file it opened; Windows refuses to replace a file another process has open,
+            # and the rebuild may be asked for again.
+            try:
+                target.replace(self.path)
+            except OSError as exc:
+                raise StorageError(
+                    "history_index_unavailable: the old index is in use; try again"
+                ) from exc
+        except BaseException:
+            new._remove()
+            raise
+        return {**results[branch], "rebuilt_branch_ids": branches}
+
+    def _rebuild_branch(self, branch: str, saved: list[tuple[Any, ...]]) -> dict[str, Any]:
+        """Index a branch again from its head Checkpoint, with the saved points of its
+        legacy timeline.json and saved (rows of an older index's checkpoints table)."""
+        from types import SimpleNamespace
+
+        reference = self.store.branch_reference(self.project_id, self.run_id, branch)
+        document = self.store.checkpoint_document(
+            self.project_id, self.run_id, reference.checkpoint_hash
+        )
+        checkpoint = SimpleNamespace(**document)
+        self.ingest(branch, checkpoint, rebuild=True)
+        legacy = self.store._path(
+            self.project_id, "runs", self.run_id, "branches", branch, "timeline.json"
+        )
+        entries = self.store._read(legacy)["checkpoints"] if legacy.exists() else {}
+        points = [(int(minute), key, "") for minute, key in entries.items()]
+        for _, minute, key, state_hash in saved:
+            # An older index's points are the branch's own while within its pointer.
+            if reference.fork_minute <= minute <= reference.computed_until:
+                points.append((minute, key, state_hash))
+        with self.connect(write=True) as db:
+            for minute, key, state_hash in points:
+                if (
+                    not isinstance(key, str)
+                    or not re.fullmatch(r"[a-f0-9]{64}", key)
+                    or not reference.fork_minute <= minute <= reference.computed_until
+                ):
+                    raise StorageError("invalid_legacy_checkpoint_index")
+                # The original checkpoint is hash-validated when selected for replay.
+                known = db.execute(
+                    "SELECT hash,state_hash FROM checkpoints WHERE branch=? AND minute=?",
+                    (branch, minute),
+                ).fetchone()
+                if known and known[0] != key:
+                    raise StorageError("immutable_checkpoint_index_conflict")
+                if known and not known[1] and state_hash:
+                    db.execute(
+                        "UPDATE checkpoints SET state_hash=? WHERE branch=? AND minute=?",
+                        (state_hash, branch, minute),
+                    )
+                db.execute(
+                    "INSERT OR IGNORE INTO checkpoints VALUES(?,?,?,?)",
+                    (branch, minute, key, state_hash),
+                )
+        for turn in self.store.conversations(self.project_id, self.run_id, branch):
+            self.add_turn(branch, turn)
+        return {
+            "schema_version": 1,
+            "status": "indexed_not_verified",
+            "branch_id": branch,
+            "checkpoint_hash": checkpoint.checkpoint_hash,
+            "limits": (
+                "Legacy actions/expired contacts absent from source cannot be reconstructed "
+                "by an index. Action and dialogue decisions recorded while computing are "
+                "not in Checkpoints and are not restored."
+            ),
+        }
+
+    def version(self) -> int:
+        """The version of the index file, which must exist; it reads nothing else."""
+        if self.path.is_symlink():
+            raise StorageError("unsafe_history_index")
+        try:
+            connection = sqlite3.connect(self.path.as_uri() + "?mode=ro", uri=True, timeout=10)
+            try:
+                return connection.execute("PRAGMA user_version").fetchone()[0]
+            finally:
+                connection.close()
+        except sqlite3.Error as exc:
+            raise StorageError(_storage_code(exc)) from exc
+
+    def require_current(self) -> None:
+        """Refuse, before computing or forking, a Run whose index is of another version."""
+        if self.path.exists():
+            # An empty file, left by a writer stopped before it made the tables, is taken.
+            _check_version(self.version(), new=True)
+
+    def _remove(self) -> None:
+        """Delete the index file and its rollback journal; the caller holds the Run."""
+        self.close()
+        for path in (self.path, self.path.with_name(self.path.name + "-journal")):
+            try:
+                path.unlink(missing_ok=True)
+            except OSError as exc:
+                raise StorageError("history_index_unavailable: the old index is in use") from exc
+
+    def latest_kpis(self, db: sqlite3.Connection, branch: str) -> dict[str, Any] | None:
+        """The last KPI sample a branch itself indexed, checked against its hash."""
+        row = db.execute(
+            "SELECT payload,payload_hash FROM records WHERE branch=? AND kind=? "
+            "ORDER BY minute DESC,key DESC LIMIT 1",
+            (_name_id(db, branch), _KIND_CODES["kpis"]),
+        ).fetchone()
+        if row is None:
+            return None
+        metrics = json.loads(history_payloads.decode(row["payload"]))
+        return metrics if digest(metrics) == row["payload_hash"].hex() else None
 
     def checkpoints(
         self, branch: str, start: int, end: int, limit: int, cursor: str | None
@@ -1220,7 +1460,7 @@ class HistoryIndex:
                 "kind": "checkpoints",
             }
         )
-        with self.connect() as db:
+        with self.connect(saved_points=True) as db:
             anchor, indexed_minute = self.answering_head(
                 db, branch, reference.checkpoint_hash, reference.computed_until
             )
@@ -1258,23 +1498,11 @@ class HistoryIndex:
         reference = self.store.branch_reference(self.project_id, self.run_id, branch)
         with self.connect() as db:
             self.answering_head(db, branch, reference.checkpoint_hash, reference.computed_until)
-            if conversation_id:
-                rows = db.execute(
-                    "SELECT r.payload,r.payload_hash FROM entities e JOIN records r ON "
-                    "r.branch=e.branch AND r.kind=e.kind AND r.key=e.key WHERE e.branch=? "
-                    "AND e.kind='conversations' AND e.entity=? ORDER BY e.key DESC LIMIT ?",
-                    (branch, conversation_id, limit),
-                ).fetchall()
-            else:
-                rows = db.execute(
-                    "SELECT payload,payload_hash FROM records WHERE branch=? AND "
-                    "kind='conversations' ORDER BY key DESC LIMIT ?",
-                    (branch, limit),
-                ).fetchall()
+            rows = _conversation_turns(db, branch, conversation_id, limit)
         turns = []
         for row in rows:
             turn = json.loads(history_payloads.decode(row["payload"]))
-            if digest(turn) != row["payload_hash"]:
+            if digest(turn) != row["payload_hash"].hex():
                 raise StorageError("history_index_record_corrupt")
             turns.append(turn)
         return turns[::-1]

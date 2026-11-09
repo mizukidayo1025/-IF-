@@ -826,6 +826,10 @@ class TimelineStore:
         reference, head, restored = self.store.load_restored_branch(
             self.project_id, self.run_id, branch_id, keep=False
         )
+        from sheltersim.storage.history_index import HistoryIndex
+
+        # An index of an older version takes no new rows; refuse before computing.
+        HistoryIndex(self.store, self.project_id, self.run_id).require_current()
         if (
             type(target_minute) is not int
             or not head.simulation_minute <= target_minute <= head.world_state["duration_minutes"]
@@ -956,6 +960,10 @@ class TimelineStore:
             raise TimelineError("child branch already exists")
         # A fork reads its source once; a kept copy would serve no later read.
         source, saved = self._seek(branch_id, minute, keep=False)
+        from sheltersim.storage.history_index import HistoryIndex
+
+        # An index of an older version takes no new rows; refuse before the child exists.
+        HistoryIndex(self.store, self.project_id, self.run_id).require_current()
         # The child is taken from this Checkpoint, which also holds both hashes of
         # the source.
         if (

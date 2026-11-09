@@ -382,8 +382,12 @@ def test_an_index_reads_a_row_of_bytes_as_its_dict(
         records = [
             [*row[:-1], history_payloads.decode(row[-1])]
             for row in db.execute(
-                "SELECT kind, key, minute, event_id, cause, source, event_type, status, payload"
-                " FROM records ORDER BY kind, key"
+                "SELECT k.name, r.key, r.minute, "
+                + ", ".join(
+                    f"(SELECT name FROM names WHERE id=r.{column})"
+                    for column in ("event", "cause", "source", "type", "status")
+                )
+                + ", r.payload FROM records r JOIN kinds k ON k.code=r.kind ORDER BY k.name, r.key"
             )
         ]
     assert records and any(row[0] == "actions" for row in records)

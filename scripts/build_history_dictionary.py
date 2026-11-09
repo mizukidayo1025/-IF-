@@ -80,7 +80,11 @@ def synthetic_payloads(directory: Path) -> list[tuple[str, bytes]]:
     timeline.advance("main", DURATION_MINUTES)
     path = directory / "p" / "runs" / "r" / "history.sqlite"
     with sqlite3.connect(f"file:{path}?mode=ro", uri=True) as db:
-        rows = db.execute("SELECT kind,payload FROM records ORDER BY branch,kind,key").fetchall()
+        # Kind codes are in the order of their names (index version 4, #130).
+        rows = db.execute(
+            "SELECT k.name,r.payload FROM records r JOIN kinds k ON k.code=r.kind "
+            "ORDER BY r.branch,r.kind,r.key"
+        ).fetchall()
     return [(kind, history_payloads.decode(payload).encode()) for kind, payload in rows]
 
 

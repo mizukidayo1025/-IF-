@@ -33,8 +33,8 @@ build now would give: exit 0 if so, 3 with the reason if not. A build gives the 
 result when its plan (text, ids, fork minute, intervention) is the same, the Scenario the
 preview makes from the text has the same hash, and the installed model signatures equal
 the ones its Checkpoints recorded (core/model_version.py), as a Run is continued only
-then. How the offline parser reads the intervention is not compared; rebuild after
-changing it.
+then, and its history index is of the version this code writes. How the offline parser
+reads the intervention is not compared; rebuild after changing it.
 """
 
 from __future__ import annotations
@@ -274,6 +274,13 @@ def sample_difference(
             return f"branch {branch_id} cannot be read: {exc}"
         if not status.current:
             return f"the model changed for branch {branch_id}: {', '.join(status.differences)}"
+    from sheltersim.storage import history_index
+
+    # An index of an older version answers no history until it is rebuilt (#130); a build
+    # now writes the current one, with the decisions a rebuild would not restore.
+    index = history_index.HistoryIndex(store, PROJECT_ID, RUN_ID)
+    if not index.path.exists() or index.version() != history_index._SCHEMA_VERSION:
+        return "the history index is of another version"
     return None
 
 
