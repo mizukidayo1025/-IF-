@@ -103,6 +103,10 @@ class CanonicalEncoder:
         # the captures of one history cache: a writer reuses the item bytes of history
         # it saved before, so the same objects mean the same chunk.
         self.chunk_keys = {} if chunk_keys is None else chunk_keys
+        # The entries of chunk_keys this encoder found or added. The next capture of the same
+        # history cache keeps only these: an entry no save read holds the first and last item
+        # bytes of a chunk long gone, such as of a history that dropped them (#138).
+        self.used_chunk_keys: dict[Any, Any] = {}
         # Where the archive saves of the same writer put each chunk in a pack, so a
         # chunk that comes back in a later save is not written again.
         self.pack_locations = {} if pack_locations is None else pack_locations
@@ -144,14 +148,17 @@ class CanonicalEncoder:
 
     def chunk_key(self, items: list[bytes], start: int, count: int) -> str | None:
         """The archive key saved before for items[start:start + count], if any."""
-        kept = self.chunk_keys.get((id(items[start]), id(items[start + count - 1]), count))
+        name = (id(items[start]), id(items[start + count - 1]), count)
+        kept = self.chunk_keys.get(name)
         if kept is None or kept[0] is not items[start] or kept[1] is not items[start + count - 1]:
             return None
+        self.used_chunk_keys[name] = kept
         return kept[2]
 
     def remember_chunk(self, items: list[bytes], start: int, count: int, key: str) -> None:
         first, last = items[start], items[start + count - 1]
-        self.chunk_keys[(id(first), id(last), count)] = (first, last, key)
+        name = (id(first), id(last), count)
+        self.chunk_keys[name] = self.used_chunk_keys[name] = (first, last, key)
 
     def spliced_lists(self) -> list[list[Any]]:
         """The spliced lists; their item documents are never changed."""
@@ -327,21 +334,23 @@ class CanonicalEncoder:
         """
         if not items:
             return []
-        kept = self.chunk_keys.get(("leading", id(items[0])))
+        name = ("leading", id(items[0]))
+        kept = self.chunk_keys.get(name)
         if kept is None or kept[0] is not items[0]:
             return []
         keys = kept[2]
         last = len(keys) * TREE_CHUNK_ITEMS - 1
-        return list(keys) if last < len(items) and items[last] is kept[1] else []
+        if last < len(items) and items[last] is kept[1]:
+            self.used_chunk_keys[name] = kept
+            return list(keys)
+        return []
 
     def _keep_known_chunks(self, items: list[bytes], keys: list[str]) -> None:
         full = len(items) // TREE_CHUNK_ITEMS
         if full:
-            self.chunk_keys[("leading", id(items[0]))] = (
-                items[0],
-                items[full * TREE_CHUNK_ITEMS - 1],
-                keys[:full],
-            )
+            entry = (items[0], items[full * TREE_CHUNK_ITEMS - 1], keys[:full])
+            name = ("leading", id(items[0]))
+            self.chunk_keys[name] = self.used_chunk_keys[name] = entry
 
 
 class _SealedItems:
@@ -498,6 +507,8 @@ class CheckpointHistoryCache:
         self._snapshots = _SealedItems(asdict)
         self._resource_snapshots = _SealedItems(dict, still_equal=True)
         self._chunk_keys: dict[tuple[int, int, int], Any] = {}
+        # The encoder of the last documents(); the archive save that follows uses it too.
+        self._encoder: CanonicalEncoder | None = None
         self._pack_locations: dict[str, tuple[str, int, int]] = {}
         self._run_inputs: dict[Any, Any] = {}
         # The EventLog of the last restore check (see restored_log()).
@@ -560,7 +571,11 @@ class CheckpointHistoryCache:
         self, world: WorldState, metrics: MetricsRecorder | None
     ) -> tuple[dict[str, Any], dict[str, Any], CanonicalEncoder]:
         """world.to_dict() and metrics.to_dict() of a validated world, and their encoder."""
+        if self._encoder is not None:
+            # Only what the last save's capture and archive read or added (see used_chunk_keys).
+            self._chunk_keys = self._encoder.used_chunk_keys
         encoder = CanonicalEncoder(self._chunk_keys, self._pack_locations, self._run_inputs)
+        self._encoder = encoder
         histories = [
             path for path in _MODEL_STATE_HISTORIES if _containers(world.model_state, path)
         ]

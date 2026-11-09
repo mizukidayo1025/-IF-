@@ -401,3 +401,45 @@ def test_a_writer_computes_model_signatures_again_only_for_other_configs(
     saved = Checkpoint.capture(world, history_cache=cache)
     assert len(calls) == 2
     assert saved.model_versions == Checkpoint.capture(world).model_versions
+
+
+def test_the_chunk_hashes_kept_are_those_the_last_save_read_or_added(
+    live_checkpoint_world,
+) -> None:
+    """A history that drops its oldest entries leaves chunks no save reads again; the
+    cache lets go of their hashes and of the entry bytes they held (#138). Hashes stay
+    those of a full conversion."""
+    world = live_checkpoint_world
+    history = [{"minute": minute, "value": minute} for minute in range(300)]
+    world.model_state["body_state_v1"] = {"history": history, "agents": {}}
+    # The world holds its own copy of what it was given.
+    history = world.model_state["body_state_v1"]["history"]
+    cache = CheckpointHistoryCache()
+
+    def save() -> set[int]:
+        document, _, encoder = cache.documents(world, None)
+        fresh_document, _, fresh = CheckpointHistoryCache().documents(world, None)
+        assert encoder.world_tree_digest(document) == fresh.world_tree_digest(fresh_document)
+        return {id(raw) for raw in cache._model_histories[("body_state_v1", "history")].raws}
+
+    def held() -> set[int]:
+        return {
+            id(item)
+            for entry in cache._chunk_keys.values()
+            for item in entry[:2]
+            if isinstance(item, bytes)
+        }
+
+    first = save()
+    raws = cache._model_histories[("body_state_v1", "history")].raws
+    # Kept alive here, so no other object takes their ids.
+    dropped = raws[:200]
+    del history[:200]
+    history.extend({"minute": minute, "value": minute} for minute in range(300, 500))
+    save()
+    # This save started from what the first one read or added, its dropped entries too.
+    assert held() & {id(raw) for raw in dropped}
+    # The next starts from what the last one read or added: none of the dropped entries.
+    current = save()
+    assert not held() & {id(raw) for raw in dropped}
+    assert held() & current and len(first) == 300
