@@ -12,6 +12,7 @@ import json
 import os
 import pstats
 import socket
+import sys
 import time
 from pathlib import Path
 
@@ -35,6 +36,21 @@ from sheltersim.storage.index_writer import BackgroundIndexer
 from sheltersim.storage.projects import ProjectStore, digest
 from sheltersim.web.projects import ProjectAPI
 from sheltersim.web.workspace import ProjectWorkspace
+
+
+def peak_rss_mib(children: bool = False) -> float | None:
+    """The high-water RSS of this process, or of the largest ended child, in MiB.
+
+    None where the resource module is missing (Windows). A child counts only after it
+    has ended and been waited for, as the index process is when a computation ends.
+    """
+    try:
+        import resource
+    except ImportError:
+        return None
+    usage = resource.getrusage(resource.RUSAGE_CHILDREN if children else resource.RUSAGE_SELF)
+    # ru_maxrss is in KiB on Linux and in bytes on macOS.
+    return round(usage.ru_maxrss / (2**20 if sys.platform == "darwin" else 2**10), 1)
 
 
 def main() -> None:
@@ -252,6 +268,7 @@ def main() -> None:
             profiler.disable()
         cpu_seconds = time.thread_time() - cpu_started
         wall_seconds = time.perf_counter() - started
+        computation_peak = peak_rss_mib()
         metrics = recorded_metrics[0].to_dict()
         api_requests = 0
     else:
@@ -307,6 +324,9 @@ def main() -> None:
         api.submit("p", "r", branch, target)
         api._pool.submit(lambda: None).result()
         wall_seconds = time.perf_counter() - started
+        # Before the Run is read back and hashed below: that builds whole-world documents
+        # (WorldState.to_dict) and would set the high-water mark itself (#138).
+        computation_peak = peak_rss_mib()
         cpu_seconds = worker_cpu[0]
         api.close()
         reference, checkpoint = store.load_branch("p", "r", branch)
@@ -314,6 +334,15 @@ def main() -> None:
         world = checkpoint.restore_world()
         metrics = checkpoint.metrics_state
         api_requests = checkpoint.runtime_state["llm"]["api_request_count"]
+    peak_rss = {
+        "computation_mib": computation_peak,
+        # The background index process ends with its computation; a short computation
+        # indexes each save itself and starts none.
+        "index_process_mib": (
+            peak_rss_mib(children=True) if "index process ingest" in totals else None
+        ),
+        "with_hashing_mib": None,
+    }
     result = {
         "environment": environment,
         "route": args.route,
@@ -339,6 +368,7 @@ def main() -> None:
         "metrics_hash": digest(metrics),
         "api_requests": api_requests,
         "network_attempts": len(network_attempts),
+        "peak_rss": peak_rss,
         "timings": totals,
         "progress": progress,
     }
@@ -353,6 +383,8 @@ def main() -> None:
     (args.output / "final-world.json.gz").write_bytes(
         gzip.compress(world.canonical_json().encode())
     )
+    # The process's high-water mark including the read-back and hashes above.
+    peak_rss["with_hashing_mib"] = peak_rss_mib()
     mismatched = []
     if args.expect:
         expected = json.loads(args.expect.read_text(encoding="utf-8"))
@@ -376,6 +408,7 @@ def main() -> None:
                     "thread_seconds",
                     "world_hash",
                     "metrics_hash",
+                    "peak_rss",
                 )
             }
         )

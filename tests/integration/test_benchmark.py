@@ -75,7 +75,8 @@ def test_scaled_benchmark_runs_are_reproducible_and_record_measurements(tmp_path
 
 def test_a_late_window_reaches_the_full_runs_hashes_and_a_mismatch_fails(tmp_path: Path) -> None:
     """benchmarks/investigate_performance.py can fork a saved Run and measure only its
-    end; --expect compares the world, events and KPI hashes with an earlier result."""
+    end; --expect compares the world, events and KPI hashes with an earlier result. The
+    result keeps the computation's peak RSS apart from the hashing's."""
     import subprocess
     import sys
 
@@ -94,6 +95,14 @@ def test_a_late_window_reaches_the_full_runs_hashes_and_a_mismatch_fails(tmp_pat
 
     full = tmp_path / "full"
     assert run("--duration", "40", "--output", str(full)).returncode == 0
+    # The computation's peak is taken before the read-back and hashes (#138); a
+    # 40-minute computation indexes its saves itself and starts no index process.
+    peak = json.loads((full / "result.json").read_text(encoding="utf-8"))["peak_rss"]
+    assert peak["index_process_mib"] is None
+    if sys.platform == "win32":
+        assert peak["computation_mib"] is None and peak["with_hashing_mib"] is None
+    else:
+        assert 0 < peak["computation_mib"] <= peak["with_hashing_mib"]
     late = run(
         "--duration",
         "10",
