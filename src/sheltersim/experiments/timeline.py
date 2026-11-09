@@ -913,6 +913,9 @@ class TimelineStore:
                     )
                     sink.observations.clear()
                     last_recorded_minute = runtime.world.minute_index
+                    # The save holds each record's bytes; later ticks read few old records,
+                    # and a read makes its object again (#138).
+                    runtime.world.event_log.release_records()
             if runtime.world.minute_index == head.simulation_minute:
                 if indexer is not None:
                     indexer.close()

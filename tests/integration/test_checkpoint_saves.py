@@ -168,11 +168,23 @@ def test_every_save_matches_a_full_capture_and_the_public_encoder(
 
     The generated Scenario keeps every growing history a save handles (event log,
     body-state history, KPI and resource snapshots); fork and resume start new
-    writers. Issue #44 made saves reuse the encodings of history saved earlier.
+    writers. Issue #44 made saves reuse the encodings of history saved earlier. After
+    each save the computation lets go of the EventLog's record objects (#138); the next
+    save reads them from their bytes.
     """
+    from sheltersim.events.queue import EventLog
+
     store, timeline = saved_timeline(tmp_path, generated_scenario)
     saved = []
+    released = []
     original = timeline.record
+    release = EventLog.release_records
+
+    def release_and_count(log, *args):
+        released.append(release(log, *args))
+        return released[-1]
+
+    monkeypatch.setattr(EventLog, "release_records", release_and_count)
 
     def record(runtime, **kwargs):
         checkpoint = original(runtime, **kwargs)
@@ -186,6 +198,9 @@ def test_every_save_matches_a_full_capture_and_the_public_encoder(
     timeline.fork("main", 40, "child")
     timeline.advance("child", 60, checkpoint_interval=10)
     assert [item.simulation_minute for item in saved] == [10, 20, 30, 40, 50, 60, 70, 40, 50, 60]
+    # A computation let go of record objects after each of its saves; the fork's save at
+    # minute 40 is not one of them.
+    assert len(released) == len(saved) - 1 and all(released)
     directory = store._path("p", "runs", "r", "checkpoints")
     for checkpoint in saved:
         _same_as_public_archive(
