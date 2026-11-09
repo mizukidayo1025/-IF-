@@ -265,6 +265,48 @@ def test_an_event_log_read_back_from_saved_bytes_makes_records_when_read() -> No
         EventLog.from_saved([saved[0], saved[0]])
 
 
+def test_released_records_are_made_again_from_their_bytes_when_read() -> None:
+    """release_records lets go of the objects of records with bytes written in Rust and
+    keeps the bytes; a read makes an equal record again. Records of types a reader asked
+    of_types for, and records whose bytes only the Python encoder makes, keep their
+    objects (#138)."""
+    from sheltersim.events.queue import record_bytes
+
+    class Note(str):
+        pass
+
+    records = _records(6, kinds=("a", "b"))
+    log = EventLog(_records=records)
+    odd = EventLogRecord(
+        event=ScheduledEvent(
+            event_id="odd",
+            kind=EventKind.EXOGENOUS,
+            due_minute=6,
+            priority=0,
+            sequence=6,
+            event_type="a",
+            payload={"note": Note("kept")},
+        ),
+        realized_minute=6,
+        status=EventStatus.APPLIED,
+    )
+    log.append(odd)
+    assert not log.all_encoded()
+    assert log.of_types(["b"]) == records[1::2]
+    assert log.unread() == 0 and log.rebuilt == 0
+
+    # Only the leading records, then all: the "a" records but the odd one.
+    assert log.release_records(2) == 1
+    assert log.release_records() == 2
+    assert log.unread() == 3
+    assert log.find("e3") is records[3] and log.find("odd") is odd
+    assert log.find("e2") == records[2] and log.find("e2") is not records[2]
+    assert log.rebuilt == 1
+    assert log.records == (*records, odd)
+    assert log.rebuilt == 3 and log.unread() == 0
+    assert log.items_bytes(0, 6) == [record_bytes(record) for record in records]
+
+
 def test_the_realized_minute_of_saved_bytes_is_the_records_own() -> None:
     """A payload key of the same name never shadows the record's realized_minute."""
     from sheltersim.events.models import EventKind, ScheduledEvent

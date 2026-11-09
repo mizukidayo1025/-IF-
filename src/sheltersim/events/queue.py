@@ -326,6 +326,21 @@ class _NativeEventLog:
         """How many records read back from saved bytes have no object yet."""
         return self._store.unread()
 
+    def release_records(self, end: int | None = None) -> int:
+        """Let go of the objects of the records before end (all by default) whose bytes
+        were written or read back in Rust; a read makes each again from its bytes, equal to
+        the one let go. Returns how many were let go.
+
+        A long computation holds every record twice otherwise, as an object and as its
+        bytes; the objects were most of its memory (#138).
+        """
+        return self._store.release_records(len(self) if end is None else end)
+
+    @property
+    def rebuilt(self) -> int:
+        """How many record objects were made again from bytes, for measuring."""
+        return self._store.rebuilt
+
     def all_encoded(self) -> bool:
         """Whether the log's bytes restore to exactly this log, so a save need not check it.
 

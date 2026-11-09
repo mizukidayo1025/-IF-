@@ -36,6 +36,9 @@ struct Entry {
     event_type: u32,
     applied: bool,
     minute: i64,
+    /// Whether the bytes were written or read back here, so the factory makes the
+    /// same record from them and the object may be let go (`release_records`).
+    exact: bool,
 }
 
 /// The Python objects of one entry, at the same position in `EventStore::handles`.
@@ -96,6 +99,11 @@ pub struct EventStore {
     // Records an audit checked and the bounds it checked them against.
     audited: usize,
     audit_bounds: (Option<i64>, Option<i64>),
+    // How many record objects the factory made from bytes (`release_records`).
+    rebuilt: usize,
+    // The event types a reader asked for all records of (`of_types`): it is likely to
+    // ask again, so `release_records` keeps their objects.
+    scanned_types: HashSet<String>,
     // record -> canonical bytes, and canonical bytes -> record (set from Python).
     encoder: Option<Py<PyAny>>,
     factory: Option<Py<PyAny>>,
@@ -140,6 +148,8 @@ impl EventStore {
             lifecycle_agent_ids: HashMap::new(),
             audited: 0,
             audit_bounds: (None, None),
+            rebuilt: 0,
+            scanned_types: HashSet::new(),
             encoder: None,
             factory: None,
             types: None,
@@ -157,6 +167,7 @@ impl EventStore {
             .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("no record factory"))?;
         let record = factory.call1(py, (bytes,))?;
         self.handles[index].record = Some(record.clone_ref(py));
+        self.rebuilt += 1;
         Ok(record)
     }
 
@@ -243,7 +254,8 @@ impl EventStore {
             self.by_provenance.entry(key).or_default().push(index);
         }
         let type_id = self.type_id(&fields.event_type);
-        if written.is_none() && handles.bytes.is_none() {
+        let exact = written.is_some() || handles.bytes.is_some();
+        if !exact {
             self.unencoded += 1;
         }
         let event_id: Arc<str> = Arc::from(fields.event_id);
@@ -253,6 +265,7 @@ impl EventStore {
             event_type: type_id,
             applied: fields.applied,
             minute: fields.minute,
+            exact,
         });
         self.handles.push(handles);
         self.by_id.insert(event_id, index);
@@ -368,6 +381,33 @@ impl EventStore {
         self.handles.iter().filter(|handles| handles.record.is_none()).count()
     }
 
+    /// Let go of the objects of the records before `end` whose bytes were written or read
+    /// back here; a read makes each again from its bytes, equal to the one let go. The
+    /// bytes stay. Records of the types `of_types` was asked for keep their objects: their
+    /// readers read them all again. Returns how many objects were let go (#138).
+    fn release_records(&mut self, end: usize) -> usize {
+        let end = end.min(self.entries.len());
+        let kept: HashSet<u32> = self
+            .scanned_types
+            .iter()
+            .filter_map(|name| self.type_ids.get(name).copied())
+            .collect();
+        let mut released = 0;
+        for (entry, handles) in self.entries[..end].iter().zip(&mut self.handles[..end]) {
+            if entry.exact && handles.record.is_some() && !kept.contains(&entry.event_type) {
+                handles.record = None;
+                released += 1;
+            }
+        }
+        released
+    }
+
+    /// How many record objects the factory has made from bytes.
+    #[getter]
+    fn rebuilt(&self) -> usize {
+        self.rebuilt
+    }
+
     fn __len__(&self) -> usize {
         self.entries.len()
     }
@@ -438,7 +478,11 @@ impl EventStore {
             let Ok(text) = name.downcast::<PyString>() else {
                 continue;
             };
-            if let Some(id) = self.type_ids.get(text.to_str()?) {
+            let text = text.to_str()?;
+            if !self.scanned_types.contains(text) {
+                self.scanned_types.insert(text.to_owned());
+            }
+            if let Some(id) = self.type_ids.get(text) {
                 if seen.insert(*id) {
                     if let Some(list) = self.by_type.get(id) {
                         indices.extend(list.iter().copied());
@@ -616,6 +660,7 @@ impl EventStore {
                     event_type: entry.event_type,
                     applied: entry.applied,
                     minute: entry.minute,
+                    exact: entry.exact,
                 })
                 .collect(),
             handles: self
@@ -627,6 +672,8 @@ impl EventStore {
                 })
                 .collect(),
             unencoded: self.unencoded,
+            rebuilt: self.rebuilt,
+            scanned_types: self.scanned_types.clone(),
             type_names: self.type_names.clone(),
             type_ids: self.type_ids.clone(),
             by_id: self.by_id.clone(),
