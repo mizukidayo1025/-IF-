@@ -313,6 +313,7 @@ fn sheltersim_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(records::view_state_hash, module)?)?;
     module.add_function(wrap_pyfunction!(checkpoint::sensitive_candidates, module)?)?;
     module.add_function(wrap_pyfunction!(checkpoint::chunk_hashes, module)?)?;
+    module.add_function(wrap_pyfunction!(checkpoint::content_chunk_starts, module)?)?;
     module.add_function(wrap_pyfunction!(checkpoint::same_saved_records, module)?)?;
     module.add_function(wrap_pyfunction!(checkpoint::index_row, module)?)?;
     module.add_function(wrap_pyfunction!(checkpoint::dumps_length, module)?)?;

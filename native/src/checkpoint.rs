@@ -164,6 +164,61 @@ pub fn sensitive_candidates(
     Ok((keys.into_iter().collect(), strings.into_iter().collect()))
 }
 
+/// A 64-bit hash of one item's bytes that decides content-defined chunk ends. It is part of
+/// how the archive lays out chunks, not of any Checkpoint hash: eight bytes at a time,
+/// little-endian, then the length, then a final mix (splitmix64), the same on every OS.
+fn item_cut_hash(item: &[u8]) -> u64 {
+    let mut hash: u64 = 0x9e37_79b9_7f4a_7c15;
+    let mut words = item.chunks_exact(8);
+    for word in &mut words {
+        let value = u64::from_le_bytes(word.try_into().expect("eight bytes"));
+        hash = (hash.rotate_left(5) ^ value).wrapping_mul(0x517c_c1b7_2722_0a95);
+    }
+    let mut tail = [0u8; 8];
+    let rest = words.remainder();
+    tail[..rest.len()].copy_from_slice(rest);
+    hash = (hash.rotate_left(5) ^ u64::from_le_bytes(tail)).wrapping_mul(0x517c_c1b7_2722_0a95);
+    hash ^= item.len() as u64;
+    hash = (hash ^ (hash >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    hash = (hash ^ (hash >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+    hash ^ (hash >> 31)
+}
+
+/// Where each chunk of items starts when a chunk ends after an item whose hash is
+/// `average - 1` modulo `average`, or once it holds `maximum` items. The ends depend only
+/// on the items themselves, so dropping items from the front or putting one in the middle
+/// moves only the chunks around the change (#138).
+#[pyfunction]
+pub fn content_chunk_starts(
+    py: Python<'_>,
+    items: &Bound<'_, PyList>,
+    average: u64,
+    maximum: usize,
+) -> PyResult<Vec<usize>> {
+    if average == 0 || maximum == 0 {
+        return Err(pyo3::exceptions::PyValueError::new_err("chunk sizes must be positive"));
+    }
+    let held: Vec<Bound<'_, PyBytes>> = items
+        .iter()
+        .map(|item| item.downcast_into::<PyBytes>().map_err(PyErr::from))
+        .collect::<PyResult<_>>()?;
+    let slices: Vec<&[u8]> = held.iter().map(|item| item.as_bytes()).collect();
+    Ok(py.allow_threads(|| {
+        let mut starts = Vec::new();
+        let mut size = 0;
+        for (index, item) in slices.iter().enumerate() {
+            if size == 0 {
+                starts.push(index);
+            }
+            size += 1;
+            if size == maximum || item_cut_hash(item) % average == average - 1 {
+                size = 0;
+            }
+        }
+        starts
+    }))
+}
+
 /// The SHA-256 hex digest of `[item,item,...]` for each (start, count) of items, a list
 /// of bytes, computed in parallel without the GIL and without joining the items.
 #[pyfunction]

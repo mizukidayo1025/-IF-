@@ -48,6 +48,23 @@ ARCHIVE_STORAGE_TYPES = frozenset(
 # its document again (depth 0). Reading a manifest reads at most this many files more.
 _MAX_DELTA_DEPTH = 32
 
+# The lists whose items are only appended: their archive chunks are every 128 items, the
+# same as the chunks of a Checkpoint v2 hash, so a save hashes and stores each once. Every
+# other indexed list ends its chunks where its items' own bytes say, so a list that drops
+# its oldest items or gets one in the middle changes only the chunks around the change
+# (#138). Neither choice changes a Checkpoint hash, which is defined over 128 items.
+_APPEND_ONLY_LISTS = frozenset(
+    {
+        ("world_state", "event_log"),
+        ("metrics_state", "snapshots"),
+        ("metrics_state", "resource_snapshots"),
+    }
+)
+# Content-defined chunks: an item ends one with a chance of 1 in this many, and a chunk
+# holds at most _CONTENT_CHUNK_MAXIMUM items.
+_CONTENT_CHUNK_AVERAGE = 128
+_CONTENT_CHUNK_MAXIMUM = 512
+
 # What a v4 manifest's delta puts in place of a node of its base's document.
 _SAME_AS_BASE = {"kind": "base"}
 
@@ -203,18 +220,27 @@ class CheckpointArchive:
         finally:
             Path(temporary).unlink(missing_ok=True)
 
-    def _pack(self, value: Any) -> dict[str, Any]:
+    def _pack(self, value: Any, path: tuple[str, ...] = ()) -> dict[str, Any]:
         if isinstance(value, (list, SavedItems)) and len(value) > self.chunk_records:
             if isinstance(value, SavedItems):
                 items = value.raws
             else:
                 items = self.encoder.list_items(value) if self.encoder is not None else None
-            return {
-                "kind": "list_v2",
-                "chunks": self._list_chunks(value, items),
-                "starts": list(range(0, len(value), self.chunk_records)),
-                "length": len(value),
-            }
+            if path in _APPEND_ONLY_LISTS:
+                starts = list(range(0, len(value), self.chunk_records))
+                chunks = self._list_chunks(value, items)
+            else:
+                if items is None:
+                    items = [canonical_bytes(item) for item in value]
+                starts = native.content_chunk_starts(
+                    items, _CONTENT_CHUNK_AVERAGE, _CONTENT_CHUNK_MAXIMUM
+                )
+                ends = [*starts[1:], len(value)]
+                chunks = [
+                    self._put_slice(value, items, start, end - start)
+                    for start, end in zip(starts, ends)
+                ]
+            return {"kind": "list_v2", "chunks": chunks, "starts": starts, "length": len(value)}
         if isinstance(value, dict) and len(value) > self.chunk_records:
             keys = sorted(value)
             return {
@@ -230,7 +256,9 @@ class CheckpointArchive:
                 self.content_check([(dict.fromkeys(value), None)])
             return {
                 "kind": "object",
-                "fields": {key: self._pack(item) for key, item in sorted(value.items())},
+                "fields": {
+                    key: self._pack(item, (*path, key)) for key, item in sorted(value.items())
+                },
             }
         return {
             "kind": "value",
@@ -249,13 +277,14 @@ class CheckpointArchive:
             stored += 1
         del leading[stored:]
         leading.extend(
-            self._put_slice(value, items, start)
+            self._put_slice(value, items, start, min(self.chunk_records, len(value) - start))
             for start in range(stored * self.chunk_records, len(value), self.chunk_records)
         )
         return leading
 
-    def _put_slice(self, value: Sequence[Any], items: list[bytes] | None, start: int) -> str:
-        count = min(self.chunk_records, len(value) - start)
+    def _put_slice(
+        self, value: Sequence[Any], items: list[bytes] | None, start: int, count: int
+    ) -> str:
         if items is None:
             return self._put(value[start : start + count])
         sealed = self.encoder is not None and self.encoder.append_only(value)
