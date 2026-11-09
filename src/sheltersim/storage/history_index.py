@@ -13,8 +13,10 @@ import hashlib
 import json
 import re
 import sqlite3
+import time
 from bisect import bisect_left
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any, Iterator
 
 from sheltersim import native
@@ -530,6 +532,26 @@ def _leading(items: list[Any], before: Any) -> int:
             break
         count += 1
     return count
+
+
+# How long a rebuild waits for readers of the old index file to close it, on Windows.
+_REPLACE_ATTEMPTS, _REPLACE_PAUSE_SECONDS = 50, 0.1
+
+
+def _replace_file(source: Path, target: Path) -> None:
+    """Put source in target's place at once. On POSIX a reader keeps the file it opened;
+    Windows refuses to replace a file any connection has open, so a short read (a status
+    request, a frame) is waited for, and a longer one makes the rebuild be asked again."""
+    for attempt in range(_REPLACE_ATTEMPTS):
+        try:
+            source.replace(target)
+            return
+        except PermissionError as exc:
+            if attempt == _REPLACE_ATTEMPTS - 1:
+                raise StorageError(
+                    "history_index_unavailable: the old index is in use; try again"
+                ) from exc
+            time.sleep(_REPLACE_PAUSE_SECONDS)
 
 
 class HistoryIndex:
@@ -1330,15 +1352,7 @@ class HistoryIndex:
                 for name in branches
             }
             self.close()
-            # The new file takes the old one's place at once. On POSIX a reader keeps the
-            # file it opened; Windows refuses to replace a file another process has open,
-            # and the rebuild may be asked for again.
-            try:
-                target.replace(self.path)
-            except OSError as exc:
-                raise StorageError(
-                    "history_index_unavailable: the old index is in use; try again"
-                ) from exc
+            _replace_file(target, self.path)
         except BaseException:
             new._remove()
             raise

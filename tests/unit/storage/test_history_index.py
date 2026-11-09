@@ -507,3 +507,30 @@ def test_a_cut_off_causal_graph_keeps_the_same_events_whatever_order_they_were_w
     # The graph keeps event-0 and 499 children, the first by key.
     assert sorted(grandchildren) == [f"grandchild-{number:03d}" for number in range(499)]
     assert json.dumps(answers[0]) == json.dumps(answers[1])
+
+
+def test_a_rebuild_waits_for_a_reader_of_the_old_file_on_windows(tmp_path, monkeypatch):
+    """Windows refuses to replace a file a connection holds open; the rebuild tries again
+    while a short read ends, and else is refused, keeping the old file."""
+    shutil.copytree(SAVED_RUN_ENGINE_V1, tmp_path / "run")
+    index = HistoryIndex(ProjectStore(tmp_path / "run"), "p", "r")
+    before = index.path.read_bytes()
+    original, refusals = Path.replace, []
+    monkeypatch.setattr(history_index, "_REPLACE_PAUSE_SECONDS", 0)
+
+    def busy(self, target):
+        if len(refusals) < limit:
+            refusals.append(target)
+            raise PermissionError(13, "in use")
+        return original(self, target)
+
+    monkeypatch.setattr(Path, "replace", busy)
+    limit = history_index._REPLACE_ATTEMPTS
+    with pytest.raises(StorageError, match="history_index_unavailable"):
+        index.rebuild("main")
+    assert index.path.read_bytes() == before
+    assert not index.path.with_name("history.sqlite.rebuild").exists()
+    refusals.clear()
+    limit = 3
+    index.rebuild("main")
+    assert len(refusals) == 3 and index.version() == 4

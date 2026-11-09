@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import copy
 import sqlite3
+from contextlib import closing
 
 import pytest
 
@@ -105,7 +106,9 @@ def rebuilt(tmp_path_factory, generated_previews, add_toilets_program, saved_tim
             refused = rebuild()
             steps["refused"] = (status(), histories())
             # The same file marked as written by index version 3.
-            with sqlite3.connect(HistoryIndex(store, "p", "r").path) as db:
+            # Closed, as sqlite3's own context manager does not: Windows refuses to replace
+            # a file that a connection holds open.
+            with closing(sqlite3.connect(HistoryIndex(store, "p", "r").path)) as db:
                 db.execute("PRAGMA user_version=3")
             older = {"status": status(), "saved_points": saved_points()}
             try:
