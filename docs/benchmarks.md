@@ -24,6 +24,18 @@ PYTHONPATH=src SHELTERSIM_LLM_MODE=offline python benchmarks/investigate_perform
 
 `--route library` は単体実行、`--route project` は `ProjectAPI.submit()` からworker完了までを測ります。`--scenario-file` で承認済みScenarioのローカルコピーを指定できます。生Scenarioには人口情報が含まれる場合があるため、出力先はGit管理外にします。`result.json` の処理別時間は内側の処理を含む累積値なので合計しません。修正前後の比較では `world_hash`、`events_hash`、`metrics_hash` が一致することも確認します。ネットワーク接続は計測中に拒否します。
 
+### ピークのメモリー
+
+`result.json` の `peak_rss` に、プロセスの最大RSS（MiB）を3つ記録します（#138）。
+
+| 項目 | 意味 |
+|---|---|
+| `computation_mib` | 計算が終わった時点の、このプロセスの最大RSS。準備と計算を含み、そのあとの読み直しとハッシュを含みません |
+| `index_process_mib` | 計算と並行して保存を索引に登録するプロセスの最大RSS。短い計算は保存ごとに自分で登録するのでプロセスがなく、`null` です |
+| `with_hashing_mib` | 終わりの時点の、このプロセスの最大RSS。保存したRunの読み直しと、`world_hash` などのハッシュを含みます |
+
+ハッシュは世界全体の文書（`WorldState.to_dict()`）から取るので、長いRunでは `with_hashing_mib` が計算そのものより大きくなります。100人・7日分では、計算は約1.5 GB、ハッシュを含めると約4.5 GBでした。`/usr/bin/time -v` の最大RSSは `with_hashing_mib` に当たります。計算のメモリーを比べるときは `computation_mib` と `index_process_mib` を使います。値は `resource` モジュールで読むので、Windowsではどれも `null` です。
+
 ### ハッシュの比較
 
 `--expect` に前の計測の `result.json` を渡すと、`world_hash`・`events_hash`・`metrics_hash` を比べます。結果は `result.json` の `expected_hashes` に記録し、1つでも違えば終了コード1で終わります。同じScenario・期間で、変更の前後の計算結果が変わっていないことを確かめるときに使います。
