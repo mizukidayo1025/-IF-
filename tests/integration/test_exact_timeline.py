@@ -121,7 +121,7 @@ def test_a_forked_branch_reads_the_rows_a_fresh_ingest_derives(
     import sqlite3
 
     from sheltersim.storage import history_payloads
-    from sheltersim.storage.history_index import HistoryIndex, _scope, _segments
+    from sheltersim.storage.history_index import HistoryIndex, _name_id, _scope, _segments
 
     store, timeline = saved_timeline(tmp_path, generated_scenario)
     timeline.advance("main", COMPUTED_UNTIL, checkpoint_interval=CHECKPOINT_INTERVAL)
@@ -132,21 +132,24 @@ def test_a_forked_branch_reads_the_rows_a_fresh_ingest_derives(
     db = sqlite3.connect(index.path)
 
     def rows(branch):
-        scope, args = _scope(_segments(db, branch))
+        segments = [(_name_id(db, name), limit) for name, limit in _segments(db, branch)]
+        scope, args = _scope(segments)
         # Payloads compare as text: compressed bytes may differ between zlib builds (#80).
         tables = {
             "records": sorted(
                 (kind, key, minute, history_payloads.decode(payload))
                 for kind, key, minute, payload in db.execute(
-                    f"SELECT r.kind,r.key,r.minute,r.payload FROM records r WHERE {scope}", args
+                    "SELECT k.name,r.key,r.minute,r.payload FROM records r JOIN kinds k ON "
+                    f"k.code=r.kind WHERE {scope}",
+                    args,
                 )
             )
         }
-        for table, column in (("entities", "entity"), ("tokens", "token")):
+        for table, column in (("entities", "entity"), ("tokens", "token"), ("links", "event")):
             tables[table] = sorted(
                 db.execute(
-                    f"SELECT r.kind,r.key,e.{column} FROM {table} e JOIN records r ON "
-                    f"r.branch=e.branch AND r.kind=e.kind AND r.key=e.key WHERE {scope}",
+                    f"SELECT k.name,r.key,n.name FROM {table} e JOIN records r ON r.id=e.record "
+                    f"JOIN kinds k ON k.code=r.kind JOIN names n ON n.id=e.{column} WHERE {scope}",
                     args,
                 )
             )
@@ -156,7 +159,7 @@ def test_a_forked_branch_reads_the_rows_a_fresh_ingest_derives(
 
     child, fresh = rows("child"), rows("fresh")
     assert child["heads"] == fresh["heads"]
-    for table in ("records", "entities", "tokens"):
+    for table in ("records", "entities", "tokens", "links"):
         assert set(fresh[table]) <= set(child[table])
     # Besides, it reads the decisions the parent recorded while computing before the
     # fork minute, which live only in the index and no Checkpoint (#213).
@@ -164,7 +167,9 @@ def test_a_forked_branch_reads_the_rows_a_fresh_ingest_derives(
     assert extra and {(kind, minute < SEEK_MINUTE) for kind, _, minute, _ in extra} == {
         ("actions", True)
     }
-    stored = db.execute("SELECT minute FROM records WHERE branch='child'").fetchall()
+    stored = db.execute(
+        "SELECT minute FROM records WHERE branch=?", (_name_id(db, "child"),)
+    ).fetchall()
     assert all(minute >= SEEK_MINUTE - 1 for (minute,) in stored)
 
 

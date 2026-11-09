@@ -4,7 +4,9 @@ A generated Run with a main line and a Branch that adds toilets is indexed as it
 The operator can ask for the index status of each Branch and rebuild it ("既存Runの履歴
 索引を再構築"). An index that matches its Branch is not rebuilt, because the decisions
 recorded while computing live only there (#213). A Run without an index, as one saved
-before the index existed, is rebuilt from its Checkpoints.
+before the index existed, is rebuilt from its Checkpoints. An index of a version before 4
+(#130) answers no history; rebuilding any of its Branches replaces it with a new file
+holding every Branch and the saved points of the old one.
 
 The history routes themselves are checked in tests/integration/test_project_evidence_routes.py.
 """
@@ -12,6 +14,8 @@ The history routes themselves are checked in tests/integration/test_project_evid
 from __future__ import annotations
 
 import copy
+import sqlite3
+from contextlib import closing
 
 import pytest
 
@@ -90,22 +94,42 @@ def rebuilt(tmp_path_factory, generated_previews, add_toilets_program, saved_tim
                     results[branch] = refused
             return results
 
+        def saved_points() -> dict:
+            return {
+                branch: api.get(["p", "runs", "r", "checkpoints"], {"branch_id": [branch]})["items"]
+                for branch in BRANCHES
+            }
+
         try:
             steps = {"current": (status(), histories())}
+            points = saved_points()
             refused = rebuild()
             steps["refused"] = (status(), histories())
+            # The same file marked as written by index version 3.
+            # Closed, as sqlite3's own context manager does not: Windows refuses to replace
+            # a file that a connection holds open.
+            with closing(sqlite3.connect(HistoryIndex(store, "p", "r").path)) as db:
+                db.execute("PRAGMA user_version=3")
+            older = {"status": status(), "saved_points": saved_points()}
+            try:
+                _history(api, "main", "events")
+            except StorageError as error:
+                older["history"] = error
+            older["rebuild"] = api.post(["p", "runs", "r", "index"], {"branch_id": "capacity"})
+            older["after"] = (status(), histories(), saved_points())
+            older["current_saved_points"] = points
             # A Run saved before the index existed has no index file.
             HistoryIndex(store, "p", "r").path.unlink()
             missing = status()
             rebuilt_results = rebuild()
             steps["rebuilt"] = (status(), histories())
-            yield steps, refused, missing, rebuilt_results
+            yield steps, refused, missing, rebuilt_results, older
         finally:
             api.close()
 
 
 def test_the_index_of_each_branch_is_ready_at_its_head(rebuilt):
-    steps, _, _, _ = rebuilt
+    steps, _, _, _, _ = rebuilt
     status, _ = steps["current"]
 
     for branch in BRANCHES:
@@ -119,7 +143,7 @@ def test_the_index_of_each_branch_is_ready_at_its_head(rebuilt):
 
 @pytest.mark.parametrize("kind", KINDS)
 def test_a_current_index_is_not_rebuilt_and_keeps_every_history(rebuilt, kind):
-    steps, refused, _, _ = rebuilt
+    steps, refused, _, _, _ = rebuilt
     current_status, current = steps["current"]
     refused_status, after = steps["refused"]
     if not any(current[(branch, "events")] for branch in BRANCHES):
@@ -134,7 +158,7 @@ def test_a_current_index_is_not_rebuilt_and_keeps_every_history(rebuilt, kind):
 
 @pytest.mark.parametrize("kind", [kind for kind in KINDS if kind != "actions"])
 def test_a_run_without_an_index_is_rebuilt_from_its_checkpoints(rebuilt, kind):
-    steps, _, missing, results = rebuilt
+    steps, _, missing, results, _ = rebuilt
     _, current = steps["current"]
     rebuilt_status, after = steps["rebuilt"]
 
@@ -146,7 +170,7 @@ def test_a_run_without_an_index_is_rebuilt_from_its_checkpoints(rebuilt, kind):
 
 
 def test_a_rebuilt_index_says_the_recorded_decisions_are_not_restored(rebuilt):
-    steps, _, _, results = rebuilt
+    steps, _, _, results, _ = rebuilt
     _, current = steps["current"]
     _, after = steps["rebuilt"]
 
@@ -159,3 +183,26 @@ def test_a_rebuilt_index_says_the_recorded_decisions_are_not_restored(rebuilt):
         assert not [
             row for row in after[(branch, "actions")] if row["status"] == "selected_proposal"
         ]
+
+
+def test_an_index_of_an_older_version_is_refused_and_rebuilt_whole(rebuilt):
+    """#130: the status says so and history is refused, while the saved points still read;
+    a rebuild asked for one Branch rebuilds every Branch and keeps their saved points."""
+    steps, _, _, _, older = rebuilt
+    current_status, current = steps["current"]
+    status, after, points = older["after"]
+
+    for branch in BRANCHES:
+        assert older["status"][branch]["status"] == "rebuild_required"
+        assert older["status"][branch]["indexed"] == current_status[branch]["indexed"]
+    assert older["history"].code == "history_index_rebuild_required"
+    assert older["saved_points"] == older["current_saved_points"]
+    assert len(older["current_saved_points"]["main"]) > 2
+    assert older["rebuild"]["branch_id"] == "capacity"
+    assert older["rebuild"]["rebuilt_branch_ids"] == sorted(BRANCHES)
+    for branch in BRANCHES:
+        assert status[branch]["status"] == "ready"
+        assert points[branch] == older["current_saved_points"][branch]
+        for kind in KINDS:
+            if kind != "actions":
+                assert after[(branch, kind)] == current[(branch, kind)]

@@ -245,7 +245,6 @@ class ExperimentStore:
         return {**result, "run": run, "status": "prepared_not_executed"}
 
     def collect(self, project: str, experiment: str, cell_id: str) -> dict[str, Any]:
-        from sheltersim.storage import history_payloads
         from sheltersim.storage.history_index import HistoryIndex
 
         record = self.plan(project, experiment)
@@ -258,12 +257,8 @@ class ExperimentStore:
         index = HistoryIndex(self.store, project, bound["run_id"])
         with index.connect() as db:
             index.ready(db, "main", reference.checkpoint_hash)
-            row = db.execute(
-                "SELECT payload,payload_hash FROM records WHERE branch='main' AND "
-                "kind='kpis' ORDER BY minute DESC,key DESC LIMIT 1"
-            ).fetchone()
-        metrics = json.loads(history_payloads.decode(row["payload"])) if row is not None else None
-        if metrics is None or digest(metrics) != row["payload_hash"]:
+            metrics = index.latest_kpis(db, "main")
+        if metrics is None:
             raise StorageError("experiment_metric_evidence_missing_or_corrupt")
         if any(type(metrics.get(key)) not in (int, float) for key in record["plan"]["metrics"]):
             raise StorageError("experiment_metric_missing")
@@ -289,7 +284,7 @@ class ExperimentStore:
                 "branch_id": "main",
                 "checkpoint_hash": reference.checkpoint_hash,
                 "metric_minute": metrics["minute_index"],
-                "metric_payload_hash": row["payload_hash"],
+                "metric_payload_hash": digest(metrics),
                 "time_semantics": "end_of_tick",
             },
             "status": "recorded_not_verified",

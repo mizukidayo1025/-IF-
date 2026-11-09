@@ -201,7 +201,16 @@ def _index_tables(path) -> dict:
     with sqlite3.connect(path.as_uri() + "?mode=ro", uri=True) as db:
         return {
             table: sorted(db.execute(f"SELECT * FROM {table}").fetchall())
-            for table in ("records", "entities", "tokens", "generations", "heads", "checkpoints")
+            for table in (
+                "records",
+                "names",
+                "entities",
+                "tokens",
+                "links",
+                "generations",
+                "heads",
+                "checkpoints",
+            )
         }
 
 

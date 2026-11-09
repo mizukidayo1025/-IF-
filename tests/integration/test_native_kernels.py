@@ -702,7 +702,7 @@ def test_a_row_stored_through_the_kernel_is_the_row_stored_without_it(
         with sqlite3.connect(index.path) as db:
             return [
                 sorted(db.execute(f"SELECT * FROM {table}").fetchall(), key=repr)
-                for table in ("records", "entities", "tokens")
+                for table in ("records", "names", "entities", "tokens", "links")
             ]
 
     with_kernel = stored("with")
