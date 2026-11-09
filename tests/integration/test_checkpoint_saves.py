@@ -24,7 +24,8 @@ def _same_as_public_archive(directory, checkpoint, public):
     )
     fresh = CheckpointArchive(public)
     expected = fresh.encode(checkpoint)
-    assert manifest["document"] == expected["document"]
+    # A saved manifest may be a delta of an earlier one (#138); its whole document is the same.
+    assert CheckpointArchive(directory)._validate_manifest(manifest) == expected["document"]
     assert manifest["checkpoint_hash"] == expected["checkpoint_hash"]
     saved = CheckpointArchive(directory)
     assert saved.decode(manifest).to_json() == checkpoint.to_json()

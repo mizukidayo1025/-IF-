@@ -248,8 +248,45 @@ def test_the_timer_drops_the_kept_worlds(tmp_path, saved_timeline):
     assert list(store._restored) == [("p", "r", head)]
 
 
+def _whole_manifests(directory: Path) -> dict[Path, tuple[dict, dict, dict]]:
+    """Each manifest in directory, with its whole document and chunk locations."""
+    import json
+
+    whole = {}
+    for path in directory.glob("*.json"):
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        archive = CheckpointArchive(directory)
+        document = archive._validate_manifest(manifest)
+        whole[path] = (manifest, document, archive._locations)
+    return whole
+
+
+def _as_v3_archive(directory: Path) -> None:
+    """Rewrite the manifests in directory as v3 ones, each with its whole document: the
+    layout saved before delta manifests (#138)."""
+    import hashlib
+    import json
+
+    from sheltersim.core.checkpoint_cache import canonical_bytes as _encoded
+    from sheltersim.storage.checkpoints import _location_table
+
+    for path, (manifest, document, locations) in _whole_manifests(directory).items():
+        body = {
+            "checkpoint_hash": manifest["checkpoint_hash"],
+            "document": document,
+            "locations": _location_table(locations),
+        }
+        v3 = {
+            "schema_version": 1,
+            "storage_type": "checkpoint_archive_v3",
+            **body,
+            "manifest_hash": hashlib.sha256(_encoded(body)).hexdigest(),
+        }
+        path.write_text(json.dumps(v3), encoding="utf-8")
+
+
 def _as_v2_archive(directory: Path) -> None:
-    """Rewrite the v3 manifests in directory as v2 ones with one file per chunk, the
+    """Rewrite the manifests in directory as v2 ones with one file per chunk, the
     layout saved before packs."""
     import hashlib
     import json
@@ -257,12 +294,11 @@ def _as_v2_archive(directory: Path) -> None:
     from sheltersim.core.checkpoint_cache import canonical_bytes as _encoded
 
     (directory / "chunks").mkdir(exist_ok=True)
-    for path in directory.glob("*.json"):
-        manifest = json.loads(path.read_text(encoding="utf-8"))
-        for key, (pack, offset, length) in CheckpointArchive.pack_locations(manifest).items():
+    for path, (manifest, document, locations) in _whole_manifests(directory).items():
+        for key, (pack, offset, length) in locations.items():
             data = (directory / "packs" / f"{pack}.pack").read_bytes()
             (directory / "chunks" / f"{key}.json.gz").write_bytes(data[offset : offset + length])
-        body = {"checkpoint_hash": manifest["checkpoint_hash"], "document": manifest["document"]}
+        body = {"checkpoint_hash": manifest["checkpoint_hash"], "document": document}
         v2 = {
             "schema_version": 1,
             "storage_type": "checkpoint_archive_v2",
@@ -293,7 +329,7 @@ def test_a_save_writes_one_pack_of_only_the_chunks_it_adds(tmp_path, saved_timel
     new = {path.name for path in packs.glob("*.pack")} - before
     assert len(new) == 1
     second = _manifest(store, store.branch_reference("p", "r", "main").checkpoint_hash)
-    first, second = map(CheckpointArchive.pack_locations, (first, second))
+    first, second = map(CheckpointArchive(packs.parent).locations, (first, second))
     # Chunks the first save stored stay in its packs; the new pack has only new ones.
     kept = set(first) & set(second)
     assert kept
@@ -325,15 +361,15 @@ def test_a_run_saved_with_one_file_per_chunk_is_read_and_continued(tmp_path, sav
     manifest = _manifest(fresh, head)
     assert not set(CheckpointArchive.pack_locations(manifest)) & chunk_files
     archive = CheckpointArchive(directory)
-    archive._validate_manifest(manifest)
+    document = archive._validate_manifest(manifest)
     referenced = set()
     archive._get = lambda key, get=archive._get: referenced.add(key) or get(key)
-    archive._unpack(manifest["document"])
+    archive._unpack(document)
     assert referenced & chunk_files
     assert fresh.checkpoint_write_bytes("p", "r") == fresh._checkpoint_archive_bytes("p", "r")
 
 
-def test_a_v3_manifest_with_changed_locations_fails_closed(tmp_path):
+def test_a_manifest_with_changed_locations_fails_closed(tmp_path):
     import hashlib
 
     from sheltersim.core.checkpoint import CheckpointError
@@ -352,12 +388,17 @@ def test_a_v3_manifest_with_changed_locations_fails_closed(tmp_path):
     with pytest.raises(CheckpointError, match="manifest integrity"):
         CheckpointArchive(tmp_path).decode(moved)
     # Even with a matching manifest hash, a chunk is checked against its key.
-    body = {name: moved[name] for name in ("checkpoint_hash", "document", "locations")}
+    body = {
+        name: moved[name] for name in ("checkpoint_hash", "document", "locations", "base", "depth")
+    }
     moved["manifest_hash"] = hashlib.sha256(_encoded(body)).hexdigest()
     with pytest.raises(CheckpointError, match="missing or corrupt|integrity"):
         CheckpointArchive(tmp_path).decode(moved)
     malformed = {**manifest, "locations": {"packs": ["pack"], "chunks": {key: [0, -1, 0]}}}
-    body = {name: malformed[name] for name in ("checkpoint_hash", "document", "locations")}
+    body = {
+        name: malformed[name]
+        for name in ("checkpoint_hash", "document", "locations", "base", "depth")
+    }
     malformed["manifest_hash"] = hashlib.sha256(_encoded(body)).hexdigest()
     with pytest.raises(CheckpointError, match="invalid checkpoint archive locations"):
         CheckpointArchive(tmp_path).decode(malformed)
@@ -398,9 +439,8 @@ def test_a_childs_first_save_refers_to_the_chunks_of_the_checkpoint_it_was_forke
     before = {path.name for path in packs.glob("*.pack")}
     timeline.fork("main", 30, "child")
     head = store.branch_reference("p", "r", "child").checkpoint_hash
-    parent, child = (
-        CheckpointArchive.pack_locations(_manifest(store, name)) for name in (origin, head)
-    )
+    reader = CheckpointArchive(packs.parent)
+    parent, child = (reader.locations(_manifest(store, name)) for name in (origin, head))
     shared = set(parent) & set(child)
     assert shared and all(child[key] == parent[key] for key in shared)
     new = {path.name for path in packs.glob("*.pack")} - before
@@ -416,3 +456,122 @@ def test_chunks_compress_to_the_same_bytes_in_order_with_threads() -> None:
     assert _compressed(raws) == _compress_all(raws)
     assert _compressed([]) == []
     assert _compressed(raws[:1]) == _compress_all(raws[:1])
+
+
+def test_saves_write_delta_manifests_of_bounded_depth(tmp_path, saved_timeline, monkeypatch):
+    """Each save's manifest holds what differs from the branch's last one and names it;
+    after _MAX_DELTA_DEPTH a manifest holds its whole document again. Every manifest reads
+    back as the Checkpoint a fresh archive encodes whole (#138)."""
+    import sheltersim.storage.checkpoints as checkpoints
+
+    monkeypatch.setattr(checkpoints, "_MAX_DELTA_DEPTH", 3)
+    store, timeline = saved_timeline(tmp_path)
+    heads = []
+    original = timeline.record
+
+    def record(runtime, **kwargs):
+        heads.append(original(runtime, **kwargs))
+        return heads[-1]
+
+    monkeypatch.setattr(timeline, "record", record)
+    # The Run's first Checkpoint, at minute 0, holds its whole document.
+    initial = store.branch_reference("p", "r", "main").checkpoint_hash
+    assert _manifest(store, initial)["depth"] == 0
+    timeline.advance("main", 70, checkpoint_interval=10)
+    manifests = [_manifest(store, head.checkpoint_hash) for head in heads]
+    assert {manifest["storage_type"] for manifest in manifests} == {"checkpoint_archive_v4"}
+    assert [manifest["depth"] for manifest in manifests] == [1, 2, 0, 1, 2, 0, 1]
+    assert [manifest["base"] for manifest in manifests] == [
+        initial,
+        heads[0].checkpoint_hash,
+        None,
+        heads[2].checkpoint_hash,
+        heads[3].checkpoint_hash,
+        None,
+        heads[5].checkpoint_hash,
+    ]
+    # A delta lists only the EventLog chunks after those its base has.
+    event_log = manifests[3]["document"]["fields"]["world_state"]["fields"]["event_log"]
+    assert event_log["kind"] == "list_v2_tail" and event_log["base_chunks"] > 0
+    directory = store._path("p", "runs", "r", "checkpoints")
+    fresh = type(store)(store.root)
+    for head, manifest in zip(heads, manifests, strict=True):
+        expected = CheckpointArchive(tmp_path / "whole" / head.checkpoint_hash).encode(head)
+        assert CheckpointArchive(directory)._validate_manifest(manifest) == expected["document"]
+        loaded = fresh.load_checkpoint("p", "r", head.checkpoint_hash)
+        assert loaded.to_json() == head.to_json()
+
+
+def test_a_child_s_first_manifest_is_a_delta_of_the_checkpoint_it_was_forked_from(
+    tmp_path, saved_timeline
+):
+    store, timeline = saved_timeline(tmp_path)
+    timeline.advance("main", 60, checkpoint_interval=30)
+    origin = store.branch_reference("p", "r", "main")
+    timeline.fork("main", 30, "child")
+    forked = store.branch_reference("p", "r", "child").checkpoint_hash
+    timeline.advance("child", 60, checkpoint_interval=30)
+    head = store.branch_reference("p", "r", "child").checkpoint_hash
+    manifest = _manifest(store, head)
+    assert manifest["base"] == forked and manifest["depth"] >= 1
+    assert origin.checkpoint_hash != head
+    fresh = type(store)(store.root)
+    assert fresh.load_checkpoint("p", "r", head).simulation_minute == 60
+
+
+def test_a_run_saved_with_whole_manifests_is_read_and_continued(tmp_path, saved_timeline):
+    """Runs saved before delta manifests (v3) keep loading; a later save's manifest is a
+    delta of the v3 one."""
+    store, timeline = saved_timeline(tmp_path)
+    timeline.advance("main", 30)
+    directory = store._path("p", "runs", "r", "checkpoints")
+    reference = store.branch_reference("p", "r", "main")
+    expected = store.load_checkpoint("p", "r", reference.checkpoint_hash).to_json()
+    _as_v3_archive(directory)
+    assert _manifest(store, reference.checkpoint_hash)["storage_type"] == "checkpoint_archive_v3"
+    fresh = type(store)(store.root)
+    assert fresh.load_checkpoint("p", "r", reference.checkpoint_hash).to_json() == expected
+    TimelineStore(fresh, "p", "r").advance("main", 60)
+    head = fresh.branch_reference("p", "r", "main").checkpoint_hash
+    manifest = _manifest(fresh, head)
+    assert manifest["base"] == reference.checkpoint_hash and manifest["depth"] == 1
+    assert type(fresh)(fresh.root).load_checkpoint("p", "r", head).simulation_minute == 60
+
+
+def test_a_delta_manifest_whose_base_is_missing_or_does_not_fit_fails_closed(
+    tmp_path, saved_timeline
+):
+    import hashlib
+
+    from sheltersim.core.checkpoint import CheckpointError
+    from sheltersim.core.checkpoint_cache import canonical_bytes as _encoded
+
+    store, timeline = saved_timeline(tmp_path)
+    timeline.advance("main", 30)
+    first = store.branch_reference("p", "r", "main").checkpoint_hash
+    timeline.advance("main", 60)
+    head = store.branch_reference("p", "r", "main").checkpoint_hash
+    directory = store._path("p", "runs", "r", "checkpoints")
+    manifest = _manifest(store, head)
+    assert manifest["base"] == first
+
+    def signed(record):
+        body = {
+            name: record[name]
+            for name in ("checkpoint_hash", "document", "locations", "base", "depth")
+        }
+        return {**record, "manifest_hash": hashlib.sha256(_encoded(body)).hexdigest()}
+
+    with pytest.raises(CheckpointError, match="invalid checkpoint archive base"):
+        CheckpointArchive(directory).decode(signed({**manifest, "depth": manifest["depth"] + 1}))
+    with pytest.raises(CheckpointError, match="invalid checkpoint archive base"):
+        CheckpointArchive(directory).decode(signed({**manifest, "base": None}))
+    with pytest.raises(CheckpointError, match="base is missing"):
+        CheckpointArchive(directory).decode(signed({**manifest, "base": "0" * 64}))
+    # A base whose own manifest names another hash.
+    (directory / f"{'1' * 64}.json").write_bytes((directory / f"{first}.json").read_bytes())
+    with pytest.raises(CheckpointError, match="base hash mismatch"):
+        CheckpointArchive(directory).decode(signed({**manifest, "base": "1" * 64}))
+    (directory / f"{first}.json").unlink()
+    with pytest.raises(CheckpointError, match="base is missing"):
+        CheckpointArchive(directory).decode(manifest)
