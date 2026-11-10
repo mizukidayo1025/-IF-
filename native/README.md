@@ -443,8 +443,9 @@ are correctly rounded everywhere, and not `**` with a float.
   that is not frozen plain JSON. `same_saved_records` reads the result back on its own path.
 
 - `index_row(row)` (`src/checkpoint.rs`): one pass over a history index row of plain values,
-  giving its canonical JSON, the hash, its identities and event references
-  (`_identities`, `_event_references` in `storage/history_index.py`), the sorted keys joined by NUL
+  giving its canonical JSON, the hash, its identities (but for the keys of `NOT_ENTITY_KEYS`, the
+  same list as `_NOT_ENTITY_KEYS`, #138) and event references (`_identities`,
+  `_event_references` in `storage/history_index.py`), the sorted keys joined by NUL
   and the strings for the privacy check, and the text its tokens are read from. None for any other
   row, which Python reads as before.
 - `dumps_length(value)` (`src/checkpoint.rs`): `len(json.dumps(value, ensure_ascii=False).encode())`

@@ -2,8 +2,10 @@
 EventLog record alone: an event's row, its social row (key `event:`) and its action, care
 or operations row (key `applied:`). Such a row holds the record's position in the EventLog,
 and a read makes the row again from the indexed head Checkpoint, checked against the
-row's payload_hash. Dialogue rows, KPI samples, model_state histories and the decisions
-recorded while computing keep their payloads.
+row's payload_hash. Since version 6 a dialogue row made from an event also holds the
+record's position, and keeps only its body-state effects, which the head Checkpoint may no
+longer hold. KPI samples, model_state histories and the decisions recorded while computing
+keep their payloads.
 
 That the rows made again are the bytes version 4 stored is pinned in
 tests/integration/test_decisions_row.py (its digest of every row is the one before #138).
@@ -18,7 +20,7 @@ from typing import Any
 import pytest
 
 from sheltersim.contracts.workspace import HistoryQuery
-from sheltersim.storage import history_index
+from sheltersim.storage import history_index, history_payloads
 from sheltersim.storage.history_index import KINDS, HistoryIndex
 from sheltersim.storage.projects import StorageError, digest
 
@@ -27,8 +29,8 @@ def _rows(index: HistoryIndex) -> list[sqlite3.Row]:
     with sqlite3.connect(index.path.as_uri() + "?mode=ro", uri=True) as db:
         db.row_factory = sqlite3.Row
         return db.execute(
-            "SELECT n.name AS branch_name,r.kind,r.minute,r.key,r.position,"
-            "r.payload IS NULL AS bare "
+            "SELECT n.name AS branch_name,r.kind,r.minute,"
+            f"{history_index._R_KEY} AS key,r.position,r.payload,r.payload IS NULL AS bare "
             "FROM records r JOIN names n ON n.id=r.branch ORDER BY r.id"
         ).fetchall()
 
@@ -67,10 +69,11 @@ def test_rows_made_from_an_event_keep_its_position_and_no_payload(
     for row in rows:
         kind = KINDS[row["kind"]]
         positional = kind == "events" or row["key"].startswith(("applied:", "event:"))
-        if kind == "dialogue":
-            positional = False
-        assert bool(row["bare"]) is positional, (kind, row["key"])
+        assert bool(row["bare"]) is (positional and kind != "dialogue"), (kind, row["key"])
         assert (row["position"] is not None) is positional
+        if positional and kind == "dialogue":
+            kept = json.loads(history_payloads.decode(row["payload"]))
+            assert set(kept) == {"observed_model_effects"}
         by_kind[kind, positional] = by_kind.get((kind, positional), 0) + 1
         if kind == "events":
             # The key of an event's row is the digest of the record at its position.
@@ -78,7 +81,7 @@ def test_rows_made_from_an_event_keep_its_position_and_no_payload(
         elif positional:
             assert row["key"].split(":", 1)[1] == events[row["position"]]["event"]["event_id"]
     assert by_kind["events", True] == len(events)
-    assert by_kind["social", True] and by_kind["dialogue", False] and by_kind["kpis", False]
+    assert by_kind["social", True] and by_kind["dialogue", True] and by_kind["kpis", False]
     assert any(kind in {"actions", "care", "operations"} for kind, bare in by_kind if bare)
     # Every event comes back as the row its record makes, in the order of the index.
     found = _search(index, store, "main", kind="events", end=59)

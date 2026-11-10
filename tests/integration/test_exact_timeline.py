@@ -120,7 +120,13 @@ def test_a_forked_branch_reads_the_rows_a_fresh_ingest_derives(
     parent's instead; what it reads equals the rows derived from its head from scratch."""
     import sqlite3
 
-    from sheltersim.storage.history_index import HistoryIndex, _name_id, _scope, _segments
+    from sheltersim.storage.history_index import (
+        _R_KEY,
+        HistoryIndex,
+        _name_id,
+        _scope,
+        _segments,
+    )
 
     store, timeline = saved_timeline(tmp_path, generated_scenario)
     timeline.advance("main", COMPUTED_UNTIL, checkpoint_interval=CHECKPOINT_INTERVAL)
@@ -138,7 +144,8 @@ def test_a_forked_branch_reads_the_rows_a_fresh_ingest_derives(
         named = db.cursor()
         named.row_factory = sqlite3.Row
         found = named.execute(
-            "SELECT k.name,r.key,r.minute,r.branch,r.kind,r.position,r.payload,r.payload_hash "
+            f"SELECT k.name,{_R_KEY} AS key,r.minute,r.branch,r.kind,r.position,r.payload,"
+            "r.payload_hash "
             f"FROM records r JOIN kinds k ON k.code=r.kind WHERE {scope}",
             args,
         ).fetchall()
@@ -151,7 +158,7 @@ def test_a_forked_branch_reads_the_rows_a_fresh_ingest_derives(
         for table, column in (("entities", "entity"), ("tokens", "token"), ("links", "event")):
             tables[table] = sorted(
                 db.execute(
-                    f"SELECT k.name,r.key,n.name FROM {table} e JOIN records r ON r.id=e.record "
+                    f"SELECT k.name,{_R_KEY},n.name FROM {table} e JOIN records r ON r.id=e.record "
                     f"JOIN kinds k ON k.code=r.kind JOIN names n ON n.id=e.{column} WHERE {scope}",
                     args,
                 )
