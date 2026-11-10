@@ -18,6 +18,61 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
 - 中核へ移したモジュールは、`native/src/core/` の同じ名前のファイルが、元の道筋（`crate::core::mathx` など）で re-export します。そのため、lane のファイルの `use` は変えずに済みます。窓口のファイルには、Python が要る部分だけを残します：Python の例外への変換、Python の数や文字列との変換、`#[pyfunction]` の入口。
 - **エラー：** 中核のエラー型から `PyErr` への `From` は書けません（どちらの型も窓口の crate の外にあるため）。窓口では、変換の関数（例：`mathx::math_error`）を `.map_err(...)` で使います。
 
+## 棚卸し（2026-11-11、`main` `19692f8`）
+
+6つに分けて、読んで数えました（何も実行していません）。PyO3 に触れる行の数え方は #152 の本文と同じです。
+
+| 範囲 | ファイル | 行 | PyO3 に触れる行 | 大きいもの |
+|---|--:|--:|--:|---|
+| `src/core`、`src/state`、最上位のファイル | 37 | 14,477 | 2,101 | `world_core.rs`（XL）、`row.rs`（L）、`state/events.rs`（L）、`eventlog.rs`（L） |
+| 運営の規則（職員、支援、トイレ、待ち行列、資源、行動） | 13 | 13,889 | 2,349 | `staff.rs`（XL）、`service.rs`・`support.rs`・`staff_operation_events.rs`（L） |
+| 人の規則（心理、行動、判断、提案、社会、情報、身体） | 13 | 10,759 | 1,710 | `proposals.rs`（L） |
+| 人口と移動（人口、移動、経路、近さ、区域の環境、再計画） | 9 | 12,006 | 1,709 | `population.rs`・`population_lifecycle.rs`（L） |
+| tick の順序とイベント（tick、dispatch、handler、効果、overlay、検証、指標、trace、world view） | 11 | 14,705 | 3,057 | `handlers.rs`・`effects.rs`（XL） |
+
+わかったこと：
+
+1. **分けにくいのは、データではなく trait です。** 行（`state_row!` の行、`V`、実体の行、イベントの行、EventLog の索引）は、もう Python のハンドルを持ちません。しかし `Field`、`Row`、`Items`、`Write`、`Misfit` の型に PyO3 の型が出てきます。`write_json` が `PyResult` を返すのは、float が NaN のときに断るためだけです。
+2. **世界の状態は、Python から見える約24個のオブジェクトに散っています**（`WorldCore`、19の `NamespaceMirror`、`EntityStore`、`QueueStore`、`EventStore` など）。kernel はそれぞれを getattr で探します。Rust の表現がまだないもの：スカラー（`scenario_id`、`seed`、`minute_index` など）、`zones`、`zone_edges`、`resources`、`id_counters`、`operational_events_v1`・`zone_environment_v1`・`infrastructure_v1` と LLM の runtime の名前空間、型の決まった設定。
+3. **tick の中で、世界を丸ごと写して差し替える処理があります。** `effects.rs` の13の handler、`handlers.rs`、`population_lifecycle.rs` は、`from_dict(to_dict())` で世界を写し、写しを変え、Python の `WorldState.validate()` を通してから `__dict__` を差し替えます。検証の文は EventLog の `detail` に入るので、ハッシュに届きます。
+4. **Rust の関数がないイベントの型はありません。** 43の型すべてに Rust の関数があります。Python の `dispatch_one` と `settle` は fallback で、7日分では0回、ゲートでは1,486回です（主に、待ち行列の中で変わったイベント）。
+5. **tick の中に残る Python の規則は、通常の経路で約100行です：** `_sync_movement_after_events`、`_finish_stopped_journey`、`_refresh_space`（経路のグラフを作り、`travel.rs` が読む）、`record_support_request`。fallback だけのもの：`dispatch_one`・`settle`、`domain/care_receipts.py` の `make_*_record`、`care_source_ids_for_agent`、`record_observed_contacts`、別のクラスの manager の `arbitrate`、`upgrade_information_runtime_state`。
+6. **LLM の境界は5つです：** `_prioritize_support_request` と `consider_support_request`（`proposals.rs` から）、`_consider_social_contact_event`（dispatch から）、`consider_complaint_response`（`staff.rs` から）。どれも `model_state` に書き、イベントを予定します。offline でも断った回数を指標に数えるので、呼ぶ順番はゲートのハッシュに届きます。
+7. **外への口：** 指標（`capture_metric`、1 tick に1回）、trace の文書（trace が有効なときだけ）、判断の記録（`record_decision_document` など）、段階の observer（1段階に2回）。
+8. **設定は毎 tick 読み直しています：** `selected_models`、`_parsed_config`、`canonical_*_config`、`InformationSpreadConfig.from_mapping`、Python の ContextVar の scope。pydantic の文を含む失敗もあります。
+9. **実体の Python のオブジェクトを書く Python のコードは、tick の中にはありません。** Rust が行を書いてからオブジェクトを書きます。tick の外では約12か所（Branch の命令、EffectProgram の予定、検証の正規化）です。テストは、266ファイルのうち約69ファイルが実体を作るか書き換えます。
+10. **順番のハッシュの危険：** 実体の辞書の順番（指標は `world.agents` の挿入順で足します）、イベントの通し番号の順、新しく作る名前空間の辞書のキーの順、`format(x, "g")`・`str.casefold`・`repr` の Python と同じ結果。
+
+## 方針（2026-11-11、私が決めたもの。変えられます）
+
+- **E1. 下から順に：** 型 → 状態の持ち主 → kernel → tick の順序。どの PR でもハッシュは変えません。
+- **E2. `V` を中心に分けます。** 中核の `Field` は `V` との行き来（`from_v`、`to_v`）と JSON の書き出しを持ち、Python との行き来は窓口の trait にします。まだ Python の木に書く setter は、中核の trait（`TreeSink`）を通します。
+- **E3. 中核の `World`：** 1つの世界の状態を、1つの Rust の構造体にまとめます。窓口の `WorldCore` がそれを持ち、kernel は `&mut World` を受けます。実体、区域、名前空間の木などの Python のオブジェクトは、`World` を読み書きする窓（view）にします。実体の辞書は挿入順を保ちます（`IndexMap`、`shift_remove`）。
+- **E4. Host を呼ぶ関数は、世界を借りたままにしません。** 中核の関数は `WorldCell`（`with(|world| ...)` で短く借りる）を受け、Host を呼ぶ間は借りません。今の「Python を呼ぶ間は borrow を持たない」と同じ規則です。そのためネイティブ版の Host（LLM の境界）は、今までどおり Python の view を通して書けます。
+- **E5. 写して差し替える処理は、`World` の fork と commit にします。** EventLog は追記だけなので、fork では長さの印を持ち、写しません。
+- **E6. 候補の世界の丸ごとの検証**（`WorldState.validate`、`validate_simulator_extensions`）は、#152 では Host の `validate_candidate` にします。ネイティブ版は、候補の Python の view に今の Python の検証をかけます（手順4の D3「`validate_*` は Python に残す」と同じ考えです）。検証の文を中核で作るのは段階4に回します。`after_tick.rs`・`tick_validation.rs` の「問題なし」と答える検査は、中核に移します。
+- **E7. 設定：** 窓口が、Run や Branch の始まりと `model_configs` が変わったときに設定を解釈し、型の決まった中核の `Config` を渡します。設定の誤りの文が出る時点は変えません。
+- **E8. 断り：** `Unsupported` を返す約240か所は、中核の `Error::Unsupported` にします。窓口で今と同じ `Unsupported`、`KernelRefusal` になります。
+- **E9. 記録の bytes は中核が持ちます。** Python の `bytes` は、要るときに作ってキャッシュし、保存のキャッシュが頼る「同じオブジェクト」を保ちます。そのレーンで計算のピークのメモリーを測り、増やしません（#138）。
+- **E10. 窓口に残すもの：** tick への patch や shadow の検出、断りの数の統計、`rules/parity.rs`（テスト用）。
+- **E11. 残る Python の規則：** 通常の経路の4つは Rust に移します。届かない fallback は消し、消したテストを PR に挙げます。`upgrade_information_runtime_state` は tick ではなく復元の側（中核の外）に移します。
+- **E12. 実体の view は書き込みもできる形にします。** 約69のテストのファイルが、そのまま動くようにするためです。`vars(agent.needs)`、dataclass の `==`、enum の `is` を保ちます。
+
+## レーン
+
+| レーン | 中身 | 前提 | 並列 |
+|---|---|---|---|
+| P1 | workspace と、Python に触れない部分（済み） | — | — |
+| P2 | 中核のエラーの型、`V`、`Misfit`、JSON の書き出し | P1 | — |
+| P3 | `Field`・`Row`・`Items` を中核と窓口に分け、`state_row!`・`str_enum!` を中核へ。17の名前空間の行のファイルを、何回かに分けて中核へ | P2 | 行のファイルは並列 |
+| P4 | 実体の行、`EventRow`・`QueueStore`・`EventWriter`、EventLog の索引と読み込み、Checkpoint の bytes の kernel、`contacts.rs`、`records.rs` の id を中核へ | P2（行は P3） | 部分ごとに並列 |
+| P5 | 中核の `World`：スカラー、区域、`resources`、`id_counters`、`V` の行の名前空間をまとめる。kernel は1つの口で `World` を得る | P3、P4 | — |
+| P6 | 実体の持ち主を Rust に（行が本体、Python は view、挿入と削除の順番、`__dict__` の差し替え）。fork と commit | P5 | — |
+| P7 | 型の決まった設定、`Geo` と経路のグラフを中核のキャッシュに | P5 | P6 と並列 |
+| P8a〜d | kernel を中核へ：a 人の規則、b 運営の規則、c 人口と移動、d イベントの適用・効果・overlay・world view・指標・trace・検証 | P6、P7 | 4つ並列 |
+| P9 | Host の trait と tick の順序を中核へ。残る Python の規則 | P8 | — |
+| P10 | 確かめ：`cargo test` で中核だけの tick、`wasm32-unknown-unknown` のビルド、7日分のハッシュと計算時間、文書。#152 を閉じる | P9 | — |
+
 ## 進め方
 
 各 PR で、全経路のゲート（`benchmarks/gate_all_paths.py --expect fixtures/gate-all-paths.json`）が 0 problems であること、offline テストが通ることを確かめます。状態の持ち方を変える PR では、7日分のハッシュと計算時間も比べます。
@@ -36,4 +91,4 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
 
 ### この後
 
-棚卸しの結果と、残りの PR の順番は、次の PR でこの文書に書きます。
+残りの PR は、下の「レーン」の順に進めます。各レーンは、終わったときにこの節の前に記録を足します。
