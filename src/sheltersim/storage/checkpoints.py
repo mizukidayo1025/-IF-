@@ -728,6 +728,45 @@ class CheckpointArchive:
         ):
             raise CheckpointError("invalid indexed list offsets")
 
+    def list_items(
+        self, record: dict[str, Any], path: tuple[str, ...], positions: Sequence[int]
+    ) -> dict[int, Any]:
+        """The items at positions of a verified list field, each chunk read once (#138)."""
+        node = self._path_node(self._validate_manifest(record), path)
+        if node.get("kind") == "list_v2":
+            starts, length = node["starts"], node["length"]
+            self._indexed_list_metadata(node)
+            by_chunk: dict[int, list[int]] = {}
+            for position in positions:
+                if type(position) is not int or not 0 <= position < length:
+                    raise CheckpointError("checkpoint list position is out of range")
+                by_chunk.setdefault(bisect_right(starts, position) - 1, []).append(position)
+            found = {}
+            for index, wanted in sorted(by_chunk.items()):
+                # Only the wanted items of a chunk's hash-checked bytes are parsed.
+                try:
+                    chunk = native.split_json_array(self._get_raw(node["chunks"][index]))
+                except ValueError as exc:
+                    raise CheckpointError("list chunk has incompatible type") from exc
+                end = starts[index + 1] if index + 1 < len(starts) else length
+                if len(chunk) != end - starts[index]:
+                    raise CheckpointError("indexed list chunk length mismatch")
+                for position in wanted:
+                    try:
+                        found[position] = json.loads(chunk[position - starts[index]])
+                    except json.JSONDecodeError as exc:
+                        raise CheckpointError("checkpoint chunk is missing or corrupt") from exc
+            return found
+        # A list without seek offsets, or kept whole, is read whole.
+        value = node["value"] if node.get("kind") == "inline" else self._unpack(node)
+        if not isinstance(value, list):
+            raise CheckpointError("projection is not a list")
+        if any(
+            type(position) is not int or not 0 <= position < len(value) for position in positions
+        ):
+            raise CheckpointError("checkpoint list position is out of range")
+        return {position: value[position] for position in positions}
+
     def list_page(
         self, record: dict[str, Any], path: tuple[str, ...], *, offset: int = 0, limit: int = 100
     ) -> dict[str, Any]:

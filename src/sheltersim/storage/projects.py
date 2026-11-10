@@ -1248,6 +1248,34 @@ class ProjectStore:
         document = checkpoint._document_view()
         return {field: deepcopy(document[field]) for field in fields}
 
+    def checkpoint_items(
+        self,
+        project_id: str,
+        run_id: str,
+        checkpoint_hash: str,
+        path: tuple[str, ...],
+        positions: list[int],
+    ) -> dict[int, Any]:
+        """Verified items at positions of a list field of a saved Checkpoint (#138)."""
+        file = self._path(project_id, "runs", run_id, "checkpoints", f"{checkpoint_hash}.json")
+        record = self._read(file)
+        if record.get("checkpoint_hash") != checkpoint_hash:
+            raise StorageError("checkpoint_pointer_corrupt")
+        try:
+            if record.get("storage_type") in ARCHIVE_STORAGE_TYPES:
+                return CheckpointArchive(file.parent).list_items(record, path, positions)
+            value: Any = Checkpoint._load(record, view=True)[0]._document_view()
+            for field in path:
+                value = value[field]
+            if any(
+                type(position) is not int or not 0 <= position < len(value)
+                for position in positions
+            ):
+                raise CheckpointError("checkpoint list position is out of range")
+            return {position: deepcopy(value[position]) for position in positions}
+        except (CheckpointError, ValueError, TypeError, KeyError) as exc:
+            raise StorageError("checkpoint_recorded_document_integrity_mismatch") from exc
+
     def save_turn(
         self, project_id: str, run_id: str, branch_id: str, turn_id: str, turn: dict[str, Any]
     ) -> None:

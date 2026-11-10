@@ -4,8 +4,10 @@ whether a write holds a few records or more than one batch of them (#47).
 A record already stored, or put earlier in the same write, adds nothing again, and a
 different payload under its key is refused. A refused write and a write over the
 storage capacity leave the index as it was. Since version 4 (#130) a record's key is
-stored once, the rows about it name its id, and repeated texts are rows of names; an
-index of an older version is refused, but for its saved points, until it is rebuilt.
+stored once, the rows about it name its id, and repeated texts are rows of names. Since
+version 5 (#138) a row made from an EventLog record holds the record's position instead of
+its payload (tests/integration/test_history_index_positions.py). An index of an older
+version is refused, but for its saved points, until it is rebuilt.
 That a saved Run's index answers every history kind is checked in
 tests/integration/test_project_evidence_routes.py.
 """
@@ -204,9 +206,9 @@ def test_a_forked_branch_stores_no_row_its_parent_holds_before_the_fork_minute(i
             records.put("events", {**_record(10), "status": "rejected"}, key="early")
 
 
-@pytest.mark.parametrize("version", [1, 2, 3])
+@pytest.mark.parametrize("version", [1, 2, 3, 4])
 def test_an_index_of_an_older_version_is_refused_but_for_its_saved_points(index, version):
-    """#130: versions 1 to 3 are not converted. Records are neither read nor written until
+    """#130, #138: versions 1 to 4 are not converted. Records are neither read nor written until
     the index is rebuilt; heads and checkpoints, the same in every version, are read."""
     with index.connect(write=True) as db:
         db.execute("INSERT INTO heads VALUES('main','head',60,'{}')")
@@ -227,7 +229,7 @@ def test_an_index_of_an_older_version_is_refused_but_for_its_saved_points(index,
 
 def test_an_index_of_a_newer_version_is_refused_even_for_its_saved_points(index):
     with sqlite3.connect(index.path) as db:
-        db.execute("PRAGMA user_version=5")
+        db.execute("PRAGMA user_version=6")
     for options in ({}, {"write": True}, {"saved_points": True}):
         with pytest.raises(StorageError, match="history_index_version_unsupported"):
             with index.connect(**options):
@@ -236,7 +238,7 @@ def test_an_index_of_a_newer_version_is_refused_even_for_its_saved_points(index)
 
 def test_a_new_index_is_made_at_the_current_version_with_its_kinds(index):
     with sqlite3.connect(index.path.as_uri() + "?mode=ro", uri=True) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 4
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 5
         assert db.execute("SELECT name FROM kinds ORDER BY code").fetchall() == [
             (name,) for name in KINDS
         ]
@@ -334,8 +336,8 @@ def test_a_stored_payload_is_compared_as_text_whatever_bytes_hold_it(index):
         relevel = bytes((1,)) + other.compress(text.encode()) + other.flush()
         assert relevel != history_payloads.encode(text)
         db.execute(
-            "INSERT INTO records VALUES(NULL,?,?,?,?,?,?,?,?,?,?,?)",
-            (*tuple(stored)[1:4], "other_bytes", *tuple(stored)[5:10], relevel, stored[11]),
+            "INSERT INTO records VALUES(NULL,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (*tuple(stored)[1:4], "other_bytes", *tuple(stored)[5:11], relevel, stored[12]),
         )
         db.execute("INSERT INTO lineage VALUES('child','main',50)")
     assert _payload_forms(index) == ["blob", "blob"]
@@ -401,7 +403,7 @@ def test_a_version_two_saved_index_is_refused_until_it_is_rebuilt_with_its_saved
     tmp_path,
 ):
     """#130: the index of a saved Run, version 2, answers its saved points but no history.
-    Rebuilding any branch replaces the file with a version 4 one, in which every branch is
+    Rebuilding any branch replaces the file with a version 5 one, in which every branch is
     indexed again from its head Checkpoint and keeps the saved points of the old file."""
     shutil.copytree(SAVED_RUN_ENGINE_V1, tmp_path / "run")
     store = ProjectStore(tmp_path / "run")
@@ -421,7 +423,7 @@ def test_a_version_two_saved_index_is_refused_until_it_is_rebuilt_with_its_saved
     rebuilt = index.rebuild("child")
     assert rebuilt["status"] == "indexed_not_verified" and rebuilt["branch_id"] == "child"
     assert rebuilt["rebuilt_branch_ids"] == ["child", "main"]
-    assert index.version() == 4
+    assert index.version() == 5
     assert not index.path.with_name("history.sqlite.rebuild").exists()
     answers = _saved_run_answers(tmp_path / "run")
     assert sum(len(page["items"]) for page in answers["main/events"]) == 17
@@ -533,4 +535,4 @@ def test_a_rebuild_waits_for_a_reader_of_the_old_file_on_windows(tmp_path, monke
     refusals.clear()
     limit = 3
     index.rebuild("main")
-    assert len(refusals) == 3 and index.version() == 4
+    assert len(refusals) == 3 and index.version() == 5
