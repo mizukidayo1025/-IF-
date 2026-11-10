@@ -20,7 +20,9 @@ use crate::core::errors;
 use crate::core::mathx::{py_max, py_min};
 use crate::core::row::{attribute, exact_float, exact_int, exact_str, unsupported, Field};
 use crate::core::tracked::as_readable_dict;
-use crate::core::world_core::{mirror_of, raw_dict_get, NamespaceMirror, Tree};
+use crate::core::value::V;
+use crate::core::world_core::{held_state, mirror_of, raw_dict_get, Held, NamespaceMirror, Tree};
+use crate::state::body_state::BodyRow;
 use crate::state::social_network::{
     is_plain_id, Relationship, SocialNetworkRow, MAX_RELATIONSHIPS, NAME,
 };
@@ -87,20 +89,38 @@ fn body_part<'py>(
     Ok(Some(part))
 }
 
-/// `world.model_state.get("body_state_v1")`, a readable dict or None.
-pub(crate) fn body_state_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
-    let py = world.py();
-    let table = attribute(world, intern!(py, "model_state"))?;
-    if as_readable_dict(&table).is_none() {
-        return unsupported("model_state is not readable");
+/// What the rules here read of `body_state_v1`, or of a part of it: its row, which holds what the
+/// tree holds (and is all there is while the namespace is detached), or the dict Python holds past
+/// the row.
+pub(crate) enum Body<'py> {
+    Row(Bound<'py, NamespaceMirror>),
+    Tree(Bound<'py, PyAny>),
+}
+
+/// `world.model_state.get("body_state_v1")`: its row, a readable dict, or None.
+pub(crate) fn body_state_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Body<'py>>> {
+    match held_state(world, "body_state_v1")? {
+        None => Ok(None),
+        Some(Held::Row(mirror)) => Ok(Some(Body::Row(mirror))),
+        Some(Held::Value(body)) => {
+            if as_readable_dict(&body).is_none() {
+                return unsupported("the body state is not a plain dict");
+            }
+            Ok(Some(Body::Tree(body)))
+        }
     }
-    let Some(body) = raw_dict_get(&table, intern!(py, "body_state_v1").as_any())? else {
-        return Ok(None);
-    };
-    if as_readable_dict(&body).is_none() {
-        return unsupported("the body state is not a plain dict");
+}
+
+/// `config.get("social_action_affect_transfer", 0.02)` of the body row, as `float_or` reads it.
+fn transfer_of(config: &V) -> PyResult<f64> {
+    match config {
+        V::Map(map) => match map.get("social_action_affect_transfer") {
+            None => Ok(0.02),
+            Some(V::Float(value)) => Ok(*value),
+            Some(_) => unsupported("a value is not a float"),
+        },
+        _ => unsupported("a part of the body state is not a plain dict"),
     }
-    Ok(Some(body))
 }
 
 fn float_or<'py>(record: Option<&Bound<'py, PyAny>>, name: &Bound<'py, PyString>, default: f64) -> PyResult<f64> {
@@ -115,11 +135,22 @@ fn float_or<'py>(record: Option<&Bound<'py, PyAny>>, name: &Bound<'py, PyString>
 
 /// `social_action_affect_transfer * signal` of the actor: the relief of a social action, which
 /// `SocialInteractionHandler` and `observe_event` compute alike.
-pub(crate) fn action_relief<'py>(
-    body: Option<&Bound<'py, PyAny>>,
-    actor_id: &Bound<'py, PyString>,
-) -> PyResult<f64> {
+pub(crate) fn action_relief<'py>(body: Option<&Body<'py>>, actor_id: &Bound<'py, PyString>) -> PyResult<f64> {
     let py = actor_id.py();
+    let body = match body {
+        Some(Body::Row(mirror)) => {
+            let actor = actor_id.to_str()?;
+            return NamespaceMirror::with_row::<BodyRow, _>(mirror, |row| {
+                let record = row.agents.get(actor);
+                let positive = record.map_or(0.5, |record| record.positive_affect);
+                let negative = record.map_or(0.0, |record| record.negative_affect);
+                let signal = py_min(1.0, py_max(-1.0, positive - negative));
+                Ok(transfer_of(&row.config)? * signal)
+            });
+        }
+        Some(Body::Tree(body)) => Some(body),
+        None => None,
+    };
     let agents = body_part(body, intern!(py, "agents"))?;
     let record = match &agents {
         Some(agents) => raw_dict_get(agents, actor_id.as_any())?,
@@ -139,12 +170,15 @@ pub(crate) fn action_relief<'py>(
 }
 
 /// What `_sync_body_trust` copies for a key: None for no body record, or the body's trust.
-fn body_trust<'py>(
-    relationships: Option<&Bound<'py, PyAny>>,
-    key: &str,
-) -> PyResult<Option<Option<f64>>> {
-    let Some(relationships) = relationships else {
-        return Ok(None);
+fn body_trust(relationships: Option<&Body<'_>>, key: &str) -> PyResult<Option<Option<f64>>> {
+    let relationships = match relationships {
+        None => return Ok(None),
+        Some(Body::Row(mirror)) => {
+            return NamespaceMirror::with_row::<BodyRow, _>(mirror, |row| {
+                Ok(row.relationships.map.get(key).map(|record| record.trust))
+            });
+        }
+        Some(Body::Tree(relationships)) => relationships,
     };
     let py = relationships.py();
     let Some(record) = raw_dict_get(relationships, PyString::new(py, key).as_any())? else {
@@ -307,10 +341,13 @@ fn write_record(
     Ok(transfers)
 }
 
-fn body_relationships<'py>(body: Option<&Bound<'py, PyAny>>) -> PyResult<Option<Bound<'py, PyAny>>> {
+/// The body's relationships: its row's, or the dict under `relationships` of the dict Python holds.
+fn body_relationships<'py>(body: Option<Body<'py>>) -> PyResult<Option<Body<'py>>> {
     match body {
-        Some(body) => body_part(Some(body), intern!(body.py(), "relationships")),
-        None => Ok(None),
+        Some(Body::Tree(body)) => {
+            Ok(body_part(Some(&body), intern!(body.py(), "relationships"))?.map(Body::Tree))
+        }
+        other => Ok(other),
     }
 }
 
@@ -411,7 +448,7 @@ pub(crate) fn observe_event<'py>(
                 return Ok(());
             }
             let body = body_state_of(world)?;
-            let relationships = body_relationships(body.as_ref())?;
+            let relationships = body_relationships(body)?;
             let key = pair_key(recipient, sender);
             NetworkWrite {
                 records: vec![RecordWrite {
@@ -441,7 +478,7 @@ pub(crate) fn observe_event<'py>(
                 return Ok(());
             }
             let body = body_state_of(world)?;
-            let relationships = body_relationships(body.as_ref())?;
+            let relationships = body_relationships(body)?;
             let mut records = Vec::with_capacity(2);
             for (recipient, source) in [(first, second), (second, first)] {
                 let key = pair_key(recipient, source);
@@ -501,7 +538,7 @@ pub(crate) fn observe_event<'py>(
             } else {
                 [None; 2]
             };
-            let relationships = body_relationships(body.as_ref())?;
+            let relationships = body_relationships(body)?;
             let minute = exact_int(minute)?;
             let interaction_text: Arc<str> = Arc::from(interaction);
             let mut records = Vec::with_capacity(2);

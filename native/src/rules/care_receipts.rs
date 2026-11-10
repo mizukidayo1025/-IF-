@@ -181,7 +181,7 @@ pub(crate) fn plan_transition(
     let mirror = mirror_of(world, NAME)?;
     let table = attribute(world, intern!(py, "model_state"))?;
     match crate::core::row::exact_dict(&table)?.get_item(NAME)? {
-        Some(state) if mirror.try_borrow()?.root_is(&state) => {}
+        Some(state) if mirror.try_borrow()?.holds_state(&state) => {}
         _ => return unsupported("the world holds another document than the row's"),
     }
     let plan = plan_record(world, writer, &mirror, &record)?;
@@ -788,10 +788,11 @@ fn receipt_is_recorded(world: &Bound<'_, PyAny>, event_id: &str, recent: bool, m
 fn ingest<'py>(world: &Bound<'py, PyAny>, outcomes: &Bound<'py, PyAny>) -> PyResult<()> {
     let py = world.py();
     let table = attribute(world, intern!(py, "model_state"))?;
-    if !table.contains(intern!(py, NAME))? {
+    // Past `_DetachingTable.__getitem__`: a detached namespace holds a dict, its row's.
+    let Some(held) = crate::core::row::exact_dict(&table)?.get_item(intern!(py, NAME))? else {
         return Ok(());
-    }
-    if !table.get_item(intern!(py, NAME))?.is_instance_of::<PyDict>() {
+    };
+    if !crate::core::tracked::is_detached(&held) && !held.is_instance_of::<PyDict>() {
         return unsupported("the namespace is another value");
     }
     let applied = status_member(py, "APPLIED")?;

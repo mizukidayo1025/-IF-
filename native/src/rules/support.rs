@@ -1200,9 +1200,18 @@ pub(crate) fn record_assigned<'py>(world: &Bound<'py, PyAny>, assigned: &Bound<'
     for request_id in assigned.try_iter()? {
         let request_id = request_id?;
         let id = exact_str(&request_id).map_err(|_| pyo3::exceptions::PyRuntimeError::new_err("a request ID is not a str"))?;
-        let state = get(&table, SHARED)?;
-        let requests = if state.is_instance_of::<PyDict>() { get(&state, "support_requests")? } else { py.None().into_bound(py) };
-        let prior = if requests.is_instance_of::<PyDict>() { get(&requests, id)? } else { py.None().into_bound(py) };
+        let held = exact_dict(&table)?.get_item(SHARED)?;
+        let prior = if held.as_ref().is_some_and(crate::core::tracked::is_detached) {
+            // The head of a detached namespace's row, as the tree would hold it.
+            let head = NamespaceMirror::with_row::<SharedOperationsRow, _>(&mirror_of(world, SHARED)?, |row| {
+                row.support_requests.map.get(id).map(|head| crate::core::row::Field::to_py(head, py)).transpose()
+            })?;
+            head.unwrap_or_else(|| py.None().into_bound(py))
+        } else {
+            let state = get(&table, SHARED)?;
+            let requests = if state.is_instance_of::<PyDict>() { get(&state, "support_requests")? } else { py.None().into_bound(py) };
+            if requests.is_instance_of::<PyDict>() { get(&requests, id)? } else { py.None().into_bound(py) }
+        };
         let request = get(&attribute(world, intern!(py, "support_requests"))?, id)?;
         if !prior.is_instance_of::<PyDict>() || request.is_none() {
             continue;

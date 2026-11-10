@@ -41,7 +41,7 @@ use rustc_hash::FxBuildHasher;
 
 use super::tracked::{as_readable_dict, as_readable_list};
 use super::value::V;
-use super::world_core::{apply_to_value, Misfit, Part, Row, Tree, Write};
+use super::world_core::{apply_to_value, emptied_after, Items, Misfit, Part, Row, Tree, Write};
 use crate::{write_json_string, Encoder, Unsupported};
 
 /// A map keyed by id: insertion order like a dict's, so what iterates it is deterministic.
@@ -77,6 +77,19 @@ pub(crate) trait Field: Sized + Send + Sync + 'static {
             Err(_) => Ok(None),
         }
     }
+    /// The value as a list read item by item, if it is a list (`Row::part_items`).
+    fn items(&self) -> Option<&dyn Items> {
+        None
+    }
+    /// The items of the list under key of a record: None for a key it does not have, a value
+    /// that is not a list, or a value that is not a record.
+    fn part_items(&self, _key: &str) -> Option<&dyn Items> {
+        None
+    }
+    /// `Row::to_py_emptied`. A `state_row!` record makes no item of an emptied list.
+    fn to_py_emptied<'py>(&self, py: Python<'py>, emptied: &[&str]) -> PyResult<Bound<'py, PyAny>> {
+        emptied_after(self.to_py(py)?, emptied)
+    }
 }
 
 impl<T: Field> Row for T {
@@ -94,6 +107,14 @@ impl<T: Field> Row for T {
 
     fn part_to_py<'py>(&self, py: Python<'py>, key: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         Field::part_to_py(self, py, key)
+    }
+
+    fn part_items(&self, key: &str) -> Option<&dyn Items> {
+        Field::part_items(self, key)
+    }
+
+    fn to_py_emptied<'py>(&self, py: Python<'py>, emptied: &[&str]) -> PyResult<Bound<'py, PyAny>> {
+        Field::to_py_emptied(self, py, emptied)
     }
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -245,6 +266,10 @@ impl<T: Field> Field for Option<T> {
             None => Err(Misfit::new("the write is inside a None")),
         }
     }
+
+    fn items(&self) -> Option<&dyn Items> {
+        self.as_ref().and_then(Field::items)
+    }
 }
 
 impl<T: Scalar> Scalar for Option<T> {
@@ -273,6 +298,20 @@ impl Field for V {
 
     fn apply(&mut self, path: &[Part<'_>], write: &Write<'_, '_>) -> Result<(), Misfit> {
         apply_to_value(self, path, write)
+    }
+
+    fn items(&self) -> Option<&dyn Items> {
+        match self {
+            V::List(items) => Some(items as &dyn Items),
+            _ => None,
+        }
+    }
+
+    fn part_items(&self, key: &str) -> Option<&dyn Items> {
+        match self {
+            V::Map(map) => map.get(key).and_then(Field::items),
+            _ => None,
+        }
     }
 }
 
@@ -304,6 +343,10 @@ impl<T: Field> Field for Maybe<T> {
             Some(value) => value.apply(path, write),
             None => Err(Misfit::new("the write is inside an absent key")),
         }
+    }
+
+    fn items(&self) -> Option<&dyn Items> {
+        self.0.as_ref().and_then(Field::items)
     }
 
     fn when_missing() -> Option<Self> {
@@ -383,10 +426,34 @@ impl<T: Field> Field for IdMap<T> {
     }
 }
 
+impl<T: Field> Items for Vec<T> {
+    fn count(&self) -> usize {
+        self.len()
+    }
+
+    fn slice_to_py<'py>(&self, py: Python<'py>, start: usize, stop: usize) -> PyResult<Bound<'py, PyList>> {
+        let list = PyList::empty(py);
+        for item in &self[start..stop] {
+            list.append(item.to_py(py)?)?;
+        }
+        Ok(list)
+    }
+
+    fn item_json<'a>(&'a self, index: usize, scratch: &'a mut Encoder) -> PyResult<&'a [u8]> {
+        scratch.out.clear();
+        self[index].write_json(scratch)?;
+        Ok(&scratch.out)
+    }
+}
+
 impl<T: Field> Field for Vec<T> {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         let list = as_readable_list(value).ok_or_else(|| Misfit::new("not a list"))?;
         list.iter().map(|item| T::from_py(&item)).collect()
+    }
+
+    fn items(&self) -> Option<&dyn Items> {
+        Some(self)
     }
 
     fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
@@ -692,6 +759,41 @@ macro_rules! state_row {
                 )*
                 let _ = py;
                 Ok(None)
+            }
+
+            fn part_items(&self, key: &str) -> Option<&dyn $crate::core::world_core::Items> {
+                $(
+                    if key == stringify!($field) {
+                        if $crate::core::row::Field::is_absent(&self.$field) {
+                            return None;
+                        }
+                        return $crate::core::row::Field::items(&self.$field);
+                    }
+                )*
+                None
+            }
+
+            fn to_py_emptied<'py>(
+                &self,
+                py: pyo3::Python<'py>,
+                emptied: &[&str],
+            ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::PyAny>> {
+                use pyo3::types::PyDictMethods;
+                let record = pyo3::types::PyDict::new(py);
+                $(
+                    if !$crate::core::row::Field::is_absent(&self.$field) {
+                        let value = if emptied.contains(&stringify!($field))
+                            && $crate::core::row::Field::items(&self.$field).is_some()
+                        {
+                            pyo3::types::PyList::empty(py).into_any()
+                        } else {
+                            $crate::core::row::Field::to_py(&self.$field, py)?
+                        };
+                        record.set_item(pyo3::intern!(py, stringify!($field)), value)?;
+                    }
+                )*
+                let _ = emptied;
+                Ok(record.into_any())
             }
 
             fn write_json(&self, encoder: &mut $crate::Encoder) -> pyo3::PyResult<()> {

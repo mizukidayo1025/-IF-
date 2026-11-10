@@ -325,6 +325,14 @@ fn operation_is_idle(world: &Bound<'_, PyAny>, id: &Bound<'_, PyString>) -> PyRe
     let Some(operations) = exact_dict(&table)?.get_item(intern!(py, "staff_operations_v1"))? else {
         return Ok(true);
     };
+    if crate::core::tracked::is_detached(&operations) {
+        // The row's records always have a phase.
+        let id = id.to_str()?;
+        return NamespaceMirror::with_row::<crate::state::staff_operations::StaffOperationsRow, _>(
+            &mirror_of(world, "staff_operations_v1")?,
+            |row| Ok(row.staff.get(id).is_none_or(|record| record.phase == crate::state::staff_operations::Phase::Idle)),
+        );
+    }
     if operations.is_none() {
         return Ok(true);
     }

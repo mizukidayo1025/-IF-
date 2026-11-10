@@ -17,7 +17,9 @@ use rustc_hash::FxHashMap;
 use crate::core::mathx::{py_fsum, py_max, py_round_int};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, map_set, namespace_is_absent, unsupported};
 use crate::core::value::V;
+use crate::core::tracked::is_detached;
 use crate::core::world_core::{field_mirror_of, mirror_of, raw_dict_get, NamespaceMirror};
+use crate::state::shared_operations::SharedOperationsRow;
 use crate::rules::effects::{active_outage, has_active_modifier};
 use crate::rules::handlers::{assumption, get, get_is, log_record, new_event, NewEvent};
 use crate::rules::movement::{mobility_text, movement_minutes};
@@ -171,28 +173,44 @@ fn workers_at(world: &Bound<'_, PyAny>, minute: i64) -> PyResult<Vec<Worker>> {
 /// The kind of each request as `_support_kind` reads it, from `shared_operations_v1`.
 struct CareKinds<'py> {
     requests: Option<Bound<'py, PyDict>>,
+    /// The kind of each head of a detached namespace's row, which has no tree to read.
+    row: Option<FxHashMap<Arc<str>, Arc<str>>>,
 }
 
 impl<'py> CareKinds<'py> {
-    fn of(table: &Bound<'py, PyAny>) -> PyResult<Self> {
+    fn of(world: &Bound<'py, PyAny>, table: &Bound<'py, PyAny>) -> PyResult<Self> {
         let py = table.py();
+        let none = Self { requests: None, row: None };
         let Some(state) = exact_dict(table)?.get_item(intern!(py, SHARED_OPERATIONS))? else {
-            return Ok(Self { requests: None });
+            return Ok(none);
         };
+        if is_detached(&state) {
+            let mirror = mirror_of(world, SHARED_OPERATIONS)?;
+            let kinds = NamespaceMirror::with_row::<SharedOperationsRow, _>(&mirror, |row| {
+                Ok(row.support_requests.map.iter().map(|(id, head)| (id.clone(), head.support_kind.clone())).collect())
+            })?;
+            return Ok(Self { requests: None, row: Some(kinds) });
+        }
         if state.is_none() {
-            return Ok(Self { requests: None });
+            return Ok(none);
         }
         let Some(requests) = exact_dict(&state)?.get_item(intern!(py, "support_requests"))? else {
-            return Ok(Self { requests: None });
+            return Ok(none);
         };
         if requests.is_none() {
-            return Ok(Self { requests: None });
+            return Ok(none);
         }
-        Ok(Self { requests: Some(exact_dict(&requests)?.clone()) })
+        Ok(Self { requests: Some(exact_dict(&requests)?.clone()), row: None })
     }
 
     /// `_support_kind`. A kind that is not a str could raise there.
     fn kind_of(&self, id: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        if let Some(kinds) = &self.row {
+            let Ok(id) = id.downcast_exact::<PyString>() else {
+                return Ok(None);
+            };
+            return Ok(kinds.get(id.to_str()?).map(|kind| PyString::new(id.py(), kind).into_any()));
+        }
         let Some(requests) = &self.requests else {
             return Ok(None);
         };
@@ -329,7 +347,7 @@ fn assign_work<'py>(service: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>, val
             return Err(crate::core::errors::marked_value_error(py, "staff assignment minute must match WorldState"));
         }
         let table = table_of(&world)?;
-        let kinds = CareKinds::of(&table)?;
+        let kinds = CareKinds::of(&world, &table)?;
         let priorities = priorities_of(&table)?;
         let fairness = exact_int(&attribute(service, intern!(py, "fairness_after_minutes"))?)?;
         let mut pending: Vec<Open<'py>> = Vec::new();
@@ -685,7 +703,7 @@ fn assign_none<'py>(
     }
     let table = table_of(&world)?;
     let open = world.call_method0(intern!(py, "unsettled_support_requests"))?;
-    let kinds = CareKinds::of(&table)?;
+    let kinds = CareKinds::of(&world, &table)?;
     let priorities = priorities_of(&table)?;
     let workers = workers_at(&world, at)?;
     let store = entities_of(&world)?;
@@ -1069,7 +1087,7 @@ pub(crate) fn open_waits<'py>(
 ) -> PyResult<OpenWaits<'py>> {
     let py = world.py();
     let table = table_of(world)?;
-    let kinds = CareKinds::of(&table)?;
+    let kinds = CareKinds::of(&world, &table)?;
     let store = entities_of(world)?;
     let mut waits: Vec<KindWait> = Vec::new();
     let mut workers: Option<Vec<Worker>> = None;

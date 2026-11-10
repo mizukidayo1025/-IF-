@@ -18,7 +18,9 @@ use pyo3::types::{PyList, PyString};
 
 use crate::core::row::{exact_int, load_row, namespace_is_absent, state_row, str_enum, Field, IdMap};
 use crate::core::tracked::{as_readable_dict, as_readable_list};
-use crate::core::world_core::{mirror_of, Misfit, NamespaceMirror, Part, RowType, Write};
+use crate::core::world_core::{
+    loads_items, mirror_of, Items, Misfit, NamespaceMirror, Part, RowType, Write,
+};
 use crate::state::entities::{entities_of, EntityStore, RequestStatus};
 use crate::state::events::EventWriter;
 use crate::{encode, Encoder};
@@ -248,7 +250,25 @@ impl Receipts {
     }
 }
 
+impl Items for Receipts {
+    fn count(&self) -> usize {
+        self.items.len()
+    }
+
+    fn slice_to_py<'py>(&self, py: Python<'py>, start: usize, stop: usize) -> PyResult<Bound<'py, PyList>> {
+        loads_items(py, self.items.range(start..stop).map(|item| &*item.bytes))
+    }
+
+    fn item_json<'a>(&'a self, index: usize, _scratch: &'a mut Encoder) -> PyResult<&'a [u8]> {
+        Ok(&self.items[index].bytes)
+    }
+}
+
 impl Field for Receipts {
+    fn items(&self) -> Option<&dyn Items> {
+        Some(self)
+    }
+
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         let list = as_readable_list(value).ok_or_else(|| Misfit::new("not a list"))?;
         let mut items = VecDeque::with_capacity(list.len());

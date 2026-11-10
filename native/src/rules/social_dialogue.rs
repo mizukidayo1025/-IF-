@@ -19,7 +19,9 @@ use crate::core::row::{attribute, exact_int, exact_str, unsupported};
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::V;
 use crate::core::world_core::raw_dict_get;
-use crate::rules::social_network::body_state_of;
+use crate::core::world_core::NamespaceMirror;
+use crate::rules::social_network::{body_state_of, Body};
+use crate::state::body_state::BodyRow;
 use crate::state::entities::{entities_of, AgentRow, EntityStore};
 
 const NEEDS: [&str; 4] = ["toilet_urgency", "hunger", "fatigue", "hydration_need"];
@@ -213,7 +215,29 @@ fn read_capture(world: &Bound<'_, PyAny>, ids: &[&str]) -> PyResult<Capture> {
     })?;
     let body = body_state_of(world)?;
     let body_agents = match &body {
-        Some(body) => match raw_dict_get(body, intern!(py, "agents").as_any())? {
+        Some(Body::Row(mirror)) => {
+            // The row's records hold every value of AFFECT, as floats.
+            let affects = NamespaceMirror::with_row::<BodyRow, _>(mirror, |row| {
+                Ok(ids
+                    .iter()
+                    .map(|id| {
+                        row.agents.get(*id).map(|record| {
+                            [
+                                record.positive_affect,
+                                record.negative_affect,
+                                record.reassurance,
+                                record.discontent,
+                                record.uncertainty,
+                                record.hygiene_need,
+                            ]
+                        })
+                    })
+                    .collect::<Vec<_>>())
+            })?;
+            let problem = problem_of(minute, duration, people_ok(&people), &affects);
+            return Ok(Capture { minute, people, affects, problem });
+        }
+        Some(Body::Tree(body)) => match raw_dict_get(body, intern!(py, "agents").as_any())? {
             Some(agents) if as_readable_dict(&agents).is_some() => Some(agents),
             Some(_) => return unsupported("the body records are not a plain dict"),
             None => None,
@@ -228,15 +252,7 @@ fn read_capture(world: &Bound<'_, PyAny>, ids: &[&str]) -> PyResult<Capture> {
         };
         affects.push(affect_of(py, record.as_ref())?);
     }
-    // The validation's order: the minute, then each participant's values.
-    let unit = |value: &f64| (0.0..=1.0).contains(value);
-    let problem = if !(0..=duration).contains(&minute) {
-        Some(NOT_ITS_EVENT)
-    } else if !people.iter().all(Captured::in_bounds) || !affects.iter().flatten().all(|values| values.iter().all(unit)) {
-        Some(NOT_UNIT)
-    } else {
-        None
-    };
+    let problem = problem_of(minute, duration, people_ok(&people), &affects);
     Ok(Capture { minute, people, affects, problem })
 }
 
@@ -349,6 +365,22 @@ pub(crate) fn context_value(world: &Bound<'_, PyAny>, first: &str, second: &str)
     context.insert(names.captured_minute.clone(), V::Int(capture.minute));
     context.insert(names.participants.clone(), V::Map(participants));
     Ok(V::Map(context))
+}
+
+fn people_ok(people: &[Captured]) -> bool {
+    people.iter().all(Captured::in_bounds)
+}
+
+/// The validation's order: the minute, then each participant's values.
+fn problem_of(minute: i64, duration: i64, people_ok: bool, affects: &[Option<[f64; 6]>]) -> Option<&'static str> {
+    let unit = |value: &f64| (0.0..=1.0).contains(value);
+    if !(0..=duration).contains(&minute) {
+        Some(NOT_ITS_EVENT)
+    } else if !people_ok || !affects.iter().flatten().all(|values| values.iter().all(unit)) {
+        Some(NOT_UNIT)
+    } else {
+        None
+    }
 }
 
 /// The affect of a body record: `float()` of the values of `AFFECT`, or None without a record that

@@ -76,7 +76,7 @@ pub(crate) fn held_mirror<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py,
         return Err(Unsupported::new_err("model_state is another kind of mapping"));
     }
     let held = raw_dict_get(&table, intern!(py, "resource_service_v1").as_any())?;
-    if !held.is_some_and(|held| mirror.try_borrow().is_ok_and(|mirror| mirror.root_is(&held))) {
+    if !held.is_some_and(|held| mirror.try_borrow().is_ok_and(|mirror| mirror.holds_state(&held))) {
         return Err(Unsupported::new_err("the world holds another service state"));
     }
     Ok(mirror)

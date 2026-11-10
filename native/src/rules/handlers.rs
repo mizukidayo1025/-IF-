@@ -417,6 +417,20 @@ fn proximity(_handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Boun
     counted(py, "proximity", proximity_on(world, event))
 }
 
+/// `reservation in world.model_state["resource_service_v1"]["active_reservation_ids"]`, of a str:
+/// a detached namespace's row is read, and no tree is made.
+fn service_owns<'py>(world: &Bound<'py, PyAny>, table: &Bound<'py, PyAny>, reservation: &Bound<'py, PyAny>) -> PyResult<bool> {
+    let held = crate::core::tracked::as_readable_dict(table).map(|table| table.get_item("resource_service_v1")).transpose()?.flatten();
+    if held.as_ref().is_some_and(crate::core::tracked::is_detached) {
+        let id = reservation.downcast_exact::<PyString>()?.to_str()?;
+        let mirror = crate::state::resource_service::held_mirror(world)?;
+        return crate::core::world_core::NamespaceMirror::with_row::<crate::state::resource_service::ServiceRow, _>(&mirror, |row| {
+            Ok(row.active_reservation_ids.iter().any(|known| &**known == id))
+        });
+    }
+    table.get_item("resource_service_v1")?.get_item("active_reservation_ids")?.contains(reservation)
+}
+
 // ---- ResourceLedgerHandler -------------------------------------------------------------------------
 
 fn ledger_event_of<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>, operation: &str) -> PyResult<Bound<'py, PyAny>> {
@@ -461,11 +475,10 @@ fn ledger_event_of<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>, op
         ledger_event = models(py)?.getattr(intern!(py, "ScheduledEvent"))?.call((), Some(&kwargs))?;
     }
     if exact_int(&attribute(world, intern!(py, "schema_version"))?)? == 6 && table.contains("resource_service_v1")? {
-        let service = table.get_item("resource_service_v1")?;
         let reservation = get(&payload, "reservation_id")?;
         if matches!(operation, "release" | "consume")
             && str_value(&reservation).is_some()
-            && service.get_item("active_reservation_ids")?.contains(&reservation)?
+            && service_owns(world, &table, &reservation)?
         {
             return errors::failed(
                 py,
