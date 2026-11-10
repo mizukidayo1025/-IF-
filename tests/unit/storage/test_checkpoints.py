@@ -575,3 +575,76 @@ def test_a_delta_manifest_whose_base_is_missing_or_does_not_fit_fails_closed(
     (directory / f"{first}.json").unlink()
     with pytest.raises(CheckpointError, match="base is missing"):
         CheckpointArchive(directory).decode(manifest)
+
+
+def test_content_defined_chunks_move_only_around_a_change() -> None:
+    """Chunk ends depend on the items' own bytes: dropping the oldest items or putting
+    one in the middle keeps every chunk away from the change (#138)."""
+    from sheltersim import native
+
+    items = [
+        f'{{"minute":{index},"value":"{index * 7919 % 1000}"}}'.encode() for index in range(3000)
+    ]
+    starts = native.content_chunk_starts(items, 128, 512)
+    assert starts[0] == 0 and starts == sorted(set(starts))
+    sizes = [end - start for start, end in zip(starts, [*starts[1:], len(items)])]
+    assert max(sizes) <= 512 and 8 < len(starts) < 60
+    assert native.content_chunk_starts(items, 128, 512) == starts
+
+    def chunks(values):
+        found = native.content_chunk_starts(values, 128, 512)
+        return {tuple(values[start:end]) for start, end in zip(found, [*found[1:], len(values)])}
+
+    whole = chunks(items)
+    # The oldest 1000 dropped: only the chunk they ended in changes.
+    assert len(chunks(items[1000:]) - whole) <= 1
+    # One item put in the middle: only its chunk changes.
+    inserted = [*items[:1500], b'{"minute":-1}', *items[1500:]]
+    assert len(chunks(inserted) - whole) == 1
+    # A chunk ends after at most `maximum` items, whatever the items are.
+    assert native.content_chunk_starts([b"same"] * 1100, 128, 512) in (
+        [0, 512, 1024],
+        list(range(0, 1100)),
+    )
+    with pytest.raises(ValueError):
+        native.content_chunk_starts(items, 0, 512)
+
+
+def test_a_history_that_drops_its_oldest_entries_stores_only_the_chunks_around_it(
+    tmp_path,
+) -> None:
+    """The archive splits a list that is not only appended (here a model_state history)
+    where its items say, so the next save writes few new chunks; the EventLog keeps
+    chunks of 128 items, those of the Checkpoint hash (#138)."""
+    from sheltersim.core.checkpoint_cache import canonical_bytes
+
+    def document(first: int, last: int) -> dict:
+        history = [{"minute": minute, "text": "x" * 80} for minute in range(first, last)]
+        events = [{"id": index} for index in range(300)]
+        return {
+            "world_state": {
+                "model_state": {"body_state_v1": {"history": history}},
+                "event_log": events,
+            }
+        }
+
+    def chunk_count(record) -> tuple[set, list]:
+        world = record["document"]["fields"]["world_state"]["fields"]
+        assert world["event_log"]["starts"] == [0, 128, 256]
+        node = world["model_state"]["fields"]["body_state_v1"]["fields"]["history"]
+        return set(node["chunks"]), node["starts"]
+
+    first = CheckpointArchive(tmp_path)._encode_validated_document(
+        document(0, 2000), checkpoint_hash="a" * 64
+    )
+    second = CheckpointArchive(tmp_path)._encode_validated_document(
+        document(500, 2500), checkpoint_hash="b" * 64
+    )
+    (before, starts), (after, _) = chunk_count(first), chunk_count(second)
+    assert starts != list(range(0, 2000, 128))
+    # The 1500 entries both saves hold stay in the same chunks, but those beside the 500
+    # dropped and the 500 new; with chunks of 128 entries from the first, none would.
+    shared = after & before
+    assert len(shared) >= len(after) // 2 and len(after - before) <= 10
+    whole = CheckpointArchive(tmp_path).unpack_document(second)
+    assert canonical_bytes(whole) == canonical_bytes(document(500, 2500))

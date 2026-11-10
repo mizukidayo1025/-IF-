@@ -172,3 +172,10 @@ def chunk_hashes(items: list[bytes], chunks: list[tuple[int, int]]) -> list[str]
     """The SHA-256 hex digest of b"[" + b",".join(items[start : start + count]) + b"]" for
     each (start, count) of chunks, computed in parallel."""
     return _native.chunk_hashes(items, chunks)
+
+
+def content_chunk_starts(items: list[bytes], average: int, maximum: int) -> list[int]:
+    """Where each archive chunk of items starts when chunks end where the items' own
+    bytes say (native/src/checkpoint.rs), on average every `average` items and after at
+    most `maximum`; for lists that drop or insert items (#138)."""
+    return _native.content_chunk_starts(items, average, maximum)
