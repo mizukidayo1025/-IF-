@@ -779,7 +779,7 @@ fn sorted_rooms(rooms: &Doc) -> Vec<(&Arc<str>, &V)> {
 
 /// `movement_v1`, if the world has one.
 fn movement_mirror<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, NamespaceMirror>>> {
-    if state_of(world, MOVEMENT_KEY)?.is_none() {
+    if held_of(world, MOVEMENT_KEY)?.is_none() {
         return Ok(None);
     }
     Ok(Some(mirror_held(world)?))

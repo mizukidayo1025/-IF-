@@ -2008,11 +2008,7 @@ fn interrupt_with<'py>(manager: &Manager<'py>, staff_id: &Bound<'py, PyAny>, cau
     attribute(&facility, intern!(py, "resource_queue_agent_ids"))?.call_method1(intern!(py, "insert"), (0, &agent_text))?;
     if let (Some(prior), Some((point, record))) = (&prior, &requeue) {
         write_enqueue(world, point, &queue_task_id, &queue_task_id, &agent_id, &prior.service_kind, queued_at)?;
-        let table = exact_dict(&manager.table)?;
-        let queues = table.get_item(intern!(py, "facility_queues_v1"))?.ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("the queues left"))?;
-        let queued = queues.get_item("queues")?.get_item(&*prior.queue_id)?.get_item("queued_request_ids")?;
-        queued.call_method1(intern!(py, "remove"), (&queue_text,))?;
-        queued.call_method1(intern!(py, "insert"), (0, &queue_text))?;
+        crate::rules::facility_queues::write_to_head(world, &manager.table, &prior.queue_id, &queue_task_id)?;
         write_transition(&writer, record, minute)?;
     }
     clear_stall(&mirror, &facility_id)?;

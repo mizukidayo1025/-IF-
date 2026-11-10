@@ -19,7 +19,7 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyString, PyTuple};
 
-use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, namespace_is_absent, unsupported};
+use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, namespace_is_absent, str_value, unsupported};
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::V;
 use crate::core::tracked::is_detached;
@@ -370,6 +370,12 @@ fn plan_sleep<'py>(
 /// `position.update(...)` of a person already at their bed: through the tree, which tells the row.
 pub(crate) fn place_in_bed(world: &Bound<'_, PyAny>, agent_object: &Bound<'_, PyAny>, bed: &overlay::Bed, zone_id: &Arc<str>) -> PyResult<()> {
     let py = world.py();
+    // A detached namespace's row takes the place, as the tree's record would.
+    if let Some(agent_id) = str_value(agent_object) {
+        if crate::rules::movement::place_at_point(world, agent_id, zone_id, bed.point)?.is_some() {
+            return Ok(());
+        }
+    }
     let table = attribute(world, intern!(py, "model_state"))?;
     let Some(movement) = exact_dict(&table)?.get_item(KEY)? else {
         return Ok(());
@@ -449,7 +455,7 @@ fn apply_seek<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound<'py, PyAny>,
         }
         let policy = attribute(controller, intern!(py, "information_policy"))?;
         if !policy.is_none() {
-            pressure_due = !seek_help || query_pressure_is_high(table, &policy, agent_id)?;
+            pressure_due = !seek_help || query_pressure_is_high(&world, table, &policy, agent_id)?;
         }
     }
 
@@ -492,8 +498,17 @@ fn apply_seek<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound<'py, PyAny>,
             kwargs.set_item(intern!(py, "agent_id"), &agent_object)?;
             kwargs.set_item(intern!(py, "request_id"), &request_text)?;
             kwargs.set_item(intern!(py, "minute"), minute)?;
-            let state = table.get_item(intern!(py, INFORMATION))?.ok_or_else(|| PyRuntimeError::new_err("no information state"))?;
-            attribute(controller, intern!(py, "information_policy"))?.call_method(intern!(py, "record_support_request"), (state,), Some(&kwargs))?;
+            // A detached namespace's row takes the record; its tree is rebuilt only for the
+            // Python rule's KeyError.
+            let recorded = match crate::rules::information::detached_mirror(&world)? {
+                Some(mirror) => crate::rules::information::record_support_request(&mirror, agent_id, &request_id, minute)?,
+                None => false,
+            };
+            if !recorded {
+                let state = crate::core::world_core::attached_state(table.as_any(), INFORMATION)?
+                    .ok_or_else(|| PyRuntimeError::new_err("no information state"))?;
+                attribute(controller, intern!(py, "information_policy"))?.call_method(intern!(py, "record_support_request"), (state,), Some(&kwargs))?;
+            }
         }
         if !is_open {
             return Ok(());
@@ -525,9 +540,15 @@ fn apply_seek<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound<'py, PyAny>,
 }
 
 /// `model_state[INFORMATION]["query_pressure"][agent] >= policy.config.query_threshold`.
-fn query_pressure_is_high(table: &Bound<'_, PyDict>, policy: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<bool> {
+fn query_pressure_is_high(world: &Bound<'_, PyAny>, table: &Bound<'_, PyDict>, policy: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<bool> {
     let py = table.py();
     let threshold = exact_float(&attribute(&attribute(policy, intern!(py, "config"))?, intern!(py, "query_threshold"))?)?;
+    if let Some(mirror) = crate::rules::information::detached_mirror(world)? {
+        return match crate::rules::information::row_query_pressure(&mirror, agent_id)? {
+            Some(pressure) => Ok(pressure >= threshold),
+            None => unsupported("the person has no query pressure"),
+        };
+    }
     let Some(state) = table.get_item(intern!(py, INFORMATION))? else {
         return unsupported("no information state");
     };

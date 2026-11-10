@@ -1142,6 +1142,14 @@ L0 の前に文を読んで付けた分類です。到達は**推測で、上の
   - 書いて読む規則（受け入れ、戻り、部屋への受け入れ、配置の変更）は、今までどおり `attached_state` で木を作り直させます。待っている人や戻る人がいなければ、行を読んで何もしません（`population.rs` の `nothing_in`）。EffectProgram の期限の読みは、行から作った文書を読みます（`world_core::read_only_state`）。
   - tick の外の Python の読み手は `read_only_state` と `read_only_part` にしました：`contracts/`（`runtime.py`、`presence.py`、`population.py`、`spatial.py`）、`core/world.py`、`domain/`（`body_state.py`、`common_operations.py`、`geometry_overlay.py`）、`events/effects.py`、`experiments/phases/dispatch.py`、`web/project_queries.py`、`llm/natural_language.py`。
   - 1日分の project の経路で、4つの木の作り直しは0回です。生成 Scenario には部屋、寝床、到着がないので、その道は `test_overlay_rules.py`、`test_population_presence.py` などで確かめます（`from_dict` の写しは行だけを持ちます）。`test_overlay_rules.py` の `_bytes` は、`V` の行の4つを並べ直しません（行は木と同じキーの順を持つため）。
+- **レーン a1（`movement_v1`、`agent_dynamics_v1`、`information_spread_v1`、`staff_dynamics_v1`、`facility_queues_v1`、`effect_program_v1`）：** 6つとも切り離しました。kernel は、切り離したときは行を読み書きし、木があるときは前のとおり木を読み書きします。
+  - 木の同一性の確かめ（`movement.rs` と `staff.rs` の `mirror_held`、`facility_queues.rs` の `held_mirror`、`effects.rs` の `held_program_mirror`）を `holds_state` にしました。`staff.rs` の `mirror_held` は `body_state_v1` と `staff_operations_v1` にも使います。
+  - 木を読んでいた所は、行から作った小さな文書を読みます：旅の記録（`movement::journey_of`。待ち行列と寝床への歩き）、位置の記録（`row_position`。近接の接触とスタッフ支援の取り消し）、待ち行列の記録（`facility_queues::detached_records`、`detached_queue_facility`）、問い合わせの圧力（`information::row_query_pressure`）、EffectProgram の状態（`world_core::read_only_state`）。`world_view.rs` は情報の名前空間があるかだけを見るので、印をそのまま dict と見ます（`state_held`）。
+  - 木に書いていた所は、行に書きます：寝床の位置（`movement::place_at_point`、`place_at_bed`）、待ち行列の追加・開始・終了・止まり・先頭へ戻す（`facility_queues.rs` の `write_*`、`write_to_head`）、支援の要請の記録（`information::record_support_request`。Python の `record_support_request` と同じ書き込み）。行の世代は `with_row_tree` で進めます。
+  - 毎 tick 木を作り直していた2か所（近接の接触の検査が位置を `get` で読む所、`overlay.rs` が `movement_v1` があるかを `attached_state` で確かめる所）と、保存ごとの1か所（frame の `support_wait_reason_codes` が `staff_dynamics_v1` を読む所。`read_only_part` にしました）をなくしました。Run の終わりの `information_spread.json` は `read_only_state` で読みます。
+  - 人口の出入り、スタッフの交代、EffectProgram の写しへの書き込み、`llm/runtime.py` の情報への反応は、今までどおり木を作り直します（どれもイベントかコマンドの境界で、毎 tick ではありません）。
+  - `NamespaceTable.setdefault` は、無い名前空間を切り離して行に入れたあと、木を返します（`schedule_effect_program` が返り値に書くため）。
+  - 確かめ：切り離した Run と木のある Run が、生成 Scenario 360分、独立の待ち行列16分、EffectProgram 30分で、tick ごとに同じです（`test_a_run_with_the_rows_alone_is_the_run_with_the_trees`）。`test_overlay_rules.py` の記録のうち、待ち行列の記録を持つ7つは、木の順のハッシュだったので、名前空間を切り離す前と後の世界から取り直しました（両方で同じでした）。
 
 ## 6. エラーの文
 

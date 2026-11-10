@@ -88,7 +88,7 @@ pub(crate) fn mirror_held<'py>(world: &Bound<'py, PyAny>, name: &str) -> PyResul
     let table = table_of(world)?;
     let mirror = mirror_of(world, name)?;
     match exact_dict(&table)?.get_item(name)? {
-        Some(state) if mirror.try_borrow()?.root_is(&state) => Ok(mirror),
+        Some(state) if mirror.try_borrow()?.holds_state(&state) => Ok(mirror),
         _ => unsupported("the world holds another document than the row's"),
     }
 }

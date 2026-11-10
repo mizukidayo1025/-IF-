@@ -419,16 +419,83 @@ pub(crate) fn place_in_room(mirror: &Bound<'_, NamespaceMirror>, agent_id: &Arc<
     write_tree(mirror, writes)
 }
 
+/// `state["positions"][agent_id].update(zone_id=..., point=point, edge_id=None, progress=1.0,
+/// position_kind="physical")` on the row of a detached namespace, which has no tree to update:
+/// None, having written nothing, where the namespace is not held detached; Some(false) where the
+/// row has no record of the person, and Some(true) once written.
+pub(crate) fn place_at_point(world: &Bound<'_, PyAny>, agent_id: &str, zone_id: &Arc<str>, point: Pt) -> PyResult<Option<bool>> {
+    if !held_detached(world)? {
+        return Ok(None);
+    }
+    let mirror = mirror_held(world)?;
+    let Some(agent_id) = NamespaceMirror::with_row::<MovementRow, _>(&mirror, |row| Ok(row.positions.get_key_value(agent_id).map(|(id, _)| id.clone())))? else {
+        return Ok(Some(false));
+    };
+    let mut changes = Changes::default();
+    changes.positions.push((agent_id, record(zone_id.clone(), Some(point), KINDS.physical.clone(), None, 1.0)));
+    let writes = NamespaceMirror::with_row_tree::<MovementRow, _>(&mirror, |row, tree| changes.apply(row, tree))?;
+    write_tree(&mirror, writes)?;
+    Ok(Some(true))
+}
+
+/// `place_at_point` of a bed's point as Python holds it: false, having written nothing, unless
+/// the namespace is held detached, the row has the record and the point is two usable floats.
+/// The caller then writes through the tree as before.
+pub(crate) fn place_at_bed(world: &Bound<'_, PyAny>, agent_id: &str, zone_id: &Arc<str>, point: &Bound<'_, PyAny>) -> PyResult<bool> {
+    if !held_detached(world)? {
+        return Ok(false);
+    }
+    let Ok(point) = plain_point(point) else {
+        return Ok(false);
+    };
+    Ok(place_at_point(world, agent_id, zone_id, point)? == Some(true))
+}
+
 /// The mirror of a namespace the world really holds: Python stores past the table are not the row's.
 pub(crate) fn mirror_held<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, NamespaceMirror>> {
     let py = world.py();
     let mirror = mirror_of(world, KEY)?;
     let table = attribute(world, intern!(py, "model_state"))?;
     let held = exact_dict(&table)?.get_item(KEY)?;
-    if !held.is_some_and(|state| mirror.borrow().root_is(&state)) {
+    if !held.is_some_and(|state| mirror.borrow().holds_state(&state)) {
         return unsupported("the world holds another movement state");
     }
     Ok(mirror)
+}
+
+/// Whether the world holds the namespace detached, so that a rule reading its tree reads the
+/// row instead (`journey_of`, `row_position`).
+pub(crate) fn held_detached(world: &Bound<'_, PyAny>) -> PyResult<bool> {
+    let table = attribute(world, intern!(world.py(), "model_state"))?;
+    match crate::core::tracked::as_readable_dict(&table) {
+        Some(table) => Ok(table.get_item(KEY)?.is_some_and(|held| crate::core::tracked::is_detached(&held))),
+        None => Ok(false),
+    }
+}
+
+/// `state["positions"].get(agent_id)` of a detached namespace, as a new document of the row's
+/// record (read it, never write).
+pub(crate) fn row_position<'py>(world: &Bound<'py, PyAny>, agent_id: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+    let py = world.py();
+    NamespaceMirror::with_row::<MovementRow, _>(&mirror_held(world)?, |row| {
+        row.positions.get(agent_id).map(|position| position.to_py(py)).transpose()
+    })
+}
+
+/// `held["journeys"].get(agent_id)`, where `held` is what `model_state` holds under the
+/// namespace: the tree's record, or a new document of the row's while the namespace is detached
+/// (read it, never write). None without the record; Unsupported where the tree is not a dict.
+pub(crate) fn journey_of<'py>(world: &Bound<'py, PyAny>, held: &Bound<'py, PyAny>, agent_id: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+    let py = world.py();
+    if crate::core::tracked::is_detached(held) {
+        return NamespaceMirror::with_row::<MovementRow, _>(&mirror_held(world)?, |row| {
+            row.journeys.get(agent_id).map(|journey| journey.to_py(py)).transpose()
+        });
+    }
+    match exact_dict(held)?.get_item(intern!(py, "journeys"))? {
+        None => Ok(None),
+        Some(journeys) => exact_dict(&journeys)?.get_item(agent_id),
+    }
 }
 
 /// What a rule reads of a world without the namespace: `world.model_state.get(KEY, {})`.
@@ -2080,18 +2147,25 @@ fn journey_is_valid(
         let Some(queues) = exact_dict(&table)?.get_item("facility_queues_v1")? else {
             return Ok(false);
         };
-        let Some(queues) = exact_dict(&queues)?.get_item(intern!(py, "queues"))? else {
-            return Ok(false);
-        };
-        let Some(queue) = exact_dict(&queues)?.get_item(&**queue_id)? else {
-            return Ok(false);
-        };
-        let Some(facility) = exact_dict(&queue)?.get_item(intern!(py, "facility_id"))? else {
-            return Ok(false);
-        };
-        match &journey.facility_id {
-            Some(id) if !facility.is_none() && exact_str(&facility)? == &**id => {}
-            _ => return Ok(false),
+        if let Some(facility) = crate::rules::facility_queues::detached_queue_facility(world, queue_id)? {
+            match (&facility, &journey.facility_id) {
+                (Some(facility), Some(id)) if facility == id => {}
+                _ => return Ok(false),
+            }
+        } else {
+            let Some(queues) = exact_dict(&queues)?.get_item(intern!(py, "queues"))? else {
+                return Ok(false);
+            };
+            let Some(queue) = exact_dict(&queues)?.get_item(&**queue_id)? else {
+                return Ok(false);
+            };
+            let Some(facility) = exact_dict(&queue)?.get_item(intern!(py, "facility_id"))? else {
+                return Ok(false);
+            };
+            match &journey.facility_id {
+                Some(id) if !facility.is_none() && exact_str(&facility)? == &**id => {}
+                _ => return Ok(false),
+            }
         }
     }
     if !zones.contains(&*journey.destination_zone_id)? || journey.due_minute <= journey.started_minute {

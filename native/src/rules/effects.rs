@@ -137,7 +137,7 @@ fn held_program_mirror<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, Na
         return unsupported("model_state is another kind of mapping");
     }
     let held = raw_dict_get(&table, intern!(py, "effect_program_v1").as_any())?;
-    if !held.is_some_and(|held| mirror.try_borrow().is_ok_and(|mirror| mirror.root_is(&held))) {
+    if !held.is_some_and(|held| mirror.try_borrow().is_ok_and(|mirror| mirror.holds_state(&held))) {
         return unsupported("the world holds another effect_program_v1");
     }
     Ok(mirror)

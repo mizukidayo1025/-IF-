@@ -396,11 +396,11 @@ def test_ticks_never_write_the_whole_namespace(rumors: Any) -> None:
 
     def check(world: WorldState) -> None:
         mirror = _mirror(world)
-        first = seen.setdefault(
-            id(world._core), (world._core, world.model_state[KEY], mirror.stats()["whole_writes"])
-        )
-        assert world.model_state[KEY] is first[1]
-        assert mirror.stats()["whole_writes"] == first[2]
+        first = seen.setdefault(id(world._core), (world._core, mirror.stats()["whole_writes"]))
+        # The namespace is detached (test_detached_namespaces.py): its row alone holds it between
+        # the ticks, and no tick writes it whole.
+        assert mirror.is_detached
+        assert mirror.stats()["whole_writes"] == first[1]
 
     world = _run_ticks(rumors(duration=60), 60, check)
     assert world.model_state[KEY]["counters"]["contact_attempts"] > 0

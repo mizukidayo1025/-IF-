@@ -86,6 +86,9 @@ def test_explicit_queues_run_independently_and_restore_from_checkpoint(
     assert sorted(row["agent_id"] for row in toilet_completions) == ["A001", "A002", "A003"]
     assert all(row["staff_id"] == "toilet_staff_01" for row in toilet_completions)
     assert world.staff["toilet_staff_01"].active_task_id is None
+    # The namespace is detached (test_detached_namespaces.py): a tree read before the ticks is
+    # of the past, so it is read again.
+    state = world.model_state[FACILITY_QUEUES_STATE_KEY]
     assert all(
         not state["queues"][queue_id]["queued_request_ids"]
         and not state["queues"][queue_id]["active_request_ids"]

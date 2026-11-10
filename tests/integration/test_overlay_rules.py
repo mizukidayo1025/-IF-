@@ -108,6 +108,11 @@ def _plain(value: Any) -> Any:
 
 # Digests of what the deleted Python rules of `kernel_only` kernels answered and left, recorded once
 # from them (2d8fb46) on Linux: route points and lengths are floats, the same bits on every OS.
+# The toilet's entries whose world has queue records, and the "serves" and "interrupted" of
+# RESOURCE_FIFO, were recorded again when facility_queues_v1 was detached (#134): `_bytes` sorts a
+# detached namespace's keys, and the old digests held the tree's order. The new ones came from the
+# same worlds with the namespace still attached (whose old digests passed) and from the detached
+# ones, and were the same.
 RECORDED = {
     "bed": "b440c65f6d9298df3e2fce977042b27f157b5f63c9c5158f71cdfbdbdef112b9",
     "bed again": "bb5a2af0d667ae832e0c38f384480b82a31f3c1cb59cb955da9c2063f26d29dc",
@@ -117,12 +122,12 @@ RECORDED = {
     "bed routes 255": "af665afe748029472ed589fac67e451bba2dfbfa812a1adc6b17a4840bd33ac7",
     "walk toilet_01-left-fifo": "723961dac125c409eaa43b22c60ded783d384b6f2257dc5e7f68c840dc7fc7b8",
     "walk toilet_01-right-fifo": "a39a0e59ab284d406c24446027b37d51bc0d29584aadb83fa31fc9954e45fb0c",
-    "toilet request queue": "97b1cc3a6a8b952097a1aba419e725f3b8ad036ad9e8c6f8153ce26f28998fc0",
-    "toilet request": "97b1cc3a6a8b952097a1aba419e725f3b8ad036ad9e8c6f8153ce26f28998fc0",
+    "toilet request queue": "c4f5d6d8b263779c3486b488bae35b72b18871808dbb01e9765ad8950ab2b526",
+    "toilet request": "c4f5d6d8b263779c3486b488bae35b72b18871808dbb01e9765ad8950ab2b526",
     "toilet head": "98f439dc7b6571d37a8ef60ffa986f53a6c5a973178c820749048dcec5bad3a4",
-    "toilet head full": "93af0a1e78f20e992a02da663d492bd862b17ca5fa28a5192e589dd20b48378a",
-    "toilet head late": "91a51ba00edae35d60c6c286b9b1bcc74a013f58a7b53d136626876b6631819b",
-    "toilet head unskilled": "1f74acc396e1a4dbc25d967d18898b5872956a8b53e2259268c79aa105ab658f",
+    "toilet head full": "d76e169018dc0a5a440b675167cd8551c97159800df97b0362cffc890078f022",
+    "toilet head late": "ab860141b3d1f42890b80543acf48495f59fe11a186d0ca7380296c3d13d218f",
+    "toilet head unskilled": "6b7473565ba7c92d8106948bfbe766bfe9ed4a0c045d3241391fec25ffabc3c8",
     "toilet head staffed": "5508059c468028e6e62f649129e486e874bf243daca667c7ea13495235ec839e",
 }
 
@@ -2002,8 +2007,8 @@ def _resource_queues(world: WorldState) -> tuple[str, str] | None:
 # made of each case, recorded from them: the results and worlds, by sha256 (on every OS, as the
 # gate's hashes).
 RESOURCE_FIFO = {
-    "serves": "ae7d2fe0bddcb8cd",
-    "interrupted": "0a0181bb6cbb94b8",
+    "serves": "4eea79e30c852220",
+    "interrupted": "d86c01db591bca29",
     "cancelled-operator_cancelled": "41226e92a37ea317",
     "cancelled-facility_stopped": "41226e92a37ea317",
     "cancelled-staff_unavailable": "1820a6203f51d466",

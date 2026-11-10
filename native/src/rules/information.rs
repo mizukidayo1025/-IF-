@@ -863,6 +863,67 @@ fn transmission_probability_of(
     transmission_probability(&settings, model, trust, basis, contact_minutes, correction)
 }
 
+// ---- A detached namespace ----------------------------------------------------------------------
+
+/// The mirror of the namespace while the world holds it detached, its row alone holding it: the
+/// rules that read or write its tree read and write the row then. None while it has a tree, or
+/// is absent.
+pub(crate) fn detached_mirror<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, NamespaceMirror>>> {
+    let table = world.getattr(intern!(world.py(), "model_state"))?;
+    let Some(table) = crate::core::tracked::as_readable_dict(&table) else {
+        return Ok(None);
+    };
+    let Some(held) = table.get_item(NAME)? else {
+        return Ok(None);
+    };
+    if !crate::core::tracked::is_detached(&held) {
+        return Ok(None);
+    }
+    let mirror = mirror_of(world, NAME)?;
+    if !mirror.try_borrow()?.holds_state(&held) {
+        return Err(Unsupported::new_err("the world holds another document than the row's"));
+    }
+    Ok(Some(mirror))
+}
+
+/// `state["query_pressure"].get(agent_id)` of a detached namespace's row.
+pub(crate) fn row_query_pressure(mirror: &Bound<'_, NamespaceMirror>, agent_id: &str) -> PyResult<Option<f64>> {
+    NamespaceMirror::with_row::<InformationRow, _>(mirror, |row| Ok(row.query_pressure.get(agent_id).copied()))
+}
+
+/// `InformationSpreadPolicy.record_support_request` on a detached namespace's row: false, having
+/// written nothing, where the row has no beliefs of the person, whose `KeyError` is the Python
+/// rule's to raise on the tree.
+pub(crate) fn record_support_request(mirror: &Bound<'_, NamespaceMirror>, agent_id: &str, request_id: &str, minute: i64) -> PyResult<bool> {
+    NamespaceMirror::with_row_tree::<InformationRow, _>(mirror, |row, _| {
+        let Some((agent_key, beliefs)) = row.beliefs.get_key_value(agent_id) else {
+            return Ok(false);
+        };
+        let agent_key = agent_key.clone();
+        // `sorted` of str: bytes of UTF-8 sort as code points do.
+        let mut message_ids: Vec<Arc<str>> =
+            beliefs.iter().filter(|(_, belief)| &*belief.belief == "heard").map(|(id, _)| id.clone()).collect();
+        if message_ids.is_empty() {
+            return Ok(true);
+        }
+        message_ids.sort_unstable();
+        row.support_requests.push(crate::state::information::SupportRequestRow {
+            request_id: Arc::from(request_id),
+            agent_id: agent_key.clone(),
+            minute,
+            message_ids,
+        });
+        row.counters.support_requests += 1;
+        match row.query_pressure.get_mut(&agent_key) {
+            Some(pressure) => *pressure = 0.0,
+            None => {
+                row.query_pressure.insert(agent_key, 0.0);
+            }
+        }
+        Ok(true)
+    })
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sample_contacts, m)?)?;
     m.add_function(wrap_pyfunction!(planned_contacts, m)?)?;

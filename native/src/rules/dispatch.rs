@@ -22,7 +22,7 @@ use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyDict, PyList, PyString, PyTuple, PyType};
 
 use crate::core::errors;
-use crate::core::row::{attribute, exact_int};
+use crate::core::row::{attribute, exact_int, str_value};
 use crate::core::value::V;
 use crate::core::world_core::{mirror_of, raw_dict_get, with_state_value, NamespaceMirror};
 use indexmap::IndexMap;
@@ -948,7 +948,16 @@ impl<'py> Phase<'_, 'py> {
                     count(&COUNTS.finished_direct);
                     if let Some(bed) = bed {
                         let agent = raw_dict_get(&attribute(self.world, intern!(py, "agents"))?, key.as_any())?;
-                        if let Some(agent) = agent {
+                        // A detached namespace's row takes the bed's place; an attached one's tree.
+                        let zone_id = match &agent {
+                            Some(agent) => str_value(&attribute(agent, intern!(py, "zone_id"))?).map(Arc::<str>::from),
+                            None => None,
+                        };
+                        let placed = match &zone_id {
+                            Some(zone_id) => crate::rules::movement::place_at_bed(self.world, id, zone_id, &bed)?,
+                            None => false,
+                        };
+                        if let Some(agent) = agent.filter(|_| !placed) {
                             let update = PyDict::new(py);
                             update.set_item("zone_id", attribute(&agent, intern!(py, "zone_id"))?)?;
                             update.set_item("point", bed)?;

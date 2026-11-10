@@ -1,5 +1,6 @@
 //! `facility_queues_v1`: the independent FIFO of each service point (`domain/facility_queues.py`).
-//! `rules/facility_queues.rs` reads the row and writes through the tree, whose writes reach it. A
+//! `rules/facility_queues.rs` reads the row and writes through the tree, whose writes reach it, or
+//! the row itself while the namespace is detached. A
 //! value of another type than the rules write taints the namespace, and the Python rules and their
 //! errors run on the tree.
 
@@ -72,7 +73,7 @@ pub(crate) fn held_mirror<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bou
         return Ok(None);
     };
     let mirror = mirror_of(world, NAME)?;
-    if !mirror.try_borrow().is_ok_and(|mirror| mirror.root_is(&held)) {
+    if !mirror.try_borrow().is_ok_and(|mirror| mirror.holds_state(&held)) {
         return Err(Unsupported::new_err("the world holds another queue state"));
     }
     Ok(Some(mirror))

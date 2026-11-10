@@ -1771,8 +1771,7 @@ fn plan_completion(world: &Bound<'_, PyAny>, arrival: &EventRow, item: &Prepared
         return unsupported("a program's IDs are something else");
     }
     // `world.model_state.get("effect_program_v1", {}).get("programs", {}).get(program_id)`, as the rule reads it.
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let effect_state = match exact_dict(&table)?.get_item("effect_program_v1")? {
+    let effect_state = match crate::core::world_core::read_only_state(world, "effect_program_v1")? {
         Some(state) => state,
         None => PyDict::new(py).into_any(),
     };
@@ -1947,8 +1946,7 @@ pub(crate) fn apply_arrival_approach_completion(world: &Bound<'_, PyAny>, event:
             return unsupported("a payload value is not a str");
         };
         // `world.model_state.get("effect_program_v1", {}).get("programs", {}).get(program_id)`.
-        let table = attribute(world, intern!(py, "model_state"))?;
-        let effect_state = match exact_dict(&table)?.get_item("effect_program_v1")? {
+        let effect_state = match crate::core::world_core::read_only_state(world, "effect_program_v1")? {
             Some(state) => state,
             None => PyDict::new(py).into_any(),
         };

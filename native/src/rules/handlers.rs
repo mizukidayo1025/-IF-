@@ -380,11 +380,22 @@ fn proximity_on(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<
     if !py_is_close(distance, measured) && (measured - distance).abs() > 1e-9 {
         return errors::failed(py, "proximity contact distance does not match coordinates");
     }
-    let movement = get(&table_of(world)?, MOVEMENT)?;
-    let positions = if movement.is_instance_of::<PyDict>() {
-        movement.call_method1(intern!(py, "get"), ("positions", PyDict::new(py)))?
+    // A detached namespace's two records come from its row, which builds no tree.
+    let positions = if crate::rules::movement::held_detached(world)? {
+        let positions = PyDict::new(py);
+        for id in [first_id, second_id] {
+            if let Some(position) = crate::rules::movement::row_position(world, id)? {
+                positions.set_item(id, position)?;
+            }
+        }
+        positions.into_any()
     } else {
-        PyDict::new(py).into_any()
+        let movement = get(&table_of(world)?, MOVEMENT)?;
+        if movement.is_instance_of::<PyDict>() {
+            movement.call_method1(intern!(py, "get"), ("positions", PyDict::new(py)))?
+        } else {
+            PyDict::new(py).into_any()
+        }
     };
     for (id, point) in [(first_id, &first_point), (second_id, &second_point)] {
         let position = if positions.is_instance_of::<PyDict>() { get(&positions, id)? } else { py.None().into_bound(py) };
@@ -1046,11 +1057,20 @@ fn interrupt_support_task<'py>(
             )?,),
         )?;
         tasks.del_item(&trip_id)?;
-        let movement = get(&table_of(world)?, MOVEMENT)?;
-        let position = if movement.is_instance_of::<PyDict>() {
-            movement.call_method1(intern!(py, "get"), ("positions", PyDict::new(py)))?.call_method1(intern!(py, "get"), (&agent_id,))?
-        } else {
-            py.None().into_bound(py)
+        let detached_id = match str_value(&agent_id) {
+            Some(id) if crate::rules::movement::held_detached(world)? => Some(id),
+            _ => None,
+        };
+        let position = match detached_id {
+            Some(id) => crate::rules::movement::row_position(world, id)?.unwrap_or_else(|| py.None().into_bound(py)),
+            None => {
+                let movement = get(&table_of(world)?, MOVEMENT)?;
+                if movement.is_instance_of::<PyDict>() {
+                    movement.call_method1(intern!(py, "get"), ("positions", PyDict::new(py)))?.call_method1(intern!(py, "get"), (&agent_id,))?
+                } else {
+                    py.None().into_bound(py)
+                }
+            }
         };
         if position.is_instance_of::<PyDict>() {
             let zone = get(&position, "zone_id")?;
@@ -1206,7 +1226,8 @@ fn population<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, even
             return errors::failed(py, "population primitive payload fields do not match");
         }
         let not_approved = || errors::failed(py, "population primitive is not in the approved program");
-        let state = get(&table_of(world)?, "effect_program_v1")?;
+        // Read only: a detached namespace gives a document of its row.
+        let state = crate::core::world_core::read_only_state(world, "effect_program_v1")?.unwrap_or_else(|| py.None().into_bound(py));
         if !state.is_instance_of::<PyDict>() {
             return not_approved();
         }
