@@ -88,4 +88,24 @@ impl V {
         self.write_json(&mut encoder)?;
         Ok(encoder.out)
     }
+
+    /// The bytes the value holds on the heap, as allocated (capacities, not lengths), without the
+    /// allocator's own overhead: for measuring what a namespace costs (lane 5-3).
+    pub fn heap_bytes(&self) -> usize {
+        match self {
+            V::Null | V::Bool(_) | V::Int(_) | V::Float(_) => 0,
+            V::Big(text) => text.len(),
+            // An `Arc<str>` holds its two counts next to the text.
+            V::Str(text) => text.len() + 2 * std::mem::size_of::<usize>(),
+            V::List(items) => {
+                items.capacity() * std::mem::size_of::<V>() + items.iter().map(V::heap_bytes).sum::<usize>()
+            }
+            V::Map(map) => {
+                // An entry is its hash, key and value; the index table holds one usize per entry.
+                let entry = std::mem::size_of::<(u64, Arc<str>, V)>() + std::mem::size_of::<usize>();
+                map.capacity() * entry
+                    + map.iter().map(|(key, item)| key.len() + 2 * std::mem::size_of::<usize>() + item.heap_bytes()).sum::<usize>()
+            }
+        }
+    }
 }

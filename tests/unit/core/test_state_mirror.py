@@ -387,3 +387,136 @@ def test_tracked_containers_still_differ_from_other_types_for_the_history_kernel
     assert native.same_json_items(tree["h"], [{"a": [1, 2.0]}], 0, 1)
     assert not native.same_json_items(tree["h"], [{"a": [1, 2]}], 0, 1)
     assert not native.same_json_items(tree["h"], [{"a": (1, 2.0)}], 0, 1)
+
+
+# ---- Keys no lane owns: a ValueRow slot each, made and emptied as the key comes and goes (#152) -
+
+
+def _value_world(**model_state: Any) -> Any:
+    from sheltersim.core.world import WorldState
+
+    return WorldState("s", 1, 100, model_state=dict(model_state))
+
+
+def test_a_key_no_lane_owns_gets_a_value_row_when_first_stored() -> None:
+    world = _value_world()
+    table = world.model_state
+    assert world._core.mirror("custom_v1") is None
+    table["custom_v1"] = {"one": 1, "float": 1.0, "flag": True, "items": [None, "x", 2**70]}
+    mirror = world._core.mirror("custom_v1")
+    assert mirror is not None and table._mirrors["custom_v1"] is mirror
+    assert type(table["custom_v1"]) is TrackedDict
+    assert type(table["custom_v1"]["items"]) is TrackedList
+    assert mirror.has_row and mirror.tainted is None and not mirror.is_detached
+    assert mirror.row_json() == native.canonical_json(table["custom_v1"])
+    # 1, 1.0 and True stay apart, and the keys keep their order.
+    document = mirror.document()
+    assert list(document) == ["one", "float", "flag", "items"]
+    assert [type(document[key]) for key in ("one", "float", "flag")] == [int, float, bool]
+    assert document["items"][2] == 2**70
+    table["custom_v1"]["items"].append(1.5)
+    table["custom_v1"]["one"] = 2
+    assert mirror.verify()
+    assert world._core.owned_names()[-1] == "custom_v1"
+
+
+def test_a_key_that_goes_keeps_its_mirror_with_no_row_and_comes_back_to_it() -> None:
+    world = _value_world(gone_v1={"a": 1})
+    table = world.model_state
+    mirror = table._mirrors["gone_v1"]
+    kept = table["gone_v1"]
+    del table["gone_v1"]
+    assert "gone_v1" not in table and not mirror.has_row and mirror.tainted is None
+    # What left the table is a plain container again: nothing follows it.
+    kept["b"] = 2
+    assert not mirror.has_row
+    table["gone_v1"] = kept
+    assert table._mirrors["gone_v1"] is mirror and mirror.has_row
+    assert table["gone_v1"] is kept and mirror.verify()
+    for remove in (
+        lambda: table.pop("gone_v1"),
+        lambda: table.popitem(),
+        table.clear,
+    ):
+        table["gone_v1"] = {"c": [1]}
+        assert mirror.has_row
+        remove()
+        assert "gone_v1" not in table and not mirror.has_row
+    assert world._core.owned_names().count("gone_v1") == 1
+
+
+def test_model_state_keeps_the_document_order_with_value_rows_and_other_keys() -> None:
+    order = ["z_v1", "movement_v1", "a_v1", 7, "flag_v1", "m_v1"]
+    document = {
+        "z_v1": {"b": 1, "a": 2},
+        "movement_v1": None,
+        "a_v1": [3, 2, 1],
+        7: {"not": "a str key"},
+        "flag_v1": True,
+        "m_v1": "text",
+    }
+    world = _value_world(**{key: value for key, value in document.items() if key != 7})
+    assert list(world.model_state) == [key for key in order if key != 7]
+    world.model_state = document
+    table = world.model_state
+    assert list(table) == order
+    assert list(table["z_v1"]) == ["b", "a"]
+    assert list(table._mirrors["z_v1"].document()) == ["b", "a"]
+    # A key that is not a str stays as it is, with no mirror.
+    assert type(table[7]) is dict and 7 not in table._mirrors
+    assert table["flag_v1"] is True and table._mirrors["flag_v1"].document() is True
+    assert table._mirrors["m_v1"].row_json() == b'"text"'
+    assert table == document
+
+
+def test_a_value_that_does_not_fit_taints_its_key_alone() -> None:
+    world = _value_world(fits_v1={"a": [1]}, other_v1={"b": 2})
+    table = world.model_state
+    pair = (1, 2)
+    table["odd_v1"] = {"pair": pair}
+    odd = table._mirrors["odd_v1"]
+    assert odd.tainted is not None and not odd.has_row
+    assert table["odd_v1"]["pair"] is pair
+    table["fits_v1"]["a"].append({3})
+    fits = table._mirrors["fits_v1"]
+    assert fits.tainted is not None and not fits.has_row
+    assert table["fits_v1"] == {"a": [1, {3}]}
+    other = table._mirrors["other_v1"]
+    assert other.tainted is None and other.has_row and other.verify()
+    for name in ("movement_v1", "body_state_v1"):
+        assert world._core.mirror(name).tainted is None
+    # A whole value that fits gives the key its row again.
+    table["odd_v1"] = {"pair": [1, 2]}
+    assert odd.tainted is None and odd.has_row and odd.verify()
+    # A value kept as it is, such as an object, taints but stays the very object.
+    marker = object()
+    table["object_v1"] = marker
+    assert table["object_v1"] is marker and table._mirrors["object_v1"].tainted is not None
+
+
+def test_names_of_owned_fields_and_tables_without_a_core_store_values_as_they_are() -> None:
+    world = _value_world()
+    table = world.model_state
+    table["metric_state"] = {"a": 1}
+    assert type(table["metric_state"]) is dict and "metric_state" not in table._mirrors
+    assert world._core.mirror("metric_state").holds(world.metric_state)
+    old = world.model_state
+    world.model_state = {"new_v1": {"a": 1}}
+    assert type(world.model_state["new_v1"]) is TrackedDict
+    old["later_v1"] = {"b": 1}
+    assert type(old["later_v1"]) is dict and world._core.mirror("later_v1") is None
+    plain = NamespaceTable()
+    plain["x"] = {"a": 1}
+    assert type(plain["x"]) is dict
+
+
+def test_a_deep_copy_owns_its_value_rows_again() -> None:
+    world = _value_world(custom_v1={"a": [1, 2.0, False]})
+    copied = copy.deepcopy(world)
+    mine = world._core.mirror("custom_v1")
+    theirs = copied._core.mirror("custom_v1")
+    assert theirs is not None and theirs is not mine
+    assert theirs.row_json() == mine.row_json()
+    copied.model_state["custom_v1"]["a"].append(3)
+    assert theirs.verify() and mine.verify()
+    assert world.model_state["custom_v1"]["a"] == [1, 2.0, False]

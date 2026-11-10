@@ -31,6 +31,7 @@ use pyo3::ffi;
 use pyo3::gc::PyVisit;
 use pyo3::intern;
 use pyo3::prelude::*;
+use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 use pyo3::PyTraverseError;
 use sheltersim_core::cell::{Shard, ShardMut};
@@ -1650,6 +1651,13 @@ impl NamespaceMirror {
         self.with_slot(py, |slot| slot.detached)
     }
 
+    /// The heap bytes of the row's `V` (`V::heap_bytes`), or None without a `ValueRow`: for the
+    /// measurements of lane 5-3.
+    #[getter]
+    fn value_bytes(&self, py: Python<'_>) -> PyResult<Option<usize>> {
+        self.with_slot(py, |slot| slot.row::<ValueRow>().ok().map(|row| row.0.heap_bytes()))
+    }
+
     /// Read the tree into a new row, for a namespace whose misfit is gone. Returns whether it fits.
     fn refit(slf: &Bound<'_, Self>) -> PyResult<bool> {
         let py = slf.py();
@@ -1780,6 +1788,20 @@ impl WorldCore {
     fn slot(&self, index: usize) -> PyResult<&Shard<Slot>> {
         self.world.slots.at(index).ok_or_else(|| PyRuntimeError::new_err("a mirror's slot is not in its core"))
     }
+
+    fn add_slot(slf: &Bound<'_, Self>, name: &str, row_type: Py<RowType>, place: Place) -> PyResult<Py<NamespaceMirror>> {
+        let py = slf.py();
+        let name: Arc<str> = Arc::from(name);
+        let index = slf.try_borrow_mut()?.world.slots.add(name.clone(), place).or_py()?;
+        let mirror = Py::new(
+            py,
+            NamespaceMirror { core: slf.clone().unbind(), index, name: name.clone(), row_type, tree: Shard::default() },
+        )?;
+        let mut this = slf.try_borrow_mut()?;
+        this.mirrors.insert(name, mirror.clone_ref(py));
+        debug_assert_eq!(this.mirrors.len(), this.world.slots.len());
+        Ok(mirror)
+    }
 }
 
 #[pymethods]
@@ -1804,18 +1826,16 @@ impl WorldCore {
     /// state until `replace_root`. `field`: it is a field of the world, not of `model_state`.
     #[pyo3(signature = (name, row_type, field = false))]
     fn own(slf: &Bound<'_, Self>, name: &str, row_type: Py<RowType>, field: bool) -> PyResult<Py<NamespaceMirror>> {
+        Self::add_slot(slf, name, row_type, if field { Place::Field } else { Place::Namespace })
+    }
+
+    /// `own` for a key of `model_state` that no lane owns: its row is a `ValueRow`, which any JSON
+    /// fits (`Place::Value`). `state_mirror.NamespaceTable` calls it when such a key is first stored.
+    fn own_value(slf: &Bound<'_, Self>, name: &str) -> PyResult<Py<NamespaceMirror>> {
+        static VALUE_ROW: GILOnceCell<Py<RowType>> = GILOnceCell::new();
         let py = slf.py();
-        let name: Arc<str> = Arc::from(name);
-        let place = if field { Place::Field } else { Place::Namespace };
-        let index = slf.try_borrow_mut()?.world.slots.add(name.clone(), place).or_py()?;
-        let mirror = Py::new(
-            py,
-            NamespaceMirror { core: slf.clone().unbind(), index, name: name.clone(), row_type, tree: Shard::default() },
-        )?;
-        let mut this = slf.try_borrow_mut()?;
-        this.mirrors.insert(name, mirror.clone_ref(py));
-        debug_assert_eq!(this.mirrors.len(), this.world.slots.len());
-        Ok(mirror)
+        let row_type = VALUE_ROW.get_or_try_init(py, || Py::new(py, RowType::of::<ValueRow>("value")))?.clone_ref(py);
+        Self::add_slot(slf, name, row_type, Place::Value)
     }
 
     /// The mirror of an owned namespace, or None.

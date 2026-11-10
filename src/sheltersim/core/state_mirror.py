@@ -2,11 +2,13 @@
 
 A world keeps its Rust state in `world.__dict__["_core"]`, made only with the Rust kernels on. A
 namespace is owned when it is listed in OWNED_NAMESPACES: Rust holds it in a typed row, and
-`world.model_state[name]` is a tree of TrackedDict and TrackedList. These are real dicts and lists,
-so isinstance, json, == and every read work as before and run the inherited C code. Every mutator
-also tells the tree's sink, which keeps the row equal to the tree. A plain container is converted
-when it is inserted, so a write through a name it had before the insert reaches neither. See
-docs/rust-port/lanes/p4-world-core.md for what a lane does.
+`world.model_state[name]` is a tree of TrackedDict and TrackedList. Any other key of model_state
+whose name is a str is owned the same way when it is first stored, with a ValueRow, a `V` that any
+JSON fits (lane 5-3 of Issue #152): its tree stays, and a value that does not fit V taints that key
+alone. These are real dicts and lists, so isinstance, json, == and every read work as before and
+run the inherited C code. Every mutator also tells the tree's sink, which keeps the row equal to
+the tree. A plain container is converted when it is inserted, so a write through a name it had
+before the insert reaches neither. See docs/rust-port/lanes/p4-world-core.md for what a lane does.
 
 A namespace in DETACHED_NAMESPACES has no tree: its row alone holds it, and model_state holds a
 placeholder under its name (_DetachingTable). Reading it from Python builds the tree again from
@@ -371,20 +373,24 @@ class TrackedList(list):
 class NamespaceTable(dict):
     """world.model_state while a namespace is owned. Reads are the inherited C code.
 
-    The namespaces no lane owns are stored as they are; each owned one is a tree with a mirror.
-    Writing a whole owned namespace rebuilds its tree and row, so it costs O(namespace): the code
-    doing it per tick moves with the namespace's port.
+    Each owned namespace is a tree with a mirror. A str key no lane owns gets a mirror with a
+    ValueRow from _core when it is first stored (_value_mirror), and keeps it while the key comes
+    and goes; any other key is stored as it is. Writing a whole owned namespace rebuilds its tree
+    and row, so it costs O(namespace): the code doing it per tick moves with the namespace's port.
     """
 
-    __slots__ = ("_mirrors", "__weakref__")
+    __slots__ = ("_mirrors", "_core", "__weakref__")
 
     def __new__(cls, *_arguments: Any, **_keywords: Any) -> NamespaceTable:
         self = super().__new__(cls)
         self._mirrors = {}
+        self._core = None
         return self
 
     def __setitem__(self, key: Any, value: Any) -> None:
         mirror = self._mirrors.get(key)
+        if mirror is None:
+            mirror = _value_mirror(self, key)
         if mirror is None:
             dict.__setitem__(self, key, value)
         elif dict.get(self, key, _MISSING) is not value:
@@ -607,6 +613,22 @@ def _settle(table: NamespaceTable) -> None:
     """Give the table the class that reads what it holds."""
     detached = any(value is _DETACHED for value in dict.values(table))
     table.__class__ = _DetachingTable if detached else NamespaceTable
+
+
+def _value_mirror(table: NamespaceTable, key: Any) -> Any:
+    """A new mirror with a ValueRow for a model_state key no lane owns, or None to store it plain.
+
+    Made the first time the key is stored, and kept in the table while the key is absent, as the
+    mirrors of OWNED_NAMESPACES are; deleting the key drops its tree and row (clear_root). A table
+    with no core (a plain holder), a key that is not a str, and the name of an owned field of the
+    world, whose slot the core has already, store the value as it is.
+    """
+    core = table._core
+    if core is None or type(key) is not str or core.mirror(key) is not None:
+        return None
+    mirror = core.own_value(key)
+    table._mirrors[key] = mirror
+    return mirror
 
 
 def _store_owned(table: NamespaceTable, key: Any, mirror: Any, value: Any) -> None:
@@ -1148,6 +1170,7 @@ def _table_holds_row_of(table: Any, mirror: Any, name: str) -> bool:
 
 def _attach_owned(world: Any, core: Any) -> None:
     table = NamespaceTable()
+    table._core = core
     for name, (module, row) in OWNED_NAMESPACES.items():
         table._mirrors[name] = core.own(name, getattr(native.state(module), row))
     current = world.__dict__["model_state"]
@@ -1161,6 +1184,8 @@ def _fill_table(table: NamespaceTable, current: Any) -> None:
     # In the order of the document, so a world's order does not depend on what is owned.
     for key, value in current.items():
         mirror = table._mirrors.get(key)
+        if mirror is None:
+            mirror = _value_mirror(table, key)
         if mirror is None:
             dict.__setitem__(table, key, value)
         else:
@@ -1259,10 +1284,12 @@ def model_state_assigned(world: Any, value: Any) -> Any:
         return value
     table.items()  # builds whatever is detached
     mirrors, table._mirrors = table._mirrors, {}
+    core, table._core = table._core, None
     for mirror in mirrors.values():
         mirror.clear_root()
     new_table = NamespaceTable()
     new_table._mirrors = mirrors
+    new_table._core = core
     if isinstance(value, dict):
         _fill_table(new_table, value)
         return new_table

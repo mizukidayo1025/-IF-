@@ -90,12 +90,17 @@ def test_with_nothing_owned_model_state_is_a_plain_dict_and_there_is_a_core(
     assert type(copy.deepcopy(world).model_state) is dict
 
 
-def test_an_owned_namespace_is_a_tree_and_the_others_stay_as_they_were(world: WorldState) -> None:
+def test_an_owned_namespace_is_a_tree_and_the_others_are_trees_of_value_rows(
+    world: WorldState,
+) -> None:
     assert type(world.model_state) is NamespaceTable
     assert type(world.model_state[SAMPLE]) is TrackedDict
     assert type(world.model_state[SAMPLE]["notes"]) is TrackedList
-    assert type(world.model_state["other_v1"]) is dict
     assert _mirror(world).has_row and _mirror(world).verify()
+    # A key no lane owns has a row that holds any JSON (Issue #152, lane 5-3).
+    assert type(world.model_state["other_v1"]) is TrackedDict
+    other = world._core.mirror("other_v1")
+    assert other.has_row and other.verify() and other.value_bytes > 0
 
 
 def test_a_python_write_reaches_the_row(world: WorldState) -> None:
@@ -592,3 +597,38 @@ def test_real_rules_on_owned_trees_give_the_same_world_and_the_row_follows(
     assert tracked.canonical_json() == plain.canonical_json()
     assert tracked.state_digest() == plain.state_digest()
     assert sum(tracked._core.mirror(name).stats()["forwards"] for name in REAL_NAMESPACES) > 100
+
+
+def test_a_run_ends_with_every_value_row_equal_to_its_tree(
+    generated_scenario_with, tmp_path
+) -> None:
+    """Rules write the keys no lane owns through their trees; the rows follow (#152, lane 5-3)."""
+    from sheltersim.experiments.runner import run_scenario
+
+    scenario = generated_scenario_with(
+        operational_conditions={
+            "initial_resources": {"status": "entered", "water_ml": 300_000, "food_meal_units": 100},
+            "scheduled": [
+                {
+                    "kind": "water_outage",
+                    "facility_id": "water_station_main",
+                    "start_minute": 60,
+                    "end_minute": 240,
+                }
+            ],
+        }
+    )
+    world = run_scenario(scenario, tmp_path)
+
+    table = world.model_state
+    values = {
+        name: mirror
+        for name, mirror in table._mirrors.items()
+        if name not in state_mirror.OWNED_NAMESPACES
+    }
+    assert "operational_events_v1" in values
+    assert table["operational_events_v1"]["water_outages"]
+    for name, mirror in values.items():
+        assert mirror.holds(table[name]), name
+        assert mirror.tainted is None and mirror.has_row and mirror.verify(), name
+        assert mirror.row_json() == native.canonical_json(table[name]), name

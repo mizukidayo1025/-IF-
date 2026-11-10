@@ -1,4 +1,4 @@
-//! The core `World` of lane 5-1: `Shard`'s borrow rules, `Slots`, and stamps.
+//! The core `World` of lanes 5-1 and 5-3: `Shard`'s borrow rules, `Slots`, value slots and stamps.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -161,4 +161,51 @@ fn stamps_are_unique_across_slots_and_threads() {
             assert_ne!(stamp.get(), 0);
         }
     }
+}
+
+#[test]
+fn a_value_slot_reads_as_its_value_absent_or_refused() {
+    let mut slots = Slots::default();
+    slots.add(Arc::from("operational_events_v1"), Place::Value).unwrap();
+    slots.add(Arc::from("metric_state"), Place::Field).unwrap();
+    // A name with no slot and a slot with no row are both absent.
+    assert_eq!(slots.value("other").unwrap(), None);
+    assert_eq!(slots.value("operational_events_v1").unwrap(), None);
+    assert!(slots.try_value("operational_events_v1").unwrap().is_none());
+    let mut map = indexmap::IndexMap::new();
+    map.insert(Arc::from("b"), V::Int(1));
+    map.insert(Arc::from("a"), V::Float(1.0));
+    let slot = slots.get("operational_events_v1").unwrap();
+    slot.try_borrow_mut().unwrap().row = Some(Box::new(ValueRow(V::Map(map.clone()))));
+    {
+        let value = slots.try_value("operational_events_v1").unwrap().unwrap();
+        assert_eq!(*value, V::Map(map.clone()));
+        let V::Map(read) = &*value else { unreachable!() };
+        assert_eq!(read.keys().map(|key| &**key).collect::<Vec<_>>(), ["b", "a"]);
+        assert!(slots.get("operational_events_v1").unwrap().try_borrow_mut().is_err());
+    }
+    assert_eq!(slots.value("operational_events_v1").unwrap(), Some(&V::Map(map)));
+    // A tainted key is refused, and so is a slot whose row is not a value.
+    slots.get("operational_events_v1").unwrap().try_borrow_mut().unwrap().misfit("value is not a plain JSON value".to_owned());
+    assert_eq!(slots.value("operational_events_v1").err(), Some(Error::Unsupported("the namespace has no row".into())));
+    assert!(slots.try_value("operational_events_v1").is_err());
+    slots.get("metric_state").unwrap().try_borrow_mut().unwrap().row = Some(Box::new(0.5_f64));
+    assert_eq!(slots.value("metric_state").err(), Some(Error::Unsupported("the namespace has another row".into())));
+    assert!(!slots.get("metric_state").unwrap().is_borrowed());
+}
+
+#[test]
+fn heap_bytes_count_what_a_value_allocates() {
+    assert_eq!(V::Int(3).heap_bytes(), 0);
+    assert_eq!(V::Str(Arc::from("abc")).heap_bytes(), 3 + 2 * std::mem::size_of::<usize>());
+    let list = V::List(Vec::with_capacity(4));
+    assert_eq!(list.heap_bytes(), 4 * std::mem::size_of::<V>());
+    let mut map = indexmap::IndexMap::with_capacity(1);
+    map.insert(Arc::from("k"), V::Str(Arc::from("vv")));
+    let value = V::Map(map);
+    let V::Map(inner) = &value else { unreachable!() };
+    assert!(inner.capacity() >= 1);
+    let words = 2 * std::mem::size_of::<usize>();
+    let entry = std::mem::size_of::<(u64, Arc<str>, V)>() + std::mem::size_of::<usize>();
+    assert_eq!(value.heap_bytes(), inner.capacity() * entry + (1 + words) + (2 + words));
 }

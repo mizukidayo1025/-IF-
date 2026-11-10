@@ -266,8 +266,9 @@ def test_the_recorder_gives_the_same_draws_and_undoes_its_patch(tmp_path: Path) 
 
 def test_reversing_keeps_every_object_and_value_and_reverses_each_dict(generated_scenario) -> None:
     world = WorldState.from_scenario(generated_scenario)
-    inner = {"a": 1, "b": {"c": 2, "d": 3}}
-    world.model_state["probe"] = {"x": inner, "y": [{"e": 4, "f": 5}]}
+    world.model_state["probe"] = {"x": {"a": 1, "b": {"c": 2, "d": 3}}, "y": [{"e": 4, "f": 5}]}
+    # The table keeps a tree of what it was given, with a row of its own (state_mirror.py).
+    inner = world.model_state["probe"]["x"]
     agents, order = world.agents, list(world.agents)
     before = copy.deepcopy(world.model_state)
 

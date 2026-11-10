@@ -6,10 +6,13 @@
 //! shim borrows the one part it needs (rule R3 of the design), and a kernel that holds the whole
 //! world reaches every part with `get_mut`.
 //!
+//! Every str key of `model_state` has a slot: a namespace a lane owns has its typed row, and any
+//! other key a `ValueRow` slot (`Place::Value`, lane 5-3), made when the key is first stored.
+//!
 //! Parts that join later, each in its own lane: the scalars, zones and zone edges, `resources` and
-//! `id_counters` (5-2); the other namespaces as `ValueRow`s (5-3); the event queue and the log
-//! (6-5). A non-state field `derived` (configs and caches keyed by stamps, design-p7.md §2) joins
-//! in 7-1; it is not state, so a snapshot, a fork or a hash never reads it.
+//! `id_counters` (5-2); the event queue and the log (6-5). A non-state field `derived` (configs
+//! and caches keyed by stamps, design-p7.md §2) joins in 7-1; it is not state, so a snapshot, a
+//! fork or a hash never reads it.
 
 use std::sync::Arc;
 
@@ -19,15 +22,16 @@ use rustc_hash::FxBuildHasher;
 use crate::cell::{Shard, ShardMut, ShardRef};
 use crate::entities::Entities;
 use crate::error::{Error, Result};
-use crate::row::Row;
+use crate::row::{Row, ValueRow};
 use crate::stamp::Stamp;
+use crate::value::V;
 
 /// The state of one world.
 #[derive(Default)]
 pub struct World {
     /// The rows of the entities (`world.agents` and the others).
     pub entities: Shard<Entities>,
-    /// The owned world fields (`metric_state`) and the owned namespaces of `model_state`.
+    /// The owned world fields (`metric_state`) and the keys of `model_state`.
     pub slots: Slots,
 }
 
@@ -36,8 +40,11 @@ pub struct World {
 pub enum Place {
     /// A field of the world, `world.<name>`, such as `metric_state`.
     Field,
-    /// A key of `world.model_state`.
+    /// A key of `world.model_state` whose row a lane wrote.
     Namespace,
+    /// Any other key of `world.model_state`, stored as a `ValueRow`. Its slot is made when the key
+    /// is first stored and stays: while the key is absent it has no row.
+    Value,
 }
 
 /// Counters for the budget of a lane (`NamespaceMirror.stats`).
@@ -167,6 +174,38 @@ impl Slots {
         let slot = self.owned(name)?.try_borrow()?;
         ShardRef::try_map(slot, |slot| slot.row::<T>())
     }
+
+    /// The value of a key held as a `ValueRow`, for a kernel that holds the whole world: None for a
+    /// key the world does not have. Unsupported for a tainted key (its value does not fit `V`) and
+    /// for a slot with another row.
+    #[track_caller]
+    pub fn value(&mut self, name: &str) -> Result<Option<&V>> {
+        match self.by_name.get_mut(name) {
+            None => Ok(None),
+            Some(slot) => slot_value(slot.get_mut()).map(|value| value.map(|row| &row.0)),
+        }
+    }
+
+    /// `value`, with the slot borrowed on its own, for a shim that holds the world shared.
+    #[track_caller]
+    pub fn try_value(&self, name: &str) -> Result<Option<ShardRef<'_, V>>> {
+        let Some(slot) = self.by_name.get(name) else {
+            return Ok(None);
+        };
+        let slot = slot.try_borrow()?;
+        if slot_value(&slot)?.is_none() {
+            return Ok(None);
+        }
+        ShardRef::try_map(slot, |slot| slot.row::<ValueRow>().map(|row| &row.0)).map(Some)
+    }
+}
+
+#[track_caller]
+fn slot_value(slot: &Slot) -> Result<Option<&ValueRow>> {
+    if slot.row.is_none() && slot.taint.is_none() {
+        return Ok(None);
+    }
+    slot.row::<ValueRow>().map(Some)
 }
 
 #[allow(dead_code)]
