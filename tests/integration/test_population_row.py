@@ -15,7 +15,7 @@ from typing import Any
 import pytest
 
 from sheltersim import native
-from sheltersim.core.state_mirror import field_stamp, namespace_stamp, same_stamp
+from sheltersim.core.state_mirror import field_stamp, namespace_stamp, read_only_state, same_stamp
 from sheltersim.core.world import StateInvariantError, WorldState
 from sheltersim.domain.population import admit_pending_arrivals
 from sheltersim.domain.simulator_state import validate_simulator_extensions
@@ -189,7 +189,8 @@ def test_a_read_does_not_change_a_stamp(finished_world) -> None:
     world.validate()
     world.to_dict()
     copy.deepcopy(world)
-    json.dumps(world.model_state[name])
+    # A read of model_state[name] builds the tree of a detached namespace, a new state to stamp.
+    json.dumps(read_only_state(world, name))
     native.canonical_json(world.model_configs)
     assert same_stamp(before[0], namespace_stamp(world, name))
     assert same_stamp(before[1], field_stamp(world, "model_configs"))
@@ -289,7 +290,10 @@ def test_a_namespace_written_past_the_tree_is_left_to_the_full_validation(finish
     # The JSON compare used to see this. dict.__setitem__ on a node passes the mirror, as for the
     # checks that read a row (t-tick-validation.md), and no code in src/ does it.
     world = _checked(finished_world)
-    dict.__setitem__(world.model_state["population_lifecycle_v1"], "schema_version", 2)
+    # Reading the detached namespace builds its tree, a new state the check reads once.
+    state = world.model_state["population_lifecycle_v1"]
+    world.validate_after_tick()
+    dict.__setitem__(state, "schema_version", 2)
     world.validate_after_tick()
     with pytest.raises((StateInvariantError, ValueError)):
         world.validate()

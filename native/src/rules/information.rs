@@ -27,8 +27,9 @@ use crate::core::rng::{label, start_draw_log, take_draw_log, Key, KeyedDraws};
 use crate::core::row::{map_set, Field};
 use crate::core::value::V;
 use crate::core::world_core::{mirror_of, NamespaceMirror};
+use rustc_hash::FxHashMap;
 use crate::rules::trace::TraceSink;
-use crate::rules::world_view::{group_of, presence_people_of};
+use crate::rules::world_view::{group_of, presence_people_of, Household};
 use crate::state::entities::{entities_of, EntityStore};
 use crate::state::events::{is_stable_id, EventKind, EventRow, EventWriter};
 use crate::state::information::{belief_rank, ContactRow, InformationRow, NAME, SCHEMA_VERSION};
@@ -154,7 +155,7 @@ struct Inputs<'py> {
     seed: String,
     neighbors: HashMap<String, Vec<String>>,
     /// `population_presence_v1.people`, for the household each view reports; None for no such dict.
-    presence_people: Option<Bound<'py, PyAny>>,
+    presence_people: Option<FxHashMap<Arc<str>, Household>>,
 }
 
 /// What the Python step reads besides the rows, or None when no model is installed: the Python
@@ -206,7 +207,7 @@ fn inputs<'py>(
         .getattr(intern!(py, "zone_neighbors"))?
         .extract()
         .map_err(|_| Unsupported::new_err("the zone neighbors are not str tuples"))?;
-    let presence_people = presence_people_of(&world.getattr(intern!(py, "model_state"))?)?;
+    let presence_people = presence_people_of(&world)?;
     Ok(Some(Inputs { world, model, settings, minute, seed: seed.str()?.to_str()?.to_owned(), neighbors, presence_people }))
 }
 
@@ -401,11 +402,7 @@ fn plan(
         };
         pressure.push(py_max(0.0, *value - settings.pressure_decay));
         let group = if any_belief || recording {
-            group_of(
-                inputs.presence_people.as_ref(),
-                &PyString::new(inputs.world.py(), id),
-                &agent.profile.group_id,
-            )?
+            group_of(inputs.presence_people.as_ref(), id, &agent.profile.group_id)?
         } else {
             None
         };

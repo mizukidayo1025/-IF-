@@ -38,7 +38,7 @@ from sheltersim.contracts.operations import (
 )
 from sheltersim.contracts.population import DynamicArrivalPersonContext
 from sheltersim.core.kernels import kernel_only
-from sheltersim.core.state_mirror import read_only_state
+from sheltersim.core.state_mirror import read_only_part, read_only_state
 from sheltersim.domain.environment import (
     ZONE_ENVIRONMENT_POLICY,
     ZONE_ENVIRONMENT_STATE_KEY,
@@ -916,8 +916,7 @@ def validate_effect_program(
     staff_intervals: dict[str, list[tuple[int, int, str]]] = {}
     staff_order_effects: dict[str, list[tuple[int, int]]] = {}
     temporary_capacity_by_zone: dict[str, int] = {}
-    geometry_overlay = world.model_state.get(GEOMETRY_OVERLAY_KEY, {})
-    temporary_room_ids = set(geometry_overlay.get("temporary_rooms", {}))
+    temporary_room_ids = set(read_only_part(world, GEOMETRY_OVERLAY_KEY, "temporary_rooms", {}))
     for pending in world.event_queue.pending():
         if pending.event_type != "effect_program_geometry":
             continue
@@ -1071,8 +1070,7 @@ def validate_effect_program(
             ):
                 issues.append(f"{label} requires one person ID or at least two reunion candidates")
                 continue
-            lifecycle = world.model_state.get("population_lifecycle_v1")
-            archived = lifecycle.get("people", {}) if isinstance(lifecycle, dict) else {}
+            archived = read_only_part(world, "population_lifecycle_v1", "people", {})
             if parameters.action == "return":
                 if "population_lifecycle_v1" not in world.model_state:
                     issues.append(f"{label} requires population_lifecycle_v1 state")
@@ -1587,7 +1585,7 @@ def validate_effect_program(
         issues.append("program exceeds the 200-facility runtime bound")
     if toilet_additions and "facility_geometry" in world.model_configs:
         issues.extend(_toilet_placement_issues(world, toilet_additions))
-    population_state = world.model_state.get("population_dynamics_v1")
+    population_state = read_only_state(world, "population_dynamics_v1")
     if isinstance(population_state, dict):
         known_population = set(population_state.get("initial_agent_ids", ())) | set(
             population_state.get("profile_traits", {})

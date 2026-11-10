@@ -22,7 +22,8 @@ use pyo3::types::{PyBool, PyDict, PyString, PyTuple};
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, namespace_is_absent, unsupported};
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::V;
-use crate::core::world_core::raw_dict_get;
+use crate::core::tracked::is_detached;
+use crate::core::world_core::{mirror_of, raw_dict_get, NamespaceMirror, ValueRow};
 use crate::rules::care_receipts::{plan_transition, source_ids_of, write_transition, Transition};
 use crate::rules::facility_queues::has_independent;
 use crate::rules::movement::KEY;
@@ -247,12 +248,57 @@ fn own_request(manager: &Bound<'_, PyAny>) -> PyResult<()> {
     Ok(())
 }
 
-/// `release_sleep_bed`, not done yet: the reservations to delete from, if the person has one.
-fn held_bed<'py>(table: &Bound<'py, PyDict>, agent_id: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
-    let py = table.py();
-    let Some(state) = table.get_item(OVERLAY_KEY)? else {
+/// What `release_sleep_bed` deletes the person's reservation from.
+enum HeldBed<'py> {
+    /// The reservations of the overlay's tree.
+    Tree(Bound<'py, PyAny>),
+    /// The row of the detached overlay, which alone holds it.
+    Row(Bound<'py, NamespaceMirror>),
+}
+
+impl<'py> HeldBed<'py> {
+    fn release(&self, agent_id: &Bound<'py, PyAny>) -> PyResult<()> {
+        match self {
+            // Through the map's own method: the map is a tree's.
+            HeldBed::Tree(reservations) => reservations.del_item(agent_id),
+            HeldBed::Row(mirror) => {
+                let agent_id = exact_str(agent_id)?;
+                NamespaceMirror::with_row_tree::<ValueRow, _>(mirror, |row, _| {
+                    if let V::Map(state) = &mut row.0 {
+                        if let Some(V::Map(held)) = state.get_mut("bed_reservations") {
+                            held.shift_remove(agent_id);
+                        }
+                    }
+                    Ok(())
+                })
+            }
+        }
+    }
+}
+
+/// `release_sleep_bed`, not done yet: where to delete from, if the person has a reservation. A
+/// detached overlay is read from its row, building no tree.
+fn held_bed<'py>(world: &Bound<'py, PyAny>, agent_id: &Bound<'py, PyAny>) -> PyResult<Option<HeldBed<'py>>> {
+    let py = world.py();
+    let table = attribute(world, intern!(py, "model_state"))?;
+    let Some(state) = exact_dict(&table)?.get_item(OVERLAY_KEY)? else {
         return Ok(None);
     };
+    if is_detached(&state) {
+        let agent = exact_str(agent_id)?;
+        let mirror = mirror_of(world, OVERLAY_KEY)?;
+        let holds = NamespaceMirror::with_value(&mirror, |state| {
+            let V::Map(fields) = state else {
+                return unsupported("the overlay is not a plain dict");
+            };
+            match fields.get("bed_reservations") {
+                None => Ok(false),
+                Some(V::Map(held)) => Ok(held.contains_key(agent)),
+                Some(_) => unsupported("the bed reservations are not a plain dict"),
+            }
+        })?;
+        return Ok(holds.then_some(HeldBed::Row(mirror)));
+    }
     let Some(fields) = as_readable_dict(&state) else {
         return unsupported("the overlay is not a plain dict");
     };
@@ -262,7 +308,7 @@ fn held_bed<'py>(table: &Bound<'py, PyDict>, agent_id: &Bound<'py, PyAny>) -> Py
     let Some(held) = as_readable_dict(&reservations) else {
         return unsupported("the bed reservations are not a plain dict");
     };
-    Ok(if raw_dict_get(held.as_any(), agent_id)?.is_some() { Some(reservations) } else { None })
+    Ok(if raw_dict_get(held.as_any(), agent_id)?.is_some() { Some(HeldBed::Tree(reservations)) } else { None })
 }
 
 /// What `sleep` does beside the activity, planned.
@@ -272,7 +318,7 @@ enum SleepPlan<'py> {
     /// The person is at the bed.
     Stay(overlay::Bed),
     /// No trip could be scheduled: what the person held is released.
-    NoRoom(Option<Bound<'py, PyAny>>),
+    NoRoom(Option<HeldBed<'py>>),
 }
 
 /// The `sleep` branch, changing nothing. None for no bed.
@@ -316,8 +362,7 @@ fn plan_sleep<'py>(
     Ok(Some(match trip {
         Some(trip) => SleepPlan::Walk(bed, Box::new(trip), writer),
         None => {
-            let table = attribute(world, intern!(py, "model_state"))?;
-            SleepPlan::NoRoom(held_bed(exact_dict(&table)?, agent_object)?)
+            SleepPlan::NoRoom(held_bed(world, agent_object)?)
         }
     }))
 }
@@ -370,7 +415,7 @@ fn apply_seek<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound<'py, PyAny>,
     let minute = exact_int(&attribute(&world, intern!(py, "minute_index"))?)?;
     let writer = EventWriter::of(&world)?;
     let metrics = metrics_of(&world)?;
-    let bed = held_bed(table, &agent_object)?;
+    let bed = held_bed(&world, &agent_object)?;
     let planned = plan_request(&service_object, &world, &writer, agent_id, minute)?;
     let mut care = None;
     let mut interrupted = None;
@@ -410,7 +455,7 @@ fn apply_seek<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound<'py, PyAny>,
 
     // Write. Nothing below refuses.
     if let Some(reservations) = bed {
-        reservations.del_item(&agent_object)?;
+        reservations.release(&agent_object)?;
     }
     EntityStore::with_rows(&store, |rows| {
         let Some(row) = rows.agents.get_mut(agent_id) else {
@@ -527,7 +572,7 @@ pub(crate) fn apply_effect<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound
     let planned_next = exact_int(&attribute(proposal, intern!(py, "next_decision_at"))?)?;
     let store = entities_of(&world)?;
     let table_object = attribute(&world, intern!(py, "model_state"))?;
-    let table = exact_dict(&table_object)?;
+    exact_dict(&table_object)?;
     let agents = attribute(&world, intern!(py, "agents"))?;
     let Some(agent) = raw_dict_get(&agents, &agent_object)? else {
         return unsupported("no such agent");
@@ -540,7 +585,7 @@ pub(crate) fn apply_effect<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound
     })?;
 
     // Plan.
-    let bed = if action == "sleep" { None } else { held_bed(table, &agent_object)? };
+    let bed = if action == "sleep" { None } else { held_bed(&world, &agent_object)? };
     let sleep = if action == "sleep" { plan_sleep(&world, &agent_object, agent_id, &zone_id)? } else { None };
     let mut social: Option<(EventRow, EventWriter<'py>, Arc<str>, i64)> = None;
     if let Effect::Social(interaction) = &effect {
@@ -674,7 +719,7 @@ pub(crate) fn apply_effect<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound
     // Write. Nothing below refuses.
     if let Some(reservations) = bed {
         // Through the map's own method: the map may be a tree's.
-        reservations.del_item(&agent_object)?;
+        reservations.release(&agent_object)?;
     }
     let next = social.as_ref().map_or(planned_next, |(.., due)| *due);
     let walks_to_bed = matches!(&sleep, Some(SleepPlan::Walk(..)));
@@ -723,7 +768,7 @@ pub(crate) fn apply_effect<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound
             target = PyString::new(py, &bed.target_id).into_any();
         }
         Some(SleepPlan::NoRoom(Some(reservations))) => {
-            reservations.del_item(&agent_object)?;
+            reservations.release(&agent_object)?;
         }
         Some(SleepPlan::NoRoom(None)) => {}
     }

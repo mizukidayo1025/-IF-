@@ -17,6 +17,7 @@ from sheltersim.contracts.extensions import (
     Point2D,
     ServiceAccessConditions,
 )
+from sheltersim.core.state_mirror import read_only_part
 
 
 class Wall(ExtensionModel):
@@ -205,7 +206,7 @@ def occupancy_snapshot(world: Any) -> dict[str, Any]:
     counts = {key: 0 for key in world.zones}
     for person in world.agents.values():
         counts[person.zone_id] += 1
-    pending = world.model_state.get("population_dynamics_v1", {}).get("pending_arrivals", [])
+    pending = read_only_part(world, "population_dynamics_v1", "pending_arrivals", [])
     zones = []
     for zone_id, zone in sorted(world.zones.items()):
         capacity = capacity_metrics(world, zone_id, occupancy=counts[zone_id])

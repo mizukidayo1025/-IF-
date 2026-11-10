@@ -39,6 +39,20 @@ impl V {
         Self::read(value, 0)
     }
 
+    /// `bool(value)`.
+    pub(crate) fn is_truthy(&self) -> bool {
+        match self {
+            V::Null => false,
+            V::Bool(flag) => *flag,
+            V::Int(number) => *number != 0,
+            V::Big(_) => true,
+            V::Float(number) => *number != 0.0,
+            V::Str(text) => !text.is_empty(),
+            V::List(items) => !items.is_empty(),
+            V::Map(items) => !items.is_empty(),
+        }
+    }
+
     fn read(value: &Bound<'_, PyAny>, depth: usize) -> PyResult<Self> {
         if depth > MAX_DEPTH {
             return Err(Unsupported::new_err("value nests too deeply"));

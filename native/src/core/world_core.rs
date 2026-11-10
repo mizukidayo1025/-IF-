@@ -979,6 +979,11 @@ impl NamespaceMirror {
         self.root_is(held) || (self.detached && self.row.is_some() && is_detached(held))
     }
 
+    /// `generation_of(held)`, and the generation for the placeholder of a detached namespace too.
+    pub(crate) fn held_generation(&self, held: &Bound<'_, PyAny>) -> Option<u64> {
+        self.holds_state(held).then_some(self.generation)
+    }
+
     /// Run f on the `V` of a namespace whose row is a `ValueRow`, for a kernel that reads a
     /// detached one; Unsupported without such a row. f must not run Python code (`with_row`).
     pub(crate) fn with_value<R>(slf: &Bound<'_, Self>, f: impl FnOnce(&V) -> PyResult<R>) -> PyResult<R> {
@@ -996,6 +1001,50 @@ pub(crate) fn attached_state<'py>(table: &Bound<'py, PyAny>, name: &str) -> PyRe
         Some(value) if is_detached(&value) => Ok(Some(table.get_item(name)?)),
         held => Ok(held),
     }
+}
+
+/// Run f on `model_state.get(name)` as a `V`, building no tree: the row of a detached namespace,
+/// whose row is a `ValueRow`, or the tree read as it is; None for no such key. For a kernel that
+/// only reads the namespace. f must not run Python code (`NamespaceMirror::with_value`).
+pub(crate) fn with_state_value<R>(
+    world: &Bound<'_, PyAny>,
+    name: &str,
+    f: impl FnOnce(Option<&V>) -> PyResult<R>,
+) -> PyResult<R> {
+    let table = world
+        .getattr(intern!(world.py(), "model_state"))
+        .map_err(|_| Unsupported::new_err("an input has no such attribute"))?;
+    let dict = as_readable_dict(&table).ok_or_else(|| Unsupported::new_err("model_state is not a plain dict"))?;
+    match dict.get_item(name)? {
+        None => f(None),
+        Some(held) if is_detached(&held) => NamespaceMirror::with_value(&mirror_of(world, name)?, |value| f(Some(value))),
+        Some(held) => f(Some(&V::from_py(&held)?)),
+    }
+}
+
+/// `model_state.get(name)` for a kernel that reads it with Python's own reads at a rare event: a
+/// detached namespace comes back as a new document of its row (`state_mirror.read_only_state`),
+/// which nothing follows, so it must never be written. The tree otherwise.
+pub(crate) fn read_only_state<'py>(world: &Bound<'py, PyAny>, name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+    let py = world.py();
+    let table = world
+        .getattr(intern!(py, "model_state"))
+        .map_err(|_| Unsupported::new_err("an input has no such attribute"))?;
+    let dict = as_readable_dict(&table).ok_or_else(|| Unsupported::new_err("model_state is not a plain dict"))?;
+    match dict.get_item(name)? {
+        Some(held) if is_detached(&held) => {
+            let mirror = mirror_of(world, name)?;
+            let this = mirror.try_borrow()?;
+            let row = this.row.as_ref().ok_or_else(|| PyRuntimeError::new_err("a detached namespace always has a row"))?;
+            Ok(Some(row.to_py(py)?))
+        }
+        held => Ok(held),
+    }
+}
+
+/// `model_state.get(name)` as a new `V`, building no tree (`with_state_value`).
+pub(crate) fn state_value(world: &Bound<'_, PyAny>, name: &str) -> PyResult<Option<V>> {
+    with_state_value(world, name, |value| Ok(value.cloned()))
 }
 
 fn part_of<'a>(key: &'a Bound<'_, PyAny>) -> Result<Part<'a>, Misfit> {
@@ -1281,12 +1330,12 @@ impl NamespaceMirror {
         self.root_is(value)
     }
 
-    /// A number that stays the same while nothing writes to the tree, if value is the tree, else
-    /// None. So a check can tell it read this very state without comparing it. Both this and
-    /// `holds` miss `dict.__setitem__` on a node, which passes the tree's overrides
-    /// (docs/rust-port/lanes/t-tick-validation.md).
+    /// A number that stays the same while nothing writes to the tree, if value is the tree or the
+    /// placeholder of the detached namespace, else None. So a check can tell it read this very
+    /// state without comparing it. Both this and `holds` miss `dict.__setitem__` on a node, which
+    /// passes the tree's overrides (docs/rust-port/lanes/t-tick-validation.md).
     fn generation_of(&self, value: &Bound<'_, PyAny>) -> Option<u64> {
-        self.root_is(value).then_some(self.generation)
+        self.held_generation(value)
     }
 
     /// The canonical JSON of the row, or None without one.

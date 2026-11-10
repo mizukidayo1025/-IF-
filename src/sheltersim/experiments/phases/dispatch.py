@@ -7,6 +7,7 @@ from typing import Any
 
 from sheltersim import native
 from sheltersim.core.kernels import kernel_only
+from sheltersim.core.state_mirror import read_only_state
 from sheltersim.core.world import WorldState
 
 # native/src/rules/dispatch.rs calls these four through this module, so a test's patch here shows.
@@ -130,7 +131,7 @@ class DispatchPhase:
         journey = state["journeys"].get(agent_id, {})
         bed_point = None
         if journey.get("purpose") == "sleep_bed":
-            overlay = self.world.model_state.get("geometry_overlay_v1", {})
+            overlay = read_only_state(self.world, "geometry_overlay_v1", {})
             reservation = overlay.get("bed_reservations", {}).get(agent_id, {})
             room = overlay.get("temporary_rooms", {}).get(reservation.get("room_id"), {})
             bed_points = room.get("bed_points_m", [])

@@ -8,6 +8,7 @@ from pydantic import Field, model_validator
 
 from sheltersim.contracts.extensions import ExtensionModel, Identifier
 from sheltersim.contracts.operations import SupportKind
+from sheltersim.core.state_mirror import read_only_part
 
 
 class HouseholdRelationshipCorrection(ExtensionModel):
@@ -109,10 +110,8 @@ def population_context_people(world: Any) -> dict[str, dict[str, Any]]:
     saved_people = saved_context.get("people", {}) if isinstance(saved_context, dict) else {}
     if isinstance(saved_people, dict):
         merged.update(saved_people)
-    population_state = world.model_state.get("population_dynamics_v1", {})
-    dynamic_people = (
-        population_state.get("profile_context", {}) if isinstance(population_state, dict) else {}
-    )
+    # A detached namespace gives a new document of that one part of its row.
+    dynamic_people = read_only_part(world, "population_dynamics_v1", "profile_context", {})
     if isinstance(dynamic_people, dict):
         merged.update(dynamic_people)
     return merged

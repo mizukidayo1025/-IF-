@@ -7,6 +7,7 @@ from typing import Any, Literal
 from pydantic import Field, model_validator
 
 from sheltersim.contracts.extensions import ExtensionModel, Identifier
+from sheltersim.core.state_mirror import read_only_state
 
 PRESENCE_NAMESPACE = "population_presence_v1"
 
@@ -94,10 +95,11 @@ def validate_presence_state(world: Any, raw: dict[str, Any]) -> None:
             raise ValueError("unknown return zone")
         if person.archive_path:
             value = world.model_state
-            for part in person.archive_path:
+            for index, part in enumerate(person.archive_path):
                 if not isinstance(value, dict) or part not in value:
                     raise ValueError("presence retained-state reference is missing")
-                value = value[part]
+                # The first part names a namespace: a detached one is a document of its row.
+                value = read_only_state(world, part) if index == 0 else value[part]
     if not set(world.agents) <= set(state.people):
         raise ValueError("presence omits an admitted person")
     ids = set()

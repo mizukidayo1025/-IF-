@@ -17,16 +17,17 @@
 //! reads of dicts and lists are the C code of `core/tracked.rs`'s types.
 
 use std::cell::RefCell;
+use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyDictMethods, PyInt, PyList, PyString, PyTuple};
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_int_text, exact_list, exact_str, str_value, unsupported};
+use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_int_text, exact_str, str_value, unsupported};
 use crate::core::tracked::{as_readable_list, is_detached};
 use crate::core::value::V;
-use crate::core::world_core::{mirror_of, raw_dict_get, NamespaceMirror};
+use crate::core::world_core::{mirror_of, raw_dict_get, state_value, NamespaceMirror};
 use crate::state::entities::{Activity, RequestStatus};
 use crate::state::events::{EventWriter, PendingEvent, PendingSource};
 use crate::state::resource_ledger::{held_mirror, LedgerRow};
@@ -1123,74 +1124,90 @@ fn route_capacities_pass(config: &Bound<'_, PyAny>, edges: &Bound<'_, PyDict>) -
 const POPULATION_POLICY_VERSION: &str = "capacity-aware-arrivals-departures-v1";
 const POPULATION_SOURCE_ID: &str = "ASM-POPULATION-DYNAMICS-V1";
 
-fn required_list<'py>(state: &Bound<'py, PyDict>, name: &Bound<'py, PyString>) -> PyResult<Bound<'py, PyAny>> {
-    match state.get_item(name)? {
-        Some(value) if as_readable_list(&value).is_some() => Ok(value),
+fn required_list<'a>(state: &'a indexmap::IndexMap<Arc<str>, V>, name: &str) -> PyResult<&'a [V]> {
+    match state.get(name) {
+        Some(V::List(items)) => Ok(items),
         _ => unsupported("a list of the population state is the Python rule's"),
     }
 }
 
 /// `validate_population_dynamics_state` of a state with no dynamic context and no one pending, the
-/// parts of it that read `PersonContext`, `PersonTraits` and the approach routes.
+/// parts of it that read `PersonContext`, `PersonTraits` and the approach routes. The state is read
+/// as a `V`, a detached one from its row.
 #[pyfunction]
 fn population_dynamics(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = world.py();
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let Some(state) = raw_dict_get(exact_dict(&table)?, intern!(py, "population_dynamics_v1").as_any())? else {
+    let Some(state) = state_value(world, "population_dynamics_v1")? else {
         return Ok(true);
     };
-    if state.is_none() {
-        return Ok(true);
-    }
-    let state = exact_dict(&state)?;
-    let text_is = |name: &Bound<'_, PyString>, expected: &str| -> PyResult<bool> {
-        Ok(state.get_item(name)?.is_some_and(|value| str_value(&value) == Some(expected)))
+    let state = match &state {
+        V::Null => return Ok(true),
+        V::Map(state) => state,
+        _ => return unsupported("a value is not a plain dict"),
     };
-    let version_is_one = state
-        .get_item(intern!(py, "schema_version"))?
-        .is_some_and(|value| exact_int(&value).is_ok_and(|number| number == 1));
-    let context = state.get_item(intern!(py, "profile_context"))?;
-    let no_context = match &context {
+    let text_is = |name: &str, expected: &str| matches!(state.get(name), Some(V::Str(text)) if &**text == expected);
+    let version_is_one = matches!(state.get("schema_version"), Some(V::Int(1)));
+    let context = state.get("profile_context");
+    let no_context = match context {
         None => true,
-        Some(context) => exact_dict(context)?.is_empty(),
+        Some(V::Map(context)) => context.is_empty(),
+        Some(_) => return unsupported("a value is not a plain dict"),
     };
-    let initial = required_list(state, intern!(py, "initial_agent_ids"))?;
-    let pending = required_list(state, intern!(py, "pending_arrivals"))?;
-    required_list(state, intern!(py, "arrivals"))?;
-    required_list(state, intern!(py, "departures"))?;
-    let Some(traits) = state.get_item(intern!(py, "profile_traits"))? else {
+    let initial = required_list(state, "initial_agent_ids")?;
+    let pending = required_list(state, "pending_arrivals")?;
+    required_list(state, "arrivals")?;
+    required_list(state, "departures")?;
+    let Some(traits) = state.get("profile_traits") else {
         return unsupported("the population state lacks its traits");
     };
-    let traits = exact_dict(&traits)?;
+    let V::Map(traits) = traits else {
+        return unsupported("a value is not a plain dict");
+    };
     if state.len() != if context.is_some() { 8 + 1 } else { 8 }
         || !version_is_one
-        || !text_is(intern!(py, "policy_version"), POPULATION_POLICY_VERSION)?
-        || !text_is(intern!(py, "source_id"), POPULATION_SOURCE_ID)?
+        || !text_is("policy_version", POPULATION_POLICY_VERSION)
+        || !text_is("source_id", POPULATION_SOURCE_ID)
     {
         return unsupported("the population state is the Python rule's");
     }
-    if !no_context || !exact_list(&pending)?.is_empty() {
+    if !no_context || !pending.is_empty() {
         // Someone waits, or has a context: `validate_population_dynamics_state` reads those.
         // Its ValueError is the validation's to raise: this says Unsupported.
         crate::rules::population::as_refusal(crate::rules::population::validate_population_dynamics_state(world))?;
         return Ok(true);
     }
-    let initial = exact_list(&initial)?;
     let mut seen: FxHashSet<&str> = FxHashSet::default();
     seen.reserve(initial.len());
-    let held = Held::new();
-    for id in initial.iter() {
-        if !seen.insert(held.text(id)?) {
+    for id in initial {
+        let V::Str(id) = id else {
+            return unsupported("a value is not a str");
+        };
+        if !seen.insert(id) {
             return unsupported("the initial agents repeat an ID");
         }
     }
     let agents = attribute(world, intern!(py, "agents"))?;
     for (id, _) in exact_dict(&agents)?.iter() {
-        if !seen.contains(exact_str(&id)?) && !traits.contains(&id)? {
+        let id = exact_str(&id)?;
+        if !seen.contains(id) && !traits.contains_key(id) {
             return unsupported("an active agent has no profile");
         }
     }
     Ok(true)
+}
+
+/// Whether `value[part]...` reaches something through these parts, all str keys of dicts.
+fn value_path_exists(mut value: &V, path: &[V]) -> bool {
+    for part in path {
+        let (V::Map(map), V::Str(part)) = (value, part) else {
+            return false;
+        };
+        match map.get(&**part) {
+            Some(next) => value = next,
+            None => return false,
+        }
+    }
+    true
 }
 
 /// `validate_presence_state` (`contracts/presence.py`), the validator of the declared namespace
@@ -1201,12 +1218,13 @@ fn validate_presence(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = world.py();
     let table = attribute(world, intern!(py, "model_state"))?;
     let table = exact_dict(&table)?;
-    let Some(raw) = raw_dict_get(table, intern!(py, PRESENCE).as_any())? else {
+    // Read as a `V`, a detached one from its row.
+    let Some(raw) = state_value(world, PRESENCE)? else {
         // The declared check said what a missing namespace is; here there is nothing to read.
         return unsupported("no presence state");
     };
-    crate::rules::population::presence_is_plain(&raw)?;
-    let V::Map(state) = V::from_py(&raw)? else {
+    crate::rules::population::presence_value_is_plain(&raw)?;
+    let V::Map(state) = raw else {
         return unsupported("the presence state is not a mapping");
     };
     let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
@@ -1248,9 +1266,10 @@ fn validate_presence(world: &Bound<'_, PyAny>) -> PyResult<bool> {
             return unsupported("a presence record disagrees with the world");
         }
         if let Some(V::List(path)) = person.get("archive_path") {
-            // `value = world.model_state; value = value[part]`, through what is there now.
+            // `value = world.model_state; value = value[part]`, through what is there now. A
+            // detached namespace on the way is read from its row.
             let mut value = table.clone().into_any();
-            for part in path {
+            for (index, part) in path.iter().enumerate() {
                 let V::Str(part) = part else {
                     return unsupported("an archive path holds another value");
                 };
@@ -1261,6 +1280,13 @@ fn validate_presence(world: &Bound<'_, PyAny>) -> PyResult<bool> {
                 let Some(next) = next else {
                     return unsupported("a presence archive path is missing");
                 };
+                if is_detached(&next) {
+                    let rest = &path[index + 1..];
+                    if !NamespaceMirror::with_value(&mirror_of(world, part)?, |row| Ok(value_path_exists(row, rest)))? {
+                        return unsupported("a presence archive path is missing");
+                    }
+                    break;
+                }
                 value = next;
             }
         }

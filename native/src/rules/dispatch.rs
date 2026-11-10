@@ -23,7 +23,9 @@ use pyo3::types::{PyDict, PyList, PyString, PyTuple, PyType};
 
 use crate::core::errors;
 use crate::core::row::{attribute, exact_int};
-use crate::core::world_core::{mirror_of, raw_dict_get, NamespaceMirror};
+use crate::core::value::V;
+use crate::core::world_core::{mirror_of, raw_dict_get, with_state_value, NamespaceMirror};
+use indexmap::IndexMap;
 use crate::rules::action_lifecycle::{complete_for_event, ends_any_action};
 use crate::rules::agent_dynamics::learn_facility_of;
 use crate::rules::body_state::record_social_event;
@@ -926,26 +928,12 @@ impl<'py> Phase<'_, 'py> {
         Ok(())
     }
 
-    /// `_reserved_bed_of`: the bed point `_finish_stopped_journey` reads from the overlay.
+    /// `_reserved_bed_of`: the bed point `_finish_stopped_journey` reads from the overlay, read as a
+    /// `V` (a detached one from its row).
     fn bed_point_of(&self, key: &Bound<'py, PyString>) -> PyResult<Option<Bound<'py, PyAny>>> {
-        let py = self.py();
-        let table = attribute(self.world, intern!(py, "model_state"))?;
-        let empty = PyDict::new(py);
-        let overlay = table.call_method1(intern!(py, "get"), ("geometry_overlay_v1", &empty))?;
-        let reservation = overlay.call_method1(intern!(py, "get"), ("bed_reservations", &empty))?.call_method1(intern!(py, "get"), (key, &empty))?;
-        let room = overlay
-            .call_method1(intern!(py, "get"), ("temporary_rooms", &empty))?
-            .call_method1(intern!(py, "get"), (reservation.call_method1(intern!(py, "get"), ("room_id",))?, &empty))?;
-        let beds = room.call_method1(intern!(py, "get"), ("bed_points_m", PyList::empty(py)))?;
-        let index = reservation.call_method1(intern!(py, "get"), ("bed_index",))?;
-        if !index.is_exact_instance_of::<pyo3::types::PyInt>() {
-            return Ok(None);
-        }
-        let index = exact_int(&index)?;
-        if index < 0 || index as usize >= beds.len()? {
-            return Ok(None);
-        }
-        Ok(Some(beds.get_item(index as usize)?))
+        let agent_id = key.to_str()?;
+        let bed = with_state_value(self.world, "geometry_overlay_v1", |overlay| reserved_bed_of(overlay, agent_id))?;
+        bed.map(|bed| bed.to_py(self.py())).transpose()
     }
 
     /// `_finish_stopped_journey`.
@@ -1190,4 +1178,37 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(install_return_rule, m)?)?;
     m.add_function(wrap_pyfunction!(stats, m)?)?;
     Ok(())
+}
+
+/// `_reserved_bed_of` on the overlay: `.get(key, {})` all the way down, a value of another kind
+/// Unsupported where Python would raise.
+fn reserved_bed_of(overlay: Option<&V>, agent_id: &str) -> PyResult<Option<V>> {
+    let empty = IndexMap::new();
+    fn dict_or<'a>(value: Option<&'a V>, empty: &'a IndexMap<Arc<str>, V>) -> PyResult<&'a IndexMap<Arc<str>, V>> {
+        match value {
+            None => Ok(empty),
+            Some(V::Map(map)) => Ok(map),
+            Some(_) => Err(Unsupported::new_err("a part of the overlay is not a dict")),
+        }
+    }
+    let overlay = dict_or(overlay, &empty)?;
+    let reservation = dict_or(dict_or(overlay.get("bed_reservations"), &empty)?.get(agent_id), &empty)?;
+    let rooms = dict_or(overlay.get("temporary_rooms"), &empty)?;
+    let room = match reservation.get("room_id") {
+        Some(V::Str(room_id)) => rooms.get(&**room_id),
+        Some(V::List(_) | V::Map(_)) => return Err(Unsupported::new_err("a room ID is not hashable")),
+        _ => None,
+    };
+    let room = dict_or(room, &empty)?;
+    let beds: &[V] = match room.get("bed_points_m") {
+        None => &[],
+        Some(V::List(beds)) => beds,
+        Some(_) => return Err(Unsupported::new_err("the beds are not a list")),
+    };
+    let index = match reservation.get("bed_index") {
+        Some(V::Int(index)) => *index,
+        Some(V::Big(_)) => return Err(Unsupported::new_err("an int is too large")),
+        _ => return Ok(None),
+    };
+    Ok(usize::try_from(index).ok().and_then(|index| beds.get(index)).cloned())
 }

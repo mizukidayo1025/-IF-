@@ -570,6 +570,10 @@ DETACHED_NAMESPACES = frozenset(
         "social_propagation_v1",
         "temporary_spaces_v1",
         "social_network_v1",
+        "population_presence_v1",
+        "population_lifecycle_v1",
+        "population_dynamics_v1",
+        "geometry_overlay_v1",
     }
 )
 
@@ -918,7 +922,10 @@ def namespace_stamp(world: Any, name: str) -> tuple[Any, int] | None:
     if mirror is None or value is _MISSING:
         return None
     generation = mirror.generation_of(value)
-    return None if generation is None else (value, generation)
+    if generation is None:
+        return None
+    # Every world holds the one placeholder: a detached namespace is told apart by its mirror.
+    return (mirror if value is _DETACHED else value), generation
 
 
 def field_stamp(world: Any, name: str) -> tuple[Any, int] | None:

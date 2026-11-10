@@ -1134,6 +1134,14 @@ L0 の前に文を読んで付けた分類です。到達は**推測で、上の
 - **読み取り専用の口：** `state_mirror.read_only_part(world, name, key, default)` は `model_state.get(name, {}).get(key, default)` です。切り離した名前空間では、行のその1項目だけを文書にします（`NamespaceMirror.document_part`、`Field::part_to_py`）。木も、残りの項目も作りません。木があれば、木の値をそのまま返します。
 - **frame：** `inspection/frames.py` は `model_state` を `read_only_state` と `read_only_part` だけで読みます。frame は保存ごとに作るので、木を作り直しません。
 - **`social_network_v1`：** 切り離しました。tick の中の kernel は前から行だけを読んでいて、tick の外の読み手は frame だけでした。1日分の project の経路で、木の作り直しは0回です（`_REBUILD_OBSERVER` で数えました）。
+- **`population_presence_v1`、`population_lifecycle_v1`、`population_dynamics_v1`、`geometry_overlay_v1`（`V` の行）：** 切り離しました。木を `.get` などで読んでいた kernel は、行の `V` を読みます（`world_core::with_state_value`、`state_value`。木があるときは木を `V` にして読みます）。
+  - 世帯：`world_view.rs` の `presence_people_of` と `group_of`（`information.rs` も使う）、`support.rs` と `population_lifecycle.rs` の `household_of`、`decisions.rs` の記録、`social_interaction.rs` の家族の世話。動的な文脈は `world_view.rs` と `care_receipts.rs` が部分だけ写します。
+  - 配置と寝床：`movement.rs`（寝床の点、施設の移動）、`movement_geometry.rs` の `Geo::of`、`dispatch.rs`、`travel_completion.rs`、`overlay.rs`（定員、部屋、寝床の計画、`check_overlay`）、`proposals.rs`（寝床を手放すとき、切り離した overlay では行から消します）。
+  - `after_tick.rs`：memo は切り離した名前空間を mirror と世代で見分けます（すべての世界が同じ印を持つため。`NamespaceMirror::held_generation`）。空の部分、記録先の道、宣言の版、履歴の ID も行を読みます。`state_mirror.namespace_stamp` も同じ見分け方です（`generation_of` は印にも世代を返します）。
+  - 検証：`tick_validation.rs`（人口と在所。記録先の道が切り離した名前空間を通るときは行をたどります）、`population.rs` と `population_lifecycle.rs` の検証、`resource_service.rs`、`staff_order.rs`、`action_lifecycle.rs`。
+  - 書いて読む規則（受け入れ、戻り、部屋への受け入れ、配置の変更）は、今までどおり `attached_state` で木を作り直させます。待っている人や戻る人がいなければ、行を読んで何もしません（`population.rs` の `nothing_in`）。EffectProgram の期限の読みは、行から作った文書を読みます（`world_core::read_only_state`）。
+  - tick の外の Python の読み手は `read_only_state` と `read_only_part` にしました：`contracts/`（`runtime.py`、`presence.py`、`population.py`、`spatial.py`）、`core/world.py`、`domain/`（`body_state.py`、`common_operations.py`、`geometry_overlay.py`）、`events/effects.py`、`experiments/phases/dispatch.py`、`web/project_queries.py`、`llm/natural_language.py`。
+  - 1日分の project の経路で、4つの木の作り直しは0回です。生成 Scenario には部屋、寝床、到着がないので、その道は `test_overlay_rules.py`、`test_population_presence.py` などで確かめます（`from_dict` の写しは行だけを持ちます）。`test_overlay_rules.py` の `_bytes` は、`V` の行の4つを並べ直しません（行は木と同じキーの順を持つため）。
 
 ## 6. エラーの文
 

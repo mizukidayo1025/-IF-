@@ -17,13 +17,14 @@ use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 
 use crate::core::errors;
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, unsupported};
+use crate::core::world_core::{state_value, with_state_value};
 use crate::core::value::V;
 use crate::rules::movement::{mobility_text, start_movement};
 use crate::rules::movement_geometry::{Geo, Pt};
 use crate::rules::population::{
     schedule_population_retry, cancel_agent_events, check_admission_paths, check_information, check_queue_rows, check_relationship_keys, drop_support_requests, event_row,
     filter_support_requests, get, get_map, has_namespace, identifier, is_dict, namespace, optional_identifier, optional_text, pair_of,
-    payload, person_in, place_in_room, planning, invalid, as_refusal, is_one, presence_is_plain, presence_state, profile_object, record_hash, release_room, reset_position,
+    payload, person_in, place_in_room, planning, invalid, as_refusal, is_one, presence_value_is_plain, presence_state, nothing_in, profile_object, record_hash, release_room, reset_position,
     sha_hex, sorted_keys, sorted_set, strings, text, v_map, write_presence, write_room_admission, writing, Person, Places, Transition, AGENT_DYNAMICS,
     BODY, INFORMATION, MOVEMENT, PRESENCE, SOCIAL_NETWORK, SOCIAL_RUNTIME,
 };
@@ -154,11 +155,29 @@ fn append_history(state: &Bound<'_, PyAny>, row: Bound<'_, PyDict>) -> PyResult<
 /// `current_household_id`.
 fn household_of(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Option<Arc<str>>> {
     let py = world.py();
-    if let Some(presence) = namespace(world, PRESENCE)?.filter(is_dict) {
-        let person = get_map(&get_map(&presence, "people")?, agent_id)?;
-        if is_dict(&person) {
-            return optional_text(&get(&person, "household_id")?);
+    // The presence state is read as a `V`, a detached one from its row. None: the profile's group.
+    let found = with_state_value(world, PRESENCE, |presence| {
+        let Some(V::Map(presence)) = presence else {
+            return Ok(None);
+        };
+        let people = match presence.get("people") {
+            None => return Ok(Some(None)),
+            Some(V::Map(people)) => people,
+            Some(_) => return unsupported("the presence's people are not a dict"),
+        };
+        match people.get(agent_id) {
+            // `.get(agent_id, {})`, a dict without a household.
+            None => Ok(Some(None)),
+            Some(V::Map(person)) => match person.get("household_id") {
+                None | Some(V::Null) => Ok(Some(None)),
+                Some(V::Str(household)) => Ok(Some(Some(household.clone()))),
+                Some(_) => unsupported("a household is not a str"),
+            },
+            Some(_) => Ok(None),
         }
+    })?;
+    if let Some(found) = found {
+        return Ok(found);
     }
     let agent = get(&attribute(world, intern!(py, "agents"))?, agent_id)?;
     if agent.is_none() {
@@ -1191,6 +1210,9 @@ struct PendingReturn<'py> {
 fn returns_inner<'py>(world: &Bound<'py, PyAny>, minute: i64) -> PyResult<Bound<'py, PyTuple>> {
     let py = world.py();
     let plan = planning((|| {
+        if nothing_in(world, KEY, "pending_returns")? {
+            return Ok(None);
+        }
         let Some(state) = namespace(world, KEY)?.filter(is_dict) else {
             return Ok(None);
         };
@@ -1502,10 +1524,11 @@ const LIFECYCLE_SCHEMA: &str = "population_lifecycle_v1 has an invalid exact sch
 /// dropped.
 fn check_lifecycle(world: &Bound<'_, PyAny>, leaving: Option<&str>) -> PyResult<()> {
     let py = world.py();
-    let Some(state) = namespace(world, KEY)? else {
+    // Read as a `V`, a detached one from its row.
+    let Some(state) = state_value(world, KEY)?.filter(|state| !matches!(state, V::Null)) else {
         return Ok(());
     };
-    let V::Map(document) = V::from_py(&state)? else {
+    let V::Map(document) = state else {
         return invalid(LIFECYCLE_SCHEMA);
     };
     const FIELDS: [&str; 10] = ["schema_version", "policy_version", "source_id", "people", "relationship_archive", "messages", "deferred_beliefs", "pending_returns", "pending_relocations", "history"];
@@ -1676,10 +1699,17 @@ fn check_lifecycle(world: &Bound<'_, PyAny>, leaving: Option<&str>) -> PyResult<
         json_checked(beliefs)?;
     }
     if has_namespace(world, PRESENCE)? {
-        let raw = namespace(world, PRESENCE)?.ok_or_else(|| Unsupported::new_err("no presence"))?;
-        presence_is_plain(&raw)?;
+        // Read as a `V`, a detached one from its row.
+        let raw = state_value(world, PRESENCE)?.filter(|raw| !matches!(raw, V::Null)).ok_or_else(|| Unsupported::new_err("no presence"))?;
+        presence_value_is_plain(&raw)?;
+        let V::Map(presence) = &raw else {
+            return unsupported("the presence state is not a mapping");
+        };
+        let Some(V::Map(people)) = presence.get("people") else {
+            return unsupported("the presence state lacks its people");
+        };
         for agent_id in pending_ids {
-            let record = person_in(&raw, agent_id)?;
+            let record = people.get(agent_id).filter(|record| !matches!(record, V::Null)).map(Person::parse).transpose()?;
             if !record.is_some_and(|person| &*person.status == "awaiting_admission") {
                 return invalid("pending return is inconsistent with population_presence_v1");
             }

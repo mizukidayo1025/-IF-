@@ -9,11 +9,12 @@ use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyString};
+use pyo3::types::PyString;
 
 use crate::core::row::{attribute, load_row, namespace_is_absent, state_row, IdMap};
 use crate::core::tracked::as_readable_dict;
-use crate::core::world_core::{mirror_of, raw_dict_get, NamespaceMirror, RowType};
+use crate::core::value::V;
+use crate::core::world_core::{mirror_of, raw_dict_get, with_state_value, NamespaceMirror, RowType};
 use crate::state::entities::{entities_of, Entities, EntityStore};
 use crate::Unsupported;
 
@@ -116,7 +117,8 @@ fn window_start<T>(history: &[T], minute_of: impl Fn(&T) -> i64, minute_index: i
 struct Known<'py> {
     agents: Bound<'py, PyAny>,
     zones: Bound<'py, PyAny>,
-    archived: Option<Bound<'py, PyDict>>,
+    /// The keys of `population_lifecycle_v1.people`, read from its row when it is detached.
+    archived: Option<rustc_hash::FxHashSet<Arc<str>>>,
 }
 
 impl Known<'_> {
@@ -126,7 +128,7 @@ impl Known<'_> {
             return Ok(true);
         }
         Ok(match &self.archived {
-            Some(people) => people.contains(&key)?,
+            Some(people) => people.contains(id),
             None => false,
         })
     }
@@ -218,16 +220,15 @@ fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
             }
         }
     }
-    let archived = match table.get_item(LIFECYCLE_KEY)? {
-        Some(lifecycle) => match as_readable_dict(&lifecycle) {
-            Some(lifecycle) => match lifecycle.get_item(intern!(py, "people"))? {
-                Some(people) => as_readable_dict(&people).cloned(),
-                None => None,
+    let archived = with_state_value(world, LIFECYCLE_KEY, |lifecycle| {
+        Ok(match lifecycle {
+            Some(V::Map(lifecycle)) => match lifecycle.get("people") {
+                Some(V::Map(people)) => Some(people.keys().cloned().collect()),
+                _ => None,
             },
-            None => None,
-        },
-        None => None,
-    };
+            _ => None,
+        })
+    })?;
     let known = Known { agents: attribute(world, intern!(py, "agents"))?, zones: attribute(world, intern!(py, "zones"))?, archived };
     if as_readable_dict(&known.agents).is_none() || as_readable_dict(&known.zones).is_none() {
         return Ok(false);

@@ -24,7 +24,8 @@ use pyo3::types::{PyBool, PyDict, PyInt, PyList, PyString};
 use crate::core::errors;
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, str_value, unsupported};
 use crate::core::tracked::as_readable_dict;
-use crate::core::world_core::raw_dict_get;
+use crate::core::value::V;
+use crate::core::world_core::{raw_dict_get, with_state_value};
 use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, RequestStatus};
 use crate::rules::movement::{at_queue_slot, at_service_point, at_trip_destination};
 use crate::rules::travel::{approach_route, plan_room_approach, write_travel};
@@ -450,16 +451,39 @@ fn sleep_bed_fits<'py>(world: &Bound<'py, PyAny>, walk: &Walk, rows_fit: bool) -
     let none = || py.None().into_bound(py);
     let dict = || PyDict::new(py).into_any();
     let table = attribute(world, intern!(py, "model_state"))?;
-    let overlay = get_or(&table, "geometry_overlay_v1", dict())?;
-    let overlay_is_dict = overlay.is_instance_of::<PyDict>();
-    let reservations = if overlay_is_dict { get_or(&overlay, "bed_reservations", dict())? } else { dict() };
-    let reservation = if reservations.is_instance_of::<PyDict>() { get_of(&reservations, &walk.agent_id)? } else { none() };
+    // The person's reservation and its room, copied from the overlay read as a `V` (a detached one
+    // from its row): what `overlay.get(...)` of the rule gives, None for what it does not have.
+    let (reservation, room) = with_state_value(world, "geometry_overlay_v1", |overlay| {
+        let Some(V::Map(overlay)) = overlay else {
+            return Ok((None, None));
+        };
+        let reservation = match overlay.get("bed_reservations") {
+            Some(V::Map(reservations)) => reservations.get(&*walk.agent_id).cloned(),
+            _ => None,
+        };
+        let Some(V::Map(fields)) = &reservation else {
+            return Ok((reservation, None));
+        };
+        let room = match overlay.get("temporary_rooms") {
+            None => None,
+            Some(V::Map(rooms)) => match fields.get("room_id") {
+                Some(V::Str(room_id)) => rooms.get(&**room_id).cloned(),
+                Some(V::List(_) | V::Map(_)) => return unsupported("a reservation's room is not hashable"),
+                // No str key equals another value.
+                _ => None,
+            },
+            Some(_) => return unsupported("the rooms are not a dict"),
+        };
+        Ok((reservation, room))
+    })?;
+    let reservation = match reservation {
+        Some(reservation) => reservation.to_py(py)?,
+        None => none(),
+    };
     let reservation_is_dict = reservation.is_instance_of::<PyDict>();
-    let rooms = if overlay_is_dict { get_or(&overlay, "temporary_rooms", dict())? } else { dict() };
-    let room = if reservation_is_dict {
-        rooms.call_method1(intern!(py, "get"), (get_of(&reservation, "room_id")?,))?
-    } else {
-        none()
+    let room = match room {
+        Some(room) => room.to_py(py)?,
+        None => none(),
     };
     let movement = get_or(&table, "movement_v1", dict())?;
     let journey = if movement.is_instance_of::<PyDict>() { get_of(&get_or(&movement, "journeys", dict())?, &walk.agent_id)? } else { none() };
@@ -495,10 +519,24 @@ fn sleep_bed_fits<'py>(world: &Bound<'py, PyAny>, walk: &Walk, rows_fit: bool) -
 /// first two checks, the task's kind and the person's target.
 fn relocation_fits(world: &Bound<'_, PyAny>, walk: &Walk, rows_fit: bool) -> PyResult<bool> {
     let py = world.py();
-    let dict = || PyDict::new(py).into_any();
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let lifecycle = get_or(&table, "population_lifecycle_v1", dict())?;
-    let relocation = get_of(&get_or(&lifecycle, "pending_relocations", dict())?, &walk.agent_id)?;
+    // The person's pending relocation, copied from the lifecycle read as a `V` (a detached one from
+    // its row).
+    let relocation = with_state_value(world, "population_lifecycle_v1", |lifecycle| {
+        let lifecycle = match lifecycle {
+            None => return Ok(None),
+            Some(V::Map(lifecycle)) => lifecycle,
+            Some(_) => return unsupported("the lifecycle state is not a dict"),
+        };
+        match lifecycle.get("pending_relocations") {
+            None => Ok(None),
+            Some(V::Map(relocations)) => Ok(relocations.get(&*walk.agent_id).cloned()),
+            Some(_) => unsupported("the pending relocations are not a dict"),
+        }
+    })?;
+    let relocation = match relocation {
+        Some(relocation) => relocation.to_py(py)?,
+        None => py.None().into_bound(py),
+    };
     Ok(rows_fit
         && relocation.is_instance_of::<PyDict>()
         && !differs(&get_of(&relocation, "task_id")?, &walk.task_id)?

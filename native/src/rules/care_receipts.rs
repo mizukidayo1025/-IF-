@@ -14,7 +14,7 @@ use crate::core::errors;
 use crate::core::row::{attribute, exact_int, exact_str, str_value, namespace_is_absent, unsupported};
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::V;
-use crate::core::world_core::{mirror_of, NamespaceMirror};
+use crate::core::world_core::{mirror_of, with_state_value, NamespaceMirror};
 use crate::rules::common_operations::{plan_record, write_record, CareRecord, PlannedRecord};
 use crate::rules::handlers::{assumption, log_record, new_event, status_member, NewEvent};
 use crate::state::events::{EventKind, EventRow, EventStatus, EventWriter};
@@ -341,8 +341,18 @@ pub(crate) fn person_context<'py>(world: &Bound<'py, PyAny>, agent_id: &str) -> 
     };
     let table = attribute(world, intern!(py, "model_state"))?;
     let table = crate::core::row::exact_dict(&table)?;
-    if let Some(person) = in_part(table.get_item(intern!(py, "population_dynamics_v1"))?, intern!(py, "profile_context"))? {
-        return Ok(Some(person));
+    // The dynamic contexts are read as a `V`, a detached one from its row; the person's is copied.
+    let dynamic = with_state_value(world, "population_dynamics_v1", |state| {
+        Ok(match state {
+            Some(V::Map(state)) => match state.get("profile_context") {
+                Some(V::Map(people)) => people.get(agent_id).cloned(),
+                _ => None,
+            },
+            _ => None,
+        })
+    })?;
+    if let Some(person) = dynamic {
+        return Ok(Some(person.to_py(py)?));
     }
     if let Some(person) = in_part(table.get_item(intern!(py, "population_context_v1"))?, intern!(py, "people"))? {
         return Ok(Some(person));

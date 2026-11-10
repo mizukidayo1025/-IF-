@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
+from sheltersim.core.state_mirror import read_only_part
 from sheltersim.domain.environment import ZONE_ENVIRONMENT_POLICY, ZONE_ENVIRONMENT_STATE_KEY
 from sheltersim.domain.operational import OPERATIONAL_EVENTS_KEY
 from sheltersim.domain.resources import RESOURCE_LEDGER_KEY
@@ -921,12 +922,10 @@ def scenario_summary_from_world(
         pending_shipments=shipments,
         available_policies=sorted(policies),
         person_ids=sorted(
-            set(world.agents)
-            | set(world.model_state.get("population_lifecycle_v1", {}).get("people", {}))
+            set(world.agents) | set(read_only_part(world, "population_lifecycle_v1", "people", {}))
         )[:10000],
         person_targets_truncated=len(
-            set(world.agents)
-            | set(world.model_state.get("population_lifecycle_v1", {}).get("people", {}))
+            set(world.agents) | set(read_only_part(world, "population_lifecycle_v1", "people", {}))
         )
         > 10000,
         route_ids=sorted(world.zone_edges)[:2000],

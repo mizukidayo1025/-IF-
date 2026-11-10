@@ -32,7 +32,8 @@ use sha2::{Digest, Sha256};
 use crate::core::mathx::{py_fsum, py_min};
 use crate::core::parallel::parts_in_order;
 use crate::core::tracked::{as_readable_dict, is_detached};
-use crate::core::world_core::{mirror_of, raw_dict_get, raw_dict_set, NamespaceMirror};
+use crate::core::value::V;
+use crate::core::world_core::{mirror_of, raw_dict_get, raw_dict_set, with_state_value, NamespaceMirror};
 use crate::rules::person_context::{self, plain_copy};
 use crate::rules::zone_environment::{ZoneConditions, ZoneInputs};
 use crate::state::entities::{entities_of, raw_setattr, Activity, Entities, EntityStore, Mobility, NeedRow, RequestStatus};
@@ -298,41 +299,55 @@ fn field<'py>(record: &Bound<'py, PyDict>, name: &Bound<'py, PyString>) -> PyRes
     record.get_item(name)?.ok_or_else(|| Unsupported::new_err("a record's field is missing"))
 }
 
-/// `population_presence_v1.people`, for `group_of`; None for no such dict.
-pub(crate) fn presence_people_of<'py>(model_state: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
-    let py = model_state.py();
-    let presence = state_get(model_state, intern!(py, "population_presence_v1"))?;
-    let Some(state) = dict_or_nothing(&presence)? else {
-        return Ok(None);
-    };
-    let people = state.get_item(intern!(py, "people"))?;
-    if let Some(people) = &people {
-        if as_readable_dict(people).is_none() {
+/// What `group_of` reads of a person's record in `population_presence_v1.people`.
+pub(crate) enum Household {
+    /// No record, a record that is not a dict, or one without `household_id`: the profile's group.
+    Profile,
+    Is(Option<Arc<str>>),
+    /// A `household_id` that is not a str or None, which the Python rule refuses when it reads it.
+    Other,
+}
+
+/// `population_presence_v1.people`, for `group_of`; None for no such dict. Read from the row of
+/// the detached namespace, building no tree.
+pub(crate) fn presence_people_of(world: &Bound<'_, PyAny>) -> PyResult<Option<FxHashMap<Arc<str>, Household>>> {
+    with_state_value(world, "population_presence_v1", |presence| {
+        let Some(V::Map(state)) = presence else {
+            return Ok(None);
+        };
+        let Some(people) = state.get("people") else {
+            return Ok(None);
+        };
+        let V::Map(people) = people else {
             return unsupported("the presence state's people are not a dict");
+        };
+        let mut found = FxHashMap::with_capacity_and_hasher(people.len(), Default::default());
+        for (id, record) in people {
+            let household = match record {
+                V::Map(record) => match record.get("household_id") {
+                    None => Household::Profile,
+                    Some(V::Null) => Household::Is(None),
+                    Some(V::Str(text)) => Household::Is(Some(text.clone())),
+                    Some(_) => Household::Other,
+                },
+                _ => Household::Profile,
+            };
+            found.insert(id.clone(), household);
         }
-    }
-    Ok(people)
+        Ok(Some(found))
+    })
 }
 
 /// A person's `group_id` in a view: the household of the presence record, or the profile's.
 pub(crate) fn group_of(
-    people: Option<&Bound<'_, PyAny>>,
-    id: &Bound<'_, PyString>,
+    people: Option<&FxHashMap<Arc<str>, Household>>,
+    id: &str,
     profile_group: &Option<Arc<str>>,
 ) -> PyResult<Option<Arc<str>>> {
-    let Some(people) = people else {
-        return Ok(profile_group.clone());
-    };
-    let py = people.py();
-    let Some(record) = raw_dict_get(people, id.as_any())? else {
-        return Ok(profile_group.clone());
-    };
-    let Some(record) = dict_or_nothing(&record)? else {
-        return Ok(profile_group.clone());
-    };
-    match record.get_item(intern!(py, "household_id"))? {
-        Some(household) => optional_text(&household),
-        None => Ok(profile_group.clone()),
+    match people.and_then(|people| people.get(id)) {
+        None | Some(Household::Profile) => Ok(profile_group.clone()),
+        Some(Household::Is(household)) => Ok(household.clone()),
+        Some(Household::Other) => unsupported("a view value is not a str"),
     }
 }
 
@@ -429,13 +444,21 @@ fn person_contexts(
     cache: &mut ViewCache,
 ) -> PyResult<(FxHashMap<Arc<str>, Arc<PersonFields>>, bool)> {
     let py = world.py();
+    // The dynamic contexts, from the row of the detached namespace: a plain copy of the part, made
+    // only when it has entries, since an empty dict adds no one.
+    let dynamic = with_state_value(world, "population_dynamics_v1", |state| {
+        Ok(match state {
+            Some(V::Map(state)) => match state.get("profile_context") {
+                Some(contexts @ V::Map(entries)) if !entries.is_empty() => Some(contexts.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+    })?;
     let sources = [
         people_of(configs.get_item(intern!(py, "population_context"))?, intern!(py, "people"))?,
         people_of(Some(state_get(model_state, intern!(py, "population_context_v1"))?), intern!(py, "people"))?,
-        people_of(
-            Some(state_get(model_state, intern!(py, "population_dynamics_v1"))?),
-            intern!(py, "profile_context"),
-        )?,
+        dynamic.map(|contexts| contexts.to_py(py)).transpose()?,
     ];
     let later_has = |place: usize, id: &Bound<'_, PyAny>| -> PyResult<bool> {
         for later in &sources[place + 1..] {
@@ -1029,9 +1052,9 @@ fn build(controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>) -> PyResult<(V
     drop(cache);
 
     // Reads of the Python documents; none of them runs Python code but a mapping's get.
-    let presence = presence_people_of(&model_state)?;
-    for (agent, key) in agents.iter_mut().zip(&keys) {
-        agent.group_id = group_of(presence.as_ref(), key.bind(py), &agent.group_id)?;
+    let presence = presence_people_of(world)?;
+    for agent in agents.iter_mut() {
+        agent.group_id = group_of(presence.as_ref(), &agent.id, &agent.group_id)?;
         if let Some(person) = persons.get(&agent.id) {
             agent.person = person.clone();
         }

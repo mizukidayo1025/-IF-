@@ -14,6 +14,7 @@ import copy
 from typing import Any
 
 import pytest
+from support.world import view_of
 
 from sheltersim.core import state_mirror
 from sheltersim.core.checkpoint import Checkpoint
@@ -26,6 +27,7 @@ from sheltersim.core.state_mirror import (
     TrackedDict,
 )
 from sheltersim.core.world import StateInvariantError, WorldState
+from sheltersim.domain.population_lifecycle import current_household_id
 from sheltersim.domain.psychological_state import PSYCHOLOGICAL_STATE_KEY
 from sheltersim.domain.social_network import SOCIAL_NETWORK_STATE_KEY
 from sheltersim.domain.temporary_spaces import TEMPORARY_SPACES_STATE_KEY
@@ -35,6 +37,13 @@ from sheltersim.experiments.timeline import _MetricSink
 from sheltersim.inspection.frames import world_frame
 
 SOCIAL = "social_propagation_v1"
+# Their rows are `V` (docs/rust-port/lanes/m6-population.md); #134 stage 2, lane a2.
+POPULATION = (
+    "population_presence_v1",
+    "population_lifecycle_v1",
+    "population_dynamics_v1",
+    "geometry_overlay_v1",
+)
 
 
 def _engine(world: WorldState) -> TickEngine:
@@ -79,6 +88,7 @@ def test_a_run_holds_the_detached_namespaces_in_their_rows_alone(
         SOCIAL,
         TEMPORARY_SPACES_STATE_KEY,
         SOCIAL_NETWORK_STATE_KEY,
+        *POPULATION,
     }
     # The generated Scenario has them all; the social one is made at the first tick.
     assert _all_detached(world)
@@ -255,3 +265,48 @@ def test_a_frame_reads_the_rows_and_is_the_frame_of_the_trees(
         world.model_state[name]
     assert not any(world._core.mirror(name).is_detached for name in DETACHED_NAMESPACES)
     assert frame() == detached
+
+
+def _households(world: WorldState) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Each person's household as `current_household_id` and a phase's view read it."""
+    view = view_of(world, include_state_hash=False)
+    return (
+        {agent_id: current_household_id(world, agent_id) for agent_id in world.agents},
+        {agent_id: agent.group_id for agent_id, agent in view.agents.items()},
+    )
+
+
+def test_the_household_readers_read_the_presence_row(
+    ticked: tuple[WorldState, TickEngine],
+) -> None:
+    world, _ = ticked
+    people = world.model_state["population_presence_v1"]["people"]
+    first, second, third = sorted(people)[:3]
+    people[first]["household_id"] = "moved-household"
+    people[second]["household_id"] = None
+    del people[third]
+    with_tree = _households(world)
+    state_mirror.detach_unread(world)
+    assert _all_detached(world)
+    before = _rebuilds(world)
+    assert _households(world) == with_tree
+    assert with_tree[0][first] == with_tree[1][first] == "moved-household"
+    assert with_tree[0][second] is None and with_tree[0][third] is None
+    assert _rebuilds(world) == before and _all_detached(world)
+
+
+def test_the_after_tick_memo_stamps_a_detached_namespace_by_its_mirror(
+    ticked: tuple[WorldState, TickEngine],
+) -> None:
+    world, _ = ticked
+    world.validate_after_tick()
+    world.validate_after_tick()
+    unchanged = world.__dict__["_tick_memo"].facts()["unchanged"]
+    assert unchanged["presence"] and unchanged["lifecycle"] and unchanged["dynamics"]
+    assert unchanged["overlay"]
+    assert _all_detached(world) and _rebuilds(world) == dict.fromkeys(DETACHED_NAMESPACES, 0)
+    # A write reaches the row and moves its generation: the next check reads the row again.
+    world.model_state["population_lifecycle_v1"]["schema_version"] = 2
+    state_mirror.detach_unread(world)
+    with pytest.raises((StateInvariantError, ValueError)):
+        world.validate_after_tick()
