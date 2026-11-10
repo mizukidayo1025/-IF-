@@ -1150,6 +1150,13 @@ L0 の前に文を読んで付けた分類です。到達は**推測で、上の
   - 人口の出入り、スタッフの交代、EffectProgram の写しへの書き込み、`llm/runtime.py` の情報への反応は、今までどおり木を作り直します（どれもイベントかコマンドの境界で、毎 tick ではありません）。
   - `NamespaceTable.setdefault` は、無い名前空間を切り離して行に入れたあと、木を返します（`schedule_effect_program` が返り値に書くため）。
   - 確かめ：切り離した Run と木のある Run が、生成 Scenario 360分、独立の待ち行列16分、EffectProgram 30分で、tick ごとに同じです（`test_a_run_with_the_rows_alone_is_the_run_with_the_trees`）。`test_overlay_rules.py` の記録のうち、待ち行列の記録を持つ7つは、木の順のハッシュだったので、名前空間を切り離す前と後の世界から取り直しました（両方で同じでした）。
+- **履歴の5つ（`body_state_v1`、`shared_operations_v1`、`resource_ledger_v1`、`resource_service_v1`、`staff_operations_v1`）：** 切り離しました。
+  - **保存：** `_WORLD_TREE` が項目ごとにハッシュする履歴は、行の各項目の正規の JSON（`NamespaceMirror.items_json`、`Row::part_items` の `Items`）から作ります。前の呼び出しと同じ bytes の、先頭からひと続きの項目は同じ bytes のオブジェクトで返るので、`_SealedItems` と archive の chunk の鍵は今までどおり同一性で項目を知ります。文書にするのは新しい項目だけです。残りは一覧を空にした文書です（`document_emptied`）。Checkpoint の版と、`state_hash`・`checkpoint_hash` の決め方は変えていません。
+  - **保存の検証と復元の確かめ：** 保存の検証は、保存が作る文書を読みます（`SaveValidationMemo.states`、`state_mirror.validated_state`）。復元の確かめは、保存の文書と同じと分かっている項目を読みません（`same_detached` の `known`）。
+  - **tick：** Python に残した体の状態の確かめは、config と新しい履歴だけを作ります（`read_only_items`。`RowItems` は読んだ項目だけを作ります）。木を読んでいた kernel は行を読みます（`held_state`、`detached_part`）。木を通して書いていた規則（サービスの予約と取り消しの一覧、滞りの記録、care でない受け取り）は、切り離した名前空間では行に書きます（`apply_to_row` は Python の書き込みと同じ `Row::apply`）。
+  - **frame と tick の外：** frame は履歴の件数と末尾200件だけを作ります。台帳・サービスの記録（`inspection/traces.py`）、言葉の文脈（`llm/natural_language.py`）、受け取りの読み（`care_receipt_for_request`）、職員の運営の記録の読み（`domain/staff.py`）は `read_only_part` か `read_only_state` で読みます。`storage/history_index.py`・`index_writer.py` は保存した文書を読むので、変えていません。
+  - **残した作り直し：** 人口の出入り（`population.rs` の `add_body_record` と出発）、配置の確かめ（`overlay.rs` の `state_of`）、効果の写し（`effects.rs`）、職員への指示（`staff_order.rs`、`staff_operation_events.rs`）は、そのイベントのときだけ木を作り直させます（`attached_state` か `.get`）。毎 tick でも保存ごとでもありません。1日分の project の経路では0回でした。
+  - **テスト：** kernel が書く木を鍵の順まで固定したテスト（`test_body_state_row.py`、`test_resource_ledger_row.py`、`test_staff_rules.py`、`test_overlay_rules.py` の資源の FIFO）は、その名前空間に木を持たせます（`support/world.py` の `keep_trees`）。
 
 ## 6. エラーの文
 
