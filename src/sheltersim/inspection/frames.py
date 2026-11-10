@@ -10,6 +10,7 @@ from typing import Any
 from sheltersim.contracts.api import AgentPosition, TimelineFrame
 from sheltersim.contracts.extensions import Point2D, point_in_polygon
 from sheltersim.contracts.population import population_context_people
+from sheltersim.core.state_mirror import read_only_part, read_only_state
 from sheltersim.core.world import WorldState
 from sheltersim.domain.care_receipts import care_history_by_agent, care_history_for_agent
 from sheltersim.domain.population_lifecycle import current_household_id
@@ -34,15 +35,18 @@ def world_frame(
     from sheltersim.domain.geometry_overlay import effective_geometry, effective_spatial_constraints
 
     geometry = effective_geometry(world)
-    movement = world.model_state.get("movement_v1", {})
+    movement = read_only_state(world, "movement_v1", {})
     positions = movement.get("positions", {})
-    traits = world.model_state.get("population_dynamics_v1", {}).get(
-        "profile_traits", world.model_configs.get("population", {}).get("people", {})
+    traits = read_only_part(
+        world,
+        "population_dynamics_v1",
+        "profile_traits",
+        world.model_configs.get("population", {}).get("people", {}),
     )
-    memory = world.model_state.get("agent_dynamics_v1", {}).get("agents", {})
-    staff_memory = world.model_state.get("staff_dynamics_v1", {}).get("staff", {})
-    beliefs = world.model_state.get("information_spread_v1", {}).get("beliefs", {})
-    care_requests = world.model_state.get("shared_operations_v1", {}).get("support_requests", {})
+    memory = read_only_part(world, "agent_dynamics_v1", "agents", {})
+    staff_memory = read_only_part(world, "staff_dynamics_v1", "staff", {})
+    beliefs = read_only_part(world, "information_spread_v1", "beliefs", {})
+    care_requests = read_only_part(world, "shared_operations_v1", "support_requests", {})
     care_histories = care_history_by_agent(world)
     context_people = population_context_people(world)
     agents = []
@@ -136,7 +140,7 @@ def world_frame(
     kpis = MetricSnapshot.from_world(world).csv_row()
     kpis.pop("source_ids_json", None)
     kpis.update(resource_metric_values(world) or {})
-    pending = world.model_state.get("population_dynamics_v1", {}).get("pending_arrivals", [])
+    pending = read_only_part(world, "population_dynamics_v1", "pending_arrivals", [])
     approach_routes = {
         item.route_id: item for item in (geometry.arrival_approach_routes if geometry else ())
     }
@@ -217,7 +221,7 @@ def world_frame(
     ).model_dump(mode="json")
     zone_geometry = {z.zone_id: z.polygon for z in geometry.zones} if geometry else {}
     facilities = []
-    independent_queues = world.model_state.get("facility_queues_v1", {})
+    independent_queues = read_only_state(world, "facility_queues_v1", {})
     for f in sorted(world.facilities.values(), key=lambda f: f.id):
         point = geometry.facility_points.get(f.id) if geometry else None
         if point is not None and (
@@ -270,7 +274,7 @@ def world_frame(
                 "service_queues": service_queues,
             }
         )
-    relationships = world.model_state.get("social_network_v1", {}).get("relationships", {})
+    relationships = read_only_part(world, "social_network_v1", "relationships", {})
     geometry_payload = geometry.model_dump(mode="json") if geometry else None
     if geometry_payload is not None and not geometry.arrival_approach_routes:
         geometry_payload.pop("arrival_approach_routes", None)
@@ -324,35 +328,37 @@ def world_frame(
     )
     from sheltersim.contracts.spatial import occupancy_snapshot
 
-    body = world.model_state.get("body_state_v1", {})
-    operations = world.model_state.get("staff_operations_v1", {})
+    body_agents = read_only_part(world, "body_state_v1", "agents", {})
+    body_history = read_only_part(world, "body_state_v1", "history", [])
+    operations_history = read_only_part(world, "staff_operations_v1", "history", [])
+    operation_staff = read_only_part(world, "staff_operations_v1", "staff", {})
     for person in frame["people"]:
-        person["body"] = body.get("agents", {}).get(person["id"])
+        person["body"] = body_agents.get(person["id"])
     for staff in frame["staff"]:
-        staff["operation"] = operations.get("staff", {}).get(staff["id"])
+        staff["operation"] = operation_staff.get(staff["id"])
     # History is fetched through its index, never duplicated in every frame.
     frame["presence"] = {
         key: value
-        for key, value in world.model_state.get("population_presence_v1", {}).items()
+        for key, value in read_only_state(world, "population_presence_v1", {}).items()
         if key != "history"
     }
-    frame["sanitation"] = operations.get("zones", {})
+    frame["sanitation"] = read_only_part(world, "staff_operations_v1", "zones", {})
     frame["recorded_history"] = {
         "decisions": {
             "source": "people[].decision",
             "retention": "latest selected action per active agent",
         },
         "social": {
-            "retained_records": len(body.get("history", [])),
+            "retained_records": len(body_history),
             "event_window_truncated": social_window_truncated,
             "frame_event_scan_limit": 5000,
             "retention_limit": 20000,
-            "recent_effects": body.get("history", [])[-200:],
+            "recent_effects": body_history[-200:],
         },
         "staff": {
-            "retained_records": len(operations.get("history", [])),
+            "retained_records": len(operations_history),
             "retention_limit": 20000,
-            "recent_operations": operations.get("history", [])[-200:],
+            "recent_operations": operations_history[-200:],
         },
         "status": "bounded retained evidence; absence does not prove no earlier event",
     }
@@ -360,10 +366,9 @@ def world_frame(
     from sheltersim.domain.common_operations import operational_demand_snapshot
 
     frame["operational_demand"] = operational_demand_snapshot(world)
-    common_operations = world.model_state.get("shared_operations_v1", {})
     frame["recorded_history"]["shared_operations"] = {
         "contract_enabled": "shared_operations_v1" in world.model_state,
-        "retained_records": len(common_operations.get("history", [])),
+        "retained_records": len(read_only_part(world, "shared_operations_v1", "history", [])),
         "retention_limit": 20000,
         "read_route": "branch/history?kind=care or kind=operations",
         "claim_boundary": (
@@ -375,7 +380,7 @@ def world_frame(
     frame["geometry_overlay"] = deepcopy(
         {
             key: value
-            for key, value in world.model_state.get("geometry_overlay_v1", {}).items()
+            for key, value in read_only_state(world, "geometry_overlay_v1", {}).items()
             if key != "history"
         }
     )
@@ -527,18 +532,19 @@ def person_projection(
     """Bounded selected-person evidence; no whole-world hash or model evaluation."""
     from copy import deepcopy
 
-    presence = world.model_state.get("population_presence_v1", {}).get("people", {}).get(identity)
+    presence = read_only_part(world, "population_presence_v1", "people", {}).get(identity)
     agent = world.agents.get(identity)
     if agent is None:
         return {"person": None, "position": None, "presence": deepcopy(presence)}
-    traits = (
-        world.model_state.get("population_dynamics_v1", {})
-        .get("profile_traits", world.model_configs.get("population", {}).get("people", {}))
-        .get(identity)
-    )
+    traits = read_only_part(
+        world,
+        "population_dynamics_v1",
+        "profile_traits",
+        world.model_configs.get("population", {}).get("people", {}),
+    ).get(identity)
     context = population_context_people(world).get(identity)
     active_care_requests = []
-    care_state = world.model_state.get("shared_operations_v1", {}).get("support_requests", {})
+    care_state = read_only_part(world, "shared_operations_v1", "support_requests", {})
     if isinstance(care_state, dict):
         for request_id, raw_request in sorted(care_state.items()):
             if not isinstance(raw_request, dict) or raw_request.get("agent_id") != identity:
@@ -574,27 +580,24 @@ def person_projection(
         "traits": deepcopy(traits),
         "context": deepcopy(context),
         "decision": deepcopy(
-            world.model_state.get("agent_dynamics_v1", {}).get("agents", {}).get(identity)
+            read_only_part(world, "agent_dynamics_v1", "agents", {}).get(identity)
         ),
         "beliefs": deepcopy(
             dict(
                 list(
-                    world.model_state.get("information_spread_v1", {})
-                    .get("beliefs", {})
+                    read_only_part(world, "information_spread_v1", "beliefs", {})
                     .get(identity, {})
                     .items()
                 )[:16]
             )
         ),
-        "body": deepcopy(
-            world.model_state.get("body_state_v1", {}).get("agents", {}).get(identity)
-        ),
+        "body": deepcopy(read_only_part(world, "body_state_v1", "agents", {}).get(identity)),
         "care_requests": active_care_requests,
         "care_history": care_history_for_agent(world, identity),
         "dialogue": None,
         "dialogue_status": "not_recorded",
     }
-    overlay = world.model_state.get("geometry_overlay_v1", {})
+    overlay = read_only_state(world, "geometry_overlay_v1", {})
     reservation = (
         overlay.get("bed_reservations", {}).get(identity) if isinstance(overlay, dict) else None
     )
@@ -623,7 +626,7 @@ def person_projection(
         if current_household_id(world, agent.id) is not None
         else False
     )
-    record = world.model_state.get("movement_v1", {}).get("positions", {}).get(identity, {})
+    record = read_only_part(world, "movement_v1", "positions", {}).get(identity, {})
     point = Point2D.model_validate(record["point"]) if record.get("point") is not None else None
     kind = record.get("position_kind", "unavailable")
     zone = world.zones[agent.zone_id]

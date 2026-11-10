@@ -85,6 +85,8 @@ pub(crate) trait Row: Send + Sync + 'static {
     fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>>;
     /// The canonical JSON of the state, the same bytes as `canonical_json` of the tree.
     fn write_json(&self, encoder: &mut Encoder) -> PyResult<()>;
+    /// `to_py(...).get(key)` without making the rest: None for a key the state does not have.
+    fn part_to_py<'py>(&self, py: Python<'py>, key: &str) -> PyResult<Option<Bound<'py, PyAny>>>;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
@@ -202,6 +204,13 @@ impl Row for ValueRow {
 
     fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
         self.0.write_json(encoder)
+    }
+
+    fn part_to_py<'py>(&self, py: Python<'py>, key: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+        match &self.0 {
+            V::Map(map) => map.get(key).map(|value| value.to_py(py)).transpose(),
+            _ => Ok(None),
+        }
     }
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
@@ -1203,6 +1212,16 @@ impl NamespaceMirror {
     /// namespace that must not rebuild its tree (`state_mirror.read_only_state`). None without a row.
     fn document<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
         self.row.as_ref().map(|row| row.to_py(py)).transpose()
+    }
+
+    /// `document().get(key)` as a 1-tuple, or None for a key the row does not have: what a reader
+    /// of one part of a detached namespace reads without making the rest
+    /// (`state_mirror.read_only_part`). Unsupported without a row.
+    fn document_part<'py>(&self, py: Python<'py>, key: &str) -> PyResult<Option<Bound<'py, PyTuple>>> {
+        let Some(row) = self.row.as_ref() else {
+            return Err(Unsupported::new_err("the namespace has no row"));
+        };
+        row.part_to_py(py, key)?.map(|value| PyTuple::new(py, [value])).transpose()
     }
 
     /// Drop the row, as a write that does not fit does. Not for a detached namespace, whose row
