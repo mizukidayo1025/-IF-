@@ -1,30 +1,15 @@
-//! `social_propagation_v1`: the contacts of the last tick and the cooldowns of the social model
-//! (`_read_runtime_state` in `policies/social.py`). The rule that writes it is
-//! `rules/social_propagation.rs`.
+//! `social_propagation_v1`: the row is the core's (`sheltersim_core::state::social_propagation`);
+//! here is its Python side.
 
 use pyo3::prelude::*;
 
-use crate::core::row::{load_row, state_row, IdMap};
+pub(crate) use sheltersim_core::state::social_propagation::*;
+
+use crate::core::row::{load_row, py_row};
 use crate::core::world_core::RowType;
 
-pub(crate) const NAME: &str = "social_propagation_v1";
-pub(crate) const SCHEMA_VERSION: i64 = 1;
-
-state_row! {
-    #[derive(Clone, Copy)]
-    pub(crate) struct ContactRecord {
-        last_seen_minute: i64,
-        consecutive_minutes: i64,
-    }
-}
-
-state_row! {
-    pub(crate) struct SocialRow {
-        schema_version: i64,
-        contacts: IdMap<ContactRecord>,
-        agent_cooldown_until: IdMap<i64>,
-    }
-}
+py_row! { ContactRecord { last_seen_minute, consecutive_minutes } }
+py_row! { SocialRow { schema_version, contacts, agent_cooldown_until } }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();

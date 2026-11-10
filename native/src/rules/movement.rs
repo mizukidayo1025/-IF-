@@ -20,7 +20,7 @@ use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBool, PyDict, PyInt, PyString, PyTuple, PyType};
 
 use crate::core::mathx::{py_fsum, py_max, py_min, py_sum};
-use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_list, exact_str, map_set, unsupported, Field};
+use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_list, exact_str, map_set, unsupported, PyField};
 use crate::core::value::V;
 use crate::core::world_core::{mirror_of, with_state_value, NamespaceMirror, Tree};
 use crate::rules::movement_geometry::{
@@ -368,7 +368,7 @@ impl Changes {
             }
         }
         for (id, journey) in self.new_journeys {
-            writes.push(TreeWrite::Set("journeys", id.clone(), Field::to_py(&journey, py)?));
+            writes.push(TreeWrite::Set("journeys", id.clone(), PyField::to_py(&journey, py)?));
             row.journeys.insert(id, journey);
         }
         for (name, map, changes) in
@@ -378,7 +378,7 @@ impl Changes {
                 if map.get(&*id).is_some_and(|current| same_position(current, &position)) {
                     continue;
                 }
-                writes.push(TreeWrite::Set(name, id.clone(), Field::to_py(&position, py)?));
+                writes.push(TreeWrite::Set(name, id.clone(), PyField::to_py(&position, py)?));
                 map.insert(id, position);
             }
         }
@@ -1403,7 +1403,7 @@ fn staff_position_snapshots<'py>(world: &Bound<'py, PyAny>, boundary_minute: Opt
     })?;
     write_tree(&mirror, writes)?;
     for (id, position) in &records {
-        result.set_item(&**id, Field::to_py(position, py)?)?;
+        result.set_item(&**id, PyField::to_py(position, py)?)?;
     }
     Ok(result)
 }

@@ -33,9 +33,11 @@ Checkpoint document) and times them.
   and floats as Python writes them, and `Encoder`, which writes plain values), `value.rs` (`V`),
   `error.rs` (`Error`, one variant per Python class with its text, and `Misfit`), `mathx.rs`,
   `rng.rs`, `census.rs`, `parallel.rs`, `interner.rs`, `contacts.rs`, `checkpoint.rs` (the
-  Checkpoint kernels over bytes) and `events/` (`EventRow`, the queue's `Queue`, the `EventLog`
+  Checkpoint kernels over bytes), `events/` (`EventRow`, the queue's `Queue`, the `EventLog`
   with its indexes and the saved-record checks, and `writer`, which schedules and records rows
-  with the Python errors). The files of the same names in
+  with the Python errors), `row.rs` (`Field`, `Row`, `Items`, `state_row!`, `str_enum!`) and
+  `state/` (the rows of most namespaces, with their checks that read the row alone). The files
+  of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,
   Python numbers and strings, `#[pyfunction]` entries): `src/core/errors.rs` maps an `Error` to
   its Python class (`to_py_err`; `core_call().or_py()?`), `src/core/value.rs` reads and makes
@@ -43,7 +45,9 @@ Checkpoint document) and times them.
   `world_core.rs` makes a Python call's error a `Misfit` (`or_misfit()`). The pyclasses over
   the events, `QueueStore` (`src/state/events.rs`) and `EventStore` (`src/eventlog.rs`), hold the
   core's `Queue` and `EventLog` and keep the Python objects beside them in side tables, by slot
-  serial and by record position; `EventRowPy` reads a row from a `ScheduledEvent` and makes one. An `Error` can't be
+  serial and by record position; `EventRowPy` reads a row from a `ScheduledEvent` and makes one.
+  A namespace moved to the core keeps its `src/state/<name>.rs`, which re-exports the row, gives
+  it its Python side (`py_row!`) and holds `register` and the validators. An `Error` can't be
   turned into a `PyErr` with `?`, because neither type is the wrapper's. `native/Cargo.toml` is
   the workspace of both crates; its lints and `clippy.toml` apply to both
   (`cargo clippy --workspace`).
@@ -76,10 +80,10 @@ Checkpoint document) and times them.
   `rules/parity.rs` is the example and exposes `core` to the tests. `rules/social_propagation.rs`
   and `rules/information.rs` hold the contact kernels; what they share is in `contacts.rs`.
 - `src/core/world_core.rs`: `WorldCore`, one per world, in `world.__dict__["_core"]`, and a
-  `NamespaceMirror` per owned namespace, which holds its `Row` and is the sink of its tracked tree
+  `NamespaceMirror` per owned namespace, which holds its `PyRow` and is the sink of its tracked tree
   (`sheltersim/core/state_mirror.py`). `src/state/sample_namespace.rs` is the small test-only
   namespace; `docs/rust-port/lanes/p4-world-core.md` explains the mechanism. Rows hold no Python handles.
-  A `Row`'s `apply` runs no Python code and no `PyRefMut` is held across a callback. Read the
+  A `PyRow`'s `apply` runs no Python code and no `PyRefMut` is held across a callback. Read the
   world's core again after any callback (`core_of`), since a copy-and-swap may have moved it.
   `NamespaceMirror.generation_of(tree)` changes with every write that reaches a tree, from Python
   or from Rust, so a check that read a namespace need not read it again
@@ -95,9 +99,13 @@ Checkpoint document) and times them.
   tracked containers, which forward them to the rows. `rules/population.rs` also reads what admission
   needs of `temporary_spaces.py` and `geometry_overlay.py`
   (`docs/rust-port/lanes/m6-population-rules.md`).
-- `src/core/row.rs`: typed rows. `state_row!` writes `from_py`, `to_py`, `write_json`, the handling
-  of forwarded writes and mirrored setters from a record's list of fields, and any `Field` is a
-  `Row`. `src/state/psychological_distress.rs`, `src/state/metric_state.rs` and
+- `src/core/row.rs`: typed rows. The core's `state_row!` (`core/src/row.rs`) writes a record's
+  struct, `write_json` and mirrored setters from its list of fields, and any `Field` is a `Row`;
+  a setter writes the tree through `TreeSink`, which `Tree` implements. Here, `py_row!` writes
+  the Python side of such a struct from the same names (`PyField`: `from_py`, `to_py`, the handling
+  of forwarded writes), and any `PyField` is a `PyRow`, which a `NamespaceMirror` holds. This
+  crate's `state_row!` is both, for a row of this crate only. `src/state/psychological_distress.rs`,
+  `src/state/metric_state.rs` and
   `src/rules/psychology.rs` are the production template: Rust owns those two, and its rule writes
   them value by value. Start a namespace from `docs/rust-port/lanes/p5-template-namespace.md`.
   `row.rs` also has `Maybe<T>` (a key a record may not have), `str_enum!`, `set_all`,

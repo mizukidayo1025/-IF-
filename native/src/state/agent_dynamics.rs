@@ -1,62 +1,24 @@
-//! `agent_dynamics_v1`: each agent's decision memory and known facilities. The rules that write and
-//! read it are `rules/agent_dynamics.rs`; `domain/agent_dynamics.py` keeps the validation of a saved
-//! namespace (docs/rust-port/lanes/f-action-lifecycle.md).
-
-use std::sync::Arc;
+//! `agent_dynamics_v1`: the row is the core's (`sheltersim_core::state::agent_dynamics`); here are
+//! its Python side, the reading of its config and its validator.
 
 use pyo3::intern;
 use pyo3::prelude::*;
 
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
 
-use crate::core::row::{attribute, exact_dict, load_row, namespace_is_absent, state_row, unsupported, IdMap};
+pub(crate) use sheltersim_core::state::agent_dynamics::*;
+
+use crate::core::row::{attribute, exact_dict, load_row, namespace_is_absent, py_row, unsupported};
 use crate::core::world_core::{mirror_of, NamespaceMirror, RowType};
-use crate::state::entities::{entities_of, EntityStore, FacilityRow, Table};
+use crate::state::entities::{entities_of, EntityStore};
 
-pub(crate) const NAME: &str = "agent_dynamics_v1";
-pub(crate) const POLICY_V1: &str = "need-led-autonomy-memory-v1";
-pub(crate) const POLICY_V2: &str = "need-led-autonomy-memory-v2";
-pub(crate) const POLICY_V3: &str = "need-led-autonomy-memory-v3";
-pub(crate) const ORIENTATION_SOURCE: &str = "ASM-INTAKE-FACILITY-ORIENTATION-V1";
-
-state_row! {
-    pub(crate) struct AgentMemory {
-        known_facility_ids: Vec<Arc<str>>,
-        last_action: Option<Arc<str>> => set_last_action,
-        last_target_id: Option<Arc<str>> => set_last_target_id,
-        last_decision_minute: Option<i64> => set_last_decision_minute,
-        decision_due_minute: i64 => set_decision_due_minute,
-        decision_reason: Option<Arc<str>> => set_decision_reason,
+py_row! {
+    AgentMemory {
+        known_facility_ids, last_action, last_target_id, last_decision_minute,
+        decision_due_minute, decision_reason,
     }
 }
-
-state_row! {
-    pub(crate) struct AgentDynamicsRow {
-        schema_version: i64,
-        policy_version: Arc<str>,
-        agents: IdMap<AgentMemory>,
-    }
-}
-
-impl AgentMemory {
-    /// The per-record rules of `validate_agent_dynamics_state`, for a record already of its types.
-    fn is_valid(&self, facilities: &Table<FacilityRow>) -> bool {
-        self.decision_due_minute >= 0
-            && self.last_decision_minute.is_none_or(|minute| minute >= 0)
-            && self.known_facility_ids.iter().all(|id| facilities.get(id).is_some())
-            && has_no_repeats(&self.known_facility_ids)
-    }
-}
-
-/// Nearly always a sorted list, which needs no set.
-fn has_no_repeats(ids: &[Arc<str>]) -> bool {
-    if ids.windows(2).all(|pair| pair[0] < pair[1]) {
-        return true;
-    }
-    let mut ordered: Vec<&Arc<str>> = ids.iter().collect();
-    ordered.sort_unstable();
-    ordered.windows(2).all(|pair| pair[0] != pair[1])
-}
+py_row! { AgentDynamicsRow { schema_version, policy_version, agents } }
 
 /// The texts of `canonical_agent_dynamics_config`'s ValueError, in its order of checks.
 pub(crate) const UNSUPPORTED_FIELDS: &str = "agent_dynamics config has unsupported fields";
@@ -178,7 +140,7 @@ fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
                 && row
                     .agents
                     .iter()
-                    .all(|(id, record)| rows.agents.get(id).is_some() && record.is_valid(&rows.facilities)))
+                    .all(|(id, record)| rows.agents.get(id).is_some() && record.is_valid(|id| rows.facilities.get(id).is_some())))
         })
     })
 }

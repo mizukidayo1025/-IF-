@@ -1,6 +1,6 @@
 """The template namespace: psychological_distress_v1 and metric_state owned by Rust.
 
-native/src/core/row.rs writes the rows from their fields, and native/src/rules/psychology.rs is the
+native/core/src/row.rs writes the rows from their fields, and native/src/rules/psychology.rs is the
 only rule of the distress monitor and the long-term distress
 (docs/rust-port/lanes/p5-template-namespace.md): the Python rules of domain/psychological_state.py
 and domain/distress_monitor.py are gone (lane L10). What they answered, on small worlds, on values

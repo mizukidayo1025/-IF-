@@ -19,7 +19,7 @@ use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyModule as PyModuleTy
 use smallvec::SmallVec;
 
 use crate::core::mathx::{hypot, py_max, py_min};
-use crate::core::row::{attribute, exact_dict, exact_int, exact_str, namespace_is_absent, unsupported, Field, IdMap};
+use crate::core::row::{attribute, exact_dict, exact_int, exact_str, namespace_is_absent, unsupported, PyField, IdMap};
 use crate::core::value::V;
 use crate::core::world_core::{mirror_of, NamespaceMirror};
 use crate::encode;
@@ -926,7 +926,7 @@ fn item_document<'py>(
         actors.append(&**actor)?;
     }
     document.set_item(intern!(py, "actor_ids"), actors)?;
-    document.set_item(intern!(py, "topic_id"), Field::to_py(&item.topic, py)?)?;
+    document.set_item(intern!(py, "topic_id"), PyField::to_py(&item.topic, py)?)?;
     document.set_item(intern!(py, "causation_id"), causation_id)?;
     let deltas = PyDict::new(py);
     for (name, value) in &item.deltas {
@@ -1044,13 +1044,13 @@ pub(crate) fn record_social_event<'py>(world: &Bound<'py, PyAny>, event: &Bound<
     })?;
     for planned in &plan.relationships {
         if planned.new {
-            NamespaceMirror::write_through(&mirror, &["relationships"], &planned.key, &Field::to_py(&planned.record, py)?)?;
+            NamespaceMirror::write_through(&mirror, &["relationships"], &planned.key, &PyField::to_py(&planned.record, py)?)?;
         } else if planned.new_topics {
             NamespaceMirror::write_through(
                 &mirror,
                 &["relationships", &planned.key],
                 "topic_ids",
-                &Field::to_py(&planned.record.topic_ids, py)?,
+                &PyField::to_py(&planned.record.topic_ids, py)?,
             )?;
         }
     }

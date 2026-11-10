@@ -15,4 +15,22 @@ pub mod json;
 pub mod mathx;
 pub mod parallel;
 pub mod rng;
+pub mod row;
+
+/// The rows of the namespaces of `model_state` and of the owned world fields. The PyO3 crate's
+/// `state/<name>.rs` of the same name reads each from Python and holds its validators.
+pub mod state {
+    pub mod agent_dynamics;
+    pub mod body_state;
+    pub mod effect_program;
+    pub mod facility_queues;
+    pub mod information;
+    pub mod metric_state;
+    pub mod movement;
+    pub mod psychological_distress;
+    pub mod resource_service;
+    pub mod social_network;
+    pub mod social_propagation;
+    pub mod staff_dynamics;
+}
 pub mod value;

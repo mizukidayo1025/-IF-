@@ -25,7 +25,7 @@ use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyString, PyTuple, PyType};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::core::mathx::{self, py_max, py_min, py_sum};
-use crate::core::row::{map_set, Field};
+use crate::core::row::{map_set, PyField};
 use crate::core::tracked::as_readable_dict;
 use crate::core::world_core::{field_mirror_of, mirror_of, raw_dict_get, raw_dict_set, NamespaceMirror, Tree};
 use crate::rules::trace::{PersonTrace, TraceRows, TraceSink};
@@ -349,7 +349,7 @@ fn write_long_term<'py>(
             row.agents.insert(Arc::from(id), record);
             Ok(())
         })?;
-        NamespaceMirror::write_through(mirror, &["agents"], id, &Field::to_py(&record, py)?)?;
+        NamespaceMirror::write_through(mirror, &["agents"], id, &PyField::to_py(&record, py)?)?;
     }
     Ok(())
 }

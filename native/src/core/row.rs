@@ -1,72 +1,53 @@
-//! Typed rows: `Field`, what a value of a row can do, and `state_row!`, which writes it for a
-//! record from its list of fields (docs/rust-port/lanes/p5-template-namespace.md).
+//! Typed rows: the core's `Field`, `state_row!` and `str_enum!` (`sheltersim_core::row`) under
+//! their old path, and what needs Python: `PyField`, a row read from a Python value, made into one,
+//! and changed by a forwarded write (docs/rust-port/lanes/p5-template-namespace.md).
+//!
+//! A struct of the core's `state_row!` gets its `PyField` from `py_row!`, which lists the same
+//! fields in the same order (a compile-time check says so):
 //!
 //! ```ignore
-//! state_row! {
-//!     #[derive(Clone, Copy)]
-//!     pub(crate) struct AgentRecord {
-//!         level: f64 => set_level,   // a scalar field with a mirrored setter
-//!         visits: i64,               // a scalar field Rust does not write
-//!     }
-//! }
+//! py_row! { AgentRecord { level, visits } }
 //! ```
 //!
-//! Any `Field` is a `Row`, so a namespace is a `state_row!` struct or a map of them, and its loader
-//! is `load_row::<ThatType>`. The macro writes, for the struct:
+//! Here, `state_row!` and `str_enum!` are the core's macro and its companion together, for a row
+//! of this crate. `py_row!` writes, for the struct:
 //! - `from_py`: the fields and nothing else, each of its exact type; anything else is a `Misfit`,
 //!   which taints the namespace.
 //! - `to_py`: a new plain dict, keys in the order they are listed. List them in the tree's order.
-//! - `write_json`: the bytes of `canonical_json` of the tree, keys sorted by bytes.
 //! - `apply`: a forwarded write. One to a field reads that field again, and one below a field goes
 //!   to the field's own `apply`. Deleting a field, or writing a field the struct does not have,
 //!   is a `Misfit`.
-//! - `set_level(&mut self, tree, value)`: the mirrored setter a rule uses: the row and the tree, or
-//!   neither when the value has the same bits. Only a `Scalar` field can have one, because storing
-//!   a scalar over a scalar leaves the tree's table of nodes as it is, and so the setter can run
-//!   inside `NamespaceMirror::with_row_tree`.
 //!
-//! Also here, for what most namespaces need beside the fields: `Maybe<T>` for a key the tree may
-//! not have (not the same as `Option<T>`, a key holding None), `str_enum!` for a closed set of
-//! strings, and the `exact_*` readers of a kernel's inputs, which say Unsupported for anything but
+//! Also here, the `exact_*` readers of a kernel's inputs, which say Unsupported for anything but
 //! the one type the Python rule's result is certain for.
 
 use std::sync::Arc;
 
-use indexmap::IndexMap;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
 use pyo3::IntoPyObjectExt;
 use rustc_hash::FxBuildHasher;
 
+pub(crate) use sheltersim_core::row::{
+    map_set, same_names, sorted_order, Atom, Field, IdMap, Items, Maybe, Part, Scalar, StrEnum, TreeSink,
+    ABSENT_KEY,
+};
+
 use super::tracked::{as_readable_dict, as_readable_list};
-use super::errors::OrPy;
 use super::value::{V, VPy};
-use super::world_core::{apply_to_value, emptied_after, Items, Misfit, OrMisfit, Part, Row, Tree, Write};
-use crate::{write_json_string, Encoder, PyEncoder, Unsupported};
+use super::world_core::{apply_to_value, emptied_after, Misfit, OrMisfit, Write};
+use crate::Unsupported;
 
-/// A map keyed by id: insertion order like a dict's, so what iterates it is deterministic.
-pub(crate) type IdMap<T> = IndexMap<Arc<str>, T, FxBuildHasher>;
-
-/// A value that can be part of a row.
-pub(crate) trait Field: Sized + Send + Sync + 'static {
+/// What a value of a row does with Python.
+pub(crate) trait PyField: Field {
     /// The value, if it is exactly of this type. Runs no Python code.
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit>;
     /// A new plain value for the tree.
     fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>>;
-    /// The bytes of `canonical_json`.
-    fn write_json(&self, encoder: &mut Encoder) -> PyResult<()>;
     /// A forwarded write inside this value. A scalar has no inside.
     fn apply(&mut self, _path: &[Part<'_>], _write: &Write<'_, '_>) -> Result<(), Misfit> {
         Err(Misfit::new("the write has no field in the row"))
-    }
-    /// The value of a field whose key the record does not have, if that is allowed: `Maybe` only.
-    fn when_missing() -> Option<Self> {
-        None
-    }
-    /// Whether this value is a key the record does not have.
-    fn is_absent(&self) -> bool {
-        false
     }
     /// What `to_py(...).get(key)` is, for a reader of one part of a detached namespace
     /// (`NamespaceMirror.document_part`): None for a key the value does not have, or a value that
@@ -78,63 +59,44 @@ pub(crate) trait Field: Sized + Send + Sync + 'static {
             Err(_) => Ok(None),
         }
     }
-    /// The value as a list read item by item, if it is a list (`Row::part_items`).
-    fn items(&self) -> Option<&dyn Items> {
+    /// `Field::items`, with the items made in Python. Some exactly when `items` is.
+    fn py_items(&self) -> Option<&dyn PyItems> {
         None
     }
-    /// The items of the list under key of a record: None for a key it does not have, a value
-    /// that is not a list, or a value that is not a record.
-    fn part_items(&self, _key: &str) -> Option<&dyn Items> {
+    /// `Field::part_items`, with the items made in Python. Some exactly when `part_items` is.
+    fn part_py_items(&self, _key: &str) -> Option<&dyn PyItems> {
         None
     }
-    /// `Row::to_py_emptied`. A `state_row!` record makes no item of an emptied list.
+    /// `PyRow::to_py_emptied`. A `state_row!` record makes no item of an emptied list.
     fn to_py_emptied<'py>(&self, py: Python<'py>, emptied: &[&str]) -> PyResult<Bound<'py, PyAny>> {
         emptied_after(self.to_py(py)?, emptied)
     }
 }
 
-impl<T: Field> Row for T {
-    fn apply(&mut self, path: &[Part<'_>], write: &Write<'_, '_>) -> Result<(), Misfit> {
-        Field::apply(self, path, write)
-    }
-
-    fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        Field::to_py(self, py)
-    }
-
-    fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
-        Field::write_json(self, encoder)
-    }
-
-    fn part_to_py<'py>(&self, py: Python<'py>, key: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
-        Field::part_to_py(self, py, key)
-    }
-
-    fn part_items(&self, key: &str) -> Option<&dyn Items> {
-        Field::part_items(self, key)
-    }
-
-    fn to_py_emptied<'py>(&self, py: Python<'py>, emptied: &[&str]) -> PyResult<Bound<'py, PyAny>> {
-        Field::to_py_emptied(self, py, emptied)
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
-        self
-    }
+/// `Items` made in Python.
+pub(crate) trait PyItems: Items {
+    /// New plain values of `items[start..stop]`, the same as the list's `to_py` holds there.
+    fn slice_to_py<'py>(&self, py: Python<'py>, start: usize, stop: usize) -> PyResult<Bound<'py, PyList>>;
 }
 
 /// The loader of a namespace whose row is this type: `RowType::new("name", load_row::<ThatType>)`.
-pub(crate) fn load_row<T: Field>(tree: &Bound<'_, PyAny>) -> Result<Box<dyn Row>, Misfit> {
+pub(crate) fn load_row<T: PyField>(tree: &Bound<'_, PyAny>) -> Result<Box<dyn super::world_core::PyRow>, Misfit> {
     Ok(Box::new(T::from_py(tree)?))
 }
 
-/// A field a mirrored setter can store in the tree as it is: never a container.
-pub(crate) trait Scalar: Field {
-    /// Whether writing other would change nothing in the canonical JSON.
-    fn same(&self, other: &Self) -> bool;
+/// A scalar as the tree stores it.
+pub(crate) fn atom_to_py<'py>(py: Python<'py>, atom: Atom<'_>) -> PyResult<Bound<'py, PyAny>> {
+    match atom {
+        Atom::Null => Ok(py.None().into_bound(py)),
+        Atom::Bool(flag) => flag.into_bound_py_any(py),
+        Atom::Int(number) => number.into_bound_py_any(py),
+        Atom::Float(number) => Ok(PyFloat::new(py, number).into_any()),
+        Atom::Str(text) => Ok(PyString::new(py, text).into_any()),
+        Atom::Name(text) => Ok(PyString::intern(py, text).into_any()),
+    }
 }
 
-impl Field for f64 {
+impl PyField for f64 {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         Ok(value
             .downcast_exact::<PyFloat>()
@@ -145,19 +107,9 @@ impl Field for f64 {
     fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         Ok(PyFloat::new(py, *self).into_any())
     }
-
-    fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
-        encoder.float(*self)
-    }
 }
 
-impl Scalar for f64 {
-    fn same(&self, other: &Self) -> bool {
-        self.to_bits() == other.to_bits()
-    }
-}
-
-impl Field for i64 {
+impl PyField for i64 {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         // bool is an int subclass, so the exact check turns it down too.
         Ok(value
@@ -169,22 +121,9 @@ impl Field for i64 {
     fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         self.into_bound_py_any(py)
     }
-
-    fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
-        encoder
-            .out
-            .extend_from_slice(itoa::Buffer::new().format(*self).as_bytes());
-        Ok(())
-    }
 }
 
-impl Scalar for i64 {
-    fn same(&self, other: &Self) -> bool {
-        self == other
-    }
-}
-
-impl Field for bool {
+impl PyField for bool {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         Ok(value
             .downcast_exact::<PyBool>()
@@ -195,22 +134,9 @@ impl Field for bool {
     fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         self.into_bound_py_any(py)
     }
-
-    fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
-        encoder
-            .out
-            .extend_from_slice(if *self { b"true" } else { b"false" });
-        Ok(())
-    }
 }
 
-impl Scalar for bool {
-    fn same(&self, other: &Self) -> bool {
-        self == other
-    }
-}
-
-impl Field for Arc<str> {
+impl PyField for Arc<str> {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         Ok(Arc::from(
             value
@@ -223,20 +149,9 @@ impl Field for Arc<str> {
     fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         Ok(PyString::new(py, self).into_any())
     }
-
-    fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
-        write_json_string(&mut encoder.out, self);
-        Ok(())
-    }
 }
 
-impl Scalar for Arc<str> {
-    fn same(&self, other: &Self) -> bool {
-        self == other
-    }
-}
-
-impl<T: Field> Field for Option<T> {
+impl<T: PyField> PyField for Option<T> {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         if value.is_none() {
             return Ok(None);
@@ -251,16 +166,6 @@ impl<T: Field> Field for Option<T> {
         }
     }
 
-    fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
-        match self {
-            Some(value) => value.write_json(encoder),
-            None => {
-                encoder.out.extend_from_slice(b"null");
-                Ok(())
-            }
-        }
-    }
-
     fn apply(&mut self, path: &[Part<'_>], write: &Write<'_, '_>) -> Result<(), Misfit> {
         match self {
             Some(value) => value.apply(path, write),
@@ -268,23 +173,13 @@ impl<T: Field> Field for Option<T> {
         }
     }
 
-    fn items(&self) -> Option<&dyn Items> {
-        self.as_ref().and_then(Field::items)
-    }
-}
-
-impl<T: Scalar> Scalar for Option<T> {
-    fn same(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Some(first), Some(second)) => first.same(second),
-            (None, None) => true,
-            _ => false,
-        }
+    fn py_items(&self) -> Option<&dyn PyItems> {
+        self.as_ref().and_then(PyField::py_items)
     }
 }
 
 /// The free-form part of a row: takes any JSON, and any write that fits it.
-impl Field for V {
+impl PyField for V {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         Ok(<V as VPy>::from_py(value).or_misfit()?)
     }
@@ -293,34 +188,26 @@ impl Field for V {
         VPy::to_py(self, py)
     }
 
-    fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
-        V::write_json(self, encoder).or_py()
-    }
-
     fn apply(&mut self, path: &[Part<'_>], write: &Write<'_, '_>) -> Result<(), Misfit> {
         apply_to_value(self, path, write)
     }
 
-    fn items(&self) -> Option<&dyn Items> {
+    fn py_items(&self) -> Option<&dyn PyItems> {
         match self {
-            V::List(items) => Some(items as &dyn Items),
+            V::List(items) => Some(items as &dyn PyItems),
             _ => None,
         }
     }
 
-    fn part_items(&self, key: &str) -> Option<&dyn Items> {
+    fn part_py_items(&self, key: &str) -> Option<&dyn PyItems> {
         match self {
-            V::Map(map) => map.get(key).and_then(Field::items),
+            V::Map(map) => map.get(key).and_then(PyField::py_items),
             _ => None,
         }
     }
 }
 
-/// A key the record may not have: `{"a": 1}` and `{}`, where `Option` is `{"a": 1}` and
-/// `{"a": None}`. A record's key that holds None is a misfit here unless T takes None.
-pub(crate) struct Maybe<T>(pub(crate) Option<T>);
-
-impl<T: Field> Field for Maybe<T> {
+impl<T: PyField> PyField for Maybe<T> {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         Ok(Self(Some(T::from_py(value)?)))
     }
@@ -328,14 +215,7 @@ impl<T: Field> Field for Maybe<T> {
     fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         match &self.0 {
             Some(value) => value.to_py(py),
-            None => Err(PyValueError::new_err("an absent key has no value")),
-        }
-    }
-
-    fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
-        match &self.0 {
-            Some(value) => value.write_json(encoder),
-            None => Err(PyValueError::new_err("an absent key has no value")),
+            None => Err(PyValueError::new_err(ABSENT_KEY)),
         }
     }
 
@@ -346,20 +226,12 @@ impl<T: Field> Field for Maybe<T> {
         }
     }
 
-    fn items(&self) -> Option<&dyn Items> {
-        self.0.as_ref().and_then(Field::items)
-    }
-
-    fn when_missing() -> Option<Self> {
-        Some(Self(None))
-    }
-
-    fn is_absent(&self) -> bool {
-        self.0.is_none()
+    fn py_items(&self) -> Option<&dyn PyItems> {
+        self.0.as_ref().and_then(PyField::py_items)
     }
 }
 
-impl<T: Field> Field for IdMap<T> {
+impl<T: PyField> PyField for IdMap<T> {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         let dict = as_readable_dict(value).ok_or_else(|| Misfit::new("not a dict"))?;
         let mut map = IdMap::with_capacity_and_hasher(dict.len(), FxBuildHasher);
@@ -378,23 +250,6 @@ impl<T: Field> Field for IdMap<T> {
             dict.set_item(&**key, value.to_py(py)?)?;
         }
         Ok(dict.into_any())
-    }
-
-    fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
-        let mut entries: Vec<(&Arc<str>, &T)> = self.iter().collect();
-        // Python orders str by code point, the same as UTF-8 bytes.
-        entries.sort_unstable_by(|a, b| a.0.as_bytes().cmp(b.0.as_bytes()));
-        encoder.out.push(b'{');
-        for (index, (key, value)) in entries.into_iter().enumerate() {
-            if index > 0 {
-                encoder.out.push(b',');
-            }
-            write_json_string(&mut encoder.out, key);
-            encoder.out.push(b':');
-            value.write_json(encoder)?;
-        }
-        encoder.out.push(b'}');
-        Ok(())
     }
 
     fn apply(&mut self, path: &[Part<'_>], write: &Write<'_, '_>) -> Result<(), Misfit> {
@@ -427,11 +282,7 @@ impl<T: Field> Field for IdMap<T> {
     }
 }
 
-impl<T: Field> Items for Vec<T> {
-    fn count(&self) -> usize {
-        self.len()
-    }
-
+impl<T: PyField> PyItems for Vec<T> {
     fn slice_to_py<'py>(&self, py: Python<'py>, start: usize, stop: usize) -> PyResult<Bound<'py, PyList>> {
         let list = PyList::empty(py);
         for item in &self[start..stop] {
@@ -439,21 +290,15 @@ impl<T: Field> Items for Vec<T> {
         }
         Ok(list)
     }
-
-    fn item_json<'a>(&'a self, index: usize, scratch: &'a mut Encoder) -> PyResult<&'a [u8]> {
-        scratch.out.clear();
-        self[index].write_json(scratch)?;
-        Ok(&scratch.out)
-    }
 }
 
-impl<T: Field> Field for Vec<T> {
+impl<T: PyField> PyField for Vec<T> {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         let list = as_readable_list(value).ok_or_else(|| Misfit::new("not a list"))?;
         list.iter().map(|item| T::from_py(&item)).collect()
     }
 
-    fn items(&self) -> Option<&dyn Items> {
+    fn py_items(&self) -> Option<&dyn PyItems> {
         Some(self)
     }
 
@@ -463,18 +308,6 @@ impl<T: Field> Field for Vec<T> {
             list.append(item.to_py(py)?)?;
         }
         Ok(list.into_any())
-    }
-
-    fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
-        encoder.out.push(b'[');
-        for (index, item) in self.iter().enumerate() {
-            if index > 0 {
-                encoder.out.push(b',');
-            }
-            item.write_json(encoder)?;
-        }
-        encoder.out.push(b']');
-        Ok(())
     }
 
     fn apply(&mut self, path: &[Part<'_>], write: &Write<'_, '_>) -> Result<(), Misfit> {
@@ -517,25 +350,15 @@ impl<T: Field> Field for Vec<T> {
     }
 }
 
-/// A mirrored write into a map of scalars: the row and the tree, or neither for the same bits.
-pub(crate) fn map_set<'py, T: Scalar>(
-    map: &mut IdMap<T>,
-    tree: &Tree<'py>,
-    key: &str,
-    value: T,
-) -> PyResult<()> {
-    match map.get_mut(key) {
-        Some(slot) if slot.same(&value) => {}
-        Some(slot) => {
-            tree.set_str(key, &value)?;
-            *slot = value;
-        }
-        None => {
-            tree.set_str(key, &value)?;
-            map.insert(Arc::from(key), value);
-        }
-    }
-    Ok(())
+/// `PyField::from_py` of a `str_enum!` set: an exact str of the set.
+pub(crate) fn enum_from_py<T: StrEnum>(value: &Bound<'_, PyAny>) -> Result<T, Misfit> {
+    let text = value.downcast_exact::<PyString>().map_err(|_| Misfit::new("not a str"))?;
+    T::from_text(text.to_str().or_misfit()?).ok_or_else(|| Misfit::new(T::MISFIT))
+}
+
+/// `PyField::to_py` of a `str_enum!` set: the interned str.
+pub(crate) fn enum_to_py<T: StrEnum>(value: T, py: Python<'_>) -> Bound<'_, PyAny> {
+    PyString::intern(py, value.as_text()).into_any()
 }
 
 // ---- A kernel's inputs -------------------------------------------------------------------------
@@ -612,91 +435,16 @@ pub(crate) fn exact_list<'a, 'py>(value: &'a Bound<'py, PyAny>) -> PyResult<&'a 
 
 // ---- The macros --------------------------------------------------------------------------------
 
-/// The order that sorts names by their bytes, computed at compile time for `write_json`.
-pub(crate) const fn sorted_order<const N: usize>(names: &[&str]) -> [usize; N] {
-    const fn before(first: &[u8], second: &[u8]) -> bool {
-        let mut index = 0;
-        while index < first.len() && index < second.len() {
-            if first[index] != second[index] {
-                return first[index] < second[index];
-            }
-            index += 1;
-        }
-        first.len() < second.len()
-    }
-    let mut order = [0; N];
-    let mut index = 0;
-    while index < N {
-        order[index] = index;
-        index += 1;
-    }
-    let mut done = 1;
-    while done < N {
-        let mut place = done;
-        while place > 0 && before(names[order[place]].as_bytes(), names[order[place - 1]].as_bytes()) {
-            let moved = order[place];
-            order[place] = order[place - 1];
-            order[place - 1] = moved;
-            place -= 1;
-        }
-        done += 1;
-    }
-    order
-}
+/// The Python side of a struct of the core's `state_row!`: its fields, by name, in the order the
+/// struct lists them.
+macro_rules! py_row {
+    ($name:ty { $($field:ident),* $(,)? }) => {
+        const _: () = assert!(
+            $crate::core::row::same_names(<$name>::NAMES, &[$(stringify!($field)),*]),
+            concat!("py_row! must list the fields of ", stringify!($name), " in their order"),
+        );
 
-macro_rules! state_row {
-    (
-        $(#[$meta:meta])*
-        $vis:vis struct $name:ident {
-            $( $field:ident : $kind:ty $(=> $setter:ident)? ),* $(,)?
-        }
-    ) => {
-        $(#[$meta])*
-        $vis struct $name {
-            $( pub(crate) $field: $kind, )*
-        }
-
-        impl $name {
-            const NAMES: &'static [&'static str] = &[$(stringify!($field)),*];
-            const JSON_ORDER: [usize; $name::NAMES.len()] =
-                $crate::core::row::sorted_order($name::NAMES);
-            const JSON_WRITERS: &'static [fn(&Self, &mut $crate::Encoder) -> pyo3::PyResult<()>] =
-                &[$(|row, encoder| $crate::core::row::Field::write_json(&row.$field, encoder)),*];
-            const JSON_ABSENT: &'static [fn(&Self) -> bool] =
-                &[$(|row| $crate::core::row::Field::is_absent(&row.$field)),*];
-
-            /// Every field with a setter takes next's value, through its setter: how a rule writes a
-            /// record it planned.
-            #[allow(dead_code)]
-            pub(crate) fn set_all<'py>(
-                &mut self,
-                tree: &$crate::core::world_core::Tree<'py>,
-                next: &Self,
-            ) -> pyo3::PyResult<()> {
-                let _ = (&tree, &next);
-                $($(
-                    self.$setter(tree, next.$field.clone())?;
-                )?)*
-                Ok(())
-            }
-
-            $($(
-                /// The row and the tree, or neither when the value has the same bits.
-                pub(crate) fn $setter<'py>(
-                    &mut self,
-                    tree: &$crate::core::world_core::Tree<'py>,
-                    value: $kind,
-                ) -> pyo3::PyResult<()> {
-                    if !$crate::core::row::Scalar::same(&self.$field, &value) {
-                        tree.set(pyo3::intern!(tree.py(), stringify!($field)), &value)?;
-                        self.$field = value;
-                    }
-                    Ok(())
-                }
-            )?)*
-        }
-
-        impl $crate::core::row::Field for $name {
+        impl $crate::core::row::PyField for $name {
             fn from_py(
                 value: &pyo3::Bound<'_, pyo3::PyAny>,
             ) -> Result<Self, $crate::core::world_core::Misfit> {
@@ -704,7 +452,7 @@ macro_rules! state_row {
                 use $crate::core::world_core::OrMisfit;
                 let record = $crate::core::tracked::as_readable_dict(value)
                     .ok_or_else(|| $crate::core::world_core::Misfit::new("not a dict"))?;
-                if record.len() > $name::NAMES.len() {
+                if record.len() > <$name>::NAMES.len() {
                     return Err($crate::core::world_core::Misfit::new("other fields than the row's"));
                 }
                 let mut present = 0;
@@ -713,7 +461,7 @@ macro_rules! state_row {
                         $field: match record.get_item(pyo3::intern!(value.py(), stringify!($field))).or_misfit()? {
                             Some(item) => {
                                 present += 1;
-                                $crate::core::row::Field::from_py(&item)?
+                                $crate::core::row::PyField::from_py(&item)?
                             }
                             None => $crate::core::row::Field::when_missing().ok_or_else(|| {
                                 $crate::core::world_core::Misfit::new(
@@ -739,7 +487,7 @@ macro_rules! state_row {
                     if !$crate::core::row::Field::is_absent(&self.$field) {
                         record.set_item(
                             pyo3::intern!(py, stringify!($field)),
-                            $crate::core::row::Field::to_py(&self.$field, py)?,
+                            $crate::core::row::PyField::to_py(&self.$field, py)?,
                         )?;
                     }
                 )*
@@ -756,20 +504,20 @@ macro_rules! state_row {
                         if $crate::core::row::Field::is_absent(&self.$field) {
                             return Ok(None);
                         }
-                        return $crate::core::row::Field::to_py(&self.$field, py).map(Some);
+                        return $crate::core::row::PyField::to_py(&self.$field, py).map(Some);
                     }
                 )*
                 let _ = py;
                 Ok(None)
             }
 
-            fn part_items(&self, key: &str) -> Option<&dyn $crate::core::world_core::Items> {
+            fn part_py_items(&self, key: &str) -> Option<&dyn $crate::core::row::PyItems> {
                 $(
                     if key == stringify!($field) {
                         if $crate::core::row::Field::is_absent(&self.$field) {
                             return None;
                         }
-                        return $crate::core::row::Field::items(&self.$field);
+                        return $crate::core::row::PyField::py_items(&self.$field);
                     }
                 )*
                 None
@@ -789,32 +537,13 @@ macro_rules! state_row {
                         {
                             pyo3::types::PyList::empty(py).into_any()
                         } else {
-                            $crate::core::row::Field::to_py(&self.$field, py)?
+                            $crate::core::row::PyField::to_py(&self.$field, py)?
                         };
                         record.set_item(pyo3::intern!(py, stringify!($field)), value)?;
                     }
                 )*
                 let _ = emptied;
                 Ok(record.into_any())
-            }
-
-            fn write_json(&self, encoder: &mut $crate::Encoder) -> pyo3::PyResult<()> {
-                encoder.out.push(b'{');
-                let mut first = true;
-                for index in $name::JSON_ORDER.iter() {
-                    if $name::JSON_ABSENT[*index](self) {
-                        continue;
-                    }
-                    if !first {
-                        encoder.out.push(b',');
-                    }
-                    first = false;
-                    $crate::write_json_string(&mut encoder.out, $name::NAMES[*index]);
-                    encoder.out.push(b':');
-                    $name::JSON_WRITERS[*index](self, encoder)?;
-                }
-                encoder.out.push(b'}');
-                Ok(())
             }
 
             fn apply(
@@ -827,7 +556,7 @@ macro_rules! state_row {
                     ([], Write::Set { key: Part::Key(key), value }) => {
                         $(
                             if *key == stringify!($field) {
-                                self.$field = $crate::core::row::Field::from_py(value)?;
+                                self.$field = $crate::core::row::PyField::from_py(value)?;
                                 return Ok(());
                             }
                         )*
@@ -837,7 +566,7 @@ macro_rules! state_row {
                     ([Part::Key(key), rest @ ..], write) => {
                         $(
                             if *key == stringify!($field) {
-                                return $crate::core::row::Field::apply(&mut self.$field, rest, write);
+                                return $crate::core::row::PyField::apply(&mut self.$field, rest, write);
                             }
                         )*
                         let _ = (rest, write);
@@ -863,64 +592,61 @@ macro_rules! state_row {
     };
 }
 
-pub(crate) use state_row;
+pub(crate) use py_row;
 
-/// A closed set of strings in a row: one byte, no allocation, and any other string is a misfit.
-///
-/// ```ignore
-/// str_enum! {
-///     pub(crate) enum Phase { Idle = "idle", Busy = "busy" }
-/// }
-/// ```
-macro_rules! str_enum {
-    ($vis:vis enum $name:ident { $($member:ident = $text:literal),+ $(,)? }) => {
-        #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-        $vis enum $name { $($member),+ }
+/// The Python side of a set of the core's `str_enum!`.
+macro_rules! py_str_enum {
+    ($($name:ty),+ $(,)?) => {
+        $(
+            impl $crate::core::row::PyField for $name {
+                fn from_py(
+                    value: &pyo3::Bound<'_, pyo3::PyAny>,
+                ) -> Result<Self, $crate::core::world_core::Misfit> {
+                    $crate::core::row::enum_from_py(value)
+                }
 
-        impl $name {
-            #[allow(dead_code)]
-            pub(crate) const fn text(self) -> &'static str {
-                match self { $(Self::$member => $text),+ }
-            }
-        }
-
-        impl $crate::core::row::Field for $name {
-            fn from_py(
-                value: &pyo3::Bound<'_, pyo3::PyAny>,
-            ) -> Result<Self, $crate::core::world_core::Misfit> {
-                use pyo3::types::PyStringMethods;
-                use $crate::core::world_core::OrMisfit;
-                let text = value.downcast_exact::<pyo3::types::PyString>().map_err(|_| {
-                    $crate::core::world_core::Misfit::new("not a str")
-                })?;
-                match text.to_str().or_misfit()? {
-                    $($text => Ok(Self::$member),)+
-                    _ => Err($crate::core::world_core::Misfit::new(concat!(
-                        "not a ",
-                        stringify!($name)
-                    ))),
+                fn to_py<'py>(
+                    &self,
+                    py: pyo3::Python<'py>,
+                ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::PyAny>> {
+                    Ok($crate::core::row::enum_to_py(*self, py))
                 }
             }
-
-            fn to_py<'py>(
-                &self,
-                py: pyo3::Python<'py>,
-            ) -> pyo3::PyResult<pyo3::Bound<'py, pyo3::PyAny>> {
-                Ok(pyo3::types::PyString::intern(py, self.text()).into_any())
-            }
-
-            fn write_json(&self, encoder: &mut $crate::Encoder) -> pyo3::PyResult<()> {
-                $crate::write_json_string(&mut encoder.out, self.text());
-                Ok(())
-            }
-        }
-
-        impl $crate::core::row::Scalar for $name {
-            fn same(&self, other: &Self) -> bool {
-                self == other
-            }
-        }
+        )+
     };
 }
 
+pub(crate) use py_str_enum;
+
+/// A record of a row of this crate: the core's `state_row!` and `py_row!` together.
+macro_rules! state_row {
+    (
+        $(#[$meta:meta])*
+        $vis:vis struct $name:ident {
+            $( $field:ident : $kind:ty $(=> $setter:ident)? ),* $(,)?
+        }
+    ) => {
+        sheltersim_core::state_row! {
+            $(#[$meta])*
+            $vis struct $name {
+                $( $field : $kind $(=> $setter)? ),*
+            }
+        }
+
+        $crate::core::row::py_row! { $name { $($field),* } }
+    };
+}
+
+pub(crate) use state_row;
+
+/// A closed set of strings of a row of this crate: the core's `str_enum!` and `py_str_enum!`.
+#[allow(unused_macros)]
+macro_rules! str_enum {
+    ($vis:vis enum $name:ident { $($member:ident = $text:literal),+ $(,)? }) => {
+        sheltersim_core::str_enum! { $vis enum $name { $($member = $text),+ } }
+        $crate::core::row::py_str_enum!($name);
+    };
+}
+
+#[allow(unused_imports)]
 pub(crate) use str_enum;

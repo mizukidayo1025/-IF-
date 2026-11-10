@@ -18,7 +18,7 @@ use pyo3::types::{PyBool, PyFloat, PyInt, PyString};
 
 use crate::core::errors;
 use crate::core::mathx::{py_max, py_min};
-use crate::core::row::{attribute, exact_float, exact_int, exact_str, unsupported, Field};
+use crate::core::row::{attribute, exact_float, exact_int, exact_str, unsupported, PyField};
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::V;
 use crate::core::world_core::{held_state, mirror_of, raw_dict_get, Held, NamespaceMirror, Tree};
@@ -262,7 +262,7 @@ impl NetworkWrite {
         })?;
         for key in new_keys {
             let record = Relationship::empty();
-            let value = Field::to_py(&record, py)?;
+            let value = PyField::to_py(&record, py)?;
             NamespaceMirror::with_row::<SocialNetworkRow, _>(mirror, |row| {
                 row.relationships.map.insert(Arc::from(key), record);
                 Ok(())

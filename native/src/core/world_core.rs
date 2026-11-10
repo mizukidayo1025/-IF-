@@ -17,7 +17,6 @@
 //! calls (`world.__dict__.update` in a copy-and-swap), so a kernel asks `core_of(world)` again
 //! after every Python callback.
 
-use std::any::Any;
 use std::ptr::null_mut;
 use std::sync::{Arc, OnceLock};
 
@@ -31,7 +30,7 @@ use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 use pyo3::PyTraverseError;
 use smallvec::SmallVec;
 
-use super::row::Scalar;
+use super::row::{atom_to_py, Atom, PyField, PyItems, Scalar, TreeSink};
 use super::tracked::{as_readable_dict, is_detached, tracked_dict_type, tracked_list_type};
 use super::errors::OrPy;
 use super::value::{V, VPy};
@@ -39,12 +38,7 @@ use crate::{encode, Encoder, Unsupported, MAX_DEPTH};
 
 const NO_PARENT: u32 = u32::MAX;
 
-/// One step of a path from the namespace's root.
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum Part<'a> {
-    Key(&'a str),
-    Index(usize),
-}
+pub(crate) use sheltersim_core::row::{Items, Part, Row, ValueRow};
 
 /// A write from Python, at the node a path leads to. Values are the tree's stored values.
 pub(crate) enum Write<'a, 'py> {
@@ -76,35 +70,44 @@ impl<T> OrMisfit<T> for PyResult<T> {
     }
 }
 
-/// A namespace's state as Rust holds it. A lane implements this in `state/<name>.rs`;
-/// `state/sample_namespace.rs` is the template.
-pub(crate) trait Row: Send + Sync + 'static {
+/// A namespace's state as Rust holds it (the core's `Row`), and what it does with Python. A lane
+/// implements it in `state/<name>.rs` through `PyField`; `state/sample_namespace.rs` is the
+/// template.
+pub(crate) trait PyRow: Row {
     /// Apply a write from Python. Every part of a row is checked before the first change is made
     /// or the misfit drops the whole row, so a half-applied write can't be read.
     fn apply(&mut self, path: &[Part<'_>], write: &Write<'_, '_>) -> Result<(), Misfit>;
     /// New plain containers holding the state, in the order of the tree.
     fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>>;
-    /// The canonical JSON of the state, the same bytes as `canonical_json` of the tree.
-    fn write_json(&self, encoder: &mut Encoder) -> PyResult<()>;
     /// `to_py(...).get(key)` without making the rest: None for a key the state does not have.
     fn part_to_py<'py>(&self, py: Python<'py>, key: &str) -> PyResult<Option<Bound<'py, PyAny>>>;
-    /// The items of the list under key, read one by one: None for a key the state does not have,
-    /// or a value that is not a list.
-    fn part_items(&self, key: &str) -> Option<&dyn Items>;
+    /// `Row::part_items`, with the items made in Python.
+    fn part_py_items(&self, key: &str) -> Option<&dyn PyItems>;
     /// `to_py`, with an empty list under each key of `emptied` that holds a list: the rest of a
     /// namespace whose lists a reader takes item by item (`NamespaceMirror.document_emptied`).
     fn to_py_emptied<'py>(&self, py: Python<'py>, emptied: &[&str]) -> PyResult<Bound<'py, PyAny>>;
-    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
-/// A list of a row, read an item at a time: for a reader of a part of a detached namespace, which
-/// must not make all of a history of 20,000 items (`NamespaceMirror.part_slice`, `items_json`).
-pub(crate) trait Items {
-    fn count(&self) -> usize;
-    /// New plain values of `items[start..stop]`, the same as the list's `to_py` holds there.
-    fn slice_to_py<'py>(&self, py: Python<'py>, start: usize, stop: usize) -> PyResult<Bound<'py, PyList>>;
-    /// The canonical JSON of an item: the bytes the row keeps, or `scratch` after writing them there.
-    fn item_json<'a>(&'a self, index: usize, scratch: &'a mut Encoder) -> PyResult<&'a [u8]>;
+impl<T: PyField> PyRow for T {
+    fn apply(&mut self, path: &[Part<'_>], write: &Write<'_, '_>) -> Result<(), Misfit> {
+        PyField::apply(self, path, write)
+    }
+
+    fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        PyField::to_py(self, py)
+    }
+
+    fn part_to_py<'py>(&self, py: Python<'py>, key: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+        PyField::part_to_py(self, py, key)
+    }
+
+    fn part_py_items(&self, key: &str) -> Option<&dyn PyItems> {
+        PyField::part_py_items(self, key)
+    }
+
+    fn to_py_emptied<'py>(&self, py: Python<'py>, emptied: &[&str]) -> PyResult<Bound<'py, PyAny>> {
+        PyField::to_py_emptied(self, py, emptied)
+    }
 }
 
 /// `Items::slice_to_py` of items kept as their canonical JSON: what `json.loads` reads of each, as
@@ -134,7 +137,7 @@ pub(crate) fn emptied_after<'py>(whole: Bound<'py, PyAny>, emptied: &[&str]) -> 
 }
 
 /// Reads a whole namespace, or says it does not fit.
-pub(crate) type RowLoader = fn(&Bound<'_, PyAny>) -> Result<Box<dyn Row>, Misfit>;
+pub(crate) type RowLoader = fn(&Bound<'_, PyAny>) -> Result<Box<dyn PyRow>, Misfit>;
 
 /// A row's loader as a Python object: `native.state("name").ROW`.
 #[pyclass(frozen, module = "sheltersim_native")]
@@ -156,11 +159,10 @@ impl RowType {
     }
 }
 
-/// A row that is a `V`, for a namespace without typed fields: any JSON fits.
-pub(crate) struct ValueRow(pub(crate) V);
-
-pub(crate) fn load_value_row(tree: &Bound<'_, PyAny>) -> Result<Box<dyn Row>, Misfit> {
-    Ok(Box::new(ValueRow(V::from_py(tree).or_misfit()?)))
+/// The loader of a namespace whose row is a `ValueRow`, for a namespace without typed fields: any
+/// JSON fits.
+pub(crate) fn load_value_row(tree: &Bound<'_, PyAny>) -> Result<Box<dyn PyRow>, Misfit> {
+    Ok(Box::new(ValueRow(<V as VPy>::from_py(tree).or_misfit()?)))
 }
 
 fn value_at<'v>(root: &'v mut V, path: &[Part<'_>]) -> Result<&'v mut V, Misfit> {
@@ -188,7 +190,7 @@ pub(crate) fn apply_to_value(
     let target = value_at(root, path)?;
     match (target, write) {
         (V::Map(map), Write::Set { key: Part::Key(key), value }) => {
-            let value = V::from_py(value).or_misfit()?;
+            let value = <V as VPy>::from_py(value).or_misfit()?;
             match map.get_mut(*key) {
                 Some(slot) => *slot = value,
                 None => {
@@ -204,7 +206,7 @@ pub(crate) fn apply_to_value(
         (V::List(items), Write::Set { key: Part::Index(index), value }) => {
             *items
                 .get_mut(*index)
-                .ok_or_else(|| Misfit::new(format!("no index {index}")))? = V::from_py(value).or_misfit()?;
+                .ok_or_else(|| Misfit::new(format!("no index {index}")))? = <V as VPy>::from_py(value).or_misfit()?;
         }
         (V::List(items), Write::Delete { key: Part::Index(index) }) if *index < items.len() => {
             items.remove(*index);
@@ -215,20 +217,20 @@ pub(crate) fn apply_to_value(
             items.drain(*start..*stop);
         }
         (V::List(items), Write::Clear) => items.clear(),
-        (V::List(items), Write::Append { value }) => items.push(V::from_py(value).or_misfit()?),
+        (V::List(items), Write::Append { value }) => items.push(<V as VPy>::from_py(value).or_misfit()?),
         (V::List(items), Write::Extend { values }) => {
             for value in values.iter() {
-                items.push(V::from_py(&value).or_misfit()?);
+                items.push(<V as VPy>::from_py(&value).or_misfit()?);
             }
         }
         (V::List(items), Write::Insert { index, value }) if *index <= items.len() => {
-            items.insert(*index, V::from_py(value).or_misfit()?);
+            items.insert(*index, <V as VPy>::from_py(value).or_misfit()?);
         }
         (V::List(items), Write::Reverse) => items.reverse(),
         (V::List(items), Write::ReplaceAll { items: new_items }) => {
             *items = new_items
                 .iter()
-                .map(|value| V::from_py(&value))
+                .map(|value| <V as VPy>::from_py(&value))
                 .collect::<PyResult<Vec<V>>>().or_misfit()?;
         }
         _ => return Err(Misfit::new("the write does not fit the value at its path")),
@@ -236,17 +238,13 @@ pub(crate) fn apply_to_value(
     Ok(())
 }
 
-impl Row for ValueRow {
+impl PyRow for ValueRow {
     fn apply(&mut self, path: &[Part<'_>], write: &Write<'_, '_>) -> Result<(), Misfit> {
         apply_to_value(&mut self.0, path, write)
     }
 
     fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         VPy::to_py(&self.0, py)
-    }
-
-    fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
-        self.0.write_json(encoder).or_py()
     }
 
     fn part_to_py<'py>(&self, py: Python<'py>, key: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
@@ -256,10 +254,10 @@ impl Row for ValueRow {
         }
     }
 
-    fn part_items(&self, key: &str) -> Option<&dyn Items> {
+    fn part_py_items(&self, key: &str) -> Option<&dyn PyItems> {
         match &self.0 {
             V::Map(map) => match map.get(key) {
-                Some(V::List(items)) => Some(items as &dyn Items),
+                Some(V::List(items)) => Some(items as &dyn PyItems),
                 _ => None,
             },
             _ => None,
@@ -268,10 +266,6 @@ impl Row for ValueRow {
 
     fn to_py_emptied<'py>(&self, py: Python<'py>, emptied: &[&str]) -> PyResult<Bound<'py, PyAny>> {
         emptied_after(VPy::to_py(&self.0, py)?, emptied)
-    }
-
-    fn as_any_mut(&mut self) -> &mut dyn Any {
-        self
     }
 }
 
@@ -424,15 +418,6 @@ impl<'py> Tree<'py> {
         self.child(&PyString::new(self.py, key))
     }
 
-    /// d[key] = value. The row's type says the old value and the new one are not containers, so
-    /// the table of nodes stays right and no Python code runs: this is allowed inside `with_row`.
-    pub(crate) fn set<T: Scalar>(&self, key: &Bound<'py, PyString>, value: &T) -> PyResult<()> {
-        match &self.node {
-            Some(node) => raw_dict_set(node, key.as_any(), &value.to_py(self.py)?),
-            None => Ok(()),
-        }
-    }
-
     /// d.clear(), for a dict of scalars, which leaves the table of nodes as it is.
     pub(crate) fn clear(&self) -> PyResult<()> {
         if let Some(node) = &self.node {
@@ -466,7 +451,7 @@ impl<'py> Tree<'py> {
 
     pub(crate) fn set_str<T: Scalar>(&self, key: &str, value: &T) -> PyResult<()> {
         match &self.node {
-            Some(node) => raw_dict_set(node, PyString::new(self.py, key).as_any(), &value.to_py(self.py)?),
+            Some(node) => raw_dict_set(node, PyString::new(self.py, key).as_any(), &atom_to_py(self.py, value.atom())?),
             None => Ok(()),
         }
     }
@@ -474,7 +459,7 @@ impl<'py> Tree<'py> {
     /// items.append(value) on a list of scalars, which leaves the table of nodes as it is.
     pub(crate) fn list_append<T: Scalar>(&self, value: &T) -> PyResult<()> {
         match &self.node {
-            Some(node) => raw_list_append(node, &value.to_py(self.py)?),
+            Some(node) => raw_list_append(node, &atom_to_py(self.py, value.atom())?),
             None => Ok(()),
         }
     }
@@ -491,12 +476,34 @@ impl<'py> Tree<'py> {
     }
 }
 
+/// The setters of the core's rows write the tree here: a field's key is interned, as `intern!`
+/// makes it, and an entry's key is a new str. The row's type says the old value and the new one
+/// are not containers, so the table of nodes stays right and no Python code runs: this is allowed
+/// inside `with_row`.
+impl<'py> TreeSink for Tree<'py> {
+    type Error = PyErr;
+
+    fn set_field(&self, key: &'static str, value: Atom<'_>) -> PyResult<()> {
+        match &self.node {
+            Some(node) => raw_dict_set(node, PyString::intern(self.py, key).as_any(), &atom_to_py(self.py, value)?),
+            None => Ok(()),
+        }
+    }
+
+    fn set_entry(&self, key: &str, value: Atom<'_>) -> PyResult<()> {
+        match &self.node {
+            Some(node) => raw_dict_set(node, PyString::new(self.py, key).as_any(), &atom_to_py(self.py, value)?),
+            None => Ok(()),
+        }
+    }
+}
+
 /// The state of one owned namespace in one world, and the sink of its tracked nodes.
 #[pyclass(module = "sheltersim_native")]
 pub struct NamespaceMirror {
     name: Arc<str>,
     row_type: Py<RowType>,
-    row: Option<Box<dyn Row>>,
+    row: Option<Box<dyn PyRow>>,
     taint: Option<String>,
     root: Option<Py<PyAny>>,
     table: NodeTable,
@@ -1006,7 +1013,7 @@ impl NamespaceMirror {
         f(row)
     }
 
-    /// with_row, with the root of the tree for mirrored setters. See `Tree::set`.
+    /// with_row, with the root of the tree for mirrored setters. See `TreeSink for Tree`.
     pub(crate) fn with_row_tree<'py, T: Row, R>(
         slf: &Bound<'py, Self>,
         f: impl FnOnce(&mut T, &Tree<'py>) -> PyResult<R>,
@@ -1033,7 +1040,7 @@ impl NamespaceMirror {
     }
 
     /// The row, for a reader that holds a borrow of the mirror and runs no Python code.
-    pub(crate) fn row_ref(&self) -> Option<&dyn Row> {
+    pub(crate) fn row_ref(&self) -> Option<&dyn PyRow> {
         self.row.as_deref()
     }
 
@@ -1150,7 +1157,7 @@ pub(crate) fn with_state_value<R>(
     match dict.get_item(name)? {
         None => f(None),
         Some(held) if is_detached(&held) => NamespaceMirror::with_value(&mirror_of(world, name)?, |value| f(Some(value))),
-        Some(held) => f(Some(&V::from_py(&held)?)),
+        Some(held) => f(Some(&<V as VPy>::from_py(&held)?)),
     }
 }
 
@@ -1423,7 +1430,7 @@ impl NamespaceMirror {
         let Some(row) = self.row.as_ref() else {
             return Err(Unsupported::new_err("the namespace has no row"));
         };
-        let items = row.part_items(key).ok_or_else(|| Unsupported::new_err("the row has no such list"))?;
+        let items = row.part_py_items(key).ok_or_else(|| Unsupported::new_err("the row has no such list"))?;
         let stop = stop.min(items.count());
         items.slice_to_py(py, start.min(stop), stop)
     }
@@ -1451,7 +1458,7 @@ impl NamespaceMirror {
         // Where the first item was in the last call's list: past the items dropped since.
         let mut offset = given.len();
         if count > 0 {
-            let first = items.item_json(0, &mut scratch)?;
+            let first = items.item_json(0, &mut scratch).or_py()?;
             if let Some(found) = given.iter().position(|old| old.as_bytes(py) == first) {
                 offset = found;
             }
@@ -1459,7 +1466,7 @@ impl NamespaceMirror {
         let mut out = Vec::with_capacity(count);
         let mut same = true;
         for index in 0..count {
-            let bytes = items.item_json(index, &mut scratch)?;
+            let bytes = items.item_json(index, &mut scratch).or_py()?;
             let old = given.get(offset + index).filter(|old| same && old.as_bytes(py) == bytes);
             match old {
                 Some(old) => out.push(old.clone_ref(py)),
@@ -1552,7 +1559,7 @@ impl NamespaceMirror {
             return Ok(None);
         };
         let mut encoder = Encoder { out: Vec::with_capacity(256) };
-        row.write_json(&mut encoder)?;
+        row.write_json(&mut encoder).or_py()?;
         Ok(Some(PyBytes::new(py, &encoder.out)))
     }
 
@@ -1566,7 +1573,7 @@ impl NamespaceMirror {
                 return Ok(true);
             };
             let mut encoder = Encoder { out: Vec::with_capacity(256) };
-            row.write_json(&mut encoder)?;
+            row.write_json(&mut encoder).or_py()?;
             (encoder.out, this.root.as_ref().map(|root| root.clone_ref(py)))
         };
         let Some(root) = root else {

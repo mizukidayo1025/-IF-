@@ -1,65 +1,25 @@
-//! `facility_queues_v1`: the independent FIFO of each service point (`domain/facility_queues.py`).
-//! `rules/facility_queues.rs` reads the row and writes through the tree, whose writes reach it, or
-//! the row itself while the namespace is detached. A
-//! value of another type than the rules write taints the namespace, and the Python rules and their
-//! errors run on the tree.
-
-use std::sync::Arc;
+//! `facility_queues_v1`: the row is the core's (`sheltersim_core::state::facility_queues`); here
+//! are its Python side and the check that the world holds it.
 
 use pyo3::intern;
 use pyo3::prelude::*;
 
-use crate::core::row::{attribute, load_row, state_row, IdMap};
+pub(crate) use sheltersim_core::state::facility_queues::*;
+
+use crate::core::row::{attribute, load_row, py_row};
 use crate::core::tracked::as_readable_dict;
 use crate::core::world_core::{mirror_of, raw_dict_get, NamespaceMirror, RowType};
 use crate::Unsupported;
 
-pub(crate) const NAME: &str = "facility_queues_v1";
-
-state_row! {
-    #[derive(Clone)]
-    pub(crate) struct QueueStall {
-        minute: i64,
-        request_id: Arc<str>,
-        reason: Arc<str>,
+py_row! { QueueStall { minute, request_id, reason } }
+py_row! { QueueRow { facility_id, service_point_id, queued_request_ids, active_request_ids, last_stall } }
+py_row! {
+    QueueRequest {
+        request_id, queue_id, service_point_id, facility_id, agent_id, service_kind,
+        requested_minute, status, queue_task_id, active_task_id,
     }
 }
-
-state_row! {
-    #[derive(Clone)]
-    pub(crate) struct QueueRow {
-        facility_id: Arc<str>,
-        service_point_id: Arc<str>,
-        queued_request_ids: Vec<Arc<str>>,
-        active_request_ids: Vec<Arc<str>>,
-        last_stall: Option<QueueStall>,
-    }
-}
-
-state_row! {
-    #[derive(Clone)]
-    pub(crate) struct QueueRequest {
-        request_id: Arc<str>,
-        queue_id: Arc<str>,
-        service_point_id: Arc<str>,
-        facility_id: Arc<str>,
-        agent_id: Arc<str>,
-        service_kind: Arc<str>,
-        requested_minute: i64,
-        status: Arc<str>,
-        queue_task_id: Arc<str>,
-        active_task_id: Arc<str>,
-    }
-}
-
-state_row! {
-    pub(crate) struct QueuesRow {
-        schema_version: i64,
-        policy_version: Arc<str>,
-        queues: IdMap<QueueRow>,
-        requests: IdMap<QueueRequest>,
-    }
-}
+py_row! { QueuesRow { schema_version, policy_version, queues, requests } }
 
 /// The mirror of the namespace, if the world holds it. A row left behind by a write past the table
 /// answers for nothing.

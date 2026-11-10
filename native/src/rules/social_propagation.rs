@@ -30,7 +30,7 @@ use crate::contacts::{
 };
 use crate::core::mathx::{max_num, min_num, py_fsum, py_max, py_min, sum_nums, Num};
 use crate::core::parallel::in_order;
-use crate::core::row::{namespace_is_absent, Field, IdMap};
+use crate::core::row::{namespace_is_absent, IdMap, PyField};
 use crate::core::rng::{label, start_draw_log, take_draw_log, KeyedDraws};
 use crate::core::tracked::{as_readable_dict, as_readable_list};
 use crate::core::world_core::{mirror_of, NamespaceMirror};
@@ -913,8 +913,8 @@ fn plan_of_values(
     cooldowns: &Bound<'_, PyAny>,
 ) -> PyResult<(Vec<f64>, Vec<(String, i64, i64)>, Vec<(String, i64)>, Vec<(usize, usize)>)> {
     let misfit = |error: crate::core::world_core::Misfit| Unsupported::new_err(error.0);
-    let previous = IdMap::<ContactRecord>::from_py(previous).map_err(misfit)?;
-    let cooldowns = IdMap::<i64>::from_py(cooldowns).map_err(misfit)?;
+    let previous = <IdMap<ContactRecord> as PyField>::from_py(previous).map_err(misfit)?;
+    let cooldowns = <IdMap<i64> as PyField>::from_py(cooldowns).map_err(misfit)?;
     let settings = Settings {
         policy: match policy {
             "sparse" => Policy::Sparse,

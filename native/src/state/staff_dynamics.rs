@@ -1,198 +1,53 @@
-//! `staff_dynamics_v1`: shift and fatigue memory of each staff member. The rules that write and
-//! read it are `rules/staff_dynamics.rs`; `domain/staff_dynamics.py` keeps the checks of a config
-//! and of a saved namespace (docs/rust-port/lanes/s-staff-dynamics.md).
+//! `staff_dynamics_v1`: the row is the core's (`sheltersim_core::state::staff_dynamics`); here are
+//! its Python side and its validator.
 
 use pyo3::intern;
 use pyo3::prelude::*;
-
 use pyo3::types::{PyFloat, PyInt};
 use pyo3::IntoPyObjectExt;
 
-use crate::core::row::{load_row, namespace_is_absent, state_row, str_enum, Field, IdMap, Maybe};
+pub(crate) use sheltersim_core::state::staff_dynamics::*;
+
+use crate::core::row::{load_row, namespace_is_absent, py_row, py_str_enum, PyField};
 use crate::core::world_core::{mirror_of, Misfit, NamespaceMirror, OrMisfit, RowType};
-use crate::{Encoder, PyEncoder};
 use crate::state::entities::{entities_of, EntityStore};
 
-pub(crate) const NAME: &str = "staff_dynamics_v1";
-pub(crate) const POLICY_V1: &str = "continuous-duty-fatigue-v1";
-pub(crate) const POLICY_V2: &str = "continuous-duty-fatigue-v2";
-pub(crate) const MINUTES_PER_DAY: i64 = 24 * 60;
-pub(crate) const MAX_REST_MINUTES: i64 = 8 * 60;
-pub(crate) const MINUTES_PER_WEEK: i64 = 10_080;
-pub(crate) const MAX_SHIFTS: usize = 21;
-
-str_enum! {
-    pub(crate) enum LastActivity { Working = "working", Resting = "resting", OffDuty = "off_duty" }
-}
-
-state_row! {
-    #[derive(Clone, Copy)]
-    pub(crate) struct StaffRecord {
-        consecutive_work_minutes: i64 => set_consecutive_work_minutes,
-        total_work_minutes: i64 => set_total_work_minutes,
-        total_rest_minutes: i64 => set_total_rest_minutes,
-        fatigue: f64 => set_fatigue,
-        rest_until_minute: i64 => set_rest_until_minute,
-        last_activity: LastActivity => set_last_activity,
+py_str_enum!(LastActivity);
+py_row! {
+    StaffRecord {
+        consecutive_work_minutes, total_work_minutes, total_rest_minutes, fatigue,
+        rest_until_minute, last_activity,
     }
 }
-
-state_row! {
-    #[derive(Clone, Copy)]
-    pub(crate) struct Shift {
-        start_minute: i64,
-        end_minute: i64,
+py_row! { Shift { start_minute, end_minute } }
+py_row! {
+    ConfigRow {
+        schema_version, policy_version, source_id, max_continuous_work_minutes,
+        max_continuous_work_minutes_by_staff, rest_minutes, shift_windows_by_staff,
+        off_shift_fatigue_recovery_per_minute,
     }
 }
+py_row! { StaffDynamicsRow { schema_version, policy_version, source_id, config, staff } }
 
-/// The off-shift recovery as a config holds it: a float, or an int (0 or 1, its range) that the
-/// Python rule's arithmetic used as the float of the same value. The tree keeps the int, and so does
-/// the row, for the bytes.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct Recovery {
-    pub(crate) value: f64,
-    int: bool,
-}
-
-impl Field for Recovery {
+impl PyField for Recovery {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         if let Ok(number) = value.downcast_exact::<PyFloat>() {
-            return Ok(Self { value: number.value(), int: false });
+            return Ok(Self::float(number.value()));
         }
         // bool is an int subclass, so the exact check turns it down too.
         let number: i64 = value.downcast_exact::<PyInt>().map_err(|_| Misfit::new("not a float or an int"))?.extract().or_misfit()?;
         if number.unsigned_abs() > 1 << 53 {
             return Err(Misfit::new("an int a float can't hold"));
         }
-        Ok(Self { value: number as f64, int: true })
+        Ok(Self::int(number))
     }
 
     fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        if self.int {
+        if self.is_int() {
             (self.value as i64).into_bound_py_any(py)
         } else {
             Ok(PyFloat::new(py, self.value).into_any())
         }
-    }
-
-    fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
-        if self.int {
-            encoder.out.extend_from_slice(itoa::Buffer::new().format(self.value as i64).as_bytes());
-            Ok(())
-        } else {
-            encoder.float(self.value)
-        }
-    }
-}
-
-state_row! {
-    // A world keeps this as `canonical_staff_dynamics_config` left it, less the keys below that
-    // an older schema of the namespace did not have.
-    pub(crate) struct ConfigRow {
-        schema_version: i64,
-        policy_version: std::sync::Arc<str>,
-        source_id: std::sync::Arc<str>,
-        max_continuous_work_minutes: i64,
-        max_continuous_work_minutes_by_staff: Maybe<IdMap<i64>>,
-        rest_minutes: i64,
-        shift_windows_by_staff: Maybe<IdMap<Vec<Shift>>>,
-        off_shift_fatigue_recovery_per_minute: Maybe<Recovery>,
-    }
-}
-
-state_row! {
-    pub(crate) struct StaffDynamicsRow {
-        schema_version: i64,
-        policy_version: std::sync::Arc<str>,
-        source_id: std::sync::Arc<str>,
-        config: ConfigRow,
-        staff: IdMap<StaffRecord>,
-    }
-}
-
-impl StaffRecord {
-    /// A new member: `create_staff_dynamics_state` and `add_staff`.
-    pub(crate) fn new() -> Self {
-        Self {
-            consecutive_work_minutes: 0,
-            total_work_minutes: 0,
-            total_rest_minutes: 0,
-            fatigue: 0.0,
-            rest_until_minute: 0,
-            last_activity: LastActivity::OffDuty,
-        }
-    }
-
-    fn is_valid(&self) -> bool {
-        self.consecutive_work_minutes >= 0
-            && self.total_work_minutes >= 0
-            && self.total_rest_minutes >= 0
-            && self.rest_until_minute >= 0
-            && (0.0..=1.0).contains(&self.fatigue)
-    }
-}
-
-/// `[start, end)` intervals of one person the Python rule passes: non-empty, in the week, at most
-/// `MAX_SHIFTS`, and none overlapping.
-pub(crate) fn shifts_are_valid(shifts: &[Shift]) -> bool {
-    if shifts.len() > MAX_SHIFTS
-        || !shifts.iter().all(|shift| {
-            0 <= shift.start_minute
-                && shift.start_minute < shift.end_minute
-                && shift.end_minute <= MINUTES_PER_WEEK
-        })
-    {
-        return false;
-    }
-    let mut ordered: Vec<(i64, i64)> =
-        shifts.iter().map(|shift| (shift.start_minute, shift.end_minute)).collect();
-    ordered.sort_unstable();
-    ordered.windows(2).all(|pair| pair[0].1 <= pair[1].0)
-}
-
-impl ConfigRow {
-    /// Whether `canonical_staff_dynamics_config` passes this and leaves it as it is, as far as
-    /// `validate_staff_dynamics_state` asks: with all its keys, or without the per-staff limits,
-    /// or for policy v1 without any of the three later keys.
-    fn is_valid(&self) -> bool {
-        let v1 = &*self.policy_version == POLICY_V1;
-        if self.schema_version != 1
-            || !(v1 || &*self.policy_version == POLICY_V2)
-            || self.source_id.is_empty()
-            || !(1..=MINUTES_PER_DAY).contains(&self.max_continuous_work_minutes)
-            || !(1..=MAX_REST_MINUTES).contains(&self.rest_minutes)
-        {
-            return false;
-        }
-        let limits_are_valid = self.max_continuous_work_minutes_by_staff.0.as_ref().is_none_or(|limits| {
-            limits
-                .iter()
-                .all(|(id, limit)| !id.is_empty() && (1..=MINUTES_PER_DAY).contains(limit))
-        });
-        if !limits_are_valid {
-            return false;
-        }
-        match (&self.shift_windows_by_staff.0, self.off_shift_fatigue_recovery_per_minute.0.map(|recovery| recovery.value)) {
-            (Some(windows), Some(recovery)) => {
-                (0.0..=1.0).contains(&recovery)
-                    && (!v1 || (windows.is_empty() && recovery == 0.0))
-                    && windows
-                        .iter()
-                        .all(|(id, shifts)| !id.is_empty() && shifts_are_valid(shifts))
-            }
-            (None, None) => v1 && self.max_continuous_work_minutes_by_staff.0.is_none(),
-            _ => false,
-        }
-    }
-}
-
-impl StaffDynamicsRow {
-    fn is_valid_without_staff_ids(&self) -> bool {
-        self.schema_version == 1
-            && self.config.is_valid()
-            && self.policy_version == self.config.policy_version
-            && self.source_id == self.config.source_id
-            && self.staff.values().all(StaffRecord::is_valid)
     }
 }
 
