@@ -21,7 +21,7 @@ use std::sync::{Mutex, OnceLock, PoisonError};
 
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
-use crate::core::{census, rng};
+use crate::{census, rng};
 
 /// More helpers cost more to wake than they save at the sizes of a shelter (measured on 16 cores).
 const MAX_HELPERS: usize = 3;
@@ -98,7 +98,7 @@ where
 }
 
 /// `work(0..count)`, each on any thread, in the order of the indexes.
-pub(crate) fn in_order<R, F>(count: usize, work: F) -> Vec<R>
+pub fn in_order<R, F>(count: usize, work: F) -> Vec<R>
 where
     R: Send,
     F: Fn(usize) -> R + Sync,
@@ -115,7 +115,7 @@ where
 }
 
 /// `work` of each run of at most `per_part` indexes of `0..count`, each on any thread, in order.
-pub(crate) fn parts_in_order<R, F>(count: usize, per_part: usize, work: F) -> Vec<R>
+pub fn parts_in_order<R, F>(count: usize, per_part: usize, work: F) -> Vec<R>
 where
     R: Send,
     F: Fn(Range<usize>) -> R + Sync,
@@ -132,14 +132,12 @@ where
 /// For the tests and the gate: one helper for each `people` people from now on (at least 1), and
 /// the number before. A small number sends a small Scenario's compute to the helpers, in runs of
 /// at most that many people.
-#[pyo3::pyfunction]
-pub(crate) fn set_people_per_helper(people: usize) -> usize {
+pub fn set_people_per_helper(people: usize) -> usize {
     PER_HELPER.swap(people.max(1), Ordering::Relaxed)
 }
 
 /// For the tests: `(helper threads, helpers for this many people)`.
-#[pyo3::pyfunction]
-pub(crate) fn parallel_state(people: usize) -> (usize, usize) {
+pub fn parallel_state(people: usize) -> (usize, usize) {
     let threads = pool().map_or(0, ThreadPool::current_num_threads);
     (threads, helpers_for(people).map_or(0, |(_, helpers)| helpers))
 }

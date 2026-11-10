@@ -21,7 +21,7 @@ use pyo3::types::{PyBool, PyDict, PyList, PySlice, PyString, PyTuple};
 use sha2::{Digest, Sha256};
 
 use crate::core::errors;
-use crate::core::mathx::{hypot, pow, py_max, py_min, py_round, py_sum};
+use crate::core::mathx::{hypot, math_error, pow, py_max, py_min, py_round, py_sum};
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, unsupported};
 use crate::core::tracked::is_detached;
 use crate::core::value::V;
@@ -190,7 +190,7 @@ fn polygon_of(value: Option<&V>) -> PyResult<Vec<Pt>> {
 }
 
 fn square(value: f64) -> PyResult<f64> {
-    Ok(pow(value, 2.0)?)
+    Ok(pow(value, 2.0).map_err(math_error)?)
 }
 
 /// `(x - a) ** 2 + (y - b) ** 2`.
@@ -1233,7 +1233,7 @@ pub(crate) fn plan_bed(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Opt
             };
             let mut lengths = Vec::with_capacity(path.len());
             for pair in path.windows(2) {
-                let length = pow(squared_distance(pair[1], pair[0])?, 0.5)?;
+                let length = pow(squared_distance(pair[1], pair[0])?, 0.5).map_err(math_error)?;
                 lengths.push(length);
             }
             let travel = if py_sum(&lengths) <= 1e-8 {

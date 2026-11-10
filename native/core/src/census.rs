@@ -9,8 +9,6 @@ use std::panic::Location;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
-use pyo3::prelude::*;
-use pyo3::types::PyList;
 
 type Site = (&'static str, u32);
 
@@ -35,7 +33,7 @@ struct Counts {
 #[cold]
 #[inline(never)]
 #[track_caller]
-pub(crate) fn raised(reason: &str) {
+pub fn raised(reason: &str) {
     if !ON.load(Ordering::Relaxed) {
         return;
     }
@@ -51,7 +49,7 @@ pub(crate) fn raised(reason: &str) {
 #[cold]
 #[inline(never)]
 #[track_caller]
-pub(crate) fn moved(text: &str) {
+pub fn moved(text: &str) {
     if !ON.load(Ordering::Relaxed) {
         return;
     }
@@ -68,63 +66,58 @@ fn note_caught(by: &str, reason: String) {
     }
 }
 
-/// A refusal caught in Rust: the driver's exit of a kernel's refusal (`rules/tick.rs`).
+/// A refusal caught in Rust, with the text of its exception: the driver's exit of a kernel's
+/// refusal (`rules/tick.rs`).
 #[cold]
 #[inline(never)]
-pub(crate) fn caught(py: Python<'_>, by: &str, error: &PyErr) {
+pub fn caught(by: &str, reason: String) {
     if ON.load(Ordering::Relaxed) {
-        note_caught(by, error.value(py).to_string());
+        note_caught(by, reason);
     }
 }
 
-pub(crate) fn is_on() -> bool {
+pub fn is_on() -> bool {
     ON.load(Ordering::Relaxed)
 }
 
 /// Turn the census on or off for this process.
-#[pyfunction]
-pub(crate) fn census_switch(on: bool) {
+pub fn switch(on: bool) {
     ON.store(on, Ordering::Relaxed);
 }
 
 /// A refusal that reached a Python entry of a kernel.
-#[pyfunction]
-pub(crate) fn census_caught(by: &str, reason: String) {
+pub fn caught_at_entry(by: &str, reason: String) {
     note_caught(by, reason);
 }
 
-/// Take what was counted: `(raised, caught)`, rows of `(file, line, reason, n)` and
-/// `(by, file, line, reason, n)`, and start again. The moved errors wait for `census_take_errors`.
-#[pyfunction]
-pub(crate) fn census_take<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyList>, Bound<'py, PyList>)> {
+/// Rows of `(file, line, reason, n)`.
+pub type RaisedRows = Vec<(&'static str, u32, String, u64)>;
+/// Rows of `(by, file, line, reason, n)`.
+pub type CaughtRows = Vec<(String, &'static str, u32, String, u64)>;
+
+/// Take what was counted: `(raised, caught)`, and start again. The moved errors wait for
+/// `take_errors`.
+pub fn take() -> (RaisedRows, CaughtRows) {
     let (raised, caught) = match COUNTS.lock() {
         Ok(mut counts) => (std::mem::take(&mut counts.raised), std::mem::take(&mut counts.caught)),
         Err(_) => Default::default(),
     };
-    let raised_rows = PyList::empty(py);
-    for (((file, line), reason), n) in raised {
-        raised_rows.append((file, line, reason, n))?;
-    }
-    let caught_rows = PyList::empty(py);
-    for ((by, site, reason), n) in caught {
-        let (file, line) = site.unwrap_or(("", 0));
-        caught_rows.append((by, file, line, reason, n))?;
-    }
-    Ok((raised_rows, caught_rows))
+    let raised_rows = raised.into_iter().map(|(((file, line), reason), n)| (file, line, reason, n)).collect();
+    let caught_rows = caught
+        .into_iter()
+        .map(|((by, site, reason), n)| {
+            let (file, line) = site.unwrap_or(("", 0));
+            (by, file, line, reason, n)
+        })
+        .collect();
+    (raised_rows, caught_rows)
 }
 
-/// Take the moved errors, rows of `(file, line, text, n)`, and start again. The second list, of
-/// what a Python rule raised after a refusal, is empty: no Python rule stands behind a kernel since
-/// lane L10. It stays for the readers of this pair.
-#[pyfunction]
-pub(crate) fn census_take_errors<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyList>, Bound<'py, PyList>)> {
+/// Take the moved errors, rows of `(file, line, text, n)`, and start again.
+pub fn take_errors() -> RaisedRows {
     let moved = match COUNTS.lock() {
         Ok(mut counts) => std::mem::take(&mut counts.moved),
         Err(_) => Default::default(),
     };
-    let moved_rows = PyList::empty(py);
-    for (((file, line), text), n) in moved {
-        moved_rows.append((file, line, text, n))?;
-    }
-    Ok((moved_rows, PyList::empty(py)))
+    moved.into_iter().map(|(((file, line), text), n)| (file, line, text, n)).collect()
 }

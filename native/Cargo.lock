@@ -348,18 +348,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "sheltersim_core"
+version = "0.1.0"
+dependencies = [
+ "itoa",
+ "libm",
+ "rayon",
+ "ryu",
+ "sha2",
+]
+
+[[package]]
 name = "sheltersim_native"
 version = "0.1.0"
 dependencies = [
  "indexmap",
  "itoa",
- "libm",
  "pyo3",
  "rayon",
  "rustc-hash",
- "ryu",
  "serde_json",
  "sha2",
+ "sheltersim_core",
  "smallvec",
 ]
 

@@ -22,7 +22,7 @@ use crate::contacts::{
     exact_int, key_head, nearby_buckets, pair_key, quoted_ids, select_contacts, zone_members, Basis,
     Bucket,
 };
-use crate::core::mathx::{expm1, py_max, py_min};
+use crate::core::mathx::{expm1, math_error, py_max, py_min};
 use crate::core::rng::{label, start_draw_log, take_draw_log, Key, KeyedDraws};
 use crate::core::row::{map_set, Field};
 use crate::core::value::V;
@@ -126,7 +126,7 @@ impl Settings {
         let read = |name: &Bound<'_, PyString>| number(&config.getattr(name)?);
         let forgetting = read(intern!(py, "forgetting_rate_per_minute"))?;
         let forget_probability = if model == Model::EvidenceAware {
-            -expm1(-forgetting)?
+            -expm1(-forgetting).map_err(math_error)?
         } else {
             0.0
         };
@@ -310,7 +310,7 @@ fn transmission_probability(
     if model != Model::Hazard {
         return Ok(propensity);
     }
-    Ok(-expm1(-propensity)?)
+    Ok(-expm1(-propensity).map_err(math_error)?)
 }
 
 /// `_sender_sharing_factor`.

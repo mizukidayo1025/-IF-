@@ -6,18 +6,15 @@
 //! Before the model's version 2 they called the platform's libm, as CPython does. hypot, fsum,
 //! sum and round are CPython 3.12's own algorithms; of libm they use only `fma`.
 //!
-//! Where CPython raised, exp, expm1 and pow return a `MathError`, which becomes Python's
-//! exception with Python's text.
+//! Where CPython raised, exp, expm1 and pow return a `MathError`, which the PyO3 crate turns into
+//! Python's exception with Python's text.
 
 use std::cmp::Ordering;
 
-use pyo3::exceptions::{PyOverflowError, PyValueError, PyZeroDivisionError};
-use pyo3::prelude::*;
-use pyo3::types::{PyFloat, PyInt};
 
 /// Where `math.exp`, `math.expm1` or `float ** float` raised in CPython 3.12 on Linux.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum MathError {
+pub enum MathError {
     /// `math_1` of mathmodule.c: an infinity from a finite argument.
     Range,
     /// `float_pow`: the result overflowed, which CPython reports from errno.
@@ -31,23 +28,12 @@ pub(crate) enum MathError {
 
 impl MathError {
     /// `str()` of the exception CPython raised.
-    pub(crate) fn text(self) -> &'static str {
+    pub fn text(self) -> &'static str {
         match self {
             MathError::Range => "math range error",
             MathError::PowerRange => "(34, 'Numerical result out of range')",
             MathError::ZeroToNegative => "0.0 cannot be raised to a negative power",
             MathError::NegativeToFraction => "negative number cannot be raised to a fractional power",
-        }
-    }
-}
-
-impl From<MathError> for PyErr {
-    fn from(error: MathError) -> Self {
-        let text = error.text();
-        match error {
-            MathError::Range | MathError::PowerRange => PyOverflowError::new_err(text),
-            MathError::ZeroToNegative => PyZeroDivisionError::new_err(text),
-            MathError::NegativeToFraction => PyValueError::new_err(text),
         }
     }
 }
@@ -63,19 +49,19 @@ fn math_1(x: f64, result: f64) -> Result<f64, MathError> {
 
 /// `math.exp`.
 #[inline]
-pub(crate) fn exp(x: f64) -> Result<f64, MathError> {
+pub fn exp(x: f64) -> Result<f64, MathError> {
     math_1(x, libm::exp(x))
 }
 
 /// `math.expm1`.
 #[inline]
-pub(crate) fn expm1(x: f64) -> Result<f64, MathError> {
+pub fn expm1(x: f64) -> Result<f64, MathError> {
     math_1(x, libm::expm1(x))
 }
 
 /// `x * y + z` rounded once. `f64::mul_add` calls the platform's `fma` where the CPU has none.
 #[inline]
-pub(crate) fn fma(x: f64, y: f64, z: f64) -> f64 {
+pub fn fma(x: f64, y: f64, z: f64) -> f64 {
     libm::fma(x, y, z)
 }
 
@@ -86,7 +72,7 @@ fn is_odd_integer(value: f64) -> bool {
 /// `base ** exponent` of two floats (an int operand is converted first), with the special cases
 /// of `float_pow`. A subnormal result is kept: CPython raised OverflowError for one where glibc
 /// set ERANGE, which depends on the platform.
-pub(crate) fn pow(base: f64, exponent: f64) -> Result<f64, MathError> {
+pub fn pow(base: f64, exponent: f64) -> Result<f64, MathError> {
     if exponent == 0.0 {
         return Ok(1.0);
     }
@@ -147,7 +133,7 @@ pub(crate) fn pow(base: f64, exponent: f64) -> Result<f64, MathError> {
 
 /// `max(first, second)` of floats: the first on a tie or when a NaN makes the comparison false.
 #[inline]
-pub(crate) fn py_max(first: f64, second: f64) -> f64 {
+pub fn py_max(first: f64, second: f64) -> f64 {
     if second > first {
         second
     } else {
@@ -157,7 +143,7 @@ pub(crate) fn py_max(first: f64, second: f64) -> f64 {
 
 /// `math.isclose(first, second)` with its default tolerances: a relative one of 1e-09 and no
 /// absolute one.
-pub(crate) fn py_is_close(first: f64, second: f64) -> bool {
+pub fn py_is_close(first: f64, second: f64) -> bool {
     if first == second {
         return true;
     }
@@ -170,7 +156,7 @@ pub(crate) fn py_is_close(first: f64, second: f64) -> bool {
 
 /// `min(first, second)` of floats, with the same ties as `py_max`.
 #[inline]
-pub(crate) fn py_min(first: f64, second: f64) -> f64 {
+pub fn py_min(first: f64, second: f64) -> f64 {
     if second < first {
         second
     } else {
@@ -181,35 +167,14 @@ pub(crate) fn py_min(first: f64, second: f64) -> f64 {
 /// A Python number of either type, for the places where the type survives into the output:
 /// `max(0, x)` returns the int `0`, which JSON writes as `0` and not `0.0`.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) enum Num {
+pub enum Num {
     Int(i64),
     Float(f64),
 }
 
 impl Num {
-    /// An exact int that fits i64 or an exact float; anything else is left to Python.
-    pub(crate) fn from_py(value: &Bound<'_, PyAny>) -> Option<Self> {
-        if let Ok(number) = value.downcast_exact::<PyFloat>() {
-            return Some(Num::Float(number.value()));
-        }
-        value
-            .downcast_exact::<PyInt>()
-            .ok()?
-            .extract()
-            .ok()
-            .map(Num::Int)
-    }
-
-    pub(crate) fn to_py<'py>(self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        use pyo3::IntoPyObjectExt;
-        match self {
-            Num::Int(value) => value.into_bound_py_any(py),
-            Num::Float(value) => value.into_bound_py_any(py),
-        }
-    }
-
     /// The float Python converts it to where it meets a float: exact for an int within 2**53.
-    pub(crate) fn value(self) -> f64 {
+    pub fn value(self) -> f64 {
         match self {
             Num::Int(value) => value as f64,
             Num::Float(value) => value,
@@ -217,7 +182,7 @@ impl Num {
     }
 
     /// `-x`: an int stays an int, so `-0` is the int 0 and not the float -0.0.
-    pub(crate) fn neg(self) -> Num {
+    pub fn neg(self) -> Num {
         match self {
             Num::Int(value) => Num::Int(-value),
             Num::Float(value) => Num::Float(-value),
@@ -261,7 +226,7 @@ fn compare(first: Num, second: Num) -> Option<Ordering> {
 
 /// `max(first, second)` with its operand's type: `max_num(Num::Int(0), Num::Float(x))` is
 /// `max(0, x)`, the int `0` unless `x > 0`.
-pub(crate) fn max_num(first: Num, second: Num) -> Num {
+pub fn max_num(first: Num, second: Num) -> Num {
     if compare(second, first) == Some(Ordering::Greater) {
         second
     } else {
@@ -270,7 +235,7 @@ pub(crate) fn max_num(first: Num, second: Num) -> Num {
 }
 
 /// `min(first, second)` with its operand's type.
-pub(crate) fn min_num(first: Num, second: Num) -> Num {
+pub fn min_num(first: Num, second: Num) -> Num {
     if compare(second, first) == Some(Ordering::Less) {
         second
     } else {
@@ -281,7 +246,7 @@ pub(crate) fn min_num(first: Num, second: Num) -> Num {
 /// `sum(values)` of at least one float as CPython 3.12 computes it: the int start 0 plus the
 /// first item, then Neumaier's compensated summation, adding a finite non-zero compensation at
 /// the end. `sum([])` is the int 0; use `sum_nums` where the list can be empty.
-pub(crate) fn py_sum(values: &[f64]) -> f64 {
+pub fn py_sum(values: &[f64]) -> f64 {
     let Some((first, rest)) = values.split_first() else {
         return 0.0;
     };
@@ -307,7 +272,7 @@ pub(crate) fn py_sum(values: &[f64]) -> f64 {
 /// the first float, whose addition converts the total; later floats are compensated and later
 /// ints added without compensation. `None` when ints leave i64, which Python carries on with as
 /// big ints.
-pub(crate) fn sum_nums(values: &[Num]) -> Option<Num> {
+pub fn sum_nums(values: &[Num]) -> Option<Num> {
     let mut exact: i64 = 0;
     let mut items = values.iter();
     let mut total = loop {
@@ -342,7 +307,7 @@ pub(crate) fn sum_nums(values: &[Num]) -> Option<Num> {
 
 /// math.fsum as CPython 3.12 computes it (Shewchuk's partials with its half-even correction
 /// of the last bit), for finite values whose partial sums stay finite.
-pub(crate) fn py_fsum(values: &[f64]) -> Option<f64> {
+pub fn py_fsum(values: &[f64]) -> Option<f64> {
     let mut partials: Vec<f64> = Vec::with_capacity(8);
     for &value in values {
         if !value.is_finite() {
@@ -405,7 +370,7 @@ pub(crate) fn py_fsum(values: &[f64]) -> Option<f64> {
 /// value, half to even, read back as the nearest float. CPython does this with David Gay's
 /// dtoa and strtod; Rust's exact formatting and parsing give the same digits and float.
 /// `None` for negative `ndigits`, which no rule uses.
-pub(crate) fn py_round(x: f64, ndigits: i32) -> Option<f64> {
+pub fn py_round(x: f64, ndigits: i32) -> Option<f64> {
     if ndigits < 0 {
         return None;
     }
@@ -418,7 +383,7 @@ pub(crate) fn py_round(x: f64, ndigits: i32) -> Option<f64> {
 
 /// `round(x)` of a float, half to even, which Python returns as an int; `None` for what is not
 /// finite (Python raises) or does not fit i64.
-pub(crate) fn py_round_int(x: f64) -> Option<i64> {
+pub fn py_round_int(x: f64) -> Option<i64> {
     let rounded = x.round_ties_even();
     if !rounded.is_finite() || !(-9.223372036854775e18..=9.223372036854775e18).contains(&rounded) {
         return None;
@@ -486,7 +451,7 @@ fn vector_norm(values: &mut [f64], largest: f64, found_nan: bool) -> f64 {
 }
 
 /// `math.hypot(*values)`: CPython's own algorithm, not libm's.
-pub(crate) fn hypot(values: &[f64]) -> f64 {
+pub fn hypot(values: &[f64]) -> f64 {
     let mut sizes: Vec<f64> = Vec::with_capacity(values.len());
     let (mut largest, mut found_nan) = (0.0_f64, false);
     for &value in values {

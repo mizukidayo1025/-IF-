@@ -27,9 +27,18 @@ Checkpoint document) and times them.
 
 ## Layout for lanes
 
+- `core/` (`sheltersim_core`): the simulation core without Python (Issue #152,
+  `docs/rust-port/step5-plan.md`). It must never depend on pyo3; CI checks its `cargo tree`
+  and runs `cargo test -p sheltersim_core`. It holds what moved so far: `json.rs` (JSON strings
+  and floats as Python writes them), `mathx.rs`, `rng.rs`, `census.rs`, `parallel.rs` and
+  `interner.rs`. The files of the same names in `src/core/` re-export them under their old paths
+  and add only what needs Python (exceptions, Python numbers and strings, `#[pyfunction]`
+  entries). `native/Cargo.toml` is the workspace of both crates; its lints and `clippy.toml`
+  apply to both (`cargo clippy --workspace`).
 - `src/core/`: what every lane shares. `value.rs` (`V`, a JSON value that writes canonical
   bytes through `Encoder` and comes back to Python the same), `mathx.rs`, `rng.rs`,
-  `interner.rs` (IDs and enum members as small numbers in rows, one Python object for each).
+  `interner.rs` (IDs and enum members as small numbers in rows, one Python object for each;
+  the parts without Python are in `core/`).
 - `src/state/*.rs` and `src/rules/*.rs`: `build.rs` makes each file a module and a Python
   submodule, so a lane adds a file and edits neither `lib.rs` nor `sheltersim/native.py`. A file
   exports `pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()>`, and Python reaches it with

@@ -23,7 +23,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyList, PyString};
 
 use crate::contacts::Basis;
-use crate::core::mathx::{py_fsum, Num};
+use crate::core::mathx::{py_fsum, Num, PyNum};
 use crate::core::row::{exact_float, exact_str, unsupported};
 use crate::rules::world_view::{status_text, RustView, ViewAgent, ViewData};
 

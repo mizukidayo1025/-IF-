@@ -10,10 +10,9 @@
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use pyo3::prelude::*;
 use sha2::{Digest, Sha256};
 
-use crate::write_json_string;
+use crate::json::write_json_string;
 
 /// How many threads keep their draws, for the tests and benchmarks/rule_shadow. Python sees the
 /// draws its own rules make; this shows those made in Rust, to compare each with its key and its
@@ -24,13 +23,12 @@ thread_local! {
     static DRAW_LOG: RefCell<Option<Vec<(String, f64)>>> = const { RefCell::new(None) };
 }
 
-pub(crate) fn draw_log_is_on() -> bool {
+pub fn draw_log_is_on() -> bool {
     DRAW_LOGS.load(Ordering::Relaxed) != 0
 }
 
 /// Keep the draws this thread makes from now on, until `take_draw_log`.
-#[pyfunction]
-pub(crate) fn start_draw_log() {
+pub fn start_draw_log() {
     let before = DRAW_LOG.with(|log| log.borrow_mut().replace(Vec::new()));
     if before.is_none() {
         DRAW_LOGS.fetch_add(1, Ordering::Relaxed);
@@ -38,8 +36,7 @@ pub(crate) fn start_draw_log() {
 }
 
 /// The (key as JSON, value) of each draw this thread made since `start_draw_log`, in order.
-#[pyfunction]
-pub(crate) fn take_draw_log() -> Vec<(String, f64)> {
+pub fn take_draw_log() -> Vec<(String, f64)> {
     let taken = DRAW_LOG.with(|log| log.borrow_mut().take());
     if taken.is_some() {
         DRAW_LOGS.fetch_sub(1, Ordering::Relaxed);
@@ -56,36 +53,36 @@ fn log_draw(key: &[u8], value: f64) {
 }
 
 /// The first part of each draw's key, one per kind of draw.
-pub(crate) mod label {
+pub mod label {
     /// `propose`: the action a person chooses.
-    pub(crate) const BEHAVIOR: &str = "behavior";
+    pub const BEHAVIOR: &str = "behavior";
     /// The minutes a toilet visit takes.
-    pub(crate) const TOILET_SERVICE: &str = "toilet-service";
+    pub const TOILET_SERVICE: &str = "toilet-service";
     /// Whether a person forgets a message.
-    pub(crate) const INFORMATION_FORGETTING: &str = "information-forgetting-v1";
+    pub const INFORMATION_FORGETTING: &str = "information-forgetting-v1";
     /// Whom a person talks to about information.
-    pub(crate) const INFORMATION_CONTACT_PARTNER: &str = "information-contact-partner-v1";
+    pub const INFORMATION_CONTACT_PARTNER: &str = "information-contact-partner-v1";
     /// Whether a contact passes a message on.
-    pub(crate) const INFORMATION_CONTACT_TRANSFER: &str = "information-contact-transfer-v1";
+    pub const INFORMATION_CONTACT_TRANSFER: &str = "information-contact-transfer-v1";
     /// Whom a person meets for the social propagation.
-    pub(crate) const SOCIAL_CONTACT_BUCKET: &str = "social-contact-bucket-v1";
+    pub const SOCIAL_CONTACT_BUCKET: &str = "social-contact-bucket-v1";
     /// Whether a person believes a claim they hear.
-    pub(crate) const RUMOR_BELIEF: &str = "rumor-belief-acceptance-v1";
+    pub const RUMOR_BELIEF: &str = "rumor-belief-acceptance-v1";
     /// Whether a person accepts an announced correction.
-    pub(crate) const CORRECTION_ACCEPTANCE: &str = "correction-acceptance-v1";
+    pub const CORRECTION_ACCEPTANCE: &str = "correction-acceptance-v1";
     /// Whether a person accepts a correction another person tells them.
-    pub(crate) const CONTACT_CORRECTION_ACCEPTANCE: &str = "contact-correction-acceptance-v1";
+    pub const CONTACT_CORRECTION_ACCEPTANCE: &str = "contact-correction-acceptance-v1";
 }
 
 /// `CounterRNG.random`: SHA-256 of the seed and the JSON key, the first eight bytes as a
 /// fraction of 2**64.
-pub(crate) struct KeyedDraws {
+pub struct KeyedDraws {
     seeded: Sha256,
 }
 
 impl KeyedDraws {
     /// `seed` is `str(seed)` of a non-negative int.
-    pub(crate) fn new(seed: &str) -> Self {
+    pub fn new(seed: &str) -> Self {
         let mut seeded = Sha256::new();
         seeded.update(b"sheltersim:sha256-keyed-v1\0");
         seeded.update(seed.as_bytes());
@@ -111,19 +108,19 @@ impl KeyedDraws {
 /// separators=(",", ":"))`. Rules that draw in a loop keep a `mark` of the common parts and
 /// `rewind` to it, which avoids writing them again.
 #[derive(Clone)]
-pub(crate) struct Key {
+pub struct Key {
     bytes: Vec<u8>,
 }
 
 impl Key {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         let mut bytes = Vec::with_capacity(64);
         bytes.push(b'[');
         Self { bytes }
     }
 
     /// A key that starts with the rule's label.
-    pub(crate) fn labelled(label: &str) -> Self {
+    pub fn labelled(label: &str) -> Self {
         let mut key = Self::new();
         key.text(label);
         key
@@ -135,36 +132,36 @@ impl Key {
         }
     }
 
-    pub(crate) fn text(&mut self, part: &str) -> &mut Self {
+    pub fn text(&mut self, part: &str) -> &mut Self {
         self.separate();
         write_json_string(&mut self.bytes, part);
         self
     }
 
     /// A part already written as a JSON string, kept per person by the callers.
-    pub(crate) fn quoted(&mut self, part: &[u8]) -> &mut Self {
+    pub fn quoted(&mut self, part: &[u8]) -> &mut Self {
         self.separate();
         self.bytes.extend_from_slice(part);
         self
     }
 
-    pub(crate) fn int(&mut self, part: i64) -> &mut Self {
+    pub fn int(&mut self, part: i64) -> &mut Self {
         self.separate();
         self.bytes
             .extend_from_slice(itoa::Buffer::new().format(part).as_bytes());
         self
     }
 
-    pub(crate) fn mark(&self) -> usize {
+    pub fn mark(&self) -> usize {
         self.bytes.len()
     }
 
-    pub(crate) fn rewind(&mut self, mark: usize) {
+    pub fn rewind(&mut self, mark: usize) {
         self.bytes.truncate(mark);
     }
 
     /// The draw for these parts. The key is unchanged, so more parts can follow.
-    pub(crate) fn draw(&mut self, draws: &KeyedDraws) -> f64 {
+    pub fn draw(&mut self, draws: &KeyedDraws) -> f64 {
         self.bytes.push(b']');
         let value = draws.draw(&self.bytes);
         self.bytes.pop();
