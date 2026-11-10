@@ -1,10 +1,10 @@
-"""The namespaces their Rust rows alone hold, with no Python tree (L14 stage 1).
+"""The namespaces their Rust rows alone hold, with no Python tree (L14 stages 1 and 2, #134).
 
-core/state_mirror.py lists them in DETACHED_NAMESPACES: psychological_distress_v1,
-social_propagation_v1 and temporary_spaces_v1. A world loads them straight into their rows; the
-tick's kernels read the rows; whole-world readers (the canonical JSON, same_state, validation, a
-Checkpoint capture and restore, deepcopy for a fork) read the rows too, and build no tree. A read
-from Python builds the tree, a write through it reaches the row, and the next tick drops the tree.
+core/state_mirror.py lists them in DETACHED_NAMESPACES. A world loads them straight into their
+rows; the tick's kernels read the rows; whole-world readers (the canonical JSON, same_state,
+validation, a Checkpoint capture and restore, deepcopy for a fork) read the rows too, and build no
+tree. A read from Python builds the tree, a write through it reaches the row, and the next tick
+drops the tree.
 docs/rust-port/step4-plan.md section 5 has the stage and what stage 2 needs.
 """
 
@@ -14,7 +14,7 @@ import copy
 from typing import Any
 
 import pytest
-from support.world import view_of
+from support.world import view_of, world_digest
 
 from sheltersim.core import state_mirror
 from sheltersim.core.checkpoint import Checkpoint
@@ -27,10 +27,12 @@ from sheltersim.core.state_mirror import (
     TrackedDict,
 )
 from sheltersim.core.world import StateInvariantError, WorldState
+from sheltersim.domain.facility_queues import FACILITY_QUEUES_STATE_KEY
 from sheltersim.domain.population_lifecycle import current_household_id
 from sheltersim.domain.psychological_state import PSYCHOLOGICAL_STATE_KEY
 from sheltersim.domain.social_network import SOCIAL_NETWORK_STATE_KEY
 from sheltersim.domain.temporary_spaces import TEMPORARY_SPACES_STATE_KEY
+from sheltersim.events.effects import EFFECT_PROGRAM_STATE_KEY, schedule_effect_program
 from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
@@ -43,6 +45,19 @@ POPULATION = (
     "population_lifecycle_v1",
     "population_dynamics_v1",
     "geometry_overlay_v1",
+)
+
+# Detached in stage 2 by lane a1 (#134): the movement, the people's and staff's memory, the
+# information, the independent queues and the programs.
+LANE_A1 = frozenset(
+    {
+        "movement_v1",
+        "agent_dynamics_v1",
+        "information_spread_v1",
+        "staff_dynamics_v1",
+        FACILITY_QUEUES_STATE_KEY,
+        EFFECT_PROGRAM_STATE_KEY,
+    }
 )
 
 
@@ -63,14 +78,23 @@ def _held(world: WorldState, name: str) -> Any:
     return dict.get(world.model_state, name)
 
 
+def _present(world: WorldState) -> frozenset[str]:
+    """The detached namespaces this world has: the generated Scenario has all but two (below)."""
+    return DETACHED_NAMESPACES & dict.keys(world.model_state)
+
+
 def _rebuilds(world: WorldState) -> dict[str, int]:
-    return {name: world._core.mirror(name).stats()["rebuilds"] for name in DETACHED_NAMESPACES}
+    return {name: world._core.mirror(name).stats()["rebuilds"] for name in _present(world)}
+
+
+def _none_rebuilt(world: WorldState) -> dict[str, int]:
+    return dict.fromkeys(_present(world), 0)
 
 
 def _all_detached(world: WorldState) -> bool:
     return all(
         _held(world, name) is state_mirror._DETACHED and world._core.mirror(name).is_detached
-        for name in DETACHED_NAMESPACES
+        for name in _present(world)
     )
 
 
@@ -89,12 +113,18 @@ def test_a_run_holds_the_detached_namespaces_in_their_rows_alone(
         TEMPORARY_SPACES_STATE_KEY,
         SOCIAL_NETWORK_STATE_KEY,
         *POPULATION,
+        *LANE_A1,
     }
-    # The generated Scenario has them all; the social one is made at the first tick.
+    # The generated Scenario has them all but the independent queues and the programs (the
+    # tests at the end); the social one is made at the first tick.
+    assert DETACHED_NAMESPACES - _present(world) == {
+        FACILITY_QUEUES_STATE_KEY,
+        EFFECT_PROGRAM_STATE_KEY,
+    }
     assert _all_detached(world)
     assert isinstance(world.model_state, NamespaceTable)
     # The kernels of 20 ticks and their checks read the rows: no tree was built.
-    assert _rebuilds(world) == dict.fromkeys(DETACHED_NAMESPACES, 0)
+    assert _rebuilds(world) == _none_rebuilt(world)
 
 
 def test_whole_world_readers_read_the_rows_and_build_no_tree(
@@ -103,7 +133,7 @@ def test_whole_world_readers_read_the_rows_and_build_no_tree(
     world, _ = ticked
     world.validate()
     document = world.to_dict()
-    for name in DETACHED_NAMESPACES:
+    for name in _present(world):
         assert document["model_state"][name] == world._core.mirror(name).document()
     cache = CheckpointHistoryCache()
     checkpoint = Checkpoint.capture(world, history_cache=cache)
@@ -112,8 +142,8 @@ def test_whole_world_readers_read_the_rows_and_build_no_tree(
     assert restored.same_state(world) and world.same_state(restored)
     assert restored.model_state == world.model_state
     assert world.state_digest() == restored.state_digest()
-    assert _rebuilds(world) == dict.fromkeys(DETACHED_NAMESPACES, 0)
-    assert _rebuilds(restored) == dict.fromkeys(DETACHED_NAMESPACES, 0)
+    assert _rebuilds(world) == _none_rebuilt(world)
+    assert _rebuilds(restored) == _none_rebuilt(restored)
 
 
 def test_saved_bytes_do_not_depend_on_whether_a_tree_is_held(
@@ -121,7 +151,7 @@ def test_saved_bytes_do_not_depend_on_whether_a_tree_is_held(
 ) -> None:
     world, _ = ticked
     detached = Checkpoint.capture(world, history_cache=CheckpointHistoryCache())
-    for name in DETACHED_NAMESPACES:
+    for name in _present(world):
         assert isinstance(world.model_state[name], TrackedDict)
     assert type(world.model_state) is NamespaceTable
     attached = Checkpoint.capture(world, history_cache=CheckpointHistoryCache())
@@ -136,7 +166,7 @@ def test_a_fork_copies_the_rows_and_ticks_on_its_own(
     world, _ = ticked
     before = world.to_dict()
     fork = copy.deepcopy(world)
-    assert _all_detached(fork) and _rebuilds(world) == dict.fromkeys(DETACHED_NAMESPACES, 0)
+    assert _all_detached(fork) and _rebuilds(world) == _none_rebuilt(world)
     assert fork.same_state(world)
     fork_engine = _engine(fork)
     for _ in range(5):
@@ -236,13 +266,13 @@ def test_read_only_part_is_one_field_of_the_document(
     ticked: tuple[WorldState, TickEngine],
 ) -> None:
     world, _ = ticked
-    for name in DETACHED_NAMESPACES:
+    for name in _present(world):
         document = world._core.mirror(name).document()
         for key, value in document.items():
             assert state_mirror.read_only_part(world, name, key) == value
         assert state_mirror.read_only_part(world, name, "absent", []) == []
     assert state_mirror.read_only_part(world, "absent_v1", "agents", {}) == {}
-    assert _all_detached(world) and _rebuilds(world) == dict.fromkeys(DETACHED_NAMESPACES, 0)
+    assert _all_detached(world) and _rebuilds(world) == _none_rebuilt(world)
     # An attached namespace gives its tree's value, as model_state[name].get(key) does.
     tree = world.model_state[SOCIAL_NETWORK_STATE_KEY]
     assert (
@@ -260,10 +290,10 @@ def test_a_frame_reads_the_rows_and_is_the_frame_of_the_trees(
         return world_frame(world, run_id="r", branch_id="b", computed_until=world.minute_index)
 
     detached = frame()
-    assert _rebuilds(world) == dict.fromkeys(DETACHED_NAMESPACES, 0)
-    for name in DETACHED_NAMESPACES:
+    assert _rebuilds(world) == _none_rebuilt(world)
+    for name in _present(world):
         world.model_state[name]
-    assert not any(world._core.mirror(name).is_detached for name in DETACHED_NAMESPACES)
+    assert not any(world._core.mirror(name).is_detached for name in _present(world))
     assert frame() == detached
 
 
@@ -304,9 +334,117 @@ def test_the_after_tick_memo_stamps_a_detached_namespace_by_its_mirror(
     unchanged = world.__dict__["_tick_memo"].facts()["unchanged"]
     assert unchanged["presence"] and unchanged["lifecycle"] and unchanged["dynamics"]
     assert unchanged["overlay"]
-    assert _all_detached(world) and _rebuilds(world) == dict.fromkeys(DETACHED_NAMESPACES, 0)
+    assert _all_detached(world) and _rebuilds(world) == _none_rebuilt(world)
     # A write reaches the row and moves its generation: the next check reads the row again.
     world.model_state["population_lifecycle_v1"]["schema_version"] = 2
     state_mirror.detach_unread(world)
     with pytest.raises((StateInvariantError, ValueError)):
         world.validate_after_tick()
+
+
+# ---- Lane a1 of stage 2 (#134) ------------------------------------------------------------------
+#
+# The kernels that read or wrote these namespaces' trees read and write their rows while they are
+# detached, and their trees as before while they are attached. A Run with them detached is the Run
+# with their trees, step for step, and builds no tree of them.
+
+
+def _toilet_queues(scenario: Any, place: Any) -> WorldState:
+    from sheltersim.domain.facilities import ToiletServiceManager
+
+    world = WorldState.from_scenario(scenario)
+    place(world, "toilet_01")
+    service = ToiletServiceManager(world, min_service_minutes=2, max_service_minutes=2)
+    service.request("A001", "toilet_01", queue_id="toilet_01-left-fifo")
+    service.request("A002", "toilet_01", queue_id="toilet_01-left-fifo")
+    service.request("A003", "toilet_01", queue_id="toilet_01-right-fifo")
+    return world
+
+
+def _with_toilets(scenario: Any, program: Any) -> WorldState:
+    world = WorldState.from_scenario(scenario)
+    schedule_effect_program(world, program(start_minute=5))
+    return world
+
+
+def _attached_and_detached(
+    monkeypatch: pytest.MonkeyPatch, build: Any, minutes: int
+) -> tuple[list[str], list[str], WorldState, dict[str, int]]:
+    """world_digest after each tick, with lane a1's namespaces attached and then detached; and
+    the trees the detached Run's ticks built, by namespace (its set-up writes from Python)."""
+
+    def run() -> tuple[list[str], WorldState, dict[str, int]]:
+        world = build()
+        before = _rebuilds(world)
+        engine = _engine(world)
+        digests = []
+        for _ in range(minutes):
+            engine.step()
+            digests.append(world_digest(world))
+        built = {name: count - before.get(name, 0) for name, count in _rebuilds(world).items()}
+        return digests, world, built
+
+    with monkeypatch.context() as patch:
+        patch.setattr(state_mirror, "DETACHED_NAMESPACES", DETACHED_NAMESPACES - LANE_A1)
+        attached, attached_world, _ = run()
+    assert not any(
+        attached_world._core.mirror(name).is_detached
+        for name in LANE_A1 & dict.keys(attached_world.model_state)
+    )
+    detached, world, built = run()
+    return attached, detached, world, built
+
+
+@pytest.mark.parametrize("case", ["generated", "toilet_queues", "program"])
+def test_a_run_with_the_rows_alone_is_the_run_with_the_trees(
+    case: str,
+    monkeypatch: pytest.MonkeyPatch,
+    generated_scenario: Any,
+    generated_scenario_with_split_queues: Any,
+    place_three_at_facility: Any,
+    add_toilets_program: Any,
+) -> None:
+    builds = {
+        "generated": (lambda: WorldState.from_scenario(generated_scenario), 360),
+        "toilet_queues": (
+            lambda: _toilet_queues(generated_scenario_with_split_queues, place_three_at_facility),
+            16,
+        ),
+        "program": (lambda: _with_toilets(generated_scenario, add_toilets_program), 30),
+    }
+    build, minutes = builds[case]
+    attached, detached, world, built = _attached_and_detached(monkeypatch, build, minutes)
+    assert detached == attached
+    present = LANE_A1 & _present(world)
+    expected = {
+        "generated": LANE_A1 - {FACILITY_QUEUES_STATE_KEY, EFFECT_PROGRAM_STATE_KEY},
+        "toilet_queues": LANE_A1 - {EFFECT_PROGRAM_STATE_KEY},
+        "program": LANE_A1 - {FACILITY_QUEUES_STATE_KEY},
+    }
+    assert present == expected[case]
+    assert _all_detached(world)
+    # The ticks' kernels read and wrote the rows: none of these trees was built.
+    assert {name: built[name] for name in present} == dict.fromkeys(present, 0)
+
+
+def test_the_queues_written_in_the_row_are_those_of_the_tree(
+    generated_scenario_with_split_queues: Any, place_three_at_facility: Any
+) -> None:
+    """The enqueue, start, finish and stall of the FIFO change the row as the tree's writes did."""
+    world = _toilet_queues(generated_scenario_with_split_queues, place_three_at_facility)
+    assert _held(world, FACILITY_QUEUES_STATE_KEY) is state_mirror._DETACHED
+    document = state_mirror.read_only_state(world, FACILITY_QUEUES_STATE_KEY)
+    assert document["queues"]["toilet_01-left-fifo"]["queued_request_ids"] == [
+        request_id
+        for request_id, request in document["requests"].items()
+        if request["agent_id"] in {"A001", "A002"}
+    ]
+    mirror = world._core.mirror(FACILITY_QUEUES_STATE_KEY)
+    engine = _engine(world)
+    for _ in range(4):
+        engine.step()
+    assert mirror.is_detached and mirror.stats()["rebuilds"] == 0
+    # The tree built now from the row is the row's, and the row is whole.
+    tree = world.model_state[FACILITY_QUEUES_STATE_KEY]
+    assert mirror.verify() and tree == mirror.document()
+    assert any(queue["active_request_ids"] for queue in tree["queues"].values())

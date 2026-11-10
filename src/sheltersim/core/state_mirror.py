@@ -416,6 +416,9 @@ class NamespaceTable(dict):
     def setdefault(self, key: Any, default: Any = None) -> Any:
         if key not in self:
             self[key] = default
+            # A namespace of DETACHED_NAMESPACES is stored in its row alone: the caller writes
+            # to what it gets, so it gets the tree, built again from the row.
+            return self[key]
         return dict.__getitem__(self, key)
 
     def update(self, *arguments: Any, **keywords: Any) -> None:
@@ -574,6 +577,12 @@ DETACHED_NAMESPACES = frozenset(
         "population_lifecycle_v1",
         "population_dynamics_v1",
         "geometry_overlay_v1",
+        "movement_v1",
+        "agent_dynamics_v1",
+        "information_spread_v1",
+        "staff_dynamics_v1",
+        "facility_queues_v1",
+        "effect_program_v1",
     }
 )
 
