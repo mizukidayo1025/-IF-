@@ -17,7 +17,7 @@ use crate::core::row::{load_row, namespace_is_absent, state_row, Field, IdMap};
 use crate::core::tracked::as_readable_list;
 use crate::core::value::V;
 use crate::core::world_core::{
-    loads_items, mirror_of, Items, Misfit, NamespaceMirror, Part, RowType, Write,
+    loads_items, mirror_of, Items, Misfit, NamespaceMirror, OrMisfit, Part, RowType, Write,
 };
 use crate::state::entities::{entities_of, EntityStore};
 use crate::{encode, Encoder};
@@ -104,7 +104,7 @@ pub(crate) struct History {
 }
 
 fn item_bytes(value: &Bound<'_, PyAny>) -> Result<Box<[u8]>, Misfit> {
-    Ok(encode(value)?.into_boxed_slice())
+    Ok(encode(value).or_misfit()?.into_boxed_slice())
 }
 
 impl Items for History {

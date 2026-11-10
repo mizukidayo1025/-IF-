@@ -13,7 +13,7 @@ use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 use crate::core::errors;
 use crate::core::row::{attribute, exact_int, exact_str, str_value, namespace_is_absent, unsupported};
 use crate::core::tracked::as_readable_dict;
-use crate::core::value::V;
+use crate::core::value::{V, VPy};
 use crate::core::world_core::{mirror_of, with_state_value, NamespaceMirror};
 use crate::rules::common_operations::{plan_record, write_record, CareRecord, PlannedRecord};
 use crate::rules::handlers::{assumption, log_record, new_event, status_member, NewEvent};

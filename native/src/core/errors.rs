@@ -5,20 +5,56 @@
 //! `detail`, which is hashed and shown. So a kernel that raises one must say what the Python rule
 //! says, byte for byte, and in the same order of checks. The classes stay Python's; a kernel raises
 //! them through here.
+//!
+//! The errors and their texts are `sheltersim_core::error::Error`; `to_py_err` makes one into its
+//! Python class, and `OrPy` does it for a core call's result: `core_call().or_py()?`.
 
 
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyKeyError, PyRuntimeError, PyTypeError, PyValueError};
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBool, PyFloat, PyInt, PyString, PyType};
 
+pub(crate) use sheltersim_core::error::Outcome;
+use sheltersim_core::error::{refused_text, Error};
 
-/// Which of the two outcomes.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub(crate) enum Outcome {
-    Suppressed,
-    Failed,
+/// The Python exception of a core error: the same class and text as the exits below give. The
+/// census counted it when the core built it, so nothing is counted here.
+pub(crate) fn to_py_err(error: Error) -> PyErr {
+    match error {
+        Error::Unsupported(reason) => crate::Unsupported::counted(reason.into_owned()),
+        Error::Refused { label, reason } => {
+            let text = refused_text(&label, &reason);
+            Python::with_gil(|py| {
+                let refusal = PyErr::new::<KernelRefusal, _>(text);
+                refusal.set_cause(py, Some(crate::Unsupported::counted(reason.into_owned())));
+                refusal
+            })
+        }
+        Error::Outcome(outcome, text) => Python::with_gil(|py| marked(py, outcome, &text)),
+        Error::MarkedValue(text) => Python::with_gil(|py| marked_value(py, &text)),
+        Error::Value(text) => PyValueError::new_err(text),
+        Error::Key(text) => PyKeyError::new_err(text),
+        Error::Runtime(text) => PyRuntimeError::new_err(text),
+        Error::Type(text) => PyTypeError::new_err(text),
+        Error::Invariant(text) => PyErr::new::<StateInvariantError, _>(text),
+        Error::Ledger(text) => PyErr::new::<ResourceLedgerError, _>(text),
+        corrupt @ Error::Corrupt { .. } => PyErr::new::<StateInvariantError, _>(corrupt.to_string()),
+        Error::Math(error) => crate::core::mathx::math_error(error),
+    }
+}
+
+/// A core call's result as Python's: `core_call().or_py()?`.
+pub(crate) trait OrPy<T> {
+    fn or_py(self) -> PyResult<T>;
+}
+
+impl<T> OrPy<T> for sheltersim_core::error::Result<T> {
+    #[inline]
+    fn or_py(self) -> PyResult<T> {
+        self.map_err(to_py_err)
+    }
 }
 
 /// The attribute an outcome made here carries; its text, `str(exc)`, is the rule's alone.
@@ -45,11 +81,8 @@ pub(crate) fn noted(_outcome: Outcome, text: &'static str) -> &'static str {
     text
 }
 
-/// The exception of an outcome.
-#[track_caller]
-#[inline]
-pub(crate) fn error(py: Python<'_>, outcome: Outcome, text: impl Into<String>) -> PyErr {
-    let text = text.into();
+/// The exception of an outcome, marked as made here.
+fn marked(py: Python<'_>, outcome: Outcome, text: &str) -> PyErr {
     let made = (|| -> PyResult<PyErr> {
         let instance = class(py, outcome)?.call1((text,))?;
         instance.setattr(intern!(py, MARK), true)?;
@@ -58,15 +91,26 @@ pub(crate) fn error(py: Python<'_>, outcome: Outcome, text: impl Into<String>) -
     made.unwrap_or_else(|error| error)
 }
 
-/// `raise ValueError(text)` in the Python rule's words, marked as made here so that a step which turns
-/// a Python call's exception into Unsupported lets it through (a check of `effect_program_v1`).
-pub(crate) fn marked_value_error(py: Python<'_>, text: &str) -> PyErr {
+fn marked_value(py: Python<'_>, text: &str) -> PyErr {
     let made = (|| -> PyResult<PyErr> {
         let instance = py.get_type::<pyo3::exceptions::PyValueError>().call1((text,))?;
         instance.setattr(intern!(py, MARK), true)?;
         Ok(PyErr::from_value(instance))
     })();
     made.unwrap_or_else(|error| error)
+}
+
+/// The exception of an outcome.
+#[track_caller]
+#[inline]
+pub(crate) fn error(py: Python<'_>, outcome: Outcome, text: impl Into<String>) -> PyErr {
+    marked(py, outcome, &text.into())
+}
+
+/// `raise ValueError(text)` in the Python rule's words, marked as made here so that a step which turns
+/// a Python call's exception into Unsupported lets it through (a check of `effect_program_v1`).
+pub(crate) fn marked_value_error(py: Python<'_>, text: &str) -> PyErr {
+    marked_value(py, text)
 }
 
 /// The exception of a Python call that the rule makes at the same point and lets go as it is (the
@@ -196,12 +240,7 @@ pub(crate) fn member_of<'a>(value: &'a Bound<'_, PyAny>, members: &[&str]) -> Py
 /// The exception of an outcome a kernel already noted where it gave the text (`noted`), raised without
 /// noting it again: the record's last text, which a comparison counts, stays at that site.
 pub(crate) fn raise_noted<T>(py: Python<'_>, outcome: Outcome, text: &str) -> PyResult<T> {
-    let made = (|| -> PyResult<PyErr> {
-        let instance = class(py, outcome)?.call1((text,))?;
-        instance.setattr(intern!(py, MARK), true)?;
-        Ok(PyErr::from_value(instance))
-    })();
-    Err(made.unwrap_or_else(|error| error))
+    Err(marked(py, outcome, text))
 }
 
 // ---- The other errors of the Python rules (lane L8b, docs/rust-port/lanes/l8-texts-rest.md) -------
@@ -267,6 +306,8 @@ mod invariant_class {
 #[allow(unused_imports)]
 pub(crate) use invariant_class::StateInvariantError;
 
+// `new_err` is left for the lanes; `ledger_error` maps the core error.
+#[allow(dead_code)]
 mod ledger_class {
     use super::*;
     python_class!(ResourceLedgerError, "sheltersim.domain.resources", "ResourceLedgerError");
@@ -277,22 +318,20 @@ pub(crate) use ledger_class::ResourceLedgerError;
 /// the ledger's handler and the water and meal service save inside their own.
 #[track_caller]
 pub(crate) fn ledger_error(text: impl Into<String>) -> PyErr {
-    ResourceLedgerError::new_err(text)
+    to_py_err(Error::ledger(text))
 }
 
 /// `raise ValueError(text)` of a Python rule.
 #[track_caller]
 pub(crate) fn value_error(text: impl Into<String>) -> PyErr {
-    let text = text.into();
-    moved(&text);
-    PyValueError::new_err(text)
+    to_py_err(Error::value_error(text))
 }
 
 /// `raise StateInvariantError(text)` of a Python rule.
 #[track_caller]
 #[allow(dead_code)]
 pub(crate) fn invariant(text: impl Into<String>) -> PyErr {
-    StateInvariantError::new_err(text)
+    to_py_err(Error::invariant(text))
 }
 
 /// The error of a Python call that the rule makes too (a contract's `model_validate`), raised as
@@ -308,9 +347,7 @@ pub(crate) fn relayed(py: Python<'_>, error: PyErr) -> PyErr {
 #[track_caller]
 #[allow(dead_code)]
 pub(crate) fn corrupt(namespace: &str, check: &str) -> PyErr {
-    let text = format!("{namespace}: corrupt state: {check}");
-    crate::core::census::moved(&text);
-    PyErr::new::<StateInvariantError, _>(text)
+    to_py_err(Error::corrupt(namespace, check))
 }
 
 
@@ -328,7 +365,7 @@ pub(crate) fn kernel_refusal(py: Python<'_>, label: &str, error: PyErr) -> PyErr
     if !error.is_instance_of::<crate::Unsupported>(py) {
         return error;
     }
-    let refusal = PyErr::new::<KernelRefusal, _>(format!("{label} refused: {}", error.value(py)));
+    let refusal = PyErr::new::<KernelRefusal, _>(refused_text(label, &error.value(py).to_string()));
     refusal.set_cause(py, Some(error));
     refusal
 }

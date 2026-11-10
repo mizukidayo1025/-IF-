@@ -25,10 +25,10 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PySlice, PyString, PyTuple};
 use sha2::{Digest, Sha256};
 
-use crate::core::errors;
+use crate::core::errors::{self, OrPy};
 use crate::core::mathx::py_min;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_int_text, exact_str, unsupported};
-use crate::core::value::V;
+use crate::core::value::{V, VPy};
 use crate::core::world_core::{attached_state, state_value, with_state_value};
 use crate::rules::movement::{mirror_held, Scene};
 use crate::rules::movement_geometry::Pt;
@@ -611,7 +611,7 @@ fn record_presence_transition(
 /// values of a record are Identifiers, ints and None, so the canonical bytes are those.
 pub(crate) fn record_hash(person: &Person) -> PyResult<String> {
     let mut encoder = Encoder { out: Vec::new() };
-    person.dump().write_json(&mut encoder)?;
+    person.dump().write_json(&mut encoder).or_py()?;
     Ok(hex(&Sha256::digest(&encoder.out)))
 }
 

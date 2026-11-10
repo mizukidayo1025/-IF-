@@ -9,7 +9,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
 use sha2::{Digest, Sha256};
 
-use crate::{Encoder, Unsupported};
+use crate::{Encoder, PyEncoder, Unsupported};
 
 // Deeper values are left to Python, which can raise its own errors about them.
 const MAX_FROZEN_DEPTH: usize = 64;

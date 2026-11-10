@@ -9,6 +9,7 @@ description = "The simulation core of 避難所IF！ without Python (Issue #152)
 crate-type = ["rlib"]
 
 [dependencies]
+indexmap = "2"
 itoa = "1"
 # Pure Rust exp, expm1, pow and fma: the same bits on every OS (docs/rust-port/step4-plan.md, section 9).
 libm = "=0.2.16"

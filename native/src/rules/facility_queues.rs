@@ -18,7 +18,7 @@ use pyo3::types::{PyDict, PyList, PySet, PyTuple};
 use crate::core::errors;
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, unsupported};
 use crate::core::tracked::as_readable_dict;
-use crate::core::value::V;
+use crate::core::value::{V, VPy};
 use crate::core::world_core::NamespaceMirror;
 use crate::rules::movement::mobility_text;
 use crate::rules::movement_geometry::{Geo, ServicePoint};

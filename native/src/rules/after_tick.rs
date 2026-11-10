@@ -47,6 +47,7 @@ use rustc_hash::FxHashSet;
 
 use crate::core::row::{attribute, exact_int, exact_str, unsupported};
 use crate::core::tracked::{as_readable_dict, as_readable_list, is_detached};
+use crate::core::errors::OrPy;
 use crate::core::value::V;
 use crate::core::world_core::{core_of, raw_dict_get, with_state_value, Items, NamespaceMirror};
 use crate::state::body_state::BodyRow;
@@ -910,7 +911,7 @@ fn check(table: &Table, world: &Bound<'_, PyAny>, memo: &Bound<'_, TickMemo>) ->
         let config_json = match cx.detached_mirror(BODY, &body)? {
             Some(mirror) => NamespaceMirror::with_row::<BodyRow, _>(&mirror, |row| {
                 let mut encoder = crate::Encoder { out: Vec::new() };
-                row.config.write_json(&mut encoder)?;
+                row.config.write_json(&mut encoder).or_py()?;
                 Ok(encoder.out)
             })?,
             None => {

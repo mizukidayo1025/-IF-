@@ -16,7 +16,7 @@
 
 use rustc_hash::FxHashSet;
 
-use crate::Encoder;
+use crate::{Encoder, PyEncoder};
 
 use pyo3::ffi;
 use pyo3::prelude::*;

@@ -19,6 +19,7 @@ use rustc_hash::FxBuildHasher;
 
 use crate::core::mathx::{hypot, py_fsum, py_max, py_min, py_round, py_sum};
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, unsupported, IdMap};
+use crate::core::errors::OrPy;
 use crate::core::value::V;
 use crate::core::world_core::with_state_value;
 use crate::{Encoder, Unsupported};
@@ -630,7 +631,7 @@ fn overlay_bytes(overlay: &IndexMap<Arc<str>, V>, name: &str) -> PyResult<Vec<u8
         Some(V::Map(items)) if items.is_empty() => Ok(Vec::new()),
         Some(part @ V::Map(_)) => {
             let mut encoder = Encoder { out: Vec::with_capacity(256) };
-            part.write_json(&mut encoder)?;
+            part.write_json(&mut encoder).or_py()?;
             Ok(encoder.out)
         }
         Some(_) => unsupported("a value is not a plain dict"),

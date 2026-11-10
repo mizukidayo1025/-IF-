@@ -24,7 +24,7 @@ use pyo3::types::{PyBool, PyDict, PyInt, PyList, PyString};
 use crate::core::errors;
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, str_value, unsupported};
 use crate::core::tracked::as_readable_dict;
-use crate::core::value::V;
+use crate::core::value::{V, VPy};
 use crate::core::world_core::{raw_dict_get, with_state_value};
 use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, RequestStatus};
 use crate::rules::movement::{at_queue_slot, at_service_point, at_trip_destination};

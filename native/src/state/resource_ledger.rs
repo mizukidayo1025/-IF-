@@ -17,7 +17,7 @@ use rustc_hash::{FxBuildHasher, FxHashSet};
 use crate::core::row::{attribute, load_row, namespace_is_absent, state_row, Field, IdMap};
 use crate::core::tracked::{as_readable_dict, as_readable_list};
 use crate::core::world_core::{
-    loads_items, mirror_of, raw_dict_get, Items, Misfit, NamespaceMirror, Part, RowType, Write,
+    loads_items, mirror_of, raw_dict_get, Items, Misfit, NamespaceMirror, OrMisfit, Part, RowType, Write,
 };
 use crate::{Encoder, Unsupported};
 
@@ -171,7 +171,7 @@ impl Audit {
         if self.warehouse.as_ref().is_some_and(|warehouse| *warehouse != record.warehouse_id) {
             return Err(Misfit::new("audit records of two warehouses"));
         }
-        self.push(record)?;
+        self.push(record).or_misfit()?;
         Ok(())
     }
 }

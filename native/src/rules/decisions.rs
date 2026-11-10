@@ -37,7 +37,7 @@ use crate::rules::behavior::{
 use crate::rules::trace::Level;
 use crate::rules::world_view::RustView;
 use crate::state::entities::{entities_of, Activity, EntityStore, RequestStatus};
-use crate::{write_json_string, Encoder, Unsupported};
+use crate::{write_json_string, Encoder, PyEncoder, Unsupported};
 
 /// `ActionProposal.trigger` of a scheduled decision.
 const TRIGGER: &str = "scheduled_decision";

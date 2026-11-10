@@ -24,7 +24,8 @@ use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyString, PyTuple};
 
-use crate::core::value::V;
+use crate::core::errors::OrPy;
+use crate::core::value::{V, VPy};
 use crate::eventlog::EventStore;
 use crate::{write_json_string, Encoder, Unsupported};
 
@@ -277,11 +278,11 @@ impl EventRow {
         name(encoder, "kind");
         write_json_string(&mut encoder.out, self.kind.as_str());
         name(encoder, "payload");
-        self.payload.write_json(encoder)?;
+        self.payload.write_json(encoder).or_py()?;
         name(encoder, "priority");
         number(encoder, self.priority);
         name(encoder, "provenance");
-        self.provenance.write_json(encoder)?;
+        self.provenance.write_json(encoder).or_py()?;
         name(encoder, "sequence");
         number(encoder, self.sequence);
         name(encoder, "source_id");
