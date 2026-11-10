@@ -17,7 +17,7 @@ use pyo3::types::{PyBool, PyList, PySlice, PyString, PyTuple};
 use crate::core::errors;
 use crate::core::mathx::py_max;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, map_set, unsupported, Field};
-use crate::core::value::V;
+use crate::core::value::{V, VPy};
 use crate::core::tracked::is_detached;
 use crate::core::world_core::{field_mirror_of, raw_dict_get, NamespaceMirror};
 use crate::rules::facility_queues::{
@@ -1038,7 +1038,7 @@ fn payload_get(event: &EventRef<'_, '_>, key: &str) -> PyResult<V> {
         EventRef::Object(event) => {
             let py = event.py();
             let payload = attribute(event, intern!(py, "payload"))?;
-            V::from_py(&payload.call_method1(intern!(py, "get"), (PyString::intern(py, key),))?)
+            <V as VPy>::from_py(&payload.call_method1(intern!(py, "get"), (PyString::intern(py, key),))?)
         }
     }
 }

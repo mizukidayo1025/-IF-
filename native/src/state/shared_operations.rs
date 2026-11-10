@@ -19,7 +19,7 @@ use pyo3::types::{PyList, PyString};
 use crate::core::row::{exact_int, load_row, namespace_is_absent, state_row, str_enum, Field, IdMap};
 use crate::core::tracked::{as_readable_dict, as_readable_list};
 use crate::core::world_core::{
-    loads_items, mirror_of, Items, Misfit, NamespaceMirror, Part, RowType, Write,
+    loads_items, mirror_of, Items, Misfit, NamespaceMirror, OrMisfit, Part, RowType, Write,
 };
 use crate::state::entities::{entities_of, EntityStore, RequestStatus};
 use crate::state::events::EventWriter;
@@ -170,18 +170,18 @@ fn receipt_from(value: &Bound<'_, PyAny>) -> Result<Receipt, Misfit> {
         event_id: None,
         verified: false,
         reads_staff_history: true,
-        bytes: encode(value)?.into_boxed_slice(),
+        bytes: encode(value).or_misfit()?.into_boxed_slice(),
     };
     if let Some(record) = as_readable_dict(value) {
-        if let Some(minute) = record.get_item(intern!(py, "minute"))? {
+        if let Some(minute) = record.get_item(intern!(py, "minute")).or_misfit()? {
             receipt.minute = exact_int(&minute).ok();
         }
-        if let Some(event_id) = record.get_item(intern!(py, "event_id"))? {
+        if let Some(event_id) = record.get_item(intern!(py, "event_id")).or_misfit()? {
             if let Ok(event_id) = event_id.downcast_exact::<PyString>() {
-                receipt.event_id = Some(Arc::from(event_id.to_str()?));
+                receipt.event_id = Some(Arc::from(event_id.to_str().or_misfit()?));
             }
         }
-        if let Some(event_type) = record.get_item(intern!(py, "event_type"))? {
+        if let Some(event_type) = record.get_item(intern!(py, "event_type")).or_misfit()? {
             receipt.reads_staff_history = !event_type
                 .downcast_exact::<PyString>()
                 .is_ok_and(|text| text.to_str().is_ok_and(|text| text != "staff_operation_transition"));

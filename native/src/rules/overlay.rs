@@ -24,7 +24,7 @@ use crate::core::errors;
 use crate::core::mathx::{hypot, math_error, pow, py_max, py_min, py_round, py_sum};
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, unsupported};
 use crate::core::tracked::is_detached;
-use crate::core::value::V;
+use crate::core::value::{V, VPy};
 use crate::core::world_core::{attached_state, mirror_of, raw_dict_get, state_value, with_state_value, NamespaceMirror};
 use crate::rules::movement::{mirror_held, mobility_text, point_object, room_minutes, KEY as MOVEMENT_KEY};
 use crate::rules::movement_geometry::{

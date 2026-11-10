@@ -7,7 +7,8 @@ use pyo3::types::{PyBytes, PyInt, PyList, PyString};
 use crate::core::interner::{EnumTable, Interner, PyStrings};
 use crate::core::mathx::{self, Num, PyNum};
 use crate::core::rng::{Key, KeyedDraws};
-use crate::core::value::V;
+use crate::core::errors::OrPy;
+use crate::core::value::{V, VPy};
 use crate::{Encoder, Unsupported};
 
 /// Each value as a float, or what Python raises as `(class name, text)`.
@@ -168,7 +169,7 @@ fn value_json<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyBytes>> {
     let mut encoder = Encoder {
         out: Vec::with_capacity(256),
     };
-    V::from_py(value)?.write_json(&mut encoder)?;
+    V::from_py(value)?.write_json(&mut encoder).or_py()?;
     Ok(PyBytes::new(value.py(), &encoder.out))
 }
 

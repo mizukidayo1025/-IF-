@@ -1,5 +1,8 @@
 //! The bytes of canonical JSON that need no Python: strings as `json.dumps(ensure_ascii=False)`
-//! writes them, and floats as `float.__repr__` and the encoder write them.
+//! writes them, floats as `float.__repr__` and the encoder write them, and `Encoder`, which
+//! writes plain values. The PyO3 crate walks Python values with it (`native/src/lib.rs`).
+
+use crate::error::Error;
 
 /// A JSON string as json.dumps(ensure_ascii=False) writes it.
 pub fn write_json_string(out: &mut Vec<u8>, text: &str) {
@@ -107,4 +110,39 @@ pub fn write_float(out: &mut Vec<u8>, value: f64) -> Result<(), NotFinite> {
         out.extend_from_slice(python_float_repr(value).as_bytes());
     }
     Ok(())
+}
+
+/// Canonical JSON being written: the bytes of `json.dumps(value, sort_keys=True,
+/// separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()`, a value at a time.
+/// The caller sorts a map's keys by their bytes, which is Python's order of str.
+#[derive(Default)]
+pub struct Encoder {
+    pub out: Vec<u8>,
+}
+
+impl Encoder {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self { out: Vec::with_capacity(capacity) }
+    }
+
+    pub fn null(&mut self) {
+        self.out.extend_from_slice(b"null");
+    }
+
+    pub fn bool(&mut self, flag: bool) {
+        self.out.extend_from_slice(if flag { b"true" } else { b"false" });
+    }
+
+    pub fn int(&mut self, number: i64) {
+        self.out.extend_from_slice(itoa::Buffer::new().format(number).as_bytes());
+    }
+
+    pub fn string(&mut self, text: &str) {
+        write_json_string(&mut self.out, text);
+    }
+
+    /// A finite float; NaN and infinity are `Unsupported`, left to Python's `json`.
+    pub fn try_float(&mut self, value: f64) -> crate::error::Result<()> {
+        write_float(&mut self.out, value).map_err(|_| Error::unsupported("NaN and infinity are left to json"))
+    }
 }

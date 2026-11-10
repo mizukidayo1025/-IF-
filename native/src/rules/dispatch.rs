@@ -23,7 +23,7 @@ use pyo3::types::{PyDict, PyList, PyString, PyTuple, PyType};
 
 use crate::core::errors;
 use crate::core::row::{attribute, exact_int, str_value};
-use crate::core::value::V;
+use crate::core::value::{V, VPy};
 use crate::core::world_core::{mirror_of, raw_dict_get, with_state_value, NamespaceMirror};
 use indexmap::IndexMap;
 use crate::rules::action_lifecycle::{complete_for_event, ends_any_action};

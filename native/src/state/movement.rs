@@ -14,7 +14,7 @@ use pyo3::types::{PyDict, PyString};
 
 use crate::core::row::{load_row, state_row, Field, IdMap};
 use crate::core::tracked::as_readable_dict;
-use crate::core::world_core::{Misfit, Part, RowType, Write};
+use crate::core::world_core::{Misfit, OrMisfit, Part, RowType, Write};
 use crate::{write_json_string, Encoder};
 
 state_row! {
@@ -61,7 +61,7 @@ const JOURNEY_REQUIRED_FIELDS: usize = 10;
 impl Journey {
     /// A present field of the record that may be absent. `Arc<str>` is what refuses a null.
     fn optional(record: &Bound<'_, PyDict>, key: &Bound<'_, PyString>, found: &mut usize) -> Result<Option<Arc<str>>, Misfit> {
-        match record.get_item(key)? {
+        match record.get_item(key).or_misfit()? {
             Some(value) => {
                 *found += 1;
                 Ok(Some(Field::from_py(&value)?))
@@ -82,7 +82,7 @@ impl Journey {
 }
 
 fn required<T: Field>(record: &Bound<'_, PyDict>, key: &Bound<'_, PyString>) -> Result<T, Misfit> {
-    T::from_py(&record.get_item(key)?.ok_or_else(|| Misfit::new("a journey field is missing"))?)
+    T::from_py(&record.get_item(key).or_misfit()?.ok_or_else(|| Misfit::new("a journey field is missing"))?)
 }
 
 impl Field for Journey {

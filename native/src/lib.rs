@@ -13,6 +13,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyBytes, PyFloat, PyInt, PyString, PyTuple};
 use sha2::{Digest, Sha256};
 
+use crate::core::errors::OrPy;
 use crate::core::tracked::{as_readable_dict, as_readable_list};
 
 mod checkpoint;
@@ -47,6 +48,11 @@ impl Unsupported {
         core::census::raised(reason.as_ref());
         exception::Unsupported::new_err(reason)
     }
+
+    /// The exception of a refusal the core counted when it built it (`sheltersim_core::error`).
+    pub(crate) fn counted(reason: String) -> PyErr {
+        exception::Unsupported::new_err(reason)
+    }
 }
 
 // SAFETY: the type object is that of the exception above, which is what this type stands for.
@@ -62,25 +68,32 @@ unsafe impl pyo3::PyTypeInfo for Unsupported {
 // Deeper values are left to the json module, which raises RecursionError itself.
 pub(crate) const MAX_DEPTH: usize = 512;
 
-pub(crate) struct Encoder {
-    pub(crate) out: Vec<u8>,
+pub(crate) use sheltersim_core::json::Encoder;
+
+/// The canonical JSON of Python values, written through the core's `Encoder`.
+pub(crate) trait PyEncoder {
+    /// A plain JSON value of Python: dict with str keys, list, tuple, str, int, float, bool and
+    /// None, and the tracked containers. Anything else raises `Unsupported`.
+    fn value(&mut self, value: &Bound<'_, PyAny>, depth: usize) -> PyResult<()>;
+
+    /// A finite float; NaN and infinity raise `Unsupported`.
+    fn float(&mut self, value: f64) -> PyResult<()>;
 }
 
-impl Encoder {
-    pub(crate) fn value(&mut self, value: &Bound<'_, PyAny>, depth: usize) -> PyResult<()> {
+impl PyEncoder for Encoder {
+    fn value(&mut self, value: &Bound<'_, PyAny>, depth: usize) -> PyResult<()> {
         if depth > MAX_DEPTH {
             return Err(Unsupported::new_err("value nests too deeply"));
         }
         if value.is_none() {
-            self.out.extend_from_slice(b"null");
+            self.null();
         } else if let Ok(text) = value.downcast::<PyString>() {
             self.string(text.to_str()?);
         } else if let Ok(flag) = value.downcast::<PyBool>() {
-            self.out
-                .extend_from_slice(if flag.is_true() { b"true" } else { b"false" });
+            self.bool(flag.is_true());
         } else if let Ok(number) = value.downcast::<PyInt>() {
             match number.extract::<i64>() {
-                Ok(small) => self.out.extend_from_slice(itoa::Buffer::new().format(small).as_bytes()),
+                Ok(small) => self.int(small),
                 // json writes int.__repr__ of any other int.
                 Err(_) => {
                     let text = py_int_repr(number)?;
@@ -138,13 +151,9 @@ impl Encoder {
         Ok(())
     }
 
-    fn string(&mut self, text: &str) {
-        write_json_string(&mut self.out, text);
-    }
-
-    pub(crate) fn float(&mut self, value: f64) -> PyResult<()> {
-        sheltersim_core::json::write_float(&mut self.out, value)
-            .map_err(|_| Unsupported::new_err("NaN and infinity are left to json"))
+    #[inline]
+    fn float(&mut self, value: f64) -> PyResult<()> {
+        self.try_float(value).or_py()
     }
 }
 

@@ -9,8 +9,8 @@ use pyo3::types::{PyFloat, PyInt};
 use pyo3::IntoPyObjectExt;
 
 use crate::core::row::{load_row, namespace_is_absent, state_row, str_enum, Field, IdMap, Maybe};
-use crate::core::world_core::{mirror_of, Misfit, NamespaceMirror, RowType};
-use crate::Encoder;
+use crate::core::world_core::{mirror_of, Misfit, NamespaceMirror, OrMisfit, RowType};
+use crate::{Encoder, PyEncoder};
 use crate::state::entities::{entities_of, EntityStore};
 
 pub(crate) const NAME: &str = "staff_dynamics_v1";
@@ -60,7 +60,7 @@ impl Field for Recovery {
             return Ok(Self { value: number.value(), int: false });
         }
         // bool is an int subclass, so the exact check turns it down too.
-        let number: i64 = value.downcast_exact::<PyInt>().map_err(|_| Misfit::new("not a float or an int"))?.extract()?;
+        let number: i64 = value.downcast_exact::<PyInt>().map_err(|_| Misfit::new("not a float or an int"))?.extract().or_misfit()?;
         if number.unsigned_abs() > 1 << 53 {
             return Err(Misfit::new("an int a float can't hold"));
         }

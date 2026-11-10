@@ -33,11 +33,12 @@ use pyo3::IntoPyObjectExt;
 use rustc_hash::{FxBuildHasher, FxHashSet};
 
 use crate::core::tracked::{as_readable_list, id_map_type};
+use crate::core::errors::OrPy;
 use crate::core::value::V;
 use crate::core::world_core::{
-    core_of, new_tracked_list, raw_dict_get, raw_dict_set, raw_list_append, Misfit,
+    core_of, new_tracked_list, raw_dict_get, raw_dict_set, raw_list_append, Misfit, OrMisfit,
 };
-use crate::{write_json_string, Encoder, Unsupported};
+use crate::{write_json_string, Encoder, PyEncoder, Unsupported};
 
 // ---- What Python hands over ---------------------------------------------------------------
 
@@ -157,7 +158,7 @@ impl Field for f64 {
 impl Field for i64 {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         // A bool's exact type is not int.
-        Ok(value.downcast_exact::<PyInt>().map_err(|_| Misfit::new("not an int"))?.extract()?)
+        Ok(value.downcast_exact::<PyInt>().map_err(|_| Misfit::new("not an int"))?.extract().or_misfit()?)
     }
     fn to_py(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         self.into_py_any(py)
@@ -174,7 +175,7 @@ impl Field for i64 {
 impl Field for Arc<str> {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         let text = value.downcast_exact::<PyString>().map_err(|_| Misfit::new("not a str"))?;
-        Ok(Arc::from(text.to_str()?))
+        Ok(Arc::from(text.to_str().or_misfit()?))
     }
     fn to_py(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         (&**self).into_py_any(py)
@@ -261,16 +262,16 @@ impl Field for Skills {
 
 impl Field for V {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
-        Ok(V::from_py(value)?)
+        Ok(<V as crate::core::value::VPy>::from_py(value).or_misfit()?)
     }
     fn to_py(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        Ok(V::to_py(self, py)?.unbind())
+        Ok(crate::core::value::VPy::to_py(self, py)?.unbind())
     }
     fn same(&self, other: &Self) -> bool {
         self == other
     }
     fn write_json(&self, encoder: &mut Encoder, _version: i64) -> PyResult<()> {
-        V::write_json(self, encoder)
+        V::write_json(self, encoder).or_py()
     }
 }
 
@@ -365,7 +366,7 @@ macro_rules! row {
                 let py = value.py();
                 Ok(Self {
                     $($field: <$kind as Field>::from_py(
-                        &value.getattr(intern!(py, stringify!($field)))?,
+                        &value.getattr(intern!(py, stringify!($field))).or_misfit()?,
                     )?,)*
                 })
             }
@@ -728,18 +729,18 @@ impl EntityStore {
         let py = slf.py();
         let list = as_readable_list(value).ok_or_else(|| Misfit::new("not a list"))?;
         let tracked = value.is_instance_of::<PyList>() && !value.is_exact_instance_of::<PyList>();
-        let reuse = tracked && value.getattr(intern!(py, "_sink"))?.is_none();
+        let reuse = tracked && value.getattr(intern!(py, "_sink")).or_misfit()?.is_none();
         let stored = if reuse {
             value.clone()
         } else {
-            let new = new_tracked_list(py)?;
+            let new = new_tracked_list(py).or_misfit()?;
             for item in list.iter() {
-                raw_list_append(&new, &item)?;
+                raw_list_append(&new, &item).or_misfit()?;
             }
             new
         };
-        stored.setattr(intern!(py, "_sink"), slf)?;
-        stored.setattr(intern!(py, "_node"), node)?;
+        stored.setattr(intern!(py, "_sink"), slf).or_misfit()?;
+        stored.setattr(intern!(py, "_node"), node).or_misfit()?;
         Ok(stored)
     }
 
@@ -764,15 +765,15 @@ impl EntityStore {
         for (index, (name, owner)) in LIST_FIELDS.iter().enumerate() {
             if *owner == kind {
                 let name = PyString::intern(py, name);
-                let current = object.getattr(&name)?;
+                let current = object.getattr(&name).or_misfit()?;
                 let stored = Self::adopt_list(slf, &current, list_node(slot, index))?;
                 if !stored.is(&current) {
-                    raw_setattr(object, &name, stored.as_ptr())?;
+                    raw_setattr(object, &name, stored.as_ptr()).or_misfit()?;
                 }
             }
         }
         if kind == AGENT {
-            Self::link_needs(slf, &object.getattr(intern!(py, "needs"))?, slot)?;
+            Self::link_needs(slf, &object.getattr(intern!(py, "needs")).or_misfit()?, slot)?;
         }
         Ok(())
     }
@@ -781,10 +782,10 @@ impl EntityStore {
         if !exact_type_is(needs, &installed()?.needs) {
             return Err(Misfit::new("an agent's needs are not a NeedState"));
         }
-        if !needs.getattr(intern!(slf.py(), "_store"))?.is_none() {
+        if !needs.getattr(intern!(slf.py(), "_store")).or_misfit()?.is_none() {
             return Err(Misfit::new("a NeedState has two places"));
         }
-        Self::mark_attached(slf, needs, slot)?;
+        Self::mark_attached(slf, needs, slot).or_misfit()?;
         Ok(())
     }
 
@@ -901,18 +902,18 @@ impl EntityStore {
         if !exact_type_is(value, class_of(installed()?, kind)) {
             return Err(Misfit::new("not the entity class of this map"));
         }
-        if !value.getattr(intern!(py, "_store"))?.is_none() {
+        if !value.getattr(intern!(py, "_store")).or_misfit()?.is_none() {
             return Err(Misfit::new("an entity has two places"));
         }
         let slot = match Self::load_into_table(slf, kind, value) {
             Ok(slot) => slot,
             Err(misfit) => {
                 // Half linked, it would hold a list or needs of a row that does not exist.
-                Self::unlink_children(slf, kind, value)?;
+                Self::unlink_children(slf, kind, value).or_misfit()?;
                 return Err(misfit);
             }
         };
-        Self::mark_attached(slf, value, slot)?;
+        Self::mark_attached(slf, value, slot).or_misfit()?;
         let mut this = slf.try_borrow_mut().map_err(pyo3_misfit)?;
         this.attaches += 1;
         if let Some(old) = this.set_slot_of(kind, key, slot) {

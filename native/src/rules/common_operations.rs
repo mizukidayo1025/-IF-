@@ -12,7 +12,7 @@ use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PySlice, PyString, PyTuple, PyType};
 
-use crate::core::errors::value_error;
+use crate::core::errors::{value_error, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, unsupported, Field};
 use crate::core::tracked::{as_readable_dict, is_detached};
 use crate::core::value::V;
@@ -842,7 +842,7 @@ pub(crate) fn write_record(
     let PlannedRecord { created_minute, overflow } = plan;
     let (event_id, request_id, minute) = (&record.event_id, &record.request_id, record.minute);
     let mut encoder = Encoder { out: Vec::with_capacity(512) };
-    document.write_json(&mut encoder)?;
+    document.write_json(&mut encoder).or_py()?;
     let receipt = Receipt {
         minute: Some(minute),
         event_id: Some(event_id.clone()),

@@ -18,7 +18,7 @@ use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 use crate::core::errors;
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, unsupported};
 use crate::core::world_core::{state_value, with_state_value};
-use crate::core::value::V;
+use crate::core::value::{V, VPy};
 use crate::rules::movement::{mobility_text, start_movement};
 use crate::rules::movement_geometry::{Geo, Pt};
 use crate::rules::population::{

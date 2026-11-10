@@ -22,7 +22,7 @@ use rustc_hash::FxHashMap;
 
 use crate::core::mathx::{py_max, py_min};
 use crate::core::tracked::as_readable_dict;
-use crate::core::value::V;
+use crate::core::value::{V, VPy};
 use crate::rules::world_view::DemandModifier;
 use crate::state::events::is_stable_id;
 use crate::Unsupported;

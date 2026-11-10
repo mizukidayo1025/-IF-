@@ -30,11 +30,17 @@ Checkpoint document) and times them.
 - `core/` (`sheltersim_core`): the simulation core without Python (Issue #152,
   `docs/rust-port/step5-plan.md`). It must never depend on pyo3; CI checks its `cargo tree`
   and runs `cargo test -p sheltersim_core`. It holds what moved so far: `json.rs` (JSON strings
-  and floats as Python writes them), `mathx.rs`, `rng.rs`, `census.rs`, `parallel.rs` and
-  `interner.rs`. The files of the same names in `src/core/` re-export them under their old paths
-  and add only what needs Python (exceptions, Python numbers and strings, `#[pyfunction]`
-  entries). `native/Cargo.toml` is the workspace of both crates; its lints and `clippy.toml`
-  apply to both (`cargo clippy --workspace`).
+  and floats as Python writes them, and `Encoder`, which writes plain values), `value.rs` (`V`),
+  `error.rs` (`Error`, one variant per Python class with its text, and `Misfit`), `mathx.rs`,
+  `rng.rs`, `census.rs`, `parallel.rs` and `interner.rs`. The files of the same names in
+  `src/core/` re-export them under their old paths and add only what needs Python (exceptions,
+  Python numbers and strings, `#[pyfunction]` entries): `src/core/errors.rs` maps an `Error` to
+  its Python class (`to_py_err`; `core_call().or_py()?`), `src/core/value.rs` reads and makes
+  Python values (`VPy`), `lib.rs` walks Python values into an `Encoder` (`PyEncoder`), and
+  `world_core.rs` makes a Python call's error a `Misfit` (`or_misfit()`). An `Error` can't be
+  turned into a `PyErr` with `?`, because neither type is the wrapper's. `native/Cargo.toml` is
+  the workspace of both crates; its lints and `clippy.toml` apply to both
+  (`cargo clippy --workspace`).
 - `src/core/`: what every lane shares. `value.rs` (`V`, a JSON value that writes canonical
   bytes through `Encoder` and comes back to Python the same), `mathx.rs`, `rng.rs`,
   `interner.rs` (IDs and enum members as small numbers in rows, one Python object for each;

@@ -351,6 +351,7 @@ dependencies = [
 name = "sheltersim_core"
 version = "0.1.0"
 dependencies = [
+ "indexmap",
  "itoa",
  "libm",
  "rayon",

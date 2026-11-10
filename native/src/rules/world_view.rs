@@ -32,7 +32,7 @@ use sha2::{Digest, Sha256};
 use crate::core::mathx::{py_fsum, py_min};
 use crate::core::parallel::parts_in_order;
 use crate::core::tracked::{as_readable_dict, is_detached};
-use crate::core::value::V;
+use crate::core::value::{V, VPy};
 use crate::core::world_core::{held_state, mirror_of, raw_dict_get, raw_dict_set, with_state_value, Held, NamespaceMirror};
 use crate::rules::person_context::{self, plain_copy};
 use crate::rules::zone_environment::{ZoneConditions, ZoneInputs};
@@ -41,7 +41,7 @@ use crate::state::information::{InformationRow, NAME as INFORMATION};
 use crate::state::body_state::BodyRow;
 use crate::state::psychological_distress::{DistressRow, NAME as DISTRESS};
 use crate::state::staff_operations::StaffOperationsRow;
-use crate::{write_json_string, Encoder, Unsupported};
+use crate::{write_json_string, Encoder, PyEncoder, Unsupported};
 
 #[track_caller]
 fn unsupported<T>(reason: &'static str) -> PyResult<T> {

@@ -33,7 +33,8 @@ use smallvec::SmallVec;
 
 use super::row::Scalar;
 use super::tracked::{as_readable_dict, is_detached, tracked_dict_type, tracked_list_type};
-use super::value::V;
+use super::errors::OrPy;
+use super::value::{V, VPy};
 use crate::{encode, Encoder, Unsupported, MAX_DEPTH};
 
 const NO_PARENT: u32 = u32::MAX;
@@ -60,18 +61,18 @@ pub(crate) enum Write<'a, 'py> {
     ReplaceAll { items: &'a Bound<'py, PyList> },
 }
 
-/// Why a value or a write does not fit a row.
-pub(crate) struct Misfit(pub(crate) String);
+pub(crate) use sheltersim_core::error::Misfit;
 
-impl Misfit {
-    pub(crate) fn new(reason: impl Into<String>) -> Self {
-        Self(reason.into())
-    }
+/// A Python call's error as a `Misfit` whose reason is the exception's text (`PyErr`'s
+/// `Display`): `python_call().or_misfit()?`.
+pub(crate) trait OrMisfit<T> {
+    fn or_misfit(self) -> Result<T, Misfit>;
 }
 
-impl From<PyErr> for Misfit {
-    fn from(error: PyErr) -> Self {
-        Self(error.to_string())
+impl<T> OrMisfit<T> for PyResult<T> {
+    #[inline]
+    fn or_misfit(self) -> Result<T, Misfit> {
+        self.map_err(|error| Misfit(error.to_string()))
     }
 }
 
@@ -159,7 +160,7 @@ impl RowType {
 pub(crate) struct ValueRow(pub(crate) V);
 
 pub(crate) fn load_value_row(tree: &Bound<'_, PyAny>) -> Result<Box<dyn Row>, Misfit> {
-    Ok(Box::new(ValueRow(V::from_py(tree)?)))
+    Ok(Box::new(ValueRow(V::from_py(tree).or_misfit()?)))
 }
 
 fn value_at<'v>(root: &'v mut V, path: &[Part<'_>]) -> Result<&'v mut V, Misfit> {
@@ -187,7 +188,7 @@ pub(crate) fn apply_to_value(
     let target = value_at(root, path)?;
     match (target, write) {
         (V::Map(map), Write::Set { key: Part::Key(key), value }) => {
-            let value = V::from_py(value)?;
+            let value = V::from_py(value).or_misfit()?;
             match map.get_mut(*key) {
                 Some(slot) => *slot = value,
                 None => {
@@ -203,7 +204,7 @@ pub(crate) fn apply_to_value(
         (V::List(items), Write::Set { key: Part::Index(index), value }) => {
             *items
                 .get_mut(*index)
-                .ok_or_else(|| Misfit::new(format!("no index {index}")))? = V::from_py(value)?;
+                .ok_or_else(|| Misfit::new(format!("no index {index}")))? = V::from_py(value).or_misfit()?;
         }
         (V::List(items), Write::Delete { key: Part::Index(index) }) if *index < items.len() => {
             items.remove(*index);
@@ -214,21 +215,21 @@ pub(crate) fn apply_to_value(
             items.drain(*start..*stop);
         }
         (V::List(items), Write::Clear) => items.clear(),
-        (V::List(items), Write::Append { value }) => items.push(V::from_py(value)?),
+        (V::List(items), Write::Append { value }) => items.push(V::from_py(value).or_misfit()?),
         (V::List(items), Write::Extend { values }) => {
             for value in values.iter() {
-                items.push(V::from_py(&value)?);
+                items.push(V::from_py(&value).or_misfit()?);
             }
         }
         (V::List(items), Write::Insert { index, value }) if *index <= items.len() => {
-            items.insert(*index, V::from_py(value)?);
+            items.insert(*index, V::from_py(value).or_misfit()?);
         }
         (V::List(items), Write::Reverse) => items.reverse(),
         (V::List(items), Write::ReplaceAll { items: new_items }) => {
             *items = new_items
                 .iter()
                 .map(|value| V::from_py(&value))
-                .collect::<PyResult<Vec<V>>>()?;
+                .collect::<PyResult<Vec<V>>>().or_misfit()?;
         }
         _ => return Err(Misfit::new("the write does not fit the value at its path")),
     }
@@ -241,16 +242,16 @@ impl Row for ValueRow {
     }
 
     fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        self.0.to_py(py)
+        VPy::to_py(&self.0, py)
     }
 
     fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
-        self.0.write_json(encoder)
+        self.0.write_json(encoder).or_py()
     }
 
     fn part_to_py<'py>(&self, py: Python<'py>, key: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
         match &self.0 {
-            V::Map(map) => map.get(key).map(|value| value.to_py(py)).transpose(),
+            V::Map(map) => map.get(key).map(|value| VPy::to_py(value, py)).transpose(),
             _ => Ok(None),
         }
     }
@@ -266,7 +267,7 @@ impl Row for ValueRow {
     }
 
     fn to_py_emptied<'py>(&self, py: Python<'py>, emptied: &[&str]) -> PyResult<Bound<'py, PyAny>> {
-        emptied_after(self.0.to_py(py)?, emptied)
+        emptied_after(VPy::to_py(&self.0, py)?, emptied)
     }
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
@@ -330,7 +331,7 @@ impl NodeTable {
                 .ok_or_else(|| Misfit::new("a node left the table"))?;
             match &node.key {
                 NodeKey::Root => break,
-                NodeKey::Key(key) => path.push(Part::Key(key.bind(py).to_str()?)),
+                NodeKey::Key(key) => path.push(Part::Key(key.bind(py).to_str().or_misfit()?)),
                 NodeKey::ListItem => path.push(Part::Index(self.index_in_parent(current, node)?)),
                 NodeKey::Other => return Err(Misfit::new("a key is not a str")),
             }
@@ -1182,7 +1183,7 @@ fn part_of<'a>(key: &'a Bound<'_, PyAny>) -> Result<Part<'a>, Misfit> {
     let text = key
         .downcast_exact::<PyString>()
         .map_err(|_| Misfit::new("a key is not a str"))?;
-    Ok(Part::Key(text.to_str()?))
+    Ok(Part::Key(text.to_str().or_misfit()?))
 }
 
 #[pymethods]

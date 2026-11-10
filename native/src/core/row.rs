@@ -40,9 +40,10 @@ use pyo3::IntoPyObjectExt;
 use rustc_hash::FxBuildHasher;
 
 use super::tracked::{as_readable_dict, as_readable_list};
-use super::value::V;
-use super::world_core::{apply_to_value, emptied_after, Items, Misfit, Part, Row, Tree, Write};
-use crate::{write_json_string, Encoder, Unsupported};
+use super::errors::OrPy;
+use super::value::{V, VPy};
+use super::world_core::{apply_to_value, emptied_after, Items, Misfit, OrMisfit, Part, Row, Tree, Write};
+use crate::{write_json_string, Encoder, PyEncoder, Unsupported};
 
 /// A map keyed by id: insertion order like a dict's, so what iterates it is deterministic.
 pub(crate) type IdMap<T> = IndexMap<Arc<str>, T, FxBuildHasher>;
@@ -162,7 +163,7 @@ impl Field for i64 {
         Ok(value
             .downcast_exact::<PyInt>()
             .map_err(|_| Misfit::new("not an int"))?
-            .extract()?)
+            .extract().or_misfit()?)
     }
 
     fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
@@ -215,7 +216,7 @@ impl Field for Arc<str> {
             value
                 .downcast_exact::<PyString>()
                 .map_err(|_| Misfit::new("not a str"))?
-                .to_str()?,
+                .to_str().or_misfit()?,
         ))
     }
 
@@ -285,15 +286,15 @@ impl<T: Scalar> Scalar for Option<T> {
 /// The free-form part of a row: takes any JSON, and any write that fits it.
 impl Field for V {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
-        Ok(V::from_py(value)?)
+        Ok(<V as VPy>::from_py(value).or_misfit()?)
     }
 
     fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        V::to_py(self, py)
+        VPy::to_py(self, py)
     }
 
     fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
-        V::write_json(self, encoder)
+        V::write_json(self, encoder).or_py()
     }
 
     fn apply(&mut self, path: &[Part<'_>], write: &Write<'_, '_>) -> Result<(), Misfit> {
@@ -366,7 +367,7 @@ impl<T: Field> Field for IdMap<T> {
             let key = key
                 .downcast_exact::<PyString>()
                 .map_err(|_| Misfit::new("not a str key"))?;
-            map.insert(Arc::from(key.to_str()?), T::from_py(&item)?);
+            map.insert(Arc::from(key.to_str().or_misfit()?), T::from_py(&item)?);
         }
         Ok(map)
     }
@@ -700,6 +701,7 @@ macro_rules! state_row {
                 value: &pyo3::Bound<'_, pyo3::PyAny>,
             ) -> Result<Self, $crate::core::world_core::Misfit> {
                 use pyo3::types::PyDictMethods;
+                use $crate::core::world_core::OrMisfit;
                 let record = $crate::core::tracked::as_readable_dict(value)
                     .ok_or_else(|| $crate::core::world_core::Misfit::new("not a dict"))?;
                 if record.len() > $name::NAMES.len() {
@@ -708,7 +710,7 @@ macro_rules! state_row {
                 let mut present = 0;
                 let row = Self {
                     $(
-                        $field: match record.get_item(pyo3::intern!(value.py(), stringify!($field)))? {
+                        $field: match record.get_item(pyo3::intern!(value.py(), stringify!($field))).or_misfit()? {
                             Some(item) => {
                                 present += 1;
                                 $crate::core::row::Field::from_py(&item)?
@@ -887,10 +889,11 @@ macro_rules! str_enum {
                 value: &pyo3::Bound<'_, pyo3::PyAny>,
             ) -> Result<Self, $crate::core::world_core::Misfit> {
                 use pyo3::types::PyStringMethods;
+                use $crate::core::world_core::OrMisfit;
                 let text = value.downcast_exact::<pyo3::types::PyString>().map_err(|_| {
                     $crate::core::world_core::Misfit::new("not a str")
                 })?;
-                match text.to_str()? {
+                match text.to_str().or_misfit()? {
                     $($text => Ok(Self::$member),)+
                     _ => Err($crate::core::world_core::Misfit::new(concat!(
                         "not a ",

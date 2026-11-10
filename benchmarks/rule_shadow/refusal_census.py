@@ -214,9 +214,10 @@ _BREAKS = re.compile(
 
 
 def static_sites(root: Path) -> dict[tuple[str, int], dict[str, str]]:
-    """Every place in native/src that builds a refusal, with its text and enclosing fn."""
+    """Every place in native/src and native/core/src that builds a refusal, with its text and fn."""
     sites = {}
-    for path in sorted((root / "native/src").rglob("*.rs")):
+    paths = [*(root / "native/src").rglob("*.rs"), *(root / "native/core/src").rglob("*.rs")]
+    for path in sorted(paths):
         text = path.read_text("utf-8")
         relative = path.relative_to(root / "native").as_posix()
         functions = [(m.start(), m.group(1)) for m in _FN.finditer(text)]
