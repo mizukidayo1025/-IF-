@@ -267,6 +267,34 @@ const EVENT_REFERENCE_LISTS: [&str; 5] = [
     "modifier_event_ids",
     "environmental_stressor_event_ids",
 ];
+// Identity keys whose values no entity filter can name (`_NOT_ENTITY_KEYS` of
+// storage/history_index.py, #138): the index leaves them out of its entities.
+const NOT_ENTITY_KEYS: [&str; 24] = [
+    "action_id",
+    "applied_event_ids",
+    "causation_event_ids",
+    "causation_id",
+    "environmental_stressor_event_ids",
+    "event_id",
+    "event_ids",
+    "facility_id",
+    "model_id",
+    "model_source_id",
+    "modifier_event_ids",
+    "relationship_policy_id",
+    "relationship_policy_source_id",
+    "request_id",
+    "reservation_id",
+    "resource_id",
+    "route_edge_ids",
+    "shipment_id",
+    "source_event_ids",
+    "source_id",
+    "source_ids",
+    "task_id",
+    "topic_id",
+    "warehouse_id",
+];
 // Deeper rows are left to Python.
 const MAX_ROW_DEPTH: usize = 64;
 
@@ -297,7 +325,7 @@ fn row_links<'py>(
             let name = name.to_str()?;
             let container = item.is_exact_instance_of::<PyDict>() || item.is_exact_instance_of::<PyList>();
             let identity = name.ends_with("_id") || name.ends_with("_ids");
-            if identity {
+            if identity && !NOT_ENTITY_KEYS.contains(&name) {
                 if let Ok(text) = item.downcast_exact::<PyString>() {
                     identities.push(text.clone());
                 } else if let Ok(list) = item.downcast_exact::<PyList>() {

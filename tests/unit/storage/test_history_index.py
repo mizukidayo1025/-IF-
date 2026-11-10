@@ -6,8 +6,10 @@ different payload under its key is refused. A refused write and a write over the
 storage capacity leave the index as it was. Since version 4 (#130) a record's key is
 stored once, the rows about it name its id, and repeated texts are rows of names. Since
 version 5 (#138) a row made from an EventLog record holds the record's position instead of
-its payload (tests/integration/test_history_index_positions.py). An index of an older
-version is refused, but for its saved points, until it is rebuilt.
+its payload (tests/integration/test_history_index_positions.py). Since version 6 (#138)
+entities name only what an entity filter can match, and a key of 64 hex digits is stored as
+its 32 bytes and read back, and ordered, as its text. An index of an older version is
+refused, but for its saved points, until it is rebuilt.
 That a saved Run's index answers every history kind is checked in
 tests/integration/test_project_evidence_routes.py.
 """
@@ -24,6 +26,7 @@ from typing import Any
 import pytest
 from support.paths import SAVED_RUN_ENGINE_V1
 
+from sheltersim import native
 from sheltersim.contracts.workspace import HistoryQuery
 from sheltersim.storage import history_index, history_payloads
 from sheltersim.storage.history_index import (
@@ -76,12 +79,12 @@ def _name(db: sqlite3.Connection, name: str) -> int:
 def test_records_beyond_one_batch_are_all_stored_with_entities_and_tokens(index):
     count = 2 * _RecordBatch._FLUSH_RECORDS + 3
     _put(index, *(("events", _record(number), None) for number in range(count)))
-    # Each record has two identities (event_id, agent_id), two tokens (event_type and
-    # status) and a link to its own event. Names are stored once: the branch, every event
-    # id, seven agents, the type and the status.
+    # Each record has one entity (its agent_id: since version 6 its event_id names no
+    # entity, #138), two tokens (event_type and status) and a link to its own event. Names
+    # are stored once: the branch, every event id, seven agents, the type and the status.
     assert _counts(index) == {
         "records": count,
-        "entities": 2 * count,
+        "entities": count,
         "tokens": 2 * count,
         "links": count,
         "names": 1 + count + 7 + 2,
@@ -97,8 +100,53 @@ def test_records_beyond_one_batch_are_all_stored_with_entities_and_tokens(index)
             "SELECT DISTINCT typeof(key),length(payload_hash) FROM records"
         ).fetchall()
     assert linked == stored and len(linked) == 1
-    # Keys are text, kept once, and hashes are their 32 bytes.
-    assert keys == [("text", 32)]
+    # Keys, here SHA-256 digests, are kept once as their 32 bytes (#138), as hashes are.
+    assert keys == [("blob", 32)]
+
+
+def test_ids_no_entity_filter_names_are_left_out_of_entities(index):
+    """#138: the ids of events, actions, sources, topics and the like name no entity a
+    filter can ask for; agents, zones and targets do. Python and Rust read them alike."""
+    row = {
+        **{key: f"not-{key}" for key in sorted(history_index._NOT_ENTITY_KEYS)},
+        "minute": 0,
+        "agent_id": "A001",
+        "target_id": "food",
+        "actor_ids": ["A002"],
+        "event_ids": ["e-1"],
+    }
+    expected = {"A001", "A002", "food"}
+    assert history_index._identities(row) == expected
+    assert set(native.index_row(row)[2]) == expected
+    _put(index, ("events", row, "k"))
+    with sqlite3.connect(index.path.as_uri() + "?mode=ro", uri=True) as db:
+        named = {
+            name
+            for (name,) in db.execute("SELECT n.name FROM entities e JOIN names n ON n.id=e.entity")
+        }
+    assert named == expected
+
+
+def test_hash_keys_are_bytes_read_back_and_ordered_as_their_text(index):
+    """#138: a key of 64 hex digits is stored as its 32 bytes, others as text. A kind holding
+    both is read, paged and cut by cursors in the order of the texts, as before."""
+    keys = ["f" * 64, "applied:event-1", "0" * 64, "event:event-2", "e" + "1" * 63, "zz"]
+    _put(index, *(("actions", {**_record(5), "event_id": key}, key) for key in keys))
+    with index.connect(write=True) as db:
+        db.execute("INSERT INTO heads VALUES('main','head',60,'{}')")
+        forms = dict(db.execute("SELECT typeof(key),COUNT(*) FROM records GROUP BY 1"))
+    assert forms == {"blob": 3, "text": 3}
+    pages, cursor = [], None
+    while True:
+        query = HistoryQuery(kind="actions", end=60, limit=1, cursor=cursor)
+        pages.append(index.search("main", query, "head", 60))
+        cursor = pages[-1]["next_cursor"]
+        if cursor is None:
+            break
+    assert [page["items"][0]["event_id"] for page in pages] == sorted(keys)
+    # A key is found again in its stored form: the same row is not stored twice.
+    _put(index, *(("actions", {**_record(5), "event_id": key}, key) for key in keys))
+    assert _counts(index)["records"] == len(keys)
 
 
 def test_a_repeated_record_is_stored_once_within_and_across_writes(index):
@@ -108,7 +156,7 @@ def test_a_repeated_record_is_stored_once_within_and_across_writes(index):
     _put(index, ("events", _record(1), "k"), ("kpis", _record(2), None))
     assert _counts(index) == {
         "records": 2,
-        "entities": 4,
+        "entities": 2,
         "tokens": 4,
         "links": 2,
         "names": 7,
@@ -206,9 +254,9 @@ def test_a_forked_branch_stores_no_row_its_parent_holds_before_the_fork_minute(i
             records.put("events", {**_record(10), "status": "rejected"}, key="early")
 
 
-@pytest.mark.parametrize("version", [1, 2, 3, 4])
+@pytest.mark.parametrize("version", [1, 2, 3, 4, 5])
 def test_an_index_of_an_older_version_is_refused_but_for_its_saved_points(index, version):
-    """#130, #138: versions 1 to 4 are not converted. Records are neither read nor written until
+    """#130, #138: versions 1 to 5 are not converted. Records are neither read nor written until
     the index is rebuilt; heads and checkpoints, the same in every version, are read."""
     with index.connect(write=True) as db:
         db.execute("INSERT INTO heads VALUES('main','head',60,'{}')")
@@ -229,7 +277,7 @@ def test_an_index_of_an_older_version_is_refused_but_for_its_saved_points(index,
 
 def test_an_index_of_a_newer_version_is_refused_even_for_its_saved_points(index):
     with sqlite3.connect(index.path) as db:
-        db.execute("PRAGMA user_version=6")
+        db.execute("PRAGMA user_version=7")
     for options in ({}, {"write": True}, {"saved_points": True}):
         with pytest.raises(StorageError, match="history_index_version_unsupported"):
             with index.connect(**options):
@@ -238,7 +286,7 @@ def test_an_index_of_a_newer_version_is_refused_even_for_its_saved_points(index)
 
 def test_a_new_index_is_made_at_the_current_version_with_its_kinds(index):
     with sqlite3.connect(index.path.as_uri() + "?mode=ro", uri=True) as db:
-        assert db.execute("PRAGMA user_version").fetchone()[0] == 5
+        assert db.execute("PRAGMA user_version").fetchone()[0] == 6
         assert db.execute("SELECT name FROM kinds ORDER BY code").fetchall() == [
             (name,) for name in KINDS
         ]
@@ -403,7 +451,7 @@ def test_a_version_two_saved_index_is_refused_until_it_is_rebuilt_with_its_saved
     tmp_path,
 ):
     """#130: the index of a saved Run, version 2, answers its saved points but no history.
-    Rebuilding any branch replaces the file with a version 5 one, in which every branch is
+    Rebuilding any branch replaces the file with a version 6 one, in which every branch is
     indexed again from its head Checkpoint and keeps the saved points of the old file."""
     shutil.copytree(SAVED_RUN_ENGINE_V1, tmp_path / "run")
     store = ProjectStore(tmp_path / "run")
@@ -423,7 +471,7 @@ def test_a_version_two_saved_index_is_refused_until_it_is_rebuilt_with_its_saved
     rebuilt = index.rebuild("child")
     assert rebuilt["status"] == "indexed_not_verified" and rebuilt["branch_id"] == "child"
     assert rebuilt["rebuilt_branch_ids"] == ["child", "main"]
-    assert index.version() == 5
+    assert index.version() == 6
     assert not index.path.with_name("history.sqlite.rebuild").exists()
     answers = _saved_run_answers(tmp_path / "run")
     assert sum(len(page["items"]) for page in answers["main/events"]) == 17
@@ -535,4 +583,4 @@ def test_a_rebuild_waits_for_a_reader_of_the_old_file_on_windows(tmp_path, monke
     refusals.clear()
     limit = 3
     index.rebuild("main")
-    assert len(refusals) == 3 and index.version() == 5
+    assert len(refusals) == 3 and index.version() == 6

@@ -34,6 +34,7 @@ from sheltersim.experiments.runner import OfflineSimulationController, run_scena
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _IndexedMetricSink, _MetricSink
 from sheltersim.policies.behavior import ActionProposal
+from sheltersim.storage import history_index
 from sheltersim.storage.history_index import HistoryIndex
 
 
@@ -378,13 +379,13 @@ def test_an_index_reads_a_row_of_bytes_as_its_dict(
     index = HistoryIndex(store, "p", "r")
     with index.connect() as db:
         rows = db.execute(
-            "SELECT k.name, r.key, r.minute, "
+            f"SELECT k.name, {history_index._R_KEY} AS key, r.minute, "
             + ", ".join(
                 f"(SELECT name FROM names WHERE id=r.{column})"
                 for column in ("event", "cause", "source", "type", "status")
             )
             + ", r.branch, r.kind, r.position, r.payload, r.payload_hash "
-            "FROM records r JOIN kinds k ON k.code=r.kind ORDER BY k.name, r.key"
+            f"FROM records r JOIN kinds k ON k.code=r.kind ORDER BY k.name, {history_index._R_KEY}"
         ).fetchall()
         # Payloads compare as text: compressed bytes may differ between zlib builds, and a
         # row made from an EventLog record is made again from it (#138).

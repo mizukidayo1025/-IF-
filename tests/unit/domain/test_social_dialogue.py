@@ -28,8 +28,18 @@ from sheltersim.experiments.branch import AddToiletCommand, BranchRuntime
 from sheltersim.experiments.comparison import compare_branches
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.inspection.frames import social_event_records
+from sheltersim.storage.checkpoints import CheckpointArchive
 from sheltersim.storage.history_index import HistoryIndex
 from sheltersim.storage.projects import ProjectStore
+
+
+def _save(store: ProjectStore, checkpoint: Checkpoint) -> None:
+    """Save checkpoint in Run "run" as a Run saves it: the index reads the rows it makes
+    from an event from the saved head Checkpoint (#138)."""
+    saved = store._path("project", "runs", "run", "checkpoints")
+    saved.mkdir(parents=True, exist_ok=True)
+    manifest = CheckpointArchive(saved).encode(checkpoint)
+    (saved / f"{checkpoint.checkpoint_hash}.json").write_text(json.dumps(manifest))
 
 
 def make_world() -> WorldState:
@@ -160,6 +170,7 @@ def test_structured_interaction_is_indexed_without_utterance_and_restores_social
     store = ProjectStore(tmp_path / "social-history")
     store.create_project("project")
     store._path("project", "runs", "run").mkdir(parents=True)
+    _save(store, checkpoint)
     index = HistoryIndex(store, "project", "run")
     index.ingest("main", checkpoint, rebuild=True)
     index.ingest("sibling", checkpoint, rebuild=True)
@@ -247,6 +258,8 @@ def test_structured_interaction_is_indexed_without_utterance_and_restores_social
 
     baseline_checkpoint = baseline_branch.checkpoint()
     candidate_checkpoint = candidate_branch.checkpoint()
+    _save(store, baseline_checkpoint)
+    _save(store, candidate_checkpoint)
     index.ingest("branch-baseline", baseline_checkpoint, rebuild=True)
     index.ingest("branch-candidate", candidate_checkpoint, rebuild=True)
     baseline_dialogue = index.search(
@@ -267,6 +280,7 @@ def test_structured_interaction_is_indexed_without_utterance_and_restores_social
         candidate_checkpoint, branch_id="candidate-restored"
     )
     restored_checkpoint = restored_candidate.checkpoint()
+    _save(store, restored_checkpoint)
     index.ingest("branch-restored", restored_checkpoint, rebuild=True)
     restored_dialogue = index.search(
         "branch-restored",

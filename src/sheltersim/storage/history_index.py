@@ -43,6 +43,10 @@ from sheltersim.storage.projects import (
 # event's row, and the social and action rows made from it): the row holds the record's
 # position in the EventLog, and a read derives the payload again from the indexed head
 # Checkpoint and checks it against payload_hash. Every other row keeps its payload.
+# Version 6 (#138) names in entities only what an entity filter can match (not the values of
+# _NOT_ENTITY_KEYS), holds a key of 64 lowercase hex digits as its 32 bytes (read back as
+# the same text by _KEY_TEXT, in the same order), and keeps of a dialogue row made from an
+# event only its body-state effects, which the head Checkpoint may no longer hold.
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS generations(branch TEXT NOT NULL, kind TEXT NOT NULL, value INTEGER NOT NULL, PRIMARY KEY(branch,kind));
 CREATE TABLE IF NOT EXISTS heads(branch TEXT PRIMARY KEY, hash TEXT NOT NULL, minute INTEGER NOT NULL, counts TEXT NOT NULL);
@@ -50,7 +54,7 @@ CREATE TABLE IF NOT EXISTS checkpoints(branch TEXT NOT NULL, minute INTEGER NOT 
 CREATE TABLE IF NOT EXISTS lineage(branch TEXT PRIMARY KEY, parent TEXT NOT NULL, fork_minute INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS kinds(code INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE);
 CREATE TABLE IF NOT EXISTS names(id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE);
-CREATE TABLE IF NOT EXISTS records(id INTEGER PRIMARY KEY, branch INTEGER NOT NULL, kind INTEGER NOT NULL, minute INTEGER NOT NULL, key TEXT NOT NULL, event INTEGER, cause INTEGER, source INTEGER, type INTEGER, status INTEGER, position INTEGER, payload BLOB, payload_hash BLOB NOT NULL, CHECK((position IS NULL)!=(payload IS NULL)));
+CREATE TABLE IF NOT EXISTS records(id INTEGER PRIMARY KEY, branch INTEGER NOT NULL, kind INTEGER NOT NULL, minute INTEGER NOT NULL, key NOT NULL, event INTEGER, cause INTEGER, source INTEGER, type INTEGER, status INTEGER, position INTEGER, payload BLOB, payload_hash BLOB NOT NULL, CHECK(position IS NOT NULL OR payload IS NOT NULL));
 CREATE UNIQUE INDEX IF NOT EXISTS record_key ON records(branch,kind,key);
 CREATE INDEX IF NOT EXISTS record_time ON records(branch,kind,minute);
 CREATE INDEX IF NOT EXISTS record_event ON records(event) WHERE kind=4;
@@ -62,7 +66,7 @@ CREATE TABLE IF NOT EXISTS entities(entity INTEGER NOT NULL, record INTEGER NOT 
 CREATE TABLE IF NOT EXISTS tokens(token INTEGER NOT NULL, record INTEGER NOT NULL, PRIMARY KEY(token,record)) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS links(event INTEGER NOT NULL, record INTEGER NOT NULL, PRIMARY KEY(event,record)) WITHOUT ROWID;
 """  # noqa: E501
-_SCHEMA_VERSION = HISTORY_INDEX_VERSION = 5
+_SCHEMA_VERSION = HISTORY_INDEX_VERSION = 6
 # The record kinds, coded in the order of their names, so that rows ordered by code are
 # ordered as their names were. A new kind takes a new index version.
 KINDS = (
@@ -85,6 +89,21 @@ _WRITE_CACHE_KIB = 16_384
 _KEPT_WRITER_CACHE_KIB = 262_144
 # The names a writer remembers between its writes; the rest it reads again.
 _KEPT_NAMES = 200_000
+# A key of 64 lowercase hex digits (an event's or a row's SHA-256) is stored as its 32
+# bytes; _KEY_TEXT reads every stored key back as its text. Rows are ordered by that text,
+# as versions up to 5 ordered the text they stored: within a kind, hash keys and texts such
+# as "applied:..." are ordered as before, which SQLite's order of texts before blobs is not.
+_HEX_KEY = re.compile(r"[0-9a-f]{64}")
+_KEY_TEXT = "(CASE WHEN typeof({0}key)='blob' THEN lower(hex({0}key)) ELSE {0}key END)"
+_R_KEY = _KEY_TEXT.format("r.")
+_PLAIN_KEY = _KEY_TEXT.format("")
+
+
+def _stored_key(key: str) -> str | bytes:
+    """The form a key is stored in."""
+    return bytes.fromhex(key) if _HEX_KEY.fullmatch(key) else key
+
+
 _REBUILD_REQUIRED = (
     "history_index_rebuild_required: this Run's history index was written in an older "
     "form; rebuild it (POST R/index) or compute the Run again"
@@ -151,6 +170,39 @@ def _any_private_field(keys: str) -> bool:
     return any(map(_private_field, keys.split("\0")))
 
 
+# Identity fields whose values no entity filter (agent, household, staff, zone or
+# conversation) can name: ids of events, actions, sources, models, topics, tasks, requests,
+# facilities and resources. Version 6 leaves them out of entities (#138); the identity
+# fields of every other name are kept. native/src/checkpoint.rs holds the same list.
+_NOT_ENTITY_KEYS = frozenset(
+    {
+        "action_id",
+        "applied_event_ids",
+        "causation_event_ids",
+        "causation_id",
+        "environmental_stressor_event_ids",
+        "event_id",
+        "event_ids",
+        "facility_id",
+        "model_id",
+        "model_source_id",
+        "modifier_event_ids",
+        "relationship_policy_id",
+        "relationship_policy_source_id",
+        "request_id",
+        "reservation_id",
+        "resource_id",
+        "route_edge_ids",
+        "shipment_id",
+        "source_event_ids",
+        "source_id",
+        "source_ids",
+        "task_id",
+        "topic_id",
+        "warehouse_id",
+    }
+)
+
 # The row fields whose words are indexed as tokens.
 _TOKEN_FIELDS = ("event_type", "action", "kind", "status", "trigger", "topic_id", "task_kind")
 
@@ -160,6 +212,8 @@ def _identities(value: Any) -> set[str]:
     if isinstance(value, dict):
         for key, item in value.items():
             if key.endswith(("_id", "_ids")):
+                if key in _NOT_ENTITY_KEYS:
+                    continue
                 if isinstance(item, str):
                     identities.add(item)
                 elif isinstance(item, list):
@@ -292,12 +346,39 @@ def _action_row(record: dict[str, Any]) -> dict[str, Any] | None:
     return applied_action_record(record["event"], record["realized_minute"])
 
 
-def _derived_row(kind: int, key: str, record: dict[str, Any]) -> dict[str, Any] | None:
-    """The row of kind and key that ingest made from an EventLog record, or None."""
+def _dialogue_row(
+    social: dict[str, Any], observed_model_effects: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """The dialogue row of an applied social interaction, from its social row and the
+    body-state effects of its event. A deterministic, explicitly fictional example may help
+    readers understand the applied typed intent; it is never a stored quote."""
+    dialogue = {
+        **social,
+        "record_type": "structured_social_interaction",
+        "synthetic": True,
+        "utterance_recorded": False,
+        "utterance_status": "not_recorded",
+        "observed_model_effects": observed_model_effects,
+    }
+    dialogue.update(_virtual_utterance_example(social, observed_model_effects) or {})
+    return dialogue
+
+
+def _derived_row(
+    kind: int, key: str, record: dict[str, Any], kept: str | None = None
+) -> dict[str, Any] | None:
+    """The row of kind and key that ingest made from an EventLog record and, for a dialogue
+    row, the part of it kept in the index (kept, its JSON), or None."""
     if kind == _EVENTS:
         return _event_row(record)
     if key.startswith("event:") and kind == _KIND_CODES["social"]:
         return _social_row(record)
+    if key.startswith("event:") and kind == _KIND_CODES["dialogue"] and kept is not None:
+        social = _social_row(record)
+        effects = json.loads(kept).get("observed_model_effects")
+        if social is None or not isinstance(effects, list):
+            return None
+        return _dialogue_row(social, effects)
     if key.startswith("applied:"):
         return _action_row(record)
     return None
@@ -306,11 +387,11 @@ def _derived_row(kind: int, key: str, record: dict[str, Any]) -> dict[str, Any] 
 # Version 2 added lineage: a branch forked from another reads the parent's rows before its
 # fork minute instead of copying them. Version 3 stored the payloads of new rows compressed,
 # as BLOBs (storage/history_payloads.py, #80). Version 4 holds keys and repeated texts once
-# (#130). Version 5 holds EventLog positions in place of the payloads derived from them
-# (#138). A file of versions 1 to 4 is neither read nor written, nor converted: rebuilding
-# the Run's index from its Checkpoints replaces it. Code that knows only version 4 refuses
-# version 5.
-_OLDER_VERSIONS = (1, 2, 3, 4)
+# (#130). Version 5 holds EventLog positions in place of the payloads derived from them,
+# and version 6 smaller entities, keys and dialogue rows (#138). A file of versions 1 to 5
+# is neither read nor written, nor converted: rebuilding the Run's index from its
+# Checkpoints replaces it. Code that knows only version 5 refuses version 6.
+_OLDER_VERSIONS = (1, 2, 3, 4, 5)
 
 
 def _check_version(version: int, *, new: bool = False) -> None:
@@ -373,12 +454,12 @@ def _conversation_turns(
         return db.execute(
             "SELECT r.payload,r.payload_hash FROM records r WHERE r.branch=? AND "
             f"r.kind={_CONVERSATIONS} AND EXISTS(SELECT 1 FROM entities e WHERE "
-            "e.entity=? AND e.record=r.id) ORDER BY r.key DESC LIMIT ?",
+            f"e.entity=? AND e.record=r.id) ORDER BY {_R_KEY} DESC LIMIT ?",
             (_name_id(db, branch), _name_id(db, conversation_id), limit),
         ).fetchall()
     return db.execute(
         f"SELECT payload,payload_hash FROM records WHERE branch=? AND kind={_CONVERSATIONS} "
-        "ORDER BY key DESC LIMIT ?",
+        f"ORDER BY {_PLAIN_KEY} DESC LIMIT ?",
         (_name_id(db, branch), limit),
     ).fetchall()
 
@@ -542,9 +623,11 @@ class _RecordBatch:
         *,
         key: str | None = None,
         position: int | None = None,
+        kept: dict[str, Any] | None = None,
     ) -> None:
         """Put a row; with position, a row made from the EventLog record there, which is
-        stored without its payload (#138)."""
+        stored without its payload but for kept, the part of it the record cannot give
+        (#138)."""
         code = _KIND_CODES.get(kind)
         if code is None:
             raise StorageError("history_index_kind_unknown")
@@ -564,13 +647,14 @@ class _RecordBatch:
         if type(minute) is not int or minute < 0:
             raise StorageError("invalid_index_record_minute")
         key = key or payload_hash
+        stored_key = _stored_key(key)
         # A stored row is compared by the SHA-256 of its canonical JSON: compressed bytes
         # may differ between zlib builds (#80), and a row of version 5 may have no payload.
         existing = self.pending.get((code, key))
         if existing is None:
             stored = self.db.execute(
                 "SELECT id,payload_hash FROM records WHERE branch=? AND kind=? AND key=?",
-                (branch, code, key),
+                (branch, code, stored_key),
             ).fetchone()
             if stored is not None:
                 existing = (stored[0], stored[1].hex())
@@ -582,7 +666,7 @@ class _RecordBatch:
                 stored = self.db.execute(
                     "SELECT payload_hash FROM records WHERE branch=? AND kind=? AND key=? "
                     "AND minute<?",
-                    (ancestor, code, key, limit),
+                    (ancestor, code, stored_key, limit),
                 ).fetchone()
                 if stored is not None:
                     if stored[0].hex() != payload_hash:
@@ -603,14 +687,16 @@ class _RecordBatch:
                 branch,
                 code,
                 minute,
-                key,
+                stored_key,
                 name(row.get("event_id")),
                 name(row.get("causation_id")),
                 name(row.get("source_id")),
                 name(row.get("event_type", row.get("action", row.get("kind")))),
                 name(row.get("status")),
                 position,
-                None if position is not None else history_payloads.encode(encoded),
+                history_payloads.encode(safe_row(kept)[1] if kept is not None else encoded)
+                if position is None or kept is not None
+                else None,
                 bytes.fromhex(payload_hash),
             )
         )
@@ -930,25 +1016,16 @@ class HistoryIndex:
                             "social", social, key="event:" + event["event_id"], position=index
                         )
                         if event_type == "social_interaction":
-                            # A deterministic, explicitly fictional example may help readers
-                            # understand the applied typed intent. It is never a stored quote.
-                            observed_model_effects = body_effects_by_event.get(
-                                event["event_id"], []
-                            )
-                            dialogue = {
-                                **social,
-                                "record_type": "structured_social_interaction",
-                                "synthetic": True,
-                                "utterance_recorded": False,
-                                "utterance_status": "not_recorded",
-                                "observed_model_effects": observed_model_effects,
-                            }
-                            dialogue.update(
-                                _virtual_utterance_example(social, observed_model_effects) or {}
-                            )
+                            effects = body_effects_by_event.get(event["event_id"], [])
                             # Its body-state effects may have left the head Checkpoint's
-                            # history, so the dialogue row keeps its payload.
-                            records.put("dialogue", dialogue, key="event:" + event["event_id"])
+                            # history, so the dialogue row keeps them (#138).
+                            records.put(
+                                "dialogue",
+                                _dialogue_row(social, effects),
+                                key="event:" + event["event_id"],
+                                position=index,
+                                kept={"observed_model_effects": effects},
+                            )
                     action = _action_row(record)
                     continuity_is_shared = event[
                         "event_type"
@@ -1239,7 +1316,7 @@ class HistoryIndex:
                 after_kind, after_key = cursor[1].split(":", 1)
                 if after_kind not in allowed:
                     raise StorageError("stale_or_foreign_cursor")
-                where.append("(r.minute,r.kind,r.key)>(?,?,?)")
+                where.append(f"(r.minute,r.kind,{_R_KEY})>(?,?,?)")
                 args.extend((cursor[0], _KIND_CODES[after_kind], after_key))
 
             if query.kind != "conversations":
@@ -1256,7 +1333,7 @@ class HistoryIndex:
                         # whatever order the rows and names were written in (#48, #130).
                         f"SELECT r.event,r.cause FROM records r WHERE {scope} AND "
                         f"r.kind={_EVENTS} AND (r.event=? OR r.cause=?) "
-                        "ORDER BY r.minute,r.key LIMIT 501",
+                        f"ORDER BY r.minute,{_R_KEY} LIMIT 501",
                         (*scope_args, current, current),
                     ).fetchall()
                     link_limit_hit = link_limit_hit or len(links) >= 501
@@ -1299,7 +1376,8 @@ class HistoryIndex:
             for segment in segments:
                 segment_scope, segment_args = _scope([segment])
                 parts.append(
-                    "SELECT r.branch,r.kind,r.minute,r.key,r.position,r.payload,r.payload_hash "
+                    f"SELECT r.branch,r.kind,r.minute,{_R_KEY} AS key,r.position,r.payload,"
+                    "r.payload_hash "
                     "FROM records r "
                     "WHERE " + " AND ".join([segment_scope, *rest])
                 )
@@ -1383,10 +1461,11 @@ class HistoryIndex:
         self, db: sqlite3.Connection, rows: list[sqlite3.Row], heads: dict[int, str] | None = None
     ) -> list[str]:
         """The canonical JSON of each row (with its branch, kind, key, position, payload and
-        payload_hash), checked against its hash. A row without a payload is made again from
-        the EventLog record at its position in its branch's head Checkpoint (#138): heads, by
-        branch id, or else the heads table. EventLog records are only appended, so a head
-        holds every record its branch indexed, at the same position."""
+        payload_hash), checked against its hash. A row with a position is made again from
+        the EventLog record there in its branch's head Checkpoint (#138), with the part of it
+        the row keeps, if any: heads, by branch id, or else the heads table. EventLog records
+        are only appended, so a head holds every record its branch indexed, at the same
+        position. A key is read as its text or in its stored form."""
         heads = dict(heads or {})
         wanted: dict[int, set[int]] = {}
         for row in rows:
@@ -1417,8 +1496,10 @@ class HistoryIndex:
                 text = history_payloads.decode(row["payload"])
             else:
                 record = sources[row["branch"], row["position"]]
+                kept = history_payloads.decode(row["payload"]) if row["payload"] else None
+                key = row["key"].hex() if isinstance(row["key"], bytes) else row["key"]
                 derived = (
-                    _derived_row(row["kind"], row["key"], record)
+                    _derived_row(row["kind"], key, record, kept)
                     if isinstance(record, dict) and isinstance(record.get("event"), dict)
                     else None
                 )
@@ -1576,7 +1657,7 @@ class HistoryIndex:
         """The last KPI sample a branch itself indexed, checked against its hash."""
         row = db.execute(
             "SELECT payload,payload_hash FROM records WHERE branch=? AND kind=? "
-            "ORDER BY minute DESC,key DESC LIMIT 1",
+            f"ORDER BY minute DESC,{_PLAIN_KEY} DESC LIMIT 1",
             (_name_id(db, branch), _KIND_CODES["kpis"]),
         ).fetchone()
         if row is None:
