@@ -17,7 +17,7 @@ use crate::core::value::{V, VPy};
 use crate::core::world_core::{mirror_of, with_state_value, NamespaceMirror};
 use crate::rules::common_operations::{plan_record, write_record, CareRecord, PlannedRecord};
 use crate::rules::handlers::{assumption, log_record, new_event, status_member, NewEvent};
-use crate::state::events::{EventKind, EventRow, EventStatus, EventWriter};
+use crate::state::events::{EventKind, EventRow, EventRowPy, EventStatus, EventWriter};
 use crate::state::shared_operations::{is_identifier, is_support_kind, CareStatus, SharedOperationsRow, NAME};
 use crate::Unsupported;
 

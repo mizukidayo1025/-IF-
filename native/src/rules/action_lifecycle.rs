@@ -28,7 +28,7 @@ use crate::core::world_core::{held_state, raw_dict_get, with_state_value, Held, 
 use crate::state::body_state::BodyRow;
 use crate::eventlog::{AppliedOutcome, EventStore};
 use crate::state::entities::{entities_of, Activity, EntityStore};
-use crate::state::events::{is_stable_id, EventKind, EventRef, EventRow, EventStatus, EventWriter};
+use crate::state::events::{is_stable_id, EventKind, EventRef, EventRow, EventRowPy, EventStatus, EventWriter};
 use crate::Unsupported;
 
 const SOURCE_ID: &str = "ASM-ACTION-LIFECYCLE-V1";

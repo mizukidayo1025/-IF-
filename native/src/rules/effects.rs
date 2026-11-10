@@ -44,7 +44,7 @@ use crate::rules::staff_order::{order_operation, Order};
 use crate::state::effect_program::{EffectProgramRow, Program, NAME};
 use crate::rules::overlay;
 use crate::state::entities::{entities_of, EntityStore};
-use crate::state::events::{is_stable_id, EventRef, EventRow, EventWriter};
+use crate::state::events::{is_stable_id, EventRef, EventRow, EventRowPy, EventWriter};
 use crate::state::resource_ledger::{held_mirror, resource_index, LedgerRow};
 use crate::Unsupported;
 

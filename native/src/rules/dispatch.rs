@@ -38,7 +38,7 @@ use crate::rules::social_network::observe_event;
 use crate::rules::travel::schedule_return;
 use crate::rules::{effects, service, support, toilet, travel_completion};
 use crate::state::entities::{entities_of, Activity, EntityStore};
-use crate::state::events::{DueEvent, DueState, EventRef, EventRow, EventStatus, EventWriter};
+use crate::state::events::{DueEvent, DueState, EventRef, EventRow, EventRowPy, EventStatus, EventWriter};
 use crate::state::movement::MovementRow;
 use crate::Unsupported;
 

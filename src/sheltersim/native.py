@@ -164,7 +164,7 @@ def split_json_array(raw: bytes) -> list[bytes]:
 def sensitive_candidates(raws: list[bytes]) -> tuple[list[str], list[str]]:
     """The distinct object keys of the JSON texts raws, and their distinct string values the
     privacy patterns could match. Every other string value
-    can not match them (native/src/checkpoint.rs). Raises ValueError on a bad string."""
+    can not match them (native/core/src/checkpoint.rs). Raises ValueError on a bad string."""
     return _native.sensitive_candidates(raws)
 
 
@@ -176,6 +176,6 @@ def chunk_hashes(items: list[bytes], chunks: list[tuple[int, int]]) -> list[str]
 
 def content_chunk_starts(items: list[bytes], average: int, maximum: int) -> list[int]:
     """Where each archive chunk of items starts when chunks end where the items' own
-    bytes say (native/src/checkpoint.rs), on average every `average` items and after at
+    bytes say (native/core/src/checkpoint.rs), on average every `average` items and after at
     most `maximum`; for lists that drop or insert items (#138)."""
     return _native.content_chunk_starts(items, average, maximum)

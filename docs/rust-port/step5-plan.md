@@ -101,6 +101,21 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
 - 中核のテスト（`native/core/tests/error_value.rs`）は、エラーの文と、`V` の JSON のバイト列を確かめます。バイト列は、CPython 3.12 の `json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)` で求めました。
 - 1つ目の commit で `value.rs` を中身を変えずに移し、2つ目の commit で中身を変えました。
 
+### PR 4a：EventLog、Checkpoint の bytes、イベントの行（レーン P4a）
+
+- **中核の `events`：** `EventKind`、`EventStatus`、`is_stable_id`、`EventRow`（`new`、`write_json`、`record_json`、`from_saved_record`）、列の `Queue`（`queue.rs`）、`EventLog`（`log.rs`）、`writer` を、中核の1つの module にまとめました。窓口の `state::events` ↔ `eventlog` の循環はなくなりました。`checkpoint::encode_*` は Python の値をたどるので窓口に残り、中核からは呼びません。`is_stable_id` は3か所にあった同じ検査を1つにしました。
+- **列：** `Queue` は slot、予定した順、`(due_minute, priority, sequence)` の順、ID と sequence の索引、`validate` を持ちます。窓口の `QueueStore` は `Queue` と、同じ serial の Python のオブジェクトの表を持ちます。`pending()` の tuple は、列を変えるたびに捨てていましたが、列の世代（`Queue::generation`）が作ったときと同じ間だけ使う形にしました。中核が列を変えても、古い tuple は使われません。
+- **記録：** `EventLog` は、記録ごとの索引の欄、ここで書いた bytes、索引、監査を持ちます。窓口の `EventStore` は、位置ごとの Python のオブジェクト（記録と bytes）の表を持ちます。この表は記録の数より短くてよく、オブジェクトのない位置（Rust の規則が足した記録）は表にありません。中核の `writer::record` が、窓口を通らずに記録を足せるようにするためです。Python の `EventLog` の読み方（`of_types` の型の覚え方、`release_records`、`unread` など）は変えていません。
+- **記録の bytes の持ち主は変えていません（E9 は後のレーン）。** Python が bytes を求めると、ここで書いた bytes を中核から取り出し（`EventLog::take_written`）、1つの Python の `bytes` にします。保存のキャッシュが頼る「同じオブジェクト」は今までどおりです。
+- **writer：** 予定（`writer::schedule`）と記録（`writer::record`）の検査と、その順番と文を中核に置きました。`DuplicateEventError` は中核のクラスではないので、`WriteError::Duplicate` にして、窓口で同じクラスと文にします。予約した sequence（`Reserved`）と `MAX_RULE_COUNTER` も中核です。`id_counters` はまだ Python の dict なので、数の読み書きと `EventWriter::of` は窓口に残ります（P5）。
+- **Checkpoint の bytes：** プライバシーの検査の候補、内容で決める chunk の区切り、chunk のハッシュ、`dumps_length` の数え方、`split_json_array`、SHA-256 の16進を、中核の `checkpoint.rs` に置きました。Python の `bytes` を読む部分と GIL を外す部分は窓口です。`index_row`、`same_saved_records`、`record_json` は Python の値をたどるので窓口に残ります。`records.rs` は `is_stable_id` と `sha256_hex` を中核から使い、ほかは窓口のままです。
+- `contacts.rs` は、Python の数を読む `exact_float`・`exact_int` と、テスト用の `fsum` のほかを中核へ移しました。`pair_key` の断りは中核の `Error::unsupported` で、窓口は同じ名前で `PyResult` を返します。
+- 中核へ移った `Unsupported` の場所（`pair_key`、`writer::schedule` の数の上限）は、census では中核の行に数えます。文とクラスは同じです。
+- `EventRow` の `from_event` と `to_py` は窓口の trait `EventRowPy` です。それを使う8つの規則のファイルに `use` を足しました。規則のファイルのほかの変更はありません。
+- 中核のテスト（`native/core/tests/events_bytes.rs`）は、chunk のハッシュ、chunk の区切り、`split_json_array` を、`main`（`0085254`）のビルドの Python から見える関数で求めた値と比べます。列の順番、`validate`、writer の文、書いた記録の bytes と読み戻しも確かめます。
+- 確かめたこと：中核のテスト（16件）、`cargo clippy --workspace`、`cargo tree`（中核に `pyo3` なし）、offline テスト（5115 passed、6 skipped）、ゲート（55 scenarios、0 problems）。7日分（100人、project の経路、生成 Scenario）は、P2 のビルドと交互に2回ずつ測りました。world・events・KPI のハッシュは同じです。計算時間（wall）は P2 が 70.2 s・70.7 s、このPRが 70.7 s・71.5 s、thread の時間は 66.4 s・65.7 s と 66.3 s・65.1 s で、差は揺れの中です。計算のピークの RSS（`computation_mib`）は P2 が 895.1・888.3 MiB、このPRが 890.1・894.2 MiB で、増えていません。
+- 1つ目の commit で `eventlog.rs` と `contacts.rs` を中身を変えずに移し（`core/src/events/log.rs`、`core/src/contacts.rs`）、2つ目の commit で中身を変えました。窓口の同じ名前の2つのファイルは新しいファイルです。`state/events.rs`、`checkpoint.rs`、`records.rs` は窓口に残る部分が多いので移さず、中核のファイルを新しく作りました。
+
 ### この後
 
 残りの PR は、下の「レーン」の順に進めます。各レーンは、終わったときにこの節の前に記録を足します。

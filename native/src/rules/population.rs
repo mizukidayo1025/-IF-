@@ -33,7 +33,7 @@ use crate::core::world_core::{attached_state, state_value, with_state_value};
 use crate::rules::movement::{mirror_held, Scene};
 use crate::rules::movement_geometry::Pt;
 use crate::state::entities::{entities_of, Activity, EntityStore};
-use crate::state::events::{EventKind, EventRow, EventStatus, EventWriter};
+use crate::state::events::{EventKind, EventRow, EventRowPy, EventStatus, EventWriter};
 use crate::state::movement::MovementRow;
 use crate::{Encoder, Unsupported};
 

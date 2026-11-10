@@ -32,12 +32,18 @@ Checkpoint document) and times them.
   and runs `cargo test -p sheltersim_core`. It holds what moved so far: `json.rs` (JSON strings
   and floats as Python writes them, and `Encoder`, which writes plain values), `value.rs` (`V`),
   `error.rs` (`Error`, one variant per Python class with its text, and `Misfit`), `mathx.rs`,
-  `rng.rs`, `census.rs`, `parallel.rs` and `interner.rs`. The files of the same names in
+  `rng.rs`, `census.rs`, `parallel.rs`, `interner.rs`, `contacts.rs`, `checkpoint.rs` (the
+  Checkpoint kernels over bytes) and `events/` (`EventRow`, the queue's `Queue`, the `EventLog`
+  with its indexes and the saved-record checks, and `writer`, which schedules and records rows
+  with the Python errors). The files of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,
   Python numbers and strings, `#[pyfunction]` entries): `src/core/errors.rs` maps an `Error` to
   its Python class (`to_py_err`; `core_call().or_py()?`), `src/core/value.rs` reads and makes
   Python values (`VPy`), `lib.rs` walks Python values into an `Encoder` (`PyEncoder`), and
-  `world_core.rs` makes a Python call's error a `Misfit` (`or_misfit()`). An `Error` can't be
+  `world_core.rs` makes a Python call's error a `Misfit` (`or_misfit()`). The pyclasses over
+  the events, `QueueStore` (`src/state/events.rs`) and `EventStore` (`src/eventlog.rs`), hold the
+  core's `Queue` and `EventLog` and keep the Python objects beside them in side tables, by slot
+  serial and by record position; `EventRowPy` reads a row from a `ScheduledEvent` and makes one. An `Error` can't be
   turned into a `PyErr` with `?`, because neither type is the wrapper's. `native/Cargo.toml` is
   the workspace of both crates; its lints and `clippy.toml` apply to both
   (`cargo clippy --workspace`).
@@ -405,8 +411,9 @@ are correctly rounded everywhere, and not `**` with a float.
   the scans of unsettled requests during a tick (`WorldState.unsettled_support_requests`)
   read only the rest.
 
-- `state.events.QueueStore` and `EventWriter` (`src/state/events.rs`,
-  `docs/rust-port/lanes/e-events.md`): the pending events behind
+- `state.events.QueueStore` and `EventWriter` (`src/state/events.rs` over
+  `core/src/events/queue.rs` and `writer.rs`, `docs/rust-port/lanes/e-events.md`): the pending
+  events behind
   `sheltersim.events.queue.EventQueue`, in the order of `pending()`, and what a Rust rule uses to
   allocate a sequence, schedule an `EventRow` and record an outcome with no Python object. Python
   gets a `ScheduledEvent` when it first reads the event. An order outside i64 moves that queue to
@@ -419,7 +426,8 @@ are correctly rounded everywhere, and not `**` with a float.
   (`as_plain`) and reads it back when it fits; it is not saved. A receipt is an `EventRow` appended
   through `EventWriter`, with no Python object until Python reads the record.
 
-- `EventStore` (stage B1): the realized EventLog behind `sheltersim.events.queue.EventLog`.
+- `EventStore` (stage B1, `src/eventlog.rs` over `core/src/events/log.rs`): the realized
+  EventLog behind `sheltersim.events.queue.EventLog`.
   Each record is its canonical JSON bytes, its Python object, or both; the indexes
   (ID, sequence, minute, type, provenance keys, care requests, support kinds, facility
   events) live in Rust. Appending from Python writes the bytes from the frozen fields in the same
@@ -438,7 +446,7 @@ are correctly rounded everywhere, and not `**` with a float.
   `raws`, and their distinct string values the privacy patterns could match, read in
   parallel without the GIL. The patterns stay in Python (`storage/projects.py`); the
   kernel leaves out only strings that can not match them, as explained at the top of
-  `src/checkpoint.rs`. A Checkpoint save passes all its new chunks at once, and each
+  `core/src/checkpoint.rs`. A Checkpoint save passes all its new chunks at once, and each
   history index row is checked through it.
 
 - `chunk_hashes(items, chunks)` (stage B3): the SHA-256 of `[item,item,...]` for each

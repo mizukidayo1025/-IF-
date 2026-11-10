@@ -355,7 +355,9 @@ dependencies = [
  "itoa",
  "libm",
  "rayon",
+ "rustc-hash",
  "ryu",
+ "serde_json",
  "sha2",
 ]
 

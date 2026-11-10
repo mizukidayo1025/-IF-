@@ -6,7 +6,10 @@
 //! `docs/rust-port/step5-plan.md`.
 
 pub mod census;
+pub mod checkpoint;
+pub mod contacts;
 pub mod error;
+pub mod events;
 pub mod interner;
 pub mod json;
 pub mod mathx;

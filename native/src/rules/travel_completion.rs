@@ -31,7 +31,7 @@ use crate::rules::movement::{at_queue_slot, at_service_point, at_trip_destinatio
 use crate::rules::travel::{approach_route, plan_room_approach, write_travel};
 use crate::rules::{service, toilet};
 use crate::state::resource_service::RequestRecord;
-use crate::state::events::{EventRef, EventRow, EventWriter};
+use crate::state::events::{EventRef, EventRow, EventRowPy, EventWriter};
 use crate::Unsupported;
 
 static ARRIVALS_RAN: AtomicU64 = AtomicU64::new(0);

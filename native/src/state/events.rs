@@ -1,19 +1,21 @@
 //! The future EventQueue, and how a Rust rule schedules and records an event without a Python
 //! object (docs/rust-port/lanes/e-events.md).
 //!
-//! `EventRow` is one `ScheduledEvent` with no Python handle. `QueueStore` holds the pending events
-//! in the queue's order (due minute, priority, sequence). A slot has a row, a Python object, or
-//! both: an event scheduled from Python has its object and gets its row when a rule first reads
-//! it, and an event scheduled from Rust has its row and gets its object when Python first reads
-//! it. That object is a `ScheduledEvent` like any other, so handlers need not know.
+//! `EventRow`, the queue's order and slots, and the checks and texts of scheduling and recording
+//! are `sheltersim_core::events`. This file keeps what needs Python: a row read from a
+//! `ScheduledEvent` and made into one (`EventRowPy`), and the Python objects of the pending events.
+//! `QueueStore` holds a core `Queue` and, by the same slot serial, the objects. A slot has a row, a
+//! Python object, or both: an event scheduled from Python has its object and gets its row when a
+//! rule first reads it, and an event scheduled from Rust has its row and gets its object when
+//! Python first reads it. That object is a `ScheduledEvent` like any other, so handlers need not
+//! know.
 //!
 //! `EventWriter` is what a rule uses. It does what `WorldState.allocate_event_sequence`,
 //! `WorldState.schedule_event` and `EventLog.append` do, with their errors. `EventWriter::of` says
 //! `Unsupported` while any part of the world is not Rust's, so a rule asks for it in its planning
 //! stage, before it changes anything.
 
-use std::cell::Cell;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use indexmap::IndexMap;
@@ -24,82 +26,17 @@ use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBool, PyBytes, PyDict, PyFloat, PyInt, PyString, PyTuple};
 
-use crate::core::errors::OrPy;
+pub(crate) use sheltersim_core::events::queue::{Key, Queue};
+pub(crate) use sheltersim_core::events::writer::{Reserved, WriteError, MAX_RULE_COUNTER};
+pub(crate) use sheltersim_core::events::{is_stable_id, EventKind, EventRow, EventStatus};
+
+use crate::core::errors::{to_py_err, OrPy};
 use crate::core::value::{V, VPy};
 use crate::eventlog::EventStore;
-use crate::{write_json_string, Encoder, Unsupported};
+use crate::Unsupported;
 
 // As `checkpoint::MAX_SAME_DEPTH`: deeper values are left to the Python paths.
 const MAX_ROW_DEPTH: usize = 64;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum EventKind {
-    Exogenous,
-    Completion,
-    Endogenous,
-    Intervention,
-}
-
-impl EventKind {
-    const ALL: [EventKind; 4] =
-        [EventKind::Exogenous, EventKind::Completion, EventKind::Endogenous, EventKind::Intervention];
-
-    pub(crate) fn as_str(self) -> &'static str {
-        match self {
-            EventKind::Exogenous => "exogenous",
-            EventKind::Completion => "completion",
-            EventKind::Endogenous => "endogenous",
-            EventKind::Intervention => "intervention",
-        }
-    }
-
-    fn parse(text: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|kind| kind.as_str() == text)
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum EventStatus {
-    Applied,
-    Failed,
-    Suppressed,
-}
-
-impl EventStatus {
-    pub(crate) fn as_str(self) -> &'static str {
-        match self {
-            EventStatus::Applied => "applied",
-            EventStatus::Failed => "failed",
-            EventStatus::Suppressed => "suppressed",
-        }
-    }
-
-    fn parse(text: &str) -> Option<Self> {
-        [EventStatus::Applied, EventStatus::Failed, EventStatus::Suppressed]
-            .into_iter()
-            .find(|status| status.as_str() == text)
-    }
-}
-
-/// `models._STABLE_ID`.
-pub(crate) fn is_stable_id(value: &str) -> bool {
-    let bytes = value.as_bytes();
-    !bytes.is_empty()
-        && bytes.len() <= 64
-        && bytes[0].is_ascii_alphanumeric()
-        && bytes[1..]
-            .iter()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'))
-}
-
-fn all_finite(value: &V) -> bool {
-    match value {
-        V::Float(number) => number.is_finite(),
-        V::List(items) => items.iter().all(all_finite),
-        V::Map(map) => map.values().all(all_finite),
-        _ => true,
-    }
-}
 
 /// The classes a row becomes, read once.
 struct Models {
@@ -126,71 +63,18 @@ fn models(py: Python<'_>) -> PyResult<&'static Models> {
     })
 }
 
-/// `ScheduledEvent` as a row. Everything `ScheduledEvent._check` asks has been checked, by
-/// `EventRow::new` or by the constructor of the object the row was read from.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct EventRow {
-    pub(crate) event_id: Arc<str>,
-    pub(crate) kind: EventKind,
-    pub(crate) due_minute: i64,
-    pub(crate) priority: i64,
-    pub(crate) sequence: i64,
-    pub(crate) event_type: Arc<str>,
-    pub(crate) payload: V,
-    pub(crate) source_id: Option<Arc<str>>,
-    pub(crate) causation_id: Option<Arc<str>>,
-    pub(crate) provenance: V,
-}
-
-const _: fn() = || {
-    fn send_and_sync<T: Send + Sync>() {}
-    send_and_sync::<EventRow>();
-};
-
-impl EventRow {
-    /// A new event; None for what `ScheduledEvent` refuses. Then call the Python rule, which
-    /// raises its own error. Keys keep the order given, as a dict literal does; handlers and the
-    /// saved bytes do not depend on it, because a restored event has its keys sorted.
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn new(
-        event_id: Arc<str>,
-        kind: EventKind,
-        due_minute: i64,
-        priority: i64,
-        sequence: i64,
-        event_type: Arc<str>,
-        payload: IndexMap<Arc<str>, V>,
-        source_id: Option<Arc<str>>,
-        causation_id: Option<Arc<str>>,
-        provenance: IndexMap<Arc<str>, V>,
-    ) -> Option<Self> {
-        let payload = V::Map(payload);
-        let provenance = V::Map(provenance);
-        let good = is_stable_id(&event_id)
-            && is_stable_id(&event_type)
-            && source_id.as_deref().is_none_or(is_stable_id)
-            && causation_id.as_deref().is_none_or(is_stable_id)
-            && due_minute >= 0
-            && sequence >= 0
-            && all_finite(&payload)
-            && all_finite(&provenance);
-        good.then_some(Self {
-            event_id,
-            kind,
-            due_minute,
-            priority,
-            sequence,
-            event_type,
-            payload,
-            source_id,
-            causation_id,
-            provenance,
-        })
-    }
-
+/// An `EventRow` read from a `ScheduledEvent` and made into one.
+pub(crate) trait EventRowPy: Sized {
     /// The row of a `ScheduledEvent`, or None for an event of another type, or with a value that
     /// is not an exact JSON scalar, tuple or mapping proxy, such as a str subclass in a payload.
-    pub(crate) fn from_event(event: &Bound<'_, PyAny>) -> PyResult<Option<Self>> {
+    fn from_event(event: &Bound<'_, PyAny>) -> PyResult<Option<Self>>;
+
+    /// The `ScheduledEvent` of this row. Values are frozen as `_freeze_json` freezes them.
+    fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>>;
+}
+
+impl EventRowPy for EventRow {
+    fn from_event(event: &Bound<'_, PyAny>) -> PyResult<Option<Self>> {
         let py = event.py();
         if !event.get_type().is(models(py)?.event.bind(py)) {
             return Ok(None);
@@ -226,8 +110,7 @@ impl EventRow {
         Ok(row.filter(|row| matches!(row.payload, V::Map(_)) && matches!(row.provenance, V::Map(_))))
     }
 
-    /// The `ScheduledEvent` of this row. Values are frozen as `_freeze_json` freezes them.
-    pub(crate) fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let models = models(py)?;
         let class = models.event.bind(py);
         let event = class.call_method1(intern!(py, "__new__"), (class,))?;
@@ -250,101 +133,6 @@ impl EventRow {
         fields.set_item(intern!(py, "causation_id"), optional(&self.causation_id))?;
         fields.set_item(intern!(py, "provenance"), frozen(py, &self.provenance)?)?;
         Ok(event)
-    }
-
-    /// The canonical JSON of `event.to_dict()`.
-    pub(crate) fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
-        let name = |encoder: &mut Encoder, text: &str| {
-            encoder.out.push(b',');
-            write_json_string(&mut encoder.out, text);
-            encoder.out.push(b':');
-        };
-        let text = |encoder: &mut Encoder, value: &Option<Arc<str>>| match value {
-            Some(value) => write_json_string(&mut encoder.out, value),
-            None => encoder.out.extend_from_slice(b"null"),
-        };
-        let number = |encoder: &mut Encoder, value: i64| {
-            encoder.out.extend_from_slice(itoa::Buffer::new().format(value).as_bytes());
-        };
-        // In sorted order.
-        encoder.out.extend_from_slice(b"{\"causation_id\":");
-        text(encoder, &self.causation_id);
-        name(encoder, "due_minute");
-        number(encoder, self.due_minute);
-        name(encoder, "event_id");
-        write_json_string(&mut encoder.out, &self.event_id);
-        name(encoder, "event_type");
-        write_json_string(&mut encoder.out, &self.event_type);
-        name(encoder, "kind");
-        write_json_string(&mut encoder.out, self.kind.as_str());
-        name(encoder, "payload");
-        self.payload.write_json(encoder).or_py()?;
-        name(encoder, "priority");
-        number(encoder, self.priority);
-        name(encoder, "provenance");
-        self.provenance.write_json(encoder).or_py()?;
-        name(encoder, "sequence");
-        number(encoder, self.sequence);
-        name(encoder, "source_id");
-        text(encoder, &self.source_id);
-        encoder.out.push(b'}');
-        Ok(())
-    }
-
-    /// The canonical JSON of the `EventLogRecord` of this event's outcome.
-    pub(crate) fn record_json(
-        &self,
-        realized_minute: i64,
-        status: EventStatus,
-        detail: Option<&str>,
-    ) -> PyResult<Box<[u8]>> {
-        let mut encoder = Encoder { out: Vec::with_capacity(1024) };
-        encoder.out.extend_from_slice(b"{\"detail\":");
-        match detail {
-            Some(text) => write_json_string(&mut encoder.out, text),
-            None => encoder.out.extend_from_slice(b"null"),
-        }
-        encoder.out.extend_from_slice(b",\"event\":");
-        self.write_json(&mut encoder)?;
-        encoder.out.extend_from_slice(b",\"realized_minute\":");
-        encoder.out.extend_from_slice(itoa::Buffer::new().format(realized_minute).as_bytes());
-        encoder.out.extend_from_slice(b",\"status\":\"");
-        encoder.out.extend_from_slice(status.as_str().as_bytes());
-        encoder.out.extend_from_slice(b"\"}");
-        Ok(encoder.out.into_boxed_slice())
-    }
-
-    /// `(event, realized_minute, status, detail)` of a record's canonical JSON, or None for bytes
-    /// that are not such a record or hold a number outside i64 where the row needs one.
-    pub(crate) fn from_saved_record(raw: &[u8]) -> Option<(Self, i64, EventStatus, Option<Arc<str>>)> {
-        let document: serde_json::Value = serde_json::from_slice(raw).ok()?;
-        let event = document.get("event")?;
-        let text = |value: &serde_json::Value| value.as_str().map(Arc::from);
-        let optional = |value: &serde_json::Value| -> Option<Option<Arc<str>>> {
-            if value.is_null() {
-                Some(None)
-            } else {
-                text(value).map(Some)
-            }
-        };
-        let row = Self {
-            event_id: text(event.get("event_id")?)?,
-            kind: EventKind::parse(event.get("kind")?.as_str()?)?,
-            due_minute: event.get("due_minute")?.as_i64()?,
-            priority: event.get("priority")?.as_i64()?,
-            sequence: event.get("sequence")?.as_i64()?,
-            event_type: text(event.get("event_type")?)?,
-            payload: from_json(event.get("payload")?)?,
-            source_id: optional(event.get("source_id")?)?,
-            causation_id: optional(event.get("causation_id")?)?,
-            provenance: from_json(event.get("provenance")?)?,
-        };
-        Some((
-            row,
-            document.get("realized_minute")?.as_i64()?,
-            EventStatus::parse(document.get("status")?.as_str()?)?,
-            optional(document.get("detail")?)?,
-        ))
     }
 }
 
@@ -419,35 +207,6 @@ fn frozen<'py>(py: Python<'py>, value: &V) -> PyResult<Bound<'py, PyAny>> {
         }
         other => other.to_py(py),
     }
-}
-
-/// What `json.loads` reads, as a `V`.
-fn from_json(value: &serde_json::Value) -> Option<V> {
-    use serde_json::Value;
-    Some(match value {
-        Value::Null => V::Null,
-        Value::Bool(flag) => V::Bool(*flag),
-        Value::String(text) => V::Str(Arc::from(text.as_str())),
-        Value::Number(number) => {
-            let text = number.to_string();
-            if text.contains(['.', 'e', 'E']) {
-                V::Float(text.parse().ok()?)
-            } else {
-                match text.parse::<i64>() {
-                    Ok(small) => V::Int(small),
-                    Err(_) => V::Big(text.into()),
-                }
-            }
-        }
-        Value::Array(items) => V::List(items.iter().map(from_json).collect::<Option<Vec<_>>>()?),
-        Value::Object(object) => {
-            let mut map = IndexMap::with_capacity(object.len());
-            for (key, item) in object {
-                map.insert(Arc::from(key.as_str()), from_json(item)?);
-            }
-            V::Map(map)
-        }
-    })
 }
 
 /// A due event as a rule reads it: its row, or its object when Python made it and no row was read.
@@ -611,8 +370,6 @@ impl EventRef<'_, '_> {
 
 // ---- The queue ----------------------------------------------------------------------------------
 
-type Key = (i64, i64, i64);
-
 /// One event of a due snapshot, as `EventQueue.due` gives the dispatcher: holds what it was then.
 pub(crate) struct DueEvent {
     pub(crate) event_id: Arc<str>,
@@ -629,12 +386,6 @@ pub(crate) enum DueState {
     Same,
     /// Another event of its ID, of the same values or not: `current is not event`.
     Changed,
-}
-
-struct Slot {
-    event_id: Arc<str>,
-    key: Key,
-    row: Option<Arc<EventRow>>,
 }
 
 /// A pending event as `QueueStore::pending_events` found it.
@@ -663,24 +414,15 @@ impl PendingEvent<'_> {
     }
 }
 
-/// The queue behind `sheltersim.events.queue.EventQueue`. It mirrors the Python queue's structures
-/// one for one, a repeated identity from the constructor included, so that `validate` can refuse it
-/// the same way. Slots live by serial number, which stays when an event is replaced.
+/// The queue behind `sheltersim.events.queue.EventQueue`: the core `Queue`, and the Python objects
+/// of its slots by the same serial.
 #[pyclass(module = "sheltersim_native.state.events")]
 pub struct QueueStore {
-    slots: HashMap<u64, Slot>,
+    queue: Queue,
     /// Python objects by serial; apart, so that a slot's row is free of handles.
     objects: HashMap<u64, Py<PyAny>>,
-    /// In the order they were scheduled, which `==` compares.
-    insertion: Vec<u64>,
-    /// In the order of `pending()`.
-    ordered: Vec<(Key, u64)>,
-    by_id: HashMap<Arc<str>, u64>,
-    sequences: HashSet<i64>,
-    next_serial: u64,
-    /// Only the constructor can add a repeated identity.
-    maybe_repeated: bool,
-    pending: Option<Py<PyTuple>>,
+    /// The tuple of `pending()`, while the queue's generation is the one it was made at.
+    pending: Option<(u64, Py<PyTuple>)>,
 }
 
 /// The identity and order of an event object; None for an int outside i64.
@@ -702,107 +444,48 @@ fn read_key(event: &Bound<'_, PyAny>) -> PyResult<Option<(Arc<str>, Key)>> {
 
 impl QueueStore {
     fn empty() -> Self {
-        Self {
-            slots: HashMap::new(),
-            objects: HashMap::new(),
-            insertion: Vec::new(),
-            ordered: Vec::new(),
-            by_id: HashMap::new(),
-            sequences: HashSet::new(),
-            next_serial: 0,
-            maybe_repeated: false,
-            pending: None,
-        }
+        Self { queue: Queue::new(), objects: HashMap::new(), pending: None }
     }
 
     fn object(&mut self, py: Python<'_>, serial: u64) -> PyResult<Py<PyAny>> {
         if let Some(object) = self.objects.get(&serial) {
             return Ok(object.clone_ref(py));
         }
-        let row = self.slots[&serial].row.as_ref().expect("a slot has a row or an object").clone();
+        let row = self.queue.slot(serial).row.as_ref().expect("a slot has a row or an object").clone();
         let object = row.to_py(py)?.unbind();
         self.objects.insert(serial, object.clone_ref(py));
         Ok(object)
     }
 
-    fn insert_ordered(&mut self, key: Key, serial: u64) {
-        // As bisect.insort: after the entries with an equal key.
-        let at = self.ordered.partition_point(|(other, _)| *other <= key);
-        self.ordered.insert(at, (key, serial));
-    }
-
-    fn delete_ordered(&mut self, key: Key) {
-        // As bisect_left: the first entry with this key.
-        let at = self.ordered.partition_point(|(other, _)| *other < key);
-        self.ordered.remove(at);
-    }
-
-    fn add(&mut self, event_id: Arc<str>, key: Key, row: Option<Arc<EventRow>>, object: Option<Py<PyAny>>) -> u64 {
-        let serial = self.next_serial;
-        self.next_serial += 1;
-        self.by_id.entry(event_id.clone()).or_insert(serial);
-        self.sequences.insert(key.2);
-        self.insertion.push(serial);
-        self.slots.insert(serial, Slot { event_id, key, row });
-        if let Some(object) = object {
-            self.objects.insert(serial, object);
-        }
-        self.insert_ordered(key, serial);
-        self.pending = None;
-        serial
-    }
-
-    fn take_slot(&mut self, event_id: &str) -> Option<(u64, Slot)> {
-        let position = self.insertion.iter().position(|serial| &*self.slots[serial].event_id == event_id)?;
-        let serial = self.insertion.remove(position);
-        let slot = self.slots.remove(&serial)?;
-        self.by_id.remove(event_id);
-        self.sequences.remove(&slot.key.2);
-        self.delete_ordered(slot.key);
-        self.pending = None;
-        Some((serial, slot))
+    fn objects_of(&mut self, py: Python<'_>, serials: Vec<u64>) -> PyResult<Vec<Py<PyAny>>> {
+        serials.into_iter().map(|serial| self.object(py, serial)).collect()
     }
 
     // ---- For Rust rules ----
 
-    /// `EventQueue.schedule` of a row: 0, or 1 for a pending ID, 2 for a pending sequence.
-    pub(crate) fn schedule_row(&mut self, row: EventRow) -> u8 {
-        if self.by_id.contains_key(&*row.event_id) {
-            return 1;
-        }
-        if self.sequences.contains(&row.sequence) {
-            return 2;
-        }
-        let key = (row.due_minute, row.priority, row.sequence);
-        self.add(row.event_id.clone(), key, Some(Arc::new(row)), None);
-        0
-    }
-
     /// The row of a pending event, read from its object the first time. Ok(None) for no such
     /// event or an event with no row: a rule then says `Unsupported`.
     pub(crate) fn row(&mut self, py: Python<'_>, event_id: &str) -> PyResult<Option<Arc<EventRow>>> {
-        let Some(serial) = self.by_id.get(event_id).copied() else {
+        let Some(serial) = self.queue.serial_of(event_id) else {
             return Ok(None);
         };
-        if let Some(row) = &self.slots[&serial].row {
+        if let Some(row) = &self.queue.slot(serial).row {
             return Ok(Some(row.clone()));
         }
         let Some(row) = EventRow::from_event(self.objects[&serial].bind(py))?.map(Arc::new) else {
             return Ok(None);
         };
-        if let Some(slot) = self.slots.get_mut(&serial) {
-            slot.row = Some(row.clone());
-        }
+        self.queue.set_row(serial, row.clone());
         Ok(Some(row))
     }
 
     /// `EventQueue.due`, for the dispatch loop: what each event due through `minute` is now.
     pub(crate) fn due_events(&self, py: Python<'_>, minute: i64) -> Vec<DueEvent> {
-        let end = self.ordered.partition_point(|(key, _)| key.0 <= minute);
-        self.ordered[..end]
+        let end = self.queue.due_end(minute);
+        self.queue.ordered()[..end]
             .iter()
             .map(|(_, serial)| {
-                let slot = &self.slots[serial];
+                let slot = self.queue.slot(*serial);
                 DueEvent {
                     event_id: slot.event_id.clone(),
                     serial: *serial,
@@ -816,7 +499,7 @@ impl QueueStore {
     /// Where an event of a due snapshot stands now. An event has a row and an object at different
     /// times, and an event that was replaced has a new object and no row.
     pub(crate) fn state_of_due(&self, due: &DueEvent) -> DueState {
-        let Some(serial) = self.by_id.get(&*due.event_id).copied() else {
+        let Some(serial) = self.queue.serial_of(&due.event_id) else {
             return DueState::Gone;
         };
         if serial != due.serial {
@@ -824,7 +507,7 @@ impl QueueStore {
         }
         let same = match (&due.object, self.objects.get(&serial)) {
             (Some(then), Some(now)) => then.as_ptr() == now.as_ptr(),
-            _ => match (&due.row, &self.slots[&serial].row) {
+            _ => match (&due.row, &self.queue.slot(serial).row) {
                 (Some(then), Some(now)) => Arc::ptr_eq(then, now),
                 _ => false,
             },
@@ -843,8 +526,8 @@ impl QueueStore {
 
     /// `EventQueue.remove` of an event that may have left already; any object goes with it.
     fn remove_if_pending(&mut self, event_id: &str) {
-        if self.by_id.contains_key(event_id) {
-            if let Some((serial, _)) = self.take_slot(event_id) {
+        if self.queue.has_event(event_id) {
+            if let Some((serial, _)) = self.queue.take_slot(event_id) {
                 self.objects.remove(&serial);
             }
         }
@@ -855,9 +538,9 @@ impl QueueStore {
     /// is not a plain `ScheduledEvent`.
     pub(crate) fn pending_events<'py>(&self, py: Python<'py>) -> PyResult<Option<Vec<PendingEvent<'py>>>> {
         let class = models(py)?.event.bind(py);
-        let mut events = Vec::with_capacity(self.ordered.len());
-        for (key, serial) in &self.ordered {
-            let slot = &self.slots[serial];
+        let mut events = Vec::with_capacity(self.queue.ordered().len());
+        for (key, serial) in self.queue.ordered() {
+            let slot = self.queue.slot(*serial);
             let source = match &slot.row {
                 Some(row) => PendingSource::Row(row.clone()),
                 None => {
@@ -877,8 +560,8 @@ impl QueueStore {
     /// an object is not a plain `ScheduledEvent`.
     pub(crate) fn any_pending_has_provenance(&self, py: Python<'_>, key: &Bound<'_, PyString>) -> PyResult<Option<bool>> {
         let class = models(py)?.event.bind(py);
-        for (_, serial) in &self.ordered {
-            let found = match &self.slots[serial].row {
+        for (_, serial) in self.queue.ordered() {
+            let found = match &self.queue.slot(*serial).row {
                 Some(row) => matches!(&row.provenance, V::Map(provenance) if provenance.contains_key(key.to_str()?)),
                 None => {
                     let object = self.objects[serial].bind(py);
@@ -897,16 +580,12 @@ impl QueueStore {
 
     /// Whether this event is pending.
     pub(crate) fn has_event(&self, event_id: &str) -> bool {
-        self.by_id.contains_key(event_id)
+        self.queue.has_event(event_id)
     }
 
     /// The IDs of the pending events in queue order, through `minute` if given.
     pub(crate) fn pending_ids(&self, minute: Option<i64>) -> Vec<Arc<str>> {
-        let end = match minute {
-            Some(minute) => self.ordered.partition_point(|(key, _)| key.0 <= minute),
-            None => self.ordered.len(),
-        };
-        self.ordered[..end].iter().map(|(_, serial)| self.slots[serial].event_id.clone()).collect()
+        self.queue.pending_ids(minute)
     }
 }
 
@@ -929,38 +608,36 @@ impl QueueStore {
         *self = Self::empty();
         // sorted() over the whole list is stable, and so is adding after equal keys.
         for ((event_id, key), event) in read.into_iter().zip(&events) {
-            if self.by_id.contains_key(&event_id) || self.sequences.contains(&key.2) {
-                self.maybe_repeated = true;
-            }
-            self.add(event_id, key, None, Some(event.clone().unbind()));
+            let serial = self.queue.add_loaded(event_id, key);
+            self.objects.insert(serial, event.clone().unbind());
         }
         let _ = py;
         Ok(true)
     }
 
     fn __len__(&self) -> usize {
-        self.insertion.len()
+        self.queue.len()
     }
 
     /// The pending events in queue order; the same tuple until the queue changes.
     fn pending<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyTuple>> {
-        if let Some(pending) = &self.pending {
-            return Ok(pending.bind(py).clone());
+        let generation = self.queue.generation();
+        if let Some((made, pending)) = &self.pending {
+            if *made == generation {
+                return Ok(pending.bind(py).clone());
+            }
         }
-        let serials: Vec<u64> = self.ordered.iter().map(|(_, serial)| *serial).collect();
-        let objects = serials
-            .into_iter()
-            .map(|serial| self.object(py, serial))
-            .collect::<PyResult<Vec<_>>>()?;
+        let serials: Vec<u64> = self.queue.ordered().iter().map(|(_, serial)| *serial).collect();
+        let objects = self.objects_of(py, serials)?;
         let pending = PyTuple::new(py, objects)?;
-        self.pending = Some(pending.clone().unbind());
+        self.pending = Some((generation, pending.clone().unbind()));
         Ok(pending)
     }
 
     /// The events in the order they were scheduled.
     fn events(&mut self, py: Python<'_>) -> PyResult<Vec<Py<PyAny>>> {
-        let serials = self.insertion.clone();
-        serials.into_iter().map(|serial| self.object(py, serial)).collect()
+        let serials = self.queue.insertion().to_vec();
+        self.objects_of(py, serials)
     }
 
     /// `pending()` through a minute; None for a minute that is not an int in i64.
@@ -971,15 +648,12 @@ impl QueueStore {
         let Ok(minute) = minute.extract::<i64>() else {
             return Ok(None);
         };
-        let end = self.ordered.partition_point(|(key, _)| key.0 <= minute);
-        if end == self.ordered.len() {
+        let end = self.queue.due_end(minute);
+        if end == self.queue.ordered().len() {
             return self.pending(py).map(Some);
         }
-        let serials: Vec<u64> = self.ordered[..end].iter().map(|(_, serial)| *serial).collect();
-        let objects = serials
-            .into_iter()
-            .map(|serial| self.object(py, serial))
-            .collect::<PyResult<Vec<_>>>()?;
+        let serials: Vec<u64> = self.queue.ordered()[..end].iter().map(|(_, serial)| *serial).collect();
+        let objects = self.objects_of(py, serials)?;
         Ok(Some(PyTuple::new(py, objects)?))
     }
 
@@ -988,7 +662,7 @@ impl QueueStore {
             .downcast::<PyString>()
             .ok()
             .and_then(|text| text.to_str().ok())
-            .and_then(|text| self.by_id.get(text).copied())
+            .and_then(|text| self.queue.serial_of(text))
         else {
             return Ok(None);
         };
@@ -999,20 +673,21 @@ impl QueueStore {
     fn schedule(&mut self, event: &Bound<'_, PyAny>) -> PyResult<u8> {
         let py = event.py();
         let event_id = event.getattr(intern!(py, "event_id"))?;
-        if self.by_id.contains_key(event_id.downcast::<PyString>()?.to_str()?) {
+        if self.queue.has_event(event_id.downcast::<PyString>()?.to_str()?) {
             return Ok(1);
         }
         if event
             .getattr(intern!(py, "sequence"))?
             .extract::<i64>()
-            .is_ok_and(|sequence| self.sequences.contains(&sequence))
+            .is_ok_and(|sequence| self.queue.has_sequence(sequence))
         {
             return Ok(2);
         }
         let Some((event_id, key)) = read_key(event)? else {
             return Ok(3);
         };
-        self.add(event_id, key, None, Some(event.clone().unbind()));
+        let serial = self.queue.add(event_id, key, None);
+        self.objects.insert(serial, event.clone().unbind());
         Ok(0)
     }
 
@@ -1022,7 +697,7 @@ impl QueueStore {
             .downcast::<PyString>()
             .ok()
             .and_then(|text| text.to_str().ok())
-            .and_then(|text| self.take_slot(text));
+            .and_then(|text| self.queue.take_slot(text));
         let Some((serial, slot)) = found else {
             return Err(PyKeyError::new_err(event_id.clone().unbind()));
         };
@@ -1040,12 +715,12 @@ impl QueueStore {
             .downcast::<PyString>()
             .ok()
             .and_then(|text| text.to_str().ok())
-            .and_then(|text| self.insertion.iter().copied().find(|serial| &*self.slots[serial].event_id == text));
+            .and_then(|text| self.queue.first_scheduled(text));
         let Some(serial) = serial else {
             return Err(PyKeyError::new_err(event_id.clone().unbind()));
         };
         let (current_id, current_key) = {
-            let slot = &self.slots[&serial];
+            let slot = self.queue.slot(serial);
             (slot.event_id.clone(), slot.key)
         };
         let new_id = event.getattr(intern!(py, "event_id"))?;
@@ -1055,10 +730,11 @@ impl QueueStore {
             return Ok(1);
         }
         let current_object = self.objects.get(&serial).map(|object| object.as_ptr());
-        let in_use = self.insertion.iter().any(|other| {
+        let in_use = self.queue.insertion().iter().any(|other| {
+            let slot = self.queue.slot(*other);
             *other != serial
                 && (self.objects.get(other).map(|object| object.as_ptr()) != current_object || current_object.is_none())
-                && (self.slots[other].event_id == current_id || self.slots[other].key.2 == current_key.2)
+                && (slot.event_id == current_id || slot.key.2 == current_key.2)
         });
         if in_use {
             return Ok(2);
@@ -1066,52 +742,22 @@ impl QueueStore {
         let Some((_, key)) = read_key(event)? else {
             return Ok(3);
         };
-        self.delete_ordered(current_key);
-        self.insert_ordered(key, serial);
-        if let Some(slot) = self.slots.get_mut(&serial) {
-            slot.key = key;
-            slot.row = None;
-        }
+        self.queue.rekey(serial, key);
         self.objects.insert(serial, event.clone().unbind());
-        self.by_id.insert(current_id, serial);
-        self.pending = None;
         Ok(0)
     }
 
     /// 0, or 1 for a repeated ID, 2 for a repeated sequence.
     fn validate(&self) -> u8 {
-        if !self.maybe_repeated {
-            return 0;
-        }
-        let ids: HashSet<&Arc<str>> = self.slots.values().map(|slot| &slot.event_id).collect();
-        if ids.len() != self.slots.len() {
-            return 1;
-        }
-        let sequences: HashSet<i64> = self.slots.values().map(|slot| slot.key.2).collect();
-        if sequences.len() != self.slots.len() {
-            return 2;
-        }
-        0
+        self.queue.validate()
     }
 
     /// An independent queue sharing the frozen events.
     fn copy(&self, py: Python<'_>) -> Self {
         Self {
-            slots: self
-                .slots
-                .iter()
-                .map(|(serial, slot)| {
-                    (*serial, Slot { event_id: slot.event_id.clone(), key: slot.key, row: slot.row.clone() })
-                })
-                .collect(),
+            queue: self.queue.clone(),
             objects: self.objects.iter().map(|(serial, object)| (*serial, object.clone_ref(py))).collect(),
-            insertion: self.insertion.clone(),
-            ordered: self.ordered.clone(),
-            by_id: self.by_id.clone(),
-            sequences: self.sequences.clone(),
-            next_serial: self.next_serial,
-            maybe_repeated: self.maybe_repeated,
-            pending: self.pending.as_ref().map(|pending| pending.clone_ref(py)),
+            pending: self.pending.as_ref().map(|(made, pending)| (*made, pending.clone_ref(py))),
         }
     }
 }
@@ -1125,10 +771,13 @@ fn duplicate_error(py: Python<'_>, message: String) -> PyErr {
     }
 }
 
-/// The largest event counter a rule starts from, so that adding its few sequences to it cannot leave
-/// an i64, as Python's int can. A rule's planning stage adds to it without a check. Beyond this is
-/// Python's, whose int goes on.
-const MAX_RULE_COUNTER: i64 = 1 << 62;
+/// A write's error as Python's: a core error's class, or `DuplicateEventError`.
+fn write_error(py: Python<'_>, error: WriteError) -> PyErr {
+    match error {
+        WriteError::Error(error) => to_py_err(error),
+        WriteError::Duplicate(message) => duplicate_error(py, message),
+    }
+}
 
 /// A world's queue, log and event counter, for one step of a rule. Holds no borrow of them, and
 /// asks for each after any Python callback as a rule asks for `core_of`: a rule that calls back into
@@ -1138,8 +787,7 @@ pub(crate) struct EventWriter<'py> {
     log: Bound<'py, EventStore>,
     counters: Bound<'py, PyDict>,
     duration: i64,
-    /// Sequences a plan has promised to `allocate_reserved` before what it plans next.
-    reserved: Cell<i64>,
+    reserved: Reserved,
 }
 
 impl<'py> EventWriter<'py> {
@@ -1173,7 +821,7 @@ impl<'py> EventWriter<'py> {
             .getattr(intern!(py, "duration_minutes"))?
             .extract::<i64>()
             .map_err(|_| Unsupported::new_err("the duration is not an int"))?;
-        Ok(Self { queue, log, counters, duration, reserved: Cell::new(0) })
+        Ok(Self { queue, log, counters, duration, reserved: Reserved::default() })
     }
 
     pub(crate) fn duration(&self) -> i64 {
@@ -1182,17 +830,17 @@ impl<'py> EventWriter<'py> {
 
     /// What `allocate_sequence` would return, changing nothing, past the sequences reserved.
     pub(crate) fn next_sequence(&self) -> PyResult<i64> {
-        Ok(self.counter()? + self.reserved.get())
+        Ok(self.reserved.after(self.counter()?))
     }
 
     /// Sets how many sequences `allocate_reserved` will take before what is planned from now on.
     pub(crate) fn reserve(&self, count: usize) {
-        self.reserved.set(count as i64);
+        self.reserved.set(count);
     }
 
     /// `allocate_sequence`, of one the plan reserved.
     pub(crate) fn allocate_reserved(&self) -> PyResult<i64> {
-        self.reserved.set((self.reserved.get() - 1).max(0));
+        self.reserved.take_one();
         self.allocate_sequence()
     }
 
@@ -1214,27 +862,12 @@ impl<'py> EventWriter<'py> {
     /// `WorldState.schedule_event`, with its errors.
     pub(crate) fn schedule(&self, row: EventRow) -> PyResult<()> {
         let py = self.counters.py();
-        let Some(after) = row.sequence.checked_add(1) else {
-            return Err(Unsupported::new_err("the counter after this sequence does not fit an i64"));
-        };
-        if row.due_minute >= self.duration {
-            return Err(PyValueError::new_err(format!("event '{}' is outside the scenario", row.event_id)));
-        }
-        {
+        let after = {
             let log = self.log.borrow();
-            if log.has_event_id(&row.event_id) {
-                return Err(duplicate_error(py, format!("event '{}' already realized", row.event_id)));
-            }
-            if log.has_sequence(row.sequence) {
-                return Err(duplicate_error(py, format!("event sequence {} already realized", row.sequence)));
-            }
-        }
-        let (event_id, sequence) = (row.event_id.clone(), row.sequence);
-        match self.queue.borrow_mut().schedule_row(row) {
-            1 => return Err(duplicate_error(py, format!("duplicate event ID '{event_id}'"))),
-            2 => return Err(duplicate_error(py, format!("duplicate event sequence {sequence}"))),
-            _ => {}
-        }
+            let mut queue = self.queue.borrow_mut();
+            sheltersim_core::events::writer::schedule(&mut queue.queue, log.core(), self.duration, row)
+        };
+        let after = after.map_err(|error| write_error(py, error))?;
         let next = self.counter()?.max(after);
         self.counters.set_item(intern!(py, "event"), next)
     }
@@ -1248,15 +881,9 @@ impl<'py> EventWriter<'py> {
         detail: Option<&str>,
     ) -> PyResult<()> {
         let py = self.counters.py();
-        // EventLogRecord refuses this before EventLog.append sees it, and the log could not restore it.
-        if realized_minute < 0 {
-            return Err(PyValueError::new_err("realized_minute must be a non-negative integer"));
-        }
-        match self.log.borrow_mut().append_row(event, realized_minute, status, detail)? {
-            1 => Err(duplicate_error(py, format!("event '{}' already realized", event.event_id))),
-            2 => Err(duplicate_error(py, format!("event sequence {} already realized", event.sequence))),
-            _ => Ok(()),
-        }
+        let mut log = self.log.borrow_mut();
+        sheltersim_core::events::writer::record(log.core_mut(), event, realized_minute, status, detail)
+            .map_err(|error| write_error(py, error))
     }
 
     /// What the dispatcher does to a handled event (`EventDispatcher.settle`): it leaves the queue if
@@ -1336,7 +963,7 @@ fn row_record_json<'py>(
     let Some(row) = EventRow::from_event(event)? else {
         return Ok(None);
     };
-    Ok(Some(PyBytes::new(event.py(), &row.record_json(realized_minute, status, detail)?)))
+    Ok(Some(PyBytes::new(event.py(), &row.record_json(realized_minute, status, detail).or_py()?)))
 }
 
 /// The event as a row saved and read back, then as an object; None when bytes do not read.
