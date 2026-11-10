@@ -40,7 +40,9 @@ Checkpoint document) and times them.
   `write_json` takes the WorldState version, `Table` and `Entities`, which also holds the taint),
   `state/` (the rows of the namespaces, with their checks that read the row alone or the entity
   rows), `world.rs` (`World`: one world's state, as `Shard` parts: `entities`, and `slots`, one
-  `Slot` per owned field or namespace with its row, taint, detach flag, generation and counters),
+  `Slot` per owned field or namespace with its row, taint, detach flag, generation and counters;
+  every other str key of `model_state` has a `ValueRow` slot, `Place::Value`, read by
+  `Slots::value`),
   `cell.rs` (`Shard`, a part borrowed on its own; a second borrow of a part is an
   `Error::Runtime`, never a panic) and `stamp.rs` (`Stamp`, process-unique numbers from one
   counter: a slot's generation is one). The files
@@ -88,7 +90,9 @@ Checkpoint document) and times them.
   and `rules/information.rs` hold the contact kernels; what they share is in `contacts.rs`.
 - `src/core/world_core.rs`: `WorldCore`, one per world, in `world.__dict__["_core"]`. It holds the
   core's `World` and its handles: a `NamespaceMirror` per owned field or namespace, and the
-  `EntityStore`. A mirror is the core, its slot's index and the Python side: the tracked tree,
+  `EntityStore`. `own_value` gives a key no lane owns its `ValueRow` slot when
+  `state_mirror.NamespaceTable` first stores it; the tree stays attached, and the slot stays when the
+  key goes, with no row. A mirror is the core, its slot's index and the Python side: the tracked tree,
   whose sink it is (`sheltersim/core/state_mirror.py`), the node table and the bytes a save was
   given. The row and its taint, detach flag, generation and counters are the slot's. Each handle
   holds the core and the core holds it: `__traverse__` and `__clear__` let the collector break the
