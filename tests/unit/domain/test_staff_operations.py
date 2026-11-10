@@ -50,6 +50,7 @@ from sheltersim.events.handlers import (
 from sheltersim.events.models import EventKind, ScheduledEvent
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.policies.space import SpaceRouter
+from sheltersim.storage.checkpoints import CheckpointArchive
 from sheltersim.storage.history_index import HistoryIndex
 from sheltersim.storage.projects import ProjectStore
 
@@ -174,6 +175,18 @@ def _queue_arrival_for_intake(world: WorldState) -> None:
     assert world.model_state["population_dynamics_v1"]["pending_arrivals"]
 
 
+def _indexed(store: ProjectStore, checkpoint: Checkpoint) -> HistoryIndex:
+    """The index of Run "run" whose branch main is at checkpoint, saved as a Run saves it:
+    the index reads an event's rows from the saved head Checkpoint (#138)."""
+    saved = store._path("project", "runs", "run", "checkpoints")
+    saved.mkdir(parents=True)
+    manifest = CheckpointArchive(saved).encode(checkpoint)
+    (saved / f"{checkpoint.checkpoint_hash}.json").write_text(json.dumps(manifest))
+    index = HistoryIndex(store, "project", "run")
+    index.ingest("main", checkpoint, rebuild=True)
+    return index
+
+
 def test_staff_task_order_routes_and_completes_with_checkpointed_history(tmp_path: Path) -> None:
     world = _world()
     world.model_state["staff_operations_v1"]["zones"]["sleeping"]["sanitation"] = 0.4
@@ -282,10 +295,8 @@ def test_staff_task_order_routes_and_completes_with_checkpointed_history(tmp_pat
 
     store = ProjectStore(tmp_path)
     store.create_project("project")
-    store._path("project", "runs", "run").mkdir(parents=True)
     checkpoint = Checkpoint.capture(world)
-    index = HistoryIndex(store, "project", "run")
-    index.ingest("main", checkpoint, rebuild=True)
+    index = _indexed(store, checkpoint)
     page = index.search(
         "main",
         HistoryQuery(
@@ -661,9 +672,7 @@ def test_staff_operation_completion_has_typed_state_change_and_indexed_receipt(
     restored.validate()
     store = ProjectStore(tmp_path / "staff-operation-history")
     store.create_project("project")
-    store._path("project", "runs", "run").mkdir(parents=True)
-    index = HistoryIndex(store, "project", "run")
-    index.ingest("main", checkpoint, rebuild=True)
+    index = _indexed(store, checkpoint)
     page = index.search(
         "main",
         HistoryQuery(
@@ -855,9 +864,7 @@ def test_priority_support_preempts_routed_background_task_with_applied_evidence(
     checkpoint = Checkpoint.capture(world)
     store = ProjectStore(tmp_path / "staff-history")
     store.create_project("project")
-    store._path("project", "runs", "run").mkdir(parents=True)
-    index = HistoryIndex(store, "project", "run")
-    index.ingest("main", checkpoint, rebuild=True)
+    index = _indexed(store, checkpoint)
     page = index.search(
         "main",
         HistoryQuery(

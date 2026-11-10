@@ -34,7 +34,6 @@ from sheltersim.experiments.runner import OfflineSimulationController, run_scena
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _IndexedMetricSink, _MetricSink
 from sheltersim.policies.behavior import ActionProposal
-from sheltersim.storage import history_payloads
 from sheltersim.storage.history_index import HistoryIndex
 
 
@@ -378,17 +377,20 @@ def test_an_index_reads_a_row_of_bytes_as_its_dict(
     timeline.advance("main", 30, checkpoint_interval=15)
     index = HistoryIndex(store, "p", "r")
     with index.connect() as db:
-        # Payloads compare as text: compressed bytes may differ between zlib builds.
-        records = [
-            [*row[:-1], history_payloads.decode(row[-1])]
-            for row in db.execute(
-                "SELECT k.name, r.key, r.minute, "
-                + ", ".join(
-                    f"(SELECT name FROM names WHERE id=r.{column})"
-                    for column in ("event", "cause", "source", "type", "status")
-                )
-                + ", r.payload FROM records r JOIN kinds k ON k.code=r.kind ORDER BY k.name, r.key"
+        rows = db.execute(
+            "SELECT k.name, r.key, r.minute, "
+            + ", ".join(
+                f"(SELECT name FROM names WHERE id=r.{column})"
+                for column in ("event", "cause", "source", "type", "status")
             )
+            + ", r.branch, r.kind, r.position, r.payload, r.payload_hash "
+            "FROM records r JOIN kinds k ON k.code=r.kind ORDER BY k.name, r.key"
+        ).fetchall()
+        # Payloads compare as text: compressed bytes may differ between zlib builds, and a
+        # row made from an EventLog record is made again from it (#138).
+        records = [
+            [*tuple(row)[:8], text]
+            for row, text in zip(rows, index.payload_texts(db, rows), strict=True)
         ]
     assert records and any(row[0] == "actions" for row in records)
     _python_s(records, "8c860d77903353f7")

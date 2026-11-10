@@ -20,7 +20,7 @@ import pytest
 
 from sheltersim.contracts.workspace import HistoryQuery
 from sheltersim.experiments.scenario import ScenarioSpec
-from sheltersim.storage import history_index, history_payloads
+from sheltersim.storage import history_index
 from sheltersim.storage.history_index import HistoryIndex
 from sheltersim.storage.projects import ProjectStore, digest
 
@@ -151,14 +151,16 @@ def _values(root: Path, branch: str) -> dict[str, Any]:
             ]
             for column in ("type", "status", "source")
         }
+        rows = db.execute(
+            "SELECT n.name,r.branch,r.kind,r.key,r.position,r.payload,r.payload_hash "
+            "FROM entities e JOIN names n ON n.id=e.entity JOIN records r ON r.id=e.record"
+        ).fetchall()
+        texts = index.payload_texts(db, rows)
         staff = sorted(
             {
-                entity
-                for entity, payload in db.execute(
-                    "SELECT n.name,r.payload FROM entities e JOIN names n ON n.id=e.entity "
-                    "JOIN records r ON r.id=e.record"
-                )
-                if json.loads(history_payloads.decode(payload)).get("staff_id") == entity
+                row["name"]
+                for row, text in zip(rows, texts, strict=True)
+                if json.loads(text).get("staff_id") == row["name"]
             }
         )
     return {

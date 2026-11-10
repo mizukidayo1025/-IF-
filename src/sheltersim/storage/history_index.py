@@ -39,6 +39,10 @@ from sheltersim.storage.projects import (
 # a record kind is a fixed code (KINDS). The SHA-256 of a payload is its 32 bytes. Only
 # record_key holds the key: the other indexes end at the minute, and rows of one minute are
 # put in key order by a sort, which a search reads no slower for the smaller indexes.
+# Version 5 (#138) keeps no payload for a row derived from one EventLog record alone (an
+# event's row, and the social and action rows made from it): the row holds the record's
+# position in the EventLog, and a read derives the payload again from the indexed head
+# Checkpoint and checks it against payload_hash. Every other row keeps its payload.
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS generations(branch TEXT NOT NULL, kind TEXT NOT NULL, value INTEGER NOT NULL, PRIMARY KEY(branch,kind));
 CREATE TABLE IF NOT EXISTS heads(branch TEXT PRIMARY KEY, hash TEXT NOT NULL, minute INTEGER NOT NULL, counts TEXT NOT NULL);
@@ -46,7 +50,7 @@ CREATE TABLE IF NOT EXISTS checkpoints(branch TEXT NOT NULL, minute INTEGER NOT 
 CREATE TABLE IF NOT EXISTS lineage(branch TEXT PRIMARY KEY, parent TEXT NOT NULL, fork_minute INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS kinds(code INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE);
 CREATE TABLE IF NOT EXISTS names(id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE);
-CREATE TABLE IF NOT EXISTS records(id INTEGER PRIMARY KEY, branch INTEGER NOT NULL, kind INTEGER NOT NULL, minute INTEGER NOT NULL, key TEXT NOT NULL, event INTEGER, cause INTEGER, source INTEGER, type INTEGER, status INTEGER, payload BLOB NOT NULL, payload_hash BLOB NOT NULL);
+CREATE TABLE IF NOT EXISTS records(id INTEGER PRIMARY KEY, branch INTEGER NOT NULL, kind INTEGER NOT NULL, minute INTEGER NOT NULL, key TEXT NOT NULL, event INTEGER, cause INTEGER, source INTEGER, type INTEGER, status INTEGER, position INTEGER, payload BLOB, payload_hash BLOB NOT NULL, CHECK((position IS NULL)!=(payload IS NULL)));
 CREATE UNIQUE INDEX IF NOT EXISTS record_key ON records(branch,kind,key);
 CREATE INDEX IF NOT EXISTS record_time ON records(branch,kind,minute);
 CREATE INDEX IF NOT EXISTS record_event ON records(event) WHERE kind=4;
@@ -58,7 +62,7 @@ CREATE TABLE IF NOT EXISTS entities(entity INTEGER NOT NULL, record INTEGER NOT 
 CREATE TABLE IF NOT EXISTS tokens(token INTEGER NOT NULL, record INTEGER NOT NULL, PRIMARY KEY(token,record)) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS links(event INTEGER NOT NULL, record INTEGER NOT NULL, PRIMARY KEY(event,record)) WITHOUT ROWID;
 """  # noqa: E501
-_SCHEMA_VERSION = HISTORY_INDEX_VERSION = 4
+_SCHEMA_VERSION = HISTORY_INDEX_VERSION = 5
 # The record kinds, coded in the order of their names, so that rows ordered by code are
 # ordered as their names were. A new kind takes a new index version.
 KINDS = (
@@ -190,13 +194,123 @@ def _event_references(value: Any) -> set[str]:
     return result
 
 
+# The rows made from one EventLog record alone. Version 5 stores the record's position for
+# them, not their payloads, and a read makes them again with these (#138); a change to what
+# they make is a change of the index, which payload_hash then refuses.
+_SOCIAL_EVENT_TYPES = frozenset(
+    {
+        "information_contact_update",
+        "information_correction",
+        "proximity_contact_update",
+        "social_interaction",
+    }
+)
+_SOCIAL_ACTOR_FIELDS = (
+    "agent_id",
+    "participant_agent_id",
+    "sender_agent_id",
+    "recipient_agent_id",
+    "first_agent_id",
+    "second_agent_id",
+)
+_SOCIAL_FIELDS = (
+    "agent_id",
+    "participant_agent_id",
+    "interaction_type",
+    "action",
+    "topic_id",
+    "message_id",
+    "belief",
+    "contact_basis",
+    "contact_minutes",
+    "distance_m",
+    "zone_id",
+    "reason_short",
+)
+
+
+def _event_row(record: dict[str, Any]) -> dict[str, Any]:
+    """The row of an EventLog record."""
+    return {
+        **record["event"],
+        "minute": record["realized_minute"],
+        "status": record["status"],
+        "detail": record.get("detail"),
+        "time_semantics": "recorded_event_minute",
+    }
+
+
+def _social_row(record: dict[str, Any]) -> dict[str, Any] | None:
+    """The social row of an applied information, contact or social event, or None."""
+    event = record["event"]
+    event_type = event.get("event_type")
+    payload = event.get("payload", {})
+    if (
+        record["status"] != "applied"
+        or event_type not in _SOCIAL_EVENT_TYPES
+        or not isinstance(payload, dict)
+    ):
+        return None
+    social = {
+        "schema_version": 1,
+        "event_id": event["event_id"],
+        "minute": record["realized_minute"],
+        "time_semantics": "recorded_event_minute",
+        "event_type": event_type,
+        "status": "applied",
+        "actor_ids": sorted(
+            {
+                value
+                for name in _SOCIAL_ACTOR_FIELDS
+                if isinstance((value := payload.get(name)), str)
+            }
+        ),
+        "source_id": event.get("source_id"),
+        "causation_id": event.get("causation_id"),
+        "evidence_semantics": (
+            "structured_model_social_event"
+            if event_type == "social_interaction"
+            else "recorded_information_or_contact_event"
+        ),
+    }
+    for name in _SOCIAL_FIELDS:
+        value = payload.get(name)
+        if type(value) in (str, int, float, bool):
+            social[name] = value
+    state_context = payload.get("conversation_state_context")
+    if isinstance(state_context, dict):
+        social["conversation_state_context"] = state_context
+    return social
+
+
+def _action_row(record: dict[str, Any]) -> dict[str, Any] | None:
+    """The action, care or operations row of an applied event, or None."""
+    from sheltersim.inspection.action_history import applied_action_record
+
+    if record["status"] != "applied":
+        return None
+    return applied_action_record(record["event"], record["realized_minute"])
+
+
+def _derived_row(kind: int, key: str, record: dict[str, Any]) -> dict[str, Any] | None:
+    """The row of kind and key that ingest made from an EventLog record, or None."""
+    if kind == _EVENTS:
+        return _event_row(record)
+    if key.startswith("event:") and kind == _KIND_CODES["social"]:
+        return _social_row(record)
+    if key.startswith("applied:"):
+        return _action_row(record)
+    return None
+
+
 # Version 2 added lineage: a branch forked from another reads the parent's rows before its
 # fork minute instead of copying them. Version 3 stored the payloads of new rows compressed,
 # as BLOBs (storage/history_payloads.py, #80). Version 4 holds keys and repeated texts once
-# (#130). A file of versions 1 to 3 is neither read nor written, nor converted: rebuilding the
-# Run's index from its Checkpoints replaces it. Code that knows only version 3 refuses
-# version 4.
-_OLDER_VERSIONS = (1, 2, 3)
+# (#130). Version 5 holds EventLog positions in place of the payloads derived from them
+# (#138). A file of versions 1 to 4 is neither read nor written, nor converted: rebuilding
+# the Run's index from its Checkpoints replaces it. Code that knows only version 4 refuses
+# version 5.
+_OLDER_VERSIONS = (1, 2, 3, 4)
 
 
 def _check_version(version: int, *, new: bool = False) -> None:
@@ -421,7 +535,16 @@ class _RecordBatch:
                 self.names[name] = found
         return found
 
-    def put(self, kind: str, row: dict[str, Any], *, key: str | None = None) -> None:
+    def put(
+        self,
+        kind: str,
+        row: dict[str, Any],
+        *,
+        key: str | None = None,
+        position: int | None = None,
+    ) -> None:
+        """Put a row; with position, a row made from the EventLog record there, which is
+        stored without its payload (#138)."""
         code = _KIND_CODES.get(kind)
         if code is None:
             raise StorageError("history_index_kind_unknown")
@@ -441,36 +564,38 @@ class _RecordBatch:
         if type(minute) is not int or minute < 0:
             raise StorageError("invalid_index_record_minute")
         key = key or payload_hash
+        # A stored row is compared by the SHA-256 of its canonical JSON: compressed bytes
+        # may differ between zlib builds (#80), and a row of version 5 may have no payload.
         existing = self.pending.get((code, key))
         if existing is None:
             stored = self.db.execute(
-                "SELECT id,payload FROM records WHERE branch=? AND kind=? AND key=?",
+                "SELECT id,payload_hash FROM records WHERE branch=? AND kind=? AND key=?",
                 (branch, code, key),
             ).fetchone()
-            # Compared as text: compressed bytes may differ between zlib builds (#80).
             if stored is not None:
-                existing = (stored[0], history_payloads.decode(stored[1]))
+                existing = (stored[0], stored[1].hex())
         if existing is None and code != _CONVERSATIONS:
             # An ancestor's rows before the fork minute are read as this branch's.
             for ancestor, limit in self.ancestors:
                 if minute >= limit:
                     break
                 stored = self.db.execute(
-                    "SELECT payload FROM records WHERE branch=? AND kind=? AND key=? AND minute<?",
+                    "SELECT payload_hash FROM records WHERE branch=? AND kind=? AND key=? "
+                    "AND minute<?",
                     (ancestor, code, key, limit),
                 ).fetchone()
                 if stored is not None:
-                    if history_payloads.decode(stored[0]) != encoded:
+                    if stored[0].hex() != payload_hash:
                         raise StorageError("immutable_history_record_conflict")
                     return
         if existing is not None:
-            if existing[1] != encoded:
+            if existing[1] != payload_hash:
                 raise StorageError("immutable_history_record_conflict")
             record = existing[0]
             self.references.extend((self.name(event), record) for event in sorted(set(references)))
             return
         record, self.next_id = self.next_id, self.next_id + 1
-        self.pending[(code, key)] = (record, encoded)
+        self.pending[(code, key)] = (record, payload_hash)
         name = self.name
         self.records.append(
             (
@@ -484,7 +609,8 @@ class _RecordBatch:
                 name(row.get("source_id")),
                 name(row.get("event_type", row.get("action", row.get("kind")))),
                 name(row.get("status")),
-                history_payloads.encode(encoded),
+                position,
+                None if position is not None else history_payloads.encode(encoded),
                 bytes.fromhex(payload_hash),
             )
         )
@@ -504,7 +630,7 @@ class _RecordBatch:
 
     def flush(self) -> None:
         db = self.db
-        db.executemany("INSERT INTO records VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", self.records)
+        db.executemany("INSERT INTO records VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)", self.records)
         db.executemany("INSERT INTO entities VALUES(?,?)", self.entities)
         db.executemany("INSERT INTO tokens VALUES(?,?)", self.tokens)
         db.executemany("INSERT INTO links VALUES(?,?)", self.links)
@@ -786,77 +912,23 @@ class HistoryIndex:
             if offset > len(events):
                 raise StorageError("history_event_prefix_shortened")
             keys = getattr(checkpoint, "event_keys", None)
-            for index, record in enumerate(events[offset:]):
+            for index, record in enumerate(events[offset:], start=offset):
                 event = record["event"]
-                row = {
-                    **event,
-                    "minute": record["realized_minute"],
-                    "status": record["status"],
-                    "detail": record.get("detail"),
-                    "time_semantics": "recorded_event_minute",
-                }
                 # The sent bytes are the record's canonical JSON, which digest() would write again.
-                records.put("events", row, key=keys[index] if keys else digest(record))
+                records.put(
+                    "events",
+                    _event_row(record),
+                    key=keys[index - offset] if keys else digest(record),
+                    position=index,
+                )
                 if record["status"] == "applied":
                     event_type = event.get("event_type")
                     payload = event.get("payload", {})
-                    if event_type in {
-                        "information_contact_update",
-                        "information_correction",
-                        "proximity_contact_update",
-                        "social_interaction",
-                    } and isinstance(payload, dict):
-                        actor_ids = sorted(
-                            {
-                                value
-                                for name in (
-                                    "agent_id",
-                                    "participant_agent_id",
-                                    "sender_agent_id",
-                                    "recipient_agent_id",
-                                    "first_agent_id",
-                                    "second_agent_id",
-                                )
-                                if isinstance((value := payload.get(name)), str)
-                            }
+                    social = _social_row(record)
+                    if social is not None:
+                        records.put(
+                            "social", social, key="event:" + event["event_id"], position=index
                         )
-                        social = {
-                            "schema_version": 1,
-                            "event_id": event["event_id"],
-                            "minute": record["realized_minute"],
-                            "time_semantics": "recorded_event_minute",
-                            "event_type": event_type,
-                            "status": "applied",
-                            "actor_ids": actor_ids,
-                            "source_id": event.get("source_id"),
-                            "causation_id": event.get("causation_id"),
-                            "evidence_semantics": (
-                                "structured_model_social_event"
-                                if event_type == "social_interaction"
-                                else "recorded_information_or_contact_event"
-                            ),
-                        }
-                        for name in (
-                            "agent_id",
-                            "participant_agent_id",
-                            "interaction_type",
-                            "action",
-                            "topic_id",
-                            "message_id",
-                            "belief",
-                            "contact_basis",
-                            "contact_minutes",
-                            "distance_m",
-                            "zone_id",
-                            "reason_short",
-                        ):
-                            value = payload.get(name)
-                            if type(value) in (str, int, float, bool):
-                                social[name] = value
-                        state_context = payload.get("conversation_state_context")
-                        if isinstance(state_context, dict):
-                            social["conversation_state_context"] = state_context
-                        records.put("social", social, key="event:" + event["event_id"])
                         if event_type == "social_interaction":
                             # A deterministic, explicitly fictional example may help readers
                             # understand the applied typed intent. It is never a stored quote.
@@ -874,10 +946,10 @@ class HistoryIndex:
                             dialogue.update(
                                 _virtual_utterance_example(social, observed_model_effects) or {}
                             )
+                            # Its body-state effects may have left the head Checkpoint's
+                            # history, so the dialogue row keeps its payload.
                             records.put("dialogue", dialogue, key="event:" + event["event_id"])
-                    from sheltersim.inspection.action_history import applied_action_record
-
-                    action = applied_action_record(event, record["realized_minute"])
+                    action = _action_row(record)
                     continuity_is_shared = event[
                         "event_type"
                     ] == "staff_support_continuity" and "shared_operations" in world.get(
@@ -888,7 +960,9 @@ class HistoryIndex:
                             "care": "care",
                             "operations": "operations",
                         }.get(action.get("record_kind"), "actions")
-                        records.put(index_kind, action, key="applied:" + event["event_id"])
+                        records.put(
+                            index_kind, action, key="applied:" + event["event_id"], position=index
+                        )
                     if event["event_type"] in {
                         "care_support_transition",
                         "staff_support_continuity",
@@ -1099,6 +1173,7 @@ class HistoryIndex:
         graph = None
         with self.connect() as db:
             anchor, indexed_minute = self.answering_head(db, branch, anchor, anchor_minute)
+            head_hash = anchor
             # A filter whose value no row holds takes the id None, which matches nothing.
             ids: dict[Any, int | None] = {}
 
@@ -1224,7 +1299,8 @@ class HistoryIndex:
             for segment in segments:
                 segment_scope, segment_args = _scope([segment])
                 parts.append(
-                    "SELECT r.kind,r.minute,r.key,r.payload,r.payload_hash FROM records r "
+                    "SELECT r.branch,r.kind,r.minute,r.key,r.position,r.payload,r.payload_hash "
+                    "FROM records r "
                     "WHERE " + " AND ".join([segment_scope, *rest])
                 )
                 part_args.extend((*segment_args, *rest_args))
@@ -1239,6 +1315,8 @@ class HistoryIndex:
                 (*scope_args, *codes, query.start, query.end),
             ).fetchall()
             head = db.execute("SELECT counts FROM heads WHERE branch=?", (branch,)).fetchone()
+            selected = rows[: query.limit]
+            texts = self.payload_texts(db, selected, {segments[0][0]: head_hash})
         coverage_by_kind = {
             KINDS[row[0]]: {
                 "oldest_minute": row[1],
@@ -1254,13 +1332,10 @@ class HistoryIndex:
             if minute is not None
         ]
         counts = json.loads(head[0]) if head is not None else {}
-        selected = rows[: query.limit]
-        items = []
-        for row in selected:
-            payload = json.loads(history_payloads.decode(row["payload"]))
-            if digest(payload) != row["payload_hash"].hex():
-                raise StorageError("history_index_record_corrupt: rebuild from immutable source")
-            items.append({**payload, "record_kind": KINDS[row["kind"]]})
+        items = [
+            {**json.loads(text), "record_kind": KINDS[row["kind"]]}
+            for row, text in zip(selected, texts, strict=True)
+        ]
         following = (
             cursor_encode(
                 {
@@ -1303,6 +1378,59 @@ class HistoryIndex:
             "causal_interpretation": "Recorded model links, not empirical causal proof",
             **(graph or {}),
         }
+
+    def payload_texts(
+        self, db: sqlite3.Connection, rows: list[sqlite3.Row], heads: dict[int, str] | None = None
+    ) -> list[str]:
+        """The canonical JSON of each row (with its branch, kind, key, position, payload and
+        payload_hash), checked against its hash. A row without a payload is made again from
+        the EventLog record at its position in its branch's head Checkpoint (#138): heads, by
+        branch id, or else the heads table. EventLog records are only appended, so a head
+        holds every record its branch indexed, at the same position."""
+        heads = dict(heads or {})
+        wanted: dict[int, set[int]] = {}
+        for row in rows:
+            if row["position"] is not None:
+                wanted.setdefault(row["branch"], set()).add(row["position"])
+        sources: dict[tuple[int, int], dict[str, Any]] = {}
+        for branch_id, positions in sorted(wanted.items()):
+            if branch_id not in heads:
+                owner = db.execute(
+                    "SELECT h.hash FROM heads h JOIN names n ON n.name=h.branch WHERE n.id=?",
+                    (branch_id,),
+                ).fetchone()
+                if owner is None:
+                    raise StorageError("history_index_stale: explicitly resume index rebuild")
+                heads[branch_id] = owner[0]
+            records = self.store.checkpoint_items(
+                self.project_id,
+                self.run_id,
+                heads[branch_id],
+                ("world_state", "event_log"),
+                sorted(positions),
+            )
+            for position, record in records.items():
+                sources[branch_id, position] = record
+        texts = []
+        for row in rows:
+            if row["position"] is None:
+                text = history_payloads.decode(row["payload"])
+            else:
+                record = sources[row["branch"], row["position"]]
+                derived = (
+                    _derived_row(row["kind"], row["key"], record)
+                    if isinstance(record, dict) and isinstance(record.get("event"), dict)
+                    else None
+                )
+                if derived is None:
+                    raise StorageError(
+                        "history_index_record_corrupt: rebuild from immutable source"
+                    )
+                text = safe_row(derived)[1]
+            if hashlib.sha256(text.encode()).digest() != row["payload_hash"]:
+                raise StorageError("history_index_record_corrupt: rebuild from immutable source")
+            texts.append(text)
+        return texts
 
     def rebuild(self, branch: str) -> dict[str, Any]:
         """Explicit legacy migration, never a hidden GET side effect or simulation."""

@@ -120,7 +120,6 @@ def test_a_forked_branch_reads_the_rows_a_fresh_ingest_derives(
     parent's instead; what it reads equals the rows derived from its head from scratch."""
     import sqlite3
 
-    from sheltersim.storage import history_payloads
     from sheltersim.storage.history_index import HistoryIndex, _name_id, _scope, _segments
 
     store, timeline = saved_timeline(tmp_path, generated_scenario)
@@ -134,15 +133,19 @@ def test_a_forked_branch_reads_the_rows_a_fresh_ingest_derives(
     def rows(branch):
         segments = [(_name_id(db, name), limit) for name, limit in _segments(db, branch)]
         scope, args = _scope(segments)
-        # Payloads compare as text: compressed bytes may differ between zlib builds (#80).
+        # Payloads compare as text: compressed bytes may differ between zlib builds (#80),
+        # and a row made from an EventLog record is made again from it (#138).
+        named = db.cursor()
+        named.row_factory = sqlite3.Row
+        found = named.execute(
+            "SELECT k.name,r.key,r.minute,r.branch,r.kind,r.position,r.payload,r.payload_hash "
+            f"FROM records r JOIN kinds k ON k.code=r.kind WHERE {scope}",
+            args,
+        ).fetchall()
+        texts = index.payload_texts(db, found)
         tables = {
             "records": sorted(
-                (kind, key, minute, history_payloads.decode(payload))
-                for kind, key, minute, payload in db.execute(
-                    "SELECT k.name,r.key,r.minute,r.payload FROM records r JOIN kinds k ON "
-                    f"k.code=r.kind WHERE {scope}",
-                    args,
-                )
+                (row[0], row[1], row[2], text) for row, text in zip(found, texts, strict=True)
             )
         }
         for table, column in (("entities", "entity"), ("tokens", "token"), ("links", "event")):
