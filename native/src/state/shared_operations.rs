@@ -11,7 +11,7 @@ use pyo3::types::{PyList, PyString};
 
 pub(crate) use sheltersim_core::state::shared_operations::*;
 
-use crate::core::row::{exact_int, load_row, namespace_is_absent, py_row, py_str_enum, PyField, PyItems};
+use crate::core::row::{exact_int, namespace_is_absent, py_row, py_str_enum, PyField, PyItems};
 use crate::core::tracked::{as_readable_dict, as_readable_list};
 use crate::core::world_core::{loads_items, mirror_of, Misfit, NamespaceMirror, OrMisfit, Part, RowType, Write};
 use crate::encode;
@@ -259,7 +259,7 @@ fn history_passed(world: &Bound<'_, PyAny>) -> PyResult<()> {
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
-    m.add("ROW", Py::new(py, RowType::new("shared_operations", load_row::<SharedOperationsRow>))?)?;
+    m.add("ROW", Py::new(py, RowType::of::<SharedOperationsRow>("shared_operations"))?)?;
     m.add_function(wrap_pyfunction!(validate_tick, m)?)?;
     m.add_function(wrap_pyfunction!(recent_passed, m)?)?;
     m.add_function(wrap_pyfunction!(history_passed, m)?)?;

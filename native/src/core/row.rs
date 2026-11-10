@@ -79,11 +79,6 @@ pub(crate) trait PyItems: Items {
     fn slice_to_py<'py>(&self, py: Python<'py>, start: usize, stop: usize) -> PyResult<Bound<'py, PyList>>;
 }
 
-/// The loader of a namespace whose row is this type: `RowType::new("name", load_row::<ThatType>)`.
-pub(crate) fn load_row<T: PyField>(tree: &Bound<'_, PyAny>) -> Result<Box<dyn super::world_core::PyRow>, Misfit> {
-    Ok(Box::new(T::from_py(tree)?))
-}
-
 /// A scalar as the tree stores it.
 pub(crate) fn atom_to_py<'py>(py: Python<'py>, atom: Atom<'_>) -> PyResult<Bound<'py, PyAny>> {
     match atom {

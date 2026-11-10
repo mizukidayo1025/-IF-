@@ -1169,7 +1169,7 @@ def _fill_table(table: NamespaceTable, current: Any) -> None:
 
 def _attach_fields(world: Any, core: Any) -> None:
     for name, (module, row) in OWNED_FIELDS.items():
-        mirror = core.own(name, getattr(native.state(module), row))
+        mirror = core.own(name, getattr(native.state(module), row), field=True)
         current = world.__dict__[name]
         # Anything but a mapping stays as it is; the kernels then say Unsupported.
         if isinstance(current, dict):

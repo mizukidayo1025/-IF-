@@ -10,7 +10,7 @@ use pyo3::types::PyString;
 pub(crate) use sheltersim_core::state::information::*;
 
 use crate::contacts::exact_int;
-use crate::core::row::{load_row, py_row};
+use crate::core::row::{py_row};
 use crate::core::tracked::as_readable_dict;
 use crate::core::world_core::{mirror_of, raw_dict_get, NamespaceMirror, RowType};
 use crate::state::entities::{entities_of, EntityStore};
@@ -54,7 +54,7 @@ fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
-    m.add("ROW", Py::new(py, RowType::new("information", load_row::<InformationRow>))?)?;
+    m.add("ROW", Py::new(py, RowType::of::<InformationRow>("information"))?)?;
     m.add_function(wrap_pyfunction!(validate, m)?)?;
     Ok(())
 }

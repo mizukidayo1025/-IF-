@@ -8,7 +8,7 @@ use pyo3::IntoPyObjectExt;
 
 pub(crate) use sheltersim_core::state::staff_dynamics::*;
 
-use crate::core::row::{load_row, namespace_is_absent, py_row, py_str_enum, PyField};
+use crate::core::row::{namespace_is_absent, py_row, py_str_enum, PyField};
 use crate::core::world_core::{mirror_of, Misfit, NamespaceMirror, OrMisfit, RowType};
 use crate::state::entities::{entities_of, EntityStore};
 
@@ -86,7 +86,7 @@ fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
-    m.add("ROW", Py::new(py, RowType::new("staff_dynamics", load_row::<StaffDynamicsRow>))?)?;
+    m.add("ROW", Py::new(py, RowType::of::<StaffDynamicsRow>("staff_dynamics"))?)?;
     m.add_function(wrap_pyfunction!(validate, m)?)?;
     Ok(())
 }

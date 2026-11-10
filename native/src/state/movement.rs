@@ -10,7 +10,7 @@ use pyo3::types::{PyDict, PyString};
 
 pub(crate) use sheltersim_core::state::movement::*;
 
-use crate::core::row::{load_row, py_row, PyField};
+use crate::core::row::{py_row, PyField};
 use crate::core::tracked::as_readable_dict;
 use crate::core::world_core::{Misfit, OrMisfit, Part, RowType, Write};
 
@@ -131,6 +131,6 @@ impl PyField for Journey {
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
-    m.add("ROW", Py::new(py, RowType::new("movement", load_row::<MovementRow>))?)?;
+    m.add("ROW", Py::new(py, RowType::of::<MovementRow>("movement"))?)?;
     Ok(())
 }

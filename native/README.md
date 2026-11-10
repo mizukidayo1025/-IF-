@@ -37,8 +37,13 @@ Checkpoint document) and times them.
   with its indexes and the saved-record checks, and `writer`, which schedules and records rows
   with the Python errors), `row.rs` (`Field`, `Row`, `Items`, `state_row!`, `str_enum!`),
   `entities.rs` (the entity rows `AgentRow`…`TaskRow` with their `EntityField`, whose
-  `write_json` takes the WorldState version, `Table` and `Entities`) and `state/` (the rows of
-  the namespaces, with their checks that read the row alone or the entity rows). The files
+  `write_json` takes the WorldState version, `Table` and `Entities`, which also holds the taint),
+  `state/` (the rows of the namespaces, with their checks that read the row alone or the entity
+  rows), `world.rs` (`World`: one world's state, as `Shard` parts: `entities`, and `slots`, one
+  `Slot` per owned field or namespace with its row, taint, detach flag, generation and counters),
+  `cell.rs` (`Shard`, a part borrowed on its own; a second borrow of a part is an
+  `Error::Runtime`, never a panic) and `stamp.rs` (`Stamp`, process-unique numbers from one
+  counter: a slot's generation is one). The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,
   Python numbers and strings, `#[pyfunction]` entries): `src/core/errors.rs` maps an `Error` to
@@ -81,15 +86,22 @@ Checkpoint document) and times them.
   kernel and gives its reason, as `kernel_only` raises it.
   `rules/parity.rs` is the example and exposes `core` to the tests. `rules/social_propagation.rs`
   and `rules/information.rs` hold the contact kernels; what they share is in `contacts.rs`.
-- `src/core/world_core.rs`: `WorldCore`, one per world, in `world.__dict__["_core"]`, and a
-  `NamespaceMirror` per owned namespace, which holds its `PyRow` and is the sink of its tracked tree
-  (`sheltersim/core/state_mirror.py`). `src/state/sample_namespace.rs` is the small test-only
-  namespace; `docs/rust-port/lanes/p4-world-core.md` explains the mechanism. Rows hold no Python handles.
-  A `PyRow`'s `apply` runs no Python code and no `PyRefMut` is held across a callback. Read the
-  world's core again after any callback (`core_of`), since a copy-and-swap may have moved it.
-  `NamespaceMirror.generation_of(tree)` changes with every write that reaches a tree, from Python
-  or from Rust, so a check that read a namespace need not read it again
-  (`state_mirror.namespace_stamp`, `field_stamp`; `src/rules/after_tick.rs`).
+- `src/core/world_core.rs`: `WorldCore`, one per world, in `world.__dict__["_core"]`. It holds the
+  core's `World` and its handles: a `NamespaceMirror` per owned field or namespace, and the
+  `EntityStore`. A mirror is the core, its slot's index and the Python side: the tracked tree,
+  whose sink it is (`sheltersim/core/state_mirror.py`), the node table and the bytes a save was
+  given. The row and its taint, detach flag, generation and counters are the slot's. Each handle
+  holds the core and the core holds it: `__traverse__` and `__clear__` let the collector break the
+  cycle. A shim (`with_row`, `with_row_tree`, `with_value`, `EntityStore::with_rows`) borrows the
+  core shared and then its one part (R3 of the design in step5-plan.md); the same part twice is a
+  `RuntimeError`. `RowType` holds the operations of its row type (`RowType::of::<T>`), which find
+  the `PyRow` of the slot's `dyn Row` by `as_any`. `src/state/sample_namespace.rs` is the small
+  test-only namespace; `docs/rust-port/lanes/p4-world-core.md` explains the mechanism. Rows hold no
+  Python handles. A `PyRow`'s `apply` runs no Python code and no borrow is held across a callback.
+  Read the world's core again after any callback (`core_of`), since a copy-and-swap may have moved
+  it. `NamespaceMirror.generation_of(tree)` changes with every write that reaches a tree, from
+  Python or from Rust (it is a new stamp each time), so a check that read a namespace need not read
+  it again (`state_mirror.namespace_stamp`, `field_stamp`; `src/rules/after_tick.rs`).
 - `src/state/population.rs`: the `V` row of `population_presence_v1`, `population_lifecycle_v1`,
   `population_dynamics_v1`, `temporary_spaces_v1`, `geometry_overlay_v1` and `model_configs`
   (`docs/rust-port/lanes/m6-population.md`).
@@ -105,7 +117,7 @@ Checkpoint document) and times them.
   struct, `write_json` and mirrored setters from its list of fields, and any `Field` is a `Row`;
   a setter writes the tree through `TreeSink`, which `Tree` implements. Here, `py_row!` writes
   the Python side of such a struct from the same names (`PyField`: `from_py`, `to_py`, the handling
-  of forwarded writes), and any `PyField` is a `PyRow`, which a `NamespaceMirror` holds. This
+  of forwarded writes), and any `PyField` is a `PyRow`, which the slot of a `NamespaceMirror` holds. This
   crate's `state_row!` is both, for a row of this crate only. `src/state/psychological_distress.rs`,
   `src/state/metric_state.rs` and
   `src/rules/psychology.rs` are the production template: Rust owns those two, and its rule writes
@@ -115,9 +127,10 @@ Checkpoint document) and times them.
   a function uses `core/kernels.py`'s `kernel_only`; `src/state/staff_dynamics.rs` and
   `src/rules/staff_dynamics.rs` are the example of a whole module
   (`docs/rust-port/lanes/s-staff-dynamics.md`).
-- `src/state/entities.rs`: `EntityStore`, the typed rows of a world's agents, facilities, staff,
-  support requests and active tasks, from `WorldCore::entities`. The rows, `Table` and `Entities`
-  are the core's (`core/src/entities.rs`); here are reading a row from an object and making a
+- `src/state/entities.rs`: `EntityStore`, the handle of the typed rows of a world's agents,
+  facilities, staff, support requests and active tasks, from `WorldCore::entities`. The rows,
+  `Table` and `Entities` are the core's (`core/src/entities.rs`), held in the core `World`; here
+  are the counters, reading a row from an object and making a
   dict of it (`PyEntityField`, `py_entity_row!`), the enum members (`install`, `Member`), the
   links of the objects and the bytes objects of `rows_json`. The objects stay the dataclasses
   of `domain/models.py`, each mirroring its row; `IdMap`, `__setattr__` and `TrackedList` forward

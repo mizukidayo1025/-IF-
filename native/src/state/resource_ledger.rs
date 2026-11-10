@@ -7,7 +7,7 @@ use pyo3::types::{PyInt, PyList, PyString};
 
 pub(crate) use sheltersim_core::state::resource_ledger::*;
 
-use crate::core::row::{attribute, load_row, namespace_is_absent, py_row, PyField, PyItems};
+use crate::core::row::{attribute, namespace_is_absent, py_row, PyField, PyItems};
 use crate::core::tracked::{as_readable_dict, as_readable_list};
 use crate::core::world_core::{loads_items, mirror_of, raw_dict_get, Misfit, NamespaceMirror, Part, RowType, Write};
 use crate::Unsupported;
@@ -180,7 +180,7 @@ fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
-    m.add("ROW", Py::new(py, RowType::new("resource_ledger", load_row::<LedgerRow>))?)?;
+    m.add("ROW", Py::new(py, RowType::of::<LedgerRow>("resource_ledger"))?)?;
     m.add_function(wrap_pyfunction!(validate, m)?)?;
     Ok(())
 }

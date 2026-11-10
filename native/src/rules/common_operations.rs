@@ -334,13 +334,11 @@ fn recent_receipts_hold(world: &Bound<'_, PyAny>, mirror: &Bound<'_, NamespaceMi
     let document = PyDict::new(py);
     if is_detached(&state) {
         // The row's document without its history, and the recent receipts alone.
-        let (rest, recent) = {
-            let this = mirror.try_borrow()?;
-            let row = this_row(&this)?;
+        let (rest, recent) = NamespaceMirror::with_py_row(&mirror, |row| {
             let items = row.part_py_items("history").ok_or_else(|| Unsupported::new_err("no history"))?;
             let count = crate::core::world_core::Items::count(items);
-            (row.to_py_emptied(py, &["history"])?, crate::core::row::PyItems::slice_to_py(items, py, start.min(count), count)?)
-        };
+            Ok((row.to_py_emptied(py, &["history"])?, crate::core::row::PyItems::slice_to_py(items, py, start.min(count), count)?))
+        })?;
         document.call_method1(intern!(py, "update"), (&rest,))?;
         document.set_item("history", recent)?;
     } else {
@@ -358,10 +356,6 @@ fn recent_receipts_hold(world: &Bound<'_, PyAny>, mirror: &Bound<'_, NamespaceMi
         }
         Err(error) => Err(error),
     }
-}
-
-fn this_row<'a>(mirror: &'a NamespaceMirror) -> PyResult<&'a dyn crate::core::world_core::PyRow> {
-    mirror.row_ref().ok_or_else(|| Unsupported::new_err("the namespace has no row"))
 }
 
 /// `shared_operations_v1` as `record_other` reads and writes it: the tree, whose own methods keep

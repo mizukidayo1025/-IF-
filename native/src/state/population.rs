@@ -10,10 +10,10 @@
 
 use pyo3::prelude::*;
 
-use crate::core::world_core::{load_value_row, RowType};
+use crate::core::world_core::{RowType, ValueRow};
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
-    m.add("ROW", Py::new(py, RowType::new("population", load_value_row))?)?;
+    m.add("ROW", Py::new(py, RowType::of::<ValueRow>("population"))?)?;
     Ok(())
 }

@@ -5,6 +5,7 @@
 //! maps this crate's errors to Python's exceptions. The plan of the split is in
 //! `docs/rust-port/step5-plan.md`.
 
+pub mod cell;
 pub mod census;
 pub mod checkpoint;
 pub mod contacts;
@@ -17,6 +18,7 @@ pub mod mathx;
 pub mod parallel;
 pub mod rng;
 pub mod row;
+pub mod stamp;
 
 /// The rows of the namespaces of `model_state` and of the owned world fields. The PyO3 crate's
 /// `state/<name>.rs` of the same name reads each from Python and holds its validators.
@@ -38,3 +40,4 @@ pub mod state {
     pub mod staff_operations;
 }
 pub mod value;
+pub mod world;

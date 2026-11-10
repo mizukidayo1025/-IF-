@@ -13,10 +13,10 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
 use crate::core::errors::OrPy;
-use crate::core::row::{load_row, state_row, Field, IdMap};
+use crate::core::row::{state_row, Field, IdMap};
 use crate::core::value::V;
 use crate::core::world_core::{
-    core_of, load_value_row, mirror_of, NamespaceMirror, RowType,
+    core_of, mirror_of, NamespaceMirror, RowType, ValueRow,
 };
 use crate::{Encoder, Unsupported};
 
@@ -107,8 +107,8 @@ fn sum_levels(world: &Bound<'_, PyAny>) -> PyResult<f64> {
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
-    m.add("ROW", Py::new(py, RowType::new("sample_namespace", load_row::<SampleRow>))?)?;
-    m.add("VALUE_ROW", Py::new(py, RowType::new("sample_namespace_value", load_value_row))?)?;
+    m.add("ROW", Py::new(py, RowType::of::<SampleRow>("sample_namespace"))?)?;
+    m.add("VALUE_ROW", Py::new(py, RowType::of::<ValueRow>("sample_namespace_value"))?)?;
     m.add_function(wrap_pyfunction!(set_level, m)?)?;
     m.add_function(wrap_pyfunction!(set_level_after, m)?)?;
     m.add_function(wrap_pyfunction!(row_json, m)?)?;
