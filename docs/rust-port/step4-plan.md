@@ -1130,6 +1130,11 @@ L0 の前に文を読んで付けた分類です。到達は**推測で、上の
 - **履歴の名前空間：** `body_state_v1`、`shared_operations_v1`、`resource_ledger_v1`、`resource_service_v1` は `_WORLD_TREE` で項目ごとにハッシュするので、`owned_row_bytes` に bytes がありません（`_HASHED_BY_PARTS`）。`_SealedItems` と `validation_memo` も木のリストを読みます。項目ごとの bytes を行から出す口が要ります。
 - **実体（dataclass）：** `world.agents` など（上の表）は `IdMap` と行のミラーで、名前空間の切り離しとは別のしくみです。web、inspection、llm、experiments の読み手が多く、読み取り専用の窓（行から作る読み取りの実体）を先に作る必要があります。
 
+**L14 の段階2（#134、2026-11-10〜）：** 利用者の決定で、19の名前空間すべてを切り離します。実体（`world.agents` など）は切り離しません。測定と理由は #134 にあります（実体の Python のオブジェクトは7日目で約 2 MiB。P6 で写しにしたのは、Python の読み取りを遅くしないためです）。Run 全体の計算時間が +3% を超えて遅くなる名前空間は、読み手の口を細かくするか、切り離さずに残します。
+- **読み取り専用の口：** `state_mirror.read_only_part(world, name, key, default)` は `model_state.get(name, {}).get(key, default)` です。切り離した名前空間では、行のその1項目だけを文書にします（`NamespaceMirror.document_part`、`Field::part_to_py`）。木も、残りの項目も作りません。木があれば、木の値をそのまま返します。
+- **frame：** `inspection/frames.py` は `model_state` を `read_only_state` と `read_only_part` だけで読みます。frame は保存ごとに作るので、木を作り直しません。
+- **`social_network_v1`：** 切り離しました。tick の中の kernel は前から行だけを読んでいて、tick の外の読み手は frame だけでした。1日分の project の経路で、木の作り直しは0回です（`_REBUILD_OBSERVER` で数えました）。
+
 ## 6. エラーの文
 
 | | 数 | 出どころ |

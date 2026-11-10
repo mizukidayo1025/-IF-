@@ -67,6 +67,16 @@ pub(crate) trait Field: Sized + Send + Sync + 'static {
     fn is_absent(&self) -> bool {
         false
     }
+    /// What `to_py(...).get(key)` is, for a reader of one part of a detached namespace
+    /// (`NamespaceMirror.document_part`): None for a key the value does not have, or a value that
+    /// is not a dict. A `state_row!` record makes only that field; anything else makes the whole.
+    fn part_to_py<'py>(&self, py: Python<'py>, key: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+        let whole = self.to_py(py)?;
+        match whole.downcast::<PyDict>() {
+            Ok(record) => record.get_item(key),
+            Err(_) => Ok(None),
+        }
+    }
 }
 
 impl<T: Field> Row for T {
@@ -80,6 +90,10 @@ impl<T: Field> Row for T {
 
     fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
         Field::write_json(self, encoder)
+    }
+
+    fn part_to_py<'py>(&self, py: Python<'py>, key: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+        Field::part_to_py(self, py, key)
     }
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -661,6 +675,23 @@ macro_rules! state_row {
                     }
                 )*
                 Ok(record.into_any())
+            }
+
+            fn part_to_py<'py>(
+                &self,
+                py: pyo3::Python<'py>,
+                key: &str,
+            ) -> pyo3::PyResult<Option<pyo3::Bound<'py, pyo3::PyAny>>> {
+                $(
+                    if key == stringify!($field) {
+                        if $crate::core::row::Field::is_absent(&self.$field) {
+                            return Ok(None);
+                        }
+                        return $crate::core::row::Field::to_py(&self.$field, py).map(Some);
+                    }
+                )*
+                let _ = py;
+                Ok(None)
             }
 
             fn write_json(&self, encoder: &mut $crate::Encoder) -> pyo3::PyResult<()> {

@@ -17,6 +17,7 @@ from support.world import world_digest
 
 from sheltersim import native
 from sheltersim.core.kernels import KernelRefusal
+from sheltersim.core.state_mirror import DETACHED_NAMESPACES
 from sheltersim.core.world import WorldState
 from sheltersim.domain import (
     facility_queues,
@@ -27,7 +28,6 @@ from sheltersim.domain import (
 )
 from sheltersim.domain.facilities import ToiletServiceManager
 from sheltersim.domain.models import Activity
-from sheltersim.domain.psychological_state import PSYCHOLOGICAL_STATE_KEY
 from sheltersim.domain.resource_service import ResourceServiceManager
 from sheltersim.domain.simulator_state import initialize_simulator_extensions
 from sheltersim.domain.temporary_spaces import create_temporary_spaces_state
@@ -47,14 +47,12 @@ def _copy(world: WorldState) -> WorldState:
 def _bytes(world: WorldState) -> str:
     """The state as it is, valid or not: `to_dict` would check it.
 
-    psychological_distress_v1 is detached (test_detached_namespaces.py), so a read builds its
-    tree in the order of its typed row; these worlds come from JSON, whose keys are sorted.
+    A detached namespace (test_detached_namespaces.py) is read as a tree built in the order of
+    its typed row; these worlds come from JSON, whose keys are sorted.
     """
     model_state = dict(world.model_state)
-    if PSYCHOLOGICAL_STATE_KEY in model_state:
-        model_state[PSYCHOLOGICAL_STATE_KEY] = json.loads(
-            json.dumps(model_state[PSYCHOLOGICAL_STATE_KEY], sort_keys=True)
-        )
+    for name in DETACHED_NAMESPACES & model_state.keys():
+        model_state[name] = json.loads(json.dumps(model_state[name], sort_keys=True))
     parts = (
         model_state,
         world.metric_state,
