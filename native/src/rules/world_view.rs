@@ -21,6 +21,7 @@
 
 use std::sync::Arc;
 
+use pyo3::exceptions::PyKeyError;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
@@ -29,6 +30,7 @@ use pyo3::IntoPyObjectExt;
 use rustc_hash::FxHashMap;
 use sha2::{Digest, Sha256};
 
+use crate::core::configs;
 use crate::core::mathx::{py_fsum, py_min};
 use crate::core::parallel::parts_in_order;
 use crate::core::tracked::{as_readable_dict, is_detached};
@@ -410,7 +412,6 @@ impl ViewCache {
 }
 
 struct PythonHelpers {
-    selected_models: Py<PyAny>,
     world_view: Py<PyType>,
     need_view: Py<PyType>,
     agent_view: Py<PyType>,
@@ -428,7 +429,6 @@ fn helpers(py: Python<'_>) -> PyResult<&PythonHelpers> {
             Ok(module.getattr(name)?.downcast_into::<PyType>()?.unbind())
         };
         Ok(PythonHelpers {
-            selected_models: py.import("sheltersim.contracts.policies")?.getattr("selected_models")?.unbind(),
             world_view: kind("WorldView")?,
             need_view: kind("NeedView")?,
             agent_view: kind("AgentView")?,
@@ -441,11 +441,6 @@ fn helpers(py: Python<'_>) -> PyResult<&PythonHelpers> {
             new: py.import("builtins")?.getattr("object")?.getattr("__new__")?.unbind(),
         })
     })
-}
-
-/// A failure of the Python code this calls is Python's to raise: `from_world` runs it again.
-fn call_failed(_error: PyErr) -> PyErr {
-    Unsupported::new_err("the Python rule raises")
 }
 
 /// `state.get(name, {})` if both are dicts: one of the dicts `population_context_people` merges.
@@ -1044,18 +1039,25 @@ fn read_facility_contexts(
 
 /// `_misinformation_applies`: whether the selected psychology reads beliefs in false claims. These
 /// are `LIFE_STATE_PSYCHOLOGY_POLICIES` of `domain/psychological_state.py`.
-fn misinformation_applies(configs: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let py = configs.py();
-    let selection = helpers(py)?.selected_models.bind(py).call1((configs,)).map_err(call_failed)?;
-    let selected = selection.get_item(intern!(py, "psychology"))?;
-    let selected = selected.downcast_exact::<PyString>().map_err(|_| Unsupported::new_err("a model ID is not a str"))?;
-    Ok(matches!(selected.to_str()?, "life-state-feedback-v1" | "mean-reverting-life-state-v1"))
+/// The selection is kept for the configs' stamp (`core/configs.rs`).
+fn misinformation_applies(world: &Bound<'_, PyAny>) -> PyResult<bool> {
+    let selection = match configs::selection(world)? {
+        Ok(selection) => selection,
+        Err(fault) if fault.is_refusal() => return unsupported("a model ID is not a str"),
+        // A failure of the Python code is Python's to raise: `from_world` runs it again.
+        Err(_) => return unsupported("the Python rule raises"),
+    };
+    let Some(selected) = selection.get("psychology") else {
+        return Err(PyKeyError::new_err("psychology"));
+    };
+    Ok(matches!(&**selected, "life-state-feedback-v1" | "mean-reverting-life-state-v1"))
 }
 
 /// `misinformation_applies` of a world, for the shadow.
 #[pyfunction]
 fn misinformation_applies_of(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    misinformation_applies(&configs_of(world)?)
+    configs_of(world)?;
+    misinformation_applies(world)
 }
 
 fn configs_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
@@ -1088,7 +1090,7 @@ fn build(controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>) -> PyResult<(V
     let Some(configs_dict) = as_readable_dict(&configs) else {
         return unsupported("the configs are not a plain dict");
     };
-    let applies = misinformation_applies(&configs)?;
+    let applies = misinformation_applies(world)?;
     let (information, information_is_dict) = state_held(&model_state, intern!(py, "information_spread_v1"))?;
     let information_applies = applies && information_is_dict;
     if !information.is_none() && !information_is_dict {

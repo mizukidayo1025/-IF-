@@ -44,8 +44,10 @@ Checkpoint document) and times them.
   every other str key of `model_state` has a `ValueRow` slot, `Place::Value`, read by
   `Slots::value`),
   `cell.rs` (`Shard`, a part borrowed on its own; a second borrow of a part is an
-  `Error::Runtime`, never a panic) and `stamp.rs` (`Stamp`, process-unique numbers from one
-  counter: a slot's generation is one). The files
+  `Error::Runtime`, never a panic), `stamp.rs` (`Stamp`, process-unique numbers from one
+  counter: a slot's generation is one) and `config/` (`Configs`, the sections the kernels read
+  of one state of `model_configs`, each parsed at its first read as a value or a `Fault`, kept in
+  the world's `derived` part by the stamp of the `model_configs` slot). The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,
   Python numbers and strings, `#[pyfunction]` entries): `src/core/errors.rs` maps an `Error` to
@@ -106,6 +108,15 @@ Checkpoint document) and times them.
   it. `NamespaceMirror.generation_of(tree)` changes with every write that reaches a tree, from
   Python or from Rust (it is a new stamp each time), so a check that read a namespace need not read
   it again (`state_mirror.namespace_stamp`, `field_stamp`; `src/rules/after_tick.rs`).
+- `src/core/configs.rs`: fills the core's `Configs` with the Python contracts
+  (`selected_models`, `tick_plan`), called on the same tree at the first read of a section after
+  the stamp of `model_configs` changed. A parse never raises there; the read site replays the
+  fault as its own refusal, or, where the rule relays the error as it is, as the error of a second
+  parse (`reraise`), so the class, the text and the moment of every config error stay the same
+  (policies E7 and E14 of `docs/rust-port/step5-plan.md`). Configs no mirror follows, and a patched
+  `selected_models`, are parsed at every read. `watch_config_writes(True)` counts the writes to a
+  `model_configs` tree in place inside a tick phase (`config_writes_in_tick()`); the all-path gate
+  turns it on and reports any.
 - `src/state/population.rs`: the `V` row of `population_presence_v1`, `population_lifecycle_v1`,
   `population_dynamics_v1`, `temporary_spaces_v1`, `geometry_overlay_v1` and `model_configs`
   (`docs/rust-port/lanes/m6-population.md`).

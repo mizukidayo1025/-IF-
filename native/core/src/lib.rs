@@ -8,6 +8,7 @@
 pub mod cell;
 pub mod census;
 pub mod checkpoint;
+pub mod config;
 pub mod contacts;
 pub mod entities;
 pub mod error;

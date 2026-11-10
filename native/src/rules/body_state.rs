@@ -14,14 +14,15 @@ use pyo3::exceptions::PyRuntimeError;
 use pyo3::ffi;
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::sync::GILOnceCell;
-use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyModule as PyModuleType, PyString};
+use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
 use smallvec::SmallVec;
 
+use crate::core::configs;
 use crate::core::mathx::{hypot, py_max, py_min};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, namespace_is_absent, unsupported, PyField, IdMap};
 use crate::core::value::V;
 use crate::core::world_core::{mirror_of, NamespaceMirror};
+use sheltersim_core::config::Selection;
 use crate::encode;
 use crate::state::body_state::{
     new_relationship, BodyRecord, BodyRow, Relationship, MAX_SOCIAL_HISTORY, MAX_SOCIAL_RELATIONSHIPS, NAME,
@@ -643,17 +644,14 @@ impl Planner<'_> {
 
 // ---- Reading the world ----------------------------------------------------------------------------
 
-fn selected_models<'py>(py: Python<'py>, configs: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    static POLICIES: GILOnceCell<Py<PyModuleType>> = GILOnceCell::new();
-    let policies = POLICIES
-        .get_or_try_init(py, || Ok::<_, PyErr>(py.import("sheltersim.contracts.policies")?.unbind()))?
-        .bind(py);
-    // The rule's own selection, which raises for what it refuses. That is Python's to say.
-    let selection = policies
-        .getattr(intern!(py, "selected_models"))?
-        .call1((configs,))
-        .map_err(|_| crate::Unsupported::new_err("the model selection raises"))?;
-    Ok(selection)
+/// `selected_models(model_configs)`, kept for the configs' stamp (`core/configs.rs`). What it raises
+/// is the rule's to say.
+fn selected_models(world: &Bound<'_, PyAny>) -> PyResult<Arc<Selection>> {
+    match configs::selection(world)? {
+        Ok(selection) => Ok(selection),
+        Err(fault) if fault.is_refusal() => unsupported("not a selection"),
+        Err(_) => unsupported("the model selection raises"),
+    }
 }
 
 /// `create_affect` without a selection: the config's, by the function that also refuses a bad one.
@@ -669,23 +667,26 @@ fn affect_of_the_config<'py>(configs: &Bound<'py, PyAny>) -> PyResult<Bound<'py,
 }
 
 /// The operators the rule creates. An ID this kernel doesn't know is left to Python's factory.
-fn models_of<'py>(selection: &Bound<'py, PyAny>, configs: &Bound<'py, PyAny>) -> PyResult<Models> {
-    let py = selection.py();
-    let selection = exact_dict(selection)?;
-    let affect = match selection.get_item(intern!(py, "affect"))? {
-        Some(affect) => affect,
-        None => affect_of_the_config(configs)?,
+fn models_of<'py>(selection: &Selection, configs: &Bound<'py, PyAny>) -> PyResult<Models> {
+    let py = configs.py();
+    let of_the_config;
+    let affect = match selection.get("affect") {
+        Some(affect) => &**affect,
+        None => {
+            of_the_config = affect_of_the_config(configs)?;
+            exact_str(&of_the_config)?
+        }
     };
-    let affect = match exact_str(&affect)? {
+    let affect = match affect {
         LINEAR_AFFECT => Affect::Linear,
         TRUST_WEIGHTED_AFFECT => Affect::TrustWeighted,
         _ => return unsupported("an affect model this kernel doesn't know"),
     };
-    let Some(relationship) = selection.get_item(intern!(py, "relationship"))? else {
+    let Some(relationship) = selection.get("relationship") else {
         // `create_relationship_policy` without a selection.
         return Ok(Models { affect, trust: TrustPolicy::DurationOnly });
     };
-    let trust = match exact_str(&relationship)? {
+    let trust = match &**relationship {
         DURATION_TRUST => TrustPolicy::DurationOnly,
         DISTANCE_TRUST => {
             let configs = exact_dict(configs)?;
@@ -724,7 +725,7 @@ fn correction_actors<'py>(
     world: &Bound<'py, PyAny>,
     event: &Bound<'py, PyAny>,
     payload: &Bound<'py, PyAny>,
-    selection: &Bound<'py, PyAny>,
+    selection: &Selection,
 ) -> PyResult<Vec<Arc<str>>> {
     let py = world.py();
     let zone = read(payload, intern!(py, "zone_id"))?;
@@ -741,11 +742,10 @@ fn correction_actors<'py>(
         _ => return unsupported("a zone is not a str"),
     };
     actors.sort_unstable_by(|first, second| first.as_bytes().cmp(second.as_bytes()));
-    let selection = exact_dict(selection)?;
-    let Some(information) = selection.get_item(intern!(py, "information"))? else {
+    let Some(information) = selection.get("information") else {
         return unsupported("no information model is selected");
     };
-    if exact_str(&information)? != EVIDENCE_AWARE_INFORMATION {
+    if &**information != EVIDENCE_AWARE_INFORMATION {
         return Ok(actors);
     }
     let table = attribute(world, intern!(py, "model_state"))?;
@@ -806,7 +806,7 @@ fn action_of<'py>(
     event: &Bound<'py, PyAny>,
     event_type: &str,
     payload: &Bound<'py, PyAny>,
-    selection: &Bound<'py, PyAny>,
+    selection: &Selection,
     minute: i64,
 ) -> PyResult<(Action, EventFacts)> {
     let py = world.py();
@@ -965,7 +965,7 @@ pub(crate) fn record_social_event<'py>(world: &Bound<'py, PyAny>, event: &Bound<
         exact_str(&causation_id)?;
     }
     let configs = attribute(world, intern!(py, "model_configs"))?;
-    let selection = selected_models(py, &configs)?;
+    let selection = selected_models(world)?;
     let models = models_of(&selection, &configs)?;
     let (action, facts) = action_of(world, event, event_type, &payload, &selection, minute)?;
     if matches!(action, Action::Nothing) {

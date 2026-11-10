@@ -5,15 +5,17 @@
 //! (docs/rust-port/lanes/m6-handlers-rest.md).
 //!
 //! `InformationSpreadConfig.from_mapping` and `selected_models` stay Python's: they read the Scenario's
-//! contract, and neither changes anything.
+//! contract, and neither changes anything. The selection is kept for the configs' stamp
+//! (`core/configs.rs`).
 
 use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyKeyError, PyValueError};
 use pyo3::types::{PyDict, PyInt, PyString};
 
+use crate::core::configs;
 use crate::core::errors;
 use crate::core::mathx::{py_max, py_min};
 use crate::core::rng::{label, Key, KeyedDraws};
@@ -75,15 +77,24 @@ pub(crate) fn runtime_state<'py>(world: &Bound<'py, PyAny>) -> PyResult<(Bound<'
 }
 
 fn evidence_aware(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let py = world.py();
-    let selected = py.import("sheltersim.contracts.policies")?.getattr("selected_models")?.call1((attribute(world, intern!(py, "model_configs"))?,))?;
-    Ok(text_is(&selected.get_item("information")?, EVIDENCE_AWARE))
+    Ok(&*selected_information(world)? == EVIDENCE_AWARE)
 }
 
 /// What a contact's rule reads of `selected_models(...)["information"]`.
 fn information_model<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    let py = world.py();
-    py.import("sheltersim.contracts.policies")?.getattr("selected_models")?.call1((attribute(world, intern!(py, "model_configs"))?,))?.get_item("information")
+    Ok(PyString::new(world.py(), &selected_information(world)?).into_any())
+}
+
+/// `selected_models(world.model_configs)["information"]`, kept for the configs' stamp
+/// (`core/configs.rs`). What `selected_models` raises, and the KeyError of a selection without the
+/// key, are the rule's, as they are.
+fn selected_information(world: &Bound<'_, PyAny>) -> PyResult<Arc<str>> {
+    let selection = match configs::selection(world)? {
+        Ok(selection) => selection,
+        Err(fault) if fault.is_refusal() => return unsupported("not a selection"),
+        Err(_) => return Err(configs::reraise_selection(world)),
+    };
+    selection.get("information").cloned().ok_or_else(|| PyKeyError::new_err("information"))
 }
 
 /// `CounterRNG(world.seed)`, whose key is `str(seed)`: a Scenario's seed is any int from 0, past 64
@@ -730,7 +741,14 @@ fn acceptance_of(world: &Bound<'_, PyAny>, config: &Bound<'_, PyAny>, label: &st
     Ok(draw(&seed_of(world)?, label, minute, &ids) < chance)
 }
 
+/// `selected_models(world.model_configs)["information"]` as the rules read it, for the tests.
+#[pyfunction]
+fn selected_information_of(world: &Bound<'_, PyAny>) -> PyResult<String> {
+    Ok(selected_information(world)?.to_string())
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(selected_information_of, m)?)?;
     m.add_function(wrap_pyfunction!(claim_strength_of, m)?)?;
     m.add_function(wrap_pyfunction!(acceptance_of, m)?)?;
     m.add_function(wrap_pyfunction!(rumor, m)?)?;
