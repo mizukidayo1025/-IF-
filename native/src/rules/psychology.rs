@@ -733,12 +733,12 @@ fn clamp(value: f64) -> f64 {
 /// `_mean_reverting_terms(value, baseline, kappa, 1.0)`, whose checks the caller has done.
 #[inline]
 fn mean_reverting_terms(value: f64, baseline: f64, kappa: f64) -> PyResult<(f64, f64)> {
-    let decay = mathx::exp(-kappa * 1.0)?;
+    let decay = mathx::exp(-kappa * 1.0).map_err(mathx::math_error)?;
     let natural = (baseline - value) * (1.0 - decay);
     if kappa == 0.0 {
         return Ok((natural, 1.0));
     }
-    Ok((natural, -mathx::expm1(-kappa * 1.0)? / kappa))
+    Ok((natural, -mathx::expm1(-kappa * 1.0).map_err(mathx::math_error)? / kappa))
 }
 
 /// One person's next minute. A math function raises as Python did. Every float operation
@@ -802,8 +802,8 @@ fn step(model: Model, rates: &Rates, body: Option<&BodyRates>, a: &Input, mut st
                 support_wait_stress,
                 environmental_stress,
             ]);
-            let added = (1.0 - a.stress) * -mathx::expm1(-pressure)?;
-            let recovery = a.stress * -mathx::expm1(-stress_recovery)?;
+            let added = (1.0 - a.stress) * -mathx::expm1(-pressure).map_err(mathx::math_error)?;
+            let recovery = a.stress * -mathx::expm1(-stress_recovery).map_err(mathx::math_error)?;
             if let Some(stages) = stages {
                 stages.added = added;
                 stages.recovery = recovery;

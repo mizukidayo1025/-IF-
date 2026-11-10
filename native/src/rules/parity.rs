@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyInt, PyList, PyString};
 
 use crate::core::interner::{EnumTable, Interner, PyStrings};
-use crate::core::mathx::{self, Num};
+use crate::core::mathx::{self, Num, PyNum};
 use crate::core::rng::{Key, KeyedDraws};
 use crate::core::value::V;
 use crate::{Encoder, Unsupported};
@@ -20,7 +20,7 @@ fn results<'py>(
         .map(|value| match value {
             Ok(value) => value.into_bound_py_any(py),
             Err(error) => {
-                let raised = PyErr::from(error);
+                let raised = mathx::math_error(error);
                 (raised.get_type(py).name()?, error.text()).into_bound_py_any(py)
             }
         })

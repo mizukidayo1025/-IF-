@@ -1,38 +1,12 @@
 //! IDs and enum members as small numbers in rows, and one Python object for each, so that
 //! `agent.activity is Activity.IDLE` holds and a read allocates nothing. `Interner` holds no
-//! Python objects, so rows stay `Send + Sync`; the objects live in side tables.
-
-use std::collections::HashMap;
-use std::sync::Arc;
+//! Python objects, so rows stay `Send + Sync`; the objects live in side tables. `Interner` and `Sym`
+//! live in `sheltersim_core::interner`.
 
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(crate) struct Sym(u32);
-
-#[derive(Default)]
-pub(crate) struct Interner {
-    symbols: HashMap<Arc<str>, Sym>,
-    texts: Vec<Arc<str>>,
-}
-
-impl Interner {
-    pub(crate) fn intern(&mut self, text: &str) -> Sym {
-        if let Some(&symbol) = self.symbols.get(text) {
-            return symbol;
-        }
-        let symbol = Sym(u32::try_from(self.texts.len()).expect("under 2**32 distinct IDs"));
-        let text: Arc<str> = Arc::from(text);
-        self.texts.push(text.clone());
-        self.symbols.insert(text, symbol);
-        symbol
-    }
-
-    pub(crate) fn text(&self, symbol: Sym) -> &str {
-        &self.texts[symbol.0 as usize]
-    }
-}
+pub(crate) use sheltersim_core::interner::{Interner, Sym};
 
 /// The one Python str of each symbol, made when first asked for.
 #[derive(Default)]
@@ -47,7 +21,7 @@ impl PyStrings {
         interner: &Interner,
         symbol: Sym,
     ) -> Bound<'py, PyString> {
-        let index = symbol.0 as usize;
+        let index = symbol.index();
         if index >= self.objects.len() {
             self.objects.resize_with(index + 1, || None);
         }

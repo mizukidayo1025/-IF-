@@ -127,4 +127,12 @@ jobs:
       - name: Rustの禁止メソッドを確認
         run: |
           rustup toolchain install stable --profile minimal --component clippy
-          cargo clippy --manifest-path native/Cargo.toml -- -A clippy::all -D clippy::disallowed_methods
+          cargo clippy --manifest-path native/Cargo.toml --workspace -- -A clippy::all -D clippy::disallowed_methods
+      # The core crate builds without Python (#152): no pyo3 in its tree, and its own tests pass.
+      - name: Rustの中核がPyO3なしで動くことを確認
+        run: |
+          if cargo tree --manifest-path native/Cargo.toml -p sheltersim_core -e normal,build | grep -q pyo3; then
+            echo "sheltersim_core depends on pyo3" >&2
+            exit 1
+          fi
+          cargo test --manifest-path native/Cargo.toml -p sheltersim_core

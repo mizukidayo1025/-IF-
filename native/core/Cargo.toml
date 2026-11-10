@@ -1,0 +1,20 @@
+[package]
+name = "sheltersim_core"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The simulation core of 避難所IF！ without Python (Issue #152): no pyo3 dependency."
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+itoa = "1"
+# Pure Rust exp, expm1, pow and fma: the same bits on every OS (docs/rust-port/step4-plan.md, section 9).
+libm = "=0.2.16"
+rayon = "1.10"
+ryu = "1.0"
+sha2 = "0.10"
+
+[lints]
+workspace = true
