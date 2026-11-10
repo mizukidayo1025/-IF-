@@ -834,36 +834,41 @@ class ProjectStore:
             # Chunks of the branch's previous save (or of this Checkpoint, saved by
             # another branch) are referred to where they are, not written again.
             known = checkpoint_path if checkpoint_path.exists() else None
-            # A writer's later saves know the locations of its earlier saves' chunks.
-            if known is None and not (encoder is not None and encoder.pack_locations):
-                if path.exists():
-                    known = checkpoint_path.with_name(f"{prior['checkpoint_hash']}.json")
+            # The manifest this save's manifest is a delta of (#138): the branch's last save,
+            # or for a new child the Checkpoint it was forked from.
+            base = None
+            if path.exists():
+                base = prior["checkpoint_hash"]
+            else:
                 origin = checkpoint.runtime_state.get("fork_origin")
-                if (
-                    known is None
-                    and reference.parent_branch_id is not None
-                    and isinstance(origin, dict)
-                ):
-                    # A new child's first save shares most chunks with the Checkpoint it
-                    # was forked from.
+                if reference.parent_branch_id is not None and isinstance(origin, dict):
                     origin_hash = origin.get("checkpoint_hash")
                     if isinstance(origin_hash, str) and re.fullmatch(r"[a-f0-9]{64}", origin_hash):
-                        known = checkpoint_path.with_name(f"{origin_hash}.json")
+                        # A new child's first save shares most chunks with it.
+                        base = origin_hash
+            # A writer's later saves know the locations of its earlier saves' chunks.
+            if known is None and not (encoder is not None and encoder.pack_locations):
+                if base is not None:
+                    known = checkpoint_path.with_name(f"{base}.json")
             archive = CheckpointArchive(
                 checkpoint_path.parent,
                 max_new_bytes=max(0, self.max_bytes - self.usage()["bytes"] - 65_536),
                 content_check=_reject_sensitive_checkpoint_content,
                 encoder=encoder,
-                known_locations=(
-                    CheckpointArchive.pack_locations(self._read(known))
-                    if known is not None and known.exists()
-                    else None
-                ),
+                base=base,
             )
-            encoded_archive = archive._prepare_validated_document(
-                document,
-                checkpoint_hash=checkpoint.checkpoint_hash,
-            )
+            if known is not None and known.exists():
+                archive._known.update(archive.locations(self._read(known)))
+            if checkpoint_path.exists():
+                # The same Checkpoint, saved before by another branch: its manifest stays,
+                # and every chunk it refers to is stored.
+                encoded_archive = self._read(checkpoint_path)
+                archive.locations(encoded_archive)
+            else:
+                encoded_archive = archive._prepare_validated_document(
+                    document,
+                    checkpoint_hash=checkpoint.checkpoint_hash,
+                )
             pending_ledger_path = self._path(
                 project_id, "runs", reference.run_id, "checkpoint-write-pending.json"
             )

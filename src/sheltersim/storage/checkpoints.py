@@ -2,6 +2,8 @@
 
 A v3 manifest stores the chunks one save adds in one pack file and records where
 each of its chunks is. Chunks of v1/v2 archives are one file each and stay readable.
+A v4 manifest holds only what differs from the manifest of an earlier save (its base)
+and names it; reading follows at most _MAX_DELTA_DEPTH bases (#138).
 """
 
 from __future__ import annotations
@@ -34,8 +36,20 @@ _COMPRESS_THREAD_BYTES = 256 * 1024
 
 # Every manifest version this archive reads; saves write the last one.
 ARCHIVE_STORAGE_TYPES = frozenset(
-    {"checkpoint_archive_v1", "checkpoint_archive_v2", "checkpoint_archive_v3"}
+    {
+        "checkpoint_archive_v1",
+        "checkpoint_archive_v2",
+        "checkpoint_archive_v3",
+        "checkpoint_archive_v4",
+    }
 )
+
+# A v4 manifest is a delta of at most this many earlier ones; the next save writes all of
+# its document again (depth 0). Reading a manifest reads at most this many files more.
+_MAX_DELTA_DEPTH = 32
+
+# What a v4 manifest's delta puts in place of a node of its base's document.
+_SAME_AS_BASE = {"kind": "base"}
 
 # The list a restore reads as item bytes (SavedItems) when the Rust EventLog is there.
 _SAVED_EVENT_LOG = ("world_state", "event_log")
@@ -79,6 +93,7 @@ class CheckpointArchive:
         content_check: Callable[[list[tuple[Any, bytes | None]]], None] | None = None,
         encoder: CanonicalEncoder | None = None,
         known_locations: dict[str, tuple[str, int, int]] | None = None,
+        base: str | None = None,
     ) -> None:
         self.directory = directory
         self.chunk_records = chunk_records
@@ -109,6 +124,8 @@ class CheckpointArchive:
         self._prepared: dict[str, tuple[str, int, int]] = {}
         # The locations of the manifest being read.
         self._locations: dict[str, tuple[str, int, int]] = {}
+        # The checkpoint hash of the saved manifest a new one is a delta of (v4).
+        self.base = base
 
     def _check_directories(self) -> None:
         for directory in (self.chunk_directory, self.pack_directory):
@@ -307,17 +324,84 @@ class CheckpointArchive:
         self._prepared = {
             key: location for key, location in self._referenced.items() if location is not None
         }
+        base = self._delta_base()
+        if base is None:
+            depth, document, own = 0, packed, self._prepared
+        else:
+            depth, base_document, base_locations = base
+            document = _delta(packed, base_document)
+            own = {
+                key: location
+                for key, location in self._prepared.items()
+                if base_locations.get(key) != location
+            }
         body = {
             "checkpoint_hash": checkpoint_hash,
-            "document": packed,
-            "locations": _location_table(self._prepared),
+            "base": None if base is None else self.base,
+            "depth": depth,
+            "document": document,
+            "locations": _location_table(own),
         }
+        locations = self._prepared if base is None else {**base[2], **own}
+        self._remember_resolved(checkpoint_hash, depth, packed, locations)
         return {
             "schema_version": 1,
-            "storage_type": "checkpoint_archive_v3",
+            "storage_type": "checkpoint_archive_v4",
             **body,
             "manifest_hash": hashlib.sha256(canonical_bytes(body)).hexdigest(),
         }
+
+    def _delta_base(
+        self,
+    ) -> tuple[int, dict[str, Any], dict[str, tuple[str, int, int]]] | None:
+        """The depth a delta of self.base has, and that base's document and locations.
+
+        None when there is no base, it is not a v3/v4 manifest, or a delta of it would be
+        deeper than _MAX_DELTA_DEPTH allows: the manifest then holds its whole document.
+        """
+        if self.base is None or not _HASH.fullmatch(self.base):
+            return None
+        resolved = self._cached_resolved(self.base)
+        if resolved is None:
+            path = self.directory / f"{self.base}.json"
+            if not path.exists():
+                return None
+            record = _read_manifest(path)
+            if record.get("storage_type") not in {
+                "checkpoint_archive_v3",
+                "checkpoint_archive_v4",
+            }:
+                return None
+            reader = CheckpointArchive(self.directory)
+            document = reader._validate_manifest(record)
+            resolved = (record.get("depth", 0), document, reader._locations)
+        depth = resolved[0] + 1
+        if depth >= _MAX_DELTA_DEPTH:
+            return None
+        return depth, resolved[1], resolved[2]
+
+    def _cached_resolved(
+        self, checkpoint_hash: str
+    ) -> tuple[int, dict[str, Any], dict[str, tuple[str, int, int]]] | None:
+        if self.encoder is None:
+            return None
+        kept = self.encoder.run_inputs.get(("checkpoint_manifest",))
+        return kept[1] if kept is not None and kept[0] == checkpoint_hash else None
+
+    def _remember_resolved(
+        self,
+        checkpoint_hash: str,
+        depth: int,
+        document: dict[str, Any],
+        locations: dict[str, tuple[str, int, int]],
+    ) -> None:
+        """Keep the whole document and locations of the manifest being prepared, so the
+        same writer's next save need not read its base back."""
+        if self.encoder is not None:
+            self.encoder.run_inputs[("checkpoint_manifest",)] = (
+                checkpoint_hash,
+                (depth, document, locations),
+            )
 
     def _write_prepared(self) -> None:
         pack, self._new_pack = self._new_pack, None
@@ -441,19 +525,16 @@ class CheckpointArchive:
         With view, a save of another model version is restored for reading only
         (Checkpoint.restore_view()).
         """
-        self._validate_manifest(record)
+        document = self._validate_manifest(record)
         # Each chunk is parsed anew, so the unpacked document is not shared.
-        checkpoint, restored = Checkpoint._load(
-            self._unpack(record["document"], saved=True), view=view
-        )
+        checkpoint, restored = Checkpoint._load(self._unpack(document, saved=True), view=view)
         if checkpoint.checkpoint_hash != record["checkpoint_hash"]:
             raise CheckpointError("checkpoint archive pointer hash mismatch")
         return checkpoint, restored
 
     def unpack_document(self, record: dict[str, Any]) -> Any:
         """The unpacked Checkpoint document of a valid manifest, before any hash check."""
-        self._validate_manifest(record)
-        return self._unpack(record["document"])
+        return self._unpack(self._validate_manifest(record))
 
     def document(self, record: dict[str, Any]) -> dict[str, Any]:
         """Verify original logical hashes without interpreting a newer model schema.
@@ -461,8 +542,7 @@ class CheckpointArchive:
         Used only for recorded-evidence indexing/compatibility. Simulation restore
         still goes through Checkpoint and current implementation/schema validation.
         """
-        self._validate_manifest(record)
-        document = self._unpack(record["document"])
+        document = self._unpack(self._validate_manifest(record))
         if (
             not isinstance(document, dict)
             or document.get("checkpoint_hash") != record["checkpoint_hash"]
@@ -476,28 +556,82 @@ class CheckpointArchive:
             raise CheckpointError("checkpoint logical integrity mismatch")
         return document
 
-    def _validate_manifest(self, record: dict[str, Any]) -> None:
+    def _validate_manifest(self, record: dict[str, Any], *, _depth: int | None = None) -> Any:
+        """Check a manifest and return its whole document; its chunk locations are read.
+
+        A v4 manifest's delta is applied to its base's document, read and checked the
+        same way; a base is a v3 manifest or a v4 one exactly one less deep.
+        """
         if (
             type(record.get("schema_version")) is not int
             or record.get("schema_version") != 1
             or record.get("storage_type") not in ARCHIVE_STORAGE_TYPES
         ):
             raise CheckpointError("unsupported checkpoint archive version")
+        storage_type = record["storage_type"]
+        if _depth is not None and storage_type not in {
+            "checkpoint_archive_v3",
+            "checkpoint_archive_v4",
+        }:
+            raise CheckpointError("invalid checkpoint archive base")
         self._locations = {}
-        if record["storage_type"] == "checkpoint_archive_v1":
-            return
+        if storage_type == "checkpoint_archive_v1":
+            return record["document"]
         body = {"checkpoint_hash": record["checkpoint_hash"], "document": record["document"]}
-        if record["storage_type"] == "checkpoint_archive_v3":
+        if storage_type in {"checkpoint_archive_v3", "checkpoint_archive_v4"}:
             body["locations"] = record.get("locations")
+        if storage_type == "checkpoint_archive_v4":
+            body["base"] = record.get("base")
+            body["depth"] = record.get("depth")
         if hashlib.sha256(canonical_bytes(body)).hexdigest() != record.get("manifest_hash"):
             raise CheckpointError("checkpoint archive manifest integrity mismatch")
-        if record["storage_type"] == "checkpoint_archive_v3":
+        if storage_type == "checkpoint_archive_v3":
+            if _depth not in (None, 0):
+                raise CheckpointError("invalid checkpoint archive base")
             self._locations = self.pack_locations(record)
+            return record["document"]
+        if storage_type != "checkpoint_archive_v4":
+            return record["document"]
+        own = self.pack_locations(record)
+        base, depth = record.get("base"), record.get("depth")
+        if (
+            type(depth) is not int
+            or not 0 <= depth < _MAX_DELTA_DEPTH
+            or (_depth is not None and depth != _depth)
+            or (base is None) != (depth == 0)
+        ):
+            raise CheckpointError("invalid checkpoint archive base")
+        if base is None:
+            self._locations = own
+            return record["document"]
+        if not isinstance(base, str) or not _HASH.fullmatch(base):
+            raise CheckpointError("invalid checkpoint archive base")
+        path = self.directory / f"{base}.json"
+        if path.is_symlink() or self.directory.is_symlink():
+            raise CheckpointError("checkpoint archive bases cannot follow symlinks")
+        base_record = _read_manifest(path)
+        if base_record.get("checkpoint_hash") != base:
+            raise CheckpointError("checkpoint archive base hash mismatch")
+        # A v3 base stands at depth 0 as a v4 manifest without a base does.
+        base_document = self._validate_manifest(
+            base_record,
+            _depth=depth - 1 if base_record.get("storage_type") == "checkpoint_archive_v4" else 0,
+        )
+        if base_record.get("storage_type") == "checkpoint_archive_v3" and depth != 1:
+            raise CheckpointError("invalid checkpoint archive base")
+        self._locations = {**self._locations, **own}
+        return _resolve(record["document"], base_document)
+
+    def locations(self, record: dict[str, Any]) -> dict[str, tuple[str, int, int]]:
+        """The chunk locations a valid manifest reads, its bases' included."""
+        self._validate_manifest(record)
+        return dict(self._locations)
 
     @staticmethod
     def pack_locations(record: dict[str, Any]) -> dict[str, tuple[str, int, int]]:
-        """The chunk locations of a v3 manifest, empty for v1/v2; malformed ones fail."""
-        if record.get("storage_type") != "checkpoint_archive_v3":
+        """The chunk locations a v3 or v4 manifest holds itself (a v4 one's base holds the
+        others), empty for v1/v2; malformed ones fail."""
+        if record.get("storage_type") not in {"checkpoint_archive_v3", "checkpoint_archive_v4"}:
             return {}
         table = record.get("locations")
         packs = table.get("packs") if isinstance(table, dict) else None
@@ -544,8 +678,7 @@ class CheckpointArchive:
 
     def project(self, record: dict[str, Any], path: tuple[str, ...]) -> Any:
         """Read a verified named field without reconstructing the WorldState."""
-        self._validate_manifest(record)
-        node = self._path_node(record["document"], path)
+        node = self._path_node(self._validate_manifest(record), path)
         return node["value"] if node.get("kind") == "inline" else self._unpack(node)
 
     @staticmethod
@@ -576,8 +709,7 @@ class CheckpointArchive:
             or not 1 <= limit <= 1000
         ):
             raise CheckpointError("invalid checkpoint projection page")
-        self._validate_manifest(record)
-        node = self._path_node(record["document"], path)
+        node = self._path_node(self._validate_manifest(record), path)
         if node.get("kind") == "list_v2":
             starts, length = node["starts"], node["length"]
             self._indexed_list_metadata(node)
@@ -615,6 +747,95 @@ class CheckpointArchive:
             "projection_integrity": "manifest_and_selected_chunks",
             "full_checkpoint_verified_by_this_read": False,
         }
+
+
+def _read_manifest(path: Path) -> dict[str, Any]:
+    try:
+        record = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise CheckpointError("checkpoint archive base is missing or corrupt") from exc
+    if not isinstance(record, dict):
+        raise CheckpointError("checkpoint archive base is missing or corrupt")
+    return record
+
+
+def _delta(node: dict[str, Any], base: Any) -> dict[str, Any]:
+    """node as a v4 manifest writes it over base, the node at the same place in its base.
+
+    A node equal to base's is _SAME_AS_BASE; an indexed list that keeps base's leading
+    chunks lists only the chunks after them (list_v2_tail); objects are compared field by
+    field. Anything else is written whole.
+    """
+    if not isinstance(base, dict):
+        return node
+    if node == base:
+        return _SAME_AS_BASE
+    kind = node.get("kind")
+    if kind == "object" and base.get("kind") == "object":
+        fields = base["fields"]
+        return {
+            "kind": "object",
+            "fields": {
+                key: _delta(value, fields.get(key)) for key, value in node["fields"].items()
+            },
+        }
+    if kind == "list_v2" and base.get("kind") == "list_v2":
+        kept = 0
+        for mine, theirs in zip(
+            zip(node["chunks"], node["starts"]), zip(base["chunks"], base["starts"])
+        ):
+            if mine != theirs:
+                break
+            kept += 1
+        if kept:
+            return {
+                "kind": "list_v2_tail",
+                "base_chunks": kept,
+                "chunks": node["chunks"][kept:],
+                "starts": node["starts"][kept:],
+                "length": node["length"],
+            }
+    return node
+
+
+def _resolve(node: Any, base: Any, depth: int = 0) -> Any:
+    """The node a v4 delta stands for, over base (the whole node at the same place)."""
+    if depth > 64 or not isinstance(node, dict):
+        raise CheckpointError("invalid checkpoint archive structure")
+    kind = node.get("kind")
+    if node == _SAME_AS_BASE:
+        if not isinstance(base, dict):
+            raise CheckpointError("checkpoint archive delta has no base node")
+        return base
+    if kind == "object" and set(node) == {"kind", "fields"} and isinstance(node["fields"], dict):
+        fields = base["fields"] if isinstance(base, dict) and base.get("kind") == "object" else {}
+        return {
+            "kind": "object",
+            "fields": {
+                key: _resolve(value, fields.get(key), depth + 1)
+                for key, value in node["fields"].items()
+            },
+        }
+    if kind == "list_v2_tail":
+        kept = node.get("base_chunks")
+        if (
+            set(node) != {"kind", "base_chunks", "chunks", "starts", "length"}
+            or not isinstance(base, dict)
+            or base.get("kind") != "list_v2"
+            or type(kept) is not int
+            or not 0 < kept <= len(base["chunks"])
+            or not isinstance(node["chunks"], list)
+            or not isinstance(node["starts"], list)
+        ):
+            raise CheckpointError("checkpoint archive delta does not fit its base")
+        # _unpack checks the offsets and length of the whole list.
+        return {
+            "kind": "list_v2",
+            "chunks": base["chunks"][:kept] + node["chunks"],
+            "starts": base["starts"][:kept] + node["starts"],
+            "length": node["length"],
+        }
+    return node
 
 
 def _location_table(locations: dict[str, tuple[str, int, int]]) -> dict[str, Any]:
