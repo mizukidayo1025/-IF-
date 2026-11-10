@@ -565,11 +565,22 @@ _DETACHED = object()
 # it only kernels, which read the rows too; so a world keeps no tree for them. A whole write loads
 # the row directly; a Python read builds a tree, which detach_unread drops at the next tick.
 DETACHED_NAMESPACES = frozenset(
-    {"psychological_distress_v1", "social_propagation_v1", "temporary_spaces_v1"}
+    {
+        "psychological_distress_v1",
+        "social_propagation_v1",
+        "temporary_spaces_v1",
+        "social_network_v1",
+    }
 )
+
+# Called with a namespace's name each time a read builds its tree again: for the tests and the
+# benchmarks that find where Python still reads a detached namespace. None in a Run.
+_REBUILD_OBSERVER: Callable[[str], None] | None = None
 
 
 def _rebuild(table: NamespaceTable, key: Any) -> None:
+    if _REBUILD_OBSERVER is not None:
+        _REBUILD_OBSERVER(key)
     dict.__setitem__(table, key, table._mirrors[key].rebuild())
     _settle(table)
 
@@ -660,6 +671,25 @@ def read_only_state(world: Any, name: str, default: Any = None) -> Any:
     if held is _MISSING:
         return default
     return _held_value(table, name, held)
+
+
+def read_only_part(world: Any, name: str, key: str, default: Any = None) -> Any:
+    """world.model_state.get(name, {}).get(key, default) for a reader that never writes to it.
+
+    A detached namespace gives a new document of that one field of its row, and neither the tree
+    nor the rest of the document is made: for a reader of a part of a large namespace, such as a
+    frame (inspection/frames.py). An attached one gives its tree's value, as before.
+    """
+    table = world.model_state
+    if not isinstance(table, dict):
+        return table.get(name, {}).get(key, default)
+    held = dict.get(table, name, _MISSING)
+    if held is _MISSING:
+        return default
+    if held is _DETACHED:
+        part = table._mirrors[name].document_part(key)
+        return default if part is None else part[0]
+    return held.get(key, default) if isinstance(held, dict) else default
 
 
 def same_detached(mine: Any, theirs: Any, name: str) -> bool | None:

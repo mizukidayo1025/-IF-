@@ -27,10 +27,12 @@ from sheltersim.core.state_mirror import (
 )
 from sheltersim.core.world import StateInvariantError, WorldState
 from sheltersim.domain.psychological_state import PSYCHOLOGICAL_STATE_KEY
+from sheltersim.domain.social_network import SOCIAL_NETWORK_STATE_KEY
 from sheltersim.domain.temporary_spaces import TEMPORARY_SPACES_STATE_KEY
 from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
+from sheltersim.inspection.frames import world_frame
 
 SOCIAL = "social_propagation_v1"
 
@@ -68,12 +70,17 @@ def ticked(generated_scenario: Any) -> tuple[WorldState, TickEngine]:
     return _run(generated_scenario, 20)
 
 
-def test_a_run_holds_the_three_namespaces_in_their_rows_alone(
+def test_a_run_holds_the_detached_namespaces_in_their_rows_alone(
     ticked: tuple[WorldState, TickEngine],
 ) -> None:
     world, _ = ticked
-    assert DETACHED_NAMESPACES == {PSYCHOLOGICAL_STATE_KEY, SOCIAL, TEMPORARY_SPACES_STATE_KEY}
-    # The generated Scenario has all three; the social one is made at the first tick.
+    assert DETACHED_NAMESPACES == {
+        PSYCHOLOGICAL_STATE_KEY,
+        SOCIAL,
+        TEMPORARY_SPACES_STATE_KEY,
+        SOCIAL_NETWORK_STATE_KEY,
+    }
+    # The generated Scenario has them all; the social one is made at the first tick.
     assert _all_detached(world)
     assert isinstance(world.model_state, NamespaceTable)
     # The kernels of 20 ticks and their checks read the rows: no tree was built.
@@ -213,3 +220,38 @@ def test_a_temporary_space_error_keeps_its_words_with_the_row_alone(
     assert str(detached.value) == str(with_tree.value) == "invalid simulator extension state"
     assert str(detached.value.__cause__) == str(with_tree.value.__cause__)
     assert world._core.mirror(TEMPORARY_SPACES_STATE_KEY).is_detached
+
+
+def test_read_only_part_is_one_field_of_the_document(
+    ticked: tuple[WorldState, TickEngine],
+) -> None:
+    world, _ = ticked
+    for name in DETACHED_NAMESPACES:
+        document = world._core.mirror(name).document()
+        for key, value in document.items():
+            assert state_mirror.read_only_part(world, name, key) == value
+        assert state_mirror.read_only_part(world, name, "absent", []) == []
+    assert state_mirror.read_only_part(world, "absent_v1", "agents", {}) == {}
+    assert _all_detached(world) and _rebuilds(world) == dict.fromkeys(DETACHED_NAMESPACES, 0)
+    # An attached namespace gives its tree's value, as model_state[name].get(key) does.
+    tree = world.model_state[SOCIAL_NETWORK_STATE_KEY]
+    assert (
+        state_mirror.read_only_part(world, SOCIAL_NETWORK_STATE_KEY, "relationships")
+        is (tree["relationships"])
+    )
+
+
+def test_a_frame_reads_the_rows_and_is_the_frame_of_the_trees(
+    ticked: tuple[WorldState, TickEngine],
+) -> None:
+    world, _ = ticked
+
+    def frame() -> dict[str, Any]:
+        return world_frame(world, run_id="r", branch_id="b", computed_until=world.minute_index)
+
+    detached = frame()
+    assert _rebuilds(world) == dict.fromkeys(DETACHED_NAMESPACES, 0)
+    for name in DETACHED_NAMESPACES:
+        world.model_state[name]
+    assert not any(world._core.mirror(name).is_detached for name in DETACHED_NAMESPACES)
+    assert frame() == detached
