@@ -1505,9 +1505,32 @@ class WorldState:
         self.id_counters["event"] = max(self.id_counters.get("event", 0), event.sequence + 1)
 
     def canonical_json(self) -> str:
-        """Serialize the complete current state deterministically as compact JSON."""
+        """Serialize the complete current state deterministically as compact JSON.
+
+        The "event_log" part joins the canonical JSON bytes the EventLog keeps for its
+        records (the bytes a Checkpoint saves) instead of encoding to_dict() of each
+        record again; a 7-day Run has some 270,000 records (#138, #134). The text is the
+        same as json.dumps of _canonical_data(): the top-level keys are written in sorted
+        order here, each with its value encoded alone, as json.dumps writes them.
+        """
         self.validate()
-        return self._canonical_text(self._canonical_data())
+        log = self.event_log
+        if not log.all_encoded():
+            # A record Rust could not write or check has bytes from the Python encoder;
+            # the whole document is encoded as before.
+            return self._canonical_text(self._canonical_data())
+        data = self._canonical_data(include_event_log=False)
+        # The pieces hold the separators, so the records' text is copied only once more.
+        pieces: list[str] = []
+        for key in sorted(data):
+            pieces.append(("," if pieces else "{") + self._canonical_text(key) + ":")
+            if key == "event_log":
+                records = b",".join(log.items_bytes(0, len(log))).decode("utf-8")
+                pieces += ("[", records, "]")
+            else:
+                pieces.append(self._canonical_text(data[key]))
+        pieces.append("}")
+        return "".join(pieces)
 
     def _canonical_data(
         self,

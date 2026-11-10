@@ -336,6 +336,61 @@ def test_state_digest_is_the_state_hash_of_a_checkpoint_of_the_world(
     assert world.state_digest() == Checkpoint.capture(world).state_hash
 
 
+def test_canonical_json_is_the_text_of_each_record_encoded_from_its_document(
+    live_checkpoint_world,
+) -> None:
+    """canonical_json() joins the bytes the EventLog keeps for its records (#138, #134).
+
+    Its text is json.dumps of the document with each record's to_dict(), for a live log, for
+    a log read back from a saved Checkpoint, and for a log with a record Rust could not
+    write, which is encoded from the documents as before.
+    """
+    from sheltersim.core.checkpoint import Checkpoint
+    from sheltersim.events.models import EventKind, ScheduledEvent
+
+    class Text(str):
+        pass
+
+    def realize(world: WorldState, name: str, payload: dict[str, object]) -> None:
+        world.schedule_event(
+            ScheduledEvent(
+                event_id=name,
+                kind=EventKind.EXOGENOUS,
+                due_minute=world.minute_index,
+                priority=0,
+                sequence=world.allocate_event_sequence(),
+                event_type="unknown_canonical_test_event",
+                payload=payload,
+            )
+        )
+        EventDispatcher().dispatch_due(world, world.minute_index)
+
+    def per_record_text(world: WorldState) -> str:
+        return WorldState._canonical_text(world._canonical_data())
+
+    world = live_checkpoint_world
+    realize(
+        world,
+        "canonical-text",
+        {
+            "text": 'quote " back \\ line\n tab\t 避難所   \x7f',
+            "numbers": [0.1 + 0.2, 1e-7, 1e16, 1e22, -0.0, 5.0, 2**70, True, None],
+            "nested": {"b": [], "a": {}, "ä": 1, "z": 2},
+        },
+    )
+    assert world.event_log.all_encoded()
+    assert len(world.event_log) >= 2
+    assert world.canonical_json() == per_record_text(world)
+
+    restored = Checkpoint.from_json(Checkpoint.capture(world).to_json()).restore_world()
+    assert restored.event_log.all_encoded()
+    assert restored.canonical_json() == per_record_text(restored) == world.canonical_json()
+
+    realize(world, "canonical-str-subclass", {"text": Text("not written by Rust")})
+    assert not world.event_log.all_encoded()
+    assert world.canonical_json() == per_record_text(world)
+
+
 def test_same_state_compares_every_field_and_skips_only_known_equal_records() -> None:
     from sheltersim.events.models import EventKind, ScheduledEvent
 
