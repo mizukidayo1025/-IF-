@@ -27,7 +27,7 @@ use crate::rules::overlay;
 use crate::rules::proposals::place_in_bed;
 use crate::rules::service::{add_one, metrics_of, set_agent};
 use crate::rules::travel::{approach_route, plan_travel, route as route_kernel, write_travel, Route, Trip};
-use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, RequestStatus};
+use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, Member, RequestStatus};
 use crate::state::events::{EventKind, EventRow, EventStatus, EventWriter};
 use crate::state::movement::{Journey, MovementRow};
 use crate::Unsupported;

@@ -30,7 +30,7 @@ use crate::rules::queues::head_to_service;
 use crate::rules::resources::{apply_planned, Operation};
 use crate::rules::social_network::mapping_get;
 use crate::rules::staff_dynamics::{is_available, is_available_now, staff_status};
-use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore};
+use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, Member};
 use crate::state::events::{is_stable_id, EventKind, EventRef, EventRow, EventStatus, EventWriter};
 use crate::state::facility_queues::QueueRequest;
 use crate::state::metric_state::MetricRow;

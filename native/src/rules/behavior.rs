@@ -29,7 +29,7 @@ use crate::core::rng::{label, Key, KeyedDraws};
 use crate::core::tracked::as_readable_dict;
 use crate::core::world_core::{raw_dict_get, raw_dict_set};
 use crate::rules::world_view::{DemandModifier, RustView, ViewAgent, ViewData};
-use crate::state::entities::{raw_setattr, Activity, RequestStatus};
+use crate::state::entities::{raw_setattr, Activity, Member, RequestStatus};
 use crate::Unsupported;
 
 #[track_caller]

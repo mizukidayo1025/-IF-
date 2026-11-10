@@ -303,7 +303,7 @@ fn write_observed(out: &mut Encoder, py: Python<'_>, rust: &RustView, index: usi
     key!(out, "zone_id");
     text(out, &zone.id);
     key!(out, "activity");
-    text(out, Activity::text(agent.activity)?);
+    text(out, Activity::text(agent.activity));
     key!(out, "target_id");
     option_text(out, agent.target_id.as_deref());
     out.out.extend_from_slice(b",\"needs\":{\"toilet_urgency\":");

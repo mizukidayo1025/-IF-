@@ -1,6 +1,6 @@
 # P6：世界の実体を Rust の行に持つ
 
-`world.agents`、`facilities`、`staff`、`support_requests`、`active_tasks` の実体を、`native/src/state/entities.rs` の型付きの行に持ちました。**どの規則もまだ Rust に移していません。** 結果は変わりません。以後の作業は、この行を読む規則を書けます。
+`world.agents`、`facilities`、`staff`、`support_requests`、`active_tasks` の実体を、`native/src/state/entities.rs` の型付きの行に持ちました。（#152 の PR 4b で、行、`Table`、`Entities` は中核の `native/core/src/entities.rs` に移りました。Python との行き来と `EntityStore` は `native/src/state/entities.rs` のままです）**どの規則もまだ Rust に移していません。** 結果は変わりません。以後の作業は、この行を読む規則を書けます。
 
 ファイル名は設計の「window」のままですが、**PyO3 の window にはしませんでした。** 理由は次の節です。
 
@@ -70,7 +70,7 @@ let total = EntityStore::with_rows(&store, |rows| {
 })?;
 ~~~
 
-`Table` の `iter()` は dict の順、`get` はキーで読みます。`with_rows` の中で Python を動かさないでください（`PyRefMut` を持っています）。
+`Table` の `iter()` は dict の順、`get` はキーで読みます。`Activity` などの enum の Python のメンバーは `Member::member(py)` で得ます（窓口の trait なので `use crate::state::entities::Member` が要ります）。`with_rows` の中で Python を動かさないでください（`PyRefMut` を持っています）。
 
 **Rust から書く：** `with_rows` の中で行を変え、外で `write_field(world, "agents", id, "stress", 値)` で属性に書きます。`__setattr__` を通らないので転送は戻りません。例は `add_agent_stress` です。
 

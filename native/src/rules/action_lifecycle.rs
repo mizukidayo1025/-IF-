@@ -272,7 +272,7 @@ fn agent_of(world: &Bound<'_, PyAny>, store: &Bound<'_, EntityStore>, id: &str) 
     };
     let (debt, hygiene) = body_needs(world, &profile)?;
     Ok(Some(Agent {
-        activity: Activity::text(activity)?,
+        activity: Activity::text(activity),
         needs: [toilet, hunger, hydration, fatigue, debt, hygiene],
     }))
 }

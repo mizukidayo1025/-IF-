@@ -29,7 +29,7 @@ use crate::rules::staff_operation_events::relief_skills;
 use crate::rules::staff_dynamics::{is_available, on_shift, staff_status};
 use crate::rules::travel::{active_edge_loads, passage_edge_loads, staff_router_rows, world_graph, EdgeLoads, Route, RouteRows};
 use crate::state::body_state::{BodyRow, NAME as BODY_STATE};
-use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, RequestStatus};
+use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, Member, RequestStatus};
 use crate::state::metric_state::MetricRow;
 use crate::state::staff_dynamics::{StaffDynamicsRow, NAME as STAFF_DYNAMICS};
 use crate::state::staff_operations::{Phase, StaffOperationsRow, NAME};

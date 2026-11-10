@@ -1,272 +1,38 @@
-//! `staff_operations_v1`: the sanitation of each zone, the routed task of each staff member and the
-//! finished tasks (`domain/staff_operations.py`). The rules that run every tick are
-//! `rules/staff.rs`. The rules of a task's events write one value or one record at a time through
-//! the forwarded writes (docs/rust-port/lanes/m4-staff.md).
-//!
-//! A value of another type than the rules write taints the namespace, and the Python rules and
-//! their errors run on the tree: an int `sanitation`, which validation accepts, only costs the row.
+//! `staff_operations_v1`: the row is the core's (`sheltersim_core::state::staff_operations`); here
+//! are its Python side and its validator, whose checks of an active record read the objects of the
+//! world and the pending events.
 
 use std::collections::HashSet;
-use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 
-use crate::core::row::{attribute, exact_dict, exact_int, load_row, namespace_is_absent, state_row, str_enum, unsupported, IdMap};
+pub(crate) use sheltersim_core::state::staff_operations::*;
+
+use crate::core::row::{attribute, exact_dict, exact_int, load_row, namespace_is_absent, py_row, py_str_enum, unsupported};
 use crate::core::tracked::as_readable_list;
 use crate::core::value::V;
 use crate::core::world_core::{mirror_of, NamespaceMirror, RowType};
-use crate::state::entities::{entities_of, Entities, EntityStore};
+use crate::state::entities::{entities_of, EntityStore};
 use crate::state::events::{EventWriter, PendingEvent, PendingSource};
 use crate::Unsupported;
 
-pub(crate) const NAME: &str = "staff_operations_v1";
-const POLICY: &str = "autonomous-routed-staff-v1";
-const SOURCE: &str = "ASM-STAFF-OPERATIONS-V1";
-const MAX_HISTORY: usize = 20_000;
-const TASK_KINDS: [&str; 5] = ["cleaning", "maintenance", "information_outreach", "intake", "patrol"];
-const THRESHOLDS: [&str; 3] =
-    ["cleaning_sanitation_below", "outreach_uncertainty_at_least", "patrol_stress_at_least"];
-/// A global rate of the config and the upper bound of the same rate in a zone.
-const EFFECTS: [(&str, f64); 4] = [
-    ("sanitation_use_per_person_minute", 0.01),
-    ("cleaning_sanitation_recovery", 1.0),
-    ("outreach_uncertainty_relief", 1.0),
-    ("patrol_reassurance", 1.0),
-];
-const MAX_TASK_MINUTES: i64 = 24 * 60;
-
-str_enum! {
-    pub(crate) enum Phase { Idle = "idle", Travel = "travel", Working = "working" }
-}
-
-str_enum! {
-    pub(crate) enum Outcome { Completed = "completed", Blocked = "blocked", Interrupted = "interrupted" }
-}
-
-state_row! {
-    #[derive(Clone, Copy)]
-    pub(crate) struct ZoneRecord {
-        sanitation: f64 => set_sanitation,
-        updated_minute: i64 => set_updated_minute,
+py_str_enum!(Phase, Outcome);
+py_row! { ZoneRecord { sanitation, updated_minute } }
+py_row! {
+    OperationRecord {
+        phase, task_id, task_kind, target_id, target_zone_id, reason, started_minute, travel_due_minute,
+        arrival_minute, due_minute, route_zone_ids, route_edge_ids, travel_minutes, causation_event_ids,
     }
 }
-
-state_row! {
-    pub(crate) struct OperationRecord {
-        phase: Phase,
-        task_id: Option<Arc<str>>,
-        task_kind: Option<Arc<str>>,
-        target_id: Option<Arc<str>>,
-        target_zone_id: Option<Arc<str>>,
-        reason: Option<Arc<str>>,
-        started_minute: Option<i64>,
-        travel_due_minute: Option<i64>,
-        arrival_minute: Option<i64>,
-        due_minute: Option<i64>,
-        route_zone_ids: Vec<Arc<str>>,
-        route_edge_ids: Vec<Arc<str>>,
-        travel_minutes: i64,
-        causation_event_ids: Vec<Arc<str>>,
+py_row! {
+    FinishedTask {
+        task_id, staff_id, task_kind, target_id, target_zone_id, reason, status, start_minute,
+        arrival_minute, complete_minute, travel_minutes, causation_event_ids,
     }
 }
-
-state_row! {
-    pub(crate) struct FinishedTask {
-        task_id: Arc<str>,
-        staff_id: Arc<str>,
-        task_kind: Arc<str>,
-        target_id: Option<Arc<str>>,
-        target_zone_id: Arc<str>,
-        reason: Arc<str>,
-        status: Outcome,
-        start_minute: i64,
-        arrival_minute: Option<i64>,
-        complete_minute: i64,
-        travel_minutes: i64,
-        causation_event_ids: Vec<Arc<str>>,
-    }
-}
-
-state_row! {
-    pub(crate) struct StaffOperationsRow {
-        schema_version: i64,
-        policy_version: Arc<str>,
-        source_id: Arc<str>,
-        config: V,
-        zones: IdMap<ZoneRecord>,
-        staff: IdMap<OperationRecord>,
-        history: Vec<FinishedTask>,
-    }
-}
-
-impl OperationRecord {
-    /// `record == _idle_record()`, when `phase` is idle.
-    fn is_the_idle_record(&self) -> bool {
-        self.task_id.is_none()
-            && self.task_kind.is_none()
-            && self.target_id.is_none()
-            && self.target_zone_id.is_none()
-            && self.reason.is_none()
-            && self.started_minute.is_none()
-            && self.travel_due_minute.is_none()
-            && self.arrival_minute.is_none()
-            && self.due_minute.is_none()
-            && self.route_zone_ids.is_empty()
-            && self.route_edge_ids.is_empty()
-            && self.travel_minutes == 0
-            && self.causation_event_ids.is_empty()
-    }
-}
-
-impl ZoneRecord {
-    fn is_valid(&self) -> bool {
-        (0.0..=1.0).contains(&self.sanitation) && self.updated_minute >= 0
-    }
-}
-
-impl FinishedTask {
-    fn is_valid(&self, rows: &Entities, zones: &HashSet<String>) -> bool {
-        let times = self.start_minute >= 0
-            && self.complete_minute >= self.start_minute
-            && self.travel_minutes >= 0
-            && match self.arrival_minute {
-                None => self.status == Outcome::Interrupted && self.travel_minutes > 0,
-                Some(arrival) => self.start_minute <= arrival && arrival <= self.complete_minute,
-            };
-        times
-            && rows.staff.get(&self.staff_id).is_some()
-            && TASK_KINDS.contains(&&*self.task_kind)
-            && zones.contains(&*self.target_zone_id)
-            && self.target_id.as_deref().is_none_or(|id| rows.facilities.get(id).is_some())
-            && self.causation_event_ids.iter().all(|id| !id.is_empty())
-    }
-}
-
-fn number_in(value: &V, lower: f64, upper: f64) -> bool {
-    match value {
-        // The bounds are small, so an int compares as its float does.
-        V::Int(number) => lower <= *number as f64 && *number as f64 <= upper,
-        V::Float(number) => lower <= *number && *number <= upper,
-        _ => false,
-    }
-}
-
-/// The per-zone table of the config: each key a non-empty zone with a non-empty entry that passes.
-fn zone_table_is_valid(table: &V, zones: &HashSet<String>, entry_is_valid: impl Fn(&str, &V) -> bool) -> bool {
-    let V::Map(table) = table else {
-        return false;
-    };
-    table.iter().all(|(zone, entry)| {
-        let V::Map(entry) = entry else {
-            return false;
-        };
-        !zone.is_empty()
-            && zones.contains(&**zone)
-            && !entry.is_empty()
-            && entry.iter().all(|(name, value)| entry_is_valid(name, value))
-    })
-}
-
-/// Whether `canonical_staff_operations_config` passes this config and leaves it as it is, or
-/// differs only by the additive tables an older config doesn't have, and its tables name known zones.
-fn config_is_canonical(config: &V, zones: &HashSet<String>) -> bool {
-    let V::Map(config) = config else {
-        return false;
-    };
-    if config.len() > 10 {
-        return false;
-    }
-    let text = |name: &str, expected: &str| matches!(config.get(name), Some(V::Str(text)) if &**text == expected);
-    let durations_are_valid = matches!(config.get("task_duration_minutes"), Some(V::Map(durations))
-        if durations.len() == TASK_KINDS.len()
-            && TASK_KINDS.iter().all(|kind| {
-                matches!(durations.get(*kind), Some(V::Int(minutes)) if (1..=MAX_TASK_MINUTES).contains(minutes))
-            }));
-    let mut known = 8;
-    if !(matches!(config.get("schema_version"), Some(V::Int(1)))
-        && text("policy_version", POLICY)
-        && text("source_id", SOURCE)
-        && durations_are_valid
-        && EFFECTS.iter().all(|(name, _)| config.get(*name).is_some_and(|value| number_in(value, 0.0, 1.0))))
-    {
-        return false;
-    }
-    if let Some(table) = config.get("thresholds_by_zone") {
-        known += 1;
-        if !zone_table_is_valid(table, zones, |name, value| {
-            THRESHOLDS.contains(&name) && number_in(value, 0.0, 1.0)
-        }) {
-            return false;
-        }
-    }
-    if let Some(table) = config.get("effects_by_zone") {
-        known += 1;
-        if !zone_table_is_valid(table, zones, |name, value| {
-            EFFECTS.iter().any(|(effect, upper)| *effect == name && number_in(value, 0.0, *upper))
-        }) {
-            return false;
-        }
-    }
-    config.len() == known
-}
-
-/// What an active record says, read out of the row so that the objects can be read after it.
-struct Active {
-    staff_id: String,
-    working: bool,
-    task_id: String,
-    task_kind: String,
-    target_id: Option<String>,
-    target_zone_id: String,
-    started: i64,
-    travel_due: Option<i64>,
-    arrival: Option<i64>,
-    due: i64,
-    route_zones: Vec<String>,
-    route_edges: Vec<String>,
-    travel_minutes: i64,
-    /// `config["task_duration_minutes"][task_kind]`.
-    duration: i64,
-}
-
-/// The fields of an active record that `validate_staff_operations_state` reads of it alone, or None
-/// if one fails, which is then the Python rule's to say.
-fn active_of(staff_id: &str, record: &OperationRecord, config: &V) -> Option<Active> {
-    let (Some(task_id), Some(task_kind), Some(target_zone_id), Some(reason), Some(started), Some(due)) = (
-        record.task_id.as_deref(),
-        record.task_kind.as_deref(),
-        record.target_zone_id.as_deref(),
-        record.reason.as_deref(),
-        record.started_minute,
-        record.due_minute,
-    ) else {
-        return None;
-    };
-    let V::Map(config) = config else { return None };
-    let Some(V::Map(durations)) = config.get("task_duration_minutes") else { return None };
-    let Some(V::Int(duration)) = durations.get(task_kind) else { return None };
-    if !TASK_KINDS.contains(&task_kind) || due <= started || record.travel_minutes < 0 || started < 0 || reason.is_empty() {
-        return None;
-    }
-    Some(Active {
-        staff_id: staff_id.to_owned(),
-        working: record.phase == Phase::Working,
-        task_id: task_id.to_owned(),
-        task_kind: task_kind.to_owned(),
-        target_id: record.target_id.as_deref().map(str::to_owned),
-        target_zone_id: target_zone_id.to_owned(),
-        started,
-        travel_due: record.travel_due_minute,
-        arrival: record.arrival_minute,
-        due,
-        route_zones: record.route_zone_ids.iter().map(|id| id.to_string()).collect(),
-        route_edges: record.route_edge_ids.iter().map(|id| id.to_string()).collect(),
-        travel_minutes: record.travel_minutes,
-        duration: *duration,
-    })
-}
+py_row! { StaffOperationsRow { schema_version, policy_version, source_id, config, zones, staff, history } }
 
 /// `event.payload.get(key)` as the rule compares it with a str or None.
 enum Payload {
@@ -491,33 +257,11 @@ fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let store = entities_of(world)?;
     let mut active = Vec::new();
     let accepted = NamespaceMirror::with_row::<StaffOperationsRow, _>(&mirror, |row| {
-        if row.schema_version != 1
-            || &*row.policy_version != POLICY
-            || &*row.source_id != SOURCE
-            || row.history.len() > MAX_HISTORY
-            || row.zones.len() != zones.len()
-            || !row.zones.iter().all(|(id, zone)| zones.contains(&**id) && zone.is_valid())
-            || !config_is_canonical(&row.config, &zones)
-        {
+        let Some(found) = row.active_records(&zones) else {
             return Ok(false);
-        }
-        for (staff_id, record) in row.staff.iter() {
-            if record.phase == Phase::Idle {
-                if !record.is_the_idle_record() {
-                    return Ok(false);
-                }
-                continue;
-            }
-            match active_of(staff_id, record, &row.config) {
-                Some(found) => active.push(found),
-                None => return Ok(false),
-            }
-        }
-        EntityStore::with_rows(&store, |rows| {
-            Ok(row.staff.len() == rows.staff.len()
-                && row.staff.keys().all(|id| rows.staff.get(id).is_some())
-                && row.history.iter().all(|item| item.is_valid(rows, &zones)))
-        })
+        };
+        active = found;
+        EntityStore::with_rows(&store, |rows| Ok(row.agrees_with(rows, &zones)))
     })?;
     if !accepted {
         return Ok(false);

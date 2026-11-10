@@ -8,6 +8,7 @@
 pub mod census;
 pub mod checkpoint;
 pub mod contacts;
+pub mod entities;
 pub mod error;
 pub mod events;
 pub mod interner;
@@ -28,9 +29,12 @@ pub mod state {
     pub mod metric_state;
     pub mod movement;
     pub mod psychological_distress;
+    pub mod resource_ledger;
     pub mod resource_service;
+    pub mod shared_operations;
     pub mod social_network;
     pub mod social_propagation;
     pub mod staff_dynamics;
+    pub mod staff_operations;
 }
 pub mod value;

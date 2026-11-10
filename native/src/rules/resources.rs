@@ -19,14 +19,14 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString};
 
-use crate::core::errors::{self, ledger_error, Wide};
+use crate::core::errors::{self, ledger_error, OrPy, Wide};
 use crate::core::row::{attribute, exact_int, exact_str, namespace_is_absent, unsupported, PyField};
 use crate::core::tracked::as_readable_dict;
 use crate::core::world_core::{raw_dict_get, NamespaceMirror};
 use crate::rules::social_network::mapping_get;
 use crate::state::entities::raw_setattr;
 use crate::state::resource_ledger::{
-    held_mirror, is_valid_id, resource_index, world_inputs, Account, AuditRecord, LedgerRow, Reservation,
+    held_mirror, is_valid_id, resource_index, world_inputs, Account, AuditRecord, LedgerChecks, LedgerRow, Reservation,
     AUDIT_SCHEMA_VERSION, RESOURCE_IDS,
 };
 
@@ -365,7 +365,7 @@ pub(crate) fn apply_planned<'py>(
             tree.child(intern!(py, "used_reservation_ids"))?.list_append(&id)?;
             row.used_reservation_ids.push(id);
         }
-        row.audit.push(record.clone())?;
+        row.audit.push(record.clone()).or_py()?;
         Ok((record, change))
     })?;
 

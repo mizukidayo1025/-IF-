@@ -26,7 +26,7 @@ use crate::rules::care_receipts::{
 use crate::rules::handlers::{get, number, text_is};
 use crate::rules::service::{add_one, metrics_of, set_agent};
 use crate::state::body_state::{BodyRecord, BodyRow, NAME as BODY};
-use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, RequestStatus};
+use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, Member, RequestStatus};
 use crate::state::events::{EventKind, EventRef, EventRow, EventWriter};
 use crate::Unsupported;
 use crate::state::shared_operations::{SharedOperationsRow, NAME as SHARED};
