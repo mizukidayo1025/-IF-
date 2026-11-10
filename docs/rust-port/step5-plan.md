@@ -89,6 +89,18 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
 - 中核の `cargo test`（`native/core/tests/basics.rs`）は、CPython 3.12 で求めた値と比べます。
 - 1つ目の commit で5つのファイルを中身を変えずに移し、2つ目の commit で中身を変えました。`git log --follow` で、移す前の履歴をたどれます。
 
+### PR 2：エラーの型と V（レーン P2）
+
+- **エラーの型：** `sheltersim_core::error` に `Error` と `Result<T>` を置きました。`Error` の各値は、Python の1つのクラスに当たります：`Unsupported`、`KernelRefusal`（`Refused`）、`EventSuppressed` と `EventApplicationError`（`Outcome`）、印のついた `ValueError`、`ValueError`、`KeyError`、`RuntimeError`、`TypeError`、`StateInvariantError`、`ResourceLedgerError`、壊れた状態（`Corrupt`）、`MathError`。文を組み立てる関数（`refused_text`、`corrupt_text`）も中核にあります。
+  - `Error::unsupported` は `#[track_caller]` で、`Unsupported::new_err` と同じく、呼んだ行を census に数えます。`value_error`、`invariant`、`ledger`、`corrupt` も、今までの出口と同じく、呼んだ行を数えます。中核の行は `core/src/json.rs` のように数えるので、`benchmarks/rule_shadow/refusal_census.py` の静的な一覧も `native/core/src` を読むようにしました。
+  - 窓口の `core/errors.rs` では、`to_py_err` が `Error` を同じクラスと同じ文の `PyErr` にします。窓口に残るのは、クラスを探す部分だけです。中核の呼び出しは `core_call().or_py()?`（`OrPy`）と書きます。今までの出口（`value_error`、`corrupt` など）は、中核の `Error` を作って `to_py_err` を通します。Python から見える例外は変わりません。
+- **V：** `V` と `is_truthy`、`write_json` を `sheltersim_core::value` に移しました。`write_json` は中核の `Encoder` に書きます。NaN と無限大は、今と同じ文の `Unsupported` です。Python の値との変換（`from_py`、`to_py`）は、窓口の `core/value.rs` の `VPy` に残しました。`Field` や `Row` と名前が重なるところは、`<V as VPy>::from_py` のように書きます。
+- **Encoder：** 値を書く部分（null、bool、int、str、float）を中核の `json::Encoder` にしました。Python の値をたどる部分（`value`）と、`PyResult` を返す `float` は、窓口の trait `PyEncoder` です。`crate::Encoder` は中核の struct の re-export なので、`Encoder { out: ... }` はそのまま使えます。`encoder.float(...)` などを使うファイルには、`PyEncoder` の `use` を足しました。
+- **Misfit：** 中核の `error.rs` に移しました。後で `row.rs` を `git mv` で中核へ移すときに、同じ名前のファイルがないようにするためです。`PyErr` からの `From` は書けないので、窓口の `OrMisfit`（`python_call().or_misfit()?`）にしました。理由の文は、今と同じ `PyErr` の表示です。
+- `PyResult` を返す関数の中で中核の `V::write_json` を呼ぶ7か所に `.or_py()` を、`Misfit` を返す関数の中で Python を呼ぶ42か所に `.or_misfit()` を足しました。lane のファイルのほかの変更は、`use` だけです。
+- 中核のテスト（`native/core/tests/error_value.rs`）は、エラーの文と、`V` の JSON のバイト列を確かめます。バイト列は、CPython 3.12 の `json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)` で求めました。
+- 1つ目の commit で `value.rs` を中身を変えずに移し、2つ目の commit で中身を変えました。
+
 ### この後
 
 残りの PR は、下の「レーン」の順に進めます。各レーンは、終わったときにこの節の前に記録を足します。
