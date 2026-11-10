@@ -45,6 +45,13 @@ SOURCE = "ASM-TEST-RESOURCE-OPERATION"
 SEQUENCE = [0]
 
 
+@pytest.fixture(autouse=True)
+def _trees(keep_trees: Any) -> None:
+    """These tests pin the tree the kernel writes beside the row, key order and all: the
+    namespace keeps its tree here (support/world.py keep_trees)."""
+    keep_trees(KEY)
+
+
 def _world() -> WorldState:
     SEQUENCE[0] = 0
     document = json.loads(SMALL_REPLAY.read_text(encoding="utf-8"))

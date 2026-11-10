@@ -48,7 +48,8 @@ use rustc_hash::FxHashSet;
 use crate::core::row::{attribute, exact_int, exact_str, unsupported};
 use crate::core::tracked::{as_readable_dict, as_readable_list, is_detached};
 use crate::core::value::V;
-use crate::core::world_core::{core_of, raw_dict_get, with_state_value, NamespaceMirror};
+use crate::core::world_core::{core_of, raw_dict_get, with_state_value, Items, NamespaceMirror};
+use crate::state::body_state::BodyRow;
 use crate::rules::tick_validation::entity_rules_watching;
 use crate::state::entities::entities_of;
 use crate::validation::ValuesSnapshot;
@@ -410,10 +411,50 @@ impl<'py> Check<'_, 'py> {
         })
     }
 
-    /// The history rule of `validate_body_state`, for the records since the last tick, past the
-    /// rows' own check and the config's.
-    fn body_history(&self, body: &Bound<'py, PyAny>, minute: i64, agents: &Bound<'py, PyDict>) -> PyResult<()> {
+    /// The mirror of a namespace that holds nothing but its row: detached.
+    fn detached_mirror(&self, name: &str, held: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, NamespaceMirror>>> {
+        if !is_detached(held) {
+            return Ok(None);
+        }
+        let Some(mirror) = raw_dict_get(self.mirrors, PyString::intern(self.py(), name).as_any())? else {
+            return unsupported("a detached namespace has no mirror");
+        };
+        Ok(Some(as_mirror(&mirror)?.clone()))
+    }
+
+    /// `records_since_previous_tick` of the body history: its items from the last one before the
+    /// tick, as the tree holds them. A detached namespace's are made from its row, these alone.
+    fn recent_body_items(&self, body: &Bound<'py, PyAny>, minute: i64) -> PyResult<Bound<'py, PyList>> {
         let py = self.py();
+        if let Some(mirror) = self.detached_mirror(BODY, body)? {
+            let items = NamespaceMirror::with_row::<BodyRow, _>(&mirror, |row| {
+                let history = &row.history;
+                let mut scratch = crate::Encoder { out: Vec::new() };
+                let mut start = history.count();
+                while start > 0 {
+                    let item: serde_json::Value = serde_json::from_slice(history.item_json(start - 1, &mut scratch)?)
+                        .map_err(|_| Unsupported::new_err("a body history item is not JSON"))?;
+                    if let Some(recorded) = item.get("minute").filter(|value| value.is_number()) {
+                        let Some(recorded) = recorded.as_i64() else {
+                            if recorded.is_f64() {
+                                start -= 1;
+                                continue;
+                            }
+                            return unsupported("a body history minute is past i64");
+                        };
+                        if recorded < minute - 1 {
+                            break;
+                        }
+                    }
+                    start -= 1;
+                }
+                let first = start.saturating_sub(1);
+                let items: PyResult<Vec<Box<[u8]>>> =
+                    (first..history.count()).map(|index| history.item_json(index, &mut scratch).map(Box::from)).collect();
+                items
+            })?;
+            return crate::core::world_core::loads_items(py, items.iter().map(|item| &**item));
+        }
         let Some(state) = as_readable_dict(body) else {
             return unsupported("the body state is another kind of dict");
         };
@@ -436,9 +477,16 @@ impl<'py> Check<'_, 'py> {
             start -= 1;
         }
         let first = start.saturating_sub(1);
+        Ok(pyo3::types::PyListMethods::get_slice(history, first, history.len()))
+    }
+
+    /// The history rule of `validate_body_state`, for the records since the last tick, past the
+    /// rows' own check and the config's.
+    fn body_history(&self, body: &Bound<'py, PyAny>, minute: i64, agents: &Bound<'py, PyDict>) -> PyResult<()> {
+        let py = self.py();
+        let recent = self.recent_body_items(body, minute)?;
         let mut historical: Option<FxHashSet<String>> = None;
-        for position in first..history.len() {
-            let item = history.get_item(position)?;
+        for item in recent.iter() {
             let Some(item) = as_readable_dict(&item) else {
                 return unsupported("a body history item is the Python rule's");
             };
@@ -859,13 +907,22 @@ fn check(table: &Table, world: &Bound<'_, PyAny>, memo: &Bound<'_, TickMemo>) ->
         if !cx.accepts(BODY, table.rows_valid.bind(py))? {
             return unsupported("the rows of the body state are the Python rule's");
         }
-        let Some(state) = as_readable_dict(&body) else {
-            return unsupported("the body state is another kind of dict");
+        let config_json = match cx.detached_mirror(BODY, &body)? {
+            Some(mirror) => NamespaceMirror::with_row::<BodyRow, _>(&mirror, |row| {
+                let mut encoder = crate::Encoder { out: Vec::new() };
+                row.config.write_json(&mut encoder)?;
+                Ok(encoder.out)
+            })?,
+            None => {
+                let Some(state) = as_readable_dict(&body) else {
+                    return unsupported("the body state is another kind of dict");
+                };
+                let Some(config) = state.get_item(intern!(py, "config"))? else {
+                    return unsupported("the body state has no config");
+                };
+                crate::encode(&config)?
+            }
         };
-        let Some(config) = state.get_item(intern!(py, "config"))? else {
-            return unsupported("the body state has no config");
-        };
-        let config_json = crate::encode(&config)?;
         let known = memo.borrow().body_config.as_ref().filter(|(json, _)| *json == config_json).map(|(_, ids)| ids.clone());
         let named = match known {
             Some(named) => named,

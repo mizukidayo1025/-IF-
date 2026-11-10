@@ -850,13 +850,11 @@ def scenario_summary_from_world(
                         )
                     )
 
-    ledger = world.model_state.get(RESOURCE_LEDGER_KEY)
-    resource_ids: list[str] = []
-    warehouse_id = None
-    if isinstance(ledger, dict):
-        accounts = ledger.get("accounts", {})
-        resource_ids = sorted(accounts) if isinstance(accounts, dict) else []
-        warehouse_id = ledger.get("warehouse_id")
+    # The two parts it reads, and not the audit trail: each is its default unless the ledger is
+    # a dict that has it (state_mirror.read_only_part).
+    accounts = read_only_part(world, RESOURCE_LEDGER_KEY, "accounts", {})
+    resource_ids: list[str] = sorted(accounts) if isinstance(accounts, dict) else []
+    warehouse_id = read_only_part(world, RESOURCE_LEDGER_KEY, "warehouse_id")
 
     # The facility/staff structural handlers are part of the core runtime even when a
     # particular scenario starts with zero units. Other policies are scenario opt-ins.

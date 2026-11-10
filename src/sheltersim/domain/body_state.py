@@ -11,7 +11,14 @@ from typing import Any
 from sheltersim import native
 from sheltersim.core.history import records_since_previous_tick
 from sheltersim.core.kernels import kernel_only
-from sheltersim.core.state_mirror import read_only_state, rust_accepts
+from sheltersim.core.state_mirror import (
+    holds_detached,
+    read_only_items,
+    read_only_part,
+    read_only_state,
+    rust_accepts,
+    validated_state,
+)
 from sheltersim.core.world import WorldState
 from sheltersim.policies.affect import create_affect_policy
 
@@ -375,12 +382,24 @@ def validate_body_state(
     history_memo: Any = None,
 ) -> None:
     """Reject partial state, unknown people, out-of-range values and malformed evidence."""
-    state = world.model_state.get(BODY_STATE_KEY)
-    if state is None:
+    detached = holds_detached(world, BODY_STATE_KEY)
+    state = None if detached else world.model_state.get(BODY_STATE_KEY)
+    if state is None and not detached:
         return
     # True says the row holds what these rules would accept, so a config or history error below
     # keeps its place: everything before it passed. False says nothing, and they all run.
     rows_accepted = _ROWS_VALID is not None and rust_accepts(world, BODY_STATE_KEY, _ROWS_VALID)
+    if detached:
+        # The row alone holds it. Past the rows, a tick's check reads the config and the newest
+        # history items only, which is all it makes of the row (state_mirror.RowItems).
+        state = (
+            {
+                "config": read_only_part(world, BODY_STATE_KEY, "config"),
+                "history": read_only_items(world, BODY_STATE_KEY, "history"),
+            }
+            if rows_accepted and history_memo is None
+            else validated_state(world, BODY_STATE_KEY, history_memo)
+        )
     if not rows_accepted and (
         not isinstance(state, dict)
         or set(state)

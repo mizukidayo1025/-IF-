@@ -99,9 +99,11 @@ def body_config_ids(world: Any) -> list[str]:
     """validate_body_state's check of the saved config, which raises where it would. Returns the
     people its per-person parameters name: the kernel checks at each tick that each is here or in
     the population state's history, which is all the rest the check reads."""
+    from sheltersim.core.state_mirror import read_only_part
     from sheltersim.domain.body_state import BODY_STATE_KEY, validate_body_config
 
-    return sorted(validate_body_config(world, world.model_state[BODY_STATE_KEY]))
+    config = read_only_part(world, BODY_STATE_KEY, "config")
+    return sorted(validate_body_config(world, {"config": config}))
 
 
 def saved_json(value: Any) -> bytes | None:

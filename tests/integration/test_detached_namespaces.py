@@ -11,6 +11,7 @@ docs/rust-port/step4-plan.md section 5 has the stage and what stage 2 needs.
 from __future__ import annotations
 
 import copy
+import operator
 from typing import Any
 
 import pytest
@@ -18,7 +19,7 @@ from support.world import view_of, world_digest
 
 from sheltersim.core import state_mirror
 from sheltersim.core.checkpoint import Checkpoint
-from sheltersim.core.checkpoint_cache import CheckpointHistoryCache
+from sheltersim.core.checkpoint_cache import CheckpointHistoryCache, canonical_bytes
 from sheltersim.core.engine import TickEngine
 from sheltersim.core.state_mirror import (
     DETACHED_NAMESPACES,
@@ -45,6 +46,18 @@ POPULATION = (
     "population_lifecycle_v1",
     "population_dynamics_v1",
     "geometry_overlay_v1",
+)
+BODY = "body_state_v1"
+SHARED = "shared_operations_v1"
+# The namespaces of histories (L14 stage 2): a save hashes their lists item by item.
+HISTORIES = (BODY, SHARED, "resource_ledger_v1", "resource_service_v1", "staff_operations_v1")
+# Each of their lists the Checkpoint hash tree splits into chunks (core/checkpoint_cache.py).
+HISTORY_LISTS = (
+    (BODY, "history"),
+    (SHARED, "history"),
+    ("resource_ledger_v1", "audit"),
+    ("resource_service_v1", "request_history"),
+    ("resource_service_v1", "queue_stall_history"),
 )
 
 # Detached in stage 2 by lane a1 (#134): the movement, the people's and staff's memory, the
@@ -114,6 +127,7 @@ def test_a_run_holds_the_detached_namespaces_in_their_rows_alone(
         SOCIAL_NETWORK_STATE_KEY,
         *POPULATION,
         *LANE_A1,
+        *HISTORIES,
     }
     # The generated Scenario has them all but the independent queues and the programs (the
     # tests at the end); the social one is made at the first tick.
@@ -448,3 +462,89 @@ def test_the_queues_written_in_the_row_are_those_of_the_tree(
     tree = world.model_state[FACILITY_QUEUES_STATE_KEY]
     assert mirror.verify() and tree == mirror.document()
     assert any(queue["active_request_ids"] for queue in tree["queues"].values())
+
+
+def test_the_kernels_on_the_rows_alone_do_what_they_do_with_trees(
+    generated_scenario: Any, keep_trees: Any
+) -> None:
+    detached, _ = _run(generated_scenario, 240)
+    assert _all_detached(detached)
+    assert _rebuilds(detached) == _none_rebuilt(detached)
+    # The four hours wrote each history, through the rows alone.
+    for name, key in HISTORY_LISTS:
+        if (name, key) != ("resource_service_v1", "queue_stall_history"):
+            assert detached._core.mirror(name).part_len(key) > 0, (name, key)
+    keep_trees(*HISTORIES)
+    attached, _ = _run(generated_scenario, 240)
+    assert all(isinstance(_held(attached, name), TrackedDict) for name in HISTORIES)
+    assert detached.canonical_json() == attached.canonical_json()
+    assert detached.state_digest() == attached.state_digest()
+
+
+def test_a_save_reads_each_history_item_s_bytes_from_the_row(
+    ticked: tuple[WorldState, TickEngine],
+) -> None:
+    world, engine = ticked
+    for name, key in HISTORY_LISTS:
+        mirror = world._core.mirror(name)
+        given = mirror.items_json(key)
+        assert given == [
+            canonical_bytes(item) for item in state_mirror.read_only_state(world, name)[key]
+        ]
+        # The same bytes come back as the same objects, so a save knows them by identity.
+        assert all(map(operator.is_, mirror.items_json(key), given))
+    mirror = world._core.mirror(BODY)
+    before = mirror.items_json("history")
+    for _ in range(10):
+        engine.step()
+    after = mirror.items_json("history")
+    assert len(after) > len(before)
+    assert all(map(operator.is_, after[: len(before)], before))
+    assert not any(item is old for item in after[len(before) :] for old in before)
+    assert mirror.items_json("absent") is None and mirror.items_json("agents") is None
+    assert _rebuilds(world) == _none_rebuilt(world)
+
+
+def test_read_only_items_makes_only_the_items_read(
+    ticked: tuple[WorldState, TickEngine],
+) -> None:
+    world, engine = ticked
+    for _ in range(40):
+        engine.step()
+    items = state_mirror.read_only_items(world, BODY, "history")
+    document = state_mirror.read_only_state(world, BODY)
+    whole = document["history"]
+    assert isinstance(items, state_mirror.RowItems)
+    assert len(items) == len(whole) > 3
+    assert items[0] == whole[0] and items[-1] == whole[-1]
+    assert items[-3:] == whole[-3:] and items[1:3] == whole[1:3] and items[::2] == whole[::2]
+    assert items[5:2] == [] and list(items) == whole
+    with pytest.raises(IndexError):
+        items[len(whole)]
+    assert state_mirror.read_only_items(world, BODY, "absent", []) == []
+    # Not a list: the part itself, as read_only_part gives it.
+    assert state_mirror.read_only_items(world, BODY, "agents") == document["agents"]
+    assert _rebuilds(world) == _none_rebuilt(world)
+    # An attached namespace gives its tree's list.
+    tree = world.model_state[BODY]
+    assert state_mirror.read_only_items(world, BODY, "history") is tree["history"]
+
+
+def test_a_save_s_validation_reads_the_documents_the_save_makes(
+    ticked: tuple[WorldState, TickEngine],
+) -> None:
+    world, engine = ticked
+    cache = CheckpointHistoryCache()
+    memo = cache.validation_memo(world)
+    for name in HISTORIES:
+        state = state_mirror.validated_state(world, name, memo)
+        assert state == state_mirror.read_only_state(world, name)
+    assert set(memo.states) == {name for name, _ in HISTORY_LISTS}
+    first = Checkpoint.capture(world, history_cache=cache)
+    for _ in range(10):
+        engine.step()
+    second = Checkpoint.capture(world, history_cache=cache)
+    fresh = Checkpoint.capture(world, history_cache=CheckpointHistoryCache())
+    assert (second.state_hash, second.checkpoint_hash) == (fresh.state_hash, fresh.checkpoint_hash)
+    assert first.state_hash != second.state_hash
+    assert _rebuilds(world) == _none_rebuilt(world)

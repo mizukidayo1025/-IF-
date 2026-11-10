@@ -52,6 +52,13 @@ _SCOPE: list[Any] = ["", 0]
 
 
 @pytest.fixture(autouse=True)
+def _trees(keep_trees: Any) -> None:
+    """These tests pin the tree the kernel writes beside the row, key order and all: the
+    namespace keeps its tree here (support/world.py keep_trees)."""
+    keep_trees(BODY_STATE_KEY)
+
+
+@pytest.fixture(autouse=True)
 def _pinned_scope(request: Any) -> None:
     """The test's name, with the index of each parameter: its key in PYTHON_GAVE."""
     name = request.node.originalname

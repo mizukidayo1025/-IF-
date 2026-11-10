@@ -542,7 +542,7 @@ pub(crate) fn completion_agrees(world: &Bound<'_, PyAny>, receipt: &serde_json::
         return Ok(false);
     };
     let mirror = mirror_of(world, NAME)?;
-    if !mirror.try_borrow()?.root_is(&tree) {
+    if !mirror.try_borrow()?.holds_state(&tree) {
         return unsupported("the staff operations are another tree than the row's");
     }
     NamespaceMirror::with_row::<StaffOperationsRow, _>(&mirror, |row| {

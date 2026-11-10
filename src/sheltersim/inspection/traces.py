@@ -498,7 +498,7 @@ class RunArtifactWriter:
             "metric_snapshot_count": len(self.metrics.snapshots),
             "llm_usage": _llm_usage_summary(self._llm_calls),
         }
-        ledger = world.model_state.get(RESOURCE_LEDGER_KEY)
+        ledger = read_only_state(world, RESOURCE_LEDGER_KEY)
         if ledger is not None:
             self._write_json("resource_ledger.json", ledger)
             manifest["resource_ledger_summary"] = {
@@ -516,7 +516,7 @@ class RunArtifactWriter:
                 },
                 "audit_entry_count": len(ledger["audit"]),
             }
-        resource_service = world.model_state.get("resource_service_v1")
+        resource_service = read_only_state(world, "resource_service_v1")
         if resource_service is not None:
             service_config = world.model_configs["resource_service"]
             service_artifact = {

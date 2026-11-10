@@ -16,7 +16,9 @@ use rustc_hash::{FxBuildHasher, FxHashSet};
 
 use crate::core::row::{attribute, load_row, namespace_is_absent, state_row, Field, IdMap};
 use crate::core::tracked::{as_readable_dict, as_readable_list};
-use crate::core::world_core::{mirror_of, raw_dict_get, Misfit, NamespaceMirror, Part, RowType, Write};
+use crate::core::world_core::{
+    loads_items, mirror_of, raw_dict_get, Items, Misfit, NamespaceMirror, Part, RowType, Write,
+};
 use crate::{Encoder, Unsupported};
 
 pub(crate) const NAME: &str = "resource_ledger_v1";
@@ -174,7 +176,25 @@ impl Audit {
     }
 }
 
+impl Items for Audit {
+    fn count(&self) -> usize {
+        self.items.len()
+    }
+
+    fn slice_to_py<'py>(&self, py: Python<'py>, start: usize, stop: usize) -> PyResult<Bound<'py, PyList>> {
+        loads_items(py, self.items[start..stop].iter().map(|item| &**item))
+    }
+
+    fn item_json<'a>(&'a self, index: usize, _scratch: &'a mut Encoder) -> PyResult<&'a [u8]> {
+        Ok(&self.items[index])
+    }
+}
+
 impl Field for Audit {
+    fn items(&self) -> Option<&dyn Items> {
+        Some(self)
+    }
+
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         let list = as_readable_list(value).ok_or_else(|| Misfit::new("not a list"))?;
         let mut audit = Self {
@@ -386,7 +406,7 @@ pub(crate) fn held_mirror<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py,
         return Err(Unsupported::new_err("model_state is another kind of mapping"));
     }
     let held = raw_dict_get(&table, intern!(py, "resource_ledger_v1").as_any())?;
-    if !held.is_some_and(|held| mirror.try_borrow().is_ok_and(|mirror| mirror.root_is(&held))) {
+    if !held.is_some_and(|held| mirror.try_borrow().is_ok_and(|mirror| mirror.holds_state(&held))) {
         return Err(Unsupported::new_err("the world holds another ledger"));
     }
     Ok(mirror)

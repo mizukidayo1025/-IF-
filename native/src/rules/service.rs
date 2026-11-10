@@ -18,6 +18,7 @@ use crate::core::errors;
 use crate::core::mathx::py_max;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, map_set, unsupported, Field};
 use crate::core::value::V;
+use crate::core::tracked::is_detached;
 use crate::core::world_core::{field_mirror_of, raw_dict_get, NamespaceMirror};
 use crate::rules::facility_queues::{
     choose_queue_id, has_independent, point_of, position_in, request_of_task, transition_row, with_queues, write_enqueue, write_finish, write_stall,
@@ -225,14 +226,83 @@ fn clear_stall(mirror: &Bound<'_, NamespaceMirror>, facility_id: &str) -> PyResu
     Ok(())
 }
 
-/// The list at `resource_service_v1[name]`: its own methods keep the row.
-fn service_list<'py>(table: &Bound<'py, PyAny>, name: &Bound<'py, PyString>) -> PyResult<Bound<'py, PyAny>> {
-    let py = table.py();
+/// A list of IDs of `resource_service_v1` a rule here changes: the tree's, whose own methods keep
+/// the row, or the row's alone while the namespace is detached and has no tree.
+enum ServiceList<'py> {
+    Tree(Bound<'py, PyAny>),
+    Row(Bound<'py, NamespaceMirror>, bool),
+}
+
+impl<'py> ServiceList<'py> {
+    fn ids(row: &mut ServiceRow, active: bool) -> &mut Vec<Arc<str>> {
+        if active {
+            &mut row.active_reservation_ids
+        } else {
+            &mut row.cancelled_task_ids
+        }
+    }
+
+    fn append(&self, id: &Bound<'py, PyString>) -> PyResult<()> {
+        match self {
+            Self::Tree(list) => list.call_method1(intern!(list.py(), "append"), (id,)).map(drop),
+            Self::Row(mirror, active) => {
+                let id: Arc<str> = Arc::from(id.to_str()?);
+                NamespaceMirror::with_row_tree::<ServiceRow, _>(mirror, |row, _| {
+                    Self::ids(row, *active).push(id);
+                    Ok(())
+                })
+            }
+        }
+    }
+
+    /// `list.sort()` of strs, which orders them by code point, as their UTF-8 bytes do.
+    fn sort(&self) -> PyResult<()> {
+        match self {
+            Self::Tree(list) => list.call_method0(intern!(list.py(), "sort")).map(drop),
+            Self::Row(mirror, active) => NamespaceMirror::with_row_tree::<ServiceRow, _>(mirror, |row, _| {
+                Self::ids(row, *active).sort();
+                Ok(())
+            }),
+        }
+    }
+
+    /// `list.remove(id)`, and its ValueError for an ID the list does not have.
+    fn remove(&self, id: &Bound<'py, PyString>) -> PyResult<()> {
+        match self {
+            Self::Tree(list) => list.call_method1(intern!(list.py(), "remove"), (id,)).map(drop),
+            Self::Row(mirror, active) => {
+                let id = id.to_str()?;
+                let removed = NamespaceMirror::with_row_tree::<ServiceRow, _>(mirror, |row, _| {
+                    let ids = Self::ids(row, *active);
+                    Ok(ids.iter().position(|known| &**known == id).map(|index| ids.remove(index)).is_some())
+                })?;
+                if removed {
+                    Ok(())
+                } else {
+                    Err(pyo3::exceptions::PyValueError::new_err("list.remove(x): x not in list"))
+                }
+            }
+        }
+    }
+}
+
+/// The list at `resource_service_v1[name]` (`active_reservation_ids` or `cancelled_task_ids`).
+fn service_list<'py>(manager: &Manager<'py>, name: &Bound<'py, PyString>) -> PyResult<ServiceList<'py>> {
+    let py = name.py();
+    let table = &manager.table;
     let Some(state) = exact_dict(table)?.get_item(intern!(py, "resource_service_v1"))? else {
         return unsupported("no service state");
     };
+    if is_detached(&state) {
+        let active = match name.to_str()? {
+            "active_reservation_ids" => true,
+            "cancelled_task_ids" => false,
+            _ => return unsupported("the service state lacks a list"),
+        };
+        return Ok(ServiceList::Row(held_mirror(&manager.world)?, active));
+    }
     match exact_dict(&state)?.get_item(name)? {
-        Some(list) => Ok(list),
+        Some(list) => Ok(ServiceList::Tree(list)),
         None => unsupported("the service state lacks a list"),
     }
 }
@@ -497,6 +567,25 @@ pub(crate) fn serve_independent_head<'py>(
     PyTuple::new(py, [started, stall])
 }
 
+/// `world.model_state["resource_service_v1"]["stall_state"].get(id)`, for the stall a pass of an
+/// independent facility starts from: of a detached namespace, a new record from the row.
+pub(crate) fn previous_stall<'py>(world: &Bound<'py, PyAny>, table: &Bound<'py, PyAny>, id: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    let py = world.py();
+    let held = match crate::core::tracked::as_readable_dict(table) {
+        Some(table) => table.get_item(intern!(py, "resource_service_v1"))?,
+        None => None,
+    };
+    if held.as_ref().is_some_and(is_detached) {
+        let key = exact_str(id)?;
+        let stall = NamespaceMirror::with_row::<ServiceRow, _>(&held_mirror(world)?, |row| Ok(row.stall_state.get(key).cloned()))?;
+        return match stall {
+            Some(stall) => Field::to_py(&stall, py),
+            None => Ok(py.None().into_bound(py)),
+        };
+    }
+    table.get_item(intern!(py, "resource_service_v1"))?.get_item(intern!(py, "stall_state"))?.call_method1(intern!(py, "get"), (id,))
+}
+
 /// `_record_independent_queue_stall`.
 #[pyfunction]
 pub(crate) fn record_independent_stall<'py>(
@@ -529,6 +618,15 @@ pub(crate) fn record_independent_stall<'py>(
             let Some(service) = table.get_item(intern!(py, "resource_service_v1"))? else {
                 return unsupported("no service state");
             };
+            if is_detached(&service) {
+                // No tree: the row alone takes the record back.
+                let stall = Stall { agent_id: Arc::from(agent), reason: Arc::from(reason) };
+                let key: Arc<str> = Arc::from(exact_str(facility_id)?);
+                return NamespaceMirror::with_row_tree::<ServiceRow, _>(&held_mirror(world)?, |row, _| {
+                    row.stall_state.insert(key, stall);
+                    Ok(())
+                });
+            }
             exact_dict(&service)?
                 .get_item(intern!(py, "stall_state"))?
                 .ok_or_else(|| Unsupported::new_err("no stall state"))?
@@ -812,7 +910,7 @@ fn serve_one<'py>(
         operation_payload(&warehouse, &resource_arc, &task_id, &agent_id, quantity),
         task_id.clone(),
     )?;
-    let reservation_ids = service_list(&manager.table, intern!(py, "active_reservation_ids"))?;
+    let reservation_ids = service_list(&manager, intern!(py, "active_reservation_ids"))?;
     let facilities = attribute(world, intern!(py, "facilities"))?;
     let Some(facility_object) = raw_dict_get(&facilities, facility_id)? else {
         return unsupported("a row has no object");
@@ -874,8 +972,8 @@ fn serve_one<'py>(
     }
     writer.record(&audit, minute_value, EventStatus::Applied, None)?;
     let task_text = PyString::new(py, &task_id);
-    reservation_ids.call_method1(intern!(py, "append"), (&task_text,))?;
-    reservation_ids.call_method0(intern!(py, "sort"))?;
+    reservation_ids.append(&task_text)?;
+    reservation_ids.sort()?;
     clear_stall(&mirror, facility_name)?;
     let agent_text = PyString::new(py, &agent_id);
     let waiting_list = attribute(&facility_object, intern!(py, "resource_queue_agent_ids"))?;
@@ -1148,7 +1246,7 @@ pub(crate) fn complete_event<'py>(manager: &Bound<'py, PyAny>, event: EventRef<'
         }
         None => None,
     };
-    let reservation_ids = service_list(&manager.table, intern!(py, "active_reservation_ids"))?;
+    let reservation_ids = service_list(&manager, intern!(py, "active_reservation_ids"))?;
     let facilities = attribute(world, intern!(py, "facilities"))?;
     let Some(facility) = raw_dict_get(&facilities, PyString::new(py, facility_id).as_any())? else {
         return unsupported("a row has no object");
@@ -1193,7 +1291,7 @@ pub(crate) fn complete_event<'py>(manager: &Bound<'py, PyAny>, event: EventRef<'
         writer.allocate_sequence()?;
     }
     writer.record(&audit, minute, EventStatus::Applied, None)?;
-    reservation_ids.call_method1(intern!(py, "remove"), (&task_object,))?;
+    reservation_ids.remove(&task_object)?;
     let relieved = py_max(0.0, need - relief);
     EntityStore::with_rows(&store, |rows| {
         let Some(row) = rows.agents.get_mut(agent_id) else {
@@ -1757,7 +1855,7 @@ fn write_cancel(manager: &Manager<'_>, plan: &CancelPlan) -> PyResult<()> {
                 writer.allocate_sequence()?;
             }
             writer.record(&releasing.audit, minute, EventStatus::Applied, None)?;
-            service_list(&manager.table, intern!(py, "active_reservation_ids"))?.call_method1(intern!(py, "remove"), (&task_text,))?;
+            service_list(&manager, intern!(py, "active_reservation_ids"))?.remove(&task_text)?;
             attribute(&facility, intern!(py, "resource_active_agent_ids"))?.call_method1(intern!(py, "remove"), (&agent_text,))?;
             release_staff(world, &store, &releasing.staff_id)?;
         }
@@ -1768,7 +1866,7 @@ fn write_cancel(manager: &Manager<'_>, plan: &CancelPlan) -> PyResult<()> {
     }
     attribute(world, intern!(py, "active_tasks"))?.del_item(&task_text)?;
     set_agent(world, &store, agent_text.as_any(), Activity::Idle, None)?;
-    service_list(&manager.table, intern!(py, "cancelled_task_ids"))?.call_method1(intern!(py, "append"), (&task_text,))?;
+    service_list(&manager, intern!(py, "cancelled_task_ids"))?.append(&task_text)?;
     add_one(&metrics_of(world)?, "resource_service_cancelled_count")
 }
 

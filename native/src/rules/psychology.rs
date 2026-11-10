@@ -1529,7 +1529,7 @@ fn body_mirror<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, Nam
         return Ok(None);
     };
     let mirror = mirror_of(world, BODY_STATE)?;
-    if !mirror.try_borrow()?.root_is(&state) {
+    if !mirror.try_borrow()?.holds_state(&state) {
         return unsupported("body_state_v1 is not the tree of its row");
     }
     Ok(Some(mirror))

@@ -87,7 +87,49 @@ pub(crate) trait Row: Send + Sync + 'static {
     fn write_json(&self, encoder: &mut Encoder) -> PyResult<()>;
     /// `to_py(...).get(key)` without making the rest: None for a key the state does not have.
     fn part_to_py<'py>(&self, py: Python<'py>, key: &str) -> PyResult<Option<Bound<'py, PyAny>>>;
+    /// The items of the list under key, read one by one: None for a key the state does not have,
+    /// or a value that is not a list.
+    fn part_items(&self, key: &str) -> Option<&dyn Items>;
+    /// `to_py`, with an empty list under each key of `emptied` that holds a list: the rest of a
+    /// namespace whose lists a reader takes item by item (`NamespaceMirror.document_emptied`).
+    fn to_py_emptied<'py>(&self, py: Python<'py>, emptied: &[&str]) -> PyResult<Bound<'py, PyAny>>;
     fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+/// A list of a row, read an item at a time: for a reader of a part of a detached namespace, which
+/// must not make all of a history of 20,000 items (`NamespaceMirror.part_slice`, `items_json`).
+pub(crate) trait Items {
+    fn count(&self) -> usize;
+    /// New plain values of `items[start..stop]`, the same as the list's `to_py` holds there.
+    fn slice_to_py<'py>(&self, py: Python<'py>, start: usize, stop: usize) -> PyResult<Bound<'py, PyList>>;
+    /// The canonical JSON of an item: the bytes the row keeps, or `scratch` after writing them there.
+    fn item_json<'a>(&'a self, index: usize, scratch: &'a mut Encoder) -> PyResult<&'a [u8]>;
+}
+
+/// `Items::slice_to_py` of items kept as their canonical JSON: what `json.loads` reads of each, as
+/// the list's `to_py` does.
+pub(crate) fn loads_items<'py, 'a>(
+    py: Python<'py>,
+    items: impl Iterator<Item = &'a [u8]>,
+) -> PyResult<Bound<'py, PyList>> {
+    let loads = py.import(intern!(py, "json"))?.getattr(intern!(py, "loads"))?;
+    let list = PyList::empty(py);
+    for item in items {
+        list.append(loads.call1((std::str::from_utf8(item)?,))?)?;
+    }
+    Ok(list)
+}
+
+/// `to_py_emptied` of a value that knows nothing better: the whole, then the lists emptied.
+pub(crate) fn emptied_after<'py>(whole: Bound<'py, PyAny>, emptied: &[&str]) -> PyResult<Bound<'py, PyAny>> {
+    if let Ok(record) = whole.downcast::<PyDict>() {
+        for key in emptied {
+            if record.get_item(*key)?.is_some_and(|value| value.is_instance_of::<PyList>()) {
+                record.set_item(*key, PyList::empty(whole.py()))?;
+            }
+        }
+    }
+    Ok(whole)
 }
 
 /// Reads a whole namespace, or says it does not fit.
@@ -211,6 +253,20 @@ impl Row for ValueRow {
             V::Map(map) => map.get(key).map(|value| value.to_py(py)).transpose(),
             _ => Ok(None),
         }
+    }
+
+    fn part_items(&self, key: &str) -> Option<&dyn Items> {
+        match &self.0 {
+            V::Map(map) => match map.get(key) {
+                Some(V::List(items)) => Some(items as &dyn Items),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn to_py_emptied<'py>(&self, py: Python<'py>, emptied: &[&str]) -> PyResult<Bound<'py, PyAny>> {
+        emptied_after(self.0.to_py(py)?, emptied)
     }
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
@@ -450,6 +506,9 @@ pub struct NamespaceMirror {
     /// Changes with every write to the tree or the row's tree, from Python or from Rust: while it
     /// and the root stand, the namespace is what it was. See `generation_of`.
     generation: u64,
+    /// The bytes objects the last `items_json` of each list gave, by its key: kept for the items
+    /// whose bytes are still the same, so a save knows them by identity.
+    items_given: Vec<(Box<str>, Vec<Py<PyBytes>>)>,
 }
 
 /// A new empty tracked container of the class given, without its Python `__new__`.
@@ -972,6 +1031,11 @@ impl NamespaceMirror {
         self.root.as_ref().is_some_and(|root| root.as_ptr() == value.as_ptr())
     }
 
+    /// The row, for a reader that holds a borrow of the mirror and runs no Python code.
+    pub(crate) fn row_ref(&self) -> Option<&dyn Row> {
+        self.row.as_deref()
+    }
+
     /// Whether `held`, what `model_state` holds under this namespace, is the state the row
     /// follows: the tree, or the placeholder while the namespace is detached and the row alone
     /// holds it (`state_mirror._table_holds_row_of`).
@@ -989,6 +1053,73 @@ impl NamespaceMirror {
     pub(crate) fn with_value<R>(slf: &Bound<'_, Self>, f: impl FnOnce(&V) -> PyResult<R>) -> PyResult<R> {
         Self::with_row::<ValueRow, _>(slf, |row| f(&row.0))
     }
+}
+
+/// What `model_state` holds under an owned namespace, for a kernel that reads it.
+pub(crate) enum Held<'py> {
+    /// The row is what the world holds: its tree, or the row alone while the namespace is detached.
+    /// The row and the tree hold the same values, so a reader of the row reads what the tree has.
+    Row(Bound<'py, NamespaceMirror>),
+    /// Anything else, such as a tainted tree or a value stored past the table, for the rules to
+    /// read as Python holds it.
+    Value(Bound<'py, PyAny>),
+}
+
+/// `world.model_state.get(name)` as a kernel reads it, building no tree: None without the key.
+/// Unsupported for a `model_state` kernels don't read.
+pub(crate) fn held_state<'py>(world: &Bound<'py, PyAny>, name: &str) -> PyResult<Option<Held<'py>>> {
+    let py = world.py();
+    let table = world.getattr(intern!(py, "model_state"))?;
+    let dict = as_readable_dict(&table).ok_or_else(|| Unsupported::new_err("model_state is not a plain dict"))?;
+    let Some(value) = dict.get_item(name)? else {
+        return Ok(None);
+    };
+    if let Ok(mirror) = mirror_of(world, name) {
+        let this = mirror.try_borrow()?;
+        if this.row.is_some() && this.holds_state(&value) {
+            drop(this);
+            return Ok(Some(Held::Row(mirror)));
+        }
+    }
+    Ok(Some(Held::Value(value)))
+}
+
+/// `model_state[name].get(key)` of a detached namespace, for a kernel that only reads that part: a
+/// new value made from that one field of its row (`NamespaceMirror.document_part`), or None for a
+/// key the row does not have. For a reader of a part of the tree, when `held` is the placeholder.
+pub(crate) fn detached_part<'py>(world: &Bound<'py, PyAny>, name: &str, key: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+    let mirror = mirror_of(world, name)?;
+    let this = mirror.try_borrow()?;
+    let row = this.row.as_ref().ok_or_else(|| Unsupported::new_err("the namespace has no row"))?;
+    row.part_to_py(world.py(), key)
+}
+
+/// `{"staff": ...}` of a detached `staff_operations_v1`: a reader of its staff records, which are
+/// few, gets them as documents, as the tree would hold them.
+pub(crate) fn detached_staff_operations<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
+    let py = world.py();
+    let state = PyDict::new(py);
+    if let Some(staff) = detached_part(world, "staff_operations_v1", "staff")? {
+        state.set_item(intern!(py, "staff"), staff)?;
+    }
+    Ok(Some(state.into_any()))
+}
+
+/// A write to the row at this path, as a forwarded write from Python applies it, for a rule that
+/// writes through the tree when the namespace is detached and has no tree: it writes the row this
+/// way instead of making the tree again. A row checks a write before it changes anything, so a
+/// write that does not fit changes nothing here and is Unsupported: a detached row is all there is
+/// of its namespace, and must not be dropped.
+pub(crate) fn apply_to_row(mirror: &Bound<'_, NamespaceMirror>, path: &[Part<'_>], write: &Write<'_, '_>) -> PyResult<()> {
+    let mut this = mirror.try_borrow_mut()?;
+    let this = &mut *this;
+    let Some(row) = this.row.as_mut() else {
+        return Err(Unsupported::new_err("the namespace has no row"));
+    };
+    row.apply(path, write).map_err(|misfit| Unsupported::new_err(misfit.0))?;
+    this.forwards += 1;
+    this.generation += 1;
+    Ok(())
 }
 
 /// `model_state.get(name)` through the C API, but a detached namespace comes back as its tree,
@@ -1190,6 +1321,7 @@ impl NamespaceMirror {
         Self::drop_root(slf)?;
         let mut this = slf.try_borrow_mut()?;
         this.row = None;
+        this.items_given.clear();
         this.taint = None;
         this.detached = false;
         Ok(())
@@ -1271,6 +1403,81 @@ impl NamespaceMirror {
             return Err(Unsupported::new_err("the namespace has no row"));
         };
         row.part_to_py(py, key)?.map(|value| PyTuple::new(py, [value])).transpose()
+    }
+
+    /// The number of items of the list under key, or None for a key the row does not have or a
+    /// value that is not a list: `len(document()[key])` for a reader of a detached namespace.
+    /// Unsupported without a row.
+    fn part_len(&self, key: &str) -> PyResult<Option<usize>> {
+        let Some(row) = self.row.as_ref() else {
+            return Err(Unsupported::new_err("the namespace has no row"));
+        };
+        Ok(row.part_items(key).map(|items| items.count()))
+    }
+
+    /// `document()[key][start:stop]` of the list under key, and nothing else made: new plain
+    /// values, as `document` gives. start and stop are clamped to the list. Unsupported without a
+    /// row or without such a list.
+    fn part_slice<'py>(&self, py: Python<'py>, key: &str, start: usize, stop: usize) -> PyResult<Bound<'py, PyList>> {
+        let Some(row) = self.row.as_ref() else {
+            return Err(Unsupported::new_err("the namespace has no row"));
+        };
+        let items = row.part_items(key).ok_or_else(|| Unsupported::new_err("the row has no such list"))?;
+        let stop = stop.min(items.count());
+        items.slice_to_py(py, start.min(stop), stop)
+    }
+
+    /// The canonical JSON of each item of the list under key, or None for a key the row does not
+    /// have or a value that is not a list: for a save, which hashes and archives a history by its
+    /// items (`core/checkpoint_cache.py`). The leading items whose bytes are those of a run of the
+    /// items the last call gave come back as the same bytes objects, in that order; every other
+    /// item is a new object. So, as for a list that only drops items from its front and appends
+    /// new ones, the same first and last object of a run mean the same run. Unsupported without a
+    /// row.
+    fn items_json<'py>(&mut self, py: Python<'py>, key: &str) -> PyResult<Option<Bound<'py, PyList>>> {
+        let Some(row) = self.row.as_ref() else {
+            return Err(Unsupported::new_err("the namespace has no row"));
+        };
+        let Some(items) = row.part_items(key) else {
+            return Ok(None);
+        };
+        let given = match self.items_given.iter().position(|(name, _)| &**name == key) {
+            Some(index) => self.items_given.remove(index).1,
+            None => Vec::new(),
+        };
+        let count = items.count();
+        let mut scratch = Encoder { out: Vec::new() };
+        // Where the first item was in the last call's list: past the items dropped since.
+        let mut offset = given.len();
+        if count > 0 {
+            let first = items.item_json(0, &mut scratch)?;
+            if let Some(found) = given.iter().position(|old| old.as_bytes(py) == first) {
+                offset = found;
+            }
+        }
+        let mut out = Vec::with_capacity(count);
+        let mut same = true;
+        for index in 0..count {
+            let bytes = items.item_json(index, &mut scratch)?;
+            let old = given.get(offset + index).filter(|old| same && old.as_bytes(py) == bytes);
+            match old {
+                Some(old) => out.push(old.clone_ref(py)),
+                None => {
+                    same = false;
+                    out.push(PyBytes::new(py, bytes).unbind());
+                }
+            }
+        }
+        let list = PyList::new(py, out.iter().map(|item| item.bind(py)))?;
+        self.items_given.push((Box::from(key), out));
+        Ok(Some(list))
+    }
+
+    /// `document()` with an empty list under each key of `emptied` that holds a list, and those
+    /// lists not made: for a save, which reads them by `items_json`. None without a row.
+    fn document_emptied<'py>(&self, py: Python<'py>, emptied: Vec<String>) -> PyResult<Option<Bound<'py, PyAny>>> {
+        let keys: Vec<&str> = emptied.iter().map(String::as_str).collect();
+        self.row.as_ref().map(|row| row.to_py_emptied(py, &keys)).transpose()
     }
 
     /// Drop the row, as a write that does not fit does. Not for a detached namespace, whose row
@@ -1390,6 +1597,7 @@ impl NamespaceMirror {
     fn __clear__(&mut self) {
         self.root = None;
         self.row = None;
+        self.items_given.clear();
         self.table = NodeTable::default();
     }
 }
@@ -1440,6 +1648,7 @@ impl WorldCore {
                 whole_writes: 0,
                 rebuilds: 0,
                 generation: 0,
+                items_given: Vec::new(),
             },
         )?;
         self.namespaces.insert(name, mirror.clone_ref(py));

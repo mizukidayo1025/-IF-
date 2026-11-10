@@ -389,11 +389,22 @@ fn stale_stall<'py>(
     table: &Bound<'py, PyDict>,
     facility_id: &str,
     new_order: &[Arc<str>],
-) -> PyResult<Option<Bound<'py, PyAny>>> {
+) -> PyResult<Option<Stalls<'py>>> {
     let py = table.py();
     let Some(state) = table.get_item(SERVICE_KEY)? else {
         return Ok(None);
     };
+    if crate::core::tracked::is_detached(&state) {
+        // No tree: the row alone holds the stalls.
+        let mirror = crate::state::resource_service::held_mirror(world)?;
+        let agent = NamespaceMirror::with_row::<crate::state::resource_service::ServiceRow, _>(&mirror, |row| {
+            Ok(row.stall_state.get(facility_id).map(|stall| stall.agent_id.clone()))
+        })?;
+        let Some(agent_id) = agent else {
+            return Ok(None);
+        };
+        return Ok(if stall_is_head(world, facility_id, new_order, &agent_id)? { None } else { Some(Stalls::Row(mirror)) });
+    }
     let Some(state) = as_readable_dict(&state) else {
         return unsupported("the service state is not a plain dict");
     };
@@ -416,11 +427,37 @@ fn stale_stall<'py>(
         return unsupported("a stall record has no agent");
     };
     let agent_id = exact_str(&agent_id)?;
-    let is_head = match independent_heads(world, facility_id)? {
+    Ok(if stall_is_head(world, facility_id, new_order, agent_id)? { None } else { Some(Stalls::Tree(stalls.clone())) })
+}
+
+fn stall_is_head(world: &Bound<'_, PyAny>, facility_id: &str, new_order: &[Arc<str>], agent_id: &str) -> PyResult<bool> {
+    Ok(match independent_heads(world, facility_id)? {
         Some(heads) => heads.iter().any(|head| &**head == agent_id),
         None => new_order.first().is_some_and(|head| &**head == agent_id),
-    };
-    Ok(if is_head { None } else { Some(stalls.clone()) })
+    })
+}
+
+/// Where a stale stall record is: the tree's map, whose own method keeps the row, or the row alone
+/// while the namespace is detached.
+enum Stalls<'py> {
+    Tree(Bound<'py, PyAny>),
+    Row(Bound<'py, NamespaceMirror>),
+}
+
+impl Stalls<'_> {
+    /// `del stall_state[facility_id]`.
+    fn remove(&self, facility_id: &Bound<'_, PyAny>) -> PyResult<()> {
+        match self {
+            Self::Tree(stalls) => stalls.del_item(facility_id),
+            Self::Row(mirror) => {
+                let key = exact_str(facility_id)?;
+                NamespaceMirror::with_row_tree::<crate::state::resource_service::ServiceRow, _>(mirror, |row, _| {
+                    row.stall_state.shift_remove(key);
+                    Ok(())
+                })
+            }
+        }
+    }
 }
 
 /// `prepare_facility_queue`.
@@ -524,7 +561,7 @@ pub(crate) fn prepare_facility_queue<'py>(
     }
     if let Some(stalls) = stale {
         // Through the map's own method: the map may be a tree's.
-        stalls.del_item(facility_id)?;
+        stalls.remove(facility_id)?;
     }
     writing(write_all_leaving(&leave, &leaving))
 }
@@ -901,7 +938,7 @@ fn write_all_leaving(call: &LeaveCall<'_, '_>, leaving: &[Leaving]) -> PyResult<
             })?;
             let table = attribute(world, intern!(py, "model_state"))?;
             if let Some(stalls) = stale_stall(world, exact_dict(&table)?, call.facility_name, &remaining)? {
-                stalls.del_item(call.facility_id)?;
+                stalls.remove(call.facility_id)?;
             }
         }
         if let Some((request, row)) = &plan.transition {

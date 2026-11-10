@@ -1368,7 +1368,13 @@ fn staff_position_snapshots<'py>(world: &Bound<'py, PyAny>, boundary_minute: Opt
     let mirror = mirror_held(world)?;
     let store = entities_of(world)?;
     let scene = Scene::of(world)?;
-    let operations = table.get_item("staff_operations_v1")?;
+    let operations = match table.get_item("staff_operations_v1")? {
+        // A detached namespace's staff records, made from its row: these are read only.
+        Some(held) if crate::core::tracked::is_detached(&held) => {
+            crate::core::world_core::detached_staff_operations(world)?
+        }
+        held => held,
+    };
     let staff_records = match &operations {
         Some(operations) => match crate::core::tracked::as_readable_dict(operations) {
             Some(operations) => operations.get_item(intern!(py, "staff"))?,
@@ -1662,7 +1668,12 @@ pub(crate) fn advance_movement<'py>(world: &Bound<'py, PyAny>, minute: &Bound<'p
     let queue = queue_of(world)?;
     let scene = Scene::of(world)?;
     let table = attribute(world, intern!(py, "model_state"))?;
-    let operations = exact_dict(&table)?.get_item("staff_operations_v1")?;
+    let operations = match exact_dict(&table)?.get_item("staff_operations_v1")? {
+        Some(held) if crate::core::tracked::is_detached(&held) => {
+            crate::core::world_core::detached_staff_operations(world)?
+        }
+        held => held,
+    };
     let staff_records = match &operations {
         Some(operations) => match crate::core::tracked::as_readable_dict(operations) {
             Some(operations) => operations.get_item(intern!(py, "staff"))?,

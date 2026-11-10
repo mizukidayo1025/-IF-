@@ -33,12 +33,14 @@ use crate::core::mathx::{py_fsum, py_min};
 use crate::core::parallel::parts_in_order;
 use crate::core::tracked::{as_readable_dict, is_detached};
 use crate::core::value::V;
-use crate::core::world_core::{mirror_of, raw_dict_get, raw_dict_set, with_state_value, NamespaceMirror};
+use crate::core::world_core::{held_state, mirror_of, raw_dict_get, raw_dict_set, with_state_value, Held, NamespaceMirror};
 use crate::rules::person_context::{self, plain_copy};
 use crate::rules::zone_environment::{ZoneConditions, ZoneInputs};
 use crate::state::entities::{entities_of, raw_setattr, Activity, Entities, EntityStore, Mobility, NeedRow, RequestStatus};
 use crate::state::information::{InformationRow, NAME as INFORMATION};
+use crate::state::body_state::BodyRow;
 use crate::state::psychological_distress::{DistressRow, NAME as DISTRESS};
+use crate::state::staff_operations::StaffOperationsRow;
 use crate::{write_json_string, Encoder, Unsupported};
 
 #[track_caller]
@@ -250,6 +252,15 @@ fn state_held<'py>(model_state: &Bound<'py, PyAny>, name: &Bound<'py, PyString>)
     let value = state_get(model_state, name)?;
     let is_dict = value.is_instance_of::<PyDict>();
     Ok((value, is_dict))
+}
+
+/// `model_state.get(name)` read past `_DetachingTable.get`, which would rebuild the tree of a
+/// detached namespace: its row when that is what the world holds, else the value (None if absent).
+fn held_get<'py>(world: &Bound<'py, PyAny>, model_state: &Bound<'py, PyAny>, name: &Bound<'py, PyString>) -> PyResult<Held<'py>> {
+    if as_readable_dict(model_state).is_none() {
+        return Ok(Held::Value(state_get(model_state, name)?));
+    }
+    Ok(held_state(world, name.to_str()?)?.unwrap_or_else(|| Held::Value(world.py().None().into_bound(world.py()))))
 }
 
 fn exact_float(value: &Bound<'_, PyAny>) -> PyResult<f64> {
@@ -636,10 +647,19 @@ fn read_zones(
     let ViewCache { environment, keys, .. } = cache;
     let environment = kept_environment(controller, configs, model_state, environment)?;
     let stressors = active_stressors(model_state, &zone_ids)?;
-    let staff_operations = state_get(model_state, intern!(py, "staff_operations_v1"))?;
-    let sanitation_records = match dict_or_nothing(&staff_operations)? {
-        Some(state) => state.get_item(intern!(py, "zones"))?,
-        None => None,
+    // The sanitation of each zone, from the row, or from the dict Python holds past it.
+    let mut row_sanitation: Option<FxHashMap<Arc<str>, f64>> = None;
+    let sanitation_records = match held_get(world, model_state, intern!(py, "staff_operations_v1"))? {
+        Held::Row(mirror) => {
+            row_sanitation = Some(NamespaceMirror::with_row::<StaffOperationsRow, _>(&mirror, |row| {
+                Ok(row.zones.iter().map(|(id, record)| (id.clone(), record.sanitation)).collect())
+            })?);
+            None
+        }
+        Held::Value(staff_operations) => match dict_or_nothing(&staff_operations)? {
+            Some(state) => state.get_item(intern!(py, "zones"))?,
+            None => None,
+        },
     };
     let mut result = Vec::with_capacity(zone_ids.len());
     for id in zone_ids {
@@ -658,6 +678,9 @@ fn read_zones(
             return unsupported("a sum of stress rates overflows");
         };
         let sanitation = match &sanitation_records {
+            None if row_sanitation.is_some() => {
+                row_sanitation.as_ref().and_then(|zones| zones.get(&id)).copied().unwrap_or(1.0)
+            }
             Some(records) => match raw_dict_get(required_dict(records)?.as_any(), key.as_any())? {
                 Some(record) => match required_dict(&record)?.get_item(intern!(py, "sanitation"))? {
                     Some(value) => exact_float(&value)?,
@@ -886,7 +909,28 @@ fn read_body_and_distress(
             agent.chronic_distress = 0.0;
         }
     }
-    let body_state = state_get(model_state, intern!(py, "body_state_v1"))?;
+    let body_state = match held_get(world, model_state, intern!(py, "body_state_v1"))? {
+        Held::Row(mirror) => {
+            return NamespaceMirror::with_row::<BodyRow, _>(&mirror, |row| {
+                for (agent, key) in agents.iter_mut().zip(keys) {
+                    agent.body = match row.agents.get(key.bind(py).to_str()?) {
+                        Some(record) => BodyFields {
+                            sleep_debt_minutes: record.sleep_debt_minutes,
+                            uncertainty: record.uncertainty,
+                            reassurance: record.reassurance,
+                            discontent: record.discontent,
+                            positive_affect: record.positive_affect,
+                            negative_affect: record.negative_affect,
+                            hygiene_need: record.hygiene_need,
+                        },
+                        None => NO_BODY,
+                    };
+                }
+                Ok(())
+            });
+        }
+        Held::Value(body_state) => body_state,
+    };
     let records = match dict_or_nothing(&body_state)? {
         Some(state) => state.get_item(intern!(py, "agents"))?,
         None => None,
@@ -1355,8 +1399,12 @@ fn state_hash(data: &ViewData, world: &Bound<'_, PyAny>) -> PyResult<String> {
     let resource_config = if resource { Some(hashed_config(&configs, intern!(py, "resource_service"))?) } else { None };
     let information_config =
         if information { Some(hashed_config(&configs, intern!(py, "information_spread"))?) } else { None };
-    let body_state = state_get(&model_state, intern!(py, "body_state_v1"))?;
-    let life_context = data.has_population_context || (!body_state.is_none() && body_state.is_truthy()?);
+    // A row holds a namespace's dict of fields, which is never empty.
+    let life_context = data.has_population_context
+        || match held_get(world, &model_state, intern!(py, "body_state_v1"))? {
+            Held::Row(_) => true,
+            Held::Value(body_state) => !body_state.is_none() && body_state.is_truthy()?,
+        };
 
     // The document goes to the hash in pieces: what is written here, and each run of people, which
     // the threads write (core/parallel.rs). The bytes are the same as in one piece.

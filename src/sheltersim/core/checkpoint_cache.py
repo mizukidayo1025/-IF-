@@ -38,7 +38,7 @@ from sheltersim import native
 from sheltersim.contracts.policies import model_signatures
 from sheltersim.core.save_validation import SaveValidationMemo
 from sheltersim.core.saved_items import SavedItems, json_default
-from sheltersim.core.state_mirror import owned_row_bytes, plain_model_state
+from sheltersim.core.state_mirror import detached_row, owned_row_bytes, plain_model_state
 from sheltersim.core.world import WorldState
 from sheltersim.events.queue import EventLog
 from sheltersim.experiments.metrics import MetricsRecorder
@@ -374,12 +374,16 @@ class _SealedItems:
         self._pins = native.history_pins() if still_equal else None
         self._pins_stale = False
 
-    def compare(self, current: Sequence[Any]) -> int:
-        """How many leading items of current are unchanged; update(current) reuses this."""
-        self._compared = (current, *self._unchanged(current))
+    def compare(self, current: Sequence[Any], *, raw: bool = False) -> int:
+        """How many leading items of current are unchanged; update(current) reuses this.
+
+        With raw, current holds the items' canonical bytes (NamespaceMirror.items_json), and the
+        same bytes object is the same item.
+        """
+        self._compared = (current, *self._unchanged(current, raw))
         return self._compared[2]
 
-    def _unchanged(self, current: Sequence[Any]) -> tuple[int, int]:
+    def _unchanged(self, current: Sequence[Any], raw: bool = False) -> tuple[int, int]:
         """The position in the cache of current's first item, and how many are unchanged.
 
         The lists only drop old items from the front and append new ones. Anything
@@ -390,7 +394,7 @@ class _SealedItems:
         if (
             kept <= len(current)
             and all(map(operator.is_, self.items[start:], current[:kept]))
-            and (not self._still_equal or self._same_as_documents(current, start, kept))
+            and (raw or not self._still_equal or self._same_as_documents(current, start, kept))
         ):
             return start, kept
         return len(self.items), 0
@@ -404,17 +408,33 @@ class _SealedItems:
         self._pins_stale = same
         return same
 
-    def update(self, current: Sequence[Any]) -> None:
-        """Reuse the cached items still in current and convert the others."""
+    def update(self, current: Sequence[Any], *, raw: bool = False) -> None:
+        """Reuse the cached items still in current and convert the others.
+
+        With raw, current holds the items' canonical bytes, as for compare().
+        """
         compared, self._compared = self._compared, None
         if compared is not None and compared[0] is current:
             start, kept = compared[1:]
         else:
-            start, kept = self._unchanged(current)
+            start, kept = self._unchanged(current, raw)
         # These lists are this cache's own: what it hands out is a copy (documents()). Each copy
         # of a list touches every item, scattered over memory.
         documents, raws = self.documents, self.raws
         del documents[:start], documents[kept:], raws[:start], raws[kept:]
+        del self.restored[:start], self.restored[kept:]
+        if raw:
+            # The bytes are what the row holds, so the same object reads back as the same document.
+            for item in current[kept:]:
+                documents.append(json.loads(item))
+                raws.append(item)
+            # Every document is read from the bytes the row holds now.
+            self.known_equal = len(documents)
+            self.items = list(current)
+            if self._pins is not None:
+                self._pins.clear()
+            self._pins_stale = False
+            return
         for item in current[kept:]:
             # What the kernel encoded reads back as the same bytes (see _encoded_document).
             raw = native.canonical_json(item) if self._convert is _world_json else None
@@ -425,7 +445,6 @@ class _SealedItems:
             document = self._convert(item)
             documents.append(document)
             raws.append(canonical_bytes(document))
-        del self.restored[:start], self.restored[kept:]
         self.known_equal = kept if self._still_equal else 0
         self.items = list(current)
         pins = self._pins
@@ -482,6 +501,20 @@ def _containers(value: Any, path: tuple[str, ...]) -> list[dict[str, Any]] | Non
         containers.append(value)
         value = value.get(key)
     return containers if isinstance(value, list) else None
+
+
+def _live_history(world: WorldState, path: tuple[str, str]) -> tuple[Sequence[Any], bool] | None:
+    """The history at path and whether it is its items' bytes, or None without that list.
+
+    The row of a detached namespace gives each item's bytes, the same objects for the items
+    unchanged since the last call (NamespaceMirror.items_json); any other namespace its tree's list.
+    """
+    mirror = detached_row(world, path[0])
+    if mirror is not None:
+        raws = mirror.items_json(path[1])
+        return None if raws is None else (raws, True)
+    containers = _containers(world.model_state, path)
+    return None if containers is None else (containers[-1][path[-1]], False)
 
 
 def _with_empty(value: dict[str, Any], paths: list[tuple[str, ...]]) -> dict[str, Any]:
@@ -555,11 +588,24 @@ class CheckpointHistoryCache:
         if self._validation is None:
             self._validation = SaveValidationMemo()
         unchanged = {}
+        detached: dict[str, list[str]] = {}
         for path, cache in self._model_histories.items():
-            containers = _containers(world.model_state, path)
-            if containers:
-                unchanged[path] = cache.compare(containers[-1][path[-1]])
-        self._validation.begin(world, unchanged)
+            live = _live_history(world, path)
+            if live is None:
+                continue
+            items, raw = live
+            unchanged[path] = cache.compare(items, raw=raw)
+            if raw:
+                # The documents the save makes anyway are what the validation reads.
+                cache.update(items, raw=True)
+                detached.setdefault(path[0], []).append(path[1])
+        states = {}
+        for name, keys in detached.items():
+            state = detached_row(world, name).document_emptied(keys)
+            for key in keys:
+                state[key] = list(self._model_histories[name, key].documents)
+            states[name] = state
+        self._validation.begin(world, unchanged, states)
         return self._validation
 
     def forget_validation(self) -> None:
@@ -576,9 +622,13 @@ class CheckpointHistoryCache:
             self._chunk_keys = self._encoder.used_chunk_keys
         encoder = CanonicalEncoder(self._chunk_keys, self._pack_locations, self._run_inputs)
         self._encoder = encoder
-        histories = [
-            path for path in _MODEL_STATE_HISTORIES if _containers(world.model_state, path)
-        ]
+        live = {path: _live_history(world, path) for path in _MODEL_STATE_HISTORIES}
+        histories = [path for path, history in live.items() if history is not None]
+        # The detached namespaces whose histories come from their rows: not made with the rest.
+        emptied: dict[str, list[str]] = {}
+        for path in histories:
+            if live[path][1]:
+                emptied.setdefault(path[0], []).append(path[1])
         for cache in self._model_histories.values():
             cache.known_equal = 0
         entity_rows, namespace_rows, field_rows = owned_row_bytes(world)
@@ -591,7 +641,9 @@ class CheckpointHistoryCache:
         }
         self._owned_rows = frozenset(namespace_rows) | frozenset(field_rows)
         # A detached namespace whose row wrote its bytes is read from those alone.
-        model_state = _with_empty(plain_model_state(world.model_state, namespace_rows), histories)
+        model_state = _with_empty(
+            plain_model_state(world.model_state, namespace_rows, emptied), histories
+        )
         data = world._canonical_data(
             include_event_log=False, without_entities=bool(entity_rows), model_state=model_state
         )
@@ -609,7 +661,8 @@ class CheckpointHistoryCache:
         encoder.splice(world_document["event_log"], raws, world_document)
         for path in histories:
             cache = self._model_histories[path]
-            cache.update(_containers(world.model_state, path)[-1][path[-1]])
+            items, raw = live[path]
+            cache.update(items, raw=raw)
             containers = [world_document, *_containers(world_document["model_state"], path)]
             containers[-1][path[-1]] = list(cache.documents)
             encoder.splice(containers[-1][path[-1]], list(cache.raws), *containers)

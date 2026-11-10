@@ -357,7 +357,9 @@ class WorldState:
             if RESOURCE_LEDGER_KEY not in self.model_state:
                 raise StateInvariantError("WorldState v6 requires a resource ledger")
             if validate_event_history or not rust_validated(self, "resource_service_v1"):
-                service_state = self.model_state.get("resource_service_v1")
+                service_state = state_mirror.validated_state(
+                    self, "resource_service_v1", _history_memo
+                )
                 if (
                     not isinstance(service_state, dict)
                     or set(service_state)
@@ -632,7 +634,7 @@ class WorldState:
                         if isinstance(item, dict) and isinstance(item.get("agent_id"), str)
                     }
                 ledger_arguments = (
-                    self.model_state[RESOURCE_LEDGER_KEY],
+                    state_mirror.validated_state(self, RESOURCE_LEDGER_KEY, _history_memo),
                     self.resources,
                     set(self.agents) | archived_agent_ids,
                     set(self.zones),
@@ -1108,9 +1110,9 @@ class WorldState:
                 raise StateInvariantError(
                     f"resource service task {task.id!r} needs one matching completion event"
                 )
-            reservation = self.model_state[RESOURCE_LEDGER_KEY]["accounts"][resource_id][
-                "reservations"
-            ].get(task.id)
+            reservation = (
+                _state_part(self, RESOURCE_LEDGER_KEY, "accounts")[resource_id]["reservations"]
+            ).get(task.id)
             expected_quantity = (
                 resource_config.water_ml_per_service
                 if resource_id == "water_ml"
@@ -1153,7 +1155,7 @@ class WorldState:
                 raise StateInvariantError("resource completion event requires a task ID")
             if task_id in self.active_tasks:
                 continue
-            cancelled_ids = self.model_state["resource_service_v1"]["cancelled_task_ids"]
+            cancelled_ids = _state_part(self, "resource_service_v1", "cancelled_task_ids")
             if task_id not in cancelled_ids:
                 raise StateInvariantError(
                     f"resource completion event references inactive task {task_id!r}"
@@ -1162,12 +1164,12 @@ class WorldState:
             ledger_reservations = {
                 reservation_id
                 for resource_id in ("water_ml", "food_meal_units")
-                for reservation_id in self.model_state[RESOURCE_LEDGER_KEY]["accounts"][
+                for reservation_id in _state_part(self, RESOURCE_LEDGER_KEY, "accounts")[
                     resource_id
                 ]["reservations"]
             }
             service_reservations = set(
-                self.model_state["resource_service_v1"]["active_reservation_ids"]
+                _state_part(self, "resource_service_v1", "active_reservation_ids")
             )
             if service_reservations != active_resource_reservations:
                 raise StateInvariantError(
@@ -2050,6 +2052,20 @@ def _same_rows(mine: dict[str, Any], theirs: dict[str, Any], known: set[str]) ->
     return all(row == theirs[key] for key, row in mine.items() if key not in known)
 
 
+def _state_part(world: WorldState, name: str, key: str) -> Any:
+    """world.model_state[name][key] for a rule that only reads it: of a detached namespace, that
+    part alone is made from the row (state_mirror.read_only_part), and no tree."""
+    if not state_mirror.holds_detached(world, name):
+        return world.model_state[name][key]
+    value = state_mirror.read_only_part(world, name, key, _NO_PART)
+    if value is _NO_PART:
+        raise KeyError(key)
+    return value
+
+
+_NO_PART = object()
+
+
 def _same_model_state(
     mine: dict[str, Any], theirs: dict[str, Any], known: Mapping[tuple[str, str], int]
 ) -> bool:
@@ -2061,7 +2077,10 @@ def _same_model_state(
         fields_of.setdefault(name, set()).add(field_name)
     for name in mine:
         # A detached namespace is compared by its row, building no tree (core/state_mirror.py).
-        detached = state_mirror.same_detached(mine, theirs, name)
+        lists = fields_of.get(name, ())
+        detached = state_mirror.same_detached(
+            mine, theirs, name, {key: known[name, key] for key in lists}
+        )
         if detached is not None:
             if not detached:
                 return False

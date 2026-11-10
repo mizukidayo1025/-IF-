@@ -14,9 +14,10 @@ use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PySlice, PyString, PyTuple, Py
 
 use crate::core::errors::value_error;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, unsupported, Field};
-use crate::core::tracked::as_readable_dict;
+use crate::core::tracked::{as_readable_dict, is_detached};
 use crate::core::value::V;
-use crate::core::world_core::{mirror_of, NamespaceMirror};
+use crate::core::world_core::{apply_to_row, detached_part, mirror_of, NamespaceMirror, Part, Write};
+use crate::state::staff_operations::StaffOperationsRow;
 use crate::state::events::{EventRow, EventWriter};
 use crate::state::shared_operations::{
     is_identifier, CareHead, CareStatus, Receipt, SharedOperationsRow, MAX_HISTORY, MAX_REQUESTS, NAME,
@@ -90,10 +91,16 @@ fn observed_value<'py>(
             let Some(state) = exact_dict(&table)?.get_item(*namespace)? else {
                 return Ok(None);
             };
-            let Some(state) = as_readable_dict(&state) else {
-                return Ok(None);
+            let items = if is_detached(&state) {
+                // That one part of the row, as the tree would hold it.
+                detached_part(world, namespace, collection)?
+            } else {
+                let Some(state) = as_readable_dict(&state) else {
+                    return Ok(None);
+                };
+                state.get_item(*collection)?
             };
-            let Some(items) = state.get_item(*collection)? else {
+            let Some(items) = items else {
                 return Ok(None);
             };
             (map_item(&items)?, path)
@@ -287,7 +294,7 @@ fn held<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, NamespaceMirror>>
     let mirror = mirror_of(world, NAME)?;
     let table = attribute(world, intern!(py, "model_state"))?;
     match exact_dict(&table)?.get_item(NAME)? {
-        Some(state) if mirror.try_borrow()?.root_is(&state) => Ok(mirror),
+        Some(state) if mirror.try_borrow()?.holds_state(&state) => Ok(mirror),
         Some(state) if state.is_instance_of::<PyDict>() => unsupported("the world holds another document than the row's"),
         _ => Err(value_error("shared_operations_v1 must be selected in the immutable Scenario")),
     }
@@ -324,11 +331,24 @@ fn recent_receipts_hold(world: &Bound<'_, PyAny>, mirror: &Bound<'_, NamespaceMi
     let Some(state) = exact_dict(&table)?.get_item(NAME)? else {
         return unsupported("no shared operations");
     };
-    let history = state.get_item("history")?;
-    let recent = history.get_item(PySlice::new(py, start as isize, history.len()? as isize, 1))?;
     let document = PyDict::new(py);
-    document.call_method1(intern!(py, "update"), (&state,))?;
-    document.set_item("history", recent)?;
+    if is_detached(&state) {
+        // The row's document without its history, and the recent receipts alone.
+        let (rest, recent) = {
+            let this = mirror.try_borrow()?;
+            let row = this_row(&this)?;
+            let items = row.part_items("history").ok_or_else(|| Unsupported::new_err("no history"))?;
+            let count = crate::core::world_core::Items::count(items);
+            (row.to_py_emptied(py, &["history"])?, crate::core::world_core::Items::slice_to_py(items, py, start.min(count), count)?)
+        };
+        document.call_method1(intern!(py, "update"), (&rest,))?;
+        document.set_item("history", recent)?;
+    } else {
+        let history = state.get_item("history")?;
+        let recent = history.get_item(PySlice::new(py, start as isize, history.len()? as isize, 1))?;
+        document.call_method1(intern!(py, "update"), (&state,))?;
+        document.set_item("history", recent)?;
+    }
     let contract = py.import(intern!(py, "sheltersim.contracts.operations"))?.getattr("SharedOperationsState")?;
     match contract.call_method1("model_validate", (document,)) {
         Ok(_) => Ok(()),
@@ -337,6 +357,86 @@ fn recent_receipts_hold(world: &Bound<'_, PyAny>, mirror: &Bound<'_, NamespaceMi
             Err(value_error(STATE_INVALID))
         }
         Err(error) => Err(error),
+    }
+}
+
+fn this_row<'a>(mirror: &'a NamespaceMirror) -> PyResult<&'a dyn crate::core::world_core::Row> {
+    mirror.row_ref().ok_or_else(|| Unsupported::new_err("the namespace has no row"))
+}
+
+/// `shared_operations_v1` as `record_other` reads and writes it: the tree, whose own methods keep
+/// the row, or the row alone while the namespace is detached, written as those methods write it.
+enum Shared<'py> {
+    Tree(Bound<'py, PyAny>),
+    Row(Bound<'py, NamespaceMirror>),
+}
+
+impl<'py> Shared<'py> {
+    fn heads(&self, world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+        match self {
+            Self::Tree(state) => state.get_item("support_requests"),
+            Self::Row(_) => detached_part(world, NAME, "support_requests")?.ok_or_else(|| Unsupported::new_err("no heads")),
+        }
+    }
+
+    fn truncated(&self) -> PyResult<bool> {
+        match self {
+            Self::Tree(state) => state.get_item("history_truncated")?.is_truthy(),
+            Self::Row(mirror) => NamespaceMirror::with_row::<SharedOperationsRow, _>(mirror, |row| Ok(row.history_truncated)),
+        }
+    }
+
+    fn set_head(&self, heads: &Bound<'py, PyAny>, request_id: &Bound<'py, PyAny>, head: &Bound<'py, PyAny>) -> PyResult<()> {
+        match self {
+            Self::Tree(_) => heads.set_item(request_id, head),
+            Self::Row(mirror) => apply_to_row(
+                mirror,
+                &[Part::Key("support_requests")],
+                &Write::Set { key: Part::Key(exact_str(request_id)?), value: head },
+            ),
+        }
+    }
+
+    fn pop_head(&self, heads: &Bound<'py, PyAny>, request_id: &Bound<'py, PyAny>) -> PyResult<()> {
+        match self {
+            Self::Tree(_) => heads.call_method1(intern!(heads.py(), "pop"), (request_id, heads.py().None())).map(drop),
+            Self::Row(mirror) => {
+                let key = exact_str(request_id)?;
+                let held = NamespaceMirror::with_row::<SharedOperationsRow, _>(mirror, |row| Ok(row.support_requests.map.contains_key(key)))?;
+                if !held {
+                    return Ok(());
+                }
+                apply_to_row(mirror, &[Part::Key("support_requests")], &Write::Delete { key: Part::Key(key) })
+            }
+        }
+    }
+
+    /// `history.append(common)`, then at the limit `history_truncated = True` and the oldest dropped.
+    fn append(&self, common: &Bound<'py, PyAny>, over_limit: bool) -> PyResult<()> {
+        let py = common.py();
+        match self {
+            Self::Tree(state) => {
+                let history = state.get_item("history")?;
+                history.call_method1(intern!(py, "append"), (common,))?;
+                if over_limit {
+                    state.set_item("history_truncated", true)?;
+                    history.del_item(PySlice::new(py, 0, (history.len()? - MAX_HISTORY) as isize, 1))?;
+                }
+                Ok(())
+            }
+            Self::Row(mirror) => {
+                apply_to_row(mirror, &[Part::Key("history")], &Write::Append { value: common })?;
+                if over_limit {
+                    let flag = PyBool::new(py, true);
+                    apply_to_row(mirror, &[], &Write::Set { key: Part::Key("history_truncated"), value: flag.as_any() })?;
+                    let count = NamespaceMirror::with_row::<SharedOperationsRow, _>(mirror, |row| Ok(row.history.items.len()))?;
+                    if count > MAX_HISTORY {
+                        apply_to_row(mirror, &[Part::Key("history")], &Write::DeleteRange { start: 0, stop: count - MAX_HISTORY })?;
+                    }
+                }
+                Ok(())
+            }
+        }
     }
 }
 
@@ -356,6 +456,7 @@ fn record_other<'py>(world: &Bound<'py, PyAny>, record: &Bound<'py, PyAny>) -> P
     let Some(state) = exact_dict(&table)?.get_item(NAME)? else {
         return unsupported("no shared operations");
     };
+    let state = if is_detached(&state) { Shared::Row(mirror.clone()) } else { Shared::Tree(state) };
     let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
     state_holds(world, &mirror, minute)?;
     let field = |name: &Bound<'py, PyString>| attribute(record, name);
@@ -394,7 +495,7 @@ fn record_other<'py>(world: &Bound<'py, PyAny>, record: &Bound<'py, PyAny>) -> P
     {
         return Err(value_error(NOT_THE_PAYLOAD));
     }
-    let heads = state.get_item("support_requests")?;
+    let heads = state.heads(world)?;
     let new_head = if continuity {
         let request_id = field(intern!(py, "request_id"))?;
         let prior = heads.call_method1(intern!(py, "get"), (&request_id,))?;
@@ -430,25 +531,18 @@ fn record_other<'py>(world: &Bound<'py, PyAny>, record: &Bound<'py, PyAny>) -> P
         }
     }
     if operation {
-        check_staff_operation(world, record, state.get_item("history_truncated")?.is_truthy()?)?;
+        check_staff_operation(world, record, state.truncated()?)?;
         state_changes(world, &field(intern!(py, "state_changes"))?, true)?;
     }
 
     // Write.
     if let Some((request_id, head)) = new_head {
         match head {
-            Some(head) => heads.set_item(request_id, head)?,
-            None => {
-                heads.call_method1(intern!(py, "pop"), (request_id, py.None()))?;
-            }
+            Some(head) => state.set_head(&heads, &request_id, head.as_any())?,
+            None => state.pop_head(&heads, &request_id)?,
         }
     }
-    let history = state.get_item("history")?;
-    history.call_method1(intern!(py, "append"), (common,))?;
-    if over_limit {
-        state.set_item("history_truncated", true)?;
-        history.del_item(PySlice::new(py, 0, (history.len()? - MAX_HISTORY) as isize, 1))?;
-    }
+    state.append(&common, over_limit)?;
     // Checked above as a tick's check would check it, so that check needs nothing more of it but
     // the staff completions, which it reads again (`state/shared_operations.rs`).
     NamespaceMirror::with_row::<SharedOperationsRow, _>(&mirror, |row| {
@@ -550,19 +644,49 @@ fn check_handoff<'py>(world: &Bound<'py, PyAny>, record: &Bound<'py, PyAny>) -> 
     Err(value_error(refused))
 }
 
+/// What the rule below reads of the retained completions of a detached `staff_operations_v1`:
+/// the documents of those of this task and minute, and else all of them, as their answer to "all
+/// later" is the same. A task or minute that is not of the row's types reads them all.
+fn detached_history<'py>(world: &Bound<'py, PyAny>, task_id: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    let py = world.py();
+    let mirror = mirror_of(world, "staff_operations_v1")?;
+    if let (Ok(task), Ok(minute)) = (task_id.downcast_exact::<PyString>(), minute.downcast_exact::<pyo3::types::PyInt>()) {
+        if let (Ok(task), Ok(minute)) = (task.to_str(), minute.extract::<i64>()) {
+            let found = NamespaceMirror::with_row::<StaffOperationsRow, _>(&mirror, |row| {
+                let matching: Vec<usize> = (0..row.history.len())
+                    .filter(|index| &*row.history[*index].task_id == task && row.history[*index].complete_minute == minute)
+                    .collect();
+                Ok(matching)
+            })?;
+            if !found.is_empty() {
+                let list = pyo3::types::PyList::empty(py);
+                NamespaceMirror::with_row::<StaffOperationsRow, _>(&mirror, |row| {
+                    for index in &found {
+                        list.append(crate::core::row::Field::to_py(&row.history[*index], py)?)?;
+                    }
+                    Ok(())
+                })?;
+                return Ok(list.into_any());
+            }
+        }
+    }
+    Ok(crate::core::world_core::detached_part(world, "staff_operations_v1", "history")?.unwrap_or_else(|| py.None().into_bound(py)))
+}
+
 /// `_validate_staff_operation_receipt`.
 fn check_staff_operation<'py>(world: &Bound<'py, PyAny>, record: &Bound<'py, PyAny>, history_truncated: bool) -> PyResult<()> {
     let py = world.py();
     let field = |name: &Bound<'py, PyString>| attribute(record, name);
     let table = attribute(world, intern!(py, "model_state"))?;
     let operations = exact_dict(&table)?.get_item("staff_operations_v1")?;
+    let (task_id, minute) = (field(intern!(py, "task_id"))?, field(intern!(py, "minute"))?);
     let history = match &operations {
+        Some(held) if is_detached(held) => detached_history(world, &task_id, &minute)?,
         Some(operations) if operations.is_instance_of::<PyDict>() => get_of(operations, PyString::new(py, "history").as_any())?,
         _ => py.None().into_bound(py),
     };
     let rows: Vec<Bound<'py, PyAny>> = if history.is_none() { Vec::new() } else { history.try_iter()?.collect::<PyResult<_>>()? };
     let rows: Vec<_> = rows.into_iter().filter(|row| row.is_instance_of::<PyDict>()).collect();
-    let (task_id, minute) = (field(intern!(py, "task_id"))?, field(intern!(py, "minute"))?);
     let of = |row: &Bound<'py, PyAny>, key: &str| row.call_method1(intern!(py, "get"), (key,));
     let mut matches = Vec::new();
     for row in &rows {

@@ -57,6 +57,13 @@ SHARED = SHARED_OPERATIONS_KEY
 KINDS = (*_CARE_SKILL_ALTERNATIVES, "a_kind_of_no_table")
 
 
+@pytest.fixture(autouse=True)
+def _trees(keep_trees: Any) -> None:
+    """These tests pin the tree the kernel writes beside the row, key order and all: the
+    namespace keeps its tree here (support/world.py keep_trees)."""
+    keep_trees(SHARED)
+
+
 def _world(
     *, skills: tuple[str, ...] = ("support",), configs: dict[str, Any] | None = None
 ) -> WorldState:

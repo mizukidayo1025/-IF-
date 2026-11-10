@@ -798,21 +798,34 @@ pub(crate) fn entity_rules_watching<'py>(
         let Some(service) = raw_dict_get(table, intern!(py, "resource_service_v1").as_any())? else {
             return unsupported("no resource service state");
         };
-        let service = exact_dict(&service)?;
-        let Some(cancelled) = service.get_item(intern!(py, "cancelled_task_ids"))? else {
-            return unsupported("the resource service state lacks a field");
+        // A detached namespace's two lists, from its row.
+        let row_lists = if is_detached(&service) {
+            let mirror = crate::state::resource_service::held_mirror(world)?;
+            Some(NamespaceMirror::with_row::<crate::state::resource_service::ServiceRow, _>(&mirror, |row| {
+                Ok((row.cancelled_task_ids.clone(), row.active_reservation_ids.clone()))
+            })?)
+        } else {
+            None
         };
-        let cancelled = held.ids(cancelled)?;
+        let service = if row_lists.is_some() { None } else { Some(exact_dict(&service)?.clone()) };
+        let field = |name: &Bound<'py, PyString>| -> PyResult<Bound<'py, PyAny>> {
+            let service = service.as_ref().ok_or_else(|| crate::Unsupported::new_err("no tree"))?;
+            service.get_item(name)?.ok_or_else(|| crate::Unsupported::new_err("the resource service state lacks a field"))
+        };
+        let cancelled = match &row_lists {
+            Some((cancelled, _)) => cancelled.iter().map(|id| &**id).collect(),
+            None => held.ids(field(intern!(py, "cancelled_task_ids"))?)?,
+        };
         #[allow(clippy::iter_over_hash_type, reason = "read-only checks; a refusal here hands the world to the Python check, which says its own text")]
         for (task_id, _) in resource_events.iter() {
             if !work_at.contains_key(task_id) && !cancelled.contains(task_id) {
                 return unsupported("a resource completion names an inactive task");
             }
         }
-        let Some(listed) = service.get_item(intern!(py, "active_reservation_ids"))? else {
-            return unsupported("the resource service state lacks a field");
+        let listed: Vec<&str> = match &row_lists {
+            Some((_, listed)) => listed.iter().map(|id| &**id).collect(),
+            None => held.ids(field(intern!(py, "active_reservation_ids"))?)?,
         };
-        let listed = held.ids(listed)?;
         let listed_set: FxHashSet<&str> = listed.iter().copied().collect();
         if listed_set != active_reservations {
             return unsupported("the active reservations differ from the active tasks");

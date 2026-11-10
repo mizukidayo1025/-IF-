@@ -24,7 +24,8 @@ use pyo3::types::{PyBool, PyDict, PyString};
 
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, state_row, unsupported, Field, IdMap};
 use crate::core::value::V;
-use crate::core::world_core::{raw_dict_get, with_state_value};
+use crate::core::world_core::{held_state, raw_dict_get, with_state_value, Held, NamespaceMirror};
+use crate::state::body_state::BodyRow;
 use crate::eventlog::{AppliedOutcome, EventStore};
 use crate::state::entities::{entities_of, Activity, EntityStore};
 use crate::state::events::{is_stable_id, EventKind, EventRef, EventRow, EventStatus, EventWriter};
@@ -221,14 +222,19 @@ fn body_value(record: &Bound<'_, PyAny>, name: &Bound<'_, PyString>) -> PyResult
     Ok(whole as f64)
 }
 
-/// `sleep_debt_minutes` and `hygiene_need` of `body_state_v1.agents[id]`. The one place here that
-/// reads a Python document: the tree of `body_state_v1`, whose row this could read instead.
+/// `sleep_debt_minutes` and `hygiene_need` of `body_state_v1.agents[id]`: from the row, or from
+/// the dict Python holds past it.
 fn body_needs(world: &Bound<'_, PyAny>, id: &str) -> PyResult<(f64, f64)> {
     let py = world.py();
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let table = exact_dict(&table)?;
-    let Some(state) = table.get_item(intern!(py, "body_state_v1"))? else {
-        return Ok((0.0, 0.0));
+    exact_dict(&attribute(world, intern!(py, "model_state"))?)?;
+    let state = match held_state(world, "body_state_v1")? {
+        None => return Ok((0.0, 0.0)),
+        Some(Held::Row(mirror)) => {
+            return NamespaceMirror::with_row::<BodyRow, _>(&mirror, |row| {
+                Ok(row.agents.get(id).map_or((0.0, 0.0), |record| (record.sleep_debt_minutes, record.hygiene_need)))
+            });
+        }
+        Some(Held::Value(state)) => state,
     };
     let Some(agents) = exact_dict(&state)?.get_item(intern!(py, "agents"))? else {
         return Ok((0.0, 0.0));

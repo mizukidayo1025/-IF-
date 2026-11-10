@@ -242,7 +242,7 @@ impl<'py> Tick<'_, 'py> {
         let py = self.py();
         let stalls = PyList::empty(py);
         let table = attribute(self.world, intern!(py, "model_state"))?;
-        let previous = table.get_item(intern!(py, "resource_service_v1"))?.get_item(intern!(py, "stall_state"))?.call_method1(intern!(py, "get"), (id,))?;
+        let previous = service::previous_stall(self.world, &table, id)?;
         for queue_id in queues.iter() {
             self.prepare_independent_queue(&queue_id, true)?;
             self.check_signed_point(&queue_id, "resource")?;

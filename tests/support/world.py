@@ -32,6 +32,24 @@ def count_validations(monkeypatch: pytest.MonkeyPatch) -> Callable[[Any], list[i
     return count
 
 
+@pytest.fixture
+def keep_trees(monkeypatch: pytest.MonkeyPatch) -> Callable[..., None]:
+    """Keep the named namespaces attached: worlds made from now on hold their trees.
+
+    For tests that pin the tree a kernel writes beside its row, in the Python rule's key order. A
+    detached namespace (core/state_mirror.py DETACHED_NAMESPACES) has no tree, and a read builds
+    one in its row's order; its tree is that of a Run only after a Python read.
+    """
+    from sheltersim.core import state_mirror
+
+    def keep(*names: str) -> None:
+        monkeypatch.setattr(
+            state_mirror, "DETACHED_NAMESPACES", state_mirror.DETACHED_NAMESPACES - set(names)
+        )
+
+    return keep
+
+
 def _stress_delta(agent_id: str, minute: int, stress: float) -> Any:
     from sheltersim.policies.psychology import AgentStateDelta
 

@@ -1802,7 +1802,8 @@ fn service_staff_in_zone(world: &Bound<'_, PyAny>, geo: &Geo, facility_id: &str,
     let Some(config) = crate::core::tracked::as_readable_dict(&config) else {
         return unsupported("the service config is another mapping");
     };
-    if state_of(world, "resource_service_v1")?.is_none() {
+    // Whether it is there, as it is held: a detached one is not rebuilt for that.
+    if held_of(world, "resource_service_v1")?.is_none() {
         return Ok(());
     }
     let Some(skill) = config.get_item(skill_key)? else {
