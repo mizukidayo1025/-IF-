@@ -1,50 +1,25 @@
-//! What the per-tick contact models share: reading exact numbers and sampling keyed partners.
-//! The models are in `rules/social_propagation.rs` and
-//! `rules/information.rs`. Each returns the same floats, draws and JSON keys as the Python
-//! code: every float operation keeps its order, and anything the Python code would reject,
-//! or any value of another type, raises `Unsupported` so the caller runs that code instead.
+//! What the per-tick contact models share: sampling keyed partners and the keys of pairs.
+//! The models are in `rules/social_propagation.rs` and `rules/information.rs` of the PyO3
+//! crate, which also reads the exact Python numbers (`native/src/contacts.rs`). Each returns the
+//! same floats, draws and JSON keys as the Python code: every float operation keeps its order.
 
 use std::collections::HashMap;
 
-use pyo3::prelude::*;
-use pyo3::types::{PyFloat, PyInt};
-
-use crate::core::mathx::py_fsum;
-use crate::core::rng::{Key, KeyedDraws};
-use crate::{write_json_string, Unsupported};
-
-/// math.fsum of finite values, for tests.
-#[pyfunction]
-pub fn fsum(values: Vec<f64>) -> PyResult<f64> {
-    py_fsum(&values).ok_or_else(|| Unsupported::new_err("values are not finite"))
-}
-
-pub(crate) fn exact_float(value: &Bound<'_, PyAny>) -> PyResult<f64> {
-    value
-        .downcast_exact::<PyFloat>()
-        .map(|number| number.value())
-        .map_err(|_| Unsupported::new_err("not a float"))
-}
-
-pub(crate) fn exact_int(value: &Bound<'_, PyAny>) -> PyResult<i64> {
-    value
-        .downcast_exact::<PyInt>()
-        .map_err(|_| Unsupported::new_err("not an int"))?
-        .extract()
-        .map_err(|_| Unsupported::new_err("int out of range"))
-}
+use crate::error::{Error, Result};
+use crate::json::write_json_string;
+use crate::rng::{Key, KeyedDraws};
 
 #[derive(Clone, Copy)]
-pub(crate) enum Basis {
+pub enum Basis {
     Family,
     SameZone,
     Nearby,
 }
 
-pub(crate) struct Bucket<'a> {
-    pub(crate) basis: Basis,
-    pub(crate) members: &'a [usize],
-    pub(crate) includes_self: bool,
+pub struct Bucket<'a> {
+    pub basis: Basis,
+    pub members: &'a [usize],
+    pub includes_self: bool,
 }
 
 impl Bucket<'_> {
@@ -54,7 +29,7 @@ impl Bucket<'_> {
 }
 
 /// Sorted person indexes of each zone (people are indexed in ID order).
-pub(crate) fn zone_members<'a>(zones: &[&'a str]) -> HashMap<&'a str, Vec<usize>> {
+pub fn zone_members<'a>(zones: &[&'a str]) -> HashMap<&'a str, Vec<usize>> {
     let mut members: HashMap<&str, Vec<usize>> = HashMap::new();
     for (index, &zone) in zones.iter().enumerate() {
         members.entry(zone).or_default().push(index);
@@ -63,7 +38,7 @@ pub(crate) fn zone_members<'a>(zones: &[&'a str]) -> HashMap<&'a str, Vec<usize>
 }
 
 /// The adjacent zones of `zone` that have people, in sorted order.
-pub(crate) fn nearby_buckets<'a>(
+pub fn nearby_buckets<'a>(
     zone: &str,
     neighbors: &'a HashMap<String, Vec<String>>,
     members: &'a HashMap<&str, Vec<usize>>,
@@ -84,7 +59,7 @@ pub(crate) fn nearby_buckets<'a>(
 /// `_select_contacts`: at most `maximum` partners of `me`, with the draws of
 /// `{key}` written as `["<label>",minute,"<me>",slot,attempt]`. The social model
 /// stops at a slot that used all its attempts; the information model goes on.
-pub(crate) fn select_contacts(
+pub fn select_contacts(
     draws: &KeyedDraws,
     key: &mut Key,
     me: usize,
@@ -140,7 +115,7 @@ pub(crate) fn select_contacts(
 }
 
 /// `"<id>"` as JSON for each person.
-pub(crate) fn quoted_ids(ids: &[&str]) -> Vec<Vec<u8>> {
+pub fn quoted_ids(ids: &[&str]) -> Vec<Vec<u8>> {
     ids.iter()
         .map(|id| {
             let mut quoted = Vec::with_capacity(id.len() + 2);
@@ -150,17 +125,18 @@ pub(crate) fn quoted_ids(ids: &[&str]) -> Vec<Vec<u8>> {
         .collect()
 }
 
-pub(crate) fn pair_key(first: &[u8], second: &[u8]) -> PyResult<String> {
+/// `[first,second]`; Unsupported for bytes that are not UTF-8.
+pub fn pair_key(first: &[u8], second: &[u8]) -> Result<String> {
     let mut key = String::with_capacity(first.len() + second.len() + 3);
     key.push('[');
-    key.push_str(std::str::from_utf8(first).map_err(|_| Unsupported::new_err("not UTF-8"))?);
+    key.push_str(std::str::from_utf8(first).map_err(|_| Error::unsupported("not UTF-8"))?);
     key.push(',');
-    key.push_str(std::str::from_utf8(second).map_err(|_| Unsupported::new_err("not UTF-8"))?);
+    key.push_str(std::str::from_utf8(second).map_err(|_| Error::unsupported("not UTF-8"))?);
     key.push(']');
     Ok(key)
 }
 
-pub(crate) fn key_head(label: &str, minute: i64, quoted: &[u8]) -> Key {
+pub fn key_head(label: &str, minute: i64, quoted: &[u8]) -> Key {
     let mut head = Key::labelled(label);
     head.int(minute).quoted(quoted);
     head

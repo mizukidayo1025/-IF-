@@ -32,7 +32,7 @@ use crate::rules::movement_geometry::{
     segment_clear_of_polygon, segment_inside_polygon, usable, Constraints, Geo, Layout, Pt,
 };
 use crate::state::entities::{entities_of, EntityStore};
-use crate::state::events::EventRow;
+use crate::state::events::{EventRow, EventRowPy};
 use crate::state::movement::MovementRow;
 use crate::Unsupported;
 

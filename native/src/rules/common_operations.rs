@@ -18,7 +18,7 @@ use crate::core::tracked::{as_readable_dict, is_detached};
 use crate::core::value::V;
 use crate::core::world_core::{apply_to_row, detached_part, mirror_of, NamespaceMirror, Part, Write};
 use crate::state::staff_operations::StaffOperationsRow;
-use crate::state::events::{EventRow, EventWriter};
+use crate::state::events::{EventRow, EventRowPy, EventWriter};
 use crate::state::shared_operations::{
     is_identifier, CareHead, CareStatus, Receipt, SharedOperationsRow, MAX_HISTORY, MAX_REQUESTS, NAME,
 };

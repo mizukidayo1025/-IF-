@@ -7,23 +7,13 @@ use pyo3::ffi;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
-use sha2::{Digest, Sha256};
+use sheltersim_core::checkpoint::sha256_hex;
+use sheltersim_core::events::is_stable_id;
 
 use crate::{Encoder, PyEncoder, Unsupported};
 
 // Deeper values are left to Python, which can raise its own errors about them.
 const MAX_FROZEN_DEPTH: usize = 64;
-
-/// `_STABLE_ID.fullmatch(value)`: `[A-Za-z0-9][A-Za-z0-9._:-]{0,63}`.
-fn is_stable_id(value: &str) -> bool {
-    let bytes = value.as_bytes();
-    if bytes.is_empty() || bytes.len() > 64 || !bytes[0].is_ascii_alphanumeric() {
-        return false;
-    }
-    bytes[1..]
-        .iter()
-        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'))
-}
 
 fn stable_id(value: &Bound<'_, PyAny>, optional: bool) -> PyResult<()> {
     if optional && value.is_none() {
@@ -330,6 +320,5 @@ pub fn view_state_hash<'py>(
         encoder.value(config, 1)?;
     }
     encoder.out.push(b'}');
-    let digest = Sha256::digest(&encoder.out);
-    Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
+    Ok(sha256_hex(&encoder.out))
 }
