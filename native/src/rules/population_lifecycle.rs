@@ -30,7 +30,7 @@ use crate::rules::population::{
 };
 use crate::rules::service::active_task_class;
 use crate::rules::travel::{route_class, world_route};
-use crate::state::entities::{entities_of, Activity, EntityStore};
+use crate::state::entities::{entities_of, Activity, EntityStore, Member};
 use crate::state::events::{EventKind, EventRow, EventWriter, QueueStore};
 use crate::Unsupported;
 

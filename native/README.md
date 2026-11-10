@@ -35,8 +35,10 @@ Checkpoint document) and times them.
   `rng.rs`, `census.rs`, `parallel.rs`, `interner.rs`, `contacts.rs`, `checkpoint.rs` (the
   Checkpoint kernels over bytes), `events/` (`EventRow`, the queue's `Queue`, the `EventLog`
   with its indexes and the saved-record checks, and `writer`, which schedules and records rows
-  with the Python errors), `row.rs` (`Field`, `Row`, `Items`, `state_row!`, `str_enum!`) and
-  `state/` (the rows of most namespaces, with their checks that read the row alone). The files
+  with the Python errors), `row.rs` (`Field`, `Row`, `Items`, `state_row!`, `str_enum!`),
+  `entities.rs` (the entity rows `AgentRow`…`TaskRow` with their `EntityField`, whose
+  `write_json` takes the WorldState version, `Table` and `Entities`) and `state/` (the rows of
+  the namespaces, with their checks that read the row alone or the entity rows). The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,
   Python numbers and strings, `#[pyfunction]` entries): `src/core/errors.rs` maps an `Error` to
@@ -114,7 +116,10 @@ Checkpoint document) and times them.
   `src/rules/staff_dynamics.rs` are the example of a whole module
   (`docs/rust-port/lanes/s-staff-dynamics.md`).
 - `src/state/entities.rs`: `EntityStore`, the typed rows of a world's agents, facilities, staff,
-  support requests and active tasks, from `WorldCore::entities`. The objects stay the dataclasses
+  support requests and active tasks, from `WorldCore::entities`. The rows, `Table` and `Entities`
+  are the core's (`core/src/entities.rs`); here are reading a row from an object and making a
+  dict of it (`PyEntityField`, `py_entity_row!`), the enum members (`install`, `Member`), the
+  links of the objects and the bytes objects of `rows_json`. The objects stay the dataclasses
   of `domain/models.py`, each mirroring its row; `IdMap`, `__setattr__` and `TrackedList` forward
   every write. A rule reads with `with_rows` (a tainted store says `Unsupported`) and writes with
   `write_field` (`docs/rust-port/lanes/p6-entity-windows.md`).
@@ -310,7 +315,8 @@ are correctly rounded everywhere, and not `**` with a float.
   back and, for an independent FIFO, the queue's record (lane L4).
   See `docs/rust-port/lanes/m4-queues.md`.
 
-- `state.staff_operations.ROW`: Rust owns `staff_operations_v1` (`src/state/staff_operations.rs`).
+- `state.staff_operations.ROW`: Rust owns `staff_operations_v1` (`src/state/staff_operations.rs`;
+  the row and its checks of the row and the entity rows are in `core/src/state/`).
   `validate(world)` accepts a world where no staff member has a task; an active record reads the
   pending events, which is the Python rule's.
 - `rules.staff`: the staff's assignment of `domain/staff.py` and `domain/staff_operations.py`
@@ -348,14 +354,16 @@ are correctly rounded everywhere, and not `**` with a float.
   check. `stats()` says what ran. See `docs/rust-port/lanes/l7-validate.md` and, for v5,
   `l7b-world-v5.md`.
 - `state.shared_operations.ROW`: Rust owns `shared_operations_v1`
-  (`src/state/shared_operations.rs`): the heads typed, each receipt its canonical bytes.
+  (`src/state/shared_operations.rs`, the row in `core/src/state/`): the heads typed, each receipt
+  its canonical bytes.
   `validate_tick(world)` accepts a tick's state (no replay of the history) when the kernel that
   appended the recent receipts, or the Python rules through `recent_passed(world)` or
   `history_passed(world)`, checked them; it compares a recent staff operation receipt with the
   retained completions of `staff_operations_v1` itself.
   `rules.common_operations.record_shared_operation(world, record)` appends a `CareTransitionReceipt`.
 - `state.resource_ledger.ROW`, `validate`: Rust owns `resource_ledger_v1`
-  (`src/state/resource_ledger.rs`): the accounts typed, the audit trail as the canonical bytes of each
+  (`src/state/resource_ledger.rs`; the row and `passes_rules_in` in `core/src/state/`, which reads
+  the world's resources, people and zones through a `LedgerWorld`): the accounts typed, the audit trail as the canonical bytes of each
   record, with the newest of each resource kept typed for the check. A record the rules would turn
   down, or a write into a record already there, taints the namespace. `validate` answers for the
   check of a tick; the replay of a save stays in Python. `rules.resources.apply_operation(world,
@@ -481,7 +489,7 @@ are correctly rounded everywhere, and not `**` with a float.
   row, which Python reads as before.
 - `dumps_length(value)` (`src/checkpoint.rs`): `len(json.dumps(value, ensure_ascii=False).encode())`
   of a plain JSON value, for the size limit of a decision's observed state.
-- `EntityStore.rows_json(version)` (`src/state/entities.rs`): each entity row's canonical JSON, by
+- `EntityStore.rows_json(version)` (`src/state/entities.rs` over `core/src/entities.rs`): each entity row's canonical JSON, by
   field, in the order of `WorldState._canonical_data`. A row nothing reached for writing keeps its
   bytes object, so the same object means the same row (`Table::changed`, set by every way to a row
   for writing). `NamespaceMirror.row_json()` is the same for an owned namespace. A capture takes both

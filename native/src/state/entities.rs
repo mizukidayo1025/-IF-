@@ -1,5 +1,6 @@
 //! The entities of a world as Rust rows: agents with their needs, facilities, staff, support
-//! requests and active tasks (docs/rust-port/lanes/p6-entity-windows.md).
+//! requests and active tasks (docs/rust-port/lanes/p6-entity-windows.md). The rows, `Table` and
+//! `Entities` are the core's (`sheltersim_core::entities`); here is what needs Python.
 //!
 //! The Python objects stay the dataclasses of `domain/models.py`: a read is a plain attribute
 //! read of the instance, and each `__dict__` is the mirror of a row, as a tracked tree is the
@@ -9,7 +10,7 @@
 //! the rows through `with_rows`, and `write_field` writes a row and then its object.
 //!
 //! The store holds no reference to an entity or a world, so it makes no cycle and the rows stay
-//! `Send + Sync` (`assert_rows_are_shareable`). Rust finds an object through the world's `IdMap`.
+//! `Send + Sync`. Rust finds an object through the world's `IdMap`.
 //!
 //! A value that does not fit a typed field taints the whole store. The Python object keeps what
 //! was written, so the Python rules see it and fail with their own text; `with_rows` then says
@@ -23,14 +24,22 @@ use std::ptr::null_mut;
 use std::sync::atomic::{AtomicPtr, Ordering};
 use std::sync::Arc;
 
-use indexmap::IndexMap;
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::ffi;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple, PyType};
 use pyo3::IntoPyObjectExt;
-use rustc_hash::{FxBuildHasher, FxHashSet};
+use rustc_hash::FxHashSet;
+
+pub(crate) use sheltersim_core::entities::{
+    Activity, AgentRow, Entities, FacilityRow, Mobility, NeedRow, RequestStatus, TaskRow,
+};
+use sheltersim_core::entities::{
+    EntityField, EntityRow, ProfileRow, RequestRow, Skills, StaffRow, Table, ACTIVITIES, AGENT,
+    FACILITY, MOBILITIES, NEEDS, REQUEST, STAFF, STATUSES, TASK,
+};
+use sheltersim_core::row::{same_names, IdMap, StrEnum};
 
 use crate::core::tracked::{as_readable_list, id_map_type};
 use crate::core::errors::OrPy;
@@ -38,16 +47,9 @@ use crate::core::value::V;
 use crate::core::world_core::{
     core_of, new_tracked_list, raw_dict_get, raw_dict_set, raw_list_append, Misfit, OrMisfit,
 };
-use crate::{write_json_string, Encoder, PyEncoder, Unsupported};
+use crate::{Encoder, Unsupported};
 
 // ---- What Python hands over ---------------------------------------------------------------
-
-const AGENT: u8 = 0;
-const NEEDS: u8 = 1;
-const FACILITY: u8 = 2;
-const STAFF: u8 = 3;
-const REQUEST: u8 = 4;
-const TASK: u8 = 5;
 
 struct Installed {
     agent: Py<PyType>,
@@ -59,10 +61,6 @@ struct Installed {
     activity: Vec<Py<PyAny>>,
     mobility: Vec<Py<PyAny>>,
     status: Vec<Py<PyAny>>,
-    // The `.value` of each member, which is what a document holds.
-    activity_values: Vec<String>,
-    mobility_values: Vec<String>,
-    status_values: Vec<String>,
 }
 
 static INSTALLED: AtomicPtr<Installed> = AtomicPtr::new(null_mut());
@@ -73,8 +71,9 @@ fn installed() -> Result<&'static Installed, Misfit> {
         .ok_or_else(|| Misfit::new("domain/models.py is not imported"))
 }
 
-/// Remember the classes and the members of the enums, in the order of `ACTIVITIES` and the
-/// others below. They stay alive for the life of the process.
+/// Remember the classes and the members of the enums, in the order of the core's `ACTIVITIES` and
+/// the others. Each member's `.value` must be the core's text, which is what a document holds.
+/// They stay alive for the life of the process.
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 fn install(
@@ -89,73 +88,53 @@ fn install(
     mobility: Vec<Py<PyAny>>,
     status: Vec<Py<PyAny>>,
 ) -> PyResult<()> {
-    if activity.len() != ACTIVITIES.len()
-        || mobility.len() != MOBILITIES.len()
-        || status.len() != STATUSES.len()
+    fn matches<T: StrEnum>(py: Python<'_>, members: &[Py<PyAny>], rows: &[T]) -> PyResult<bool> {
+        if members.len() != rows.len() {
+            return Ok(false);
+        }
+        for (member, row) in members.iter().zip(rows) {
+            let value: String = member.bind(py).getattr("value")?.extract()?;
+            if value != row.as_text() {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+    if !(matches(py, &activity, ACTIVITIES)? && matches(py, &mobility, MOBILITIES)? && matches(py, &status, STATUSES)?)
     {
         return Err(PyValueError::new_err("the enums of domain/models.py do not match the rows"));
     }
-    let values = |members: &[Py<PyAny>]| -> PyResult<Vec<String>> {
-        members.iter().map(|member| member.bind(py).getattr("value")?.extract()).collect()
-    };
-    let (activity_values, mobility_values, status_values) =
-        (values(&activity)?, values(&mobility)?, values(&status)?);
-    let new = Box::leak(Box::new(Installed {
-        agent,
-        needs,
-        facility,
-        staff,
-        request,
-        task,
-        activity,
-        mobility,
-        status,
-        activity_values,
-        mobility_values,
-        status_values,
-    }));
+    let new = Box::leak(Box::new(Installed { agent, needs, facility, staff, request, task, activity, mobility, status }));
     INSTALLED.store(new, Ordering::Release);
     Ok(())
 }
 
 // ---- Typed fields ----------------------------------------------------------------------------
 
-/// A field of a row. `from_py` runs no Python code and takes only the exact type.
-trait Field: Sized {
+/// What a field of a row does with Python. `from_py` runs no Python code and takes only the exact
+/// type.
+trait PyEntityField: EntityField {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit>;
     fn to_py(&self, py: Python<'_>) -> PyResult<Py<PyAny>>;
-    fn same(&self, other: &Self) -> bool;
-    /// The bytes `canonical_json` writes for this value in a WorldState document of this version.
-    fn write_json(&self, encoder: &mut Encoder, version: i64) -> PyResult<()>;
 }
 
-fn write_strings(encoder: &mut Encoder, items: &[Arc<str>]) {
-    encoder.out.push(b'[');
-    for (index, item) in items.iter().enumerate() {
-        if index > 0 {
-            encoder.out.push(b',');
-        }
-        write_json_string(&mut encoder.out, item);
-    }
-    encoder.out.push(b']');
+/// A forwarded attribute write into a row.
+trait Forward {
+    /// Take the write. A name that is no field (a property) is nothing to do here. ProfileRow's
+    /// whole value is replaced instead.
+    fn set(&mut self, name: &str, value: &Bound<'_, PyAny>) -> Result<(), Misfit>;
 }
 
-impl Field for f64 {
+impl PyEntityField for f64 {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         Ok(value.downcast_exact::<PyFloat>().map_err(|_| Misfit::new("not a float"))?.value())
     }
     fn to_py(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         self.into_py_any(py)
     }
-    fn same(&self, other: &Self) -> bool {
-        self.to_bits() == other.to_bits()
-    }
-    fn write_json(&self, encoder: &mut Encoder, _version: i64) -> PyResult<()> {
-        encoder.float(*self)
-    }
 }
 
-impl Field for i64 {
+impl PyEntityField for i64 {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         // A bool's exact type is not int.
         Ok(value.downcast_exact::<PyInt>().map_err(|_| Misfit::new("not an int"))?.extract().or_misfit()?)
@@ -163,16 +142,9 @@ impl Field for i64 {
     fn to_py(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         self.into_py_any(py)
     }
-    fn same(&self, other: &Self) -> bool {
-        self == other
-    }
-    fn write_json(&self, encoder: &mut Encoder, _version: i64) -> PyResult<()> {
-        encoder.out.extend_from_slice(itoa::Buffer::new().format(*self).as_bytes());
-        Ok(())
-    }
 }
 
-impl Field for Arc<str> {
+impl PyEntityField for Arc<str> {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         let text = value.downcast_exact::<PyString>().map_err(|_| Misfit::new("not a str"))?;
         Ok(Arc::from(text.to_str().or_misfit()?))
@@ -180,16 +152,9 @@ impl Field for Arc<str> {
     fn to_py(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         (&**self).into_py_any(py)
     }
-    fn same(&self, other: &Self) -> bool {
-        self == other
-    }
-    fn write_json(&self, encoder: &mut Encoder, _version: i64) -> PyResult<()> {
-        write_json_string(&mut encoder.out, self);
-        Ok(())
-    }
 }
 
-impl<T: Field> Field for Option<T> {
+impl<T: PyEntityField> PyEntityField for Option<T> {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         if value.is_none() {
             Ok(None)
@@ -203,26 +168,10 @@ impl<T: Field> Field for Option<T> {
             None => Ok(py.None()),
         }
     }
-    fn same(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Some(mine), Some(theirs)) => mine.same(theirs),
-            (None, None) => true,
-            _ => false,
-        }
-    }
-    fn write_json(&self, encoder: &mut Encoder, version: i64) -> PyResult<()> {
-        match self {
-            Some(value) => value.write_json(encoder, version),
-            None => {
-                encoder.out.extend_from_slice(b"null");
-                Ok(())
-            }
-        }
-    }
 }
 
 /// An ID list: a list of a facility or a staff member. Its node is a `TrackedList`.
-impl Field for Vec<Arc<str>> {
+impl PyEntityField for Vec<Arc<str>> {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         let list = as_readable_list(value).ok_or_else(|| Misfit::new("not a list"))?;
         list.iter().map(|item| <Arc<str>>::from_py(&item)).collect()
@@ -230,20 +179,10 @@ impl Field for Vec<Arc<str>> {
     fn to_py(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         Ok(PyList::new(py, self.iter().map(|item| &**item))?.into_any().unbind())
     }
-    fn same(&self, other: &Self) -> bool {
-        self == other
-    }
-    fn write_json(&self, encoder: &mut Encoder, _version: i64) -> PyResult<()> {
-        write_strings(encoder, self);
-        Ok(())
-    }
 }
 
 /// `StaffState.skills`: a tuple of str.
-#[derive(Clone, PartialEq)]
-pub(crate) struct Skills(pub(crate) Vec<Arc<str>>);
-
-impl Field for Skills {
+impl PyEntityField for Skills {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         let items = value.downcast_exact::<PyTuple>().map_err(|_| Misfit::new("not a tuple"))?;
         items.iter().map(|item| <Arc<str>>::from_py(&item)).collect::<Result<_, _>>().map(Skills)
@@ -251,121 +190,70 @@ impl Field for Skills {
     fn to_py(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         Ok(PyTuple::new(py, self.0.iter().map(|item| &**item))?.into_any().unbind())
     }
-    fn same(&self, other: &Self) -> bool {
-        self == other
-    }
-    fn write_json(&self, encoder: &mut Encoder, _version: i64) -> PyResult<()> {
-        write_strings(encoder, &self.0);
-        Ok(())
-    }
 }
 
-impl Field for V {
+impl PyEntityField for V {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
         Ok(<V as crate::core::value::VPy>::from_py(value).or_misfit()?)
     }
     fn to_py(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         Ok(crate::core::value::VPy::to_py(self, py)?.unbind())
     }
-    fn same(&self, other: &Self) -> bool {
-        self == other
-    }
-    fn write_json(&self, encoder: &mut Encoder, _version: i64) -> PyResult<()> {
-        V::write_json(self, encoder).or_py()
-    }
+}
+
+/// The member of the Python enum of an enum field.
+pub(crate) trait Member {
+    fn member<'py>(self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>>;
 }
 
 /// An enum field: a member in the row is its number, and the member object is `Installed`'s, so
 /// `agent.activity is Activity.IDLE` holds for anything Rust writes.
 macro_rules! member_field {
-    ($name:ident, $all:ident, $table:ident, $values:ident, [$($member:ident),* $(,)?]) => {
-        #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-        pub(crate) enum $name { $($member),* }
-
-        const $all: &[$name] = &[$($name::$member),*];
-
-        impl $name {
-            /// The member of the Python enum.
-            #[allow(dead_code)]
-            pub(crate) fn member<'py>(self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-                Ok(Field::to_py(&self, py)?.into_bound(py))
-            }
-        }
-
-        impl Field for $name {
+    ($name:ident, $all:ident, $table:ident) => {
+        impl PyEntityField for $name {
             fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
                 let members = &installed()?.$table;
                 members
                     .iter()
                     .position(|member| value.is(member))
                     .map(|index| $all[index])
-                    .ok_or_else(|| Misfit::new(concat!("not a ", stringify!($name))))
+                    .ok_or_else(|| Misfit::new(<$name as StrEnum>::MISFIT))
             }
             fn to_py(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
                 let members = &installed().map_err(|misfit| PyRuntimeError::new_err(misfit.0))?.$table;
-                Ok(members[*self as usize].clone_ref(py))
+                Ok(members[self.index()].clone_ref(py))
             }
-            fn same(&self, other: &Self) -> bool {
-                self == other
-            }
-            fn write_json(&self, encoder: &mut Encoder, _version: i64) -> PyResult<()> {
-                let values = &installed().map_err(|misfit| PyRuntimeError::new_err(misfit.0))?.$values;
-                write_json_string(&mut encoder.out, &values[*self as usize]);
-                Ok(())
+        }
+
+        impl Member for $name {
+            fn member<'py>(self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+                Ok(PyEntityField::to_py(&self, py)?.into_bound(py))
             }
         }
     };
 }
 
-member_field!(Activity, ACTIVITIES, activity, activity_values, [Idle, Moving, Queued, InService, SeekingHelp, Sleeping, Resting]);
-member_field!(Mobility, MOBILITIES, mobility, mobility_values, [Independent, Assisted, Wheelchair]);
-member_field!(RequestStatus, STATUSES, status, status_values, [Pending, Assigned, Resolved, Unresolved]);
-
-impl Activity {
-    /// The member's `.value`.
-    pub(crate) fn text(self) -> PyResult<&'static str> {
-        let values = &installed().map_err(|misfit| PyRuntimeError::new_err(misfit.0))?.activity_values;
-        Ok(&values[self as usize])
-    }
-}
+member_field!(Activity, ACTIVITIES, activity);
+member_field!(Mobility, MOBILITIES, mobility);
+member_field!(RequestStatus, STATUSES, status);
 
 // ---- Rows ------------------------------------------------------------------------------------
 
-/// A document holds this field only in WorldState v6.
-fn v6<T>(_value: &T, version: i64) -> bool {
-    version == 6
-}
+/// The Python side of a row of the core's `entity_row!`: the same fields in the same order (a
+/// compile-time check says so). `from_py` reads each attribute of the object; `to_py` makes a dict
+/// named like the dataclass's fields.
+macro_rules! py_entity_row {
+    ($name:ident { $($field:ident),* $(,)? }) => {
+        const _: () = assert!(
+            same_names($name::NAMES, &[$(stringify!($field)),*]),
+            concat!("py_entity_row! must list the fields of ", stringify!($name), " in their order"),
+        );
 
-/// A document leaves this field out while it is None.
-fn set<T>(value: &Option<T>, _version: i64) -> bool {
-    value.is_some()
-}
-
-macro_rules! keeps_field {
-    ($value:expr, $version:expr) => {
-        true
-    };
-    ($value:expr, $version:expr, $keep:ident) => {
-        $keep($value, $version)
-    };
-}
-
-/// A struct of fields, each named as the attribute of the Python object. `name[rule]` says when a
-/// document holds the field (`v6`, `set`).
-macro_rules! row {
-    ($name:ident { $($field:ident $([$keep:ident])?: $kind:ty),* $(,)? }) => {
-        // Rules read these fields as they move to Rust.
-        #[allow(dead_code)]
-        #[derive(Clone)]
-        pub(crate) struct $name {
-            $(pub(crate) $field: $kind,)*
-        }
-
-        impl Field for $name {
+        impl PyEntityField for $name {
             fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
                 let py = value.py();
                 Ok(Self {
-                    $($field: <$kind as Field>::from_py(
+                    $($field: PyEntityField::from_py(
                         &value.getattr(intern!(py, stringify!($field))).or_misfit()?,
                     )?,)*
                 })
@@ -375,42 +263,12 @@ macro_rules! row {
                 $(document.set_item(intern!(py, stringify!($field)), self.$field.to_py(py)?)?;)*
                 Ok(document.into_any().unbind())
             }
-            fn same(&self, other: &Self) -> bool {
-                true $(&& self.$field.same(&other.$field))*
-            }
-            fn write_json(&self, encoder: &mut Encoder, version: i64) -> PyResult<()> {
-                const NAMES: &[&str] = &[$(stringify!($field)),*];
-                const ORDER: [usize; NAMES.len()] = crate::core::row::sorted_order(NAMES);
-                type Writer = fn(&$name, &mut Encoder, i64, &mut bool) -> PyResult<()>;
-                const WRITERS: &[Writer] = &[$(|row, encoder, version, first| {
-                    if !keeps_field!(&row.$field, version $(, $keep)?) {
-                        return Ok(());
-                    }
-                    if !*first {
-                        encoder.out.push(b',');
-                    }
-                    *first = false;
-                    write_json_string(&mut encoder.out, stringify!($field));
-                    encoder.out.push(b':');
-                    Field::write_json(&row.$field, encoder, version)
-                }),*];
-                let mut first = true;
-                encoder.out.push(b'{');
-                for index in ORDER {
-                    WRITERS[index](self, encoder, version, &mut first)?;
-                }
-                encoder.out.push(b'}');
-                Ok(())
-            }
         }
 
-        impl $name {
-            /// Take a forwarded attribute write. A name that is no field (a property) is nothing
-            /// to do here. ProfileRow's whole value is replaced instead.
-            #[allow(dead_code)]
+        impl Forward for $name {
             fn set(&mut self, name: &str, value: &Bound<'_, PyAny>) -> Result<(), Misfit> {
                 match name {
-                    $(stringify!($field) => self.$field = <$kind as Field>::from_py(value)?,)*
+                    $(stringify!($field) => self.$field = PyEntityField::from_py(value)?,)*
                     _ => {}
                 }
                 Ok(())
@@ -419,156 +277,25 @@ macro_rules! row {
     };
 }
 
-row!(NeedRow { toilet_urgency: f64, hunger: f64, fatigue: f64, hydration_need[v6]: f64 });
-
-row!(ProfileRow {
-    id: Arc<str>,
-    group_id: Option<Arc<str>>,
-    initial_zone_id: Arc<str>,
-    mobility: Mobility,
-    support_need: f64,
-    stress_sensitivity: f64,
-    rng_key: Arc<str>,
-    initial_needs: NeedRow,
-    provenance: V,
+py_entity_row!(NeedRow { toilet_urgency, hunger, fatigue, hydration_need });
+py_entity_row!(ProfileRow {
+    id, group_id, initial_zone_id, mobility, support_need, stress_sensitivity, rng_key, initial_needs, provenance,
 });
-
-row!(AgentRow {
-    profile: ProfileRow,
-    zone_id: Arc<str>,
-    activity: Activity,
-    target_id: Option<Arc<str>>,
-    needs: NeedRow,
-    stress: f64,
-    trust: f64,
-    next_decision_at: i64,
-    support_request_id: Option<Arc<str>>,
-    support_cooldown_until: i64,
+py_entity_row!(AgentRow {
+    profile, zone_id, activity, target_id, needs, stress, trust, next_decision_at, support_request_id,
+    support_cooldown_until,
 });
-
-row!(FacilityRow {
-    id: Arc<str>,
-    kind: Arc<str>,
-    zone_id: Arc<str>,
-    capacity: i64,
-    working_units: i64,
-    active_agent_ids: Vec<Arc<str>>,
-    queue_agent_ids: Vec<Arc<str>>,
-    resource_active_agent_ids[v6]: Vec<Arc<str>>,
-    resource_queue_agent_ids[v6]: Vec<Arc<str>>,
+py_entity_row!(FacilityRow {
+    id, kind, zone_id, capacity, working_units, active_agent_ids, queue_agent_ids, resource_active_agent_ids,
+    resource_queue_agent_ids,
 });
-
-row!(StaffRow {
-    id: Arc<str>,
-    zone_id: Arc<str>,
-    skills: Skills,
-    work_queue: Vec<Arc<str>>,
-    busy_until: i64,
-    active_task_id: Option<Arc<str>>,
+py_entity_row!(StaffRow { id, zone_id, skills, work_queue, busy_until, active_task_id });
+py_entity_row!(RequestRow {
+    id, agent_id, requested_minute, timeout_minute, status, assigned_staff_id, task_id, resolved_minute,
+    cooldown_until, last_assignment_attempt_minute, last_assignment_wait_reason_code,
 });
+py_entity_row!(TaskRow { id, kind, agent_id, resource_id, start_minute, due_minute, staff_id });
 
-row!(RequestRow {
-    id: Arc<str>,
-    agent_id: Arc<str>,
-    requested_minute: i64,
-    timeout_minute: i64,
-    status: RequestStatus,
-    assigned_staff_id: Option<Arc<str>>,
-    task_id: Option<Arc<str>>,
-    resolved_minute: Option<i64>,
-    cooldown_until: i64,
-    last_assignment_attempt_minute[set]: Option<i64>,
-    last_assignment_wait_reason_code[set]: Option<Arc<str>>,
-});
-
-row!(TaskRow {
-    id: Arc<str>,
-    kind: Arc<str>,
-    agent_id: Option<Arc<str>>,
-    resource_id: Option<Arc<str>>,
-    start_minute: i64,
-    due_minute: i64,
-    staff_id: Option<Arc<str>>,
-});
-
-/// The rows of one `IdMap`: a stable slot per row, and the keys in the dict's order. `changed` says
-/// which slots may differ from the document bytes kept for them (`EntityStore::rows_json`): anything
-/// that can reach a row for writing sets it, so a clear flag means the row is the one written.
-pub(crate) struct Table<R> {
-    rows: Vec<Option<R>>,
-    free: Vec<u32>,
-    ids: IndexMap<Arc<str>, u32, FxBuildHasher>,
-    changed: Vec<bool>,
-}
-
-impl<R> Default for Table<R> {
-    fn default() -> Self {
-        Self { rows: Vec::new(), free: Vec::new(), ids: IndexMap::default(), changed: Vec::new() }
-    }
-}
-
-impl<R> Table<R> {
-    fn reserve_slot(&mut self) -> u32 {
-        let slot = self.free.pop().unwrap_or_else(|| {
-            self.rows.push(None);
-            self.changed.push(true);
-            u32::try_from(self.rows.len() - 1).expect("under 2**32 entities")
-        });
-        self.changed[slot as usize] = true;
-        slot
-    }
-
-    /// The row in a slot, for writing.
-    fn slot_mut(&mut self, slot: u32) -> Option<&mut R> {
-        let row = self.rows.get_mut(slot as usize)?.as_mut()?;
-        self.changed[slot as usize] = true;
-        Some(row)
-    }
-
-    fn release_slot(&mut self, slot: u32) {
-        if let Some(row) = self.rows.get_mut(slot as usize) {
-            if row.take().is_some() {
-                self.changed[slot as usize] = true;
-                self.free.push(slot);
-            }
-        }
-    }
-
-    pub(crate) fn len(&self) -> usize {
-        self.ids.len()
-    }
-
-    /// The row of a key.
-    pub(crate) fn get(&self, id: &str) -> Option<&R> {
-        self.rows.get(*self.ids.get(id)? as usize)?.as_ref()
-    }
-
-    pub(crate) fn get_mut(&mut self, id: &str) -> Option<&mut R> {
-        let slot = *self.ids.get(id)?;
-        self.slot_mut(slot)
-    }
-
-    /// The keys and rows in the order of the dict.
-    pub(crate) fn iter(&self) -> impl Iterator<Item = (&Arc<str>, &R)> {
-        self.ids.iter().filter_map(|(id, slot)| Some((id, self.rows[*slot as usize].as_ref()?)))
-    }
-}
-
-/// All the rows of a world.
-#[derive(Default)]
-pub(crate) struct Entities {
-    pub(crate) agents: Table<AgentRow>,
-    pub(crate) facilities: Table<FacilityRow>,
-    pub(crate) staff: Table<StaffRow>,
-    pub(crate) support_requests: Table<RequestRow>,
-    pub(crate) active_tasks: Table<TaskRow>,
-}
-
-#[allow(dead_code)]
-fn assert_rows_are_shareable() {
-    fn check<T: Send + Sync>() {}
-    check::<Entities>();
-}
 
 // ---- Which attributes hold what -----------------------------------------------------------
 
@@ -623,33 +350,26 @@ fn exact_type_is(value: &Bound<'_, PyAny>, class: &Py<PyType>) -> bool {
 /// The canonical JSON of each row of a table as `canonical_json` writes it, in the order
 /// `WorldState._canonical_data` gives: by the entity's own ID, stably from the dict's order. A row
 /// nothing reached for writing keeps its bytes object, so the same object means the same row.
-fn table_json<'py, R: Field>(
+fn table_json<'py, R: EntityRow>(
     py: Python<'py>,
     table: &mut Table<R>,
     kept: &mut Vec<Option<Py<PyBytes>>>,
     version: i64,
-    id_of: fn(&R) -> &str,
 ) -> PyResult<Bound<'py, PyList>> {
-    let Table { rows, ids, changed, .. } = table;
-    let mut order: Vec<(&str, u32)> = ids
-        .values()
-        .filter_map(|slot| Some((id_of(rows[*slot as usize].as_ref()?), *slot)))
-        .collect();
-    order.sort_by(|first, second| first.0.as_bytes().cmp(second.0.as_bytes()));
-    kept.resize_with(rows.len(), || None);
+    let order = table.document_slots();
+    kept.resize_with(table.slot_count(), || None);
     let mut encoder = Encoder { out: Vec::with_capacity(512) };
     let list = PyList::empty(py);
-    for (_, slot) in order {
-        let slot = slot as usize;
-        let current = match &kept[slot] {
-            Some(raw) if !changed[slot] => raw.clone_ref(py),
+    for slot in order {
+        let current = match &kept[slot as usize] {
+            Some(raw) if !table.changed(slot) => raw.clone_ref(py),
             _ => {
                 encoder.out.clear();
-                let Some(row) = rows[slot].as_ref() else { continue };
-                row.write_json(&mut encoder, version)?;
+                let Some(row) = table.row_at(slot) else { continue };
+                row.write_json(&mut encoder, version).or_py()?;
                 let raw = PyBytes::new(py, &encoder.out).unbind();
-                kept[slot] = Some(raw.clone_ref(py));
-                changed[slot] = false;
+                kept[slot as usize] = Some(raw.clone_ref(py));
+                table.mark_written(slot);
                 raw
             }
         };
@@ -681,13 +401,7 @@ impl EntityStore {
     }
 
     fn table_len(&self, kind: u8) -> usize {
-        match kind {
-            AGENT => self.rows.agents.len(),
-            FACILITY => self.rows.facilities.len(),
-            STAFF => self.rows.staff.len(),
-            REQUEST => self.rows.support_requests.len(),
-            _ => self.rows.active_tasks.len(),
-        }
+        self.rows.table(kind).len()
     }
 
     /// Whether the object is attached to this store, and its slot if so.
@@ -814,62 +528,30 @@ impl EntityStore {
         kind: u8,
         object: &Bound<'_, PyAny>,
     ) -> Result<u32, Misfit> {
-        let slot = {
-            let mut this = slf.try_borrow_mut().map_err(pyo3_misfit)?;
-            match kind {
-                AGENT => this.rows.agents.reserve_slot(),
-                FACILITY => this.rows.facilities.reserve_slot(),
-                STAFF => this.rows.staff.reserve_slot(),
-                REQUEST => this.rows.support_requests.reserve_slot(),
-                _ => this.rows.active_tasks.reserve_slot(),
-            }
-        };
+        let slot = slf.try_borrow_mut().map_err(pyo3_misfit)?.rows.table_mut(kind).reserve_slot();
         Self::link_children(slf, kind, object, slot)?;
         // Getting these attributes runs no Python code: the classes define no such properties.
         let mut this = slf.try_borrow_mut().map_err(pyo3_misfit)?;
         match kind {
-            AGENT => this.rows.agents.rows[slot as usize] = Some(AgentRow::from_py(object)?),
-            FACILITY => this.rows.facilities.rows[slot as usize] = Some(FacilityRow::from_py(object)?),
-            STAFF => this.rows.staff.rows[slot as usize] = Some(StaffRow::from_py(object)?),
-            REQUEST => this.rows.support_requests.rows[slot as usize] = Some(RequestRow::from_py(object)?),
-            _ => this.rows.active_tasks.rows[slot as usize] = Some(TaskRow::from_py(object)?),
+            AGENT => this.rows.agents.fill_slot(slot, AgentRow::from_py(object)?),
+            FACILITY => this.rows.facilities.fill_slot(slot, FacilityRow::from_py(object)?),
+            STAFF => this.rows.staff.fill_slot(slot, StaffRow::from_py(object)?),
+            REQUEST => this.rows.support_requests.fill_slot(slot, RequestRow::from_py(object)?),
+            _ => this.rows.active_tasks.fill_slot(slot, TaskRow::from_py(object)?),
         }
         Ok(slot)
     }
 
     fn set_slot_of(&mut self, kind: u8, key: Arc<str>, slot: u32) -> Option<u32> {
-        match kind {
-            AGENT => self.rows.agents.ids.insert(key, slot),
-            FACILITY => self.rows.facilities.ids.insert(key, slot),
-            STAFF => self.rows.staff.ids.insert(key, slot),
-            REQUEST => self.rows.support_requests.ids.insert(key, slot),
-            _ => self.rows.active_tasks.ids.insert(key, slot),
-        }
+        self.rows.table_mut(kind).bind(key, slot)
     }
 
     fn drop_key(&mut self, kind: u8, key: &str) -> Option<u32> {
-        // shift_remove: the order of the keys is the order of the dict.
-        let slot = match kind {
-            AGENT => self.rows.agents.ids.shift_remove(key),
-            FACILITY => self.rows.facilities.ids.shift_remove(key),
-            STAFF => self.rows.staff.ids.shift_remove(key),
-            REQUEST => self.rows.support_requests.ids.shift_remove(key),
-            _ => self.rows.active_tasks.ids.shift_remove(key),
-        };
-        if let Some(slot) = slot {
-            self.drop_slot(kind, slot);
-        }
-        slot
+        self.rows.table_mut(kind).remove(key)
     }
 
     fn drop_slot(&mut self, kind: u8, slot: u32) {
-        match kind {
-            AGENT => self.rows.agents.release_slot(slot),
-            FACILITY => self.rows.facilities.release_slot(slot),
-            STAFF => self.rows.staff.release_slot(slot),
-            REQUEST => self.rows.support_requests.release_slot(slot),
-            _ => self.rows.active_tasks.release_slot(slot),
-        }
+        self.rows.table_mut(kind).release_slot(slot);
     }
 
     /// Attach an object under a key, or taint. Never raises for a value that does not fit.
@@ -1169,7 +851,7 @@ impl EntityStore {
             map.setattr(intern!(py, "_store"), py.None())?;
         }
         // Keep the slots of what stays, so assigning a filtered dict costs one read per entry.
-        let mut this_ids = IndexMap::<Arc<str>, u32, FxBuildHasher>::default();
+        let mut this_ids = IdMap::<u32>::default();
         let mut kept = FxHashSet::default();
         let result = match value.downcast::<PyDict>() {
             Err(_) => {
@@ -1198,13 +880,7 @@ impl EntityStore {
                 {
                     let mut this = slf.try_borrow_mut()?;
                     if this.taint.is_none() {
-                        match kind {
-                            AGENT => this.rows.agents.ids = this_ids,
-                            FACILITY => this.rows.facilities.ids = this_ids,
-                            STAFF => this.rows.staff.ids = this_ids,
-                            REQUEST => this.rows.support_requests.ids = this_ids,
-                            _ => this.rows.active_tasks.ids = this_ids,
-                        }
+                        this.rows.table_mut(kind).set_keys(this_ids);
                     }
                 }
                 // New rows go to the end of the keys; then the keys take the dict's order.
@@ -1301,7 +977,7 @@ impl EntityStore {
                     items.len()
                 )));
             }
-            fn differs<R: Field>(
+            fn differs<R: PyEntityField>(
                 table: &Table<R>,
                 name: &str,
                 items: &[(Bound<'_, PyAny>, Bound<'_, PyAny>)],
@@ -1333,7 +1009,7 @@ impl EntityStore {
 
     /// A row as a new dict named like the dataclass's fields, or None.
     fn row(&self, py: Python<'_>, field: &str, id: &str) -> PyResult<Option<Py<PyAny>>> {
-        fn document<R: Field>(py: Python<'_>, table: &Table<R>, id: &str) -> PyResult<Option<Py<PyAny>>> {
+        fn document<R: PyEntityField>(py: Python<'_>, table: &Table<R>, id: &str) -> PyResult<Option<Py<PyAny>>> {
             table.get(id).map(|row| row.to_py(py)).transpose()
         }
         match field {
@@ -1360,11 +1036,11 @@ impl EntityStore {
         let rows = &mut self.rows;
         let [agents, facilities, staff, requests, tasks] = &mut self.row_json;
         let documents = PyDict::new(py);
-        documents.set_item("agents", table_json(py, &mut rows.agents, agents, version, |row| &row.profile.id)?)?;
-        documents.set_item("facilities", table_json(py, &mut rows.facilities, facilities, version, |row| &row.id)?)?;
-        documents.set_item("staff", table_json(py, &mut rows.staff, staff, version, |row| &row.id)?)?;
-        documents.set_item("support_requests", table_json(py, &mut rows.support_requests, requests, version, |row| &row.id)?)?;
-        documents.set_item("active_tasks", table_json(py, &mut rows.active_tasks, tasks, version, |row| &row.id)?)?;
+        documents.set_item("agents", table_json(py, &mut rows.agents, agents, version)?)?;
+        documents.set_item("facilities", table_json(py, &mut rows.facilities, facilities, version)?)?;
+        documents.set_item("staff", table_json(py, &mut rows.staff, staff, version)?)?;
+        documents.set_item("support_requests", table_json(py, &mut rows.support_requests, requests, version)?)?;
+        documents.set_item("active_tasks", table_json(py, &mut rows.active_tasks, tasks, version)?)?;
         Ok(documents)
     }
 
@@ -1447,31 +1123,16 @@ impl EntityStore {
         kind: u8,
         items: &[(Bound<'_, PyAny>, Bound<'_, PyAny>)],
     ) -> PyResult<()> {
-        fn reorder<R>(
-            table: &mut Table<R>,
-            items: &[(Bound<'_, PyAny>, Bound<'_, PyAny>)],
-        ) -> PyResult<()> {
-            let mut ids = IndexMap::with_capacity_and_hasher(items.len(), FxBuildHasher);
-            for (key, _) in items {
-                let key = key.downcast_exact::<PyString>()?.to_str()?;
-                if let Some((id, slot)) = table.ids.get_key_value(key) {
-                    ids.insert(id.clone(), *slot);
-                }
-            }
-            table.ids = ids;
-            Ok(())
-        }
         let mut this = slf.try_borrow_mut()?;
         if this.taint.is_some() {
             return Ok(());
         }
-        match kind {
-            AGENT => reorder(&mut this.rows.agents, items),
-            FACILITY => reorder(&mut this.rows.facilities, items),
-            STAFF => reorder(&mut this.rows.staff, items),
-            REQUEST => reorder(&mut this.rows.support_requests, items),
-            _ => reorder(&mut this.rows.active_tasks, items),
+        let mut order = Vec::with_capacity(items.len());
+        for (key, _) in items {
+            order.push(key.downcast_exact::<PyString>()?.to_str()?);
         }
+        this.rows.table_mut(kind).reorder_keys(&order);
+        Ok(())
     }
 
     /// Run f on the rows. f must not run Python code; kernels get Unsupported from a tainted

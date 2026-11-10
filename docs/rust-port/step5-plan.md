@@ -128,6 +128,21 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
 - **確かめたこと：** `cargo test -p sheltersim_core`、`cargo clippy --workspace -- -A clippy::all -D clippy::disallowed_methods`、`cargo tree -p sheltersim_core -e normal,build` に `pyo3` がないこと、offline の pytest（`-m "not long_simulation"`：5115 passed、6 skipped）、全経路のゲート（55 scenarios、0 problems）。PR 4a の後の `main`（`4834ebe`）の上で確かめました。
 - **7日分**（100人、project の経路、生成 Scenario）：world、events、metrics のハッシュは `main`（`4834ebe`）と同じです。計算時間は、wall が `main` 64.9 s、この PR 65.2 s、thread が 61.2 s と 61.3 s で、差は揺れの中です。計算のピークの RSS は 898.1 MiB と 894.4 MiB で、増えていません。PR 4a の前に PR 2 の commit と交互に3回ずつ測ったときも、差は揺れの中でした（thread の平均 +2.7%、wall の平均 −1.3%、ほかのレーンの計算と同時）。
 
+### PR 4b：実体の行（レーン P4b）
+
+- **中核の `entities`**（`native/core/src/entities.rs`）：実体の行（`NeedRow`、`ProfileRow`、`AgentRow`、`FacilityRow`、`StaffRow`、`RequestRow`、`TaskRow`）、`Skills`、enum の `Activity`・`Mobility`・`RequestStatus`、`Table<R>`、`Entities`、表の番号（`AGENT`〜`TASK`）を置きました。持ち主は変えていません。Python のオブジェクトが本体で、行はその写しのままです（持ち主を変えるのは 6-1）。
+- **trait の分け方：** 実体の行の欄は、名前空間の `row::Field` とは別の中核の `EntityField`（`same`、版を受ける `write_json`）です。v5 の文書は v6 の欄の一部を書かないので、版が要ります（`[v6]`・`[set]` の規則も中核の `entity_row!` にあります）。行の id を返す `EntityRow` が、文書の行の順（id の順、同じ id は dict の順）を決めます（`Table::document_slots`）。Python との行き来（`from_py`、`to_py`、転送された書き込み）は窓口の `PyEntityField` と `Forward` で、窓口の `py_entity_row!` が同じ欄を同じ順に並べます（順や数が違うとコンパイルで止まります）。
+- **enum：** 中核は `str_enum!` で、メンバーの順と `.value` の文字を持ちます。文書の文字は中核のものを書きます。窓口の `install` は、Python の enum のメンバーの数、順、`.value` が中核と同じことを確かめ、違えば今と同じ文の `ValueError` です。Python のメンバーのオブジェクト（`agent.activity is Activity.IDLE`）は窓口が持ち、規則は窓口の trait `Member` の `member(py)` で得ます（`.member(py)` を使う11の規則のファイルに `use` を足しました）。`Activity::text` は失敗しなくなったので、2か所の `?` を消しました。
+- **`Table`：** 欄を private にし、slot と key の操作を関数にしました（`reserve_slot`、`fill_slot`、`slot_mut`、`release_slot`、`bind`、`remove`（`shift_remove` と slot の解放）、`set_keys`、`reorder_keys`、`changed`・`mark_written`）。種類で表を選ぶ窓口の `match` は、`Entities::table(kind)`・`table_mut(kind)` が返す `dyn AnyTable` にしました。`NEEDS` と知らない番号が `active_tasks` になるのは今までの `match` と同じです。後のレーン（`keys_by_slot`、`dirty`、`journal`、`canonicalize`）は、これらの関数の中で足せます。`rows_json` の bytes のオブジェクトの表は窓口に残ります。
+- **3つの名前空間の行：** `resource_ledger`、`shared_operations`、`staff_operations` の行と、行と実体の行だけを読む検査を `native/core/src/state/` へ移しました。窓口の同じ名前のファイルは、行を re-export し、`py_row!`・`py_str_enum!`、手で書いた `PyField`（`Audit`、`UsedIds`、`Heads`、`Receipts`）、検証の入口を持ちます。
+  - `resource_ledger`：`passes_rules` の本体は中核の `passes_rules_in` で、世界の `resources`、`agents`、`zones` は trait `LedgerWorld` を通して読みます（窓口は Python の dict を読む `WorldDicts`）。読む順は今までと同じです。規則が呼ぶ `row.passes_rules(&resources, &agents, &zones)` は、窓口の trait `LedgerChecks` で今の形のままです（`rules/resources.rs` に `use` と、`audit.push` の `.or_py()` を足しました）。
+  - `shared_operations`：`validate_tick` は EventLog の `find` の Python のオブジェクトを読むので、窓口に残しました。
+  - `staff_operations`：行だけを読む検査（`active_records`）と実体の行を読む検査（`agrees_with`）を中核にしました。`validate` は今と同じ順で、先に行の検査、それが通ってから実体の行を借ります（汚れた store が `Unsupported` を言う時点は変わりません）。オブジェクトと予定のイベントを読む `active_records_pass` と `completion_agrees` は窓口です。
+- 1つ目の commit で3つの名前空間のファイルを中身を変えずに移し（`git log --follow` でたどれます）、2つ目の commit で中身を変えました。`state/entities.rs` は窓口に残る部分（`EntityStore`）が多いので移さず、中核の `entities.rs` を新しく作りました。
+- **中核のテスト**（`native/core/tests/entities.rs`）：5種類の行の v5 と v6 の JSON のバイト列（期待値は `main`（`174e229`）のビルドの `EntityStore.rows_json` が同じ Python のオブジェクトに書いたもの）、NaN の断りの文、enum の順と文字、`same` がビットで比べること、`Table` の key の順（`shift_remove`、空いた slot の再利用、同じ key は場所を保つ、`reorder_keys`、`set_keys`）と文書の行の順、`changed` の印。
+- **確かめたこと：** `cargo test -p sheltersim_core`（31件）、`cargo clippy --workspace -- -A clippy::all -D clippy::disallowed_methods`、`cargo tree -p sheltersim_core -e normal,build` に `pyo3` がないこと、offline の pytest（`-m "not long_simulation"`：5115 passed、6 skipped）、全経路のゲート（55 scenarios、0 problems）。
+- **7日分**（100人、project の経路、生成 Scenario）：`main`（`174e229`）のビルドと交互に2回ずつ測りました。world、events、metrics のハッシュは同じです。wall は `main` 64.7 s・64.5 s、この PR 63.9 s・64.4 s、thread は 60.8 s・60.4 s と 60.5 s・60.7 s で、差は揺れの中です。計算のピークの RSS（`computation_mib`）は 893.8・899.1 MiB と 897.2・893.8 MiB で、増えていません。
+
 ### この後
 
 残りの PR は、下の「レーン」の順に進めます。各レーンは、終わったときにこの節の前に記録を足します。

@@ -6,31 +6,27 @@
 //! resource, which the row keeps typed. A record joins the row only if it passes every rule of
 //! `_validate_audit_record` that reads the record alone; any other record, or a write into a record
 //! already there, taints the namespace, and the Python rules and their errors run on the tree.
+//!
+//! The PyO3 crate's `state/resource_ledger.rs` reads it from Python and holds its validator, which
+//! hands the world's resources, people and zones to `passes_rules_in` as a `LedgerWorld`.
 
 use std::sync::Arc;
 
-use pyo3::intern;
-use pyo3::prelude::*;
-use pyo3::types::{PyInt, PyList, PyString};
 use rustc_hash::{FxBuildHasher, FxHashSet};
 
-use crate::core::errors::OrPy;
-use crate::core::row::{attribute, load_row, namespace_is_absent, state_row, Field, IdMap, PyField, PyItems};
-use crate::core::tracked::{as_readable_dict, as_readable_list};
-use crate::core::world_core::{
-    loads_items, mirror_of, raw_dict_get, Items, Misfit, NamespaceMirror, OrMisfit, Part, RowType, Write,
-};
-use crate::{Encoder, Unsupported};
-use sheltersim_core::error::Result as CoreResult;
+use crate::error::{Misfit, Result};
+use crate::json::Encoder;
+use crate::row::{Field, IdMap, Items};
+use crate::state_row;
 
-pub(crate) const NAME: &str = "resource_ledger_v1";
-pub(crate) const RESOURCE_IDS: [&str; 2] = ["water_ml", "food_meal_units"];
+pub const NAME: &str = "resource_ledger_v1";
+pub const RESOURCE_IDS: [&str; 2] = ["water_ml", "food_meal_units"];
 const SCHEMA_VERSION: i64 = 1;
-pub(crate) const AUDIT_SCHEMA_VERSION: i64 = 1;
+pub const AUDIT_SCHEMA_VERSION: i64 = 1;
 
 state_row! {
     #[derive(Clone)]
-    pub(crate) struct Reservation {
+    pub struct Reservation {
         reservation_id: Arc<str>,
         resource_id: Arc<str>,
         agent_id: Arc<str>,
@@ -39,7 +35,7 @@ state_row! {
 }
 
 state_row! {
-    pub(crate) struct Account {
+    pub struct Account {
         initial: i64,
         delivered: i64 => set_delivered,
         served: i64 => set_served,
@@ -52,14 +48,14 @@ state_row! {
 }
 
 state_row! {
-    pub(crate) struct Accounts {
+    pub struct Accounts {
         water_ml: Account,
         food_meal_units: Account,
     }
 }
 
 impl Accounts {
-    pub(crate) fn of(&self, index: usize) -> &Account {
+    pub fn of(&self, index: usize) -> &Account {
         if index == 0 {
             &self.water_ml
         } else {
@@ -67,7 +63,7 @@ impl Accounts {
         }
     }
 
-    pub(crate) fn of_mut(&mut self, index: usize) -> &mut Account {
+    pub fn of_mut(&mut self, index: usize) -> &mut Account {
         if index == 0 {
             &mut self.water_ml
         } else {
@@ -78,7 +74,7 @@ impl Accounts {
 
 state_row! {
     #[derive(Clone)]
-    pub(crate) struct AuditRecord {
+    pub struct AuditRecord {
         schema_version: i64,
         minute: i64,
         event_id: Option<Arc<str>>,
@@ -99,14 +95,14 @@ state_row! {
     }
 }
 
-pub(crate) use crate::state::events::is_stable_id as is_valid_id;
+pub use crate::events::is_stable_id as is_valid_id;
 
 fn no_repeats(ids: &[Arc<str>]) -> bool {
     // A handful of sources: a set would cost more.
     ids.iter().enumerate().all(|(index, id)| !ids[..index].contains(id))
 }
 
-pub(crate) fn resource_index(id: &str) -> Option<usize> {
+pub fn resource_index(id: &str) -> Option<usize> {
     RESOURCE_IDS.iter().position(|known| *known == id)
 }
 
@@ -135,10 +131,10 @@ impl AuditRecord {
 }
 
 /// The audit trail: the bytes of each record, and what the checks of a tick read.
-pub(crate) struct Audit {
+pub struct Audit {
     items: Vec<Box<[u8]>>,
     newest: [Option<AuditRecord>; 2],
-    pub(crate) last_minute: i64,
+    pub last_minute: i64,
     /// Every minute is at least the one before. The Python check of a tick reads only the newest
     /// records, so a false here says nothing, and the Python rule then decides.
     ordered: bool,
@@ -147,10 +143,20 @@ pub(crate) struct Audit {
 }
 
 impl Audit {
+    /// An empty trail, with room for this many records.
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self { items: Vec::with_capacity(capacity), newest: [None, None], last_minute: 0, ordered: true, warehouse: None }
+    }
+
+    /// The canonical JSON of each record.
+    pub fn item_bytes(&self) -> &[Box<[u8]>] {
+        &self.items
+    }
+
     /// Add a record a rule built, or one read from the tree.
-    pub(crate) fn push(&mut self, record: AuditRecord) -> PyResult<()> {
+    pub fn push(&mut self, record: AuditRecord) -> Result<()> {
         let mut encoder = Encoder { out: Vec::with_capacity(384) };
-        Field::write_json(&record, &mut encoder).or_py()?;
+        Field::write_json(&record, &mut encoder)?;
         self.items.push(encoder.out.into_boxed_slice());
         if record.minute < self.last_minute {
             self.ordered = false;
@@ -165,16 +171,16 @@ impl Audit {
         Ok(())
     }
 
-    fn take(&mut self, value: &Bound<'_, PyAny>) -> Result<(), Misfit> {
-        let record = AuditRecord::from_py(value)?;
+    /// Add a record read from the tree, if the row can hold it.
+    pub fn take(&mut self, record: AuditRecord) -> std::result::Result<(), Misfit> {
         if !record.is_valid() {
             return Err(Misfit::new("an audit record the rules turn down"));
         }
         if self.warehouse.as_ref().is_some_and(|warehouse| *warehouse != record.warehouse_id) {
             return Err(Misfit::new("audit records of two warehouses"));
         }
-        self.push(record).or_misfit()?;
-        Ok(())
+        // A record has no float, so writing it never fails.
+        self.push(record).map_err(|error| Misfit::new(error.to_string()))
     }
 }
 
@@ -183,14 +189,8 @@ impl Items for Audit {
         self.items.len()
     }
 
-    fn item_json<'a>(&'a self, index: usize, _scratch: &'a mut Encoder) -> CoreResult<&'a [u8]> {
+    fn item_json<'a>(&'a self, index: usize, _scratch: &'a mut Encoder) -> Result<&'a [u8]> {
         Ok(&self.items[index])
-    }
-}
-
-impl PyItems for Audit {
-    fn slice_to_py<'py>(&self, py: Python<'py>, start: usize, stop: usize) -> PyResult<Bound<'py, PyList>> {
-        loads_items(py, self.items[start..stop].iter().map(|item| &**item))
     }
 }
 
@@ -199,7 +199,7 @@ impl Field for Audit {
         Some(self)
     }
 
-    fn write_json(&self, encoder: &mut Encoder) -> CoreResult<()> {
+    fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         encoder.out.push(b'[');
         for (index, item) in self.items.iter().enumerate() {
             if index > 0 {
@@ -212,56 +212,40 @@ impl Field for Audit {
     }
 }
 
-impl PyField for Audit {
-    fn py_items(&self) -> Option<&dyn PyItems> {
-        Some(self)
-    }
-
-    fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
-        let list = as_readable_list(value).ok_or_else(|| Misfit::new("not a list"))?;
-        let mut audit = Self {
-            items: Vec::with_capacity(list.len()),
-            newest: [None, None],
-            last_minute: 0,
-            ordered: true,
-            warehouse: None,
-        };
-        for item in list.iter() {
-            audit.take(&item)?;
-        }
-        Ok(audit)
-    }
-
-    fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        let loads = py.import(intern!(py, "json"))?.getattr(intern!(py, "loads"))?;
-        let list = PyList::empty(py);
-        for item in &self.items {
-            list.append(loads.call1((std::str::from_utf8(item)?,))?)?;
-        }
-        Ok(list.into_any())
-    }
-
-    fn apply(&mut self, path: &[Part<'_>], write: &Write<'_, '_>) -> Result<(), Misfit> {
-        match (path, write) {
-            ([], Write::Append { value }) => self.take(value),
-            ([], Write::Extend { values }) => values.iter().try_for_each(|value| self.take(&value)),
-            _ => Err(Misfit::new("the write does not fit the audit trail")),
-        }
-    }
-}
-
 /// `used_reservation_ids`, with a set: a rule asks whether an ID was used, four times per service.
-pub(crate) struct UsedIds {
+pub struct UsedIds {
     ids: Vec<Arc<str>>,
     set: FxHashSet<Arc<str>>,
 }
 
 impl UsedIds {
-    pub(crate) fn contains(&self, id: &str) -> bool {
+    pub fn new(ids: Vec<Arc<str>>) -> Self {
+        let mut set = FxHashSet::with_capacity_and_hasher(ids.len(), FxBuildHasher);
+        set.extend(ids.iter().cloned());
+        Self { ids, set }
+    }
+
+    /// The IDs in their order.
+    pub fn ids(&self) -> &Vec<Arc<str>> {
+        &self.ids
+    }
+
+    /// Change the list with f; if it succeeds, the set follows.
+    pub fn edit<T, E>(
+        &mut self,
+        f: impl FnOnce(&mut Vec<Arc<str>>) -> std::result::Result<T, E>,
+    ) -> std::result::Result<T, E> {
+        let result = f(&mut self.ids)?;
+        self.set.clear();
+        self.set.extend(self.ids.iter().cloned());
+        Ok(result)
+    }
+
+    pub fn contains(&self, id: &str) -> bool {
         self.set.contains(id)
     }
 
-    pub(crate) fn push(&mut self, id: Arc<str>) {
+    pub fn push(&mut self, id: Arc<str>) {
         self.set.insert(id.clone());
         self.ids.push(id);
     }
@@ -272,33 +256,13 @@ impl UsedIds {
 }
 
 impl Field for UsedIds {
-    fn write_json(&self, encoder: &mut Encoder) -> CoreResult<()> {
+    fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         Field::write_json(&self.ids, encoder)
     }
 }
 
-impl PyField for UsedIds {
-    fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
-        let ids: Vec<Arc<str>> = PyField::from_py(value)?;
-        let mut set = FxHashSet::with_capacity_and_hasher(ids.len(), FxBuildHasher);
-        set.extend(ids.iter().cloned());
-        Ok(Self { ids, set })
-    }
-
-    fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        PyField::to_py(&self.ids, py)
-    }
-
-    fn apply(&mut self, path: &[Part<'_>], write: &Write<'_, '_>) -> Result<(), Misfit> {
-        PyField::apply(&mut self.ids, path, write)?;
-        self.set.clear();
-        self.set.extend(self.ids.iter().cloned());
-        Ok(())
-    }
-}
-
 state_row! {
-    pub(crate) struct LedgerRow {
+    pub struct LedgerRow {
         schema_version: i64,
         warehouse_id: Arc<str>,
         zone_id: Option<Arc<str>>,
@@ -318,27 +282,23 @@ fn balances_match(record: &AuditRecord, account: &Account) -> bool {
         && record.source_ids == account.source_ids
 }
 
-fn int_is<'py>(value: Option<Bound<'py, PyAny>>, expected: i64) -> PyResult<bool> {
-    let Some(value) = value else {
-        return Ok(false);
-    };
-    let Ok(number) = value.downcast_exact::<PyInt>() else {
-        return Ok(false);
-    };
-    Ok(number.extract::<i64>().is_ok_and(|number| number == expected))
+/// What `passes_rules_in` reads of the world beside the ledger. A reader that cannot answer fails, and
+/// `passes_rules_in` fails with its error.
+pub trait LedgerWorld {
+    type Error;
+    fn has_zone(&self, id: &str) -> std::result::Result<bool, Self::Error>;
+    fn has_agent(&self, id: &str) -> std::result::Result<bool, Self::Error>;
+    /// How many resources the world holds, or None if they are not a plain mapping.
+    fn resource_count(&self) -> Option<usize>;
+    /// Whether the world holds exactly this int for the resource.
+    fn resource_is(&self, id: &str, expected: i64) -> std::result::Result<bool, Self::Error>;
 }
 
 impl LedgerRow {
     /// Every rule `validate_resource_ledger_state` has, given a row of the right types, for a world
     /// holding these resources, people and zones. True says the Python rule accepts; false decides
-    /// nothing. Reads dicts with exact str keys only, so it runs no Python code.
-    pub(crate) fn passes_rules<'py>(
-        &self,
-        resources: &Bound<'py, PyAny>,
-        agents: &Bound<'py, PyAny>,
-        zones: &Bound<'py, PyAny>,
-    ) -> PyResult<bool> {
-        let py = resources.py();
+    /// nothing.
+    pub fn passes_rules_in<W: LedgerWorld>(&self, world: &W) -> std::result::Result<bool, W::Error> {
         if self.schema_version != SCHEMA_VERSION
             || !is_valid_id(&self.warehouse_id)
             || !self.used_reservation_ids.are_unique()
@@ -349,14 +309,11 @@ impl LedgerRow {
             return Ok(false);
         }
         if let Some(zone) = &self.zone_id {
-            if !is_valid_id(zone) || raw_dict_get(zones, PyString::new(py, zone).as_any())?.is_none() {
+            if !is_valid_id(zone) || !world.has_zone(zone)? {
                 return Ok(false);
             }
         }
-        let Some(resources) = as_readable_dict(resources) else {
-            return Ok(false);
-        };
-        if resources.len() != RESOURCE_IDS.len() {
+        if world.resource_count() != Some(RESOURCE_IDS.len()) {
             return Ok(false);
         }
         for (index, resource_id) in RESOURCE_IDS.iter().enumerate() {
@@ -375,10 +332,7 @@ impl LedgerRow {
                 - i128::from(account.losses);
             if expected != i128::from(account.remaining)
                 || account.reserved > account.remaining
-                || !int_is(
-                    raw_dict_get(resources.as_any(), PyString::new(py, resource_id).as_any())?,
-                    account.remaining,
-                )?
+                || !world.resource_is(resource_id, account.remaining)?
             {
                 return Ok(false);
             }
@@ -389,7 +343,7 @@ impl LedgerRow {
                     || record.reservation_id != *id
                     || &*record.resource_id != *resource_id
                     || !is_valid_id(&record.agent_id)
-                    || raw_dict_get(agents, PyString::new(py, &record.agent_id).as_any())?.is_none()
+                    || !world.has_agent(&record.agent_id)?
                     || record.quantity <= 0
                 {
                     return Ok(false);
@@ -406,51 +360,4 @@ impl LedgerRow {
         }
         Ok(true)
     }
-}
-
-/// The mirror of the ledger the world really holds: a row left behind by a write past the table
-/// answers for nothing, so the kernels say Unsupported and the Python rules read what is there.
-pub(crate) fn held_mirror<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, NamespaceMirror>> {
-    let py = world.py();
-    let mirror = mirror_of(world, NAME)?;
-    let table = attribute(world, intern!(py, "model_state"))?;
-    if as_readable_dict(&table).is_none() {
-        return Err(Unsupported::new_err("model_state is another kind of mapping"));
-    }
-    let held = raw_dict_get(&table, intern!(py, "resource_ledger_v1").as_any())?;
-    if !held.is_some_and(|held| mirror.try_borrow().is_ok_and(|mirror| mirror.holds_state(&held))) {
-        return Err(Unsupported::new_err("the world holds another ledger"));
-    }
-    Ok(mirror)
-}
-
-/// The dicts a check reads, in the order `passes_rules` takes them.
-pub(crate) fn world_inputs<'py>(
-    world: &Bound<'py, PyAny>,
-) -> PyResult<(Bound<'py, PyAny>, Bound<'py, PyAny>, Bound<'py, PyAny>)> {
-    let py = world.py();
-    let agents = attribute(world, intern!(py, "agents"))?;
-    let zones = attribute(world, intern!(py, "zones"))?;
-    if as_readable_dict(&agents).is_none() || as_readable_dict(&zones).is_none() {
-        return Err(Unsupported::new_err("the world's maps are another kind of mapping"));
-    }
-    Ok((attribute(world, intern!(py, "resources"))?, agents, zones))
-}
-
-/// `validate_resource_ledger_state`: accepts, or leaves it to the Python rule and its error text.
-#[pyfunction]
-fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    if namespace_is_absent(world, intern!(world.py(), NAME))? {
-        return Ok(false);
-    }
-    let mirror = held_mirror(world)?;
-    let (resources, agents, zones) = world_inputs(world)?;
-    NamespaceMirror::with_row::<LedgerRow, _>(&mirror, |row| row.passes_rules(&resources, &agents, &zones))
-}
-
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    let py = m.py();
-    m.add("ROW", Py::new(py, RowType::new("resource_ledger", load_row::<LedgerRow>))?)?;
-    m.add_function(wrap_pyfunction!(validate, m)?)?;
-    Ok(())
 }

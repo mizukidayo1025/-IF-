@@ -26,7 +26,7 @@ use crate::core::row::{attribute, exact_dict, exact_int, exact_str, str_value, u
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::{V, VPy};
 use crate::core::world_core::{raw_dict_get, with_state_value};
-use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, RequestStatus};
+use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, Member, RequestStatus};
 use crate::rules::movement::{at_queue_slot, at_service_point, at_trip_destination};
 use crate::rules::travel::{approach_route, plan_room_approach, write_travel};
 use crate::rules::{service, toilet};

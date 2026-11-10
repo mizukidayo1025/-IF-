@@ -35,7 +35,7 @@ use crate::rules::movement::{
 use crate::rules::movement_geometry::{distance, polyline_length, usable, Geo, Pt};
 use crate::rules::population::writing;
 use crate::rules::service::{active_task_class, add_one, metrics_of, set_agent};
-use crate::state::entities::{entities_of, raw_setattr, Activity, Entities, EntityStore, FacilityRow, NeedRow};
+use crate::state::entities::{entities_of, raw_setattr, Activity, Entities, EntityStore, FacilityRow, Member, NeedRow};
 use crate::state::events::{EventKind, EventRow, EventStatus, EventWriter};
 use crate::state::facility_queues::QueueRequest;
 use crate::state::metric_state::MetricRow;

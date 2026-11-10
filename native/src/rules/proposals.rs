@@ -35,7 +35,7 @@ use crate::rules::social_dialogue::context_value;
 use crate::rules::care_receipts::append_applied;
 use crate::rules::support::{PlannedRequest, add_rejected, household_of, plan_request, support_kind_of, write_closed_request, write_request};
 use crate::rules::travel::{CapacityWait, PlannedTrip, Route, Selected, Trip, approach_route, plan_travel, rows_of, select_resource, select_toilet, write_capacity_wait, write_travel};
-use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore};
+use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, Member};
 use crate::state::events::{EventKind, EventRow, EventWriter};
 use crate::state::resource_service::{held_mirror as service_mirror, RequestRecord};
 

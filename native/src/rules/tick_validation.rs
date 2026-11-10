@@ -28,7 +28,7 @@ use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_int_
 use crate::core::tracked::{as_readable_list, is_detached};
 use crate::core::value::V;
 use crate::core::world_core::{mirror_of, raw_dict_get, state_value, NamespaceMirror};
-use crate::state::entities::{Activity, RequestStatus};
+use crate::state::entities::{Activity, Member, RequestStatus};
 use crate::state::events::{EventWriter, PendingEvent, PendingSource};
 use crate::state::resource_ledger::{held_mirror, LedgerRow};
 use crate::validation::{is_count, is_unit};
