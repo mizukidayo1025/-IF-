@@ -1,0 +1,178 @@
+//! `resource_service_v1`: the row is the core's (`sheltersim_core::state::resource_service`); here
+//! are its Python side and its validator, which reads the entities and the zones.
+
+use std::sync::Arc;
+
+use pyo3::intern;
+use pyo3::prelude::*;
+use pyo3::types::PyString;
+
+pub(crate) use sheltersim_core::state::resource_service::*;
+
+use crate::core::row::{attribute, load_row, namespace_is_absent, py_row};
+use crate::core::tracked::as_readable_dict;
+use crate::core::value::V;
+use crate::core::world_core::{mirror_of, raw_dict_get, with_state_value, NamespaceMirror, RowType};
+use crate::state::entities::{entities_of, Entities, EntityStore};
+use crate::Unsupported;
+
+const QUEUES_KEY: &str = "facility_queues_v1";
+const LIFECYCLE_KEY: &str = "population_lifecycle_v1";
+
+py_row! { RequestRecord { minute, agent_id, action, outcome, reason, facility_id, origin_zone_id, detail } }
+py_row! { StallRecord { minute, facility_id, agent_id, reason } }
+py_row! { Stall { agent_id, reason } }
+py_row! {
+    ServiceRow {
+        schema_version, cancelled_task_ids, active_reservation_ids, request_history,
+        queue_stall_history, stall_state,
+    }
+}
+
+/// The mirror of the namespace the world really holds: a row left behind by a write past the table
+/// answers for nothing.
+pub(crate) fn held_mirror<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, NamespaceMirror>> {
+    let py = world.py();
+    let mirror = mirror_of(world, NAME)?;
+    let table = attribute(world, intern!(py, "model_state"))?;
+    if as_readable_dict(&table).is_none() {
+        return Err(Unsupported::new_err("model_state is another kind of mapping"));
+    }
+    let held = raw_dict_get(&table, intern!(py, "resource_service_v1").as_any())?;
+    if !held.is_some_and(|held| mirror.try_borrow().is_ok_and(|mirror| mirror.holds_state(&held))) {
+        return Err(Unsupported::new_err("the world holds another service state"));
+    }
+    Ok(mirror)
+}
+
+struct Known<'py> {
+    agents: Bound<'py, PyAny>,
+    zones: Bound<'py, PyAny>,
+    /// The keys of `population_lifecycle_v1.people`, read from its row when it is detached.
+    archived: Option<rustc_hash::FxHashSet<Arc<str>>>,
+}
+
+impl Known<'_> {
+    fn person(&self, id: &str) -> PyResult<bool> {
+        let key = PyString::new(self.agents.py(), id);
+        if raw_dict_get(&self.agents, key.as_any())?.is_some() {
+            return Ok(true);
+        }
+        Ok(match &self.archived {
+            Some(people) => people.contains(id),
+            None => false,
+        })
+    }
+
+    fn zone(&self, id: &str) -> PyResult<bool> {
+        Ok(raw_dict_get(&self.zones, PyString::new(self.zones.py(), id).as_any())?.is_some())
+    }
+}
+
+/// The rules of a tick's check in `WorldState.validate`, given a row of the right types. True
+/// says the Python rules accept; false decides nothing.
+fn passes_rules(row: &ServiceRow, rows: &Entities, known: &Known<'_>, minute_index: i64, heads: &std::collections::HashMap<Arc<str>, Vec<Arc<str>>>) -> PyResult<bool> {
+    if row.schema_version != SCHEMA_VERSION
+        || !listed_once(&row.cancelled_task_ids)
+        || !listed_once(&row.active_reservation_ids)
+    {
+        return Ok(false);
+    }
+    let from = window_start(&row.request_history, |record| record.minute, minute_index);
+    for record in &row.request_history[from..] {
+        let expected_kind = match &*record.action {
+            "fetch_water" => "water_station",
+            "collect_meal" => "meal_distribution",
+            _ => return Ok(false),
+        };
+        if !(0..=minute_index).contains(&record.minute)
+            || !request_outcome_is_known(record)
+            || !known.person(&record.agent_id)?
+            || !known.zone(&record.origin_zone_id)?
+        {
+            return Ok(false);
+        }
+        if let Some(facility_id) = &record.facility_id {
+            if rows.facilities.get(facility_id).is_none_or(|facility| &*facility.kind != expected_kind) {
+                return Ok(false);
+            }
+        }
+    }
+    let from = window_start(&row.queue_stall_history, |record| record.minute, minute_index);
+    let mut previous = -1;
+    for record in &row.queue_stall_history[from..] {
+        if record.minute < 0
+            || record.minute < previous
+            || record.minute > minute_index
+            || rows.facilities.get(&record.facility_id).is_none()
+            || !known.person(&record.agent_id)?
+            || !stall_reason_is_known(&record.reason)
+        {
+            return Ok(false);
+        }
+        previous = record.minute;
+    }
+    for (facility_id, record) in &row.stall_state {
+        let Some(facility) = rows.facilities.get(facility_id) else {
+            return Ok(false);
+        };
+        if !matches!(&*facility.kind, "water_station" | "meal_distribution")
+            || rows.agents.get(&record.agent_id).is_none()
+            || !stall_reason_is_known(&record.reason)
+            || !(match heads.get(facility_id) {
+                Some(heads) => heads.contains(&record.agent_id),
+                None => facility.resource_queue_agent_ids.first() == Some(&record.agent_id),
+            })
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+/// The part of `WorldState.validate` a tick runs: accepts, or leaves it to the Python rules.
+#[pyfunction]
+fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
+    let py = world.py();
+    if namespace_is_absent(world, intern!(py, NAME))? {
+        return Ok(false);
+    }
+    let table = attribute(world, intern!(py, "model_state"))?;
+    let table = as_readable_dict(&table).ok_or_else(|| Unsupported::new_err("model_state is another kind of mapping"))?;
+    // Where a facility has independent queues, each queue's head is a head of the facility.
+    let mut heads: std::collections::HashMap<Arc<str>, Vec<Arc<str>>> = std::collections::HashMap::new();
+    if table.contains(QUEUES_KEY)? {
+        let stalls = NamespaceMirror::with_row::<ServiceRow, _>(&held_mirror(world)?, |row| Ok(row.stall_state.keys().cloned().collect::<Vec<_>>()))?;
+        for facility_id in stalls {
+            if let Some(found) = crate::rules::facility_queues::independent_heads(world, &facility_id)? {
+                heads.insert(facility_id, found);
+            }
+        }
+    }
+    let archived = with_state_value(world, LIFECYCLE_KEY, |lifecycle| {
+        Ok(match lifecycle {
+            Some(V::Map(lifecycle)) => match lifecycle.get("people") {
+                Some(V::Map(people)) => Some(people.keys().cloned().collect()),
+                _ => None,
+            },
+            _ => None,
+        })
+    })?;
+    let known = Known { agents: attribute(world, intern!(py, "agents"))?, zones: attribute(world, intern!(py, "zones"))?, archived };
+    if as_readable_dict(&known.agents).is_none() || as_readable_dict(&known.zones).is_none() {
+        return Ok(false);
+    }
+    let minute_index = attribute(world, intern!(py, "minute_index"))?.extract::<i64>().map_err(|_| Unsupported::new_err("the minute is not an int"))?;
+    let mirror = held_mirror(world)?;
+    let store = entities_of(world)?;
+    NamespaceMirror::with_row::<ServiceRow, _>(&mirror, |row| {
+        EntityStore::with_rows(&store, |rows| passes_rules(row, rows, &known, minute_index, &heads))
+    })
+}
+
+pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    let py = m.py();
+    m.add("ROW", Py::new(py, RowType::new("resource_service", load_row::<ServiceRow>))?)?;
+    m.add_function(wrap_pyfunction!(validate, m)?)?;
+    Ok(())
+}

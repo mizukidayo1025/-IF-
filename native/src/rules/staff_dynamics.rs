@@ -15,7 +15,7 @@ use crate::core::errors;
 use crate::core::mathx::{exp, py_max, py_min};
 use crate::core::row::{
     attribute, exact_dict, exact_int, exact_list, exact_str, namespace_is_absent,
-    unsupported, Field,
+    unsupported, PyField,
 };
 use crate::core::world_core::{mirror_of, NamespaceMirror};
 use crate::state::entities::{entities_of, EntityStore};
@@ -401,7 +401,7 @@ fn add_staff(world: &Bound<'_, PyAny>, staff_id: &Bound<'_, PyAny>) -> PyResult<
         }
         Ok(())
     })?;
-    NamespaceMirror::write_through(&mirror, &["staff"], id, &Field::to_py(&record, world.py())?)
+    NamespaceMirror::write_through(&mirror, &["staff"], id, &PyField::to_py(&record, world.py())?)
 }
 
 /// An exact non-empty str key of a config map.
@@ -738,7 +738,7 @@ fn create_state<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>> 
     let staff = PyDict::new(py);
     let record = StaffRecord::new();
     for id in ids {
-        staff.set_item(id, Field::to_py(&record, py)?)?;
+        staff.set_item(id, PyField::to_py(&record, py)?)?;
     }
     let state = PyDict::new(py);
     state.set_item(intern!(py, "schema_version"), 1_i64)?;

@@ -104,7 +104,7 @@ fn request_node<'py>(world: &Bound<'py, PyAny>, request_id: &str) -> PyResult<Op
     if let Some(mirror) = detached_mirror(world)? {
         let py = world.py();
         return NamespaceMirror::with_row::<QueuesRow, _>(&mirror, |row| {
-            row.requests.get(request_id).map(|request| crate::core::row::Field::to_py(request, py)).transpose()
+            row.requests.get(request_id).map(|request| crate::core::row::PyField::to_py(request, py)).transpose()
         });
     }
     let table = attribute(world, intern!(world.py(), "model_state"))?;
@@ -296,11 +296,11 @@ pub(crate) fn detached_records<'py>(world: &Bound<'py, PyAny>, request_id: Optio
     NamespaceMirror::with_row::<QueuesRow, _>(&mirror, |row| {
         let requests = PyDict::new(py);
         if let Some((id, request)) = request_id.and_then(|id| row.requests.get_key_value(id)) {
-            requests.set_item(&**id, crate::core::row::Field::to_py(request, py)?)?;
+            requests.set_item(&**id, crate::core::row::PyField::to_py(request, py)?)?;
         }
         let queues = PyDict::new(py);
         if let Some((id, queue)) = queue_id.and_then(|id| row.queues.get_key_value(id)) {
-            queues.set_item(&**id, crate::core::row::Field::to_py(queue, py)?)?;
+            queues.set_item(&**id, crate::core::row::PyField::to_py(queue, py)?)?;
         }
         let state = PyDict::new(py);
         state.set_item("requests", requests)?;
@@ -318,7 +318,7 @@ pub(crate) fn write_stall(world: &Bound<'_, PyAny>, queue_id: &str, request_id: 
     stall.set_item("reason", reason)?;
     if let Some(mirror) = detached_mirror(world)? {
         let stall: crate::state::facility_queues::QueueStall =
-            crate::core::row::Field::from_py(stall.as_any()).map_err(|_| Unsupported::new_err("the stall does not fit the row"))?;
+            crate::core::row::PyField::from_py(stall.as_any()).map_err(|_| Unsupported::new_err("the stall does not fit the row"))?;
         return edit_row(&mirror, |row| match row.queues.get_mut(queue_id) {
             Some(queue) => {
                 queue.last_stall = Some(stall);
@@ -757,7 +757,7 @@ fn record_queue_transition(
     causation_id: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<()> {
     let py = world.py();
-    let request: QueueRequest = crate::core::row::Field::from_py(request).map_err(|_| Unsupported::new_err("not a queue request"))?;
+    let request: QueueRequest = crate::core::row::PyField::from_py(request).map_err(|_| Unsupported::new_err("not a queue request"))?;
     let writer = EventWriter::of(world)?;
     let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
     let wait = match wait_minutes {

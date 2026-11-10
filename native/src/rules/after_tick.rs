@@ -433,7 +433,7 @@ impl<'py> Check<'_, 'py> {
                 let mut scratch = crate::Encoder { out: Vec::new() };
                 let mut start = history.count();
                 while start > 0 {
-                    let item: serde_json::Value = serde_json::from_slice(history.item_json(start - 1, &mut scratch)?)
+                    let item: serde_json::Value = serde_json::from_slice(history.item_json(start - 1, &mut scratch).or_py()?)
                         .map_err(|_| Unsupported::new_err("a body history item is not JSON"))?;
                     if let Some(recorded) = item.get("minute").filter(|value| value.is_number()) {
                         let Some(recorded) = recorded.as_i64() else {
@@ -451,7 +451,7 @@ impl<'py> Check<'_, 'py> {
                 }
                 let first = start.saturating_sub(1);
                 let items: PyResult<Vec<Box<[u8]>>> =
-                    (first..history.count()).map(|index| history.item_json(index, &mut scratch).map(Box::from)).collect();
+                    (first..history.count()).map(|index| history.item_json(index, &mut scratch).map(Box::from).or_py()).collect();
                 items
             })?;
             return crate::core::world_core::loads_items(py, items.iter().map(|item| &**item));

@@ -13,7 +13,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyList, PyString};
 
 use crate::core::row::{
-    attribute, exact_dict, exact_int, exact_list, exact_str, namespace_is_absent, unsupported, Field, IdMap,
+    attribute, exact_dict, exact_int, exact_list, exact_str, namespace_is_absent, unsupported, PyField, IdMap,
 };
 use crate::core::world_core::{mirror_of, NamespaceMirror};
 use crate::state::agent_dynamics::{
@@ -226,7 +226,7 @@ pub(crate) fn create_state<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py
         }
         Ok(AgentDynamicsRow { schema_version: 1, policy_version: Arc::from(policy), agents })
     })?;
-    Field::to_py(&row, world.py())
+    PyField::to_py(&row, world.py())
 }
 
 /// What `add_agent` refuses for a person about to be added, for a plan that adds one.
@@ -260,7 +260,7 @@ pub(crate) fn add_agent(world: &Bound<'_, PyAny>, agent_id: &Bound<'_, PyAny>) -
         };
         Ok(new_memory(rows, agent, policy != POLICY_V1, awareness.as_ref()))
     })?;
-    let value = Field::to_py(&record, py)?;
+    let value = PyField::to_py(&record, py)?;
     NamespaceMirror::write_through(&mirror, &["agents"], id, &value)?;
     NamespaceMirror::with_row::<AgentDynamicsRow, _>(&mirror, |row| {
         match row.agents.get_mut(id) {

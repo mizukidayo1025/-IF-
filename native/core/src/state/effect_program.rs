@@ -8,16 +8,14 @@
 
 use std::sync::Arc;
 
-use pyo3::prelude::*;
+use crate::row::IdMap;
+use crate::state_row;
+use crate::value::V;
 
-use crate::core::row::{load_row, state_row, IdMap};
-use crate::core::value::V;
-use crate::core::world_core::RowType;
-
-pub(crate) const NAME: &str = "effect_program_v1";
+pub const NAME: &str = "effect_program_v1";
 
 state_row! {
-    pub(crate) struct Modifier {
+    pub struct Modifier {
         modifier_id: Arc<str>,
         program_id: Arc<str>,
         effect_id: Arc<str>,
@@ -28,14 +26,14 @@ state_row! {
 }
 
 state_row! {
-    pub(crate) struct FacilityModifiers {
+    pub struct FacilityModifiers {
         baseline_working_units: i64,
         modifiers: Vec<Modifier>,
     }
 }
 
 state_row! {
-    pub(crate) struct Program {
+    pub struct Program {
         program_hash: Arc<str>,
         source_text_hash: Arc<str>,
         narrative: Arc<str>,
@@ -49,14 +47,9 @@ state_row! {
 }
 
 state_row! {
-    pub(crate) struct EffectProgramRow {
+    pub struct EffectProgramRow {
         schema_version: i64,
         programs: IdMap<Program>,
         active_facility_modifiers: IdMap<FacilityModifiers>,
     }
-}
-
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add("ROW", Py::new(m.py(), RowType::new(NAME, load_row::<EffectProgramRow>))?)?;
-    Ok(())
 }

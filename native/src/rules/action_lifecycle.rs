@@ -22,7 +22,7 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyString};
 
-use crate::core::row::{attribute, exact_dict, exact_int, exact_str, state_row, unsupported, Field, IdMap};
+use crate::core::row::{attribute, exact_dict, exact_int, exact_str, state_row, unsupported, PyField, IdMap};
 use crate::core::value::V;
 use crate::core::world_core::{held_state, raw_dict_get, with_state_value, Held, NamespaceMirror};
 use crate::state::body_state::BodyRow;
@@ -143,7 +143,7 @@ impl ActiveActions {
     }
 
     fn rows_as_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let plain = Field::to_py(&self.rows, py)?;
+        let plain = PyField::to_py(&self.rows, py)?;
         Ok(plain.downcast_into::<PyDict>()?)
     }
 }

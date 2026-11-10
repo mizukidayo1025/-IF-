@@ -46,7 +46,7 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
 ## 方針（2026-11-11、私が決めたもの。変えられます）
 
 - **E1. 下から順に：** 型 → 状態の持ち主 → kernel → tick の順序。どの PR でもハッシュは変えません。
-- **E2. `V` を中心に分けます。** 中核の `Field` は `V` との行き来（`from_v`、`to_v`）と JSON の書き出しを持ち、Python との行き来は窓口の trait にします。まだ Python の木に書く setter は、中核の trait（`TreeSink`）を通します。
+- **E2. `V` を中心に分けます。** 中核の `Field` は `V` との行き来（`from_v`、`to_v`）と JSON の書き出しを持ち、Python との行き来は窓口の trait にします。まだ Python の木に書く setter は、中核の trait（`TreeSink`）を通します。（PR 3 で、Python との行き来は `V` を通さず、窓口の `PyField` にしました。理由は下の「PR 3」にあります）
 - **E3. 中核の `World`：** 1つの世界の状態を、1つの Rust の構造体にまとめます。窓口の `WorldCore` がそれを持ち、kernel は `&mut World` を受けます。実体、区域、名前空間の木などの Python のオブジェクトは、`World` を読み書きする窓（view）にします。実体の辞書は挿入順を保ちます（`IndexMap`、`shift_remove`）。
 - **E4. Host を呼ぶ関数は、世界を借りたままにしません。** 中核の関数は `WorldCell`（`with(|world| ...)` で短く借りる）を受け、Host を呼ぶ間は借りません。今の「Python を呼ぶ間は borrow を持たない」と同じ規則です。そのためネイティブ版の Host（LLM の境界）は、今までどおり Python の view を通して書けます。
 - **E5. 写して差し替える処理は、`World` の fork と commit にします。** EventLog は追記だけなので、fork では長さの印を持ち、写しません。
@@ -115,6 +115,18 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
 - 中核のテスト（`native/core/tests/events_bytes.rs`）は、chunk のハッシュ、chunk の区切り、`split_json_array` を、`main`（`0085254`）のビルドの Python から見える関数で求めた値と比べます。列の順番、`validate`、writer の文、書いた記録の bytes と読み戻しも確かめます。
 - 確かめたこと：中核のテスト（16件）、`cargo clippy --workspace`、`cargo tree`（中核に `pyo3` なし）、offline テスト（5115 passed、6 skipped）、ゲート（55 scenarios、0 problems）。7日分（100人、project の経路、生成 Scenario）は、P2 のビルドと交互に2回ずつ測りました。world・events・KPI のハッシュは同じです。計算時間（wall）は P2 が 70.2 s・70.7 s、このPRが 70.7 s・71.5 s、thread の時間は 66.4 s・65.7 s と 66.3 s・65.1 s で、差は揺れの中です。計算のピークの RSS（`computation_mib`）は P2 が 895.1・888.3 MiB、このPRが 890.1・894.2 MiB で、増えていません。
 - 1つ目の commit で `eventlog.rs` と `contacts.rs` を中身を変えずに移し（`core/src/events/log.rs`、`core/src/contacts.rs`）、2つ目の commit で中身を変えました。窓口の同じ名前の2つのファイルは新しいファイルです。`state/events.rs`、`checkpoint.rs`、`records.rs` は窓口に残る部分が多いので移さず、中核のファイルを新しく作りました。
+
+### PR 3：行の trait と名前空間の行（レーン P3）
+
+- **trait の分け方：** 中核の `sheltersim_core::row` に、`Field`（`write_json`、`is_absent`、`when_missing`、`items`、`part_items`）、`Items`（`count`、`item_json`）、`Row`、`Scalar`（`same`、`atom`）、`Part`、`ValueRow`、`IdMap`、`Maybe`、`map_set`、`sorted_order` を置きました。Python との行き来は、窓口の `PyField`（`from_py`、`to_py`、`apply`、`part_to_py`、`py_items`、`to_py_emptied`）、`PyItems`（`slice_to_py`）、`PyRow` です。`NamespaceMirror` は `Box<dyn PyRow>` を持ちます。`Write` は Python の値を持つので、窓口に残しました。
+- **E2 と違うところ：** `V` を通す形（`from_v`、`to_v`）にはしませんでした。Python の値をいったん `V` にしてから行にすると、読み込みと転送された書き込みのたびに割り当てが増えます。Misfit の理由の文も変わります（例：`not a list` が `value is not a plain JSON value` になる）。そこで、Python との行き来は今のコードのまま窓口の `PyField` に残し、中核の構造体には `py_row!` で付けました。中核で行を作る口は、中核が状態を持つレーン（P5）で決めます。
+- **マクロ：** 中核の `state_row!`・`str_enum!`（`#[macro_export]`、`$crate` の道筋）は、構造体、`NAMES`、`write_json`、setter を作ります。setter は中核の trait `TreeSink` に書き、窓口の `Tree` がそれを実装します。値は `Atom`（null、bool、int、float、str、集合の名前）で渡します。木に入る Python の値は前と同じです（集合の名前は interned の str、項目の名前も interned）。窓口の `py_row!` は、同じ名前を同じ順に並べて Python の側を作ります。順や数が違うと、コンパイルで止まります（`same_names`）。窓口の `state_row!`・`str_enum!` は、中核のマクロと `py_row!`・`py_str_enum!` を一度に書くもので、窓口だけの行に使います。
+- **中核へ移した名前空間の行（12）：** `agent_dynamics`、`body_state`、`effect_program`、`facility_queues`、`information`、`metric_state`、`movement`、`psychological_distress`、`resource_service`、`social_network`、`social_propagation`、`staff_dynamics`。行と、行だけを読む検査（`is_valid` など）を `native/core/src/state/` に移しました。窓口の同じ名前のファイルは、行を `pub(crate) use` で元の道筋に見せ、`py_row!`、手で書いた `PyField`（`Journey`、`History`、`Relationships`、`Recovery`）、`register`、検証の入口を持ちます。Python から見える名前は変わりません。実体の行を読む検査は、`EntityStore` が窓口にあるうちは窓口に置くか（`resource_service` の `passes_rules`）、中核の関数に閉包で渡します（`agent_dynamics` と `information` の `is_valid`）。
+- **残したもの：** `resource_ledger`（検証が `resources`、`agents`、`zones` の Python の dict を読む）、`shared_operations`（検証が `EventWriter` と `staff_operations` を読む）、`staff_operations`（実体のオブジェクトと予定のイベントを読む）は、窓口のまま `Field` と `PyField` に分けました。実体の行（P4）の後に移します。`sample_namespace` はテスト用なので窓口に残し、窓口の `state_row!` の例にしました。`population` には型の決まった行がなく（`ValueRow` は中核）、移すものはありません。
+- 1つ目の commit で `row.rs` と12のファイルを中身を変えずに移し、2つ目の commit で中身を変えました。
+- **中核のテスト**（`native/core/tests/rows.rs`）：中核の外から `state_row!`・`str_enum!` を使い、JSON のバイト列とキーの順、setter が同じビットの値を書かないこと、`psychological_distress` の行のバイト列と検査を確かめます。期待値は CPython 3.12 の `json.dumps(sort_keys=True, separators=(",", ":"), ensure_ascii=False)` で求めました。
+- **確かめたこと：** `cargo test -p sheltersim_core`、`cargo clippy --workspace -- -A clippy::all -D clippy::disallowed_methods`、`cargo tree -p sheltersim_core -e normal,build` に `pyo3` がないこと、offline の pytest（`-m "not long_simulation"`：5115 passed、6 skipped）、全経路のゲート（55 scenarios、0 problems）。PR 4a の後の `main`（`4834ebe`）の上で確かめました。
+- **7日分**（100人、project の経路、生成 Scenario）：world、events、metrics のハッシュは `main`（`4834ebe`）と同じです。計算時間は、wall が `main` 64.9 s、この PR 65.2 s、thread が 61.2 s と 61.3 s で、差は揺れの中です。計算のピークの RSS は 898.1 MiB と 894.4 MiB で、増えていません。PR 4a の前に PR 2 の commit と交互に3回ずつ測ったときも、差は揺れの中でした（thread の平均 +2.7%、wall の平均 −1.3%、ほかのレーンの計算と同時）。
 
 ### この後
 

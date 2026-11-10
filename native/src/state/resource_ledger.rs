@@ -14,12 +14,14 @@ use pyo3::prelude::*;
 use pyo3::types::{PyInt, PyList, PyString};
 use rustc_hash::{FxBuildHasher, FxHashSet};
 
-use crate::core::row::{attribute, load_row, namespace_is_absent, state_row, Field, IdMap};
+use crate::core::errors::OrPy;
+use crate::core::row::{attribute, load_row, namespace_is_absent, state_row, Field, IdMap, PyField, PyItems};
 use crate::core::tracked::{as_readable_dict, as_readable_list};
 use crate::core::world_core::{
     loads_items, mirror_of, raw_dict_get, Items, Misfit, NamespaceMirror, OrMisfit, Part, RowType, Write,
 };
 use crate::{Encoder, Unsupported};
+use sheltersim_core::error::Result as CoreResult;
 
 pub(crate) const NAME: &str = "resource_ledger_v1";
 pub(crate) const RESOURCE_IDS: [&str; 2] = ["water_ml", "food_meal_units"];
@@ -148,7 +150,7 @@ impl Audit {
     /// Add a record a rule built, or one read from the tree.
     pub(crate) fn push(&mut self, record: AuditRecord) -> PyResult<()> {
         let mut encoder = Encoder { out: Vec::with_capacity(384) };
-        Field::write_json(&record, &mut encoder)?;
+        Field::write_json(&record, &mut encoder).or_py()?;
         self.items.push(encoder.out.into_boxed_slice());
         if record.minute < self.last_minute {
             self.ordered = false;
@@ -181,17 +183,37 @@ impl Items for Audit {
         self.items.len()
     }
 
+    fn item_json<'a>(&'a self, index: usize, _scratch: &'a mut Encoder) -> CoreResult<&'a [u8]> {
+        Ok(&self.items[index])
+    }
+}
+
+impl PyItems for Audit {
     fn slice_to_py<'py>(&self, py: Python<'py>, start: usize, stop: usize) -> PyResult<Bound<'py, PyList>> {
         loads_items(py, self.items[start..stop].iter().map(|item| &**item))
-    }
-
-    fn item_json<'a>(&'a self, index: usize, _scratch: &'a mut Encoder) -> PyResult<&'a [u8]> {
-        Ok(&self.items[index])
     }
 }
 
 impl Field for Audit {
     fn items(&self) -> Option<&dyn Items> {
+        Some(self)
+    }
+
+    fn write_json(&self, encoder: &mut Encoder) -> CoreResult<()> {
+        encoder.out.push(b'[');
+        for (index, item) in self.items.iter().enumerate() {
+            if index > 0 {
+                encoder.out.push(b',');
+            }
+            encoder.out.extend_from_slice(item);
+        }
+        encoder.out.push(b']');
+        Ok(())
+    }
+}
+
+impl PyField for Audit {
+    fn py_items(&self) -> Option<&dyn PyItems> {
         Some(self)
     }
 
@@ -217,18 +239,6 @@ impl Field for Audit {
             list.append(loads.call1((std::str::from_utf8(item)?,))?)?;
         }
         Ok(list.into_any())
-    }
-
-    fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
-        encoder.out.push(b'[');
-        for (index, item) in self.items.iter().enumerate() {
-            if index > 0 {
-                encoder.out.push(b',');
-            }
-            encoder.out.extend_from_slice(item);
-        }
-        encoder.out.push(b']');
-        Ok(())
     }
 
     fn apply(&mut self, path: &[Part<'_>], write: &Write<'_, '_>) -> Result<(), Misfit> {
@@ -262,23 +272,25 @@ impl UsedIds {
 }
 
 impl Field for UsedIds {
+    fn write_json(&self, encoder: &mut Encoder) -> CoreResult<()> {
+        Field::write_json(&self.ids, encoder)
+    }
+}
+
+impl PyField for UsedIds {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
-        let ids: Vec<Arc<str>> = Field::from_py(value)?;
+        let ids: Vec<Arc<str>> = PyField::from_py(value)?;
         let mut set = FxHashSet::with_capacity_and_hasher(ids.len(), FxBuildHasher);
         set.extend(ids.iter().cloned());
         Ok(Self { ids, set })
     }
 
     fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        Field::to_py(&self.ids, py)
-    }
-
-    fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
-        Field::write_json(&self.ids, encoder)
+        PyField::to_py(&self.ids, py)
     }
 
     fn apply(&mut self, path: &[Part<'_>], write: &Write<'_, '_>) -> Result<(), Misfit> {
-        Field::apply(&mut self.ids, path, write)?;
+        PyField::apply(&mut self.ids, path, write)?;
         self.set.clear();
         self.set.extend(self.ids.iter().cloned());
         Ok(())

@@ -1,7 +1,7 @@
 """A Checkpoint capture takes what Rust rows hold from the rows, and saves the same bytes.
 
-Rows write their canonical JSON themselves (native/src/state/entities.rs, core/row.rs), and a
-capture reads neither the objects nor the trees they mirror. Whatever the rows hold or fail to
+Rows write their canonical JSON themselves (native/src/state/entities.rs, native/core/src/row.rs),
+and a capture reads neither the objects nor the trees they mirror. Whatever the rows hold or fail to
 hold, the Checkpoint is the one a capture from the Python objects makes, and a restore check does
 not restore or compare again a row that is the one it showed equal.
 """

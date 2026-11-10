@@ -12,6 +12,7 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
+use crate::core::errors::OrPy;
 use crate::core::row::{load_row, state_row, Field, IdMap};
 use crate::core::value::V;
 use crate::core::world_core::{
@@ -81,7 +82,7 @@ fn row_json<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyBytes>> {
     let py = world.py();
     NamespaceMirror::with_row::<SampleRow, _>(&mirror, |row| {
         let mut encoder = Encoder { out: Vec::with_capacity(256) };
-        Field::write_json(row, &mut encoder)?;
+        Field::write_json(row, &mut encoder).or_py()?;
         Ok(PyBytes::new(py, &encoder.out))
     })
 }

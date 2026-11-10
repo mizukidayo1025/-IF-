@@ -6,8 +6,9 @@ Rust が持つ最初の本番の状態です。次の名前空間は、この文
 
 | もの | 役目 |
 |---|---|
-| `native/src/core/row.rs` | `Field`（行の中の値ができること）、`Scalar`、`IdMap`、`load_row`、`map_set`、`state_row!` |
-| `native/src/state/psychological_distress.rs` | `psychological_distress_v1` の行と検証（手本） |
+| `native/core/src/row.rs` | `Field`（行の中の値ができること）、`Scalar`、`IdMap`、`map_set`、`state_row!`（#152 の PR 3 で中核の crate に移しました） |
+| `native/src/core/row.rs` | `PyField`（Python との行き来と転送された書き込み）、`load_row`、`py_row!` |
+| `native/core/src/state/psychological_distress.rs`、`native/src/state/psychological_distress.rs` | `psychological_distress_v1` の行と検証（手本）。行は中核に、Python の側と検証の入口は窓口にあります |
 | `native/src/state/metric_state.rs` | `metric_state`（`IdMap<f64>`。世界の項目で、`model_state` の中ではありません） |
 | `native/src/rules/psychology.rs` | 更新の段階の最後の手順：苦痛の監視（`domain/distress_monitor.py`）と長期の苦痛（`update_psychological_state`） |
 | `core/state_mirror.py` の `OWNED_FIELDS` | `model_state` の外の世界の項目を持つ表 |
@@ -20,12 +21,12 @@ Rust が持つ最初の本番の状態です。次の名前空間は、この文
 
 ### 1. 行を書く
 
-`native/src/state/<name>.rs` に項目を並べます。
+中核の `native/core/src/state/<name>.rs` に項目を並べます（`native/core/src/lib.rs` の `pub mod state` に1行足します）。
 
 ~~~rust
 state_row! {
     #[derive(Clone, Copy)]
-    pub(crate) struct AgentRecord {
+    pub struct AgentRecord {
         baseline_distress: f64,                      // Rust の規則が書かない項目
         long_term_distress: f64 => set_long_term_distress,  // 書く項目には setter の名前を付ける
         daily_observed_minutes: i64 => set_daily_observed_minutes,
@@ -33,7 +34,7 @@ state_row! {
 }
 
 state_row! {
-    pub(crate) struct DistressRow {
+    pub struct DistressRow {
         schema_version: i64,
         last_updated_minute: i64 => set_last_updated_minute,
         agents: IdMap<AgentRecord>,
@@ -41,11 +42,22 @@ state_row! {
 }
 ~~~
 
+窓口の `native/src/state/<name>.rs` は、行を元の道筋で見せ、Python の側を `py_row!` で作ります。項目の名前を同じ順に並べます。違う順や足りない項目は、コンパイルで止まります。
+
+~~~rust
+pub(crate) use sheltersim_core::state::psychological_distress::*;
+
+py_row! { AgentRecord { baseline_distress, long_term_distress, daily_observed_minutes } }
+py_row! { DistressRow { schema_version, last_updated_minute, agents } }
+~~~
+
+窓口の crate の中だけで使う行（`rules/action_lifecycle.rs`、`state/sample_namespace.rs`）は、窓口の `state_row!` で書きます。中核の `state_row!` と `py_row!` を一度に書くマクロです。
+
 - **項目は木と同じ順に並べます。** `to_py` がこの順で作ります。`write_json` はバイト順に並べ直すので、順序を気にしません。
-- 使える型は `f64`、`i64`、`bool`、`Arc<str>`、`Option<T>`、`IdMap<T>`、`Vec<T>`、`V`（自由な形の部分）と、別の `state_row!` の構造体です。足りなければ `core/row.rs` に `Field` を実装します。
-- マクロが作るもの：`from_py`（項目がちょうどこれだけで、それぞれ厳密な型のとき）、`to_py`、`write_json`、転送された書き込みの `apply`、setter。
+- 使える型は `f64`、`i64`、`bool`、`Arc<str>`、`Option<T>`、`IdMap<T>`、`Vec<T>`、`V`（自由な形の部分）と、別の `state_row!` の構造体です。足りなければ、中核の `Field`（`write_json` など）と窓口の `PyField`（`from_py`、`to_py`、`apply`）を実装します。
+- 中核のマクロが作るもの：`NAMES`、`write_json`、setter。`py_row!` が作るもの：`from_py`（項目がちょうどこれだけで、それぞれ厳密な型のとき）、`to_py`、転送された書き込みの `apply`。
 - setter は `Scalar`（入れ物でない値）の項目にだけ付けられます。入れ物を入れる書き込みは節点の表を変えるので、`write_through` を使います（`rules/psychology.rs` の新しい人の記録が例です）。
-- 根が辞書だけなら `pub(crate) type MetricRow = IdMap<f64>;` で足ります。
+- 根が辞書だけなら `pub type MetricRow = IdMap<f64>;` で足ります。
 - 登録は1行です。`m.add("ROW", Py::new(py, RowType::new("<name>", load_row::<DistressRow>))?)?`
 
 ### 2. 持ち主を宣言する

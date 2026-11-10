@@ -20,7 +20,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString};
 
 use crate::core::errors::{self, ledger_error, Wide};
-use crate::core::row::{attribute, exact_int, exact_str, namespace_is_absent, unsupported, Field};
+use crate::core::row::{attribute, exact_int, exact_str, namespace_is_absent, unsupported, PyField};
 use crate::core::tracked::as_readable_dict;
 use crate::core::world_core::{raw_dict_get, NamespaceMirror};
 use crate::rules::social_network::mapping_get;
@@ -373,14 +373,14 @@ pub(crate) fn apply_planned<'py>(
     let path = ["accounts", RESOURCE_IDS[index], "reservations"];
     match &change {
         ReservationChange::Insert(new) => {
-            NamespaceMirror::write_through(mirror, &path, &new.reservation_id, &Field::to_py(new, py)?)?;
+            NamespaceMirror::write_through(mirror, &path, &new.reservation_id, &PyField::to_py(new, py)?)?;
         }
         ReservationChange::Remove => {
             NamespaceMirror::remove_through(mirror, &path, reservation_id.unwrap_or_default())?;
         }
         ReservationChange::Reduce(_) | ReservationChange::None => {}
     }
-    NamespaceMirror::append_through(mirror, &["audit"], &Field::to_py(&record, py)?)?;
+    NamespaceMirror::append_through(mirror, &["audit"], &PyField::to_py(&record, py)?)?;
 
     // A new dict, like the Python rule: whoever holds the old one keeps the old values.
     let next_resources = as_readable_dict(&resources).map_or_else(

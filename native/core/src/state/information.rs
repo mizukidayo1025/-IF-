@@ -3,27 +3,22 @@
 //! is `rules/information.rs`; `policies/information.py` stays the comparison base. Rumor events,
 //! corrections and arrivals still write single items from Python, which reach the row as forwarded
 //! writes.
+//!
+//! The PyO3 crate's `state/information.rs` reads it from Python and holds its validator.
 
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use pyo3::intern;
-use pyo3::prelude::*;
-use pyo3::types::PyString;
+use crate::row::IdMap;
+use crate::state_row;
 
-use crate::contacts::exact_int;
-use crate::core::row::{load_row, state_row, IdMap};
-use crate::core::tracked::as_readable_dict;
-use crate::core::world_core::{mirror_of, raw_dict_get, NamespaceMirror, RowType};
-use crate::state::entities::{entities_of, EntityStore};
-
-pub(crate) const NAME: &str = "information_spread_v1";
-pub(crate) const SCHEMA_VERSION: i64 = 2;
+pub const NAME: &str = "information_spread_v1";
+pub const SCHEMA_VERSION: i64 = 2;
 const MAX_MESSAGES: usize = 1024;
 const MAX_CONTACTS_PER_AGENT: usize = 16;
 
 state_row! {
-    pub(crate) struct MessageRow {
+    pub struct MessageRow {
         id: Arc<str>,
         truth_status: Arc<str>,
         source_id: Arc<str>,
@@ -35,7 +30,7 @@ state_row! {
 }
 
 state_row! {
-    pub(crate) struct BeliefRow {
+    pub struct BeliefRow {
         message_id: Arc<str>,
         belief: Arc<str> => set_belief,
         source: Arc<str>,
@@ -54,14 +49,14 @@ state_row! {
 
 state_row! {
     #[derive(Clone, Copy)]
-    pub(crate) struct ContactRow {
+    pub struct ContactRow {
         last_seen_minute: i64,
         consecutive_minutes: i64,
     }
 }
 
 state_row! {
-    pub(crate) struct SupportRequestRow {
+    pub struct SupportRequestRow {
         request_id: Arc<str>,
         agent_id: Arc<str>,
         minute: i64,
@@ -70,7 +65,7 @@ state_row! {
 }
 
 state_row! {
-    pub(crate) struct CountersRow {
+    pub struct CountersRow {
         contact_attempts: i64 => set_contact_attempts,
         contact_deliveries: i64,
         correction_deliveries: i64,
@@ -79,7 +74,7 @@ state_row! {
 }
 
 state_row! {
-    pub(crate) struct InformationRow {
+    pub struct InformationRow {
         schema_version: i64,
         messages: IdMap<MessageRow>,
         beliefs: IdMap<IdMap<BeliefRow>>,
@@ -91,7 +86,7 @@ state_row! {
 }
 
 /// `_validate_information_id`: `^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$`, matched in full.
-pub(crate) fn is_stable_id(text: &str) -> bool {
+pub fn is_stable_id(text: &str) -> bool {
     let bytes = text.as_bytes();
     !bytes.is_empty()
         && bytes.len() <= 64
@@ -104,7 +99,7 @@ fn is_unit(value: f64) -> bool {
 }
 
 /// What a belief's status counts for: `_BELIEF_RANK`, or None for no status.
-pub(crate) fn belief_rank(status: &str) -> Option<u8> {
+pub fn belief_rank(status: &str) -> Option<u8> {
     match status {
         "unknown" => Some(0),
         "heard" => Some(1),
@@ -115,7 +110,7 @@ pub(crate) fn belief_rank(status: &str) -> Option<u8> {
 
 impl MessageRow {
     /// `TypedMessage.from_dict` takes this record of the row's exact types.
-    pub(crate) fn parses(&self) -> bool {
+    pub fn parses(&self) -> bool {
         is_stable_id(&self.id)
             && is_stable_id(&self.source_id)
             && is_stable_id(&self.zone_id)
@@ -128,7 +123,7 @@ impl MessageRow {
 
 impl BeliefRow {
     /// `AgentInformationState.from_dict` takes this record of the row's exact types.
-    pub(crate) fn parses(&self) -> bool {
+    pub fn parses(&self) -> bool {
         is_stable_id(&self.message_id)
             && is_stable_id(&self.source)
             && is_stable_id(&self.last_event_id)
@@ -146,7 +141,7 @@ impl BeliefRow {
 impl InformationRow {
     /// Everything the Python rule parses each tick parses, and each belief's claim exists: then
     /// the rule can't raise on the messages or the beliefs. False says nothing about the state.
-    pub(crate) fn beliefs_parse(&self) -> bool {
+    pub fn beliefs_parse(&self) -> bool {
         self.messages.iter().all(|(id, message)| **id == *message.id && message.parses())
             && self.beliefs.values().all(|records| {
                 records.iter().all(|(id, record)| {
@@ -187,7 +182,12 @@ impl InformationRow {
 
     /// Whether validate_information_runtime_state passes the namespace. False says nothing about
     /// it: the Python rules then say what is wrong. A state of schema 1 goes to them too.
-    fn is_valid(&self, agents: &HashSet<&str>, duration: i64, has_zone: impl Fn(&str) -> PyResult<bool>) -> PyResult<bool> {
+    pub fn is_valid<E>(
+        &self,
+        agents: &HashSet<&str>,
+        duration: i64,
+        has_zone: impl Fn(&str) -> Result<bool, E>,
+    ) -> Result<bool, E> {
         if self.schema_version != SCHEMA_VERSION
             || self.messages.len() > MAX_MESSAGES
             || self.beliefs.len() != agents.len()
@@ -224,31 +224,4 @@ fn pair_of_key(key: &str) -> Option<(&str, &str)> {
         text.bytes().all(|byte| (0x20..0x7f).contains(&byte) && byte != b'"' && byte != b'\\')
     };
     (plain(first) && plain(second)).then_some((first, second))
-}
-
-/// The namespace's validator: accepts, or leaves it to the Python rules and their error text.
-#[pyfunction]
-fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let py = world.py();
-    let duration = exact_int(&world.getattr(intern!(py, "duration_minutes"))?)?;
-    let zones = world.getattr(intern!(py, "zones"))?;
-    if as_readable_dict(&zones).is_none() {
-        return Ok(false);
-    }
-    let mirror = mirror_of(world, NAME)?;
-    EntityStore::with_rows(&entities_of(world)?, |rows| {
-        let agents: HashSet<&str> = rows.agents.iter().map(|(id, _)| &**id).collect();
-        NamespaceMirror::with_row::<InformationRow, _>(&mirror, |row| {
-            row.is_valid(&agents, duration, |zone| {
-                Ok(raw_dict_get(&zones, PyString::new(py, zone).as_any())?.is_some())
-            })
-        })
-    })
-}
-
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    let py = m.py();
-    m.add("ROW", Py::new(py, RowType::new("information", load_row::<InformationRow>))?)?;
-    m.add_function(wrap_pyfunction!(validate, m)?)?;
-    Ok(())
 }

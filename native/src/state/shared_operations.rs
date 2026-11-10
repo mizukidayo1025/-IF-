@@ -16,7 +16,7 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyList, PyString};
 
-use crate::core::row::{exact_int, load_row, namespace_is_absent, state_row, str_enum, Field, IdMap};
+use crate::core::row::{exact_int, load_row, namespace_is_absent, state_row, str_enum, Field, IdMap, PyField, PyItems};
 use crate::core::tracked::{as_readable_dict, as_readable_list};
 use crate::core::world_core::{
     loads_items, mirror_of, Items, Misfit, NamespaceMirror, OrMisfit, Part, RowType, Write,
@@ -24,6 +24,7 @@ use crate::core::world_core::{
 use crate::state::entities::{entities_of, EntityStore, RequestStatus};
 use crate::state::events::EventWriter;
 use crate::{encode, Encoder};
+use sheltersim_core::error::Result as CoreResult;
 
 pub(crate) const NAME: &str = "shared_operations_v1";
 pub(crate) const POLICY: &str = "shared-operations-v1";
@@ -134,16 +135,18 @@ impl Heads {
 }
 
 impl Field for Heads {
+    fn write_json(&self, encoder: &mut Encoder) -> CoreResult<()> {
+        self.map.write_json(encoder)
+    }
+}
+
+impl PyField for Heads {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
-        Ok(Self { map: Field::from_py(value)?, unchecked: true })
+        Ok(Self { map: PyField::from_py(value)?, unchecked: true })
     }
 
     fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         self.map.to_py(py)
-    }
-
-    fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
-        self.map.write_json(encoder)
     }
 
     fn apply(&mut self, path: &[Part<'_>], write: &Write<'_, '_>) -> Result<(), Misfit> {
@@ -255,17 +258,37 @@ impl Items for Receipts {
         self.items.len()
     }
 
+    fn item_json<'a>(&'a self, index: usize, _scratch: &'a mut Encoder) -> CoreResult<&'a [u8]> {
+        Ok(&self.items[index].bytes)
+    }
+}
+
+impl PyItems for Receipts {
     fn slice_to_py<'py>(&self, py: Python<'py>, start: usize, stop: usize) -> PyResult<Bound<'py, PyList>> {
         loads_items(py, self.items.range(start..stop).map(|item| &*item.bytes))
-    }
-
-    fn item_json<'a>(&'a self, index: usize, _scratch: &'a mut Encoder) -> PyResult<&'a [u8]> {
-        Ok(&self.items[index].bytes)
     }
 }
 
 impl Field for Receipts {
     fn items(&self) -> Option<&dyn Items> {
+        Some(self)
+    }
+
+    fn write_json(&self, encoder: &mut Encoder) -> CoreResult<()> {
+        encoder.out.push(b'[');
+        for (index, item) in self.items.iter().enumerate() {
+            if index > 0 {
+                encoder.out.push(b',');
+            }
+            encoder.out.extend_from_slice(&item.bytes);
+        }
+        encoder.out.push(b']');
+        Ok(())
+    }
+}
+
+impl PyField for Receipts {
+    fn py_items(&self) -> Option<&dyn PyItems> {
         Some(self)
     }
 
@@ -285,18 +308,6 @@ impl Field for Receipts {
             list.append(loads.call1((std::str::from_utf8(&item.bytes)?,))?)?;
         }
         Ok(list.into_any())
-    }
-
-    fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
-        encoder.out.push(b'[');
-        for (index, item) in self.items.iter().enumerate() {
-            if index > 0 {
-                encoder.out.push(b',');
-            }
-            encoder.out.extend_from_slice(&item.bytes);
-        }
-        encoder.out.push(b']');
-        Ok(())
     }
 
     fn apply(&mut self, path: &[Part<'_>], write: &Write<'_, '_>) -> Result<(), Misfit> {

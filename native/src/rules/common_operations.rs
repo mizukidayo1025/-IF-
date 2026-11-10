@@ -13,7 +13,7 @@ use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PySlice, PyString, PyTuple, PyType};
 
 use crate::core::errors::{value_error, OrPy};
-use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, unsupported, Field};
+use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, unsupported, PyField};
 use crate::core::tracked::{as_readable_dict, is_detached};
 use crate::core::value::V;
 use crate::core::world_core::{apply_to_row, detached_part, mirror_of, NamespaceMirror, Part, Write};
@@ -337,9 +337,9 @@ fn recent_receipts_hold(world: &Bound<'_, PyAny>, mirror: &Bound<'_, NamespaceMi
         let (rest, recent) = {
             let this = mirror.try_borrow()?;
             let row = this_row(&this)?;
-            let items = row.part_items("history").ok_or_else(|| Unsupported::new_err("no history"))?;
+            let items = row.part_py_items("history").ok_or_else(|| Unsupported::new_err("no history"))?;
             let count = crate::core::world_core::Items::count(items);
-            (row.to_py_emptied(py, &["history"])?, crate::core::world_core::Items::slice_to_py(items, py, start.min(count), count)?)
+            (row.to_py_emptied(py, &["history"])?, crate::core::row::PyItems::slice_to_py(items, py, start.min(count), count)?)
         };
         document.call_method1(intern!(py, "update"), (&rest,))?;
         document.set_item("history", recent)?;
@@ -360,7 +360,7 @@ fn recent_receipts_hold(world: &Bound<'_, PyAny>, mirror: &Bound<'_, NamespaceMi
     }
 }
 
-fn this_row<'a>(mirror: &'a NamespaceMirror) -> PyResult<&'a dyn crate::core::world_core::Row> {
+fn this_row<'a>(mirror: &'a NamespaceMirror) -> PyResult<&'a dyn crate::core::world_core::PyRow> {
     mirror.row_ref().ok_or_else(|| Unsupported::new_err("the namespace has no row"))
 }
 
@@ -662,7 +662,7 @@ fn detached_history<'py>(world: &Bound<'py, PyAny>, task_id: &Bound<'py, PyAny>,
                 let list = pyo3::types::PyList::empty(py);
                 NamespaceMirror::with_row::<StaffOperationsRow, _>(&mirror, |row| {
                     for index in &found {
-                        list.append(crate::core::row::Field::to_py(&row.history[*index], py)?)?;
+                        list.append(crate::core::row::PyField::to_py(&row.history[*index], py)?)?;
                     }
                     Ok(())
                 })?;
@@ -861,7 +861,7 @@ pub(crate) fn write_record(
         updated_minute: minute,
         latest_event_id: event_id.clone(),
     });
-    let head_document = new_head.as_ref().map(|head| Field::to_py(head, py)).transpose()?;
+    let head_document = new_head.as_ref().map(|head| PyField::to_py(head, py)).transpose()?;
     NamespaceMirror::with_row::<SharedOperationsRow, _>(mirror, |row| {
         match new_head {
             Some(head) => match row.support_requests.map.get_mut(request_id) {

@@ -9,26 +9,26 @@
 //! The row knows which records were written since the last check, so the check of each tick reads
 //! those and not the thousands of others: a forwarded write and a rule's write are the only ways
 //! into the row, and both say which record they touch (docs/rust-port/lanes/m3-social-network.md).
+//!
+//! The PyO3 crate's `state/social_network.rs` reads it from Python and holds its validator.
 
 use std::sync::Arc;
 
-use pyo3::intern;
-use pyo3::prelude::*;
+use crate::error::Result;
+use crate::json::Encoder;
+use crate::row::{Field, IdMap};
+use crate::state_row;
 
-use crate::core::row::{load_row, namespace_is_absent, state_row, Field, IdMap};
-use crate::core::world_core::{mirror_of, Misfit, NamespaceMirror, Part, RowType, Write};
-use crate::Encoder;
-
-pub(crate) const NAME: &str = "social_network_v1";
+pub const NAME: &str = "social_network_v1";
 const SCHEMA_VERSION: i64 = 1;
 const POLICY_VERSION: &str = "directed-contact-relationships-v1";
 /// `MAX_RELATIONSHIPS` of `domain/social_network.py`.
-pub(crate) const MAX_RELATIONSHIPS: usize = 100_000;
+pub const MAX_RELATIONSHIPS: usize = 100_000;
 /// Past this many unchecked writes, the next check reads every record instead of a long list.
 const MAX_UNCHECKED_KEYS: usize = 4096;
 
 state_row! {
-    pub(crate) struct Relationship {
+    pub struct Relationship {
         contact_count: i64 => set_contact_count,
         conversation_count: i64 => set_conversation_count,
         cooperation_count: i64 => set_cooperation_count,
@@ -40,7 +40,7 @@ state_row! {
 }
 
 impl Relationship {
-    pub(crate) fn empty() -> Self {
+    pub fn empty() -> Self {
         Self {
             contact_count: 0,
             conversation_count: 0,
@@ -53,7 +53,7 @@ impl Relationship {
     }
 
     /// The rules of `validate_social_network_state` that read the record's values. NaN fails.
-    fn is_valid(&self) -> bool {
+    pub fn is_valid(&self) -> bool {
         self.contact_count >= 0
             && self.conversation_count >= 0
             && self.cooperation_count >= 0
@@ -63,13 +63,13 @@ impl Relationship {
 }
 
 /// A char of an ID that `json.dumps` writes as it is: ASCII, printable, not `"` nor `\`.
-pub(crate) fn is_plain_id(id: &str) -> bool {
+pub fn is_plain_id(id: &str) -> bool {
     id.bytes().all(|byte| (0x20..0x7f).contains(&byte) && byte != b'"' && byte != b'\\')
 }
 
 /// `_pair_key_problem` found nothing wrong: the compact JSON of two different strings. A key with
 /// anything `json.dumps` escapes says false here, and the Python rule then decides.
-fn pair_key_is_good(key: &str) -> bool {
+pub fn pair_key_is_good(key: &str) -> bool {
     let Some(inner) = key.strip_prefix("[\"").and_then(|rest| rest.strip_suffix("\"]")) else {
         return false;
     };
@@ -80,14 +80,14 @@ fn pair_key_is_good(key: &str) -> bool {
 }
 
 /// The records and which of them no check has read yet.
-pub(crate) struct Relationships {
-    pub(crate) map: IdMap<Relationship>,
+pub struct Relationships {
+    pub map: IdMap<Relationship>,
     unchecked_keys: Vec<Arc<str>>,
     all_unchecked: bool,
 }
 
 impl Relationships {
-    pub(crate) fn note_write(&mut self, key: &str) {
+    pub fn note_write(&mut self, key: &str) {
         if self.all_unchecked {
             return;
         }
@@ -105,7 +105,7 @@ impl Relationships {
 
     /// Whether the unchecked records pass. On false they stay unchecked, so the next check says
     /// false again until the bad value is gone.
-    fn check(&mut self) -> bool {
+    pub fn check(&mut self) -> bool {
         let good = |key: &str, record: &Relationship| pair_key_is_good(key) && record.is_valid();
         if self.all_unchecked {
             if !self.map.iter().all(|(key, record)| good(key, record)) {
@@ -123,34 +123,21 @@ impl Relationships {
     }
 }
 
+impl Relationships {
+    /// Records read whole: the next check reads them all.
+    pub fn from_map(map: IdMap<Relationship>) -> Self {
+        Self { map, unchecked_keys: Vec::new(), all_unchecked: true }
+    }
+}
+
 impl Field for Relationships {
-    fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit> {
-        Ok(Self { map: Field::from_py(value)?, unchecked_keys: Vec::new(), all_unchecked: true })
-    }
-
-    fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        Field::to_py(&self.map, py)
-    }
-
-    fn write_json(&self, encoder: &mut Encoder) -> PyResult<()> {
+    fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         Field::write_json(&self.map, encoder)
-    }
-
-    fn apply(&mut self, path: &[Part<'_>], write: &Write<'_, '_>) -> Result<(), Misfit> {
-        match (path, write) {
-            ([], Write::Set { key: Part::Key(key), .. }) | ([Part::Key(key), ..], _) => {
-                let key = Arc::<str>::from(*key);
-                Field::apply(&mut self.map, path, write)?;
-                self.note_write(&key);
-                Ok(())
-            }
-            _ => Field::apply(&mut self.map, path, write),
-        }
     }
 }
 
 state_row! {
-    pub(crate) struct SocialNetworkRow {
+    pub struct SocialNetworkRow {
         schema_version: i64,
         policy_version: Arc<str>,
         relationships: Relationships,
@@ -160,34 +147,10 @@ state_row! {
 }
 
 impl SocialNetworkRow {
-    fn is_valid(&mut self) -> bool {
+    pub fn is_valid(&mut self) -> bool {
         self.schema_version == SCHEMA_VERSION
             && &*self.policy_version == POLICY_VERSION
             && self.relationships.map.len() <= MAX_RELATIONSHIPS
             && self.relationships.check()
     }
-}
-
-/// The namespace's validator: accepts, or leaves it to the Python rules and their error text.
-#[pyfunction]
-fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    if namespace_is_absent(world, intern!(world.py(), NAME))? {
-        return Ok(true);
-    }
-    let mirror = mirror_of(world, NAME)?;
-    NamespaceMirror::with_row::<SocialNetworkRow, _>(&mirror, |row| Ok(row.is_valid()))
-}
-
-/// For the comparison with `_pair_key_problem` in the tests.
-#[pyfunction]
-fn key_is_good(key: &str) -> bool {
-    pair_key_is_good(key)
-}
-
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    let py = m.py();
-    m.add("ROW", Py::new(py, RowType::new("social_network", load_row::<SocialNetworkRow>))?)?;
-    m.add_function(wrap_pyfunction!(validate, m)?)?;
-    m.add_function(wrap_pyfunction!(key_is_good, m)?)?;
-    Ok(())
 }

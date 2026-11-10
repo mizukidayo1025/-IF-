@@ -16,7 +16,7 @@ use pyo3::types::{PyBool, PyList, PySlice, PyString, PyTuple};
 
 use crate::core::errors;
 use crate::core::mathx::py_max;
-use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, map_set, unsupported, Field};
+use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, map_set, unsupported, PyField};
 use crate::core::value::{V, VPy};
 use crate::core::tracked::is_detached;
 use crate::core::world_core::{field_mirror_of, raw_dict_get, NamespaceMirror};
@@ -212,8 +212,8 @@ fn record_stall(
     if !changed {
         return Ok(());
     }
-    NamespaceMirror::write_through(mirror, &["stall_state"], facility_id, &Field::to_py(&stall, py)?)?;
-    NamespaceMirror::append_through(mirror, &["queue_stall_history"], &Field::to_py(&record, py)?)?;
+    NamespaceMirror::write_through(mirror, &["stall_state"], facility_id, &PyField::to_py(&stall, py)?)?;
+    NamespaceMirror::append_through(mirror, &["queue_stall_history"], &PyField::to_py(&record, py)?)?;
     add_one(metrics, &format!("resource_service_wait_{reason}_count"))
 }
 
@@ -579,7 +579,7 @@ pub(crate) fn previous_stall<'py>(world: &Bound<'py, PyAny>, table: &Bound<'py, 
         let key = exact_str(id)?;
         let stall = NamespaceMirror::with_row::<ServiceRow, _>(&held_mirror(world)?, |row| Ok(row.stall_state.get(key).cloned()))?;
         return match stall {
-            Some(stall) => Field::to_py(&stall, py),
+            Some(stall) => PyField::to_py(&stall, py),
             None => Ok(py.None().into_bound(py)),
         };
     }
@@ -1337,7 +1337,7 @@ pub(crate) fn append_outcome(
     mirror: &Bound<'_, NamespaceMirror>,
     record: RequestRecord,
 ) -> PyResult<()> {
-    let object = Field::to_py(&record, py)?;
+    let object = PyField::to_py(&record, py)?;
     NamespaceMirror::with_row::<ServiceRow, _>(mirror, |row| {
         row.request_history.push(record);
         Ok(())

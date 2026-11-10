@@ -24,7 +24,7 @@ use crate::contacts::{
 };
 use crate::core::mathx::{expm1, math_error, py_max, py_min};
 use crate::core::rng::{label, start_draw_log, take_draw_log, Key, KeyedDraws};
-use crate::core::row::{map_set, Field};
+use crate::core::row::{map_set, PyField};
 use crate::core::value::V;
 use crate::core::world_core::{mirror_of, NamespaceMirror};
 use rustc_hash::FxHashMap;
@@ -616,13 +616,13 @@ fn write(mirror: &Bound<'_, NamespaceMirror>, plan: &Plan) -> PyResult<()> {
         Ok(())
     })?;
     // Every contact's last minute is this one, and Python's dicts share its one int too.
-    let minute = plan.minute.to_py(py)?;
+    let minute = PyField::to_py(&plan.minute, py)?;
     NamespaceMirror::refill_record_map(
         mirror,
         intern!(py, "contacts"),
         [intern!(py, "last_seen_minute"), intern!(py, "consecutive_minutes")],
         plan.contacts.iter().map(|(key, contact)| {
-            Ok((PyString::new(py, key), [minute.clone(), contact.consecutive_minutes.to_py(py)?]))
+            Ok((PyString::new(py, key), [minute.clone(), PyField::to_py(&contact.consecutive_minutes, py)?]))
         }),
     )
 }
