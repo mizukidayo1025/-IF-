@@ -1157,6 +1157,8 @@ L0 の前に文を読んで付けた分類です。到達は**推測で、上の
   - **frame と tick の外：** frame は履歴の件数と末尾200件だけを作ります。台帳・サービスの記録（`inspection/traces.py`）、言葉の文脈（`llm/natural_language.py`）、受け取りの読み（`care_receipt_for_request`）、職員の運営の記録の読み（`domain/staff.py`）は `read_only_part` か `read_only_state` で読みます。`storage/history_index.py`・`index_writer.py` は保存した文書を読むので、変えていません。
   - **残した作り直し：** 人口の出入り（`population.rs` の `add_body_record` と出発）、配置の確かめ（`overlay.rs` の `state_of`）、効果の写し（`effects.rs`）、職員への指示（`staff_order.rs`、`staff_operation_events.rs`）は、そのイベントのときだけ木を作り直させます（`attached_state` か `.get`）。毎 tick でも保存ごとでもありません。1日分の project の経路では0回でした。
   - **テスト：** kernel が書く木を鍵の順まで固定したテスト（`test_body_state_row.py`、`test_resource_ledger_row.py`、`test_staff_rules.py`、`test_overlay_rules.py` の資源の FIFO）は、その名前空間に木を持たせます（`support/world.py` の `keep_trees`）。
+  - **確かめ：** 7日分（project の経路、生成 Scenario）のハッシュは変わらず、保存した Checkpoint 338 個と frame 337 個のファイルが、変更の前（#149 の後の main）と1バイトも違いません。1日分の project の経路で、19の名前空間の木の作り直しは0回でした。全経路のゲートは 0 problems です。
+  - **測った効果（7日分、前と後を交互に2回ずつ。CPU はほかの作業と共有）：** Run 全体の時間は前 64.9、65.5 秒、後 66.2、65.4 秒（平均で +0.9%、揺れの中）。計算の最大 RSS は前 1018、1016 MiB、後 891、895 MiB（約 −124 MiB）。ハッシュまで含めた最大 RSS は前 3332、3331 MiB、後 3156、3131 MiB です。
 
 ## 6. エラーの文
 
