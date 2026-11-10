@@ -23,6 +23,7 @@ from sheltersim.contracts.operations import (
 )
 from sheltersim.contracts.population import population_context_people
 from sheltersim.core.kernels import kernel_only
+from sheltersim.core.state_mirror import read_only_part
 from sheltersim.core.world import WorldState
 from sheltersim.events.models import EventKind, EventLogRecord, EventStatus, ScheduledEvent
 
@@ -366,8 +367,7 @@ def ingest_applied_shared_operation_records(world: WorldState, outcomes: tuple[A
 
 def care_receipt_for_request(world: WorldState, request_id: str) -> dict[str, Any] | None:
     """Return the active shared request projection, if this request was typed as care."""
-    state = world.model_state.get(SHARED_OPERATIONS_KEY)
-    requests = state.get("support_requests") if isinstance(state, dict) else None
+    requests = read_only_part(world, SHARED_OPERATIONS_KEY, "support_requests")
     record = requests.get(request_id) if isinstance(requests, dict) else None
     return record if isinstance(record, dict) else None
 

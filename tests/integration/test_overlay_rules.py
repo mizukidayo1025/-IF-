@@ -16,8 +16,8 @@ import pytest
 from support.world import world_digest
 
 from sheltersim import native
+from sheltersim.core import state_mirror
 from sheltersim.core.kernels import KernelRefusal
-from sheltersim.core.state_mirror import DETACHED_NAMESPACES
 from sheltersim.core.world import WorldState
 from sheltersim.domain import (
     facility_queues,
@@ -34,6 +34,13 @@ from sheltersim.domain.temporary_spaces import create_temporary_spaces_state
 from sheltersim.events.models import EventKind, ScheduledEvent
 
 ROOM_ZONE = "sleeping"
+
+
+@pytest.fixture(autouse=True)
+def _trees(keep_trees: Any) -> None:
+    """The resource FIFO tests pin the tree the kernels write beside the rows, key order and all:
+    the service state and the ledger keep their trees here (support/world.py keep_trees)."""
+    keep_trees("resource_service_v1", "resource_ledger_v1")
 
 
 def _rules(name: str = "overlay") -> Any:
@@ -62,7 +69,7 @@ def _bytes(world: WorldState) -> str:
     a `V` (_VALUE_ROWS) keep the order of their keys, as the tree did, and are read as they are.
     """
     model_state = dict(world.model_state)
-    for name in (DETACHED_NAMESPACES - _VALUE_ROWS) & model_state.keys():
+    for name in (state_mirror.DETACHED_NAMESPACES - _VALUE_ROWS) & model_state.keys():
         model_state[name] = json.loads(json.dumps(model_state[name], sort_keys=True))
     parts = (
         model_state,

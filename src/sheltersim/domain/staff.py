@@ -278,7 +278,8 @@ def support_wait_reason_codes(
         required = _CARE_SKILL_ALTERNATIVES.get(support_kind, {"support"})
         qualified = [staff for staff in world.staff.values() if required.intersection(staff.skills)]
         staff_blockers: set[str] = set()
-        operations = world.model_state.get("staff_operations_v1", {})
+        # The staff records alone, of a detached namespace too (state_mirror.read_only_part).
+        operation_staff = read_only_part(world, "staff_operations_v1", "staff", {})
         # Read only: a detached namespace gives a document of its row and builds no tree.
         dynamics_records = read_only_part(world, "staff_dynamics_v1", "staff", {})
         for staff in qualified:
@@ -286,9 +287,7 @@ def support_wait_reason_codes(
                 staff_blockers.add("staff_unavailable")
             if staff.active_task_id is not None:
                 staff_blockers.add("staff_busy")
-            operation = (
-                operations.get("staff", {}).get(staff.id) if isinstance(operations, dict) else None
-            )
+            operation = operation_staff.get(staff.id)
             if isinstance(operation, dict) and operation.get("phase") != "idle":
                 staff_blockers.add("staff_on_other_operation")
             dynamics_staff = dynamics_records.get(staff.id)
@@ -373,14 +372,12 @@ def _support_route_wait_reasons(
         for edge_id in event.payload.get("route_edge_ids", ()):
             if isinstance(edge_id, str):
                 edge_loads[edge_id] = edge_loads.get(edge_id, 0) + 1
-    operations = world.model_state.get("staff_operations_v1", {})
-    if isinstance(operations, dict):
-        for record in operations.get("staff", {}).values():
-            if not isinstance(record, dict) or record.get("phase") != "travel":
-                continue
-            for edge_id in record.get("route_edge_ids", ()):
-                if isinstance(edge_id, str):
-                    edge_loads[edge_id] = edge_loads.get(edge_id, 0) + 1
+    for record in read_only_part(world, "staff_operations_v1", "staff", {}).values():
+        if not isinstance(record, dict) or record.get("phase") != "travel":
+            continue
+        for edge_id in record.get("route_edge_ids", ()):
+            if isinstance(edge_id, str):
+                edge_loads[edge_id] = edge_loads.get(edge_id, 0) + 1
 
     config = world.model_configs.get("staff", {})
     service_minutes = config.get("support_task_minutes", 10)

@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import copy
 import operator
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from typing import Any
 
 from sheltersim import native
@@ -583,6 +583,11 @@ DETACHED_NAMESPACES = frozenset(
         "staff_dynamics_v1",
         "facility_queues_v1",
         "effect_program_v1",
+        "body_state_v1",
+        "shared_operations_v1",
+        "resource_ledger_v1",
+        "resource_service_v1",
+        "staff_operations_v1",
     }
 )
 
@@ -654,18 +659,27 @@ def _held_value(table: Any, key: Any, held: Any) -> Any:
     return table._mirrors[key].document() if held is _DETACHED else held
 
 
-def plain_model_state(table: Any, known: Any = ()) -> Any:
+def plain_model_state(
+    table: Any, known: Any = (), emptied: Mapping[str, Sequence[str]] | None = None
+) -> Any:
     """model_state with each detached namespace's row as a plain document, building no tree.
 
     The documents are new and nothing follows them: read them, never write. A name in known keeps
     the placeholder, for a caller that has that namespace's bytes and reads nothing else of it
-    (checkpoint_cache.documents). Anything but a table with a detached namespace is returned as
-    it is.
+    (checkpoint_cache.documents). A detached namespace in emptied has an empty list under each
+    of its keys there that holds a list, and those items are not made: for a caller that reads
+    them by NamespaceMirror.items_json. Anything but a table with a detached namespace is
+    returned as it is.
     """
     if not isinstance(table, _DetachingTable):
         return table
+    emptied = emptied or {}
     return {
-        key: held if key in known else _held_value(table, key, held)
+        key: held
+        if key in known
+        else table._mirrors[key].document_emptied(list(emptied[key]))
+        if held is _DETACHED and key in emptied
+        else _held_value(table, key, held)
         for key, held in dict.items(table)
     }
 
@@ -705,11 +719,103 @@ def read_only_part(world: Any, name: str, key: str, default: Any = None) -> Any:
     return held.get(key, default) if isinstance(held, dict) else default
 
 
-def same_detached(mine: Any, theirs: Any, name: str) -> bool | None:
+class RowItems(Sequence[Any]):
+    """A list of a detached namespace's row, read only: each read makes only the items it reads.
+
+    len() makes nothing; an index or a slice makes new documents of those items, as
+    read_only_state would hold there. For a reader of the newest items of a long history (a
+    tick's check, a frame), which would otherwise make all 20,000.
+    """
+
+    __slots__ = ("_mirror", "_key", "_count")
+
+    def __init__(self, mirror: Any, key: str, count: int) -> None:
+        self._mirror = mirror
+        self._key = key
+        self._count = count
+
+    def __len__(self) -> int:
+        return self._count
+
+    def __getitem__(self, index: Any) -> Any:
+        if isinstance(index, slice):
+            start, stop, step = index.indices(self._count)
+            if step != 1:
+                return self._mirror.part_slice(self._key, 0, self._count)[index]
+            return self._mirror.part_slice(self._key, start, max(start, stop))
+        position = operator.index(index)
+        if position < 0:
+            position += self._count
+        if not 0 <= position < self._count:
+            raise IndexError("list index out of range")
+        return self._mirror.part_slice(self._key, position, position + 1)[0]
+
+    def __iter__(self) -> Iterator[Any]:
+        return iter(self._mirror.part_slice(self._key, 0, self._count))
+
+    def __repr__(self) -> str:
+        return f"RowItems({self._key!r}, {self._count} items)"
+
+
+def read_only_items(world: Any, name: str, key: str, default: Any = None) -> Any:
+    """read_only_part for a list: a detached namespace gives RowItems, which makes no item until
+    it is read. An attached one gives its tree's list, as before. Never write to it."""
+    table = world.model_state
+    if isinstance(table, dict) and dict.get(table, name, _MISSING) is _DETACHED:
+        mirror = table._mirrors[name]
+        count = mirror.part_len(key)
+        if count is not None:
+            return RowItems(mirror, key, count)
+    return read_only_part(world, name, key, default)
+
+
+def holds_detached(world: Any, name: str) -> bool:
+    """Whether model_state holds this namespace detached: its row alone, and no tree."""
+    table = world.__dict__.get("model_state")
+    return isinstance(table, dict) and dict.get(table, name, _MISSING) is _DETACHED
+
+
+def detached_row(world: Any, name: str) -> Any:
+    """The mirror of a namespace of DETACHED_NAMESPACES whose row holds its state, or None.
+
+    Its tree may be there too, after a Python read, but the row is what the namespace is: a
+    save reads that (NamespaceMirror.items_json), so whether a frame read it between two saves
+    changes nothing of what the save reads.
+    """
+    if name not in DETACHED_NAMESPACES:
+        return None
+    table = world.__dict__.get("model_state")
+    if not isinstance(table, NamespaceTable):
+        return None
+    mirror = table._mirrors.get(name)
+    if mirror is None or not mirror.has_row or not _table_holds_row_of(table, mirror, name):
+        return None
+    return mirror
+
+
+def validated_state(world: Any, name: str, history_memo: Any = None, default: Any = None) -> Any:
+    """What a validation reads of a namespace: model_state.get(name, default), building no tree.
+
+    A detached namespace is a document: the one a save made already (history_memo, which
+    core/checkpoint_cache.py fills with the documents of its histories), or else a new one from
+    the row (read_only_state). Never write to it.
+    """
+    if history_memo is not None:
+        state = history_memo.states.get(name, _MISSING)
+        if state is not _MISSING:
+            return state
+    return read_only_state(world, name, default)
+
+
+def same_detached(
+    mine: Any, theirs: Any, name: str, known: Mapping[str, int] | None = None
+) -> bool | None:
     """Whether two tables hold the same value under name, if one of them holds it detached.
 
     None if neither does: the caller compares the values as always. The same row bytes are the
-    same value; other bytes are compared as documents, as == compares the trees.
+    same value; other bytes are compared as documents, as == compares the trees. known holds, by
+    key, how many leading items of a list of the namespace are known to be equal, as
+    WorldState.same_state's known_equal_histories: against a plain value those are not read.
     """
     first = dict.get(mine, name, _MISSING)
     second = dict.get(theirs, name, _MISSING)
@@ -723,7 +829,33 @@ def same_detached(mine: Any, theirs: Any, name: str) -> bool | None:
             pass
     if first is _MISSING or second is _MISSING:
         return False
+    if known and (first is _DETACHED) != (second is _DETACHED):
+        table, value = (mine, second) if first is _DETACHED else (theirs, first)
+        return _same_row_and_value(table._mirrors[name], value, known)
     return bool(_held_value(mine, name, first) == _held_value(theirs, name, second))
+
+
+def _same_row_and_value(mirror: Any, value: Any, known: Mapping[str, int]) -> bool:
+    """The row's document == value, making no item of a list known equal (same_detached)."""
+    if not isinstance(value, dict):
+        return False
+    lists = [key for key in known if mirror.part_len(key) is not None]
+    document = mirror.document_emptied(lists)
+    if document.keys() != value.keys():
+        return False
+    for key, held in document.items():
+        other = value[key]
+        if key not in lists:
+            if held != other:
+                return False
+            continue
+        size = mirror.part_len(key)
+        count = min(known[key], size)
+        if not isinstance(other, list) or len(other) != size:
+            return False
+        if count < size and mirror.part_slice(key, count, size) != other[count:]:
+            return False
+    return True
 
 
 def _same_tables(mine: Any, theirs: Any) -> bool:

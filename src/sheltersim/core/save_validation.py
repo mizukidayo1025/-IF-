@@ -44,15 +44,24 @@ class SaveValidationMemo:
         self._inputs: dict[Any, Any] = {}
         # Each replay's state after its last entry, and how many entries that was.
         self._replays: dict[Any, tuple[int, Any]] = {}
+        # The documents of the detached namespaces with histories, made by the save from their
+        # rows, by name: what the validation reads of them (state_mirror.validated_state).
+        self.states: dict[str, Any] = {}
 
-    def begin(self, world: WorldState, unchanged: dict[Any, int]) -> None:
-        """Start a validation; unchanged maps a history to its entries known unchanged."""
+    def begin(
+        self, world: WorldState, unchanged: dict[Any, int], states: dict[str, Any] | None = None
+    ) -> None:
+        """Start a validation; unchanged maps a history to its entries known unchanged.
+
+        states holds the documents of the detached namespaces the save made already.
+        """
         if world.minute_index < self._minute or world.event_log is not self._event_log:
             self._inputs.clear()
             self._replays.clear()
         self._minute = world.minute_index
         self._event_log = world.event_log
         self._unchanged = unchanged
+        self.states = states or {}
 
     def _known(self, path: Any, inputs: Any) -> int:
         known = self._inputs.get(path)

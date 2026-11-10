@@ -21,7 +21,13 @@ from sheltersim.contracts.operations import (
 )
 from sheltersim.core.history import records_since_previous_tick
 from sheltersim.core.kernels import kernel_only
-from sheltersim.core.state_mirror import read_only_part, rust_accepts
+from sheltersim.core.state_mirror import (
+    detached_row,
+    holds_detached,
+    read_only_part,
+    rust_accepts,
+    validated_state,
+)
 from sheltersim.core.tick_validation import saved_json
 from sheltersim.core.world import WorldState
 from sheltersim.domain.geometry_overlay import parsed_facility_geometry
@@ -79,8 +85,9 @@ def validate_shared_operations_state(
     validate_event_history: bool = True,
     history_memo: Any = None,
 ) -> None:
-    state = world.model_state.get(SHARED_OPERATIONS_KEY)
-    if state is None:
+    detached = holds_detached(world, SHARED_OPERATIONS_KEY)
+    state = None if detached else world.model_state.get(SHARED_OPERATIONS_KEY)
+    if state is None and not detached:
         return
     if (
         not validate_event_history
@@ -89,6 +96,9 @@ def validate_shared_operations_state(
         and rust_accepts(world, SHARED_OPERATIONS_KEY, _TICK_VALID)
     ):
         return
+    if detached:
+        # The row alone holds it: the save's document, or one made from the row.
+        state = validated_state(world, SHARED_OPERATIONS_KEY, history_memo)
     # Per-tick validation parses only the records from the tick that just ended (each
     # was checked against its event when appended); the run-boundary validation
     # replays the whole history and the care lifecycle.
@@ -308,6 +318,11 @@ def _truncated(state: Any) -> bool:
 
 def _staff_operations_json(world: WorldState) -> bytes | None:
     """What the rule for an old StaffOperationReceipt reads besides the receipt."""
+    mirror = detached_row(world, "staff_operations_v1")
+    if mirror is not None:
+        # The same bytes, from the row's items, and no document made of them.
+        raws = mirror.items_json("history")
+        return b"[" + b",".join(raws or ()) + b"]"
     operations = world.model_state.get("staff_operations_v1", {})
     return saved_json(operations.get("history", ()) if isinstance(operations, dict) else ())
 
@@ -462,8 +477,7 @@ def operational_demand_snapshot(world: WorldState) -> dict[str, Any]:
                     "required_staff_skills": list(point.access.required_staff_skills),
                 }
             )
-    state = world.model_state.get(SHARED_OPERATIONS_KEY, {})
-    requests = state.get("support_requests", {}) if isinstance(state, dict) else {}
+    requests = read_only_part(world, SHARED_OPERATIONS_KEY, "support_requests", {})
     request_counts: dict[str, int] = {}
     for request in requests.values():
         status = request.get("status", "unknown")

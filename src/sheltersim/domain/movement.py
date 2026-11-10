@@ -10,7 +10,7 @@ from sheltersim.contracts.api import AgentPosition
 from sheltersim.contracts.extensions import FacilityGeometry, Point2D, point_in_polygon
 from sheltersim.contracts.spatial import SpatialConstraints
 from sheltersim.core.kernels import kernel_only
-from sheltersim.core.state_mirror import register_rust_validator
+from sheltersim.core.state_mirror import read_only_part, register_rust_validator
 from sheltersim.core.world import WorldState
 from sheltersim.domain.facility_queues import FACILITY_QUEUES_STATE_KEY
 from sheltersim.policies.space import ZoneRoute
@@ -398,8 +398,7 @@ def shared_passage_edge_loads(world: WorldState, minute: int | None = None) -> d
         )
         if edge_id is not None:
             loads[edge_id] = loads.get(edge_id, 0) + 1
-    operations = world.model_state.get("staff_operations_v1", {})
-    staff_records = operations.get("staff", {}) if isinstance(operations, dict) else {}
+    staff_records = read_only_part(world, "staff_operations_v1", "staff", {})
     for record in staff_records.values():
         if (
             record.get("phase") != "travel"

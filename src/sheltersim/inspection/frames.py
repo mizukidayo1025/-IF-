@@ -10,7 +10,7 @@ from typing import Any
 from sheltersim.contracts.api import AgentPosition, TimelineFrame
 from sheltersim.contracts.extensions import Point2D, point_in_polygon
 from sheltersim.contracts.population import population_context_people
-from sheltersim.core.state_mirror import read_only_part, read_only_state
+from sheltersim.core.state_mirror import read_only_items, read_only_part, read_only_state
 from sheltersim.core.world import WorldState
 from sheltersim.domain.care_receipts import care_history_by_agent, care_history_for_agent
 from sheltersim.domain.population_lifecycle import current_household_id
@@ -329,8 +329,8 @@ def world_frame(
     from sheltersim.contracts.spatial import occupancy_snapshot
 
     body_agents = read_only_part(world, "body_state_v1", "agents", {})
-    body_history = read_only_part(world, "body_state_v1", "history", [])
-    operations_history = read_only_part(world, "staff_operations_v1", "history", [])
+    body_history = read_only_items(world, "body_state_v1", "history", [])
+    operations_history = read_only_items(world, "staff_operations_v1", "history", [])
     operation_staff = read_only_part(world, "staff_operations_v1", "staff", {})
     for person in frame["people"]:
         person["body"] = body_agents.get(person["id"])
@@ -368,7 +368,7 @@ def world_frame(
     frame["operational_demand"] = operational_demand_snapshot(world)
     frame["recorded_history"]["shared_operations"] = {
         "contract_enabled": "shared_operations_v1" in world.model_state,
-        "retained_records": len(read_only_part(world, "shared_operations_v1", "history", [])),
+        "retained_records": len(read_only_items(world, "shared_operations_v1", "history", [])),
         "retention_limit": 20000,
         "read_route": "branch/history?kind=care or kind=operations",
         "claim_boundary": (
