@@ -126,12 +126,21 @@ class WorldState:
 
     def __setattr__(self, name: str, value: Any) -> None:
         # A whole model_state assigned to a world with owned namespaces (core/state_mirror.py).
-        if "_core" in self.__dict__:
+        core = self.__dict__.get("_core")
+        if core is not None:
             if name == "model_state":
                 value = state_mirror.model_state_assigned(self, value)
             elif name in state_mirror.ENTITY_FIELDS:
                 # A whole map of entities, such as world.support_requests = {...}.
                 value = state_mirror.entities_assigned(self, name, value)
+            elif name in state_mirror.WHOLE_FIELDS:
+                # world.resources = {...}: the new dict is the field's new tree.
+                value = state_mirror.field_assigned(self, name, value)
+            elif name in state_mirror.SCALAR_FIELDS:
+                # world.minute_index = ...: the core holds the scalars too.
+                object.__setattr__(self, name, value)
+                core.set_scalar(name, value)
+                return
         object.__setattr__(self, name, value)
 
     def __deepcopy__(self, memo: dict[int, Any]) -> WorldState:

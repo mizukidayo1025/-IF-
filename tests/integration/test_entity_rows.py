@@ -94,6 +94,7 @@ def _staff(world: WorldState) -> StaffState:
 def _in_step(world: WorldState) -> None:
     store = _store(world)
     assert store.tainted is None
+    assert store.zones_tainted is None
     assert store.verify(world) is None
 
 
@@ -680,3 +681,128 @@ def test_rules_over_real_ticks_keep_every_row_equal_to_its_object(generated_scen
         forwards = max(forwards, _store(world).stats()["forwards"])
     assert forwards > 100
     assert world.same_state(WorldState.from_dict(world.to_dict()))
+
+
+# ---- Zones and zone edges (PR 5-2 of #152): mirrored as entities of kinds 6 and 7 ----------------
+
+
+def _zone(world: WorldState) -> ZoneState:
+    return next(iter(world.zones.values()))
+
+
+def _edge(world: WorldState) -> ZoneEdgeState:
+    return next(iter(world.zone_edges.values()))
+
+
+def test_zones_and_edges_are_id_maps_with_a_row_equal_to_each_object() -> None:
+    world = _valid_world()
+    store = _store(world)
+    for name in ("zones", "zone_edges"):
+        assert type(world.__dict__[name]) is IdMap
+        assert store.keys(name) == list(world.__dict__[name])
+        for key, item in world.__dict__[name].items():
+            assert item._store is store
+            assert _row_of(world, name, key) == asdict(item)
+            assert set(vars(item)) == {field.name for field in fields(item)}
+    _in_step(world)
+
+
+def test_a_write_to_a_zone_or_an_edge_reaches_its_row_and_nothing_else_changes() -> None:
+    world = _valid_world()
+    text = _text(world)
+    edge = _edge(world)
+    edge.closed = True
+    edge.travel_minutes = edge.travel_minutes + 4
+    zone = _zone(world)
+    zone.display_x = 12.5
+    assert _row_of(world, "zone_edges", edge.id)["closed"] is True
+    assert _row_of(world, "zones", zone.id)["display_x"] == 12.5
+    assert world.zone_edges[edge.id] is edge
+    assert _text(world) != text
+    _in_step(world)
+
+
+def test_zones_and_edges_come_and_go_in_dict_order_and_keep_their_objects() -> None:
+    world = _valid_world()
+    store = _store(world)
+    added = ZoneState(id="annex", name="Annex", capacity=4, display_x=1.0, display_y=2.0)
+    world.zones["annex"] = added
+    assert world.zones["annex"] is added
+    assert store.keys("zones")[-1] == "annex"
+    first = next(iter(world.zones))
+    removed = world.zones.pop(first)
+    assert removed._store is None
+    assert store.keys("zones") == list(world.zones)
+    removed.capacity = 99
+    assert removed.capacity == 99
+    replacement = ZoneState(id="annex", name="Annex 2", capacity=None)
+    world.zones["annex"] = replacement
+    assert added._store is None
+    assert store.keys("zones")[-1] == "annex"
+    assert _row_of(world, "zones", "annex")["name"] == "Annex 2"
+    edges = dict(reversed(list(world.zone_edges.items())))
+    world.zone_edges = edges
+    assert type(world.zone_edges) is IdMap
+    assert list(world.zone_edges) == list(edges)
+    assert all(world.zone_edges[key] is item for key, item in edges.items())
+    assert store.keys("zone_edges") == list(edges)
+    del world.zone_edges[next(iter(edges))]
+    assert store.keys("zone_edges") == list(world.zone_edges)
+    _in_step(world)
+
+
+def test_a_zone_that_does_not_fit_taints_the_zones_only() -> None:
+    world = _valid_world()
+    store = _store(world)
+    zone = _zone(world)
+    zone.capacity = 2.5
+    assert zone.capacity == 2.5
+    assert "not an int" in store.zones_tainted
+    assert store.tainted is None
+    assert _rules().hunger_of_agents(world) == [
+        agent.needs.hunger for agent in world.agents.values()
+    ]
+    assert store.row("zones", zone.id) is None
+    zone.capacity = 3
+    assert store.refit(world)
+    assert store.zones_tainted is None
+    assert _row_of(world, "zones", zone.id)["capacity"] == 3
+    del _edge(world).closed
+    assert "ZoneEdgeState.closed was deleted" in store.zones_tainted
+    assert store.tainted is None
+
+
+def test_a_bool_is_not_a_travel_time_and_an_int_is_not_closed() -> None:
+    world = _valid_world()
+    _edge(world).travel_minutes = True
+    assert _store(world).zones_tainted is not None
+    world = _valid_world()
+    _edge(world).closed = 1
+    assert _store(world).zones_tainted is not None
+
+
+def test_a_copy_or_a_pickle_of_a_zone_is_a_plain_object() -> None:
+    world = _valid_world()
+    zone = _zone(world)
+    edge = _edge(world)
+    for copier in (copy.copy, copy.deepcopy, lambda item: pickle.loads(pickle.dumps(item))):
+        copied = copier(zone)
+        assert copied == zone and copied._store is None
+        copied.name = "renamed"
+        assert _row_of(world, "zones", zone.id)["name"] == zone.name
+        assert copier(edge) == edge
+    assert type(copy.copy(world.zones)) is dict
+    assert copy.copy(world.zones)[zone.id] is zone
+    assert zone.to_dict() == asdict(zone)
+    _in_step(world)
+
+
+def test_the_document_of_zones_is_the_same_as_from_plain_objects() -> None:
+    world = _valid_world()
+    document = world.to_dict()
+    again = WorldState.from_dict(document)
+    assert list(again.zones) == sorted(world.zones)
+    assert document["zones"] == [asdict(item) for _, item in sorted(world.zones.items())]
+    assert document["zone_edges"] == [asdict(item) for _, item in sorted(world.zone_edges.items())]
+    assert again.same_state(world)
+    _in_step(again)

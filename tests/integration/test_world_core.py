@@ -15,9 +15,11 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import pytest
+from support.paths import SCENARIO_100_AGENTS
 
 from sheltersim import native
 from sheltersim.core import state_mirror
+from sheltersim.core.checkpoint_cache import canonical_bytes
 from sheltersim.core.engine import TickEngine
 from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.state_mirror import (
@@ -34,6 +36,7 @@ from sheltersim.domain.psychological_state import PSYCHOLOGICAL_STATE_KEY
 from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.phases.segments import install_segments
 from sheltersim.experiments.runner import OfflineSimulationController
+from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _MetricSink
 
 SAMPLE = "sample_v1"
@@ -632,3 +635,135 @@ def test_a_run_ends_with_every_value_row_equal_to_its_tree(
         assert mirror.holds(table[name]), name
         assert mirror.tainted is None and mirror.has_row and mirror.verify(), name
         assert mirror.row_json() == native.canonical_json(table[name]), name
+
+
+# ---- The scalars, resources and id_counters in the core (PR 5-2 of #152) ----------------------
+
+
+def _plain_world() -> WorldState:
+    return WorldState.from_scenario(ScenarioSpec.load(SCENARIO_100_AGENTS))
+
+
+def _scalars_of(world: WorldState) -> dict[str, Any]:
+    return {
+        "scenario_id": world.scenario_id,
+        "seed": (str(world.seed), world.seed),
+        "duration_minutes": world.duration_minutes,
+        "minute_index": world.minute_index,
+        "schema_version": world.schema_version,
+    }
+
+
+def test_the_core_holds_the_scalars_as_the_world_sets_them() -> None:
+    world = _plain_world()
+    assert world._core.scalars() == _scalars_of(world)
+    world.minute_index = 17
+    world.scenario_id = "renamed"
+    world.schema_version = 6
+    world.duration_minutes = 600
+    assert world._core.scalars() == _scalars_of(world)
+    world.seed = 2**80
+    assert world._core.scalars()["seed"] == (str(2**80), None)
+    world.seed = -3
+    assert world._core.scalars()["seed"] == ("-3", -3)
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("minute_index", True),
+        ("minute_index", 1.0),
+        ("minute_index", 2**63),
+        ("duration_minutes", None),
+        ("schema_version", "6"),
+        ("seed", False),
+        ("seed", 1.5),
+        ("scenario_id", 3),
+    ],
+)
+def test_a_scalar_of_another_type_is_kept_by_the_world_and_a_misfit_in_the_core(
+    name: str, value: Any
+) -> None:
+    world = _plain_world()
+    setattr(world, name, value)
+    assert getattr(world, name) is value
+    assert world._core.scalars()[name] is None
+    setattr(world, name, getattr(_plain_world(), name))
+    assert world._core.scalars() == _scalars_of(world)
+
+
+def test_copies_of_a_world_hold_its_scalars() -> None:
+    world = _plain_world()
+    world.minute_index = 9
+    for copied in (copy.deepcopy(world), WorldState.from_dict(world.to_dict())):
+        assert copied._core is not world._core
+        assert copied._core.scalars() == _scalars_of(world)
+        copied.minute_index = 10
+        assert world._core.scalars()["minute_index"] == 9
+
+
+def test_resources_and_id_counters_are_trees_of_rows() -> None:
+    world = _plain_world()
+    world.resources = {"water_ml": 500, "food_meal_units": 3}
+    for name in ("resources", "id_counters"):
+        mirror = world._core.mirror(name)
+        value = getattr(world, name)
+        assert type(value) is TrackedDict
+        assert mirror.holds(value)
+        assert mirror.row_json() == canonical_bytes(value)
+    world.resources["water_ml"] -= 1
+    world.id_counters["event"] = 2**70
+    world.id_counters["resource_task"] = 4
+    assert list(world.resources) == ["water_ml", "food_meal_units"]
+    assert list(world.id_counters) == ["agent", "event", "resource_task"]
+    for name in ("resources", "id_counters"):
+        assert world._core.mirror(name).row_json() == canonical_bytes(getattr(world, name))
+    assert copy.copy(world.resources) == {"water_ml": 499, "food_meal_units": 3}
+    assert type(copy.deepcopy(world.id_counters)) is dict
+    world.validate()
+
+
+def test_a_whole_resources_or_counters_write_makes_a_new_tree() -> None:
+    world = _plain_world()
+    mirror = world._core.mirror("resources")
+    held = world.resources
+    new = {"water_ml": 10}
+    world.resources = new
+    assert world.resources == new and world.resources is not new
+    assert mirror.holds(world.resources) and not mirror.holds(held)
+    held["water_ml"] = 1
+    assert mirror.row_json() == b'{"water_ml":10}'
+    world.resources = world.resources
+    assert mirror.holds(world.resources)
+    world.id_counters = None
+    assert world.id_counters is None
+    assert world._core.mirror("id_counters").row_json() is None
+    with pytest.raises(native.Unsupported):
+        native.state("events").allocate_sequence(world)
+    world.id_counters = {"event": 5}
+    assert native.state("events").allocate_sequence(world) == 5
+    assert world.id_counters == {"event": 6}
+
+
+def test_a_rust_writer_writes_the_counter_row_and_tree() -> None:
+    world = _plain_world()
+    mirror = world._core.mirror("id_counters")
+    tree = world.id_counters
+    before = world.id_counters["event"]
+    assert native.state("events").allocate_sequence(world) == before
+    assert world.id_counters is tree
+    assert world.id_counters["event"] == before + 1
+    assert mirror.row_json() == canonical_bytes(tree)
+    assert mirror.stats()["forwards"] == 0
+    assert world.allocate_event_sequence() == before + 1
+    assert mirror.row_json() == canonical_bytes(tree)
+    assert mirror.stats()["forwards"] == 1
+
+
+def test_counters_whose_tree_does_not_fit_still_take_a_rust_write() -> None:
+    world = _plain_world()
+    mirror = world._core.mirror("id_counters")
+    world.id_counters["odd"] = (1, 2)
+    assert mirror.tainted is not None
+    with pytest.raises(native.Unsupported):
+        native.state("events").allocate_sequence(world)

@@ -172,6 +172,12 @@ def test_the_namespace_is_not_written_whole_and_the_resources_are_a_new_dict() -
     assert world.model_state[KEY] is tree
     assert world.resources is not held
     assert held == before
+    # The new dict is the tree of the core's row (PR 5-2 of #152); the old one is a plain dict.
+    resources_mirror = world._core.mirror("resources")
+    assert resources_mirror.holds(world.resources)
+    assert resources_mirror.row_json() == canonical_bytes(world.resources)
+    held["water_ml"] = -1
+    assert resources_mirror.row_json() == canonical_bytes(world.resources)
 
 
 def test_the_public_rule_runs_the_kernel() -> None:

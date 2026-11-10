@@ -32,7 +32,9 @@ pub(crate) use sheltersim_core::events::{is_stable_id, EventKind, EventRow, Even
 
 use crate::core::errors::{to_py_err, OrPy};
 use crate::core::value::{V, VPy};
+use crate::core::world_core::NamespaceMirror;
 use crate::eventlog::EventStore;
+use crate::state::world_fields;
 use crate::Unsupported;
 
 // As `checkpoint::MAX_SAME_DEPTH`: deeper values are left to the Python paths.
@@ -785,14 +787,16 @@ fn write_error(py: Python<'_>, error: WriteError) -> PyErr {
 pub(crate) struct EventWriter<'py> {
     queue: Bound<'py, QueueStore>,
     log: Bound<'py, EventStore>,
-    counters: Bound<'py, PyDict>,
+    /// The mirror of `world.id_counters`, whose row the counter is read from and written to.
+    counters: Bound<'py, NamespaceMirror>,
     duration: i64,
     reserved: Reserved,
 }
 
 impl<'py> EventWriter<'py> {
     /// `Unsupported`, with nothing changed, unless the world's queue and log are Rust's, and its
-    /// `id_counters` a plain dict whose event counter is an int. So a rule asks in its planning stage.
+    /// `id_counters` the core's row (`state/world_fields.rs`) whose event counter is an int. So a
+    /// rule asks in its planning stage.
     pub(crate) fn of(world: &Bound<'py, PyAny>) -> PyResult<Self> {
         let py = world.py();
         let store = |name: &Bound<'py, PyString>| -> PyResult<Bound<'py, PyAny>> {
@@ -807,15 +811,11 @@ impl<'py> EventWriter<'py> {
         let log = store(intern!(py, "event_log"))?
             .downcast_into::<EventStore>()
             .map_err(|_| Unsupported::new_err("the event log is not in Rust"))?;
-        let counters = world
-            .getattr(intern!(py, "id_counters"))?
-            .downcast_into_exact::<PyDict>()
-            .map_err(|_| Unsupported::new_err("id_counters is not a plain dict"))?;
-        if let Some(counter) = counters.get_item(intern!(py, "event"))? {
-            match counter.downcast_exact::<PyInt>().map(|number| number.extract::<i64>()) {
-                Ok(Ok(number)) if number <= MAX_RULE_COUNTER => {}
-                _ => return Err(Unsupported::new_err("the event counter is not an int a rule can add to")),
-            }
+        let counters = world_fields::owned_counters(world)?;
+        match world_fields::id_counter(&counters, "event") {
+            Ok(None) => {}
+            Ok(Some(number)) if number <= MAX_RULE_COUNTER => {}
+            _ => return Err(Unsupported::new_err("the event counter is not an int a rule can add to")),
         }
         let duration = world
             .getattr(intern!(py, "duration_minutes"))?
@@ -845,17 +845,13 @@ impl<'py> EventWriter<'py> {
     }
 
     fn counter(&self) -> PyResult<i64> {
-        let py = self.counters.py();
-        Ok(match self.counters.get_item(intern!(py, "event"))? {
-            Some(counter) => counter.extract()?,
-            None => 0,
-        })
+        Ok(world_fields::id_counter(&self.counters, "event")?.unwrap_or(0))
     }
 
     /// `WorldState.allocate_event_sequence`.
     pub(crate) fn allocate_sequence(&self) -> PyResult<i64> {
         let sequence = self.counter()?;
-        self.counters.set_item(intern!(self.counters.py(), "event"), sequence + 1)?;
+        world_fields::write_id_counter(&self.counters, "event", sequence + 1)?;
         Ok(sequence)
     }
 
@@ -869,7 +865,7 @@ impl<'py> EventWriter<'py> {
         };
         let after = after.map_err(|error| write_error(py, error))?;
         let next = self.counter()?.max(after);
-        self.counters.set_item(intern!(py, "event"), next)
+        world_fields::write_id_counter(&self.counters, "event", next)
     }
 
     /// `EventLogRecord(...)` and `EventLog.append` of an outcome, with their errors. Python makes the record when it reads it.

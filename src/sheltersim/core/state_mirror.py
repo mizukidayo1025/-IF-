@@ -996,14 +996,21 @@ class IdMap(dict):
         return (dict, (dict(self),))
 
 
-# world.<name> -> the table of the EntityStore: the numbers of native/src/state/entities.rs.
+# world.<name> -> the table of the EntityStore: the numbers of native/src/state/entities.rs. The
+# zones and zone edges have a taint of their own (EntityStore.zones_tainted).
 ENTITY_FIELDS = {
     "agents": 0,
     "facilities": 2,
     "staff": 3,
     "support_requests": 4,
     "active_tasks": 5,
+    "zones": 6,
+    "zone_edges": 7,
 }
+
+# The scalars of a world that its core holds (Scalars in native/core/src/world.rs). Each is written
+# from WorldState.__setattr__; one written past it (world.__dict__[name] = ...) is not seen.
+SCALAR_FIELDS = ("scenario_id", "seed", "duration_minutes", "minute_index", "schema_version")
 
 
 def _attach_entities(world: Any, core: Any) -> None:
@@ -1019,6 +1026,24 @@ def entities_assigned(world: Any, name: str, value: Any) -> Any:
     if value is current:
         return value
     return world.__dict__["_core"].entities().assign(ENTITY_FIELDS[name], current, value)
+
+
+def field_assigned(world: Any, name: str, value: Any) -> Any:
+    """What world.<name> stores when a caller assigns a whole field of WHOLE_FIELDS to a world.
+
+    A dict becomes the field's new tree; whoever holds the old one keeps it, as a plain dict with
+    its old values. Anything else is stored as it is, for validation to say what is wrong with it,
+    and the row is dropped.
+    """
+    if value is world.__dict__.get(name):
+        return value
+    mirror = world.__dict__["_core"].mirror(name)
+    if mirror is None:
+        return value
+    if isinstance(value, dict):
+        return mirror.replace_root(value)
+    mirror.clear_root()
+    return value
 
 
 # ---- What is owned, and what Rust does instead of Python ----------------------------------------
@@ -1048,12 +1073,18 @@ OWNED_NAMESPACES: dict[str, tuple[str, str]] = {
 }
 
 # The same for a field of WorldState that is not in model_state. A whole assignment to such a field
-# is not caught: the field then holds a plain dict, the kernels say Unsupported (field_mirror_of in
-# world_core.rs) and the Python rules run on it.
+# is not caught, unless the field is in WHOLE_FIELDS: the field then holds a plain dict, the
+# kernels say Unsupported (field_mirror_of in world_core.rs) and the Python rules run on it.
 OWNED_FIELDS: dict[str, tuple[str, str]] = {
     "metric_state": ("metric_state", "ROW"),
     "model_configs": ("population", "ROW"),
+    "resources": ("world_fields", "RESOURCES"),
+    "id_counters": ("world_fields", "ID_COUNTERS"),
 }
+
+# The owned fields whose whole assignment (world.resources = {...}) makes a new tree of the value,
+# as the Rust rule's new dict does (rules/resources.rs).
+WHOLE_FIELDS = frozenset({"resources", "id_counters"})
 
 # name of a namespace -> the kernel that accepts it: kernel(world) is True only if the namespace
 # passes every rule its Python validation checks; anything else, or Unsupported, runs the rules.
@@ -1267,7 +1298,10 @@ def owned_row_bytes(
 def start_core(world: Any) -> None:
     """Give a new world its core, and own what is listed. Only with the kernels on."""
     core = native.world_core()
-    world.__dict__["_core"] = core
+    state = world.__dict__
+    state["_core"] = core
+    for name in SCALAR_FIELDS:
+        core.set_scalar(name, state.get(name))
     _attach_entities(world, core)
     if OWNED_NAMESPACES:
         _attach_owned(world, core)

@@ -9,10 +9,10 @@
 //! Every str key of `model_state` has a slot: a namespace a lane owns has its typed row, and any
 //! other key a `ValueRow` slot (`Place::Value`, lane 5-3), made when the key is first stored.
 //!
-//! Parts that join later, each in its own lane: the scalars, zones and zone edges, `resources` and
-//! `id_counters` (5-2); the event queue and the log (6-5). The field `derived` (configs and caches
-//! keyed by stamps, design-p7.md §2, lane 7-1) is not state: a snapshot, a fork or a hash never
-//! reads it.
+//! The scalars (`Scalars`), the zones and zone edges (tables of `Entities`), `resources` and
+//! `id_counters` (slots of `Place::Field`) joined in 5-2. Parts that join later, each in its own
+//! lane: the event queue and the log (6-5). The field `derived` (configs and caches keyed by
+//! stamps, design-p7.md §2, lane 7-1) is not state: a snapshot, a fork or a hash never reads it.
 
 use std::sync::Arc;
 
@@ -23,19 +23,189 @@ use crate::cell::{Shard, ShardMut, ShardRef};
 use crate::config::Derived;
 use crate::entities::Entities;
 use crate::error::{Error, Result};
-use crate::row::{Row, ValueRow};
+use crate::row::{IdMap, Row, ValueRow};
 use crate::stamp::Stamp;
 use crate::value::V;
 
 /// The state of one world.
 #[derive(Default)]
 pub struct World {
-    /// The rows of the entities (`world.agents` and the others).
+    /// `scenario_id`, `seed`, `duration_minutes`, `minute_index` and `schema_version`.
+    pub scalars: Shard<Scalars>,
+    /// The rows of the entities (`world.agents` and the others, `world.zones`, `world.zone_edges`).
     pub entities: Shard<Entities>,
-    /// The owned world fields (`metric_state`) and the keys of `model_state`.
+    /// The owned world fields (`metric_state`, `model_configs`, `resources`, `id_counters`) and the
+    /// keys of `model_state`.
     pub slots: Slots,
     /// Not state: what is derived from it, by stamp (`config::Derived`).
     pub derived: Shard<Derived>,
+}
+
+// ---- Scalars ---------------------------------------------------------------------------------
+
+/// A value of the world as Rust holds it, or `Misfit` for a Python value of another type. A kernel
+/// that reads a misfit says Unsupported, as reading the attribute with `exact_int` says today.
+#[derive(Clone, Debug, PartialEq, Default)]
+pub enum Fit<T> {
+    Ok(T),
+    #[default]
+    Misfit,
+}
+
+impl<T> Fit<T> {
+    /// The value, or None for a misfit.
+    pub fn ok(&self) -> Option<&T> {
+        match self {
+            Fit::Ok(value) => Some(value),
+            Fit::Misfit => None,
+        }
+    }
+
+    /// The value, or Unsupported with this reason.
+    #[track_caller]
+    pub fn get(&self, reason: &'static str) -> Result<&T> {
+        self.ok().ok_or_else(|| Error::unsupported(reason))
+    }
+}
+
+/// `world.seed`: an int of any size from Python. The text is `str(seed)`, which `KeyedDraws` keys
+/// its draws with; `small` is the value when it fits an i64.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Seed {
+    pub text: Arc<str>,
+    pub small: Option<i64>,
+}
+
+impl Seed {
+    /// The seed of this decimal text (`str(int)`: digits, a `-` before them for a negative one),
+    /// or None for any other text.
+    pub fn from_text(text: &str) -> Option<Seed> {
+        let digits = text.strip_prefix('-').unwrap_or(text);
+        let decimal = !digits.is_empty()
+            && digits.bytes().all(|byte| byte.is_ascii_digit())
+            && (digits == "0" || !digits.starts_with('0'))
+            && text != "-0";
+        decimal.then(|| Seed { text: Arc::from(text), small: text.parse().ok() })
+    }
+}
+
+/// The scalars of a world. The PyO3 crate writes each from `WorldState.__setattr__` and when it
+/// starts the core; a value written past `__setattr__` (`world.__dict__[name] = ...`) is not seen.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Scalars {
+    pub scenario_id: Fit<Arc<str>>,
+    pub seed: Fit<Seed>,
+    pub duration_minutes: Fit<i64>,
+    pub minute_index: Fit<i64>,
+    pub schema_version: Fit<i64>,
+}
+
+/// The names of the scalars, as attributes of `WorldState`.
+pub const SCALAR_NAMES: [&str; 5] = ["scenario_id", "seed", "duration_minutes", "minute_index", "schema_version"];
+
+impl Scalars {
+    #[track_caller]
+    pub fn scenario_id(&self) -> Result<&Arc<str>> {
+        self.scenario_id.get("the scenario ID is not a str")
+    }
+
+    #[track_caller]
+    pub fn seed(&self) -> Result<&Seed> {
+        self.seed.get("the seed is not an int")
+    }
+
+    #[track_caller]
+    pub fn duration_minutes(&self) -> Result<i64> {
+        self.duration_minutes.get("the duration is not an int").copied()
+    }
+
+    #[track_caller]
+    pub fn minute_index(&self) -> Result<i64> {
+        self.minute_index.get("the minute is not an int").copied()
+    }
+
+    #[track_caller]
+    pub fn schema_version(&self) -> Result<i64> {
+        self.schema_version.get("the schema version is not an int").copied()
+    }
+}
+
+// ---- Owned world fields --------------------------------------------------------------------
+
+/// `world.resources`: stock by resource ID, a slot of `Place::Field`.
+pub const RESOURCES: &str = "resources";
+/// `world.id_counters`: a `ValueRow` slot of `Place::Field`, so a counter past i64 still fits.
+pub const ID_COUNTERS: &str = "id_counters";
+
+/// The row of `world.resources`.
+pub type ResourcesRow = IdMap<i64>;
+
+/// An ID counter of a `ValueRow` of `id_counters`: None without the key, Unsupported for a value
+/// that is not an int of an i64, or for a row that is not a map.
+#[track_caller]
+pub fn id_counter(counters: &ValueRow, name: &str) -> Result<Option<i64>> {
+    let V::Map(map) = &counters.0 else {
+        return Err(Error::unsupported("id_counters is not a map"));
+    };
+    match map.get(name) {
+        None => Ok(None),
+        Some(V::Int(number)) => Ok(Some(*number)),
+        Some(_) => Err(Error::unsupported("an ID counter is not an int")),
+    }
+}
+
+/// Set an ID counter of a `ValueRow` of `id_counters`: a new key goes to the end, as in a dict.
+pub fn set_id_counter(counters: &mut ValueRow, name: &str, value: i64) -> Result<()> {
+    let V::Map(map) = &mut counters.0 else {
+        return Err(Error::unsupported("id_counters is not a map"));
+    };
+    match map.get_mut(name) {
+        Some(slot) => *slot = V::Int(value),
+        None => {
+            map.insert(Arc::from(name), V::Int(value));
+        }
+    }
+    Ok(())
+}
+
+impl World {
+    /// The scalars, borrowed shared: for a shim that holds the world shared.
+    pub fn scalars(&self) -> Result<ShardRef<'_, Scalars>> {
+        self.scalars.try_borrow()
+    }
+
+    #[track_caller]
+    pub fn minute_index(&self) -> Result<i64> {
+        self.scalars.try_borrow()?.minute_index()
+    }
+
+    #[track_caller]
+    pub fn duration_minutes(&self) -> Result<i64> {
+        self.scalars.try_borrow()?.duration_minutes()
+    }
+
+    #[track_caller]
+    pub fn schema_version(&self) -> Result<i64> {
+        self.scalars.try_borrow()?.schema_version()
+    }
+
+    /// The seed's text, which `KeyedDraws` takes.
+    #[track_caller]
+    pub fn seed_text(&self) -> Result<Arc<str>> {
+        Ok(self.scalars.try_borrow()?.seed()?.text.clone())
+    }
+
+    /// `world.resources` as its row, borrowed on its own; Unsupported while the field holds no row.
+    #[track_caller]
+    pub fn resources(&self) -> Result<ShardRef<'_, ResourcesRow>> {
+        self.slots.try_row::<ResourcesRow>(RESOURCES)
+    }
+
+    /// `world.id_counters.get(name)` from its row.
+    #[track_caller]
+    pub fn id_counter(&self, name: &str) -> Result<Option<i64>> {
+        id_counter(&*self.slots.try_row::<ValueRow>(ID_COUNTERS)?, name)
+    }
 }
 
 /// Where a slot's state is in the Python world.

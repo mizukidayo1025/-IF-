@@ -1,4 +1,5 @@
-//! The core `World` of lanes 5-1 and 5-3: `Shard`'s borrow rules, `Slots`, value slots and stamps.
+//! The core `World` of lanes 5-1 and 5-3: `Shard`'s borrow rules, `Slots`, value slots and stamps;
+//! and of lane 5-2: the scalars (`Fit`, `Seed`) and the rows of `resources` and `id_counters`.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -9,7 +10,11 @@ use sheltersim_core::error::Error;
 use sheltersim_core::row::ValueRow;
 use sheltersim_core::stamp::Stamp;
 use sheltersim_core::value::V;
-use sheltersim_core::world::{Place, Slot, Slots, World};
+use sheltersim_core::row::IdMap;
+use sheltersim_core::world::{
+    id_counter, set_id_counter, Fit, Place, ResourcesRow, Scalars, Seed, Slot, Slots, World, ID_COUNTERS, RESOURCES,
+    SCALAR_NAMES,
+};
 
 fn borrowed() -> Error {
     Error::Runtime(BORROWED.to_owned())
@@ -208,4 +213,105 @@ fn heap_bytes_count_what_a_value_allocates() {
     let words = 2 * std::mem::size_of::<usize>();
     let entry = std::mem::size_of::<(u64, Arc<str>, V)>() + std::mem::size_of::<usize>();
     assert_eq!(value.heap_bytes(), inner.capacity() * entry + (1 + words) + (2 + words));
+}
+
+// ---- Lane 5-2 ------------------------------------------------------------------------------
+
+fn unsupported(reason: &str) -> Error {
+    Error::Unsupported(reason.to_owned().into())
+}
+
+#[test]
+fn a_seed_is_decimal_text_of_any_size() {
+    let small = Seed::from_text("2026").unwrap();
+    assert_eq!((&*small.text, small.small), ("2026", Some(2026)));
+    let negative = Seed::from_text("-7").unwrap();
+    assert_eq!(negative.small, Some(-7));
+    // Past i64: the text alone, which `KeyedDraws` takes.
+    let big = Seed::from_text("123456789012345678901234567890").unwrap();
+    assert_eq!((&*big.text, big.small), ("123456789012345678901234567890", None));
+    assert_eq!(Seed::from_text("9223372036854775807").unwrap().small, Some(i64::MAX));
+    assert_eq!(Seed::from_text("9223372036854775808").unwrap().small, None);
+    assert_eq!(Seed::from_text("0").unwrap().small, Some(0));
+    for text in ["", "-", "-0", "007", "1.5", "+1", " 1", "1e3", "True", "١٢"] {
+        assert_eq!(Seed::from_text(text), None, "{text:?}");
+    }
+}
+
+#[test]
+fn a_misfit_scalar_is_unsupported_for_a_kernel() {
+    let scalars = Scalars::default();
+    assert_eq!(scalars.minute_index().err(), Some(unsupported("the minute is not an int")));
+    assert_eq!(scalars.duration_minutes().err(), Some(unsupported("the duration is not an int")));
+    assert_eq!(scalars.schema_version().err(), Some(unsupported("the schema version is not an int")));
+    assert_eq!(scalars.seed().err(), Some(unsupported("the seed is not an int")));
+    assert_eq!(scalars.scenario_id().err(), Some(unsupported("the scenario ID is not a str")));
+    let fit: Fit<i64> = Fit::Ok(3);
+    assert_eq!((fit.ok(), fit.get("x")), (Some(&3), Ok(&3)));
+    assert_eq!(Fit::<i64>::default(), Fit::Misfit);
+    assert_eq!(SCALAR_NAMES, ["scenario_id", "seed", "duration_minutes", "minute_index", "schema_version"]);
+}
+
+#[test]
+fn a_world_reads_its_scalars_through_their_part() {
+    let world = World::default();
+    {
+        let mut scalars = world.scalars.try_borrow_mut().unwrap();
+        scalars.minute_index = Fit::Ok(42);
+        scalars.duration_minutes = Fit::Ok(10_080);
+        scalars.schema_version = Fit::Ok(6);
+        scalars.seed = Fit::Ok(Seed::from_text("99999999999999999999").unwrap());
+        scalars.scenario_id = Fit::Ok(Arc::from("baseline"));
+        // A kernel can't read them while a writer holds them.
+        assert_eq!(world.minute_index().err(), Some(borrowed()));
+    }
+    assert_eq!(world.minute_index(), Ok(42));
+    assert_eq!(world.duration_minutes(), Ok(10_080));
+    assert_eq!(world.schema_version(), Ok(6));
+    assert_eq!(&*world.seed_text().unwrap(), "99999999999999999999");
+    assert_eq!(&**world.scalars().unwrap().scenario_id().unwrap(), "baseline");
+    // Another part stays free.
+    let _entities = world.entities.try_borrow_mut().unwrap();
+    assert_eq!(world.minute_index(), Ok(42));
+}
+
+fn counters(entries: &[(&str, V)]) -> ValueRow {
+    let mut map = indexmap::IndexMap::new();
+    for (key, value) in entries {
+        map.insert(Arc::from(*key), value.clone());
+    }
+    ValueRow(V::Map(map))
+}
+
+#[test]
+fn an_id_counter_is_an_int_of_a_map_and_a_new_one_goes_to_the_end() {
+    let mut row = counters(&[("agent", V::Int(100)), ("event", V::Int(7))]);
+    assert_eq!(id_counter(&row, "event"), Ok(Some(7)));
+    assert_eq!(id_counter(&row, "resource_task"), Ok(None));
+    set_id_counter(&mut row, "event", 8).unwrap();
+    set_id_counter(&mut row, "resource_task", 1).unwrap();
+    let V::Map(map) = &row.0 else { unreachable!() };
+    let keys: Vec<&str> = map.keys().map(|key| &**key).collect();
+    assert_eq!(keys, ["agent", "event", "resource_task"]);
+    assert_eq!(id_counter(&row, "event"), Ok(Some(8)));
+    let text = counters(&[("event", V::Str(Arc::from("text")))]);
+    assert_eq!(id_counter(&text, "event"), Err(unsupported("an ID counter is not an int")));
+    let list = ValueRow(V::List(vec![]));
+    assert_eq!(id_counter(&list, "event"), Err(unsupported("id_counters is not a map")));
+}
+
+#[test]
+fn a_world_reads_resources_and_counters_from_their_slots() {
+    let mut world = World::default();
+    assert_eq!(world.resources().err(), Some(unsupported("the namespace is not owned")));
+    let resources = world.slots.add(Arc::from(RESOURCES), Place::Field).unwrap();
+    let ids = world.slots.add(Arc::from(ID_COUNTERS), Place::Field).unwrap();
+    assert_eq!(world.resources().err(), Some(unsupported("the namespace has no row")));
+    let mut stock: ResourcesRow = IdMap::default();
+    stock.insert(Arc::from("water_ml"), 5_000);
+    world.slots.at(resources).unwrap().try_borrow_mut().unwrap().row = Some(Box::new(stock));
+    world.slots.at(ids).unwrap().try_borrow_mut().unwrap().row = Some(Box::new(counters(&[("event", V::Int(3))])));
+    assert_eq!(world.resources().unwrap()["water_ml"], 5_000);
+    assert_eq!(world.id_counter("event"), Ok(Some(3)));
+    assert_eq!(world.id_counter("agent"), Ok(None));
 }

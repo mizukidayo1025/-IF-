@@ -1,9 +1,11 @@
-//! The entities of a world as rows: agents with their needs, facilities, staff, support requests
-//! and active tasks (docs/rust-port/lanes/p6-entity-windows.md).
+//! The entities of a world as rows: agents with their needs, facilities, staff, support requests,
+//! active tasks, and the zones and zone edges (docs/rust-port/lanes/p6-entity-windows.md).
 //!
 //! Each row is a struct named like the dataclass of `domain/models.py`, and `write_json` writes
 //! the bytes `canonical_json` writes for it in a WorldState document of a version. A `Table` holds
-//! the rows of one `IdMap`, keys in the dict's order; `Entities` holds the five tables of a world.
+//! the rows of one `IdMap`, keys in the dict's order; `Entities` holds the seven tables of a world.
+//! The zones and zone edges have a taint of their own: a zone that does not fit leaves the people's
+//! rows alone, and the other way round.
 //!
 //! The Python objects, their links to the rows and the reads and writes from Python are the PyO3
 //! crate's (`native/src/state/entities.rs`, `EntityStore`). The Python objects own the entities
@@ -27,6 +29,15 @@ pub const FACILITY: u8 = 2;
 pub const STAFF: u8 = 3;
 pub const REQUEST: u8 = 4;
 pub const TASK: u8 = 5;
+/// `world.zones` (Issue #152, PR 5-2).
+pub const ZONE: u8 = 6;
+/// `world.zone_edges`.
+pub const EDGE: u8 = 7;
+
+/// Whether the kind is a zone's or a zone edge's, which have their own taint.
+pub const fn is_zone_kind(kind: u8) -> bool {
+    kind == ZONE || kind == EDGE
+}
 
 // ---- Typed fields ----------------------------------------------------------------------------
 
@@ -71,6 +82,16 @@ impl EntityField for i64 {
     }
     fn write_json(&self, encoder: &mut Encoder, _version: i64) -> Result<()> {
         encoder.int(*self);
+        Ok(())
+    }
+}
+
+impl EntityField for bool {
+    fn same(&self, other: &Self) -> bool {
+        self == other
+    }
+    fn write_json(&self, encoder: &mut Encoder, _version: i64) -> Result<()> {
+        encoder.bool(*self);
         Ok(())
     }
 }
@@ -322,6 +343,24 @@ entity_row!(TaskRow {
     staff_id: Option<Arc<str>>,
 });
 
+// `ZoneState`. A WorldState document writes `zone.to_dict()`, the same in v5 and v6.
+entity_row!(ZoneRow {
+    id: Arc<str>,
+    name: Arc<str>,
+    capacity: Option<i64>,
+    display_x: Option<f64>,
+    display_y: Option<f64>,
+});
+
+// `ZoneEdgeState`.
+entity_row!(EdgeRow {
+    id: Arc<str>,
+    from_zone_id: Arc<str>,
+    to_zone_id: Arc<str>,
+    travel_minutes: i64,
+    closed: bool,
+});
+
 impl EntityRow for AgentRow {
     fn id(&self) -> &str {
         &self.profile.id
@@ -338,7 +377,7 @@ macro_rules! own_id {
     };
 }
 
-own_id!(FacilityRow, StaffRow, RequestRow, TaskRow);
+own_id!(FacilityRow, StaffRow, RequestRow, TaskRow, ZoneRow, EdgeRow);
 
 // ---- Tables ----------------------------------------------------------------------------------
 
@@ -512,21 +551,62 @@ pub struct Entities {
     pub staff: Table<StaffRow>,
     pub support_requests: Table<RequestRow>,
     pub active_tasks: Table<TaskRow>,
-    /// Why the rows were dropped: a value that does not fit. The Python objects are the only truth
-    /// then, and kernels say Unsupported until the PyO3 crate's `refit` reads them again.
+    pub zones: Table<ZoneRow>,
+    pub zone_edges: Table<EdgeRow>,
+    /// Why the rows of the people's five tables were dropped: a value that does not fit. The Python
+    /// objects are the only truth then, and kernels say Unsupported until the PyO3 crate's `refit`
+    /// reads them again.
     taint: Option<String>,
+    /// The same for the zones and the zone edges.
+    zone_taint: Option<String>,
 }
 
 impl Entities {
-    /// Why the rows were dropped, or None.
+    /// Why the rows of the people's tables were dropped, or None.
     pub fn tainted(&self) -> Option<&str> {
         self.taint.as_deref()
     }
 
-    /// Drop every row. The first reason stays the reason.
+    /// Why the rows of the zones and zone edges were dropped, or None.
+    pub fn zones_tainted(&self) -> Option<&str> {
+        self.zone_taint.as_deref()
+    }
+
+    /// The taint that covers a kind's table.
+    pub fn tainted_for(&self, kind: u8) -> Option<&str> {
+        if is_zone_kind(kind) {
+            self.zones_tainted()
+        } else {
+            self.tainted()
+        }
+    }
+
+    /// Drop every row of the people's tables. The first reason stays the reason. The zones stay.
     pub fn taint(&mut self, why: String) {
         let taint = self.taint.take().unwrap_or(why);
-        *self = Entities { taint: Some(taint), ..Entities::default() };
+        self.agents = Table::default();
+        self.facilities = Table::default();
+        self.staff = Table::default();
+        self.support_requests = Table::default();
+        self.active_tasks = Table::default();
+        self.taint = Some(taint);
+    }
+
+    /// Drop every row of the zones and zone edges. The first reason stays the reason.
+    pub fn taint_zones(&mut self, why: String) {
+        let taint = self.zone_taint.take().unwrap_or(why);
+        self.zones = Table::default();
+        self.zone_edges = Table::default();
+        self.zone_taint = Some(taint);
+    }
+
+    /// `taint` or `taint_zones`, for the kind's table.
+    pub fn taint_for(&mut self, kind: u8, why: String) {
+        if is_zone_kind(kind) {
+            self.taint_zones(why);
+        } else {
+            self.taint(why);
+        }
     }
 
     /// No rows and no taint, as before the first attach.
@@ -542,6 +622,8 @@ impl Entities {
             FACILITY => &self.facilities,
             STAFF => &self.staff,
             REQUEST => &self.support_requests,
+            ZONE => &self.zones,
+            EDGE => &self.zone_edges,
             _ => &self.active_tasks,
         }
     }
@@ -552,6 +634,8 @@ impl Entities {
             FACILITY => &mut self.facilities,
             STAFF => &mut self.staff,
             REQUEST => &mut self.support_requests,
+            ZONE => &mut self.zones,
+            EDGE => &mut self.zone_edges,
             _ => &mut self.active_tasks,
         }
     }
