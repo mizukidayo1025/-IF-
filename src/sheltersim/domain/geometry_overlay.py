@@ -24,7 +24,7 @@ from sheltersim.contracts.extensions import (
 from sheltersim.contracts.spatial import SpatialConstraints, SpatialObstacle
 from sheltersim.core.context import ContextScope
 from sheltersim.core.kernels import kernel_only
-from sheltersim.core.state_mirror import register_rust_validator
+from sheltersim.core.state_mirror import read_only_part, read_only_state, register_rust_validator
 
 GEOMETRY_OVERLAY_KEY = "geometry_overlay_v1"
 
@@ -331,7 +331,7 @@ def effective_geometry(world: Any) -> FacilityGeometry | None:
     if raw is None:
         return None
     geometry = _parsed_config("facility_geometry", raw, FacilityGeometry)
-    overrides = world.model_state.get(GEOMETRY_OVERLAY_KEY, {}).get("facility_points", {})
+    overrides = read_only_part(world, GEOMETRY_OVERLAY_KEY, "facility_points", {})
     if not overrides:
         return geometry
     points = {
@@ -406,7 +406,7 @@ def place_installed_facility(
 def effective_spatial_constraints(world: Any) -> SpatialConstraints:
     raw = world.model_configs.get("spatial_constraints", _EMPTY_SPATIAL_CONSTRAINTS)
     constraints = _parsed_config("spatial_constraints", raw, SpatialConstraints)
-    state = world.model_state.get(GEOMETRY_OVERLAY_KEY, {})
+    state = read_only_state(world, GEOMETRY_OVERLAY_KEY, {})
     obstacles = (
         *constraints.obstacles,
         *(
@@ -443,7 +443,7 @@ def effective_spatial_constraints(world: Any) -> SpatialConstraints:
 
 
 def validate_geometry_overlay_state(world: Any) -> None:
-    state = world.model_state.get(GEOMETRY_OVERLAY_KEY)
+    state = read_only_state(world, GEOMETRY_OVERLAY_KEY)
     if state is None:
         return
     try:

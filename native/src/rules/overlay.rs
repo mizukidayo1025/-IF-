@@ -25,7 +25,7 @@ use crate::core::mathx::{hypot, pow, py_max, py_min, py_round, py_sum};
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, unsupported};
 use crate::core::tracked::is_detached;
 use crate::core::value::V;
-use crate::core::world_core::{attached_state, mirror_of, raw_dict_get, NamespaceMirror};
+use crate::core::world_core::{attached_state, mirror_of, raw_dict_get, state_value, with_state_value, NamespaceMirror};
 use crate::rules::movement::{mirror_held, mobility_text, point_object, room_minutes, KEY as MOVEMENT_KEY};
 use crate::rules::movement_geometry::{
     is_identifier, point_in_polygon, point_in_value, point_segment_distance, point_walkable, points_in_value, polyline_length,
@@ -534,15 +534,18 @@ pub(crate) fn capacity_of(world: &Bound<'_, PyAny>, zone_id: &str, nominal: i64,
         None => false,
     };
     let (mut room_capacity, mut active_admissions, mut expired_capacity, mut expired_admissions) = (0, 0, 0, 0);
-    if let Some(overlay) = table.get_item(OVERLAY_KEY)? {
-        if crate::core::tracked::as_readable_dict(&overlay).is_none() {
+    // The overlay is read as a `V`, a detached one from its row.
+    let empty = V::Map(IndexMap::new());
+    with_state_value(world, OVERLAY_KEY, |overlay| {
+        let Some(overlay) = overlay else {
+            return Ok(());
+        };
+        let V::Map(overlay) = overlay else {
             return unsupported("the overlay is not a plain dict");
-        }
-        let rooms = part(&overlay, "temporary_rooms")?;
-        let rooms = map_of(&rooms)?;
+        };
+        let rooms = map_of(overlay.get("temporary_rooms").unwrap_or(&empty))?;
         if !rooms.is_empty() {
-            let admissions = part(&overlay, "room_admissions")?;
-            let counts = admission_counts(&admissions)?;
+            let counts = admission_counts(overlay.get("room_admissions").unwrap_or(&empty))?;
             let mut active_ids: HashSet<Arc<str>> = HashSet::new();
             for row in rooms.values() {
                 let V::Map(row) = row else {
@@ -567,7 +570,8 @@ pub(crate) fn capacity_of(world: &Bound<'_, PyAny>, zone_id: &str, nominal: i64,
                 }
             }
         }
-    }
+        Ok(())
+    })?;
     Ok(Capacity {
         effective,
         active_people,
@@ -797,16 +801,42 @@ fn position_of(mirror: &Option<Bound<'_, NamespaceMirror>>, agent_id: &str) -> P
 }
 
 /// `room_admission_point`.
-fn admission_point(world: &Bound<'_, PyAny>, state: &Bound<'_, PyAny>, room_id: &str) -> PyResult<Option<Pt>> {
+fn admission_point(world: &Bound<'_, PyAny>, state: &RoomParts, room_id: &str) -> PyResult<Option<Pt>> {
     admission_point_after(world, state, room_id, &[])
+}
+
+/// `state.get("temporary_rooms", {})` and `state.get("room_admissions", {})` of the overlay, copied.
+struct RoomParts {
+    rooms: V,
+    admissions: V,
+}
+
+impl RoomParts {
+    fn of_tree(state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self { rooms: part(state, "temporary_rooms")?, admissions: part(state, "room_admissions")? })
+    }
+
+    /// Read from the overlay as a `V`, a detached one from its row. None for no overlay.
+    fn of_world(world: &Bound<'_, PyAny>) -> PyResult<Option<Self>> {
+        with_state_value(world, OVERLAY_KEY, |state| {
+            let Some(state) = state else {
+                return Ok(None);
+            };
+            let V::Map(state) = state else {
+                return unsupported("a value is not a plain dict");
+            };
+            let part = |name: &str| state.get(name).cloned().unwrap_or_else(|| V::Map(IndexMap::new()));
+            Ok(Some(Self { rooms: part("temporary_rooms"), admissions: part("room_admissions") }))
+        })
+    }
 }
 
 /// `room_admission_point`, after the admissions a plan has given this far: `(room, point)`, the
 /// point being None in a world that keeps no positions.
-fn admission_point_after(world: &Bound<'_, PyAny>, state: &Bound<'_, PyAny>, room_id: &str, planned: &[(Arc<str>, Option<Pt>)]) -> PyResult<Option<Pt>> {
-    let rooms = part(state, "temporary_rooms")?;
-    let Some(V::Map(room)) = map_of(&rooms)?.get(room_id) else {
-        return if map_of(&rooms)?.contains_key(room_id) { unsupported("a room is another value") } else { Ok(None) };
+fn admission_point_after(world: &Bound<'_, PyAny>, state: &RoomParts, room_id: &str, planned: &[(Arc<str>, Option<Pt>)]) -> PyResult<Option<Pt>> {
+    let rooms = &state.rooms;
+    let Some(V::Map(room)) = map_of(rooms)?.get(room_id) else {
+        return if map_of(rooms)?.contains_key(room_id) { unsupported("a room is another value") } else { Ok(None) };
     };
     let polygon = match room.get("polygon_m") {
         Some(value) => points_in_value(value)?,
@@ -818,10 +848,10 @@ fn admission_point_after(world: &Bound<'_, PyAny>, state: &Bound<'_, PyAny>, roo
     let lowest = |value: fn(&Pt) -> f64| polygon.iter().map(value).fold(f64::INFINITY, py_min);
     let highest = |value: fn(&Pt) -> f64| polygon.iter().map(value).fold(f64::NEG_INFINITY, py_max);
     let (min_x, max_x, min_y, max_y) = (lowest(|point| point.x), highest(|point| point.x), lowest(|point| point.y), highest(|point| point.y));
-    let admissions = part(state, "room_admissions")?;
+    let admissions = &state.admissions;
     let movement = movement_mirror(world)?;
     let mut occupied = Vec::new();
-    if let V::Map(admissions) = &admissions {
+    if let V::Map(admissions) = admissions {
         for (agent_id, admission) in admissions {
             let V::Map(admission) = admission else {
                 continue;
@@ -917,10 +947,9 @@ fn room_admission_point<'py>(world: &Bound<'py, PyAny>, room_id: &Bound<'py, PyA
     let py = world.py();
     let result = (|| {
         let room_id = exact_str(room_id)?;
-        let Some(state) = state_of(world, OVERLAY_KEY)? else {
+        let Some(state) = RoomParts::of_world(world)? else {
             return Ok(py.None().into_bound(py));
         };
-        exact_dict(&state)?;
         match admission_point(world, &state, room_id)? {
             Some(point) => point_object(py, point),
             None => Ok(py.None().into_bound(py)),
@@ -935,17 +964,14 @@ pub(crate) fn available_room_after(world: &Bound<'_, PyAny>, zone_id: &str, plan
     if !matches!(overlay_schema(world)?, Some(3 | 4)) {
         return Ok(None);
     }
-    let Some(state) = state_of(world, OVERLAY_KEY)? else {
+    let Some(state) = RoomParts::of_world(world)? else {
         return Ok(None);
     };
-    exact_dict(&state)?;
-    let admissions = part(&state, "room_admissions")?;
-    let mut counts = admission_counts(&admissions)?;
+    let mut counts = admission_counts(&state.admissions)?;
     for (room_id, _) in planned {
         *counts.entry(room_id.clone()).or_insert(0) += 1;
     }
-    let rooms = part(&state, "temporary_rooms")?;
-    for (room_id, room) in sorted_rooms(map_of(&rooms)?) {
+    for (room_id, room) in sorted_rooms(map_of(&state.rooms)?) {
         let room = map_of(room)?;
         if !matches!(room.get("active"), Some(V::Bool(true))) || !matches!(room.get("zone_id"), Some(V::Str(zone)) if &**zone == zone_id) {
             continue;
@@ -1005,7 +1031,7 @@ fn admit_to_temporary_room<'py>(
         if !matches!(room.get("active"), Some(V::Bool(true))) || minute < 0 || raw_dict_get(&agents, agent_id)?.is_none() {
             return not_available();
         }
-        let Some(point) = admission_point(world, &state, room_text)? else {
+        let Some(point) = admission_point(world, &RoomParts::of_tree(&state)?, room_text)? else {
             return not_available();
         };
         let sources = list_of(room.get("source_ids").unwrap_or(&V::Null))?;
@@ -1049,10 +1075,20 @@ pub(crate) struct Bed {
 /// `reserve_sleep_bed`, changing nothing: None for no bed.
 pub(crate) fn plan_bed(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Option<Bed>> {
     let py = world.py();
-    let Some(state) = state_of(world, OVERLAY_KEY)? else {
+    let Some(held) = held_of(world, OVERLAY_KEY)? else {
         return Ok(None);
     };
-    exact_dict(&state)?;
+    // The reservations and the rooms, copied from the row of a detached overlay, which then needs
+    // no tree; None to read them from the tree.
+    let parts = if is_detached(&held) {
+        NamespaceMirror::with_value(&mirror_of(world, OVERLAY_KEY)?, |state| {
+            let state = map_of(state)?;
+            Ok(state.get("bed_reservations").map(|held| (held.clone(), state.get("temporary_rooms").cloned())))
+        })?
+    } else {
+        exact_dict(&held)?;
+        None
+    };
     if !matches!(overlay_schema(world)?, Some(2..=4)) {
         return Ok(None);
     }
@@ -1061,11 +1097,19 @@ pub(crate) fn plan_bed(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Opt
     let Some(zone_id) = known else {
         return Ok(None);
     };
-    // `state.setdefault("bed_reservations", {})`, through the map's own method: a state saved before
-    // beds were reserved has none, and the rule writes the empty map even when no bed follows.
-    let reservations = match child(&state, "bed_reservations")? {
-        Some(reservations) => reservations,
-        None => state.call_method1(intern!(py, "setdefault"), ("bed_reservations", PyDict::new(py)))?,
+    let (reserved, rooms_value) = match parts {
+        Some(parts) => parts,
+        None => {
+            let state = state_of(world, OVERLAY_KEY)?.ok_or_else(|| Unsupported::new_err("no overlay"))?;
+            // `state.setdefault("bed_reservations", {})`, through the map's own method: a state saved
+            // before beds were reserved has none, and the rule writes the empty map even when no bed
+            // follows.
+            let reservations = match child(&state, "bed_reservations")? {
+                Some(reservations) => reservations,
+                None => state.call_method1(intern!(py, "setdefault"), ("bed_reservations", PyDict::new(py)))?,
+            };
+            (V::from_py(&reservations)?, child(&state, "temporary_rooms")?.map(|rooms| V::from_py(&rooms)).transpose()?)
+        }
     };
     let geo = Geo::of(world)?;
     if geo.layout.is_none() {
@@ -1075,9 +1119,8 @@ pub(crate) fn plan_bed(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Opt
     let Some(mirror) = &movement else {
         return unsupported("a bed's positions without the movement state");
     };
-    let rooms_node = child(&state, "temporary_rooms")?;
-    let rooms_empty = match &rooms_node {
-        Some(rooms) => exact_dict(rooms)?.is_empty(),
+    let rooms_empty = match &rooms_value {
+        Some(rooms) => map_of(rooms)?.is_empty(),
         None => true,
     };
     let start = position_of(&movement, agent_id)?;
@@ -1105,7 +1148,6 @@ pub(crate) fn plan_bed(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Opt
     if rooms_empty {
         return Ok(None);
     }
-    let reserved = V::from_py(&reservations)?;
     let reserved = map_of(&reserved)?;
     let mut occupied: HashSet<(Arc<str>, i64)> = HashSet::new();
     for row in reserved.values() {
@@ -1120,7 +1162,7 @@ pub(crate) fn plan_bed(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Opt
     };
     let held_room = existing.map(|row| str_of(row, "room_id")).transpose()?;
     let held_index = existing.map(|row| int_of(row, "bed_index")).transpose()?;
-    let rooms = V::from_py(rooms_node.as_ref().ok_or_else(|| Unsupported::new_err("no rooms"))?)?;
+    let rooms = rooms_value.ok_or_else(|| Unsupported::new_err("no rooms"))?;
     let configs = attribute(world, intern!(py, "model_configs"))?;
     let raw_model = exact_dict(&configs)?.get_item(intern!(py, "movement_model"))?;
     let radius = square(BED_RADIUS)?;
@@ -1286,7 +1328,8 @@ pub(crate) fn placement_enabled(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     if overlay_schema(world)? != Some(4) {
         return Ok(false);
     }
-    Ok(state_of(world, OVERLAY_KEY)?.is_some_and(|state| crate::core::tracked::as_readable_dict(&state).is_some()))
+    // A detached overlay is a dict.
+    Ok(held_of(world, OVERLAY_KEY)?.is_some_and(|state| is_detached(&state) || crate::core::tracked::as_readable_dict(&state).is_some()))
 }
 
 #[pyfunction]
@@ -2532,10 +2575,10 @@ fn stamped_is_good(row: &Doc) -> PyResult<i64> {
 /// `_GeometryOverlayState` for what it takes as it is, and the rule's checks after it.
 fn check_overlay(world: &Bound<'_, PyAny>) -> PyResult<()> {
     let py = world.py();
-    let Some(node) = state_of(world, OVERLAY_KEY)? else {
+    // Read as a `V`, a detached one from its row.
+    let Some(value) = state_value(world, OVERLAY_KEY)? else {
         return Ok(());
     };
-    let value = V::from_py(&node)?;
     let state = map_of(&value)?;
     const NAMES: [&str; 9] = [
         "schema_version", "policy_version", "facility_points", "partitions", "route_modifiers", "history", "temporary_rooms",

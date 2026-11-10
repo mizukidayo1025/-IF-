@@ -44,14 +44,25 @@ def _copy(world: WorldState) -> WorldState:
     return WorldState.from_dict(world.to_dict())
 
 
+_VALUE_ROWS = frozenset(
+    {
+        "population_presence_v1",
+        "population_lifecycle_v1",
+        "population_dynamics_v1",
+        "geometry_overlay_v1",
+    }
+)
+
+
 def _bytes(world: WorldState) -> str:
     """The state as it is, valid or not: `to_dict` would check it.
 
     A detached namespace (test_detached_namespaces.py) is read as a tree built in the order of
-    its typed row; these worlds come from JSON, whose keys are sorted.
+    its typed row; these worlds come from JSON, whose keys are sorted. The namespaces whose row is
+    a `V` (_VALUE_ROWS) keep the order of their keys, as the tree did, and are read as they are.
     """
     model_state = dict(world.model_state)
-    for name in DETACHED_NAMESPACES & model_state.keys():
+    for name in (DETACHED_NAMESPACES - _VALUE_ROWS) & model_state.keys():
         model_state[name] = json.loads(json.dumps(model_state[name], sort_keys=True))
     parts = (
         model_state,

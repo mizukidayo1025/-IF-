@@ -24,7 +24,7 @@ from support.world import world_digest
 from sheltersim import native
 from sheltersim.core.engine import TickEngine
 from sheltersim.core.kernels import KernelRefusal
-from sheltersim.core.state_mirror import rust_validated
+from sheltersim.core.state_mirror import detach_unread, read_only_part, rust_validated
 from sheltersim.core.world import StateInvariantError, WorldState
 from sheltersim.domain import movement
 from sheltersim.domain.agent_dynamics import learn_facility
@@ -260,6 +260,29 @@ def test_a_held_bed_is_given_up_and_sleep_keeps_it(generated_scenario: Any) -> N
     kernel(controller, _proposal(ActionKind.WAIT, first, world))
     kernel(controller, _proposal(ActionKind.SLEEP, second, world))
     assert list(reservations) == [second]
+
+
+def test_a_held_bed_is_given_up_in_the_row_of_a_detached_overlay(generated_scenario: Any) -> None:
+    # #134: the overlay's row alone holds it; the kernel deletes from the row and builds no tree.
+    world, controller = _run(generated_scenario, 5)
+    first, second = _idle_people(world, 2)
+    reservations = world.model_state["geometry_overlay_v1"]["bed_reservations"]
+    for agent_id in (first, second):
+        reservations[agent_id] = {
+            "agent_id": agent_id,
+            "room_id": "room",
+            "bed_index": 0,
+            "target_id": "bed-x",
+            "reserved_minute": 0,
+        }
+    detach_unread(world)
+    mirror = world._core.mirror("geometry_overlay_v1")
+    rebuilds = mirror.stats()["rebuilds"]
+    kernel = native.rules("proposals").apply_effect
+    kernel(controller, _proposal(ActionKind.WAIT, first, world))
+    kernel(controller, _proposal(ActionKind.SLEEP, second, world))
+    assert mirror.is_detached and mirror.stats()["rebuilds"] == rebuilds
+    assert list(read_only_part(world, "geometry_overlay_v1", "bed_reservations")) == [second]
 
 
 def test_a_position_point2d_refuses_is_python_s_error(generated_scenario: Any) -> None:

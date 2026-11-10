@@ -29,7 +29,7 @@ use crate::core::errors;
 use crate::core::mathx::py_min;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_int_text, exact_str, unsupported};
 use crate::core::value::V;
-use crate::core::world_core::attached_state;
+use crate::core::world_core::{attached_state, state_value, with_state_value};
 use crate::rules::movement::{mirror_held, Scene};
 use crate::rules::movement_geometry::Pt;
 use crate::state::entities::{entities_of, Activity, EntityStore};
@@ -100,6 +100,19 @@ pub(crate) fn namespace<'py>(world: &Bound<'py, PyAny>, name: &str) -> PyResult<
     let table = attribute(world, intern!(world.py(), "model_state"))?;
     // These rules read and write through the tree: a detached namespace's is rebuilt.
     Ok(attached_state(&table, name)?.filter(|state| !state.is_none()))
+}
+
+/// Whether a rule that reads `model_state[name][part]` surely has nothing to do: the namespace is
+/// absent or None, or a dict whose part is there and empty. Read as a `V`, a detached namespace
+/// from its row, so that such a rule builds no tree; anything else goes on to read the tree.
+pub(crate) fn nothing_in(world: &Bound<'_, PyAny>, name: &str, part: &str) -> PyResult<bool> {
+    with_state_value(world, name, |state| {
+        Ok(match state {
+            None | Some(V::Null) => true,
+            Some(V::Map(state)) => state.get(part).is_some_and(|value| !value.is_truthy()),
+            Some(_) => false,
+        })
+    })
 }
 
 pub(crate) fn has_namespace(world: &Bound<'_, PyAny>, name: &str) -> PyResult<bool> {
@@ -455,7 +468,12 @@ fn transition_is_plain(value: &V) -> PyResult<()> {
 
 /// `PresenceState.model_validate(raw)`, for a document it certainly accepts.
 pub(crate) fn presence_is_plain(raw: &Bound<'_, PyAny>) -> PyResult<()> {
-    let V::Map(state) = V::from_py(raw)? else {
+    presence_value_is_plain(&V::from_py(raw)?)
+}
+
+/// `presence_is_plain` of the state as a `V`.
+pub(crate) fn presence_value_is_plain(raw: &V) -> PyResult<()> {
+    let V::Map(state) = raw else {
         return unsupported("the presence state is not a mapping");
     };
     if state.keys().any(|key| !["schema_version", "people", "history"].contains(&&**key)) {
@@ -966,6 +984,9 @@ struct AdmitPlan<'py> {
 }
 
 fn plan_admit_pending<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<AdmitPlan<'py>>> {
+    if nothing_in(world, DYNAMICS, "pending_arrivals")? {
+        return Ok(None);
+    }
     let Some(state) = namespace(world, DYNAMICS)? else {
         return Ok(None);
     };
@@ -2612,6 +2633,9 @@ pub(crate) fn departures<'py>(
 /// asks this first: which of them get a place depends on the writes, and it can't refuse then.
 pub(crate) fn check_waiting_for_admission(world: &Bound<'_, PyAny>) -> PyResult<()> {
     let py = world.py();
+    if nothing_in(world, DYNAMICS, "pending_arrivals")? {
+        return Ok(());
+    }
     let Some(state) = namespace(world, DYNAMICS)? else {
         return Ok(());
     };
@@ -2800,10 +2824,11 @@ const PENDING_INVALID: &str = "population_dynamics_v1 pending arrival is invalid
 pub(crate) fn validate_population_dynamics_state(world: &Bound<'_, PyAny>) -> PyResult<()> {
     let py = world.py();
     planning((|| {
-        let Some(state) = namespace(world, DYNAMICS)? else {
+        // Read as a `V`, a detached one from its row.
+        let Some(state) = state_value(world, DYNAMICS)?.filter(|state| !matches!(state, V::Null)) else {
             return Ok(());
         };
-        let V::Map(document) = V::from_py(&state)? else {
+        let V::Map(document) = state else {
             return invalid(SCHEMA);
         };
         const FIELDS: [&str; 8] = ["schema_version", "policy_version", "source_id", "initial_agent_ids", "profile_traits", "pending_arrivals", "arrivals", "departures"];
@@ -2884,11 +2909,13 @@ fn check_pending_items(world: &Bound<'_, PyAny>, pending: &[V], contexts: &Index
     let agents = attribute(world, intern!(py, "agents"))?;
     let minute_index = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
     let duration = exact_int(&attribute(world, intern!(py, "duration_minutes"))?)?;
-    let presence = namespace(world, PRESENCE)?;
-    let people = match &presence {
-        Some(raw) if is_dict(raw) => Some(get_map(raw, "people")?),
-        _ => None,
-    };
+    // The people of the presence state, copied from it as a `V` (a detached one from its row).
+    let people = with_state_value(world, PRESENCE, |presence| {
+        Ok(match presence {
+            Some(V::Map(presence)) => Some(presence.get("people").cloned().unwrap_or_else(|| V::Map(IndexMap::new()))),
+            _ => None,
+        })
+    })?;
     let in_zones = |value: &V| -> PyResult<bool> {
         match value {
             V::Str(id) => zones.contains(&**id),
@@ -3044,11 +3071,18 @@ fn check_pending_items(world: &Bound<'_, PyAny>, pending: &[V], contexts: &Index
                 return invalid("completed arrival approach retains a pending event");
             }
             if let Some(people) = &people {
-                let person = get(people, agent_id)?;
-                let empty = person.is_none() || !person.is_truthy()?;
+                let V::Map(people) = people else {
+                    return unsupported("the presence's people are not a dict");
+                };
                 let expected = if finished.is_none() { "approaching" } else { "awaiting_admission" };
-                if !empty && !get(&person, "status")?.eq(expected)? {
-                    return invalid("arrival approach disagrees with population presence");
+                match people.get(&*agent_id).filter(|person| person.is_truthy()) {
+                    None => {}
+                    Some(V::Map(person)) => {
+                        if !matches!(person.get("status"), Some(V::Str(status)) if &**status == expected) {
+                            return invalid("arrival approach disagrees with population presence");
+                        }
+                    }
+                    Some(_) => return unsupported("a presence record is not a dict"),
                 }
             }
         }

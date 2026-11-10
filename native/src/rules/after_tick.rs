@@ -45,9 +45,10 @@ use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBool, PyDict, PyFrozenSet, PyList, PyString, PyTuple};
 use rustc_hash::FxHashSet;
 
-use crate::core::row::{attribute, exact_dict, exact_int, exact_str, unsupported};
-use crate::core::tracked::{as_readable_dict, as_readable_list};
-use crate::core::world_core::{core_of, raw_dict_get, NamespaceMirror};
+use crate::core::row::{attribute, exact_int, exact_str, unsupported};
+use crate::core::tracked::{as_readable_dict, as_readable_list, is_detached};
+use crate::core::value::V;
+use crate::core::world_core::{core_of, raw_dict_get, with_state_value, NamespaceMirror};
 use crate::rules::tick_validation::entity_rules_watching;
 use crate::state::entities::entities_of;
 use crate::validation::ValuesSnapshot;
@@ -156,8 +157,8 @@ impl Plan {
 /// A namespace as the last passed check saw it.
 enum Stamp {
     Absent,
-    /// The tree and its mirror's generation.
-    Tree(Py<PyAny>, Py<PyAny>),
+    /// The tree, or the mirror of a detached namespace, and the mirror's generation.
+    Tree(Py<PyAny>, u64),
 }
 
 /// The facts of the last check this kernel passed for one world (`world.__dict__["_tick_memo"]`).
@@ -350,61 +351,63 @@ impl<'py> Check<'_, 'py> {
         let Some(value) = raw_dict_get(self.model_state.as_any(), key.as_any())? else {
             return Ok(if matches!(kept, Some(Stamp::Absent)) { Seen::Same } else { Seen::Changed(Stamp::Absent) });
         };
-        let generation = as_mirror(&mirror)?.call_method1(intern!(py, "generation_of"), (&value,))?;
-        if generation.is_none() {
+        let mirror = as_mirror(&mirror)?;
+        let Some(generation) = mirror.try_borrow()?.held_generation(&value) else {
             return unsupported("a namespace the memo compares holds another tree");
-        }
+        };
+        // A detached namespace is told apart by its mirror, since every world holds the one
+        // placeholder.
+        let value = if is_detached(&value) { mirror.clone().into_any() } else { value };
         if let Some(Stamp::Tree(before, before_generation)) = kept {
-            if before.bind(py).is(&value) && before_generation.bind(py).eq(&generation)? {
+            if before.bind(py).is(&value) && *before_generation == generation {
                 return Ok(Seen::Same);
             }
         }
-        Ok(Seen::Changed(Stamp::Tree(value.unbind(), generation.unbind())))
+        Ok(Seen::Changed(Stamp::Tree(value.unbind(), generation)))
     }
 
     /// The IDs a body record or config may name besides the people here: the population state's
     /// `initial_agent_ids` and `profile_traits`, and its departures for the history.
     fn historical_ids(&self, with_departures: bool) -> PyResult<FxHashSet<String>> {
-        let py = self.py();
-        let mut ids = FxHashSet::default();
-        let Some(population) = self.state(DYNAMICS)? else {
-            return Ok(ids);
-        };
-        let Some(population) = as_readable_dict(&population) else {
-            return Ok(ids);
-        };
-        if let Some(initial) = population.get_item(intern!(py, "initial_agent_ids"))? {
-            let Some(initial) = as_readable_list(&initial) else {
-                return unsupported("the initial agents are not a list");
+        // Read as a `V`, a detached one from its row.
+        with_state_value(self.world, DYNAMICS, |population| {
+            let mut ids = FxHashSet::default();
+            let Some(V::Map(population)) = population else {
+                return Ok(ids);
             };
-            for id in initial.iter() {
-                ids.insert(exact_str(&id)?.to_owned());
-            }
-        }
-        if let Some(traits) = population.get_item(intern!(py, "profile_traits"))? {
-            for (id, _) in exact_dict(&traits)?.iter() {
-                ids.insert(exact_str(&id)?.to_owned());
-            }
-        }
-        if with_departures {
-            if let Some(departures) = population.get_item(intern!(py, "departures"))? {
-                let Some(departures) = as_readable_list(&departures) else {
-                    return unsupported("the departures are not a list");
+            if let Some(initial) = population.get("initial_agent_ids") {
+                let V::List(initial) = initial else {
+                    return unsupported("the initial agents are not a list");
                 };
-                for item in departures.iter() {
-                    if let Some(item) = as_readable_dict(&item) {
-                        if let Some(id) = item.get_item(intern!(py, "agent_id"))? {
-                            if let Ok(id) = id.downcast_exact::<PyString>() {
-                                ids.insert(id.to_str()?.to_owned());
-                            } else if id.is_instance_of::<PyString>() {
-                                return unsupported("a departure's ID is a str subclass");
+                for id in initial {
+                    let V::Str(id) = id else {
+                        return unsupported("a value is not a str");
+                    };
+                    ids.insert(id.to_string());
+                }
+            }
+            if let Some(traits) = population.get("profile_traits") {
+                let V::Map(traits) = traits else {
+                    return unsupported("a value is not a plain dict");
+                };
+                ids.extend(traits.keys().map(|id| id.to_string()));
+            }
+            if with_departures {
+                if let Some(departures) = population.get("departures") {
+                    let V::List(departures) = departures else {
+                        return unsupported("the departures are not a list");
+                    };
+                    for item in departures {
+                        if let V::Map(item) = item {
+                            if let Some(V::Str(id)) = item.get("agent_id") {
+                                ids.insert(id.to_string());
                             }
                         }
                     }
                 }
             }
-        }
-        Ok(ids)
+            Ok(ids)
+        })
     }
 
     /// The history rule of `validate_body_state`, for the records since the last tick, past the
@@ -625,34 +628,35 @@ fn report_writes_to(request: &Bound<'_, PyAny>, listener: &Bound<'_, PyAny>) -> 
 
 /// A dict's `pending` part (`pending_relocations`, `pending_arrivals`, ...) is empty or absent, in a
 /// state that is a dict.
-fn empty_part(state: Option<&Bound<'_, PyAny>>, part: &Bound<'_, PyString>) -> PyResult<bool> {
-    let Some(state) = state.and_then(as_readable_dict) else {
-        return Ok(false);
-    };
-    Ok(!state.get_item(part)?.is_some_and(|value| value.is_truthy().unwrap_or(true)))
+/// Whether `model_state[name]` is a dict whose part is absent or empty. The namespaces of the
+/// memo are read as a `V`, a detached one from its row.
+fn empty_part(world: &Bound<'_, PyAny>, name: &str, part: &str) -> PyResult<bool> {
+    with_state_value(world, name, |state| {
+        let Some(V::Map(state)) = state else {
+            return Ok(false);
+        };
+        Ok(!state.get(part).is_some_and(V::is_truthy))
+    })
 }
 
 /// Whether no presence record points into other model state, which may change.
-fn no_archive_paths(presence: Option<&Bound<'_, PyAny>>) -> PyResult<bool> {
-    let Some(presence) = presence.and_then(as_readable_dict) else {
-        return Ok(false);
-    };
-    let Some(people) = presence.get_item(intern!(presence.py(), "people"))? else {
-        return Ok(false);
-    };
-    let Some(people) = as_readable_dict(&people) else {
-        return Ok(false);
-    };
-    for (_, person) in people.iter() {
-        if let Some(person) = as_readable_dict(&person) {
-            if let Some(path) = person.get_item(intern!(person.py(), "archive_path"))? {
-                if path.is_truthy()? {
+fn no_archive_paths(world: &Bound<'_, PyAny>) -> PyResult<bool> {
+    with_state_value(world, PRESENCE, |presence| {
+        let Some(V::Map(presence)) = presence else {
+            return Ok(false);
+        };
+        let Some(V::Map(people)) = presence.get("people") else {
+            return Ok(false);
+        };
+        for person in people.values() {
+            if let V::Map(person) = person {
+                if person.get("archive_path").is_some_and(V::is_truthy) {
                     return Ok(false);
                 }
             }
         }
-    }
-    Ok(true)
+        Ok(true)
+    })
 }
 
 fn check(table: &Table, world: &Bound<'_, PyAny>, memo: &Bound<'_, TickMemo>) -> PyResult<()> {
@@ -750,27 +754,26 @@ fn check(table: &Table, world: &Bound<'_, PyAny>, memo: &Bound<'_, TickMemo>) ->
     };
     let same = |index: usize| matches!(seen[index], Seen::Same);
     let presence = cx.state(PRESENCE)?;
-    let presence_is_self_contained = if same(0) { self_contained_before } else { no_archive_paths(presence.as_ref())? };
+    let presence_is_self_contained = if same(0) { self_contained_before } else { no_archive_paths(world)? };
     let presence_unchanged = agents_unchanged && zones_unchanged && same(0) && presence_is_self_contained;
     let lifecycle_unchanged = agents_unchanged
         && zones_unchanged
         && same(1)
         && (presence.is_none() || presence_unchanged)
         // A pending relocation is compared with the tasks and the event queue.
-        && empty_part(cx.state(LIFECYCLE)?.as_ref(), intern!(py, "pending_relocations"))?;
+        && empty_part(world, LIFECYCLE, "pending_relocations")?;
     let dynamics_unchanged = agents_unchanged
         && zones_unchanged
         && same(2)
         // A pending arrival is compared with the event queue, the clock and the presence.
-        && empty_part(cx.state(DYNAMICS)?.as_ref(), intern!(py, "pending_arrivals"))?;
-    let overlay = cx.state(OVERLAY)?;
+        && empty_part(world, DYNAMICS, "pending_arrivals")?;
     let overlay_unchanged = configs_unchanged
         && agents_unchanged
         && facilities_unchanged
         && same(3)
         // Rooms expire with the clock, and route access is compared with the graph.
-        && empty_part(overlay.as_ref(), intern!(py, "temporary_rooms"))?
-        && empty_part(overlay.as_ref(), intern!(py, "route_modifiers"))?;
+        && empty_part(world, OVERLAY, "temporary_rooms")?
+        && empty_part(world, OVERLAY, "route_modifiers")?;
 
     // ---- The support requests to check: open, written or new since the last check. Their order does
     // not matter to a valid world; with several broken ones it decides only which error comes first.
@@ -806,14 +809,27 @@ fn check(table: &Table, world: &Bound<'_, PyAny>, memo: &Bound<'_, TickMemo>) ->
         let Some(state) = model_state.get_item(name)? else {
             return unsupported("a declared namespace is missing");
         };
-        let Some(state) = as_readable_dict(&state) else {
-            return unsupported("a declared namespace is the Python rule's");
+        let text = name.to_str()?;
+        let found = if is_detached(&state) {
+            // The row alone holds it.
+            with_state_value(world, text, |state| match state {
+                Some(V::Map(state)) => match state.get("schema_version") {
+                    Some(V::Int(found)) => Ok(*found),
+                    Some(_) => unsupported("a value is not an int"),
+                    None => unsupported("no schema version"),
+                },
+                _ => unsupported("a declared namespace is the Python rule's"),
+            })?
+        } else {
+            let Some(state) = as_readable_dict(&state) else {
+                return unsupported("a declared namespace is the Python rule's");
+            };
+            let found = state.get_item(intern!(py, "schema_version"))?;
+            exact_int(&found.ok_or_else(|| Unsupported::new_err("no schema version"))?)?
         };
-        let found = state.get_item(intern!(py, "schema_version"))?;
-        if exact_int(&found.ok_or_else(|| Unsupported::new_err("no schema version"))?)? != *version {
+        if found != *version {
             return unsupported("a declared namespace has another version");
         }
-        let text = name.to_str()?;
         if text == PRESENCE && presence_unchanged {
             continue;
         }

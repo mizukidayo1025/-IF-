@@ -22,9 +22,9 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyString};
 
-use crate::core::row::{attribute, exact_dict, exact_int, exact_list, exact_str, state_row, unsupported, Field, IdMap};
+use crate::core::row::{attribute, exact_dict, exact_int, exact_str, state_row, unsupported, Field, IdMap};
 use crate::core::value::V;
-use crate::core::world_core::raw_dict_get;
+use crate::core::world_core::{raw_dict_get, with_state_value};
 use crate::eventlog::{AppliedOutcome, EventStore};
 use crate::state::entities::{entities_of, Activity, EntityStore};
 use crate::state::events::{is_stable_id, EventKind, EventRef, EventRow, EventStatus, EventWriter};
@@ -707,67 +707,61 @@ pub(crate) fn complete_for_event(
 }
 
 /// `state.get(field, ())` of a namespace when `isinstance(state, dict)`, for a list.
-fn rows_of<'py>(
-    table: &Bound<'py, PyDict>,
-    name: &Bound<'py, PyString>,
-    field: &Bound<'py, PyString>,
-) -> PyResult<Vec<Bound<'py, PyAny>>> {
-    let Some(state) = table.get_item(name)? else {
-        return Ok(Vec::new());
-    };
-    if state.downcast::<PyDict>().is_err() {
-        return Ok(Vec::new());
-    }
-    match exact_dict(&state)?.get_item(field)? {
-        Some(rows) => Ok(exact_list(&rows)?.iter().collect()),
-        None => Ok(Vec::new()),
-    }
+/// The namespace is read as a `V`, a detached one from its row; f gets each row.
+fn rows_of(world: &Bound<'_, PyAny>, name: &str, field: &str, mut f: impl FnMut(&V)) -> PyResult<()> {
+    with_state_value(world, name, |state| {
+        let Some(V::Map(state)) = state else {
+            return Ok(());
+        };
+        match state.get(field) {
+            Some(V::List(rows)) => {
+                rows.iter().for_each(&mut f);
+                Ok(())
+            }
+            Some(_) => unsupported("a value is not a plain list"),
+            None => Ok(()),
+        }
+    })
 }
 
 /// The agents an applied population event took away, and why: the middle of
 /// `record_applied_population_exit`. `population_*` is not Rust's yet.
 fn population_causes(world: &Bound<'_, PyAny>, event_id: &str) -> PyResult<BTreeMap<String, &'static str>> {
-    let py = world.py();
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let table = exact_dict(&table)?;
     let mut causes = BTreeMap::new();
-    let matching = |row: &Bound<'_, PyAny>| -> PyResult<Option<String>> {
-        if row.downcast::<PyDict>().is_err() {
-            return Ok(None);
-        }
-        let row = exact_dict(row)?;
-        let same_event = match row.get_item(intern!(py, "event_id"))? {
-            Some(value) => value.downcast::<PyString>().is_ok() && exact_str(&value)? == event_id,
-            None => false,
+    let matching = |row: &V| -> Option<String> {
+        let V::Map(row) = row else {
+            return None;
         };
-        if !same_event {
-            return Ok(None);
+        if !matches!(row.get("event_id"), Some(V::Str(id)) if &**id == event_id) {
+            return None;
         }
-        match row.get_item(intern!(py, "agent_id"))? {
-            Some(value) if value.downcast::<PyString>().is_ok() => Ok(Some(exact_str(&value)?.to_owned())),
-            _ => Ok(None),
+        match row.get("agent_id") {
+            Some(V::Str(agent_id)) => Some(agent_id.to_string()),
+            _ => None,
         }
     };
-    for row in rows_of(table, intern!(py, "population_lifecycle_v1"), intern!(py, "history"))? {
-        let Some(agent_id) = matching(&row)? else {
-            continue;
+    rows_of(world, "population_lifecycle_v1", "history", |row| {
+        let Some(agent_id) = matching(row) else {
+            return;
         };
-        let action = exact_dict(&row)?.get_item(intern!(py, "action"))?;
-        match action.as_ref().and_then(|action| action.downcast_exact::<PyString>().ok()).map(|text| text.to_str()) {
-            Some(Ok("temporary_exit")) => {
+        let V::Map(fields) = row else {
+            return;
+        };
+        match fields.get("action") {
+            Some(V::Str(action)) if &**action == "temporary_exit" => {
                 causes.insert(agent_id, "population_temporary_exit");
             }
-            Some(Ok("transferred")) => {
+            Some(V::Str(action)) if &**action == "transferred" => {
                 causes.insert(agent_id, "population_transfer");
             }
             _ => {}
         }
-    }
-    for row in rows_of(table, intern!(py, "population_dynamics_v1"), intern!(py, "departures"))? {
-        if let Some(agent_id) = matching(&row)? {
+    })?;
+    rows_of(world, "population_dynamics_v1", "departures", |row| {
+        if let Some(agent_id) = matching(row) {
             causes.insert(agent_id, "population_departure");
         }
-    }
+    })?;
     Ok(causes)
 }
 

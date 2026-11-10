@@ -26,7 +26,9 @@ use crate::core::errors::{self, Outcome};
 use crate::core::mathx::{py_max, py_min};
 use crate::core::row::{attribute, exact_float, exact_int, exact_str, unsupported};
 use crate::core::tracked::as_readable_dict;
-use crate::core::world_core::{mirror_of, raw_dict_get, NamespaceMirror};
+use crate::core::value::V;
+use crate::core::world_core::{mirror_of, raw_dict_get, with_state_value, NamespaceMirror};
+use indexmap::IndexMap;
 use crate::rules::handlers::{get, kind_is, number, status_member};
 use crate::rules::social_dialogue::{context_is_valid, context_verdict, is_other_json_value, is_plain_mapping};
 use crate::rules::social_network::{action_relief, body_state_of, mapping_get};
@@ -100,30 +102,31 @@ fn context_holds(context: &Bound<'_, PyAny>, ids: &[&Bound<'_, PyString>], due_m
 
 /// `current_household_id` of `domain/population_lifecycle.py`, where a person the presence state
 /// does not list has none, unlike a view's `group_of`.
+/// The presence state is read as a `V`, a detached one from its row: None when it is not a dict.
 fn current_household(
-    presence: Option<&Bound<'_, PyAny>>,
-    id: &Bound<'_, PyString>,
+    presence: Option<&IndexMap<Arc<str>, V>>,
+    id: &str,
     profile_group: &Option<Arc<str>>,
 ) -> PyResult<Option<Arc<str>>> {
     let Some(presence) = presence else {
         return Ok(profile_group.clone());
     };
-    let py = id.py();
-    let Some(people) = raw_dict_get(presence, intern!(py, "people").as_any())? else {
+    let Some(people) = presence.get("people") else {
         return Ok(None);
     };
-    if as_readable_dict(&people).is_none() {
+    let V::Map(people) = people else {
         return unsupported("the presence state's people are not a dict");
-    }
-    let Some(person) = raw_dict_get(&people, id.as_any())? else {
+    };
+    let Some(person) = people.get(id) else {
         return Ok(None);
     };
-    let Some(person) = as_readable_dict(&person) else {
+    let V::Map(person) = person else {
         return unsupported("a presence record is not a plain dict");
     };
-    match person.get_item(intern!(py, "household_id"))? {
-        Some(household) if !household.is_none() => Ok(Some(Arc::from(exact_str(&household)?))),
-        _ => Ok(None),
+    match person.get("household_id") {
+        None | Some(V::Null) => Ok(None),
+        Some(V::Str(household)) => Ok(Some(household.clone())),
+        Some(_) => unsupported("a value is not a str"),
     }
 }
 
@@ -257,20 +260,9 @@ pub(crate) fn apply_event<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyA
 
     // What the rule reads outside the rows.
     let table = attribute(world, intern!(py, "model_state"))?;
-    let Some(table_dict) = as_readable_dict(&table) else {
+    if as_readable_dict(&table).is_none() {
         return unsupported("model_state is not readable");
-    };
-    let presence = if interaction == "family_care" {
-        match table_dict.get_item(intern!(py, "population_presence_v1"))? {
-            Some(state) if as_readable_dict(&state).is_some() => Some(state),
-            Some(state) if state.is_instance_of::<pyo3::types::PyDict>() => {
-                return unsupported("the presence state is another kind of dict");
-            }
-            _ => None,
-        }
-    } else {
-        None
-    };
+    }
     let body = body_state_of(world)?;
     let relief = action_relief(body.as_ref(), actor_key)?;
     let helps = interaction != "reassurance_exchange";
@@ -329,8 +321,17 @@ pub(crate) fn apply_event<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyA
     }
     let participant_key = participant_object.as_ref().expect("a str").downcast_exact::<PyString>()?;
     if interaction == "family_care" {
-        let actor_home = current_household(presence.as_ref(), actor_key, &household_groups.0)?;
-        let participant_home = current_household(presence.as_ref(), participant_key, &household_groups.1)?;
+        let (actor_key, participant_key) = (actor_key.to_str()?, participant_key.to_str()?);
+        let (actor_home, participant_home) = with_state_value(world, "population_presence_v1", |presence| {
+            let presence = match presence {
+                Some(V::Map(presence)) => Some(presence),
+                _ => None,
+            };
+            Ok((
+                current_household(presence, actor_key, &household_groups.0)?,
+                current_household(presence, participant_key, &household_groups.1)?,
+            ))
+        })?;
         if actor_home.is_none() || actor_home != participant_home {
             return suppression(errors::noted(Outcome::Suppressed, NOT_SAME_HOUSEHOLD));
         }

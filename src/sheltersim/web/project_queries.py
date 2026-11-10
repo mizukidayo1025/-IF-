@@ -9,6 +9,7 @@ from typing import Any
 from sheltersim.contracts.workspace import ComparisonQuery, HistoryQuery
 from sheltersim.core.checkpoint_cache import CheckpointHistoryCache
 from sheltersim.core.model_version import same_models, saved_point_view
+from sheltersim.core.state_mirror import read_only_part
 from sheltersim.experiments.timeline import TimelineStore, requested_minute
 from sheltersim.storage.projects import ProjectStore, StorageError, canonical, digest
 
@@ -123,7 +124,7 @@ class ProjectQueries:
             view = saved_point_view(world)
             from sheltersim.inspection.frames import person_projection, social_event_records
 
-            presence = world.model_state.get("population_presence_v1", {}).get("people", {})
+            presence = read_only_part(world, "population_presence_v1", "people", {})
             if query.kind == "people":
                 ids = [query.agent_id]
             else:

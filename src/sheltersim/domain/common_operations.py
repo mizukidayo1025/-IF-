@@ -21,7 +21,7 @@ from sheltersim.contracts.operations import (
 )
 from sheltersim.core.history import records_since_previous_tick
 from sheltersim.core.kernels import kernel_only
-from sheltersim.core.state_mirror import rust_accepts
+from sheltersim.core.state_mirror import read_only_part, rust_accepts
 from sheltersim.core.tick_validation import saved_json
 from sheltersim.core.world import WorldState
 from sheltersim.domain.geometry_overlay import parsed_facility_geometry
@@ -472,7 +472,7 @@ def operational_demand_snapshot(world: WorldState) -> dict[str, Any]:
         minute=world.minute_index,
         population_count=len(world.agents),
         pending_arrivals=len(
-            world.model_state.get("population_dynamics_v1", {}).get("pending_arrivals", [])
+            read_only_part(world, "population_dynamics_v1", "pending_arrivals", [])
         ),
         zones=tuple(occupancy_snapshot(world)["zones"]),
         services=tuple(services),

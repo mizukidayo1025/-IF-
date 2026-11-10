@@ -37,7 +37,7 @@ use crate::core::errors::{self, Outcome};
 use crate::core::row::{attribute, exact_int, exact_str, namespace_is_absent, unsupported};
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::V;
-use crate::core::world_core::{mirror_of, raw_dict_get, NamespaceMirror};
+use crate::core::world_core::{mirror_of, raw_dict_get, read_only_state, NamespaceMirror};
 use crate::rules::care_receipts::{facility_recovery_record, handoff_record};
 use crate::rules::staff_dynamics::{is_available, staff_status};
 use crate::rules::staff_order::{order_operation, Order};
@@ -1387,7 +1387,11 @@ fn geometry_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: boo
     guard_passes(world, &row, event)?;
     if expire {
         // The Python rule's reads, on the Python values: `.get(key, {})` all the way down.
-        let overlay = get_or_empty(&model_state(world)?, "geometry_overlay_v1")?;
+        // A detached overlay is a document of its row, read and never written.
+        let overlay = match read_only_state(world, "geometry_overlay_v1")? {
+            Some(overlay) => overlay,
+            None => PyDict::new(py).into_any(),
+        };
         let raw = attribute(event, intern!(py, "payload"))?;
         let modifier = raw.get_item(intern!(py, "modifier_id"))?;
         let active = match &**op {

@@ -11,7 +11,7 @@ from pydantic import Field, model_validator
 
 from sheltersim.contracts.extensions import ExtensionModel, Finite, Identifier
 from sheltersim.contracts.workspace import StateDescriptor
-from sheltersim.core.state_mirror import rust_validated
+from sheltersim.core.state_mirror import read_only_state, rust_validated
 
 if TYPE_CHECKING:
     from sheltersim.core.rng import KeyedRandom
@@ -197,7 +197,8 @@ def validate_declared_states(world: Any) -> None:
     """Check the declared namespaces."""
     descriptors = declared_states(world.model_configs)
     for namespace, descriptor in descriptors.items():
-        state = world.model_state.get(namespace)
+        # A detached namespace is a document of its row: the validators only read it.
+        state = read_only_state(world, namespace)
         if (
             not isinstance(state, dict)
             or type(state.get("schema_version")) is not int
@@ -240,7 +241,7 @@ def entity_projections(
         projector = _CONTRACTS[namespace][3]
         if projector is None:
             continue
-        state = frozen(world.model_state[namespace])
+        state = frozen(read_only_state(world, namespace))
         public = {
             key for key, metadata in descriptor.fields.items() if metadata.get("public") is True
         }

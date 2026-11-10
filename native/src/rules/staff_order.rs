@@ -18,7 +18,7 @@ use pyo3::types::{PyDict, PyList, PySlice, PyString};
 use crate::core::errors;
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, namespace_is_absent, unsupported};
 use crate::core::value::V;
-use crate::core::world_core::NamespaceMirror;
+use crate::core::world_core::{with_state_value, NamespaceMirror};
 use crate::rules::effects::{active_outage, has_active_modifier};
 use crate::rules::handlers::{assumption, get, new_event, NewEvent};
 use crate::rules::movement_geometry::Geo;
@@ -172,8 +172,11 @@ fn validate(world: &Bound<'_, PyAny>, order: &Order<'_>, minute: i64) -> PyResul
         }
     }
     if order.task_kind == "intake" {
-        let population = get(&table, "population_dynamics_v1")?;
-        if !population.is_instance_of::<PyDict>() || !get(&population, "pending_arrivals")?.is_truthy()? {
+        // Read as a `V`, a detached one from its row.
+        let waiting = with_state_value(world, "population_dynamics_v1", |population| {
+            Ok(matches!(population, Some(V::Map(population)) if population.get("pending_arrivals").is_some_and(V::is_truthy)))
+        })?;
+        if !waiting {
             return failed("intake order requires pending arrivals");
         }
     }

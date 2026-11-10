@@ -406,7 +406,7 @@ class WorldState:
                 stall_history = service_state["queue_stall_history"]
                 # People away on a temporary exit or transfer keep their place in the
                 # population lifecycle archive; their past service records stay valid (#79).
-                lifecycle = self.model_state.get("population_lifecycle_v1")
+                lifecycle = state_mirror.read_only_state(self, "population_lifecycle_v1")
                 retained_ids = (
                     set(lifecycle.get("people", {}))
                     if isinstance(lifecycle, dict) and isinstance(lifecycle.get("people"), dict)
@@ -600,7 +600,7 @@ class WorldState:
             validate_event_history or not rust_validated(self, RESOURCE_LEDGER_KEY)
         ):
             try:
-                population_state = self.model_state.get("population_dynamics_v1", {})
+                population_state = state_mirror.read_only_state(self, "population_dynamics_v1", {})
                 archived_agent_ids: set[str] = set()
                 if population_state:
                     if (

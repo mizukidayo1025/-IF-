@@ -20,7 +20,9 @@ use rustc_hash::FxBuildHasher;
 use crate::core::mathx::{hypot, py_fsum, py_max, py_min, py_round, py_sum};
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, unsupported, IdMap};
 use crate::core::value::V;
-use crate::Unsupported;
+use crate::core::world_core::with_state_value;
+use crate::{Encoder, Unsupported};
+use indexmap::IndexMap;
 
 /// Past this a product could overflow where Python's `Point2D` would raise. Nothing real is here.
 const COORDINATE_LIMIT: f64 = 1e100;
@@ -622,14 +624,17 @@ fn same_object(kept: &Option<Py<PyAny>>, now: &Option<Bound<'_, PyAny>>) -> bool
 }
 
 /// The bytes of a part of the overlay: empty for no entries, so most ticks encode nothing.
-fn overlay_bytes(overlay: Option<&Bound<'_, PyDict>>, name: &Bound<'_, PyString>) -> PyResult<Vec<u8>> {
-    let Some(part) = overlay.map(|overlay| overlay.get_item(name)).transpose()?.flatten() else {
-        return Ok(Vec::new());
-    };
-    if exact_dict(&part)?.is_empty() {
-        return Ok(Vec::new());
+fn overlay_bytes(overlay: &IndexMap<Arc<str>, V>, name: &str) -> PyResult<Vec<u8>> {
+    match overlay.get(name) {
+        None => Ok(Vec::new()),
+        Some(V::Map(items)) if items.is_empty() => Ok(Vec::new()),
+        Some(part @ V::Map(_)) => {
+            let mut encoder = Encoder { out: Vec::with_capacity(256) };
+            part.write_json(&mut encoder)?;
+            Ok(encoder.out)
+        }
+        Some(_) => unsupported("a value is not a plain dict"),
     }
-    crate::encode(&part)
 }
 
 /// `_parsed_config`, whose error the Python rule raises itself.
@@ -665,25 +670,27 @@ impl Geo {
         let functions = python(py)?;
         let configs = attribute(world, intern!(py, "model_configs"))?;
         let configs = exact_dict(&configs)?;
-        let table = attribute(world, intern!(py, "model_state"))?;
-        let overlay_value = exact_dict(&table)?.get_item(OVERLAY_KEY)?;
+        // The overlay is read as a `V`: a detached one from its row.
+        let (has_overlay, moves, partitions) = with_state_value(world, OVERLAY_KEY, |overlay| {
+            let Some(overlay) = overlay else {
+                return Ok((false, Vec::new(), Vec::new()));
+            };
+            let V::Map(overlay) = overlay else {
+                return unsupported("a value is not a plain dict");
+            };
+            Ok((true, overlay_bytes(overlay, "facility_points")?, overlay_bytes(overlay, "partitions")?))
+        })?;
         let geometry = match configs.get_item(intern!(py, "facility_geometry"))? {
             Some(raw) if !raw.is_none() => Some(parsed(functions, intern!(py, "facility_geometry"), &raw, &functions.geometry_model)?),
             _ => None,
         };
         let raw_constraints = configs.get_item(intern!(py, "spatial_constraints"))?;
-        let constraints = if raw_constraints.is_some() || overlay_value.is_some() {
+        let constraints = if raw_constraints.is_some() || has_overlay {
             let raw = raw_constraints.unwrap_or_else(|| functions.empty_constraints.bind(py).clone());
             Some(parsed(functions, intern!(py, "spatial_constraints"), &raw, &functions.constraints_model)?)
         } else {
             None
         };
-        let overlay = match &overlay_value {
-            Some(value) => Some(exact_dict(value)?),
-            None => None,
-        };
-        let moves = overlay_bytes(overlay, intern!(py, "facility_points"))?;
-        let partitions = overlay_bytes(overlay, intern!(py, "partitions"))?;
         {
             let mut plans = PLANS.lock().map_err(|_| Unsupported::new_err("the plans are poisoned"))?;
             let found = plans.iter().position(|plan| {
@@ -702,14 +709,13 @@ impl Geo {
             }
         }
         // The overlay's parts are read only when they have entries, as `moves` and `partitions` say.
-        let part = |name: &Bound<'_, PyString>, bytes: &[u8]| -> PyResult<Option<V>> {
-            match (overlay, bytes.is_empty()) {
-                (Some(overlay), false) => Ok(overlay.get_item(name)?.map(|value| V::from_py(&value)).transpose()?),
-                _ => Ok(None),
-            }
-        };
-        let moved_points = part(intern!(py, "facility_points"), &moves)?;
-        let walls_up = part(intern!(py, "partitions"), &partitions)?;
+        let (moved_points, walls_up) = with_state_value(world, OVERLAY_KEY, |overlay| {
+            let part = |name: &str, bytes: &[u8]| match (overlay, bytes.is_empty()) {
+                (Some(V::Map(overlay)), false) => overlay.get(name).cloned(),
+                _ => None,
+            };
+            Ok((part("facility_points", &moves), part("partitions", &partitions)))
+        })?;
         let layout = match &geometry {
             Some(model) => Some(layout_of(model, moved_points.as_ref())?),
             None => None,

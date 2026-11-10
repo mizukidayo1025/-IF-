@@ -11,7 +11,7 @@ from typing import Any
 from sheltersim import native
 from sheltersim.core.history import records_since_previous_tick
 from sheltersim.core.kernels import kernel_only
-from sheltersim.core.state_mirror import rust_accepts
+from sheltersim.core.state_mirror import read_only_state, rust_accepts
 from sheltersim.core.world import WorldState
 from sheltersim.policies.affect import create_affect_policy
 
@@ -267,7 +267,7 @@ def validate_body_config(world: WorldState, state: dict[str, Any]) -> set[str]:
     configured_agent_ids = set().union(*(set(config.get(field, {})) for field in per_agent_fields))
     past_residents = configured_agent_ids - set(world.agents)
     if past_residents:
-        population = world.model_state.get("population_dynamics_v1", {})
+        population = read_only_state(world, "population_dynamics_v1", {})
         historical_ids = set(world.agents)
         if isinstance(population, dict):
             historical_ids.update(population.get("initial_agent_ids", ()))
@@ -407,7 +407,7 @@ def validate_body_state(
     validate_body_config(world, state)
     if not rows_accepted:
         _validate_body_rows(world, state)
-    population = world.model_state.get("population_dynamics_v1", {})
+    population = read_only_state(world, "population_dynamics_v1", {})
     historical_ids = set(world.agents)
     if isinstance(population, dict):
         historical_ids.update(population.get("initial_agent_ids", ()))

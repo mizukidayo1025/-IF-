@@ -21,9 +21,10 @@ use pyo3::types::{PyBool, PyDict, PyInt, PyString, PyTuple, PyType};
 
 use crate::core::mathx::{py_fsum, py_max, py_min, py_sum};
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_list, exact_str, map_set, unsupported, Field};
-use crate::core::world_core::{mirror_of, NamespaceMirror, Tree};
+use crate::core::value::V;
+use crate::core::world_core::{mirror_of, with_state_value, NamespaceMirror, Tree};
 use crate::rules::movement_geometry::{
-    distance, point_along_polyline, point_in_polygon, point_walkable, polyline_length, usable, Geo, Pt,
+    distance, point_along_polyline, point_in_polygon, point_in_value, point_walkable, polyline_length, usable, Geo, Pt,
 };
 use crate::state::entities::{entities_of, Activity, AgentRow, Entities, EntityStore};
 use crate::rules::queues::{plan_trip, slot_route, write_plan, Fifo, Plan, Route as QueueRoute, BLOCKED_METRIC};
@@ -109,20 +110,16 @@ pub(crate) struct Scene<'py> {
     geo: Arc<Geo>,
     zones: Bound<'py, PyAny>,
     edges: Bound<'py, PyAny>,
-    overlay: Option<Bound<'py, PyAny>>,
 }
 
 impl<'py> Scene<'py> {
     pub(crate) fn of(world: &Bound<'py, PyAny>) -> PyResult<Self> {
         let py = world.py();
-        let table = attribute(world, intern!(py, "model_state"))?;
-        let overlay = exact_dict(&table)?.get_item(OVERLAY_KEY)?;
         Ok(Self {
             world: world.clone(),
             geo: Geo::of(world)?,
             zones: attribute(world, intern!(py, "zones"))?,
             edges: attribute(world, intern!(py, "zone_edges"))?,
-            overlay,
         })
     }
 
@@ -176,50 +173,56 @@ impl<'py> Scene<'py> {
         Ok(Some(at(segments)))
     }
 
-    /// `_reserved_bed_point`.
+    /// `_reserved_bed_point`. The overlay is read as a `V`: a detached one from its row.
     fn reserved_bed_point(&self, agent_id: &str) -> PyResult<Option<Pt>> {
-        let py = self.world.py();
-        let Some(overlay) = &self.overlay else {
-            return Ok(None);
-        };
-        let Some(overlay) = crate::core::tracked::as_readable_dict(overlay) else {
-            return unsupported("the overlay is not a plain dict");
-        };
-        let Some(reservations) = overlay.get_item(intern!(py, "bed_reservations"))? else {
-            return Ok(None);
-        };
-        let Some(reservation) = exact_dict(&reservations)?.get_item(agent_id)? else {
-            return Ok(None);
-        };
-        let Some(reservation) = crate::core::tracked::as_readable_dict(&reservation) else {
-            return if reservation.is_none() { Ok(None) } else { unsupported("a reservation is not a plain dict") };
-        };
-        let Some(rooms) = overlay.get_item(intern!(py, "temporary_rooms"))? else {
-            return Ok(None);
-        };
-        let Some(room_id) = reservation.get_item(intern!(py, "room_id"))? else {
-            return Ok(None);
-        };
-        let Some(room) = exact_dict(&rooms)?.get_item(exact_str(&room_id)?)? else {
-            return Ok(None);
-        };
-        let Some(beds) = exact_dict(&room)?.get_item(intern!(py, "bed_points_m"))? else {
-            return Ok(None);
-        };
-        let beds = exact_list(&beds)?;
-        let Some(index) = reservation.get_item(intern!(py, "bed_index"))? else {
-            return Ok(None);
-        };
-        let Ok(index) = index.downcast_exact::<PyInt>() else {
-            return Ok(None);
-        };
-        let Ok(index) = index.extract::<usize>() else {
-            return Ok(None);
-        };
-        if index >= beds.len() {
-            return Ok(None);
-        }
-        Ok(Some(plain_point(&beds.get_item(index)?)?))
+        with_state_value(&self.world, OVERLAY_KEY, |overlay| {
+            let Some(overlay) = overlay else {
+                return Ok(None);
+            };
+            let V::Map(overlay) = overlay else {
+                return unsupported("the overlay is not a plain dict");
+            };
+            let Some(reservations) = overlay.get("bed_reservations") else {
+                return Ok(None);
+            };
+            let V::Map(reservations) = reservations else {
+                return unsupported("a value is not a plain dict");
+            };
+            let reservation = match reservations.get(agent_id) {
+                None | Some(V::Null) => return Ok(None),
+                Some(V::Map(reservation)) => reservation,
+                Some(_) => return unsupported("a reservation is not a plain dict"),
+            };
+            let Some(rooms) = overlay.get("temporary_rooms") else {
+                return Ok(None);
+            };
+            let Some(room_id) = reservation.get("room_id") else {
+                return Ok(None);
+            };
+            let (V::Map(rooms), V::Str(room_id)) = (rooms, room_id) else {
+                return unsupported("the rooms are not a plain dict, or a room ID is not a str");
+            };
+            let Some(room) = rooms.get(&**room_id) else {
+                return Ok(None);
+            };
+            let V::Map(room) = room else {
+                return unsupported("a value is not a plain dict");
+            };
+            let Some(beds) = room.get("bed_points_m") else {
+                return Ok(None);
+            };
+            let V::List(beds) = beds else {
+                return unsupported("a value is not a plain list");
+            };
+            // An exact int that fits: a bool, a negative or a big one reads as no bed.
+            let Some(V::Int(index)) = reservation.get("bed_index") else {
+                return Ok(None);
+            };
+            match usize::try_from(*index).ok().and_then(|index| beds.get(index)) {
+                Some(bed) => Ok(Some(point_in_value(bed)?)),
+                None => Ok(None),
+            }
+        })
     }
 
     /// What `stationary` would refuse for a person idle in this zone, for a plan that makes one.
@@ -1008,31 +1011,33 @@ fn zone_route_class(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
 
 // ---- advance_movement --------------------------------------------------------------------------
 
-/// `_facility_move_invalidated_journey`.
+/// `_facility_move_invalidated_journey`. The overlay is read as a `V`: a detached one from its row.
 fn facility_move_invalidates(scene: &Scene<'_>, journey: &Journey) -> PyResult<bool> {
-    let py = scene.world.py();
     let Some(facility_id) = &journey.facility_id else {
         return Ok(false);
     };
-    let Some(overlay) = &scene.overlay else {
-        return Ok(false);
-    };
-    let Some(moves) = exact_dict(overlay)?.get_item(intern!(py, "facility_points"))? else {
-        return Ok(false);
-    };
-    let Some(moved) = exact_dict(&moves)?.get_item(&**facility_id)? else {
-        return Ok(false);
-    };
-    let Some(moved) = crate::core::tracked::as_readable_dict(&moved) else {
-        return Ok(false);
-    };
-    let Some(minute) = moved.get_item(intern!(py, "minute"))? else {
-        return Ok(false);
-    };
-    let Ok(minute) = minute.downcast_exact::<PyInt>() else {
-        return Ok(false);
-    };
-    Ok(minute.extract::<i64>().map_err(|_| Unsupported::new_err("a move's minute is too large"))? > journey.started_minute)
+    with_state_value(&scene.world, OVERLAY_KEY, |overlay| {
+        let Some(overlay) = overlay else {
+            return Ok(false);
+        };
+        let V::Map(overlay) = overlay else {
+            return unsupported("a value is not a plain dict");
+        };
+        let Some(moves) = overlay.get("facility_points") else {
+            return Ok(false);
+        };
+        let V::Map(moves) = moves else {
+            return unsupported("a value is not a plain dict");
+        };
+        let Some(V::Map(moved)) = moves.get(&**facility_id) else {
+            return Ok(false);
+        };
+        match moved.get("minute") {
+            Some(V::Int(minute)) => Ok(*minute > journey.started_minute),
+            Some(V::Big(_)) => unsupported("a move's minute is too large"),
+            _ => Ok(false),
+        }
+    })
 }
 
 /// `_room_path_is_clear`, with its record of the person.

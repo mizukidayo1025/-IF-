@@ -18,7 +18,7 @@ use crate::core::errors::{self, Outcome};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, namespace_is_absent, unsupported};
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::V;
-use crate::core::world_core::{mirror_of, raw_dict_get, NamespaceMirror};
+use crate::core::world_core::{mirror_of, raw_dict_get, with_state_value, NamespaceMirror};
 use crate::core::mathx::{py_max, py_min};
 use crate::rules::care_receipts::{
     allocate_transition, append, append_applied, person_context, plan_transition, source_ids_of, transition_record, PlannedTransition, Transition,
@@ -1127,31 +1127,32 @@ pub(crate) fn support_kind_of(world: &Bound<'_, PyAny>, writer: &EventWriter<'_>
 
 /// `current_household_id`.
 pub(crate) fn household_of(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Option<Arc<str>>> {
-    let py = world.py();
-    let table = attribute(world, intern!(py, "model_state"))?;
-    if let Some(presence) = exact_dict(&table)?.get_item(intern!(py, PRESENCE))? {
-        match as_readable_dict(&presence) {
-            Some(presence) => {
-                let Some(people) = presence.get_item(intern!(py, "people"))? else {
-                    return Ok(None);
-                };
-                let Some(people) = as_readable_dict(&people) else {
-                    return unsupported("the presence state's people are for the Python rule");
-                };
-                let Some(person) = people.get_item(agent_id)? else {
-                    return Ok(None);
-                };
-                let Some(person) = as_readable_dict(&person) else {
-                    return unsupported("a presence record is for the Python rule");
-                };
-                return match person.get_item(intern!(py, "household_id"))? {
-                    Some(household) if !household.is_none() => Ok(Some(Arc::from(exact_str(&household)?))),
-                    _ => Ok(None),
-                };
-            }
-            None if presence.is_instance_of::<PyDict>() => return unsupported("another kind of dict"),
-            None => {}
+    // The presence state is read as a `V`, a detached one from its row. Outer None: it is not a
+    // dict, and the profile's group answers.
+    let found = with_state_value(world, PRESENCE, |presence| {
+        let Some(V::Map(presence)) = presence else {
+            return Ok(None);
+        };
+        let Some(people) = presence.get("people") else {
+            return Ok(Some(None));
+        };
+        let V::Map(people) = people else {
+            return unsupported("the presence state's people are for the Python rule");
+        };
+        let Some(person) = people.get(agent_id) else {
+            return Ok(Some(None));
+        };
+        let V::Map(person) = person else {
+            return unsupported("a presence record is for the Python rule");
+        };
+        match person.get("household_id") {
+            None | Some(V::Null) => Ok(Some(None)),
+            Some(V::Str(household)) => Ok(Some(Some(household.clone()))),
+            Some(_) => unsupported("a value is not a str"),
         }
+    })?;
+    if let Some(found) = found {
+        return Ok(found);
     }
     EntityStore::with_rows(&entities_of(world)?, |rows| Ok(rows.agents.get(agent_id).and_then(|agent| agent.profile.group_id.clone())))
 }

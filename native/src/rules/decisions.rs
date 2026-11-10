@@ -27,7 +27,8 @@ use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBool, PyBytes, PyDict, PyInt, PyList, PyString, PyTuple};
 
 use crate::core::row::{attribute, exact_dict, exact_list, exact_str, unsupported};
-use crate::core::world_core::{raw_dict_get, raw_list_append};
+use crate::core::value::V;
+use crate::core::world_core::{raw_dict_get, raw_list_append, with_state_value};
 use crate::rules::action_lifecycle::{commit_action, ActiveActions, Proposal};
 use crate::rules::agent_dynamics::{remember_decision, Decision};
 use crate::rules::behavior::{
@@ -401,30 +402,35 @@ fn write_household(
     agent_id: &Bound<'_, PyString>,
     group_id: Option<&str>,
 ) -> PyResult<()> {
-    let py = world.py();
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let presence = raw_dict_get(exact_dict(&table)?.as_any(), intern!(py, PRESENCE).as_any())?;
-    if let Some(presence) = presence.filter(|presence| presence.is_instance_of::<PyDict>()) {
-        let Some(people) = raw_dict_get(&presence, intern!(py, "people").as_any())? else {
-            out.out.extend_from_slice(b"null");
-            return Ok(());
+    let agent_id = agent_id.to_str()?;
+    // The presence state is read as a `V`, a detached one from its row. None: the profile's group.
+    let household = with_state_value(world, PRESENCE, |presence| {
+        let Some(V::Map(presence)) = presence else {
+            return Ok(None);
         };
-        if !people.is_instance_of::<PyDict>() {
+        let Some(people) = presence.get("people") else {
+            return Ok(Some(None));
+        };
+        let V::Map(people) = people else {
             return unsupported("the presence's people are not a dict");
-        }
-        let Some(person) = raw_dict_get(&people, agent_id.as_any())? else {
-            out.out.extend_from_slice(b"null");
-            return Ok(());
         };
-        if person.is_instance_of::<PyDict>() {
-            match raw_dict_get(&person, intern!(py, "household_id").as_any())? {
-                Some(household) if !household.is_none() => text(out, exact_str(&household)?),
-                _ => out.out.extend_from_slice(b"null"),
-            }
-            return Ok(());
+        let Some(person) = people.get(agent_id) else {
+            return Ok(Some(None));
+        };
+        let V::Map(person) = person else {
+            return Ok(None);
+        };
+        match person.get("household_id") {
+            None | Some(V::Null) => Ok(Some(None)),
+            Some(V::Str(household)) => Ok(Some(Some(household.clone()))),
+            Some(_) => unsupported("a value is not a str"),
         }
+    })?;
+    match household {
+        Some(Some(household)) => text(out, &household),
+        Some(None) => out.out.extend_from_slice(b"null"),
+        None => option_text(out, group_id),
     }
-    option_text(out, group_id);
     Ok(())
 }
 
