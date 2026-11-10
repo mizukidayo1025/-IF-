@@ -1,7 +1,8 @@
 //! `domain/facility_queues.py`: the independent FIFO of each service point.
 //!
 //! Each kernel reads the row of `facility_queues_v1`, plans, and writes through the tree, whose
-//! writes reach the row. Where the Python rule raised its own ValueError, the kernel raises it with
+//! writes reach the row; while the namespace is detached (`core/state_mirror.py`), it writes the
+//! row itself, the same change (`detached_mirror`). Where the Python rule raised its own ValueError, the kernel raises it with
 //! the same text, before any write; what else it doesn't take says Unsupported before any write
 //! (docs/rust-port/lanes/m6-overlay.md). The pydantic contract of the receipt stays Python's:
 //! `transition_row` calls it where the Python rule did.
@@ -79,8 +80,33 @@ pub(crate) fn point_of<'a>(geo: &'a Geo, queue_id: &str) -> Option<&'a ServicePo
     geo.layout.as_ref()?.signed_service_points.iter().find(|point| &*point.queue_id == queue_id)
 }
 
-/// The tree's node of a request, for a rule that hands it to Python.
+/// The mirror of the namespace while the world holds it detached, its row alone holding it: the
+/// writes below then change the row, as the tree's writes would have through their forwarding.
+/// None while it has a tree.
+fn detached_mirror<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, NamespaceMirror>>> {
+    let table = attribute(world, intern!(world.py(), "model_state"))?;
+    let held = exact_dict(&table)?.get_item(STATE_KEY)?;
+    match held {
+        Some(held) if crate::core::tracked::is_detached(&held) => held_mirror(world),
+        _ => Ok(None),
+    }
+}
+
+/// Change the row of a detached namespace: `with_row_tree`, whose tree is None, so that the
+/// generation moves as for a write through the tree.
+fn edit_row<R>(mirror: &Bound<'_, NamespaceMirror>, f: impl FnOnce(&mut QueuesRow) -> PyResult<R>) -> PyResult<R> {
+    NamespaceMirror::with_row_tree::<QueuesRow, _>(mirror, |row, _| f(row))
+}
+
+/// The tree's node of a request, for a rule that hands it to Python. A detached namespace gives
+/// a new document of the row's record: read it, never write.
 fn request_node<'py>(world: &Bound<'py, PyAny>, request_id: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+    if let Some(mirror) = detached_mirror(world)? {
+        let py = world.py();
+        return NamespaceMirror::with_row::<QueuesRow, _>(&mirror, |row| {
+            row.requests.get(request_id).map(|request| crate::core::row::Field::to_py(request, py)).transpose()
+        });
+    }
     let table = attribute(world, intern!(world.py(), "model_state"))?;
     let Some(state) = exact_dict(&table)?.get_item(STATE_KEY)? else {
         return Ok(None);
@@ -112,6 +138,34 @@ pub(crate) fn write_enqueue(
     requested_minute: i64,
 ) -> PyResult<()> {
     let py = world.py();
+    if let Some(mirror) = detached_mirror(world)? {
+        return edit_row(&mirror, |row| {
+            if !row.queues.contains_key(&*point.queue_id) {
+                return unsupported("no such queue");
+            }
+            let id: Arc<str> = Arc::from(request_id);
+            let record = QueueRequest {
+                request_id: id.clone(),
+                queue_id: point.queue_id.clone(),
+                service_point_id: point.id.clone(),
+                facility_id: point.facility_id.clone(),
+                agent_id: Arc::from(agent_id),
+                service_kind: Arc::from(service_kind),
+                requested_minute,
+                status: Arc::from("queued"),
+                queue_task_id: Arc::from(task_id),
+                active_task_id: Arc::from(task_id),
+            };
+            match row.requests.get_mut(request_id) {
+                Some(slot) => *slot = record,
+                None => {
+                    row.requests.insert(id.clone(), record);
+                }
+            }
+            row.queues.get_mut(&*point.queue_id).expect("checked above").queued_request_ids.push(id);
+            Ok(())
+        });
+    }
     let table = attribute(world, intern!(py, "model_state"))?;
     let state = exact_dict(&table)?.get_item(STATE_KEY)?.ok_or_else(|| Unsupported::new_err("no queue state"))?;
     let requests = exact_dict(&state)?.get_item(intern!(py, "requests"))?.ok_or_else(|| Unsupported::new_err("no requests"))?;
@@ -135,6 +189,28 @@ pub(crate) fn write_enqueue(
 /// `start_service`, the request being one the queue holds as queued.
 pub(crate) fn write_start<'py>(world: &Bound<'py, PyAny>, request_id: &str, queue_id: &str, active_task_id: &str) -> PyResult<Bound<'py, PyAny>> {
     let py = world.py();
+    if let Some(mirror) = detached_mirror(world)? {
+        edit_row(&mirror, |row| {
+            if !row.requests.contains_key(request_id) {
+                return unsupported("no such request");
+            }
+            let Some(queue) = row.queues.get_mut(queue_id) else {
+                return unsupported("no such queue");
+            };
+            // `list.remove`, which the callers have checked holds it.
+            let Some(place) = queue.queued_request_ids.iter().position(|id| &**id == request_id) else {
+                return Err(pyo3::exceptions::PyValueError::new_err("list.remove(x): x not in list"));
+            };
+            let id = queue.queued_request_ids.remove(place);
+            queue.active_request_ids.push(id);
+            queue.last_stall = None;
+            let request = row.requests.get_mut(request_id).expect("checked above");
+            request.status = Arc::from("active");
+            request.active_task_id = Arc::from(active_task_id);
+            Ok(())
+        })?;
+        return request_node(world, request_id)?.ok_or_else(|| Unsupported::new_err("no such request"));
+    }
     let request = request_node(world, request_id)?.ok_or_else(|| Unsupported::new_err("no such request"))?;
     let queue = queue_node(world, queue_id)?;
     queue.get_item(intern!(py, "queued_request_ids"))?.call_method1(intern!(py, "remove"), (request_id,))?;
@@ -148,6 +224,20 @@ pub(crate) fn write_start<'py>(world: &Bound<'py, PyAny>, request_id: &str, queu
 /// `finish_service`'s writes, for the request `request_of_task` found.
 pub(crate) fn write_finish(world: &Bound<'_, PyAny>, request: &QueueRequest) -> PyResult<()> {
     let py = world.py();
+    if let Some(mirror) = detached_mirror(world)? {
+        return edit_row(&mirror, |row| {
+            let Some(queue) = row.queues.get_mut(&*request.queue_id) else {
+                return unsupported("no such queue");
+            };
+            let list = if &*request.status == "queued" { &mut queue.queued_request_ids } else { &mut queue.active_request_ids };
+            if let Some(place) = list.iter().position(|id| *id == request.request_id) {
+                list.remove(place);
+            }
+            queue.last_stall = None;
+            row.requests.shift_remove(&*request.request_id);
+            Ok(())
+        });
+    }
     let queue = queue_node(world, &request.queue_id)?;
     let name = if &*request.status == "queued" { intern!(py, "queued_request_ids") } else { intern!(py, "active_request_ids") };
     let list = queue.get_item(name)?;
@@ -161,6 +251,64 @@ pub(crate) fn write_finish(world: &Bound<'_, PyAny>, request: &QueueRequest) -> 
     Ok(())
 }
 
+/// `queued.remove(request_id)` and `queued.insert(0, request_id)` of a request just queued: it
+/// goes back to the head of its queue. `table` is `model_state`.
+pub(crate) fn write_to_head(world: &Bound<'_, PyAny>, table: &Bound<'_, PyAny>, queue_id: &str, request_id: &str) -> PyResult<()> {
+    let py = world.py();
+    if let Some(mirror) = detached_mirror(world)? {
+        return edit_row(&mirror, |row| {
+            let Some(queue) = row.queues.get_mut(queue_id) else {
+                return Err(pyo3::exceptions::PyKeyError::new_err(queue_id.to_owned()));
+            };
+            let Some(place) = queue.queued_request_ids.iter().position(|id| &**id == request_id) else {
+                return Err(pyo3::exceptions::PyValueError::new_err("list.remove(x): x not in list"));
+            };
+            let id = queue.queued_request_ids.remove(place);
+            queue.queued_request_ids.insert(0, id);
+            Ok(())
+        });
+    }
+    let table = exact_dict(table)?;
+    let queues = table.get_item(intern!(py, "facility_queues_v1"))?.ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("the queues left"))?;
+    let queued = queues.get_item("queues")?.get_item(queue_id)?.get_item("queued_request_ids")?;
+    queued.call_method1(intern!(py, "remove"), (request_id,))?;
+    queued.call_method1(intern!(py, "insert"), (0, request_id))?;
+    Ok(())
+}
+
+/// The facility of a queue, read from a detached namespace's row: None while the namespace has
+/// a tree (the caller reads it), Some(None) without the queue.
+pub(crate) fn detached_queue_facility(world: &Bound<'_, PyAny>, queue_id: &str) -> PyResult<Option<Option<Arc<str>>>> {
+    let Some(mirror) = detached_mirror(world)? else {
+        return Ok(None);
+    };
+    NamespaceMirror::with_row::<QueuesRow, _>(&mirror, |row| Ok(Some(row.queues.get(queue_id).map(|queue| queue.facility_id.clone()))))
+}
+
+/// `{"requests": {request_id: ...}, "queues": {queue_id: ...}}` of a detached namespace's row,
+/// with only these records, as new documents: for a rule that reads them with `get`. None while
+/// the namespace has a tree.
+pub(crate) fn detached_records<'py>(world: &Bound<'py, PyAny>, request_id: Option<&str>, queue_id: Option<&str>) -> PyResult<Option<Bound<'py, PyAny>>> {
+    let Some(mirror) = detached_mirror(world)? else {
+        return Ok(None);
+    };
+    let py = world.py();
+    NamespaceMirror::with_row::<QueuesRow, _>(&mirror, |row| {
+        let requests = PyDict::new(py);
+        if let Some((id, request)) = request_id.and_then(|id| row.requests.get_key_value(id)) {
+            requests.set_item(&**id, crate::core::row::Field::to_py(request, py)?)?;
+        }
+        let queues = PyDict::new(py);
+        if let Some((id, queue)) = queue_id.and_then(|id| row.queues.get_key_value(id)) {
+            queues.set_item(&**id, crate::core::row::Field::to_py(queue, py)?)?;
+        }
+        let state = PyDict::new(py);
+        state.set_item("requests", requests)?;
+        state.set_item("queues", queues)?;
+        Ok(Some(state.into_any()))
+    })
+}
+
 /// `mark_stall`.
 pub(crate) fn write_stall(world: &Bound<'_, PyAny>, queue_id: &str, request_id: &str, reason: &str) -> PyResult<()> {
     let py = world.py();
@@ -168,6 +316,17 @@ pub(crate) fn write_stall(world: &Bound<'_, PyAny>, queue_id: &str, request_id: 
     stall.set_item("minute", attribute(world, intern!(py, "minute_index"))?)?;
     stall.set_item("request_id", request_id)?;
     stall.set_item("reason", reason)?;
+    if let Some(mirror) = detached_mirror(world)? {
+        let stall: crate::state::facility_queues::QueueStall =
+            crate::core::row::Field::from_py(stall.as_any()).map_err(|_| Unsupported::new_err("the stall does not fit the row"))?;
+        return edit_row(&mirror, |row| match row.queues.get_mut(queue_id) {
+            Some(queue) => {
+                queue.last_stall = Some(stall);
+                Ok(())
+            }
+            None => unsupported("no such queue"),
+        });
+    }
     queue_node(world, queue_id)?.set_item(intern!(py, "last_stall"), stall)
 }
 

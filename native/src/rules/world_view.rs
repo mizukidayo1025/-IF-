@@ -239,6 +239,19 @@ fn state_get<'py>(model_state: &Bound<'py, PyAny>, name: &Bound<'py, PyString>) 
     model_state.call_method1(intern!(model_state.py(), "get"), (name,))
 }
 
+/// `state_get` and whether the value is a dict, for a reader that asks no more of it: a detached
+/// namespace's placeholder stands for its row, a dict, and no tree is built.
+fn state_held<'py>(model_state: &Bound<'py, PyAny>, name: &Bound<'py, PyString>) -> PyResult<(Bound<'py, PyAny>, bool)> {
+    if let Some(held) = as_readable_dict(model_state).map(|table| table.get_item(name)).transpose()?.flatten() {
+        if is_detached(&held) {
+            return Ok((held, true));
+        }
+    }
+    let value = state_get(model_state, name)?;
+    let is_dict = value.is_instance_of::<PyDict>();
+    Ok((value, is_dict))
+}
+
 fn exact_float(value: &Bound<'_, PyAny>) -> PyResult<f64> {
     match value.downcast_exact::<PyFloat>() {
         Ok(number) => Ok(number.value()),
@@ -1032,9 +1045,9 @@ fn build(controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>) -> PyResult<(V
         return unsupported("the configs are not a plain dict");
     };
     let applies = misinformation_applies(&configs)?;
-    let information = state_get(&model_state, intern!(py, "information_spread_v1"))?;
-    let information_applies = applies && information.is_instance_of::<PyDict>();
-    if !information.is_none() && !information.is_instance_of::<PyDict>() {
+    let (information, information_is_dict) = state_held(&model_state, intern!(py, "information_spread_v1"))?;
+    let information_applies = applies && information_is_dict;
+    if !information.is_none() && !information_is_dict {
         return unsupported("the information state is not a dict");
     }
     let cache = cache_of(controller)?;
@@ -1336,7 +1349,7 @@ fn state_hash(data: &ViewData, world: &Bound<'_, PyAny>) -> PyResult<String> {
     let py = world.py();
     let model_state = world.getattr(intern!(py, "model_state"))?;
     let configs = configs_of(world)?;
-    let information_state = state_get(&model_state, intern!(py, "information_spread_v1"))?;
+    let (information_state, _) = state_held(&model_state, intern!(py, "information_spread_v1"))?;
     let resource = data.resource_service_enabled;
     let information = !information_state.is_none();
     let resource_config = if resource { Some(hashed_config(&configs, intern!(py, "resource_service"))?) } else { None };

@@ -159,10 +159,7 @@ fn queue_walk_fits(world: &Bound<'_, PyAny>, row: EventRef<'_, '_>, walk: &Walk)
     let table = attribute(world, intern!(py, "model_state"))?;
     let journey = match raw_dict_get(&table, intern!(py, "movement_v1").as_any())? {
         None => None,
-        Some(movement) => match tree(&movement)?.get_item(intern!(py, "journeys"))? {
-            None => None,
-            Some(journeys) => tree(&journeys)?.get_item(&**agent_id)?,
-        },
+        Some(movement) => crate::rules::movement::journey_of(world, &movement, agent_id)?,
     };
     let journey = match journey {
         Some(journey) => journey,
@@ -179,9 +176,13 @@ fn queue_walk_fits(world: &Bound<'_, PyAny>, row: EventRef<'_, '_>, walk: &Walk)
         let facility = facility_id.expect("an independent queue is a facility's");
         // `world.model_state[FACILITY_QUEUES_STATE_KEY]`, then `["requests"]` and `["queues"]` as
         // the rule reads them: only for an ID that is a str.
-        let state = raw_dict_get(&table, intern!(py, "facility_queues_v1").as_any())?
-            .ok_or_else(|| Unsupported::new_err("no queue state"))?;
         let request_id = row.text("request_id")?;
+        // A detached namespace gives documents of the two records from its row.
+        let state = match crate::rules::facility_queues::detached_records(world, request_id.as_deref(), queue_id.as_deref())? {
+            Some(state) => state,
+            None => raw_dict_get(&table, intern!(py, "facility_queues_v1").as_any())?
+                .ok_or_else(|| Unsupported::new_err("no queue state"))?,
+        };
         let request = match &request_id {
             Some(id) => Some(get_of(&state.get_item(intern!(py, "requests"))?, id)?),
             None => None,
@@ -485,8 +486,15 @@ fn sleep_bed_fits<'py>(world: &Bound<'py, PyAny>, walk: &Walk, rows_fit: bool) -
         Some(room) => room.to_py(py)?,
         None => none(),
     };
-    let movement = get_or(&table, "movement_v1", dict())?;
-    let journey = if movement.is_instance_of::<PyDict>() { get_of(&get_or(&movement, "journeys", dict())?, &walk.agent_id)? } else { none() };
+    // A detached namespace's journey is read from its row, which builds no tree.
+    let held = as_readable_dict(&table).map(|table| table.get_item("movement_v1")).transpose()?.flatten();
+    let journey = match held.filter(crate::core::tracked::is_detached) {
+        Some(held) => crate::rules::movement::journey_of(world, &held, &walk.agent_id)?.unwrap_or_else(none),
+        None => {
+            let movement = get_or(&table, "movement_v1", dict())?;
+            if movement.is_instance_of::<PyDict>() { get_of(&get_or(&movement, "journeys", dict())?, &walk.agent_id)? } else { none() }
+        }
+    };
     let bed_index = if reservation_is_dict { get_of(&reservation, "bed_index")? } else { none() };
     let room_is_dict = room.is_instance_of::<PyDict>();
     let bed_points = || get_or(&room, "bed_points_m", PyList::empty(py).into_any());
@@ -775,6 +783,11 @@ pub(crate) fn apply_event<'py>(
     }
 
     // Everything is decided, and no Unsupported comes from here on.
+    // A detached namespace's row takes the bed's place; an attached one's tree, as before.
+    let bed = match bed {
+        Some(bed) if crate::rules::movement::place_at_bed(world, agent_id, destination, &bed)? => None,
+        bed => bed,
+    };
     if let Some(bed) = bed {
         let update = PyDict::new(py);
         update.set_item("zone_id", &**destination)?;

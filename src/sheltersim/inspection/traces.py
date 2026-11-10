@@ -17,6 +17,7 @@ from typing import Any
 from sheltersim import __version__
 from sheltersim.contracts.policies import model_catalog, model_signatures, selected_models
 from sheltersim.core.engine import TraceLevel
+from sheltersim.core.state_mirror import read_only_state
 from sheltersim.core.world import WorldState
 from sheltersim.domain.environment import ScenarioZoneEnvironmentConfig
 from sheltersim.domain.information import (
@@ -455,7 +456,8 @@ class RunArtifactWriter:
         self._write_jsonl("social_decisions.jsonl", self._social_decisions)
         self._write_jsonl("social_contacts.jsonl", self._spool.records("social_contacts"))
         psychology_hourly_count = self._write_psychology_hourly_contributions()
-        information_state = world.model_state.get(INFORMATION_SPREAD_STATE_KEY)
+        # Read only: a detached namespace gives a document of its row and builds no tree.
+        information_state = read_only_state(world, INFORMATION_SPREAD_STATE_KEY)
         information_summary = None
         if information_state is not None:
             self._write_jsonl(

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from sheltersim.core.kernels import kernel_only
+from sheltersim.core.state_mirror import read_only_part
 from sheltersim.core.world import WorldState
 from sheltersim.domain.care_receipts import care_receipt_for_request
 from sheltersim.domain.models import (
@@ -278,6 +279,8 @@ def support_wait_reason_codes(
         qualified = [staff for staff in world.staff.values() if required.intersection(staff.skills)]
         staff_blockers: set[str] = set()
         operations = world.model_state.get("staff_operations_v1", {})
+        # Read only: a detached namespace gives a document of its row and builds no tree.
+        dynamics_records = read_only_part(world, "staff_dynamics_v1", "staff", {})
         for staff in qualified:
             if not staff_is_available(world, staff.id):
                 staff_blockers.add("staff_unavailable")
@@ -288,10 +291,7 @@ def support_wait_reason_codes(
             )
             if isinstance(operation, dict) and operation.get("phase") != "idle":
                 staff_blockers.add("staff_on_other_operation")
-            dynamics = world.model_state.get("staff_dynamics_v1", {})
-            dynamics_staff = (
-                dynamics.get("staff", {}).get(staff.id) if isinstance(dynamics, dict) else None
-            )
+            dynamics_staff = dynamics_records.get(staff.id)
             if (
                 isinstance(dynamics_staff, dict)
                 and dynamics_staff.get("rest_until_minute", 0) > sample_minute
