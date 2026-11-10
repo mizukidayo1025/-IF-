@@ -7,7 +7,7 @@ Rust が持つ最初の本番の状態です。次の名前空間は、この文
 | もの | 役目 |
 |---|---|
 | `native/core/src/row.rs` | `Field`（行の中の値ができること）、`Scalar`、`IdMap`、`map_set`、`state_row!`（#152 の PR 3 で中核の crate に移しました） |
-| `native/src/core/row.rs` | `PyField`（Python との行き来と転送された書き込み）、`load_row`、`py_row!` |
+| `native/src/core/row.rs` | `PyField`（Python との行き来と転送された書き込み）、`py_row!`（行の型の読み込みは `world_core.rs` の `RowType::of`） |
 | `native/core/src/state/psychological_distress.rs`、`native/src/state/psychological_distress.rs` | `psychological_distress_v1` の行と検証（手本）。行は中核に、Python の側と検証の入口は窓口にあります |
 | `native/src/state/metric_state.rs` | `metric_state`（`IdMap<f64>`。世界の項目で、`model_state` の中ではありません） |
 | `native/src/rules/psychology.rs` | 更新の段階の最後の手順：苦痛の監視（`domain/distress_monitor.py`）と長期の苦痛（`update_psychological_state`） |
@@ -58,7 +58,7 @@ py_row! { DistressRow { schema_version, last_updated_minute, agents } }
 - 中核のマクロが作るもの：`NAMES`、`write_json`、setter。`py_row!` が作るもの：`from_py`（項目がちょうどこれだけで、それぞれ厳密な型のとき）、`to_py`、転送された書き込みの `apply`。
 - setter は `Scalar`（入れ物でない値）の項目にだけ付けられます。入れ物を入れる書き込みは節点の表を変えるので、`write_through` を使います（`rules/psychology.rs` の新しい人の記録が例です）。
 - 根が辞書だけなら `pub type MetricRow = IdMap<f64>;` で足ります。
-- 登録は1行です。`m.add("ROW", Py::new(py, RowType::new("<name>", load_row::<DistressRow>))?)?`
+- 登録は1行です。`m.add("ROW", Py::new(py, RowType::of::<DistressRow>("<name>"))?)?`
 
 ### 2. 持ち主を宣言する
 

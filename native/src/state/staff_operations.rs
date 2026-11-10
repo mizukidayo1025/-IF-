@@ -10,7 +10,7 @@ use pyo3::types::PyString;
 
 pub(crate) use sheltersim_core::state::staff_operations::*;
 
-use crate::core::row::{attribute, exact_dict, exact_int, load_row, namespace_is_absent, py_row, py_str_enum, unsupported};
+use crate::core::row::{attribute, exact_dict, exact_int, namespace_is_absent, py_row, py_str_enum, unsupported};
 use crate::core::tracked::as_readable_list;
 use crate::core::value::V;
 use crate::core::world_core::{mirror_of, NamespaceMirror, RowType};
@@ -323,7 +323,7 @@ pub(crate) fn completion_agrees(world: &Bound<'_, PyAny>, receipt: &serde_json::
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
-    m.add("ROW", Py::new(py, RowType::new("staff_operations", load_row::<StaffOperationsRow>))?)?;
+    m.add("ROW", Py::new(py, RowType::of::<StaffOperationsRow>("staff_operations"))?)?;
     m.add_function(wrap_pyfunction!(validate, m)?)?;
     Ok(())
 }

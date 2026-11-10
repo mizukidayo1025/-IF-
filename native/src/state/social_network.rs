@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 
 pub(crate) use sheltersim_core::state::social_network::*;
 
-use crate::core::row::{load_row, namespace_is_absent, py_row, PyField};
+use crate::core::row::{namespace_is_absent, py_row, PyField};
 use crate::core::world_core::{mirror_of, Misfit, NamespaceMirror, Part, RowType, Write};
 
 py_row! {
@@ -63,7 +63,7 @@ fn key_is_good(key: &str) -> bool {
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
-    m.add("ROW", Py::new(py, RowType::new("social_network", load_row::<SocialNetworkRow>))?)?;
+    m.add("ROW", Py::new(py, RowType::of::<SocialNetworkRow>("social_network"))?)?;
     m.add_function(wrap_pyfunction!(validate, m)?)?;
     m.add_function(wrap_pyfunction!(key_is_good, m)?)?;
     Ok(())

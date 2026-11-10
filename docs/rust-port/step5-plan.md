@@ -47,16 +47,17 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
 
 - **E1. 下から順に：** 型 → 状態の持ち主 → kernel → tick の順序。どの PR でもハッシュは変えません。
 - **E2. `V` を中心に分けます。** 中核の `Field` は `V` との行き来（`from_v`、`to_v`）と JSON の書き出しを持ち、Python との行き来は窓口の trait にします。まだ Python の木に書く setter は、中核の trait（`TreeSink`）を通します。（PR 3 で、Python との行き来は `V` を通さず、窓口の `PyField` にしました。理由は下の「PR 3」にあります）
-- **E3. 中核の `World`：** 1つの世界の状態を、1つの Rust の構造体にまとめます。窓口の `WorldCore` がそれを持ち、kernel は `&mut World` を受けます。実体、区域、名前空間の木などの Python のオブジェクトは、`World` を読み書きする窓（view）にします。実体の辞書は挿入順を保ちます（`IndexMap`、`shift_remove`）。
+- **E3. 中核の `World`：** 1つの世界の状態を、1つの Rust の構造体にまとめます。窓口の `WorldCore` がそれを持ち、kernel は `&mut World` を受けます。`World` は部分（`Shard`）に分けます：実体（区域と区域の辺も加わります）、スカラー、持つ項目と名前空間の `Slots`、あとで予定のイベントの列と EventLog（PR 6-5 まではそれぞれ `QueueStore`・`EventStore` が持ちます）。窓口の shim は `WorldCore` を共有で借り、使う部分だけを可変で借ります。違う部分は同時に借りられ、同じ部分を二重に借りると panic ではなく中核のエラー（`RuntimeError`）です。実体、区域、名前空間の木などの Python のオブジェクトは、`World` を読み書きする窓（view）にします。実体の辞書は挿入順を保ちます（`IndexMap`、`shift_remove`）。トランザクションの後の順は、設計として正規の順です（E5、E13）。
 - **E4. Host を呼ぶ関数は、世界を借りたままにしません。** 中核の関数は `WorldCell`（`with(|world| ...)` で短く借りる）を受け、Host を呼ぶ間は借りません。今の「Python を呼ぶ間は borrow を持たない」と同じ規則です。そのためネイティブ版の Host（LLM の境界）は、今までどおり Python の view を通して書けます。
-- **E5. 写して差し替える処理は、`World` の fork と commit にします。** EventLog は追記だけなので、fork では長さの印を持ち、写しません。
+- **E5. 写して差し替える処理は、その場のトランザクションにします。** 始めに snapshot（部分の copy-on-write）と EventLog の印を取り、世界を正規の順に並べ直して（`canonicalize`）、本体は世界そのものに書きます。commit は snapshot を捨て、失敗や取り消しは snapshot と印に戻します。トランザクションは入れ子にしません。本当に写すのは `deepcopy` と、捨てる下見（preview）だけで、`World::fork` を使います。
 - **E6. 候補の世界の丸ごとの検証**（`WorldState.validate`、`validate_simulator_extensions`）は、#152 では Host の `validate_candidate` にします。ネイティブ版は、候補の Python の view に今の Python の検証をかけます（手順4の D3「`validate_*` は Python に残す」と同じ考えです）。検証の文を中核で作るのは段階4に回します。`after_tick.rs`・`tick_validation.rs` の「問題なし」と答える検査は、中核に移します。
 - **E7. 設定：** 窓口が、Run や Branch の始まりと `model_configs` が変わったときに設定を解釈し、型の決まった中核の `Config` を渡します。設定の誤りの文が出る時点は変えません。
 - **E8. 断り：** `Unsupported` を返す約240か所は、中核の `Error::Unsupported` にします。窓口で今と同じ `Unsupported`、`KernelRefusal` になります。
 - **E9. 記録の bytes は中核が持ちます。** Python の `bytes` は、要るときに作ってキャッシュし、保存のキャッシュが頼る「同じオブジェクト」を保ちます。そのレーンで計算のピークのメモリーを測り、増やしません（#138）。
 - **E10. 窓口に残すもの：** tick への patch や shadow の検出、断りの数の統計、`rules/parity.rs`（テスト用）。
 - **E11. 残る Python の規則：** 通常の経路の4つは Rust に移します。届かない fallback は消し、消したテストを PR に挙げます。`upgrade_information_runtime_state` は tick ではなく復元の側（中核の外）に移します。
-- **E12. 実体の view は書き込みもできる形にします。** 約69のテストのファイルが、そのまま動くようにするためです。`vars(agent.needs)`、dataclass の `==`、enum の `is` を保ちます。
+- **E12. 実体の view は書き込みもできる、一貫したキャッシュにします。** 付いたオブジェクトの本体は行で、`__dict__` は Python に戻るたびに行と等しいキャッシュです（遅延の descriptor にはしません）。約69のテストのファイルが、そのまま動くようにするためです。`vars(agent.needs)`、dataclass の `==`、enum の `is` を保ちます。付いたオブジェクトの `__dict__` へ直接書いても kernel には届きません（そう書く6つのテストのファイルは P8d で行への書き込みにします）。taint の意味は今のままです。
+- **E13. 正規の JSON を通して写している道は、正規の順と、新しいオブジェクトになる効果（設計の F1〜F3）を保ちます。** 今 `from_dict(to_dict())` を通る道は、辞書のキーと実体を正規の順に並べ、型を JSON の型にし、入れ物とイベントのオブジェクトを新しくします。それがハッシュに届くので、変えてもハッシュが同じだと PR で示すまでは、トランザクションでも同じ順と効果を作ります。
 
 ## レーン
 
@@ -142,6 +143,19 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
 - **中核のテスト**（`native/core/tests/entities.rs`）：5種類の行の v5 と v6 の JSON のバイト列（期待値は `main`（`174e229`）のビルドの `EntityStore.rows_json` が同じ Python のオブジェクトに書いたもの）、NaN の断りの文、enum の順と文字、`same` がビットで比べること、`Table` の key の順（`shift_remove`、空いた slot の再利用、同じ key は場所を保つ、`reorder_keys`、`set_keys`）と文書の行の順、`changed` の印。
 - **確かめたこと：** `cargo test -p sheltersim_core`（31件）、`cargo clippy --workspace -- -A clippy::all -D clippy::disallowed_methods`、`cargo tree -p sheltersim_core -e normal,build` に `pyo3` がないこと、offline の pytest（`-m "not long_simulation"`：5115 passed、6 skipped）、全経路のゲート（55 scenarios、0 problems）。
 - **7日分**（100人、project の経路、生成 Scenario）：`main`（`174e229`）のビルドと交互に2回ずつ測りました。world、events、metrics のハッシュは同じです。wall は `main` 64.7 s・64.5 s、この PR 63.9 s・64.4 s、thread は 60.8 s・60.4 s と 60.5 s・60.7 s で、差は揺れの中です。計算のピークの RSS（`computation_mib`）は 893.8・899.1 MiB と 897.2・893.8 MiB で、増えていません。
+
+### PR 5-1：中核の World（レーン 5-1）
+
+- **中核の型：** `native/core/src/cell.rs` に `Shard<T>`、`stamp.rs` に `Stamp`、`world.rs` に `World`、`Slots`、`Slot`、`Place`、`SlotCounts` を置きました。`World` は今 `entities: Shard<Entities>` と `slots: Slots` だけを持ちます。スカラー、区域、`resources`、`id_counters` は 5-2、ほかの名前空間の `ValueRow` は 5-3、予定のイベントの列と EventLog は 6-5、状態でない `derived` は 7-1 で足します（`world.rs` の冒頭に書きました）。
+- **`Shard`：** PyO3 0.23 はすべての `#[pyclass]` に `Sync` を求めるので（`impl_/pyclass/assertions.rs` の `assert_pyclass_sync`）、旗は `AtomicIsize` です（`atomic_refcell` と同じ形）。`try_borrow`・`try_borrow_mut` は、同じ部分を二重に借りると panic ではなく `Error::Runtime`（窓口で `RuntimeError`）を返します。今までの PyO3 のセルの二重の借りも `RuntimeError` だったので、例外のクラスは同じです。設計の §2 は `Error::Corrupt` と書いていましたが、§4 の R3（`RuntimeError`）に合わせました。世界全体を持つ kernel は `get_mut` で旗を見ずに読みます。
+- **`Slot`：** 持つ項目・名前空間ごとに、行（`Option<Box<dyn Row>>`）、taint、切り離しの印、世代、数（`forwards`、`whole_writes`、`rebuilds`）、`place`（`world.<name>` か `model_state` のキーか）を持ちます。世代は書くたびに `Stamp::next()`（プロセスで1つの atomic のカウンター）にしました（設計の §13：取り消しの後に古いキャッシュが当たらないように）。`generation_of` が返す数は前と同じく「書くたびに変わる数」で、値そのものはもう名前空間ごとの通し番号ではありません。`Slots` は登録の順で、slot を消さないので、窓は番号で自分の slot を引きます（名前の検索がありません）。実体の taint は `Entities` が持ちます（`taint` は行を捨て、最初の理由を残します）。
+- **窓口：** `WorldCore` が `World` と、窓（slot ごとの `NamespaceMirror`、`EntityStore`）を持ちます。`NamespaceMirror` は core、slot の番号、名前、`RowType`、木の側（`Shard<TreeSide>`：木、節点の表、`items_json` で渡した bytes）だけを持ちます。`EntityStore` は core、`rows_json` の bytes（`Shard`）、数（atomic）だけです。どちらも `frozen` にしました。可変な部分が `Shard` の中にあるので、窓を借りる操作がなく、shim の atomic の操作は `WorldCore` の共有の借り1つと部分の借り1つです（前は窓の借り1つ）。窓は core を持ち、core は窓を持つので、`__traverse__` を両方に、循環を切る `__clear__` を `WorldCore` に書きました。
+- **shim の形は同じです：** `with_row`、`with_row_tree`、`with_value`、`mirror_of`、`field_mirror_of`、`held_state`、`detached_part`、`apply_to_row`、`read_only_state`、`EntityStore::with_rows`、`entities_of` などは、名前と引数を変えていません。規則のファイルで変えたのは `common_operations.rs` の1か所だけです（窓が行への参照を返せなくなったので、`row_ref` の代わりに閉包の `with_py_row` を使います）。`mirror.try_borrow()?.holds_state(...)` のような書き方は `frozen` でもそのまま通ります。
+- **`RowType`：** 行の型ごとの操作（`PyRowOps`：読み込み、`dyn Row` から `PyRow` を得る2つの関数）を持ちます。`Row` に `as_any` を足し、`OpsOf<T>` の関連定数で型ごとに1つの表を作ります。登録は `RowType::of::<行の型>("名前")` です（17のファイルの1行ずつ）。表は `py_row!` が書くのではなく、`PyField`（`py_row!` が書きます）と `ValueRow` に共通の `LoadRow` から作ります。
+- **Python：** `_attach_fields` は `core.own(name, row, field=True)` を渡します（`Place::Field`）。ほかの Python は変えていません。
+- **中核のテスト**（`native/core/tests/world.rs`、9件）：`Shard` の二重の借りがエラーになり panic しないこと、共有の借りが重なり書き手を入れないこと、`map` した借りが続くこと、違う部分は同時に借りられること、`Slots` の番号と二重の登録の断り（`ValueError` の文は前と同じ）、行の型での読み出しと断り、`Stamp` が slot とスレッドをまたいで重ならないこと。
+- **確かめたこと：** `cargo test -p sheltersim_core`（40件）、`cargo clippy --workspace -- -A clippy::all -D clippy::disallowed_methods`、`cargo tree -p sheltersim_core -e normal,build` に `pyo3` がないこと、`ruff check .`、`ruff format --check .`、offline の pytest（`-m "not long_simulation"`：5114 passed、6 skipped、1 failed）、全経路のゲート（55 scenarios、0 problems）。落ちた1件（`test_refusal_census.py` の generated Run）は、子のプロセスの `PYTHONPATH` を `native/pylib` に置き換えるテストで、このレーンのビルドではなく共有の `.venv` に入った `main` のビルドを読んだためです（`own()` に `field` がない）。`native/pylib` にこのビルドを置くと、そのファイルの6件は通ります。CI はこのビルドを入れるので、そこでは起きません。
+- **7日分**（100人、project の経路、生成 Scenario）：PR 4b の後（`75d6465`、`main` の `968779b` と同じ木）のビルドと交互に2回ずつ測りました。world、events、metrics のハッシュは同じです。wall は base 64.9 s・64.6 s、この PR 64.8 s・64.6 s、thread は 60.9 s・60.5 s と 61.0 s・60.9 s（平均 +0.4%）、`TickEngine.step` の thread は 16.8 s・16.6 s と 16.8 s・16.9 s（平均 +0.7%）で、揺れの中です。計算のピークの RSS（`computation_mib`）は 893.4・891.2 MiB と 888.8・894.0 MiB で、増えていません。
 
 ### この後
 

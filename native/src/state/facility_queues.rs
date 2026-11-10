@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 
 pub(crate) use sheltersim_core::state::facility_queues::*;
 
-use crate::core::row::{attribute, load_row, py_row};
+use crate::core::row::{attribute, py_row};
 use crate::core::tracked::as_readable_dict;
 use crate::core::world_core::{mirror_of, raw_dict_get, NamespaceMirror, RowType};
 use crate::Unsupported;
@@ -41,6 +41,6 @@ pub(crate) fn held_mirror<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bou
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
-    m.add("ROW", Py::new(py, RowType::new("facility_queues", load_row::<QueuesRow>))?)?;
+    m.add("ROW", Py::new(py, RowType::of::<QueuesRow>("facility_queues"))?)?;
     Ok(())
 }

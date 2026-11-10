@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 
 pub(crate) use sheltersim_core::state::psychological_distress::*;
 
-use crate::core::row::{load_row, py_row};
+use crate::core::row::{py_row};
 use crate::core::world_core::{mirror_of, NamespaceMirror, RowType};
 
 py_row! { AgentRecord { baseline_distress, long_term_distress, daily_acute_sum, daily_high_distress_minutes, daily_observed_minutes, completed_days } }
@@ -20,7 +20,7 @@ fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
-    m.add("ROW", Py::new(py, RowType::new("psychological_distress", load_row::<DistressRow>))?)?;
+    m.add("ROW", Py::new(py, RowType::of::<DistressRow>("psychological_distress"))?)?;
     m.add_function(wrap_pyfunction!(validate, m)?)?;
     Ok(())
 }

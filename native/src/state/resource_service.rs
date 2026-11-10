@@ -9,7 +9,7 @@ use pyo3::types::PyString;
 
 pub(crate) use sheltersim_core::state::resource_service::*;
 
-use crate::core::row::{attribute, load_row, namespace_is_absent, py_row};
+use crate::core::row::{attribute, namespace_is_absent, py_row};
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::V;
 use crate::core::world_core::{mirror_of, raw_dict_get, with_state_value, NamespaceMirror, RowType};
@@ -172,7 +172,7 @@ fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = m.py();
-    m.add("ROW", Py::new(py, RowType::new("resource_service", load_row::<ServiceRow>))?)?;
+    m.add("ROW", Py::new(py, RowType::of::<ServiceRow>("resource_service"))?)?;
     m.add_function(wrap_pyfunction!(validate, m)?)?;
     Ok(())
 }

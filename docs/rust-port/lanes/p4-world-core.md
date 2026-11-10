@@ -52,7 +52,7 @@ P3 の提案のうち、**Python の上書きから Rust の sink へ節点番�
    - `apply` は Python のコードを動かしません。途中で失敗するときは、行が捨てられるので、半端な変更は見えません。
    - `write_json` は `canonical_json` と同じ byte 列を書きます（キーは byte 順）。`to_py` は木と同じキーの順で作ります。
    - `shift_remove` を使い、`swap_remove` は禁止です。小数の計算は `core::mathx` を通します。
-   - `register(m)` で `m.add("ROW", Py::new(py, RowType::new("<name>", load))?)` します。自由な形の名前空間は `load_value_row` をそのまま使えます。
+   - `register(m)` で `m.add("ROW", Py::new(py, RowType::of::<行の型>("<name>"))?)` します。自由な形の名前空間は `RowType::of::<ValueRow>` をそのまま使えます（#152 の PR 5-1 で `RowType::new` と読み込みの関数から変えました）。
 2. **持ち主を宣言する：** `core/state_mirror.py` の `OWNED_NAMESPACES` に `"<namespace>_v1": ("<name>", "ROW")` を1行足します。名前空間を丸ごと書くコード（`model_state[ns] = {...}`）は、この変更で一緒に移します（`stats()["whole_writes"]` で数えられます）。同じ値の書き戻しは何もしないので、残して構いません。
 3. **kernel を書く：** `native/src/rules/<name>.rs` に。入口は `mirror_of(world, NAME)?` と `NamespaceMirror::with_row::<Row, _>(&mirror, |row| ...)`、木へは `write_through` です。taint・不在の名前空間では `with_row` が `Unsupported` を返します。Python 側は `native.rules("<name>")` を呼び、`native.Unsupported` を受けて今のコードを実行します。
 4. **段階の手順を差し替える（機械的にできるとき）：** `experiments/phases/segments.py` の `SEGMENTS` に `"_step_method": ("<name>", "kernel")` を足します。kernel は `(controller, *手順の引数)` を受け取り、何かを変える前に `Unsupported` を出せば Python の手順が動きます。trace があるときは `Unsupported` にしてください。

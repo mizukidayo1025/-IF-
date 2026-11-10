@@ -512,9 +512,28 @@ pub struct Entities {
     pub staff: Table<StaffRow>,
     pub support_requests: Table<RequestRow>,
     pub active_tasks: Table<TaskRow>,
+    /// Why the rows were dropped: a value that does not fit. The Python objects are the only truth
+    /// then, and kernels say Unsupported until the PyO3 crate's `refit` reads them again.
+    taint: Option<String>,
 }
 
 impl Entities {
+    /// Why the rows were dropped, or None.
+    pub fn tainted(&self) -> Option<&str> {
+        self.taint.as_deref()
+    }
+
+    /// Drop every row. The first reason stays the reason.
+    pub fn taint(&mut self, why: String) {
+        let taint = self.taint.take().unwrap_or(why);
+        *self = Entities { taint: Some(taint), ..Entities::default() };
+    }
+
+    /// No rows and no taint, as before the first attach.
+    pub fn clear(&mut self) {
+        *self = Entities::default();
+    }
+
     /// The table of a kind. `NEEDS` and anything unknown are the active tasks', as they always were
     /// for the PyO3 crate's `match`; it never asks for those.
     pub fn table(&self, kind: u8) -> &dyn AnyTable {

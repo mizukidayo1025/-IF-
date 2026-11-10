@@ -9,28 +9,33 @@
 //! `TrackedList` what happens to the ID lists of a facility or a staff member. Rust rules read
 //! the rows through `with_rows`, and `write_field` writes a row and then its object.
 //!
-//! The store holds no reference to an entity or a world, so it makes no cycle and the rows stay
-//! `Send + Sync`. Rust finds an object through the world's `IdMap`.
+//! The rows and their taint are the core's (`sheltersim_core::world::World::entities`), held by the
+//! world's `WorldCore`; the store is a handle that holds that core, and the core holds it: a cycle
+//! the collector breaks (`WorldCore.__clear__`). The store holds no reference to an entity or a
+//! world. Rust finds an object through the world's `IdMap`.
 //!
 //! A value that does not fit a typed field taints the whole store. The Python object keeps what
 //! was written, so the Python rules see it and fail with their own text; `with_rows` then says
 //! `Unsupported` until `refit` reads every object again. A typed field takes only its exact
 //! Python type, and an ID list only exact `str` items.
 //!
-//! No `PyRefMut` of the store is held across anything that may run Python code: a property
-//! setter (`acute_distress`) writes back through here while `set_field` is storing.
+//! No borrow of the rows is held across anything that may run Python code: a property setter
+//! (`acute_distress`) writes back through here while `set_field` is storing.
 
 use std::ptr::null_mut;
-use std::sync::atomic::{AtomicPtr, Ordering};
+use std::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 use std::sync::Arc;
 
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::ffi;
+use pyo3::gc::PyVisit;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple, PyType};
 use pyo3::IntoPyObjectExt;
+use pyo3::PyTraverseError;
 use rustc_hash::FxHashSet;
+use sheltersim_core::cell::Shard;
 
 pub(crate) use sheltersim_core::entities::{
     Activity, AgentRow, Entities, FacilityRow, Mobility, NeedRow, RequestStatus, TaskRow,
@@ -45,7 +50,7 @@ use crate::core::tracked::{as_readable_list, id_map_type};
 use crate::core::errors::OrPy;
 use crate::core::value::V;
 use crate::core::world_core::{
-    core_of, new_tracked_list, raw_dict_get, raw_dict_set, raw_list_append, Misfit, OrMisfit,
+    core_of, new_tracked_list, raw_dict_get, raw_dict_set, raw_list_append, Misfit, OrMisfit, WorldCore,
 };
 use crate::{Encoder, Unsupported};
 
@@ -378,30 +383,71 @@ fn table_json<'py, R: EntityRow>(
     Ok(list)
 }
 
-/// The rows of one world, and the sink of its attached objects, `IdMap`s and ID lists.
-#[pyclass(module = "sheltersim_native")]
-#[derive(Default)]
+/// The handle of one world's entity rows, and the sink of its attached objects, `IdMap`s and ID
+/// lists. The rows and their taint are the core's (`World::entities`, a `Shard` the handle borrows
+/// on its own); here are the bytes a save was given and the counters.
+#[pyclass(frozen, module = "sheltersim_native")]
 pub struct EntityStore {
-    rows: Entities,
-    // The document bytes of each table's rows by slot, and the WorldState version they are for.
-    row_json: [Vec<Option<Py<PyBytes>>>; 5],
-    json_version: i64,
-    taint: Option<String>,
-    forwards: u64,
-    attaches: u64,
-    detaches: u64,
-    taints: u64,
+    core: Py<WorldCore>,
+    row_json: Shard<RowJson>,
+    forwards: AtomicU64,
+    attaches: AtomicU64,
+    detaches: AtomicU64,
+    taints: AtomicU64,
+}
+
+/// The document bytes of each table's rows by slot, and the WorldState version they are for.
+#[derive(Default)]
+struct RowJson {
+    tables: [Vec<Option<Py<PyBytes>>>; 5],
+    version: i64,
+}
+
+#[inline]
+fn count(counter: &AtomicU64) {
+    counter.fetch_add(1, Ordering::Relaxed);
 }
 
 impl EntityStore {
-    fn taint(&mut self, why: String) {
-        self.rows = Entities::default();
-        self.taints += 1;
-        self.taint.get_or_insert(why);
+    pub(crate) fn new(core: Py<WorldCore>) -> Self {
+        Self {
+            core,
+            row_json: Shard::default(),
+            forwards: AtomicU64::new(0),
+            attaches: AtomicU64::new(0),
+            detaches: AtomicU64::new(0),
+            taints: AtomicU64::new(0),
+        }
     }
 
-    fn table_len(&self, kind: u8) -> usize {
-        self.rows.table(kind).len()
+    /// Run f on the rows, borrowed mutably: the core shared, the entities alone. f must not run
+    /// Python code.
+    #[inline]
+    fn rows_mut<R>(&self, py: Python<'_>, f: impl FnOnce(&mut Entities) -> R) -> PyResult<R> {
+        let core = self.core.bind(py).try_borrow()?;
+        let mut rows = core.world().entities.try_borrow_mut().or_py()?;
+        Ok(f(&mut rows))
+    }
+
+    #[inline]
+    fn rows_ref<R>(&self, py: Python<'_>, f: impl FnOnce(&Entities) -> R) -> PyResult<R> {
+        let core = self.core.bind(py).try_borrow()?;
+        let rows = core.world().entities.try_borrow().or_py()?;
+        Ok(f(&rows))
+    }
+
+    fn is_tainted(&self, py: Python<'_>) -> PyResult<bool> {
+        self.rows_ref(py, |rows| rows.tainted().is_some())
+    }
+
+    /// Drop every row; the first reason stays the reason.
+    fn taint_rows(&self, rows: &mut Entities, why: String) {
+        count(&self.taints);
+        rows.taint(why);
+    }
+
+    fn taint(&self, py: Python<'_>, why: String) -> PyResult<()> {
+        self.rows_mut(py, |rows| self.taint_rows(rows, why))
     }
 
     /// Whether the object is attached to this store, and its slot if so.
@@ -528,30 +574,23 @@ impl EntityStore {
         kind: u8,
         object: &Bound<'_, PyAny>,
     ) -> Result<u32, Misfit> {
-        let slot = slf.try_borrow_mut().map_err(pyo3_misfit)?.rows.table_mut(kind).reserve_slot();
+        let py = slf.py();
+        let this = slf.get();
+        let slot = this.rows_mut(py, |rows| rows.table_mut(kind).reserve_slot()).map_err(pyo3_misfit)?;
         Self::link_children(slf, kind, object, slot)?;
         // Getting these attributes runs no Python code: the classes define no such properties.
-        let mut this = slf.try_borrow_mut().map_err(pyo3_misfit)?;
-        match kind {
-            AGENT => this.rows.agents.fill_slot(slot, AgentRow::from_py(object)?),
-            FACILITY => this.rows.facilities.fill_slot(slot, FacilityRow::from_py(object)?),
-            STAFF => this.rows.staff.fill_slot(slot, StaffRow::from_py(object)?),
-            REQUEST => this.rows.support_requests.fill_slot(slot, RequestRow::from_py(object)?),
-            _ => this.rows.active_tasks.fill_slot(slot, TaskRow::from_py(object)?),
-        }
+        this.rows_mut(py, |rows| -> Result<(), Misfit> {
+            match kind {
+                AGENT => rows.agents.fill_slot(slot, AgentRow::from_py(object)?),
+                FACILITY => rows.facilities.fill_slot(slot, FacilityRow::from_py(object)?),
+                STAFF => rows.staff.fill_slot(slot, StaffRow::from_py(object)?),
+                REQUEST => rows.support_requests.fill_slot(slot, RequestRow::from_py(object)?),
+                _ => rows.active_tasks.fill_slot(slot, TaskRow::from_py(object)?),
+            }
+            Ok(())
+        })
+        .map_err(pyo3_misfit)??;
         Ok(slot)
-    }
-
-    fn set_slot_of(&mut self, kind: u8, key: Arc<str>, slot: u32) -> Option<u32> {
-        self.rows.table_mut(kind).bind(key, slot)
-    }
-
-    fn drop_key(&mut self, kind: u8, key: &str) -> Option<u32> {
-        self.rows.table_mut(kind).remove(key)
-    }
-
-    fn drop_slot(&mut self, kind: u8, slot: u32) {
-        self.rows.table_mut(kind).release_slot(slot);
     }
 
     /// Attach an object under a key, or taint. Never raises for a value that does not fit.
@@ -561,15 +600,13 @@ impl EntityStore {
         key: &Bound<'_, PyAny>,
         value: &Bound<'_, PyAny>,
     ) -> PyResult<()> {
-        if slf.try_borrow()?.taint.is_some() {
+        let py = slf.py();
+        if slf.get().is_tainted(py)? {
             return Ok(());
         }
         match Self::attach_fitting(slf, kind, key, value) {
             Ok(()) => Ok(()),
-            Err(misfit) => {
-                slf.try_borrow_mut()?.taint(misfit.0);
-                Ok(())
-            }
+            Err(misfit) => slf.get().taint(py, misfit.0),
         }
     }
 
@@ -596,12 +633,15 @@ impl EntityStore {
             }
         };
         Self::mark_attached(slf, value, slot).or_misfit()?;
-        let mut this = slf.try_borrow_mut().map_err(pyo3_misfit)?;
-        this.attaches += 1;
-        if let Some(old) = this.set_slot_of(kind, key, slot) {
-            this.drop_slot(kind, old);
-        }
-        Ok(())
+        let this = slf.get();
+        this.rows_mut(py, |rows| {
+            count(&this.attaches);
+            let table = rows.table_mut(kind);
+            if let Some(old) = table.bind(key, slot) {
+                table.release_slot(old);
+            }
+        })
+        .map_err(pyo3_misfit)
     }
 
     /// The object left the map, or is going to be replaced. It works on as a plain object.
@@ -611,17 +651,18 @@ impl EntityStore {
         key: Option<&Bound<'_, PyAny>>,
         value: &Bound<'_, PyAny>,
     ) -> PyResult<()> {
+        let py = slf.py();
         if let Some(key) = key {
             if let Ok(key) = key.downcast_exact::<PyString>() {
-                slf.try_borrow_mut()?.drop_key(kind, key.to_str()?);
+                let key = key.to_str()?;
+                slf.get().rows_mut(py, |rows| rows.table_mut(kind).remove(key))?;
             }
         }
-        let py = slf.py();
         // Anything but the map's class was never attached: it may not have these attributes.
         if value.hasattr(intern!(py, "_store"))? && Self::attached_here(slf, value)?.is_some() {
             Self::unlink_children(slf, kind, value)?;
             Self::mark_detached(value)?;
-            slf.try_borrow_mut()?.detaches += 1;
+            count(&slf.get().detaches);
         }
         Ok(())
     }
@@ -633,34 +674,34 @@ impl EntityStore {
         name: &str,
         value: &Bound<'_, PyAny>,
     ) -> PyResult<()> {
-        let mut this = slf.try_borrow_mut()?;
-        let this = &mut *this;
-        this.forwards += 1;
-        if this.taint.is_some() {
-            return Ok(());
-        }
-        fn set_in<R>(
-            table: &mut Table<R>,
-            slot: u32,
-            apply: impl FnOnce(&mut R) -> Result<(), Misfit>,
-        ) -> Result<(), Misfit> {
-            match table.slot_mut(slot) {
-                Some(row) => apply(row),
-                None => Err(Misfit::new("an attached object has no row")),
+        let this = slf.get();
+        this.rows_mut(slf.py(), |rows| {
+            count(&this.forwards);
+            if rows.tainted().is_some() {
+                return;
             }
-        }
-        let result = match kind {
-            AGENT => set_in(&mut this.rows.agents, slot, |row| row.set(name, value)),
-            NEEDS => set_in(&mut this.rows.agents, slot, |row| row.needs.set(name, value)),
-            FACILITY => set_in(&mut this.rows.facilities, slot, |row| row.set(name, value)),
-            STAFF => set_in(&mut this.rows.staff, slot, |row| row.set(name, value)),
-            REQUEST => set_in(&mut this.rows.support_requests, slot, |row| row.set(name, value)),
-            _ => set_in(&mut this.rows.active_tasks, slot, |row| row.set(name, value)),
-        };
-        if let Err(misfit) = result {
-            this.taint(misfit.0);
-        }
-        Ok(())
+            fn set_in<R>(
+                table: &mut Table<R>,
+                slot: u32,
+                apply: impl FnOnce(&mut R) -> Result<(), Misfit>,
+            ) -> Result<(), Misfit> {
+                match table.slot_mut(slot) {
+                    Some(row) => apply(row),
+                    None => Err(Misfit::new("an attached object has no row")),
+                }
+            }
+            let result = match kind {
+                AGENT => set_in(&mut rows.agents, slot, |row| row.set(name, value)),
+                NEEDS => set_in(&mut rows.agents, slot, |row| row.needs.set(name, value)),
+                FACILITY => set_in(&mut rows.facilities, slot, |row| row.set(name, value)),
+                STAFF => set_in(&mut rows.staff, slot, |row| row.set(name, value)),
+                REQUEST => set_in(&mut rows.support_requests, slot, |row| row.set(name, value)),
+                _ => set_in(&mut rows.active_tasks, slot, |row| row.set(name, value)),
+            };
+            if let Err(misfit) = result {
+                this.taint_rows(rows, misfit.0);
+            }
+        })
     }
 
     /// `facility.queue_agent_ids = value`.
@@ -679,7 +720,8 @@ impl EntityStore {
         }
         // Whatever comes next, the old list leaves: nothing may write to a row by its stale node.
         Self::free_list(slf, &old)?;
-        if slf.try_borrow()?.taint.is_some() {
+        let py = slf.py();
+        if slf.get().is_tainted(py)? {
             return raw_setattr(object, name, value.as_ptr());
         }
         match Self::adopt_list(slf, value, list_node(slot, field)) {
@@ -689,8 +731,7 @@ impl EntityStore {
             }
             Err(misfit) => {
                 raw_setattr(object, name, value.as_ptr())?;
-                slf.try_borrow_mut()?.taint(misfit.0);
-                Ok(())
+                slf.get().taint(py, misfit.0)
             }
         }
     }
@@ -714,12 +755,12 @@ impl EntityStore {
         {
             Self::mark_detached(&old)?;
         }
-        if slf.try_borrow()?.taint.is_some() {
+        let py = slf.py();
+        if slf.get().is_tainted(py)? {
             return Ok(());
         }
         if let Err(misfit) = Self::link_needs(slf, value, slot) {
-            slf.try_borrow_mut()?.taint(misfit.0);
-            return Ok(());
+            return slf.get().taint(py, misfit.0);
         }
         Self::write_row(slf, AGENT, slot, name.to_str()?, value)
     }
@@ -761,11 +802,6 @@ fn new_id_map<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
 
 #[pymethods]
 impl EntityStore {
-    #[new]
-    fn new() -> Self {
-        Self::default()
-    }
-
     /// `object.name = value` on an attached object, from its `__setattr__`.
     fn write(
         slf: &Bound<'_, Self>,
@@ -788,8 +824,8 @@ impl EntityStore {
     }
 
     /// Something was done to an object that no row can follow, such as deleting a field.
-    fn taint_now(&mut self, why: String) {
-        self.taint(why);
+    fn taint_now(&self, py: Python<'_>, why: String) -> PyResult<()> {
+        self.taint(py, why)
     }
 
     /// `map[key] = value` on a bound `IdMap`: what stores it also attaches it.
@@ -834,6 +870,7 @@ impl EntityStore {
         value: &Bound<'py, PyAny>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let py = slf.py();
+        let this = slf.get();
         let old_map = old
             .downcast::<PyDict>()
             .ok()
@@ -855,7 +892,7 @@ impl EntityStore {
         let mut kept = FxHashSet::default();
         let result = match value.downcast::<PyDict>() {
             Err(_) => {
-                slf.try_borrow_mut()?.taint("a field of entities is not a mapping".to_owned());
+                this.taint(py, "a field of entities is not a mapping".to_owned())?;
                 value.clone()
             }
             Ok(mapping) => {
@@ -865,7 +902,7 @@ impl EntityStore {
                 for (key, item) in &items {
                     raw_dict_set(&map, key, item)?;
                     let stays = bound_here
-                        && slf.try_borrow()?.taint.is_none()
+                        && !this.is_tainted(py)?
                         && item.get_type().is(class_of(installed().map_err(misfit_error)?, kind))
                         && key.is_exact_instance_of::<PyString>();
                     match stays.then(|| Self::attached_here(slf, item)).transpose()?.flatten() {
@@ -873,16 +910,15 @@ impl EntityStore {
                             this_ids.insert(Arc::from(key.downcast_exact::<PyString>()?.to_str()?), slot);
                         }
                         // The same object under two keys.
-                        Some(_) => slf.try_borrow_mut()?.taint("an entity has two places".to_owned()),
+                        Some(_) => this.taint(py, "an entity has two places".to_owned())?,
                         None => fresh.push((key, item)),
                     }
                 }
-                {
-                    let mut this = slf.try_borrow_mut()?;
-                    if this.taint.is_none() {
-                        this.rows.table_mut(kind).set_keys(this_ids);
+                this.rows_mut(py, |rows| {
+                    if rows.tainted().is_none() {
+                        rows.table_mut(kind).set_keys(this_ids);
                     }
-                }
+                })?;
                 // New rows go to the end of the keys; then the keys take the dict's order.
                 for (key, item) in &fresh {
                     Self::attach(slf, kind, key, item)?;
@@ -901,7 +937,7 @@ impl EntityStore {
             if attached {
                 let slot = Self::attached_here(slf, item)?.expect("checked above");
                 Self::detach(slf, kind, None, item)?;
-                slf.try_borrow_mut()?.drop_slot(kind, slot);
+                this.rows_mut(py, |rows| rows.table_mut(kind).release_slot(slot))?;
             }
         }
         Ok(result)
@@ -910,15 +946,13 @@ impl EntityStore {
     /// The rows of a tainted store, read again from the objects of the world. True if they all
     /// fit now.
     fn refit(slf: &Bound<'_, Self>, world: &Bound<'_, PyAny>) -> PyResult<bool> {
-        {
-            let mut this = slf.try_borrow_mut()?;
-            this.rows = Entities::default();
-            this.taint = None;
-        }
+        let py = slf.py();
+        let this = slf.get();
+        this.rows_mut(py, Entities::clear)?;
         for (name, kind) in FIELDS {
             let map = world.getattr(name)?;
             let Ok(map) = map.downcast::<PyDict>() else {
-                slf.try_borrow_mut()?.taint("a field of entities is not a mapping".to_owned());
+                this.taint(py, "a field of entities is not a mapping".to_owned())?;
                 return Ok(false);
             };
             let items = dict_items(map);
@@ -934,7 +968,7 @@ impl EntityStore {
                 Self::attach(slf, kind, key, item)?;
             }
         }
-        Ok(slf.try_borrow()?.taint.is_none())
+        Ok(!this.is_tainted(py)?)
     }
 
     /// Whether `state`, a world's `__dict__`, holds the maps these rows follow, with as many entries
@@ -951,7 +985,7 @@ impl EntityStore {
             };
             if map.get_type().as_ptr() != id_map_type().cast()
                 || !map.getattr(intern!(py, "_store"))?.is(slf)
-                || map.len() != slf.try_borrow()?.table_len(kind)
+                || map.len() != slf.get().rows_ref(py, |rows| rows.table(kind).len())?
             {
                 return Ok(false);
             }
@@ -962,18 +996,20 @@ impl EntityStore {
     /// The first difference between the rows and the objects of the world, or None: the check
     /// behind the tests and the soak. A tainted store has no rows to differ.
     fn verify(slf: &Bound<'_, Self>, world: &Bound<'_, PyAny>) -> PyResult<Option<String>> {
-        if slf.try_borrow()?.taint.is_some() {
+        let py = slf.py();
+        if slf.get().is_tainted(py)? {
             return Ok(None);
         }
         for (name, kind) in FIELDS {
             let map = world.getattr(name)?;
             let map = map.downcast::<PyDict>()?;
             let items = dict_items(map);
-            let this = slf.try_borrow()?;
-            if this.table_len(kind) != items.len() {
+            let core = slf.get().core.bind(py).try_borrow()?;
+            let rows = core.world().entities.try_borrow().or_py()?;
+            if rows.table(kind).len() != items.len() {
                 return Ok(Some(format!(
                     "{name}: {} rows, {} objects",
-                    this.table_len(kind),
+                    rows.table(kind).len(),
                     items.len()
                 )));
             }
@@ -994,11 +1030,11 @@ impl EntityStore {
                 Ok(None)
             }
             let found = match kind {
-                AGENT => differs(&this.rows.agents, name, &items)?,
-                FACILITY => differs(&this.rows.facilities, name, &items)?,
-                STAFF => differs(&this.rows.staff, name, &items)?,
-                REQUEST => differs(&this.rows.support_requests, name, &items)?,
-                _ => differs(&this.rows.active_tasks, name, &items)?,
+                AGENT => differs(&rows.agents, name, &items)?,
+                FACILITY => differs(&rows.facilities, name, &items)?,
+                STAFF => differs(&rows.staff, name, &items)?,
+                REQUEST => differs(&rows.support_requests, name, &items)?,
+                _ => differs(&rows.active_tasks, name, &items)?,
             };
             if found.is_some() {
                 return Ok(found);
@@ -1012,29 +1048,32 @@ impl EntityStore {
         fn document<R: PyEntityField>(py: Python<'_>, table: &Table<R>, id: &str) -> PyResult<Option<Py<PyAny>>> {
             table.get(id).map(|row| row.to_py(py)).transpose()
         }
-        match field {
-            "agents" => document(py, &self.rows.agents, id),
-            "facilities" => document(py, &self.rows.facilities, id),
-            "staff" => document(py, &self.rows.staff, id),
-            "support_requests" => document(py, &self.rows.support_requests, id),
-            "active_tasks" => document(py, &self.rows.active_tasks, id),
+        self.rows_ref(py, |rows| match field {
+            "agents" => document(py, &rows.agents, id),
+            "facilities" => document(py, &rows.facilities, id),
+            "staff" => document(py, &rows.staff, id),
+            "support_requests" => document(py, &rows.support_requests, id),
+            "active_tasks" => document(py, &rows.active_tasks, id),
             _ => Err(PyValueError::new_err("not a field of entities")),
-        }
+        })?
     }
 
     /// `{field: [bytes of each row]}` for a WorldState document of this version: what
     /// `canonical_json` writes for the items `WorldState._canonical_data` makes of the entities.
     /// Unsupported for a tainted store and for a value canonical JSON refuses (NaN).
-    fn rows_json<'py>(&mut self, py: Python<'py>, version: i64) -> PyResult<Bound<'py, PyDict>> {
-        if self.taint.is_some() {
+    fn rows_json<'py>(&self, py: Python<'py>, version: i64) -> PyResult<Bound<'py, PyDict>> {
+        let core = self.core.bind(py).try_borrow()?;
+        let mut rows = core.world().entities.try_borrow_mut().or_py()?;
+        if rows.tainted().is_some() {
             return Err(Unsupported::new_err("the entity store is tainted"));
         }
-        if self.json_version != version {
-            self.row_json = Default::default();
-            self.json_version = version;
+        let mut kept = self.row_json.try_borrow_mut().or_py()?;
+        if kept.version != version {
+            kept.tables = Default::default();
+            kept.version = version;
         }
-        let rows = &mut self.rows;
-        let [agents, facilities, staff, requests, tasks] = &mut self.row_json;
+        let rows = &mut *rows;
+        let [agents, facilities, staff, requests, tasks] = &mut kept.tables;
         let documents = PyDict::new(py);
         documents.set_item("agents", table_json(py, &mut rows.agents, agents, version)?)?;
         documents.set_item("facilities", table_json(py, &mut rows.facilities, facilities, version)?)?;
@@ -1045,35 +1084,40 @@ impl EntityStore {
     }
 
     /// The keys of a table in the order of its dict.
-    fn keys(&self, field: &str) -> PyResult<Vec<String>> {
+    fn keys(&self, py: Python<'_>, field: &str) -> PyResult<Vec<String>> {
         fn keys_of<R>(table: &Table<R>) -> Vec<String> {
             table.iter().map(|(id, _)| id.to_string()).collect()
         }
-        match field {
-            "agents" => Ok(keys_of(&self.rows.agents)),
-            "facilities" => Ok(keys_of(&self.rows.facilities)),
-            "staff" => Ok(keys_of(&self.rows.staff)),
-            "support_requests" => Ok(keys_of(&self.rows.support_requests)),
-            "active_tasks" => Ok(keys_of(&self.rows.active_tasks)),
+        self.rows_ref(py, |rows| match field {
+            "agents" => Ok(keys_of(&rows.agents)),
+            "facilities" => Ok(keys_of(&rows.facilities)),
+            "staff" => Ok(keys_of(&rows.staff)),
+            "support_requests" => Ok(keys_of(&rows.support_requests)),
+            "active_tasks" => Ok(keys_of(&rows.active_tasks)),
             _ => Err(PyValueError::new_err("not a field of entities")),
-        }
+        })?
     }
 
     #[getter]
-    fn tainted(&self) -> Option<String> {
-        self.taint.clone()
+    fn tainted(&self, py: Python<'_>) -> PyResult<Option<String>> {
+        self.rows_ref(py, |rows| rows.tainted().map(str::to_owned))
     }
 
     /// Counters for the budget of a lane and the soak.
     fn stats<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let (agents, requests) = self.rows_ref(py, |rows| (rows.agents.len(), rows.support_requests.len()))?;
         let stats = PyDict::new(py);
-        stats.set_item("forwards", self.forwards)?;
-        stats.set_item("attaches", self.attaches)?;
-        stats.set_item("detaches", self.detaches)?;
-        stats.set_item("taints", self.taints)?;
-        stats.set_item("agents", self.rows.agents.len())?;
-        stats.set_item("support_requests", self.rows.support_requests.len())?;
+        stats.set_item("forwards", self.forwards.load(Ordering::Relaxed))?;
+        stats.set_item("attaches", self.attaches.load(Ordering::Relaxed))?;
+        stats.set_item("detaches", self.detaches.load(Ordering::Relaxed))?;
+        stats.set_item("taints", self.taints.load(Ordering::Relaxed))?;
+        stats.set_item("agents", agents)?;
+        stats.set_item("support_requests", requests)?;
         Ok(stats)
+    }
+
+    fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
+        visit.call(&self.core)
     }
 
     // ---- The sink of a `TrackedList`, which is an ID list of an entity ----------------------
@@ -1123,16 +1167,16 @@ impl EntityStore {
         kind: u8,
         items: &[(Bound<'_, PyAny>, Bound<'_, PyAny>)],
     ) -> PyResult<()> {
-        let mut this = slf.try_borrow_mut()?;
-        if this.taint.is_some() {
+        let this = slf.get();
+        let py = slf.py();
+        if this.is_tainted(py)? {
             return Ok(());
         }
         let mut order = Vec::with_capacity(items.len());
         for (key, _) in items {
             order.push(key.downcast_exact::<PyString>()?.to_str()?);
         }
-        this.rows.table_mut(kind).reorder_keys(&order);
-        Ok(())
+        this.rows_mut(py, |rows| rows.table_mut(kind).reorder_keys(&order))
     }
 
     /// Run f on the rows. f must not run Python code; kernels get Unsupported from a tainted
@@ -1141,11 +1185,12 @@ impl EntityStore {
         slf: &Bound<'_, Self>,
         f: impl FnOnce(&mut Entities) -> PyResult<R>,
     ) -> PyResult<R> {
-        let mut this = slf.try_borrow_mut()?;
-        if this.taint.is_some() {
+        let core = slf.get().core.bind(slf.py()).try_borrow()?;
+        let mut rows = core.world().entities.try_borrow_mut().or_py()?;
+        if rows.tainted().is_some() {
             return Err(Unsupported::new_err("the entity store is tainted"));
         }
-        f(&mut this.rows)
+        f(&mut rows)
     }
 }
 
@@ -1160,7 +1205,7 @@ const FIELDS: [(&str, u8); 5] = [
 
 /// The store of a world, read now: call this again after any Python callback.
 pub(crate) fn entities_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, EntityStore>> {
-    core_of(world)?.borrow_mut().entities(world.py()).map(|store| store.into_bound(world.py()))
+    WorldCore::entities(&core_of(world)?).map(|store| store.into_bound(world.py()))
 }
 
 /// Store a value a row already took in the attribute of its object: no `__setattr__` runs and

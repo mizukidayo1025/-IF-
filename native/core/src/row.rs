@@ -86,6 +86,8 @@ pub trait Row: Send + Sync + 'static {
     /// The items of the list under key, read one by one: None for a key the state does not have,
     /// or a value that is not a list.
     fn part_items(&self, key: &str) -> Option<&dyn Items>;
+    /// The row as its own type, for a reader that knows it (`Slot::row`).
+    fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
@@ -96,6 +98,10 @@ impl<T: Field> Row for T {
 
     fn part_items(&self, key: &str) -> Option<&dyn Items> {
         Field::part_items(self, key)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
@@ -119,6 +125,10 @@ impl Row for ValueRow {
             },
             _ => None,
         }
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
