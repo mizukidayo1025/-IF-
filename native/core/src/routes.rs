@@ -2,21 +2,22 @@
 //! `policies/space.py` over a snapshot of the zone graph (Issue #152, lane 7-3; design-p7.md,
 //! principle 4).
 //!
-//! A `Router` is built from the `ZoneGraph` a controller's `_refresh_space` made
-//! (`experiments/runner.py`), and `Routes` keeps a Run's two routers (people's and staff's) for the
-//! epoch it was built in. The epoch changes exactly where `_refresh_space` runs: at the
-//! controller's start and after a dispatch that applied a geometry or structure event. It is a
-//! snapshot on purpose: an edge closed earlier in the same dispatch is not seen until the refresh,
-//! as the Python graph never saw it.
-//!
-//! Lane 7-4 builds the router from the core's zone and edge tables instead.
+//! A `Router` is built from the world's zone and zone-edge tables (`Entities::zones`,
+//! `zone_edges`) with the checks and the words of `ZoneGraph` (`domain/zones.py`; lane 7-4), and
+//! `Routes` keeps a Run's two routers (people's and staff's) for the epoch they were built in. The
+//! epoch changes exactly where `_refresh_space` runs (`experiments/runner.py`): at the
+//! controller's start and after a dispatch that applied a geometry or structure event, and the
+//! routers are built from the tables right then. It is a snapshot on purpose: an edge closed later
+//! in the same dispatch is not seen until the next refresh, as the Python graph never saw it.
 
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
+use crate::entities::{EdgeRow, Table, ZoneRow};
 use crate::error::{Error, Result};
 use crate::geometry::Geo;
+use crate::run::{Capacity, RouteCapacities};
 
 /// `edge_loads`: looked up, never walked, so its order decides nothing.
 pub type EdgeLoads = HashMap<Arc<str>, i64>;
@@ -54,6 +55,15 @@ impl Route {
 /// The edges closed to one mobility in one floor plan.
 type ClosedTo = (&'static str, Arc<Geo>, Arc<HashSet<Arc<str>>>);
 
+/// `_STABLE_ID` of `domain/zones.py`: `^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$`, which only ASCII
+/// matches, so its length in characters is its length in bytes.
+pub fn is_stable_id(id: &str) -> bool {
+    let bytes = id.as_bytes();
+    (1..=64).contains(&bytes.len())
+        && bytes[0].is_ascii_alphanumeric()
+        && bytes[1..].iter().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'))
+}
+
 /// A zone graph to find routes in.
 pub struct Router {
     zones: HashSet<Arc<str>>,
@@ -76,9 +86,99 @@ impl Router {
         Self { zones: zones.into_iter().collect(), outgoing, closed: Mutex::default() }
     }
 
+    /// `ZoneGraph.from_states(zones, edges, edge_capacities=capacities)` of the tables, as a router
+    /// of its open edges: what the constructor turns down raises its ValueError, checked in its
+    /// order (the capacities' keys, then each zone in the dict's order, then each edge by ID).
+    pub fn of_tables(zones: &Table<ZoneRow>, edges: &Table<EdgeRow>, capacities: &RouteCapacities) -> Result<Self> {
+        // `set(capacities) - set(edges)`: by the dict's keys.
+        if capacities.unmatched_keys || capacities.by_edge.keys().any(|key| edges.get(key).is_none()) {
+            return Err(Error::value_error("route capacity references an unknown zone edge"));
+        }
+        if zones.is_empty() {
+            return Err(Error::value_error("zone graph must contain at least one zone"));
+        }
+        for (key, zone) in zones.iter() {
+            if **key != *zone.id || !is_stable_id(&zone.id) {
+                return Err(Error::value_error("zone graph mapping keys must match stable zone IDs"));
+            }
+            // A stable ID is plain ASCII, whose `repr` is the ID in single quotes.
+            if zone.capacity.is_some_and(|capacity| capacity < 0) {
+                return Err(Error::value_error(format!("zone '{}' capacity cannot be negative", zone.id)));
+            }
+            if [zone.display_x, zone.display_y].into_iter().flatten().any(|coordinate| !coordinate.is_finite()) {
+                return Err(Error::value_error(format!("zone '{}' has non-finite display coordinates", zone.id)));
+            }
+        }
+        // `sorted(edges, key=lambda edge: edge.id)`: stable, and a str's order is its UTF-8 bytes'.
+        let mut sorted: Vec<&EdgeRow> = edges.iter().map(|(_, edge)| edge).collect();
+        sorted.sort_by(|first, second| first.id.as_bytes().cmp(second.id.as_bytes()));
+        let mut seen: HashSet<&str> = HashSet::with_capacity(sorted.len());
+        let mut open = Vec::with_capacity(sorted.len());
+        for edge in sorted {
+            if !is_stable_id(&edge.id) || !seen.insert(&edge.id) {
+                return Err(Error::value_error("zone edge IDs must be stable and unique"));
+            }
+            if zones.get(&edge.from_zone_id).is_none() || zones.get(&edge.to_zone_id).is_none() {
+                return Err(Error::value_error(format!("zone edge '{}' references an unknown zone", edge.id)));
+            }
+            if edge.from_zone_id == edge.to_zone_id {
+                return Err(Error::value_error(format!("zone edge '{}' must connect different zones", edge.id)));
+            }
+            if edge.travel_minutes <= 0 {
+                return Err(Error::value_error(format!("zone edge '{}' travel time must be a positive integer", edge.id)));
+            }
+            // `capacities.get(edge.id)`: by the edge's own ID.
+            let capacity = match capacities.by_edge.get(&edge.id) {
+                None | Some(Capacity::Unlimited) => None,
+                Some(Capacity::Max(capacity)) if (1..=100).contains(capacity) => Some(*capacity),
+                Some(_) => return Err(Error::value_error(format!("zone edge '{}' transit capacity must be from 1 to 100", edge.id))),
+            };
+            if !edge.closed {
+                open.push(Edge { id: edge.id.clone(), from: edge.from_zone_id.clone(), to: edge.to_zone_id.clone(), minutes: edge.travel_minutes, capacity });
+            }
+        }
+        Ok(Self::new(zones.iter().map(|(key, _)| key.clone()), open))
+    }
+
+    /// The graph `world_graph` of the PyO3 crate's `rules/travel.rs` reads: the open edges of the
+    /// tables in the dict's order, with these capacities (checked by the caller). An edge
+    /// `ZoneGraph` turns down for its zones or its time is refused, in the dict's order.
+    pub fn of_world_tables(zones: &Table<ZoneRow>, edges: &Table<EdgeRow>, capacities: &HashMap<Arc<str>, i64>) -> Result<Self> {
+        let mut open = Vec::with_capacity(edges.len());
+        for (_, edge) in edges.iter() {
+            let (from, to) = (&edge.from_zone_id, &edge.to_zone_id);
+            if zones.get(from).is_none() || zones.get(to).is_none() || from == to || edge.travel_minutes <= 0 {
+                return Err(Error::unsupported("an edge the zone graph turns down"));
+            }
+            if !edge.closed {
+                let capacity = capacities.get(&edge.id).copied();
+                open.push(Edge { id: edge.id.clone(), from: from.clone(), to: to.clone(), minutes: edge.travel_minutes, capacity });
+            }
+        }
+        Ok(Self::new(zones.iter().map(|(key, _)| key.clone()), open))
+    }
+
+    /// The graph of the same zones with only the edges `keep` takes: the staff's graph of a floor
+    /// plan, whose edges are those `route_is_physically_clear` takes for an independent walker.
+    pub fn keeping(&self, keep: impl Fn(&Edge) -> bool) -> Self {
+        let outgoing = self
+            .outgoing
+            .iter()
+            .map(|(zone, edges)| (zone.clone(), edges.iter().filter(|edge| keep(edge)).cloned().collect()))
+            .collect();
+        Self { zones: self.zones.clone(), outgoing, closed: Mutex::default() }
+    }
+
     /// Whether the graph has this zone.
     pub fn has_zone(&self, zone: &str) -> bool {
         self.zones.contains(zone)
+    }
+
+    /// The open edges, by ID: for tests.
+    pub fn edge_ids(&self) -> Vec<Arc<str>> {
+        let mut ids: Vec<Arc<str>> = self.outgoing.values().flatten().map(|edge| edge.id.clone()).collect();
+        ids.sort();
+        ids
     }
 
     /// `_physically_closed_edges`: the routes of the plan `route_is_physically_clear` turns down for

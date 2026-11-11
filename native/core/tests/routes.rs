@@ -252,7 +252,7 @@ fn route_capacities_refuse_where_they_are_read() {
     by_edge.insert(id("open"), Capacity::Unlimited);
     by_edge.insert(id("two"), Capacity::Max(2));
     by_edge.insert(id("text"), Capacity::Refused("a value is not an int"));
-    let table = RouteCapacities { by_edge, any: true };
+    let table = RouteCapacities { by_edge, any: true, unmatched_keys: false };
     assert_eq!(table.of("open"), Ok(None));
     assert_eq!(table.of("missing"), Ok(None));
     assert_eq!(table.of("two"), Ok(Some(2)));
