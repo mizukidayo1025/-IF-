@@ -1013,6 +1013,53 @@ ENTITY_FIELDS = {
 SCALAR_FIELDS = ("scenario_id", "seed", "duration_minutes", "minute_index", "schema_version")
 
 
+class _RowWatch:
+    """A debug run's check of the entity rows against their objects at the end of each tick."""
+
+    on = False
+    checked = 0
+    mismatches = 0
+    first: str | None = None
+
+
+def watch_entity_rows(on: bool) -> None:
+    """Check at the end of every tick that each object holds what its row holds (debug runs).
+
+    The rows are the truth and the objects follow them when a kernel's borrow ends
+    (native/src/state/entities.rs). The all-path gate turns this on with --verify-rows.
+    """
+    _RowWatch.on = on
+    _RowWatch.checked = 0
+    _RowWatch.mismatches = 0
+    _RowWatch.first = None
+
+
+def entity_rows_watched() -> bool:
+    return _RowWatch.on
+
+
+def entity_row_mismatches() -> dict[str, Any]:
+    """How many ticks were checked since watch_entity_rows(True), how many differed, the first."""
+    return {
+        "checked": _RowWatch.checked,
+        "mismatches": _RowWatch.mismatches,
+        "first": _RowWatch.first,
+    }
+
+
+def check_entity_rows(world: Any, where: str) -> None:
+    """Count a tick whose rows and objects differ (EntityStore.verify). Never raises for that."""
+    core = world.__dict__.get("_core")
+    if core is None:
+        return
+    _RowWatch.checked += 1
+    found = core.entities().verify(world)
+    if found is not None:
+        _RowWatch.mismatches += 1
+        if _RowWatch.first is None:
+            _RowWatch.first = f"{where}: {found}"
+
+
 def _attach_entities(world: Any, core: Any) -> None:
     store = core.entities()
     state = world.__dict__

@@ -781,6 +781,8 @@ def _install_rows() -> None:
         list(Activity),
         list(Mobility),
         list(SupportRequestStatus),
+        AgentProfile,
+        InitialNeedProfile,
     )
 
 

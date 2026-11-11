@@ -27,7 +27,7 @@ use crate::rules::overlay;
 use crate::rules::proposals::place_in_bed;
 use crate::rules::service::{add_one, metrics_of, set_agent};
 use crate::rules::travel::{approach_route, plan_travel, route as route_kernel, write_travel, Route, Trip};
-use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, Member, RequestStatus};
+use crate::state::entities::{entities_of, Activity, EntityStore, Member, RequestStatus};
 use crate::state::events::{EventKind, EventRow, EventStatus, EventWriter};
 use crate::state::movement::{Journey, MovementRow};
 use crate::Unsupported;
@@ -88,7 +88,7 @@ impl<'py> Replan<'_, 'py> {
         })?;
         let agents = attribute(self.world, intern!(py, "agents"))?;
         let agent_text = PyString::new(py, agent_id);
-        let Some(agent) = raw_dict_get(&agents, agent_text.as_any())? else {
+        let Some(_) = raw_dict_get(&agents, agent_text.as_any())? else {
             return unsupported("a row has no object");
         };
 
@@ -104,7 +104,6 @@ impl<'py> Replan<'_, 'py> {
                 }
                 Ok(())
             })?;
-            raw_setattr(&agent, intern!(py, "zone_id"), PyString::new(py, &zone).as_ptr())?;
         }
         set_agent(self.world, self.store, agent_text.as_any(), Activity::Idle, None)?;
         stop_journey(self.mirror, agent_id)

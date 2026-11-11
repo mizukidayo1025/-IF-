@@ -9,7 +9,7 @@ from enum import StrEnum
 from sheltersim.core.clock import ClockExhaustedError, SimulationClock
 from sheltersim.core.model_version import require_tickable
 from sheltersim.core.rng import CounterRNG, KeyedRandom
-from sheltersim.core.state_mirror import detach_unread
+from sheltersim.core.state_mirror import check_entity_rows, detach_unread, entity_rows_watched
 from sheltersim.core.world import WorldState
 
 
@@ -126,6 +126,8 @@ class TickEngine:
         self.world.minute_index = self.clock.minute_index
         # A tree a read built during the tick, or before it, goes again (state_mirror.py).
         detach_unread(self.world)
+        if entity_rows_watched():
+            check_entity_rows(self.world, f"minute {minute}")
         self.world.validate_after_tick()
         if self.trace_level is TraceLevel.SUMMARY:
             self._emit(TickTrace(minute_index=minute, phase=None))

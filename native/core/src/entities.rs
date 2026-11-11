@@ -8,8 +8,9 @@
 //! rows alone, and the other way round.
 //!
 //! The Python objects, their links to the rows and the reads and writes from Python are the PyO3
-//! crate's (`native/src/state/entities.rs`, `EntityStore`). The Python objects own the entities
-//! for now (decision 1 of docs/rust-port/step5-plan.md moves that here later).
+//! crate's (`native/src/state/entities.rs`, `EntityStore`). The rows are the truth (decision 1 of
+//! docs/rust-port/step5-plan.md, PR 6-1): a Python object is a view of its row, which follows the
+//! row's writes and the core's inserts and removals when the writing borrow ends (`Table`).
 
 use std::sync::Arc;
 
@@ -48,6 +49,16 @@ pub trait EntityField: Sized {
     fn same(&self, other: &Self) -> bool;
     /// The bytes `canonical_json` writes for this value in a WorldState document of this version.
     fn write_json(&self, encoder: &mut Encoder, version: i64) -> Result<()>;
+}
+
+/// The fields of a row one by one, as bits in the order of the row's `NAMES`: what a view of the
+/// row follows (`Table`).
+pub trait RowFields {
+    /// A bit per field whose value is not the same as other's (`EntityField::same`: the bits of a
+    /// float).
+    fn diff(&self, other: &Self) -> u32;
+    /// Copy the fields of the mask's bits into other.
+    fn copy_fields(&self, mask: u32, other: &mut Self);
 }
 
 /// A row of a table: what orders the rows of a document.
@@ -240,6 +251,32 @@ macro_rules! entity_row {
             pub const NAMES: &'static [&'static str] = &[$(stringify!($field)),*];
         }
 
+        impl RowFields for $name {
+            fn diff(&self, other: &Self) -> u32 {
+                let mut mask = 0;
+                let mut bit = 1;
+                $(
+                    if !self.$field.same(&other.$field) {
+                        mask |= bit;
+                    }
+                    bit <<= 1;
+                )*
+                let _ = bit;
+                mask
+            }
+
+            fn copy_fields(&self, mask: u32, other: &mut Self) {
+                let mut bit = 1;
+                $(
+                    if mask & bit != 0 {
+                        other.$field = self.$field.clone();
+                    }
+                    bit <<= 1;
+                )*
+                let _ = bit;
+            }
+        }
+
         impl EntityField for $name {
             fn same(&self, other: &Self) -> bool {
                 true $(&& self.$field.same(&other.$field))*
@@ -384,16 +421,49 @@ own_id!(FacilityRow, StaffRow, RequestRow, TaskRow, ZoneRow, EdgeRow);
 /// The rows of one `IdMap`: a stable slot per row, and the keys in the dict's order. `changed`
 /// says which slots may differ from the document bytes the PyO3 crate keeps for them: anything
 /// that can reach a row for writing sets it, so a clear flag means the row is the one written.
+///
+/// The rows are the truth (Issue #152, PR 6-1). A row may have a view outside the core, the Python
+/// object of the PyO3 crate, and `views` holds what that view holds now. A write through
+/// `slot_mut` or `get_mut` marks the slot touched; `insert` and `remove_row` go into the journal.
+/// The view's owner takes both when the writing borrow ends (`take_touched`, `take_journal`), and
+/// writes each field whose row and view differ (`diff`) into the view: the dirty mask of a slot is
+/// computed then, so no write can forget its bit.
 pub struct Table<R> {
     rows: Vec<Option<R>>,
     free: Vec<u32>,
     ids: IdMap<u32>,
     changed: Vec<bool>,
+    /// What the view of each slot holds, for the slots whose row has one.
+    views: Vec<Option<R>>,
+    /// The slots written since `take_touched`, each once, and their flags.
+    touched: Vec<u32>,
+    is_touched: Vec<bool>,
+    /// The keys put in or taken out by the core since `take_journal`, in order.
+    journal: Vec<Change<R>>,
+}
+
+/// A key the core put into a table or took out of it, for the view's owner to follow.
+pub enum Change<R> {
+    /// A row put under the key, in the slot. Its view is to be made from the row, and goes to the
+    /// key's place: the end of the order for a new key, its old place for a key replaced.
+    Inserted { key: Arc<str>, slot: u32 },
+    /// The row of the key left the slot. Its view, if it has one, gets the row's last values and
+    /// leaves; the key leaves the map too, unless `replaced` (an insert under the same key follows).
+    Removed { key: Arc<str>, slot: u32, row: R, view: Option<R>, replaced: bool },
 }
 
 impl<R> Default for Table<R> {
     fn default() -> Self {
-        Self { rows: Vec::new(), free: Vec::new(), ids: IdMap::default(), changed: Vec::new() }
+        Self {
+            rows: Vec::new(),
+            free: Vec::new(),
+            ids: IdMap::default(),
+            changed: Vec::new(),
+            views: Vec::new(),
+            touched: Vec::new(),
+            is_touched: Vec::new(),
+            journal: Vec::new(),
+        }
     }
 }
 
@@ -401,13 +471,14 @@ impl<R> Default for Table<R> {
 pub trait AnyTable {
     /// A free slot, with no row yet and no key.
     fn reserve_slot(&mut self) -> u32;
-    /// The slot loses its row and becomes free. Its key, if it has one, stays: see `remove`.
+    /// The slot loses its row and its view and becomes free. Its key, if it has one, stays: see
+    /// `remove`.
     fn release_slot(&mut self, slot: u32);
     /// Key the slot: a new key goes to the end of the order, a key already there keeps its place.
     /// The slot the key had, if any, which stays reserved.
     fn bind(&mut self, key: Arc<str>, slot: u32) -> Option<u32>;
     /// Take the key out of the order (`shift_remove`: the others keep their order) and release its
-    /// slot. The slot it had, if any.
+    /// slot. The slot it had, if any. For a key the view's owner took out itself: no journal.
     fn remove(&mut self, key: &str) -> Option<u32>;
     /// Replace the keys and their order.
     fn set_keys(&mut self, ids: IdMap<u32>);
@@ -418,6 +489,10 @@ pub trait AnyTable {
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
+    /// The keys in their order, for checks.
+    fn key_order(&self) -> Vec<Arc<str>>;
+    /// Whether anything was touched or journaled since it was last taken.
+    fn has_changes(&self) -> bool;
 }
 
 impl<R> AnyTable for Table<R> {
@@ -425,6 +500,8 @@ impl<R> AnyTable for Table<R> {
         let slot = self.free.pop().unwrap_or_else(|| {
             self.rows.push(None);
             self.changed.push(true);
+            self.views.push(None);
+            self.is_touched.push(false);
             u32::try_from(self.rows.len() - 1).expect("under 2**32 entities")
         });
         self.changed[slot as usize] = true;
@@ -435,6 +512,7 @@ impl<R> AnyTable for Table<R> {
         if let Some(row) = self.rows.get_mut(slot as usize) {
             if row.take().is_some() {
                 self.changed[slot as usize] = true;
+                self.views[slot as usize] = None;
                 self.free.push(slot);
             }
         }
@@ -470,6 +548,14 @@ impl<R> AnyTable for Table<R> {
     fn len(&self) -> usize {
         self.ids.len()
     }
+
+    fn key_order(&self) -> Vec<Arc<str>> {
+        self.ids.keys().cloned().collect()
+    }
+
+    fn has_changes(&self) -> bool {
+        !self.touched.is_empty() || !self.journal.is_empty()
+    }
 }
 
 impl<R> Table<R> {
@@ -481,15 +567,14 @@ impl<R> Table<R> {
         self.ids.is_empty()
     }
 
-    /// Put the row in a slot `reserve_slot` gave.
-    pub fn fill_slot(&mut self, slot: u32, row: R) {
-        self.rows[slot as usize] = Some(row);
-    }
-
-    /// The row in a slot, for writing.
+    /// The row in a slot, for writing. The slot is touched: its view follows at the next flush.
     pub fn slot_mut(&mut self, slot: u32) -> Option<&mut R> {
         let row = self.rows.get_mut(slot as usize)?.as_mut()?;
         self.changed[slot as usize] = true;
+        if !self.is_touched[slot as usize] {
+            self.is_touched[slot as usize] = true;
+            self.touched.push(slot);
+        }
         Some(row)
     }
 
@@ -523,9 +608,107 @@ impl<R> Table<R> {
         self.slot_mut(slot)
     }
 
+    /// The slot of a key.
+    pub fn slot_of(&self, id: &str) -> Option<u32> {
+        self.ids.get(id).copied()
+    }
+
+    /// Whether the table has the key.
+    pub fn contains_key(&self, id: &str) -> bool {
+        self.ids.contains_key(id)
+    }
+
     /// The keys and rows in the order of the dict.
     pub fn iter(&self) -> impl Iterator<Item = (&Arc<str>, &R)> {
         self.ids.iter().filter_map(|(id, slot)| Some((id, self.rows[*slot as usize].as_ref()?)))
+    }
+
+    /// The keys and slots in the order of the dict.
+    pub fn slots(&self) -> impl Iterator<Item = (&Arc<str>, u32)> {
+        self.ids.iter().map(|(id, slot)| (id, *slot))
+    }
+
+    /// A write that reached the view already (the view's owner wrote it there): the row and the
+    /// view, if the slot has one. The slot is not touched.
+    pub fn row_and_view_mut(&mut self, slot: u32) -> Option<(&mut R, Option<&mut R>)> {
+        let row = self.rows.get_mut(slot as usize)?.as_mut()?;
+        self.changed[slot as usize] = true;
+        Some((row, self.views[slot as usize].as_mut()))
+    }
+
+    /// The row and the view of a slot, if it has both: what a flush compares.
+    pub fn row_and_view(&mut self, slot: u32) -> Option<(&R, &mut R)> {
+        let row = self.rows.get(slot as usize)?.as_ref()?;
+        let view = self.views.get_mut(slot as usize)?.as_mut()?;
+        Some((row, view))
+    }
+
+    /// The view of a slot, if it has one.
+    pub fn view_at(&self, slot: u32) -> Option<&R> {
+        self.views.get(slot as usize)?.as_ref()
+    }
+
+    /// The slots touched since the last call, in the order they were first touched.
+    pub fn take_touched(&mut self) -> Vec<u32> {
+        let touched = std::mem::take(&mut self.touched);
+        for slot in &touched {
+            self.is_touched[*slot as usize] = false;
+        }
+        touched
+    }
+
+    /// The keys put in and taken out since the last call, in order.
+    pub fn take_journal(&mut self) -> Vec<Change<R>> {
+        std::mem::take(&mut self.journal)
+    }
+}
+
+impl<R: Clone> Table<R> {
+    /// Put the row in a slot `reserve_slot` gave, for a view that holds the same values already
+    /// (the view's owner read the row from it).
+    pub fn fill_slot(&mut self, slot: u32, row: R) {
+        self.views[slot as usize] = Some(row.clone());
+        self.rows[slot as usize] = Some(row);
+    }
+
+    /// The slot's view holds the row now: the view's owner made it from the row.
+    pub fn set_view(&mut self, slot: u32) {
+        let view = self.rows[slot as usize].clone();
+        self.views[slot as usize] = view;
+    }
+
+    /// Put a row under a key: a new key goes to the end of the order, a key already there keeps
+    /// its place and loses its row. Its view is made at the next flush (`Change::Inserted`).
+    pub fn insert(&mut self, key: Arc<str>, row: R) -> u32 {
+        if let Some(old) = self.ids.get(&*key).copied() {
+            self.take_out(key.clone(), old, true);
+        }
+        let slot = self.reserve_slot();
+        self.rows[slot as usize] = Some(row);
+        self.bind(key.clone(), slot);
+        self.journal.push(Change::Inserted { key, slot });
+        slot
+    }
+
+    /// Take the key and its row out (`shift_remove`: the others keep their order). Its view gets
+    /// the row's last values at the next flush and leaves (`Change::Removed`). False if the table
+    /// has no such key.
+    pub fn remove_row(&mut self, key: &str) -> bool {
+        let Some((key, slot)) = self.ids.shift_remove_entry(key) else {
+            return false;
+        };
+        self.take_out(key, slot, false);
+        true
+    }
+
+    fn take_out(&mut self, key: Arc<str>, slot: u32, replaced: bool) {
+        let index = slot as usize;
+        if let Some(row) = self.rows[index].take() {
+            let view = self.views[index].take();
+            self.changed[index] = true;
+            self.free.push(slot);
+            self.journal.push(Change::Removed { key, slot, row, view, replaced });
+        }
     }
 }
 
@@ -607,6 +790,17 @@ impl Entities {
         } else {
             self.taint(why);
         }
+    }
+
+    /// Whether any table has writes or keys its views have not followed yet.
+    pub fn has_changes(&self) -> bool {
+        self.agents.has_changes()
+            || self.facilities.has_changes()
+            || self.staff.has_changes()
+            || self.support_requests.has_changes()
+            || self.active_tasks.has_changes()
+            || self.zones.has_changes()
+            || self.zone_edges.has_changes()
     }
 
     /// No rows and no taint, as before the first attach.

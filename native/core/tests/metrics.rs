@@ -94,7 +94,7 @@ fn task(id: &str, start_minute: i64, due_minute: i64) -> TaskRow {
     }
 }
 
-fn put<R>(table: &mut Table<R>, id: &str, row: R) {
+fn put<R: Clone>(table: &mut Table<R>, id: &str, row: R) {
     let slot = table.reserve_slot();
     table.fill_slot(slot, row);
     assert_eq!(table.bind(text(id), slot), None);

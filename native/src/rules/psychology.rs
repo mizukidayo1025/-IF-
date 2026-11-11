@@ -1503,14 +1503,9 @@ pub(crate) fn update_psychology<'py>(
 
 // ---- Writing the new values ---------------------------------------------------------------------
 
-const NEEDS_MASK: u8 = 0b1111;
-const STRESS_BIT: u8 = 1 << 4;
-const TRUST_BIT: u8 = 1 << 5;
-
-/// One checked delta. The values stay Python's objects, so writing them allocates nothing.
+/// One checked delta. The person's object follows the row when the borrow ends.
 struct Applied<'py> {
     id: Bound<'py, PyString>,
-    objects: [Bound<'py, PyAny>; 6],
     floats: [f64; 6],
     /// What to write to `body_state_v1.agents[id]`, if the delta has body values.
     body: Option<[Option<f64>; 7]>,
@@ -1615,7 +1610,6 @@ pub(crate) fn apply_deltas<'py>(
         }
         plan.push(Applied {
             id: id.clone(),
-            objects,
             floats,
             body: supplied.then_some(values),
             changed: 0,
@@ -1684,31 +1678,6 @@ pub(crate) fn apply_deltas<'py>(
         Ok(())
     })?;
 
-    let agents = world.getattr(intern!(py, "agents"))?;
-    if as_readable_dict(&agents).is_none() {
-        return Err(pyo3::exceptions::PyRuntimeError::new_err("the rows have no map of agents"));
-    }
-    for applied in &plan {
-        if applied.changed != 0 {
-            let Some(agent) = raw_dict_get(&agents, applied.id.as_any())? else {
-                return Err(pyo3::exceptions::PyRuntimeError::new_err("a row has no object"));
-            };
-            if applied.changed & NEEDS_MASK != 0 {
-                let needs = agent.getattr(intern!(py, "needs"))?;
-                for place in 0..4 {
-                    if applied.changed & (1 << place) != 0 {
-                        raw_setattr(&needs, names[place], applied.objects[place].as_ptr())?;
-                    }
-                }
-            }
-            if applied.changed & STRESS_BIT != 0 {
-                raw_setattr(&agent, names[4], applied.objects[4].as_ptr())?;
-            }
-            if applied.changed & TRUST_BIT != 0 {
-                raw_setattr(&agent, names[5], applied.objects[5].as_ptr())?;
-            }
-        }
-    }
     if let Some(mirror) = &body_mirror {
         NamespaceMirror::with_row_tree::<BodyRow, _>(mirror, |row, tree| {
             let records = tree.child(intern!(py, "agents"))?;

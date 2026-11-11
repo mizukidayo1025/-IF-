@@ -23,7 +23,7 @@ fn id(text: &str) -> Arc<str> {
     Arc::from(text)
 }
 
-fn table<R>(rows: Vec<(&str, R)>) -> Table<R> {
+fn table<R: Clone>(rows: Vec<(&str, R)>) -> Table<R> {
     let mut table = Table::default();
     for (key, row) in rows {
         let slot = table.reserve_slot();

@@ -25,10 +25,10 @@ use crate::rules::facility_queues::{
 };
 use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::rules::queues::head_to_service;
-use crate::rules::service::{active_task_class, add_one, metrics_of, service_capacity, set_agent};
+use crate::rules::service::{add_one, metrics_of, service_capacity, set_agent};
 use crate::rules::staff_dynamics::{is_available, is_available_now, staff_status};
 use crate::state::body_state::{BodyRow, NAME as BODY_STATE};
-use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore};
+use crate::state::entities::{entities_of, insert_entity, remove_entity, Activity, EntityStore, TaskRow};
 use crate::state::events::{EventKind, EventRef, EventRow, EventWriter};
 use crate::state::facility_queues::QueueRequest;
 use crate::state::metric_state::MetricRow;
@@ -171,7 +171,6 @@ pub(crate) fn queue_up<'py>(
         return unsupported("a row has no object");
     };
     let queue = attribute(&facility, intern!(py, "queue_agent_ids"))?;
-    let tasks = attribute(world, intern!(py, "active_tasks"))?;
     let writer = EventWriter::of(world)?;
     let transition = match point {
         Some(point) => {
@@ -202,9 +201,15 @@ pub(crate) fn queue_up<'py>(
     if let Some(point) = point {
         write_enqueue(world, point, &task_id, &task_id, agent_name, "toilet", minute)?;
     }
-    let task_text = PyString::new(py, &task_id);
-    let task = active_task_class(py)?.call1((&task_text, "toilet_queue", agent_id, facility_id, minute, minute))?;
-    tasks.set_item(&task_text, task)?;
+    insert_entity(world, &task_id, TaskRow {
+        id: task_id.clone(),
+        kind: Arc::from("toilet_queue"),
+        agent_id: Some(Arc::from(agent_name)),
+        resource_id: Some(Arc::from(facility_name)),
+        start_minute: minute,
+        due_minute: minute,
+        staff_id: None,
+    })?;
     set_agent(world, &store, agent_id, Activity::Queued, Some(facility_id))?;
     if let Some(transition) = &transition {
         write_transition(&writer, transition, minute)?;
@@ -599,7 +604,6 @@ fn start_one<'py>(
     let Some(facility) = raw_dict_get(&facilities, facility_id)? else {
         return unsupported("a row has no object");
     };
-    let tasks = attribute(&world, intern!(py, "active_tasks"))?;
     let transition = match &head {
         Some(head) => {
             let capacity = Some(head.point_capacity);
@@ -626,12 +630,16 @@ fn start_one<'py>(
         waiting_list.call_method1(intern!(py, "pop"), (0,))?;
     }
     attribute(&facility, intern!(py, "active_agent_ids"))?.call_method1(intern!(py, "append"), (&agent_text,))?;
-    tasks.del_item(&*queue_task_id)?;
-    let task = match &staff_id {
-        Some(staff) => active_task_class(py)?.call1((&task_text, "toilet_service", &agent_text, facility_id, minute_value, due, &**staff))?,
-        None => active_task_class(py)?.call1((&task_text, "toilet_service", &agent_text, facility_id, minute_value, due))?,
-    };
-    tasks.set_item(&task_text, task)?;
+    remove_entity::<TaskRow>(&world, &queue_task_id)?;
+    insert_entity(&world, &task_id, TaskRow {
+        id: task_id.clone(),
+        kind: Arc::from("toilet_service"),
+        agent_id: Some(agent_id.clone()),
+        resource_id: Some(facility_arc.clone()),
+        start_minute: minute_value,
+        due_minute: due,
+        staff_id: staff_id.clone(),
+    })?;
     if let (Some(staff_id), Some(staff)) = (&staff_id, &staff_object) {
         EntityStore::with_rows(&store, |rows| {
             let Some(row) = rows.staff.get_mut(staff_id) else {
@@ -641,8 +649,6 @@ fn start_one<'py>(
             row.busy_until = due;
             Ok(())
         })?;
-        raw_setattr(staff, intern!(py, "active_task_id"), task_text.as_ptr())?;
-        raw_setattr(staff, intern!(py, "busy_until"), due.into_pyobject(py)?.as_ptr())?;
         attribute(staff, intern!(py, "work_queue"))?.set_item(PySlice::full(py), PyList::new(py, [&task_text])?)?;
     }
     set_agent(&world, &store, agent_text.as_any(), Activity::InService, Some(facility_id))?;
@@ -793,13 +799,12 @@ pub(crate) fn complete_event<'py>(world: &Bound<'py, PyAny>, event: EventRef<'_,
     let facilities = attribute(world, intern!(py, "facilities"))?;
     let agents = attribute(world, intern!(py, "agents"))?;
     let agent_text = PyString::new(py, &agent_id);
-    let (Some(facility), Some(agent)) = (
+    let (Some(facility), Some(_)) = (
         raw_dict_get(&facilities, PyString::new(py, &facility_id).as_any())?,
         raw_dict_get(&agents, agent_text.as_any())?,
     ) else {
         return unsupported("a row has no object");
     };
-    let needs = attribute(&agent, intern!(py, "needs"))?;
     let tasks = attribute(world, intern!(py, "active_tasks"))?;
 
     // Write.
@@ -817,9 +822,7 @@ pub(crate) fn complete_event<'py>(world: &Bound<'py, PyAny>, event: EventRef<'_,
             row.busy_until = 0;
             Ok(())
         })?;
-        raw_setattr(staff, intern!(py, "active_task_id"), py.None().as_ptr())?;
         attribute(staff, intern!(py, "work_queue"))?.call_method0(intern!(py, "clear"))?;
-        raw_setattr(staff, intern!(py, "busy_until"), 0_i64.into_pyobject(py)?.as_ptr())?;
     }
     tasks.del_item(&*task_id)?;
     set_agent(world, &store, agent_text.as_any(), Activity::Idle, None)?;
@@ -830,7 +833,6 @@ pub(crate) fn complete_event<'py>(world: &Bound<'py, PyAny>, event: EventRef<'_,
         row.needs.toilet_urgency = 0.0;
         Ok(())
     })?;
-    raw_setattr(&needs, intern!(py, "toilet_urgency"), 0.0_f64.into_pyobject(py)?.as_ptr())?;
     add_one(&metrics, COMPLETED_METRIC)?;
     if let Some((mirror, need)) = body {
         NamespaceMirror::with_row_tree::<BodyRow, _>(&mirror, |row, tree| {

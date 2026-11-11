@@ -10,7 +10,6 @@ use std::sync::{Arc, LazyLock};
 use indexmap::IndexMap;
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 use sha2::{Digest, Sha256};
 
@@ -27,7 +26,7 @@ use crate::rules::care_receipts::{
 use crate::rules::handlers::get;
 use crate::rules::service::{add_one, metrics_of, set_agent};
 use crate::state::body_state::{BodyRecord, BodyRow, NAME as BODY};
-use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, Member, RequestStatus};
+use crate::state::entities::{entities_of, insert_entity, Activity, EntityStore, Member, RequestRow, RequestStatus};
 use crate::state::events::{EventKind, EventRef, EventRow, EventWriter};
 use crate::Unsupported;
 use crate::state::shared_operations::{SharedOperationsRow, NAME as SHARED};
@@ -66,11 +65,21 @@ static NAMES: LazyLock<Names> = LazyLock::new(|| Names {
     source: Arc::from(STAFF_SUPPORT_SOURCE),
 });
 
-fn request_class(py: Python<'_>) -> PyResult<&Bound<'_, PyAny>> {
-    static CLASS: GILOnceCell<Py<PyAny>> = GILOnceCell::new();
-    Ok(CLASS
-        .get_or_try_init(py, || -> PyResult<Py<PyAny>> { Ok(py.import("sheltersim.domain.models")?.getattr("SupportRequestState")?.unbind()) })?
-        .bind(py))
+/// `SupportRequestState(id, agent_id, requested_minute, timeout_minute)`.
+fn new_request(id: &Arc<str>, agent_id: &str, requested_minute: i64, timeout_minute: i64) -> RequestRow {
+    RequestRow {
+        id: id.clone(),
+        agent_id: Arc::from(agent_id),
+        requested_minute,
+        timeout_minute,
+        status: RequestStatus::Pending,
+        assigned_staff_id: None,
+        task_id: None,
+        resolved_minute: None,
+        cooldown_until: 0,
+        last_assignment_attempt_minute: None,
+        last_assignment_wait_reason_code: None,
+    }
 }
 
 /// `SupportRequestTimeoutHandler.apply` up to the error text: `Some(text)` when Python would suppress the
@@ -102,7 +111,7 @@ pub(crate) fn timeout_event<'py>(
     let requests = attribute(world, intern!(py, "support_requests"))?;
     let agents = attribute(world, intern!(py, "agents"))?;
     let agent_text = PyString::new(py, &agent_id);
-    let (Some(request), Some(agent)) = (
+    let (Some(request), Some(_)) = (
         raw_dict_get(&requests, PyString::new(py, &request_id).as_any())?,
         raw_dict_get(&agents, agent_text.as_any())?,
     ) else {
@@ -121,8 +130,6 @@ pub(crate) fn timeout_event<'py>(
         row.support_cooldown_until = until;
         Ok(())
     })?;
-    raw_setattr(&agent, intern!(py, "support_request_id"), py.None().as_ptr())?;
-    raw_setattr(&agent, intern!(py, "support_cooldown_until"), until.into_pyobject(py)?.as_ptr())?;
     set_agent(world, &store, agent_text.as_any(), Activity::Idle, None)?;
     add_one(&metrics, UNRESOLVED_METRIC)?;
     Ok(None)
@@ -487,7 +494,7 @@ pub(crate) fn complete_support_event<'py>(
     let agents = attribute(world, intern!(py, "agents"))?;
     let staff_map = attribute(world, intern!(py, "staff"))?;
     let agent_text = PyString::new(py, &agent_id);
-    let (Some(request), Some(agent), Some(person)) = (
+    let (Some(request), Some(_), Some(person)) = (
         raw_dict_get(&requests, PyString::new(py, &request_id).as_any())?,
         raw_dict_get(&agents, agent_text.as_any())?,
         raw_dict_get(&staff_map, PyString::new(py, &staff_id).as_any())?,
@@ -507,8 +514,6 @@ pub(crate) fn complete_support_event<'py>(
         row.busy_until = 0;
         Ok(())
     })?;
-    raw_setattr(&person, intern!(py, "active_task_id"), py.None().as_ptr())?;
-    raw_setattr(&person, intern!(py, "busy_until"), 0_i64.into_pyobject(py)?.as_ptr())?;
     request.setattr(intern!(py, "status"), RequestStatus::Resolved.member(py)?)?;
     request.setattr(intern!(py, "resolved_minute"), minute)?;
     request.setattr(intern!(py, "cooldown_until"), until)?;
@@ -535,17 +540,10 @@ pub(crate) fn complete_support_event<'py>(
             Ok(())
         })?;
     }
-    raw_setattr(&agent, intern!(py, "support_request_id"), py.None().as_ptr())?;
-    raw_setattr(&agent, intern!(py, "support_cooldown_until"), until.into_pyobject(py)?.as_ptr())?;
     add_one(&metrics, RESOLVED_METRIC)?;
     if let Care::Formula { people } = &care {
         let mirror = mirror_of(world, BODY)?;
         for person in people {
-            if let Some(stress) = person.stress {
-                let object = raw_dict_get(&agents, PyString::new(py, &person.agent_id).as_any())?
-                    .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("a row has no object"))?;
-                raw_setattr(&object, intern!(py, "stress"), stress.into_pyobject(py)?.as_ptr())?;
-            }
             if let Some(next) = &person.record {
                 NamespaceMirror::with_row_tree::<BodyRow, _>(&mirror, |row, tree| {
                     let record = row
@@ -559,11 +557,7 @@ pub(crate) fn complete_support_event<'py>(
     }
     let next_record = match care {
         Care::None | Care::Formula { .. } => None,
-        Care::Emotional { stress, trust, record } => {
-            raw_setattr(&agent, intern!(py, "stress"), stress.into_pyobject(py)?.as_ptr())?;
-            raw_setattr(&agent, intern!(py, "trust"), trust.into_pyobject(py)?.as_ptr())?;
-            Some(record)
-        }
+        Care::Emotional { record, .. } => Some(record),
         Care::Hygiene { record } => Some(record),
     };
     if let Some(next) = next_record {
@@ -993,12 +987,10 @@ pub(crate) fn write_request(
     let store = entities_of(world)?;
     let agents = attribute(world, intern!(py, "agents"))?;
     let agent_text = PyString::new(py, agent_id);
-    let Some(agent) = raw_dict_get(&agents, agent_text.as_any())? else {
+    let Some(_) = raw_dict_get(&agents, agent_text.as_any())? else {
         return Err(pyo3::exceptions::PyRuntimeError::new_err("a row has no object"));
     };
-    let request_text = PyString::new(py, request_id);
-    let request = request_class(py)?.call1((&request_text, &agent_text, minute, timeout_minute))?;
-    attribute(world, intern!(py, "support_requests"))?.set_item(&request_text, request)?;
+    insert_entity(world, request_id, new_request(request_id, agent_id, minute, timeout_minute))?;
     set_agent(world, &store, agent_text.as_any(), Activity::SeekingHelp, None)?;
     EntityStore::with_rows(&store, |rows| {
         let Some(row) = rows.agents.get_mut(agent_id) else {
@@ -1007,7 +999,6 @@ pub(crate) fn write_request(
         row.support_request_id = Some(request_id.clone());
         Ok(())
     })?;
-    raw_setattr(&agent, intern!(py, "support_request_id"), request_text.as_ptr())?;
     writer.allocate_sequence()?;
     writer.schedule(event)
 }
@@ -1025,15 +1016,15 @@ pub(crate) fn write_closed_request(
     let store = entities_of(world)?;
     let agents = attribute(world, intern!(py, "agents"))?;
     let agent_text = PyString::new(py, agent_id);
-    let Some(agent) = raw_dict_get(&agents, agent_text.as_any())? else {
+    let Some(_) = raw_dict_get(&agents, agent_text.as_any())? else {
         return Err(pyo3::exceptions::PyRuntimeError::new_err("a row has no object"));
     };
-    let request_text = PyString::new(py, request_id);
-    let request = request_class(py)?.call1((&request_text, &agent_text, minute, minute))?;
-    attribute(world, intern!(py, "support_requests"))?.set_item(&request_text, &request)?;
-    request.setattr(intern!(py, "status"), RequestStatus::Unresolved.member(py)?)?;
-    request.setattr(intern!(py, "resolved_minute"), minute)?;
-    request.setattr(intern!(py, "cooldown_until"), until)?;
+    insert_entity(world, request_id, RequestRow {
+        status: RequestStatus::Unresolved,
+        resolved_minute: Some(minute),
+        cooldown_until: until,
+        ..new_request(request_id, agent_id, minute, minute)
+    })?;
     EntityStore::with_rows(&store, |rows| {
         let Some(row) = rows.agents.get_mut(agent_id) else {
             return unsupported("no such agent");
@@ -1041,7 +1032,6 @@ pub(crate) fn write_closed_request(
         row.support_cooldown_until = until;
         Ok(())
     })?;
-    raw_setattr(&agent, intern!(py, "support_cooldown_until"), until.into_pyobject(py)?.as_ptr())?;
     add_one(metrics, UNRESOLVED_METRIC)
 }
 
