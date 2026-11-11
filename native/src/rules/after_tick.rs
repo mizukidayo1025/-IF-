@@ -129,6 +129,11 @@ impl TickMemo {
     fn empty(py: Python<'_>) -> Self {
         Self { memo: Memo::default(), geometry_scope: PyDict::new(py).unbind() }
     }
+
+    /// The core's memo, for the rules that read which requests may be open (`rules/metrics.rs`).
+    pub(crate) fn memo(&self) -> &Memo {
+        &self.memo
+    }
 }
 
 fn sorted(ids: &Option<FxHashSet<Arc<str>>>) -> Option<Vec<&str>> {

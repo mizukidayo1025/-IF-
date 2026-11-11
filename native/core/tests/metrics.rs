@@ -1,25 +1,34 @@
 //! The pilot kernel of lane 5-4: the KPI columns of a minute (`rules::metrics::sample`) over a
-//! `World` built here, with no Python; and the `WorldCell` of a world Rust holds alone.
+//! `World` built here, with no Python; and the `WorldCell` of a world Rust holds alone. Since lane
+//! P8 b4 the open requests' waits are the staff rules' over the rows, and the metrics phase gives
+//! the sample to the host (`metrics::capture`).
 //!
 //! The Python test `tests/integration/test_entity_rules_kernel.py` checks the same function, through
 //! the PyO3 glue, against the digest of the columns the Python rule gave on the worlds of a Run.
+
+mod support;
 
 use std::sync::Arc;
 
 use indexmap::IndexMap;
 use sheltersim_core::cell::{Shard, BORROWED};
+use sheltersim_core::config::movement::Movement;
 use sheltersim_core::entities::{
-    Activity, AgentRow, AnyTable, FacilityRow, Mobility, NeedRow, ProfileRow, Skills, StaffRow, Table, TaskRow,
+    Activity, AgentRow, AnyTable, FacilityRow, Mobility, NeedRow, ProfileRow, RequestRow, RequestStatus, Skills, StaffRow, Table, TaskRow, ZoneRow,
 };
 use sheltersim_core::error::Error;
 use sheltersim_core::events::log::EventLog;
+use sheltersim_core::events::queue::Queue;
 use sheltersim_core::events::{EventKind, EventRow, EventStatus};
-use sheltersim_core::row::IdMap;
-use sheltersim_core::rules::kit::is_toilet;
-use sheltersim_core::rules::metrics::{self, Inputs, MetricSample, OpenWait, EXPOSURE_SEMANTICS};
+use sheltersim_core::row::{IdMap, ValueRow};
+use sheltersim_core::rules::after_tick::Memo;
+use sheltersim_core::rules::kit::{is_toilet, Held, Kept};
+use sheltersim_core::rules::metrics::{self, Captured, Inputs, MetricSample, Requests, EXPOSURE_SEMANTICS};
+use sheltersim_core::rules::staff::{self, WaitRoutes};
 use sheltersim_core::state::metric_state::MetricRow;
 use sheltersim_core::value::V;
-use sheltersim_core::world::{Place, World, WorldCell, METRIC_STATE};
+use sheltersim_core::world::{Fit, Place, World, WorldCell, ID_COUNTERS, METRIC_STATE, MODEL_CONFIGS};
+use support::{Call, TestHost};
 
 fn text(value: &str) -> Arc<str> {
     Arc::from(value)
@@ -76,10 +85,27 @@ fn staff(id: &str, queue: &[&str]) -> StaffRow {
     StaffRow {
         id: text(id),
         zone_id: text("z0"),
+        // No one has the skill emotional support needs (`support`).
         skills: Skills(ids(&["triage"])),
         work_queue: ids(queue),
         busy_until: 0,
         active_task_id: None,
+    }
+}
+
+fn request(id: &str, agent: &str, requested: i64, status: RequestStatus, task: Option<&str>) -> RequestRow {
+    RequestRow {
+        id: text(id),
+        agent_id: text(agent),
+        requested_minute: requested,
+        timeout_minute: requested + 90,
+        status,
+        assigned_staff_id: task.map(|_| text("s2")),
+        task_id: task.map(text),
+        resolved_minute: None,
+        cooldown_until: 0,
+        last_assignment_attempt_minute: None,
+        last_assignment_wait_reason_code: None,
     }
 }
 
@@ -101,10 +127,27 @@ fn put<R: Clone>(table: &mut Table<R>, id: &str, row: R) {
     assert_eq!(table.bind(text(id), slot), None);
 }
 
-/// A world at minute 30: agents in this dict order (their stresses sum to 1.7 only with Python's
-/// compensated `sum`), two toilets of three facilities, two staff members, one of them busy.
+/// A world at minute 30 of 100 that holds its queue, log and event counter: agents in this dict
+/// order (their stresses sum to 1.7 only with Python's compensated `sum`), two toilets of three
+/// facilities, two staff members, one of them busy, and four support requests: one assigned, two
+/// pending of a kind no one is qualified for, one settled.
 fn world() -> World {
+    let mut world = bare();
+    let index = world.slots.add(text(METRIC_STATE), Place::Field).unwrap();
+    let mut counters: MetricRow = IdMap::default();
+    counters.insert(text("toilet_wait_count"), 3.0);
+    counters.insert(text("toilet_wait_total_minutes"), 7.0);
+    counters.insert(text("toilet_wait_max_minutes"), 4.0);
+    counters.insert(text("support_wait_staff_busy_request_minutes"), 2.5);
+    world.slots.at(index).unwrap().try_borrow_mut().unwrap().row = Some(Box::new(counters));
+    world
+}
+
+/// `world` without its `metric_state`.
+fn bare() -> World {
     let mut world = World::default();
+    world.scalars.get_mut().duration_minutes = Fit::Ok(100);
+    world.scalars.get_mut().minute_index = Fit::Ok(30);
     {
         let rows = world.entities.get_mut();
         for (id, stress) in [("a3", 1e16), ("a1", 1.0), ("a4", -1e16), ("a2", 0.7)] {
@@ -118,16 +161,24 @@ fn world() -> World {
         put(&mut rows.active_tasks, "t1", task("t1", 10, 40));
         put(&mut rows.active_tasks, "t2", task("t2", 40, 50));
         put(&mut rows.active_tasks, "t3", task("t3", 0, 30));
+        put(&mut rows.zones, "z0", ZoneRow { id: text("z0"), name: text("hall"), capacity: None, display_x: None, display_y: None });
+        put(&mut rows.support_requests, "r1", request("r1", "a2", 5, RequestStatus::Assigned, Some("t1")));
+        put(&mut rows.support_requests, "r2", request("r2", "a1", 30, RequestStatus::Pending, None));
+        put(&mut rows.support_requests, "r0", request("r0", "a3", 1, RequestStatus::Resolved, None));
+        put(&mut rows.support_requests, "r3", request("r3", "a2", 28, RequestStatus::Pending, None));
     }
-    let index = world.slots.add(text(METRIC_STATE), Place::Field).unwrap();
-    let mut counters: MetricRow = IdMap::default();
-    counters.insert(text("toilet_wait_count"), 3.0);
-    counters.insert(text("toilet_wait_total_minutes"), 7.0);
-    counters.insert(text("toilet_wait_max_minutes"), 4.0);
-    counters.insert(text("support_wait_staff_busy_request_minutes"), 2.5);
-    world.slots.at(index).unwrap().try_borrow_mut().unwrap().row = Some(Box::new(counters));
+    let mut counter = IndexMap::new();
+    counter.insert(text("event"), V::Int(40));
+    add(&mut world, ID_COUNTERS, ValueRow(V::Map(counter)));
+    add(&mut world, MODEL_CONFIGS, ValueRow(V::Map(IndexMap::new())));
+    world.hold_queue(Arc::new(Queue::new()));
     world.hold_log(Arc::new(log()));
     world
+}
+
+fn add(world: &mut World, name: &str, row: ValueRow) {
+    let index = world.slots.add(text(name), Place::Field).unwrap();
+    world.slots.at(index).unwrap().try_borrow_mut().unwrap().row = Some(Box::new(row));
 }
 
 fn event(event_id: &str, sequence: i64) -> EventRow {
@@ -154,24 +205,20 @@ fn log() -> EventLog {
     log
 }
 
-fn waits() -> Vec<OpenWait<'static>> {
-    vec![
-        OpenWait { agent: "a2", request_id: "r1", waited: 5, reasons: vec!["staff_busy"], without_qualified_staff: false },
-        OpenWait {
-            agent: "a1",
-            request_id: "r2",
-            waited: 0,
-            reasons: vec!["no_qualified_staff"],
-            without_qualified_staff: true,
-        },
-        // A later request of the same person is the one `support_wait_by_agent` keeps.
-        OpenWait { agent: "a2", request_id: "r3", waited: 2, reasons: vec!["a", "b"], without_qualified_staff: false },
-    ]
+const ABSENT: Held = Held::Absent;
+
+/// What the staff rules read of the Python world: no namespace held.
+fn staff_inputs(held: bool) -> staff::Inputs<'static> {
+    staff::Inputs { operations: &ABSENT, dynamics: &ABSENT, body: &ABSENT, shared: &ABSENT, metric_state_held: held, tasks: None }
+}
+
+fn sample_with(world: &World, held: bool, requests: Requests<'_>) -> Result<Option<MetricSample>, Error> {
+    let staff = staff_inputs(held);
+    metrics::sample(world, &Inputs { sample: 30, requests, staff: &staff, routes: None })
 }
 
 fn sample_of(world: &World, held: bool) -> Result<MetricSample, Error> {
-    let waits = waits();
-    metrics::sample(world, &Inputs { sample: 30, waits: &waits, metric_state_held: held })
+    sample_with(world, held, Requests::Unsettled(None)).map(|taken| taken.expect("no routes are read"))
 }
 
 fn unsupported(reason: &str) -> Error {
@@ -184,9 +231,9 @@ fn the_columns_are_those_of_the_python_rule() {
     let source_ids = format!(
         concat!(
             r#"{{"busy_staff":["s2"],"high_stress_agents":["a1","a2","a3"],"realized_events":["e-a","e-b"],"#,
-            r#""staff_tasks":["t1","t2","t3"],"support_requests_without_qualified_staff":["a1"],"#,
+            r#""staff_tasks":["t1","t2","t3"],"support_requests_without_qualified_staff":["a1","a2"],"#,
             r#""support_wait_by_agent":{{"a1":{{"reason_codes":["no_qualified_staff"],"request_id":"r2","waited_minutes":0}},"#,
-            r#""a2":{{"reason_codes":["a","b"],"request_id":"r3","waited_minutes":2}}}},"#,
+            r#""a2":{{"reason_codes":["no_qualified_staff"],"request_id":"r3","waited_minutes":2}}}},"#,
             r#""support_wait_exposure_semantics":"{}","toilet_active_agents":["a2","a3"],"#,
             r#""toilet_queue_agents":["a1","a2","a4"],"unresolved_support_agents":["a1","a2","a2"]}}"#
         ),
@@ -210,7 +257,7 @@ fn the_columns_are_those_of_the_python_rule() {
             staff_load_ratio: 0.5,
             unresolved_support_request_count: 3,
             source_ids_json: source_ids,
-            support_no_qualified_worker_count: 1,
+            support_no_qualified_worker_count: 2,
             support_no_qualified_worker_request_minutes: 0.0,
             support_fairness_promoted_assignment_count: 0.0,
             support_wait_staff_busy_request_minutes: 2.5,
@@ -218,19 +265,60 @@ fn the_columns_are_those_of_the_python_rule() {
         }
     );
     assert_eq!(taken.stress_mean.to_bits(), 0.425_f64.to_bits());
+    // The memo of an end-of-tick check that knows nothing gives every request, as no memo does.
+    let memo = Memo::default();
+    assert_eq!(sample_with(&world(), true, Requests::Unsettled(Some(&memo))).unwrap(), Some(taken));
+}
+
+#[test]
+fn a_list_of_requests_is_read_in_its_order() {
+    // The assigned request after the later pending one: `support_wait_by_agent` keeps the last.
+    let given = ids(&["r3", "r1", "r0"]);
+    let taken = sample_with(&world(), true, Requests::Given(&given)).unwrap().unwrap();
+    assert!(taken.source_ids_json.contains(r#""a2":{"reason_codes":["support_in_progress"],"request_id":"r1","waited_minutes":5}"#));
+    assert_eq!((taken.unresolved_support_request_count, taken.support_no_qualified_worker_count), (2, 1));
+    let unknown = ids(&["r9"]);
+    assert_eq!(sample_with(&world(), true, Requests::Given(&unknown)).err(), Some(unsupported("a request has no row")));
+}
+
+#[test]
+fn the_metrics_phase_gives_the_sample_to_the_host_and_reads_routes_only_where_asked() {
+    let cell = Shard::new(world());
+    let mut host = TestHost::default();
+    let staff = staff_inputs(true);
+    let inputs = Inputs { sample: 30, requests: Requests::Unsettled(None), staff: &staff, routes: None };
+    assert_eq!(metrics::capture(&cell, &mut host, &inputs), Ok(Captured::Taken));
+    let expected = cell.with(|world| sample_of(world, true)).unwrap().unwrap();
+    assert_eq!(host.calls, [Call::Metric(expected, 30)]);
+
+    // A free worker who could take the pending requests: their routes are read.
+    cell.with(|world| world.rows_mut().unwrap().staff.get_mut("s1").unwrap().skills = Skills(ids(&["support"]))).unwrap();
+    let mut host = TestHost::default();
+    assert_eq!(metrics::capture(&cell, &mut host, &inputs), Ok(Captured::NeedsRoutes));
+    assert!(host.calls.is_empty());
+    let movement: Kept<Movement> = Movement::parse(&V::Map(IndexMap::new())).map(Arc::new);
+    let minutes: Kept<i64> = Ok(Arc::new(10));
+    let routes = WaitRoutes { loads_staff: &ABSENT, geo: None, movement: &movement, support_minutes: &minutes };
+    let inputs = Inputs { routes: Some(&routes), ..inputs };
+    assert_eq!(metrics::capture(&cell, &mut host, &inputs), Ok(Captured::Taken));
+    let [Call::Metric(taken, 30)] = host.calls.as_slice() else {
+        panic!("one sample: {:?}", host.calls);
+    };
+    assert_eq!(taken.support_no_qualified_worker_count, 0);
+    assert!(taken.source_ids_json.contains(r#""a1":{"reason_codes":["assignment_not_attempted_at_sampled_minute"]"#));
 }
 
 #[test]
 fn an_empty_world_has_means_of_zero() {
     let mut world = World::default();
+    world.scalars.get_mut().duration_minutes = Fit::Ok(10);
     let index = world.slots.add(text(METRIC_STATE), Place::Field).unwrap();
     world.slots.at(index).unwrap().try_borrow_mut().unwrap().row = Some(Box::new(MetricRow::default()));
+    add(&mut world, ID_COUNTERS, ValueRow(V::Map(IndexMap::new())));
+    world.hold_queue(Arc::new(Queue::new()));
     world.hold_log(Arc::new(EventLog::new()));
-    let taken = metrics::sample(
-        &world,
-        &Inputs { sample: 0, waits: &[], metric_state_held: true },
-    )
-    .unwrap();
+    let staff = staff_inputs(true);
+    let taken = metrics::sample(&world, &Inputs { sample: 0, requests: Requests::Unsettled(None), staff: &staff, routes: None }).unwrap().unwrap();
     assert_eq!((taken.stress_mean, taken.toilet_wait_mean_minutes, taken.staff_load_ratio), (0.0, 0.0, 0.0));
 }
 
@@ -272,15 +360,16 @@ fn what_the_kernel_refused_it_still_refuses_with_its_text() {
     world.slots.get(METRIC_STATE).unwrap().try_borrow_mut().unwrap().misfit("an int".to_owned());
     assert_eq!(sample_of(&world, true).err(), Some(unsupported("the namespace has no row")));
 
-    let mut bare = World::default();
-    *bare.entities.get_mut() = std::mem::take(self::world().entities.get_mut());
-    bare.hold_log(Arc::new(log()));
-    assert_eq!(sample_of(&bare, false).err(), Some(unsupported("the namespace is not owned")));
+    assert_eq!(sample_of(&bare(), false).err(), Some(unsupported("the namespace is not owned")));
 
-    // A world whose EventLog is held elsewhere (lane 6-5).
+    // A world whose EventLog or queue is held elsewhere (lane 6-5), or whose event counter a rule
+    // cannot add to, as the PyO3 crate's `EventWriter::of` refused it before.
     let mut world = self::world();
     assert!(world.release_log().is_some());
     assert_eq!(sample_of(&world, true).err(), Some(unsupported("the event log is not in Rust")));
+    let mut world = self::world();
+    assert!(world.release_queue().is_some());
+    assert_eq!(sample_of(&world, true).err(), Some(unsupported("the event queue is not in Rust")));
 }
 
 #[test]

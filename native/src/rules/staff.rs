@@ -294,8 +294,7 @@ impl<'py> OpenWaits<'py> {
 }
 
 /// `support_waited_minutes` and `support_wait_reason_codes` of each request of the list, or with
-/// `only_open` of each one that is pending or assigned. The routes' inputs (the queue's rows, the
-/// floor plan, the sections) are read where a request's routes are.
+/// `only_open` of each one that is pending or assigned.
 pub(crate) fn open_waits<'py>(world: &Bound<'py, PyAny>, list: &Bound<'py, PyList>, sample: i64, only_open: bool) -> PyResult<OpenWaits<'py>> {
     let py = world.py();
     let id_name = intern!(py, "id");
@@ -306,29 +305,47 @@ pub(crate) fn open_waits<'py>(world: &Bound<'py, PyAny>, list: &Bound<'py, PyLis
         keys.push(Arc::<str>::from(exact_str(&id)?));
         ids.push(id);
     }
-    let staff = Staff::of(world)?;
-    let inputs = staff.inputs(None);
-    let found = with_world(world, |cell| core::open_waits(cell, &inputs, None, &keys, sample, only_open))?.or_py()?;
-    let waits = match found {
-        Some(waits) => waits,
-        None => {
-            read_queue_rows(world)?;
-            let loads_staff = travel::staff_held(world)?;
-            let geo = Geo::of(world);
-            let movement = travel::movement_section(world)?;
-            let support_minutes = configs::kept_section(world, |configs| &configs.support_task_minutes, support_task_minutes)?;
-            let routes = WaitRoutes { loads_staff: &loads_staff, geo: geo.as_ref().ok(), movement: &movement, support_minutes: &support_minutes };
-            let found = with_world(world, |cell| core::open_waits(cell, &inputs, Some(&routes), &keys, sample, only_open))?;
-            let found = match (found, &geo) {
-                (Err(Error::Unsupported(reason)), Err(read)) if reason == PLAN_UNREAD => return Err(read.clone_ref(py)),
-                (found, _) => found.or_py()?,
-            };
-            found.ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("the waits asked for their routes again"))?
-        }
-    };
-    let mut waits = waits;
+    let mut waits = with_wait_routes(world, |cell, inputs, routes| core::open_waits(cell, inputs, routes, &keys, sample, only_open))?;
     let requests = std::mem::take(&mut waits.requests);
     Ok(OpenWaits { requests, ids, waits })
+}
+
+/// A core function that reads the open requests' waits (`core::open_waits`), called on the world
+/// with what the staff rules read of the Python world, and again with the routes' inputs where it
+/// answers None (`with_wait_inputs`).
+pub(crate) fn with_wait_routes<R>(
+    world: &Bound<'_, PyAny>,
+    call: impl Fn(&mut sheltersim_core::world::World, &Inputs<'_>, Option<&WaitRoutes<'_>>) -> Result<Option<R>, Error>,
+) -> PyResult<R> {
+    with_wait_inputs(world, |inputs, routes| with_world(world, |cell| call(cell, inputs, routes))?.or_py())
+}
+
+/// What a reader of the open requests' waits takes, given to `call`, which borrows the world itself
+/// (one that calls the host gives it back first): first without the routes, and again with the
+/// routes' inputs where it answers None. Those are the queue's rows, the floor plan and the
+/// sections, read where a request's routes are; a floor plan whose read raised is raised where the
+/// core needed it.
+pub(crate) fn with_wait_inputs<R>(
+    world: &Bound<'_, PyAny>,
+    mut call: impl FnMut(&Inputs<'_>, Option<&WaitRoutes<'_>>) -> PyResult<Option<R>>,
+) -> PyResult<R> {
+    let py = world.py();
+    let staff = Staff::of(world)?;
+    let inputs = staff.inputs(None);
+    if let Some(found) = call(&inputs, None)? {
+        return Ok(found);
+    }
+    read_queue_rows(world)?;
+    let loads_staff = travel::staff_held(world)?;
+    let geo = Geo::of(world);
+    let movement = travel::movement_section(world)?;
+    let support_minutes = configs::kept_section(world, |configs| &configs.support_task_minutes, support_task_minutes)?;
+    let routes = WaitRoutes { loads_staff: &loads_staff, geo: geo.as_ref().ok(), movement: &movement, support_minutes: &support_minutes };
+    let found = match (call(&inputs, Some(&routes)), &geo) {
+        (Err(error), Err(read)) if error.is_instance_of::<Unsupported>(py) && error.value(py).to_string() == PLAN_UNREAD => return Err(read.clone_ref(py)),
+        (found, _) => found?,
+    };
+    found.ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("the waits asked for their routes again"))
 }
 
 /// `_support_wait_snapshot` in `experiments/metrics.py`, for the snapshots `rules/metrics.rs`

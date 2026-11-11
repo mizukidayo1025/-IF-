@@ -2,10 +2,7 @@
 //! (`sheltersim_core::rules::care_receipts`, P8b-1). Each asks what only Python can say (whether
 //! `shared_operations_v1` is in `model_state`, and its tree is the world's), converts what Python
 //! hands in, calls the core, and makes the Python values of what it returns: the applied record of
-//! a receipt as Python's `EventLogRecord`, which the dispatcher appends, and the person's context.
-//!
-//! `allocate_transition` still allocates through the caller's `EventWriter`: its callers (the
-//! support rules) hold no world there; they move with their lane.
+//! a receipt as Python's `EventLogRecord`, which the dispatcher appends.
 
 use std::sync::Arc;
 
@@ -20,7 +17,6 @@ pub(crate) use sheltersim_core::rules::care_receipts::{PlannedTransition, Transi
 
 use crate::core::errors::{self, to_py_err, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, namespace_is_absent, unsupported};
-use crate::core::value::VPy;
 use crate::core::world_core::{mirror_of, with_world};
 use crate::rules::common_operations::record;
 use crate::rules::handlers::status_member;
@@ -78,15 +74,6 @@ fn shared_absent(world: &Bound<'_, PyAny>) -> PyResult<bool> {
 pub(crate) fn plan_transition(world: &Bound<'_, PyAny>, _writer: &EventWriter<'_>, transition: Transition, sequence: i64) -> PyResult<PlannedTransition> {
     shared_held(world)?;
     with_world(world, |world| core::plan_transition(world, transition, sequence))?.or_py()
-}
-
-/// `allocate_event_sequence` for what `plan_transition` planned, through the caller's writer.
-pub(crate) fn allocate_transition(writer: &EventWriter<'_>, planned: &PlannedTransition) -> PyResult<()> {
-    let sequence = writer.allocate_sequence()?;
-    if sequence != planned.row().sequence {
-        return Err(pyo3::exceptions::PyRuntimeError::new_err("the event counter moved after the plan"));
-    }
-    Ok(())
 }
 
 /// The record of an allocated transition, and its receipt.
@@ -185,12 +172,6 @@ fn append_transition<'py>(
             outcome: None,
         },
     )
-}
-
-/// `population_context_people(world).get(agent_id)`: a copy of the person's document.
-pub(crate) fn person_context<'py>(world: &Bound<'py, PyAny>, agent_id: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
-    let person = with_world(world, |world| core::person_context(world, agent_id))?.or_py()?;
-    person.map(|person| person.to_py(world.py())).transpose()
 }
 
 /// `care_source_ids_for_agent`.

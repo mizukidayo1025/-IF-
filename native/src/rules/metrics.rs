@@ -1,70 +1,92 @@
 //! `experiments/metrics.py` and `experiments/operational_kpis.py`: the KPI columns of a minute, read
 //! from the rows in one call. They only read, so a call changes nothing.
 //!
-//! The columns of `MetricSnapshot` are computed in the core (`sheltersim_core::rules::metrics`);
-//! `snapshot_fields` is its glue. `kpi_values` still reads here: it passes Python's own values of
-//! `world.resources` and of the snapshot through.
+//! The columns of `MetricSnapshot` are computed in the core (`sheltersim_core::rules::metrics`),
+//! with the open requests' waits of the staff rules over the rows (lane P8 b4); this is its glue:
+//! what the staff rules read of the Python world and, where a wait's routes are read, the routes'
+//! inputs (`staff::with_wait_routes`), the memo of the last end-of-tick check, and the
+//! `MetricSnapshot` made at the edge from the core's sample. The tick's metrics phase gives the
+//! sample to the sink through the host (`Host::capture_metric`, `capture_of_run`). `kpi_values`
+//! still reads here: it passes Python's own values of `world.resources` and of the snapshot through.
 //!
 //! The Python rules' errors are raised with their classes and texts. What only a state the checks of
 //! the Python rules never let through reaches is Unsupported, which the entries raise as
 //! `KernelRefusal`: a tainted row, a staff queue naming no task (a KeyError of the Python rule).
+
+use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 
-use sheltersim_core::rules::metrics::{self, Inputs, MetricSample, OpenWait};
+use sheltersim_core::rules::metrics::{self, Captured, Inputs, MetricSample, Requests};
 
-use crate::core::errors::{self, OrPy};
+use crate::core::errors;
 use crate::core::mathx::py_sum;
 use crate::core::row::{attribute, exact_dict, exact_int, exact_list, exact_str, namespace_is_absent, unsupported};
-use crate::core::world_core::{field_held, field_mirror_of, with_world, NamespaceMirror};
-use crate::rules::staff::open_waits;
+use crate::core::world_core::{field_mirror_of, raw_dict_get, NamespaceMirror, PyWorldCell};
+use crate::host::PyHost;
+use crate::rules::after_tick::TickMemo;
+use crate::rules::staff::{with_wait_inputs, with_wait_routes};
 use crate::state::entities::{entities_of, EntityStore};
-use crate::state::events::EventWriter;
 use crate::state::metric_state::MetricRow;
 use crate::state::resource_ledger::{held_mirror, LedgerRow};
 
 /// `MetricSnapshot.from_world`: the fields of the dataclass in their order, for a sample minute
 /// that is the world's. `unsettled` is `world.unsettled_support_requests()` as a list.
-///
-/// The pilot of a kernel split into a core function and its glue (step5-plan.md, PR 5-4): this
-/// gathers what Python holds (the open requests' waits, whether `metric_state` is its slot's tree),
-/// runs `sheltersim_core::rules::metrics::sample` on the world borrowed whole, and makes the Python
-/// tuple of what it returns. The facility kinds are folded in the core (`text::casefold`).
 #[pyfunction]
 fn snapshot_fields<'py>(
     world: &Bound<'py, PyAny>,
     unsettled: &Bound<'py, PyList>,
     sample_minute: &Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyTuple>> {
-    fields_of(sample_minute, &sample_of(world, unsettled, sample_minute)?)
+    let mut ids = Vec::with_capacity(unsettled.len());
+    for request in unsettled.iter() {
+        ids.push(Arc::<str>::from(exact_str(&attribute(&request, intern!(world.py(), "id"))?)?));
+    }
+    fields_of(sample_minute, &sample_of(world, Requests::Given(&ids), exact_int(sample_minute)?)?)
 }
 
-/// The core's sample of the minute (`snapshot_fields` without the Python tuple).
-pub(crate) fn sample_of(world: &Bound<'_, PyAny>, unsettled: &Bound<'_, PyList>, sample_minute: &Bound<'_, PyAny>) -> PyResult<MetricSample> {
+/// The core's sample of the world's minute, of these requests.
+pub(crate) fn sample_of(world: &Bound<'_, PyAny>, requests: Requests<'_>, sample: i64) -> PyResult<MetricSample> {
+    with_wait_routes(world, |cell, staff, routes| metrics::sample(cell, &Inputs { sample, requests, staff, routes }))
+}
+
+/// The memo of the world's last end-of-tick check (`world.__dict__["_tick_memo"]`), if it has one.
+fn memo_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, TickMemo>>> {
+    let own = world.getattr(intern!(world.py(), "__dict__"))?;
+    Ok(raw_dict_get(&own, intern!(world.py(), "_tick_memo").as_any())?.and_then(|memo| memo.downcast_into::<TickMemo>().ok()))
+}
+
+/// The core's sample of the world's minute, of `world.unsettled_support_requests()`.
+pub(crate) fn unsettled_sample(world: &Bound<'_, PyAny>, sample: i64) -> PyResult<MetricSample> {
+    let memo = memo_of(world)?;
+    let memo = memo.as_ref().map(|memo| memo.try_borrow()).transpose()?;
+    sample_of(world, Requests::Unsettled(memo.as_deref().map(TickMemo::memo)), sample)
+}
+
+/// The metrics phase of a tick whose sink keeps a `MetricsRecorder`: the core's sample, given to
+/// the sink through the host (`Host::capture_metric`), which makes the snapshot. Unsupported, with
+/// nothing changed, where the core refuses the sample: the driver then leaves it to the sink.
+pub(crate) fn capture_of_run<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<()> {
     let py = world.py();
-    let sample = exact_int(sample_minute)?;
-    let open = open_waits(world, unsettled, sample, true)?;
-    let waits = open
-        .requests
-        .iter()
-        .map(|request| {
-            Ok(OpenWait {
-                agent: &request.agent,
-                request_id: exact_str(open.id_of(request))?,
-                waited: request.waited,
-                reasons: open.reasons_of(request),
-                without_qualified_staff: open.has_no_qualified_staff(request),
-            })
-        })
-        .collect::<PyResult<Vec<_>>>()?;
-    // The refusals of a world whose events are not Rust's, as before; the log is the world's.
-    EventWriter::of(world)?;
-    let metric_state_held = field_held(world, intern!(py, "metric_state"))?;
-    let inputs = Inputs { sample, waits: &waits, metric_state_held };
-    with_world(world, |world| metrics::sample(world, &inputs))?.or_py()
+    let sample = exact_int(minute)?;
+    if exact_int(&attribute(world, intern!(py, "minute_index"))?)? != sample {
+        return unsupported("the metric minute is not the world's");
+    }
+    let mut host = PyHost::of_controller(controller)?;
+    let memo = memo_of(world)?;
+    let memo = memo.as_ref().map(|memo| memo.try_borrow()).transpose()?;
+    let requests = Requests::Unsettled(memo.as_deref().map(TickMemo::memo));
+    with_wait_inputs(world, |staff, routes| {
+        // The core borrows the world, and gives it back before the host runs (R6).
+        let inputs = Inputs { sample, requests, staff, routes };
+        match metrics::capture(&PyWorldCell(world), &mut host, &inputs).map_err(|error| error.0)? {
+            Captured::Taken => Ok(Some(())),
+            Captured::NeedsRoutes => Ok(None),
+        }
+    })
 }
 
 /// The fields of `MetricSnapshot` of a sample, in the order of the dataclass.
@@ -215,8 +237,8 @@ fn snapshot_class(py: Python<'_>) -> PyResult<&SnapshotClass> {
     })
 }
 
-/// `MetricsRecorder.capture` of the minute that is the world's, for the driver's `_MetricSink`: all
-/// of it, or Unsupported with nothing changed and the Python rule then raises or does what's left.
+/// `MetricsRecorder.capture` of the minute that is the world's: all of it, or Unsupported with
+/// nothing changed and the Python rule then raises or does what's left.
 #[pyfunction]
 pub(crate) fn capture<'py>(world: &Bound<'py, PyAny>, recorder: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<()> {
     let py = world.py();
@@ -225,13 +247,8 @@ pub(crate) fn capture<'py>(world: &Bound<'py, PyAny>, recorder: &Bound<'py, PyAn
     if exact_int(&attribute(world, intern!(py, "minute_index"))?)? != sample {
         return unsupported("the metric minute is not the world's");
     }
-    let unsettled = world.call_method0(intern!(py, "unsettled_support_requests"))?;
-    let unsettled = match unsettled.downcast_exact::<PyList>() {
-        Ok(list) => list.clone(),
-        Err(_) => PyList::new(py, unsettled.try_iter()?.collect::<PyResult<Vec<_>>>()?)?,
-    };
-    let values = snapshot_fields(world, &unsettled, minute)?;
-    append(world, recorder, minute, class, &values)
+    let taken = unsettled_sample(world, sample)?;
+    append(world, recorder, minute, class, &fields_of(minute, &taken)?)
 }
 
 /// A snapshot of a sample the core took (`Host::capture_metric` of the native host), appended as

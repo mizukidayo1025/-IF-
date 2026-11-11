@@ -617,9 +617,7 @@ pub(crate) fn host_call<'py>(
             // The core's sample of the world's minute, as the metrics phase will take it.
             let world = attribute(controller, intern!(py, "world"))?;
             let minute = item(0)?;
-            let unsettled = world.call_method0(intern!(py, "unsettled_support_requests"))?;
-            let unsettled = pyo3::types::PyList::new(py, unsettled.try_iter()?.collect::<PyResult<Vec<_>>>()?)?;
-            let sample = crate::rules::metrics::sample_of(&world, &unsettled, &minute)?;
+            let sample = crate::rules::metrics::unsettled_sample(&world, minute.extract()?)?;
             done(host.capture_metric(&sample, minute.extract()?)).and_then(|()| none())
         }
         "decision_sink" => {

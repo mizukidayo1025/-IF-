@@ -6,7 +6,7 @@
 //! of an operation the ledger took, and the ledger's error text with Python's `repr` of a value.
 //! The world's validation of `request` goes through the native host (`Host::validate_world`).
 //!
-//! The helpers at the end (`add_one`, `metrics_of`, `set_agent`, `resource_service_of`,
+//! The helpers at the end (`add_one`, `metrics_of`, `resource_service_of`,
 //! `append_outcome`) are for the rules still in this crate.
 
 use std::sync::Arc;
@@ -34,7 +34,6 @@ use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::rules::queues::Walking;
 use crate::rules::resources::{raised, replace_resources};
 use crate::rules::social_network::mapping_get;
-use crate::state::entities::{Activity, EntityStore};
 use crate::state::events::{write_error, EventRef, EventRow, EventRowPy, EventWriter};
 use crate::state::metric_state::MetricRow;
 use crate::state::resource_service::{RequestRecord, Stall};
@@ -514,20 +513,6 @@ pub(crate) fn metrics_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, 
     let metrics = field_mirror_of(world, intern!(world.py(), "metric_state"))?;
     NamespaceMirror::with_row::<MetricRow, _>(&metrics, |_| Ok(()))?;
     Ok(metrics)
-}
-
-/// A person's activity and target, on the row: the object follows when the borrow ends
-/// (`sheltersim_core::rules::kit::set_agent`).
-pub(crate) fn set_agent<'py>(
-    _world: &Bound<'py, PyAny>,
-    store: &Bound<'py, EntityStore>,
-    agent_id: &Bound<'py, PyAny>,
-    activity: Activity,
-    target: Option<&Bound<'py, PyAny>>,
-) -> PyResult<()> {
-    let id = exact_str(agent_id)?;
-    let target_text = target.map(exact_str).transpose()?;
-    EntityStore::with_rows(store, |rows| kit::set_agent(rows, id, activity, target_text).or_py())
 }
 
 /// `record_request_outcome`: the record at the end of the service's `request_history`, on the row

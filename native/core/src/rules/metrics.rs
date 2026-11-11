@@ -4,9 +4,16 @@
 //! `native/src`), which also makes the Python values of the result.
 //!
 //! Handed in, because Python holds it or computes it:
-//! - the open support requests and their wait reasons (`OpenWait`), which `rules/staff.rs` reads
-//!   from the Python objects of the unsettled requests and the routes;
+//! - what the staff rules read of the Python world (`staff::Inputs`), and the routes' inputs where
+//!   a wait's routes are read (`staff::WaitRoutes`): the open requests' waits and reasons are the
+//!   staff rules' `open_waits` over the rows (lane P8 b4), and `sample` answers None where they
+//!   need the routes, which the PyO3 crate then reads before it calls again;
+//! - which requests: the ones a caller listed, or those `world.unsettled_support_requests()` gives,
+//!   which the memo of the last end-of-tick check knows (`after_tick::Memo`) or else all;
 //! - whether `world.metric_state` holds its slot's tree (a field assigned whole doesn't).
+//!
+//! `capture` is the metrics phase of a tick: the sample, given to the host's sink
+//! (`Host::capture_metric`), which makes the `MetricSnapshot` at the edge.
 //!
 //! A facility kind is folded here with the core's `str.casefold` (`text::casefold`, P8-0a), which
 //! before was Python's for a kind that isn't ASCII. The realized events of the minute come from the world's log (`World::log`, lane 6-5), which is
@@ -21,10 +28,13 @@
 use std::sync::Arc;
 
 use crate::error::{Error, Result};
+use crate::host::Host;
 use crate::json::write_json_string;
 use crate::mathx::py_sum;
-use crate::rules::kit::is_toilet;
-use crate::world::World;
+use crate::rules::after_tick::Memo;
+use crate::rules::kit::{is_toilet, Events};
+use crate::rules::staff::{self, WaitRoutes};
+use crate::world::{World, WorldCell};
 
 /// `agent.stress >= 0.7` is high stress.
 pub const HIGH_STRESS_AT_LEAST: f64 = 0.7;
@@ -37,7 +47,7 @@ pub use crate::world::METRIC_STATE;
 /// What the metrics read of one open (pending or assigned) support request, in the order of
 /// `world.unsettled_support_requests()`.
 #[derive(Clone, Debug)]
-pub struct OpenWait<'a> {
+struct OpenWait<'a> {
     pub agent: &'a str,
     pub request_id: &'a str,
     /// `support_waited_minutes` at the sample minute.
@@ -48,13 +58,45 @@ pub struct OpenWait<'a> {
     pub without_qualified_staff: bool,
 }
 
+/// The support requests a sample reads.
+#[derive(Clone, Copy)]
+pub enum Requests<'a> {
+    /// These, in this order (a caller's list of `MetricSnapshot.from_world`).
+    Given(&'a [Arc<str>]),
+    /// `world.unsettled_support_requests()`: what the memo of the world's last end-of-tick check
+    /// says may be open, or else all of them, in the order of the table.
+    Unsettled(Option<&'a Memo>),
+}
+
 /// What `sample` takes besides the world.
 pub struct Inputs<'a> {
     /// The minute sampled, the world's.
     pub sample: i64,
-    pub waits: &'a [OpenWait<'a>],
-    /// Whether `world.metric_state` is its slot's tree. Not owned: either.
-    pub metric_state_held: bool,
+    pub requests: Requests<'a>,
+    /// What the staff rules read of the Python world; its `metric_state_held` is the sample's too.
+    pub staff: &'a staff::Inputs<'a>,
+    /// The routes' inputs, where a wait's routes are read: None for a first call.
+    pub routes: Option<&'a WaitRoutes<'a>>,
+}
+
+/// What `capture` did.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Captured {
+    /// The sample went to the host's sink.
+    Taken,
+    /// The waits need their routes (`Inputs::routes`): nothing was sampled.
+    NeedsRoutes,
+}
+
+/// The metrics phase of a tick: the sample of the world's minute, given to the host's sink. The
+/// world is not borrowed while the host runs (R6).
+pub fn capture<C: WorldCell, H: Host>(cell: &C, host: &mut H, inputs: &Inputs<'_>) -> std::result::Result<Captured, H::Error> {
+    let taken = cell.with(|world| sample(world, inputs))??;
+    let Some(taken) = taken else {
+        return Ok(Captured::NeedsRoutes);
+    };
+    host.capture_metric(&taken, inputs.sample)?;
+    Ok(Captured::Taken)
 }
 
 /// The fields of `MetricSnapshot` after its `minute_index`, in the order of the dataclass.
@@ -126,10 +168,38 @@ fn write_waits(out: &mut Vec<u8>, waits: &[OpenWait<'_>]) {
     out.push(b'}');
 }
 
-/// `MetricSnapshot.from_world` after its `minute_index`, for a sample minute that is the world's.
-/// It only reads.
-pub fn sample(world: &World, inputs: &Inputs<'_>) -> Result<MetricSample> {
+/// `MetricSnapshot.from_world` after its `minute_index`, for a sample minute that is the world's:
+/// None where the waits need their routes and `inputs.routes` is None. It only reads.
+pub fn sample(world: &World, inputs: &Inputs<'_>) -> Result<Option<MetricSample>> {
     let sample = inputs.sample;
+    let all: Vec<Arc<str>>;
+    let ids: &[Arc<str>] = match inputs.requests {
+        Requests::Given(ids) => ids,
+        Requests::Unsettled(memo) => {
+            all = match memo.and_then(|memo| memo.unsettled_requests(world).ok().flatten()) {
+                Some(keys) => keys,
+                None => world.rows()?.support_requests.slots().map(|(key, _)| key.clone()).collect(),
+            };
+            &all
+        }
+    };
+    let Some(open) = staff::open_waits(world, inputs.staff, inputs.routes, ids, sample, true)? else {
+        return Ok(None);
+    };
+    let waits: Vec<OpenWait<'_>> = open
+        .requests
+        .iter()
+        .map(|request| OpenWait {
+            agent: &request.agent,
+            request_id: &ids[request.index],
+            waited: request.waited,
+            reasons: open.reasons_of(request),
+            without_qualified_staff: open.has_no_qualified_staff(request),
+        })
+        .collect();
+    // The refusals of a world whose events a rule cannot write, as before.
+    Events::of(world)?;
+    let metric_state_held = inputs.staff.metric_state_held;
     let mut queued: Vec<Arc<str>> = Vec::new();
     let mut active: Vec<Arc<str>> = Vec::new();
     let mut high_stress: Vec<Arc<str>> = Vec::new();
@@ -176,10 +246,9 @@ pub fn sample(world: &World, inputs: &Inputs<'_>) -> Result<MetricSample> {
     high_stress.sort_unstable();
     staff_tasks.sort_unstable();
     busy_staff.sort_unstable();
-    let mut unresolved: Vec<&str> = inputs.waits.iter().map(|wait| wait.agent).collect();
+    let mut unresolved: Vec<&str> = waits.iter().map(|wait| wait.agent).collect();
     unresolved.sort_unstable();
-    let mut no_qualified: Vec<&str> =
-        inputs.waits.iter().filter(|wait| wait.without_qualified_staff).map(|wait| wait.agent).collect();
+    let mut no_qualified: Vec<&str> = waits.iter().filter(|wait| wait.without_qualified_staff).map(|wait| wait.agent).collect();
     no_qualified.sort_unstable();
     let log = world.log()?;
     let mut events: Vec<&str> = log.event_ids_at(sample).collect();
@@ -199,7 +268,7 @@ pub fn sample(world: &World, inputs: &Inputs<'_>) -> Result<MetricSample> {
     write_key(&mut out, "support_requests_without_qualified_staff", false);
     write_ids(&mut out, &no_qualified);
     write_key(&mut out, "support_wait_by_agent", false);
-    write_waits(&mut out, inputs.waits);
+    write_waits(&mut out, &waits);
     write_key(&mut out, "support_wait_exposure_semantics", false);
     write_json_string(&mut out, EXPOSURE_SEMANTICS);
     write_key(&mut out, "toilet_active_agents", false);
@@ -212,14 +281,14 @@ pub fn sample(world: &World, inputs: &Inputs<'_>) -> Result<MetricSample> {
     // Only str went in, and write_json_string writes UTF-8.
     let source_ids_json = String::from_utf8(out).map_err(|_| Error::unsupported("the source IDs are not UTF-8"))?;
 
-    if world.slots.get(METRIC_STATE).is_some() && !inputs.metric_state_held {
+    if world.slots.get(METRIC_STATE).is_some() && !metric_state_held {
         return Err(Error::unsupported("the field holds another dict"));
     }
     let row = world.metric_state()?;
     let read = |name: &str| row.get(name).copied().unwrap_or(0.0);
     let count = read("toilet_wait_count");
     let total = read("toilet_wait_total_minutes");
-    Ok(MetricSample {
+    Ok(Some(MetricSample {
         toilet_queue_length: queued.len(),
         toilet_active_users: active.len(),
         toilet_working_units: working_units,
@@ -239,5 +308,5 @@ pub fn sample(world: &World, inputs: &Inputs<'_>) -> Result<MetricSample> {
         support_fairness_promoted_assignment_count: read("support_fairness_promoted_assignment_count"),
         support_wait_staff_busy_request_minutes: read("support_wait_staff_busy_request_minutes"),
         support_wait_staff_off_shift_request_minutes: read("support_wait_staff_off_shift_request_minutes"),
-    })
+    }))
 }
