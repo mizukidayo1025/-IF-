@@ -16,6 +16,7 @@ import pytest
 from support.paths import SCENARIO_100_AGENTS
 
 from sheltersim import native
+from sheltersim.core import state_mirror
 from sheltersim.core.engine import TickEngine
 from sheltersim.core.state_mirror import IdMap, TrackedList
 from sheltersim.core.world import StateInvariantError, WorldState
@@ -544,8 +545,10 @@ def test_copy_and_swap_moves_the_rows_with_the_state() -> None:
 
     candidate.agents[agent.id].stress = 0.5
     assert not candidate.same_state(world)
+    old_core = world.__dict__["_core"]
     world.__dict__.clear()
     world.__dict__.update(candidate.__dict__)
+    state_mirror.owned_again(world, old_core)
     assert _store(world) is not old_store
     assert _row_of(world, "agents", agent.id)["stress"] == 0.5
     # The name of the old object writes to its old world only.

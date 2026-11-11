@@ -338,6 +338,7 @@ def test_a_callback_can_swap_the_state_under_a_kernel(world: WorldState) -> None
     def swap() -> None:
         world.__dict__.clear()
         world.__dict__.update(other.__dict__)
+        state_mirror.owned_again(world, old_core)
 
     _kernels().set_level_after(world, swap, "a", 0.5)
     assert world._core is not old_core
@@ -373,9 +374,12 @@ def test_copy_and_swap_moves_the_core_with_the_state(world: WorldState) -> None:
     held = world
     candidate = WorldState.from_dict(world.to_dict())
     candidate.model_state[SAMPLE]["total"] = 3.0
+    old_core = held._core
     held.__dict__.clear()
     held.__dict__.update(candidate.__dict__)
+    state_mirror.owned_again(held, old_core)
     assert held._core is candidate._core
+    assert held._core.is_owned_by(held) and not old_core.is_owned_by(held)
     assert json.loads(_kernels().row_json(held))["total"] == 3.0
     held.model_state[SAMPLE]["total"] = 4.0
     assert _mirror(held).verify()
