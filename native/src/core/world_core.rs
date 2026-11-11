@@ -57,6 +57,7 @@ use super::errors::OrPy;
 use super::value::{V, VPy};
 use crate::eventlog::{EventLog, EventStore};
 use crate::state::entities::EntityStore;
+use sheltersim_core::state::metric_state::MetricRow;
 use crate::state::events::{EventPart, Home, Queue, QueueStore};
 use crate::{encode, Encoder, Unsupported, MAX_DEPTH};
 
@@ -1172,6 +1173,18 @@ impl NamespaceMirror {
         let Some(root) = this.root(py)? else {
             return Ok(());
         };
+        // A map of floats (`metric_state`): only the values that changed and the keys added at the
+        // end are written, without making the whole row in Python (lane P8 a3).
+        let floats = this.with_slot(py, |slot| {
+            slot.row.as_deref().and_then(|row| row.as_any().downcast_ref::<MetricRow>()).map(|row| {
+                row.iter().map(|(key, value)| (key.clone(), *value)).collect::<Vec<(Arc<str>, f64)>>()
+            })
+        })?;
+        if let Some(floats) = floats {
+            if follow_float_map(&root, &floats)? {
+                return Ok(());
+            }
+        }
         let ops = this.ops();
         let plain = this.with_slot(py, |slot| slot.row.as_deref().map(|row| ops.py(row)?.to_py(py)).transpose())??;
         let Some(plain) = plain else {
@@ -1294,6 +1307,45 @@ fn same_key_order(first: &Bound<'_, PyAny>, second: &Bound<'_, PyAny>) -> PyResu
 /// row's, which is a dict's: a key taken out and put back comes last), when they are in another:
 /// the keys and the values stay the same objects, so the table of nodes stays right. No override
 /// runs.
+/// The tree of a map of floats follows its row, when the tree holds the row's keys in its order up
+/// to its own end, each with an atom: the values with other bits (or of another type) are set, and
+/// the row's further keys are added at the end, as the general patch would. False, with nothing
+/// written, for any other tree (a key removed or out of order, a node as a value): the general
+/// patch does it.
+fn follow_float_map(node: &Bound<'_, PyAny>, row: &[(Arc<str>, f64)]) -> PyResult<bool> {
+    let py = node.py();
+    if tracked_kind(node) != Some(false) {
+        return Ok(false);
+    }
+    let held = dict_values(node);
+    if held.len() > row.len() {
+        return Ok(false);
+    }
+    let mut changed = Vec::new();
+    for (place, ((key, value), (name, number))) in held.iter().zip(row).enumerate() {
+        let Ok(key) = key.downcast_exact::<PyString>() else {
+            return Ok(false);
+        };
+        if key.to_str()? != &**name {
+            return Ok(false);
+        }
+        if tracked_kind(value).is_some() {
+            return Ok(false);
+        }
+        let same = value.downcast_exact::<PyFloat>().is_ok_and(|value| value.value().to_bits() == number.to_bits());
+        if !same {
+            changed.push(place);
+        }
+    }
+    for place in changed {
+        raw_dict_set(node, &held[place].0, PyFloat::new(py, row[place].1).as_any())?;
+    }
+    for (name, number) in &row[held.len()..] {
+        raw_dict_set(node, PyString::new(py, name).as_any(), PyFloat::new(py, *number).as_any())?;
+    }
+    Ok(true)
+}
+
 fn reorder_like(node: &Bound<'_, PyAny>, new: &Bound<'_, PyAny>) -> PyResult<()> {
     if same_key_order(node, new)? {
         return Ok(());

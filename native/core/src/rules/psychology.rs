@@ -288,6 +288,16 @@ fn plan_monitor(metrics: &MetricRow, people: &[Person<'_>], threshold: f64) -> R
     Ok(steps)
 }
 
+/// Whether the monitor's values differ from the row's: a key it lacks, or other bits.
+fn monitor_changes(metrics: &MetricRow, people: &[Person<'_>], steps: &[[f64; 5]]) -> bool {
+    let mut buffer = String::with_capacity(64);
+    people.iter().zip(steps).any(|(person, next)| {
+        MONITOR_SUFFIXES.iter().zip(next).any(|(suffix, value)| {
+            metrics.get(metric_key(&mut buffer, person.id, suffix)).is_none_or(|held| held.to_bits() != value.to_bits())
+        })
+    })
+}
+
 /// The monitor's values, each key kept where it is and a new one added at the end.
 fn write_monitor(metrics: &mut MetricRow, people: &[Person<'_>], steps: &[[f64; 5]]) {
     let mut buffer = String::with_capacity(64);
@@ -529,10 +539,19 @@ pub fn update_long_term(
         return unsupported("the field holds another dict");
     }
     let threshold = long_term.parameters.high_distress_threshold;
-    let monitor = plan_monitor(&*world.row::<MetricRow>(METRIC_STATE)?, &people, threshold)?;
+    let (monitor, changes) = {
+        let metrics = world.row::<MetricRow>(METRIC_STATE)?;
+        let monitor = plan_monitor(&metrics, &people, threshold)?;
+        let changes = monitor_changes(&metrics, &people, &monitor);
+        (monitor, changes)
+    };
     let plan = plan_long_term(&*world.row::<DistressRow>(NAME)?, &people, minute, long_term)?;
 
-    write_monitor(&mut *world.row_mut::<MetricRow>(METRIC_STATE)?, &people, &monitor);
+    // A minute that changes no value of the monitor leaves `metric_state` unwritten: its tree has
+    // nothing to follow (most minutes, when nobody's distress is high).
+    if changes {
+        write_monitor(&mut *world.row_mut::<MetricRow>(METRIC_STATE)?, &people, &monitor);
+    }
     write_long_term(&mut *world.row_mut::<DistressRow>(NAME)?, &people, minute, plan)
 }
 
