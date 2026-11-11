@@ -35,6 +35,7 @@ use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 use pyo3::PyTraverseError;
 use sheltersim_core::cell::{Shard, ShardMut};
+use sheltersim_core::stamp::Stamp;
 use sheltersim_core::world::{Place, Slot, World};
 use smallvec::SmallVec;
 
@@ -861,6 +862,8 @@ impl NamespaceMirror {
     fn apply(slf: &Bound<'_, Self>, id: u32, write: &Write<'_, '_>) -> PyResult<()> {
         let py = slf.py();
         let this = slf.get();
+        // A debug run counts the configs written in place inside a tick (`configs::note_write`).
+        super::configs::note_write(py, &this.name)?;
         let tree = this.tree.try_borrow().or_py()?;
         let ops = this.ops();
         this.with_slot_mut(py, |slot| {
@@ -1166,9 +1169,14 @@ impl NamespaceMirror {
 
     /// `generation_of(held)`, and the generation for the placeholder of a detached namespace too.
     pub(crate) fn held_generation(&self, held: &Bound<'_, PyAny>) -> Option<u64> {
+        self.held_stamp(held).map(Stamp::get)
+    }
+
+    /// `held_generation` as the stamp.
+    pub(crate) fn held_stamp(&self, held: &Bound<'_, PyAny>) -> Option<Stamp> {
         let root = self.root_is(held);
         self.with_slot(held.py(), |slot| {
-            (root || (slot.detached && slot.row.is_some() && is_detached(held))).then_some(slot.generation.get())
+            (root || (slot.detached && slot.row.is_some() && is_detached(held))).then_some(slot.generation)
         })
         .ok()
         .flatten()
@@ -1869,6 +1877,21 @@ pub(crate) fn core_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, Wor
         .getattr(intern!(world.py(), "_core"))
         .map_err(|_| Unsupported::new_err("the world has no core"))?;
     Ok(core.downcast::<WorldCore>()?.clone())
+}
+
+/// The stamp of the owned world field `name` while it holds `held`, the mirror's tree, and the core
+/// that holds the field: what `configs.rs` keeps the kernels' configs by. None: the world has no
+/// core, the field is not owned, or it holds another value.
+pub(crate) fn field_stamp<'py>(
+    world: &Bound<'py, PyAny>,
+    name: &str,
+    held: &Bound<'py, PyAny>,
+) -> PyResult<Option<(Bound<'py, WorldCore>, Stamp)>> {
+    let Ok(core) = core_of(world) else {
+        return Ok(None);
+    };
+    let mirror = core.try_borrow()?.mirrors.get(name).map(|mirror| mirror.clone_ref(world.py()));
+    Ok(mirror.and_then(|mirror| mirror.get().held_stamp(held)).map(|stamp| (core, stamp)))
 }
 
 /// The mirror of a namespace of a world, read now, or Unsupported if it is not owned.

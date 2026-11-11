@@ -51,13 +51,14 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
 - **E4. Host を呼ぶ関数は、世界を借りたままにしません。** 中核の関数は `WorldCell`（`with(|world| ...)` で短く借りる）を受け、Host を呼ぶ間は借りません。今の「Python を呼ぶ間は borrow を持たない」と同じ規則です。そのためネイティブ版の Host（LLM の境界）は、今までどおり Python の view を通して書けます。
 - **E5. 写して差し替える処理は、その場のトランザクションにします。** 始めに snapshot（部分の copy-on-write）と EventLog の印を取り、世界を正規の順に並べ直して（`canonicalize`）、本体は世界そのものに書きます。commit は snapshot を捨て、失敗や取り消しは snapshot と印に戻します。トランザクションは入れ子にしません。本当に写すのは `deepcopy` と、捨てる下見（preview）だけで、`World::fork` を使います。
 - **E6. 候補の世界の丸ごとの検証**（`WorldState.validate`、`validate_simulator_extensions`）は、#152 では Host の `validate_candidate` にします。ネイティブ版は、候補の Python の view に今の Python の検証をかけます（手順4の D3「`validate_*` は Python に残す」と同じ考えです）。検証の文を中核で作るのは段階4に回します。`after_tick.rs`・`tick_validation.rs` の「問題なし」と答える検査は、中核に移します。
-- **E7. 設定：** 窓口が、Run や Branch の始まりと `model_configs` が変わったときに設定を解釈し、型の決まった中核の `Config` を渡します。設定の誤りの文が出る時点は変えません。
+- **E7. 設定：** 設定には2つの範囲があります。`RunConfig` はコントローラーの初期化のときに作ります（Run、続き、Branch ごとに1つ）。`Configs` は `model_configs` の stamp が変わるたびに、窓口が解釈し直します（トランザクションの始めの正規化で変わったときも含みます）。解釈は例外を出さず、出た誤りを読む場所が再現するので、設定の誤りの文とそれが出る時点は変わりません。（2026-11-11、P7 の設計で直しました）
 - **E8. 断り：** `Unsupported` を返す約240か所は、中核の `Error::Unsupported` にします。窓口で今と同じ `Unsupported`、`KernelRefusal` になります。
 - **E9. 記録の bytes は中核が持ちます。** Python の `bytes` は、要るときに作ってキャッシュし、保存のキャッシュが頼る「同じオブジェクト」を保ちます。そのレーンで計算のピークのメモリーを測り、増やしません（#138）。
 - **E10. 窓口に残すもの：** tick への patch や shadow の検出、断りの数の統計、`rules/parity.rs`（テスト用）。
 - **E11. 残る Python の規則：** 通常の経路の4つは Rust に移します。届かない fallback は消し、消したテストを PR に挙げます。`upgrade_information_runtime_state` は tick ではなく復元の側（中核の外）に移します。
 - **E12. 実体の view は書き込みもできる、一貫したキャッシュにします。** 付いたオブジェクトの本体は行で、`__dict__` は Python に戻るたびに行と等しいキャッシュです（遅延の descriptor にはしません）。約69のテストのファイルが、そのまま動くようにするためです。`vars(agent.needs)`、dataclass の `==`、enum の `is` を保ちます。付いたオブジェクトの `__dict__` へ直接書いても kernel には届きません（そう書く6つのテストのファイルは P8d で行への書き込みにします）。taint の意味は今のままです。
 - **E13. 正規の JSON を通して写している道は、正規の順と、新しいオブジェクトになる効果（設計の F1〜F3）を保ちます。** 今 `from_dict(to_dict())` を通る道は、辞書のキーと実体を正規の順に並べ、型を JSON の型にし、入れ物とイベントのオブジェクトを新しくします。それがハッシュに届くので、変えてもハッシュが同じだと PR で示すまでは、トランザクションでも同じ順と効果を作ります。
+- **E14. そのまま伝える設定の誤り**（Python の誤りをクラスも文も変えずに出す読む場所）は、窓口がもう一度解釈して、その誤りを出します。pydantic の `ValidationError` は文から作り直せないためです。中核は、Python のないビルド（段階4）のために、クラスの名前と文を持ちます。
 
 ## レーン
 
@@ -170,6 +171,22 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
 - **大きさ**（7日分、100人、project の経路、生成 Scenario。tick ごとに測りました）：行を持ったのは `operational_events_v1` と `zone_environment_v1` の2つで、`V` のヒープは最大 9,562 bytes と 263 bytes（正規の JSON で 1,716 bytes と 35 bytes）です。大きいものはありません。計算のピークの RSS は下のとおり増えていません。切り離すかどうかは、大きいキーが出てから決めます。
 - **確かめたこと：** `cargo test -p sheltersim_core`（42件）、`cargo clippy --workspace -- -A clippy::all -D clippy::disallowed_methods`、`cargo tree -p sheltersim_core -e normal,build` に `pyo3` がないこと、`ruff check .`、`ruff format --check .`、offline の pytest（`-m "not long_simulation"`：5122 passed、6 skipped）、全経路のゲート（55 scenarios、0 problems）。
 - **7日分**：PR 5-1 の後（`87dbfb0`、`main` の `21b50df` と同じ木）のビルドと交互に2回ずつ測りました。world、events、metrics のハッシュは同じです。ほかのレーンの計算と同時で、負荷が大きく揺れました（load average 7〜15）。wall は base 100.8 s・140.6 s、この PR 75.6 s・90.3 s、thread は 95.0 s・108.6 s と 71.1 s・84.3 s、`TickEngine.step` の thread は 24.2 s・27.7 s と 18.7 s・21.9 s で、どれもこの PR の回が速かったのは負荷の違いです。差を言える測り方ではありませんが、遅くなった印はありません。計算のピークの RSS（`computation_mib`）は 898.0・903.5 MiB と 893.6・898.0 MiB で、増えていません。
+
+### PR 7-1：設定の解釈を stamp ごとに持つ（レーン 7-1）
+
+- **中核の型**（`native/core/src/config/`）：`Configs` は `model_configs` の1つの状態から解釈した節を持ちます。今は選ばれたモデル（`Selection`、領域からモデルの ID への dict の順の対）と、tick の終わりの検査の plan（窓口の Python のオブジェクトを `Opaque` として持ちます）の2つです。節は `Lazy`（`OnceLock`）で、最初に読むときに解釈し、`Section`（`Absent`、値、`Fault`）を持ちます。`Fault` は誤りのクラス（`Value`、`Type`、`Key`、pydantic の `Validation`、読み手の断り `Refused`、ほかは名前）と `str(e)` です。`World` に状態でない部分 `derived: Shard<Derived>` を足しました。`Derived` は stamp の新しい2つの `Configs` を持ちます（取り消しで古い stamp が戻っても当たります）。stamp は 5-1 のプロセスで1つのカウンターのものを使います。
+- **窓口**（`native/src/core/configs.rs`）：`current(world)` が `model_configs` の slot の stamp（`world_core.rs` の `field_stamp`）で `Configs` を引き、節は今の Python の契約（`selected_models`、`tick_plan`）を同じ木に呼んで埋めます。解釈は例外を出しません。読む場所は今の断り（U）の文をその行で出し、そのまま伝える誤り（R、P）は2回目の解釈の誤りを出します（方針 E14、`reraise`）。同じ設定の解釈は同じ値か同じ誤りなので、誤りのクラス、文、出る時点は変わりません。stamp のない設定（core のない世界、丸ごと代入した項目）と、テストが差し替えた `selected_models` は、読むたびに解釈します（前と同じ）。
+- **読む場所**：設計の表の #4〜4e（`body_state`、`information_events`、`queues`、`support`、`world_view`）は `Selection` を読みます。#25 の `after_tick` は plan を `Configs.tick_plan` から読み、`TickMemo` は plan を読んだ stamp だけを持ちます（I8）。新しい memo（失敗の後、時刻が戻ったとき）も、同じ stamp なら `tick_plan` をもう一度呼びません。`world_view` の `call_failed` と、`selected_models` を一度だけ引いて持っていた3つの `GILOnceCell` は消しました。テスト用に `information_events.selected_information_of` を足しました。
+- **決めたこと**：
+  - 選ばれたモデルの値は str だけにしました（`_select_models` は str だけを返します）。dict でない、または str でない値の選択は、読み手の断り（`not a selection`）です。差し替えたテストの関数でしか起きません。
+  - 節は読むときに解釈します。設計 §3 の「内容と順が同じ節は `Arc` を残す」比べ方は入れていません。今は写して差し替えると新しい core（空の `Derived`）になり、同じ World の中で stamp が変わるのは本当に書いたときだけなので、比べても当たりません。トランザクションで World が残るようになる 6-2・6-3 で足します。
+  - 設計の `raw`、`root` の欄は、それを読む節（7-5a の #12、#24）と一緒に足します。
+  - **U1**（その場の書き込みは次に読むときに見える）：全経路のゲートは各 Scenario のプロセスで `watch_config_writes(True)` を呼び、tick の phase の中（`_SELECTION_SCOPE` があるとき）で `model_configs` の木に Python から書いた数を数えます（`NamespaceMirror::apply` の入口）。1以上はゲートの problem です。55の Scenario で0でした。
+- **中核のテスト**（`native/core/tests/config.rs`、7件）：同じ stamp は同じ `Configs`、2つまで残すことと取り消しの後に当たること、節を1回だけ解釈すること、`Fault` のクラスと文、解釈の中の解釈、`Selection` の順、取り消しの後に書くと新しい stamp で解釈し直すこと。
+- **offline のテスト**（`tests/integration/test_config_cache.py`、7件）：1つの stamp で1回だけ解釈し、読んでも stamp は変わらないこと、その場で書くと次に読むときに解釈し直すこと、R の読む場所は `selected_models` と同じクラスと文の誤りを、U の読む場所は断りを出すこと、stamp のない設定と差し替えた関数は読むたびに解釈すること、plan が設定と一緒に残り、誤る plan は毎回同じ誤りになること、phase の中のその場の書き込みが数えられ、2時間の Run では0であること。
+- **確かめたこと**（PR 5-3 の後の `main`（`ce4c57b`）に載せ直して）：`cargo test -p sheltersim_core`（49件）、`cargo clippy --workspace -- -A clippy::all -D clippy::disallowed_methods`、`cargo tree -p sheltersim_core -e normal,build` に `pyo3` がないこと、`ruff check .`、`ruff format --check .`、offline の pytest（`-m "not long_simulation"`：5129 passed、6 skipped）、全経路のゲート（55 scenarios、0 problems）、7日分を1回（ハッシュは下の base と同じ）。下の時間は、載せ直す前（5-1 の後）に測ったものです。
+- **ゲートの時間**（`--jobs 8`、5-1 のビルドと交互に2回ずつ）：全体は base 42.2 s・34.7 s、この PR 33.1 s・34.5 s、Scenario ごとの wall の合計は 150.8 s・135.9 s と 134.6 s・139.6 s です（1回目の base はキャッシュが冷えていました）。トランザクションごとの解釈し直しで、目に見えて増えてはいません。
+- **7日分**（100人、project の経路、生成 Scenario）：5-1（`main` の `21b50df` と同じ木）のビルドと交互に測りました。world、events、metrics のハッシュは同じです。ほかのレーンが同時に動いていて揺れが大きいので、4回ずつ測りました（前の2組は負荷が高いとき、後の2組は低いとき）。wall は base 91.7・87.4・69.0・72.9 s、この PR 78.2・93.7・66.1・71.9 s、thread は 78.1・77.7・64.2・67.9 s と 72.5・86.9・61.9・67.8 s、`TickEngine.step` の thread は 20.2・20.3・17.5・17.9 s と 19.5・22.8・17.0・17.9 s です。負荷の低い2組では thread が -3.6% と -0.1% で、設計の見込み（0.5〜1.5%）どおり、揺れの中の小さな差です。計算のピークの RSS（`computation_mib`）は 890.2・884.2・890.1・883.9 MiB と 898.0・901.6・889.5・898.6 MiB で、5-1 で測った幅（888〜899 MiB）の中です。
 
 ### この後
 

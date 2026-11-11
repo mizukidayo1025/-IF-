@@ -12,8 +12,9 @@
 //!
 //! The configs are read by the contracts in Python (`core/tick_validation.py`, decision D3 of
 //! docs/rust-port/step4-plan.md): `tick_plan` when the configs have no plan yet, which is the first
-//! tick of a memo and the tick after a write to `model_configs`, and `body_config_ids` when the saved
-//! body config changed. Every rule of the state is here or in the kernel of its namespace
+//! check of a world and the check after a write to `model_configs`, and `body_config_ids` when the
+//! saved body config changed. The plan is kept with the world's configs, by the stamp of
+//! `model_configs` (`Configs.tick_plan`, `core/configs.rs`); a plan that raised raises again. Every rule of the state is here or in the kernel of its namespace
 //! (`state_mirror._RUST_VALIDATORS`); a namespace with no kernel is refused.
 //!
 //! **The entity rules read the objects, not the rows**: see `tick_validation.rs`, whose kernel this
@@ -35,7 +36,7 @@
 
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use pyo3::exceptions::PyException;
 use pyo3::ffi;
@@ -44,7 +45,10 @@ use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBool, PyDict, PyFrozenSet, PyList, PyString, PyTuple};
 use rustc_hash::FxHashSet;
+use sheltersim_core::config::{Opaque, Section};
+use sheltersim_core::stamp::Stamp as ConfigsStamp;
 
+use crate::core::configs;
 use crate::core::row::{attribute, exact_int, exact_str, unsupported};
 use crate::core::tracked::{as_readable_dict, as_readable_list, is_detached};
 use crate::core::errors::OrPy;
@@ -171,9 +175,9 @@ pub struct TickMemo {
     /// forward, and `validate_after_tick` starts a new one for an earlier minute.
     #[pyo3(get)]
     minute: i64,
-    /// `(model_configs, its generation)` the plan was made for.
-    configs: Option<(Py<PyAny>, Py<PyAny>)>,
-    plan: Option<Py<Plan>>,
+    /// The stamp of `model_configs` the last plan was read for; the plan is kept with the configs
+    /// of that stamp (`Configs.tick_plan`).
+    configs: Option<ConfigsStamp>,
     /// `geometry_overlay._CONFIG_SCOPE` across ticks while the configs are unchanged: the parsed
     /// geometry configs (`_parsed_config`, `rules/movement_geometry.rs`).
     #[pyo3(get)]
@@ -200,7 +204,6 @@ impl TickMemo {
         Self {
             minute: -1,
             configs: None,
-            plan: None,
             geometry_scope: PyDict::new(py).unbind(),
             agent_ids: None,
             zone_ids: None,
@@ -239,7 +242,7 @@ impl TickMemo {
             })
         };
         facts.set_item("minute", self.minute)?;
-        facts.set_item("planned", self.plan.is_some())?;
+        facts.set_item("planned", self.configs.is_some())?;
         facts.set_item("agent_ids", sorted(&self.agent_ids))?;
         facts.set_item("zone_ids", sorted(&self.zone_ids))?;
         facts.set_item("facility_zones", self.facility_zones.as_ref().map(|zones| zones.bind(py).copy()).transpose()?)?;
@@ -718,7 +721,7 @@ fn check(table: &Table, world: &Bound<'_, PyAny>, memo: &Bound<'_, TickMemo>) ->
 
     // ---- What `_rows_are_what_the_world_holds` asks of the whole world, for every namespace below.
     let world_state = attribute(world, intern!(py, "__dict__"))?;
-    let core = core_of(world)?;
+    core_of(world)?;
     let store = entities_of(world)?;
     if !store.call_method1(intern!(py, "follows"), (&world_state,))?.is_truthy()? {
         return unsupported("the maps of the world are not the ones the rows follow");
@@ -742,35 +745,29 @@ fn check(table: &Table, world: &Bound<'_, PyAny>, memo: &Bound<'_, TickMemo>) ->
     };
     let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
 
-    // ---- The configs: the plan of the configs the world holds.
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let config_mirror = core.call_method1(intern!(py, "mirror"), ("model_configs",))?;
-    if config_mirror.is_none() {
+    // ---- The configs: the plan of the configs the world holds, kept for their stamp with the other
+    // sections the kernels read (`core/configs.rs`).
+    let held = configs::current(world)?;
+    let Some(stamp) = held.stamp else {
         return unsupported("no mirror follows the configs");
-    }
-    let generation = as_mirror(&config_mirror)?.call_method1(intern!(py, "generation_of"), (&configs,))?;
-    if generation.is_none() {
-        return unsupported("the configs are another tree than the mirror's");
-    }
-    let planned = {
-        let kept = memo.borrow();
-        match &kept.configs {
-            Some((before, before_generation)) => before.bind(py).is(&configs) && before_generation.bind(py).eq(&generation)?,
-            None => false,
-        }
     };
-    let configs_unchanged = planned && memo.borrow().plan.is_some();
-    if !configs_unchanged {
-        // The contracts, which raise for configs the check would turn down.
+    let configs_unchanged = memo.borrow().configs == Some(stamp);
+    // The contracts, which raise for configs the check would turn down.
+    let plan_of = || -> PyResult<Py<Plan>> {
         let plan = table.tick_plan.bind(py).call1((world,))?;
-        let plan = plan.downcast_exact::<Plan>()?.clone().unbind();
+        Ok(plan.downcast_exact::<Plan>()?.clone().unbind())
+    };
+    let plan = match held.tick_plan.get_or_parse(|| configs::section_of(py, plan_of().map(|plan| Arc::new(plan) as Arc<Opaque>))) {
+        Section::Ok(plan) => plan.downcast_ref::<Py<Plan>>().ok_or_else(|| Unsupported::new_err("another plan"))?.clone_ref(py),
+        Section::Fault(_) => return Err(configs::reraise(plan_of)),
+        Section::Absent => return unsupported("no plan"),
+    };
+    if !configs_unchanged {
         let mut kept = memo.borrow_mut();
         kept.geometry_scope.bind(py).clear();
-        kept.configs = Some((configs.clone().unbind(), generation.clone().unbind()));
-        kept.plan = Some(plan);
+        kept.configs = Some(stamp);
         kept.body_config = None;
     }
-    let plan = memo.borrow().plan.as_ref().map(|plan| plan.clone_ref(py)).ok_or_else(|| Unsupported::new_err("no plan"))?;
     let plan = plan.get();
     // "resource_service requires WorldState v6; v6 requires resource_service": the plan has a
     // resource config exactly when the configs hold resource_service, and the entity rules below

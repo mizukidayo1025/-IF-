@@ -14,6 +14,7 @@ use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 use sha2::{Digest, Sha256};
 
+use crate::core::configs;
 use crate::core::errors::{self, Outcome};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, namespace_is_absent, unsupported};
 use crate::core::tracked::as_readable_dict;
@@ -589,13 +590,13 @@ pub(crate) fn complete_support_event<'py>(
 fn selected_care_formula<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
     let py = world.py();
     let configs = attribute(world, intern!(py, "model_configs"))?;
-    static SELECTED: GILOnceCell<Py<PyAny>> = GILOnceCell::new();
-    let selected = SELECTED.get_or_try_init(py, || -> PyResult<Py<PyAny>> {
-        Ok(py.import("sheltersim.contracts.policies")?.getattr("selected_models")?.unbind())
-    })?;
-    let selection = selected.bind(py).call1((&configs,)).map_err(|_| Unsupported::new_err("the model selection refuses"))?;
-    let selection = selection.downcast_exact::<PyDict>().map_err(|_| Unsupported::new_err("not a selection"))?;
-    if !selection.get_item(intern!(py, "care_outcome"))?.is_some_and(|name| !name.is_none()) {
+    // Kept for the configs' stamp (`core/configs.rs`).
+    let selection = match configs::selection(world)? {
+        Ok(selection) => selection,
+        Err(fault) if fault.is_refusal() => return unsupported("not a selection"),
+        Err(_) => return unsupported("the model selection refuses"),
+    };
+    if selection.get("care_outcome").is_none() {
         return Ok(None);
     }
     let formula = py

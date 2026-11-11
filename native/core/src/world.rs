@@ -10,9 +10,9 @@
 //! other key a `ValueRow` slot (`Place::Value`, lane 5-3), made when the key is first stored.
 //!
 //! Parts that join later, each in its own lane: the scalars, zones and zone edges, `resources` and
-//! `id_counters` (5-2); the event queue and the log (6-5). A non-state field `derived` (configs
-//! and caches keyed by stamps, design-p7.md §2) joins in 7-1; it is not state, so a snapshot, a
-//! fork or a hash never reads it.
+//! `id_counters` (5-2); the event queue and the log (6-5). The field `derived` (configs and caches
+//! keyed by stamps, design-p7.md §2, lane 7-1) is not state: a snapshot, a fork or a hash never
+//! reads it.
 
 use std::sync::Arc;
 
@@ -20,6 +20,7 @@ use indexmap::IndexMap;
 use rustc_hash::FxBuildHasher;
 
 use crate::cell::{Shard, ShardMut, ShardRef};
+use crate::config::Derived;
 use crate::entities::Entities;
 use crate::error::{Error, Result};
 use crate::row::{Row, ValueRow};
@@ -33,6 +34,8 @@ pub struct World {
     pub entities: Shard<Entities>,
     /// The owned world fields (`metric_state`) and the keys of `model_state`.
     pub slots: Slots,
+    /// Not state: what is derived from it, by stamp (`config::Derived`).
+    pub derived: Shard<Derived>,
 }
 
 /// Where a slot's state is in the Python world.

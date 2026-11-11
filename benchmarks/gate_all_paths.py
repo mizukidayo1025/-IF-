@@ -2,7 +2,8 @@
 
 Each scenario runs in its own process and writes the world, events and KPI hashes of every
 world it ended with, plus timing. Hashes are compared with --expect; --determinism also
-runs every scenario under other process settings and compares them with the first run.
+runs every scenario under other process settings and compares them with the first run. A write
+to model_configs in place inside a tick phase is a problem too (native/src/core/configs.rs).
 
     python benchmarks/gate_all_paths.py --output DIR --expect fixtures/gate-all-paths.json
     python benchmarks/gate_all_paths.py --output DIR --determinism
@@ -91,11 +92,16 @@ def run_one(name: str, output: Path, chosen: Any = None) -> None:
     from gate_scenarios import all_scenarios
 
     scenario = chosen or all_scenarios()[name]
+    import sheltersim_native
+
     people_per_helper = os.environ.get(PEOPLE_PER_HELPER_VARIABLE)
     if people_per_helper:
-        import sheltersim_native
-
         sheltersim_native.set_people_per_helper(int(people_per_helper))
+    # The kernels see an edit of model_configs at the next read, the Python scopes of a tick phase
+    # at the next minute (decision U1, native/src/core/configs.rs). Nothing should make one.
+    watch_config_writes = getattr(sheltersim_native, "watch_config_writes", None)
+    if watch_config_writes is not None:
+        watch_config_writes(True)
     order = os.environ.get(ORDER_VARIABLE)
     if order:
         from tick_probe import ReversedOrder, install
@@ -118,6 +124,11 @@ def run_one(name: str, output: Path, chosen: Any = None) -> None:
                 "refused": outcome.refused,
                 "must_match": [list(row) for row in outcome.must_match],
                 "must_match_failed": mismatched,
+                "config_writes_in_tick": (
+                    None
+                    if watch_config_writes is None
+                    else sheltersim_native.config_writes_in_tick()
+                ),
             },
             ensure_ascii=False,
             indent=2,
@@ -193,6 +204,11 @@ def _problems_within(results: dict[str, dict[str, Any]]) -> list[str]:
         for row in result["must_match_failed"]:
             problems.append(
                 f"{name}: {row['first']} and {row['second']} differ, but {row['means']}"
+            )
+        if result.get("config_writes_in_tick"):
+            problems.append(
+                f"{name}: model_configs was written in place inside a tick phase "
+                f"{result['config_writes_in_tick']} times"
             )
     return problems
 

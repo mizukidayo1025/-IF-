@@ -16,9 +16,9 @@ use std::sync::Arc;
 use indexmap::IndexMap;
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBool, PyDict, PyList, PySlice, PyString};
 
+use crate::core::configs;
 use crate::core::errors;
 use crate::core::mathx::{py_max, py_min};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, map_set, unsupported};
@@ -183,18 +183,14 @@ enum Policy {
     NeedWeighted { limits: [i64; 3], threshold: f64, retry: i64 },
 }
 
-fn selected_queue_model<'py>(configs: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
-    let py = configs.py();
-    static SELECTED: GILOnceCell<Py<PyAny>> = GILOnceCell::new();
-    let selected = SELECTED.get_or_try_init(py, || -> PyResult<Py<PyAny>> {
-        Ok(py.import("sheltersim.contracts.policies")?.getattr("selected_models")?.unbind())
-    })?;
-    // What it refuses, it refuses in the Python rule too, with the same error.
-    let selection = match selected.bind(py).call1((configs,)) {
-        Ok(selection) => selection,
-        Err(error) => return Err(errors::relayed(py, error)),
-    };
-    Ok(selection.downcast_exact::<PyDict>().map_err(|_| Unsupported::new_err("not a selection"))?.get_item(intern!(py, "queue"))?)
+/// `selected_models(model_configs).get("queue")`, kept for the configs' stamp (`core/configs.rs`).
+fn selected_queue_model(world: &Bound<'_, PyAny>) -> PyResult<Option<Arc<str>>> {
+    match configs::selection(world)? {
+        Ok(selection) => Ok(selection.get("queue").cloned()),
+        Err(fault) if fault.is_refusal() => unsupported("not a selection"),
+        // What it refuses, it refuses in the Python rule too, with the same error.
+        Err(_) => Err(errors::relayed(world.py(), configs::reraise_selection(world))),
+    }
 }
 
 /// `raise ValueError(text)` of the queue policy's constructor.
@@ -274,9 +270,9 @@ fn policy_of(world: &Bound<'_, PyAny>) -> PyResult<Policy> {
     let py = world.py();
     let configs = attribute(world, intern!(py, "model_configs"))?;
     let table = exact_dict(&configs)?;
-    let selected = selected_queue_model(&configs)?;
+    let selected = selected_queue_model(world)?;
     let need_weighted = match &selected {
-        Some(model) => match exact_str(model)? {
+        Some(model) => match &**model {
             "need-weighted-physical-queue-v1" => true,
             "strict-fifo-queue-v1" => false,
             _ => return unsupported("another queue model"),
