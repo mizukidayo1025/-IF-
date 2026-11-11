@@ -832,27 +832,17 @@ def test_a_pair_at_nearly_the_radius_across_two_cells_is_found(
 
 
 @pytest.mark.parametrize(
-    ("change", "digest"),
+    "change",
     [
-        (lambda record, world: record["point"].__setitem__("x", 1), "aaf4c7e8ba1f2b11"),
-        (lambda record, world: record["point"].__setitem__("x", True), "1e8c8a88054f414b"),
-        (lambda record, world: record["point"].__setitem__("x", "1"), "1e8c8a88054f414b"),
-        (lambda record, world: record["point"].__setitem__("x", float("nan")), "1e8c8a88054f414b"),
-        (lambda record, world: record["point"].__setitem__("y", float("inf")), "1e8c8a88054f414b"),
-        (lambda record, world: record["point"].pop("y"), "1e8c8a88054f414b"),
-        (lambda record, world: record["point"].__setitem__("z", 0.0), "1e8c8a88054f414b"),
-        (lambda record, world: record.__setitem__("point", None), "1e8c8a88054f414b"),
-        (lambda record, world: record.__setitem__("point", [1.0, 2.0]), "1e8c8a88054f414b"),
-        (lambda record, world: record.__setitem__("position_kind", "edge"), "1e8c8a88054f414b"),
-        (lambda record, world: record.pop("position_kind"), "1e8c8a88054f414b"),
-        (lambda record, world: record.__setitem__("zone_id", "nowhere"), "1e8c8a88054f414b"),
-        (lambda record, world: record.__setitem__("zone_id", None), "1e8c8a88054f414b"),
-        (lambda record, world: record.__setitem__("zone_id", 3), "1e8c8a88054f414b"),
-        (lambda record, world: record.clear(), "1e8c8a88054f414b"),
+        lambda record, world: record["point"].__setitem__("x", float("nan")),
+        lambda record, world: record["point"].__setitem__("y", float("inf")),
+        lambda record, world: record.__setitem__("point", None),
+        lambda record, world: record.__setitem__("position_kind", "edge"),
+        lambda record, world: record.__setitem__("zone_id", "nowhere"),
     ],
 )
-def test_what_the_sampler_skips_it_skips_from_the_tree_of_a_tainted_row(
-    generated_scenario_with: Any, change: Any, digest: str
+def test_what_the_sampler_skips_it_skips_from_the_row(
+    generated_scenario_with: Any, change: Any
 ) -> None:
     world = _proximity_world(generated_scenario_with)
     positions = world.model_state["movement_v1"]["positions"]
@@ -866,14 +856,47 @@ def test_what_the_sampler_skips_it_skips_from_the_tree_of_a_tainted_row(
     before = _sample(world, config, answers)
     change(placed[0], world)
     after = _sample(world, config, answers)
+    assert world._core.mirror("movement_v1").tainted is None
     assert before
     assert len(after) <= len(before)
-    _is_python_s(answers, digest)
+    _is_python_s(answers, "1e8c8a88054f414b")
 
 
-def test_a_person_who_is_gone_and_a_position_that_is_no_dict_are_skipped(
-    generated_scenario_with: Any,
-) -> None:
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda record, world: record["point"].__setitem__("x", 1),
+        lambda record, world: record["point"].__setitem__("x", True),
+        lambda record, world: record["point"].__setitem__("x", "1"),
+        lambda record, world: record["point"].pop("y"),
+        lambda record, world: record["point"].__setitem__("z", 0.0),
+        lambda record, world: record.__setitem__("point", [1.0, 2.0]),
+        lambda record, world: record.pop("position_kind"),
+        lambda record, world: record.__setitem__("zone_id", None),
+        lambda record, world: record.__setitem__("zone_id", 3),
+        lambda record, world: record.clear(),
+    ],
+)
+def test_a_row_a_value_does_not_fit_is_refused(generated_scenario_with: Any, change: Any) -> None:
+    """A position the row does not take taints it, and there is no tree to read instead (lane c6):
+    the sampler and the step refuse, and the step schedules nothing."""
+    world = _proximity_world(generated_scenario_with)
+    controller = _controller(world)
+    positions = world.model_state["movement_v1"]["positions"]
+    record = next(record for record in positions.values() if record["point"] is not None)
+    change(record, world)
+    assert world._core.mirror("movement_v1").tainted is not None
+    config = {"max_distance_m": 1.5, "max_pairs_per_sample": 10_000}
+    with pytest.raises(native.Unsupported, match="the namespace has no row"):
+        _rules("proximity").sample_of(world, config)
+    pending = [event.event_id for event in world.event_queue.pending()]
+    refused = "^proximity.sample_contacts refused: the namespace has no row"
+    with pytest.raises(KernelRefusal, match=refused):
+        controller._sample_proximity_contacts(0)
+    assert [event.event_id for event in world.event_queue.pending()] == pending
+
+
+def test_a_person_who_is_gone_is_skipped(generated_scenario_with: Any) -> None:
     world = _proximity_world(generated_scenario_with)
     positions = world.model_state["movement_v1"]["positions"]
     first = next(record for record in positions.values() if record["point"] is not None)
@@ -882,9 +905,7 @@ def test_a_person_who_is_gone_and_a_position_that_is_no_dict_are_skipped(
     answers: list[str] = []
     pairs = _sample(world, config, answers)
     assert all("nobody" not in pair[1:3] for pair in pairs)
-    positions["nobody"] = 7
-    _sample(world, config, answers)
-    _is_python_s(answers, "cd176d20b6ff252c")
+    _is_python_s(answers, "c5660ccef72b95d6")
 
 
 def test_a_coordinate_too_large_for_a_cell_is_refused(generated_scenario_with: Any) -> None:
@@ -903,7 +924,7 @@ def test_a_coordinate_too_large_for_a_cell_is_refused(generated_scenario_with: A
         controller._sample_proximity_contacts(0)
     assert [event.event_id for event in world.event_queue.pending()] == pending
     record["point"]["x"] = 10**400
-    with pytest.raises(native.Unsupported, match="too large"):
+    with pytest.raises(native.Unsupported, match="the namespace has no row"):
         _rules("proximity").sample_of(world, config)
 
 
@@ -1010,6 +1031,8 @@ def test_a_policy_this_kernel_does_not_know_is_refused(generated_scenario_with: 
         _rules("proximity").sample_contacts(stand_in, 0)
     controller = _controller(world)
     controller.proximity_policy = Other(controller.proximity_contact_config)
+    # The Run reads the policies when the controller starts (native/src/core/run.rs).
+    controller._run_core.refresh_policies(controller)
     with pytest.raises(KernelRefusal, match="^proximity.sample_contacts refused: another"):
         controller._sample_proximity_contacts(0)
     stand_in.proximity_contact_config = None

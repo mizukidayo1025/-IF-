@@ -340,11 +340,6 @@ fn release_from(world: &Bound<'_, PyAny>, part: &str, agent_id: &Bound<'_, PyAny
     with_world(world, |world| core::release(world, &held, part, str_value(agent_id)))?.or_py()
 }
 
-/// `release_sleep_bed`, for a rule in another file.
-pub(crate) fn release_bed(world: &Bound<'_, PyAny>, agent_id: &Bound<'_, PyAny>) -> PyResult<bool> {
-    release_sleep_bed(world, agent_id)
-}
-
 #[pyfunction]
 fn release_sleep_bed(world: &Bound<'_, PyAny>, agent_id: &Bound<'_, PyAny>) -> PyResult<bool> {
     counted(world.py(), "release_sleep_bed", release_from(world, "bed_reservations", agent_id))

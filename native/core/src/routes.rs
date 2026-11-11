@@ -140,7 +140,7 @@ impl Router {
         Ok(Self::new(zones.iter().map(|(key, _)| key.clone()), open))
     }
 
-    /// The graph `world_graph` of the PyO3 crate's `rules/travel.rs` reads: the open edges of the
+    /// The graph `world_graph` of `rules/travel.rs` reads: the open edges of the
     /// tables in the dict's order, with these capacities (checked by the caller). An edge
     /// `ZoneGraph` turns down for its zones or its time is refused, in the dict's order.
     pub fn of_world_tables(zones: &Table<ZoneRow>, edges: &Table<EdgeRow>, capacities: &HashMap<Arc<str>, i64>) -> Result<Self> {

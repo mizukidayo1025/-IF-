@@ -30,6 +30,7 @@ use crate::entities::{Activity, AgentRow, EdgeRow, Entities};
 use crate::error::{Error, Result};
 use crate::events::queue::Queue;
 use crate::events::writer::WriteResult;
+use crate::events::EventStatus;
 use crate::geometry::{distance, point_along_polyline, point_in_polygon, point_in_value, polyline_length, usable, Geo, Pt};
 use crate::mathx::{py_fsum, py_max, py_min, py_sum};
 use crate::row::IdMap;
@@ -109,7 +110,7 @@ fn apply(world: &World, changes: Changes) -> Result<()> {
     Ok(())
 }
 
-/// A plan of a kernel of the PyO3 crate (`travel.rs`), put in the row: the slot is marked, and an
+/// A plan of `rules/travel.rs`, put in the row: the slot is marked, and an
 /// attached tree follows.
 pub fn write_changes(world: &World, changes: Changes) -> Result<()> {
     apply(world, changes)
@@ -900,16 +901,36 @@ pub fn advance(world: &World, tick: &Tick<'_>, minute: i64, in_order: Option<&In
     Ok(Advanced::Done(plan.replans))
 }
 
-/// The row's part of a walk with queue replans: the people to replan, and the replans, which
-/// `write_queue_replan` writes in order once the PyO3 crate has settled each one's event.
-pub fn write_walk(world: &World, plan: WalkPlan) -> Result<(Vec<Arc<str>>, Vec<QueueReplan>)> {
+/// A walk with queue replans, written: the row's part, then each queue trip in the walk's order,
+/// its old event settled as suppressed (`QUEUE_REPLAN_DETAIL`) through the world's writer and its
+/// new trip written. The old events must be rows (the PyO3 crate reads the rows of the events
+/// Python scheduled first): one that is not refuses before anything is written. Returns the people
+/// to replan, and the serials of the queue's slots taken out, whose Python objects the PyO3 crate
+/// lets go.
+pub fn write_walk(world: &World, plan: WalkPlan, minute: i64) -> WriteResult<(Vec<Arc<str>>, Vec<u64>)> {
     let WalkPlan { changes, replans, queue_replans } = plan;
+    let events = Events::of(world)?;
+    let mut old = Vec::with_capacity(queue_replans.len());
+    {
+        let queue = world.queue()?;
+        for replan in &queue_replans {
+            match queue.serial_of(&replan.event_id).and_then(|serial| queue.slot(serial).row.clone()) {
+                Some(row) => old.push(row),
+                None => return Err(Error::unsupported("the trip's event has no row").into()),
+            }
+        }
+    }
     apply(world, changes)?;
-    Ok((replans, queue_replans))
+    let mut taken = Vec::new();
+    for (old, replan) in old.into_iter().zip(queue_replans) {
+        taken.extend(events.settle(&old, minute, EventStatus::Suppressed, Some(QUEUE_REPLAN_DETAIL))?.taken);
+        write_queue_replan(world, replan)?;
+    }
+    Ok((replans, taken))
 }
 
 /// A queue replan's writes, after its old event is settled: the counts, and the new trip.
-pub fn write_queue_replan(world: &World, replan: QueueReplan) -> WriteResult<()> {
+fn write_queue_replan(world: &World, replan: QueueReplan) -> WriteResult<()> {
     match replan.end {
         QueueReplanEnd::NoFacility => return Ok(()),
         QueueReplanEnd::Blocked => {

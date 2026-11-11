@@ -6,9 +6,10 @@
 //! Python values of what it returns (`ZoneRoute`, `Point2D`, the dicts). The core writes the row of
 //! `movement_v1` alone, and an attached tree follows it when the world is given back (lane P8-0c).
 //!
-//! What stays here besides: settling a replanned queue trip's pending event, whose object may be
-//! Python's (`EventWriter::settle`), and the readers that make Python documents of the row for the
-//! rules not yet in the core (`row_position`, `journey_of`).
+//! A replanned queue trip's pending event is settled by the core on the world's queue and log (lane
+//! c6); the glue reads the rows of the events Python scheduled first, and lets go the objects of
+//! the events the core took out. What stays here besides: the readers that make Python documents of
+//! the row for the rules not yet in the core (`row_position`, `journey_of`).
 
 use std::sync::Arc;
 
@@ -17,24 +18,19 @@ use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyDict, PyString, PyTuple, PyType};
 
-use sheltersim_core::config::movement::{Movement, MovementModel};
-use sheltersim_core::config::read::Read;
-use sheltersim_core::rules::kit::movement as walking;
+use sheltersim_core::config::movement::Movement;
 use sheltersim_core::rules::kit::Held;
 use sheltersim_core::rules::movement::{self as core, Advanced, InOrder, StaffOp, StaffOps, StaffTravel, Start, Tick, Validated, Where};
 
 pub(crate) use sheltersim_core::config::movement::EXACT_INT;
 pub(crate) use sheltersim_core::rules::kit::mobility_text;
-pub(crate) use sheltersim_core::rules::kit::movement::Changes;
-pub(crate) use sheltersim_core::rules::movement::no_positions;
 
 use crate::core::configs;
 use crate::core::errors::OrPy;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_list, exact_str, unsupported, IdMap, PyField};
 use crate::core::world_core::{field_held, mirror_of, namespace_held, with_world, NamespaceMirror};
 use crate::rules::movement_geometry::{usable, Geo, GeoPy, Pt};
-use crate::state::entities::Entities;
-use crate::state::events::{write_result, EventStatus, EventWriter};
+use crate::state::events::{write_result, EventWriter};
 use crate::state::movement::{Journey, MovementRow, Point};
 use crate::state::staff_operations::NAME as STAFF_OPERATIONS;
 use crate::Unsupported;
@@ -316,20 +312,7 @@ pub(crate) fn route_points_of(value: Option<&Bound<'_, PyAny>>) -> PyResult<Vec<
     Ok(found)
 }
 
-// ---- The kit's rules, for the kernels not yet in the core ---------------------------------------
-
-/// `facility_approach_route` in a placed world (`kit::movement::approach_point`).
-pub(crate) fn approach_point(
-    geo: &Geo,
-    row: &MovementRow,
-    rows: &Entities,
-    model: &Read<MovementModel>,
-    agent_id: &str,
-    facility_id: &str,
-    service_point: Option<&str>,
-) -> PyResult<Option<(i64, Arc<[Pt]>)>> {
-    walking::approach_point(geo, row, rows, model, agent_id, facility_id, service_point).or_py()
-}
+// ---- The movement section ----------------------------------------------------------------------
 
 /// The movement section of the world's configs (`config::movement`), kept for the stamp of
 /// `model_configs`. A configs that is not a dict is refused here, as `exact_dict` refused it; the
@@ -339,41 +322,7 @@ pub(crate) fn movement_of(world: &Bound<'_, PyAny>) -> PyResult<Arc<Movement>> {
     configs::kept_value(world, |configs| &configs.movement, Movement::parse)
 }
 
-// ---- Writes of the kernels not yet in the core (travel, replan, admission) ----------------------
-
-/// `start_movement`'s plan of a trip that `travel.rs` schedules, changing nothing.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn plan_start(
-    world: &Bound<'_, PyAny>,
-    agent_id: &Arc<str>,
-    journey: Journey,
-    origin: &Arc<str>,
-    points: &[Pt],
-    edge_ids: &[Arc<str>],
-    started: i64,
-    duration: i64,
-) -> PyResult<Changes> {
-    mirror_held(world)?;
-    let geo = Geo::of(world)?;
-    let start = Start { agent_id, journey, origin, points, edge_ids, started, duration };
-    with_world(world, |world| core::plan_start_in(world, &geo, start))?.or_py()
-}
-
-/// A plan of the row put in it (`travel.rs`).
-pub(crate) fn write_changes(world: &Bound<'_, PyAny>, changes: Changes) -> PyResult<()> {
-    mirror_held(world)?;
-    with_world(world, |world| core::write_changes(world, changes))?.or_py()
-}
-
-/// `state["journeys"].pop(agent_id)`.
-pub(crate) fn stop_journey(world: &Bound<'_, PyAny>, agent_id: &Arc<str>) -> PyResult<()> {
-    with_world(world, |world| core::stop_journey(world, agent_id))?.or_py()
-}
-
-/// `state["positions"][agent_id] = ...` of someone who is at the end of a path in a room.
-pub(crate) fn place_in_room(world: &Bound<'_, PyAny>, agent_id: &Arc<str>, zone_id: &Arc<str>, point: Pt) -> PyResult<()> {
-    with_world(world, |world| core::place_in_room(world, agent_id, zone_id, point))?.or_py()
-}
+// ---- Writes of the kernels not yet in the core (admission) -------------------------------------
 
 /// What `stationary` would refuse for a person idle in each of these zones (admission's plan).
 pub(crate) fn check_idle_points(world: &Bound<'_, PyAny>, zones: &[&str]) -> PyResult<()> {
@@ -640,21 +589,11 @@ pub(crate) fn advance_movement<'py>(world: &Bound<'py, PyAny>, minute: &Bound<'p
         Advanced::Done(replans) => replans,
         Advanced::NeedsInOrder => return unsupported("the walk in order asked for itself"),
         Advanced::Planned(plan) => {
-            // The old events, as rows: nothing is refused after this.
-            let writer = EventWriter::of(world)?;
-            let mut old_events = Vec::with_capacity(plan.queue_replans().len());
-            for replan in plan.queue_replans() {
-                match writer.queue().get().row(py, &replan.event_id)? {
-                    Some(row) => old_events.push(row),
-                    None => return unsupported("the trip's event has no row"),
-                }
-            }
-            let (replans, queue_replans) = with_world(world, |world| core::write_walk(world, plan))?.or_py()?;
-            for (old, replan) in old_events.into_iter().zip(queue_replans) {
-                writer.settle(&old, minute, EventStatus::Suppressed, Some(core::QUEUE_REPLAN_DETAIL))?;
-                let written = with_world(world, |world| core::write_queue_replan(world, replan))?;
-                write_result(py, written)?;
-            }
+            // The old events are read as rows from the world's queue, and settled there by the core.
+            crate::rules::travel::read_queue_rows(world)?;
+            let queue = EventWriter::of(world)?.queue().clone();
+            let (replans, taken) = write_result(py, with_world(world, |world| core::write_walk(world, plan, minute))?)?;
+            queue.get().forget(&taken)?;
             replans
         }
     };

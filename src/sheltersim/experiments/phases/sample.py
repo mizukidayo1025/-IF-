@@ -75,7 +75,7 @@ class SamplePhase:
         )
 
     def _sample_proximity_contacts(self, minute: int) -> None:
-        """Next minute's same-zone proximity contacts, which native/src/rules/proximity.rs samples.
+        """Next minute's same-zone proximity contacts: native/core/src/rules/proximity.rs.
 
         Nothing without `proximity_contact_config`, at a minute that is not a multiple of its
         `sample_interval_minutes`, or when `minute + 1` is past the Run. Otherwise

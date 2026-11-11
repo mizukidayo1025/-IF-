@@ -504,51 +504,39 @@ def test_an_equal_time_goes_to_the_lower_edge_id(generated_scenario: Any) -> Non
     world, controller = _run(generated_scenario, 5)
     kernel = native.rules("travel").route
     agent_id = _idle_people(world, 1)[0]
-    # The graph's own travel times equal: only the IDs can decide.
-    from sheltersim.domain.zones import ZoneConnection, ZoneGraph
-    from sheltersim.policies.space import SpaceRouter
+    # The graph's own travel times equal: only the IDs can decide. The Run's router is the world's
+    # tables (lane c6): every other edge is closed, and the four are added.
+    from sheltersim.domain.models import ZoneEdgeState
 
-    zones = list(controller.space.graph.zones)[:4]
-    controller.space = SpaceRouter(
-        ZoneGraph(
-            zones={zone: controller.space.graph.zones[zone] for zone in zones},
-            edges=(
-                ZoneConnection("z-b", zones[0], zones[1], 1),
-                ZoneConnection("a-c", zones[0], zones[2], 1),
-                ZoneConnection("m-d", zones[1], zones[3], 1),
-                ZoneConnection("n-d", zones[2], zones[3], 1),
-            ),
-        )
-    )
-    # Without a world the refresh leaves the kernel to read `space` (native/src/core/run.rs).
-    controller._run_core.refresh_routes()
+    zones = sorted(world.zones)[:4]
+    for edge in world.zone_edges.values():
+        edge.closed = True
+    for edge_id, origin, destination in (
+        ("z-b", zones[0], zones[1]),
+        ("a-c", zones[0], zones[2]),
+        ("m-d", zones[1], zones[3]),
+        ("n-d", zones[2], zones[3]),
+    ):
+        world.zone_edges[edge_id] = ZoneEdgeState(edge_id, origin, destination, 1)
+    controller._run_core.refresh_routes(world)
     route = kernel(controller, zones[0], zones[3], agent_id)
     assert route.edge_ids == ("a-c", "n-d")
     # As the Python rule found it.
     assert (route.zone_ids, route.travel_minutes) == ((zones[0], zones[2], zones[3]), 4)
 
 
-def test_an_edge_capacity_is_counted_and_another_policy_goes_to_python(
-    generated_scenario: Any,
-) -> None:
+def test_an_edge_capacity_is_counted(generated_scenario: Any) -> None:
     world, controller = _run(generated_scenario, 5)
     kernel = native.rules("travel").route
     agent_id = _idle_people(world, 1)[0]
     zone = world.agents[agent_id].zone_id
-    # The Run reads its capacities when its controller starts (native/src/core/run.rs).
+    # The Run reads its capacities when its controller starts (native/src/core/run.rs), and builds
+    # its router from the world's tables when first asked: a key no edge has is ZoneGraph's error.
     controller._run_core = native.run_core({"any": 1})
-    assert kernel(controller, zone, zone, agent_id).edge_ids == ()
-    controller._run_core = native.run_core({})
-    from sheltersim.policies.space import SpaceRouter
-
-    class Other:
-        def route(self, *arguments: Any, **options: Any) -> None:
-            return None
-
-    controller.space = SpaceRouter(controller.space.graph, Other())
-    controller._run_core.refresh_routes()
-    with pytest.raises(native.Unsupported, match="policy"):
+    with pytest.raises(ValueError, match="route capacity references an unknown zone edge"):
         kernel(controller, zone, zone, agent_id)
+    controller._run_core = native.run_core({next(iter(world.zone_edges)): 1})
+    assert kernel(controller, zone, zone, agent_id).edge_ids == ()
 
 
 def _travel(world: WorldState, controller: Any, digest: str, **options: Any) -> Any:

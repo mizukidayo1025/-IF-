@@ -608,8 +608,9 @@ fn pass(world: &World, start: &Start<'_>, drawn: Option<f64>) -> WriteResult<Pas
 
 // ---- complete ------------------------------------------------------------------------------------
 
-/// What a completion asks of the PyO3 crate once it is written: the walk home of the handler's
-/// `after_complete` (`schedule_return`), which lane c6 makes a call of the core.
+/// What a completion asks once it is written: the walk home of the handler's `after_complete`,
+/// which the PyO3 crate runs as the core's `travel::schedule_return` on the same borrow when it is
+/// the controller's own step (lane c6).
 #[must_use]
 #[derive(Debug, PartialEq, Eq)]
 pub struct ScheduleReturn;

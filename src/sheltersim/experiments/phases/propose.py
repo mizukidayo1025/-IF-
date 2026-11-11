@@ -222,7 +222,7 @@ class ProposePhase:
         support_staff_id: str | None = None,
         validate_state: bool = True,
     ) -> bool:
-        """Start one trip along `route`, which native/src/rules/travel.rs plans and writes.
+        """Start one trip along `route`, which native/core/src/rules/travel.rs plans and writes.
 
         ValueError("travel route origin does not match Agent zone") when the route does not start
         in the person's zone. False, with nothing changed, for a route of no minutes, one that
@@ -251,7 +251,7 @@ class ProposePhase:
         minute: int,
     ) -> bool:
         """`_schedule_travel` of a `staff_support_travel` trip caused by the request, without
-        validating the whole state: native/src/rules/travel.rs. StaffService's
+        validating the whole state: native/core/src/rules/travel.rs. StaffService's
         `travel_scheduler`.
 
         The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS).
@@ -260,7 +260,7 @@ class ProposePhase:
     def _route(
         self, origin_zone_id: str, destination_zone_id: str, agent_id: str
     ) -> ZoneRoute | None:
-        """The shortest route for this person, or None: native/src/rules/travel.rs.
+        """The shortest route for this person, or None: native/core/src/rules/travel.rs.
 
         Over the graph the last `_refresh_space` built from the world's zone and edge tables (the
         same as `space`'s) without the edges a floor plan closes to the person's mobility.

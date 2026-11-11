@@ -4,10 +4,10 @@
 //!
 //! The controller makes it in `__init__` from `route_capacities`, before its first
 //! `_refresh_space`, and each `_refresh_space` calls `refresh_routes(world)`, which builds both
-//! routers from the world's zone and edge tables right then (`rules/travel.rs`, lane 7-4). Where the
-//! tables cannot be read (rows that do not follow the world's maps, or capacities that are no plain
-//! dict), and after `refresh_routes()` without a world, the routers are built when a kernel first
-//! asks, from the graphs `_refresh_space` made, as in lane 7-3.
+//! routers from the world's zone and edge tables right then (`rules/travel.rs`, lanes 7-4 and c6).
+//! Where the tables cannot be read (rows a value did not fit, or capacities that are no plain dict),
+//! and after `refresh_routes()` without a world, the routers are built from the controller's world
+//! when a kernel first asks, which refuses tables that dropped their rows (lane c6).
 //!
 //! The controller gives itself too (lane P8-0b): its `Policies` are read then, by the core's
 //! `CONTROLLER` spec (`sheltersim_core::run::policies`), and again at `refresh_policies`. Reading
@@ -265,7 +265,7 @@ impl RunCore {
 
     /// The router of this epoch, built with `build` the first time it is asked. Nothing is held
     /// while `build` reads Python; what it refuses is not kept, so the next ask reads again.
-    pub(crate) fn router(&self, which: Which, build: impl FnOnce() -> PyResult<Router>) -> PyResult<Arc<Router>> {
+    pub(crate) fn router(&self, which: Which, build: impl FnOnce() -> PyResult<Arc<Router>>) -> PyResult<Arc<Router>> {
         let epoch = {
             let run = self.lock()?;
             if let Some(router) = run.routes.get(which) {
@@ -273,7 +273,7 @@ impl RunCore {
             }
             run.routes.epoch()
         };
-        let router = Arc::new(build()?);
+        let router = build()?;
         Ok(self.lock()?.routes.keep(which, epoch, router))
     }
 }
@@ -329,7 +329,8 @@ impl RunCore {
 
     /// `_refresh_space`: a new epoch, whose routers are built from the world's zone and edge tables
     /// now, with `ZoneGraph`'s checks and words. Without a world, or where the tables cannot be
-    /// read, they are built when next asked from the controller's `space` and `staff_space`.
+    /// read, they are built from the controller's world when next asked, which refuses tables that
+    /// dropped their rows (lane c6: the controller's `space` and `staff_space` are not read).
     #[pyo3(signature = (world=None))]
     fn refresh_routes(&self, world: Option<&Bound<'_, PyAny>>) -> PyResult<()> {
         let epoch = {

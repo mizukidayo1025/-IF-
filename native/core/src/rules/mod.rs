@@ -37,6 +37,10 @@ pub mod overlay;
 pub mod queues;
 pub mod service;
 pub mod toilet;
+// lane c6
+pub mod proximity;
+pub mod replan;
+pub mod travel;
 
 // ---- P8d: events and checks --------------------------------------------------------------------
 pub mod information_events;

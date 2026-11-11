@@ -1,125 +1,170 @@
 //! `_replan_journeys` of `experiments/phases/update.py`: the people whose route changed under them,
-//! in the order the walk returned them. It has no Python step left (lane L10).
+//! in the order the walk returned them (lane c6 of Issue #152).
 //!
-//! Each person is two steps. Their old trip stops, and then a new route is planned from where that
-//! left them, reading what the stop wrote: their zone, and that nobody counts them as on the way.
-//! So one kernel cannot plan a person and then write them, as the others do. A refusal before the
-//! first stop says Unsupported, with nothing changed; past it, a stop is written, and a refusal is a
-//! RuntimeError. A replan is rare, so this goes through the Python objects' own `__setattr__`, as
-//! `rules/handlers.rs` does for what happens rarely. See docs/rust-port/lanes/l3-movement.md.
+//! Each person is two steps. Their old trip stops (`stop`), and then a new route is planned from
+//! where that left them (`second_step`), reading what the stop wrote: their zone, and that nobody
+//! counts them as on the way. A refusal before the first stop says Unsupported, with nothing
+//! changed; past it, a stop is written, and the PyO3 crate makes a refusal a RuntimeError. See
+//! docs/rust-port/lanes/l3-movement.md.
+//!
+//! The old trip's event and a support's previous completion leave the world's queue through the
+//! world's writer (`kit::Events::settle`), which gives back the serials of the slots it took out
+//! for the PyO3 crate to let their Python objects go. A support whose staff the person can no
+//! longer reach ends in a continuity receipt, written to the log here; projecting it into
+//! `shared_operations_v1` reads the EventLog's records as Python holds them, so `second_step` hands
+//! it back (`Second::Continuity`) and the PyO3 crate projects it, finishes the walk and counts the
+//! replan (`after_continuity`), in the order the Python rule did.
 
 use std::sync::Arc;
 
 use indexmap::IndexMap;
-use pyo3::exceptions::PyRuntimeError;
-use pyo3::intern;
-use pyo3::prelude::*;
-use pyo3::types::{PyString, PyTuple};
 
-use crate::core::census;
-use crate::core::errors;
-use crate::core::row::{attribute, exact_int, exact_str, unsupported};
-use crate::core::value::V;
-use crate::core::world_core::{raw_dict_get, NamespaceMirror};
+use crate::config::movement::Movement;
+use crate::entities::{Activity, RequestStatus};
+use crate::error::{Error, Result};
+use crate::events::writer::WriteResult;
+use crate::events::{EventKind, EventRow, EventStatus};
+use crate::geometry::Pt;
 use crate::rules::care_receipts::continuity_record;
-use crate::rules::movement::{mirror_held, place_in_room, stop_journey};
-use crate::rules::overlay;
-use crate::rules::proposals::place_in_bed;
-use crate::rules::service::{add_one, metrics_of, set_agent};
-use crate::rules::travel::{approach_route, plan_travel, route as route_kernel, write_travel, Route, Trip};
-use crate::state::entities::{entities_of, Activity, EntityStore, Member, RequestStatus};
-use crate::state::events::{EventKind, EventRow, EventStatus, EventWriter};
+use crate::rules::kit::movement::KEY as MOVEMENT;
+use crate::rules::kit::{self, add_metric, log_record, set_agent, Events, Held, Kept};
+use crate::rules::movement;
+use crate::rules::overlay::{self, Beds};
+use crate::rules::travel::{self, approach_route, plan_travel, write_travel, Route, Routing, Trip, Walking};
+use crate::run::services::Manager;
 use crate::state::movement::{Journey, MovementRow};
-use crate::Unsupported;
+use crate::value::V;
+use crate::world::World;
 
 const REPLAN: &str = "movement_replan_count";
 const BLOCKED: &str = "movement_replan_blocked_count";
 const STAFF_SUPPORT_SOURCE: &str = "ASM-STAFF-SUPPORT-LIFECYCLE-V1";
 
-/// Say Unsupported no more: a stop has been written.
-fn after_a_write(py: Python<'_>, result: PyResult<()>) -> PyResult<()> {
-    match result {
-        Err(error) if error.is_instance_of::<Unsupported>(py) => {
-            census::caught(py, "replan after a stop", &error);
-            Err(PyRuntimeError::new_err(format!("a kernel said Unsupported after a replan was written: {}", error.value(py))))
+#[track_caller]
+fn refuse<T>(reason: &'static str) -> Result<T> {
+    Err(Error::unsupported(reason))
+}
+
+/// What a replan reads beside the world.
+pub struct Replanning<'a> {
+    pub routing: Routing<'a>,
+    pub walking: Walking<'a>,
+    /// What `reserve_sleep_bed` reads, and whether the world holds `geometry_overlay_v1`, whose bed
+    /// a sleeper lets go.
+    pub beds: Beds<'a>,
+    /// The movement section of the configs, for the walk in a room.
+    pub movement: &'a Kept<Movement>,
+    /// `controller.staff_service`, for a support's policy version and cooldown.
+    pub staff_service: &'a Manager,
+}
+
+/// The person's journey, where they have one and are a person of the world: else nothing to replan.
+pub fn journey_of(world: &World, agent_id: &str) -> Result<Option<Journey>> {
+    let journey = world.row::<MovementRow>(MOVEMENT)?.journeys.get(agent_id).cloned();
+    let known = world.rows()?.agents.contains_key(agent_id);
+    Ok(journey.filter(|_| known))
+}
+
+/// What the old trip's stop leaves: the event suppressed, the task gone, the person idle where
+/// their position says, and no journey. Says Unsupported only before its first write. Returns the
+/// serials of the queue's slots it took out.
+pub fn stop(world: &World, agent_id: &Arc<str>, journey: &Journey, minute: i64) -> WriteResult<Vec<u64>> {
+    let events = Events::of(world)?;
+    let old = {
+        let queue = world.queue()?;
+        match queue.serial_of(&journey.event_id) {
+            None => None,
+            Some(serial) => match &queue.slot(serial).row {
+                Some(row) => Some(row.clone()),
+                None => return Err(Error::unsupported("the trip's event has no row").into()),
+            },
         }
-        other => other,
+    };
+    let zone = world.row::<MovementRow>(MOVEMENT)?.positions.get(&**agent_id).map(|position| position.zone_id.clone());
+    if !world.rows()?.agents.contains_key(&**agent_id) {
+        return Err(Error::unsupported("a row has no object").into());
+    }
+
+    // Write.
+    let mut taken = Vec::new();
+    if let Some(old) = old {
+        taken.extend(events.settle(&old, minute, EventStatus::Suppressed, Some("the route changed before travel completion"))?.taken);
+    }
+    {
+        let mut rows = world.rows_mut()?;
+        rows.active_tasks.remove_row(&journey.task_id);
+        if let Some(zone) = zone {
+            if let Some(row) = rows.agents.get_mut(&**agent_id) {
+                row.zone_id = zone;
+            }
+        }
+        set_agent(&mut rows, agent_id, Activity::Idle, None)?;
+    }
+    movement::stop_journey(world, agent_id)?;
+    Ok(taken)
+}
+
+/// What the second step leaves for the PyO3 crate.
+pub enum Second {
+    /// Done: the serials of the queue's slots it took out.
+    Done(Vec<u64>),
+    /// A support whose staff the person can no longer reach: its continuity receipt, recorded
+    /// APPLIED at `minute`, is to be projected (`ingest_applied_shared_operation_records`), and then
+    /// `after_continuity` finishes the person's walk.
+    Continuity { event: EventRow, minute: i64, taken: Vec<u64> },
+}
+
+/// The second step: a new route from where the stop left them. Says Unsupported only before its
+/// first write.
+pub fn second_step(world: &World, replanning: &Replanning<'_>, agent_id: &Arc<str>, journey: &Journey, minute: i64) -> WriteResult<Second> {
+    let step = Step { world, replanning, minute };
+    match &*journey.purpose {
+        "staff_support_travel" => match step.staff_support(agent_id, journey)? {
+            // A support kept is no replan blocked.
+            Support::Kept(taken) => {
+                add_metric(world, REPLAN)?;
+                Ok(Second::Done(taken))
+            }
+            Support::Lost { event, minute, taken } => Ok(Second::Continuity { event, minute, taken }),
+        },
+        "sleep_bed" => step.sleep_bed(agent_id, journey).map(|()| Second::Done(Vec::new())),
+        _ => step.walk(agent_id, journey).map(|()| Second::Done(Vec::new())),
     }
 }
 
-/// `_route` of the controller, its kernel, read as a route.
-fn route_of<'py>(controller: &Bound<'py, PyAny>, origin: &str, destination: &str, agent_id: &str) -> PyResult<Option<Route>> {
-    let py = controller.py();
-    let (from, to, who) = (PyString::new(py, origin), PyString::new(py, destination), PyString::new(py, agent_id));
-    let found = route_kernel(controller, from.as_any(), to.as_any(), who.as_any())?;
-    if found.is_none() {
-        return Ok(None);
-    }
-    Ok(Some(Route {
-        origin: Arc::from(exact_str(&attribute(&found, intern!(py, "origin_zone_id"))?)?),
-        destination: Arc::from(exact_str(&attribute(&found, intern!(py, "destination_zone_id"))?)?),
-        zone_ids: crate::rules::movement::str_tuple(&attribute(&found, intern!(py, "zone_ids"))?)?,
-        edge_ids: crate::rules::movement::str_tuple(&attribute(&found, intern!(py, "edge_ids"))?)?,
-        minutes: exact_int(&attribute(&found, intern!(py, "travel_minutes"))?)?,
-    }))
+/// After the continuity receipt of `Second::Continuity` and the end of the walk: the replan, which
+/// kept no support, counted.
+pub fn after_continuity(world: &World) -> Result<()> {
+    add_metric(world, BLOCKED)?;
+    add_metric(world, REPLAN)
 }
 
-struct Replan<'a, 'py> {
-    controller: &'a Bound<'py, PyAny>,
-    world: &'a Bound<'py, PyAny>,
-    mirror: &'a Bound<'py, NamespaceMirror>,
-    store: &'a Bound<'py, EntityStore>,
-    writer: &'a EventWriter<'py>,
-    metrics: &'a Bound<'py, NamespaceMirror>,
+enum Support {
+    /// The support goes on, rescheduled: the serials of the queue's slots taken out.
+    Kept(Vec<u64>),
+    /// The staff's route is unavailable: the continuity receipt, written to the log.
+    Lost { event: EventRow, minute: i64, taken: Vec<u64> },
+}
+
+struct Step<'a, 'r> {
+    world: &'a World,
+    replanning: &'a Replanning<'r>,
     minute: i64,
 }
 
-impl<'py> Replan<'_, 'py> {
-    /// What the old trip's stop leaves: the event suppressed, the task gone, the person idle where
-    /// their position says, and no journey. Says Unsupported only before its first write.
-    fn stop(&self, agent_id: &Arc<str>, journey: &Journey) -> PyResult<()> {
-        let py = self.world.py();
-        let old = self.writer.queue().get().row(py, &journey.event_id)?;
-        if self.writer.is_pending(&journey.event_id)? && old.is_none() {
-            return unsupported("the trip's event has no row");
-        }
-        let zone = NamespaceMirror::with_row::<MovementRow, _>(self.mirror, |row| {
-            Ok(row.positions.get(&**agent_id).map(|position| position.zone_id.clone()))
-        })?;
-        let agents = attribute(self.world, intern!(py, "agents"))?;
-        let agent_text = PyString::new(py, agent_id);
-        let Some(_) = raw_dict_get(&agents, agent_text.as_any())? else {
-            return unsupported("a row has no object");
-        };
-
-        // Write.
-        if let Some(old) = old {
-            self.writer.settle(&old, self.minute, EventStatus::Suppressed, Some("the route changed before travel completion"))?;
-        }
-        attribute(self.world, intern!(py, "active_tasks"))?.call_method1(intern!(py, "pop"), (&*journey.task_id, py.None()))?;
-        if let Some(zone) = zone {
-            EntityStore::with_rows(self.store, |rows| {
-                if let Some(row) = rows.agents.get_mut(&**agent_id) {
-                    row.zone_id = zone.clone();
-                }
-                Ok(())
-            })?;
-        }
-        set_agent(self.world, self.store, agent_text.as_any(), Activity::Idle, None)?;
-        stop_journey(self.world, agent_id)
-    }
-
-    fn zone_of(&self, agent_id: &str) -> PyResult<Arc<str>> {
-        EntityStore::with_rows(self.store, |rows| match rows.agents.get(agent_id) {
+impl Step<'_, '_> {
+    fn zone_of(&self, agent_id: &str) -> Result<Arc<str>> {
+        match self.world.rows()?.agents.get(agent_id) {
             Some(agent) => Ok(agent.zone_id.clone()),
-            None => unsupported("no such agent"),
-        })
+            None => refuse("no such agent"),
+        }
     }
 
-    fn travel(&self, agent_id: &Arc<str>, route: Route, points: Vec<crate::rules::movement_geometry::Pt>, journey: &Journey) -> PyResult<Option<crate::rules::travel::PlannedTrip>> {
+    fn travel(&self, events: &Events<'_>, agent_id: &Arc<str>, route: Route, points: Vec<Pt>, journey: &Journey) -> Result<Option<travel::PlannedTrip>> {
         plan_travel(
             self.world,
-            self.writer,
+            events,
+            self.replanning.walking,
             Trip {
                 agent_id: agent_id.clone(),
                 route,
@@ -134,26 +179,11 @@ impl<'py> Replan<'_, 'py> {
         )
     }
 
-    /// The second step: a new route from where the stop left them. Says Unsupported only before its
-    /// first write.
-    fn second_step(&self, agent_id: &Arc<str>, journey: &Journey) -> PyResult<()> {
-        match &*journey.purpose {
-            "staff_support_travel" => {
-                if !self.staff_support(agent_id, journey)? {
-                    add_one(self.metrics, BLOCKED)?;
-                }
-                add_one(self.metrics, REPLAN)
-            }
-            "sleep_bed" => self.sleep_bed(agent_id, journey),
-            _ => self.walk(agent_id, journey),
-        }
-    }
-
-    fn sleep_bed(&self, agent_id: &Arc<str>, journey: &Journey) -> PyResult<()> {
-        let py = self.world.py();
+    fn sleep_bed(&self, agent_id: &Arc<str>, journey: &Journey) -> WriteResult<()> {
+        let world = self.world;
         let zone = self.zone_of(agent_id)?;
-        let agent_text = PyString::new(py, agent_id);
-        let bed = overlay::plan_bed(self.world, agent_id)?;
+        let events = Events::of(world)?;
+        let bed = overlay::plan_bed(world, &self.replanning.beds, agent_id)?;
         let trip = match &bed {
             Some(bed) if bed.travel_minutes > 0 => {
                 let route = Route {
@@ -163,34 +193,39 @@ impl<'py> Replan<'_, 'py> {
                     edge_ids: Vec::new(),
                     minutes: bed.travel_minutes,
                 };
-                self.travel(agent_id, route, bed.path.to_vec(), journey)?
+                self.travel(&events, agent_id, route, bed.path.to_vec(), journey)?
             }
             _ => None,
         };
         if let (Some(bed), Some(trip)) = (&bed, trip) {
-            overlay::write_bed(self.world, agent_id, bed)?;
-            write_travel(self.world, self.writer, trip)?;
-            return add_one(self.metrics, REPLAN);
+            overlay::write_bed(world, self.replanning.beds.overlay, agent_id, bed)?;
+            write_travel(world, &events, trip)?;
+            return Ok(add_metric(world, REPLAN)?);
         }
         match &bed {
             Some(bed) if bed.travel_minutes <= 0 => {
-                overlay::write_bed(self.world, agent_id, bed)?;
-                place_in_bed(self.world, agent_text.as_any(), bed, &zone)?;
+                overlay::write_bed(world, self.replanning.beds.overlay, agent_id, bed)?;
+                // The person is at their bed: their position says so, where the world has positions.
+                if matches!(self.replanning.walking.movement, Held::Held) {
+                    movement::place_at_point(world, agent_id, &zone, bed.point)?;
+                }
             }
             _ => {
-                add_one(self.metrics, BLOCKED)?;
-                overlay::release_bed(self.world, agent_text.as_any())?;
+                add_metric(world, BLOCKED)?;
+                overlay::release(world, self.replanning.beds.overlay, "bed_reservations", Some(agent_id))?;
             }
         }
-        set_agent(self.world, self.store, agent_text.as_any(), Activity::Sleeping, None)?;
-        add_one(self.metrics, REPLAN)
+        set_agent(&mut *world.rows_mut()?, agent_id, Activity::Sleeping, None)?;
+        Ok(add_metric(world, REPLAN)?)
     }
 
-    fn walk(&self, agent_id: &Arc<str>, journey: &Journey) -> PyResult<()> {
+    fn walk(&self, agent_id: &Arc<str>, journey: &Journey) -> WriteResult<()> {
+        let world = self.world;
         let zone = self.zone_of(agent_id)?;
-        let facility = EntityStore::with_rows(self.store, |rows| {
-            Ok(journey.facility_id.as_ref().and_then(|id| rows.facilities.get(id).map(|facility| (id.clone(), facility.zone_id.clone()))))
-        })?;
+        let facility = {
+            let rows = world.rows()?;
+            journey.facility_id.as_ref().and_then(|id| rows.facilities.get(id).map(|facility| (id.clone(), facility.zone_id.clone())))
+        };
         let mut target = journey.destination_zone_id.clone();
         if let Some((facility_id, facility_zone)) = facility {
             target = facility_zone;
@@ -198,41 +233,44 @@ impl<'py> Replan<'_, 'py> {
                 return self.within_the_room(agent_id, journey, &facility_id, &zone);
             }
         }
-        let route = route_of(self.controller, &zone, &target, agent_id)?.filter(|route| !route.edge_ids.is_empty());
+        let route = travel::route(world, &self.replanning.routing, &zone, &target, agent_id)?.filter(|route| !route.edge_ids.is_empty());
         match route {
             Some(route) => {
                 // `_schedule_travel`, whose answer no one reads here.
-                if let Some(trip) = self.travel(agent_id, route, Vec::new(), journey)? {
-                    write_travel(self.world, self.writer, trip)?;
+                let events = Events::of(world)?;
+                if let Some(trip) = self.travel(&events, agent_id, route, Vec::new(), journey)? {
+                    write_travel(world, &events, trip)?;
                 }
             }
-            None => add_one(self.metrics, BLOCKED)?,
+            None => add_metric(world, BLOCKED)?,
         }
-        add_one(self.metrics, REPLAN)
+        Ok(add_metric(world, REPLAN)?)
     }
 
-    fn within_the_room(&self, agent_id: &Arc<str>, journey: &Journey, facility_id: &str, zone: &Arc<str>) -> PyResult<()> {
-        let found = approach_route(self.world, agent_id, facility_id)?.filter(|(_, points)| !points.is_empty());
+    fn within_the_room(&self, agent_id: &Arc<str>, journey: &Journey, facility_id: &str, zone: &Arc<str>) -> WriteResult<()> {
+        let world = self.world;
+        let found = approach_route(world, self.replanning.walking, self.replanning.movement, agent_id, facility_id)?.filter(|(_, points)| !points.is_empty());
         match found {
             Some((route, points)) if route.minutes > 0 && points.len() > 1 => {
-                if let Some(trip) = self.travel(agent_id, route, points, journey)? {
-                    write_travel(self.world, self.writer, trip)?;
+                let events = Events::of(world)?;
+                if let Some(trip) = self.travel(&events, agent_id, route, points, journey)? {
+                    write_travel(world, &events, trip)?;
                 }
             }
-            Some((_, points)) => place_in_room(self.world, agent_id, zone, points[points.len() - 1])?,
-            None => add_one(self.metrics, BLOCKED)?,
+            Some((_, points)) => movement::place_in_room(world, agent_id, zone, points[points.len() - 1])?,
+            None => add_metric(world, BLOCKED)?,
         }
-        add_one(self.metrics, REPLAN)
+        Ok(add_metric(world, REPLAN)?)
     }
 
     /// `_replan_staff_support_trip`: whether the person still has their support.
-    fn staff_support(&self, agent_id: &Arc<str>, journey: &Journey) -> PyResult<bool> {
-        let py = self.world.py();
+    fn staff_support(&self, agent_id: &Arc<str>, journey: &Journey) -> WriteResult<Support> {
+        let world = self.world;
         let minute = self.minute;
         // The texts of the Python rule, which a Run's error keeps.
-        let lost = || errors::value_error("replanned resident trip lost its assigned support task");
+        let lost = || Error::value_error("replanned resident trip lost its assigned support task");
         let Some(request_id) = journey.support_request_id.clone() else {
-            return Err(lost());
+            return Err(lost().into());
         };
         struct Found {
             staff_id: Arc<str>,
@@ -242,60 +280,65 @@ impl<'py> Replan<'_, 'py> {
             due: i64,
             timeout: i64,
         }
-        let found = EntityStore::with_rows(self.store, |rows| {
-            let Some(request) = rows.support_requests.get(&*request_id) else {
-                return Err(lost());
+        let found = {
+            let rows = world.rows()?;
+            let Some(request) = rows.support_requests.get(&request_id) else {
+                return Err(lost().into());
             };
             let (Some(staff_id), Some(task_id)) = (&request.assigned_staff_id, &request.task_id) else {
-                return Err(lost());
+                return Err(lost().into());
             };
             let (Some(staff), Some(task)) = (rows.staff.get(staff_id), rows.active_tasks.get(task_id)) else {
-                return Err(lost());
+                return Err(lost().into());
             };
             if request.status != RequestStatus::Assigned || &*task.kind != "staff_support" {
-                return Err(lost());
+                return Err(lost().into());
             }
-            Ok(Found {
+            Found {
                 staff_id: staff_id.clone(),
                 staff_zone: staff.zone_id.clone(),
                 task_id: task_id.clone(),
                 start: task.start_minute,
                 due: task.due_minute,
                 timeout: request.timeout_minute,
-            })
-        })?;
+            }
+        };
+        let events = Events::of(world)?;
         // The completion of this task, which must be one and due with it.
-        let ids = self.writer.queue().get().pending_ids(py, None)?;
         let mut completions = Vec::new();
-        for id in ids {
-            let Some(row) = self.writer.queue().get().row(py, &id)? else {
-                return unsupported("a pending event has no row");
-            };
-            let V::Map(payload) = &row.payload else {
-                continue;
-            };
-            let names_it = matches!(payload.get("task_id"), Some(V::Str(task)) if **task == *found.task_id);
-            if &*row.event_type == "staff_support_complete" && names_it {
-                completions.push(row);
+        {
+            let queue = world.queue()?;
+            for (_, serial) in queue.ordered() {
+                let Some(row) = &queue.slot(*serial).row else {
+                    return Err(Error::unsupported("a pending event has no row").into());
+                };
+                let V::Map(payload) = &row.payload else {
+                    continue;
+                };
+                let names_it = matches!(payload.get("task_id"), Some(V::Str(task)) if **task == *found.task_id);
+                if &*row.event_type == "staff_support_complete" && names_it {
+                    completions.push(row.clone());
+                }
             }
         }
         if completions.len() != 1 || completions[0].due_minute != found.due {
-            return Err(errors::value_error("replanned resident trip has inconsistent support completion"));
+            return Err(Error::value_error("replanned resident trip has inconsistent support completion").into());
         }
         let previous = completions.remove(0);
         let service_minutes = found.due - found.start;
         let zone = self.zone_of(agent_id)?;
-        let route = route_of(self.controller, &zone, &found.staff_zone, agent_id)?;
+        let route = travel::route(world, &self.replanning.routing, &zone, &found.staff_zone, agent_id)?;
         let route_minutes = route.as_ref().map_or(0, |route| route.minutes);
         let Some(due) = minute.checked_add(route_minutes).and_then(|at| at.checked_add(service_minutes)) else {
-            return unsupported("a due minute out of range");
+            return Err(Error::unsupported("a due minute out of range").into());
         };
-        let mut can_schedule = route.is_some() && due < self.writer.duration();
+        let mut can_schedule = route.is_some() && due < events.duration();
         let mut trip = None;
         if let Some(route) = route.filter(|route| can_schedule && route.minutes > 0) {
             trip = plan_travel(
-                self.world,
-                self.writer,
+                world,
+                &events,
+                self.replanning.walking,
                 Trip {
                     agent_id: agent_id.clone(),
                     route,
@@ -310,59 +353,77 @@ impl<'py> Replan<'_, 'py> {
             )?;
             can_schedule = trip.is_some();
         }
-        let table = |map: &str, id: &str| -> PyResult<Bound<'py, PyAny>> {
-            raw_dict_get(&self.world.getattr(map)?, PyString::new(py, id).as_any())?.ok_or_else(|| Unsupported::new_err("a row has no object"))
-        };
-        let (request_object, staff_object, task_object, agent_object) =
-            (table("support_requests", &request_id)?, table("staff", &found.staff_id)?, table("active_tasks", &found.task_id)?, table("agents", agent_id)?);
-        let agent_text = PyString::new(py, agent_id);
+        let service = kit::policy(self.replanning.staff_service.object())?;
+        let mut taken = Vec::new();
         if can_schedule {
-            let sequence = self.writer.next_sequence()? + i64::from(trip.is_some());
-            let policy = attribute(&attribute(self.controller, intern!(py, "staff_service"))?, intern!(py, "policy_version"))?;
-            let event = reschedule_event(&request_id, agent_id, &found.staff_id, &found.task_id, service_minutes, due, sequence, journey, exact_str(&policy)?)?;
+            let sequence = events.next_sequence()? + i64::from(trip.is_some());
+            let policy = kit::exact_str(kit::policy(service.value("policy_version"))?)?;
+            let event = reschedule_event(&request_id, agent_id, &found.staff_id, &found.task_id, service_minutes, due, sequence, journey, policy)?;
             // Write.
             match trip {
-                Some(trip) => write_travel(self.world, self.writer, trip)?,
-                None => set_agent(self.world, self.store, agent_text.as_any(), Activity::SeekingHelp, None)?,
+                Some(trip) => write_travel(world, &events, trip)?,
+                None => set_agent(&mut *world.rows_mut()?, agent_id, Activity::SeekingHelp, None)?,
             }
-            self.writer.settle(&previous, minute, EventStatus::Suppressed, Some("support completion was rescheduled after a route change"))?;
-            self.writer.allocate_sequence()?;
-            task_object.setattr(intern!(py, "start_minute"), minute + route_minutes)?;
-            task_object.setattr(intern!(py, "due_minute"), due)?;
-            staff_object.setattr(intern!(py, "busy_until"), due)?;
-            self.writer.schedule(event)?;
-            return Ok(true);
+            taken.extend(events.settle(&previous, minute, EventStatus::Suppressed, Some("support completion was rescheduled after a route change"))?.taken);
+            events.allocate_sequence()?;
+            {
+                let mut rows = world.rows_mut()?;
+                if let Some(task) = rows.active_tasks.get_mut(&found.task_id) {
+                    task.start_minute = minute + route_minutes;
+                    task.due_minute = due;
+                }
+                if let Some(staff) = rows.staff.get_mut(&found.staff_id) {
+                    staff.busy_until = due;
+                }
+            }
+            events.schedule(event)?;
+            return Ok(Support::Kept(taken));
         }
-        let service = attribute(self.controller, intern!(py, "staff_service"))?;
-        let cooldown = exact_int(&attribute(&service, intern!(py, "cooldown_minutes"))?)?;
+        let cooldown = kit::exact_int(kit::policy(service.value("cooldown_minutes"))?)?;
         let Some(until) = minute.checked_add(cooldown) else {
-            return unsupported("a minute out of range");
+            return Err(Error::unsupported("a minute out of range").into());
         };
         // Write.
-        self.writer.settle(&previous, minute, EventStatus::Suppressed, Some("support completion was cancelled because the staff route is unavailable"))?;
-        attribute(self.world, intern!(py, "active_tasks"))?.del_item(&*found.task_id)?;
-        attribute(&staff_object, intern!(py, "work_queue"))?.call_method0(intern!(py, "clear"))?;
-        staff_object.setattr(intern!(py, "active_task_id"), py.None())?;
-        staff_object.setattr(intern!(py, "busy_until"), 0)?;
-        request_object.setattr(intern!(py, "assigned_staff_id"), py.None())?;
-        request_object.setattr(intern!(py, "task_id"), py.None())?;
-        agent_object.setattr(intern!(py, "target_id"), py.None())?;
+        taken.extend(
+            events.settle(&previous, minute, EventStatus::Suppressed, Some("support completion was cancelled because the staff route is unavailable"))?.taken,
+        );
         let unresolved = found.timeout <= minute;
-        if unresolved {
-            request_object.setattr(intern!(py, "status"), RequestStatus::Unresolved.member(py)?)?;
-            request_object.setattr(intern!(py, "resolved_minute"), minute)?;
-            request_object.setattr(intern!(py, "cooldown_until"), until)?;
-            agent_object.setattr(intern!(py, "activity"), Activity::Idle.member(py)?)?;
-            agent_object.setattr(intern!(py, "support_request_id"), py.None())?;
-            agent_object.setattr(intern!(py, "support_cooldown_until"), until)?;
-            add_one(self.metrics, "support_unresolved_count")?;
-        } else {
-            request_object.setattr(intern!(py, "status"), RequestStatus::Pending.member(py)?)?;
-            agent_object.setattr(intern!(py, "activity"), Activity::SeekingHelp.member(py)?)?;
-            agent_object.setattr(intern!(py, "support_request_id"), &*request_id)?;
+        {
+            let mut rows = world.rows_mut()?;
+            rows.active_tasks.remove_row(&found.task_id);
+            if let Some(staff) = rows.staff.get_mut(&found.staff_id) {
+                staff.work_queue.clear();
+                staff.active_task_id = None;
+                staff.busy_until = 0;
+            }
+            if let Some(request) = rows.support_requests.get_mut(&request_id) {
+                request.assigned_staff_id = None;
+                request.task_id = None;
+                if unresolved {
+                    request.status = RequestStatus::Unresolved;
+                    request.resolved_minute = Some(minute);
+                    request.cooldown_until = until;
+                } else {
+                    request.status = RequestStatus::Pending;
+                }
+            }
+            if let Some(agent) = rows.agents.get_mut(&**agent_id) {
+                agent.target_id = None;
+                if unresolved {
+                    agent.activity = Activity::Idle;
+                    agent.support_request_id = None;
+                    agent.support_cooldown_until = until;
+                } else {
+                    agent.activity = Activity::SeekingHelp;
+                    agent.support_request_id = Some(request_id.clone());
+                }
+            }
         }
-        let continuity = continuity_record(
-            self.world,
+        if unresolved {
+            add_metric(world, "support_unresolved_count")?;
+        }
+        let made = continuity_record(
+            world,
             &request_id,
             agent_id,
             &found.task_id,
@@ -371,12 +432,8 @@ impl<'py> Replan<'_, 'py> {
             &journey.event_id,
             "route_unreachable",
         )?;
-        attribute(self.world, intern!(py, "event_log"))?.call_method1(intern!(py, "append"), (&continuity,))?;
-        py.import("sheltersim.domain.care_receipts")?
-            .getattr("ingest_applied_shared_operation_records")?
-            .call1((self.world, PyTuple::new(py, [&continuity])?))?;
-        py.import("sheltersim.domain.movement")?.getattr("finish_movement")?.call1((self.world, &agent_text))?;
-        Ok(false)
+        log_record(world, &made.event, made.minute, EventStatus::Applied, Some(&made.detail))?;
+        Ok(Support::Lost { event: made.event, minute: made.minute, taken })
     }
 }
 
@@ -391,8 +448,8 @@ fn reschedule_event(
     due: i64,
     sequence: i64,
     journey: &Journey,
-    policy: &str,
-) -> PyResult<EventRow> {
+    policy: &Arc<str>,
+) -> Result<EventRow> {
     let mut payload: IndexMap<Arc<str>, V> = IndexMap::with_capacity(5);
     payload.insert(Arc::from("request_id"), V::Str(request_id.clone()));
     payload.insert(Arc::from("agent_id"), V::Str(agent_id.clone()));
@@ -402,7 +459,7 @@ fn reschedule_event(
     let mut provenance: IndexMap<Arc<str>, V> = IndexMap::with_capacity(4);
     provenance.insert(Arc::from("source_type"), V::Str(Arc::from("assumption")));
     provenance.insert(Arc::from("source_id"), V::Str(Arc::from(STAFF_SUPPORT_SOURCE)));
-    provenance.insert(Arc::from("policy_version"), V::Str(Arc::from(policy)));
+    provenance.insert(Arc::from("policy_version"), V::Str(policy.clone()));
     provenance.insert(Arc::from("rescheduled_after_route_change"), V::Bool(true));
     EventRow::new(
         Arc::from(format!("staff-support-complete-{sequence}")),
@@ -416,55 +473,5 @@ fn reschedule_event(
         Some(journey.event_id.clone()),
         provenance,
     )
-    .ok_or_else(|| Unsupported::new_err("the event's values are not what an event takes"))
-}
-
-/// One person of `_replan_journeys`: `written` once their stop is.
-fn replan_one(replan: &Replan<'_, '_>, agent_id: &Arc<str>, written: &mut bool) -> PyResult<()> {
-    let journey = NamespaceMirror::with_row::<MovementRow, _>(replan.mirror, |row| Ok(row.journeys.get(&**agent_id).cloned()))?;
-    let known = EntityStore::with_rows(replan.store, |rows| Ok(rows.agents.get(&**agent_id).is_some()))?;
-    let (Some(journey), true) = (journey, known) else {
-        return Ok(());
-    };
-    // Says Unsupported only before its first write.
-    replan.stop(agent_id, &journey)?;
-    *written = true;
-    replan.second_step(agent_id, &journey)
-}
-
-/// `_replan_journeys`. `state` is the movement namespace, which the row stands for.
-#[pyfunction]
-pub(crate) fn replan_journeys<'py>(
-    controller: &Bound<'py, PyAny>,
-    state: &Bound<'py, PyAny>,
-    agent_ids: &Bound<'py, PyAny>,
-    minute: &Bound<'py, PyAny>,
-) -> PyResult<()> {
-    let _ = state;
-    let py = controller.py();
-    let world = attribute(controller, intern!(py, "world"))?;
-    let minute_value = exact_int(minute)?;
-    let mirror = mirror_held(&world)?;
-    let store = entities_of(&world)?;
-    let writer = EventWriter::of(&world)?;
-    let metrics = metrics_of(&world)?;
-    let ids = agent_ids.try_iter()?.collect::<PyResult<Vec<_>>>()?;
-    let ids = ids.iter().map(|id| Ok(Arc::<str>::from(exact_str(id)?))).collect::<PyResult<Vec<Arc<str>>>>()?;
-    let replan = Replan { controller, world: &world, mirror: &mirror, store: &store, writer: &writer, metrics: &metrics, minute: minute_value };
-    let mut written = false;
-    for agent_id in &ids {
-        let result = replan_one(&replan, agent_id, &mut written);
-        if written {
-            after_a_write(py, result)?;
-        } else {
-            // Nothing is written yet: a refusal changes nothing.
-            result?;
-        }
-    }
-    Ok(())
-}
-
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(replan_journeys, m)?)?;
-    Ok(())
+    .ok_or_else(|| Error::unsupported("the event's values are not what an event takes"))
 }

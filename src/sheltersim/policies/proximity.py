@@ -26,7 +26,7 @@ class DisabledProximityPolicy:
 class DistanceSampledProximityPolicy:
     """Deterministic same-zone Euclidean sampling with a bounded pair count.
 
-    The sampling is native/src/rules/proximity.rs, the kernel of `_sample_proximity_contacts`
+    The sampling is native/core/src/rules/proximity.rs, the kernel of `_sample_proximity_contacts`
     (experiments/phases/sample.py): within each zone, the pairs of physical points at most
     `config["max_distance_m"]` apart, closest first, then by ID, at most
     `config["max_pairs_per_sample"]`.
