@@ -3,17 +3,28 @@
 //! rows, `Table` and `Entities` are the core's (`sheltersim_core::entities`); here is what needs
 //! Python.
 //!
-//! The Python objects stay the dataclasses of `domain/models.py`: a read is a plain attribute
-//! read of the instance, and each `__dict__` is the mirror of a row, as a tracked tree is the
-//! mirror of a namespace's row. An object in a world's `IdMap` is attached: its slots `_store` and
-//! `_slot` say where its row is (they stay out of `__dict__`), and its `__setattr__` comes here. `IdMap` reports what is inserted and removed, and
-//! `TrackedList` what happens to the ID lists of a facility or a staff member. Rust rules read
-//! the rows through `with_rows`, and `write_field` writes a row and then its object.
+//! The rows are the truth (Issue #152, PR 6-1). The Python objects stay the dataclasses of
+//! `domain/models.py`: a read is a plain attribute read of the instance, and each `__dict__` is a
+//! cache equal to its row whenever Python runs. An object in a world's `IdMap` is attached: its
+//! slots `_store` and `_slot` say where its row is (they stay out of `__dict__`), and its
+//! `__setattr__` comes here (`write`: the object, then the row). `IdMap` reports what Python puts
+//! in and takes out, and `TrackedList` what happens to the ID lists of a facility or a staff
+//! member.
+//!
+//! Rust rules read and write the rows through `with_rows` (or the whole world through
+//! `with_world`), and put in and take out rows by key (`insert_entity`, `remove_entity`). When the
+//! borrow ends, before any Python runs, the objects follow (`EntityStore::flush`, rule R5 of
+//! design-p5-p6.md): each field whose row and view differ is written into the object past its
+//! `__setattr__`; a row the core put in gets an object made from it with no `__init__` (its
+//! `profile`, `needs` and ID lists too) at the key's place in the map; a row the core took out
+//! gives its object its last values, and the object leaves. Writing `obj.__dict__[name]` of an
+//! attached object reaches no row, and the next flush of that field writes over it.
 //!
 //! The rows and their taint are the core's (`sheltersim_core::world::World::entities`), held by the
 //! world's `WorldCore`; the store is a handle that holds that core, and the core holds it: a cycle
-//! the collector breaks (`WorldCore.__clear__`). The store holds no reference to an entity or a
-//! world. Rust finds an object through the world's `IdMap`.
+//! the collector breaks (`WorldCore.__clear__`). The store holds the attached objects by slot and
+//! the bound maps (`Views`), which a flush writes; they hold the store, a cycle its
+//! `__traverse__` shows.
 //!
 //! A value that does not fit a typed field taints the whole store, or the zones' part of it for a
 //! zone or a zone edge (each part has its own taint). The Python object keeps what was written, so
@@ -28,7 +39,7 @@ use std::ptr::null_mut;
 use std::sync::atomic::{AtomicPtr, AtomicU64, Ordering};
 use std::sync::Arc;
 
-use pyo3::exceptions::{PyRuntimeError, PyValueError};
+use pyo3::exceptions::{PyKeyError, PyRuntimeError, PyValueError};
 use pyo3::ffi;
 use pyo3::gc::PyVisit;
 use pyo3::intern;
@@ -40,12 +51,11 @@ use rustc_hash::FxHashSet;
 use sheltersim_core::cell::Shard;
 
 pub(crate) use sheltersim_core::entities::{
-    Activity, AgentRow, Entities, FacilityRow, Mobility, NeedRow, RequestStatus, TaskRow,
+    Activity, AgentRow, Entities, FacilityRow, Mobility, NeedRow, RequestRow, RequestStatus, Skills, StaffRow, TaskRow,
 };
 use sheltersim_core::entities::{
-    is_zone_kind, EdgeRow, EntityField, EntityRow, ProfileRow, RequestRow, Skills, StaffRow, Table,
-    ZoneRow, ACTIVITIES, AGENT, EDGE, FACILITY, MOBILITIES, NEEDS, REQUEST, STAFF, STATUSES, TASK,
-    ZONE,
+    is_zone_kind, AnyTable, Change, EdgeRow, EntityField, EntityRow, ProfileRow, RowFields, Table, ZoneRow, ACTIVITIES, AGENT, EDGE,
+    FACILITY, MOBILITIES, NEEDS, REQUEST, STAFF, STATUSES, TASK, ZONE,
 };
 use sheltersim_core::row::{same_names, IdMap, StrEnum};
 
@@ -62,6 +72,9 @@ use crate::{Encoder, Unsupported};
 struct Installed {
     agent: Py<PyType>,
     needs: Py<PyType>,
+    /// `AgentProfile` and `InitialNeedProfile`: the frozen parts of an agent made from a row.
+    profile: Py<PyType>,
+    initial_needs: Py<PyType>,
     facility: Py<PyType>,
     staff: Py<PyType>,
     request: Py<PyType>,
@@ -71,6 +84,8 @@ struct Installed {
     activity: Vec<Py<PyAny>>,
     mobility: Vec<Py<PyAny>>,
     status: Vec<Py<PyAny>>,
+    /// `object.__new__`, which makes an object of a class without running its `__init__`.
+    object_new: Py<PyAny>,
 }
 
 static INSTALLED: AtomicPtr<Installed> = AtomicPtr::new(null_mut());
@@ -83,7 +98,8 @@ fn installed() -> Result<&'static Installed, Misfit> {
 
 /// Remember the classes and the members of the enums, in the order of the core's `ACTIVITIES` and
 /// the others. Each member's `.value` must be the core's text, which is what a document holds.
-/// They stay alive for the life of the process.
+/// They stay alive for the life of the process. `profile` and `initial_needs` are the classes of an
+/// agent's `profile` and its `initial_needs`, for the objects made from a row.
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 fn install(
@@ -99,6 +115,8 @@ fn install(
     activity: Vec<Py<PyAny>>,
     mobility: Vec<Py<PyAny>>,
     status: Vec<Py<PyAny>>,
+    profile: Py<PyType>,
+    initial_needs: Py<PyType>,
 ) -> PyResult<()> {
     fn matches<T: StrEnum>(py: Python<'_>, members: &[Py<PyAny>], rows: &[T]) -> PyResult<bool> {
         if members.len() != rows.len() {
@@ -116,8 +134,10 @@ fn install(
     {
         return Err(PyValueError::new_err("the enums of domain/models.py do not match the rows"));
     }
+    let object_new = py.import("builtins")?.getattr("object")?.getattr("__new__")?.unbind();
     let new = Box::leak(Box::new(Installed {
-        agent, needs, facility, staff, request, task, zone, edge, activity, mobility, status,
+        agent, needs, profile, initial_needs, facility, staff, request, task, zone, edge, activity, mobility, status,
+        object_new,
     }));
     INSTALLED.store(new, Ordering::Release);
     Ok(())
@@ -127,7 +147,7 @@ fn install(
 
 /// What a field of a row does with Python. `from_py` runs no Python code and takes only the exact
 /// type.
-trait PyEntityField: EntityField {
+pub(crate) trait PyEntityField: EntityField {
     fn from_py(value: &Bound<'_, PyAny>) -> Result<Self, Misfit>;
     fn to_py(&self, py: Python<'_>) -> PyResult<Py<PyAny>>;
 }
@@ -297,6 +317,25 @@ macro_rules! py_entity_row {
                 Ok(())
             }
         }
+
+        impl ViewRow for $name {
+            fn cells(&self, view: &Self, mask: u32, out: &mut Vec<(&'static str, Cell)>) {
+                let mut bit = 1_u32;
+                $(
+                    if mask & bit != 0 {
+                        out.push((stringify!($field), ViewField::cell(&self.$field, &view.$field)));
+                    }
+                    bit <<= 1;
+                )*
+                let _ = bit;
+            }
+
+            fn view_fields<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+                let fields = PyDict::new(py);
+                $(fields.set_item(intern!(py, stringify!($field)), ViewField::to_view(&self.$field, py)?)?;)*
+                Ok(fields)
+            }
+        }
     };
 }
 
@@ -321,6 +360,294 @@ py_entity_row!(TaskRow { id, kind, agent_id, resource_id, start_minute, due_minu
 py_entity_row!(ZoneRow { id, name, capacity, display_x, display_y });
 py_entity_row!(EdgeRow { id, from_zone_id, to_zone_id, travel_minutes, closed });
 
+
+// ---- Views: the objects follow their rows ----------------------------------------------------
+
+/// A value of a field, taken out of a row while the rows are borrowed and made a Python value
+/// after (rule R4 of design-p5-p6.md: no Python while a row is borrowed).
+pub(crate) enum Cell {
+    Float(f64),
+    Int(i64),
+    Bool(bool),
+    Str(Arc<str>),
+    Null,
+    Activity(Activity),
+    Mobility(Mobility),
+    Status(RequestStatus),
+    /// An ID list, whose `TrackedList` takes the new items in place.
+    Ids(Vec<Arc<str>>),
+    Skills(Vec<Arc<str>>),
+    /// An agent's needs: the bits of the fields to write into its `NeedState`.
+    Needs(u32, NeedRow),
+    /// A new `AgentProfile`.
+    Profile(Box<ProfileRow>),
+    Value(V),
+}
+
+/// What a field of a row is in its object: `cell` for a flush (`view` is what the object holds
+/// now), `to_view` for an object made from a row.
+pub(crate) trait ViewField {
+    fn cell(&self, view: &Self) -> Cell;
+    fn to_view<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>>;
+}
+
+macro_rules! scalar_view {
+    ($($kind:ty => |$value:ident| $cell:expr),+ $(,)?) => {
+        $(impl ViewField for $kind {
+            fn cell(&self, _view: &Self) -> Cell {
+                let $value = self;
+                $cell
+            }
+            fn to_view<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+                Ok(PyEntityField::to_py(self, py)?.into_bound(py))
+            }
+        })+
+    };
+}
+
+scalar_view! {
+    f64 => |value| Cell::Float(*value),
+    i64 => |value| Cell::Int(*value),
+    bool => |value| Cell::Bool(*value),
+    Arc<str> => |value| Cell::Str(value.clone()),
+    Activity => |value| Cell::Activity(*value),
+    Mobility => |value| Cell::Mobility(*value),
+    RequestStatus => |value| Cell::Status(*value),
+    Skills => |value| Cell::Skills(value.0.clone()),
+    V => |value| Cell::Value(value.clone()),
+}
+
+impl<T: ViewField> ViewField for Option<T> {
+    fn cell(&self, view: &Self) -> Cell {
+        match (self, view) {
+            (None, _) => Cell::Null,
+            (Some(value), Some(view)) => value.cell(view),
+            (Some(value), None) => value.cell(value),
+        }
+    }
+    fn to_view<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        match self {
+            Some(value) => value.to_view(py),
+            None => Ok(py.None().into_bound(py)),
+        }
+    }
+}
+
+/// An ID list: a free `TrackedList`, which the attach then links to its row.
+impl ViewField for Vec<Arc<str>> {
+    fn cell(&self, _view: &Self) -> Cell {
+        Cell::Ids(self.clone())
+    }
+    fn to_view<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let list = new_tracked_list(py)?;
+        // Out of any tree, as `TrackedList.__new__` leaves it; the attach links it.
+        list.setattr(intern!(py, "_sink"), py.None())?;
+        list.setattr(intern!(py, "_node"), py.None())?;
+        for item in self {
+            raw_list_append(&list, PyString::new(py, item).as_any())?;
+        }
+        Ok(list)
+    }
+}
+
+/// An agent's `needs`, a `NeedState`.
+impl ViewField for NeedRow {
+    fn cell(&self, view: &Self) -> Cell {
+        Cell::Needs(self.diff(view), self.clone())
+    }
+    fn to_view<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let installed = installed().map_err(misfit_error)?;
+        new_view(py, &installed.needs, &self.view_fields(py)?, true)
+    }
+}
+
+/// An agent's `profile`, a frozen `AgentProfile` whose `initial_needs` is an `InitialNeedProfile`.
+impl ViewField for ProfileRow {
+    fn cell(&self, _view: &Self) -> Cell {
+        Cell::Profile(Box::new(self.clone()))
+    }
+    fn to_view<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let installed = installed().map_err(misfit_error)?;
+        let fields = self.view_fields(py)?;
+        let initial = new_view(py, &installed.initial_needs, &self.initial_needs.view_fields(py)?, false)?;
+        fields.set_item(intern!(py, "initial_needs"), initial)?;
+        new_view(py, &installed.profile, &fields, false)
+    }
+}
+
+/// A row and its object: the cells of the fields of a mask, and the fields of a new object.
+pub(crate) trait ViewRow: PyEntityField + RowFields + Clone {
+    fn cells(&self, view: &Self, mask: u32, out: &mut Vec<(&'static str, Cell)>);
+    fn view_fields<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>>;
+}
+
+/// An object of a class made with no `__init__`, holding these fields: what Python's constructor
+/// leaves after its `__post_init__` normalized them, as the row's types are those already. An
+/// entity's class has the slot `_store` (None: not attached yet).
+fn new_view<'py>(
+    py: Python<'py>,
+    class: &Py<PyType>,
+    fields: &Bound<'py, PyDict>,
+    entity: bool,
+) -> PyResult<Bound<'py, PyAny>> {
+    let installed = installed().map_err(misfit_error)?;
+    let object = installed.object_new.bind(py).call1((class.bind(py),))?;
+    if entity {
+        raw_setattr(&object, intern!(py, "_store"), py.None().as_ptr())?;
+    }
+    raw_setattr(&object, intern!(py, "__dict__"), fields.as_ptr())?;
+    Ok(object)
+}
+
+/// A row that a flush makes an object of.
+trait MakeView {
+    fn make<'py>(&self, py: Python<'py>, kind: u8) -> PyResult<Bound<'py, PyAny>>;
+}
+
+impl<R: ViewRow> MakeView for R {
+    fn make<'py>(&self, py: Python<'py>, kind: u8) -> PyResult<Bound<'py, PyAny>> {
+        let installed = installed().map_err(misfit_error)?;
+        new_view(py, class_of(installed, kind), &self.view_fields(py)?, true)
+    }
+}
+
+/// One thing a flush does, in order.
+enum Step {
+    /// Write these fields into the object of the slot.
+    Fields { kind: u8, slot: u32, cells: Vec<(&'static str, Cell)> },
+    /// The object of the slot gets the row's last values and leaves; so does its key, unless a new
+    /// row took the key.
+    Detach { kind: u8, slot: u32, cells: Vec<(&'static str, Cell)>, key: Arc<str>, drop_key: bool },
+    /// A key whose row never had an object leaves the map, if it is there.
+    DropKey { kind: u8, key: Arc<str> },
+    /// Make the object of a row and store it under its key: a new key at the end, a key already
+    /// there in its place. None: the row left again before the flush.
+    Make { kind: u8, slot: u32, key: Arc<str>, row: Option<Box<dyn MakeView>> },
+}
+
+/// What a flush writes, taken from the rows while they are borrowed.
+pub(crate) struct Flush(Vec<Step>);
+
+fn plan_table<R: ViewRow + 'static>(kind: u8, table: &mut Table<R>, steps: &mut Vec<Step>) {
+    if !table.has_changes() {
+        return;
+    }
+    for slot in table.take_touched() {
+        if let Some((row, view)) = table.row_and_view(slot) {
+            let mask = row.diff(view);
+            if mask != 0 {
+                let mut cells = Vec::with_capacity(mask.count_ones() as usize);
+                row.cells(view, mask, &mut cells);
+                row.copy_fields(mask, view);
+                steps.push(Step::Fields { kind, slot, cells });
+            }
+        }
+    }
+    // The inserts with no object yet, by slot, and where their step is.
+    let mut pending: Vec<(u32, usize)> = Vec::new();
+    for change in table.take_journal() {
+        match change {
+            Change::Inserted { key, slot } => {
+                pending.push((slot, steps.len()));
+                steps.push(Step::Make { kind, slot, key, row: None });
+            }
+            Change::Removed { key, slot, row, view, replaced } => {
+                if let Some(place) = pending.iter().position(|(pending, _)| *pending == slot) {
+                    // Put in and taken out again: it never gets an object.
+                    pending.remove(place);
+                }
+                match view {
+                    Some(view) => {
+                        let mut cells = Vec::new();
+                        row.cells(&view, row.diff(&view), &mut cells);
+                        steps.push(Step::Detach { kind, slot, cells, key, drop_key: !replaced });
+                    }
+                    None if !replaced => steps.push(Step::DropKey { kind, key }),
+                    None => {}
+                }
+            }
+        }
+    }
+    for (slot, index) in pending {
+        table.set_view(slot);
+        let made = table.row_at(slot).map(|row| Box::new(row.clone()) as Box<dyn MakeView>);
+        if let Step::Make { row, .. } = &mut steps[index] {
+            *row = made;
+        }
+    }
+}
+
+/// What the objects need to follow the rows, or None: the end of a borrow that may have written
+/// them. The views of the rows take the values now, so the objects must get them (`apply_flush`).
+pub(crate) fn plan_flush(rows: &mut Entities) -> Option<Flush> {
+    if !rows.has_changes() {
+        return None;
+    }
+    let mut steps = Vec::new();
+    plan_table(AGENT, &mut rows.agents, &mut steps);
+    plan_table(FACILITY, &mut rows.facilities, &mut steps);
+    plan_table(STAFF, &mut rows.staff, &mut steps);
+    plan_table(REQUEST, &mut rows.support_requests, &mut steps);
+    plan_table(TASK, &mut rows.active_tasks, &mut steps);
+    plan_table(ZONE, &mut rows.zones, &mut steps);
+    plan_table(EDGE, &mut rows.zone_edges, &mut steps);
+    Some(Flush(steps))
+}
+
+/// Write the cells into an object, past its `__setattr__`: what the row holds already.
+fn write_cells(object: &Bound<'_, PyAny>, cells: Vec<(&'static str, Cell)>) -> PyResult<()> {
+    let py = object.py();
+    for (name, cell) in cells {
+        let name = PyString::intern(py, name);
+        let value: Bound<'_, PyAny> = match cell {
+            Cell::Float(value) => PyFloat::new(py, value).into_any(),
+            Cell::Int(value) => value.into_pyobject(py)?.into_any(),
+            Cell::Bool(value) => PyBool::new(py, value).to_owned().into_any(),
+            Cell::Str(value) => PyString::new(py, &value).into_any(),
+            Cell::Null => py.None().into_bound(py),
+            Cell::Activity(value) => value.member(py)?,
+            Cell::Mobility(value) => value.member(py)?,
+            Cell::Status(value) => value.member(py)?,
+            Cell::Ids(items) => {
+                // In place: the list stays the node of its row.
+                let list = object.getattr(&name)?;
+                let items = PyList::new(py, items.iter().map(|item| &**item))?;
+                // SAFETY: list is a live list (a TrackedList is one); the C call bypasses its
+                // overrides, so nothing is forwarded, and takes its own references to the items.
+                if !list.is_instance_of::<PyList>()
+                    || unsafe { ffi::PyList_SetSlice(list.as_ptr(), 0, ffi::PY_SSIZE_T_MAX, items.as_ptr()) } != 0
+                {
+                    return Err(PyErr::take(py).unwrap_or_else(|| PyRuntimeError::new_err("an ID list is not a list")));
+                }
+                continue;
+            }
+            Cell::Skills(items) => PyTuple::new(py, items.iter().map(|item| &**item))?.into_any(),
+            Cell::Needs(mask, needs) => {
+                let target = object.getattr(&name)?;
+                let mut cells = Vec::with_capacity(mask.count_ones() as usize);
+                needs.cells(&needs, mask, &mut cells);
+                write_cells(&target, cells)?;
+                continue;
+            }
+            Cell::Profile(profile) => profile.to_view(py)?,
+            Cell::Value(value) => crate::core::value::VPy::to_py(&value, py)?,
+        };
+        raw_setattr(object, &name, value.as_ptr())?;
+    }
+    Ok(())
+}
+
+/// Remove a key from a dict past its overrides, if it is there.
+fn raw_dict_discard(dict: &Bound<'_, PyAny>, key: &Bound<'_, PyAny>) -> PyResult<()> {
+    if raw_dict_get(dict, key)?.is_none() {
+        return Ok(());
+    }
+    // SAFETY: dict is a live dict holding key; the C call bypasses the overrides of IdMap.
+    if unsafe { ffi::PyDict_DelItem(dict.as_ptr(), key.as_ptr()) } != 0 {
+        return Err(PyErr::fetch(dict.py()));
+    }
+    Ok(())
+}
 
 // ---- Which attributes hold what -----------------------------------------------------------
 
@@ -412,6 +739,7 @@ fn table_json<'py, R: EntityRow>(
 pub struct EntityStore {
     core: Py<WorldCore>,
     row_json: Shard<RowJson>,
+    views: Shard<Views>,
     forwards: AtomicU64,
     attaches: AtomicU64,
     detaches: AtomicU64,
@@ -425,6 +753,35 @@ struct RowJson {
     version: i64,
 }
 
+/// The objects of the rows by kind and slot, and the bound `IdMap` of each kind: where a flush
+/// writes. An object is here while it is attached, and its row then has a view (`Table`).
+#[derive(Default)]
+struct Views {
+    objects: [Vec<Option<Py<PyAny>>>; 8],
+    maps: [Option<Py<PyAny>>; 8],
+}
+
+impl Views {
+    fn set(&mut self, kind: u8, slot: u32, object: Option<Py<PyAny>>) {
+        let objects = &mut self.objects[kind as usize];
+        if objects.len() <= slot as usize {
+            if object.is_none() {
+                return;
+            }
+            objects.resize_with(slot as usize + 1, || None);
+        }
+        objects[slot as usize] = object;
+    }
+
+    fn get(&self, py: Python<'_>, kind: u8, slot: u32) -> Option<Py<PyAny>> {
+        self.objects[kind as usize].get(slot as usize)?.as_ref().map(|object| object.clone_ref(py))
+    }
+
+    fn take(&mut self, kind: u8, slot: u32) -> Option<Py<PyAny>> {
+        self.objects[kind as usize].get_mut(slot as usize)?.take()
+    }
+}
+
 #[inline]
 fn count(counter: &AtomicU64) {
     counter.fetch_add(1, Ordering::Relaxed);
@@ -435,6 +792,7 @@ impl EntityStore {
         Self {
             core,
             row_json: Shard::default(),
+            views: Shard::default(),
             forwards: AtomicU64::new(0),
             attaches: AtomicU64::new(0),
             detaches: AtomicU64::new(0),
@@ -659,6 +1017,7 @@ impl EntityStore {
         };
         Self::mark_attached(slf, value, slot).or_misfit()?;
         let this = slf.get();
+        this.set_object(kind, slot, Some(value.clone().unbind())).map_err(pyo3_misfit)?;
         this.rows_mut(py, |rows| {
             count(&this.attaches);
             let table = rows.table_mut(kind);
@@ -667,6 +1026,12 @@ impl EntityStore {
             }
         })
         .map_err(pyo3_misfit)
+    }
+
+    fn set_object(&self, kind: u8, slot: u32, object: Option<Py<PyAny>>) -> PyResult<()> {
+        // The old object, if any, is alive in its map or with its caller: no finalizer runs here.
+        self.views.try_borrow_mut().or_py()?.set(kind, slot, object);
+        Ok(())
     }
 
     /// The object left the map, or is going to be replaced. It works on as a plain object.
@@ -684,10 +1049,25 @@ impl EntityStore {
             }
         }
         // Anything but the map's class was never attached: it may not have these attributes.
-        if value.hasattr(intern!(py, "_store"))? && Self::attached_here(slf, value)?.is_some() {
-            Self::unlink_children(slf, kind, value)?;
-            Self::mark_detached(value)?;
-            count(&slf.get().detaches);
+        if value.hasattr(intern!(py, "_store"))? {
+            if let Some(slot) = Self::attached_here(slf, value)? {
+                Self::unlink_children(slf, kind, value)?;
+                Self::mark_detached(value)?;
+                slf.get().forget_object(kind, slot, value)?;
+                count(&slf.get().detaches);
+            }
+        }
+        Ok(())
+    }
+
+    /// The object left its slot: the slot no longer names it.
+    fn forget_object(&self, kind: u8, slot: u32, object: &Bound<'_, PyAny>) -> PyResult<()> {
+        let mut views = self.views.try_borrow_mut().or_py()?;
+        let held = views.objects[kind as usize].get(slot as usize).and_then(Option::as_ref);
+        if held.is_some_and(|held| held.is(object)) {
+            let gone = views.take(kind, slot);
+            drop(views);
+            drop(gone);
         }
         Ok(())
     }
@@ -705,13 +1085,18 @@ impl EntityStore {
             if rows.tainted_for(kind).is_some() {
                 return;
             }
+            // The object holds the value already: the row and its view take it, and the slot is
+            // not touched.
             fn set_in<R>(
                 table: &mut Table<R>,
                 slot: u32,
-                apply: impl FnOnce(&mut R) -> Result<(), Misfit>,
+                apply: impl Fn(&mut R) -> Result<(), Misfit>,
             ) -> Result<(), Misfit> {
-                match table.slot_mut(slot) {
-                    Some(row) => apply(row),
+                match table.row_and_view_mut(slot) {
+                    Some((row, view)) => {
+                        apply(row)?;
+                        view.map_or(Ok(()), apply)
+                    }
                     None => Err(Misfit::new("an attached object has no row")),
                 }
             }
@@ -922,6 +1307,7 @@ impl EntityStore {
         let result = match value.downcast::<PyDict>() {
             Err(_) => {
                 this.taint(py, kind, "a field of entities is not a mapping".to_owned())?;
+                this.views.try_borrow_mut().or_py()?.maps[kind as usize] = None;
                 value.clone()
             }
             Ok(mapping) => {
@@ -957,6 +1343,8 @@ impl EntityStore {
                 }
                 map.setattr(intern!(py, "_store"), slf)?;
                 map.setattr(intern!(py, "_table"), kind)?;
+                let old = this.views.try_borrow_mut().or_py()?.maps[kind as usize].replace(map.clone().unbind());
+                drop(old);
                 map
             }
         };
@@ -978,6 +1366,8 @@ impl EntityStore {
         let py = slf.py();
         let this = slf.get();
         this.rows_mut(py, Entities::clear)?;
+        let objects = std::mem::take(&mut this.views.try_borrow_mut().or_py()?.objects);
+        drop(objects);
         for (name, kind) in FIELDS {
             let map = world.getattr(name)?;
             let Ok(map) = map.downcast::<PyDict>() else {
@@ -1024,17 +1414,25 @@ impl EntityStore {
     }
 
     /// The first difference between the rows and the objects of the world, or None: the check
-    /// behind the tests and the soak. A tainted store has no rows to differ.
+    /// behind the tests, the soak and the debug runs that check every tick
+    /// (`state_mirror.watch_entity_rows`). Each map's keys are its table's, in the same order (the
+    /// map is the store's bound map), each object is the attached object of its key's slot, and
+    /// it, its view and its row hold the same values. A tainted store has no rows to differ.
     fn verify(slf: &Bound<'_, Self>, world: &Bound<'_, PyAny>) -> PyResult<Option<String>> {
         let py = slf.py();
+        let this = slf.get();
         for (name, kind) in FIELDS {
-            if slf.get().is_tainted(py, kind)? {
+            if this.is_tainted(py, kind)? {
                 continue;
             }
             let map = world.getattr(name)?;
+            let bound = this.views.try_borrow().or_py()?.maps[kind as usize].as_ref().is_some_and(|held| held.is(&map));
+            if !bound {
+                return Ok(Some(format!("{name}: the world's map is not the rows' map")));
+            }
             let map = map.downcast::<PyDict>()?;
             let items = dict_items(map);
-            let core = slf.get().core.bind(py).try_borrow()?;
+            let core = this.core.bind(py).try_borrow()?;
             let rows = core.world().entities.try_borrow().or_py()?;
             if rows.table(kind).len() != items.len() {
                 return Ok(Some(format!(
@@ -1043,30 +1441,46 @@ impl EntityStore {
                     items.len()
                 )));
             }
+            if rows.has_changes() {
+                return Ok(Some(format!("{name}: writes the objects have not followed")));
+            }
+            let views = this.views.try_borrow().or_py()?;
             fn differs<R: PyEntityField>(
+                slf: &Bound<'_, EntityStore>,
+                views: &Views,
+                kind: u8,
                 table: &Table<R>,
                 name: &str,
                 items: &[(Bound<'_, PyAny>, Bound<'_, PyAny>)],
             ) -> PyResult<Option<String>> {
-                for ((id, row), (key, item)) in table.iter().zip(items) {
+                let py = slf.py();
+                for ((id, slot), (key, item)) in table.slots().zip(items) {
                     if key.downcast_exact::<PyString>()?.to_str()? != &**id {
                         return Ok(Some(format!("{name}: key {id}, in the dict {key}")));
                     }
+                    let held = views.objects[kind as usize].get(slot as usize).and_then(Option::as_ref);
+                    if !held.is_some_and(|held| held.is(item)) || EntityStore::attached_here(slf, item)? != Some(slot) {
+                        return Ok(Some(format!("{name}.{id}: the object is not the one of its row")));
+                    }
+                    let (Some(row), Some(view)) = (table.row_at(slot), table.view_at(slot)) else {
+                        return Ok(Some(format!("{name}.{id}: the row has no view")));
+                    };
                     let current = R::from_py(item).map_err(misfit_error)?;
-                    if !current.same(row) {
+                    if !current.same(row) || !view.same(row) {
                         return Ok(Some(format!("{name}.{id}: the row differs from the object")));
                     }
                 }
+                let _ = py;
                 Ok(None)
             }
             let found = match kind {
-                AGENT => differs(&rows.agents, name, &items)?,
-                FACILITY => differs(&rows.facilities, name, &items)?,
-                STAFF => differs(&rows.staff, name, &items)?,
-                REQUEST => differs(&rows.support_requests, name, &items)?,
-                ZONE => differs(&rows.zones, name, &items)?,
-                EDGE => differs(&rows.zone_edges, name, &items)?,
-                _ => differs(&rows.active_tasks, name, &items)?,
+                AGENT => differs(slf, &views, kind, &rows.agents, name, &items)?,
+                FACILITY => differs(slf, &views, kind, &rows.facilities, name, &items)?,
+                STAFF => differs(slf, &views, kind, &rows.staff, name, &items)?,
+                REQUEST => differs(slf, &views, kind, &rows.support_requests, name, &items)?,
+                ZONE => differs(slf, &views, kind, &rows.zones, name, &items)?,
+                EDGE => differs(slf, &views, kind, &rows.zone_edges, name, &items)?,
+                _ => differs(slf, &views, kind, &rows.active_tasks, name, &items)?,
             };
             if found.is_some() {
                 return Ok(found);
@@ -1160,7 +1574,22 @@ impl EntityStore {
     }
 
     fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
-        visit.call(&self.core)
+        visit.call(&self.core)?;
+        // A store being written by a flush is visited next time.
+        if let Ok(views) = self.views.try_borrow() {
+            for object in views.objects.iter().flatten().flatten() {
+                visit.call(object)?;
+            }
+            for map in views.maps.iter().flatten() {
+                visit.call(map)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn __clear__(&self) {
+        let taken = self.views.try_borrow_mut().map(|mut views| std::mem::take(&mut *views));
+        drop(taken);
     }
 
     // ---- The sink of a `TrackedList`, which is an ID list of an entity ----------------------
@@ -1223,17 +1652,82 @@ impl EntityStore {
     }
 
     /// Run f on the rows. f must not run Python code; kernels get Unsupported from a tainted
-    /// store, and the Python rules run on the objects.
+    /// store, and the Python rules run on the objects. When f is done, with nothing borrowed, the
+    /// objects follow what it wrote (`flush`): a Rust rule writes the rows only. They follow when
+    /// f fails too, so the objects never hold less than the rows.
     pub(crate) fn with_rows<R>(
         slf: &Bound<'_, Self>,
         f: impl FnOnce(&mut Entities) -> PyResult<R>,
     ) -> PyResult<R> {
-        let core = slf.get().core.bind(slf.py()).try_borrow()?;
-        let mut rows = core.world().entities.try_borrow_mut().or_py()?;
-        if rows.tainted().is_some() {
-            return Err(Unsupported::new_err("the entity store is tainted"));
+        let (result, flush) = {
+            let core = slf.get().core.bind(slf.py()).try_borrow()?;
+            let mut rows = core.world().entities.try_borrow_mut().or_py()?;
+            if rows.tainted().is_some() {
+                return Err(Unsupported::new_err("the entity store is tainted"));
+            }
+            let result = f(&mut rows);
+            (result, plan_flush(&mut rows))
+        };
+        if let Some(flush) = flush {
+            Self::flush(slf, flush)?;
         }
-        f(&mut rows)
+        result
+    }
+
+    /// Write what a borrow of the rows did into the objects (rule R5 of design-p5-p6.md), before
+    /// any Python runs: the fields each touched row and its object differ in, the objects of the
+    /// rows the core put in (made from the rows, at the key's place in the map), and the last
+    /// values of the rows it took out, whose objects then leave. Nothing is borrowed here.
+    pub(crate) fn flush(slf: &Bound<'_, Self>, flush: Flush) -> PyResult<()> {
+        let py = slf.py();
+        let this = slf.get();
+        for step in flush.0 {
+            match step {
+                Step::Fields { kind, slot, cells } => {
+                    let object = this.views.try_borrow().or_py()?.get(py, kind, slot);
+                    let object = object.ok_or_else(|| PyRuntimeError::new_err("a row has no object"))?;
+                    write_cells(object.bind(py), cells)?;
+                }
+                Step::Detach { kind, slot, cells, key, drop_key } => {
+                    let object = this.views.try_borrow_mut().or_py()?.take(kind, slot);
+                    let object = object.ok_or_else(|| PyRuntimeError::new_err("a row has no object"))?;
+                    let object = object.into_bound(py);
+                    write_cells(&object, cells)?;
+                    Self::unlink_children(slf, kind, &object)?;
+                    Self::mark_detached(&object)?;
+                    count(&this.detaches);
+                    if drop_key {
+                        let map = this.map_of(py, kind)?;
+                        let key = PyString::new(py, &key);
+                        if raw_dict_get(&map, key.as_any())?.is_some_and(|held| held.is(&object)) {
+                            raw_dict_discard(&map, key.as_any())?;
+                        }
+                    }
+                }
+                Step::DropKey { kind, key } => {
+                    let map = this.map_of(py, kind)?;
+                    raw_dict_discard(&map, PyString::new(py, &key).as_any())?;
+                }
+                Step::Make { kind, slot, key, row: Some(row) } => {
+                    let object = row.make(py, kind)?;
+                    Self::link_children(slf, kind, &object, slot).map_err(misfit_error)?;
+                    Self::mark_attached(slf, &object, slot)?;
+                    this.set_object(kind, slot, Some(object.clone().unbind()))?;
+                    count(&this.attaches);
+                    let map = this.map_of(py, kind)?;
+                    raw_dict_set(&map, PyString::new(py, &key).as_any(), &object)?;
+                }
+                Step::Make { row: None, .. } => {}
+            }
+        }
+        Ok(())
+    }
+
+    /// The bound `IdMap` of a kind, which a flush writes into.
+    fn map_of<'py>(&self, py: Python<'py>, kind: u8) -> PyResult<Bound<'py, PyAny>> {
+        let views = self.views.try_borrow().or_py()?;
+        let map = views.maps[kind as usize].as_ref().map(|map| map.clone_ref(py));
+        map.map(|map| map.into_bound(py)).ok_or_else(|| PyRuntimeError::new_err("the rows have no map"))
     }
 }
 
@@ -1259,39 +1753,87 @@ pub(crate) fn entities_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py,
     WorldCore::entities(&core_of(world)?).map(|store| store.into_bound(world.py()))
 }
 
-/// Store a value a row already took in the attribute of its object: no `__setattr__` runs and
-/// nothing is forwarded. A rule writes the row inside `with_rows`, then calls this outside it. A
-/// `SupportRequestState` also has writes to report (`_write_listener`): see the lane's document.
-pub(crate) fn write_field<'py>(
-    world: &Bound<'py, PyAny>,
-    field: &str,
-    id: &str,
-    name: &str,
-    value: &Bound<'py, PyAny>,
-) -> PyResult<()> {
-    let py = world.py();
-    let map = world.getattr(field)?;
-    let key = PyString::new(py, id);
-    let object = raw_dict_get(&map, key.as_any())?
-        .ok_or_else(|| Unsupported::new_err("the world's map has no such ID"))?;
-    raw_setattr(&object, &PyString::intern(py, name), value.as_ptr())
+/// A row of a table that a rule can put in or take out by its key.
+pub(crate) trait KeyedRow: ViewRow + 'static {
+    /// The table's number, and its field of the world.
+    const KIND: u8;
+    const FIELD: &'static str;
+    fn table(rows: &mut Entities) -> &mut Table<Self>;
 }
 
-/// The template of a rule that writes an entity: read and write the row, then the object. Used by
-/// the tests. Says Unsupported, before any change, for a tainted store or an unknown ID.
+macro_rules! keyed_row {
+    ($($row:ident: $kind:ident, $field:ident);+ $(;)?) => {
+        $(impl KeyedRow for $row {
+            const KIND: u8 = $kind;
+            const FIELD: &'static str = stringify!($field);
+            fn table(rows: &mut Entities) -> &mut Table<Self> {
+                &mut rows.$field
+            }
+        })+
+    };
+}
+
+keyed_row! {
+    AgentRow: AGENT, agents;
+    FacilityRow: FACILITY, facilities;
+    StaffRow: STAFF, staff;
+    RequestRow: REQUEST, support_requests;
+    TaskRow: TASK, active_tasks;
+    ZoneRow: ZONE, zones;
+    EdgeRow: EDGE, zone_edges;
+}
+
+/// `world.<field>[key] = <Class>(...)` of a rule: the row goes in now, under the key (a new key at
+/// the end, a key already there in its place), and its object, made from the row with no
+/// `__init__`, when the borrow of the rows ends (`EntityStore::flush`). While the kind's rows are
+/// tainted, the objects are the only truth, as before: Python's constructor makes the object of
+/// the same fields and the map stores it.
+pub(crate) fn insert_entity<R: KeyedRow>(world: &Bound<'_, PyAny>, key: &Arc<str>, row: R) -> PyResult<()> {
+    let py = world.py();
+    let store = entities_of(world)?;
+    if store.get().is_tainted(py, R::KIND)? {
+        let installed = installed().map_err(misfit_error)?;
+        let fields = PyEntityField::to_py(&row, py)?.into_bound(py);
+        let object = class_of(installed, R::KIND).bind(py).call((), Some(fields.downcast::<PyDict>()?))?;
+        return world.getattr(R::FIELD)?.set_item(&**key, object);
+    }
+    EntityStore::with_rows(&store, |rows| {
+        R::table(rows).insert(key.clone(), row);
+        Ok(())
+    })
+}
+
+/// `del world.<field>[key]` of a rule: the row leaves now (the others keep their order), and its
+/// object gets its last values and leaves the map when the borrow ends. `KeyError(key)` as a dict
+/// says for a key it does not hold. While the kind's rows are tainted, the map's own `del` runs.
+pub(crate) fn remove_entity<R: KeyedRow>(world: &Bound<'_, PyAny>, key: &str) -> PyResult<()> {
+    let py = world.py();
+    let store = entities_of(world)?;
+    if store.get().is_tainted(py, R::KIND)? {
+        return world.getattr(R::FIELD)?.del_item(key);
+    }
+    EntityStore::with_rows(&store, |rows| {
+        if R::table(rows).remove_row(key) {
+            Ok(())
+        } else {
+            Err(PyKeyError::new_err(key.to_owned()))
+        }
+    })
+}
+
+/// The template of a rule that writes an entity: read and write the row; the object follows when
+/// the borrow ends. Used by the tests. Says Unsupported, before any change, for a tainted store or
+/// an unknown ID.
 #[pyfunction]
 fn add_agent_stress(world: &Bound<'_, PyAny>, id: &str, change: f64) -> PyResult<f64> {
-    let py = world.py();
-    let new = EntityStore::with_rows(&entities_of(world)?, |rows| {
+    EntityStore::with_rows(&entities_of(world)?, |rows| {
         let row = rows
             .agents
             .get_mut(id)
             .ok_or_else(|| Unsupported::new_err("no such agent"))?;
         row.stress += change;
         Ok(row.stress)
-    })?;
-    write_field(world, "agents", id, "stress", new.into_pyobject(py)?.as_any())?;
-    Ok(new)
+    })
 }
 
 /// A need of each agent in dict order, read from the rows only.
@@ -1302,10 +1844,67 @@ fn hunger_of_agents(world: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
     })
 }
 
+/// What a rule of the core does to one table in one borrow, for the tests of the views: each op is
+/// `("insert", key, row)` (row: an object with the row's attributes, read before the borrow),
+/// `("remove", key)` (KeyError for a key the table lacks) or `("write", key, name, value)` (the
+/// row only, as a Rust rule writes). The objects follow when the borrow ends.
+#[pyfunction]
+fn apply_row_ops(world: &Bound<'_, PyAny>, field: &str, ops: Vec<Bound<'_, PyTuple>>) -> PyResult<()> {
+    fn run<R: KeyedRow + Forward>(world: &Bound<'_, PyAny>, ops: &[Bound<'_, PyTuple>]) -> PyResult<()> {
+        enum Op<'py, R> {
+            Insert(Arc<str>, R),
+            Remove(String),
+            Write(String, String, Bound<'py, PyAny>),
+        }
+        let mut planned = Vec::with_capacity(ops.len());
+        for op in ops {
+            let what: String = op.get_item(0)?.extract()?;
+            let key: String = op.get_item(1)?.extract()?;
+            planned.push(match what.as_str() {
+                "insert" => Op::Insert(Arc::from(key), R::from_py(&op.get_item(2)?).map_err(misfit_error)?),
+                "remove" => Op::Remove(key),
+                "write" => Op::Write(key, op.get_item(2)?.extract()?, op.get_item(3)?),
+                _ => return Err(PyValueError::new_err("not an op")),
+            });
+        }
+        EntityStore::with_rows(&entities_of(world)?, |rows| {
+            for op in planned {
+                let table = R::table(rows);
+                match op {
+                    Op::Insert(key, row) => {
+                        table.insert(key, row);
+                    }
+                    Op::Remove(key) => {
+                        if !table.remove_row(&key) {
+                            return Err(PyKeyError::new_err(key));
+                        }
+                    }
+                    Op::Write(key, name, value) => {
+                        let row = table.get_mut(&key).ok_or_else(|| PyKeyError::new_err(key.clone()))?;
+                        row.set(&name, &value).map_err(misfit_error)?;
+                    }
+                }
+            }
+            Ok(())
+        })
+    }
+    match field {
+        "agents" => run::<AgentRow>(world, &ops),
+        "facilities" => run::<FacilityRow>(world, &ops),
+        "staff" => run::<StaffRow>(world, &ops),
+        "support_requests" => run::<RequestRow>(world, &ops),
+        "active_tasks" => run::<TaskRow>(world, &ops),
+        "zones" => run::<ZoneRow>(world, &ops),
+        "zone_edges" => run::<EdgeRow>(world, &ops),
+        _ => Err(PyValueError::new_err("not a field of entities")),
+    }
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<EntityStore>()?;
     m.add_function(wrap_pyfunction!(install, m)?)?;
     m.add_function(wrap_pyfunction!(add_agent_stress, m)?)?;
     m.add_function(wrap_pyfunction!(hunger_of_agents, m)?)?;
+    m.add_function(wrap_pyfunction!(apply_row_ops, m)?)?;
     Ok(())
 }

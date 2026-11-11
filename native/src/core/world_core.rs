@@ -1901,8 +1901,18 @@ pub(crate) struct PyWorldCell<'a, 'py>(pub(crate) &'a Bound<'py, PyAny>);
 impl WorldCell for PyWorldCell<'_, '_> {
     fn with<R>(&self, f: impl FnOnce(&mut World) -> R) -> sheltersim_core::error::Result<R> {
         let core = core_of(self.0).map_err(|_| CoreError::unsupported("the world has no core"))?;
-        let mut core = core.try_borrow_mut().map_err(|_| CoreError::Runtime(BORROWED.to_owned()))?;
-        Ok(f(&mut core.world))
+        let (result, flush) = {
+            let mut held = core.try_borrow_mut().map_err(|_| CoreError::Runtime(BORROWED.to_owned()))?;
+            let result = f(&mut held.world);
+            let flush = crate::state::entities::plan_flush(held.world.entities.get_mut());
+            let store = held.store.as_ref().map(|store| store.clone_ref(core.py()));
+            (result, flush.zip(store))
+        };
+        // The objects follow the rows f wrote (rule R5), with the world no longer borrowed.
+        if let Some((flush, store)) = flush {
+            EntityStore::flush(store.bind(core.py()), flush).map_err(|error| CoreError::Runtime(error.to_string()))?;
+        }
+        Ok(result)
     }
 }
 
