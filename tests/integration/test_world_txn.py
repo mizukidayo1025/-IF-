@@ -243,24 +243,24 @@ def test_the_rules_of_a_tick_leave_what_their_copy_left(add_toilets_program: Any
     transaction refuses takes the copy, and both end where the copy-and-swap ended."""
     counts = native.rules("transaction").counts
     before = counts()
-    in_place = _runs(add_toilets_program)["generated-operations"].to(160)
+    in_place = gate_runs(add_toilets_program)["generated-operations"].to(160)
     between = counts()
     assert between["in_place"] > before["in_place"]
     assert between["copy"] == before["copy"]
     txn_checks.refuse_transactions(True)
     try:
-        on_copy = _runs(add_toilets_program)["generated-operations"].to(160)
+        on_copy = gate_runs(add_toilets_program)["generated-operations"].to(160)
     finally:
         txn_checks.refuse_transactions(False)
     after = counts()
     assert after["copy"] - between["copy"] == between["in_place"] - before["in_place"]
     assert after["in_place"] == between["in_place"]
     assert _documents(in_place) == _documents(on_copy)
-    _check_rows(in_place)
+    check_rows(in_place)
 
 
 def test_the_poison_finds_an_object_kept_across_a_transaction(add_toilets_program: Any) -> None:
-    world = _runs(add_toilets_program)["generated-operations"].to(30)
+    world = gate_runs(add_toilets_program)["generated-operations"].to(30)
     kept = world.agents
     kept_type = type(kept)
     txn_checks.poison_replaced(True)
@@ -278,4 +278,4 @@ def test_the_poison_finds_an_object_kept_across_a_transaction(add_toilets_progra
     # The rollback gave the map back with its class.
     assert world.agents is kept
     assert type(kept) is kept_type
-    _check_rows(world)
+    check_rows(world)
