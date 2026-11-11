@@ -22,6 +22,9 @@ use crate::core::mathx::{hypot, py_max, py_min};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, namespace_is_absent, unsupported, PyField, IdMap};
 use crate::core::value::V;
 use crate::core::world_core::{mirror_of, NamespaceMirror};
+use sheltersim_core::config::body::{
+    AffectModel, BodyModels, TrustModel, DISTANCE_TRUST, DURATION_TRUST, LINEAR_AFFECT, TRUST_WEIGHTED_AFFECT,
+};
 use sheltersim_core::config::Selection;
 use crate::encode;
 use crate::state::body_state::{
@@ -30,11 +33,7 @@ use crate::state::body_state::{
 use crate::state::entities::{entities_of, EntityStore};
 use crate::state::movement::{MovementRow, Position};
 
-const LINEAR_AFFECT: &str = "linear-positive-negative-v1";
-const TRUST_WEIGHTED_AFFECT: &str = "trust-weighted-positive-negative-v1";
-const DISTANCE_TRUST: &str = "distance-duration-repeat-trust-v1";
 const DISTANCE_TRUST_SOURCE: &str = "ASM-DISTANCE-DURATION-REPEAT-TRUST-V1";
-const DURATION_TRUST: &str = "duration-contact-trust-v1";
 const DURATION_TRUST_SOURCE: &str = "ASM-DURATION-CONTACT-TRUST-V1";
 const RELATIONSHIP_POLICY_VERSION: &str = "1";
 const EVIDENCE_AWARE_INFORMATION: &str = "evidence-aware-rumor-v1";
@@ -655,68 +654,60 @@ fn selected_models(world: &Bound<'_, PyAny>) -> PyResult<Arc<Selection>> {
 }
 
 /// `create_affect` without a selection: the config's, by the function that also refuses a bad one.
-fn affect_of_the_config<'py>(configs: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    let py = configs.py();
-    let raw = exact_dict(configs)?.get_item(intern!(py, "body_dynamics"))?;
+fn affect_of_the_config(world: &Bound<'_, PyAny>) -> PyResult<Arc<str>> {
+    let py = world.py();
+    let configs = attribute(world, intern!(py, "model_configs"))?;
+    let raw = exact_dict(&configs)?.get_item(intern!(py, "body_dynamics"))?;
     let config = py
         .import(intern!(py, "sheltersim.domain.body_state"))?
         .getattr(intern!(py, "canonical_body_config"))?
         .call1((raw,))
         .map_err(|_| crate::Unsupported::new_err("the body config raises"))?;
-    Ok(config.get_item(intern!(py, "affect_policy"))?)
+    Ok(Arc::from(exact_str(&config.get_item(intern!(py, "affect_policy"))?)?))
 }
 
-/// The operators the rule creates. An ID this kernel doesn't know is left to Python's factory.
-fn models_of<'py>(selection: &Selection, configs: &Bound<'py, PyAny>) -> PyResult<Models> {
-    let py = configs.py();
-    let of_the_config;
-    let affect = match selection.get("affect") {
-        Some(affect) => &**affect,
-        None => {
-            of_the_config = affect_of_the_config(configs)?;
-            exact_str(&of_the_config)?
+/// The affect and relationship models the rule creates, by name, for the tests
+/// (`core/configs.rs`'s `config_section`).
+pub(crate) fn model_names_of(world: &Bound<'_, PyAny>) -> PyResult<(&'static str, &'static str)> {
+    let models = models_of(world, &*selected_models(world)?)?;
+    let affect = match models.affect {
+        Affect::Linear => LINEAR_AFFECT,
+        Affect::TrustWeighted => TRUST_WEIGHTED_AFFECT,
+    };
+    Ok((affect, models.trust.identity().0))
+}
+
+/// The operators the rule creates, kept for the configs' stamp (`core/configs.rs`). An ID this
+/// kernel doesn't know is left to Python's factory.
+fn models_of(world: &Bound<'_, PyAny>, selection: &Selection) -> PyResult<Models> {
+    let py = world.py();
+    let affect = || match selection.get("affect") {
+        Some(affect) => Ok(affect.clone()),
+        None => affect_of_the_config(world),
+    };
+    let relationship = selection.get("relationship").cloned();
+    let parse = || match affect() {
+        Ok(affect) => {
+            configs::parsed_value(world, |configs| BodyModels::parse(&affect, relationship.as_deref(), configs))
         }
+        Err(error) => Ok(configs::parsed(py, Err(error))),
     };
-    let affect = match affect {
-        LINEAR_AFFECT => Affect::Linear,
-        TRUST_WEIGHTED_AFFECT => Affect::TrustWeighted,
-        _ => return unsupported("an affect model this kernel doesn't know"),
+    let models = match configs::kept_with_selection(world, |configs| &configs.body_models, parse)? {
+        Ok(models) => models,
+        Err(fault) => return Err(configs::raise(&fault, affect)),
     };
-    let Some(relationship) = selection.get("relationship") else {
-        // `create_relationship_policy` without a selection.
-        return Ok(Models { affect, trust: TrustPolicy::DurationOnly });
-    };
-    let trust = match &**relationship {
-        DURATION_TRUST => TrustPolicy::DurationOnly,
-        DISTANCE_TRUST => {
-            let configs = exact_dict(configs)?;
-            let body = configs.get_item(intern!(py, "body_dynamics"))?;
-            let number = |name: &Bound<'py, PyString>, default: f64| -> PyResult<f64> {
-                let Some(body) = &body else {
-                    return Ok(default);
-                };
-                match exact_dict(body)?.get_item(name)? {
-                    None => Ok(default),
-                    Some(value) => match Item::read(Some(value))? {
-                        Item::Float(number) => Ok(number),
-                        Item::Int(number) => Ok(number as f64),
-                        _ => unsupported("a relationship parameter is not a number"),
-                    },
-                }
-            };
-            let distance_scale_m = number(intern!(py, "relationship_distance_scale_m"), 2.0)?;
-            // Zero divides, which raises in Python. Its validation keeps it within 0.1..100.
-            if distance_scale_m <= 0.0 {
-                return unsupported("the distance scale is not positive");
+    Ok(Models {
+        affect: match models.affect {
+            AffectModel::Linear => Affect::Linear,
+            AffectModel::TrustWeighted => Affect::TrustWeighted,
+        },
+        trust: match models.trust {
+            TrustModel::DurationOnly => TrustPolicy::DurationOnly,
+            TrustModel::DistanceDurationRepeat { distance_scale_m, repeat_contact_bonus } => {
+                TrustPolicy::DistanceDurationRepeat { distance_scale_m, repeat_contact_bonus }
             }
-            TrustPolicy::DistanceDurationRepeat {
-                distance_scale_m,
-                repeat_contact_bonus: number(intern!(py, "relationship_repeat_contact_bonus"), 0.05)?,
-            }
-        }
-        _ => return unsupported("a relationship model this kernel doesn't know"),
-    };
-    Ok(Models { affect, trust })
+        },
+    })
 }
 
 /// `information_correction`'s people who took the correction: those in the zone, in ID order, and
@@ -964,9 +955,8 @@ pub(crate) fn record_social_event<'py>(world: &Bound<'py, PyAny>, event: &Bound<
     if !causation_id.is_none() {
         exact_str(&causation_id)?;
     }
-    let configs = attribute(world, intern!(py, "model_configs"))?;
     let selection = selected_models(world)?;
-    let models = models_of(&selection, &configs)?;
+    let models = models_of(world, &selection)?;
     let (action, facts) = action_of(world, event, event_type, &payload, &selection, minute)?;
     if matches!(action, Action::Nothing) {
         return Ok(());

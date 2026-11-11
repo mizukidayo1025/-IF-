@@ -8,7 +8,12 @@ use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
 
 pub(crate) use sheltersim_core::state::agent_dynamics::*;
 
-use crate::core::row::{attribute, exact_dict, namespace_is_absent, py_row, unsupported};
+use sheltersim_core::config::agent_dynamics::{
+    policy as config_policy, MUST_CITE, UNSUPPORTED_FIELDS, UNSUPPORTED_VERSION, V1_SOURCE,
+};
+
+use crate::core::configs;
+use crate::core::row::{exact_dict, namespace_is_absent, py_row, unsupported};
 use crate::core::world_core::{mirror_of, NamespaceMirror, RowType};
 use crate::state::entities::{entities_of, EntityStore};
 
@@ -19,12 +24,6 @@ py_row! {
     }
 }
 py_row! { AgentDynamicsRow { schema_version, policy_version, agents } }
-
-/// The texts of `canonical_agent_dynamics_config`'s ValueError, in its order of checks.
-pub(crate) const UNSUPPORTED_FIELDS: &str = "agent_dynamics config has unsupported fields";
-pub(crate) const UNSUPPORTED_VERSION: &str = "agent_dynamics config has an unsupported version";
-pub(crate) const V1_SOURCE: &str = "agent_dynamics v1 has no orientation source";
-pub(crate) const MUST_CITE: &str = "agent_dynamics v2/v3 must cite the intake orientation assumption";
 
 /// `value == 1` of Python for a config's schema, or Unsupported for a type whose `==` this can't
 /// tell (a subclass, any other object).
@@ -48,8 +47,9 @@ fn equals_one(value: &Bound<'_, PyAny>) -> PyResult<bool> {
     unsupported("a schema of another type")
 }
 
-/// `canonical_agent_dynamics_config(raw)["policy_version"]`, or the text of the ValueError it
-/// raises. Unsupported for what Python would decide by a subclass's `==`, or raise TypeError for (an
+/// `canonical_agent_dynamics_config(raw)["policy_version"]` of any Python value (the check
+/// `canonical_config` of the rules), or the text of the ValueError it raises. The rules read the
+/// policy from the configs' section (`policy_of`). Unsupported for what Python would decide by a subclass's `==`, or raise TypeError for (an
 /// unhashable policy).
 pub(crate) fn canonical_policy_or_text(raw: Option<&Bound<'_, PyAny>>) -> PyResult<Result<&'static str, &'static str>> {
     let Some(raw) = raw.filter(|raw| !raw.is_none()) else {
@@ -106,20 +106,11 @@ pub(crate) fn canonical_policy_or_text(raw: Option<&Bound<'_, PyAny>>) -> PyResu
     }
 }
 
-/// `canonical_agent_dynamics_config(raw)["policy_version"]` for a rule that reads it: Unsupported
-/// where the Python rule raises. A Scenario's config was checked, with its text, when it was loaded.
-pub(crate) fn canonical_policy(raw: Option<&Bound<'_, PyAny>>) -> PyResult<&'static str> {
-    match canonical_policy_or_text(raw)? {
-        Ok(policy) => Ok(policy),
-        Err(_) => unsupported("a config the Python rule refuses"),
-    }
-}
-
-/// The policy `world.model_configs` selects.
+/// The policy `world.model_configs` selects, kept for the configs' stamp (`core/configs.rs`): a
+/// refusal where the Python rule raises. A Scenario's config was checked, with its text, when it
+/// was loaded.
 pub(crate) fn policy_of(world: &Bound<'_, PyAny>) -> PyResult<&'static str> {
-    let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    canonical_policy(exact_dict(&configs)?.get_item(intern!(py, "agent_dynamics"))?.as_ref())
+    Ok(*configs::kept_value(world, |configs| &configs.agent_dynamics_policy, config_policy)?)
 }
 
 /// `validate_agent_dynamics_state`: accepts, or leaves it to the Python rule and its error text.

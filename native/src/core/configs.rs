@@ -24,11 +24,14 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyDict, PyString};
-use sheltersim_core::config::{Configs, Fault, FaultClass, Section, Selection};
+use sheltersim_core::config::read::Read;
+use sheltersim_core::config::{parse_configs, Configs, Fault, FaultClass, Lazy, Section, Selection};
 
 use super::errors::{corrupt, OrPy};
 use super::row::attribute;
+use super::value::{VPy, V};
 use super::world_core::field_stamp;
+use crate::Unsupported;
 
 const MODEL_CONFIGS: &str = "model_configs";
 
@@ -82,6 +85,190 @@ pub(crate) fn reraise<T>(parse: impl FnOnce() -> PyResult<T>) -> PyErr {
     match parse() {
         Err(error) => error,
         Ok(_) => corrupt(MODEL_CONFIGS, "a config fault did not reproduce"),
+    }
+}
+
+// ---- The sections of the kernels (lane 7-5b) --------------------------------------------------------
+
+/// A section kept for the configs' stamp, parsed by `parse` at its first read after the stamp
+/// changed: its value, or the fault for the read site to raise (`raise`).
+pub(crate) fn kept<T>(
+    world: &Bound<'_, PyAny>,
+    section: fn(&Configs) -> &Lazy<T>,
+    parse: impl FnOnce() -> PyResult<Section<T>>,
+) -> PyResult<Result<Arc<T>, Fault>> {
+    let configs = current(world)?;
+    let lazy = section(&configs);
+    if lazy.get().is_none() {
+        // A parse that fails to run at all (no configs, a borrow) raises here, as it did.
+        let parsed = parse()?;
+        let _ = lazy.get_or_parse(|| parsed);
+    }
+    Ok(match lazy.get() {
+        Some(Section::Ok(value)) => Ok(value.clone()),
+        Some(Section::Fault(fault)) => Err(fault.clone()),
+        Some(Section::Absent) | None => Err(Fault::refused("the configs have no such section")),
+    })
+}
+
+/// `kept` for a section parsed from the model selection too (`selection`): while a test has patched
+/// `selected_models`, whose selection is not kept, the section is parsed at every read as well.
+pub(crate) fn kept_with_selection<T>(
+    world: &Bound<'_, PyAny>,
+    section: fn(&Configs) -> &Lazy<T>,
+    parse: impl FnOnce() -> PyResult<Section<T>>,
+) -> PyResult<Result<Arc<T>, Fault>> {
+    let py = world.py();
+    let function = policies(py)?.module.bind(py).getattr(intern!(py, "selected_models"))?;
+    if is_the_contract(&function)? {
+        return kept(world, section, parse);
+    }
+    Ok(match parse()? {
+        Section::Ok(value) => Ok(value),
+        Section::Fault(fault) => Err(fault),
+        Section::Absent => Err(Fault::refused("the configs have no such section")),
+    })
+}
+
+/// What a parse that calls Python gave: a refusal (`Unsupported`) keeps its reason, any other
+/// error its class and text.
+pub(crate) fn parsed<T>(py: Python<'_>, parsed: PyResult<T>) -> Section<T> {
+    match parsed {
+        Ok(value) => Section::Ok(Arc::new(value)),
+        Err(error) => Section::Fault(refusal_or_fault(py, &error)),
+    }
+}
+
+fn refusal_or_fault(py: Python<'_>, error: &PyErr) -> Fault {
+    if error.get_type(py).is(&py.get_type::<Unsupported>()) {
+        Fault::refused(error.value(py).to_string())
+    } else {
+        fault_of(py, error)
+    }
+}
+
+/// `parse` of the configs as a `V`: the row of the `model_configs` slot while it holds the field
+/// (the core's `parse_configs`), or else the tree read now. A tree that is not JSON is refused for what it holds.
+pub(crate) fn parsed_value<T>(world: &Bound<'_, PyAny>, parse: impl Fn(&V) -> Read<T>) -> PyResult<Section<T>> {
+    let py = world.py();
+    let raw = attribute(world, intern!(py, "model_configs"))?;
+    if let Some((core, _)) = field_stamp(world, MODEL_CONFIGS, &raw)? {
+        // The core's function on the world, borrowed shared: it calls no Python.
+        if let Some(section) = parse_configs(core.try_borrow()?.world(), &parse).or_py()? {
+            return Ok(section);
+        }
+    }
+    Ok(match <V as VPy>::from_py(&raw) {
+        Ok(configs) => parse(&configs).into(),
+        Err(error) => Section::Fault(refusal_or_fault(py, &error)),
+    })
+}
+
+/// A section the kernels parse from the configs as a `V` (`parsed_value`), kept for the stamp; its
+/// refusal is said at the read site.
+#[track_caller]
+pub(crate) fn kept_value<T>(
+    world: &Bound<'_, PyAny>,
+    section: fn(&Configs) -> &Lazy<T>,
+    parse: fn(&V) -> Read<T>,
+) -> PyResult<Arc<T>> {
+    match kept(world, section, || parsed_value(world, parse))? {
+        Ok(value) => Ok(value),
+        Err(fault) => read(Err(fault)),
+    }
+}
+
+/// The error a read site raises for a fault: a refusal its own `Unsupported`, any other what a
+/// second parse raises (policy E14).
+#[track_caller]
+pub(crate) fn raise<R>(fault: &Fault, reparse: impl FnOnce() -> PyResult<R>) -> PyErr {
+    if fault.is_refusal() {
+        Unsupported::new_err(fault.text.to_string())
+    } else {
+        reraise(reparse)
+    }
+}
+
+/// A value of a section as a read site takes it: a refusal is its `Unsupported`, said here.
+#[track_caller]
+pub(crate) fn read<T>(value: Read<T>) -> PyResult<T> {
+    match value {
+        Ok(value) => Ok(value),
+        Err(fault) if fault.is_refusal() => Err(Unsupported::new_err(fault.text.to_string())),
+        Err(_) => Err(corrupt(MODEL_CONFIGS, "a value of a section holds an error")),
+    }
+}
+
+/// A section as its read site reads it, for the tests (`tests/integration/test_config_sections.py`):
+/// the same accessor, so the value, the error and the parses are the read site's. `key` is a staff
+/// member for `staff_fatigue`.
+#[pyfunction]
+#[pyo3(signature = (world, name, key=None))]
+pub(crate) fn config_section<'py>(
+    world: &Bound<'py, PyAny>,
+    name: &str,
+    key: Option<&str>,
+) -> PyResult<Bound<'py, PyAny>> {
+    use pyo3::IntoPyObjectExt;
+    use sheltersim_core::config::{agent_dynamics, body, staff};
+
+    use crate::rules::{agent_dynamics as agents, body_state, effects, handlers, information_events, social_interaction};
+    use crate::rules::{staff as staff_rules, staff_dynamics, support};
+    let py = world.py();
+    match name {
+        "staff_fatigue" => {
+            let formula = staff_dynamics::fatigue_formula(world)?;
+            (formula.saturating, read(formula.limit(key.unwrap_or_default()))?).into_bound_py_any(py)
+        }
+        "staff_operations" => {
+            let formula = staff_rules::staff_operations(world)?;
+            let (source, policy, event_source) = formula.provenance();
+            (formula.travel_first(), source, policy, event_source).into_bound_py_any(py)
+        }
+        "staff_operations_known" => {
+            kept_value(world, |configs| &configs.staff_operations_known, staff::known_staff_operations)?;
+            Ok(py.None().into_bound(py))
+        }
+        "support_task_minutes" => {
+            kept_value(world, |configs| &configs.support_task_minutes, staff::support_task_minutes)?.into_bound_py_any(py)
+        }
+        "support_cooldown_minutes" => handlers::support_cooldown_minutes(world)?.into_bound_py_any(py),
+        "information_spread" => {
+            let (config, _, _) = information_events::runtime_state(world)?;
+            read(config.query_pressure_per_claim.clone())?.into_bound_py_any(py)
+        }
+        "information_pressure_gain" => social_interaction::pressure_gain(world)?.into_bound_py_any(py),
+        "body_models" => body_state::model_names_of(world)?.into_bound_py_any(py),
+        "social_interaction_minutes" => {
+            kept_value(world, |configs| &configs.social_interaction_minutes, body::social_interaction_minutes)?
+                .into_bound_py_any(py)
+        }
+        "care_outcome" => match support::selected_care_formula(world)? {
+            Some(formula) => (&*formula.model_id, &*formula.source_id).into_bound_py_any(py),
+            None => Ok(py.None().into_bound(py)),
+        },
+        "agent_dynamics_policy" => crate::state::agent_dynamics::policy_of(world)?.into_bound_py_any(py),
+        "facility_awareness" => match agents::awareness_of(world)?.as_ref() {
+            Some(awareness) => {
+                let initial: Vec<&str> = awareness.initial.iter().map(|id| &**id).collect();
+                (initial, awareness.discover).into_bound_py_any(py)
+            }
+            None => Ok(py.None().into_bound(py)),
+        },
+        "knowledge_is_limited" => {
+            kept_value(world, |configs| &configs.knowledge_is_limited, agent_dynamics::knowledge_is_limited)?
+                .into_bound_py_any(py)
+        }
+        "zone_environment" => {
+            let spec = effects::zone_environment_spec(world)?;
+            (&*spec.policy_version, &*spec.source_id).into_bound_py_any(py)
+        }
+        "infrastructure" => (&*handlers::infrastructure_config(world)?.source_id).into_bound_py_any(py),
+        "proximity" => match handlers::proximity_config(world)?.as_ref() {
+            Some(config) => (&*config.policy_version, read(config.max_distance_m.clone())?).into_bound_py_any(py),
+            None => Ok(py.None().into_bound(py)),
+        },
+        _ => Err(pyo3::exceptions::PyKeyError::new_err(name.to_owned())),
     }
 }
 

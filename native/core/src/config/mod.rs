@@ -9,21 +9,44 @@
 //!
 //! The PyO3 crate parses, with the Python contracts, at the first read of each section
 //! (`src/core/configs.rs`). Sections join lane by lane: P7-1 has the model selection and the plan
-//! of the end-of-tick check, 7-2 the geometry and the plans built from it; movement, routing and
-//! the rest follow in 7-5.
+//! of the end-of-tick check, 7-2 the geometry and the plans built from it, 7-5b the staff, the
+//! formulas, information, the body, agent dynamics, the zone environment, infrastructure and
+//! proximity; movement, routing and the rest follow in 7-5a.
+//!
+//! A section the kernels parse themselves is parsed here from the configs as a `V` (the row of the
+//! `model_configs` slot). A section that a Python contract parses keeps what the contract gave, as
+//! the types below.
 
+pub mod agent_dynamics;
+pub mod body;
+pub mod environment;
 pub mod geometry;
+pub mod information;
+pub mod proximity;
+pub mod read;
 pub mod section;
 pub mod selection;
+pub mod staff;
 
 use std::sync::{Arc, Mutex};
 
+use crate::error::Result;
 use crate::geometry::GeoCache;
+use crate::row::ValueRow;
 use crate::stamp::Stamp;
+use crate::value::V;
+use crate::world::{World, MODEL_CONFIGS};
 
 pub use geometry::{ApproachRoute, FacilityGeometry, FacilityPlan, SpatialConstraints};
 pub use section::{Fault, FaultClass, Lazy, Opaque, Section};
 pub use selection::Selection;
+
+use agent_dynamics::Awareness;
+use body::{BodyModels, CareOutcome};
+use environment::{Infrastructure, ZoneEnvironmentSpec};
+use information::InformationSpread;
+use proximity::Proximity;
+use staff::{StaffFatigue, StaffOperations};
 
 /// The sections parsed from one state of `model_configs`.
 #[derive(Default)]
@@ -42,12 +65,55 @@ pub struct Configs {
     pub spatial_constraints: Lazy<SpatialConstraints>,
     /// The plans (`Geo`) built from these configs, by the overlay (`geometry_overlay_v1`).
     pub geo: Mutex<GeoCache>,
+    // ---- Lane 7-5b ----
+    /// `create_staff_fatigue_formula`, for `update_staff_dynamics`.
+    pub staff_fatigue: Lazy<StaffFatigue>,
+    /// `create_staff_operations_formula` and whether `policy_registry` selects it.
+    pub staff_operations: Lazy<StaffOperations>,
+    /// `assign_staff_operations`' check of the selected task formula.
+    pub staff_operations_known: Lazy<()>,
+    /// `model_configs["staff"]["support_task_minutes"]` as the route waits read it.
+    pub support_task_minutes: Lazy<i64>,
+    /// `model_configs.get("staff", {}).get("support_cooldown_minutes", 30)`.
+    pub support_cooldown_minutes: Lazy<i64>,
+    /// `InformationSpreadConfig.from_mapping(model_configs.get("information_spread"))`.
+    pub information_spread: Lazy<InformationSpread>,
+    /// The operators of `body_state_v1`.
+    pub body_models: Lazy<BodyModels>,
+    /// `body_dynamics.social_interaction_minutes`.
+    pub social_interaction_minutes: Lazy<i64>,
+    /// `create_care_outcome_formula`, read where a care formula is selected.
+    pub care_outcome: Lazy<CareOutcome>,
+    /// The policy of `agent_dynamics_v1`.
+    pub agent_dynamics_policy: Lazy<&'static str>,
+    /// `facility_awareness`.
+    pub facility_awareness: Lazy<Option<Awareness>>,
+    /// Whether the configs limit what an agent knows of the facilities.
+    pub knowledge_is_limited: Lazy<bool>,
+    /// `ScenarioZoneEnvironmentConfig.model_validate(model_configs["zone_environment"])`.
+    pub zone_environment: Lazy<ZoneEnvironmentSpec>,
+    /// `ScenarioInfrastructureSpec.model_validate(model_configs["infrastructure"])`.
+    pub infrastructure: Lazy<Infrastructure>,
+    /// `canonical_proximity_contact_config(model_configs.get("social_proximity"))`.
+    pub proximity: Lazy<Option<Proximity>>,
 }
 
 impl Configs {
     pub fn new(stamp: Option<Stamp>) -> Self {
         Self { stamp, ..Self::default() }
     }
+}
+
+/// A section the kernels parse themselves, parsed from the configs as the world holds them: the
+/// `V` of the `model_configs` slot's row. None where the slot has no such row (no slot, or a value
+/// that is not JSON), for the caller to read the tree instead; a missing row makes no refusal.
+pub fn parse_configs<T>(world: &World, parse: impl FnOnce(&V) -> read::Read<T>) -> Result<Option<Section<T>>> {
+    let Some(slot) = world.slots.get(MODEL_CONFIGS) else {
+        return Ok(None);
+    };
+    let slot = slot.try_borrow()?;
+    let row = slot.row.as_deref().and_then(|row| row.as_any().downcast_ref::<ValueRow>());
+    Ok(row.map(|row| parse(&row.0).into()))
 }
 
 /// What a world keeps that is not its state: values derived from it, keyed by stamps. Nothing

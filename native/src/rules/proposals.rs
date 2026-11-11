@@ -19,6 +19,7 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyString, PyTuple};
 
+use crate::core::configs;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, namespace_is_absent, str_value, unsupported};
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::V;
@@ -38,6 +39,7 @@ use crate::rules::travel::{CapacityWait, PlannedTrip, Route, Selected, Trip, app
 use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, Member};
 use crate::state::events::{EventKind, EventRow, EventWriter};
 use crate::state::resource_service::{held_mirror as service_mirror, RequestRecord};
+use sheltersim_core::config::body::social_interaction_minutes;
 
 
 const SHARED_OPERATIONS: &str = "shared_operations_v1";
@@ -45,8 +47,6 @@ const INFORMATION: &str = "information_spread_v1";
 const OVERLAY_KEY: &str = "geometry_overlay_v1";
 const REJECTED_METRIC: &str = "resource_service_request_rejected_count";
 const TRAVEL_REJECTED_DETAIL: &str = "travel could not be scheduled within current limits";
-/// `interaction_minutes` where the config has none.
-const DEFAULT_INTERACTION_MINUTES: i64 = 5;
 /// The schedule's priority of a person's own social action.
 const SOCIAL_PRIORITY: i64 = 35;
 const SOCIAL_POLICY: &str = "event-triggered-social-v2";
@@ -610,14 +610,7 @@ pub(crate) fn apply_effect<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound
     let sleep = if action == "sleep" { plan_sleep(&world, &agent_object, agent_id, &zone_id)? } else { None };
     let mut social: Option<(EventRow, EventWriter<'py>, Arc<str>, i64)> = None;
     if let Effect::Social(interaction) = &effect {
-        let configs = attribute(&world, intern!(py, "model_configs"))?;
-        let minutes = match exact_dict(&configs)?.get_item(intern!(py, "body_dynamics"))? {
-            Some(config) => match exact_dict(&config)?.get_item(intern!(py, "social_interaction_minutes"))? {
-                Some(minutes) => exact_int(&minutes)?,
-                None => DEFAULT_INTERACTION_MINUTES,
-            },
-            None => DEFAULT_INTERACTION_MINUTES,
-        };
+        let minutes = *configs::kept_value(&world, |configs| &configs.social_interaction_minutes, social_interaction_minutes)?;
         let minute = exact_int(&attribute(&world, intern!(py, "minute_index"))?)?;
         let duration = exact_int(&attribute(&world, intern!(py, "duration_minutes"))?)?;
         let Some(due) = minute.checked_add(minutes) else {

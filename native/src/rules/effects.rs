@@ -33,10 +33,11 @@ use pyo3::exceptions::{PyKeyError, PyTypeError, PyValueError};
 use pyo3::types::{PyBool, PyDict, PyList, PySlice, PyString, PyTuple};
 use sha2::{Digest, Sha256};
 
+use crate::core::configs;
 use crate::core::errors::{self, Outcome};
 use crate::core::row::{attribute, exact_int, exact_str, namespace_is_absent, unsupported};
 use crate::core::tracked::as_readable_dict;
-use crate::core::value::V;
+use crate::core::value::{VPy, V};
 use crate::core::world_core::{mirror_of, raw_dict_get, read_only_state, NamespaceMirror};
 use crate::rules::care_receipts::{facility_recovery_record, handoff_record};
 use crate::rules::staff_dynamics::{is_available, staff_status};
@@ -47,6 +48,7 @@ use crate::state::entities::{entities_of, EntityStore};
 use crate::state::events::{is_stable_id, EventRef, EventRow, EventRowPy, EventWriter};
 use crate::state::resource_ledger::{held_mirror, resource_index, LedgerRow};
 use crate::Unsupported;
+use sheltersim_core::config::environment::ZoneEnvironmentSpec;
 
 const MARKER: &str = "effect_program_v1";
 
@@ -1044,6 +1046,27 @@ fn environment_commit(world: &Bound<'_, PyAny>, candidate: &Bound<'_, PyAny>) ->
     swap(world, candidate)
 }
 
+/// `ScenarioZoneEnvironmentConfig.model_validate(model_configs["zone_environment"])`, kept for the
+/// configs' stamp (`core/configs.rs`); what it raises is relayed as it is.
+pub(crate) fn zone_environment_spec(world: &Bound<'_, PyAny>) -> PyResult<Arc<ZoneEnvironmentSpec>> {
+    let py = world.py();
+    let parse = || -> PyResult<ZoneEnvironmentSpec> {
+        let config_data = attribute(world, intern!(py, "model_configs"))?.get_item("zone_environment")?;
+        let config = py
+            .import(intern!(py, "sheltersim.domain.environment"))?
+            .getattr(intern!(py, "ScenarioZoneEnvironmentConfig"))?
+            .call_method1(intern!(py, "model_validate"), (config_data,))?;
+        let keywords = PyDict::new(py);
+        keywords.set_item("mode", "json")?;
+        let dumped = config.call_method(intern!(py, "model_dump"), (), Some(&keywords))?;
+        configs::read(ZoneEnvironmentSpec::from_v(&<V as VPy>::from_py(&dumped)?))
+    };
+    match configs::kept(world, |configs| &configs.zone_environment, || Ok(configs::parsed(py, parse())))? {
+        Ok(spec) => Ok(spec),
+        Err(fault) => Err(configs::raise(&fault, parse)),
+    }
+}
+
 fn environment_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: bool) -> PyResult<()> {
     let py = world.py();
     let row = event_row(event)?;
@@ -1157,16 +1180,11 @@ fn environment_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: 
         return errors::failed(py, "zone environment modifier has no unique expiry event");
     }
     let end_event_id = attribute(&expiries[0], intern!(py, "event_id"))?;
-    let config_data = attribute(world, intern!(py, "model_configs"))?.get_item("zone_environment")?;
     // The Python rule wraps a ValueError of this too, but a world whose config fails it fails the
     // copy the Python rule makes first (`from_dict` checks the configs): the Python rule decides.
-    let config = py
-        .import(intern!(py, "sheltersim.domain.environment"))?
-        .getattr(intern!(py, "ScenarioZoneEnvironmentConfig"))?
-        .call_method1(intern!(py, "model_validate"), (config_data,))?;
-    let policy_version = attribute(&config, intern!(py, "policy_version"))?;
+    let config = zone_environment_spec(world)?;
     if matches!(&**op, "set_ventilation" | "set_lighting" | "set_privacy" | "set_temperature")
-        && policy_version.ne("zone-environment-v2")?
+        && &*config.policy_version != "zone-environment-v2"
     {
         return errors::failed(py, "condition modifier requires zone-environment-v2");
     }
@@ -1192,7 +1210,7 @@ fn environment_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: 
     record.set_item("end_event_id", end_event_id)?;
     record.set_item("start_minute", row.due_minute)?;
     record.set_item("end_minute", end_minute)?;
-    record.set_item("source_id", attribute(&config, intern!(py, "source_id"))?)?;
+    record.set_item("source_id", &*config.source_id)?;
     record.set_item("assumption_ids", PyList::new(py, assumptions)?)?;
 
     let candidate = effect_copy_of(world)?;

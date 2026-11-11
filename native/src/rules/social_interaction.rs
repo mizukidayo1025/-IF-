@@ -22,6 +22,7 @@ use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyFrozenSet, PyInt, PyString};
 
+use crate::core::configs;
 use crate::core::errors::{self, Outcome};
 use crate::core::mathx::{py_max, py_min};
 use crate::core::row::{attribute, exact_float, exact_int, exact_str, unsupported};
@@ -29,7 +30,8 @@ use crate::core::tracked::as_readable_dict;
 use crate::core::value::V;
 use crate::core::world_core::{mirror_of, raw_dict_get, with_state_value, NamespaceMirror};
 use indexmap::IndexMap;
-use crate::rules::handlers::{get, kind_is, number, status_member};
+use crate::rules::handlers::{get, kind_is, status_member};
+use crate::rules::information_events::information_spread;
 use crate::rules::social_dialogue::{context_is_valid, context_verdict, is_other_json_value, is_plain_mapping};
 use crate::rules::social_network::{action_relief, body_state_of, mapping_get};
 use crate::rules::support::household_of;
@@ -743,19 +745,23 @@ fn information_reaction(typed: &Typed<'_, '_>) -> PyResult<Said> {
     if not_in(reason, &["heard_through_contact", "request_verification", "rule_fallback"])? {
         return failure(errors::noted(Outcome::Failed, "information reaction reason code is not allowed"));
     }
-    let config = (|| {
-        let configs = attribute(world, intern!(py, "model_configs"))?;
-        py.import("sheltersim.domain.models")?
-            .getattr("InformationSpreadConfig")?
-            .call_method1("from_mapping", (configs.get_item("information_spread")?,))
-    })()
-    .map_err(|_| Unsupported::new_err("the config is for the Python rule to read"))?;
-    let gain = number(&config.getattr(intern!(py, "query_pressure_per_claim"))?)?;
+    let gain = pressure_gain(world)?;
     let Some(pressure) = pressure else {
         return unsupported("the person has no record");
     };
     state.get_item(intern!(py, "query_pressure"))?.set_item(agent_text, py_min(1.0, pressure + gain))?;
     Ok(None)
+}
+
+/// `InformationSpreadConfig.from_mapping(model_configs["information_spread"]).query_pressure_per_claim`,
+/// kept for the configs' stamp: whatever the parse raises, and a configs without the key, is the
+/// Python rule's.
+pub(crate) fn pressure_gain(world: &Bound<'_, PyAny>) -> PyResult<f64> {
+    let config = match information_spread(world) {
+        Ok(Ok(config)) if config.present => config,
+        _ => return Err(Unsupported::new_err("the config is for the Python rule to read")),
+    };
+    configs::read(config.query_pressure_per_claim.clone())
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
