@@ -2,7 +2,8 @@
 //! lane 7-3; policy E7 of docs/rust-port/step5-plan.md, design-p7.md principle 1).
 //!
 //! `RunConfig` is read once, when the controller starts, from what it read of `model_configs`; the
-//! route graph (`Routes`) follows the controller's `_refresh_space`. Neither is state: nothing
+//! route graph (`Routes`) is built from the world's tables at each of the controller's
+//! `_refresh_space`. Neither is state: nothing
 //! saves, hashes or compares them, and a new controller over the same world builds them again.
 
 use std::collections::HashMap;
@@ -28,6 +29,9 @@ pub struct RouteCapacities {
     pub by_edge: HashMap<Arc<str>, Capacity>,
     /// Whether the table has any key at all: then every route counts the trips under way.
     pub any: bool,
+    /// Whether a key was left out: one no edge of `world.zone_edges` can be, which `ZoneGraph`
+    /// turns down (`Router::of_tables`).
+    pub unmatched_keys: bool,
 }
 
 impl RouteCapacities {

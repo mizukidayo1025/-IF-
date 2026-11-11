@@ -337,9 +337,11 @@ class OfflineSimulationController(
 
     def _refresh_space(self) -> None:
         """Rebuild immutable routing snapshots after an applied graph/geometry change."""
-        # The kernels build their routers from the graphs below when they next ask.
-        self._run_core.refresh_routes()
         world = self.world
+        # The kernels' routers, from the world's zone and edge tables now, with ZoneGraph's checks
+        # (native/src/core/run.rs). The graphs below are for Python readers: the phases'
+        # assign_staff_operations, and the kernels where the tables cannot be read.
+        self._run_core.refresh_routes(world)
         self.space = SpaceRouter(
             ZoneGraph.from_states(
                 world.zones,
