@@ -1,7 +1,8 @@
 """Tick phases reuse parsed facility geometry without changing the simulation.
 
-How the per-phase cache itself behaves is checked in
-tests/unit/domain/test_geometry_overlay.py.
+How the per-phase cache of the Python rules behaves is checked in
+tests/unit/domain/test_geometry_overlay.py. The kernels parse the geometry once for a stamp of
+model_configs, with or without that scope (tests/integration/test_geo_cache.py).
 """
 
 from __future__ import annotations
@@ -33,4 +34,5 @@ def test_tick_phases_reuse_parsed_geometry_without_changing_results(
     scoped_world, scoped_parses = run(True)
     unscoped_world, unscoped_parses = run(False)
     assert scoped_world == unscoped_world
-    assert scoped_parses * 3 < unscoped_parses
+    # The kernels parse the configs once for each stamp of model_configs, in a scope or not.
+    assert scoped_parses == unscoped_parses < 10
