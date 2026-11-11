@@ -1399,34 +1399,6 @@ fn same_value(first: &Bound<'_, PyAny>, second: &Bound<'_, PyAny>) -> PyResult<b
     first.eq(second)
 }
 
-/// What `model_state` holds under an owned namespace, for a kernel that reads it.
-pub(crate) enum Held<'py> {
-    /// The row is what the world holds: its tree, or the row alone while the namespace is detached.
-    /// The row and the tree hold the same values, so a reader of the row reads what the tree has.
-    Row(Bound<'py, NamespaceMirror>),
-    /// Anything else, such as a tainted tree or a value stored past the table, for the rules to
-    /// read as Python holds it.
-    Value(Bound<'py, PyAny>),
-}
-
-/// `world.model_state.get(name)` as a kernel reads it, building no tree: None without the key.
-/// Unsupported for a `model_state` kernels don't read.
-pub(crate) fn held_state<'py>(world: &Bound<'py, PyAny>, name: &str) -> PyResult<Option<Held<'py>>> {
-    let py = world.py();
-    let table = world.getattr(intern!(py, "model_state"))?;
-    let dict = as_readable_dict(&table).ok_or_else(|| Unsupported::new_err("model_state is not a plain dict"))?;
-    let Some(value) = dict.get_item(name)? else {
-        return Ok(None);
-    };
-    if let Ok(mirror) = mirror_of(world, name) {
-        let this = mirror.get();
-        if this.with_slot(py, |slot| slot.row.is_some())? && this.holds_state(&value) {
-            return Ok(Some(Held::Row(mirror)));
-        }
-    }
-    Ok(Some(Held::Value(value)))
-}
-
 /// `model_state.get(name)` through the C API, but a detached namespace comes back as its tree,
 /// which Python rebuilds from the row (`_DetachingTable.__getitem__`): for a kernel that writes
 /// through the tree, or reads it at an event. Unsupported for a `model_state` kernels don't read.

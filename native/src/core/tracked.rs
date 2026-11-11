@@ -12,7 +12,7 @@
 //!
 //! `model_state` with a detached namespace (`_DetachingTable`) reads as a plain dict too, but a
 //! detached key holds a placeholder, not a tree: the row alone holds that namespace. A kernel that
-//! reads such a key either reads the row (`world_core::held_state`) or asks Python for the tree
+//! reads such a key either reads the row (`world_core::namespace_held`) or asks Python for the tree
 //! (`world_core::attached_state`), which rebuilds it from the row.
 
 use std::ptr::{addr_of_mut, null_mut};
