@@ -71,7 +71,7 @@ impl ActiveActions {
 
     /// Run a kernel on the rows, read from a plain dict first: the Run is locked while it runs, so
     /// the kernel must not reach the Run again.
-    fn with_rows<R>(&mut self, py: Python<'_>, f: impl FnOnce(&mut rules::ActiveActions) -> PyResult<R>) -> PyResult<R> {
+    pub(crate) fn with_rows<R>(&mut self, py: Python<'_>, f: impl FnOnce(&mut rules::ActiveActions) -> PyResult<R>) -> PyResult<R> {
         self.into_rows(py)?;
         self.rows(f)?
     }
@@ -160,7 +160,7 @@ pub(crate) fn commit_action(world: &Bound<'_, PyAny>, active: &Bound<'_, ActiveA
 /// `record_action_proposal`.
 #[pyfunction]
 #[pyo3(signature = (world, proposal, *, target_id, committed, active_actions))]
-fn record_action_proposal(
+pub(crate) fn record_action_proposal(
     world: &Bound<'_, PyAny>,
     proposal: &Bound<'_, PyAny>,
     target_id: &Bound<'_, PyAny>,

@@ -1,0 +1,1010 @@
+{
+ "utility": {
+  "state_hash": "41f627270934cff80798b88b9bc872474d23d2e6cad74083beaa4c7a32c51b56",
+  "proposals": [
+   {
+    "agent_id": "A1",
+    "action": "seek_help",
+    "choice": "0x1.8c9ba968b3e06p-2",
+    "selected": "0x1.54dcf66ad21f9p-1",
+    "next": 1454,
+    "target": null,
+    "rng_key": [
+     "behavior",
+     "key-A1",
+     "A1",
+     "minute",
+     1439,
+     "policy",
+     "utility-softmax-v1",
+     "choice"
+    ],
+    "policy_version": "utility-softmax-v1",
+    "candidates": [
+     [
+      "wait",
+      true,
+      "always",
+      "0x1.999999999999ap-4",
+      0,
+      "0x1.4e37bd9dbe82cp-7"
+     ],
+     [
+      "request_toilet",
+      true,
+      "toilet_urgency>=0.25 or hygiene_need>=0.5",
+      "0x1.8000000000000p-2",
+      0,
+      "0x1.6ea1e6ef2e272p-6"
+     ],
+     [
+      "rest",
+      true,
+      "fatigue>=0.25 or hunger>=0.70 or stress>=0.50; experimental zone action multiplier x1.5; events=e-z2; assumptions=ASM-H19-ZONE-ENVIRONMENT-V2,asm-z2,src-z2; decision interval x1.5",
+      "0x1.4cccccccccccdp-1",
+      0,
+      "0x1.2da4a80a6e70fp-4"
+     ],
+     [
+      "sleep",
+      true,
+      "fatigue>=0.65 or sleep_debt_minutes>=240 or individual_sleep_window",
+      "0x1.3000000000000p+0",
+      0,
+      "0x1.d3021997be9c4p-3"
+     ],
+     [
+      "seek_help",
+      true,
+      "support_need>=0.25 and maximum need/stress>=0.50, or information query pressure >=0.4 or uncertainty>=0.65; no_open_support_request and support_cooldown_elapsed",
+      "0x1.9000000000001p+0",
+      1,
+      "0x1.54dcf66ad21f9p-1"
+     ],
+     [
+      "seek_information",
+      false,
+      "information_query_pressure>=threshold or uncertainty>=0.65",
+      "0x1.8000000000000p-2",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "socialize",
+      false,
+      "at least one co-located person is available",
+      "0x1.2666666666667p-2",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "care_family",
+      false,
+      "co-located family or care-linked person has an unmet need",
+      "0x1.eb851eb851eb8p-4",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "help_others",
+      false,
+      "co-located person has substantially higher immediate need or stress",
+      "0x1.3333333333333p-3",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "fetch_water",
+      false,
+      "hydration_need>=0.25",
+      "0x1.70a3d70a3d70ap-3",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "collect_meal",
+      false,
+      "hunger>=0.7 or individual_meal_window",
+      "0x1.35c28f5c28f5cp-1",
+      0,
+      "0x0.0p+0"
+     ]
+    ],
+    "record": "{\"record_kind\":\"actions\",\"minute\":1439,\"agent_id\":\"A1\",\"household_id\":\"h1\",\"zone_id\":\"room\",\"action\":\"seek_help\",\"target_id\":null,\"trigger\":\"scheduled_decision\",\"policy_version\":\"utility-softmax-v1\",\"source_id\":\"SRC-U\",\"observed_state_hash\":\"41f627270934cff80798b88b9bc872474d23d2e6cad74083beaa4c7a32c51b56\",\"observed_state\":{\"agent_id\":\"A1\",\"zone_id\":\"room\",\"activity\":\"idle\",\"target_id\":null,\"needs\":{\"toilet_urgency\":0.0,\"hunger\":0.5,\"fatigue\":1.0,\"hygiene_need\":0.5,\"hydration_need\":0.0},\"psychological\":{\"sleep_debt_minutes\":120.0,\"uncertainty\":0.25,\"reassurance\":0.125,\"discontent\":0.5,\"positive_affect\":0.375,\"negative_affect\":0.25},\"sanitation_level\":1.0,\"stress\":0.0,\"trust\":0.5,\"queue\":{\"task_id\":\"t1\",\"kind\":\"toilet_queue\",\"target_id\":\"f-toilet\",\"wait_minutes\":1414},\"support\":{\"request_id\":null,\"status\":null,\"assigned_staff_id\":null,\"wait_minutes\":0,\"cooldown_remaining_minutes\":0},\"zone_environment\":{\"ambient_noise_level\":0.0,\"rest_efficiency_multiplier\":0.95,\"modifier_event_ids\":[],\"assumption_ids\":[],\"demand_modifiers\":[{\"action\":\"rest\",\"probability_multiplier\":1.5,\"duration_multiplier\":1.5,\"event_ids\":[\"e-z2\"],\"assumption_ids\":[\"ASM-H19-ZONE-ENVIRONMENT-V2\",\"asm-z2\",\"src-z2\"]}]}},\"observed_state_status\":\"recorded\",\"candidates\":[{\"action\":\"wait\",\"eligible\":true,\"trigger\":\"always\",\"utility\":0.1,\"probability\":0.01019951590159359,\"urgency_priority\":0},{\"action\":\"request_toilet\",\"eligible\":true,\"trigger\":\"toilet_urgency>=0.25 or hygiene_need>=0.5\",\"utility\":0.375,\"probability\":0.02237746765306032,\"urgency_priority\":0},{\"action\":\"rest\",\"eligible\":true,\"trigger\":\"fatigue>=0.25 or hunger>=0.70 or stress>=0.50; experimental zone action multiplier x1.5; events=e-z2; assumptions=ASM-H19-ZONE-ENVIRONMENT-V2,asm-z2,src-z2; decision interval x1.5\",\"utility\":0.65,\"probability\":0.07364335671345777,\"urgency_priority\":0},{\"action\":\"sleep\",\"eligible\":true,\"trigger\":\"fatigue>=0.65 or sleep_debt_minutes>=240 or individual_sleep_window\",\"utility\":1.1875,\"probability\":0.22803134912812884,\"urgency_priority\":0},{\"action\":\"seek_help\",\"eligible\":true,\"trigger\":\"support_need>=0.25 and maximum need/stress>=0.50, or information query pressure >=0.4 or uncertainty>=0.65; no_open_support_request and support_cooldown_elapsed\",\"utility\":1.5625000000000002,\"probability\":0.6657483106037595,\"urgency_priority\":1},{\"action\":\"seek_information\",\"eligible\":false,\"trigger\":\"information_query_pressure>=threshold or uncertainty>=0.65\",\"utility\":0.375,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"socialize\",\"eligible\":false,\"trigger\":\"at least one co-located person is available\",\"utility\":0.28750000000000003,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"care_family\",\"eligible\":false,\"trigger\":\"co-located family or care-linked person has an unmet need\",\"utility\":0.12,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"help_others\",\"eligible\":false,\"trigger\":\"co-located person has substantially higher immediate need or stress\",\"utility\":0.15,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"fetch_water\",\"eligible\":false,\"trigger\":\"hydration_need>=0.25\",\"utility\":0.18,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"collect_meal\",\"eligible\":false,\"trigger\":\"hunger>=0.7 or individual_meal_window\",\"utility\":0.605,\"probability\":0.0,\"urgency_priority\":0}],\"candidate_count\":11,\"candidates_truncated\":false,\"next_decision_at\":1454,\"status\":\"selected_proposal\",\"execution_evidence\":\"consult event history; selection is not proof of completion\"}"
+   },
+   {
+    "agent_id": "A2",
+    "action": "care_family",
+    "choice": "0x1.49c18137b269dp-2",
+    "selected": "0x1.410a4bf5263eap-2",
+    "next": 1454,
+    "target": "A3",
+    "rng_key": [
+     "behavior",
+     "key-A2",
+     "A2",
+     "minute",
+     1439,
+     "policy",
+     "utility-softmax-v1",
+     "choice"
+    ],
+    "policy_version": "utility-softmax-v1",
+    "candidates": [
+     [
+      "wait",
+      true,
+      "always",
+      "0x1.6666666666666p-3",
+      0,
+      "0x1.d530a8930c6e8p-5"
+     ],
+     [
+      "request_toilet",
+      false,
+      "toilet_urgency>=0.25 or hygiene_need>=0.5; experimental zone action multiplier x0.5; events=e-z3; assumptions=ASM-H19-ZONE-ENVIRONMENT-V2,src-z3",
+      "0x1.3f5c28f5c28f6p-2",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "rest",
+      true,
+      "fatigue>=0.25 or hunger>=0.70 or stress>=0.50",
+      "0x1.b333333333334p-2",
+      0,
+      "0x1.82c825c08ffe7p-4"
+     ],
+     [
+      "sleep",
+      false,
+      "fatigue>=0.65 or sleep_debt_minutes>=240 or individual_sleep_window",
+      "0x1.f547ae147ae14p-2",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "seek_help",
+      false,
+      "support_need>=0.25 and maximum need/stress>=0.50, or information query pressure >=0.4 or uncertainty>=0.65; no_open_support_request and support_cooldown_elapsed",
+      "0x1.d000000000001p-1",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "seek_information",
+      false,
+      "information_query_pressure>=threshold or uncertainty>=0.65",
+      "0x1.8666666666667p-1",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "socialize",
+      true,
+      "at least one co-located person is available",
+      "0x1.d99999999999ap-2",
+      0,
+      "0x1.a0e7efa04158dp-4"
+     ],
+     [
+      "care_family",
+      true,
+      "co-located family or care-linked person has an unmet need",
+      "0x1.0666666666666p+0",
+      1,
+      "0x1.410a4bf5263eap-2"
+     ],
+     [
+      "help_others",
+      true,
+      "co-located person has substantially higher immediate need or stress",
+      "0x1.028f5c28f5c29p+0",
+      1,
+      "0x1.378d531666a5bp-2"
+     ],
+     [
+      "fetch_water",
+      true,
+      "hydration_need>=0.25",
+      "0x1.28f5c28f5c290p-1",
+      0,
+      "0x1.07ac8d13ba700p-3"
+     ],
+     [
+      "collect_meal",
+      false,
+      "hunger>=0.7 or individual_meal_window",
+      "0x1.6666666666666p-2",
+      0,
+      "0x0.0p+0"
+     ]
+    ],
+    "record": "{\"record_kind\":\"actions\",\"minute\":1439,\"agent_id\":\"A2\",\"household_id\":null,\"zone_id\":\"hall\",\"action\":\"care_family\",\"target_id\":\"A3\",\"trigger\":\"scheduled_decision\",\"policy_version\":\"utility-softmax-v1\",\"source_id\":\"SRC-U\",\"observed_state_hash\":\"41f627270934cff80798b88b9bc872474d23d2e6cad74083beaa4c7a32c51b56\",\"observed_state\":{\"agent_id\":\"A2\",\"zone_id\":\"hall\",\"activity\":\"idle\",\"target_id\":null,\"needs\":{\"toilet_urgency\":0.1,\"hunger\":0.2,\"fatigue\":0.3,\"hygiene_need\":0.0625,\"hydration_need\":0.4},\"psychological\":{\"sleep_debt_minutes\":30.5,\"uncertainty\":0.75,\"reassurance\":0.0,\"discontent\":0.125,\"positive_affect\":0.625,\"negative_affect\":0.5},\"sanitation_level\":1.0,\"stress\":0.5,\"trust\":0.5,\"queue\":{\"task_id\":null,\"kind\":null,\"target_id\":null,\"wait_minutes\":0},\"support\":{\"request_id\":\"r1\",\"status\":\"pending\",\"assigned_staff_id\":null,\"wait_minutes\":1419,\"cooldown_remaining_minutes\":0},\"zone_environment\":{\"ambient_noise_level\":0.0,\"rest_efficiency_multiplier\":0.9,\"modifier_event_ids\":[],\"assumption_ids\":[],\"demand_modifiers\":[{\"action\":\"request_toilet\",\"probability_multiplier\":0.5,\"duration_multiplier\":1.0,\"event_ids\":[\"e-z3\"],\"assumption_ids\":[\"ASM-H19-ZONE-ENVIRONMENT-V2\",\"src-z3\"]}]}},\"observed_state_status\":\"recorded\",\"candidates\":[{\"action\":\"wait\",\"eligible\":true,\"trigger\":\"always\",\"utility\":0.175,\"probability\":0.05727417874039792,\"urgency_priority\":0},{\"action\":\"request_toilet\",\"eligible\":false,\"trigger\":\"toilet_urgency>=0.25 or hygiene_need>=0.5; experimental zone action multiplier x0.5; events=e-z3; assumptions=ASM-H19-ZONE-ENVIRONMENT-V2,src-z3\",\"utility\":0.311875,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"rest\",\"eligible\":true,\"trigger\":\"fatigue>=0.25 or hunger>=0.70 or stress>=0.50\",\"utility\":0.42500000000000004,\"probability\":0.09442915675117512,\"urgency_priority\":0},{\"action\":\"sleep\",\"eligible\":false,\"trigger\":\"fatigue>=0.65 or sleep_debt_minutes>=240 or individual_sleep_window\",\"utility\":0.48953125,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"seek_help\",\"eligible\":false,\"trigger\":\"support_need>=0.25 and maximum need/stress>=0.50, or information query pressure >=0.4 or uncertainty>=0.65; no_open_support_request and support_cooldown_elapsed\",\"utility\":0.9062500000000001,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"seek_information\",\"eligible\":false,\"trigger\":\"information_query_pressure>=threshold or uncertainty>=0.65\",\"utility\":0.7625000000000001,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"socialize\",\"eligible\":true,\"trigger\":\"at least one co-located person is available\",\"utility\":0.4625,\"probability\":0.10178369144349216,\"urgency_priority\":0},{\"action\":\"care_family\",\"eligible\":true,\"trigger\":\"co-located family or care-linked person has an unmet need\",\"utility\":1.025,\"probability\":0.31351584132931853,\"urgency_priority\":1},{\"action\":\"help_others\",\"eligible\":true,\"trigger\":\"co-located person has substantially higher immediate need or stress\",\"utility\":1.01,\"probability\":0.30425004791474003,\"urgency_priority\":1},{\"action\":\"fetch_water\",\"eligible\":true,\"trigger\":\"hydration_need>=0.25\",\"utility\":0.5800000000000001,\"probability\":0.12874708382087618,\"urgency_priority\":0},{\"action\":\"collect_meal\",\"eligible\":false,\"trigger\":\"hunger>=0.7 or individual_meal_window\",\"utility\":0.35,\"probability\":0.0,\"urgency_priority\":0}],\"candidate_count\":11,\"candidates_truncated\":false,\"next_decision_at\":1454,\"status\":\"selected_proposal\",\"execution_evidence\":\"consult event history; selection is not proof of completion\"}"
+   },
+   {
+    "agent_id": "A3",
+    "action": "seek_help",
+    "choice": "0x1.2e6bbfdbf62efp-2",
+    "selected": "0x1.6c390ec5c32abp-2",
+    "next": 1459,
+    "target": null,
+    "rng_key": [
+     "behavior",
+     "key-A3",
+     "A3",
+     "minute",
+     1439,
+     "policy",
+     "utility-softmax-v1",
+     "choice"
+    ],
+    "policy_version": "utility-softmax-v1",
+    "candidates": [
+     [
+      "wait",
+      true,
+      "always",
+      "0x1.d70a3d70a3d71p-4",
+      0,
+      "0x1.6a42ab4499b41p-8"
+     ],
+     [
+      "request_toilet",
+      true,
+      "toilet_urgency>=0.25 or hygiene_need>=0.5; experimental zone action multiplier x0.5; events=e-z3; assumptions=ASM-H19-ZONE-ENVIRONMENT-V2,src-z3",
+      "0x1.c000000000000p-1",
+      0,
+      "0x1.8d2a1879c56d8p-6"
+     ],
+     [
+      "rest",
+      true,
+      "fatigue>=0.25 or hunger>=0.70 or stress>=0.50",
+      "0x1.2cccccccccccep-1",
+      0,
+      "0x1.5d59209c5b6c6p-6"
+     ],
+     [
+      "sleep",
+      false,
+      "fatigue>=0.65 or sleep_debt_minutes>=240 or individual_sleep_window",
+      "0x1.3333333333334p-2",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "seek_help",
+      true,
+      "support_need>=0.25 and maximum need/stress>=0.50, or information query pressure >=0.4 or uncertainty>=0.65; no_open_support_request and support_cooldown_elapsed",
+      "0x1.928f5c28f5c2ap+0",
+      1,
+      "0x1.6c390ec5c32abp-2"
+     ],
+     [
+      "seek_information",
+      true,
+      "information_query_pressure>=threshold or uncertainty>=0.65",
+      "0x1.b333333333333p-2",
+      0,
+      "0x1.b7307437d01f9p-7"
+     ],
+     [
+      "socialize",
+      true,
+      "at least one co-located person is available",
+      "0x1.999999999999ap-3",
+      0,
+      "0x1.cdd7469549767p-8"
+     ],
+     [
+      "care_family",
+      true,
+      "co-located family or care-linked person has an unmet need",
+      "0x1.6147ae147ae14p-2",
+      0,
+      "0x1.5d7311f3d1e4cp-7"
+     ],
+     [
+      "help_others",
+      false,
+      "co-located person has substantially higher immediate need or stress",
+      "0x1.3333333333333p-3",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "fetch_water",
+      true,
+      "hydration_need>=0.25",
+      "0x1.87ae147ae147bp+0",
+      1,
+      "0x1.4293584648065p-2"
+     ],
+     [
+      "collect_meal",
+      true,
+      "hunger>=0.7 or individual_meal_window",
+      "0x1.71eb851eb851fp+0",
+      1,
+      "0x1.fa0bc2d39c494p-3"
+     ]
+    ],
+    "record": "{\"record_kind\":\"actions\",\"minute\":1439,\"agent_id\":\"A3\",\"household_id\":null,\"zone_id\":\"hall\",\"action\":\"seek_help\",\"target_id\":null,\"trigger\":\"scheduled_decision\",\"policy_version\":\"utility-softmax-v1\",\"source_id\":\"SRC-U\",\"observed_state_hash\":\"41f627270934cff80798b88b9bc872474d23d2e6cad74083beaa4c7a32c51b56\",\"observed_state\":{\"agent_id\":\"A3\",\"zone_id\":\"hall\",\"activity\":\"idle\",\"target_id\":null,\"needs\":{\"toilet_urgency\":0.75,\"hunger\":0.9,\"fatigue\":0.1,\"hygiene_need\":0.0,\"hydration_need\":0.85},\"psychological\":{\"sleep_debt_minutes\":0.0,\"uncertainty\":0.0,\"reassurance\":0.0,\"discontent\":0.0,\"positive_affect\":0.5,\"negative_affect\":0.0},\"sanitation_level\":1.0,\"stress\":0.875,\"trust\":0.5,\"queue\":{\"task_id\":null,\"kind\":null,\"target_id\":null,\"wait_minutes\":0},\"support\":{\"request_id\":null,\"status\":null,\"assigned_staff_id\":null,\"wait_minutes\":0,\"cooldown_remaining_minutes\":0},\"zone_environment\":{\"ambient_noise_level\":0.0,\"rest_efficiency_multiplier\":0.9,\"modifier_event_ids\":[],\"assumption_ids\":[],\"demand_modifiers\":[{\"action\":\"request_toilet\",\"probability_multiplier\":0.5,\"duration_multiplier\":1.0,\"event_ids\":[\"e-z3\"],\"assumption_ids\":[\"ASM-H19-ZONE-ENVIRONMENT-V2\",\"src-z3\"]}]}},\"observed_state_status\":\"recorded\",\"candidates\":[{\"action\":\"wait\",\"eligible\":true,\"trigger\":\"always\",\"utility\":0.115,\"probability\":0.005527655423611944,\"urgency_priority\":0},{\"action\":\"request_toilet\",\"eligible\":true,\"trigger\":\"toilet_urgency>=0.25 or hygiene_need>=0.5; experimental zone action multiplier x0.5; events=e-z3; assumptions=ASM-H19-ZONE-ENVIRONMENT-V2,src-z3\",\"utility\":0.875,\"probability\":0.02424099340631511,\"urgency_priority\":0},{\"action\":\"rest\",\"eligible\":true,\"trigger\":\"fatigue>=0.25 or hunger>=0.70 or stress>=0.50\",\"utility\":0.5875000000000001,\"probability\":0.021322519155936324,\"urgency_priority\":0},{\"action\":\"sleep\",\"eligible\":false,\"trigger\":\"fatigue>=0.65 or sleep_debt_minutes>=240 or individual_sleep_window\",\"utility\":0.30000000000000004,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"seek_help\",\"eligible\":true,\"trigger\":\"support_need>=0.25 and maximum need/stress>=0.50, or information query pressure >=0.4 or uncertainty>=0.65; no_open_support_request and support_cooldown_elapsed\",\"utility\":1.5725000000000002,\"probability\":0.3556864078716823,\"urgency_priority\":1},{\"action\":\"seek_information\",\"eligible\":true,\"trigger\":\"information_query_pressure>=threshold or uncertainty>=0.65\",\"utility\":0.425,\"probability\":0.013402992961005987,\"urgency_priority\":0},{\"action\":\"socialize\",\"eligible\":true,\"trigger\":\"at least one co-located person is available\",\"utility\":0.2,\"probability\":0.007047133190359967,\"urgency_priority\":0},{\"action\":\"care_family\",\"eligible\":true,\"trigger\":\"co-located family or care-linked person has an unmet need\",\"utility\":0.345,\"probability\":0.010664352193671033,\"urgency_priority\":0},{\"action\":\"help_others\",\"eligible\":false,\"trigger\":\"co-located person has substantially higher immediate need or stress\",\"utility\":0.15,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"fetch_water\",\"eligible\":true,\"trigger\":\"hydration_need>=0.25\",\"utility\":1.53,\"probability\":0.3150152008911447,\"urgency_priority\":1},{\"action\":\"collect_meal\",\"eligible\":true,\"trigger\":\"hunger>=0.7 or individual_meal_window\",\"utility\":1.445,\"probability\":0.24709274490627264,\"urgency_priority\":1}],\"candidate_count\":11,\"candidates_truncated\":false,\"next_decision_at\":1459,\"status\":\"selected_proposal\",\"execution_evidence\":\"consult event history; selection is not proof of completion\"}"
+   }
+  ]
+ },
+ "sleep": {
+  "state_hash": "41f627270934cff80798b88b9bc872474d23d2e6cad74083beaa4c7a32c51b56",
+  "proposals": [
+   {
+    "agent_id": "A1",
+    "action": "sleep",
+    "choice": "0x1.98c33375dd7c1p-2",
+    "selected": "0x1.92ab6c0a36c8dp-2",
+    "next": 1454,
+    "target": null,
+    "rng_key": [
+     "behavior",
+     "key-A1",
+     "A1",
+     "minute",
+     1439,
+     "policy",
+     "sleep-aware-utility-softmax-v2",
+     "choice"
+    ],
+    "policy_version": "sleep-aware-utility-softmax-v2",
+    "candidates": [
+     [
+      "wait",
+      true,
+      "always",
+      "0x1.999999999999ap-4",
+      0,
+      "0x1.06b2059635c06p-7"
+     ],
+     [
+      "request_toilet",
+      true,
+      "toilet_urgency>=0.25 or hygiene_need>=0.5",
+      "0x1.8000000000000p-2",
+      0,
+      "0x1.202c620f83719p-6"
+     ],
+     [
+      "rest",
+      true,
+      "fatigue>=0.25 or hunger>=0.70 or stress>=0.50; experimental zone action multiplier x1.5; events=e-z2; assumptions=ASM-H19-ZONE-ENVIRONMENT-V2,asm-z2,src-z2; decision interval x1.5",
+      "0x1.4cccccccccccdp-1",
+      0,
+      "0x1.da2efd8881f4cp-5"
+     ],
+     [
+      "sleep",
+      true,
+      "fatigue>=0.65 or sleep_debt_minutes>=240 or individual_sleep_window",
+      "0x1.7666666666666p+0",
+      0,
+      "0x1.92ab6c0a36c8dp-2"
+     ],
+     [
+      "seek_help",
+      true,
+      "support_need>=0.25 and maximum need/stress>=0.50, or information query pressure >=0.4 or uncertainty>=0.65; no_open_support_request and support_cooldown_elapsed",
+      "0x1.9000000000001p+0",
+      1,
+      "0x1.0beb2efb8789cp-1"
+     ],
+     [
+      "seek_information",
+      false,
+      "information_query_pressure>=threshold or uncertainty>=0.65",
+      "0x1.8000000000000p-2",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "socialize",
+      false,
+      "at least one co-located person is available",
+      "0x1.2666666666667p-2",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "care_family",
+      false,
+      "co-located family or care-linked person has an unmet need",
+      "0x1.eb851eb851eb8p-4",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "help_others",
+      false,
+      "co-located person has substantially higher immediate need or stress",
+      "0x1.3333333333333p-3",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "fetch_water",
+      false,
+      "hydration_need>=0.25",
+      "0x1.70a3d70a3d70ap-3",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "collect_meal",
+      false,
+      "hunger>=0.7 or individual_meal_window",
+      "0x1.35c28f5c28f5cp-1",
+      0,
+      "0x0.0p+0"
+     ]
+    ],
+    "record": "{\"record_kind\":\"actions\",\"minute\":1439,\"agent_id\":\"A1\",\"household_id\":\"h1\",\"zone_id\":\"room\",\"action\":\"sleep\",\"target_id\":null,\"trigger\":\"scheduled_decision\",\"policy_version\":\"sleep-aware-utility-softmax-v2\",\"source_id\":null,\"observed_state_hash\":\"41f627270934cff80798b88b9bc872474d23d2e6cad74083beaa4c7a32c51b56\",\"observed_state\":{\"agent_id\":\"A1\",\"zone_id\":\"room\",\"activity\":\"idle\",\"target_id\":null,\"needs\":{\"toilet_urgency\":0.0,\"hunger\":0.5,\"fatigue\":1.0,\"hygiene_need\":0.5,\"hydration_need\":0.0},\"psychological\":{\"sleep_debt_minutes\":120.0,\"uncertainty\":0.25,\"reassurance\":0.125,\"discontent\":0.5,\"positive_affect\":0.375,\"negative_affect\":0.25},\"sanitation_level\":1.0,\"stress\":0.0,\"trust\":0.5,\"queue\":{\"task_id\":\"t1\",\"kind\":\"toilet_queue\",\"target_id\":\"f-toilet\",\"wait_minutes\":1414},\"support\":{\"request_id\":null,\"status\":null,\"assigned_staff_id\":null,\"wait_minutes\":0,\"cooldown_remaining_minutes\":0},\"zone_environment\":{\"ambient_noise_level\":0.0,\"rest_efficiency_multiplier\":0.95,\"modifier_event_ids\":[],\"assumption_ids\":[],\"demand_modifiers\":[{\"action\":\"rest\",\"probability_multiplier\":1.5,\"duration_multiplier\":1.5,\"event_ids\":[\"e-z2\"],\"assumption_ids\":[\"ASM-H19-ZONE-ENVIRONMENT-V2\",\"asm-z2\",\"src-z2\"]}]}},\"observed_state_status\":\"recorded\",\"candidates\":[{\"action\":\"wait\",\"eligible\":true,\"trigger\":\"always\",\"utility\":0.1,\"probability\":0.008016827323826813,\"urgency_priority\":0},{\"action\":\"request_toilet\",\"eligible\":true,\"trigger\":\"toilet_urgency>=0.25 or hygiene_need>=0.5\",\"utility\":0.375,\"probability\":0.01758870674353039,\"urgency_priority\":0},{\"action\":\"rest\",\"eligible\":true,\"trigger\":\"fatigue>=0.25 or hunger>=0.70 or stress>=0.50; experimental zone action multiplier x1.5; events=e-z2; assumptions=ASM-H19-ZONE-ENVIRONMENT-V2,asm-z2,src-z2; decision interval x1.5\",\"utility\":0.65,\"probability\":0.05788373487672391,\"urgency_priority\":0},{\"action\":\"sleep\",\"eligible\":true,\"trigger\":\"fatigue>=0.65 or sleep_debt_minutes>=240 or individual_sleep_window\",\"utility\":1.4625,\"probability\":0.39323204815236396,\"urgency_priority\":0},{\"action\":\"seek_help\",\"eligible\":true,\"trigger\":\"support_need>=0.25 and maximum need/stress>=0.50, or information query pressure >=0.4 or uncertainty>=0.65; no_open_support_request and support_cooldown_elapsed\",\"utility\":1.5625000000000002,\"probability\":0.523278682903555,\"urgency_priority\":1},{\"action\":\"seek_information\",\"eligible\":false,\"trigger\":\"information_query_pressure>=threshold or uncertainty>=0.65\",\"utility\":0.375,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"socialize\",\"eligible\":false,\"trigger\":\"at least one co-located person is available\",\"utility\":0.28750000000000003,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"care_family\",\"eligible\":false,\"trigger\":\"co-located family or care-linked person has an unmet need\",\"utility\":0.12,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"help_others\",\"eligible\":false,\"trigger\":\"co-located person has substantially higher immediate need or stress\",\"utility\":0.15,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"fetch_water\",\"eligible\":false,\"trigger\":\"hydration_need>=0.25\",\"utility\":0.18,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"collect_meal\",\"eligible\":false,\"trigger\":\"hunger>=0.7 or individual_meal_window\",\"utility\":0.605,\"probability\":0.0,\"urgency_priority\":0}],\"candidate_count\":11,\"candidates_truncated\":false,\"next_decision_at\":1454,\"status\":\"selected_proposal\",\"execution_evidence\":\"consult event history; selection is not proof of completion\"}"
+   },
+   {
+    "agent_id": "A2",
+    "action": "help_others",
+    "choice": "0x1.7641712246877p-1",
+    "selected": "0x1.378d531666a5bp-2",
+    "next": 1454,
+    "target": "A3",
+    "rng_key": [
+     "behavior",
+     "key-A2",
+     "A2",
+     "minute",
+     1439,
+     "policy",
+     "sleep-aware-utility-softmax-v2",
+     "choice"
+    ],
+    "policy_version": "sleep-aware-utility-softmax-v2",
+    "candidates": [
+     [
+      "wait",
+      true,
+      "always",
+      "0x1.6666666666666p-3",
+      0,
+      "0x1.d530a8930c6e8p-5"
+     ],
+     [
+      "request_toilet",
+      false,
+      "toilet_urgency>=0.25 or hygiene_need>=0.5; experimental zone action multiplier x0.5; events=e-z3; assumptions=ASM-H19-ZONE-ENVIRONMENT-V2,src-z3",
+      "0x1.3f5c28f5c28f6p-2",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "rest",
+      true,
+      "fatigue>=0.25 or hunger>=0.70 or stress>=0.50",
+      "0x1.b333333333334p-2",
+      0,
+      "0x1.82c825c08ffe7p-4"
+     ],
+     [
+      "sleep",
+      false,
+      "fatigue>=0.65 or sleep_debt_minutes>=240 or individual_sleep_window",
+      "0x1.1e6d3a06d3a07p-1",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "seek_help",
+      false,
+      "support_need>=0.25 and maximum need/stress>=0.50, or information query pressure >=0.4 or uncertainty>=0.65; no_open_support_request and support_cooldown_elapsed",
+      "0x1.d000000000001p-1",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "seek_information",
+      false,
+      "information_query_pressure>=threshold or uncertainty>=0.65",
+      "0x1.8666666666667p-1",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "socialize",
+      true,
+      "at least one co-located person is available",
+      "0x1.d99999999999ap-2",
+      0,
+      "0x1.a0e7efa04158dp-4"
+     ],
+     [
+      "care_family",
+      true,
+      "co-located family or care-linked person has an unmet need",
+      "0x1.0666666666666p+0",
+      1,
+      "0x1.410a4bf5263eap-2"
+     ],
+     [
+      "help_others",
+      true,
+      "co-located person has substantially higher immediate need or stress",
+      "0x1.028f5c28f5c29p+0",
+      1,
+      "0x1.378d531666a5bp-2"
+     ],
+     [
+      "fetch_water",
+      true,
+      "hydration_need>=0.25",
+      "0x1.28f5c28f5c290p-1",
+      0,
+      "0x1.07ac8d13ba700p-3"
+     ],
+     [
+      "collect_meal",
+      false,
+      "hunger>=0.7 or individual_meal_window",
+      "0x1.6666666666666p-2",
+      0,
+      "0x0.0p+0"
+     ]
+    ],
+    "record": "{\"record_kind\":\"actions\",\"minute\":1439,\"agent_id\":\"A2\",\"household_id\":null,\"zone_id\":\"hall\",\"action\":\"help_others\",\"target_id\":\"A3\",\"trigger\":\"scheduled_decision\",\"policy_version\":\"sleep-aware-utility-softmax-v2\",\"source_id\":null,\"observed_state_hash\":\"41f627270934cff80798b88b9bc872474d23d2e6cad74083beaa4c7a32c51b56\",\"observed_state\":{\"agent_id\":\"A2\",\"zone_id\":\"hall\",\"activity\":\"idle\",\"target_id\":null,\"needs\":{\"toilet_urgency\":0.1,\"hunger\":0.2,\"fatigue\":0.3,\"hygiene_need\":0.0625,\"hydration_need\":0.4},\"psychological\":{\"sleep_debt_minutes\":30.5,\"uncertainty\":0.75,\"reassurance\":0.0,\"discontent\":0.125,\"positive_affect\":0.625,\"negative_affect\":0.5},\"sanitation_level\":1.0,\"stress\":0.5,\"trust\":0.5,\"queue\":{\"task_id\":null,\"kind\":null,\"target_id\":null,\"wait_minutes\":0},\"support\":{\"request_id\":\"r1\",\"status\":\"pending\",\"assigned_staff_id\":null,\"wait_minutes\":1419,\"cooldown_remaining_minutes\":0},\"zone_environment\":{\"ambient_noise_level\":0.0,\"rest_efficiency_multiplier\":0.9,\"modifier_event_ids\":[],\"assumption_ids\":[],\"demand_modifiers\":[{\"action\":\"request_toilet\",\"probability_multiplier\":0.5,\"duration_multiplier\":1.0,\"event_ids\":[\"e-z3\"],\"assumption_ids\":[\"ASM-H19-ZONE-ENVIRONMENT-V2\",\"src-z3\"]}]}},\"observed_state_status\":\"recorded\",\"candidates\":[{\"action\":\"wait\",\"eligible\":true,\"trigger\":\"always\",\"utility\":0.175,\"probability\":0.05727417874039792,\"urgency_priority\":0},{\"action\":\"request_toilet\",\"eligible\":false,\"trigger\":\"toilet_urgency>=0.25 or hygiene_need>=0.5; experimental zone action multiplier x0.5; events=e-z3; assumptions=ASM-H19-ZONE-ENVIRONMENT-V2,src-z3\",\"utility\":0.311875,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"rest\",\"eligible\":true,\"trigger\":\"fatigue>=0.25 or hunger>=0.70 or stress>=0.50\",\"utility\":0.42500000000000004,\"probability\":0.09442915675117512,\"urgency_priority\":0},{\"action\":\"sleep\",\"eligible\":false,\"trigger\":\"fatigue>=0.65 or sleep_debt_minutes>=240 or individual_sleep_window\",\"utility\":0.5594270833333334,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"seek_help\",\"eligible\":false,\"trigger\":\"support_need>=0.25 and maximum need/stress>=0.50, or information query pressure >=0.4 or uncertainty>=0.65; no_open_support_request and support_cooldown_elapsed\",\"utility\":0.9062500000000001,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"seek_information\",\"eligible\":false,\"trigger\":\"information_query_pressure>=threshold or uncertainty>=0.65\",\"utility\":0.7625000000000001,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"socialize\",\"eligible\":true,\"trigger\":\"at least one co-located person is available\",\"utility\":0.4625,\"probability\":0.10178369144349216,\"urgency_priority\":0},{\"action\":\"care_family\",\"eligible\":true,\"trigger\":\"co-located family or care-linked person has an unmet need\",\"utility\":1.025,\"probability\":0.31351584132931853,\"urgency_priority\":1},{\"action\":\"help_others\",\"eligible\":true,\"trigger\":\"co-located person has substantially higher immediate need or stress\",\"utility\":1.01,\"probability\":0.30425004791474003,\"urgency_priority\":1},{\"action\":\"fetch_water\",\"eligible\":true,\"trigger\":\"hydration_need>=0.25\",\"utility\":0.5800000000000001,\"probability\":0.12874708382087618,\"urgency_priority\":0},{\"action\":\"collect_meal\",\"eligible\":false,\"trigger\":\"hunger>=0.7 or individual_meal_window\",\"utility\":0.35,\"probability\":0.0,\"urgency_priority\":0}],\"candidate_count\":11,\"candidates_truncated\":false,\"next_decision_at\":1454,\"status\":\"selected_proposal\",\"execution_evidence\":\"consult event history; selection is not proof of completion\"}"
+   },
+   {
+    "agent_id": "A3",
+    "action": "seek_help",
+    "choice": "0x1.11f14c6aac1e4p-4",
+    "selected": "0x1.6c390ec5c32abp-2",
+    "next": 1459,
+    "target": null,
+    "rng_key": [
+     "behavior",
+     "key-A3",
+     "A3",
+     "minute",
+     1439,
+     "policy",
+     "sleep-aware-utility-softmax-v2",
+     "choice"
+    ],
+    "policy_version": "sleep-aware-utility-softmax-v2",
+    "candidates": [
+     [
+      "wait",
+      true,
+      "always",
+      "0x1.d70a3d70a3d71p-4",
+      0,
+      "0x1.6a42ab4499b41p-8"
+     ],
+     [
+      "request_toilet",
+      true,
+      "toilet_urgency>=0.25 or hygiene_need>=0.5; experimental zone action multiplier x0.5; events=e-z3; assumptions=ASM-H19-ZONE-ENVIRONMENT-V2,src-z3",
+      "0x1.c000000000000p-1",
+      0,
+      "0x1.8d2a1879c56d8p-6"
+     ],
+     [
+      "rest",
+      true,
+      "fatigue>=0.25 or hunger>=0.70 or stress>=0.50",
+      "0x1.2cccccccccccep-1",
+      0,
+      "0x1.5d59209c5b6c6p-6"
+     ],
+     [
+      "sleep",
+      false,
+      "fatigue>=0.65 or sleep_debt_minutes>=240 or individual_sleep_window",
+      "0x1.3333333333334p-2",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "seek_help",
+      true,
+      "support_need>=0.25 and maximum need/stress>=0.50, or information query pressure >=0.4 or uncertainty>=0.65; no_open_support_request and support_cooldown_elapsed",
+      "0x1.928f5c28f5c2ap+0",
+      1,
+      "0x1.6c390ec5c32abp-2"
+     ],
+     [
+      "seek_information",
+      true,
+      "information_query_pressure>=threshold or uncertainty>=0.65",
+      "0x1.b333333333333p-2",
+      0,
+      "0x1.b7307437d01f9p-7"
+     ],
+     [
+      "socialize",
+      true,
+      "at least one co-located person is available",
+      "0x1.999999999999ap-3",
+      0,
+      "0x1.cdd7469549767p-8"
+     ],
+     [
+      "care_family",
+      true,
+      "co-located family or care-linked person has an unmet need",
+      "0x1.6147ae147ae14p-2",
+      0,
+      "0x1.5d7311f3d1e4cp-7"
+     ],
+     [
+      "help_others",
+      false,
+      "co-located person has substantially higher immediate need or stress",
+      "0x1.3333333333333p-3",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "fetch_water",
+      true,
+      "hydration_need>=0.25",
+      "0x1.87ae147ae147bp+0",
+      1,
+      "0x1.4293584648065p-2"
+     ],
+     [
+      "collect_meal",
+      true,
+      "hunger>=0.7 or individual_meal_window",
+      "0x1.71eb851eb851fp+0",
+      1,
+      "0x1.fa0bc2d39c494p-3"
+     ]
+    ],
+    "record": "{\"record_kind\":\"actions\",\"minute\":1439,\"agent_id\":\"A3\",\"household_id\":null,\"zone_id\":\"hall\",\"action\":\"seek_help\",\"target_id\":null,\"trigger\":\"scheduled_decision\",\"policy_version\":\"sleep-aware-utility-softmax-v2\",\"source_id\":null,\"observed_state_hash\":\"41f627270934cff80798b88b9bc872474d23d2e6cad74083beaa4c7a32c51b56\",\"observed_state\":{\"agent_id\":\"A3\",\"zone_id\":\"hall\",\"activity\":\"idle\",\"target_id\":null,\"needs\":{\"toilet_urgency\":0.75,\"hunger\":0.9,\"fatigue\":0.1,\"hygiene_need\":0.0,\"hydration_need\":0.85},\"psychological\":{\"sleep_debt_minutes\":0.0,\"uncertainty\":0.0,\"reassurance\":0.0,\"discontent\":0.0,\"positive_affect\":0.5,\"negative_affect\":0.0},\"sanitation_level\":1.0,\"stress\":0.875,\"trust\":0.5,\"queue\":{\"task_id\":null,\"kind\":null,\"target_id\":null,\"wait_minutes\":0},\"support\":{\"request_id\":null,\"status\":null,\"assigned_staff_id\":null,\"wait_minutes\":0,\"cooldown_remaining_minutes\":0},\"zone_environment\":{\"ambient_noise_level\":0.0,\"rest_efficiency_multiplier\":0.9,\"modifier_event_ids\":[],\"assumption_ids\":[],\"demand_modifiers\":[{\"action\":\"request_toilet\",\"probability_multiplier\":0.5,\"duration_multiplier\":1.0,\"event_ids\":[\"e-z3\"],\"assumption_ids\":[\"ASM-H19-ZONE-ENVIRONMENT-V2\",\"src-z3\"]}]}},\"observed_state_status\":\"recorded\",\"candidates\":[{\"action\":\"wait\",\"eligible\":true,\"trigger\":\"always\",\"utility\":0.115,\"probability\":0.005527655423611944,\"urgency_priority\":0},{\"action\":\"request_toilet\",\"eligible\":true,\"trigger\":\"toilet_urgency>=0.25 or hygiene_need>=0.5; experimental zone action multiplier x0.5; events=e-z3; assumptions=ASM-H19-ZONE-ENVIRONMENT-V2,src-z3\",\"utility\":0.875,\"probability\":0.02424099340631511,\"urgency_priority\":0},{\"action\":\"rest\",\"eligible\":true,\"trigger\":\"fatigue>=0.25 or hunger>=0.70 or stress>=0.50\",\"utility\":0.5875000000000001,\"probability\":0.021322519155936324,\"urgency_priority\":0},{\"action\":\"sleep\",\"eligible\":false,\"trigger\":\"fatigue>=0.65 or sleep_debt_minutes>=240 or individual_sleep_window\",\"utility\":0.30000000000000004,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"seek_help\",\"eligible\":true,\"trigger\":\"support_need>=0.25 and maximum need/stress>=0.50, or information query pressure >=0.4 or uncertainty>=0.65; no_open_support_request and support_cooldown_elapsed\",\"utility\":1.5725000000000002,\"probability\":0.3556864078716823,\"urgency_priority\":1},{\"action\":\"seek_information\",\"eligible\":true,\"trigger\":\"information_query_pressure>=threshold or uncertainty>=0.65\",\"utility\":0.425,\"probability\":0.013402992961005987,\"urgency_priority\":0},{\"action\":\"socialize\",\"eligible\":true,\"trigger\":\"at least one co-located person is available\",\"utility\":0.2,\"probability\":0.007047133190359967,\"urgency_priority\":0},{\"action\":\"care_family\",\"eligible\":true,\"trigger\":\"co-located family or care-linked person has an unmet need\",\"utility\":0.345,\"probability\":0.010664352193671033,\"urgency_priority\":0},{\"action\":\"help_others\",\"eligible\":false,\"trigger\":\"co-located person has substantially higher immediate need or stress\",\"utility\":0.15,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"fetch_water\",\"eligible\":true,\"trigger\":\"hydration_need>=0.25\",\"utility\":1.53,\"probability\":0.3150152008911447,\"urgency_priority\":1},{\"action\":\"collect_meal\",\"eligible\":true,\"trigger\":\"hunger>=0.7 or individual_meal_window\",\"utility\":1.445,\"probability\":0.24709274490627264,\"urgency_priority\":1}],\"candidate_count\":11,\"candidates_truncated\":false,\"next_decision_at\":1459,\"status\":\"selected_proposal\",\"execution_evidence\":\"consult event history; selection is not proof of completion\"}"
+   }
+  ]
+ },
+ "priority": {
+  "state_hash": "41f627270934cff80798b88b9bc872474d23d2e6cad74083beaa4c7a32c51b56",
+  "proposals": [
+   {
+    "agent_id": "A1",
+    "action": "seek_help",
+    "choice": "0x1.f3b4c7f08bdefp-1",
+    "selected": "0x1.0000000000000p+0",
+    "next": 1454,
+    "target": null,
+    "rng_key": [
+     "behavior",
+     "key-A1",
+     "A1",
+     "minute",
+     1439,
+     "policy",
+     "utility-softmax-v1",
+     "choice",
+     "priority-tie-break"
+    ],
+    "policy_version": "priority-rule-v1",
+    "candidates": [
+     [
+      "wait",
+      true,
+      "always",
+      "0x1.999999999999ap-4",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "request_toilet",
+      true,
+      "toilet_urgency>=0.25 or hygiene_need>=0.5",
+      "0x1.8000000000000p-2",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "rest",
+      true,
+      "fatigue>=0.25 or hunger>=0.70 or stress>=0.50; experimental zone action multiplier x1.5; events=e-z2; assumptions=ASM-H19-ZONE-ENVIRONMENT-V2,asm-z2,src-z2; decision interval x1.5",
+      "0x1.4cccccccccccdp-1",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "sleep",
+      true,
+      "fatigue>=0.65 or sleep_debt_minutes>=240 or individual_sleep_window",
+      "0x1.3000000000000p+0",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "seek_help",
+      true,
+      "support_need>=0.25 and maximum need/stress>=0.50, or information query pressure >=0.4 or uncertainty>=0.65; no_open_support_request and support_cooldown_elapsed",
+      "0x1.9000000000001p+0",
+      1,
+      "0x1.0000000000000p+0"
+     ],
+     [
+      "seek_information",
+      false,
+      "information_query_pressure>=threshold or uncertainty>=0.65",
+      "0x1.8000000000000p-2",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "socialize",
+      false,
+      "at least one co-located person is available",
+      "0x1.2666666666667p-2",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "care_family",
+      false,
+      "co-located family or care-linked person has an unmet need",
+      "0x1.eb851eb851eb8p-4",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "help_others",
+      false,
+      "co-located person has substantially higher immediate need or stress",
+      "0x1.3333333333333p-3",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "fetch_water",
+      false,
+      "hydration_need>=0.5",
+      "0x1.70a3d70a3d70ap-3",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "collect_meal",
+      false,
+      "hunger>=0.7 or individual_meal_window",
+      "0x1.35c28f5c28f5cp-1",
+      0,
+      "0x0.0p+0"
+     ]
+    ],
+    "record": "{\"record_kind\":\"actions\",\"minute\":1439,\"agent_id\":\"A1\",\"household_id\":\"h1\",\"zone_id\":\"room\",\"action\":\"seek_help\",\"target_id\":null,\"trigger\":\"scheduled_decision\",\"policy_version\":\"priority-rule-v1\",\"source_id\":null,\"observed_state_hash\":\"41f627270934cff80798b88b9bc872474d23d2e6cad74083beaa4c7a32c51b56\",\"observed_state\":{\"agent_id\":\"A1\",\"zone_id\":\"room\",\"activity\":\"idle\",\"target_id\":null,\"needs\":{\"toilet_urgency\":0.0,\"hunger\":0.5,\"fatigue\":1.0,\"hygiene_need\":0.5,\"hydration_need\":0.0},\"psychological\":{\"sleep_debt_minutes\":120.0,\"uncertainty\":0.25,\"reassurance\":0.125,\"discontent\":0.5,\"positive_affect\":0.375,\"negative_affect\":0.25},\"sanitation_level\":1.0,\"stress\":0.0,\"trust\":0.5,\"queue\":{\"task_id\":\"t1\",\"kind\":\"toilet_queue\",\"target_id\":\"f-toilet\",\"wait_minutes\":1414},\"support\":{\"request_id\":null,\"status\":null,\"assigned_staff_id\":null,\"wait_minutes\":0,\"cooldown_remaining_minutes\":0},\"zone_environment\":{\"ambient_noise_level\":0.0,\"rest_efficiency_multiplier\":0.95,\"modifier_event_ids\":[],\"assumption_ids\":[],\"demand_modifiers\":[{\"action\":\"rest\",\"probability_multiplier\":1.5,\"duration_multiplier\":1.5,\"event_ids\":[\"e-z2\"],\"assumption_ids\":[\"ASM-H19-ZONE-ENVIRONMENT-V2\",\"asm-z2\",\"src-z2\"]}]}},\"observed_state_status\":\"recorded\",\"candidates\":[{\"action\":\"wait\",\"eligible\":true,\"trigger\":\"always\",\"utility\":0.1,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"request_toilet\",\"eligible\":true,\"trigger\":\"toilet_urgency>=0.25 or hygiene_need>=0.5\",\"utility\":0.375,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"rest\",\"eligible\":true,\"trigger\":\"fatigue>=0.25 or hunger>=0.70 or stress>=0.50; experimental zone action multiplier x1.5; events=e-z2; assumptions=ASM-H19-ZONE-ENVIRONMENT-V2,asm-z2,src-z2; decision interval x1.5\",\"utility\":0.65,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"sleep\",\"eligible\":true,\"trigger\":\"fatigue>=0.65 or sleep_debt_minutes>=240 or individual_sleep_window\",\"utility\":1.1875,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"seek_help\",\"eligible\":true,\"trigger\":\"support_need>=0.25 and maximum need/stress>=0.50, or information query pressure >=0.4 or uncertainty>=0.65; no_open_support_request and support_cooldown_elapsed\",\"utility\":1.5625000000000002,\"probability\":1.0,\"urgency_priority\":1},{\"action\":\"seek_information\",\"eligible\":false,\"trigger\":\"information_query_pressure>=threshold or uncertainty>=0.65\",\"utility\":0.375,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"socialize\",\"eligible\":false,\"trigger\":\"at least one co-located person is available\",\"utility\":0.28750000000000003,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"care_family\",\"eligible\":false,\"trigger\":\"co-located family or care-linked person has an unmet need\",\"utility\":0.12,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"help_others\",\"eligible\":false,\"trigger\":\"co-located person has substantially higher immediate need or stress\",\"utility\":0.15,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"fetch_water\",\"eligible\":false,\"trigger\":\"hydration_need>=0.5\",\"utility\":0.18,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"collect_meal\",\"eligible\":false,\"trigger\":\"hunger>=0.7 or individual_meal_window\",\"utility\":0.605,\"probability\":0.0,\"urgency_priority\":0}],\"candidate_count\":11,\"candidates_truncated\":false,\"next_decision_at\":1454,\"status\":\"selected_proposal\",\"execution_evidence\":\"consult event history; selection is not proof of completion\"}"
+   },
+   {
+    "agent_id": "A2",
+    "action": "care_family",
+    "choice": "0x1.98c68b06326acp-2",
+    "selected": "0x1.0000000000000p+0",
+    "next": 1454,
+    "target": "A3",
+    "rng_key": [
+     "behavior",
+     "key-A2",
+     "A2",
+     "minute",
+     1439,
+     "policy",
+     "utility-softmax-v1",
+     "choice",
+     "priority-tie-break"
+    ],
+    "policy_version": "priority-rule-v1",
+    "candidates": [
+     [
+      "wait",
+      true,
+      "always",
+      "0x1.6666666666666p-3",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "request_toilet",
+      false,
+      "toilet_urgency>=0.25 or hygiene_need>=0.5; experimental zone action multiplier x0.5; events=e-z3; assumptions=ASM-H19-ZONE-ENVIRONMENT-V2,src-z3",
+      "0x1.3f5c28f5c28f6p-2",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "rest",
+      true,
+      "fatigue>=0.25 or hunger>=0.70 or stress>=0.50",
+      "0x1.b333333333334p-2",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "sleep",
+      false,
+      "fatigue>=0.65 or sleep_debt_minutes>=240 or individual_sleep_window",
+      "0x1.f547ae147ae14p-2",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "seek_help",
+      false,
+      "support_need>=0.25 and maximum need/stress>=0.50, or information query pressure >=0.4 or uncertainty>=0.65; no_open_support_request and support_cooldown_elapsed",
+      "0x1.d000000000001p-1",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "seek_information",
+      false,
+      "information_query_pressure>=threshold or uncertainty>=0.65",
+      "0x1.8666666666667p-1",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "socialize",
+      true,
+      "at least one co-located person is available",
+      "0x1.d99999999999ap-2",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "care_family",
+      true,
+      "co-located family or care-linked person has an unmet need",
+      "0x1.0666666666666p+0",
+      1,
+      "0x1.0000000000000p+0"
+     ],
+     [
+      "help_others",
+      true,
+      "co-located person has substantially higher immediate need or stress",
+      "0x1.028f5c28f5c29p+0",
+      1,
+      "0x0.0p+0"
+     ],
+     [
+      "fetch_water",
+      false,
+      "hydration_need>=0.5",
+      "0x1.28f5c28f5c290p-1",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "collect_meal",
+      false,
+      "hunger>=0.7 or individual_meal_window",
+      "0x1.6666666666666p-2",
+      0,
+      "0x0.0p+0"
+     ]
+    ],
+    "record": "{\"record_kind\":\"actions\",\"minute\":1439,\"agent_id\":\"A2\",\"household_id\":null,\"zone_id\":\"hall\",\"action\":\"care_family\",\"target_id\":\"A3\",\"trigger\":\"scheduled_decision\",\"policy_version\":\"priority-rule-v1\",\"source_id\":null,\"observed_state_hash\":\"41f627270934cff80798b88b9bc872474d23d2e6cad74083beaa4c7a32c51b56\",\"observed_state\":{\"agent_id\":\"A2\",\"zone_id\":\"hall\",\"activity\":\"idle\",\"target_id\":null,\"needs\":{\"toilet_urgency\":0.1,\"hunger\":0.2,\"fatigue\":0.3,\"hygiene_need\":0.0625,\"hydration_need\":0.4},\"psychological\":{\"sleep_debt_minutes\":30.5,\"uncertainty\":0.75,\"reassurance\":0.0,\"discontent\":0.125,\"positive_affect\":0.625,\"negative_affect\":0.5},\"sanitation_level\":1.0,\"stress\":0.5,\"trust\":0.5,\"queue\":{\"task_id\":null,\"kind\":null,\"target_id\":null,\"wait_minutes\":0},\"support\":{\"request_id\":\"r1\",\"status\":\"pending\",\"assigned_staff_id\":null,\"wait_minutes\":1419,\"cooldown_remaining_minutes\":0},\"zone_environment\":{\"ambient_noise_level\":0.0,\"rest_efficiency_multiplier\":0.9,\"modifier_event_ids\":[],\"assumption_ids\":[],\"demand_modifiers\":[{\"action\":\"request_toilet\",\"probability_multiplier\":0.5,\"duration_multiplier\":1.0,\"event_ids\":[\"e-z3\"],\"assumption_ids\":[\"ASM-H19-ZONE-ENVIRONMENT-V2\",\"src-z3\"]}]}},\"observed_state_status\":\"recorded\",\"candidates\":[{\"action\":\"wait\",\"eligible\":true,\"trigger\":\"always\",\"utility\":0.175,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"request_toilet\",\"eligible\":false,\"trigger\":\"toilet_urgency>=0.25 or hygiene_need>=0.5; experimental zone action multiplier x0.5; events=e-z3; assumptions=ASM-H19-ZONE-ENVIRONMENT-V2,src-z3\",\"utility\":0.311875,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"rest\",\"eligible\":true,\"trigger\":\"fatigue>=0.25 or hunger>=0.70 or stress>=0.50\",\"utility\":0.42500000000000004,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"sleep\",\"eligible\":false,\"trigger\":\"fatigue>=0.65 or sleep_debt_minutes>=240 or individual_sleep_window\",\"utility\":0.48953125,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"seek_help\",\"eligible\":false,\"trigger\":\"support_need>=0.25 and maximum need/stress>=0.50, or information query pressure >=0.4 or uncertainty>=0.65; no_open_support_request and support_cooldown_elapsed\",\"utility\":0.9062500000000001,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"seek_information\",\"eligible\":false,\"trigger\":\"information_query_pressure>=threshold or uncertainty>=0.65\",\"utility\":0.7625000000000001,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"socialize\",\"eligible\":true,\"trigger\":\"at least one co-located person is available\",\"utility\":0.4625,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"care_family\",\"eligible\":true,\"trigger\":\"co-located family or care-linked person has an unmet need\",\"utility\":1.025,\"probability\":1.0,\"urgency_priority\":1},{\"action\":\"help_others\",\"eligible\":true,\"trigger\":\"co-located person has substantially higher immediate need or stress\",\"utility\":1.01,\"probability\":0.0,\"urgency_priority\":1},{\"action\":\"fetch_water\",\"eligible\":false,\"trigger\":\"hydration_need>=0.5\",\"utility\":0.5800000000000001,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"collect_meal\",\"eligible\":false,\"trigger\":\"hunger>=0.7 or individual_meal_window\",\"utility\":0.35,\"probability\":0.0,\"urgency_priority\":0}],\"candidate_count\":11,\"candidates_truncated\":false,\"next_decision_at\":1454,\"status\":\"selected_proposal\",\"execution_evidence\":\"consult event history; selection is not proof of completion\"}"
+   },
+   {
+    "agent_id": "A3",
+    "action": "seek_help",
+    "choice": "0x1.0e5263153a7a6p-5",
+    "selected": "0x1.0000000000000p+0",
+    "next": 1459,
+    "target": null,
+    "rng_key": [
+     "behavior",
+     "key-A3",
+     "A3",
+     "minute",
+     1439,
+     "policy",
+     "utility-softmax-v1",
+     "choice",
+     "priority-tie-break"
+    ],
+    "policy_version": "priority-rule-v1",
+    "candidates": [
+     [
+      "wait",
+      true,
+      "always",
+      "0x1.d70a3d70a3d71p-4",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "request_toilet",
+      true,
+      "toilet_urgency>=0.25 or hygiene_need>=0.5; experimental zone action multiplier x0.5; events=e-z3; assumptions=ASM-H19-ZONE-ENVIRONMENT-V2,src-z3",
+      "0x1.c000000000000p-1",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "rest",
+      true,
+      "fatigue>=0.25 or hunger>=0.70 or stress>=0.50",
+      "0x1.2cccccccccccep-1",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "sleep",
+      false,
+      "fatigue>=0.65 or sleep_debt_minutes>=240 or individual_sleep_window",
+      "0x1.3333333333334p-2",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "seek_help",
+      true,
+      "support_need>=0.25 and maximum need/stress>=0.50, or information query pressure >=0.4 or uncertainty>=0.65; no_open_support_request and support_cooldown_elapsed",
+      "0x1.928f5c28f5c2ap+0",
+      1,
+      "0x1.0000000000000p+0"
+     ],
+     [
+      "seek_information",
+      true,
+      "information_query_pressure>=threshold or uncertainty>=0.65",
+      "0x1.b333333333333p-2",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "socialize",
+      true,
+      "at least one co-located person is available",
+      "0x1.999999999999ap-3",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "care_family",
+      true,
+      "co-located family or care-linked person has an unmet need",
+      "0x1.6147ae147ae14p-2",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "help_others",
+      false,
+      "co-located person has substantially higher immediate need or stress",
+      "0x1.3333333333333p-3",
+      0,
+      "0x0.0p+0"
+     ],
+     [
+      "fetch_water",
+      true,
+      "hydration_need>=0.5",
+      "0x1.87ae147ae147bp+0",
+      1,
+      "0x0.0p+0"
+     ],
+     [
+      "collect_meal",
+      true,
+      "hunger>=0.7 or individual_meal_window",
+      "0x1.71eb851eb851fp+0",
+      1,
+      "0x0.0p+0"
+     ]
+    ],
+    "record": "{\"record_kind\":\"actions\",\"minute\":1439,\"agent_id\":\"A3\",\"household_id\":null,\"zone_id\":\"hall\",\"action\":\"seek_help\",\"target_id\":null,\"trigger\":\"scheduled_decision\",\"policy_version\":\"priority-rule-v1\",\"source_id\":null,\"observed_state_hash\":\"41f627270934cff80798b88b9bc872474d23d2e6cad74083beaa4c7a32c51b56\",\"observed_state\":{\"agent_id\":\"A3\",\"zone_id\":\"hall\",\"activity\":\"idle\",\"target_id\":null,\"needs\":{\"toilet_urgency\":0.75,\"hunger\":0.9,\"fatigue\":0.1,\"hygiene_need\":0.0,\"hydration_need\":0.85},\"psychological\":{\"sleep_debt_minutes\":0.0,\"uncertainty\":0.0,\"reassurance\":0.0,\"discontent\":0.0,\"positive_affect\":0.5,\"negative_affect\":0.0},\"sanitation_level\":1.0,\"stress\":0.875,\"trust\":0.5,\"queue\":{\"task_id\":null,\"kind\":null,\"target_id\":null,\"wait_minutes\":0},\"support\":{\"request_id\":null,\"status\":null,\"assigned_staff_id\":null,\"wait_minutes\":0,\"cooldown_remaining_minutes\":0},\"zone_environment\":{\"ambient_noise_level\":0.0,\"rest_efficiency_multiplier\":0.9,\"modifier_event_ids\":[],\"assumption_ids\":[],\"demand_modifiers\":[{\"action\":\"request_toilet\",\"probability_multiplier\":0.5,\"duration_multiplier\":1.0,\"event_ids\":[\"e-z3\"],\"assumption_ids\":[\"ASM-H19-ZONE-ENVIRONMENT-V2\",\"src-z3\"]}]}},\"observed_state_status\":\"recorded\",\"candidates\":[{\"action\":\"wait\",\"eligible\":true,\"trigger\":\"always\",\"utility\":0.115,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"request_toilet\",\"eligible\":true,\"trigger\":\"toilet_urgency>=0.25 or hygiene_need>=0.5; experimental zone action multiplier x0.5; events=e-z3; assumptions=ASM-H19-ZONE-ENVIRONMENT-V2,src-z3\",\"utility\":0.875,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"rest\",\"eligible\":true,\"trigger\":\"fatigue>=0.25 or hunger>=0.70 or stress>=0.50\",\"utility\":0.5875000000000001,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"sleep\",\"eligible\":false,\"trigger\":\"fatigue>=0.65 or sleep_debt_minutes>=240 or individual_sleep_window\",\"utility\":0.30000000000000004,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"seek_help\",\"eligible\":true,\"trigger\":\"support_need>=0.25 and maximum need/stress>=0.50, or information query pressure >=0.4 or uncertainty>=0.65; no_open_support_request and support_cooldown_elapsed\",\"utility\":1.5725000000000002,\"probability\":1.0,\"urgency_priority\":1},{\"action\":\"seek_information\",\"eligible\":true,\"trigger\":\"information_query_pressure>=threshold or uncertainty>=0.65\",\"utility\":0.425,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"socialize\",\"eligible\":true,\"trigger\":\"at least one co-located person is available\",\"utility\":0.2,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"care_family\",\"eligible\":true,\"trigger\":\"co-located family or care-linked person has an unmet need\",\"utility\":0.345,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"help_others\",\"eligible\":false,\"trigger\":\"co-located person has substantially higher immediate need or stress\",\"utility\":0.15,\"probability\":0.0,\"urgency_priority\":0},{\"action\":\"fetch_water\",\"eligible\":true,\"trigger\":\"hydration_need>=0.5\",\"utility\":1.53,\"probability\":0.0,\"urgency_priority\":1},{\"action\":\"collect_meal\",\"eligible\":true,\"trigger\":\"hunger>=0.7 or individual_meal_window\",\"utility\":1.445,\"probability\":0.0,\"urgency_priority\":1}],\"candidate_count\":11,\"candidates_truncated\":false,\"next_decision_at\":1459,\"status\":\"selected_proposal\",\"execution_evidence\":\"consult event history; selection is not proof of completion\"}"
+   }
+  ]
+ }
+}

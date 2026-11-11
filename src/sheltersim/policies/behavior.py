@@ -120,7 +120,7 @@ class ActionProposal:
 
 
 class BehaviorPolicy(Protocol):
-    """An installed behavior policy: the settings native/src/rules/behavior.rs decides with."""
+    """An installed behavior policy: the settings native/core/src/rules/behavior.rs decides with."""
 
     policy_version: str
 
@@ -269,7 +269,7 @@ def create_behavior_policy(variant: str, **parameters: Any) -> BehaviorPolicy:
 class UtilityBehaviorPolicy:
     """Offline utility/softmax policy; coefficients are explicit hypotheses.
 
-    native/src/rules/behavior.rs decides with these fields (the propose phase's `_propose_due`).
+    native/core/src/rules/behavior.rs decides with these fields (the propose step `_propose_due`).
     Each due person's candidate actions get a utility (plus 0.5 per urgency priority); the
     eligible ones are drawn with softmax weights at `temperature` (or the person's), times a
     zone's demand multiplier, from the keyed draw ("behavior", rng_key, id, "minute", minute,
@@ -352,8 +352,8 @@ class UtilityBehaviorPolicy:
 class PriorityRuleBehaviorPolicy:
     """Rank the shared eligible action set, with keyed randomness for exact ties.
 
-    native/src/rules/behavior.rs takes the candidates of `scorer` and chooses among those with the
-    highest (urgency priority, utility), sorted by the action's value, by the keyed draw of
+    native/core/src/rules/behavior.rs takes the candidates of `scorer` and chooses among those with
+    the highest (urgency priority, utility), sorted by the action's value, by the keyed draw of
     `scorer` with "priority-tie-break" added; each tied candidate has probability 1/n.
     """
 
@@ -366,7 +366,7 @@ class PriorityRuleBehaviorPolicy:
 
 
 class BehaviorDecisionRunner:
-    """The policy the propose phase decides with (`_propose_due`, native/src/rules/behavior.rs)."""
+    """The policy the propose phase decides with (`_propose_due`, rules/behavior.rs of the core)."""
 
     def __init__(self, policy: BehaviorPolicy | None = None) -> None:
         self.policy = policy or UtilityBehaviorPolicy()

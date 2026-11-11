@@ -54,7 +54,7 @@ fn optional_str<'a>(value: &'a Bound<'_, PyAny>) -> PyResult<Option<&'a str>> {
 /// `record_proposal`.
 #[pyfunction]
 #[pyo3(signature = (world, proposal, *, target_id))]
-fn record_proposal(world: &Bound<'_, PyAny>, proposal: &Bound<'_, PyAny>, target_id: &Bound<'_, PyAny>) -> PyResult<()> {
+pub(crate) fn record_proposal(world: &Bound<'_, PyAny>, proposal: &Bound<'_, PyAny>, target_id: &Bound<'_, PyAny>) -> PyResult<()> {
     let py = world.py();
     let agent_id = attribute(proposal, intern!(py, "agent_id"))?;
     let action = attribute(&attribute(proposal, intern!(py, "action"))?, intern!(py, "value"))?;

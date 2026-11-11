@@ -31,7 +31,7 @@ use sheltersim_core::world::Snapshot;
 
 use crate::core::census;
 use crate::core::errors::{self, to_py_err};
-use crate::core::row::{attribute, exact_list};
+use crate::core::row::{attribute, exact_dict, exact_list, exact_str};
 use crate::core::run::run_of;
 use crate::core::value::VPy;
 use crate::core::world_core::{attached_state, core_of, mirror_of, raw_dict_get, raw_list_append};
@@ -416,6 +416,32 @@ impl<'py> Host for PyHost<'py> {
             }
         }
         Ok(())
+    }
+
+    /// `sink.world is world`, then `policy_sources.get(version)` of the indexed sink: a missing
+    /// `world` raises Unsupported; anything else the bytes cannot write is the sink's own
+    /// `record_decision`'s (None).
+    fn decision_source(&mut self, policy_version: &str) -> Result<Option<Option<Arc<str>>>, HostError> {
+        let py = self.py();
+        let artifacts = self.artifacts()?;
+        if !attribute(&artifacts, intern!(py, "world"))?.is(&self.world) {
+            return Ok(None);
+        }
+        let Ok(sources) = attribute(&artifacts, intern!(py, "policy_sources")) else {
+            return Ok(None);
+        };
+        let Ok(sources) = exact_dict(&sources) else {
+            return Ok(None);
+        };
+        let source = raw_dict_get(sources.as_any(), PyString::new(py, policy_version).as_any())?;
+        Ok(match source {
+            None => Some(None),
+            Some(source) if source.is_none() => Some(None),
+            Some(source) => match exact_str(&source) {
+                Ok(text) => Some(Some(Arc::from(text))),
+                Err(_) => None,
+            },
+        })
     }
 
     fn trace_level(&self) -> Result<TraceLevel, HostError> {

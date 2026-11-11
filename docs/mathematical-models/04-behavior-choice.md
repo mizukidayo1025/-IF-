@@ -18,7 +18,7 @@ P_i(a)=\frac{m_{ia}\exp[(u_{ia}+0.5q_{ia}-M_i)/T]}{\sum_{b\in C_i}m_{ib}\exp[(u_
 
 ## 実装・連携
 
-`native/src/rules/behavior.rs` が、`src/sheltersim/policies/behavior.py` の `UtilityBehaviorPolicy` (`utility-softmax-v1`) の係数で、候補集合生成、効用、安定softmax、keyed draw、ActionProposal traceを計算します。既存 `priority-rule-v1` は比較用に残ります。研究比較では `temperature=1` とし、温度と効用係数の共通倍率による識別問題を避けられますが、既存互換のdefault 0.2は変更していません。
+`native/core/src/rules/behavior.rs` が、`src/sheltersim/policies/behavior.py` の `UtilityBehaviorPolicy` (`utility-softmax-v1`) の係数で、候補集合生成、効用、安定softmax、keyed draw、ActionProposal traceを計算します。既存 `priority-rule-v1` は比較用に残ります。研究比較では `temperature=1` とし、温度と効用係数の共通倍率による識別問題を避けられますが、既存互換のdefault 0.2は変更していません。
 
 ## 内部検証と限界
 

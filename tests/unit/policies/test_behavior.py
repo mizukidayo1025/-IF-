@@ -1,6 +1,6 @@
 """Immutable policy views and reproducible behavior proposals.
 
-The proposals are native/src/rules/behavior.rs's, as the propose phase makes them
+The proposals are native/core/src/rules/behavior.rs's, as the propose phase makes them
 (`support.world.decisions_of`). Checkpoint replay of a behavior policy variant is checked in
 tests/integration/test_behavior_policy.py.
 """
@@ -125,6 +125,8 @@ def test_a_policy_of_another_class_is_a_kernel_refusal() -> None:
         policy_version = "fixed-wait-v1"
 
     controller.decisions = BehaviorDecisionRunner(FixedActionPolicy())  # type: ignore[arg-type]
+    # The kernels read the policies the Run read (`Run.policies`): read them again.
+    controller._run_core.refresh_policies(controller)
     with pytest.raises(KernelRefusal, match="the policy is another class"):
         controller._propose_due(view, CounterRNG(world.seed))
 

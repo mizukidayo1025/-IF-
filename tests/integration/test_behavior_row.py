@@ -517,6 +517,7 @@ def test_what_python_raised_on_is_a_kernel_refusal(
     policy = UtilityBehaviorPolicy()
     object.__setattr__(policy, field, value)
     controller.decisions = BehaviorDecisionRunner(policy)
+    controller._run_core.refresh_policies(controller)
     with pytest.raises(KernelRefusal, match=message):
         controller._propose_due(view, CounterRNG(1))
 
@@ -532,6 +533,7 @@ def test_the_step_refuses_a_policy_of_another_class(generated_scenario: Any) -> 
         pass
 
     controller.decisions = BehaviorDecisionRunner(Counting())
+    controller._run_core.refresh_policies(controller)
     with pytest.raises(KernelRefusal, match="the policy is another class"):
         controller._propose_due(view, CounterRNG(1))
     assert "agents" not in view.__dict__
