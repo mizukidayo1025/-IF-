@@ -5,7 +5,9 @@
 //! a placed world), runs the core on the world borrowed whole, and makes the Python values of what
 //! it returns. The world's validation and the draw of a random source that is not a `CounterRNG`
 //! go through the native host (`Host::validate_world`, `Host::draw`). The walk home after a
-//! completion (`after_complete`) is called here, after the core's write (lane c6 moves it).
+//! completion (`after_complete`), where it is the controller's own step, is the core's
+//! `travel::schedule_return`, called on the same borrow after the completion's writes (lane c6);
+//! another `after_complete` is Python's, called after.
 
 use std::sync::Arc;
 
@@ -30,11 +32,6 @@ use crate::state::events::{write_result, EventRef, EventRow, EventRowPy};
 use crate::Unsupported;
 
 static COUNTER_RNG: GILOnceCell<Py<PyAny>> = GILOnceCell::new();
-
-/// `"toilet" in kind.casefold()`, with the core's fold (`sheltersim_core::rules::kit::is_toilet`).
-pub(crate) fn is_toilet(kind: &str) -> PyResult<bool> {
-    Ok(sheltersim_core::rules::kit::is_toilet(kind))
-}
 
 fn receipt_class(py: Python<'_>) -> PyResult<&Bound<'_, PyAny>> {
     static CLASS: GILOnceCell<Py<PyAny>> = GILOnceCell::new();
@@ -221,9 +218,11 @@ fn start_one<'py>(
     }
 }
 
-/// `ToiletServiceCompletionHandler.apply` up to `after_complete`, with `complete_toilet_service`:
-/// the caller then schedules the walk home.
-pub(crate) fn complete_event<'py>(world: &Bound<'py, PyAny>, event: EventRef<'_, 'py>) -> PyResult<()> {
+/// `ToiletServiceCompletionHandler.apply` with `complete_toilet_service`, and, for the controller
+/// `home` gives, its walk home (`_schedule_return_to_initial_zone`, the core's
+/// `travel::schedule_return`) on the same borrow. The outer error is the completion's, which writes
+/// nothing when it refuses; the inner the walk home's, after the completion is written.
+pub(crate) fn complete_event<'py>(world: &Bound<'py, PyAny>, event: EventRef<'_, 'py>, home: Option<&Bound<'py, PyAny>>) -> PyResult<PyResult<()>> {
     let py = world.py();
     let owned;
     let row = match event {
@@ -237,16 +236,38 @@ pub(crate) fn complete_event<'py>(world: &Bound<'py, PyAny>, event: EventRef<'_,
     let geo = Geo::of(world)?;
     let body = namespace_held(world, intern!(py, "body_state_v1"), "the world holds another body state")?;
     let metric_state_held = field_held(world, intern!(py, "metric_state"))?;
-    let ScheduleReturn = write_result(py, with_world(world, |world| core::complete(world, row, &queues, &geo, &body, metric_state_held))?)?;
-    Ok(())
+    // What the walk home reads of Python, read before the borrow; what reading it raised is the walk
+    // home's error, after the completion.
+    let home = home.map(|controller| crate::rules::travel::Home::of(controller, world));
+    let (completed, returned) = with_world(world, |cell| {
+        let completed = core::complete(cell, row, &queues, &geo, &body, metric_state_held);
+        let returned = match (&completed, &home) {
+            (Ok(ScheduleReturn), Some(Ok(home))) => Some(home.schedule(cell, row)),
+            _ => None,
+        };
+        (completed, returned)
+    })?;
+    let ScheduleReturn = write_result(py, completed)?;
+    Ok(match (home, returned) {
+        (None, _) => Ok(()),
+        (Some(Err(error)), _) => Err(error),
+        (Some(Ok(home)), Some(returned)) => home.finish(py, returned),
+        (Some(Ok(_)), None) => Err(Unsupported::new_err("the walk home did not run")),
+    })
 }
 
-/// `ToiletServiceCompletionHandler.apply`, called from Python: then its `after_complete`.
+/// `ToiletServiceCompletionHandler.apply`, called from Python: then its `after_complete`. The
+/// controller's own step is the core's, a KernelRefusal where it refuses, as its `kernel_only`
+/// entry raised.
 #[pyfunction]
 fn complete<'py>(handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>) -> PyResult<()> {
     let py = handler.py();
-    complete_event(world, EventRef::Object(event))?;
     let after = attribute(handler, intern!(py, "after_complete"))?;
+    if let Some(controller) = crate::rules::dispatch::return_rule_owner(&after)? {
+        let returned = complete_event(world, EventRef::Object(event), Some(&controller))?;
+        return returned.map_err(|error| errors::kernel_refusal(py, "travel.schedule_return", error));
+    }
+    complete_event(world, EventRef::Object(event), None)??;
     if !after.is_none() {
         after.call1((world, event))?;
     }

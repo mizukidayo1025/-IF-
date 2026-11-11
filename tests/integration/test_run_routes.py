@@ -295,7 +295,9 @@ def test_the_staff_graph_s_plan_refuses_as_route_is_physically_clear(generated_s
     assert core.routes_built() == (core.epoch, None)
 
 
-def test_rows_that_do_not_fit_leave_the_routers_to_the_python_graphs(generated_scenario) -> None:
+def test_rows_that_do_not_fit_leave_no_router_and_are_refused(generated_scenario) -> None:
+    """Rows are the truth (lanes 6-1, P8-0c): tables a value did not fit are refused when a kernel
+    reads the routers, and `controller.space` is not read instead (lane c6)."""
     controller = _controller(generated_scenario)
     world, core = controller.world, controller._run_core
     store = world._core.entities()
@@ -304,10 +306,12 @@ def test_rows_that_do_not_fit_leave_the_routers_to_the_python_graphs(generated_s
     assert "not an int" in store.zones_tainted
     controller._refresh_space()
     assert core.routes_built() == (None, None)
-    # Read from controller.space when first asked, as before lane 7-4.
-    assert _toilet_route(controller) == (FIRST_LEG, "route_corridor_toilet")
-    assert core.routes_built() == (core.epoch, None)
+    with pytest.raises(KernelRefusal, match="^travel.route refused: the zones are tainted"):
+        _toilet_route(controller)
+    assert core.routes_built() == (None, None)
     zone.capacity = 3
     assert store.refit(world) and store.zones_tainted is None
+    assert _toilet_route(controller) == (FIRST_LEG, "route_corridor_toilet")
+    assert core.routes_built() == (core.epoch, None)
     controller._refresh_space()
     assert core.routes_built() == (core.epoch, core.epoch)

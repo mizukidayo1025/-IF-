@@ -135,7 +135,7 @@ class UpdatePhase:
         self._replan_journeys(state, advance_movement(self.world, minute), minute)
 
     def _replan_journeys(self, state: Any, agent_ids: Any, minute: int) -> None:
-        """New routes for the people whose route changed, which native/src/rules/replan.rs plans.
+        """New routes for the people whose route changed: native/core/src/rules/replan.rs.
 
         `agent_ids` are those `advance_movement` returned, in that order; `state` is
         `world.model_state["movement_v1"]`. For each one with a journey: the old trip stops (its

@@ -35,7 +35,6 @@ use crate::rules::population::admit_pending_arrivals;
 use crate::rules::population_lifecycle::admit_pending_returns;
 use crate::rules::social_interaction::apply_ref;
 use crate::rules::social_network::observe_event;
-use crate::rules::travel::schedule_return;
 use crate::rules::{effects, service, support, toilet, travel_completion};
 use crate::state::entities::{entities_of, Activity, EntityStore};
 use crate::state::events::{DueEvent, DueState, EventRef, EventRow, EventRowPy, EventStatus, EventWriter};
@@ -74,6 +73,18 @@ static TABLE: GILOnceCell<Table> = GILOnceCell::new();
 static PHASE_MODULE: GILOnceCell<Py<PyModule>> = GILOnceCell::new();
 /// `DispatchPhase._schedule_return_to_initial_zone`, as `phases/dispatch.py` defines it.
 static RETURN_RULE: GILOnceCell<Py<PyAny>> = GILOnceCell::new();
+
+/// The controller whose own `_schedule_return_to_initial_zone` this `after_complete` is, if it is.
+pub(crate) fn return_rule_owner<'py>(after: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
+    let py = after.py();
+    if after.is_none() {
+        return Ok(None);
+    }
+    Ok(match (after.getattr(intern!(py, "__self__")), after.getattr(intern!(py, "__func__")), RETURN_RULE.get(py)) {
+        (Ok(owner), Ok(rule), Some(known)) if rule.is(known.bind(py)) => Some(owner),
+        _ => None,
+    })
+}
 
 // ---- What ran, for benchmarks/rule_shadow and its report ------------------------------------------
 
@@ -337,7 +348,9 @@ impl<'py> Phase<'_, 'py> {
         }
     }
 
-    /// `toilet_service_complete`: the release, then the walk home, each of which may go to Python.
+    /// `toilet_service_complete`: the release, then the walk home, on one borrow of the world (the
+    /// core's `toilet::complete` and `travel::schedule_return`, lane c6). Another `after_complete`
+    /// than the controller's own step leaves the handler to Python.
     fn toilet(
         &self,
         handler: &Bound<'py, PyAny>,
@@ -348,12 +361,15 @@ impl<'py> Phase<'_, 'py> {
         let after = attribute(handler, intern!(py, "after_complete"))?;
         // The controller's own step, or else the handler is for Python to run.
         let goes_home = !after.is_none()
-            && match (after.getattr(intern!(py, "__self__")), after.getattr(intern!(py, "__func__")), RETURN_RULE.get(py)) {
-                (Ok(owner), Ok(rule), Some(known)) if owner.is(self.controller) && rule.is(known.bind(py)) => true,
+            && match return_rule_owner(&after)? {
+                Some(owner) if owner.is(self.controller) => true,
                 _ => return Ok(None),
             };
-        match toilet::complete_event(self.world, event) {
-            Ok(()) => count(&COUNTS.toilet_ran),
+        let returned = match toilet::complete_event(self.world, event, goes_home.then_some(self.controller)) {
+            Ok(returned) => {
+                count(&COUNTS.toilet_ran);
+                returned
+            }
             Err(error) if error.is_instance_of::<Unsupported>(py) => {
                 refused(py, TOILET_COMPLETE, &COUNTS.toilet_refused, &error);
                 return Ok(None);
@@ -365,9 +381,9 @@ impl<'py> Phase<'_, 'py> {
                 return Ok(Some(self.checked(handler, object, done)?));
             }
             Err(error) => return Err(error),
-        }
+        };
         if goes_home {
-            match schedule_return(self.controller, self.world, event) {
+            match returned {
                 Ok(()) => count(&COUNTS.toilet_return_ran),
                 Err(error) if error.is_instance_of::<Unsupported>(py) => {
                     count(&COUNTS.toilet_return_refused);

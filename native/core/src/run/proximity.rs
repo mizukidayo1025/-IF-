@@ -1,5 +1,5 @@
-//! `controller.proximity_contact_config` and `controller.proximity_policy` (lane P8-0b; lane c6
-//! reads them in the core).
+//! `controller.proximity_contact_config` and `controller.proximity_policy` (lane P8-0b), which the
+//! core's `rules::proximity` reads (lane c6).
 //!
 //! `sample_contacts` of `proximity.rs` does nothing without a config, reads its interval and
 //! version, asks for a `DistanceSampledProximityPolicy` by `is` and reads the policy's `config`.
@@ -16,8 +16,8 @@ use super::held::{Attr, Obj, Spec};
 pub const CONFIG: Attr = Attr::value("proximity_contact_config");
 /// What the sampler reads of the policy.
 pub const POLICY: Attr = Attr::object("proximity_policy", &POLICY_SPEC);
-const POLICY_SPEC: Spec = Spec::of(&[Attr::object("config", &POLICY_CONFIG)]);
-const POLICY_CONFIG: Spec = Spec::with_fields(&[]);
+/// The policy's `config`: a plain dict (`canonical_proximity_contact_config`).
+const POLICY_SPEC: Spec = Spec::of(&[Attr::value("config")]);
 
 /// What the Run read of the controller's proximity.
 #[derive(Clone, Debug, PartialEq)]

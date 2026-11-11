@@ -355,6 +355,31 @@ fn ingest<'py>(world: &Bound<'py, PyAny>, outcomes: &Bound<'py, PyAny>) -> PyRes
     Ok(())
 }
 
+/// `ingest_applied_shared_operation_records(world, (record,))` of one APPLIED record a kernel of the
+/// core wrote at `realized_minute`, of an event it made (lane c6: the continuity receipt of a
+/// replanned support).
+pub(crate) fn ingest_applied(world: &Bound<'_, PyAny>, event: &EventRow, realized_minute: i64) -> PyResult<()> {
+    let py = world.py();
+    let table = attribute(world, intern!(py, "model_state"))?;
+    let Some(held) = exact_dict(&table)?.get_item(intern!(py, NAME))? else {
+        return Ok(());
+    };
+    if !crate::core::tracked::is_detached(&held) && !held.is_instance_of::<PyDict>() {
+        return unsupported("the namespace is another value");
+    }
+    if !RECEIPT_EVENTS.contains(&&*event.event_type) {
+        return Ok(());
+    }
+    let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
+    let recent = realized_minute == minute;
+    let id = &*event.event_id;
+    if with_world(world, |world| operations::is_recorded(world, id, recent, minute))?.or_py()? {
+        return Ok(());
+    }
+    let receipt = Receipt::of(&event.payload).or_py()?;
+    record(world, &receipt)
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(append_transition, m)?)?;
     m.add_function(wrap_pyfunction!(ingest, m)?)?;

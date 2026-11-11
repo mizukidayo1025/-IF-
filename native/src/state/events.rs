@@ -580,6 +580,37 @@ impl QueueStore {
         Ok(Some(row))
     }
 
+    /// The rows of the pending events held only as their objects, read now as `row` reads one, so
+    /// that a kernel of the core reads every pending event from the world's queue (lane c6). An
+    /// object that is no row stays as it is: the kernel says so where it reads it.
+    pub(crate) fn read_rows(&self, py: Python<'_>) -> PyResult<()> {
+        let missing: Vec<u64> = self.with_queue(py, |queue| queue.ordered().iter().map(|(_, serial)| *serial).filter(|serial| queue.slot(*serial).row.is_none()).collect())?;
+        for serial in missing {
+            let object = self.side.try_borrow().or_py()?.objects.get(&serial).map(|object| object.clone_ref(py));
+            let Some(object) = object else {
+                continue;
+            };
+            if let Some(row) = EventRow::from_event(object.bind(py))?.map(Arc::new) {
+                self.with_queue_mut(py, |queue| queue.set_row(serial, row))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Let go the objects of the slots a kernel of the core took out of the world's queue
+    /// (`kit::Events::settle`).
+    pub(crate) fn forget(&self, serials: &[u64]) -> PyResult<()> {
+        if serials.is_empty() {
+            return Ok(());
+        }
+        let gone: Vec<Py<PyAny>> = {
+            let mut side = self.side()?;
+            serials.iter().filter_map(|serial| side.objects.remove(serial)).collect()
+        };
+        drop(gone);
+        Ok(())
+    }
+
     /// `EventQueue.due`, for the dispatch loop: what each event due through `minute` is now.
     pub(crate) fn due_events(&self, py: Python<'_>, minute: i64) -> PyResult<Vec<DueEvent>> {
         let side = self.side.try_borrow().or_py()?;
@@ -1090,14 +1121,13 @@ impl<'py> EventWriter<'py> {
     }
 
     /// Sets how many sequences `allocate_reserved` will take before what is planned from now on.
-    pub(crate) fn reserve(&self, count: usize) {
-        self.reserved.set(count);
+    /// How many sequences `allocate_reserved` will still take.
+    pub(crate) fn reserved(&self) -> usize {
+        self.reserved.count()
     }
 
-    /// `allocate_sequence`, of one the plan reserved.
-    pub(crate) fn allocate_reserved(&self) -> PyResult<i64> {
-        self.reserved.take_one();
-        self.allocate_sequence()
+    pub(crate) fn reserve(&self, count: usize) {
+        self.reserved.set(count);
     }
 
     fn counter(&self) -> PyResult<i64> {

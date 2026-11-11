@@ -47,6 +47,11 @@ impl Reserved {
         self.0.set(count as i64);
     }
 
+    /// How many sequences are reserved now.
+    pub fn count(&self) -> usize {
+        self.0.get().max(0) as usize
+    }
+
     /// One reserved sequence is taken.
     pub fn take_one(&self) {
         self.0.set((self.0.get() - 1).max(0));

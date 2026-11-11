@@ -224,6 +224,21 @@ pub fn kept<T>(section: &Kept<T>) -> Result<&T> {
     }
 }
 
+/// The refusal of a value of the Run's `Policies` whose read raised (policy E14): the PyO3 crate
+/// reads the attribute again where it meets it, and raises what that raises.
+pub const POLICY_FAULT: &str = "a policy of the controller raised when the Run read it";
+
+/// A value of the Run's `Policies` as a rule takes it: a refusal is its `Unsupported`; any other
+/// fault `POLICY_FAULT`.
+#[track_caller]
+pub fn policy<T, F: std::borrow::Borrow<crate::config::Fault>>(read: std::result::Result<T, F>) -> Result<T> {
+    match read {
+        Ok(value) => Ok(value),
+        Err(fault) if fault.borrow().is_refusal() => Err(Error::unsupported(fault.borrow().text.to_string())),
+        Err(_) => Err(Error::unsupported(POLICY_FAULT)),
+    }
+}
+
 // ---- Making events and writing them ---------------------------------------------------------------
 
 /// The arguments of a new `ScheduledEvent`.
@@ -328,6 +343,12 @@ impl<'w> Events<'w> {
         self.reserved.set(count);
     }
 
+    /// How many sequences `allocate_reserved` will still take: what a caller's own writer reserved
+    /// is passed on with `reserve`, and back with this.
+    pub fn reserved(&self) -> usize {
+        self.reserved.count()
+    }
+
     /// `allocate_sequence`, of one the plan reserved.
     pub fn allocate_reserved(&self) -> Result<i64> {
         self.reserved.take_one();
@@ -353,6 +374,20 @@ impl<'w> Events<'w> {
         log_record(self.world, event, realized_minute, status, detail)
     }
 
+    /// What the dispatcher does to a handled event (`EventDispatcher.settle`), on the world's queue
+    /// and log: the pending event of this ID leaves the queue, and its outcome is recorded unless the
+    /// log holds a record of its ID already. `event` is the row as the rule read it. Returns the
+    /// serial of the slot taken out, whose Python object the PyO3 crate lets go
+    /// (`QueueStore::forget`), and whether the outcome was recorded.
+    pub fn settle(&self, event: &EventRow, realized_minute: i64, status: EventStatus, detail: Option<&str>) -> WriteResult<Settled> {
+        let taken = self.world.queue_mut()?.take_slot(&event.event_id).map(|(serial, _)| serial);
+        if self.world.log()?.has_event_id(&event.event_id) {
+            return Ok(Settled { taken, recorded: false });
+        }
+        self.record(event, realized_minute, status, detail)?;
+        Ok(Settled { taken, recorded: true })
+    }
+
     /// Run f on the log, borrowed shared.
     pub fn with_log<R>(&self, f: impl FnOnce(&EventLog) -> R) -> Result<R> {
         Ok(f(&*self.world.log()?))
@@ -373,6 +408,15 @@ impl<'w> Events<'w> {
     pub fn is_taken(&self, event_id: &str, sequence: Option<i64>) -> Result<bool> {
         Ok(self.is_realized(event_id, sequence)? || self.is_pending(event_id)?)
     }
+}
+
+/// What `Events::settle` did.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[must_use]
+pub struct Settled {
+    /// The serial of the queue's slot the event left, if it was pending.
+    pub taken: Option<u64>,
+    pub recorded: bool,
 }
 
 // ---- Metrics --------------------------------------------------------------------------------------

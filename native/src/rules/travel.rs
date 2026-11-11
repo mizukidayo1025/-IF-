@@ -1,55 +1,200 @@
-//! Where a person walks: `_route`, `_schedule_travel`, and the choice of a facility
-//! (`experiments/phases/propose.py`, `policies/space.py`). `_route`, `_schedule_travel` and
-//! `_schedule_staff_support_travel` have no Python step left (lane L10): what is refused here says so
-//! before it writes, and is a KernelRefusal there (docs/rust-port/lanes/m4-service.md). Edge
-//! capacities count every trip under way (docs/rust-port/lanes/l2-staff.md).
+//! `_route`, `_schedule_travel`, `_schedule_staff_support_travel` and the walk home: the glue of the
+//! core's kernels (`sheltersim_core::rules::travel`, lane c6 of Issue #152). Each entry reads what
+//! Python holds (the Run's graph and capacities, whether `model_state` holds `movement_v1` and
+//! `staff_operations_v1`, the movement section of the configs, the floor plan), runs the core on
+//! the world borrowed whole, and makes the Python values of what it returns (`ZoneRoute`). The core
+//! writes the task, the person's row, the event and the row of `movement_v1`; the objects and an
+//! attached tree follow them when the world is given back.
+//!
+//! The routers are built from the world's tables at each `_refresh_space` (`build_routes`); where
+//! the tables dropped their rows they are refused, and the controller's `space` and `staff_space`
+//! are not read (lane c6). A `SpaceRouter` a Python caller hands `assign_staff_operations` is read
+//! as it is (`StaffRouter::Given`): it is that caller's input.
+//!
+//! A floor plan that `Geo::of` could not read is passed as none, and where the core reads it, it
+//! says `PLAN_UNREAD`: the glue raises what `Geo::of` raised instead, as the rule raised it there.
+//!
+//! The rules of the other files that plan a trip and write it later (`proposals.rs`,
+//! `travel_completion.rs`) keep their `EventWriter`: what it reserved for the capacity waits is
+//! handed to the core's writer and back.
 
-use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
-use indexmap::IndexMap;
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDict, PyList, PyString, PyTuple};
-use sheltersim_core::entities::{EdgeRow, Table, ZoneRow};
+use pyo3::types::{PyBool, PyTuple};
+use sheltersim_core::config::movement::Movement;
 use sheltersim_core::routes::{Edge, Router, Which};
-use sheltersim_core::run::RouteCapacities;
+use sheltersim_core::rules::kit::{Events, Held, Kept};
+use sheltersim_core::rules::overlay::PLAN_UNREAD;
+use sheltersim_core::rules::travel::{self as core, Graph, Routing, Walking};
+use sheltersim_core::world::World;
 
+pub(crate) use sheltersim_core::rules::travel::{CapacityWait, EdgeLoads, PlannedTrip, Route, Selected, Trip};
+
+use crate::core::configs;
 use crate::core::errors::{self, OrPy};
-use crate::core::row::{attribute, exact_dict, exact_int, exact_str, unsupported};
+use crate::core::row::{attribute, exact_int, exact_str, unsupported};
 use crate::core::run::{run_of, RunCore};
-use crate::core::tracked::id_map_type;
-use crate::core::value::V;
-use crate::core::world_core::{core_of, raw_dict_get, NamespaceMirror, WorldCore};
-use crate::rules::agent_dynamics::agent_knows_facility;
-use crate::rules::handlers::{log_record, new_event, NewEvent};
-use crate::rules::movement::{
-    approach_point, mirror_held, mobility_text, movement_minutes, movement_of, no_positions, optional_str, plan_start, route_points_of, str_tuple, write_changes, Changes,
-    EXACT_INT, KEY,
-};
+use crate::core::world_core::{core_of, field_held, namespace_held, with_world};
+use crate::rules::movement::{optional_str, route_points_of, str_tuple, KEY as MOVEMENT};
 use crate::rules::movement_geometry::{Geo, GeoPy, Pt};
-use crate::rules::service::set_agent;
-use crate::state::entities::{entities_of, insert_entity, Activity, Entities, EntityStore, FacilityRow, TaskRow};
-use crate::state::events::{EventKind, EventRef, EventRow, EventWriter, PendingEvent, PendingSource};
-use crate::state::movement::{Journey, MovementRow, Point};
-use crate::state::staff_operations::{Phase, StaffOperationsRow, NAME as STAFF_OPERATIONS};
+use crate::state::events::{write_result, EventRef, EventRow, EventRowPy, EventWriter, PendingEvent, PendingSource};
+use crate::state::staff_operations::NAME as STAFF_OPERATIONS;
 use crate::Unsupported;
 
-const ROUTING_SOURCE: &str = "ASM-ZONE-ROUTING-V1";
-const ROUTING_POLICY: &str = "shortest-travel-time-v1";
-const CAPACITY_SOURCE: &str = "ASM-A05-ROUTE-EDIT-V1";
+/// The people's graph of a controller's Run, and its capacities.
+pub(crate) type RunGraph = Graph;
 
-pub(crate) use sheltersim_core::routes::{EdgeLoads, Route};
+// ---- What Python holds ----------------------------------------------------------------------------
 
-/// The people's graph of a controller's Run, and the capacities its trips are counted against.
-pub(crate) struct RunGraph {
-    pub(crate) router: Arc<Router>,
-    /// `controller.route_capacities`, as the controller read them when it started.
-    capacities: Arc<RouteCapacities>,
+/// The floor plan as `Geo::of` read it.
+pub(crate) struct Plan(PyResult<Arc<Geo>>);
+
+impl Plan {
+    pub(crate) fn of(world: &Bound<'_, PyAny>) -> Self {
+        Plan(Geo::of(world))
+    }
+
+    pub(crate) fn get(&self) -> Option<&Arc<Geo>> {
+        self.0.as_ref().ok()
+    }
+
+    /// The kernel's result, with what `Geo::of` raised where the kernel read the plan.
+    pub(crate) fn finish<T>(&self, py: Python<'_>, result: PyResult<T>) -> PyResult<T> {
+        match (result, &self.0) {
+            (Err(error), Err(read)) if error.is_instance_of::<Unsupported>(py) && error.value(py).to_string() == PLAN_UNREAD => Err(read.clone_ref(py)),
+            (result, _) => result,
+        }
+    }
 }
 
-/// The open edges of a `ZoneGraph`, as a router: the graphs of a Python caller, and of a controller
-/// whose tables could not be read.
+/// Whether the world holds `movement_v1`, as the rules take it.
+pub(crate) fn movement_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
+    namespace_held(world, intern!(world.py(), MOVEMENT), "the world holds another movement state")
+}
+
+/// Whether the world holds `staff_operations_v1`, as the rules take it.
+pub(crate) fn staff_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
+    namespace_held(world, intern!(world.py(), STAFF_OPERATIONS), "the world holds another document than the row's")
+}
+
+/// The movement section of the configs, kept for the stamp of `model_configs`.
+pub(crate) fn movement_section(world: &Bound<'_, PyAny>) -> PyResult<Kept<Movement>> {
+    configs::kept_section(world, |configs| &configs.movement, Movement::parse)
+}
+
+/// The rows of the pending events Python scheduled, read before a kernel reads the whole queue.
+pub(crate) fn read_queue_rows(world: &Bound<'_, PyAny>) -> PyResult<()> {
+    let py = world.py();
+    let Ok(core) = core_of(world) else {
+        return Ok(());
+    };
+    let (queue, _) = core.try_borrow()?.event_stores(py);
+    match queue {
+        Some(queue) => queue.get().read_rows(py),
+        None => Ok(()),
+    }
+}
+
+/// What the rules of travel read of the Python world, read once per entry.
+pub(crate) struct Inputs {
+    pub(crate) plan: Plan,
+    pub(crate) section: Kept<Movement>,
+    pub(crate) movement: Held,
+    pub(crate) staff: Held,
+}
+
+impl Inputs {
+    pub(crate) fn of(world: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self { plan: Plan::of(world), section: movement_section(world)?, movement: movement_held(world)?, staff: staff_held(world)? })
+    }
+
+    pub(crate) fn routing<'a>(&'a self, graph: &'a Graph) -> Routing<'a> {
+        Routing { graph, geo: self.plan.get(), movement: &self.section, staff: &self.staff }
+    }
+
+    pub(crate) fn walking(&self) -> Walking<'_> {
+        Walking { movement: &self.movement, geo: self.plan.get() }
+    }
+
+    /// The kernel's result, with what `Geo::of` raised where the kernel read the plan.
+    pub(crate) fn finish<T>(&self, py: Python<'_>, result: PyResult<T>) -> PyResult<T> {
+        self.plan.finish(py, result)
+    }
+}
+
+// ---- The routers of a Run -------------------------------------------------------------------------
+
+/// The routers of the world's tables now, or None where the world has no core or its tables
+/// dropped their rows. The staff's router is the people's or what its plan refused.
+#[allow(clippy::type_complexity)]
+fn routers(world: &Bound<'_, PyAny>, capacities: &sheltersim_core::run::RouteCapacities, plan: &Plan) -> PyResult<Option<(Arc<Router>, PyResult<Arc<Router>>)>> {
+    let py = world.py();
+    let built = match with_world(world, |cell| core::routers_of(cell, capacities, plan.get())) {
+        Ok(built) => built.or_py()?,
+        Err(error) if error.is_instance_of::<Unsupported>(py) => return Ok(None),
+        Err(error) => return Err(error),
+    };
+    Ok(built.map(|(people, staff)| {
+        let staff = plan.finish(py, staff.or_py()).map_err(|error| errors::kernel_refusal(py, "movement.route_is_physically_clear", error));
+        (people, staff)
+    }))
+}
+
+/// `_refresh_space` for the kernels: the people's and the staff's routers of a new epoch, from the
+/// world's tables now, so an edge closed later is not seen until the next refresh. What
+/// `ZoneGraph.from_states(world.zones, world.zone_edges, edge_capacities=controller.route_capacities)`
+/// turns down raises its ValueError; the floor plan's refusal is `route_is_physically_clear`'s
+/// KernelRefusal. Where the capacities or the tables cannot be read, nothing is built: the kernels
+/// ask again when they read the routers (`rows_of`), and refuse then.
+pub(crate) fn build_routes(run: &RunCore, epoch: u64, world: &Bound<'_, PyAny>) -> PyResult<()> {
+    let Ok(capacities) = run.capacities() else {
+        return Ok(());
+    };
+    let plan = Plan::of(world);
+    let Some((people, staff)) = routers(world, &capacities, &plan)? else {
+        return Ok(());
+    };
+    run.keep(Which::People, epoch, people)?;
+    run.keep(Which::Staff, epoch, staff?)?;
+    Ok(())
+}
+
+/// A router of the controller's world, built when the refresh built none.
+fn router_of(controller: &Bound<'_, PyAny>, run: &RunCore, which: Which) -> PyResult<Arc<Router>> {
+    let world = attribute(controller, intern!(controller.py(), "world"))?;
+    let capacities = run.capacities()?;
+    let plan = Plan::of(&world);
+    let Some((people, staff)) = routers(&world, &capacities, &plan)? else {
+        // A world without a core says so; tables that dropped their rows are refused.
+        core_of(&world)?;
+        return unsupported(core::ZONES_TAINTED);
+    };
+    match which {
+        Which::People => Ok(people),
+        Which::Staff => staff,
+    }
+}
+
+/// The people's graph of this controller, built at its last `_refresh_space`.
+pub(crate) fn rows_of(controller: &Bound<'_, PyAny>) -> PyResult<RunGraph> {
+    let run = run_of(controller)?;
+    let run = run.get();
+    let capacities = run.capacities()?;
+    let router = run.router(Which::People, || router_of(controller, run, Which::People))?;
+    Ok(Graph { router, capacities })
+}
+
+/// Where `assign_staff_operations` finds its graph.
+pub(crate) enum StaffRouter<'a, 'py> {
+    /// A controller's staff graph, built at its last refresh.
+    Run(&'a Bound<'py, PyAny>),
+    /// A `SpaceRouter` a Python caller gave, read at each call.
+    Given(&'a Bound<'py, PyAny>),
+}
+
+/// The open edges of a `ZoneGraph`, as a router: the graph of a `SpaceRouter` a Python caller gave.
 fn read_graph(graph: &Bound<'_, PyAny>) -> PyResult<Router> {
     let py = graph.py();
     let zones_object = attribute(graph, intern!(py, "zones"))?;
@@ -82,518 +227,86 @@ fn read_graph(graph: &Bound<'_, PyAny>) -> PyResult<Router> {
     Ok(Router::new(zones, open))
 }
 
-/// The graph of a `SpaceRouter`, or Unsupported for another policy.
-fn read_router(router: &Bound<'_, PyAny>) -> PyResult<Router> {
-    let py = router.py();
-    let policy = attribute(router, intern!(py, "policy"))?;
-    if policy.get_type().name()?.to_str()? != "ShortestTravelTimePolicy" {
-        return unsupported("another route policy");
-    }
-    read_graph(&attribute(router, intern!(py, "graph"))?)
-}
-
-/// Run f on the world's zone and zone-edge rows, where they are those of its maps: `world.zones` and
-/// `world.zone_edges` of its `__dict__` are its store's `IdMap`s with as many entries, and no value
-/// that does not fit dropped the rows (`Entities::zones_tainted`). None otherwise (a world without a
-/// core, a value that does not fit a row, ...): the callers read the Python objects then, as before
-/// lane 7-4. f runs no Python.
-fn with_zone_rows<R>(world: &Bound<'_, PyAny>, f: impl FnOnce(&Table<ZoneRow>, &Table<EdgeRow>) -> R) -> PyResult<Option<R>> {
-    let py = world.py();
-    let Ok(core) = core_of(world) else {
-        return Ok(None);
-    };
-    let store = WorldCore::entities(&core)?;
-    let Ok(state) = world.getattr(intern!(py, "__dict__"))?.downcast_into::<PyDict>() else {
-        return Ok(None);
-    };
-    let mut lengths = [0; 2];
-    for (length, name) in lengths.iter_mut().zip([intern!(py, "zones"), intern!(py, "zone_edges")]) {
-        let Some(map) = raw_dict_get(state.as_any(), name.as_any())? else {
-            return Ok(None);
-        };
-        if map.get_type().as_ptr() != id_map_type().cast() || !map.getattr(intern!(py, "_store"))?.is(store.bind(py)) {
-            return Ok(None);
-        }
-        *length = map.len()?;
-    }
-    let core = core.try_borrow()?;
-    let rows = core.world().entities.try_borrow().or_py()?;
-    if rows.zones_tainted().is_some() || rows.zones.len() != lengths[0] || rows.zone_edges.len() != lengths[1] {
-        return Ok(None);
-    }
-    Ok(Some(f(&rows.zones, &rows.zone_edges)))
-}
-
-/// `_refresh_space` for the kernels: the people's and the staff's routers of a new epoch, from the
-/// world's tables now, so an edge closed later is not seen until the next refresh. What
-/// `ZoneGraph.from_states(world.zones, world.zone_edges, edge_capacities=controller.route_capacities)`
-/// turns down raises its ValueError. With a floor plan, the staff's graph keeps the edges the core
-/// `Geo` finds clear for an independent walker, as `route_is_physically_clear` did for each edge
-/// (its refusal is that kernel's KernelRefusal). Where the capacities or the tables cannot be read,
-/// nothing is built: the kernels read the controller's graphs when they ask, as before.
-pub(crate) fn build_routes(run: &RunCore, epoch: u64, world: &Bound<'_, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    let Ok(capacities) = run.capacities() else {
-        return Ok(());
-    };
-    let built = with_zone_rows(world, |zones, edges| Router::of_tables(zones, edges, &capacities).map(|router| (router, edges.len())))?;
-    let Some(built) = built else {
-        return Ok(());
-    };
-    let (people, edges) = built.or_py()?;
-    let people = run.keep(Which::People, epoch, Arc::new(people))?;
-    let staff = if edges > 0 && attribute(world, intern!(py, "model_configs"))?.contains(intern!(py, "facility_geometry"))? {
-        let geo = Geo::of(world).map_err(|error| errors::kernel_refusal(py, "movement.route_is_physically_clear", error))?;
-        Arc::new(people.keeping(|edge| geo.route_is_clear(&edge.id, "independent")))
-    } else {
-        people
-    };
-    run.keep(Which::Staff, epoch, staff)?;
-    Ok(())
-}
-
-/// The people's graph of this controller, built at its last `_refresh_space` (or, where the tables
-/// could not be read, from `controller.space` once per refresh, Unsupported for another policy).
-pub(crate) fn rows_of(controller: &Bound<'_, PyAny>) -> PyResult<RunGraph> {
-    let run = run_of(controller)?;
-    let run = run.get();
-    let capacities = run.capacities()?;
-    let router = run.router(Which::People, || read_router(&attribute(controller, intern!(controller.py(), "space"))?))?;
-    Ok(RunGraph { router, capacities })
-}
-
-/// Where `assign_staff_operations` finds its graph.
-pub(crate) enum StaffRouter<'a, 'py> {
-    /// A controller's staff graph, built at its last refresh (or from its `staff_space`).
-    Run(&'a Bound<'py, PyAny>),
-    /// A `SpaceRouter` a Python caller gave, read at each call.
-    Given(&'a Bound<'py, PyAny>),
-}
-
 /// The graph of `assign_staff_operations`' router, whose routes `edge_loads` always reach.
 pub(crate) fn staff_router_rows(source: StaffRouter<'_, '_>) -> PyResult<Arc<Router>> {
     match source {
         StaffRouter::Run(controller) => {
             let run = run_of(controller)?;
-            run.get().router(Which::Staff, || read_router(&attribute(controller, intern!(controller.py(), "staff_space"))?))
+            let run = run.get();
+            run.router(Which::Staff, || router_of(controller, run, Which::Staff))
         }
-        StaffRouter::Given(router) => Ok(Arc::new(read_router(router)?)),
+        StaffRouter::Given(router) => {
+            let py = router.py();
+            let policy = attribute(router, intern!(py, "policy"))?;
+            if policy.get_type().name()?.to_str()? != "ShortestTravelTimePolicy" {
+                return unsupported("another route policy");
+            }
+            Ok(Arc::new(read_graph(&attribute(router, intern!(py, "graph"))?)?))
+        }
     }
 }
 
 /// `SpaceRouter(ZoneGraph.from_states(zones, edges)).route(...)` with nothing closed, for a rule
-/// that has no controller, from the world's tables: what `ZoneGraph` turns down raises its
-/// ValueError. `edge_capacities` are refused, which read every trip under way.
+/// that has no controller, from the world's tables.
 pub(crate) fn world_route(world: &Bound<'_, PyAny>, origin: &Arc<str>, destination: &Arc<str>) -> PyResult<Option<Route>> {
-    let graph = match with_zone_rows(world, |zones, edges| Router::of_tables(zones, edges, &RouteCapacities::default()))? {
-        Some(graph) => graph.or_py()?,
-        None => {
-            let py = world.py();
-            let graph = py.import("sheltersim.domain.zones")?.getattr("ZoneGraph")?.call_method1(
-                intern!(py, "from_states"),
-                (attribute(world, intern!(py, "zones"))?, attribute(world, intern!(py, "zone_edges"))?),
-            )?;
-            read_graph(&graph)?
-        }
-    };
-    graph.shortest(&HashSet::new(), None, origin, destination).or_py()
-}
-
-/// `layout_routing.max_agents_in_transit_by_edge` of `model_configs`, each checked as `ZoneGraph`
-/// checks it: an int from 1 to 100 of an edge `has_edge` finds by its key.
-fn world_capacities(world: &Bound<'_, PyAny>, has_edge: impl Fn(&Bound<'_, PyAny>) -> PyResult<bool>) -> PyResult<HashMap<Arc<str>, i64>> {
-    let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let mut capacities = HashMap::new();
-    if let Some(routing) = exact_dict(&configs)?.get_item(intern!(py, "layout_routing"))? {
-        if let Some(table) = exact_dict(&routing)?.get_item(intern!(py, "max_agents_in_transit_by_edge"))? {
-            for (edge, capacity) in exact_dict(&table)?.iter() {
-                let capacity = exact_int(&capacity)?;
-                if !has_edge(&edge)? || !(1..=100).contains(&capacity) {
-                    return unsupported("a capacity the zone graph turns down");
-                }
-                capacities.insert(Arc::from(exact_str(&edge)?), capacity);
-            }
-        }
-    }
-    Ok(capacities)
+    with_world(world, |cell| core::world_route(cell, origin, destination))?.or_py()
 }
 
 /// `ZoneGraph.from_states(world.zones, world.zone_edges, edge_capacities=capacities)` as a router,
-/// for the routes `_support_route_wait_reasons` reads, from the world's tables. What the constructor
-/// would turn down for a capacity or an edge is refused.
+/// from the world's tables.
 pub(crate) fn world_graph(world: &Bound<'_, PyAny>) -> PyResult<Router> {
-    let Some(keys) = with_zone_rows(world, |_, edges| edges.iter().map(|(key, _)| key.clone()).collect::<HashSet<Arc<str>>>())? else {
-        return world_graph_of_objects(world);
-    };
-    // `key in world.zone_edges`: a key that is no str is no edge's.
-    let capacities = world_capacities(world, |edge| {
-        Ok(edge.downcast::<PyString>().ok().and_then(|edge| edge.to_str().ok()).is_some_and(|edge| keys.contains(edge)))
-    })?;
-    match with_zone_rows(world, |zones, edges| Router::of_world_tables(zones, edges, &capacities))? {
-        Some(graph) => graph.or_py(),
-        None => world_graph_of_objects(world),
-    }
-}
-
-/// `world_graph` from the Python objects, where the tables cannot be read.
-fn world_graph_of_objects(world: &Bound<'_, PyAny>) -> PyResult<Router> {
-    let py = world.py();
-    let edges = attribute(world, intern!(py, "zone_edges"))?;
-    let edges = exact_dict(&edges)?;
-    let capacities = world_capacities(world, |edge| edges.contains(edge))?;
-    let zones_object = attribute(world, intern!(py, "zones"))?;
-    let mut zones = HashSet::new();
-    for key in exact_dict(&zones_object)?.keys() {
-        zones.insert(Arc::<str>::from(exact_str(&key)?));
-    }
-    let mut open = Vec::new();
-    for edge in edges.values() {
-        let from: Arc<str> = Arc::from(exact_str(&attribute(&edge, intern!(py, "from_zone_id"))?)?);
-        let to: Arc<str> = Arc::from(exact_str(&attribute(&edge, intern!(py, "to_zone_id"))?)?);
-        if !zones.contains(&from) || !zones.contains(&to) || from == to {
-            return unsupported("an edge the zone graph turns down");
-        }
-        let minutes = exact_int(&attribute(&edge, intern!(py, "travel_minutes"))?)?;
-        if minutes <= 0 {
-            return unsupported("an edge the zone graph turns down");
-        }
-        let id = attribute(&edge, intern!(py, "id"))?;
-        let id = exact_str(&id)?;
-        let closed = attribute(&edge, intern!(py, "closed"))?;
-        if closed.downcast_exact::<PyBool>().map_err(|_| Unsupported::new_err("closed is not a bool"))?.is_true() {
-            continue;
-        }
-        open.push(Edge { id: Arc::from(id), from, to, minutes, capacity: capacities.get(id).copied() });
-    }
-    Ok(Router::new(zones, open))
+    with_world(world, |cell| core::world_graph(cell))?.or_py()
 }
 
 // ---- Who is on an edge --------------------------------------------------------------------------
 
-/// `event.payload.get(name)`, of an event in the queue.
-fn pending_payload_text(event: &PendingEvent<'_>, name: &str) -> PyResult<Option<Arc<str>>> {
-    match &event.source {
-        PendingSource::Row(row) => EventRef::Row(row).text(name),
-        PendingSource::Object(object) => EventRef::Object(object).text(name),
-    }
-}
-
-fn pending_type_is(event: &PendingEvent<'_>, wanted: &str) -> PyResult<bool> {
-    Ok(match &event.source {
-        PendingSource::Row(row) => &*row.event_type == wanted,
-        PendingSource::Object(object) => exact_str(&attribute(object, intern!(object.py(), "event_type"))?)? == wanted,
-    })
-}
-
-/// `event.payload.get("route_edge_ids", ())`: the IDs that are str. A value that is not a list is
-/// no plain trip's, and is left to the Python rule.
-fn pending_edges(event: &PendingEvent<'_>) -> PyResult<Vec<Arc<str>>> {
-    match &event.source {
-        PendingSource::Row(row) => {
-            let V::Map(payload) = &row.payload else {
-                return unsupported("a payload is not a map");
-            };
-            match payload.get("route_edge_ids") {
-                None => Ok(Vec::new()),
-                Some(V::List(items)) => Ok(items.iter().filter_map(|item| if let V::Str(id) = item { Some(id.clone()) } else { None }).collect()),
-                Some(_) => unsupported("a trip's edges are not a list"),
-            }
-        }
-        PendingSource::Object(object) => {
-            let py = object.py();
-            let payload = attribute(object, intern!(py, "payload"))?;
-            let edges = payload.call_method1(intern!(py, "get"), (intern!(py, "route_edge_ids"),))?;
-            if edges.is_none() {
-                return Ok(Vec::new());
-            }
-            if !edges.is_exact_instance_of::<PyList>() && !edges.is_exact_instance_of::<PyTuple>() {
-                return unsupported("a trip's edges are not a list");
-            }
-            let mut ids = Vec::new();
-            for item in edges.try_iter()? {
-                if let Ok(id) = exact_str(&item?) {
-                    ids.push(Arc::from(id));
-                }
-            }
-            Ok(ids)
-        }
-    }
-}
-
-fn pending_events<'py>(world: &Bound<'py, PyAny>) -> PyResult<Vec<PendingEvent<'py>>> {
-    let writer = EventWriter::of(world)?;
-    let pending = writer.queue().get().pending_events(world.py())?;
-    pending.ok_or_else(|| Unsupported::new_err("an event in the queue is not a plain one"))
-}
-
-/// `event.payload.get("task_id")` of a `staff_operation_relief` in the queue.
+/// `event.payload.get("task_id")` of a `staff_operation_relief` in the queue, for `staff.rs`.
 pub(crate) fn relief_task_of(event: &PendingEvent<'_>) -> PyResult<Option<Arc<str>>> {
-    if pending_type_is(event, "staff_operation_relief")? {
-        pending_payload_text(event, "task_id")
-    } else {
-        Ok(None)
-    }
-}
-
-fn staff_operations_mirror<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, NamespaceMirror>>> {
-    if crate::core::row::namespace_is_absent(world, intern!(world.py(), STAFF_OPERATIONS))? {
-        return Ok(None);
-    }
-    crate::rules::staff::mirror_held(world, STAFF_OPERATIONS).map(Some)
-}
-
-/// `_active_route_edge_loads` and the loads of `_support_route_wait_reasons`: every edge of each
-/// trip that ends after this minute, and of each staff member on the way.
-pub(crate) fn active_edge_loads(world: &Bound<'_, PyAny>, minute: i64) -> PyResult<EdgeLoads> {
-    let mut loads = EdgeLoads::new();
-    for event in pending_events(world)? {
-        if event.due_minute <= minute || !pending_type_is(&event, "agent_travel_complete")? {
-            continue;
-        }
-        for edge in pending_edges(&event)? {
-            *loads.entry(edge).or_insert(0) += 1;
-        }
-    }
-    if let Some(mirror) = staff_operations_mirror(world)? {
-        NamespaceMirror::with_row::<StaffOperationsRow, _>(&mirror, |row| {
-            for record in row.staff.values() {
-                if record.phase == Phase::Travel {
-                    for edge in &record.route_edge_ids {
-                        *loads.entry(edge.clone()).or_insert(0) += 1;
-                    }
-                }
+    match &event.source {
+        PendingSource::Row(row) => Ok(if &*row.event_type == "staff_operation_relief" { EventRef::Row(row).text("task_id")? } else { None }),
+        PendingSource::Object(object) => {
+            if exact_str(&attribute(object, intern!(object.py(), "event_type"))?)? == "staff_operation_relief" {
+                EventRef::Object(object).text("task_id")
+            } else {
+                Ok(None)
             }
-            Ok(())
-        })?;
+        }
     }
-    Ok(loads)
 }
 
-/// `_current_journey_edge`, of a journey with these edges and times.
-fn current_edge(edges_object: &Bound<'_, PyAny>, ids: &[Arc<str>], start: i64, due: i64, minute: i64) -> PyResult<Option<Arc<str>>> {
-    let py = edges_object.py();
-    if ids.is_empty() {
-        return Ok(None);
-    }
-    let duration = due - start;
-    if duration <= 0 {
-        return Ok(None);
-    }
-    let elapsed = minute - start;
-    let mut weights = Vec::with_capacity(ids.len());
-    for id in ids {
-        let Some(edge) = raw_dict_get(edges_object, PyString::new(py, id).as_any())? else {
-            return unsupported("a trip's edge is not in the world");
-        };
-        weights.push(exact_int(&attribute(&edge, intern!(py, "travel_minutes"))?)?);
-    }
-    let mut total = 0_i64;
-    for weight in &weights {
-        total = total.checked_add(*weight).ok_or_else(|| Unsupported::new_err("a trip's minutes past 64 bits"))?;
-    }
-    if total <= 0 {
-        return Ok(Some(ids[0].clone()));
-    }
-    if [elapsed.abs(), duration, total].iter().any(|value| *value >= EXACT_INT) {
-        return unsupported("a trip's minutes do not fit a float");
-    }
-    // `elapsed / duration * total`, from the left: an int's true division is the floats' here.
-    let scaled = elapsed as f64 / duration as f64 * total as f64;
-    let mut cumulative = 0_i64;
-    for (id, weight) in ids.iter().zip(&weights) {
-        if scaled < (cumulative + weight) as f64 {
-            return Ok(Some(id.clone()));
-        }
-        cumulative += weight;
-    }
-    Ok(ids.last().cloned())
+/// `_active_route_edge_loads` and the loads of `_support_route_wait_reasons`.
+pub(crate) fn active_edge_loads(world: &Bound<'_, PyAny>, minute: i64) -> PyResult<EdgeLoads> {
+    read_queue_rows(world)?;
+    let staff = staff_held(world)?;
+    with_world(world, |cell| core::active_edge_loads(cell, &staff, minute))?.or_py()
 }
 
 /// `shared_passage_edge_loads`: who is on which edge at this minute.
 pub(crate) fn passage_edge_loads(world: &Bound<'_, PyAny>, minute: i64) -> PyResult<EdgeLoads> {
-    let py = world.py();
-    let edges = attribute(world, intern!(py, "zone_edges"))?;
-    let store = entities_of(world)?;
-    let mut loads = EdgeLoads::new();
-    let mut represented: HashSet<Arc<str>> = HashSet::new();
-    let table = attribute(world, intern!(py, "model_state"))?;
-    if exact_dict(&table)?.contains(KEY)? {
-        let trips = NamespaceMirror::with_row::<MovementRow, _>(&mirror_held(world)?, |row| {
-            Ok(row
-                .journeys
-                .iter()
-                .filter(|(_, journey)| journey.started_minute <= minute && minute < journey.due_minute)
-                .map(|(agent, journey)| (agent.clone(), journey.route_edge_ids.clone(), journey.started_minute, journey.due_minute))
-                .collect::<Vec<_>>())
-        })?;
-        for (agent, ids, start, due) in trips {
-            if let Some(edge) = current_edge(&edges, &ids, start, due, minute)? {
-                *loads.entry(edge).or_insert(0) += 1;
-                represented.insert(agent);
-            }
-        }
-    }
-    for event in pending_events(world)? {
-        if !pending_type_is(&event, "agent_travel_complete")? {
-            continue;
-        }
-        if pending_payload_text(&event, "agent_id")?.is_some_and(|agent| represented.contains(&agent)) {
-            continue;
-        }
-        if pending_payload_text(&event, "origin_zone_id")?.is_none_or(|zone| zone.is_empty()) {
-            continue;
-        }
-        let ids = pending_edges(&event)?;
-        if ids.is_empty() {
-            continue;
-        }
-        let Some(task_id) = pending_payload_text(&event, "task_id")? else {
-            continue;
-        };
-        let task = EntityStore::with_rows(&store, |rows| Ok(rows.active_tasks.get(&*task_id).map(|task| (task.start_minute, task.due_minute))))?;
-        let Some((start, due)) = task else {
-            continue;
-        };
-        if start <= minute && minute < due {
-            if let Some(edge) = current_edge(&edges, &ids, start, due, minute)? {
-                *loads.entry(edge).or_insert(0) += 1;
-            }
-        }
-    }
-    if let Some(mirror) = staff_operations_mirror(world)? {
-        let trips = NamespaceMirror::with_row::<StaffOperationsRow, _>(&mirror, |row| {
-            let mut trips = Vec::new();
-            for record in row.staff.values() {
-                if record.phase == Phase::Travel {
-                    let (Some(start), Some(due)) = (record.started_minute, record.travel_due_minute) else {
-                        return unsupported("a trip of the staff has no times");
-                    };
-                    if start <= minute && minute < due {
-                        trips.push((record.route_edge_ids.clone(), start, due));
-                    }
-                }
-            }
-            Ok(trips)
-        })?;
-        for (ids, start, due) in trips {
-            if let Some(edge) = current_edge(&edges, &ids, start, due, minute)? {
-                *loads.entry(edge).or_insert(0) += 1;
-            }
-        }
-    }
-    Ok(loads)
+    read_queue_rows(world)?;
+    let (movement, staff) = (movement_held(world)?, staff_held(world)?);
+    with_world(world, |cell| core::passage_edge_loads(cell, &movement, &staff, minute))?.or_py()
 }
 
 // ---- _route ---------------------------------------------------------------------------------------
 
-/// `_record_route_capacity_wait`, not done yet: a rule plans its route before it writes anything.
-pub(crate) struct CapacityWait {
-    agent_id: Arc<str>,
-    origin: Arc<str>,
-    destination: Arc<str>,
-    edge_id: Arc<str>,
-    capacity: i64,
-    active: i64,
+/// The world's writer, with what the caller's `EventWriter` reserved.
+fn events_of<'w>(world: &'w World, reserved: usize) -> sheltersim_core::error::Result<Events<'w>> {
+    let events = Events::of(world)?;
+    events.reserve(reserved);
+    Ok(events)
 }
 
-/// `_record_route_capacity_wait`.
+/// `_record_route_capacity_wait`, of a sequence the caller's writer reserved.
 pub(crate) fn write_capacity_wait(world: &Bound<'_, PyAny>, writer: &EventWriter<'_>, wait: CapacityWait) -> PyResult<()> {
-    let py = world.py();
-    let minute = attribute(world, intern!(py, "minute_index"))?;
-    let sequence = writer.allocate_reserved()?;
-    let payload = PyDict::new(py);
-    payload.set_item("agent_id", &*wait.agent_id)?;
-    payload.set_item("origin_zone_id", &*wait.origin)?;
-    payload.set_item("destination_zone_id", &*wait.destination)?;
-    payload.set_item("edge_id", &*wait.edge_id)?;
-    payload.set_item("capacity", wait.capacity)?;
-    payload.set_item("active_travelers", wait.active)?;
-    let provenance = PyDict::new(py);
-    provenance.set_item("source_type", "assumption")?;
-    provenance.set_item("source_id", CAPACITY_SOURCE)?;
-    let event = new_event(
-        py,
-        NewEvent {
-            event_id: &format!("zone-edge-capacity-wait-{sequence}"),
-            kind: "ENDOGENOUS",
-            due_minute: exact_int(&minute)?,
-            priority: 0,
-            sequence,
-            event_type: "zone_edge_capacity_wait",
-            payload: payload.into_any(),
-            source_id: Some(PyString::new(py, CAPACITY_SOURCE).into_any()),
-            causation_id: None,
-            provenance: provenance.into_any(),
-        },
-    )?;
-    attribute(world, intern!(py, "event_log"))?.call_method1(
-        intern!(py, "append"),
-        (log_record(py, &event, &minute, "SUPPRESSED", Some("route edge capacity is full; the Agent remains at its origin"))?,),
-    )?;
-    Ok(())
-}
-
-/// `_route`, for a person in the world, changing nothing: the waits it would record go in `waits`.
-pub(crate) fn route_for<'py>(
-    world: &Bound<'py, PyAny>,
-    graph: &RunGraph,
-    origin: &Arc<str>,
-    destination: &Arc<str>,
-    agent_id: &str,
-    waits: &mut Vec<CapacityWait>,
-) -> PyResult<Option<Route>> {
-    let py = world.py();
-    let store = entities_of(world)?;
-    let mobility = EntityStore::with_rows(&store, |rows| {
-        let Some(agent) = rows.agents.get(agent_id) else {
-            return unsupported("no such agent");
-        };
-        Ok(mobility_text(agent))
+    let reserved = writer.reserved();
+    let left = with_world(world, |cell| -> sheltersim_core::events::writer::WriteResult<usize> {
+        let events = events_of(cell, reserved)?;
+        core::write_capacity_wait(cell, &events, wait)?;
+        Ok(events.reserved())
     })?;
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let has_plan = exact_dict(&configs)?.get_item(intern!(py, "facility_geometry"))?.is_some_and(|raw| !raw.is_none());
-    let closed = if has_plan {
-        graph.router.closed_to(&Geo::of(world)?, mobility).or_py()?
-    } else {
-        Arc::new(HashSet::new())
-    };
-    let found = if !graph.capacities.any {
-        graph.router.shortest(&closed, None, origin, destination).or_py()?
-    } else {
-        let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
-        let loads = active_edge_loads(world, minute)?;
-        let found = graph.router.shortest(&closed, Some(&loads), origin, destination).or_py()?;
-        if found.is_none() {
-            if let Some(free) = graph.router.shortest(&closed, None, origin, destination).or_py()? {
-                for edge in &free.edge_ids {
-                    let Some(capacity) = graph.capacities.of(edge).or_py()? else {
-                        continue;
-                    };
-                    let active = loads.get(edge).copied().unwrap_or(0);
-                    if active >= capacity {
-                        waits.push(CapacityWait {
-                            agent_id: Arc::from(agent_id),
-                            origin: origin.clone(),
-                            destination: destination.clone(),
-                            edge_id: edge.clone(),
-                            capacity,
-                            active,
-                        });
-                        break;
-                    }
-                }
-            }
-        }
-        found
-    };
-    let Some(mut route) = found else {
-        return Ok(None);
-    };
-    let zones: Vec<&str> = route.zone_ids.iter().map(|id| &**id).collect();
-    let edges: Vec<&str> = route.edge_ids.iter().map(|id| &**id).collect();
-    route.minutes = movement_minutes(world, agent_id, &zones, &edges, route.minutes)?;
-    Ok(Some(route))
+    writer.reserve(write_result(world.py(), left)?);
+    Ok(())
 }
 
 pub(crate) fn route_class(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
@@ -613,16 +326,13 @@ pub(crate) fn route<'py>(
     let graph = rows_of(controller)?;
     let origin: Arc<str> = Arc::from(exact_str(origin_zone_id)?);
     let destination: Arc<str> = Arc::from(exact_str(destination_zone_id)?);
-    let mut waits = Vec::new();
-    let found = route_for(&world, &graph, &origin, &destination, exact_str(agent_id)?, &mut waits)?;
-    if !waits.is_empty() {
-        let writer = EventWriter::of(&world)?;
-        writer.reserve(waits.len());
-        for wait in waits {
-            write_capacity_wait(&world, &writer, wait)?;
-        }
+    let agent = exact_str(agent_id)?;
+    if graph.capacities.any {
+        read_queue_rows(&world)?;
     }
-    let Some(route) = found else {
+    let inputs = Inputs::of(&world)?;
+    let found = with_world(&world, |cell| core::route(cell, &inputs.routing(&graph), &origin, &destination, agent))?;
+    let Some(route) = inputs.finish(py, write_result(py, found))? else {
         return Ok(py.None().into_bound(py));
     };
     let zones = PyTuple::new(py, route.zone_ids.iter().map(|id| &**id))?;
@@ -632,232 +342,16 @@ pub(crate) fn route<'py>(
 
 // ---- _schedule_travel ---------------------------------------------------------------------------
 
-/// What a trip needs beside its route.
-pub(crate) struct Trip<'a> {
-    pub(crate) agent_id: Arc<str>,
-    pub(crate) route: Route,
-    pub(crate) points: Vec<Pt>,
-    pub(crate) purpose: &'a str,
-    pub(crate) facility_id: Option<Arc<str>>,
-    pub(crate) minute: i64,
-    pub(crate) causation_id: Option<Arc<str>>,
-    pub(crate) support_request_id: Option<Arc<str>>,
-    pub(crate) support_staff_id: Option<Arc<str>>,
-}
-
-/// A trip planned, with nothing changed: its writes cannot be refused.
-pub(crate) struct PlannedTrip {
-    agent_id: Arc<str>,
-    task_id: Arc<str>,
-    task_kind: &'static str,
-    target_id: Arc<str>,
-    minute: i64,
-    due: i64,
-    event: EventRow,
-    changes: Option<Changes>,
-}
-
-const APPROACH_SOURCE: &str = "ASM-SPATIAL-MOVEMENT-V2";
-const APPROACH_POLICY: &str = "spatial-route-and-room-waypoint-v2";
-const APPROACH_EVENT_SOURCE: &str = "agent-facility-approach-v2";
-
-struct Names {
-    agent_id: Arc<str>,
-    task_id: Arc<str>,
-    purpose: Arc<str>,
-    destination_zone_id: Arc<str>,
-    facility_id: Arc<str>,
-    route_zone_ids: Arc<str>,
-    route_edge_ids: Arc<str>,
-    travel_minutes: Arc<str>,
-    origin_zone_id: Arc<str>,
-    request_id: Arc<str>,
-    staff_id: Arc<str>,
-    source_type: Arc<str>,
-    source_id: Arc<str>,
-    policy_version: Arc<str>,
-    assumption: Arc<str>,
-    routing_policy: Arc<str>,
-    event_type: Arc<str>,
-}
-
-static NAMES: LazyLock<Names> = LazyLock::new(|| Names {
-    agent_id: Arc::from("agent_id"),
-    task_id: Arc::from("task_id"),
-    purpose: Arc::from("purpose"),
-    destination_zone_id: Arc::from("destination_zone_id"),
-    facility_id: Arc::from("facility_id"),
-    route_zone_ids: Arc::from("route_zone_ids"),
-    route_edge_ids: Arc::from("route_edge_ids"),
-    travel_minutes: Arc::from("travel_minutes"),
-    origin_zone_id: Arc::from("origin_zone_id"),
-    request_id: Arc::from("request_id"),
-    staff_id: Arc::from("staff_id"),
-    source_type: Arc::from("source_type"),
-    source_id: Arc::from("source_id"),
-    policy_version: Arc::from("policy_version"),
-    assumption: Arc::from("assumption"),
-    routing_policy: Arc::from(ROUTING_POLICY),
-    event_type: Arc::from("agent_travel_complete"),
-});
-
-fn strings(ids: &[Arc<str>]) -> V {
-    V::List(ids.iter().map(|id| V::Str(id.clone())).collect())
-}
-
-/// `_schedule_travel`, changing nothing. None is its False. Its errors, and its refusals, come before
-/// anything is written: the Python rule's texts for a route from elsewhere and a support trip
-/// without its IDs (the Python rule allocated a sequence before the second).
+/// `_schedule_travel`, changing nothing, for a rule that writes it later with `write_travel`.
 pub(crate) fn plan_travel(world: &Bound<'_, PyAny>, writer: &EventWriter<'_>, trip: Trip<'_>) -> PyResult<Option<PlannedTrip>> {
-    let py = world.py();
-    let store = entities_of(world)?;
-    let Trip { agent_id, route, points, purpose, facility_id, minute, causation_id, support_request_id, support_staff_id } = trip;
-    let is_origin = EntityStore::with_rows(&store, |rows| {
-        let Some(agent) = rows.agents.get(&agent_id) else {
-            return unsupported("no such agent");
-        };
-        Ok(agent.zone_id == route.origin)
-    })?;
-    if !is_origin {
-        return Err(errors::value_error("travel route origin does not match Agent zone"));
-    }
-    if route.minutes <= 0 {
-        return Ok(None);
-    }
-    if route.minutes >= EXACT_INT {
-        return unsupported("a journey has no plain duration");
-    }
-    let Some(due) = minute.checked_add(route.minutes) else {
-        return unsupported("a due minute out of range");
-    };
-    if due >= writer.duration() {
-        return Ok(None);
-    }
-    let zones = attribute(world, intern!(py, "zones"))?;
-    let Some(zone) = raw_dict_get(&zones, PyString::new(py, &route.destination).as_any())? else {
-        return unsupported("no such zone");
-    };
-    let capacity = attribute(&zone, intern!(py, "capacity"))?;
-    if !capacity.is_none() && route.origin != route.destination {
-        let capacity = exact_int(&capacity)?;
-        let (occupancy, incoming) = EntityStore::with_rows(&store, |rows| {
-            let mut occupancy = 0;
-            let mut incoming = 0;
-            for (_, other) in rows.agents.iter() {
-                occupancy += i64::from(other.zone_id == route.destination);
-                if other.activity == Activity::Moving {
-                    if let Some(target) = &other.target_id {
-                        let place = rows.facilities.get(target).map_or(target, |facility| &facility.zone_id);
-                        incoming += i64::from(*place == route.destination);
-                    }
-                }
-            }
-            Ok((occupancy, incoming))
-        })?;
-        if occupancy + incoming >= capacity {
-            return Ok(None);
-        }
-    }
-
-    let sequence = writer.next_sequence()?;
-    let event_id: Arc<str> = Arc::from(format!("agent-travel-complete-{sequence}"));
-    let task_id: Arc<str> = Arc::from(format!("agent-travel-{sequence}"));
-    {
-        let task_is_taken = EntityStore::with_rows(&store, |rows| Ok(rows.active_tasks.get(&task_id).is_some()))?;
-        if writer.is_taken(&event_id, Some(sequence))? || task_is_taken {
-            return unsupported("the trip's identity is taken");
-        }
-    }
-    let is_facility_trip = matches!(purpose, "toilet_request" | "resource_request");
-    let target_id = if is_facility_trip {
-        match &facility_id {
-            Some(id) => id.clone(),
-            None => return unsupported("a facility's trip with no facility"),
-        }
-    } else {
-        route.destination.clone()
-    };
-    let task_kind = match purpose {
-        "toilet_request" => "travel_to_toilet",
-        "resource_request" => "travel_to_resource",
-        "staff_support_travel" => "staff_support_travel",
-        _ => "travel_return",
-    };
-    let names = &*NAMES;
-    let mut payload = IndexMap::with_capacity(11);
-    payload.insert(names.agent_id.clone(), V::Str(agent_id.clone()));
-    payload.insert(names.task_id.clone(), V::Str(task_id.clone()));
-    let purpose_arc: Arc<str> = Arc::from(purpose);
-    payload.insert(names.purpose.clone(), V::Str(purpose_arc.clone()));
-    payload.insert(names.destination_zone_id.clone(), V::Str(route.destination.clone()));
-    payload.insert(names.facility_id.clone(), facility_id.as_ref().map_or(V::Null, |id| V::Str(id.clone())));
-    payload.insert(names.route_zone_ids.clone(), strings(&route.zone_ids));
-    payload.insert(names.route_edge_ids.clone(), strings(&route.edge_ids));
-    payload.insert(names.travel_minutes.clone(), V::Int(route.minutes));
-    if purpose == "resource_request" {
-        payload.insert(names.origin_zone_id.clone(), V::Str(route.origin.clone()));
-    }
-    if purpose == "staff_support_travel" {
-        let (Some(request), Some(staff)) = (&support_request_id, &support_staff_id) else {
-            return Err(errors::value_error("staff support travel requires request and staff IDs"));
-        };
-        if request.is_empty() || staff.is_empty() {
-            return Err(errors::value_error("staff support travel requires request and staff IDs"));
-        }
-        payload.insert(names.request_id.clone(), V::Str(request.clone()));
-        payload.insert(names.staff_id.clone(), V::Str(staff.clone()));
-    }
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let source: Arc<str> = match exact_dict(&configs)?.get_item(intern!(py, "layout_routing"))? {
-        Some(config) => match exact_dict(&config)?.get_item(intern!(py, "source_id"))? {
-            Some(source) => Arc::from(exact_str(&source)?),
-            None => Arc::from(ROUTING_SOURCE),
-        },
-        None => Arc::from(ROUTING_SOURCE),
-    };
-    let mut provenance = IndexMap::with_capacity(3);
-    provenance.insert(names.source_type.clone(), V::Str(names.assumption.clone()));
-    provenance.insert(names.source_id.clone(), V::Str(source));
-    provenance.insert(names.policy_version.clone(), V::Str(names.routing_policy.clone()));
-    let Some(event) = EventRow::new(
-        event_id.clone(),
-        EventKind::Completion,
-        due,
-        0,
-        sequence,
-        names.event_type.clone(),
-        payload,
-        Some(task_id.clone()),
-        causation_id,
-        provenance,
-    ) else {
-        return unsupported("the event's values are not what an event takes");
-    };
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let changes = if exact_dict(&table)?.contains(KEY)? {
-        let journey = Journey {
-            event_id,
-            task_id: task_id.clone(),
-            purpose: purpose_arc,
-            facility_id,
-            destination_zone_id: route.destination.clone(),
-            route_zone_ids: route.zone_ids,
-            route_edge_ids: route.edge_ids.clone(),
-            route_points: points.iter().map(|point| Point { x: point.x, y: point.y }).collect(),
-            started_minute: minute,
-            due_minute: due,
-            queue_id: None,
-            support_request_id,
-            support_staff_id,
-        };
-        Some(plan_start(world, &agent_id, journey, &route.origin, &points, &route.edge_ids, minute, route.minutes)?)
-    } else {
-        None
-    };
-    Ok(Some(PlannedTrip { agent_id, task_id, task_kind, target_id, minute, due, event, changes }))
+    let inputs = Inputs::of(world)?;
+    let reserved = writer.reserved();
+    let planned = with_world(world, |cell| events_of(cell, reserved).and_then(|events| core::plan_travel(cell, &events, inputs.walking(), trip)))?;
+    inputs.finish(world.py(), planned.or_py())
 }
 
 /// `_schedule_room_approach` of `events/handlers.py`, changing nothing. None is its False.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn plan_room_approach(
     world: &Bound<'_, PyAny>,
     writer: &EventWriter<'_>,
@@ -869,103 +363,22 @@ pub(crate) fn plan_room_approach(
     minute: i64,
     origin_zone_id: &Arc<str>,
 ) -> PyResult<Option<PlannedTrip>> {
-    let py = world.py();
-    let store = entities_of(world)?;
-    if route.minutes >= EXACT_INT {
-        return unsupported("a journey has no plain duration");
-    }
-    let Some(due) = minute.checked_add(route.minutes) else {
-        return unsupported("a due minute out of range");
-    };
-    if due >= writer.duration() {
-        return Ok(None);
-    }
-    let sequence = writer.next_sequence()?;
-    let event_id: Arc<str> = Arc::from(format!("agent-facility-approach-complete-{sequence}"));
-    let task_id: Arc<str> = Arc::from(format!("agent-facility-approach-{sequence}"));
-    {
-        let task_is_taken = EntityStore::with_rows(&store, |rows| Ok(rows.active_tasks.get(&task_id).is_some()))?;
-        if writer.is_taken(&event_id, Some(sequence))? || task_is_taken {
-            return unsupported("the approach's identity is taken");
-        }
-    }
-    let task_kind = if purpose == "toilet_request" { "travel_to_toilet" } else { "travel_to_resource" };
-    let names = &*NAMES;
-    let purpose_arc: Arc<str> = Arc::from(purpose);
-    let mut payload = IndexMap::with_capacity(9);
-    payload.insert(names.agent_id.clone(), V::Str(agent_id.clone()));
-    payload.insert(names.task_id.clone(), V::Str(task_id.clone()));
-    payload.insert(names.purpose.clone(), V::Str(purpose_arc.clone()));
-    payload.insert(names.destination_zone_id.clone(), V::Str(route.destination.clone()));
-    payload.insert(names.facility_id.clone(), V::Str(facility_id.clone()));
-    payload.insert(names.origin_zone_id.clone(), V::Str(origin_zone_id.clone()));
-    payload.insert(names.route_zone_ids.clone(), strings(&route.zone_ids));
-    payload.insert(names.route_edge_ids.clone(), strings(&route.edge_ids));
-    payload.insert(names.travel_minutes.clone(), V::Int(route.minutes));
-    let mut provenance = IndexMap::with_capacity(3);
-    provenance.insert(names.source_type.clone(), V::Str(names.assumption.clone()));
-    provenance.insert(names.source_id.clone(), V::Str(Arc::from(APPROACH_SOURCE)));
-    provenance.insert(names.policy_version.clone(), V::Str(Arc::from(APPROACH_POLICY)));
-    let Some(event) = EventRow::new(
-        event_id.clone(),
-        EventKind::Completion,
-        due,
-        0,
-        sequence,
-        names.event_type.clone(),
-        payload,
-        Some(Arc::from(APPROACH_EVENT_SOURCE)),
-        None,
-        provenance,
-    ) else {
-        return unsupported("the event's values are not what an event takes");
-    };
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let changes = if exact_dict(&table)?.contains(KEY)? {
-        let journey = Journey {
-            event_id,
-            task_id: task_id.clone(),
-            purpose: purpose_arc,
-            facility_id: Some(facility_id.clone()),
-            destination_zone_id: route.destination.clone(),
-            route_zone_ids: route.zone_ids,
-            route_edge_ids: route.edge_ids.clone(),
-            route_points: points.iter().map(|point| Point { x: point.x, y: point.y }).collect(),
-            started_minute: minute,
-            due_minute: due,
-            queue_id: None,
-            support_request_id: None,
-            support_staff_id: None,
-        };
-        Some(plan_start(world, agent_id, journey, &route.origin, points, &route.edge_ids, minute, route.minutes)?)
-    } else {
-        None
-    };
-    Ok(Some(PlannedTrip { agent_id: agent_id.clone(), task_id, task_kind, target_id: facility_id.clone(), minute, due, event, changes }))
+    let inputs = Inputs::of(world)?;
+    let reserved = writer.reserved();
+    let planned = with_world(world, |cell| {
+        events_of(cell, reserved).and_then(|events| core::plan_room_approach(cell, &events, inputs.walking(), agent_id, facility_id, purpose, route, points, minute, origin_zone_id))
+    })?;
+    inputs.finish(world.py(), planned.or_py())
 }
 
 /// The writes of `_schedule_travel` and `_schedule_room_approach`.
 pub(crate) fn write_travel(world: &Bound<'_, PyAny>, writer: &EventWriter<'_>, trip: PlannedTrip) -> PyResult<()> {
-    let py = world.py();
-    let store = entities_of(world)?;
-    let PlannedTrip { agent_id, task_id, task_kind, target_id, minute, due, event, changes } = trip;
-    writer.allocate_sequence()?;
-    let agent_text = PyString::new(py, &agent_id);
-    insert_entity(world, &task_id, TaskRow {
-        id: task_id.clone(),
-        kind: Arc::from(task_kind),
-        agent_id: Some(agent_id.clone()),
-        resource_id: None,
-        start_minute: minute,
-        due_minute: due,
-        staff_id: None,
+    let reserved = writer.reserved();
+    let written = with_world(world, |cell| -> sheltersim_core::events::writer::WriteResult<()> {
+        let events = events_of(cell, reserved)?;
+        core::write_travel(cell, &events, trip)
     })?;
-    set_agent(world, &store, agent_text.as_any(), Activity::Moving, Some(PyString::new(py, &target_id).as_any()))?;
-    writer.schedule(event)?;
-    if let Some(changes) = changes {
-        write_changes(world, changes)?;
-    }
-    Ok(())
+    write_result(world.py(), written)
 }
 
 /// A `ZoneRoute` as a row.
@@ -980,6 +393,13 @@ fn route_of_object(route: &Bound<'_, PyAny>) -> PyResult<Route> {
     })
 }
 
+/// `_schedule_travel` of one trip, with its writes.
+fn schedule(world: &Bound<'_, PyAny>, trip: Trip<'_>) -> PyResult<bool> {
+    let inputs = Inputs::of(world)?;
+    let scheduled = with_world(world, |cell| core::schedule_travel(cell, inputs.walking(), trip))?;
+    inputs.finish(world.py(), write_result(world.py(), scheduled))
+}
+
 /// `_schedule_staff_support_travel`.
 #[pyfunction]
 fn schedule_support_travel<'py>(
@@ -991,31 +411,23 @@ fn schedule_support_travel<'py>(
     minute: &Bound<'py, PyAny>,
 ) -> PyResult<bool> {
     let world = attribute(controller, intern!(controller.py(), "world"))?;
-    let writer = EventWriter::of(&world)?;
     let request: Arc<str> = Arc::from(exact_str(request_id)?);
-    let planned = plan_travel(
-        &world,
-        &writer,
-        Trip {
-            agent_id: Arc::from(exact_str(agent_id)?),
-            route: route_of_object(route)?,
-            points: Vec::new(),
-            purpose: "staff_support_travel",
-            facility_id: None,
-            minute: exact_int(minute)?,
-            causation_id: Some(request.clone()),
-            support_request_id: Some(request),
-            support_staff_id: Some(Arc::from(exact_str(staff_id)?)),
-        },
-    )?;
-    let Some(planned) = planned else {
-        return Ok(false);
+    let trip = Trip {
+        agent_id: Arc::from(exact_str(agent_id)?),
+        route: route_of_object(route)?,
+        points: Vec::new(),
+        purpose: "staff_support_travel",
+        facility_id: None,
+        minute: exact_int(minute)?,
+        causation_id: Some(request.clone()),
+        support_request_id: Some(request),
+        support_staff_id: Some(Arc::from(exact_str(staff_id)?)),
     };
-    write_travel(&world, &writer, planned)?;
-    Ok(true)
+    schedule(&world, trip)
 }
 
-/// `_schedule_travel`: with `validate_state` (true when not given), `world.validate()` after a trip.
+/// `_schedule_travel`: with `validate_state` (true when not given), `world.validate()` after a trip
+/// (`Host::validate_world`).
 #[pyfunction]
 #[pyo3(signature = (
     controller, *, agent_id, route, route_points=None, purpose, facility_id, minute, causation_id=None,
@@ -1035,84 +447,72 @@ fn schedule_travel<'py>(
     support_staff_id: Option<&Bound<'py, PyAny>>,
     validate_state: Option<&Bound<'py, PyAny>>,
 ) -> PyResult<bool> {
+    use sheltersim_core::host::Host;
     let py = controller.py();
     let validate = match validate_state {
         Some(validate) => validate.is_truthy()?,
         None => true,
     };
     let world = attribute(controller, intern!(py, "world"))?;
-    let writer = EventWriter::of(&world)?;
-    let planned = plan_travel(
-        &world,
-        &writer,
-        Trip {
-            agent_id: Arc::from(exact_str(agent_id)?),
-            route: route_of_object(route)?,
-            points: route_points_of(route_points)?,
-            purpose: exact_str(purpose)?,
-            facility_id: optional_str(Some(facility_id))?,
-            minute: exact_int(minute)?,
-            causation_id: optional_str(causation_id)?,
-            support_request_id: optional_str(support_request_id)?,
-            support_staff_id: optional_str(support_staff_id)?,
-        },
-    )?;
-    let Some(planned) = planned else {
-        return Ok(false);
+    let trip = Trip {
+        agent_id: Arc::from(exact_str(agent_id)?),
+        route: route_of_object(route)?,
+        points: route_points_of(route_points)?,
+        purpose: exact_str(purpose)?,
+        facility_id: optional_str(Some(facility_id))?,
+        minute: exact_int(minute)?,
+        causation_id: optional_str(causation_id)?,
+        support_request_id: optional_str(support_request_id)?,
+        support_staff_id: optional_str(support_staff_id)?,
     };
-    write_travel(&world, &writer, planned)?;
+    if !schedule(&world, trip)? {
+        return Ok(false);
+    }
     if validate {
-        world.call_method0(intern!(py, "validate"))?;
+        crate::host::PyHost::of_world(&world, pyo3::types::PyDict::new(py)).validate_world().map_err(|error| error.0)?;
     }
     Ok(true)
 }
 
+/// What the walk home reads of Python: the Run's graph and the inputs of travel.
+pub(crate) struct Home {
+    graph: Graph,
+    inputs: Inputs,
+}
+
+impl Home {
+    pub(crate) fn of(controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let graph = rows_of(controller)?;
+        if graph.capacities.any {
+            read_queue_rows(world)?;
+        }
+        Ok(Self { graph, inputs: Inputs::of(world)? })
+    }
+
+    /// `_schedule_return_to_initial_zone` on the world borrowed.
+    pub(crate) fn schedule(&self, world: &World, event: &EventRow) -> sheltersim_core::events::writer::WriteResult<()> {
+        core::schedule_return(world, &self.inputs.routing(&self.graph), self.inputs.walking(), event)
+    }
+
+    /// The result of `schedule`, as Python's.
+    pub(crate) fn finish(&self, py: Python<'_>, result: sheltersim_core::events::writer::WriteResult<()>) -> PyResult<()> {
+        self.inputs.finish(py, write_result(py, result))
+    }
+}
+
 /// `_schedule_return_to_initial_zone` of `experiments/phases/dispatch.py`.
 pub(crate) fn schedule_return<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: EventRef<'_, 'py>) -> PyResult<()> {
-    let py = world.py();
-    let Some(agent_id) = event.text("agent_id")? else {
-        return Ok(());
+    let owned;
+    let row = match event {
+        EventRef::Row(row) => row,
+        EventRef::Object(object) => {
+            owned = EventRow::from_event(object)?.ok_or_else(|| Unsupported::new_err("the event is not a row"))?;
+            &owned
+        }
     };
-    let found = EntityStore::with_rows(&entities_of(world)?, |rows| {
-        Ok(rows.agents.get(&*agent_id).map(|agent| (agent.zone_id.clone(), agent.profile.initial_zone_id.clone())))
-    })?;
-    let Some((zone_id, destination)) = found else {
-        return Ok(());
-    };
-    if zone_id == destination {
-        return Ok(());
-    }
-    let graph = rows_of(controller)?;
-    let writer = EventWriter::of(world)?;
-    let mut waits = Vec::new();
-    let found = route_for(world, &graph, &zone_id, &destination, &agent_id, &mut waits)?;
-    writer.reserve(waits.len());
-    for wait in waits {
-        write_capacity_wait(world, &writer, wait)?;
-    }
-    let Some(route) = found else {
-        return Ok(());
-    };
-    let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
-    let planned = plan_travel(
-        world,
-        &writer,
-        Trip {
-            agent_id,
-            route,
-            points: Vec::new(),
-            purpose: "return",
-            facility_id: None,
-            minute,
-            causation_id: Some(event.event_id()?),
-            support_request_id: None,
-            support_staff_id: None,
-        },
-    )?;
-    if let Some(planned) = planned {
-        write_travel(world, &writer, planned)?;
-    }
-    Ok(())
+    let home = Home::of(controller, world)?;
+    let returned = with_world(world, |cell| home.schedule(cell, row))?;
+    home.finish(world.py(), returned)
 }
 
 /// `_schedule_return_to_initial_zone`, called from Python.
@@ -1124,123 +524,26 @@ fn schedule_return_step<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, 
 
 // ---- The choice of a facility -------------------------------------------------------------------
 
-/// `_facility_queue_has_capacity`.
-fn queue_has_capacity(world: &Bound<'_, PyAny>, rows: &Entities, facility_id: &str, facility: &FacilityRow, resource: bool) -> PyResult<bool> {
-    let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let Some(config) = exact_dict(&configs)?.get_item(intern!(py, "facility_queues"))? else {
-        return Ok(true);
-    };
-    let config = exact_dict(&config)?;
-    let Some(schema) = config.get_item(intern!(py, "schema_version"))? else {
-        return unsupported("the queue config has no schema");
-    };
-    if exact_int(&schema)? != 1 {
-        return unsupported("another queue config");
-    }
-    let Some(capacities) = config.get_item(intern!(py, "queue_capacity_by_facility"))? else {
-        return Ok(true);
-    };
-    let Some(maximum) = exact_dict(&capacities)?.get_item(facility_id)? else {
-        return Ok(true);
-    };
-    if maximum.is_none() {
-        return Ok(true);
-    }
-    let maximum = exact_int(&maximum)?;
-    if maximum < 0 {
-        return unsupported("a negative queue capacity");
-    }
-    let (queued, active) = if resource {
-        (&facility.resource_queue_agent_ids, &facility.resource_active_agent_ids)
-    } else {
-        (&facility.queue_agent_ids, &facility.active_agent_ids)
-    };
-    let transit = in_transit(rows, facility_id);
-    Ok(queued.len() as i64 + active.len() as i64 + transit < maximum)
-}
-
-fn in_transit(rows: &Entities, facility_id: &str) -> i64 {
-    rows.agents.iter().filter(|(_, other)| other.activity == Activity::Moving && other.target_id.as_deref() == Some(facility_id)).count() as i64
-}
-
-struct Candidate {
-    id: Arc<str>,
-    zone: Arc<str>,
-    load: i64,
-}
-
-/// What `_select_resource_facility` found: `(facility, route, rejection)`.
-pub(crate) enum Selected {
-    NoFacility,
-    NoRoute(Arc<str>),
-    Found(Arc<str>, Route),
-}
-
-/// `_select_toilet` and `_select_resource_facility`, which differ in which facilities they take.
+/// `_select_toilet` (no kind) and `_select_resource_facility`: the waits the routes record go in
+/// `waits`, whose sequences `writer` reserves before the trip planned after this.
 fn select(
     world: &Bound<'_, PyAny>,
     graph: &RunGraph,
     writer: &EventWriter<'_>,
     agent_id: &Bound<'_, PyAny>,
-    resource_kind: Option<&str>,
+    kind: Option<&str>,
     waits: &mut Vec<CapacityWait>,
 ) -> PyResult<Selected> {
-    let py = world.py();
-    let store = entities_of(world)?;
-    let agent_name = exact_str(agent_id)?;
-    let resource = resource_kind.is_some();
-    let (agent_zone, listed) = EntityStore::with_rows(&store, |rows| {
-        let Some(agent) = rows.agents.get(agent_name) else {
-            return unsupported("no such agent");
-        };
-        let mut listed = Vec::new();
-        for (id, facility) in rows.facilities.iter() {
-            let takes = match resource_kind {
-                Some(kind) => &*facility.kind == kind,
-                // `"toilet" in kind.casefold()`; a kind that isn't ASCII is folded by Python's own
-                // `str.casefold`, which reads no state.
-                None => crate::rules::toilet::is_toilet(&facility.kind)?,
-            };
-            if takes && queue_has_capacity(world, rows, id, facility, resource)? {
-                let load = if resource {
-                    facility.resource_queue_agent_ids.len() + facility.resource_active_agent_ids.len()
-                } else {
-                    facility.queue_agent_ids.len() + facility.active_agent_ids.len()
-                } as i64
-                    + in_transit(rows, id);
-                listed.push(Candidate { id: id.clone(), zone: facility.zone_id.clone(), load });
-            }
-        }
-        Ok((agent.zone_id.clone(), listed))
-    })?;
-    let mut known = Vec::with_capacity(listed.len());
-    for candidate in listed {
-        if agent_knows_facility(world, agent_id, PyString::new(py, &candidate.id).as_any())? {
-            known.push(candidate);
-        }
+    let agent = exact_str(agent_id)?;
+    let knows = configs::kept_section(world, |configs| &configs.knowledge_is_limited, sheltersim_core::config::agent_dynamics::knowledge_is_limited)?;
+    if graph.capacities.any {
+        read_queue_rows(world)?;
     }
-    if known.is_empty() {
-        return Ok(Selected::NoFacility);
-    }
-    let mut best: Option<(i64, i64, Arc<str>, Route)> = None;
-    for candidate in &known {
-        let Some(route) = route_for(world, graph, &agent_zone, &candidate.zone, agent_name, waits)? else {
-            continue;
-        };
-        let better = best.as_ref().is_none_or(|(load, minutes, id, _)| {
-            (candidate.load, route.minutes, candidate.id.as_bytes()) < (*load, *minutes, id.as_bytes())
-        });
-        if better {
-            best = Some((candidate.load, route.minutes, candidate.id.clone(), route));
-        }
-    }
-    // The waits take their sequences before the trip planned after this.
+    let inputs = Inputs::of(world)?;
+    let selected = with_world(world, |cell| core::select(cell, &inputs.routing(graph), &knows, agent, kind, waits))?;
+    let selected = inputs.finish(world.py(), selected.or_py())?;
     writer.reserve(waits.len());
-    match best {
-        Some((.., id, route)) => Ok(Selected::Found(id, route)),
-        None => Ok(Selected::NoRoute(known.iter().map(|candidate| candidate.id.clone()).min_by(|first, second| first.as_bytes().cmp(second.as_bytes())).unwrap_or_else(|| Arc::from("")))),
-    }
+    Ok(selected)
 }
 
 pub(crate) fn select_toilet(
@@ -1264,48 +567,16 @@ pub(crate) fn select_resource(
     select(world, graph, writer, agent_id, Some(kind), waits)
 }
 
-/// `_facility_approach`: its route and path, or None for no route. Without a floor plan the route
-/// takes no time and has no path.
+/// `_facility_approach`: its route and path, or None for no route.
 pub(crate) fn approach_route(world: &Bound<'_, PyAny>, agent_id: &str, facility_id: &str) -> PyResult<Option<(Route, Vec<Pt>)>> {
-    let py = world.py();
-    let store = entities_of(world)?;
-    let geo = Geo::of(world)?;
-    if geo.layout.is_none() {
-        return EntityStore::with_rows(&store, |rows| {
-            let (Some(agent), Some(facility)) = (rows.agents.get(agent_id), rows.facilities.get(facility_id)) else {
-                return unsupported("no such agent or facility");
-            };
-            let route = Route {
-                origin: agent.zone_id.clone(),
-                destination: facility.zone_id.clone(),
-                zone_ids: vec![agent.zone_id.clone()],
-                edge_ids: Vec::new(),
-                minutes: 0,
-            };
-            Ok(Some((route, Vec::new())))
-        });
-    }
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let movement = movement_of(world)?;
-    let read = |row: &MovementRow| {
-        EntityStore::with_rows(&store, |rows| {
-            let Some(facility) = rows.facilities.get(facility_id) else {
-                return unsupported("no such facility");
-            };
-            let zone = facility.zone_id.clone();
-            Ok(approach_point(&geo, row, rows, &movement.model, agent_id, facility_id, None)?.map(|found| (found, zone)))
-        })
-    };
-    let found = if exact_dict(&table)?.contains(KEY)? {
-        NamespaceMirror::with_row::<MovementRow, _>(&mirror_held(world)?, |row| read(row))?
-    } else {
-        // `world.model_state.get(MOVEMENT_STATE_KEY, {})`: nobody has a position yet.
-        read(&no_positions())?
-    };
-    Ok(found.map(|((minutes, path), zone)| {
-        let route = Route { origin: zone.clone(), destination: zone.clone(), zone_ids: vec![zone.clone(), zone], edge_ids: Vec::new(), minutes };
-        (route, path.to_vec())
-    }))
+    let inputs = Inputs::of(world)?;
+    let found = with_world(world, |cell| core::approach_route(cell, inputs.walking(), &inputs.section, agent_id, facility_id))?;
+    inputs.finish(world.py(), found.or_py())
+}
+
+/// Whether `world.metric_state` is still its slot's tree (`kit::check_metric_state`).
+pub(crate) fn metric_state_held(world: &Bound<'_, PyAny>) -> PyResult<bool> {
+    field_held(world, intern!(world.py(), "metric_state"))
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

@@ -1,4 +1,4 @@
-"""`_replan_journeys`, native/src/rules/replan.rs, which has no Python step left (lane L10).
+"""`_replan_journeys`, native/core/src/rules/replan.rs, which has no Python step left (lane L10).
 
 A replan is rare: one call in the gate and none in the 7-day run, so these tests are what checks
 most of its branches. Each runs the step and compares the whole world, its counters, metrics,
@@ -635,21 +635,18 @@ def test_a_refusal_before_the_first_stop_changes_nothing(generated_scenario: Any
 
 def test_a_refusal_after_a_stop_is_an_error(generated_scenario: Any) -> None:
     """A stop is written, so what the kernel turns down then cannot leave the world as it was."""
-    from sheltersim.policies.space import SpaceRouter
+    from sheltersim.domain.models import ZoneState
 
     world = _world(generated_scenario)
     _with_alternate_route(world)
     old = dict(_walk_to_the_toilet(world))
     world.zone_edges[FIRST_LEG].closed = True
     controller = _controller(world)
-
-    class Other:
-        def route(self, *arguments: Any, **options: Any) -> None:
-            return None
-
-    controller.space = SpaceRouter(controller.space.graph, Other())
-    controller._run_core.refresh_routes()
-    with pytest.raises(RuntimeError, match="after a replan was written: another route policy"):
+    # A zone the Run's router was not built with: the stop puts the person there, and the new
+    # route from it is refused.
+    world.zones["annex"] = ZoneState("annex", "annex", None)
+    world.model_state[KEY]["positions"]["A001"]["zone_id"] = "annex"
+    with pytest.raises(RuntimeError, match="after a replan was written: an unknown zone"):
         controller._replan_journeys(world.model_state[KEY], ("A001",), 1)
     assert "A001" not in world.model_state[KEY]["journeys"]
     assert world.event_log.find(old["event_id"]).status is EventStatus.SUPPRESSED
