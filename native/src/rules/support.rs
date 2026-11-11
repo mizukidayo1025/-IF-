@@ -18,19 +18,20 @@ use crate::core::configs;
 use crate::core::errors::{self, Outcome};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, namespace_is_absent, unsupported};
 use crate::core::tracked::as_readable_dict;
-use crate::core::value::V;
+use crate::core::value::{VPy, V};
 use crate::core::world_core::{mirror_of, raw_dict_get, with_state_value, NamespaceMirror};
 use crate::core::mathx::{py_max, py_min};
 use crate::rules::care_receipts::{
     allocate_transition, append, append_applied, person_context, plan_transition, source_ids_of, transition_record, PlannedTransition, Transition,
 };
-use crate::rules::handlers::{get, number, text_is};
+use crate::rules::handlers::get;
 use crate::rules::service::{add_one, metrics_of, set_agent};
 use crate::state::body_state::{BodyRecord, BodyRow, NAME as BODY};
 use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, Member, RequestStatus};
 use crate::state::events::{EventKind, EventRef, EventRow, EventWriter};
 use crate::Unsupported;
 use crate::state::shared_operations::{SharedOperationsRow, NAME as SHARED};
+use sheltersim_core::config::body::CareOutcome;
 
 const STAFF_SUPPORT_SOURCE: &str = "ASM-STAFF-SUPPORT-LIFECYCLE-V1";
 const UNRESOLVED_METRIC: &str = "support_unresolved_count";
@@ -38,8 +39,6 @@ const RESOLVED_METRIC: &str = "support_resolved_count";
 const BODY_SOURCE: &str = "ASM-LIFE-STATE-FEEDBACK-V1";
 const PRESENCE: &str = "population_presence_v1";
 const EMOTIONAL_SUPPORT: &str = "emotional_support";
-const TYPED_CARE_MODEL: &str = "typed-care-support-response-v1";
-const PROPORTIONAL_HYGIENE_MODEL: &str = "hygiene-support-proportional-relief-v1";
 /// What the handler says of a request that has left `pending`.
 pub(crate) const NO_LONGER_PENDING: &str = "support request is no longer pending";
 
@@ -586,10 +585,10 @@ pub(crate) fn complete_support_event<'py>(
     }
 }
 
-/// `create_care_outcome_formula(configs)`, which the registry makes from a selected model.
-fn selected_care_formula<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
+/// `create_care_outcome_formula(configs)`, which the registry makes from a selected model, kept for
+/// the configs' stamp (`core/configs.rs`).
+pub(crate) fn selected_care_formula(world: &Bound<'_, PyAny>) -> PyResult<Option<Arc<CareOutcome>>> {
     let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
     // Kept for the configs' stamp (`core/configs.rs`).
     let selection = match configs::selection(world)? {
         Ok(selection) => selection,
@@ -599,12 +598,22 @@ fn selected_care_formula<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Boun
     if selection.get("care_outcome").is_none() {
         return Ok(None);
     }
-    let formula = py
-        .import("sheltersim.policies.registry")?
-        .getattr("create_care_outcome_formula")?
-        .call1((configs,))
-        .map_err(|_| Unsupported::new_err("the formula refuses"))?;
-    Ok(Some(formula))
+    let parse = || -> PyResult<CareOutcome> {
+        let configs = attribute(world, intern!(py, "model_configs"))?;
+        let formula = py
+            .import("sheltersim.policies.registry")?
+            .getattr("create_care_outcome_formula")?
+            .call1((configs,))
+            .map_err(|_| Unsupported::new_err("the formula refuses"))?;
+        let text = |name| -> PyResult<Arc<str>> { Ok(Arc::from(exact_str(&attribute(&formula, name)?)?)) };
+        let (model_id, source_id) = (text(intern!(py, "model_id"))?, text(intern!(py, "source_id"))?);
+        let config = <V as VPy>::from_py(&attribute(&formula, intern!(py, "config"))?)?;
+        configs::read(CareOutcome::new(model_id, source_id, config))
+    };
+    match configs::kept_with_selection(world, |configs| &configs.care_outcome, || Ok(configs::parsed(py, parse())))? {
+        Ok(formula) => Ok(Some(formula)),
+        Err(fault) => Err(configs::raise(&fault, parse)),
+    }
 }
 
 // ---- What a selected care formula does ---------------------------------------------------------------
@@ -614,56 +623,6 @@ pub(crate) struct CaredPerson {
     agent_id: Arc<str>,
     stress: Option<f64>,
     record: Option<BodyRecord>,
-}
-
-/// `configured_value` of `support_state_deltas`.
-fn configured_value(config: &Bound<'_, PyAny>, name: &str, default: f64, agent_id: &str) -> PyResult<f64> {
-    let py = config.py();
-    let per_agent = config.call_method1(intern!(py, "get"), (format!("{name}_by_agent"), PyDict::new(py)))?;
-    if per_agent.is_instance_of::<PyDict>() && per_agent.contains(agent_id)? {
-        return number(&per_agent.get_item(agent_id)?);
-    }
-    match get(config, name)? {
-        value if value.is_none() && !config.contains(name)? => Ok(default),
-        value => number(&value),
-    }
-}
-
-/// `CareOutcomeFormula.support_state_deltas`: each field with its delta, in the formula's order.
-fn formula_deltas(formula: &Bound<'_, PyAny>, kind: &str, agent_id: &str) -> PyResult<Vec<(&'static str, f64)>> {
-    let py = formula.py();
-    if !text_is(&attribute(formula, intern!(py, "model_id"))?, TYPED_CARE_MODEL) {
-        return Ok(Vec::new());
-    }
-    let config = attribute(formula, intern!(py, "config"))?;
-    let value = |name: &str, default: f64| configured_value(&config, name, default, agent_id);
-    Ok(match kind {
-        "caregiver_assistance" => vec![
-            ("stress", -value("caregiver_assistance_stress_relief", 0.03)?),
-            ("reassurance", value("caregiver_assistance_reassurance_gain", 0.02)?),
-        ],
-        "dependent_assistance" => vec![
-            ("stress", -value("dependent_assistance_stress_relief", 0.04)?),
-            ("reassurance", value("dependent_assistance_reassurance_gain", 0.03)?),
-        ],
-        "privacy_accommodation" => vec![("discontent", -value("privacy_accommodation_discontent_relief", 0.02)?)],
-        "mobility_assistance" => vec![("stress", -value("mobility_assistance_stress_relief", 0.03)?)],
-        "language_access" => vec![("uncertainty", -value("language_access_uncertainty_relief", 0.05)?)],
-        "medical_assessment" => vec![("uncertainty", -value("medical_assessment_uncertainty_relief", 0.02)?)],
-        "medication_support" => vec![("uncertainty", -value("medication_support_uncertainty_relief", 0.01)?)],
-        _ => Vec::new(),
-    })
-}
-
-/// `CareOutcomeFormula.hygiene_need_after_support`.
-fn hygiene_after(model: &Bound<'_, PyAny>, need: f64, relief: f64) -> f64 {
-    let bounded_need = py_min(1.0, py_max(0.0, need));
-    let bounded_relief = py_min(1.0, py_max(0.0, relief));
-    if text_is(model, PROPORTIONAL_HYGIENE_MODEL) {
-        bounded_need * (1.0 - bounded_relief)
-    } else {
-        py_max(0.0, bounded_need - bounded_relief)
-    }
 }
 
 /// `explicit_care_dependents`.
@@ -732,7 +691,7 @@ fn set_body_field(record: &mut BodyRecord, field: &str, value: f64) -> PyResult<
 /// than emotional support: what changes, the outcome, and the receipt's sources.
 fn formula_care(
     world: &Bound<'_, PyAny>,
-    formula: &Bound<'_, PyAny>,
+    formula: &CareOutcome,
     agent_id: &Arc<str>,
     kind: &str,
     household_id: Option<&str>,
@@ -742,12 +701,12 @@ fn formula_care(
     let result = (|| -> PyResult<_> {
         let names = &*CHANGE_NAMES;
         let hygiene = kind == "hygiene_support";
-        let typed = formula_deltas(formula, kind, agent_id)?;
+        let typed = configs::read(formula.deltas(kind, agent_id))?;
         let mut relational: Vec<(Arc<str>, Vec<(&'static str, f64)>)> = Vec::new();
         let mut sources = Vec::new();
         if kind == "caregiver_assistance" {
             for dependent in care_dependents(world, agent_id, household_id)? {
-                let deltas = formula_deltas(formula, "caregiver_assistance", &dependent)?;
+                let deltas = configs::read(formula.deltas("caregiver_assistance", &dependent))?;
                 if !deltas.is_empty() {
                     relational.push((dependent, deltas));
                 }
@@ -840,7 +799,7 @@ fn formula_care(
         let mut outcome_source = false;
         if hygiene {
             let mut record = people[0].record.expect("set above");
-            record.hygiene_need = hygiene_after(&attribute(formula, intern!(py, "model_id"))?, record.hygiene_need, relief);
+            record.hygiene_need = formula.hygiene_after(record.hygiene_need, relief);
             people[0].record = Some(record);
             outcome_source = true;
         } else if !typed.is_empty() {
@@ -905,7 +864,7 @@ fn formula_care(
         }
         source_ids.push(Arc::from(BODY_SOURCE));
         if outcome_source {
-            source_ids.push(Arc::from(exact_str(&attribute(formula, intern!(py, "source_id"))?)?));
+            source_ids.push(formula.source_id.clone());
         }
         Ok((
             Care::Formula { people },

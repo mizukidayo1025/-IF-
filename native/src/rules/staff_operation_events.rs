@@ -21,6 +21,7 @@ use crate::rules::handlers::{
     assumption, counted, fields_are, get, get_is, kind_is, log_record, new_event, number, pending_of, text_is, NewEvent,
 };
 use crate::rules::movement_geometry::{Geo, GeoPy};
+use crate::rules::staff::staff_operations;
 use crate::rules::staff_dynamics::{is_available, staff_status};
 
 const NAME: &str = "staff_operations_v1";
@@ -28,8 +29,6 @@ const MOVEMENT: &str = "movement_v1";
 const MAX_HISTORY: usize = 20_000;
 const RELIEF_POLICY: &str = "same-site-staff-relief-v1";
 const RELIEF_SOURCE: &str = "ASM-STAFF-RELIEF-V1";
-const OPERATIONS_SOURCE: &str = "ASM-STAFF-OPERATIONS-V1";
-const OPERATIONS_POLICY: &str = "autonomous-routed-staff-v1";
 
 fn table_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     attribute(world, intern!(world.py(), "model_state"))
@@ -386,16 +385,11 @@ fn relief<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &
         if !skilled {
             return errors::suppressed(py, "replacement staff lacks the task skill");
         }
-        let formula = py.import("sheltersim.policies.registry")?.getattr("create_staff_operations_formula")?.call1((attribute(world, intern!(py, "model_configs"))?,))?;
-        let selected = attribute(world, intern!(py, "model_configs"))?
-            .call_method1(intern!(py, "get"), ("policy_registry", PyDict::new(py)))?
-            .contains("staff_operations")?;
-        let (formula_source, formula_policy, event_source) = if selected {
-            let source = attribute(&formula, intern!(py, "source_id"))?;
-            (source.clone(), attribute(&formula, intern!(py, "model_id"))?, source)
-        } else {
-            let policy = PyString::new(py, OPERATIONS_POLICY).into_any();
-            (PyString::new(py, OPERATIONS_SOURCE).into_any(), policy.clone(), policy)
+        let formula = staff_operations(world)?;
+        let (formula_source, formula_policy, event_source) = {
+            let (source, policy, event_source) = formula.provenance();
+            let text = |value: &str| PyString::new(py, value).into_any();
+            (text(source), text(policy), text(event_source))
         };
         let mut pending = Vec::new();
         let mut has_completion = false;

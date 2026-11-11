@@ -5,7 +5,7 @@
 //! (docs/rust-port/lanes/m6-handlers-rest.md).
 //!
 //! `InformationSpreadConfig.from_mapping` and `selected_models` stay Python's: they read the Scenario's
-//! contract, and neither changes anything. The selection is kept for the configs' stamp
+//! contract, and neither changes anything. What they give is kept for the configs' stamp
 //! (`core/configs.rs`).
 
 use std::sync::Arc;
@@ -20,8 +20,11 @@ use crate::core::errors;
 use crate::core::mathx::{py_max, py_min};
 use crate::core::rng::{label, Key, KeyedDraws};
 use crate::core::row::{attribute, exact_float, exact_int, exact_str, unsupported};
+use crate::core::value::{VPy, V};
 use crate::core::world_core::{mirror_of, NamespaceMirror};
-use crate::rules::handlers::{counted, fields_are, get, kind_is, number, text_is};
+use sheltersim_core::config::information::InformationSpread;
+use sheltersim_core::config::Fault;
+use crate::rules::handlers::{counted, fields_are, get, kind_is, text_is};
 use crate::rules::support::household_of;
 use crate::state::information::{belief_rank, is_stable_id, BeliefRow, InformationRow, NAME, SCHEMA_VERSION};
 
@@ -29,23 +32,49 @@ const EVIDENCE_AWARE: &str = "evidence-aware-rumor-v1";
 const CONTACT_SOURCE: &str = "ASM-INFORMATION-SPREAD-V1";
 const MAX_MESSAGES: usize = 1024;
 
-/// The config object, and the namespace's tree whose row is Rust's.
-pub(crate) fn runtime_state<'py>(world: &Bound<'py, PyAny>) -> PyResult<(Bound<'py, PyAny>, Bound<'py, PyAny>, Bound<'py, NamespaceMirror>)> {
+/// `InformationSpreadConfig.from_mapping(model_configs.get("information_spread"))`, as the rules
+/// read it.
+fn parse_spread(world: &Bound<'_, PyAny>) -> PyResult<InformationSpread> {
     let py = world.py();
     let configs = attribute(world, intern!(py, "model_configs"))?;
-    let config = match py
+    let config = py
         .import("sheltersim.domain.models")?
         .getattr("InformationSpreadConfig")?
-        .call_method1("from_mapping", (get(&configs, "information_spread")?,))
-    {
+        .call_method1("from_mapping", (get(&configs, "information_spread")?,))?;
+    spread_of(&config, configs.contains("information_spread")?)
+}
+
+/// What the rules read of an `InformationSpreadConfig`.
+fn spread_of(config: &Bound<'_, PyAny>, present: bool) -> PyResult<InformationSpread> {
+    let mut fields = indexmap::IndexMap::with_capacity(InformationSpread::FIELDS.len());
+    for name in InformationSpread::FIELDS {
+        let value = if name == "present" { V::Bool(present) } else { <V as VPy>::from_py(&config.getattr(name)?)? };
+        fields.insert(Arc::from(name), value);
+    }
+    configs::read(InformationSpread::from_v(&V::Map(fields)))
+}
+
+/// The config, kept for the configs' stamp (`core/configs.rs`), or what its parse raised.
+pub(crate) fn information_spread(world: &Bound<'_, PyAny>) -> PyResult<Result<Arc<InformationSpread>, Fault>> {
+    configs::kept(world, |configs| &configs.information_spread, || Ok(configs::parsed(world.py(), parse_spread(world))))
+}
+
+/// The config, and the namespace's tree whose row is Rust's.
+pub(crate) fn runtime_state<'py>(world: &Bound<'py, PyAny>) -> PyResult<(Arc<InformationSpread>, Bound<'py, PyAny>, Bound<'py, NamespaceMirror>)> {
+    let py = world.py();
+    let config = match information_spread(world)? {
         Ok(config) => config,
-        Err(error) if error.is_instance_of::<PyValueError>(py) => {
-            return errors::failed(py, format!("invalid information_spread config: {}", error.value(py).str()?));
+        Err(fault) => {
+            // What the parse raised, again (policy E14).
+            let error = configs::raise(&fault, || parse_spread(world));
+            if error.is_instance_of::<PyValueError>(py) {
+                return errors::failed(py, format!("invalid information_spread config: {}", error.value(py).str()?));
+            }
+            return Err(error);
         }
-        Err(error) => return Err(error),
     };
     let state = get(&attribute(world, intern!(py, "model_state"))?, NAME)?;
-    if !config.getattr(intern!(py, "enabled"))?.is_truthy()? || !state.is_instance_of::<PyDict>() {
+    if !config.enabled || !state.is_instance_of::<PyDict>() {
         return errors::failed(py, "information spread is not enabled for this run");
     }
     // `upgrade_information_runtime_state(state)`: a save of schema 1, which a Run may still continue
@@ -128,28 +157,21 @@ fn trust_of(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<f64> {
 }
 
 /// `config.correction_source_reliability_by_id.get(source_id, config.default_source_reliability)`.
-fn reliability_of(config: &Bound<'_, PyAny>, source_id: &str) -> PyResult<f64> {
-    let py = config.py();
-    let default = config.getattr(intern!(py, "default_source_reliability"))?;
-    number(&config.getattr(intern!(py, "correction_source_reliability_by_id"))?.call_method1(intern!(py, "get"), (source_id, default))?)
-}
-
-fn setting(config: &Bound<'_, PyAny>, name: &Bound<'_, PyString>) -> PyResult<f64> {
-    number(&config.getattr(name)?)
+fn reliability_of(config: &InformationSpread, source_id: &str) -> PyResult<f64> {
+    configs::read(config.reliability(source_id))
 }
 
 /// `_sample_claim_belief_strength`: the draw is keyed by the minute, the person and the message.
-fn sample_strength(world: &Bound<'_, PyAny>, config: &Bound<'_, PyAny>, agent_id: &str, source_id: &str, minute: i64, message_id: &str) -> PyResult<f64> {
-    let py = world.py();
+fn sample_strength(world: &Bound<'_, PyAny>, config: &InformationSpread, agent_id: &str, source_id: &str, minute: i64, message_id: &str) -> PyResult<f64> {
     let reliability = reliability_of(config, source_id)?;
     let trust = trust_of(world, agent_id)?;
     let probability = py_min(
         1.0,
         py_max(
             0.0,
-            setting(config, intern!(py, "rumor_belief_probability"))?
-                + 2.0 * setting(config, intern!(py, "rumor_trust_sensitivity"))? * (trust - 0.5)
-                + 2.0 * setting(config, intern!(py, "rumor_source_sensitivity"))? * (reliability - 0.5),
+            configs::read(config.rumor_belief_probability.clone())?
+                + 2.0 * configs::read(config.rumor_trust_sensitivity.clone())? * (trust - 0.5)
+                + 2.0 * configs::read(config.rumor_source_sensitivity.clone())? * (reliability - 0.5),
         ),
     );
     let drawn = draw(&seed_of(world)?, label::RUMOR_BELIEF, minute, &[agent_id, message_id]);
@@ -328,7 +350,7 @@ fn rumor<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &B
             ever_forgotten: false,
             last_correction_accepted: false,
         };
-        let next = py_min(1.0, pressure + setting(&config, intern!(py, "query_pressure_per_claim"))?);
+        let next = py_min(1.0, pressure + configs::read(config.query_pressure_per_claim.clone())?);
         Ok((state, message_id, origin, message, belief, next))
     })();
     let (state, message_id, origin, message, belief, next) = counted(py, "rumor", plan)?;
@@ -341,15 +363,14 @@ fn rumor<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &B
 // ---- InformationCorrectionHandler --------------------------------------------------------------------
 
 /// `min(0.95, max(0.0, acceptance + 2.0 * trust_sensitivity * (trust - 0.5) + 2.0 * source_sensitivity * (reliability - 0.5)))`.
-fn acceptance_probability(config: &Bound<'_, PyAny>, trust: f64, reliability: f64) -> PyResult<f64> {
-    let py = config.py();
+fn acceptance_probability(config: &InformationSpread, trust: f64, reliability: f64) -> PyResult<f64> {
     Ok(py_min(
         0.95,
         py_max(
             0.0,
-            setting(config, intern!(py, "correction_acceptance_probability"))?
-                + 2.0 * setting(config, intern!(py, "correction_trust_sensitivity"))? * (trust - 0.5)
-                + 2.0 * setting(config, intern!(py, "correction_source_sensitivity"))? * (reliability - 0.5),
+            configs::read(config.correction_acceptance_probability.clone())?
+                + 2.0 * configs::read(config.correction_trust_sensitivity.clone())? * (trust - 0.5)
+                + 2.0 * configs::read(config.correction_source_sensitivity.clone())? * (reliability - 0.5),
         ),
     ))
 }
@@ -423,7 +444,7 @@ fn correction<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, even
         let event_id: Arc<str> = Arc::from(exact_str(&event_id_value)?);
         let due = exact_int(&attribute(event, intern!(py, "due_minute"))?)?;
         let draws = seed_of(world)?;
-        let relief = setting(&config, intern!(py, "query_pressure_relief_per_correction"))?;
+        let relief = configs::read(config.query_pressure_relief_per_correction.clone())?;
         let verified = belief_text == "verified";
         let belief: Arc<str> = Arc::from(belief_text);
         let mut changes = Vec::new();
@@ -629,7 +650,7 @@ fn contact<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: 
         if get(&payload, "contact_basis")?.ne(basis)? {
             return Ok(Err("sampled contact basis is no longer current"));
         }
-        let minimum = exact_int(&config.getattr(intern!(py, "minimum_contact_minutes"))?)?;
+        let minimum = configs::read(config.minimum_contact_minutes.clone())?;
         if !errors::int_not_bool(&payload.get_item("contact_minutes")?)?.is_some_and(|minutes| minutes >= minimum) {
             return errors::failed(py, "information contact duration is below its configured minimum");
         }
@@ -703,9 +724,9 @@ fn contact<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: 
         // `heard` adds, an accepted correction relieves and counts, and every contact counts.
         let heard = belief_text == "heard";
         let next = if heard {
-            Some(py_min(1.0, pressure + setting(&config, intern!(py, "query_pressure_per_claim"))?))
+            Some(py_min(1.0, pressure + configs::read(config.query_pressure_per_claim.clone())?))
         } else if accepted {
-            Some(py_max(0.0, pressure - setting(&config, intern!(py, "query_pressure_relief_per_correction"))?))
+            Some(py_max(0.0, pressure - configs::read(config.query_pressure_relief_per_correction.clone())?))
         } else {
             None
         };
@@ -728,7 +749,7 @@ fn contact<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: 
 /// `_sample_claim_belief_strength`, for the tests: a draw hides a small change in its probability.
 #[pyfunction]
 fn claim_strength_of(world: &Bound<'_, PyAny>, config: &Bound<'_, PyAny>, agent_id: &str, source_id: &str, minute: i64, message_id: &str) -> PyResult<f64> {
-    sample_strength(world, config, agent_id, source_id, minute, message_id)
+    sample_strength(world, &spread_of(config, true)?, agent_id, source_id, minute, message_id)
 }
 
 /// A correction's acceptance as the rules draw it, for the tests: `ids` are the key's parts after
@@ -736,7 +757,8 @@ fn claim_strength_of(world: &Bound<'_, PyAny>, config: &Bound<'_, PyAny>, agent_
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 fn acceptance_of(world: &Bound<'_, PyAny>, config: &Bound<'_, PyAny>, label: &str, trust: f64, source_id: &str, minute: i64, ids: Vec<String>) -> PyResult<bool> {
-    let chance = acceptance_probability(config, trust, reliability_of(config, source_id)?)?;
+    let config = spread_of(config, true)?;
+    let chance = acceptance_probability(&config, trust, reliability_of(&config, source_id)?)?;
     let ids: Vec<&str> = ids.iter().map(String::as_str).collect();
     Ok(draw(&seed_of(world)?, label, minute, &ids) < chance)
 }

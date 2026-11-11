@@ -212,6 +212,7 @@ fn sheltersim_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(core::configs::watch_config_writes, module)?)?;
     module.add_function(wrap_pyfunction!(core::configs::config_writes_in_tick, module)?)?;
     module.add_function(wrap_pyfunction!(rules::movement_geometry::stale_geometry_hits, module)?)?;
+    module.add_function(wrap_pyfunction!(core::configs::config_section, module)?)?;
     module.add_function(wrap_pyfunction!(core::parallel::parallel_state, module)?)?;
     module.add_function(wrap_pyfunction!(core::parallel::set_people_per_helper, module)?)?;
     module.add_function(wrap_pyfunction!(core::tracked::install_tracked_types, module)?)?;

@@ -10,24 +10,23 @@ use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDict, PyList, PyString};
+use pyo3::types::{PyDict, PyList, PyString};
 
+use crate::core::configs;
 use crate::core::row::{
-    attribute, exact_dict, exact_int, exact_list, exact_str, namespace_is_absent, unsupported, PyField, IdMap,
+    attribute, exact_int, exact_str, namespace_is_absent, unsupported, PyField, IdMap,
 };
 use crate::core::world_core::{mirror_of, NamespaceMirror};
 use crate::state::agent_dynamics::{
     canonical_policy_or_text, policy_of, AgentDynamicsRow, AgentMemory, NAME, ORIENTATION_SOURCE, POLICY_V1, POLICY_V3,
 };
 use crate::state::entities::{entities_of, AgentRow, Entities, EntityStore};
-use crate::state::events::is_stable_id;
 use crate::Unsupported;
+use sheltersim_core::config::agent_dynamics::{awareness, knowledge_is_limited, Awareness};
 
 /// `ORIENTATION_FACILITY_KINDS`.
 const ORIENTATION_KINDS: [&str; 6] =
     ["intake", "meal_distribution", "medical_support", "quiet_space", "toilet", "water_station"];
-const AWARENESS_SOURCE: &str = "ASM-FACILITY-ENTRY-ORIENTATION-V1";
-const MAX_INITIAL_IDS: usize = 1000;
 
 /// What `record_proposal` stores of an applied decision.
 pub(crate) struct Decision<'a> {
@@ -103,9 +102,7 @@ pub(crate) fn agent_knows_facility(
     facility_id: &Bound<'_, PyAny>,
 ) -> PyResult<bool> {
     let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let configs = exact_dict(&configs)?;
-    if !configs.contains(intern!(py, "facility_awareness"))? && !configs.contains(intern!(py, "agent_dynamics"))? {
+    if !*configs::kept_value(world, |configs| &configs.knowledge_is_limited, knowledge_is_limited)? {
         return Ok(true);
     }
     if namespace_is_absent(world, intern!(py, NAME))? {
@@ -123,66 +120,10 @@ pub(crate) fn agent_knows_facility(
 
 // ---- What a new agent knows ---------------------------------------------------------------------
 
-/// `FacilityAwarenessConfig` of a plain document; Unsupported for what the model refuses or coerces.
-struct Awareness {
-    initial: Vec<Arc<str>>,
-    discover: bool,
-}
-
-/// `model_validate` of `model_configs["facility_awareness"]`, or None when that is not a dict.
-fn awareness_of(world: &Bound<'_, PyAny>) -> PyResult<Option<Awareness>> {
-    let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let Some(document) = exact_dict(&configs)?.get_item(intern!(py, "facility_awareness"))? else {
-        return Ok(None);
-    };
-    if document.is_none() {
-        return Ok(None);
-    }
-    let document = exact_dict(&document)?;
-    let mut awareness = Awareness { initial: Vec::new(), discover: true };
-    for (key, value) in document.iter() {
-        match exact_str(&key)? {
-            "schema_version" => {
-                if exact_int(&value)? != 1 {
-                    return unsupported("another awareness schema");
-                }
-            }
-            "initial_known_facility_ids" => {
-                let ids = exact_list(&value)?;
-                if ids.len() > MAX_INITIAL_IDS {
-                    return unsupported("too many initial facilities");
-                }
-                for id in ids.iter() {
-                    let id = exact_str(&id)?;
-                    if !is_stable_id(id) {
-                        return unsupported("an initial facility is not a stable ID");
-                    }
-                    awareness.initial.push(Arc::from(id));
-                }
-                awareness.initial.sort_unstable();
-                if awareness.initial.windows(2).any(|pair| pair[0] == pair[1]) {
-                    return unsupported("an initial facility repeats");
-                }
-            }
-            "discover_co_located_facilities_on_arrival" => match value.downcast_exact::<PyBool>() {
-                Ok(flag) => awareness.discover = flag.is_true(),
-                Err(_) => return unsupported("discovery is not a bool"),
-            },
-            "source_type" => {
-                if exact_str(&value)? != "assumption" {
-                    return unsupported("another awareness source type");
-                }
-            }
-            "source_id" => {
-                if exact_str(&value)? != AWARENESS_SOURCE {
-                    return unsupported("another awareness source");
-                }
-            }
-            _ => return unsupported("the awareness config has other fields"),
-        }
-    }
-    Ok(Some(awareness))
+/// `model_validate` of `model_configs["facility_awareness"]`, or None where it is absent or None,
+/// kept for the configs' stamp (`core/configs.rs`). Refused for what the model refuses or coerces.
+pub(crate) fn awareness_of(world: &Bound<'_, PyAny>) -> PyResult<Arc<Option<Awareness>>> {
+    configs::kept_value(world, |configs| &configs.facility_awareness, awareness)
 }
 
 /// `_new_agent_dynamics_record`.
@@ -222,7 +163,7 @@ pub(crate) fn create_state<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py
             let Some(agent) = rows.agents.get(&id) else {
                 return unsupported("an agent has no row");
             };
-            agents.insert(id, new_memory(rows, agent, policy != POLICY_V1, awareness.as_ref()));
+            agents.insert(id, new_memory(rows, agent, policy != POLICY_V1, awareness.as_ref().as_ref()));
         }
         Ok(AgentDynamicsRow { schema_version: 1, policy_version: Arc::from(policy), agents })
     })?;
@@ -258,7 +199,7 @@ pub(crate) fn add_agent(world: &Bound<'_, PyAny>, agent_id: &Bound<'_, PyAny>) -
         let Some(agent) = rows.agents.get(id) else {
             return unsupported("an agent has no row");
         };
-        Ok(new_memory(rows, agent, policy != POLICY_V1, awareness.as_ref()))
+        Ok(new_memory(rows, agent, policy != POLICY_V1, awareness.as_ref().as_ref()))
     })?;
     let value = PyField::to_py(&record, py)?;
     NamespaceMirror::write_through(&mirror, &["agents"], id, &value)?;
@@ -329,7 +270,7 @@ pub(crate) fn learn_facility_of(world: &Bound<'_, PyAny>, agent_id: &str, facili
         return Ok(());
     }
     // Asked after the record, as the Python rule does, so a bad config with no record is no error.
-    let discover = awareness_of(world)?.is_some_and(|awareness| awareness.discover);
+    let discover = awareness_of(world)?.as_ref().as_ref().is_some_and(|awareness| awareness.discover);
     let mut discovered: Vec<Arc<str>> = vec![Arc::from(facility_id)];
     if discover {
         EntityStore::with_rows(&store, |rows| {

@@ -11,23 +11,27 @@
 //! A handler whose Python rule copies the world does the same here (`transaction`): that flow stays
 //! until `core.fork()` (docs/rust-port/step3-design.md).
 
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
-use std::sync::Mutex;
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::{Arc, Mutex};
 
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyList, PyMapping, PyString, PyTuple};
 
+use crate::core::configs;
 use crate::core::mathx::{hypot, py_is_close};
 use crate::core::errors::{self, Wide};
 use crate::core::row::{attribute, exact_int, exact_str, str_value, unsupported};
+use crate::core::value::{VPy, V};
 use crate::rules::care_receipts::{continuity_record, facility_recovery_record};
 use crate::rules::effects::{active_outage, copy_of, has_active_modifier, swap};
 use crate::rules::population as population_rules;
 use crate::rules::{population_lifecycle, service};
 use crate::rules::staff_operation_events::interrupt_operation;
 use crate::Unsupported;
+use sheltersim_core::config::environment::Infrastructure;
+use sheltersim_core::config::proximity::Proximity;
 
 const OPERATIONAL: &str = "operational_events_v1";
 const INFRASTRUCTURE: &str = "infrastructure_v1";
@@ -298,23 +302,39 @@ fn records_tuple<'py>(py: Python<'py>, records: Vec<Bound<'py, PyAny>>) -> PyRes
 
 // ---- ProximityContactHandler -----------------------------------------------------------------------
 
+/// `canonical_proximity_contact_config(model_configs.get("social_proximity"))`, kept for the
+/// configs' stamp (`core/configs.rs`); what it raises is relayed as it is.
+pub(crate) fn proximity_config(world: &Bound<'_, PyAny>) -> PyResult<Arc<Option<Proximity>>> {
+    let py = world.py();
+    let parse = || -> PyResult<Option<Proximity>> {
+        let configs = attribute(world, intern!(py, "model_configs"))?;
+        let config = py
+            .import("sheltersim.domain.social_network")?
+            .getattr("canonical_proximity_contact_config")?
+            .call1((get(&configs, "social_proximity")?,))?;
+        configs::read(Proximity::from_v(&<V as VPy>::from_py(&config)?))
+    };
+    match configs::kept(world, |configs| &configs.proximity, || Ok(configs::parsed(py, parse())))? {
+        Ok(config) => Ok(config),
+        Err(fault) => Err(configs::raise(&fault, parse)),
+    }
+}
+
 fn proximity_on(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
     let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let config = py
-        .import("sheltersim.domain.social_network")?
-        .getattr("canonical_proximity_contact_config")?
-        .call1((get(&configs, "social_proximity")?,))?;
+    let config = proximity_config(world)?;
     let provenance = attribute(event, intern!(py, "provenance"))?;
     let due_value = attribute(event, intern!(py, "due_minute"))?;
-    if config.is_none()
-        || !kind_is(event, "ENDOGENOUS")?
+    let Some(config) = config.as_ref() else {
+        return errors::failed(py, "proximity contact provenance or time is invalid");
+    };
+    if !kind_is(event, "ENDOGENOUS")?
         || due_value.ne(attribute(world, intern!(py, "minute_index"))?)?
         || attribute(event, intern!(py, "source_id"))?.ne(PROXIMITY_SOURCE)?
         || !fields_are(&provenance, &["source_type", "source_id", "policy_version", "observed_minute"])?
         || get(&provenance, "source_type")?.ne("assumption")?
         || get(&provenance, "source_id")?.ne(PROXIMITY_SOURCE)?
-        || get(&provenance, "policy_version")?.ne(config.get_item("policy_version")?)?
+        || get(&provenance, "policy_version")?.ne(&*config.policy_version)?
     {
         return errors::failed(py, "proximity contact provenance or time is invalid");
     }
@@ -352,7 +372,7 @@ fn proximity_on(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<
         let Some(distance) = errors::real_number(&distance_value)? else {
             return Ok(None);
         };
-        if !distance.is_finite() || distance < 0.0 || distance > number(&config.get_item("max_distance_m")?)? {
+        if !distance.is_finite() || distance < 0.0 || distance > configs::read(config.max_distance_m.clone())? {
             return Ok(None);
         }
         Ok(Some((first_id, second_id, distance)))
@@ -1110,11 +1130,7 @@ fn interrupt_support_task<'py>(
         agent.setattr(intern!(py, "target_id"), py.None())?;
         agent.setattr(intern!(py, "support_request_id"), &request_id)?;
     } else {
-        let configs = attribute(world, intern!(py, "model_configs"))?;
-        let cooldown = configs
-            .call_method1(intern!(py, "get"), ("staff", PyDict::new(py)))?
-            .call_method1(intern!(py, "get"), ("support_cooldown_minutes", 30))?;
-        let until = now + exact_int(&cooldown)?;
+        let until = now + *support_cooldown_minutes(world)?;
         request.setattr(intern!(py, "status"), statuses.getattr("UNRESOLVED")?)?;
         request.setattr(intern!(py, "resolved_minute"), now)?;
         request.setattr(intern!(py, "cooldown_until"), until)?;
@@ -1330,42 +1346,42 @@ fn infrastructure_state<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny
     Ok(state)
 }
 
-/// `ScenarioInfrastructureSpec.model_validate(configs["infrastructure"])`: the contract stays Python's.
-fn infrastructure_config<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+/// `model_configs.get("staff", {}).get("support_cooldown_minutes", 30)`, kept for the configs'
+/// stamp (`core/configs.rs`); what the reads raise is relayed as it is.
+pub(crate) fn support_cooldown_minutes(world: &Bound<'_, PyAny>) -> PyResult<Arc<i64>> {
     let py = world.py();
-    let raw = attribute(world, intern!(py, "model_configs"))?.get_item("infrastructure")?;
-    py.import("sheltersim.domain.infrastructure")?.getattr("ScenarioInfrastructureSpec")?.call_method1("model_validate", (raw,))
+    let parse = || -> PyResult<i64> {
+        let configs = attribute(world, intern!(py, "model_configs"))?;
+        let cooldown = configs
+            .call_method1(intern!(py, "get"), ("staff", PyDict::new(py)))?
+            .call_method1(intern!(py, "get"), ("support_cooldown_minutes", 30))?;
+        exact_int(&cooldown)
+    };
+    match configs::kept(world, |configs| &configs.support_cooldown_minutes, || Ok(configs::parsed(py, parse())))? {
+        Ok(minutes) => Ok(minutes),
+        Err(fault) => Err(configs::raise(&fault, parse)),
+    }
 }
 
-/// `dependent_facilities` from the validated config.
-fn dependents_of(config: &Bound<'_, PyAny>, component: &str, facilities: &BTreeSet<String>) -> PyResult<Vec<String>> {
-    let py = config.py();
-    let mut dependents: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    for edge in attribute(config, intern!(py, "dependency_edges"))?.try_iter()? {
-        let edge = edge?;
-        let dependency = attribute(&edge, intern!(py, "dependency_id"))?;
-        let dependent = attribute(&edge, intern!(py, "dependent_id"))?;
-        dependents.entry(exact_str(&dependency)?.to_owned()).or_default().insert(exact_str(&dependent)?.to_owned());
+/// `ScenarioInfrastructureSpec.model_validate(configs["infrastructure"])`, kept for the configs'
+/// stamp (`core/configs.rs`): the contract stays Python's, and what it raises is relayed as it is.
+pub(crate) fn infrastructure_config(world: &Bound<'_, PyAny>) -> PyResult<Arc<Infrastructure>> {
+    let py = world.py();
+    let parse = || -> PyResult<Infrastructure> {
+        let raw = attribute(world, intern!(py, "model_configs"))?.get_item("infrastructure")?;
+        let spec = py
+            .import("sheltersim.domain.infrastructure")?
+            .getattr("ScenarioInfrastructureSpec")?
+            .call_method1("model_validate", (raw,))?;
+        let keywords = PyDict::new(py);
+        keywords.set_item("mode", "json")?;
+        let dumped = spec.call_method("model_dump", (), Some(&keywords))?;
+        configs::read(Infrastructure::from_v(&<V as VPy>::from_py(&dumped)?))
+    };
+    match configs::kept(world, |configs| &configs.infrastructure, || Ok(configs::parsed(py, parse())))? {
+        Ok(spec) => Ok(spec),
+        Err(fault) => Err(configs::raise(&fault, parse)),
     }
-    let mut reached = BTreeSet::new();
-    let mut pending = VecDeque::from([component.to_owned()]);
-    let mut visited = BTreeSet::from([component.to_owned()]);
-    while let Some(current) = pending.pop_front() {
-        if facilities.contains(&current) {
-            reached.insert(current.clone());
-        }
-        if let Some(next) = dependents.get(&current) {
-            for dependent in next {
-                if facilities.contains(dependent) {
-                    reached.insert(dependent.clone());
-                }
-                if visited.insert(dependent.clone()) {
-                    pending.push_back(dependent.clone());
-                }
-            }
-        }
-    }
-    Ok(reached.into_iter().collect())
 }
 
 fn facility_ids(world: &Bound<'_, PyAny>) -> PyResult<BTreeSet<String>> {
@@ -1377,7 +1393,7 @@ fn facility_ids(world: &Bound<'_, PyAny>) -> PyResult<BTreeSet<String>> {
 }
 
 /// `effective_facility_capacities`.
-fn capacities_of(world: &Bound<'_, PyAny>, state: &Bound<'_, PyAny>, config: &Bound<'_, PyAny>) -> PyResult<BTreeMap<String, i64>> {
+fn capacities_of(world: &Bound<'_, PyAny>, state: &Bound<'_, PyAny>, config: &Infrastructure) -> PyResult<BTreeMap<String, i64>> {
     let py = world.py();
     let facilities = facility_ids(world)?;
     let mut forced: BTreeSet<String> = BTreeSet::new();
@@ -1411,7 +1427,7 @@ fn capacities_of(world: &Bound<'_, PyAny>, state: &Bound<'_, PyAny>, config: &Bo
     }
     for (id, units) in &capacity {
         if *units == 0 {
-            forced.extend(dependents_of(config, id, &facilities)?);
+            forced.extend(config.dependent_facilities(id, &facilities));
         }
     }
     Ok(capacity.into_iter().map(|(id, units)| {
@@ -1433,7 +1449,7 @@ fn recalculate_capacity(world: &Bound<'_, PyAny>, cause: &Bound<'_, PyAny>) -> P
     for id in changed.get_item("affected_facility_ids")?.try_iter()? {
         ids.insert(exact_str(&id?)?.to_owned());
     }
-    let capacities = capacities_of(world, &state, &infrastructure_config(world)?)?;
+    let capacities = capacities_of(world, &state, &*infrastructure_config(world)?)?;
     let facilities = attribute(world, intern!(py, "facilities"))?;
     for id in ids {
         let Some(units) = capacities.get(&id) else {
@@ -1458,7 +1474,7 @@ fn schedule_completion<'py>(
     }
     let sequence = exact_int(&world.call_method0(intern!(py, "allocate_event_sequence"))?)?;
     let id = format!("{}-{sequence}", event_type.replace('_', "-"));
-    let source = attribute(&infrastructure_config(world)?, intern!(py, "source_id"))?;
+    let source = PyString::new(py, &infrastructure_config(world)?.source_id).into_any();
     let event = new_event(
         py,
         NewEvent {
@@ -1523,7 +1539,7 @@ fn start_outage(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<
         return errors::failed(py, "infrastructure outage payload or duration is invalid");
     };
     let config = infrastructure_config(world)?;
-    let affected = dependents_of(&config, exact_str(&target)?, &facility_ids(world)?)?;
+    let affected = config.dependent_facilities(exact_str(&target)?, &facility_ids(world)?);
     if affected.is_empty() || record.get_item("affected_facility_ids")?.ne(PyList::new(py, &affected)?)? {
         return errors::failed(py, "infrastructure outage has no valid affected facilities");
     }
@@ -1691,7 +1707,7 @@ fn interrupt_route<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>) ->
         delays.push((shipment_id, delivery_due + delay));
     }
     let mut delayed = Vec::with_capacity(delays.len());
-    let source = attribute(&infrastructure_config(world)?, intern!(py, "source_id"))?;
+    let source = PyString::new(py, &infrastructure_config(world)?.source_id).into_any();
     for (shipment_id, new_due) in delays {
         let sequence = exact_int(&world.call_method0(intern!(py, "allocate_event_sequence"))?)?;
         let id = format!("route-delay-{sequence}");

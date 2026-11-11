@@ -14,6 +14,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyInt, PyList, PySlice, PyString, PyTuple};
 use rustc_hash::FxHashMap;
 
+use crate::core::configs;
 use crate::core::mathx::{py_fsum, py_max, py_round_int};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, map_set, namespace_is_absent, unsupported};
 use crate::core::value::V;
@@ -34,17 +35,14 @@ use crate::state::metric_state::MetricRow;
 use crate::state::staff_dynamics::{StaffDynamicsRow, NAME as STAFF_DYNAMICS};
 use crate::state::staff_operations::{Phase, StaffOperationsRow, NAME};
 use crate::Unsupported;
+use sheltersim_core::config::staff::{known_staff_operations, support_task_minutes, StaffOperations};
 
 const SHARED_OPERATIONS: &str = "shared_operations_v1";
 const SUPPORT_SOURCE: &str = "ASM-STAFF-SUPPORT-LIFECYCLE-V1";
 const PREEMPTION_SOURCE: &str = "ASM-URGENT-STAFF-SUPPORT-PREEMPTION-V1";
-const OPERATIONS_SOURCE: &str = "ASM-STAFF-OPERATIONS-V1";
-const OPERATIONS_POLICY: &str = "autonomous-routed-staff-v1";
 const RELIEF_SOURCE: &str = "ASM-STAFF-RELIEF-V1";
 const RELIEF_POLICY: &str = "same-site-staff-relief-v1";
 const MOVEMENT: &str = "movement_v1";
-/// `support_task_minutes`'s default, in `_support_route_wait_reasons` and `StaffService`.
-const DEFAULT_SUPPORT_MINUTES: i64 = 10;
 const DEFAULT_KIND: &str = "emotional_support";
 const WAIT_REASON: &str = "no_available_qualified_staff";
 const NO_QUALIFIED_METRIC: &str = "support_no_qualified_worker_request_minutes";
@@ -900,15 +898,9 @@ struct RouteReads {
 impl RouteReads {
     fn of(world: &Bound<'_, PyAny>, minute: i64) -> PyResult<Self> {
         let py = world.py();
+        let service_minutes = *configs::kept_value(world, |configs| &configs.support_task_minutes, support_task_minutes)?;
         let configs = attribute(world, intern!(py, "model_configs"))?;
         let configs = exact_dict(&configs)?;
-        let service_minutes = match configs.get_item(intern!(py, "staff"))? {
-            Some(staff) => match exact_dict(&staff)?.get_item(intern!(py, "support_task_minutes"))? {
-                Some(minutes) => exact_int(&minutes)?,
-                None => DEFAULT_SUPPORT_MINUTES,
-            },
-            None => DEFAULT_SUPPORT_MINUTES,
-        };
         Ok(Self {
             graph: world_graph(world)?,
             loads: active_edge_loads(world, minute)?,
@@ -1434,14 +1426,7 @@ pub(crate) fn assign_operations<'py>(
         return Ok(done);
     }
     let at = exact_int(minute)?;
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    if let Some(registry) = exact_dict(&configs)?.get_item(intern!(py, "policy_registry"))? {
-        if let Some(selected) = exact_dict(&registry)?.get_item(intern!(py, "staff_operations"))? {
-            if !matches!(exact_str(&selected)?, "staff-urgency-first-v1" | "staff-travel-first-v1") {
-                return unsupported("another staff operations formula");
-            }
-        }
-    }
+    configs::kept_value(world, |configs| &configs.staff_operations_known, known_staff_operations)?;
     let workers = workers_at(world, at)?;
     let store = entities_of(world)?;
     let free: Vec<&Worker> = workers.iter().filter(|worker| is_free_for_a_task(worker)).collect();
@@ -1594,23 +1579,36 @@ fn workload_of(world: &Bound<'_, PyAny>, row: &StaffOperationsRow, workers: &[Wo
         .collect())
 }
 
-/// `create_staff_operations_formula` and what `assign_staff_operations` takes from it: its model, the
+/// `create_staff_operations_formula(model_configs)` and whether `policy_registry` selects it, kept
+/// for the configs' stamp (`core/configs.rs`). What the factory raises is relayed as it is.
+pub(crate) fn staff_operations(world: &Bound<'_, PyAny>) -> PyResult<Arc<StaffOperations>> {
+    let py = world.py();
+    let parse = || -> PyResult<StaffOperations> {
+        let configs = attribute(world, intern!(py, "model_configs"))?;
+        let formula = py.import("sheltersim.policies.registry")?.getattr("create_staff_operations_formula")?.call1((&configs,))?;
+        let selected = get(&configs, "policy_registry")?;
+        let selected = !selected.is_none() && selected.contains("staff_operations")?;
+        let model_id = Arc::from(exact_str(&attribute(&formula, intern!(py, "model_id"))?)?);
+        let selected_source = match selected {
+            true => Some(Arc::from(exact_str(&attribute(&formula, intern!(py, "source_id"))?)?)),
+            false => None,
+        };
+        Ok(StaffOperations { model_id, selected_source })
+    };
+    match configs::kept(world, |configs| &configs.staff_operations, || Ok(configs::parsed(py, parse())))? {
+        Ok(formula) => Ok(formula),
+        Err(fault) => Err(configs::raise(&fault, parse)),
+    }
+}
+
+/// What `assign_staff_operations` takes from `create_staff_operations_formula`: its ranking, the
 /// source and policy of the events' provenance, and their `source_id`.
 pub(crate) fn formula_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<(bool, Bound<'py, PyAny>, Bound<'py, PyAny>, Bound<'py, PyAny>)> {
     let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let formula = py.import("sheltersim.policies.registry")?.getattr("create_staff_operations_formula")?.call1((&configs,))?;
-    let selected = get(&configs, "policy_registry")?;
-    let selected = !selected.is_none() && selected.contains("staff_operations")?;
-    let model = attribute(&formula, intern!(py, "model_id"))?;
-    let travel_first = exact_str(&model)? == "staff-travel-first-v1";
-    if selected {
-        let source = attribute(&formula, intern!(py, "source_id"))?;
-        Ok((travel_first, source.clone(), model, source))
-    } else {
-        let policy = PyString::new(py, OPERATIONS_POLICY).into_any();
-        Ok((travel_first, PyString::new(py, OPERATIONS_SOURCE).into_any(), policy.clone(), policy))
-    }
+    let formula = staff_operations(world)?;
+    let (source, policy, event_source) = formula.provenance();
+    let text = |value: &str| PyString::new(py, value).into_any();
+    Ok((formula.travel_first(), text(source), text(policy), text(event_source)))
 }
 
 /// The tasks `assign_staff_operations` would list for someone with every skill, in its order, without

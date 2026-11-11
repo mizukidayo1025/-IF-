@@ -28,6 +28,15 @@ impl<T: ?Sized> Clone for Section<T> {
     }
 }
 
+impl<T> From<Result<T, Fault>> for Section<T> {
+    fn from(parsed: Result<T, Fault>) -> Self {
+        match parsed {
+            Ok(value) => Section::Ok(Arc::new(value)),
+            Err(fault) => Section::Fault(fault),
+        }
+    }
+}
+
 /// What a parse raised: the class and `str(error)`, which a build without Python can report.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Fault {

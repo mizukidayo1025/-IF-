@@ -230,6 +230,49 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
 - **ゲートの時間**（`--jobs 8`、`6afd178` のビルドと交互に2回ずつ、負荷の平均 6.8〜7.6）：全体は base 29.9 s・30.2 s、この PR 28.1 s・29.2 s、Scenario ごとの wall の合計は 117.7 s・118.8 s と 113.2 s・117.0 s です。
 - **7日分**（100人、project の経路、生成 Scenario）：`6afd178` のビルドと交互に2回ずつ測りました。world、events、metrics のハッシュは同じです（69aba659…、5e4c7645…、94c8cbb2…）。wall は base 71.6・71.5 s、この PR 69.1・69.3 s（-3.5%、-3.1%）、thread は 66.0・65.1 s と 62.1・64.3 s（-5.9%、-1.2%）、`TickEngine.step` の thread は 17.97・17.54 s と 17.02・17.40 s です（負荷の平均は 1回目 6.0→3.9、2回目 2.6→2.5）。設計の見込み（0.5〜1.5%）より大きめですが、揺れの幅の中です。上書きのある tick で毎回していた上書きの `V` への読み取りと bytes の作成、2回の Python 呼び出しが、stamp の一致だけになりました。計算のピークの RSS（`computation_mib`）は 887.2・899.3 MiB と 889.8・894.9 MiB です。
 
+### PR 7-5b：職員、式、情報、体調、行動の記憶、環境、インフラ、近接の設定の節（レーン 7-5b）
+
+- **読む場所の一覧**（`main` の `6afd178` で読み直しました。設計の §1 の表が失われたためです）。頻度は呼ばれる契機です。誤りの種類は、U が kernel の断り（`Unsupported`）、R が Python の誤りをそのまま伝えるもの、T が失敗の文に埋めるもの、P が初期化か tick の後に出るものです。どれも、出る時点はその行です。
+
+  | # | 読む場所（`6afd178`） | 頻度 | 解釈するもの | pydantic | 誤り | 節 |
+  |---|---|---|---|---|---|---|
+  | 1 | `rules/staff_dynamics.rs:108` `fatigue_formula`（`update_staff_dynamics`） | `staff_dynamics_v1` のある tick ごと | Rust（`policy_registry.staff_fatigue`、`staff_dynamics.max_continuous_work_minutes_by_staff`） | いいえ | U（人ごとの上限の型はその人を読むとき） | `staff_fatigue` |
+  | 2 | `rules/staff.rs:1599` `formula_of`（`assign_staff_operations`、`staff_order.rs`） | 空いた職員の作業を順位づける tick | `create_staff_operations_formula` | いいえ | R、U（`model_id` が str でない） | `staff_operations` |
+  | 3 | `rules/staff_operation_events.rs:389`（交代） | 交代のイベントごと | 同上と `policy_registry` の有無 | いいえ | R | `staff_operations` |
+  | 4 | `rules/staff.rs:1437` `assign_operations` の式の確かめ | `staff_operations_v1` のある tick ごと | Rust | いいえ | U | `staff_operations_known` |
+  | 5 | `rules/staff.rs:903` `RouteReads::of` | 支援の経路待ちを読む snapshot ごと | Rust（`staff.support_task_minutes`） | いいえ | U | `support_task_minutes` |
+  | 6 | `rules/handlers.rs:1113` `interrupt_support_task` | 時間切れになった中断ごと（写しの上） | Python の `.get` の連なりと `exact_int` | いいえ | R、U | `support_cooldown_minutes` |
+  | 7 | `rules/information_events.rs:35` `runtime_state`（噂、訂正、接触） | 情報のイベントごと | `InformationSpreadConfig.from_mapping` | いいえ（dataclass） | T（`ValueError` は `invalid information_spread config: …` の失敗）、R | `information_spread` |
+  | 8 | `rules/social_interaction.rs:746` | 情報への反応ごと | 同上（キーは `[...]`） | いいえ | U（どの誤りも、キーがないことも） | `information_spread` |
+  | 9 | `rules/body_state.rs:658`・`670` `models_of` | 接触と社会のイベントごと | `canonical_body_config`（感情のモデルが選ばれていないときだけ）と Rust | いいえ | U、R（`affect_policy` の `KeyError`） | `body_models` |
+  | 10 | `rules/proposals.rs:613` | 自分からの社会の行動ごと | Rust（`body_dynamics.social_interaction_minutes`） | いいえ | U | `social_interaction_minutes` |
+  | 11 | `rules/support.rs:590` `selected_care_formula` | 支援の完了ごと（気持ちの支援を除く） | `create_care_outcome_formula` | いいえ | U | `care_outcome` |
+  | 12 | `state/agent_dynamics.rs:119` `policy_of`（`rules/agent_dynamics.rs` の4か所と `validate`） | 人を足すとき、設備を知るとき、検証 | Rust（`canonical_agent_dynamics_config`） | いいえ | U | `agent_dynamics_policy` |
+  | 13 | `rules/agent_dynamics.rs:133` `awareness_of` | 人を足すとき、到着したとき | Rust（`FacilityAwarenessConfig`） | 移したもの | U | `facility_awareness` |
+  | 14 | `rules/agent_dynamics.rs:100` `agent_knows_facility` | 経路で設備の候補ごと | Rust（キーの有無） | いいえ | U | `knowledge_is_limited` |
+  | 15 | `rules/effects.rs:1160` `environment_rule` | 区域の環境の介入の始まりごと | `ScenarioZoneEnvironmentConfig.model_validate` | はい | R | `zone_environment` |
+  | 16 | `rules/handlers.rs:1334` `infrastructure_config`（1436、1461、1525、1694） | インフラのイベントごと | `ScenarioInfrastructureSpec.model_validate` | はい | R | `infrastructure` |
+  | 17 | `rules/handlers.rs:301` `proximity_on` | 近接の接触ごと | `canonical_proximity_contact_config` | いいえ | R | `proximity` |
+  | — | `rules/staff_dynamics.rs:719` `create_state` | Run に1回 | Rust（`canonical_staff_dynamics_config`） | いいえ | 初期化の `ValueError` | 変えません（結果が状態になる新しい辞書です） |
+  | — | `rules/agent_dynamics.rs:399` `canonical_config` | Scenario の検査 | Rust | いいえ | `ValueError` の文 | 変えません（読む場所ではありません） |
+  | — | `rules/zone_environment.rs:495` `ZoneInputs::read`、`695` `view_of` | `world_view.rs` が設定のオブジェクトごとに持ちます。`view_of` は tick の外 | Rust（`ScenarioZoneEnvironmentConfig` を移したもの） | 移したもの | U | 変えません（`world_view.rs` と一緒に 7-5a か 6-1 で） |
+  | — | `rules/handlers.rs:274` `shared_operations` の有無 | 職員の作業のトランザクションごと | キーの有無 | いいえ | R | 変えません（写しの World は新しい core で、節は毎回空です） |
+
+  1日分（library の経路、生成 Scenario）で Python の解釈の関数を数えると、上の読む場所からの呼び出しは0回でした（呼ぶのは `validate`、`simulator_signatures` などの Python です）。生成 Scenario で毎 tick 動くのは Rust の解釈（#1、#4、#12〜14）だけです。
+- **中核**（`native/core/src/config/`）：`read.rs` は `V` から読む関数を、今の kernel の断りの文（`exact_dict`、`exact_int`、`exact_str`、`number`）で持ちます。`Read<T>` は値か断りで、読む場所で断る値（人ごとの上限、情報の係数）はこれで持ちます。節の型と解釈は `staff.rs`（`StaffFatigue`、`StaffOperations`、`known_staff_operations`、`support_task_minutes`）、`body.rs`（`BodyModels`、`social_interaction_minutes`、`CareOutcome` とその `deltas`・`hygiene_after`）、`information.rs`（`InformationSpread`）、`agent_dynamics.rs`（`canonical_policy`、`policy`、`awareness`、`knowledge_is_limited`。`ValueError` の4つの文もここへ移しました）、`environment.rs`（`ZoneEnvironmentSpec`、`Infrastructure` と `dependent_facilities`）、`proximity.rs`（`Proximity`）です。`Configs` に15の `Lazy` を足しました。`parse_configs(&World, parse)` は、kernel が自分で解釈する節を `model_configs` の slot の行（`ValueRow` の `V`）から解釈します（PR 5-4 の型の、`&World` を受ける中核の関数です）。行がなければ断りを作らずに None を返します。`Section` に `From<Result<T, Fault>>` を足しました。
+- **窓口**（`native/src/core/configs.rs`）：`kept(world, 節, parse)` は stamp の `Configs` の節を、最初に読むときに解釈して持ちます。`parsed_value` は、木がまだ slot の木なら `WorldCore` を共有で借りて中核の `parse_configs` を呼びます（借りている間に Python は呼びません）。行がなければ（core のない世界、丸ごと代入した項目、JSON でない値）その時の木を `V` にして解釈します。`parsed` は Python の契約を呼ぶ解釈の結果を節にし、`Unsupported` は断り、ほかはクラスと文の `Fault` にします。読む場所は `raise`（断りはその行の `Unsupported`、ほかは2回目の解釈の誤り＝方針 E14）か `read`（`Read<T>` の断り）で、今と同じ誤りを出します。T（#7）は2回目の解釈の誤りを受けて、今と同じ `ValueError` かどうかの分け方で失敗の文にします。`kept_value` は `V` の節を読んで断りを出す短い形です。選ばれたモデルから作る節（`body_models`、`care_outcome`）は、テストが `selected_models` を差し替えている間は読むたびに解釈します（`kept_with_selection`。7-1 の選択と同じです）。テスト用に `sheltersim_native.config_section(world, name, key=None)` を足しました（読む場所と同じ関数を呼びます）。
+- **読む場所**：上の #1〜17 は節の値を読みます。`formula_of` の返す型は変えず（`staff_order.rs` は変えていません）、文字は節から作ります。`dependents_of` は `Infrastructure::dependent_facilities` になりました。`body_state.rs` の `Affect`・`TrustPolicy` は窓口に残し、中核の `AffectModel`・`TrustModel` から写します。`policy_of` が使っていた `canonical_policy`（Python の値の版）は使う場所がなくなったので消しました。`canonical_policy_or_text`（Python の値の版）は Scenario の検査の `canonical_config` のために残します。
+- **決めたこと**：
+  - kernel が自分で解釈する節は、木ではなく `V` から解釈します。`V` は正確な型だけを持つので、`exact_*` の確かめは同じ答えです（str の派生のキーなどは `V` に入りません）。木が JSON でない設定（テストが Python の値を入れたとき）は、行がなく `V` にもできないので、その節は `V` にできない理由で断ります。Run の設定は JSON なので起きません。
+  - Python の契約が返すオブジェクトから読む値は、正確な str と数だけにしました（`model_id`、`source_id`、`policy_version`、係数の写し）。組み込みの式と pydantic のモデルは必ずそうです。違う型を返すのは、テストが登録した式だけです。#3 の交代は今まで `model_id` の型を見ていませんでしたが、#2 と同じ節を読むので、str でなければ断ります。
+  - 情報の係数と人ごとの上限は、解釈のときではなく、今と同じく読む場所で断ります（`Read<T>`）。誤りの時点を変えないためです。
+  - 写しの World（`copy_of` のトランザクション）は新しい core を持つので、節は毎回解釈します（今と同じ回数です）。#6、#16、#17 の多くはこれです。6-2・6-3 でトランザクションの World が残るようになると効きます。
+  - `world_view.rs` の区域の環境（`ZoneInputs::read`）は、7-5a・6-1 の `world_view.rs` と一緒に節にします。
+- **中核のテスト**（`native/core/tests/config_sections.rs`、12件）：各節の `V` からの解釈と、Python の検査の順の断りの文（疲労の式と人ごとの上限、作業の式と来歴、支援と社会の行動の時間、情報の係数と信頼度、体調の演算子、ケアの式の差分と衛生、行動の記憶の方針の `ValueError` の文と断り、設備の認知、環境とインフラの依存のたどり方、近接）、節を1回だけ解釈して断りを持つこと、`parse_configs` が slot の行から解釈し、slot か行がなければ None、借りられていれば中核の誤りであること。
+- **offline のテスト**（`tests/integration/test_config_sections.py`、31件）：Python の契約で解釈する6つの節とインフラは、1つの stamp で1回だけ解釈し、読んでも stamp は変わらず、その場で書くと次に読むときに解釈し直すこと。kernel が解釈する8つの節は、その場の書き込みに従うこと。stamp のない設定は毎回解釈すること。R の誤り（作業の式の `KeyError`、近接の `ValueError`、区域の環境とインフラの pydantic の `ValidationError`、環境のキーがない `KeyError`、待ちの時間の `.get` の `AttributeError`）は、何度読んでも Python の契約と同じクラスと文であること。T の誤りは `invalid information_spread config: …` の失敗で、反応の読む場所は断りになること。U の断りは何度読んでも同じ文であること。人ごとの上限はその人を読むときに断ること。1つの節の誤りがほかの節に出ないこと。差し替えた `selected_models` から作る節は読むたびに解釈すること。
+- **確かめたこと**：PR 7-2 の後の `main`（`9679fb7`）に載せ直して、`cargo test -p sheltersim_core`（80件）、`cargo clippy --workspace -- -A clippy::all -D clippy::disallowed_methods`、`cargo tree -p sheltersim_core -e normal,build` に `pyo3` がないこと、`ruff check .`、`ruff format --check .`、offline の pytest（`-m "not long_simulation"`：5190 passed、6 skipped。`native/pylib` にこのビルドを置きました）、全経路のゲート（55 scenarios、0 problems）、7日分を1回（ハッシュは下と同じ。wall 69.0 s、thread 63.8 s、`computation_mib` 894.8 MiB）。下の時間は、載せ直す前（PR 5-4 の後）に測ったものです。
+- **7日分**（100人、project の経路、生成 Scenario）：`675043a` のビルドと交互に2回ずつ測りました（load average 1.5〜6.5）。4回とも world、events、metrics のハッシュは同じです（69aba659…、5e4c7645…、94c8cbb2…）。wall は base 66.1・66.0 s、この PR 65.7・65.7 s、thread は 61.7・61.3 s と 60.8・60.8 s（約 -1%）、`TickEngine.step` の thread は 17.29・17.12 s と 17.00・17.02 s です。変えていない `phase.update_agent_state` も 4.43・4.40 s と 4.32・4.31 s なので、差の多くは揺れです。上の一覧のとおり、生成 Scenario で毎 tick 動くのは小さな Rust の解釈だけで、設計の見込み（0.5〜1.5%）の下の端です。計算のピークの RSS（`computation_mib`）は 894.6・896.5 MiB と 897.1・892.3 MiB で、増えていません。
+
 ### この後
 
 残りの PR は、下の「レーン」の順に進めます。各レーンは、終わったときにこの節の前に記録を足します。

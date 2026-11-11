@@ -11,6 +11,7 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyList, PyString};
 
+use crate::core::configs;
 use crate::core::errors;
 use crate::core::mathx::{exp, py_max, py_min};
 use crate::core::row::{
@@ -18,6 +19,7 @@ use crate::core::row::{
     unsupported, PyField,
 };
 use crate::core::world_core::{mirror_of, NamespaceMirror};
+use sheltersim_core::config::staff::StaffFatigue;
 use crate::state::entities::{entities_of, EntityStore};
 use crate::state::staff_dynamics::{
     shifts_are_valid, ConfigRow, LastActivity, Shift, StaffDynamicsRow, StaffRecord, MAX_REST_MINUTES, MAX_SHIFTS,
@@ -26,8 +28,6 @@ use crate::state::staff_dynamics::{
 
 const SOURCE_V1: &str = "ASM-STAFF-DYNAMICS-V1";
 const SOURCE_V2: &str = "ASM-STAFF-DYNAMICS-V2";
-const LINEAR_FATIGUE: &str = "staff-fatigue-linear-v1";
-const SATURATING_FATIGUE: &str = "staff-fatigue-saturating-v1";
 const CONFIG_FIELDS: [&str; 8] = [
     "schema_version",
     "policy_version",
@@ -98,39 +98,11 @@ pub(crate) fn on_shift(config: &ConfigRow, id: &str, minute: i64) -> PyResult<bo
 
 // ---- The fatigue formula -----------------------------------------------------------------------
 
-struct Fatigue<'py> {
-    saturating: bool,
-    limits: Option<Bound<'py, PyDict>>,
-}
-
-/// `create_staff_fatigue_formula`, for the formulas this kernel knows. A later registered one, or
-/// anything but plain documents, is the Python rule's.
-fn fatigue_formula<'py>(world: &Bound<'py, PyAny>) -> PyResult<Fatigue<'py>> {
-    let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let configs = exact_dict(&configs)?;
-    let selected = match configs.get_item(intern!(py, "policy_registry"))? {
-        Some(registry) => exact_dict(&registry)?.get_item(intern!(py, "staff_fatigue"))?,
-        None => None,
-    };
-    let saturating = match &selected {
-        Some(selected) => match exact_str(selected)? {
-            LINEAR_FATIGUE => false,
-            SATURATING_FATIGUE => true,
-            _ => return unsupported("another fatigue formula"),
-        },
-        None => false,
-    };
-    let limits = match configs.get_item(intern!(py, "staff_dynamics"))? {
-        Some(config) => {
-            match exact_dict(&config)?.get_item(intern!(py, "max_continuous_work_minutes_by_staff"))? {
-                Some(limits) => Some(exact_dict(&limits)?.clone()),
-                None => None,
-            }
-        }
-        None => None,
-    };
-    Ok(Fatigue { saturating, limits: limits.filter(|limits| !limits.is_empty()) })
+/// `create_staff_fatigue_formula`, for the formulas this kernel knows, kept for the configs' stamp
+/// (`core/configs.rs`). A later registered one, or anything but plain documents, is the Python
+/// rule's.
+pub(crate) fn fatigue_formula(world: &Bound<'_, PyAny>) -> PyResult<Arc<StaffFatigue>> {
+    configs::kept_value(world, |configs| &configs.staff_fatigue, StaffFatigue::parse)
 }
 
 /// `StaffFatigueFormula.fatigue`, or None where Python's result isn't sure to be f64 division.
@@ -260,11 +232,8 @@ pub(crate) fn update(world: &Bound<'_, PyAny>, minute: &Bound<'_, PyAny>) -> PyR
     })?;
     let mut members = Vec::with_capacity(staff.len());
     for (id, working) in staff {
+        let maximum = configs::read(formula.limit(&id))?;
         let id = PyString::new(py, &id);
-        let maximum = match &formula.limits {
-            Some(limits) => limits.get_item(&id)?.map(|limit| exact_int(&limit)).transpose()?,
-            None => None,
-        };
         let available = working || is_available(status.as_ref(), &id)?;
         members.push(Member { id, working, available, maximum });
     }
