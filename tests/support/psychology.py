@@ -56,13 +56,12 @@ class PsychologyStep:
 
 
 def controller_for(world: WorldState, policy: Any, sink: Any = None) -> SimpleNamespace:
-    """What the kernels read of the controller: the world, the model, the sink and the caches."""
+    """What the kernels read of the controller: the world, the model and the sink. Without a Run's
+    core, the view keeps nothing from one view to the next."""
     return SimpleNamespace(
         world=world,
         psychology=policy,
         artifacts=sink if sink is not None else TraceKeeper(TraceLevel.OFF),
-        _rust_view_cache=None,
-        _zone_environments={},
     )
 
 

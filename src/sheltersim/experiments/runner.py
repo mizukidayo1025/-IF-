@@ -115,10 +115,9 @@ class OfflineSimulationController(
         # Initialization may install state; a world restored for viewing gets none.
         require_tickable(world, "simulated")
         self.world = world
-        # The update phase's view, from which the next phase's view is made.
+        # The update phase's view, from which the next phase's view is made. What the view keeps
+        # from one view to the next is in the Run's core (`_run_core`).
         self._view_before_proposals: WorldView | None = None
-        # What rules/world_view.rs keeps between views.
-        self._rust_view_cache: Any = None
         # What the phases parsed from model_configs, while its values stay the same.
         self._config_scopes_minute: int | None = None
         self._config_scopes_object: dict[str, Any] | None = None
@@ -126,7 +125,6 @@ class OfflineSimulationController(
         self._config_scopes_stamp: tuple[Any, int] | None = None
         self._parsed_configs: dict[tuple[str, int], tuple[Any, Any]] = {}
         self._model_selections: list[tuple[Any, dict[str, str]]] = []
-        self._zone_environments: dict[str, Any] = {}
         initialize_simulator_extensions(world)
         validate_simulator_extensions(world)
         proximity_model_id = selected_models(world.model_configs).get("social_proximity")
@@ -387,7 +385,6 @@ class OfflineSimulationController(
                 self._config_scopes_configs = deepcopy(world.model_configs)
                 self._parsed_configs.clear()
                 self._model_selections.clear()
-                self._zone_environments = {}
 
     def _config_scopes(self) -> tuple[Any, Any]:
         return (

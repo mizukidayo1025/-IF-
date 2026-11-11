@@ -14,6 +14,9 @@
 //! never raises: an attribute whose read raised is kept as a `Fault` (`configs::fault_of`), which
 //! the read site raises again by reading again (policy E14). The read runs no rule and changes
 //! nothing; a property it meets runs as `getattr` runs it.
+//!
+//! The view (lane P8 a1) keeps what it reads from one view to the next in the Run (`Run::views`),
+//! and the people's IDs as Python strings here, whose hashes Python then computes once.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -23,10 +26,12 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyString, PyType};
 
 use indexmap::IndexMap;
+use rustc_hash::FxHashMap;
 use sheltersim_core::routes::{Router, Which};
 use sheltersim_core::run::held::{Class, Held, Obj, Spec};
 use sheltersim_core::rules::action_lifecycle::ActiveActions;
 use sheltersim_core::run::policies::CONTROLLER;
+use sheltersim_core::rules::world_view::ViewCache;
 use sheltersim_core::run::{Capacity, Policies, RouteCapacities, Run, RunConfig};
 use sheltersim_core::value::V;
 
@@ -40,6 +45,8 @@ use crate::Unsupported;
 #[pyclass(module = "sheltersim_native", frozen)]
 pub struct RunCore {
     run: Mutex<Run>,
+    /// The people's IDs as Python strings, for the views' keys.
+    keys: Mutex<FxHashMap<Arc<str>, Py<PyString>>>,
 }
 
 /// `controller.route_capacities` as `route_for` reads it: a refusal is kept with the text the
@@ -233,6 +240,23 @@ impl RunCore {
         Ok(self.lock()?.routes.keep(which, epoch, router))
     }
 
+    /// What the view keeps, taken out of the Run while a view is built (`put_views` gives it back),
+    /// so that nothing is locked while the world is borrowed.
+    pub(crate) fn take_views(&self) -> PyResult<ViewCache> {
+        Ok(std::mem::take(&mut self.lock()?.views))
+    }
+
+    pub(crate) fn put_views(&self, views: ViewCache) -> PyResult<()> {
+        self.lock()?.views = views;
+        Ok(())
+    }
+
+    /// The Python strings of these IDs, made once for the Run.
+    pub(crate) fn keys<'a>(&self, py: Python<'_>, ids: impl Iterator<Item = &'a Arc<str>>) -> PyResult<Vec<Py<PyString>>> {
+        let mut keys = self.keys.lock().map_err(|_| Unsupported::new_err("the run is poisoned"))?;
+        Ok(ids.map(|id| keys.entry(id.clone()).or_insert_with(|| PyString::new(py, id).unbind()).clone_ref(py)).collect())
+    }
+
     /// The router of this epoch, built with `build` the first time it is asked. Nothing is held
     /// while `build` reads Python; what it refuses is not kept, so the next ask reads again.
     pub(crate) fn router(&self, which: Which, build: impl FnOnce() -> PyResult<Router>) -> PyResult<Arc<Router>> {
@@ -257,7 +281,7 @@ impl RunCore {
     fn new(route_capacities: &Bound<'_, PyAny>, controller: Option<&Bound<'_, PyAny>>) -> Self {
         let config = RunConfig { route_capacities: read_capacities(route_capacities) };
         let policies = controller.map_or_else(Policies::absent, read_policies);
-        Self { run: Mutex::new(Run::with_policies(config, policies)) }
+        Self { run: Mutex::new(Run::with_policies(config, policies)), keys: Mutex::new(FxHashMap::default()) }
     }
 
     /// Read the controller's policies again: after a test or tool puts another policy or manager
@@ -311,6 +335,16 @@ impl RunCore {
             Some(world) => crate::rules::travel::build_routes(self, epoch, world),
             None => Ok(()),
         }
+    }
+
+    /// How many person contexts and zones' conditions the view keeps: for tests.
+    fn views_kept(&self) -> PyResult<(usize, usize)> {
+        Ok(self.lock()?.views.kept())
+    }
+
+    /// Drop what the view keeps, as a new controller would start: for tests.
+    fn forget_views(&self) -> PyResult<()> {
+        self.put_views(ViewCache::default())
     }
 
     /// How many times `refresh_routes` ran.

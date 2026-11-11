@@ -514,9 +514,8 @@ def test_a_view_reads_the_selected_formulas_and_sees_each_change(generated_scena
     assert made.agents[agent.id].privacy_level == 0.125
     assert _view_fields(made) == _view_fields(view_of(world, include_state_hash=False))
 
-    # What the runner does when the configs changed in place.
+    # The configs changed in place: the stamp of model_configs is new.
     world.model_configs["zone_environment"]["privacy_discontent_per_minute"] = 0.005
-    controller._zone_environments = {}
     made = rules.view_after_movement(controller, world)
     assert made.agents[agent.id].privacy_discontent_per_minute == (1.0 - 0.125) * 0.005
     assert _view_fields(made) == _view_fields(view_of(world, include_state_hash=False))

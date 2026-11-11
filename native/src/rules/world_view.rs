@@ -1,1071 +1,105 @@
-//! The `WorldView` of the phases (`policies/world_view.py`), built from the rows: a detached
-//! snapshot in plain Rust values, which Rust rules read directly. Its Python rules,
-//! `WorldView.from_world` and `WorldView.after_state_update`, went with lane L10.
+//! The glue of the core's view (`sheltersim_core::rules::world_view`, lane P8 a1): the phases'
+//! steps that make a `WorldView`, and the Python objects of a view.
 //!
 //! `view_after_movement` and `view_for_proposals` are the two steps of the phases that make a
 //! view, which have no Python body (experiments/phases/segments.py, KERNEL_ONLY_SEGMENTS). They
+//! gather what only Python knows (the model selection, `world.model_configs` while the world's slot
+//! does not hold it, `simulator_extensions.enabled`), call the core with the world borrowed, and
 //! return a real `WorldView` whose `agents`, `facilities`, `zone_members` and `group_members` are
-//! made when a Python reader first asks (`WorldView.__getattr__`), from the same snapshot. Anything
-//! this module is not sure of says `Unsupported` before anything has changed, and the step raises
-//! KernelRefusal. A value of another type than the Python view would hold is refused, too: a
-//! typed field here could not keep it, and `1` and `1.0` would hash differently.
+//! made when a Python reader first asks (`WorldView.__getattr__`), from the core's `ViewData` kept
+//! in its `_rust_view`. What the core turns down says `Unsupported` before anything has changed,
+//! and the step raises KernelRefusal.
 //!
-//! A person's context is parsed by `rules/person_context.rs`, and a zone's conditions come from
-//! `rules/zone_environment.rs`; what they make is kept here while their inputs stay the same. The
-//! one coefficient in this file is in `misinformation_of`, with `from_world`'s weight, threshold and
-//! cap; stressors sum their rates. `selected_models` stays Python's: it is the contract of the configs.
+//! What the view keeps from one view to the next (parsed person contexts, zone conditions) is in
+//! the controller's `Run` (`controller._run_core`), by the stamps of the slots it was read from; a
+//! holder without one (a test's namespace) keeps nothing. The people's IDs as Python strings are
+//! kept there too.
 //!
-//! The rows are not read through `AgentView.__dict__` any more: the psychology and social kernels
-//! take `view_of`. Rules at a later phase than the view (the information kernel) take `group_of`,
-//! so the household in `population_presence_v1` overrides `profile.group_id` in one place.
+//! The psychology and social kernels take a view's snapshot through `view_of`; one Python made (a
+//! Rust view was refused, or a test made it) is read here (`from_python_view`).
 
 use std::sync::Arc;
 
-use pyo3::exceptions::PyKeyError;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyString, PyTuple, PyType};
 use pyo3::IntoPyObjectExt;
 use rustc_hash::FxHashMap;
-use sha2::{Digest, Sha256};
+use sheltersim_core::config::{Fault, Selection};
+use sheltersim_core::rules::world_view::{self as view, Inputs, ViewCache};
+
+pub(crate) use sheltersim_core::rules::world_view::{
+    status_text, BodyFields, DemandModifier, Household, PersonFields, ViewAgent, ViewData, ViewFacility, ViewZone,
+};
 
 use crate::core::configs;
-use crate::core::mathx::{py_fsum, py_min};
-use crate::core::parallel::parts_in_order;
-use crate::core::tracked::{as_readable_dict, is_detached};
-use crate::core::value::{V, VPy};
-use crate::core::world_core::{held_state, mirror_of, raw_dict_get, raw_dict_set, with_state_value, Held, NamespaceMirror};
-use crate::rules::person_context::{self, plain_copy};
-use crate::rules::zone_environment::{ZoneConditions, ZoneInputs};
-use crate::state::entities::{entities_of, raw_setattr, Activity, Entities, EntityStore, Member, Mobility, NeedRow, RequestStatus};
-use crate::state::information::{InformationRow, NAME as INFORMATION};
-use crate::state::body_state::BodyRow;
-use crate::state::psychological_distress::{DistressRow, NAME as DISTRESS};
-use crate::state::staff_operations::StaffOperationsRow;
-use crate::{write_json_string, Encoder, PyEncoder, Unsupported};
+use crate::core::errors::OrPy;
+use crate::core::run::RunCore;
+use crate::core::tracked::as_readable_dict;
+use crate::core::value::{VPy, V};
+use crate::core::world_core::{field_held, raw_dict_get, raw_dict_set, with_world};
+use crate::state::entities::{raw_setattr, Activity, Member, Mobility, NeedRow};
+use crate::Unsupported;
 
 #[track_caller]
 fn unsupported<T>(reason: &'static str) -> PyResult<T> {
     Err(Unsupported::new_err(reason))
 }
 
-// ---- The snapshot ---------------------------------------------------------------------------------
+// ---- What other kernels read of the presence ledger --------------------------------------------
 
-/// What is read of a person's context: `_fields_of_person`.
-#[derive(Default)]
-pub(crate) struct PersonFields {
-    pub(crate) caregiver_ids: Vec<Arc<str>>,
-    pub(crate) care_for_ids: Vec<Arc<str>>,
-    pub(crate) parent_ids: Vec<Arc<str>>,
-    pub(crate) roles: Vec<Arc<str>>,
-    pub(crate) usual_wake_minute: Option<i64>,
-    pub(crate) usual_sleep_minute: Option<i64>,
-    pub(crate) required_sleep_minutes: Option<i64>,
-    pub(crate) personal_context_present: bool,
-}
-
-/// `ZoneDemandView`.
-#[derive(Clone)]
-pub(crate) struct DemandModifier {
-    pub(crate) action: Arc<str>,
-    pub(crate) probability_multiplier: f64,
-    pub(crate) duration_multiplier: f64,
-    pub(crate) modifier_event_ids: Vec<Arc<str>>,
-    pub(crate) assumption_ids: Vec<Arc<str>>,
-}
-
-/// What everyone in a zone shares of an `AgentView`.
-pub(crate) struct ViewZone {
-    pub(crate) id: Arc<str>,
-    pub(crate) environmental_stress_per_minute: f64,
-    pub(crate) environmental_stressor_event_ids: Vec<Arc<str>>,
-    pub(crate) environmental_assumption_source_id: Option<Arc<str>>,
-    pub(crate) ambient_noise_level: f64,
-    pub(crate) rest_efficiency_multiplier: f64,
-    pub(crate) zone_environment_modifier_event_ids: Vec<Arc<str>>,
-    pub(crate) zone_environment_assumption_ids: Vec<Arc<str>>,
-    pub(crate) ventilation_effectiveness: f64,
-    pub(crate) lighting_level: f64,
-    pub(crate) privacy_level: f64,
-    pub(crate) temperature_c: f64,
-    pub(crate) ventilation_hygiene_growth_per_minute: f64,
-    pub(crate) privacy_discontent_per_minute: f64,
-    pub(crate) condition_modifier_event_ids: Vec<Arc<str>>,
-    pub(crate) condition_assumption_ids: Vec<Arc<str>>,
-    pub(crate) demand_modifiers: Vec<DemandModifier>,
-    pub(crate) min_rest_decision_minutes: i64,
-    pub(crate) max_rest_decision_minutes: i64,
-    pub(crate) sanitation_level: f64,
-}
-
-/// One entry of `misinformation_effect_sources`.
-#[derive(Clone)]
-pub(crate) struct MisinformationSource {
-    pub(crate) message_id: Arc<str>,
-    pub(crate) origin_event_id: Arc<str>,
-    pub(crate) last_event_id: Arc<str>,
-    pub(crate) source_id: Arc<str>,
-    pub(crate) time: i64,
-}
-
-/// A person's values from `body_state_v1`, with `from_world`'s defaults.
-#[derive(Clone, Copy)]
-pub(crate) struct BodyFields {
-    pub(crate) sleep_debt_minutes: f64,
-    pub(crate) uncertainty: f64,
-    pub(crate) reassurance: f64,
-    pub(crate) discontent: f64,
-    pub(crate) positive_affect: f64,
-    pub(crate) negative_affect: f64,
-    pub(crate) hygiene_need: f64,
-}
-
-const NO_BODY: BodyFields = BodyFields {
-    sleep_debt_minutes: 0.0,
-    uncertainty: 0.0,
-    reassurance: 0.0,
-    discontent: 0.0,
-    positive_affect: 0.5,
-    negative_affect: 0.0,
-    hygiene_need: 0.0,
-};
-
-/// `AgentView`, except what `zone` and `person` hold.
-#[derive(Clone)]
-pub(crate) struct ViewAgent {
-    pub(crate) id: Arc<str>,
-    /// `household_id` of `population_presence_v1`, over `profile.group_id`.
-    pub(crate) group_id: Option<Arc<str>>,
-    /// The index in `ViewData::zones`.
-    pub(crate) zone: usize,
-    pub(crate) mobility: Mobility,
-    pub(crate) support_need: f64,
-    pub(crate) stress_sensitivity: f64,
-    pub(crate) rng_key: Arc<str>,
-    pub(crate) activity: Activity,
-    pub(crate) target_id: Option<Arc<str>>,
-    pub(crate) needs: NeedRow,
-    pub(crate) stress: f64,
-    pub(crate) chronic_distress: f64,
-    pub(crate) trust: f64,
-    pub(crate) next_decision_at: i64,
-    pub(crate) queue_task_id: Option<Arc<str>>,
-    pub(crate) queue_kind: Option<Arc<str>>,
-    pub(crate) queue_target_id: Option<Arc<str>>,
-    pub(crate) queue_wait_minutes: i64,
-    pub(crate) support_request_id: Option<Arc<str>>,
-    pub(crate) support_request_status: Option<RequestStatus>,
-    pub(crate) support_assigned_staff_id: Option<Arc<str>>,
-    pub(crate) support_wait_minutes: i64,
-    pub(crate) support_cooldown_remaining_minutes: i64,
-    pub(crate) information_query_pressure: f64,
-    pub(crate) misinformation_belief_pressure: f64,
-    pub(crate) misinformation_effect_sources: Vec<MisinformationSource>,
-    pub(crate) body: BodyFields,
-    pub(crate) person: Arc<PersonFields>,
-}
-
-/// `FacilityView`.
-pub(crate) struct ViewFacility {
-    pub(crate) id: Arc<str>,
-    pub(crate) kind: Arc<str>,
-    pub(crate) zone_id: Arc<str>,
-    pub(crate) capacity: i64,
-    pub(crate) working_units: i64,
-    pub(crate) active_agent_ids: Vec<Arc<str>>,
-    pub(crate) queue_agent_ids: Vec<Arc<str>>,
-    pub(crate) resource_active_agent_ids: Vec<Arc<str>>,
-    pub(crate) resource_queue_agent_ids: Vec<Arc<str>>,
-    pub(crate) facility_event_context_ids: Vec<Arc<str>>,
-}
-
-/// All of a `WorldView`. Nothing here refers to Python, so a rule can read it without the GIL.
-pub(crate) struct ViewData {
-    pub(crate) minute_index: i64,
-    pub(crate) resource_service_enabled: bool,
-    pub(crate) autonomy_enabled: bool,
-    pub(crate) has_population_context: bool,
-    /// Read from a Python view: only what the update kernels read is filled, and a zone is one
-    /// person's. See `from_python_view`. rules/behavior.rs reads more, and refuses it.
-    pub(crate) partial: bool,
-    /// In ID order.
-    pub(crate) zones: Vec<Arc<ViewZone>>,
-    /// In ID order, as `sorted(world.agents.items())`.
-    pub(crate) agents: Vec<ViewAgent>,
-    /// In ID order.
-    pub(crate) facilities: Vec<Arc<ViewFacility>>,
-}
-
-impl ViewData {
-    pub(crate) fn zone_of(&self, agent: &ViewAgent) -> &ViewZone {
-        &self.zones[agent.zone]
-    }
-
-    /// The index of a person in `agents`.
-    pub(crate) fn index_of(&self, id: &str) -> Option<usize> {
-        self.agents.binary_search_by(|agent| (*agent.id).cmp(id)).ok()
-    }
-
-    /// `WorldView.zone_members`: each zone with people, in ID order, with their indexes in ID order.
-    pub(crate) fn zone_members(&self) -> Vec<(&Arc<str>, Vec<usize>)> {
-        let mut members: Vec<(&Arc<str>, Vec<usize>)> =
-            self.zones.iter().map(|zone| (&zone.id, Vec::new())).collect();
-        for (index, agent) in self.agents.iter().enumerate() {
-            members[agent.zone].1.push(index);
-        }
-        members.retain(|(_, people)| !people.is_empty());
-        members
-    }
-
-    /// `WorldView.group_members`: each group, in ID order, with its people's indexes in ID order.
-    pub(crate) fn group_members(&self) -> Vec<(&Arc<str>, Vec<usize>)> {
-        let mut positions: FxHashMap<&str, usize> = FxHashMap::default();
-        let mut members: Vec<(&Arc<str>, Vec<usize>)> = Vec::new();
-        for (index, agent) in self.agents.iter().enumerate() {
-            if let Some(group) = &agent.group_id {
-                let position = *positions.entry(group).or_insert_with(|| {
-                    members.push((group, Vec::new()));
-                    members.len() - 1
-                });
-                members[position].1.push(index);
-            }
-        }
-        members.sort_unstable_by(|first, second| first.0.cmp(second.0));
-        members
-    }
-}
-
-// ---- Reading what is not a row yet ----------------------------------------------------------------
-
-/// `model_state.get(name)`.
-fn state_get<'py>(model_state: &Bound<'py, PyAny>, name: &Bound<'py, PyString>) -> PyResult<Bound<'py, PyAny>> {
-    model_state.call_method1(intern!(model_state.py(), "get"), (name,))
-}
-
-/// `state_get` and whether the value is a dict, for a reader that asks no more of it: a detached
-/// namespace's placeholder stands for its row, a dict, and no tree is built.
-fn state_held<'py>(model_state: &Bound<'py, PyAny>, name: &Bound<'py, PyString>) -> PyResult<(Bound<'py, PyAny>, bool)> {
-    if let Some(held) = as_readable_dict(model_state).map(|table| table.get_item(name)).transpose()?.flatten() {
-        if is_detached(&held) {
-            return Ok((held, true));
-        }
-    }
-    let value = state_get(model_state, name)?;
-    let is_dict = value.is_instance_of::<PyDict>();
-    Ok((value, is_dict))
-}
-
-/// `model_state.get(name)` read past `_DetachingTable.get`, which would rebuild the tree of a
-/// detached namespace: its row when that is what the world holds, else the value (None if absent).
-fn held_get<'py>(world: &Bound<'py, PyAny>, model_state: &Bound<'py, PyAny>, name: &Bound<'py, PyString>) -> PyResult<Held<'py>> {
-    if as_readable_dict(model_state).is_none() {
-        return Ok(Held::Value(state_get(model_state, name)?));
-    }
-    Ok(held_state(world, name.to_str()?)?.unwrap_or_else(|| Held::Value(world.py().None().into_bound(world.py()))))
-}
-
-fn exact_float(value: &Bound<'_, PyAny>) -> PyResult<f64> {
-    match value.downcast_exact::<PyFloat>() {
-        Ok(number) => Ok(number.value()),
-        Err(_) => unsupported("a view value is not a float"),
-    }
-}
-
-fn exact_i64(value: &Bound<'_, PyAny>) -> PyResult<i64> {
-    match value.downcast_exact::<PyInt>() {
-        Ok(number) => number.extract().map_err(|_| Unsupported::new_err("an int is too large")),
-        Err(_) => unsupported("a view value is not an int"),
-    }
-}
-
-fn exact_text(value: &Bound<'_, PyAny>) -> PyResult<Arc<str>> {
-    match value.downcast_exact::<PyString>() {
-        Ok(text) => Ok(Arc::from(text.to_str().map_err(|_| Unsupported::new_err("not UTF-8"))?)),
-        Err(_) => unsupported("a view value is not a str"),
-    }
-}
-
-fn optional_text(value: &Bound<'_, PyAny>) -> PyResult<Option<Arc<str>>> {
-    if value.is_none() {
-        Ok(None)
-    } else {
-        exact_text(value).map(Some)
-    }
-}
-
-fn optional_i64(value: &Bound<'_, PyAny>) -> PyResult<Option<i64>> {
-    if value.is_none() {
-        Ok(None)
-    } else {
-        exact_i64(value).map(Some)
-    }
-}
-
-/// A value as `isinstance(_, dict)` sees it: a plain or tracked dict, or None for no dict. Another
-/// class of dict may read differently, and is left to Python.
-fn dict_or_nothing<'a, 'py>(value: &'a Bound<'py, PyAny>) -> PyResult<Option<&'a Bound<'py, PyDict>>> {
-    match as_readable_dict(value) {
-        Some(dict) => Ok(Some(dict)),
-        None if value.is_instance_of::<PyDict>() => unsupported("a state is another kind of dict"),
-        None => Ok(None),
-    }
-}
-
-/// The dict a `get(key, {})` gave, where a non-dict raises in Python.
-fn required_dict<'a, 'py>(value: &'a Bound<'py, PyAny>) -> PyResult<&'a Bound<'py, PyDict>> {
-    match as_readable_dict(value) {
-        Some(dict) => Ok(dict),
-        None => unsupported("a state is not a plain dict"),
-    }
-}
-
-/// `record[name]`; a missing one raises in Python.
-fn field<'py>(record: &Bound<'py, PyDict>, name: &Bound<'py, PyString>) -> PyResult<Bound<'py, PyAny>> {
-    record.get_item(name)?.ok_or_else(|| Unsupported::new_err("a record's field is missing"))
-}
-
-/// What `group_of` reads of a person's record in `population_presence_v1.people`.
-pub(crate) enum Household {
-    /// No record, a record that is not a dict, or one without `household_id`: the profile's group.
-    Profile,
-    Is(Option<Arc<str>>),
-    /// A `household_id` that is not a str or None, which the Python rule refuses when it reads it.
-    Other,
-}
-
-/// `population_presence_v1.people`, for `group_of`; None for no such dict. Read from the row of
-/// the detached namespace, building no tree.
+/// `population_presence_v1.people`, for `group_of`; None for no such dict.
 pub(crate) fn presence_people_of(world: &Bound<'_, PyAny>) -> PyResult<Option<FxHashMap<Arc<str>, Household>>> {
-    with_state_value(world, "population_presence_v1", |presence| {
-        let Some(V::Map(state)) = presence else {
-            return Ok(None);
-        };
-        let Some(people) = state.get("people") else {
-            return Ok(None);
-        };
-        let V::Map(people) = people else {
-            return unsupported("the presence state's people are not a dict");
-        };
-        let mut found = FxHashMap::with_capacity_and_hasher(people.len(), Default::default());
-        for (id, record) in people {
-            let household = match record {
-                V::Map(record) => match record.get("household_id") {
-                    None => Household::Profile,
-                    Some(V::Null) => Household::Is(None),
-                    Some(V::Str(text)) => Household::Is(Some(text.clone())),
-                    Some(_) => Household::Other,
-                },
-                _ => Household::Profile,
-            };
-            found.insert(id.clone(), household);
-        }
-        Ok(Some(found))
-    })
+    with_world(world, |world| view::presence_people(world))?.or_py()
 }
 
 /// A person's `group_id` in a view: the household of the presence record, or the profile's.
+#[track_caller]
 pub(crate) fn group_of(
     people: Option<&FxHashMap<Arc<str>, Household>>,
     id: &str,
     profile_group: &Option<Arc<str>>,
 ) -> PyResult<Option<Arc<str>>> {
-    match people.and_then(|people| people.get(id)) {
-        None | Some(Household::Profile) => Ok(profile_group.clone()),
-        Some(Household::Is(household)) => Ok(household.clone()),
-        Some(Household::Other) => unsupported("a view value is not a str"),
+    view::group_of(people, id, profile_group).or_py()
+}
+
+// ---- The inputs only Python has ----------------------------------------------------------------
+
+/// What a view reads with Python before the world is borrowed.
+struct Gathered {
+    selection: Result<Arc<Selection>, Fault>,
+    /// `world.model_configs` as a `V` while the slot does not hold it (assigned whole).
+    configs: Option<V>,
+}
+
+impl Gathered {
+    fn inputs(&self) -> Inputs<'_> {
+        Inputs { selection: &self.selection, configs: self.configs.as_ref() }
     }
 }
 
-/// What this module keeps from one view to the next, for one controller. An entry is good while the
-/// document it was read from is equal to a copy kept with it. A zone's conditions are also good only
-/// while `_zone_environments` of the controller holds the same `views` object: the runner replaces
-/// that dict when `model_configs` changes, and Python's `_zone_environment` when it makes new views.
-#[pyclass(module = "sheltersim_native")]
-#[derive(Default)]
-pub struct ViewCache {
-    keys: FxHashMap<Arc<str>, Py<PyString>>,
-    people: FxHashMap<Arc<str>, (Py<PyAny>, Arc<PersonFields>)>,
-    environment: Option<KeptEnvironment>,
-    no_person: Arc<PersonFields>,
-}
-
-struct KeptEnvironment {
-    views: Py<PyAny>,
-    inputs: ZoneInputs,
-    zones: FxHashMap<Arc<str>, Arc<ZoneConditions>>,
-}
-
-fn key_of<'py>(keys: &mut FxHashMap<Arc<str>, Py<PyString>>, py: Python<'py>, id: &Arc<str>) -> Bound<'py, PyString> {
-    if let Some(key) = keys.get(id) {
-        return key.bind(py).clone();
-    }
-    let key = PyString::new(py, id);
-    keys.insert(id.clone(), key.clone().unbind());
-    key
-}
-
-impl ViewCache {
-    fn key<'py>(&mut self, py: Python<'py>, id: &Arc<str>) -> Bound<'py, PyString> {
-        key_of(&mut self.keys, py, id)
-    }
-}
-
-struct PythonHelpers {
-    world_view: Py<PyType>,
-    need_view: Py<PyType>,
-    agent_view: Py<PyType>,
-    facility_view: Py<PyType>,
-    demand_view: Py<PyType>,
-    new: Py<PyAny>,
-}
-
-static HELPERS: GILOnceCell<PythonHelpers> = GILOnceCell::new();
-
-fn helpers(py: Python<'_>) -> PyResult<&PythonHelpers> {
-    HELPERS.get_or_try_init(py, || {
-        let module = py.import("sheltersim.policies.world_view")?;
-        let kind = |name: &str| -> PyResult<Py<PyType>> {
-            Ok(module.getattr(name)?.downcast_into::<PyType>()?.unbind())
-        };
-        Ok(PythonHelpers {
-            world_view: kind("WorldView")?,
-            need_view: kind("NeedView")?,
-            agent_view: kind("AgentView")?,
-            facility_view: kind("FacilityView")?,
-            demand_view: py
-                .import("sheltersim.domain.environment")?
-                .getattr("ZoneDemandView")?
-                .downcast_into::<PyType>()?
-                .unbind(),
-            new: py.import("builtins")?.getattr("object")?.getattr("__new__")?.unbind(),
-        })
-    })
-}
-
-/// `state.get(name, {})` if both are dicts: one of the dicts `population_context_people` merges.
-fn people_of<'py>(
-    state: Option<Bound<'py, PyAny>>,
-    name: &Bound<'py, PyString>,
-) -> PyResult<Option<Bound<'py, PyAny>>> {
-    let Some(state) = state else { return Ok(None) };
-    let Some(state) = dict_or_nothing(&state)? else { return Ok(None) };
-    let Some(people) = state.get_item(name)? else { return Ok(None) };
-    Ok(dict_or_nothing(&people)?.is_some().then_some(people))
-}
-
-/// `_parsed_person_contexts` and `_person_fields` of a world: who has a context, and its fields.
-/// Merged as `population_context_people` merges them, the later dict winning.
-fn person_contexts(
-    world: &Bound<'_, PyAny>,
-    configs: &Bound<'_, PyDict>,
-    model_state: &Bound<'_, PyAny>,
-    cache: &mut ViewCache,
-) -> PyResult<(FxHashMap<Arc<str>, Arc<PersonFields>>, bool)> {
-    let py = world.py();
-    // The dynamic contexts, from the row of the detached namespace: a plain copy of the part, made
-    // only when it has entries, since an empty dict adds no one.
-    let dynamic = with_state_value(world, "population_dynamics_v1", |state| {
-        Ok(match state {
-            Some(V::Map(state)) => match state.get("profile_context") {
-                Some(contexts @ V::Map(entries)) if !entries.is_empty() => Some(contexts.clone()),
-                _ => None,
-            },
-            _ => None,
-        })
-    })?;
-    let sources = [
-        people_of(configs.get_item(intern!(py, "population_context"))?, intern!(py, "people"))?,
-        people_of(Some(state_get(model_state, intern!(py, "population_context_v1"))?), intern!(py, "people"))?,
-        dynamic.map(|contexts| contexts.to_py(py)).transpose()?,
-    ];
-    let later_has = |place: usize, id: &Bound<'_, PyAny>| -> PyResult<bool> {
-        for later in &sources[place + 1..] {
-            if let Some(later) = later {
-                if raw_dict_get(later, id)?.is_some() {
-                    return Ok(true);
-                }
-            }
-        }
-        Ok(false)
-    };
-    let mut found = FxHashMap::default();
-    for (place, source) in sources.iter().enumerate() {
-        let Some(source) = source else { continue };
-        let Some(source) = as_readable_dict(source) else {
-            return unsupported("a people dict is another kind of dict");
-        };
-        for (id, raw) in source.iter() {
-            if later_has(place, &id)? {
-                continue;
-            }
-            let id_text = exact_text(&id)?;
-            let fields = match cache.people.get(&id_text) {
-                // `entry[0] != raw`, as a NaN in a record parses it again.
-                Some((kept, fields)) if !kept.bind(py).ne(&raw)? => fields.clone(),
-                _ => {
-                    let fields = Arc::new(person_context::parse(&raw)?);
-                    cache.people.insert(id_text.clone(), (plain_copy(&raw)?.unbind(), fields.clone()));
-                    fields
-                }
-            };
-            found.insert(id_text, fields);
-        }
-    }
-    let any = !found.is_empty();
-    Ok((found, any))
-}
-
-/// An active stressor of a zone: `active_environmental_stress`.
-struct Stressor {
-    id: Arc<str>,
-    stress_per_minute: f64,
-    start_event_id: Arc<str>,
-    source_id: Option<Arc<str>>,
-}
-
-/// The active stressors of each zone, by ID.
-fn active_stressors(
-    model_state: &Bound<'_, PyAny>,
-    zone_ids: &[Arc<str>],
-) -> PyResult<FxHashMap<Arc<str>, Vec<Stressor>>> {
-    let py = model_state.py();
-    let mut found: FxHashMap<Arc<str>, Vec<Stressor>> = FxHashMap::default();
-    let state = state_get(model_state, intern!(py, "infrastructure_v1"))?;
-    let Some(state) = dict_or_nothing(&state)? else {
-        return Ok(found);
-    };
-    let Some(stressors) = state.get_item(intern!(py, "environmental_stressors"))? else {
-        return unsupported("the infrastructure state has no stressors");
-    };
-    for (id, record) in required_dict(&stressors)?.iter() {
-        let record = required_dict(&record)?;
-        if !field(record, intern!(py, "active"))?.is_truthy()? {
-            continue;
-        }
-        let zone = exact_text(&field(record, intern!(py, "zone_id"))?)?;
-        if zone_ids.binary_search(&zone).is_err() {
-            continue;
-        }
-        found.entry(zone).or_default().push(Stressor {
-            id: exact_text(&id)?,
-            stress_per_minute: exact_float(&field(record, intern!(py, "stress_per_minute"))?)?,
-            start_event_id: exact_text(&field(record, intern!(py, "start_event_id"))?)?,
-            source_id: optional_text(&field(record, intern!(py, "source_id"))?)?,
-        });
-    }
-    #[allow(clippy::iter_over_hash_type, reason = "sorts each list in place")]
-    for entries in found.values_mut() {
-        entries.sort_unstable_by(|first, second| first.id.cmp(&second.id));
-    }
-    Ok(found)
-}
-
-fn sorted_unique(mut items: Vec<Arc<str>>) -> Vec<Arc<str>> {
-    items.sort_unstable();
-    items.dedup();
-    items
-}
-
-/// What `_zone_environment` keeps, in the same dict and with its checks: the inputs of the zones'
-/// conditions, read again when the configs are another object or the modifiers have changed.
-fn kept_environment<'c>(
-    controller: &Bound<'_, PyAny>,
-    configs: &Bound<'_, PyDict>,
-    model_state: &Bound<'_, PyAny>,
-    cache: &'c mut Option<KeptEnvironment>,
-) -> PyResult<&'c mut KeptEnvironment> {
-    let py = configs.py();
-    let environment_cache = controller.getattr(intern!(py, "_zone_environments"))?;
-    let Some(environments) = as_readable_dict(&environment_cache) else {
-        return unsupported("the cache of zones is not a dict");
-    };
-    let state = state_get(model_state, intern!(py, "zone_environment_v1"))?;
-    let has_state = state.is_instance_of::<PyDict>();
-    let modifiers = if has_state {
-        state.call_method1(intern!(py, "get"), (intern!(py, "modifiers"),))?
-    } else {
-        py.None().into_bound(py)
-    };
-    let usable = environments.get_item(intern!(py, "configs"))?.is_some_and(|kept| kept.is(configs))
-        && environments
-            .get_item(intern!(py, "has_state"))?
-            .is_some_and(|kept| kept.is_truthy().is_ok_and(|flag| flag == has_state))
-        && match environments.get_item(intern!(py, "modifiers"))? {
-            Some(kept) => !kept.ne(&modifiers)?,
-            None => false,
-        };
-    let views = if usable { environments.get_item(intern!(py, "views"))? } else { None };
-    let current = match (&views, cache.as_ref()) {
-        (Some(views), Some(kept)) => kept.views.bind(py).is(views),
-        _ => false,
-    };
-    if !current {
-        let inputs = ZoneInputs::read(configs, &state)?;
-        let views = match views {
-            Some(views) => views,
-            None => {
-                let copy = plain_copy(&modifiers)?;
-                let views = PyDict::new(py).into_any();
-                environments.clear();
-                environments.set_item(intern!(py, "configs"), configs)?;
-                environments.set_item(intern!(py, "has_state"), has_state)?;
-                environments.set_item(intern!(py, "modifiers"), copy)?;
-                environments.set_item(intern!(py, "views"), &views)?;
-                views
-            }
-        };
-        *cache = Some(KeptEnvironment { views: views.unbind(), inputs, zones: FxHashMap::default() });
-    }
-    cache.as_mut().ok_or_else(|| Unsupported::new_err("no zone environment"))
-}
-
-/// The zones of a view: the head of `from_world`.
-fn read_zones(
-    controller: &Bound<'_, PyAny>,
-    world: &Bound<'_, PyAny>,
-    configs: &Bound<'_, PyDict>,
-    model_state: &Bound<'_, PyAny>,
-    cache: &mut ViewCache,
-) -> PyResult<Vec<Arc<ViewZone>>> {
-    let py = world.py();
-    let zones = world.getattr(intern!(py, "zones"))?;
-    let Some(zones) = as_readable_dict(&zones) else {
-        return unsupported("the zones are not a plain dict");
-    };
-    let mut zone_ids = Vec::with_capacity(zones.len());
-    for id in zones.keys() {
-        zone_ids.push(exact_text(&id)?);
-    }
-    zone_ids.sort_unstable();
-
-    let ViewCache { environment, keys, .. } = cache;
-    let environment = kept_environment(controller, configs, model_state, environment)?;
-    let stressors = active_stressors(model_state, &zone_ids)?;
-    // The sanitation of each zone, from the row, or from the dict Python holds past it.
-    let mut row_sanitation: Option<FxHashMap<Arc<str>, f64>> = None;
-    let sanitation_records = match held_get(world, model_state, intern!(py, "staff_operations_v1"))? {
-        Held::Row(mirror) => {
-            row_sanitation = Some(NamespaceMirror::with_row::<StaffOperationsRow, _>(&mirror, |row| {
-                Ok(row.zones.iter().map(|(id, record)| (id.clone(), record.sanitation)).collect())
-            })?);
-            None
-        }
-        Held::Value(staff_operations) => match dict_or_nothing(&staff_operations)? {
-            Some(state) => state.get_item(intern!(py, "zones"))?,
-            None => None,
-        },
-    };
-    let mut result = Vec::with_capacity(zone_ids.len());
-    for id in zone_ids {
-        let key = key_of(keys, py, &id);
-        let conditions = match environment.zones.get(&id) {
-            Some(conditions) => conditions.clone(),
-            None => {
-                let conditions = Arc::new(environment.inputs.conditions(&id)?);
-                environment.zones.insert(id.clone(), conditions.clone());
-                conditions
-            }
-        };
-        let entries = stressors.get(&id).map_or(&[][..], Vec::as_slice);
-        let rates: Vec<f64> = entries.iter().map(|entry| entry.stress_per_minute).collect();
-        let Some(base_stress) = py_fsum(&rates) else {
-            return unsupported("a sum of stress rates overflows");
-        };
-        let sanitation = match &sanitation_records {
-            None if row_sanitation.is_some() => {
-                row_sanitation.as_ref().and_then(|zones| zones.get(&id)).copied().unwrap_or(1.0)
-            }
-            Some(records) => match raw_dict_get(required_dict(records)?.as_any(), key.as_any())? {
-                Some(record) => match required_dict(&record)?.get_item(intern!(py, "sanitation"))? {
-                    Some(value) => exact_float(&value)?,
-                    None => 1.0,
-                },
-                None => 1.0,
-            },
-            None => 1.0,
-        };
-        let mut event_ids: Vec<Arc<str>> = entries.iter().map(|entry| entry.start_event_id.clone()).collect();
-        event_ids.extend(conditions.condition_modifier_event_ids.iter().cloned());
-        result.push(Arc::new(ViewZone {
-            environmental_stress_per_minute: base_stress + conditions.temperature_stress_per_minute,
-            environmental_stressor_event_ids: sorted_unique(event_ids),
-            environmental_assumption_source_id: match conditions.condition_assumption_ids.first() {
-                Some(first) if conditions.temperature_stress_per_minute != 0.0 => Some(first.clone()),
-                _ => entries.first().and_then(|entry| entry.source_id.clone()),
-            },
-            ambient_noise_level: conditions.ambient_noise_level,
-            rest_efficiency_multiplier: conditions.rest_efficiency_multiplier,
-            zone_environment_modifier_event_ids: conditions.noise_modifier_event_ids.clone(),
-            zone_environment_assumption_ids: conditions.noise_assumption_ids.clone(),
-            ventilation_effectiveness: conditions.ventilation_effectiveness,
-            lighting_level: conditions.lighting_level,
-            privacy_level: conditions.privacy_level,
-            temperature_c: conditions.temperature_c,
-            ventilation_hygiene_growth_per_minute: conditions.ventilation_hygiene_growth_per_minute,
-            privacy_discontent_per_minute: conditions.privacy_discontent_per_minute,
-            condition_modifier_event_ids: conditions.condition_modifier_event_ids.clone(),
-            condition_assumption_ids: conditions.condition_assumption_ids.clone(),
-            demand_modifiers: conditions.demand_modifiers.clone(),
-            min_rest_decision_minutes: conditions.min_rest_decision_minutes,
-            max_rest_decision_minutes: conditions.max_rest_decision_minutes,
-            sanitation_level: sanitation,
-            id,
-        }));
-    }
-    Ok(result)
-}
-
-/// What the rows say of the people, in ID order, and of the facilities.
-fn read_rows(
-    rows: &Entities,
-    zones: &[Arc<ViewZone>],
-    no_person: &Arc<PersonFields>,
-    minute: i64,
-) -> PyResult<(Vec<ViewAgent>, Vec<ViewFacility>)> {
-    let mut first_tasks: FxHashMap<&str, &crate::state::entities::TaskRow> = FxHashMap::default();
-    for (_, task) in rows.active_tasks.iter() {
-        if let Some(agent) = &task.agent_id {
-            if matches!(&*task.kind, "toilet_queue" | "resource_service_queue") {
-                first_tasks.entry(agent).or_insert(task);
-            }
-        }
-    }
-    let waited = |since: i64| -> PyResult<i64> {
-        match minute.checked_sub(since) {
-            Some(wait) => Ok(wait.max(0)),
-            None => unsupported("a minute is out of range"),
-        }
-    };
-    let mut people: Vec<_> = rows.agents.iter().collect();
-    people.sort_unstable_by(|first, second| first.0.cmp(second.0));
-    let mut agents = Vec::with_capacity(people.len());
-    for (id, agent) in people {
-        if **id != *agent.profile.id {
-            return unsupported("a person is under another ID");
-        }
-        let Ok(zone) = zones.binary_search_by(|zone| zone.id.cmp(&agent.zone_id)) else {
-            return unsupported("a person is in an unknown zone");
-        };
-        let task = first_tasks.get(&**id).copied();
-        let request = agent.support_request_id.as_ref().and_then(|request| rows.support_requests.get(request));
-        let Some(cooldown) = agent.support_cooldown_until.checked_sub(minute) else {
-            return unsupported("a minute is out of range");
-        };
-        agents.push(ViewAgent {
-            id: id.clone(),
-            group_id: agent.profile.group_id.clone(),
-            zone,
-            mobility: agent.profile.mobility,
-            support_need: agent.profile.support_need,
-            stress_sensitivity: agent.profile.stress_sensitivity,
-            rng_key: agent.profile.rng_key.clone(),
-            activity: agent.activity,
-            target_id: agent.target_id.clone(),
-            needs: agent.needs.clone(),
-            stress: agent.stress,
-            chronic_distress: 0.0,
-            trust: agent.trust,
-            next_decision_at: agent.next_decision_at,
-            queue_task_id: task.map(|task| task.id.clone()),
-            queue_kind: task.map(|task| task.kind.clone()),
-            queue_target_id: task.and_then(|task| task.resource_id.clone()),
-            queue_wait_minutes: match task {
-                Some(task) => waited(task.start_minute)?,
-                None => 0,
-            },
-            support_request_id: agent.support_request_id.clone(),
-            support_request_status: request.map(|request| request.status),
-            support_assigned_staff_id: request.and_then(|request| request.assigned_staff_id.clone()),
-            support_wait_minutes: match request {
-                Some(request) => waited(request.requested_minute)?,
-                None => 0,
-            },
-            support_cooldown_remaining_minutes: cooldown.max(0),
-            information_query_pressure: 0.0,
-            misinformation_belief_pressure: 0.0,
-            misinformation_effect_sources: Vec::new(),
-            body: NO_BODY,
-            person: no_person.clone(),
-        });
-    }
-    let mut places: Vec<_> = rows.facilities.iter().collect();
-    places.sort_unstable_by(|first, second| first.0.cmp(second.0));
-    let mut facilities = Vec::with_capacity(places.len());
-    for (id, facility) in places {
-        if **id != *facility.id {
-            return unsupported("a facility is under another ID");
-        }
-        facilities.push(ViewFacility {
-            id: id.clone(),
-            kind: facility.kind.clone(),
-            zone_id: facility.zone_id.clone(),
-            capacity: facility.capacity,
-            working_units: facility.working_units,
-            active_agent_ids: facility.active_agent_ids.clone(),
-            queue_agent_ids: facility.queue_agent_ids.clone(),
-            resource_active_agent_ids: facility.resource_active_agent_ids.clone(),
-            resource_queue_agent_ids: facility.resource_queue_agent_ids.clone(),
-            facility_event_context_ids: Vec::new(),
-        });
-    }
-    Ok((agents, facilities))
-}
-
-/// `min(1.0, pressure)` and the sources of the false claims a person believes, in `from_world`'s
-/// order. `beliefs_parse` holds, so the claims and beliefs would parse.
-fn misinformation_of(row: &InformationRow, id: &str) -> (f64, Vec<MisinformationSource>) {
-    let mut pressure = 0.0;
-    let mut sources = Vec::new();
-    let Some(records) = row.beliefs.get(id) else {
-        return (0.0, sources);
-    };
-    let mut entries: Vec<_> = records.iter().collect();
-    entries.sort_unstable_by(|first, second| first.0.cmp(second.0));
-    for (message_id, belief) in entries {
-        let Some(message) = row.messages.get(message_id) else {
-            continue;
-        };
-        if &*message.truth_status == "false" && &*belief.belief != "unknown" && belief.belief_strength > 0.5 {
-            pressure += 2.0 * (belief.belief_strength - 0.5);
-            sources.push(MisinformationSource {
-                message_id: message_id.clone(),
-                origin_event_id: message.origin_event_id.clone(),
-                last_event_id: belief.last_event_id.clone(),
-                source_id: message.source_id.clone(),
-                time: message.time,
-            });
-        }
-    }
-    (py_min(1.0, pressure), sources)
-}
-
-fn read_information(
-    world: &Bound<'_, PyAny>,
-    state: &Bound<'_, PyAny>,
-    applies: bool,
-    agents: &mut [ViewAgent],
-) -> PyResult<()> {
-    if state.is_none() {
-        return Ok(());
-    }
-    let mirror = mirror_of(world, INFORMATION)?;
-    NamespaceMirror::with_row::<InformationRow, _>(&mirror, |row| {
-        if applies && !row.beliefs_parse() {
-            return unsupported("the claims or beliefs do not parse");
-        }
-        for agent in agents.iter_mut() {
-            let Some(pressure) = row.query_pressure.get(&*agent.id) else {
-                return unsupported("a person has no query pressure");
-            };
-            agent.information_query_pressure = *pressure;
-            if applies {
-                let (pressure, sources) = misinformation_of(row, &agent.id);
-                agent.misinformation_belief_pressure = pressure;
-                agent.misinformation_effect_sources = sources;
-            }
-        }
-        Ok(())
-    })
-}
-
-/// The long-term distress and body values of each person: what the update phase writes outside
-/// the entities, and so what `after_state_update` reads again.
-fn read_body_and_distress(
-    world: &Bound<'_, PyAny>,
-    model_state: &Bound<'_, PyAny>,
-    agents: &mut [ViewAgent],
-    keys: &[Py<PyString>],
-) -> PyResult<()> {
-    let py = world.py();
-    let key = intern!(py, "psychological_distress_v1");
-    // Read past `_DetachingTable.get`, which would rebuild the tree of a detached namespace.
-    let distress = match as_readable_dict(model_state) {
-        Some(table) => table.get_item(key)?,
-        None => Some(state_get(model_state, key)?),
-    };
-    let present = match &distress {
-        Some(held) if is_detached(held) => true,
-        Some(held) => dict_or_nothing(held)?.is_some(),
-        None => false,
-    };
-    if present {
-        // A namespace of another form is not the row's: this says Unsupported.
-        let mirror = mirror_of(world, DISTRESS)?;
-        NamespaceMirror::with_row::<DistressRow, _>(&mirror, |row| {
-            for agent in agents.iter_mut() {
-                agent.chronic_distress =
-                    row.agents.get(&*agent.id).map_or(0.0, |record| record.long_term_distress);
-            }
-            Ok(())
-        })?;
-    } else {
-        for agent in agents.iter_mut() {
-            agent.chronic_distress = 0.0;
-        }
-    }
-    let body_state = match held_get(world, model_state, intern!(py, "body_state_v1"))? {
-        Held::Row(mirror) => {
-            return NamespaceMirror::with_row::<BodyRow, _>(&mirror, |row| {
-                for (agent, key) in agents.iter_mut().zip(keys) {
-                    agent.body = match row.agents.get(key.bind(py).to_str()?) {
-                        Some(record) => BodyFields {
-                            sleep_debt_minutes: record.sleep_debt_minutes,
-                            uncertainty: record.uncertainty,
-                            reassurance: record.reassurance,
-                            discontent: record.discontent,
-                            positive_affect: record.positive_affect,
-                            negative_affect: record.negative_affect,
-                            hygiene_need: record.hygiene_need,
-                        },
-                        None => NO_BODY,
-                    };
-                }
-                Ok(())
-            });
-        }
-        Held::Value(body_state) => body_state,
-    };
-    let records = match dict_or_nothing(&body_state)? {
-        Some(state) => state.get_item(intern!(py, "agents"))?,
-        None => None,
-    };
-    let Some(records) = records else {
-        for agent in agents.iter_mut() {
-            agent.body = NO_BODY;
-        }
-        return Ok(());
-    };
-    let records = required_dict(&records)?;
-    for (agent, key) in agents.iter_mut().zip(keys) {
-        let Some(record) = raw_dict_get(records.as_any(), key.bind(py).as_any())? else {
-            agent.body = NO_BODY;
-            continue;
-        };
-        let record = required_dict(&record)?;
-        let value = |name: &Bound<'_, PyString>, default: f64| -> PyResult<f64> {
-            match record.get_item(name)? {
-                Some(value) => exact_float(&value),
-                None => Ok(default),
-            }
-        };
-        agent.body = BodyFields {
-            sleep_debt_minutes: value(intern!(py, "sleep_debt_minutes"), NO_BODY.sleep_debt_minutes)?,
-            uncertainty: value(intern!(py, "uncertainty"), NO_BODY.uncertainty)?,
-            reassurance: value(intern!(py, "reassurance"), NO_BODY.reassurance)?,
-            discontent: value(intern!(py, "discontent"), NO_BODY.discontent)?,
-            positive_affect: value(intern!(py, "positive_affect"), NO_BODY.positive_affect)?,
-            negative_affect: value(intern!(py, "negative_affect"), NO_BODY.negative_affect)?,
-            hygiene_need: value(intern!(py, "hygiene_need"), NO_BODY.hygiene_need)?,
-        };
-    }
-    Ok(())
-}
-
-/// `"water_station" in kind.casefold()`. Only ASCII is folded here; other text asks Python.
-fn is_water_station(kind: &str, py: Python<'_>) -> PyResult<bool> {
-    if kind.is_ascii() {
-        return Ok(kind.to_ascii_lowercase().contains("water_station"));
-    }
-    let folded = PyString::new(py, kind).call_method0(intern!(py, "casefold"))?;
-    Ok(folded.downcast_exact::<PyString>()?.to_str()?.contains("water_station"))
-}
-
-/// `facility_event_context_ids` of the facilities.
-fn read_facility_contexts(
-    world: &Bound<'_, PyAny>,
-    model_state: &Bound<'_, PyAny>,
-    facilities: &mut [ViewFacility],
-) -> PyResult<()> {
-    let py = world.py();
-    let operational = state_get(model_state, intern!(py, "operational_events_v1"))?;
-    let water_outages = if operational.is_none() {
-        // `get(name, {})` of a stored None raises in Python.
-        if model_state.contains(intern!(py, "operational_events_v1"))? {
-            return unsupported("the operational state is None");
-        }
-        None
-    } else {
-        required_dict(&operational)?.get_item(intern!(py, "water_outages"))?
-    };
-    let water_outages = match &water_outages {
-        Some(outages) => required_dict(outages)?.values().iter().collect::<Vec<_>>(),
-        None => Vec::new(),
-    };
-    let infrastructure = state_get(model_state, intern!(py, "infrastructure_v1"))?;
-    let outages = match dict_or_nothing(&infrastructure)? {
-        Some(state) => match state.get_item(intern!(py, "outages"))? {
-            Some(outages) => required_dict(&outages)?.values().iter().collect::<Vec<_>>(),
-            None => return unsupported("the infrastructure state has no outages"),
-        },
-        None => Vec::new(),
-    };
-    let event_log = world.getattr(intern!(py, "event_log"))?;
-    for facility in facilities.iter_mut() {
-        let mut ids: Vec<Arc<str>> = Vec::new();
-        if facility.working_units < facility.capacity {
-            let applied = event_log.call_method1(intern!(py, "applied_facility_event_ids"), (&*facility.id,))?;
-            for id in applied.try_iter()? {
-                ids.push(exact_text(&id?)?);
-            }
-        }
-        if !water_outages.is_empty() && is_water_station(&facility.kind, py)? {
-            for outage in &water_outages {
-                let outage = required_dict(outage)?;
-                if !field(outage, intern!(py, "active"))?.is_truthy()? {
-                    continue;
-                }
-                let kind = exact_text(&field(outage, intern!(py, "target_kind"))?)?;
-                let target = exact_text(&field(outage, intern!(py, "target_id"))?)?;
-                let hit = (&*kind == "zone" && target == facility.zone_id)
-                    || (&*kind == "facility" && target == facility.id);
-                if hit {
-                    ids.push(exact_text(&field(outage, intern!(py, "outage_event_id"))?)?);
-                }
-            }
-        }
-        for outage in &outages {
-            let outage = required_dict(outage)?;
-            if field(outage, intern!(py, "active"))?.is_truthy()?
-                && field(outage, intern!(py, "affected_facility_ids"))?.contains(&*facility.id)?
-            {
-                ids.push(exact_text(&field(outage, intern!(py, "start_event_id"))?)?);
-            }
-        }
-        facility.facility_event_context_ids = sorted_unique(ids);
-    }
-    Ok(())
-}
-
-/// `_misinformation_applies`: whether the selected psychology reads beliefs in false claims. These
-/// are `LIFE_STATE_PSYCHOLOGY_POLICIES` of `domain/psychological_state.py`.
-/// The selection is kept for the configs' stamp (`core/configs.rs`).
-fn misinformation_applies(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let selection = match configs::selection(world)? {
-        Ok(selection) => selection,
-        Err(fault) if fault.is_refusal() => return unsupported("a model ID is not a str"),
-        // A failure of the Python code is Python's to raise: `from_world` runs it again.
-        Err(_) => return unsupported("the Python rule raises"),
-    };
-    let Some(selected) = selection.get("psychology") else {
-        return Err(PyKeyError::new_err("psychology"));
-    };
-    Ok(matches!(&**selected, "life-state-feedback-v1" | "mean-reverting-life-state-v1"))
-}
-
-/// `misinformation_applies` of a world, for the shadow.
-#[pyfunction]
-fn misinformation_applies_of(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    configs_of(world)?;
-    misinformation_applies(world)
-}
-
+/// `world.model_configs`, which must be a plain dict.
 fn configs_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     let configs = world.getattr(intern!(world.py(), "model_configs"))?;
     if as_readable_dict(&configs).is_none() {
         return unsupported("the configs are not a plain dict");
     }
     Ok(configs)
+}
+
+fn gather(world: &Bound<'_, PyAny>) -> PyResult<Gathered> {
+    let py = world.py();
+    let raw = configs_of(world)?;
+    let configs = if field_held(world, intern!(py, "model_configs"))? { None } else { Some(<V as VPy>::from_py(&raw)?) };
+    Ok(Gathered { selection: configs::selection(world)?, configs })
+}
+
+/// `misinformation_applies` of a world, for the shadow.
+#[pyfunction]
+fn misinformation_applies_of(world: &Bound<'_, PyAny>) -> PyResult<bool> {
+    configs_of(world)?;
+    view::misinformation_applies(&configs::selection(world)?).or_py()
 }
 
 /// `simulator_extensions.get("enabled")` of the configs, truthy: the section `extensions_enabled`,
@@ -1089,440 +123,81 @@ fn extensions_enabled(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     })
 }
 
-fn cache_of<'py>(controller: &Bound<'py, PyAny>) -> PyResult<Bound<'py, ViewCache>> {
-    let py = controller.py();
-    let name = intern!(py, "_rust_view_cache");
-    let found = controller.getattr(name).map_err(|_| Unsupported::new_err("the controller keeps no view cache"))?;
-    if let Ok(cache) = found.downcast::<ViewCache>() {
-        return Ok(cache.clone());
-    }
-    let cache = Bound::new(py, ViewCache::default())?;
-    controller.setattr(name, &cache)?;
-    Ok(cache)
+// ---- Making a view -----------------------------------------------------------------------------
+
+/// `controller._run_core`, if it has one.
+fn run_of<'py>(controller: &Bound<'py, PyAny>) -> Option<Bound<'py, RunCore>> {
+    let found = controller.getattr(intern!(controller.py(), "_run_core")).ok()?;
+    found.downcast_into_exact::<RunCore>().ok()
 }
 
-/// `from_world`, without its hash.
-fn build(controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>) -> PyResult<(ViewData, Vec<Py<PyString>>)> {
-    let py = world.py();
-    let minute = exact_i64(&world.getattr(intern!(py, "minute_index"))?)?;
-    let schema_version = exact_i64(&world.getattr(intern!(py, "schema_version"))?)?;
-    let model_state = world.getattr(intern!(py, "model_state"))?;
-    let configs = configs_of(world)?;
-    let Some(configs_dict) = as_readable_dict(&configs) else {
-        return unsupported("the configs are not a plain dict");
+/// `from_world` without its hash: the core's `build`, with what the Run keeps, then the extensions'
+/// flag, which `from_world` read last.
+fn build(run: Option<&Bound<'_, RunCore>>, world: &Bound<'_, PyAny>, gathered: &Gathered) -> PyResult<ViewData> {
+    let mut cache = match run {
+        Some(run) => run.get().take_views()?,
+        None => ViewCache::default(),
     };
-    let applies = misinformation_applies(world)?;
-    let (information, information_is_dict) = state_held(&model_state, intern!(py, "information_spread_v1"))?;
-    let information_applies = applies && information_is_dict;
-    if !information.is_none() && !information_is_dict {
-        return unsupported("the information state is not a dict");
+    let inputs = gathered.inputs();
+    let built = with_world(world, |world| view::build(world, &inputs, &mut cache));
+    if let Some(run) = run {
+        run.get().put_views(cache)?;
     }
-    let cache = cache_of(controller)?;
-    let mut cache = cache.try_borrow_mut()?;
-    let (persons, has_population_context) = person_contexts(world, configs_dict, &model_state, &mut cache)?;
-    let zones = read_zones(controller, world, configs_dict, &model_state, &mut cache)?;
-    let store = entities_of(world)?;
-    let no_person = cache.no_person.clone();
-    let (mut agents, mut facilities) =
-        EntityStore::with_rows(&store, |rows| read_rows(rows, &zones, &no_person, minute))?;
-    let mut keys = Vec::with_capacity(agents.len());
-    for agent in &agents {
-        keys.push(cache.key(py, &agent.id).unbind());
-    }
-    drop(cache);
-
-    // Reads of the Python documents; none of them runs Python code but a mapping's get.
-    let presence = presence_people_of(world)?;
-    for agent in agents.iter_mut() {
-        agent.group_id = group_of(presence.as_ref(), &agent.id, &agent.group_id)?;
-        if let Some(person) = persons.get(&agent.id) {
-            agent.person = person.clone();
-        }
-    }
-    read_information(world, &information, information_applies, &mut agents)?;
-    read_body_and_distress(world, &model_state, &mut agents, &keys)?;
-    read_facility_contexts(world, &model_state, &mut facilities)?;
-
-    let extensions_enabled = extensions_enabled_of(world)?;
-    let autonomy_enabled =
-        extensions_enabled || has_population_context || model_state.contains(intern!(py, "body_state_v1"))?;
-    Ok((
-        ViewData {
-            minute_index: minute,
-            resource_service_enabled: schema_version == 6,
-            autonomy_enabled,
-            has_population_context,
-            partial: false,
-            zones,
-            agents,
-            facilities: facilities.into_iter().map(Arc::new).collect(),
-        },
-        keys,
-    ))
+    let draft = built?.or_py()?;
+    Ok(draft.finish(extensions_enabled_of(world)?))
 }
 
-/// The prior view with what the update phase writes read again (the Python `after_state_update`
-/// of before lane L10), without its hash.
-fn refresh(prior: &RustView, world: &Bound<'_, PyAny>) -> PyResult<(ViewData, Vec<Py<PyString>>)> {
+/// The people's IDs of a view as Python strings, in its order.
+fn keys_of(py: Python<'_>, run: Option<&Bound<'_, RunCore>>, data: &ViewData) -> PyResult<Vec<Py<PyString>>> {
+    let ids = data.agents.iter().map(|agent| &agent.id);
+    match run {
+        Some(run) => run.get().keys(py, ids),
+        None => Ok(ids.map(|id| PyString::new(py, id).unbind()).collect()),
+    }
+}
+
+/// `_view_after_movement` of the update phase (experiments/phases/segments.py).
+#[pyfunction]
+pub(crate) fn view_after_movement<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     let py = world.py();
-    let before = &prior.data;
-    let model_state = world.getattr(intern!(py, "model_state"))?;
-    let mut agents = before.agents.clone();
-    let store = entities_of(world)?;
-    EntityStore::with_rows(&store, |rows| {
-        for agent in agents.iter_mut() {
-            let Some(row) = rows.agents.get(&agent.id) else {
-                return unsupported("a person of the prior view has left");
-            };
-            agent.needs = row.needs.clone();
-            agent.stress = row.stress;
-            agent.trust = row.trust;
-        }
-        Ok(())
-    })?;
-    read_body_and_distress(world, &model_state, &mut agents, &prior.keys)?;
-    Ok((
-        ViewData {
-            minute_index: before.minute_index,
-            resource_service_enabled: before.resource_service_enabled,
-            autonomy_enabled: before.autonomy_enabled,
-            has_population_context: before.has_population_context,
-            partial: false,
-            zones: before.zones.clone(),
-            agents,
-            facilities: before.facilities.clone(),
-        },
-        prior.keys.iter().map(|key| key.clone_ref(py)).collect(),
-    ))
+    let gathered = gather(world)?;
+    let run = run_of(controller);
+    let data = build(run.as_ref(), world, &gathered)?;
+    let keys = keys_of(py, run.as_ref(), &data)?;
+    new_view(py, data, keys, None)
 }
 
-// ---- The audit hash -----------------------------------------------------------------------------
-
-fn key(out: &mut Vec<u8>, first: bool, name: &str) {
-    if !first {
-        out.push(b',');
-    }
-    out.push(b'"');
-    out.extend_from_slice(name.as_bytes());
-    out.extend_from_slice(b"\":");
-}
-
-fn write_text(out: &mut Vec<u8>, text: &str) {
-    write_json_string(out, text);
-}
-
-fn write_option(out: &mut Vec<u8>, text: &Option<Arc<str>>) {
-    match text {
-        Some(text) => write_text(out, text),
-        None => out.extend_from_slice(b"null"),
-    }
-}
-
-fn write_int(out: &mut Vec<u8>, value: i64) {
-    let mut buffer = itoa::Buffer::new();
-    out.extend_from_slice(buffer.format(value).as_bytes());
-}
-
-fn write_optional_int(out: &mut Vec<u8>, value: Option<i64>) {
-    match value {
-        Some(value) => write_int(out, value),
-        None => out.extend_from_slice(b"null"),
-    }
-}
-
-fn write_texts(out: &mut Vec<u8>, items: &[Arc<str>]) {
-    out.push(b'[');
-    for (index, item) in items.iter().enumerate() {
-        if index > 0 {
-            out.push(b',');
-        }
-        write_text(out, item);
-    }
-    out.push(b']');
-}
-
-/// `model_configs[name]`; a None is left to the Python path, as in `_view_state_hash`.
-fn hashed_config<'py>(configs: &Bound<'py, PyAny>, name: &Bound<'py, PyString>) -> PyResult<Bound<'py, PyAny>> {
-    let value = configs.get_item(name).map_err(|_| Unsupported::new_err("a config is missing"))?;
-    if value.is_none() {
-        return unsupported("a config is None");
-    }
-    Ok(value)
-}
-
-/// The people of the view hash go to the threads in runs of this many.
-const AGENTS_PER_PART: usize = 64;
-
-/// A person's entry of `agent_life_context`, after a comma if it is not the first.
-fn write_life(encoder: &mut Encoder, index: usize, agent: &ViewAgent) -> PyResult<()> {
-    if index > 0 {
-        encoder.out.push(b',');
-    }
-    let person = &agent.person;
-    let out = &mut encoder.out;
-    out.extend_from_slice(b"{\"agent_id\":");
-    write_text(out, &agent.id);
-    key(out, false, "care_for_ids");
-    write_texts(out, &person.care_for_ids);
-    key(out, false, "caregiver_ids");
-    write_texts(out, &person.caregiver_ids);
-    key(out, false, "discontent");
-    encoder.float(agent.body.discontent)?;
-    key(&mut encoder.out, false, "hygiene_need");
-    encoder.float(agent.body.hygiene_need)?;
-    key(&mut encoder.out, false, "negative_affect");
-    encoder.float(agent.body.negative_affect)?;
-    let out = &mut encoder.out;
-    key(out, false, "parent_ids");
-    write_texts(out, &person.parent_ids);
-    key(out, false, "personal_context_present");
-    out.extend_from_slice(if person.personal_context_present { b"true" } else { b"false" });
-    key(out, false, "positive_affect");
-    encoder.float(agent.body.positive_affect)?;
-    key(&mut encoder.out, false, "reassurance");
-    encoder.float(agent.body.reassurance)?;
-    let out = &mut encoder.out;
-    key(out, false, "required_sleep_minutes");
-    write_optional_int(out, person.required_sleep_minutes);
-    key(out, false, "roles");
-    write_texts(out, &person.roles);
-    key(out, false, "sleep_debt_minutes");
-    encoder.float(agent.body.sleep_debt_minutes)?;
-    key(&mut encoder.out, false, "uncertainty");
-    encoder.float(agent.body.uncertainty)?;
-    let out = &mut encoder.out;
-    key(out, false, "usual_sleep_minute");
-    write_optional_int(out, person.usual_sleep_minute);
-    key(out, false, "usual_wake_minute");
-    write_optional_int(out, person.usual_wake_minute);
-    out.push(b'}');
-    Ok(())
-}
-
-/// A person's entry of `agents`, after a comma if it is not the first.
-fn write_agent(encoder: &mut Encoder, index: usize, agent: &ViewAgent, data: &ViewData, information: bool, resource: bool) -> PyResult<()> {
-    if index > 0 {
-        encoder.out.push(b',');
-    }
-    let out = &mut encoder.out;
-    out.push(b'{');
-    key(out, true, "activity");
-    write_text(out, activity_text(agent.activity));
-    key(out, false, "group_id");
-    write_option(out, &agent.group_id);
-    key(out, false, "id");
-    write_text(out, &agent.id);
-    if information {
-        key(out, false, "information_query_pressure");
-        encoder.float(agent.information_query_pressure)?;
-    }
-    let out = &mut encoder.out;
-    key(out, false, "mobility");
-    write_text(out, mobility_text(agent.mobility));
-    key(out, false, "needs");
-    out.extend_from_slice(b"{\"fatigue\":");
-    encoder.float(agent.needs.fatigue)?;
-    encoder.out.extend_from_slice(b",\"hunger\":");
-    encoder.float(agent.needs.hunger)?;
-    if resource {
-        encoder.out.extend_from_slice(b",\"hydration_need\":");
-        encoder.float(agent.needs.hydration_need)?;
-    }
-    encoder.out.extend_from_slice(b",\"toilet_urgency\":");
-    encoder.float(agent.needs.toilet_urgency)?;
-    let out = &mut encoder.out;
-    out.push(b'}');
-    key(out, false, "next_decision_at");
-    write_int(out, agent.next_decision_at);
-    key(out, false, "queue_kind");
-    write_option(out, &agent.queue_kind);
-    key(out, false, "queue_target_id");
-    write_option(out, &agent.queue_target_id);
-    key(out, false, "queue_task_id");
-    write_option(out, &agent.queue_task_id);
-    key(out, false, "queue_wait_minutes");
-    write_int(out, agent.queue_wait_minutes);
-    key(out, false, "rng_key");
-    write_text(out, &agent.rng_key);
-    key(out, false, "stress");
-    encoder.float(agent.stress)?;
-    key(&mut encoder.out, false, "stress_sensitivity");
-    encoder.float(agent.stress_sensitivity)?;
-    let out = &mut encoder.out;
-    key(out, false, "support_assigned_staff_id");
-    write_option(out, &agent.support_assigned_staff_id);
-    key(out, false, "support_cooldown_remaining_minutes");
-    write_int(out, agent.support_cooldown_remaining_minutes);
-    key(out, false, "support_need");
-    encoder.float(agent.support_need)?;
-    let out = &mut encoder.out;
-    key(out, false, "support_request_id");
-    write_option(out, &agent.support_request_id);
-    key(out, false, "support_request_status");
-    match agent.support_request_status {
-        Some(status) => write_text(out, status_text(status)),
-        None => out.extend_from_slice(b"null"),
-    }
-    key(out, false, "support_wait_minutes");
-    write_int(out, agent.support_wait_minutes);
-    key(out, false, "target_id");
-    write_option(out, &agent.target_id);
-    key(out, false, "trust");
-    encoder.float(agent.trust)?;
-    let out = &mut encoder.out;
-    key(out, false, "zone_id");
-    write_text(out, &data.zones[agent.zone].id);
-    out.push(b'}');
-    Ok(())
-}
-
-/// The entries of `agent_life_context` (if `life`) and of `agents`, in runs, in the people's order,
-/// written by the threads together. The first error is the one the sections written one after the
-/// other would stop at: the life context's first, then the agents'.
-fn agent_parts(data: &ViewData, life: bool, information: bool, resource: bool) -> PyResult<(Vec<Vec<u8>>, Vec<Vec<u8>>)> {
-    let parts = parts_in_order(data.agents.len(), AGENTS_PER_PART, |run| {
-        let mut life_part = Encoder { out: Vec::new() };
-        let mut agents_part = Encoder { out: Vec::with_capacity(run.len() * 640) };
-        let life_written = if life {
-            life_part.out.reserve(run.len() * 512);
-            run.clone().try_for_each(|index| write_life(&mut life_part, index, &data.agents[index]))
-        } else {
-            Ok(())
-        };
-        let agents_written =
-            run.into_iter().try_for_each(|index| write_agent(&mut agents_part, index, &data.agents[index], data, information, resource));
-        (life_written.map(|()| life_part.out), agents_written.map(|()| agents_part.out))
-    });
-    let mut life_parts = Vec::with_capacity(parts.len());
-    let mut agents_parts = Vec::with_capacity(parts.len());
-    for (life_part, agents_part) in parts {
-        life_parts.push(life_part?);
-        agents_parts.push(agents_part);
-    }
-    let agents_parts = agents_parts.into_iter().collect::<PyResult<Vec<_>>>()?;
-    Ok((if life { life_parts } else { Vec::new() }, agents_parts))
-}
-
-/// `canonical_sha256` of the document `_view_state_hash` builds. Keys are written sorted. A float
-/// the canonical form does not hold says Unsupported, and the Python rule raises its own text.
-fn state_hash(data: &ViewData, world: &Bound<'_, PyAny>) -> PyResult<String> {
+/// `_view_for_proposals` of the propose phase: the update phase's view of this minute with what
+/// that phase wrote read again, or a new view; with its audit hash.
+#[pyfunction]
+pub(crate) fn view_for_proposals<'py>(
+    controller: &Bound<'py, PyAny>,
+    world: &Bound<'py, PyAny>,
+    minute: &Bound<'py, PyAny>,
+) -> PyResult<Bound<'py, PyAny>> {
     let py = world.py();
-    let model_state = world.getattr(intern!(py, "model_state"))?;
-    let configs = configs_of(world)?;
-    let (information_state, _) = state_held(&model_state, intern!(py, "information_spread_v1"))?;
-    let resource = data.resource_service_enabled;
-    let information = !information_state.is_none();
-    let resource_config = if resource { Some(hashed_config(&configs, intern!(py, "resource_service"))?) } else { None };
-    let information_config =
-        if information { Some(hashed_config(&configs, intern!(py, "information_spread"))?) } else { None };
-    // A row holds a namespace's dict of fields, which is never empty.
-    let life_context = data.has_population_context
-        || match held_get(world, &model_state, intern!(py, "body_state_v1"))? {
-            Held::Row(_) => true,
-            Held::Value(body_state) => !body_state.is_none() && body_state.is_truthy()?,
+    let slot = intern!(py, "_view_before_proposals");
+    let prior = controller.getattr(slot)?;
+    let gathered = gather(world)?;
+    let (data, keys) = if !prior.is_none() && prior.getattr(intern!(py, "minute_index"))?.eq(minute)? {
+        let fields = prior.getattr(intern!(py, "__dict__"))?;
+        let Some(rust) = raw_dict_get(&fields, intern!(py, "_rust_view").as_any())? else {
+            return unsupported("the prior view is Python's");
         };
-
-    // The document goes to the hash in pieces: what is written here, and each run of people, which
-    // the threads write (core/parallel.rs). The bytes are the same as in one piece.
-    let (life_parts, agent_parts) = agent_parts(data, life_context, information, resource)?;
-    let mut hasher = Sha256::new();
-    let mut encoder = Encoder { out: Vec::with_capacity(32 * 1024) };
-    encoder.out.push(b'{');
-    let mut first = true;
-    if life_context {
-        key(&mut encoder.out, true, "agent_life_context");
-        first = false;
-        encoder.out.push(b'[');
-        hasher.update(&encoder.out);
-        encoder.out.clear();
-        for part in &life_parts {
-            hasher.update(part);
-        }
-        encoder.out.push(b']');
-    }
-    key(&mut encoder.out, first, "agents");
-    encoder.out.push(b'[');
-    hasher.update(&encoder.out);
-    encoder.out.clear();
-    for part in &agent_parts {
-        hasher.update(part);
-    }
-    encoder.out.push(b']');
-    let out = &mut encoder.out;
-    key(out, false, "facilities");
-    out.push(b'[');
-    for (index, facility) in data.facilities.iter().enumerate() {
-        if index > 0 {
-            out.push(b',');
-        }
-        out.push(b'{');
-        key(out, true, "active_agent_ids");
-        write_texts(out, &facility.active_agent_ids);
-        key(out, false, "capacity");
-        write_int(out, facility.capacity);
-        key(out, false, "id");
-        write_text(out, &facility.id);
-        key(out, false, "kind");
-        write_text(out, &facility.kind);
-        key(out, false, "queue_agent_ids");
-        write_texts(out, &facility.queue_agent_ids);
-        if resource {
-            key(out, false, "resource_active_agent_ids");
-            write_texts(out, &facility.resource_active_agent_ids);
-            key(out, false, "resource_queue_agent_ids");
-            write_texts(out, &facility.resource_queue_agent_ids);
-        }
-        key(out, false, "working_units");
-        write_int(out, facility.working_units);
-        key(out, false, "zone_id");
-        write_text(out, &facility.zone_id);
-        out.push(b'}');
-    }
-    out.push(b']');
-    if let Some(config) = &information_config {
-        key(&mut encoder.out, false, "information_spread_config");
-        encoder.value(config, 1)?;
-    }
-    let out = &mut encoder.out;
-    key(out, false, "minute_index");
-    write_int(out, data.minute_index);
-    if let Some(config) = &resource_config {
-        key(&mut encoder.out, false, "resource_service_config");
-        encoder.value(config, 1)?;
-    }
-    encoder.out.push(b'}');
-    hasher.update(&encoder.out);
-    let digest = hasher.finalize();
-    Ok(digest.iter().map(|byte| format!("{byte:02x}")).collect())
-}
-
-fn activity_text(activity: Activity) -> &'static str {
-    match activity {
-        Activity::Idle => "idle",
-        Activity::Moving => "moving",
-        Activity::Queued => "queued",
-        Activity::InService => "in_service",
-        Activity::SeekingHelp => "seeking_help",
-        Activity::Sleeping => "sleeping",
-        Activity::Resting => "resting",
-    }
-}
-
-fn mobility_text(mobility: Mobility) -> &'static str {
-    match mobility {
-        Mobility::Independent => "independent",
-        Mobility::Assisted => "assisted",
-        Mobility::Wheelchair => "wheelchair",
-    }
-}
-
-pub(crate) fn status_text(status: RequestStatus) -> &'static str {
-    match status {
-        RequestStatus::Pending => "pending",
-        RequestStatus::Assigned => "assigned",
-        RequestStatus::Resolved => "resolved",
-        RequestStatus::Unresolved => "unresolved",
-    }
+        let rust = rust.downcast_into::<RustView>()?;
+        let prior = rust.get();
+        let data = with_world(world, |world| view::refresh(&prior.data, world))?.or_py()?;
+        (data, prior.keys.iter().map(|key| key.clone_ref(py)).collect())
+    } else {
+        let run = run_of(controller);
+        let data = build(run.as_ref(), world, &gathered)?;
+        let keys = keys_of(py, run.as_ref(), &data)?;
+        (data, keys)
+    };
+    let hash = with_world(world, |world| view::state_hash(&data, world, gathered.configs.as_ref()))?.or_py()?;
+    let view = new_view(py, data, keys, Some(hash))?;
+    controller.setattr(slot, py.None())?;
+    Ok(view)
 }
 
 // ---- The Python view ----------------------------------------------------------------------------
@@ -1543,6 +218,32 @@ impl RustView {
     pub(crate) fn key<'py>(&self, py: Python<'py>, index: usize) -> &Bound<'py, PyString> {
         self.keys[index].bind(py)
     }
+}
+
+struct PythonHelpers {
+    world_view: Py<PyType>,
+    need_view: Py<PyType>,
+    agent_view: Py<PyType>,
+    facility_view: Py<PyType>,
+    demand_view: Py<PyType>,
+    new: Py<PyAny>,
+}
+
+static HELPERS: GILOnceCell<PythonHelpers> = GILOnceCell::new();
+
+fn helpers(py: Python<'_>) -> PyResult<&PythonHelpers> {
+    HELPERS.get_or_try_init(py, || {
+        let module = py.import("sheltersim.policies.world_view")?;
+        let kind = |name: &str| -> PyResult<Py<PyType>> { Ok(module.getattr(name)?.downcast_into::<PyType>()?.unbind()) };
+        Ok(PythonHelpers {
+            world_view: kind("WorldView")?,
+            need_view: kind("NeedView")?,
+            agent_view: kind("AgentView")?,
+            facility_view: kind("FacilityView")?,
+            demand_view: py.import("sheltersim.domain.environment")?.getattr("ZoneDemandView")?.downcast_into::<PyType>()?.unbind(),
+            new: py.import("builtins")?.getattr("object")?.getattr("__new__")?.unbind(),
+        })
+    })
 }
 
 fn tuple_of<'py>(py: Python<'py>, items: &[Arc<str>]) -> PyResult<Bound<'py, PyAny>> {
@@ -1600,19 +301,24 @@ fn zone_python<'py>(helpers: &PythonHelpers, py: Python<'py>, zone: &ViewZone) -
     set!("condition_assumption_ids", tuple_of(py, &zone.condition_assumption_ids)?);
     let mut demand = Vec::with_capacity(zone.demand_modifiers.len());
     for modifier in &zone.demand_modifiers {
-        let fields = PyDict::new(py);
-        fields.set_item(intern!(py, "action"), &*modifier.action)?;
-        fields.set_item(intern!(py, "probability_multiplier"), modifier.probability_multiplier)?;
-        fields.set_item(intern!(py, "duration_multiplier"), modifier.duration_multiplier)?;
-        fields.set_item(intern!(py, "modifier_event_ids"), tuple_of(py, &modifier.modifier_event_ids)?)?;
-        fields.set_item(intern!(py, "assumption_ids"), tuple_of(py, &modifier.assumption_ids)?)?;
-        demand.push(new_object(helpers, &helpers.demand_view, &fields)?);
+        demand.push(demand_python(helpers, py, modifier)?);
     }
     set!("demand_modifiers", PyTuple::new(py, demand)?.into_any());
     set!("min_rest_decision_minutes", zone.min_rest_decision_minutes.into_bound_py_any(py)?);
     set!("max_rest_decision_minutes", zone.max_rest_decision_minutes.into_bound_py_any(py)?);
     set!("sanitation_level", float(zone.sanitation_level));
     Ok(dict.into_any())
+}
+
+/// A `ZoneDemandView`.
+fn demand_python<'py>(helpers: &PythonHelpers, py: Python<'py>, modifier: &DemandModifier) -> PyResult<Bound<'py, PyAny>> {
+    let fields = PyDict::new(py);
+    fields.set_item(intern!(py, "action"), &*modifier.action)?;
+    fields.set_item(intern!(py, "probability_multiplier"), modifier.probability_multiplier)?;
+    fields.set_item(intern!(py, "duration_multiplier"), modifier.duration_multiplier)?;
+    fields.set_item(intern!(py, "modifier_event_ids"), tuple_of(py, &modifier.modifier_event_ids)?)?;
+    fields.set_item(intern!(py, "assumption_ids"), tuple_of(py, &modifier.assumption_ids)?)?;
+    new_object(helpers, &helpers.demand_view, &fields)
 }
 
 fn copy_dict<'py>(dict: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
@@ -1623,11 +329,7 @@ fn copy_dict<'py>(dict: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     }
 }
 
-fn members_python<'py>(
-    py: Python<'py>,
-    members: Vec<(&Arc<str>, Vec<usize>)>,
-    keys: &[Py<PyString>],
-) -> PyResult<Bound<'py, PyDict>> {
+fn members_python<'py>(py: Python<'py>, members: Vec<(&Arc<str>, Vec<usize>)>, keys: &[Py<PyString>]) -> PyResult<Bound<'py, PyDict>> {
     let dict = PyDict::new(py);
     for (name, people) in members {
         let tuple = PyTuple::new(py, people.iter().map(|index| keys[*index].bind(py)))?;
@@ -1715,13 +417,7 @@ impl RustView {
             } else {
                 let mut items = Vec::with_capacity(agent.misinformation_effect_sources.len());
                 for source in &agent.misinformation_effect_sources {
-                    items.push((
-                        &*source.message_id,
-                        &*source.origin_event_id,
-                        &*source.last_event_id,
-                        &*source.source_id,
-                        source.time,
-                    ));
+                    items.push((&*source.message_id, &*source.origin_event_id, &*source.last_event_id, &*source.source_id, source.time));
                 }
                 PyTuple::new(py, items)?.into_any()
             };
@@ -1770,12 +466,7 @@ impl RustView {
 }
 
 /// A `WorldView` over a snapshot, whose Python parts are made when a Python reader asks.
-fn new_view<'py>(
-    py: Python<'py>,
-    data: ViewData,
-    keys: Vec<Py<PyString>>,
-    hash: Option<String>,
-) -> PyResult<Bound<'py, PyAny>> {
+fn new_view<'py>(py: Python<'py>, data: ViewData, keys: Vec<Py<PyString>>, hash: Option<String>) -> PyResult<Bound<'py, PyAny>> {
     let helpers = helpers(py)?;
     let fields = PyDict::new(py);
     fields.set_item(intern!(py, "minute_index"), data.minute_index)?;
@@ -1785,6 +476,45 @@ fn new_view<'py>(
     fields.set_item(intern!(py, "_has_population_context"), data.has_population_context)?;
     fields.set_item(intern!(py, "_rust_view"), Py::new(py, RustView { data, keys })?)?;
     new_object(helpers, &helpers.world_view, &fields)
+}
+
+// ---- A view Python made ---------------------------------------------------------------------------
+
+fn exact_float(value: &Bound<'_, PyAny>) -> PyResult<f64> {
+    match value.downcast_exact::<PyFloat>() {
+        Ok(number) => Ok(number.value()),
+        Err(_) => unsupported("a view value is not a float"),
+    }
+}
+
+fn exact_text(value: &Bound<'_, PyAny>) -> PyResult<Arc<str>> {
+    match value.downcast_exact::<PyString>() {
+        Ok(text) => Ok(Arc::from(text.to_str().map_err(|_| Unsupported::new_err("not UTF-8"))?)),
+        Err(_) => unsupported("a view value is not a str"),
+    }
+}
+
+fn optional_text(value: &Bound<'_, PyAny>) -> PyResult<Option<Arc<str>>> {
+    if value.is_none() {
+        Ok(None)
+    } else {
+        exact_text(value).map(Some)
+    }
+}
+
+fn optional_i64(value: &Bound<'_, PyAny>) -> PyResult<Option<i64>> {
+    if value.is_none() {
+        return Ok(None);
+    }
+    match value.downcast_exact::<PyInt>() {
+        Ok(number) => number.extract().map(Some).map_err(|_| Unsupported::new_err("an int is too large")),
+        Err(_) => unsupported("a view value is not an int"),
+    }
+}
+
+/// `record[name]`; a missing one raises in Python.
+fn field<'py>(record: &Bound<'py, PyDict>, name: &Bound<'py, PyString>) -> PyResult<Bound<'py, PyAny>> {
+    record.get_item(name)?.ok_or_else(|| Unsupported::new_err("a record's field is missing"))
 }
 
 /// What the kernels read of a view Python made (a Rust view was refused, or a test made it). Its
@@ -1901,51 +631,10 @@ pub(crate) fn view_of<'py>(view: &Bound<'py, PyAny>) -> PyResult<Bound<'py, Rust
     }
 }
 
-/// `_view_after_movement` of the update phase (experiments/phases/segments.py).
-#[pyfunction]
-pub(crate) fn view_after_movement<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    let (data, keys) = build(controller, world)?;
-    new_view(world.py(), data, keys, None)
-}
-
-/// `_view_for_proposals` of the propose phase.
-#[pyfunction]
-pub(crate) fn view_for_proposals<'py>(
-    controller: &Bound<'py, PyAny>,
-    world: &Bound<'py, PyAny>,
-    minute: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyAny>> {
-    let py = world.py();
-    let slot = intern!(py, "_view_before_proposals");
-    let prior = controller.getattr(slot)?;
-    let (data, keys) = if !prior.is_none() && prior.getattr(intern!(py, "minute_index"))?.eq(minute)? {
-        let fields = prior.getattr(intern!(py, "__dict__"))?;
-        let Some(rust) = raw_dict_get(&fields, intern!(py, "_rust_view").as_any())? else {
-            return unsupported("the prior view is Python's");
-        };
-        let rust = rust.downcast_into::<RustView>()?;
-        refresh(rust.get(), world)?
-    } else {
-        build(controller, world)?
-    };
-    let hash = state_hash(&data, world)?;
-    let view = new_view(py, data, keys, Some(hash))?;
-    controller.setattr(slot, py.None())?;
-    Ok(view)
-}
-
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<RustView>()?;
-    m.add_class::<ViewCache>()?;
     m.add_function(wrap_pyfunction!(view_after_movement, m)?)?;
     m.add_function(wrap_pyfunction!(view_for_proposals, m)?)?;
     m.add_function(wrap_pyfunction!(misinformation_applies_of, m)?)?;
     Ok(())
-}
-
-// Rows of a view stay shareable: a rule reads them without Python.
-#[allow(dead_code)]
-fn assert_views_are_shareable() {
-    fn check<T: Send + Sync>() {}
-    check::<ViewData>();
 }
