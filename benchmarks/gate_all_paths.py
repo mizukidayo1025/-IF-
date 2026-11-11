@@ -4,11 +4,14 @@ Each scenario runs in its own process and writes the world, events and KPI hashe
 world it ended with, plus timing. Hashes are compared with --expect; --determinism also
 runs every scenario under other process settings and compares them with the first run. A write
 to model_configs in place inside a tick phase is a problem too (native/src/core/configs.rs).
+With --verify-rows, each tick's end also checks that every entity object holds what its row holds
+(core/state_mirror.py, watch_entity_rows); a tick where they differ is a problem.
 
     python benchmarks/gate_all_paths.py --output DIR --expect fixtures/gate-all-paths.json
     python benchmarks/gate_all_paths.py --output DIR --determinism
     python benchmarks/gate_all_paths.py --output DIR --reversed-order
     python benchmarks/gate_all_paths.py --output DIR --coverage
+    python benchmarks/gate_all_paths.py --output DIR --verify-rows
     python benchmarks/gate_all_paths.py --output DIR --write-expected fixtures/gate-all-paths.json
 
 Run from the repository root with src on PYTHONPATH. Output belongs outside the repository.
@@ -68,6 +71,8 @@ VARIANTS = (
 # With the base run's hash seed, so that only the order of the dicts differs from it.
 ORDER_VARIABLE = "SHELTERSIM_GATE_REVERSE"
 ORDER_VARIANTS = (Variant("reversed_order", {"PYTHONHASHSEED": "1", ORDER_VARIABLE: "phase"}),)
+# Set by --verify-rows for the scenarios' processes.
+VERIFY_ROWS_VARIABLE = "SHELTERSIM_GATE_VERIFY_ROWS"
 
 
 def run_one(name: str, output: Path, chosen: Any = None) -> None:
@@ -104,6 +109,11 @@ def run_one(name: str, output: Path, chosen: Any = None) -> None:
     watch_config_writes = getattr(sheltersim_native, "watch_config_writes", None)
     if watch_config_writes is not None:
         watch_config_writes(True)
+    verify_rows = bool(os.environ.get(VERIFY_ROWS_VARIABLE))
+    if verify_rows:
+        from sheltersim.core.state_mirror import watch_entity_rows
+
+        watch_entity_rows(True)
     order = os.environ.get(ORDER_VARIABLE)
     if order:
         from tick_probe import ReversedOrder, install
@@ -134,6 +144,7 @@ def run_one(name: str, output: Path, chosen: Any = None) -> None:
                 "stale_geometry_hits": getattr(
                     sheltersim_native, "stale_geometry_hits", lambda: None
                 )(),
+                "entity_rows": _entity_rows() if verify_rows else None,
             },
             ensure_ascii=False,
             indent=2,
@@ -141,6 +152,12 @@ def run_one(name: str, output: Path, chosen: Any = None) -> None:
         + "\n",
         encoding="utf-8",
     )
+
+
+def _entity_rows() -> dict[str, Any]:
+    from sheltersim.core.state_mirror import entity_row_mismatches
+
+    return entity_row_mismatches()
 
 
 def _spawn(
@@ -219,6 +236,12 @@ def _problems_within(results: dict[str, dict[str, Any]]) -> list[str]:
             problems.append(
                 f"{name}: a geometry plan was kept for an overlay stamp after the overlay changed "
                 f"{result['stale_geometry_hits']} times"
+            )
+        rows = result.get("entity_rows")
+        if rows and rows["mismatches"]:
+            problems.append(
+                f"{name}: the entity objects differed from their rows at {rows['mismatches']} of "
+                f"{rows['checked']} tick ends; first {rows['first']}"
             )
     return problems
 
@@ -314,6 +337,11 @@ def main() -> int:
         action="store_true",
         help="measure the tick-side Python lines the base runs reach, into coverage.md",
     )
+    parser.add_argument(
+        "--verify-rows",
+        action="store_true",
+        help="check the entity objects against their rows at the end of every tick",
+    )
     parser.add_argument("--only", action="append", help="scenarios whose name starts with this")
     parser.add_argument("--jobs", type=int, default=min(os.cpu_count() or 1, 12))
     parser.add_argument("--run-one", help=argparse.SUPPRESS)
@@ -323,6 +351,8 @@ def main() -> int:
         return 0
 
     args.output.mkdir(parents=True, exist_ok=False)
+    if args.verify_rows:
+        os.environ[VERIFY_ROWS_VARIABLE] = "1"
     started = time.perf_counter()
     names = _scenario_names(args.only)
     coverage_dir = args.output / "coverage" if args.coverage else None
@@ -340,6 +370,7 @@ def main() -> int:
                 "runs": result.get("runs"),
                 "refused": result.get("refused"),
                 "crashed": bool(result.get("crashed")),
+                "entity_rows": result.get("entity_rows"),
             }
             for name, result in results.items()
         },
@@ -386,6 +417,11 @@ def main() -> int:
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     print(f"{len(names)} scenarios in {summary['total_seconds']:.1f}s; {len(problems)} problems")
+    if args.verify_rows:
+        rows = [result.get("entity_rows") or {} for result in results.values()]
+        checked = sum(row.get("checked", 0) for row in rows)
+        differed = sum(row.get("mismatches", 0) for row in rows)
+        print(f"entity rows checked at {checked} tick ends; {differed} differed")
     for problem in problems:
         print(f"PROBLEM {problem}")
     return 1 if problems else 0
