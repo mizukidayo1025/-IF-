@@ -41,10 +41,10 @@ def world_core() -> Any:
     return _native.WorldCore()
 
 
-def run_core(route_capacities: Any) -> Any:
-    """A new sheltersim_native.RunCore: what a controller keeps beside its world, its configs and
-    route graphs (core/run.rs)."""
-    return _native.RunCore(route_capacities)
+def run_core(route_capacities: Any, controller: Any = None) -> Any:
+    """A new sheltersim_native.RunCore: what a controller keeps beside its world, its configs,
+    route graphs and the policies the rules read of the controller (core/run.rs)."""
+    return _native.RunCore(route_capacities, controller)
 
 
 def install_tracked_types(*classes: type) -> None:

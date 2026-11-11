@@ -3,8 +3,28 @@
 //!
 //! `RunConfig` is read once, when the controller starts, from what it read of `model_configs`; the
 //! route graph (`Routes`) is built from the world's tables at each of the controller's
-//! `_refresh_space`. Neither is state: nothing
-//! saves, hashes or compares them, and a new controller over the same world builds them again.
+//! `_refresh_space`. `Policies` (lane P8-0b) is what the rules read of the controller's policies and
+//! managers, read once when the controller starts (`policies.rs`); `Scratch` holds what one tick's
+//! phases hand on (`scratch.rs`). None of them is state: nothing saves, hashes or compares them,
+//! and a new controller over the same world builds them again.
+//!
+//! Each part of `Policies` has its own file here, so that lanes add theirs without touching
+//! another's.
+
+pub mod behavior;
+pub mod held;
+pub mod information;
+pub mod policies;
+pub mod proximity;
+pub mod psychology;
+pub mod scratch;
+pub mod services;
+pub mod sinks;
+pub mod social;
+pub mod stress;
+
+pub use policies::Policies;
+pub use scratch::Scratch;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -63,10 +83,19 @@ impl RunConfig {
 pub struct Run {
     pub config: RunConfig,
     pub routes: Routes,
+    /// Shared with the native `Host`, which answers from it without the Run's lock.
+    pub policies: Arc<Policies>,
+    /// Not state: the values of the tick under way.
+    pub scratch: Scratch,
 }
 
 impl Run {
+    /// A Run without a controller's policies: every read of them refuses.
     pub fn new(config: RunConfig) -> Self {
-        Self { config, routes: Routes::default() }
+        Self::with_policies(config, Policies::absent())
+    }
+
+    pub fn with_policies(config: RunConfig, policies: Policies) -> Self {
+        Self { config, routes: Routes::default(), policies: Arc::new(policies), scratch: Scratch::default() }
     }
 }

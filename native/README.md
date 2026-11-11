@@ -57,6 +57,10 @@ Checkpoint document) and times them.
   `WorldCell`, what holds a world and lends it whole to a core function, `with(|world| ...)`),
   `txn.rs` (`Txn`: a transaction in place, begin (validate, snapshot, canonicalize, validate the
   candidate), commit and rollback, with a `Host` for the views and the validation; lane 6-2),
+  `host.rs` (`Host`, the world's outside as the core's rules see it: the transaction's views and
+  the whole world's validation (E6), the pydantic contracts of inputs (`contract`, E15), the LLM
+  boundary, the sinks (metrics, decisions, traces, the phase observer) and the space's Python
+  views; `HostFailure` gives an error's Python class; lane P8-0b),
   `rules/` (the kernels moved
   to the core, pure functions over `&World`, listed in `rules/mod.rs` by lane block:
   `metrics.rs`, the columns of `MetricSnapshot`, and `kit.rs`, the helpers the rules share —
@@ -83,9 +87,14 @@ Checkpoint document) and times them.
   plans one `Configs` keeps by the overlay's stamp, then by the bytes of its moves and partitions),
   `routes.rs` (`Router`, a zone graph's open edges with `ShortestTravelTimePolicy.route` and the
   edges a plan closes, built from the zone and zone-edge tables with `ZoneGraph`'s checks and
-  words, and `Routes`, a Run's people's and staff's routers by epoch) and `run.rs`
+  words, and `Routes`, a Run's people's and staff's routers by epoch) and `run/`
   (`Run`, what one controller keeps beside its World: `RunConfig`, read when the controller
-  starts, with `route_capacities`, and `Routes`).
+  starts, with `route_capacities`; `Routes`; `Policies`, what the rules read of the controller's
+  policies and managers, one file per part (`psychology.rs`, `behavior.rs`, `stress.rs`,
+  `information.rs`, `proximity.rs`, `social.rs`, `services.rs`, `sinks.rs`), each made from what
+  the PyO3 crate read by the part's `Spec` (`held.rs`: classes by name and whether the name finds
+  them, values as `V`, faults kept for the read site); and `Scratch`, one tick's values by type;
+  lane P8-0b). `tests/support/` holds `TestHost`, the host of a build without Python.
   The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,
@@ -187,9 +196,14 @@ Checkpoint document) and times them.
   `model_configs` tree in place inside a tick phase (`config_writes_in_tick()`); the all-path gate
   turns it on and reports any. While it counts, a geometry plan found by the overlay's stamp is
   also checked against the overlay held now (`stale_geometry_hits()`, also reported by the gate).
+- `src/host.rs`: `PyHost`, the core's `Host` over a Python world and its controller; each method
+  calls the Python the kernels call today (a transaction's host has only the world and what the
+  transaction keeps). `HostError` carries the Python error. `host_call(controller, method,
+  arguments)` calls one method by name, for the tests.
 - `src/core/run.rs`: `RunCore`, the core's `Run` of one controller (a Run, its continuation or a
   Branch), in `controller._run_core`. The controller makes it in `__init__` from
-  `route_capacities` and each `_refresh_space` calls `refresh_routes(world)`, which starts a new
+  `route_capacities` and itself (its `Policies` are read then by the core's `CONTROLLER` spec,
+  never raising; `refresh_policies(controller)` reads them again), and each `_refresh_space` calls `refresh_routes(world)`, which starts a new
   epoch and builds (`rules/travel.rs`, `build_routes`) the people's and the staff's router from the
   world's zone and edge tables right then; the staff's keeps, with a floor plan, the edges the core
   `Geo` finds clear for an independent walker. Where the tables do not follow the world's maps or

@@ -21,6 +21,7 @@ mod contacts;
 mod core;
 mod eventlog;
 mod history;
+mod host;
 mod records;
 mod validation;
 
@@ -224,6 +225,7 @@ fn sheltersim_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<core::world_core::RowType>()?;
     module.add_function(wrap_pyfunction!(core::world_core::apply_slot_ops, module)?)?;
     module.add_class::<core::run::RunCore>()?;
+    module.add_function(wrap_pyfunction!(host::host_call, module)?)?;
     register_lanes(module)?;
     module.add_function(wrap_pyfunction!(canonical_json, module)?)?;
     module.add_function(wrap_pyfunction!(canonical_sha256, module)?)?;

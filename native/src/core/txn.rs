@@ -1,4 +1,5 @@
-//! A transaction on a Python world (lane 6-2, policy E5): the core's `Txn` with the native `Host`.
+//! A transaction on a Python world (lane 6-2, policy E5): the core's `Txn` with the native `Host`
+//! (`crate::host::PyHost`, lane P8-0b).
 //!
 //! The host's work is in `core/state_mirror.py`: validating the world as the copy through canonical
 //! JSON was validated (`_txn_validate`, policy E6), making the Python containers again in canonical
@@ -15,95 +16,16 @@ use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use sheltersim_core::error::Error as CoreError;
-use sheltersim_core::txn::{Host, Stage, Txn, TxnKind, NESTED};
-use sheltersim_core::world::Snapshot;
+use sheltersim_core::txn::{Txn, TxnKind, NESTED};
 
-use super::errors::to_py_err;
 use super::world_core::{core_of, PyWorldCell};
-use crate::eventlog::EventStore;
-use crate::state::events::QueueStore;
+use crate::host::PyHost;
 
 /// An open transaction, held by the world's `WorldCore`: the core's `Txn` and what the host kept
 /// of the Python containers (`_txn_canonicalized`).
 pub(crate) struct OpenTxn {
     txn: Txn,
     pub(crate) kept: Py<PyDict>,
-}
-
-/// A Python error, as the host's error.
-pub(crate) struct HostError(pub(crate) PyErr);
-
-impl From<CoreError> for HostError {
-    fn from(error: CoreError) -> Self {
-        HostError(to_py_err(error))
-    }
-}
-
-/// The native host: the Python world and what its transaction keeps.
-pub(crate) struct PyHost<'a, 'py> {
-    world: &'a Bound<'py, PyAny>,
-    kept: Bound<'py, PyDict>,
-}
-
-impl PyHost<'_, '_> {
-    /// The stores of the world's queue and log, which its core holds while a transaction is open.
-    fn stores(&self) -> Result<(Option<Py<QueueStore>>, Option<Py<EventStore>>), HostError> {
-        let core = core_of(self.world).map_err(HostError)?;
-        let stores = core.try_borrow().map_err(|error| HostError(error.into()))?.event_stores(self.world.py());
-        Ok(stores)
-    }
-
-    fn call(&self, name: &str, argument: Option<bool>) -> Result<(), HostError> {
-        let py = self.world.py();
-        let module = py.import(intern!(py, "sheltersim.core.state_mirror")).map_err(HostError)?;
-        let function = module.getattr(name).map_err(HostError)?;
-        match argument {
-            Some(flag) => function.call1((self.world, flag)),
-            None => function.call1((self.world, &self.kept)),
-        }
-        .map(drop)
-        .map_err(HostError)
-    }
-}
-
-impl Host for PyHost<'_, '_> {
-    type Error = HostError;
-
-    fn validate_candidate(&mut self, _kind: TxnKind, stage: Stage) -> Result<(), HostError> {
-        self.call("_txn_validate", Some(stage == Stage::Candidate))
-    }
-
-    fn canonicalized(&mut self, _kind: TxnKind, before: &Snapshot) -> Result<(), HostError> {
-        let py = self.world.py();
-        if let (Some(queue), _) = self.stores()? {
-            // The queue's order is the same before and after, under new serials.
-            let moved = queue.get().with_queue(py, |now| {
-                before.queue().ordered().iter().zip(now.ordered()).map(|((_, old), (_, new))| (*old, *new)).collect::<Vec<_>>()
-            });
-            queue.get().txn_remap(py, &moved.map_err(HostError)?).map_err(HostError)?;
-        }
-        self.call("_txn_canonicalized", None)
-    }
-
-    fn restored(&mut self, _kind: TxnKind) -> Result<(), HostError> {
-        let py = self.world.py();
-        let (queue, log) = self.stores()?;
-        if let Some(queue) = queue {
-            queue.get().txn_rollback().map_err(HostError)?;
-        }
-        if let Some(log) = log {
-            log.get().cut_to_log(py).map_err(HostError)?;
-        }
-        self.call("_txn_restored", None)
-    }
-
-    fn committed(&mut self, _kind: TxnKind) -> Result<(), HostError> {
-        if let (Some(queue), _) = self.stores()? {
-            queue.get().txn_commit().map_err(HostError)?;
-        }
-        self.call("_txn_committed", None)
-    }
 }
 
 /// The kind of a transaction by its Python name.
@@ -125,7 +47,7 @@ pub(crate) fn begin(world: &Bound<'_, PyAny>, kind: TxnKind) -> PyResult<()> {
         return Err(PyRuntimeError::new_err(NESTED));
     }
     py.import(intern!(py, "sheltersim.core.state_mirror"))?.getattr(intern!(py, "_txn_check"))?.call1((world,))?;
-    let mut host = PyHost { world, kept: PyDict::new(py) };
+    let mut host = PyHost::of_world(world, PyDict::new(py));
     let txn = Txn::begin(&PyWorldCell(world), &mut host, kind).map_err(|error| error.0)?;
     core_of(world)?.try_borrow_mut()?.txn = Some(OpenTxn { txn, kept: host.kept.unbind() });
     Ok(())
@@ -136,7 +58,7 @@ pub(crate) fn end(world: &Bound<'_, PyAny>, commit: bool) -> PyResult<()> {
     let py = world.py();
     let open = core_of(world)?.try_borrow_mut()?.txn.take();
     let open = open.ok_or_else(|| PyRuntimeError::new_err("no transaction is open on the world"))?;
-    let mut host = PyHost { world, kept: open.kept.into_bound(py) };
+    let mut host = PyHost::of_world(world, open.kept.into_bound(py));
     let cell = PyWorldCell(world);
     if commit {
         open.txn.commit(&cell, &mut host)

@@ -8,20 +8,31 @@
 //! tables cannot be read (rows that do not follow the world's maps, or capacities that are no plain
 //! dict), and after `refresh_routes()` without a world, the routers are built when a kernel first
 //! asks, from the graphs `_refresh_space` made, as in lane 7-3.
+//!
+//! The controller gives itself too (lane P8-0b): its `Policies` are read then, by the core's
+//! `CONTROLLER` spec (`sheltersim_core::run::policies`), and again at `refresh_policies`. Reading
+//! never raises: an attribute whose read raised is kept as a `Fault` (`configs::fault_of`), which
+//! the read site raises again by reading again (policy E14). The read runs no rule and changes
+//! nothing; a property it meets runs as `getattr` runs it.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyInt, PyString};
+use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyString, PyType};
 
+use indexmap::IndexMap;
 use sheltersim_core::routes::{Router, Which};
-use sheltersim_core::run::{Capacity, RouteCapacities, Run, RunConfig};
+use sheltersim_core::run::held::{Class, Held, Obj, Spec};
+use sheltersim_core::run::policies::CONTROLLER;
+use sheltersim_core::run::{Capacity, Policies, RouteCapacities, Run, RunConfig};
+use sheltersim_core::value::V;
 
+use crate::core::configs::fault_of;
 use crate::core::errors::OrPy;
 use crate::core::row::attribute;
-use crate::core::tracked::as_readable_dict;
+use crate::core::tracked::{as_readable_dict, as_readable_list};
 use crate::Unsupported;
 
 /// What a controller keeps beside its World.
@@ -59,9 +70,150 @@ fn read_capacities(table: &Bound<'_, PyAny>) -> Result<Arc<RouteCapacities>, &'s
     Ok(Arc::new(RouteCapacities { by_edge, any: !table.is_empty(), unmatched_keys }))
 }
 
+// ---- The controller's policies (lane P8-0b) ---------------------------------------------------
+
+/// The class of an object by its names, and whether `sys.modules[module]` reached by `qualname`
+/// is this class (no module is imported here).
+fn class_of(object: &Bound<'_, PyAny>) -> Class {
+    let py = object.py();
+    let kind = object.get_type();
+    let text = |name: &Bound<'_, PyString>| -> Option<Arc<str>> {
+        let value = kind.getattr(name).ok()?;
+        Some(Arc::from(value.downcast_exact::<PyString>().ok()?.to_str().ok()?))
+    };
+    let module = text(intern!(py, "__module__"));
+    let qualname = text(intern!(py, "__qualname__"));
+    let resolves = match (&module, &qualname) {
+        (Some(module), Some(qualname)) => resolves(&kind, module, qualname).unwrap_or(false),
+        _ => false,
+    };
+    Class { module, qualname, resolves }
+}
+
+fn resolves(kind: &Bound<'_, PyType>, module: &str, qualname: &str) -> PyResult<bool> {
+    let py = kind.py();
+    let modules = py.import(intern!(py, "sys"))?.getattr(intern!(py, "modules"))?;
+    let Some(mut found) = modules.downcast::<PyDict>()?.get_item(module)? else {
+        return Ok(false);
+    };
+    for part in qualname.split('.') {
+        match found.getattr(part) {
+            Ok(next) => found = next,
+            Err(_) => return Ok(false),
+        }
+    }
+    Ok(found.is(kind))
+}
+
+/// A value as a `Held`: an object its spec reads, a plain JSON value, a str subclass's text, or an
+/// opaque value.
+fn held_of(value: &Bound<'_, PyAny>, spec: Option<&'static Spec>) -> Held {
+    if value.is_none() {
+        return Held::Value(V::Null);
+    }
+    if let Some(spec) = spec {
+        return Held::Object(Arc::new(read_object(value, spec)));
+    }
+    if let Some(plain) = plain_of(value, 0) {
+        return Held::Value(plain);
+    }
+    if let Ok(text) = value.downcast::<PyString>() {
+        if let Ok(text) = text.to_str() {
+            return Held::Text(Arc::from(text));
+        }
+    }
+    Held::Opaque { callable: value.is_callable() }
+}
+
+/// `VPy::from_py` without its refusal, which the census would count: None for a value that is not
+/// a plain JSON value.
+fn plain_of(value: &Bound<'_, PyAny>, depth: usize) -> Option<V> {
+    if depth > crate::MAX_DEPTH {
+        return None;
+    }
+    if value.is_none() {
+        return Some(V::Null);
+    }
+    if let Ok(number) = value.downcast_exact::<PyFloat>() {
+        return Some(V::Float(number.value()));
+    }
+    if let Ok(text) = value.downcast_exact::<PyString>() {
+        return Some(V::Str(Arc::from(text.to_str().ok()?)));
+    }
+    if let Ok(flag) = value.downcast_exact::<PyBool>() {
+        return Some(V::Bool(flag.is_true()));
+    }
+    if let Ok(number) = value.downcast_exact::<PyInt>() {
+        return Some(match number.extract::<i64>() {
+            Ok(small) => V::Int(small),
+            Err(_) => V::Big(number.repr().ok()?.to_str().ok()?.into()),
+        });
+    }
+    if let Some(object) = as_readable_dict(value) {
+        let mut map = IndexMap::with_capacity(object.len());
+        for (key, item) in object.iter() {
+            let key = key.downcast_exact::<PyString>().ok()?;
+            map.insert(Arc::from(key.to_str().ok()?), plain_of(&item, depth + 1)?);
+        }
+        return Some(V::Map(map));
+    }
+    if let Some(array) = as_readable_list(value) {
+        let mut items = Vec::with_capacity(array.len());
+        for item in array.iter() {
+            items.push(plain_of(&item, depth + 1)?);
+        }
+        return Some(V::List(items));
+    }
+    None
+}
+
+/// What a spec reads of an object; what a read raised is kept as its fault.
+fn read_object(object: &Bound<'_, PyAny>, spec: &'static Spec) -> Obj {
+    let py = object.py();
+    let mut found = Obj::new(class_of(object));
+    let mut attrs = IndexMap::with_capacity(spec.attrs.len());
+    for attr in spec.attrs {
+        let read = object.getattr(attr.name).map(|value| held_of(&value, attr.spec)).map_err(|error| fault_of(py, &error));
+        attrs.insert(Arc::from(attr.name), read);
+    }
+    if spec.fields {
+        if let Some(own) = object.getattr(intern!(py, "__dict__")).ok().and_then(|own| own.downcast_into::<PyDict>().ok()) {
+            for (key, value) in own.iter() {
+                let Some(key) = key.downcast::<PyString>().ok().and_then(|key| key.to_str().ok().map(str::to_owned)) else {
+                    continue;
+                };
+                if !attrs.contains_key(key.as_str()) {
+                    attrs.insert(Arc::from(key.as_str()), Ok(held_of(&value, None)));
+                }
+            }
+        }
+    }
+    found.attrs = attrs;
+    if !spec.class_own.is_empty() {
+        if let Ok(own) = object.get_type().getattr(intern!(py, "__dict__")) {
+            for name in spec.class_own {
+                if let Ok(value) = own.get_item(*name) {
+                    found.class_own.insert(Arc::from(*name), held_of(&value, None));
+                }
+            }
+        }
+    }
+    found
+}
+
+/// The policies of a controller, read now.
+fn read_policies(controller: &Bound<'_, PyAny>) -> Policies {
+    Policies::of(Arc::new(read_object(controller, &CONTROLLER)))
+}
+
 impl RunCore {
     fn lock(&self) -> PyResult<MutexGuard<'_, Run>> {
         self.run.lock().map_err(|_| Unsupported::new_err("the run is poisoned"))
+    }
+
+    /// The controller's policies, shared: a host answers from them without the lock.
+    pub(crate) fn policies(&self) -> PyResult<Arc<Policies>> {
+        Ok(self.lock()?.policies.clone())
     }
 
     /// `controller.route_capacities`, or the refusal reading them gives.
@@ -91,11 +243,51 @@ impl RunCore {
 
 #[pymethods]
 impl RunCore {
-    /// A Run's core, with `route_capacities` (`layout_routing.max_agents_in_transit_by_edge`).
+    /// A Run's core, with `route_capacities` (`layout_routing.max_agents_in_transit_by_edge`) and
+    /// the policies of `controller`, read now; without a controller every read of them refuses.
     #[new]
-    fn new(route_capacities: &Bound<'_, PyAny>) -> Self {
+    #[pyo3(signature = (route_capacities, controller=None))]
+    fn new(route_capacities: &Bound<'_, PyAny>, controller: Option<&Bound<'_, PyAny>>) -> Self {
         let config = RunConfig { route_capacities: read_capacities(route_capacities) };
-        Self { run: Mutex::new(Run::new(config)) }
+        let policies = controller.map_or_else(Policies::absent, read_policies);
+        Self { run: Mutex::new(Run::with_policies(config, policies)) }
+    }
+
+    /// Read the controller's policies again: after a test or tool puts another policy or manager
+    /// on it.
+    fn refresh_policies(&self, controller: &Bound<'_, PyAny>) -> PyResult<()> {
+        let policies = Arc::new(read_policies(controller));
+        self.lock()?.policies = policies;
+        Ok(())
+    }
+
+    /// What the policies say, by part, as text: for tests. A fault is `"!"` and its text, a
+    /// refusal `"refused: "` and its text.
+    fn policies_summary<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let policies = self.policies()?;
+        let summary = PyDict::new(py);
+        fn said<T: std::fmt::Debug>(read: &Result<T, sheltersim_core::config::Fault>) -> String {
+            match read {
+                Ok(value) => format!("{value:?}"),
+                Err(fault) if fault.is_refusal() => format!("refused: {}", fault.text),
+                Err(fault) => format!("! {:?}: {}", fault.class, fault.text),
+            }
+        }
+        summary.set_item("controller", policies.has_controller())?;
+        summary.set_item("psychology", said(&policies.psychology.model))?;
+        summary.set_item("behavior", said(&policies.behavior.rule))?;
+        summary.set_item("stress", said(&policies.stress.model))?;
+        summary.set_item("information", said(&policies.information.model))?;
+        summary.set_item("proximity", said(&policies.proximity.known))?;
+        summary.set_item("proximity_config", said(&policies.proximity.config.clone().map(|config| !matches!(config, V::Null))))?;
+        summary.set_item("complaint_wait_minutes", said(&policies.social.complaint_wait_minutes()))?;
+        summary.set_item("toilet_service", said(&policies.services.toilet.known))?;
+        summary.set_item("resource_service", said(&policies.services.resource.known))?;
+        summary.set_item("staff_service", said(&policies.services.staff.known))?;
+        summary.set_item("decision_sink", said(&policies.sinks.decision_sink))?;
+        summary.set_item("trace_level", said(&policies.sinks.trace_level))?;
+        summary.set_item("llm", said(&policies.llm()))?;
+        Ok(summary)
     }
 
     /// `_refresh_space`: a new epoch, whose routers are built from the world's zone and edge tables
