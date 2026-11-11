@@ -20,7 +20,8 @@ use pyo3::types::{PyDict, PyFloat, PyInt, PyString, PyTuple, PyType};
 
 use sheltersim_core::host::{Host, TraceLevel};
 use sheltersim_core::row::IdMap;
-use sheltersim_core::rules::psychology::{Delta, BODY_NAMES};
+use sheltersim_core::rules::psychology::{Delta, PsychologyResult};
+
 use sheltersim_core::rules::social_propagation::{self as core, Neighbors, Person, Settings};
 use sheltersim_core::run::stress::Model;
 use sheltersim_core::state::social_propagation::{ContactRecord, NAME, SCHEMA_VERSION};
@@ -30,7 +31,7 @@ use crate::core::errors::OrPy;
 use crate::core::mathx::Num;
 use crate::core::row::PyField;
 use crate::core::rng::{start_draw_log, take_draw_log};
-use crate::core::run::policies_of;
+use crate::core::run::{policies_of, run_of};
 use crate::core::tracked::{as_readable_dict, as_readable_list};
 use crate::core::value::VPy;
 use crate::core::world_core::{raw_dict_get, raw_dict_set, with_world};
@@ -112,6 +113,19 @@ fn need_names(py: Python<'_>) -> [&Bound<'_, PyString>; 6] {
     ]
 }
 
+/// The names of an `AgentStateDelta`'s body values, in the order of `BODY_NAMES`.
+fn body_names(py: Python<'_>) -> [&Bound<'_, PyString>; 7] {
+    [
+        intern!(py, "sleep_debt_minutes"),
+        intern!(py, "uncertainty"),
+        intern!(py, "reassurance"),
+        intern!(py, "discontent"),
+        intern!(py, "positive_affect"),
+        intern!(py, "negative_affect"),
+        intern!(py, "hygiene_need"),
+    ]
+}
+
 /// A number of a delta that `__post_init__` checked: a float, or an int it let through.
 fn number(value: &Bound<'_, PyAny>) -> PyResult<f64> {
     if let Ok(value) = value.downcast_exact::<PyFloat>() {
@@ -123,11 +137,19 @@ fn number(value: &Bound<'_, PyAny>) -> PyResult<f64> {
     unsupported("a delta value is not a number")
 }
 
-/// One Python delta, its `__dict__`, and the core's `Delta` of it.
+/// One Python delta, its `__dict__`, its ID and its stress.
 struct Read<'py> {
     object: Bound<'py, PyAny>,
     fields: Bound<'py, PyAny>,
-    delta: Delta,
+    id: Bound<'py, PyString>,
+    stress: f64,
+}
+
+impl Read<'_> {
+    fn id(&self) -> &str {
+        // Checked to have UTF-8 when read.
+        self.id.to_str().unwrap_or("")
+    }
 }
 
 /// The deltas of the step: an exact tuple of exact `AgentStateDelta`s with exact str IDs of the
@@ -138,64 +160,89 @@ fn deltas_of<'py>(deltas: &Bound<'py, PyAny>, minute: i64) -> PyResult<Vec<Read<
         return unsupported("the deltas are not a tuple");
     };
     let class = &delta_types(py)?.0;
-    let names = need_names(py);
     let mut found = Vec::with_capacity(deltas.len());
     for object in deltas.iter() {
         if !object.get_type().is(class) {
             return unsupported("a delta of another class");
         }
         let fields = object.getattr(intern!(py, "__dict__"))?;
-        let item = |name: &Bound<'py, PyString>| -> PyResult<Bound<'py, PyAny>> {
-            raw_dict_get(&fields, name.as_any())?.ok_or_else(|| Unsupported::new_err("a field is missing"))
-        };
-        let id = item(intern!(py, "agent_id"))?;
+        let id = field(&fields, intern!(py, "agent_id"))?;
         let Ok(id) = id.downcast_into_exact::<PyString>() else {
             return unsupported("an id is not a str");
         };
-        let Ok(id) = id.to_str() else {
+        if id.to_str().is_err() {
             return unsupported("an id is not UTF-8");
-        };
-        if exact_int(&item(intern!(py, "minute_index"))?)? != minute {
+        }
+        if exact_int(&field(&fields, intern!(py, "minute_index"))?)? != minute {
             return unsupported("a delta is at another minute");
         }
-        let Ok(stress) = item(names[4])?.downcast_into_exact::<PyFloat>() else {
+        let Ok(stress) = field(&fields, intern!(py, "stress"))?.downcast_into_exact::<PyFloat>() else {
             return unsupported("not a float");
         };
         let stress = stress.value();
         if !(0.0..=1.0).contains(&stress) {
             return unsupported("a stress is outside 0..1");
         }
-        let mut values = [0.0; 6];
-        for (place, name) in names.iter().enumerate() {
-            values[place] = if place == 4 { stress } else { number(&item(name)?)? };
-        }
-        let mut body = [0.0; 7];
-        let mut has_body = None;
-        for (place, name) in BODY_NAMES.iter().enumerate() {
-            let value = item(&PyString::intern(py, name))?;
-            let present = !value.is_none();
-            if *has_body.get_or_insert(present) != present {
-                return unsupported("a delta has only some body values");
-            }
-            if present {
-                body[place] = number(&value)?;
-            }
-        }
-        let [toilet_urgency, hunger, fatigue, hydration_need, stress, trust] = values;
-        let delta = Delta {
-            agent_id: Arc::from(id),
-            minute_index: minute,
-            toilet_urgency,
-            hunger,
-            fatigue,
-            hydration_need,
-            stress,
-            trust,
-            body: has_body.unwrap_or(false).then_some(body),
-        };
-        found.push(Read { object, fields, delta });
+        found.push(Read { object, fields, id, stress });
     }
     Ok(found)
+}
+
+fn field<'py>(fields: &Bound<'py, PyAny>, name: &Bound<'py, PyString>) -> PyResult<Bound<'py, PyAny>> {
+    raw_dict_get(fields, name.as_any())?.ok_or_else(|| Unsupported::new_err("a field is missing"))
+}
+
+/// The core's `Delta` of a Python delta, from all its fields.
+fn delta_of(read: &Read<'_>, minute: i64) -> PyResult<Delta> {
+    let py = read.object.py();
+    let mut values = [0.0; 6];
+    for (place, name) in need_names(py).iter().enumerate() {
+        values[place] = if place == 4 { read.stress } else { number(&field(&read.fields, name)?)? };
+    }
+    let mut body = [0.0; 7];
+    let mut has_body = None;
+    for (place, name) in body_names(py).iter().enumerate() {
+        let value = field(&read.fields, name)?;
+        let present = !value.is_none();
+        if *has_body.get_or_insert(present) != present {
+            return unsupported("a delta has only some body values");
+        }
+        if present {
+            body[place] = number(&value)?;
+        }
+    }
+    let [toilet_urgency, hunger, fatigue, hydration_need, stress, trust] = values;
+    Ok(Delta {
+        agent_id: Arc::from(read.id()),
+        minute_index: minute,
+        toilet_urgency,
+        hunger,
+        fatigue,
+        hydration_need,
+        stress,
+        trust,
+        body: has_body.unwrap_or(false).then_some(body),
+    })
+}
+
+/// The core's deltas of the step: the psychology kernel's of this tick (`PsychologyResult` in the
+/// Run's `Scratch`, lane a3) when the Python deltas are those, by ID, minute and stress in order,
+/// as on the tick's path; otherwise read from every field of the Python deltas.
+fn core_deltas(controller: &Bound<'_, PyAny>, read: &[Read<'_>], minute: i64) -> PyResult<Arc<[Delta]>> {
+    let kept = match run_of(controller) {
+        Ok(run) => run.get().with_scratch(|scratch| scratch.get::<PsychologyResult>().map(|result| result.deltas.clone()))?,
+        Err(_) => None,
+    };
+    if let Some(kept) = kept {
+        let same = kept.len() == read.len()
+            && kept.iter().zip(read).all(|(delta, read)| {
+                *delta.agent_id == *read.id() && delta.minute_index == minute && delta.stress.to_bits() == read.stress.to_bits()
+            });
+        if same {
+            return Ok(kept);
+        }
+    }
+    read.iter().map(|read| delta_of(read, minute)).collect()
 }
 
 /// `AgentStateDelta.with_stress`: a copy of the delta's fields, in their order, with this stress.
@@ -244,7 +291,7 @@ pub(crate) fn update_social_propagation<'py>(
         return unsupported("the seed is not an int");
     }
     let seed = seed.str()?;
-    let deltas: Vec<Delta> = read.iter().map(|read| read.delta.clone()).collect();
+    let deltas = core_deltas(controller, &read, minute_value)?;
     let inputs = core::Inputs {
         settings: &settings,
         expressiveness,
@@ -275,7 +322,7 @@ pub(crate) fn update_social_propagation<'py>(
     let mut final_deltas = Vec::with_capacity(read.len());
     for (&place, &new_stress) in planned.order.iter().zip(&planned.plan.stresses) {
         let read = &read[place];
-        final_deltas.push(if new_stress.to_bits() == read.delta.stress.to_bits() {
+        final_deltas.push(if new_stress.to_bits() == read.stress.to_bits() {
             read.object.clone()
         } else {
             with_stress(read, new_stress)?
