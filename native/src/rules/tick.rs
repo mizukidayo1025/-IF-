@@ -387,8 +387,9 @@ impl<'py> Tick<'_, 'py> {
             artifacts.call_method(intern!(py, "capture_metric"), (self.world,), Some(&options)).map(|_| ())
         };
         match &recorder {
-            // A refusal leaves the sample to `MetricsRecorder.capture`, which says what is wrong.
-            Some(recorder) => match metrics::capture(self.world, recorder, self.minute) {
+            // The core's sample goes to the recorder through the host (`Host::capture_metric`). A
+            // refusal leaves the sample to `MetricsRecorder.capture`, which says what is wrong.
+            Some(_) => match metrics::capture_of_run(self.controller, self.world, self.minute) {
                 Err(error) if error.is_instance_of::<Unsupported>(py) => {
                     census::caught(py, "metrics.capture", &error);
                     KERNELS_REFUSED.fetch_add(1, Ordering::Relaxed);

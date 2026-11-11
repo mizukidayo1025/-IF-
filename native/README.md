@@ -63,7 +63,9 @@ Checkpoint document) and times them.
   views; `HostFailure` gives an error's Python class; lane P8-0b),
   `rules/` (the kernels moved
   to the core, pure functions over `&World`, listed in `rules/mod.rs` by lane block:
-  `metrics.rs`, the columns of `MetricSnapshot`, and `kit.rs`, the helpers the rules share —
+  `metrics.rs`, the columns of `MetricSnapshot` with the open requests' waits of `staff.rs`, and
+  `capture`, the tick's metrics phase that gives the sample to `Host::capture_metric` (lane P8 b4),
+  and `kit.rs`, the helpers the rules share —
   events as rows written through `Events` to the world's queue, log and event counter, metric
   counts, a person's activity, the readers of payloads and of a few namespaces, `place_in_bed`,
   `check_waiting_for_admission` with the rules it still asks through `Admission`, `Counts`, `Held`
@@ -129,9 +131,11 @@ Checkpoint document) and times them.
   controller's own route and trip called directly, the complaints that come due through
   `Host::consider_complaint_response`, the waits the metrics read, the zones' sanitation, the
   routed tasks and their relief, on the rows; the service's parameters from the Run's `Policies`)
-  (lane P8 b3);
+  (lane P8 b3); `support.rs` (a support request's plan and writes, its timeout, the end of a staff
+  member's support with the care of the selected formula, which the glue reads where the care
+  needs it, and the care receipts around a request, on the rows) (lane P8 b4);
   the file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4, P8-0a, c1,
-  P8b-1, P8 a2, P8 a1, P8 d1, P8 a3, P8 c3, P8 a5, P8 c4, P8 c6, P8 c5, P8 b2 and P8 b3),
+  P8b-1, P8 a2, P8 a1, P8 d1, P8 a3, P8 c3, P8 a5, P8 c4, P8 c6, P8 c5, P8 b2, P8 b3 and P8 b4),
   `text.rs` (`casefold`, CPython 3.12's full fold from a generated table, `text/casefold.rs`
   by `tools/casefold_table.py`, tested at every code point against `tests/data/casefold.txt`;
   `g_text`, `format(value, "g")`; `py_repr`, `repr` of a str, from the table of what
@@ -580,8 +584,11 @@ are correctly rounded everywhere, and not `**` with a float.
 - `rules.metrics`: the KPI columns of a minute (`src/rules/metrics.rs`):
   `snapshot_fields(world, unsettled, minute)` for `MetricSnapshot.from_world` and
   `kpi_values(world, snapshot)` for `operational_kpi_values`. They read the rows and change nothing.
-  `capture(world, recorder, minute)` is `MetricsRecorder.capture`, which `rules/tick.rs` calls for a
-  `_MetricSink`; it says Unsupported with nothing changed for what the Python rule raises on.
+  `capture(world, recorder, minute)` is `MetricsRecorder.capture`; it says Unsupported with nothing
+  changed for what the Python rule raises on. The tick's metrics phase (`rules/tick.rs`, for a
+  `_MetricSink`) runs the core's `metrics::capture`, whose sample goes to the recorder through the
+  native host (`Host::capture_metric`), which makes the `MetricSnapshot`. The open requests are those
+  the memo of the last end-of-tick check knows, read in the core.
 - `rules.tick_validation`: the per-tick check (`src/rules/tick_validation.rs`, the glue of
   `core/src/rules/tick_validation.rs`, lane P8 d4): `entity_rules(world, resource_config)` answers
   for the entity and event rules of `WorldState.validate` at the end of a tick, of every request,

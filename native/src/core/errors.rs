@@ -75,12 +75,6 @@ fn class(py: Python<'_>, outcome: Outcome) -> PyResult<&Bound<'_, PyType>> {
     })
 }
 
-/// A fixed text of an outcome a kernel returns as a value.
-#[inline]
-pub(crate) fn noted(_outcome: Outcome, text: &'static str) -> &'static str {
-    text
-}
-
 /// The exception of an outcome, marked as made here.
 fn marked(py: Python<'_>, outcome: Outcome, text: &str) -> PyErr {
     let made = (|| -> PyResult<PyErr> {

@@ -34,6 +34,8 @@ pub mod staff_operation_events;
 pub mod staff_order;
 // lane b3
 pub mod staff;
+// lane b4
+pub mod support;
 
 // ---- P8c: population and movement --------------------------------------------------------------
 pub mod facility_queues;

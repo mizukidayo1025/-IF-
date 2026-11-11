@@ -17,6 +17,7 @@ pub const DURATION_TRUST: &str = "duration-contact-trust-v1";
 pub const DEFAULT_INTERACTION_MINUTES: i64 = 5;
 pub const TYPED_CARE_MODEL: &str = "typed-care-support-response-v1";
 pub const PROPORTIONAL_HYGIENE_MODEL: &str = "hygiene-support-proportional-relief-v1";
+pub const FIXED_HYGIENE_MODEL: &str = "hygiene-support-fixed-relief-v1";
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum AffectModel {
@@ -104,6 +105,25 @@ impl CareOutcome {
     pub fn new(model_id: Arc<str>, source_id: Arc<str>, config: V) -> Read<Self> {
         map(&config)?;
         Ok(Self { model_id, source_id, config })
+    }
+
+    /// `create_care_outcome_formula(configs)` of the installed formulas, for the model the
+    /// selection names for `care_outcome`: its model, the catalog's `assumption_source_id`
+    /// (`contracts/model-catalog.json`) and a copy of `body_dynamics`. The PyO3 crate fills the
+    /// section from the Python factory, which may know a formula registered later; this is the
+    /// built-in one of a build without Python. Another model is refused.
+    pub fn parse(configs: &V, model_id: &str) -> Read<Self> {
+        let source = match model_id {
+            FIXED_HYGIENE_MODEL => "ASM-CARE-HYGIENE-FIXED-RELIEF-V1",
+            PROPORTIONAL_HYGIENE_MODEL => "ASM-CARE-HYGIENE-PROPORTIONAL-RELIEF-V1",
+            TYPED_CARE_MODEL => "ASM-CARE-TYPED-SUPPORT-RESPONSE-V1",
+            _ => return Err(Fault::refused("another care outcome formula")),
+        };
+        let config = match map(configs)?.get("body_dynamics") {
+            Some(config) => V::Map(map(config)?.clone()),
+            None => V::Map(Default::default()),
+        };
+        Self::new(Arc::from(model_id), Arc::from(source), config)
     }
 
     /// `configured_value` of `support_state_deltas`.

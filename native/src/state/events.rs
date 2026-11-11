@@ -1060,10 +1060,6 @@ impl<'py> EventWriter<'py> {
         Ok(Self { queue, log, counters, duration, reserved: Reserved::default() })
     }
 
-    pub(crate) fn duration(&self) -> i64 {
-        self.duration
-    }
-
     /// What `allocate_sequence` would return, changing nothing, past the sequences reserved.
     pub(crate) fn next_sequence(&self) -> PyResult<i64> {
         Ok(self.reserved.after(self.counter()?))
