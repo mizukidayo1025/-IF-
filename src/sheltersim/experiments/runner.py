@@ -83,6 +83,7 @@ from sheltersim.llm.runtime import (
     SupportPriorityLimits,
     support_priority_policy_version,
 )
+from sheltersim.native import run_core
 from sheltersim.policies.behavior import BehaviorDecisionRunner, behavior_policy_definition
 from sheltersim.policies.proximity import DisabledProximityPolicy, DistanceSampledProximityPolicy
 from sheltersim.policies.registry import (
@@ -260,6 +261,7 @@ class OfflineSimulationController(
         )
         route_config = world.model_configs.get("layout_routing", {})
         self.route_capacities = route_config.get("max_agents_in_transit_by_edge", {})
+        self._run_core = run_core(self.route_capacities)
         self._refresh_space()
         infrastructure_handler = InfrastructureEventHandler()
         self.event_dispatcher = EventDispatcher(
@@ -335,6 +337,8 @@ class OfflineSimulationController(
 
     def _refresh_space(self) -> None:
         """Rebuild immutable routing snapshots after an applied graph/geometry change."""
+        # The kernels build their routers from the graphs below when they next ask.
+        self._run_core.refresh_routes()
         world = self.world
         self.space = SpaceRouter(
             ZoneGraph.from_states(

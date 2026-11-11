@@ -4,17 +4,19 @@
 //! before it writes, and is a KernelRefusal there (docs/rust-port/lanes/m4-service.md). Edge
 //! capacities count every trip under way (docs/rust-port/lanes/l2-staff.md).
 
-use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashMap, HashSet};
-use std::sync::{Arc, LazyLock, Mutex};
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, LazyLock};
 
 use indexmap::IndexMap;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyList, PyString, PyTuple};
+use sheltersim_core::routes::{Edge, Router, Which};
+use sheltersim_core::run::RouteCapacities;
 
-use crate::core::errors;
+use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, unsupported};
+use crate::core::run::run_of;
 use crate::core::value::V;
 use crate::core::world_core::{raw_dict_get, NamespaceMirror};
 use crate::rules::agent_dynamics::agent_knows_facility;
@@ -35,51 +37,23 @@ const ROUTING_SOURCE: &str = "ASM-ZONE-ROUTING-V1";
 const ROUTING_POLICY: &str = "shortest-travel-time-v1";
 const CAPACITY_SOURCE: &str = "ASM-A05-ROUTE-EDIT-V1";
 
-/// `edge_loads`: looked up, never walked, so its order decides nothing.
-pub(crate) type EdgeLoads = HashMap<Arc<str>, i64>;
+pub(crate) use sheltersim_core::routes::{EdgeLoads, Route};
 
-struct Edge {
-    id: Arc<str>,
-    to: Arc<str>,
-    minutes: i64,
-    /// `max_agents_in_transit`.
-    capacity: Option<i64>,
+/// The people's graph of a controller's Run, and the capacities its trips are counted against.
+pub(crate) struct RunGraph {
+    pub(crate) router: Arc<Router>,
+    /// `controller.route_capacities`, as the controller read them when it started.
+    capacities: Arc<RouteCapacities>,
 }
 
-/// A controller's route graph as rows, kept while `self.space.graph` is the same object.
-#[pyclass(module = "sheltersim_native", frozen)]
-pub struct RouteRows {
-    graph: Py<PyAny>,
-    /// `controller.route_capacities`, read when it is asked.
-    capacities: Option<Py<PyDict>>,
-    zones: HashSet<Arc<str>>,
-    outgoing: HashMap<Arc<str>, Vec<Edge>>,
-    /// The edges closed to a mobility in a floor plan, kept while that plan is the same.
-    closed: Mutex<Vec<(&'static str, Arc<Geo>, Arc<HashSet<Arc<str>>>)>>,
-}
-
-/// A route: `ZoneRoute` of a walk through the graph.
-pub(crate) struct Route {
-    pub(crate) origin: Arc<str>,
-    pub(crate) destination: Arc<str>,
-    pub(crate) zone_ids: Vec<Arc<str>>,
-    pub(crate) edge_ids: Vec<Arc<str>>,
-    pub(crate) minutes: i64,
-}
-
-impl Route {
-    fn within(zone: &Arc<str>) -> Self {
-        Self { origin: zone.clone(), destination: zone.clone(), zone_ids: vec![zone.clone()], edge_ids: Vec::new(), minutes: 0 }
-    }
-}
-
-fn read_graph(graph: &Bound<'_, PyAny>, capacities: Option<&Bound<'_, PyDict>>) -> PyResult<RouteRows> {
+/// The open edges of a `ZoneGraph`, as a router.
+fn read_graph(graph: &Bound<'_, PyAny>) -> PyResult<Router> {
     let py = graph.py();
     let zones_object = attribute(graph, intern!(py, "zones"))?;
-    let mut zones = HashSet::new();
-    let mut outgoing: HashMap<Arc<str>, Vec<Edge>> = HashMap::new();
+    let mut zones = Vec::new();
+    let mut open = Vec::new();
     for key in zones_object.try_iter()? {
-        zones.insert(Arc::from(exact_str(&key?)?));
+        zones.push(Arc::from(exact_str(&key?)?));
     }
     let edges = attribute(graph, intern!(py, "edges"))?;
     for edge in edges.downcast_exact::<PyTuple>().map_err(|_| Unsupported::new_err("the edges are not a tuple"))?.iter() {
@@ -94,127 +68,53 @@ fn read_graph(graph: &Bound<'_, PyAny>, capacities: Option<&Bound<'_, PyDict>>) 
             continue;
         }
         let from: Arc<str> = Arc::from(exact_str(&attribute(&edge, intern!(py, "from_zone_id"))?)?);
-        outgoing.entry(from).or_default().push(Edge {
+        open.push(Edge {
             id: Arc::from(exact_str(&attribute(&edge, intern!(py, "id"))?)?),
+            from,
             to: Arc::from(exact_str(&attribute(&edge, intern!(py, "to_zone_id"))?)?),
             minutes: exact_int(&attribute(&edge, intern!(py, "travel_minutes"))?)?,
             capacity,
         });
     }
-    Ok(RouteRows { graph: graph.clone().unbind(), capacities: capacities.map(|table| table.clone().unbind()), zones, outgoing, closed: Mutex::default() })
+    Ok(Router::new(zones, open))
 }
 
-/// The graph of this controller, or Unsupported for another policy.
-pub(crate) fn rows_of<'py>(controller: &Bound<'py, PyAny>) -> PyResult<Bound<'py, RouteRows>> {
-    let py = controller.py();
-    let capacities = attribute(controller, intern!(py, "route_capacities"))?;
-    let capacities = exact_dict(&capacities)?;
-    let space = attribute(controller, intern!(py, "space"))?;
-    router_rows(&space, Some(capacities), controller)
-}
-
-/// The graph of a `SpaceRouter`, kept on `holder` while the router's graph is the same object.
-fn router_rows<'py>(router: &Bound<'py, PyAny>, capacities: Option<&Bound<'py, PyDict>>, holder: &Bound<'py, PyAny>) -> PyResult<Bound<'py, RouteRows>> {
+/// The graph of a `SpaceRouter`, or Unsupported for another policy.
+fn read_router(router: &Bound<'_, PyAny>) -> PyResult<Router> {
     let py = router.py();
     let policy = attribute(router, intern!(py, "policy"))?;
     if policy.get_type().name()?.to_str()? != "ShortestTravelTimePolicy" {
         return unsupported("another route policy");
     }
-    let graph = attribute(router, intern!(py, "graph"))?;
-    if let Ok(known) = holder.getattr(intern!(py, "_route_rows")) {
-        if let Ok(rows) = known.downcast_exact::<RouteRows>() {
-            let held = rows.get();
-            let same_capacities = match (&held.capacities, capacities) {
-                (Some(first), Some(second)) => first.bind(py).is(second),
-                (None, None) => true,
-                _ => false,
-            };
-            if held.graph.bind(py).is(&graph) && same_capacities {
-                return Ok(rows.clone());
-            }
-        }
-    }
-    let rows = Bound::new(py, read_graph(&graph, capacities)?)?;
-    holder.setattr(intern!(py, "_route_rows"), &rows)?;
-    Ok(rows)
+    read_graph(&attribute(router, intern!(py, "graph"))?)
+}
+
+/// The people's graph of this controller (`controller.space`), built once per refresh of its
+/// Run's routes, or Unsupported for another policy.
+pub(crate) fn rows_of(controller: &Bound<'_, PyAny>) -> PyResult<RunGraph> {
+    let run = run_of(controller)?;
+    let run = run.get();
+    let capacities = run.capacities()?;
+    let router = run.router(Which::People, || read_router(&attribute(controller, intern!(controller.py(), "space"))?))?;
+    Ok(RunGraph { router, capacities })
+}
+
+/// Where `assign_staff_operations` finds its graph.
+pub(crate) enum StaffRouter<'a, 'py> {
+    /// A controller's `staff_space`, built once per refresh of its Run's routes.
+    Run(&'a Bound<'py, PyAny>),
+    /// A `SpaceRouter` a Python caller gave, read at each call.
+    Given(&'a Bound<'py, PyAny>),
 }
 
 /// The graph of `assign_staff_operations`' router, whose routes `edge_loads` always reach.
-pub(crate) fn staff_router_rows<'py>(router: &Bound<'py, PyAny>) -> PyResult<Bound<'py, RouteRows>> {
-    router_rows(router, None, router)
-}
-
-impl RouteRows {
-    /// `_physically_closed_edges`, with the plan a world has now.
-    fn closed_to(&self, geo: &Arc<Geo>, mobility: &'static str) -> PyResult<Arc<HashSet<Arc<str>>>> {
-        let mut known = self.closed.lock().map_err(|_| Unsupported::new_err("the closed edges are poisoned"))?;
-        if let Some((_, _, closed)) = known.iter().find(|(name, plan, _)| *name == mobility && Arc::ptr_eq(plan, geo)) {
-            return Ok(closed.clone());
+pub(crate) fn staff_router_rows(source: StaffRouter<'_, '_>) -> PyResult<Arc<Router>> {
+    match source {
+        StaffRouter::Run(controller) => {
+            let run = run_of(controller)?;
+            run.get().router(Which::Staff, || read_router(&attribute(controller, intern!(controller.py(), "staff_space"))?))
         }
-        let Some(layout) = &geo.layout else {
-            return Ok(Arc::new(HashSet::new()));
-        };
-        let closed: HashSet<Arc<str>> = layout.routes.keys().filter(|id| !geo.route_is_clear(id, mobility)).cloned().collect();
-        let closed = Arc::new(closed);
-        known.retain(|(name, _, _)| *name != mobility);
-        known.push((mobility, geo.clone(), closed.clone()));
-        Ok(closed)
-    }
-
-    /// The edges of this graph `route_is_physically_clear` turns down, for a person of this mobility.
-    pub(crate) fn edges_closed_by(&self, geo: &Geo, mobility: &str) -> HashSet<Arc<str>> {
-        self.outgoing.values().flatten().filter(|edge| !geo.route_is_clear(&edge.id, mobility)).map(|edge| edge.id.clone()).collect()
-    }
-
-    /// `ShortestTravelTimePolicy.route`, without these edges and with these trips counted.
-    pub(crate) fn shortest(&self, closed: &HashSet<Arc<str>>, loads: Option<&EdgeLoads>, origin: &Arc<str>, destination: &Arc<str>) -> PyResult<Option<Route>> {
-        if !self.zones.contains(origin) || !self.zones.contains(destination) {
-            return unsupported("an unknown zone");
-        }
-        if origin == destination {
-            return Ok(Some(Route::within(origin)));
-        }
-        type Score = (i64, Vec<Arc<str>>, Vec<Arc<str>>);
-        let start: Score = (0, Vec::new(), vec![origin.clone()]);
-        let mut best: HashMap<Arc<str>, Score> = HashMap::new();
-        best.insert(origin.clone(), start.clone());
-        let mut pending = BinaryHeap::new();
-        pending.push(Reverse((start, origin.clone())));
-        while let Some(Reverse((score, current))) = pending.pop() {
-            if best.get(&current) != Some(&score) {
-                continue;
-            }
-            let (minutes, edge_ids, zone_ids) = score;
-            if &current == destination {
-                return Ok(Some(Route { origin: origin.clone(), destination: destination.clone(), zone_ids, edge_ids, minutes }));
-            }
-            let Some(edges) = self.outgoing.get(&current) else {
-                continue;
-            };
-            for edge in edges {
-                if closed.contains(&edge.id) {
-                    continue;
-                }
-                if let (Some(capacity), Some(loads)) = (edge.capacity, loads) {
-                    if loads.get(&edge.id).copied().unwrap_or(0) >= capacity {
-                        continue;
-                    }
-                }
-                let Some(total) = minutes.checked_add(edge.minutes) else {
-                    return unsupported("a route's minutes past 64 bits");
-                };
-                let mut next_edges = edge_ids.clone();
-                next_edges.push(edge.id.clone());
-                let mut next_zones = zone_ids.clone();
-                next_zones.push(edge.to.clone());
-                let candidate: Score = (total, next_edges, next_zones);
-                if best.get(&edge.to).is_none_or(|known| candidate < *known) {
-                    best.insert(edge.to.clone(), candidate.clone());
-                    pending.push(Reverse((candidate, edge.to.clone())));
-                }
-            }
-        }
-        Ok(None)
+        StaffRouter::Given(router) => Ok(Arc::new(read_router(router)?)),
     }
 }
 
@@ -226,12 +126,13 @@ pub(crate) fn world_route(world: &Bound<'_, PyAny>, origin: &Arc<str>, destinati
         intern!(py, "from_states"),
         (attribute(world, intern!(py, "zones"))?, attribute(world, intern!(py, "zone_edges"))?),
     )?;
-    read_graph(&graph, None)?.shortest(&HashSet::new(), None, origin, destination)
+    read_graph(&graph)?.shortest(&HashSet::new(), None, origin, destination).or_py()
 }
 
-/// `ZoneGraph.from_states(world.zones, world.zone_edges, edge_capacities=capacities)` as rows, for
-/// the routes `_support_route_wait_reasons` reads. What the constructor would turn down is refused.
-pub(crate) fn world_graph(world: &Bound<'_, PyAny>) -> PyResult<RouteRows> {
+/// `ZoneGraph.from_states(world.zones, world.zone_edges, edge_capacities=capacities)` as a router,
+/// for the routes `_support_route_wait_reasons` reads. What the constructor would turn down is
+/// refused.
+pub(crate) fn world_graph(world: &Bound<'_, PyAny>) -> PyResult<Router> {
     let py = world.py();
     let configs = attribute(world, intern!(py, "model_configs"))?;
     let edges = attribute(world, intern!(py, "zone_edges"))?;
@@ -253,7 +154,7 @@ pub(crate) fn world_graph(world: &Bound<'_, PyAny>) -> PyResult<RouteRows> {
     for key in exact_dict(&zones_object)?.keys() {
         zones.insert(Arc::<str>::from(exact_str(&key)?));
     }
-    let mut outgoing: HashMap<Arc<str>, Vec<Edge>> = HashMap::new();
+    let mut open = Vec::new();
     for edge in edges.values() {
         let from: Arc<str> = Arc::from(exact_str(&attribute(&edge, intern!(py, "from_zone_id"))?)?);
         let to: Arc<str> = Arc::from(exact_str(&attribute(&edge, intern!(py, "to_zone_id"))?)?);
@@ -270,9 +171,9 @@ pub(crate) fn world_graph(world: &Bound<'_, PyAny>) -> PyResult<RouteRows> {
         if closed.downcast_exact::<PyBool>().map_err(|_| Unsupported::new_err("closed is not a bool"))?.is_true() {
             continue;
         }
-        outgoing.entry(from).or_default().push(Edge { id: Arc::from(id), to, minutes, capacity: capacities.get(id).copied() });
+        open.push(Edge { id: Arc::from(id), from, to, minutes, capacity: capacities.get(id).copied() });
     }
-    Ok(RouteRows { graph: py.None(), capacities: None, zones, outgoing, closed: Mutex::default() })
+    Ok(Router::new(zones, open))
 }
 
 // ---- Who is on an edge --------------------------------------------------------------------------
@@ -543,7 +444,7 @@ pub(crate) fn write_capacity_wait(world: &Bound<'_, PyAny>, writer: &EventWriter
 /// `_route`, for a person in the world, changing nothing: the waits it would record go in `waits`.
 pub(crate) fn route_for<'py>(
     world: &Bound<'py, PyAny>,
-    graph: &Bound<'py, RouteRows>,
+    graph: &RunGraph,
     origin: &Arc<str>,
     destination: &Arc<str>,
     agent_id: &str,
@@ -560,44 +461,38 @@ pub(crate) fn route_for<'py>(
     let configs = attribute(world, intern!(py, "model_configs"))?;
     let has_plan = exact_dict(&configs)?.get_item(intern!(py, "facility_geometry"))?.is_some_and(|raw| !raw.is_none());
     let closed = if has_plan {
-        graph.get().closed_to(&Geo::of(world)?, mobility)?
+        graph.router.closed_to(&Geo::of(world)?, mobility).or_py()?
     } else {
         Arc::new(HashSet::new())
     };
-    let capacities = graph.get().capacities.as_ref().map(|table| table.bind(py)).filter(|table| !table.is_empty());
-    let found = match capacities {
-        None => graph.get().shortest(&closed, None, origin, destination)?,
-        Some(table) => {
-            let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
-            let loads = active_edge_loads(world, minute)?;
-            let found = graph.get().shortest(&closed, Some(&loads), origin, destination)?;
-            if found.is_none() {
-                if let Some(free) = graph.get().shortest(&closed, None, origin, destination)? {
-                    for edge in &free.edge_ids {
-                        let Some(capacity) = table.get_item(&**edge)? else {
-                            continue;
-                        };
-                        if capacity.is_none() {
-                            continue;
-                        }
-                        let capacity = exact_int(&capacity)?;
-                        let active = loads.get(edge).copied().unwrap_or(0);
-                        if active >= capacity {
-                            waits.push(CapacityWait {
-                                agent_id: Arc::from(agent_id),
-                                origin: origin.clone(),
-                                destination: destination.clone(),
-                                edge_id: edge.clone(),
-                                capacity,
-                                active,
-                            });
-                            break;
-                        }
+    let found = if !graph.capacities.any {
+        graph.router.shortest(&closed, None, origin, destination).or_py()?
+    } else {
+        let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
+        let loads = active_edge_loads(world, minute)?;
+        let found = graph.router.shortest(&closed, Some(&loads), origin, destination).or_py()?;
+        if found.is_none() {
+            if let Some(free) = graph.router.shortest(&closed, None, origin, destination).or_py()? {
+                for edge in &free.edge_ids {
+                    let Some(capacity) = graph.capacities.of(edge).or_py()? else {
+                        continue;
+                    };
+                    let active = loads.get(edge).copied().unwrap_or(0);
+                    if active >= capacity {
+                        waits.push(CapacityWait {
+                            agent_id: Arc::from(agent_id),
+                            origin: origin.clone(),
+                            destination: destination.clone(),
+                            edge_id: edge.clone(),
+                            capacity,
+                            active,
+                        });
+                        break;
                     }
                 }
             }
-            found
         }
+        found
     };
     let Some(mut route) = found else {
         return Ok(None);
@@ -1202,7 +1097,7 @@ pub(crate) enum Selected {
 /// `_select_toilet` and `_select_resource_facility`, which differ in which facilities they take.
 fn select(
     world: &Bound<'_, PyAny>,
-    graph: &Bound<'_, RouteRows>,
+    graph: &RunGraph,
     writer: &EventWriter<'_>,
     agent_id: &Bound<'_, PyAny>,
     resource_kind: Option<&str>,
@@ -1267,7 +1162,7 @@ fn select(
 
 pub(crate) fn select_toilet(
     world: &Bound<'_, PyAny>,
-    graph: &Bound<'_, RouteRows>,
+    graph: &RunGraph,
     writer: &EventWriter<'_>,
     agent_id: &Bound<'_, PyAny>,
     waits: &mut Vec<CapacityWait>,
@@ -1277,7 +1172,7 @@ pub(crate) fn select_toilet(
 
 pub(crate) fn select_resource(
     world: &Bound<'_, PyAny>,
-    graph: &Bound<'_, RouteRows>,
+    graph: &RunGraph,
     writer: &EventWriter<'_>,
     agent_id: &Bound<'_, PyAny>,
     kind: &str,
