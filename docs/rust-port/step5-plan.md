@@ -390,6 +390,19 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
 - **確かめたこと**（PR 6-1 の後の `main`（`b765a41`）の上で）：`cargo test -p sheltersim_core`（114件）、`cargo clippy --workspace --all-targets -- -A clippy::all -D clippy::disallowed_methods`、`cargo tree -p sheltersim_core -e normal,build` に `pyo3` がないこと、`ruff check .`、`ruff format --check .`、offline の pytest（`-m "not long_simulation"`：5252 passed、6 skipped。`native/pylib` にこのビルドを置きました）、全経路のゲート（55 scenarios、0 problems）。
 - **7日分**（100人、project の経路、生成 Scenario）：`b765a41` と同じ木のビルドと交互に2回ずつ測りました（load average 1.7〜4.9）。4回とも world、events、metrics のハッシュは同じです（69aba659…、5e4c7645…、94c8cbb2…）。wall は base 67.2・66.5 s、この PR 67.1・66.7 s、thread は 61.8・61.5 s と 62.0・61.7 s（+0.4%、+0.3%）、`TickEngine.step` の thread は 17.45・17.25 s と 17.57・17.49 s（+0.7%、+1.4%。部分を可変で借りるたびの `Arc::make_mut` の確かめです）、計算のピークの RSS（`computation_mib`）は 896.4・896.4 MiB と 897.0・895.2 MiB で、増えていません。
 
+### PR 6-4：Branch のコマンドと EffectProgram の予定をトランザクションに（レーン 6-4）
+
+- **何をしたか**：Python に残っていた写して差し替える処理の2つを、PR 6-2 のトランザクションにしました。`BranchRuntime.apply`（`experiments/branch.py`）は `WorldState.from_dict(world.to_dict())` の代わりに `"full"`、`schedule_effect_program`（`events/effects.py`）は `_effect_candidate` の代わりに `"effect"` のトランザクションで、世界そのものに書き、検証してから commit します。誤り（`BranchError`、検証の誤り）は取り消してからそのまま出ます。予定の書き込みは `_schedule_on` に分けました（中身は変えていません）。
+- **断られたとき**：`state_mirror.transaction_or_copy(world, kind, make_copy)` が、トランザクションを開けないとき（`Unsupported`：中核がない、taint した実体の行、Rust の外の列など。`_txn_check`）だけ、今までの写し（`make_copy`）を作り、ブロックが誤りなく終わると差し替えます。開いた後の本体の `Unsupported` は写しに回しません。検証の順（世界をそのまま、候補を包んで、本体の後に `validate()`）と誤りの文は、どちらの道でも前と同じです。
+- **lint**：`tests/unit/repo/test_world_swap_lint.py` が、`src/sheltersim` の `<x>.__dict__.clear()`・`<x>.__dict__.update(` を関数ごとに見つけ、決めた場所の外にあると失敗します。残る場所は、`core/state_mirror.py` の `transaction_or_copy`（上の差し替え。clear と update）、`core/world.py` の `_bare_world`（`object.__new__` で作った新しい世界を埋めるだけ）、`web/pdf_render.py` の `save`（reportlab の頁の状態で、世界ではありません）です。この表は減るだけで、見つからなくなった項目も失敗にします。
+- **決めたこと**：
+  - `_effect_candidate` は残します。`_toilet_placement_issues` の下見（6-6 が置き換えます）と、上の断られたときの写しが使います。6-6 で下見から外しても、写しの道のために消せません（消すなら写しの道の扱いを決めてから）。
+  - tick の中の規則（`effects.rs`、`handlers.rs`、`population_lifecycle.rs`）はまだ Rust で写して差し替えます（6-3）。そのため、Run を進めると世界の `_core` は今も変わります。
+- **offline のテスト**：`tests/integration/test_branch_forks.py` に1件：生成 Scenario の40分の Checkpoint から2つの Branch を作り、片方はトランザクション、もう片方は `state_mirror.transaction` を `Unsupported` にして写しの道で、同じコマンド2つ、断られるコマンド1つ、EffectProgram 1つを入れます。受け取りのハッシュ、Checkpoint の JSON、30分進めた後の正規の JSON、EventLog、指標が同じで、トランザクションの方は `_core` と実体のオブジェクトが同じままであること。lint のテスト4件。
+- **確かめたこと**（`main`（`68cedb3`）の上で。Rust は変えていないので、PR 6-2 と同じビルドです）：`cargo clippy --workspace -- -A clippy::all -D clippy::disallowed_methods`、`cargo tree -p sheltersim_core -e normal,build` に `pyo3` がないこと、`ruff check .`、`ruff format --check .`、offline の pytest（`-m "not long_simulation"`：5257 passed、6 skipped）、全経路のゲート（55 scenarios、0 problems）、`--verify-rows` のゲート（55 scenarios、0 problems、31740 回の tick の終わりで 0 differed）。
+- **時間**：Branch を多く作るゲートの Scenario（`interventions`、`geometry`、`branch_commands`、`arrivals`、`run_stops`、`population`、`--jobs 6`）を base（PR 6-2）と交互に2回ずつ：全体は base 24.8・25.1 s、この PR 24.6・25.0 s で、変わりません（小さい世界で、tick が大半です）。100人・2日の生成 Scenario の1日目の世界で1回の呼び出しを7回ずつ測った中央値は、`apply`（トイレを足す）が base 2.43・2.69 s からこの PR 0.74・0.72 s、`apply`（使える数）が 2.42・2.72 s から 0.83・0.70 s、`apply_effect_program` が 1.13・1.31 s から 1.10・0.93 s です（load average 2.1〜2.9）。結果の世界のハッシュは base と同じです。
+- **7日分**（100人、project の経路、生成 Scenario）：1回、world、events、metrics のハッシュは同じです（69aba659…、5e4c7645…、94c8cbb2…）。この経路は Branch のコマンドも EffectProgram も通らないので、時間は比べていません（ほかのレーンが動いていて load average は 10 でした）。
+
 ### この後
 
 残りの PR は、下の「レーン」の順に進めます。各レーンは、終わったときにこの節の前に記録を足します。

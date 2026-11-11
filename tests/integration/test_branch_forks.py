@@ -5,17 +5,29 @@ plan, as the Project screen forks a Run. Until #137 this forked baseline_100_7d 
 minute 0, which has neither a floor plan nor facility awareness.
 
 Intervention commands and Branch lineage are checked in
-tests/unit/experiments/test_branch.py.
+tests/unit/experiments/test_branch.py. Commands and EffectPrograms applied to a fork change its
+world in place, in a transaction, and the Run then goes on as it did after the copy-and-swap
+those changes made before (lane 6-4 of #152).
 """
 
 from __future__ import annotations
 
+import pytest
+
+from sheltersim import native
+from sheltersim.core import state_mirror
 from sheltersim.core.checkpoint import Checkpoint
 from sheltersim.core.engine import TickEngine
 from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.domain.movement import MOVEMENT_STATE_KEY
-from sheltersim.experiments.branch import BranchRuntime
+from sheltersim.experiments.branch import (
+    AddStaffCommand,
+    AddToiletCommand,
+    BranchError,
+    BranchRuntime,
+    SetFacilityWorkingUnitsCommand,
+)
 from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
@@ -59,6 +71,54 @@ def test_noop_checkpoint_forks_are_independent_and_replay_identically(generated_
     assert left.world.event_log.records == right.world.event_log.records
     assert left.world.event_log.records == world.event_log.records
     assert left.metrics.to_dict() == right.metrics.to_dict() == metrics.to_dict()
+
+
+def _intervene(runtime: BranchRuntime, program: object) -> list[str]:
+    """Two commands, one refused command and an EffectProgram; the receipts' hashes."""
+    hashes = [runtime.apply(AddToiletCommand("toilet-extra", "toilet", 2, 1)).state_hash]
+    with pytest.raises(BranchError, match="already exists"):
+        runtime.apply(AddToiletCommand("toilet-extra", "toilet", 2, 1))
+    hashes.append(runtime.apply(SetFacilityWorkingUnitsCommand("toilet-extra", 0)).state_hash)
+    hashes.append(runtime.apply_effect_program(program).program_hash)
+    return hashes
+
+
+def test_interventions_change_the_world_in_place_as_the_copy_and_swap_did(
+    monkeypatch, generated_scenario, add_toilets_program
+) -> None:
+    world, metrics = WorldState.from_scenario(generated_scenario), MetricsRecorder()
+    _engine(world, metrics).run(steps=FORK_MINUTE)
+    checkpoint = Checkpoint.capture(world, metrics=metrics)
+    in_place = BranchRuntime.from_checkpoint(checkpoint, branch_id="branch")
+    swapped = BranchRuntime.from_checkpoint(checkpoint, branch_id="branch")
+    core, agent_id = in_place.world.__dict__["_core"], min(in_place.world.agents)
+    agent = in_place.world.agents[agent_id]
+
+    in_place_hashes = _intervene(in_place, add_toilets_program(start_minute=FORK_MINUTE + 5))
+
+    def refused(world: object, kind: str) -> None:
+        raise native.Unsupported("refused by the test")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(state_mirror, "transaction", refused)
+        swapped_core = swapped.world.__dict__["_core"]
+        swapped_hashes = _intervene(swapped, add_toilets_program(start_minute=FORK_MINUTE + 5))
+        assert swapped.world.__dict__["_core"] is not swapped_core
+
+    assert in_place.world.__dict__["_core"] is core
+    assert in_place.world.agents[agent_id] is agent
+    assert in_place_hashes == swapped_hashes
+    assert in_place.checkpoint().to_json() == swapped.checkpoint().to_json()
+    _engine(in_place.world, in_place.metrics).run(steps=30)
+    _engine(swapped.world, swapped.metrics).run(steps=30)
+    assert in_place.world.canonical_json() == swapped.world.canonical_json()
+    assert in_place.world.event_log.records == swapped.world.event_log.records
+    assert in_place.metrics.to_dict() == swapped.metrics.to_dict()
+    # The Run's in-tick rules still swap copies in until lane 6-3; a command after them is again
+    # made in place.
+    core = in_place.world.__dict__["_core"]
+    in_place.apply(AddStaffCommand("staff-extra", "toilet"))
+    assert in_place.world.__dict__["_core"] is core
 
 
 def test_a_fork_at_a_saved_minute_takes_the_saved_checkpoint(
@@ -110,7 +170,6 @@ def test_a_fork_whose_index_write_fails_leaves_no_branch_and_can_be_retried(
 ) -> None:
     """#288: the child's pointer is saved before its index rows; when indexing fails
     the pointer is removed, so the branch list and a retry under the same ID work."""
-    import pytest
 
     from sheltersim.storage.history_index import HistoryIndex
     from sheltersim.storage.projects import StorageError

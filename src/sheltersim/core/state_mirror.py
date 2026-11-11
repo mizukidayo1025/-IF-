@@ -1404,9 +1404,9 @@ def deepcopy_world(world: Any, memo: dict[int, Any]) -> Any:
 # a new model_state table with its keys sorted, the pending events again in queue order under new
 # serials, rng_state and any value no row holds through canonical JSON. It then validates the world
 # as from_dict validated the copy. A rollback gives back the snapshot and every old container,
-# object and tree; a commit drops them. Nothing calls this yet (lane 6-3 does): see
-# docs/rust-port/step5-plan.md, PR 6-2. The functions starting with _txn_ are the native host's
-# (native/src/core/txn.rs).
+# object and tree; a commit drops them. BranchRuntime.apply and schedule_effect_program use it
+# through transaction_or_copy (lane 6-4): see docs/rust-port/step5-plan.md, PR 6-2 and PR 6-4. The
+# functions starting with _txn_ are the native host's (native/src/core/txn.rs).
 
 
 class Transaction:
@@ -1458,6 +1458,32 @@ def transaction(world: Any, kind: str) -> Iterator[Transaction]:
         raise
     if txn.open:
         txn.commit()
+
+
+@contextlib.contextmanager
+def transaction_or_copy(world: Any, kind: str, make_copy: Callable[[Any], Any]) -> Iterator[Any]:
+    """`with transaction_or_copy(world, kind, make_copy) as target:` changes target and keeps it.
+
+    target is the world itself, in transaction(world, kind), where the world's core holds a
+    transaction. Where it says Unsupported (no core, or _txn_check: a tainted entity store, a
+    queue outside Rust, ...), target is make_copy(world), the copy kind stands for, and it takes
+    the world's place when the block ends without an error: the copy-and-swap every change made
+    before lane 6-4. Either way the world is validated as the copy validates it before the block
+    runs, and an error in the block leaves the world as it was and passes on.
+    """
+    with contextlib.ExitStack() as stack:
+        try:
+            stack.enter_context(transaction(world, kind))
+        except native.Unsupported:
+            target = make_copy(world)
+        else:
+            target = world
+        yield target
+        if target is not world:
+            # The only copy-and-swap of a WorldState left in src/
+            # (tests/unit/repo/test_world_swap_lint.py).
+            world.__dict__.clear()
+            world.__dict__.update(target.__dict__)
 
 
 def _txn_check(world: Any) -> None:

@@ -38,7 +38,7 @@ from sheltersim.contracts.operations import (
 )
 from sheltersim.contracts.population import DynamicArrivalPersonContext
 from sheltersim.core.kernels import kernel_only
-from sheltersim.core.state_mirror import read_only_part, read_only_state
+from sheltersim.core.state_mirror import read_only_part, read_only_state, transaction_or_copy
 from sheltersim.domain.environment import (
     ZONE_ENVIRONMENT_POLICY,
     ZONE_ENVIRONMENT_STATE_KEY,
@@ -812,7 +812,8 @@ def _effect_candidate(world: WorldState) -> WorldState:
     before, with its key order and checks; the world is validated first, as canonical_json does,
     and the copy is validated with its full history, as from_dict does. Nothing an effect does
     on the copy writes the EventLog (the engine records the event after the handler returns),
-    so a refused effect leaves the shared log as it was.
+    so a refused effect leaves the shared log as it was. schedule_effect_program makes it only
+    where the world's core holds no transaction (transaction_or_copy).
     """
     from sheltersim.core.world import StateInvariantError
     from sheltersim.core.world import WorldState as MutableWorldState
@@ -1619,13 +1620,26 @@ def schedule_effect_program(
     *,
     registry: PrimitiveRegistry = DEFAULT_PRIMITIVE_REGISTRY,
 ) -> ScheduledEffectProgram:
-    """Atomically add a validated program and all its start/expiry events."""
-    from sheltersim.domain.operational import OPERATIONAL_EVENTS_KEY
+    """Atomically add a validated program and all its start/expiry events.
 
+    The writes are made on the world in a transaction of kind "effect" (lane 6-4 of #152), or on
+    _effect_candidate(world), swapped in, where the world's core holds none.
+    """
     issues = list(validate_effect_program(world, program, registry=registry))
     if issues:
         raise EffectProgramValidationError(issues)
-    candidate = _effect_candidate(world)
+    with transaction_or_copy(world, "effect", _effect_candidate) as candidate:
+        scheduled = _schedule_on(candidate, program, registry)
+        candidate.validate()
+    return scheduled
+
+
+def _schedule_on(
+    candidate: WorldState, program: EffectProgram, registry: PrimitiveRegistry
+) -> ScheduledEffectProgram:
+    """schedule_effect_program's writes, on the world it changes (unvalidated)."""
+    from sheltersim.domain.operational import OPERATIONAL_EVENTS_KEY
+
     state = candidate.model_state.setdefault(
         EFFECT_PROGRAM_STATE_KEY,
         {"schema_version": 1, "programs": {}, "active_facility_modifiers": {}},
@@ -2006,9 +2020,6 @@ def schedule_effect_program(
                 causation_id=start_event.event_id,
             )
 
-    candidate.validate()
-    world.__dict__.clear()
-    world.__dict__.update(candidate.__dict__)
     return ScheduledEffectProgram(program.program_id, program_hash, tuple(event_ids))
 
 

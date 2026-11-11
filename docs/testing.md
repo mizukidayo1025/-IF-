@@ -109,6 +109,8 @@ tickの規則はRustのkernelだけで、Pythonの本体はありません（`ke
 
 `tests/unit/repo/test_tracked_write_lint.py`は、tick側のコードで、入れ物に入れた値を元の名前のまま書き換える書き方（`record = relationships[key] = {...}`のあとの`record["trust"] = x`）を見つけると失敗します。入れたあとは`record = relationships[key]`で読み直します。
 
+`tests/unit/repo/test_world_swap_lint.py`は、`src/`で`<x>.__dict__.clear()`か`<x>.__dict__.update(`を、決めた場所（`state_mirror.transaction_or_copy`の差し替え、`WorldState._bare_world`、世界でないもの）の外に見つけると失敗します。世界を変えるときは、写して差し替えずに`state_mirror.transaction`で世界そのものを変えます。
+
 関数を返すfixtureは、呼ぶたびに新しいものを作るだけで状態を持ちません。そのうち`saved_timeline`、`add_toilets_program`、`demo_world_hash`、`recording_router`はsession単位にして、module単位のfixtureからも使えるようにしています。テストファイルの中のhelperがこれらを使うときは、テストが受け取ったfixtureを引数で渡します（例：`integration/test_intervention_outcomes.py`の`_main_and_child`）。
 
 ### 時刻を手で動かすテスト
