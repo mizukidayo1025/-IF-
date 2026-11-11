@@ -22,7 +22,7 @@ use crate::core::world_core::{raw_dict_get, NamespaceMirror};
 use crate::rules::agent_dynamics::agent_knows_facility;
 use crate::rules::handlers::{log_record, new_event, NewEvent};
 use crate::rules::movement::{
-    approach, mirror_held, mobility_text, movement_minutes, no_positions, optional_str, plan_start, route_points_of, str_tuple, write_tree, Changes, Scene,
+    approach_point, mirror_held, mobility_text, movement_minutes, movement_of, no_positions, optional_str, plan_start, route_points_of, str_tuple, write_tree, Changes, Scene,
     EXACT_INT, KEY,
 };
 use crate::rules::movement_geometry::{Geo, GeoPy, Pt};
@@ -1203,15 +1203,14 @@ pub(crate) fn approach_route(world: &Bound<'_, PyAny>, agent_id: &str, facility_
         });
     }
     let table = attribute(world, intern!(py, "model_state"))?;
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let raw_model = exact_dict(&configs)?.get_item(intern!(py, "movement_model"))?;
+    let movement = movement_of(world)?;
     let read = |row: &MovementRow| {
         EntityStore::with_rows(&store, |rows| {
             let Some(facility) = rows.facilities.get(facility_id) else {
                 return unsupported("no such facility");
             };
             let zone = facility.zone_id.clone();
-            Ok(approach(&geo, row, rows, raw_model.clone(), agent_id, facility_id)?.map(|found| (found, zone)))
+            Ok(approach_point(&geo, row, rows, &movement.model, agent_id, facility_id, None)?.map(|found| (found, zone)))
         })
     };
     let found = if exact_dict(&table)?.contains(KEY)? {
