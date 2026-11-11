@@ -47,11 +47,13 @@ pub struct TestHost {
     pub level: TraceLevel,
     /// The draws `draw` gives, in turn; none means it refuses as every host but a test's does.
     pub draws: Vec<f64>,
+    /// What `decision_source` answers (lane P8 a5).
+    pub source: Option<Option<Arc<str>>>,
 }
 
 impl Default for TestHost {
     fn default() -> Self {
-        Self { calls: Vec::new(), llm: Llm::default(), sink: DecisionSink::Silent, level: TraceLevel::Off, draws: Vec::new() }
+        Self { calls: Vec::new(), llm: Llm::default(), sink: DecisionSink::Silent, level: TraceLevel::Off, draws: Vec::new(), source: Some(None) }
     }
 }
 
@@ -143,6 +145,10 @@ impl Host for TestHost {
     fn decision(&mut self, decision: Decision) -> Result<(), Error> {
         self.calls.push(Call::Decision(decision));
         Ok(())
+    }
+
+    fn decision_source(&mut self, _policy_version: &str) -> Result<Option<Option<Arc<str>>>, Error> {
+        Ok(self.source.clone())
     }
 
     fn trace_level(&self) -> Result<TraceLevel, Error> {
