@@ -251,42 +251,6 @@ impl EventRef<'_, '_> {
         }
     }
 
-    /// The first and last of a payload's list when both are str, or None for anything else.
-    /// `Some((None, None))`, for a list with other values, says what is there is not the rule's.
-    pub(crate) fn list_ends(&self, key: &str) -> PyResult<Option<(Option<Arc<str>>, Option<Arc<str>>)>> {
-        match self {
-            EventRef::Row(row) => {
-                let V::Map(payload) = &row.payload else {
-                    return Ok(None);
-                };
-                let Some(V::List(items)) = payload.get(key) else {
-                    return Ok(None);
-                };
-                let text = |item: Option<&V>| match item {
-                    Some(V::Str(value)) => Some(value.clone()),
-                    _ => None,
-                };
-                Ok(Some((text(items.first()), text(items.last()))))
-            }
-            EventRef::Object(event) => {
-                let py = event.py();
-                let payload = event.getattr(intern!(py, "payload"))?;
-                let value = payload.call_method1(intern!(py, "get"), (PyString::intern(py, key),))?;
-                let Ok(items) = value.downcast_exact::<PyTuple>() else {
-                    return Ok(None);
-                };
-                let text = |item: PyResult<Bound<'_, PyAny>>| -> Option<Arc<str>> {
-                    item.ok()?.downcast_exact::<PyString>().ok()?.to_str().ok().map(Arc::from)
-                };
-                let count = items.len();
-                if count == 0 {
-                    return Ok(Some((None, None)));
-                }
-                Ok(Some((text(items.get_item(0)), text(items.get_item(count - 1)))))
-            }
-        }
-    }
-
     /// `key in event.provenance`.
     pub(crate) fn has_provenance(&self, key: &str) -> PyResult<bool> {
         match self {

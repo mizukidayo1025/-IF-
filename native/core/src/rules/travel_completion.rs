@@ -1,56 +1,55 @@
-//! `AgentTravelCompletionHandler` of `events/handlers.py`: a walk that ended. It reads the event's
-//! row and the entity rows, decides, and writes the task, the person's row and object. Nothing is
-//! drawn and nothing is scheduled here.
+//! `AgentTravelCompletionHandler` of `events/handlers.py`: a walk that ended (lane c7 of Issue
+//! #152; the contracts are the handler's docstrings). The rules are functions on the `World`: they
+//! read the event's row and the rows, decide, and write the task, the person's row, the bed's place
+//! in `movement_v1` and a relocation's completion (`population_lifecycle`). Nothing is drawn here.
 //!
-//! What a walk leads to is `after_arrival` here (the approach inside a room, the toilet's and the
-//! service's queue). What it refuses, having changed nothing, is `handler._after_arrival`.
+//! A walk the rule refuses raises the rule's own `EventApplicationError` text before any change, in
+//! the rule's order of checks (`decide`); every check comes before the first write. Where a value
+//! is not what a valid state holds, the rule says Unsupported, still before any change.
 //!
-//! A walk the rule refuses raises the rule's own `EventApplicationError` text before any change,
-//! in the rule's order of checks (`decide`). Every check of the rule comes before its first write,
-//! so nothing is written when one fails. Where Rust can't tell what the rule would read or compare
-//! (a call that would raise, a value of another shape), it says Unsupported, still before any change,
-//! and the Python rule decides. `sleep_bed` and `presence_relocation` read `movement_v1` and
-//! `population_lifecycle_v1` (docs/rust-port/lanes/m3-dispatch.md).
+//! What a walk to a toilet or a resource leads to (`_after_arrival`) is the PyO3 crate's glue over
+//! the functions here (`arrival_approach`, `reject_room`, `rejected_request`) and the toilet's and
+//! the resource service's own requests, which a manager may override (a test's hook).
 
-use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use pyo3::exceptions::PyRuntimeError;
-use pyo3::intern;
-use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDict, PyInt, PyList, PyString};
-
-use crate::core::errors;
-use crate::core::row::{attribute, exact_dict, exact_int, exact_str, str_value, unsupported};
-use crate::core::tracked::as_readable_dict;
-use crate::core::value::{V, VPy};
-use crate::core::world_core::{raw_dict_get, with_state_value};
-use crate::state::entities::{entities_of, Activity, EntityStore, RequestStatus};
-use crate::rules::movement::{at_queue_slot, at_service_point, at_trip_destination};
-use crate::rules::travel::{approach_route, plan_room_approach, write_travel};
-use crate::rules::{service, toilet};
+use crate::config::movement::Movement;
+use crate::entities::{Activity, RequestStatus};
+use crate::error::{Error, Result};
+use crate::events::EventRow;
+use crate::geometry::{Geo, Pt};
+use crate::row::ValueRow;
+use crate::rules::kit::{self, Events, Held, Kept};
+use crate::rules::population_lifecycle::{self as lifecycle, KEY as LIFECYCLE};
+use crate::rules::travel::{self, PlannedTrip, Walking};
+use crate::rules::{facility_queues, movement, service};
+use crate::state::movement::MovementRow;
 use crate::state::resource_service::RequestRecord;
-use crate::state::events::{EventRef, EventRow, EventRowPy, EventWriter};
-use crate::Unsupported;
+use crate::text::py_repr;
+use crate::value::V;
+use crate::world::World;
 
-static ARRIVALS_RAN: AtomicU64 = AtomicU64::new(0);
-static ARRIVALS_REFUSED: AtomicU64 = AtomicU64::new(0);
-static ARRIVAL_REFUSALS: Mutex<BTreeMap<String, u64>> = Mutex::new(BTreeMap::new());
+#[track_caller]
+fn refuse<T>(reason: &'static str) -> Result<T> {
+    Err(Error::unsupported(reason))
+}
 
-/// The rule's `origin_zone_id`: the event's when a str, else the first of a list or tuple route,
-/// else None.
-enum Origin {
+fn failed<T>(text: impl Into<String>) -> Result<T> {
+    Err(Error::failed(text))
+}
+
+/// The rule's `origin_zone_id`: the event's when a str, else the first of a list route, else None.
+#[derive(Clone, Debug)]
+pub enum Origin {
     Zone(Arc<str>),
     /// No route: None.
     Nothing,
-    /// A route whose first is not a str, or an empty one (the ends Rust reads don't tell them
-    /// apart): not a str, which may be None.
+    /// A route whose first is not a str, or an empty one: not a str, which may be None.
     NotStr,
 }
 
 impl Origin {
-    fn zone(&self) -> Option<&str> {
+    pub fn zone(&self) -> Option<&Arc<str>> {
         match self {
             Origin::Zone(zone) => Some(zone),
             _ => None,
@@ -59,29 +58,41 @@ impl Origin {
 }
 
 /// What the rule reads of a walk's event.
-struct Walk {
-    event_id: Arc<str>,
-    due_minute: i64,
-    agent_id: Arc<str>,
-    task_id: Arc<str>,
-    destination: Arc<str>,
-    purpose: Arc<str>,
-    facility_id: Option<Arc<str>>,
-    origin: Origin,
+#[derive(Clone, Debug)]
+pub struct Walk {
+    pub event_id: Arc<str>,
+    pub due_minute: i64,
+    pub agent_id: Arc<str>,
+    pub task_id: Arc<str>,
+    pub destination: Arc<str>,
+    pub purpose: Arc<str>,
+    pub facility_id: Option<Arc<str>>,
+    pub origin: Origin,
     route_ends: Option<(Option<Arc<str>>, Option<Arc<str>>)>,
 }
 
-fn required(event: EventRef<'_, '_>, key: &str) -> PyResult<Arc<str>> {
-    match event.text(key)? {
-        Some(value) if !value.is_empty() => Ok(value),
-        _ => Python::with_gil(|py| errors::failed(py, "travel completion requires Agent, task, destination, and purpose")),
+/// `payload.get(key)` when a str.
+fn payload_text(row: &EventRow, key: &str) -> Option<Arc<str>> {
+    match kit::payload(row, key) {
+        Some(V::Str(value)) => Some(value.clone()),
+        _ => None,
     }
 }
 
 impl Walk {
-    fn read(event: EventRef<'_, '_>) -> PyResult<Self> {
-        let route_ends = event.list_ends("route_zone_ids")?;
-        let origin = match event.text("origin_zone_id")? {
+    /// The walk of an event, or the rule's text for a field it lacks.
+    pub fn read(row: &EventRow) -> Result<Self> {
+        let route_ends = match kit::payload(row, "route_zone_ids") {
+            Some(V::List(items)) => {
+                let text = |item: Option<&V>| match item {
+                    Some(V::Str(value)) => Some(value.clone()),
+                    _ => None,
+                };
+                Some((text(items.first()), text(items.last())))
+            }
+            _ => None,
+        };
+        let origin = match payload_text(row, "origin_zone_id") {
             Some(origin) => Origin::Zone(origin),
             None => match &route_ends {
                 Some((Some(first), _)) => Origin::Zone(first.clone()),
@@ -89,18 +100,29 @@ impl Walk {
                 None => Origin::Nothing,
             },
         };
+        let required = |key: &str| -> Result<Arc<str>> {
+            match payload_text(row, key) {
+                Some(value) if !value.is_empty() => Ok(value),
+                _ => failed("travel completion requires Agent, task, destination, and purpose"),
+            }
+        };
         Ok(Self {
-            event_id: event.event_id()?,
-            due_minute: event.due_minute()?,
-            agent_id: required(event, "agent_id")?,
-            task_id: required(event, "task_id")?,
-            destination: required(event, "destination_zone_id")?,
-            purpose: required(event, "purpose")?,
-            facility_id: event.text("facility_id")?,
+            event_id: row.event_id.clone(),
+            due_minute: row.due_minute,
+            agent_id: required("agent_id")?,
+            task_id: required("task_id")?,
+            destination: required("destination_zone_id")?,
+            purpose: required("purpose")?,
+            facility_id: payload_text(row, "facility_id"),
             origin,
             route_ends,
         })
     }
+}
+
+/// The purposes of a walk to a queue's place or service point.
+pub fn is_queue_walk(purpose: &str) -> bool {
+    matches!(purpose, "toilet_queue_position" | "resource_queue_position" | "toilet_queue_service" | "resource_queue_service")
 }
 
 /// `ResourceServiceManager.resource_for_facility(kind) is None`.
@@ -108,612 +130,343 @@ fn is_resource_facility(kind: &str) -> bool {
     matches!(kind, "water_station" | "meal_distribution")
 }
 
-/// `value != text`, as Python compares: an exact str in Rust, any other value by Python's `!=`.
-fn differs(value: &Bound<'_, PyAny>, text: &str) -> PyResult<bool> {
-    match value.downcast_exact::<PyString>() {
-        Ok(value) => Ok(value.to_str().map_err(|_| Unsupported::new_err("a str is not UTF-8"))? != text),
-        Err(_) => value.ne(text),
+/// What the rule reads beside the world's rows.
+pub struct Inputs<'a> {
+    pub movement: Held,
+    pub queues: Held,
+    pub overlay: Held,
+    /// The floor plan and the movement section, read for a queue walk alone.
+    pub geo: Option<&'a Geo>,
+    pub section: Option<&'a Movement>,
+    /// Whether the handler has a resource service.
+    pub resource_service: bool,
+    /// The lifecycle's inputs, read for a relocation alone.
+    pub lifecycle: Option<&'a lifecycle::Inputs<'a>>,
+}
+
+impl Inputs<'_> {
+    fn geo(&self) -> Result<&Geo> {
+        self.geo.ok_or_else(|| Error::unsupported("the floor plan was not read"))
+    }
+
+    fn lifecycle(&self) -> Result<&lifecycle::Inputs<'_>> {
+        self.lifecycle.ok_or_else(|| Error::unsupported("the lifecycle's inputs were not read"))
     }
 }
 
-/// `value != number`, as Python compares.
-fn differs_int(value: &Bound<'_, PyAny>, number: i64) -> PyResult<bool> {
-    if let Ok(int) = value.downcast_exact::<PyInt>() {
-        if let Ok(value) = int.extract::<i64>() {
-            return Ok(value != number);
-        }
-    }
-    value.ne(number)
+/// The person's journey in `movement_v1`, if the world holds the namespace and the record.
+fn journey_of<'w>(world: &'w World, held: &Held, agent_id: &str) -> Result<Option<crate::state::movement::Journey>> {
+    Ok(kit::held_row::<MovementRow>(world, movement::KEY, held)?.and_then(|row| row.journeys.get(agent_id).cloned()))
 }
 
-/// `map.get(key)`, Python's own.
-fn get_of<'py>(map: &Bound<'py, PyAny>, key: &str) -> PyResult<Bound<'py, PyAny>> {
-    map.call_method1(intern!(map.py(), "get"), (key,))
-}
-
-/// `map.get(key, default)`, Python's own.
-fn get_or<'py>(map: &Bound<'py, PyAny>, key: &str, default: Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    map.call_method1(intern!(map.py(), "get"), (key, default))
-}
-
-/// `isinstance(value, dict)`, as the rule asks of the trees it reads.
-fn tree<'a, 'py>(value: &'a Bound<'py, PyAny>) -> PyResult<&'a Bound<'py, PyDict>> {
-    match as_readable_dict(value) {
-        Some(dict) => Ok(dict),
-        None => unsupported("a tree of the rule is not a plain dict"),
-    }
-}
-
-/// The walks to a queue's place or service point: whether the walk fits its FIFO reservation. The
-/// rule reads the queue's trees and the person's place first, then checks; any check that fails
-/// raises one text. A read that would raise in Python, or a value Rust can't compare as Python
-/// does, is Unsupported.
-fn queue_walk_fits(world: &Bound<'_, PyAny>, row: EventRef<'_, '_>, walk: &Walk) -> PyResult<bool> {
-    let py = world.py();
+/// The walks to a queue's place or service point: whether the walk fits its FIFO reservation.
+fn queue_walk_fits(world: &World, inputs: &Inputs<'_>, row: &EventRow, walk: &Walk) -> Result<bool> {
     let (agent_id, task_id, destination, purpose) = (&walk.agent_id, &walk.task_id, &walk.destination, &*walk.purpose);
     let facility_id = walk.facility_id.as_ref();
     let resource = purpose.starts_with("resource_");
     let expected_kind = if resource { "resource_service_queue" } else { "toilet_queue" };
     let position = purpose.ends_with("_position");
-
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let journey = match raw_dict_get(&table, intern!(py, "movement_v1").as_any())? {
-        None => None,
-        Some(movement) => crate::rules::movement::journey_of(world, &movement, agent_id)?,
-    };
-    let journey = match journey {
-        Some(journey) => journey,
-        None => PyDict::new(py).into_any(),
-    };
-    let journey_dict = tree(&journey)?;
-
+    let journey = journey_of(world, &inputs.movement, agent_id)?;
     let independent = match facility_id {
-        Some(facility) => crate::rules::facility_queues::has_independent(world, facility)?,
+        Some(facility) => facility_queues::queues(world, &inputs.queues)?.is_some_and(|row| facility_queues::has_independent(&row, facility)),
         None => false,
     };
-    let queue_id = row.text("queue_id")?;
+    let queue_id = payload_text(row, "queue_id");
+    let at = |queue: Option<&str>| -> Result<movement::Where<'_>> {
+        Ok(movement::Where { geo: inputs.geo()?, movement: inputs.movement.clone(), queues: if queue.is_some() { inputs.queues.clone() } else { Held::Absent } })
+    };
+    let at_service_point = |facility: &str, point: Option<&str>| -> Result<bool> {
+        let geo = inputs.geo()?;
+        if geo.layout.is_none() {
+            // The route of no floor plan: none of its minutes.
+            movement::agent_and_facility(world, agent_id, facility)?;
+            return Ok(true);
+        }
+        let section = inputs.section.ok_or_else(|| Error::unsupported("the movement section was not read"))?;
+        movement::at_service_point(world, &at(None)?, &section.model, agent_id, facility, point)
+    };
     let (contains_request, at_destination) = if independent {
-        let facility = facility_id.expect("an independent queue is a facility's");
-        // `world.model_state[FACILITY_QUEUES_STATE_KEY]`, then `["requests"]` and `["queues"]` as
-        // the rule reads them: only for an ID that is a str.
-        let request_id = row.text("request_id")?;
-        // A detached namespace gives documents of the two records from its row.
-        let state = match crate::rules::facility_queues::detached_records(world, request_id.as_deref(), queue_id.as_deref())? {
-            Some(state) => state,
-            None => raw_dict_get(&table, intern!(py, "facility_queues_v1").as_any())?
-                .ok_or_else(|| Unsupported::new_err("no queue state"))?,
+        let facility = facility_id.ok_or_else(|| Error::unsupported("an independent queue is a facility's"))?;
+        let request_id = payload_text(row, "request_id");
+        let (request, queued) = {
+            let state = facility_queues::queues(world, &inputs.queues)?.ok_or_else(|| Error::unsupported("no queue state"))?;
+            let request = request_id.as_ref().and_then(|id| state.requests.get(&**id).cloned());
+            let queued = queue_id.as_ref().and_then(|id| state.queues.get(&**id)).map(|queue| queue.queued_request_ids.clone());
+            (request, queued)
         };
-        let request = match &request_id {
-            Some(id) => Some(get_of(&state.get_item(intern!(py, "requests"))?, id)?),
-            None => None,
-        };
-        let queue_row = match &queue_id {
-            Some(id) => Some(get_of(&state.get_item(intern!(py, "queues"))?, id)?),
-            None => None,
-        };
-        let request = request.filter(|request| request.is_instance_of::<PyDict>());
-        let queue_row = queue_row.filter(|queue_row| queue_row.is_instance_of::<PyDict>());
-        let contains = match (&request, &queue_row, &request_id, &queue_id) {
-            (Some(request), Some(queue_row), Some(request_id), Some(queue_id)) => {
-                queue_row.get_item(intern!(py, "queued_request_ids"))?.contains(&**request_id)?
-                    && !differs(&request.get_item(intern!(py, "agent_id"))?, agent_id)?
-                    && !differs(&request.get_item(intern!(py, "facility_id"))?, facility)?
-                    && !differs(&request.get_item(intern!(py, "queue_id"))?, queue_id)?
+        let contains = match (&request, &queued, &request_id, &queue_id) {
+            (Some(request), Some(queued), Some(request_id), Some(queue_id)) => {
+                queued.contains(request_id) && request.agent_id == *agent_id && &*request.facility_id == &**facility && request.queue_id == *queue_id
             }
             _ => false,
         };
-        let at = if position {
-            // `agent_is_at_queue_slot(world, agent_id, facility_id, queue_id)` of the event's own
-            // value, which Rust reads only as a str.
+        let here = if position {
             let Some(queue) = &queue_id else {
-                return unsupported("a queue walk's queue_id is not a str");
+                return refuse("a queue walk's queue_id is not a str");
             };
-            at_queue_slot(world, agent_id, facility, Some(queue))? || at_trip_destination(world, agent_id)?
+            movement::at_queue_slot(world, &at(Some(queue))?, agent_id, facility, Some(queue))? || movement::at_trip_destination(world, &inputs.movement, agent_id)?
         } else {
-            let point = match &request {
-                Some(request) => get_of(request, "service_point_id")?,
-                None => py.None().into_bound(py),
-            };
-            match errors::str_of(&point)? {
-                Some(point) => at_service_point(world, agent_id, facility, Some(point))?,
+            match &request {
+                Some(request) => at_service_point(facility, Some(&request.service_point_id))?,
                 None => false,
             }
         };
-        (Some(contains), at)
+        (Some(contains), here)
     } else {
-        let at = match facility_id {
-            Some(facility) if position => at_queue_slot(world, agent_id, facility, None)? || at_trip_destination(world, agent_id)?,
-            Some(facility) => at_service_point(world, agent_id, facility, None)?,
+        let here = match facility_id {
+            Some(facility) if position => movement::at_queue_slot(world, &at(None)?, agent_id, facility, None)? || movement::at_trip_destination(world, &inputs.movement, agent_id)?,
+            Some(facility) => at_service_point(facility, None)?,
             None => false,
         };
-        (None, at)
+        (None, here)
     };
-
-    let journey_fits = if journey_dict.is_empty() {
-        let minute = attribute(world, intern!(py, "minute_index"))?;
-        !differs_int(&minute, walk.due_minute)?
-    } else {
-        !differs(&get_of(&journey, "event_id")?, &walk.event_id)?
-            && !differs(&get_of(&journey, "task_id")?, task_id)?
-            && !differs(&get_of(&journey, "purpose")?, purpose)?
-            && !differs_int(&get_of(&journey, "due_minute")?, walk.due_minute)?
-            && (!independent
-                || match &queue_id {
-                    Some(queue) => !differs(&get_of(&journey, "queue_id")?, queue)?,
-                    None => return unsupported("a queue walk's queue_id is not a str"),
-                })
+    let journey_fits = match &journey {
+        None => world.minute_index()? == walk.due_minute,
+        Some(journey) => {
+            journey.event_id == walk.event_id
+                && journey.task_id == *task_id
+                && &*journey.purpose == purpose
+                && journey.due_minute == walk.due_minute
+                && (!independent
+                    || match &queue_id {
+                        Some(queue) => journey.queue_id.as_ref() == Some(queue),
+                        None => return refuse("a queue walk's queue_id is not a str"),
+                    })
+        }
     };
-
-    let store = entities_of(world)?;
-    EntityStore::with_rows(&store, |rows| {
-        let (Some(task), Some(agent)) = (rows.active_tasks.get(task_id), rows.agents.get(agent_id)) else {
-            return unsupported("the task or the person left before the queue walk's checks");
-        };
-        let facility = facility_id.and_then(|id| rows.facilities.get(id));
-        let contains = match contains_request {
-            Some(contains) => contains,
-            None => facility.is_some_and(|facility| {
-                let queue = if resource { &facility.resource_queue_agent_ids } else { &facility.queue_agent_ids };
-                queue.iter().any(|id| id == agent_id)
-            }),
-        };
-        Ok(&*task.kind == expected_kind
-            && task.due_minute == task.start_minute
-            && agent.activity == Activity::Queued
-            && agent.target_id.as_deref() == facility_id.map(|id| &**id)
-            && contains
-            && facility.is_some_and(|facility| facility.zone_id == *destination)
-            && agent.zone_id == *destination
-            && at_destination
-            && journey_fits)
-    })
+    let rows = world.rows()?;
+    let (Some(task), Some(agent)) = (rows.active_tasks.get(task_id), rows.agents.get(agent_id)) else {
+        return refuse("the task or the person left before the queue walk's checks");
+    };
+    let facility = facility_id.and_then(|id| rows.facilities.get(id));
+    let contains = match contains_request {
+        Some(contains) => contains,
+        None => facility.is_some_and(|facility| {
+            let queue = if resource { &facility.resource_queue_agent_ids } else { &facility.queue_agent_ids };
+            queue.iter().any(|id| id == agent_id)
+        }),
+    };
+    Ok(&*task.kind == expected_kind
+        && task.due_minute == task.start_minute
+        && agent.activity == Activity::Queued
+        && agent.target_id.as_deref() == facility_id.map(|id| &**id)
+        && contains
+        && facility.is_some_and(|facility| facility.zone_id == *destination)
+        && agent.zone_id == *destination
+        && at_destination
+        && journey_fits)
 }
 
-/// `AgentTravelCompletionHandler._after_arrival`, where no rejection follows. A rejection reads the
-/// event and is the Python rule's, which then runs from the start.
-fn arrive<'py>(
-    handler: &Bound<'py, PyAny>,
-    world: &Bound<'py, PyAny>,
-    agent_id: &str,
-    purpose: &str,
-    facility_id: &str,
-    destination: &str,
-    origin: Option<&str>,
-) -> PyResult<()> {
-    let py = world.py();
-    let is_toilet = purpose == "toilet_request";
-    if !is_toilet && purpose != "resource_request" {
-        return Ok(());
+/// `value == number` in Python, of a value of a document.
+fn equals_number(value: &V, number: f64) -> bool {
+    match value {
+        V::Float(found) => *found == number,
+        V::Int(found) => (*found as f64) == number && (-(1_i64 << 53)..=1 << 53).contains(found),
+        V::Bool(flag) => f64::from(u8::from(*flag)) == number,
+        _ => false,
     }
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    if exact_dict(&configs)?.contains(intern!(py, "facility_geometry"))? && !crate::rules::facility_queues::has_independent(world, facility_id)? {
-        let Some((route, points)) = approach_route(world, agent_id, facility_id)? else {
-            return reject_room(handler, world, purpose, agent_id, facility_id, origin);
-        };
-        if route.minutes > 0 {
-            let writer = EventWriter::of(world)?;
-            let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
-            let (agent_arc, facility_arc, origin_arc): (Arc<str>, Arc<str>, Arc<str>) =
-                (Arc::from(agent_id), Arc::from(facility_id), Arc::from(destination));
-            let Some(planned) = plan_room_approach(world, &writer, &agent_arc, &facility_arc, purpose, route, &points, minute, &origin_arc)? else {
-                return reject_room(handler, world, purpose, agent_id, facility_id, origin);
-            };
-            return write_travel(world, &writer, planned);
-        }
-    }
-    let (agent, facility) = (PyString::new(py, agent_id), PyString::new(py, facility_id));
-    let minute = attribute(world, intern!(py, "minute_index"))?;
-    // A method set on the manager itself (a test's) is what the rule calls, as Python would.
-    let own_request = |manager: &Bound<'py, PyAny>| -> PyResult<Option<Bound<'py, PyAny>>> {
-        raw_dict_get(&manager.getattr(intern!(py, "__dict__"))?, intern!(py, "request").as_any())
-    };
-    let call_own = |request: &Bound<'py, PyAny>, validate: &Bound<'py, PyAny>| -> PyResult<Option<String>> {
-        let options = PyDict::new(py);
-        options.set_item(intern!(py, "minute"), &minute)?;
-        options.set_item(intern!(py, "validate_state"), validate)?;
-        match request.call((&agent, &facility), Some(&options)) {
-            Ok(_) => Ok(None),
-            Err(error) if error.is_instance_of::<pyo3::exceptions::PyValueError>(py) => Ok(Some(error.value(py).str()?.to_string())),
-            Err(error) => Err(error),
-        }
-    };
-    if is_toilet {
-        // `except ValueError as exc: raise EventApplicationError(str(exc))`, also for the world's
-        // validation that `validate_request_state` asks before and after the request.
-        let validate = attribute(handler, intern!(py, "validate_request_state"))?;
-        let manager = attribute(handler, intern!(py, "toilet_service"))?;
-        let refused = match own_request(&manager)? {
-            Some(request) => call_own(&request, &validate)?,
-            None => {
-                let validates = validate.is_truthy()?;
-                let requested = (|| -> PyResult<()> {
-                    if validates {
-                        world.call_method0(intern!(py, "validate"))?;
-                    }
-                    toilet::queue_up(world, agent.as_any(), facility.as_any(), None)?;
-                    if validates {
-                        world.call_method0(intern!(py, "validate"))?;
-                    }
-                    Ok(())
-                })();
-                match requested {
-                    Ok(()) => None,
-                    Err(error) if error.is_instance_of::<pyo3::exceptions::PyValueError>(py) => Some(error.value(py).str()?.to_string()),
-                    Err(error) => return Err(error),
-                }
+}
+
+/// `sleep_bed`'s reads, then its checks: the bed's point when the walk fits its live reservation,
+/// None when the rule raises its text. `rows_fit` is its first two checks, the task's kind and the
+/// person's target. Unsupported for a bed whose point the row of `movement_v1` can't hold, or a
+/// person without a position there.
+fn sleep_bed_fits(world: &World, inputs: &Inputs<'_>, walk: &Walk, rows_fit: bool) -> Result<Option<Pt>> {
+    // `overlay.get("bed_reservations", {}).get(agent_id)` and its room, copied.
+    let (reservation, room) = {
+        let overlay = kit::held_row::<ValueRow>(world, crate::rules::overlay::OVERLAY_KEY, &inputs.overlay)?;
+        match overlay.as_deref().map(|row| &row.0) {
+            Some(V::Map(overlay)) => {
+                let reservation = match overlay.get("bed_reservations") {
+                    Some(V::Map(reservations)) => reservations.get(&*walk.agent_id).cloned(),
+                    _ => None,
+                };
+                let room = match (&reservation, overlay.get("temporary_rooms")) {
+                    (Some(V::Map(fields)), Some(V::Map(rooms))) => match fields.get("room_id") {
+                        Some(V::Str(room_id)) => rooms.get(&**room_id).cloned(),
+                        Some(V::List(_) | V::Map(_)) => return refuse("a reservation's room is not hashable"),
+                        _ => None,
+                    },
+                    (Some(V::Map(_)), Some(V::Null) | None) => None,
+                    (Some(V::Map(_)), Some(_)) => return refuse("the rooms are not a dict"),
+                    _ => None,
+                };
+                (reservation, room)
             }
-        };
-        if let Some(text) = refused {
-            return errors::failed(py, text);
-        }
-        return Ok(());
-    }
-    let manager = attribute(handler, intern!(py, "resource_service"))?;
-    // Read before the request, which may write the task counter and then turn the person down.
-    let rows = (crate::state::resource_service::held_mirror(world)?, service::metrics_of(world)?);
-    let refused = match own_request(&manager)? {
-        Some(request) => call_own(&request, PyBool::new(py, false).as_any())?,
-        None => service::queue_up_or_refusal(&manager, agent.as_any(), facility.as_any())?.err(),
-    };
-    let Some(text) = refused else {
-        return Ok(());
-    };
-    // The arrival stands; the record says why the person is not in the queue, with `str(exc)`.
-    let Some(origin) = origin else {
-        return unsupported("a resource walk's origin is not a str");
-    };
-    let store = entities_of(world)?;
-    let kind = EntityStore::with_rows(&store, |rows| Ok(rows.facilities.get(facility_id).map(|facility| facility.kind.clone())))?;
-    let Some(kind) = kind else {
-        return unsupported("no such facility");
-    };
-    let action = if service::resource_of(&kind) == Some("water_ml") { "fetch_water" } else { "collect_meal" };
-    service::append_outcome(
-        world,
-        RequestRecord {
-            minute: exact_int(&minute)?,
-            agent_id: Arc::from(agent_id),
-            action: Arc::from(action),
-            outcome: Arc::from("rejected"),
-            reason: Arc::from("request_rejected"),
-            facility_id: Some(Arc::from(facility_id)),
-            origin_zone_id: Arc::from(origin),
-            detail: Some(Arc::from(text)),
-        },
-    )?;
-    service::add_one(&rows.1, "resource_service_request_rejected_count")
-}
-
-/// `_reject_room_approach`. `origin` is the event's origin when a str.
-fn reject_room<'py>(
-    handler: &Bound<'py, PyAny>,
-    world: &Bound<'py, PyAny>,
-    purpose: &str,
-    agent_id: &str,
-    facility_id: &str,
-    origin: Option<&str>,
-) -> PyResult<()> {
-    let py = world.py();
-    let metrics = service::metrics_of(world)?;
-    if purpose == "resource_request" && !attribute(handler, intern!(py, "resource_service"))?.is_none() {
-        let store = entities_of(world)?;
-        let (kind, zone) = EntityStore::with_rows(&store, |rows| {
-            let Some(agent) = rows.agents.get(agent_id) else {
-                return unsupported("no such person");
-            };
-            Ok((rows.facilities.get(facility_id).map(|facility| facility.kind.clone()), agent.zone_id.clone()))
-        })?;
-        let action = if kind.as_deref().and_then(service::resource_of) == Some("water_ml") { "fetch_water" } else { "collect_meal" };
-        crate::state::resource_service::held_mirror(world)?;
-        service::append_outcome(
-            world,
-            RequestRecord {
-                minute: exact_int(&attribute(world, intern!(py, "minute_index"))?)?,
-                agent_id: Arc::from(agent_id),
-                action: Arc::from(action),
-                outcome: Arc::from("rejected"),
-                reason: Arc::from("room_route_blocked"),
-                facility_id: Some(Arc::from(facility_id)),
-                origin_zone_id: origin.map_or(zone, Arc::from),
-                detail: None,
-            },
-        )?;
-        service::add_one(&metrics, "resource_service_request_rejected_count")?;
-    }
-    service::add_one(&metrics, "facility_approach_rejected_count")
-}
-
-/// `_reject_room_approach`, called from Python.
-#[pyfunction]
-fn reject_room_approach<'py>(
-    handler: &Bound<'py, PyAny>,
-    world: &Bound<'py, PyAny>,
-    event: &Bound<'py, PyAny>,
-    agent_id: &Bound<'py, PyAny>,
-    facility_id: &Bound<'py, PyAny>,
-    origin_zone_id: &Bound<'py, PyAny>,
-) -> PyResult<()> {
-    let purpose = crate::rules::handlers::get(&attribute(event, intern!(world.py(), "payload"))?, "purpose")?;
-    let purpose = if text_is_str(&purpose, "resource_request") { "resource_request" } else { "other" };
-    reject_room(handler, world, purpose, exact_str(agent_id)?, exact_str(facility_id)?, str_value(origin_zone_id))
-}
-
-fn text_is_str(value: &Bound<'_, PyAny>, wanted: &str) -> bool {
-    str_value(value) == Some(wanted)
-}
-
-/// `sleep_bed`'s reads, then its checks, with Python's own `get`, `len`, `[]` and `!=`: the bed's
-/// point when the walk fits its live reservation, None when the rule raises its text. `rows_fit` is
-/// its first two checks, the task's kind and the person's target.
-fn sleep_bed_fits<'py>(world: &Bound<'py, PyAny>, walk: &Walk, rows_fit: bool) -> PyResult<Option<Bound<'py, PyAny>>> {
-    let py = world.py();
-    let none = || py.None().into_bound(py);
-    let dict = || PyDict::new(py).into_any();
-    let table = attribute(world, intern!(py, "model_state"))?;
-    // The person's reservation and its room, copied from the overlay read as a `V` (a detached one
-    // from its row): what `overlay.get(...)` of the rule gives, None for what it does not have.
-    let (reservation, room) = with_state_value(world, "geometry_overlay_v1", |overlay| {
-        let Some(V::Map(overlay)) = overlay else {
-            return Ok((None, None));
-        };
-        let reservation = match overlay.get("bed_reservations") {
-            Some(V::Map(reservations)) => reservations.get(&*walk.agent_id).cloned(),
-            _ => None,
-        };
-        let Some(V::Map(fields)) = &reservation else {
-            return Ok((reservation, None));
-        };
-        let room = match overlay.get("temporary_rooms") {
-            None => None,
-            Some(V::Map(rooms)) => match fields.get("room_id") {
-                Some(V::Str(room_id)) => rooms.get(&**room_id).cloned(),
-                Some(V::List(_) | V::Map(_)) => return unsupported("a reservation's room is not hashable"),
-                // No str key equals another value.
-                _ => None,
-            },
-            Some(_) => return unsupported("the rooms are not a dict"),
-        };
-        Ok((reservation, room))
-    })?;
-    let reservation = match reservation {
-        Some(reservation) => reservation.to_py(py)?,
-        None => none(),
-    };
-    let reservation_is_dict = reservation.is_instance_of::<PyDict>();
-    let room = match room {
-        Some(room) => room.to_py(py)?,
-        None => none(),
-    };
-    // A detached namespace's journey is read from its row, which builds no tree.
-    let held = as_readable_dict(&table).map(|table| table.get_item("movement_v1")).transpose()?.flatten();
-    let journey = match held.filter(crate::core::tracked::is_detached) {
-        Some(held) => crate::rules::movement::journey_of(world, &held, &walk.agent_id)?.unwrap_or_else(none),
-        None => {
-            let movement = get_or(&table, "movement_v1", dict())?;
-            if movement.is_instance_of::<PyDict>() { get_of(&get_or(&movement, "journeys", dict())?, &walk.agent_id)? } else { none() }
+            _ => (None, None),
         }
     };
-    let bed_index = if reservation_is_dict { get_of(&reservation, "bed_index")? } else { none() };
-    let room_is_dict = room.is_instance_of::<PyDict>();
-    let bed_points = || get_or(&room, "bed_points_m", PyList::empty(py).into_any());
+    let journey = journey_of(world, &inputs.movement, &walk.agent_id)?;
+    let (Some(V::Map(reservation)), Some(V::Map(room))) = (&reservation, &room) else {
+        return Ok(None);
+    };
     // `type(bed_index) is int and 0 <= bed_index < len(room.get("bed_points_m", []))`.
-    let bed = if room_is_dict
-        && bed_index.is_exact_instance_of::<PyInt>()
-        && bed_index.ge(0)?
-        && bed_index.lt(bed_points()?.len()?)?
-    {
-        bed_points()?.get_item(&bed_index)?
-    } else {
-        none()
+    let bed = match (reservation.get("bed_index"), room.get("bed_points_m")) {
+        (Some(V::Int(index)), Some(V::List(points))) if *index >= 0 && (*index as usize) < points.len() => Some(points[*index as usize].clone()),
+        (Some(V::Int(_)), Some(_)) => return refuse("the bed points are not a list"),
+        _ => None,
     };
-    let journey_is_dict = journey.is_instance_of::<PyDict>();
-    let route_points = if journey_is_dict { get_or(&journey, "route_points", PyList::empty(py).into_any())? } else { PyList::empty(py).into_any() };
-    let fits = rows_fit
-        && reservation_is_dict
-        && room_is_dict
-        && !differs(&get_of(&room, "zone_id")?, &walk.destination)?
-        && journey_is_dict
-        && !differs(&get_of(&journey, "event_id")?, &walk.event_id)?
-        && !differs(&get_of(&journey, "task_id")?, &walk.task_id)?
-        && !differs(&get_of(&journey, "purpose")?, "sleep_bed")?
-        && route_points.is_truthy()?
-        && !route_points.get_item(-1)?.ne(&bed)?;
-    Ok(fits.then_some(bed))
-}
-
-/// `presence_relocation`'s reads and checks, with Python's own `get` and `!=`. `rows_fit` is its
-/// first two checks, the task's kind and the person's target.
-fn relocation_fits(world: &Bound<'_, PyAny>, walk: &Walk, rows_fit: bool) -> PyResult<bool> {
-    let py = world.py();
-    // The person's pending relocation, copied from the lifecycle read as a `V` (a detached one from
-    // its row).
-    let relocation = with_state_value(world, "population_lifecycle_v1", |lifecycle| {
-        let lifecycle = match lifecycle {
-            None => return Ok(None),
-            Some(V::Map(lifecycle)) => lifecycle,
-            Some(_) => return unsupported("the lifecycle state is not a dict"),
-        };
-        match lifecycle.get("pending_relocations") {
-            None => Ok(None),
-            Some(V::Map(relocations)) => Ok(relocations.get(&*walk.agent_id).cloned()),
-            Some(_) => unsupported("the pending relocations are not a dict"),
-        }
-    })?;
-    let relocation = match relocation {
-        Some(relocation) => relocation.to_py(py)?,
-        None => py.None().into_bound(py),
+    let Some(journey) = journey.filter(|_| rows_fit) else {
+        return Ok(None);
     };
-    Ok(rows_fit
-        && relocation.is_instance_of::<PyDict>()
-        && !differs(&get_of(&relocation, "task_id")?, &walk.task_id)?
-        && !differs(&get_of(&relocation, "event_id")?, &walk.event_id)?
-        && !match &walk.origin {
-            Origin::Zone(origin) => differs(&get_of(&relocation, "from_zone_id")?, origin)?,
-            Origin::Nothing => get_of(&relocation, "from_zone_id")?.ne(py.None())?,
-            Origin::NotStr => return unsupported("a relocation's origin is not a str Rust has"),
-        }
-        && !differs(&get_of(&relocation, "to_zone_id")?, &walk.destination)?)
-}
-
-/// `_after_arrival`, called from Python.
-#[pyfunction]
-#[allow(clippy::too_many_arguments)]
-fn after_arrival<'py>(
-    handler: &Bound<'py, PyAny>,
-    world: &Bound<'py, PyAny>,
-    event: &Bound<'py, PyAny>,
-    agent_id: &Bound<'py, PyAny>,
-    purpose: &Bound<'py, PyAny>,
-    facility_id: &Bound<'py, PyAny>,
-    destination_zone_id: &Bound<'py, PyAny>,
-    origin_zone_id: &Bound<'py, PyAny>,
-) -> PyResult<()> {
-    let _ = event;
-    let purpose = exact_str(purpose)?;
-    // Only a walk to a toilet or a resource leads anywhere.
-    if !matches!(purpose, "toilet_request" | "resource_request") {
-        return Ok(());
+    let room_fits = matches!(room.get("zone_id"), Some(V::Str(zone)) if *zone == walk.destination);
+    let journey_fits = journey.event_id == walk.event_id && journey.task_id == walk.task_id && &*journey.purpose == "sleep_bed";
+    let Some(last) = journey.route_points.last() else {
+        return Ok(None);
+    };
+    if !room_fits || !journey_fits {
+        return Ok(None);
     }
-    arrive(handler, world, exact_str(agent_id)?, purpose, exact_str(facility_id)?, exact_str(destination_zone_id)?, str_value(origin_zone_id))
+    // `route_points[-1] != bed`: a dict of the same two numbers.
+    let Some(V::Map(bed)) = bed else {
+        return Ok(None);
+    };
+    let same = bed.len() == 2 && bed.get("x").is_some_and(|x| equals_number(x, last.x)) && bed.get("y").is_some_and(|y| equals_number(y, last.y));
+    if !same {
+        return Ok(None);
+    }
+    let (Some(V::Float(x)), Some(V::Float(y))) = (bed.get("x"), bed.get("y")) else {
+        return refuse("a bed's point is not two floats");
+    };
+    if !kit::held_row::<MovementRow>(world, movement::KEY, &inputs.movement)?.is_some_and(|row| row.positions.contains_key(&*walk.agent_id)) {
+        return refuse("the person has no position to put at the bed");
+    }
+    Ok(Some(Pt { x: *x, y: *y }))
 }
 
-/// The attribute of an outcome `decide` raised: the rule's checks failed and nothing was written.
-const UNWRITTEN: &str = "_sheltersim_travel_unwritten";
-
-/// Whether this error is a text of the rule's checks, raised before any change, rather than one
-/// raised after the walk's writes (from what the walk leads to).
-pub(crate) fn raised_before_writing(py: Python<'_>, error: &PyErr) -> bool {
-    error.value(py).hasattr(intern!(py, UNWRITTEN)).unwrap_or(false)
+/// `presence_relocation`'s reads and checks. `rows_fit` is its first two checks.
+fn relocation_fits(world: &World, inputs: &Inputs<'_>, walk: &Walk, rows_fit: bool) -> Result<bool> {
+    let lifecycle = inputs.lifecycle()?;
+    let relocation = {
+        let state = kit::held_row::<ValueRow>(world, LIFECYCLE, &lifecycle.lifecycle)?;
+        match state.as_deref().map(|row| &row.0) {
+            None => None,
+            Some(V::Map(state)) => match state.get("pending_relocations") {
+                None => None,
+                Some(V::Map(relocations)) => relocations.get(&*walk.agent_id).cloned(),
+                Some(_) => return refuse("the pending relocations are not a dict"),
+            },
+            Some(_) => return refuse("the lifecycle state is not a dict"),
+        }
+    };
+    let Some(V::Map(relocation)) = relocation.filter(|_| rows_fit) else {
+        return Ok(false);
+    };
+    let is = |key: &str, wanted: &str| matches!(relocation.get(key), Some(V::Str(found)) if &**found == wanted);
+    let origin_fits = match &walk.origin {
+        Origin::Zone(origin) => is("from_zone_id", origin),
+        Origin::Nothing => matches!(relocation.get("from_zone_id"), None | Some(V::Null)),
+        Origin::NotStr => return refuse("a relocation's origin is not a str"),
+    };
+    Ok(is("task_id", &walk.task_id) && is("event_id", &walk.event_id) && origin_fits && is("to_zone_id", &walk.destination))
 }
 
 /// What a walk that fits writes, decided before any change.
-struct Decided<'py> {
-    walk: Walk,
+pub struct Decision {
+    pub walk: Walk,
     activity: Activity,
-    bed: Option<Bound<'py, PyAny>>,
+    bed: Option<Pt>,
 }
 
-/// The rule's checks, in its order, before any change: None for a queue walk that fits (it
-/// writes nothing), what to write for another walk that fits, or the rule's text.
-fn decide<'py>(handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: EventRef<'_, 'py>) -> PyResult<Option<Decided<'py>>> {
-    let py = world.py();
-    let walk = Walk::read(event)?;
+/// The rule's checks, in its order, before any change: None for a queue walk that fits (it writes
+/// nothing), what to write for another walk that fits, or the rule's text.
+pub fn decide(world: &World, inputs: &Inputs<'_>, row: &EventRow) -> Result<Option<Decision>> {
+    let walk = Walk::read(row)?;
     let (agent_id, task_id, destination, purpose) = (&walk.agent_id, &walk.task_id, &walk.destination, &*walk.purpose);
     let facility_id = walk.facility_id.as_deref();
-
-    let store = entities_of(world)?;
-    // The checks before a purpose is looked at, which every walk passes.
-    // Which of the rule's two checks failed: 1, the task's; 2, the person's.
-    let failed = EntityStore::with_rows(&store, |rows| {
-        let Some(task) = rows.active_tasks.get(task_id) else {
-            return Ok(1);
-        };
-        if !matches!(
-            &*task.kind,
-            "travel_to_toilet" | "travel_to_resource" | "travel_return" | "staff_support_travel" | "toilet_queue" | "resource_service_queue"
-        ) {
-            return Ok(1);
+    // The checks every walk passes before its purpose: 1, the task's; 2, the person's.
+    let checked = {
+        let rows = world.rows()?;
+        match rows.active_tasks.get(task_id) {
+            Some(task) if matches!(&*task.kind, "travel_to_toilet" | "travel_to_resource" | "travel_return" | "staff_support_travel" | "toilet_queue" | "resource_service_queue") => {
+                match rows.agents.get(agent_id) {
+                    Some(agent) if task.agent_id.as_ref() == Some(agent_id) && agent.profile.id == *agent_id => 0,
+                    _ => 2,
+                }
+            }
+            _ => 1,
         }
-        let Some(agent) = rows.agents.get(agent_id) else {
-            return Ok(2);
-        };
-        if task.agent_id.as_ref() != Some(agent_id) || agent.profile.id != *agent_id {
-            return Ok(2);
-        }
-        Ok(0)
-    })?;
-    match failed {
-        1 => return errors::failed(py, "travel completion does not match an active task"),
-        2 => return errors::failed(py, "travel completion Agent does not match its active task"),
+    };
+    match checked {
+        1 => return failed("travel completion does not match an active task"),
+        2 => return failed("travel completion Agent does not match its active task"),
         _ => {}
     }
-    if matches!(purpose, "toilet_queue_position" | "resource_queue_position" | "toilet_queue_service" | "resource_queue_service") {
-        if !queue_walk_fits(world, event, &walk)? {
-            return errors::failed(py, "physical queue travel does not match its FIFO reservation");
+    if is_queue_walk(purpose) {
+        if !queue_walk_fits(world, inputs, row, &walk)? {
+            return failed("physical queue travel does not match its FIFO reservation");
         }
         return Ok(None);
     }
-
-    // `task.due_minute != event.due_minute`, then the person's activity: 1 and 2.
-    let failed = EntityStore::with_rows(&store, |rows| {
-        let task = rows.active_tasks.get(task_id).expect("read above");
-        let agent = rows.agents.get(agent_id).expect("read above");
-        Ok(if task.due_minute != walk.due_minute {
-            1
-        } else if agent.activity != Activity::Moving {
-            2
-        } else {
-            0
-        })
-    })?;
-    match failed {
-        1 => return errors::failed(py, "travel completion does not match an active due task"),
-        2 => return errors::failed(py, "travel completion Agent does not match its active task"),
-        _ => {}
+    let (task_kind, target) = {
+        let rows = world.rows()?;
+        let (Some(task), Some(agent)) = (rows.active_tasks.get(task_id), rows.agents.get(agent_id)) else {
+            return refuse("the task or the person left");
+        };
+        if task.due_minute != walk.due_minute {
+            return failed("travel completion does not match an active due task");
+        }
+        if agent.activity != Activity::Moving {
+            return failed("travel completion Agent does not match its active task");
+        }
+        (task.kind.clone(), agent.target_id.clone())
+    };
+    let zone_known = |zone: &str| -> Result<bool> {
+        let rows = world.entities.try_borrow()?;
+        if rows.zones_tainted().is_some() {
+            return refuse("the zones are tainted");
+        }
+        Ok(rows.zones.contains_key(zone))
+    };
+    if !zone_known(destination)? {
+        return failed(format!("destination zone {} does not exist", py_repr(destination)));
     }
-    let zones = attribute(world, intern!(py, "zones"))?;
-    if raw_dict_get(&zones, PyString::new(py, destination).as_any())?.is_none() {
-        return errors::failed(py, format!("destination zone {} does not exist", errors::repr_str(py, destination)?));
-    }
-
-    // The task's kind and the person's target, which each purpose's checks read.
-    let (task_kind, target) = EntityStore::with_rows(&store, |rows| {
-        let task = rows.active_tasks.get(task_id).expect("read above");
-        let agent = rows.agents.get(agent_id).expect("read above");
-        Ok((task.kind.clone(), agent.target_id.clone()))
-    })?;
     let at_target = |wanted: &str| target.as_deref() == Some(wanted);
     let returning = &*task_kind == "travel_return" && at_target(destination);
-    let facility_of = |id: &str| -> PyResult<Option<(Arc<str>, Arc<str>)>> {
-        EntityStore::with_rows(&store, |rows| Ok(rows.facilities.get(id).map(|found| (found.zone_id.clone(), found.kind.clone()))))
-    };
+    let facility_of = |id: &str| -> Result<Option<(Arc<str>, Arc<str>)>> { Ok(world.rows()?.facilities.get(id).map(|found| (found.zone_id.clone(), found.kind.clone()))) };
     let mut bed = None;
     match purpose {
         "toilet_request" => {
             let Some(facility) = facility_id.filter(|id| !id.is_empty()) else {
-                return errors::failed(py, "toilet travel completion requires a facility_id");
+                return failed("toilet travel completion requires a facility_id");
             };
             if !facility_of(facility)?.is_some_and(|(zone, _)| zone == *destination) {
-                return errors::failed(py, "toilet travel destination does not match its facility");
+                return failed("toilet travel destination does not match its facility");
             }
             if &*task_kind != "travel_to_toilet" || !at_target(facility) {
-                return errors::failed(py, "toilet travel completion does not match its target");
+                return failed("toilet travel completion does not match its target");
             }
         }
         "resource_request" => {
-            if attribute(handler, intern!(py, "resource_service"))?.is_none() {
-                return errors::failed(py, "resource travel is not enabled for this scenario");
+            if !inputs.resource_service {
+                return failed("resource travel is not enabled for this scenario");
             }
             let Some(facility) = facility_id.filter(|id| !id.is_empty()) else {
-                return errors::failed(py, "resource travel completion requires a facility_id");
+                return failed("resource travel completion requires a facility_id");
             };
-            // The origin a str and a zone, and the route a list or tuple from it to the destination.
+            // The origin a str and a zone, and the route a list from it to the destination.
             let route_fits = match &walk.origin {
-                Origin::Zone(origin) => {
-                    raw_dict_get(&zones, PyString::new(py, origin).as_any())?.is_some()
-                        && matches!(&walk.route_ends, Some((Some(first), Some(last))) if first == origin && last == destination)
-                }
+                Origin::Zone(origin) => zone_known(origin)? && matches!(&walk.route_ends, Some((Some(first), Some(last))) if first == origin && last == destination),
                 Origin::Nothing | Origin::NotStr => false,
             };
-            let fits = facility_of(facility)?.is_some_and(|(zone, kind)| zone == *destination && route_fits && is_resource_facility(&kind))
-                && &*task_kind == "travel_to_resource"
-                && at_target(facility);
+            let fits = facility_of(facility)?.is_some_and(|(zone, kind)| zone == *destination && route_fits && is_resource_facility(&kind)) && &*task_kind == "travel_to_resource" && at_target(facility);
             if !fits {
-                return errors::failed(py, "resource travel completion does not match its target facility");
+                return failed("resource travel completion does not match its target facility");
             }
         }
         "return" | "queue_abandon" => {
             if !returning {
-                return errors::failed(py, "return travel completion does not match its target");
+                return failed("return travel completion does not match its target");
             }
         }
         "staff_support_travel" => {
-            let (request_id, staff_id) = (event.text("request_id")?, event.text("staff_id")?);
-            let fits = EntityStore::with_rows(&store, |rows| {
-                let agent = rows.agents.get(agent_id).expect("read above");
+            let (request_id, staff_id) = (payload_text(row, "request_id"), payload_text(row, "staff_id"));
+            let fits = {
+                let rows = world.rows()?;
+                let agent = rows.agents.get(agent_id).ok_or_else(|| Error::unsupported("the person left"))?;
                 let request = request_id.as_ref().and_then(|id| rows.support_requests.get(id));
                 let staff = staff_id.as_ref().and_then(|id| rows.staff.get(id));
-                Ok(match (request, staff) {
+                match (request, staff) {
                     (Some(request), Some(staff)) => {
                         &*task_kind == "staff_support_travel"
                             && request.agent_id == *agent_id
@@ -725,147 +478,191 @@ fn decide<'py>(handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: Ev
                             && at_target(destination)
                     }
                     _ => false,
-                })
-            })?;
+                }
+            };
             if !fits {
-                return errors::failed(py, "staff support travel does not match its assigned request and staff member");
+                return failed("staff support travel does not match its assigned request and staff member");
             }
         }
-        "sleep_bed" => match sleep_bed_fits(world, &walk, returning)? {
+        "sleep_bed" => match sleep_bed_fits(world, inputs, &walk, returning)? {
             Some(point) => bed = Some(point),
-            None => return errors::failed(py, "sleep-bed travel does not match its live reservation"),
+            None => return failed("sleep-bed travel does not match its live reservation"),
         },
         "presence_relocation" => {
-            if !relocation_fits(world, &walk, returning)? {
-                return errors::failed(py, "presence relocation completion does not match its route");
+            if !relocation_fits(world, inputs, &walk, returning)? {
+                return failed("presence relocation completion does not match its route");
             }
         }
-        _ => return errors::failed(py, format!("unsupported travel purpose {}", errors::repr_str(py, purpose)?)),
+        _ => return failed(format!("unsupported travel purpose {}", py_repr(purpose))),
     }
     let activity = match purpose {
         "staff_support_travel" => Activity::SeekingHelp,
         "sleep_bed" => Activity::Sleeping,
         _ => Activity::Idle,
     };
-    Ok(Some(Decided { walk, activity, bed }))
+    Ok(Some(Decision { walk, activity, bed }))
 }
 
-/// `AgentTravelCompletionHandler.apply` of a walk. `object` gives the event's object, for Python.
-/// `direct` asks `_after_arrival`'s kernel with no Python between.
-pub(crate) fn apply_event<'py>(
-    handler: &Bound<'py, PyAny>,
-    world: &Bound<'py, PyAny>,
-    event: EventRef<'_, 'py>,
-    object: &dyn Fn() -> PyResult<Bound<'py, PyAny>>,
-    direct: bool,
-) -> PyResult<()> {
-    let py = world.py();
-    // The rule's checks, before anything is written: its texts, a refusal or a call's own error.
-    let decided = match decide(handler, world, event) {
-        Ok(Some(decided)) => decided,
-        Ok(None) => return Ok(()),
-        Err(error) => {
-            if errors::made_here(py, &error) {
-                error.value(py).setattr(intern!(py, UNWRITTEN), true)?;
-            }
-            return Err(error);
-        }
-    };
-    let Decided { walk, activity, bed } = decided;
-    let (agent_id, task_id, destination, purpose) = (&walk.agent_id, &walk.task_id, &walk.destination, &walk.purpose);
-    let facility_id = walk.facility_id.as_ref();
-    let store = entities_of(world)?;
-
-    if &**purpose == "presence_relocation" {
-        crate::rules::population_lifecycle::check_relocation_completes(world, &object()?, destination)?;
+/// The writes of a walk that fits: the bed's place, the person in the destination with no target,
+/// the task gone, and a relocation's completion.
+pub fn write(world: &World, inputs: &Inputs<'_>, row: &EventRow, decision: Decision) -> Result<()> {
+    let Decision { walk, activity, bed } = decision;
+    if let Some(point) = bed {
+        let mut movement = world.row_mut::<MovementRow>(movement::KEY)?;
+        kit::place_in_bed(&mut movement, &walk.agent_id, &walk.destination, point);
     }
-
-    // Everything is decided, and no Unsupported comes from here on.
-    // A detached namespace's row takes the bed's place; an attached one's tree, as before.
-    let bed = match bed {
-        Some(bed) if crate::rules::movement::place_at_bed(world, agent_id, destination, &bed)? => None,
-        bed => bed,
-    };
-    if let Some(bed) = bed {
-        let update = PyDict::new(py);
-        update.set_item("zone_id", &**destination)?;
-        update.set_item("point", bed)?;
-        update.set_item("edge_id", py.None())?;
-        update.set_item("progress", 1.0)?;
-        update.set_item("position_kind", "physical")?;
-        attribute(world, intern!(py, "model_state"))?
-            .get_item("movement_v1")?
-            .get_item("positions")?
-            .get_item(&**agent_id)?
-            .call_method1(intern!(py, "update"), (update,))?;
-    }
-    EntityStore::with_rows(&store, |rows| {
-        let agent = rows.agents.get_mut(agent_id).expect("read above");
-        agent.zone_id = destination.clone();
+    {
+        let mut rows = world.rows_mut()?;
+        let agent = rows.agents.get_mut(&walk.agent_id).ok_or_else(|| Error::Key(walk.agent_id.to_string()))?;
+        agent.zone_id = walk.destination.clone();
         agent.activity = activity;
         agent.target_id = None;
-        Ok(())
-    })?;
-    let tasks = attribute(world, intern!(py, "active_tasks"))?;
-    tasks.del_item(&**task_id)?;
-
-    if &**purpose == "presence_relocation" {
-        crate::rules::population::writing(crate::rules::population_lifecycle::complete_presence_relocation(world, &object()?))?;
-    }
-    if matches!(&**purpose, "toilet_request" | "resource_request") {
-        let facility = facility_id.map(|id| &**id).unwrap_or_default();
-        // A resource walk got here with its origin a str; a toilet walk's `_after_arrival` doesn't
-        // read it.
-        let origin = walk.origin.zone();
-        if direct {
-            match arrive(handler, world, agent_id, purpose, facility, destination, origin) {
-                Ok(()) => {
-                    ARRIVALS_RAN.fetch_add(1, Ordering::Relaxed);
-                    return Ok(());
-                }
-                Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                    ARRIVALS_REFUSED.fetch_add(1, Ordering::Relaxed);
-                    if let Ok(mut refusals) = ARRIVAL_REFUSALS.lock() {
-                        *refusals.entry(error.value(py).to_string()).or_insert(0) += 1;
-                    }
-                }
-                Err(error) => return Err(error),
-            }
+        if !rows.active_tasks.remove_row(&walk.task_id) {
+            return Err(Error::Key(walk.task_id.to_string()));
         }
-        handler
-            .call_method1(
-                intern!(py, "_after_arrival"),
-                (world, object()?, &**agent_id, &**purpose, facility, &**destination, origin),
-            )
-            .map_err(|error| {
-                if error.is_instance_of::<Unsupported>(py) {
-                    PyRuntimeError::new_err("a kernel said Unsupported after the walk was written")
-                } else {
-                    error
-                }
-            })?;
+    }
+    if &*walk.purpose == "presence_relocation" {
+        kit::writing(lifecycle::complete_relocation(world, inputs.lifecycle()?, row))?;
     }
     Ok(())
 }
 
-/// `AgentTravelCompletionHandler.apply`, called from Python.
-#[pyfunction]
-fn apply<'py>(handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>) -> PyResult<()> {
-    if EventRow::from_event(event)?.is_none() {
-        return unsupported("the event has no row");
+/// A walk's checks and writes (`apply` without `_after_arrival`): the walk written, or None for a
+/// queue walk that writes nothing. An error of the rule's checks (`decide`) is `Checks`; what a
+/// relocation's completion refuses before the writes, and any error of the writes, is `After`.
+pub fn apply(world: &World, inputs: &Inputs<'_>, row: &EventRow) -> std::result::Result<Option<Walk>, Applied> {
+    let decision = match decide(world, inputs, row) {
+        Ok(Some(decision)) => decision,
+        Ok(None) => return Ok(None),
+        Err(error) => return Err(Applied::Checks(error)),
+    };
+    let walk = decision.walk.clone();
+    if &*walk.purpose == "presence_relocation" {
+        let lifecycle = inputs.lifecycle().map_err(Applied::After)?;
+        lifecycle::check_relocation_completes(world, lifecycle, row, &walk.destination).map_err(Applied::After)?;
     }
-    apply_event(handler, world, EventRef::Object(event), &|| Ok(event.clone()), false)
+    write(world, inputs, row, decision).map_err(Applied::After)?;
+    Ok(Some(walk))
 }
 
-/// How often `direct` found its way: `(ran, refused, reasons)`.
-pub(crate) fn arrival_counts() -> (u64, u64, BTreeMap<String, u64>) {
-    let reasons = ARRIVAL_REFUSALS.lock().map(|refusals| refusals.clone()).unwrap_or_default();
-    (ARRIVALS_RAN.load(Ordering::Relaxed), ARRIVALS_REFUSED.load(Ordering::Relaxed), reasons)
+/// Why a walk stopped: in the rule's checks, before any write, or past them.
+#[derive(Debug)]
+pub enum Applied {
+    Checks(Error),
+    After(Error),
 }
 
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(apply, m)?)?;
-    m.add_function(wrap_pyfunction!(after_arrival, m)?)?;
-    m.add_function(wrap_pyfunction!(reject_room_approach, m)?)?;
-    Ok(())
+// ---- `_after_arrival` and `_reject_room_approach` ------------------------------------------------
+
+/// What a walk to a toilet or a resource does first, with a floor plan and a facility without
+/// independent queues: the walk in the room to the facility, or its rejection.
+pub enum Approach {
+    /// No walk in the room: the request follows.
+    Request,
+    /// No route, or none that ends within the Run.
+    Reject,
+    Travel(PlannedTrip),
+}
+
+/// The approach of `_after_arrival`. `has_geometry` is `"facility_geometry" in model_configs`;
+/// `reserved` the sequences the caller's writer reserved.
+#[allow(clippy::too_many_arguments)]
+pub fn arrival_approach(
+    world: &World,
+    walking: Walking<'_>,
+    section: &Kept<Movement>,
+    queues: &Held,
+    has_geometry: bool,
+    reserved: usize,
+    agent_id: &Arc<str>,
+    purpose: &str,
+    facility_id: &Arc<str>,
+    destination: &Arc<str>,
+) -> Result<Approach> {
+    let independent = facility_queues::queues(world, queues)?.is_some_and(|row| facility_queues::has_independent(&row, facility_id));
+    if !has_geometry || independent {
+        return Ok(Approach::Request);
+    }
+    let Some((route, points)) = travel::approach_route(world, Walking { movement: walking.movement, geo: walking.geo }, section, agent_id, facility_id)? else {
+        return Ok(Approach::Reject);
+    };
+    if route.minutes <= 0 {
+        return Ok(Approach::Request);
+    }
+    let events = Events::of(world)?;
+    events.reserve(reserved);
+    let minute = world.minute_index()?;
+    match travel::plan_room_approach(world, &events, walking, agent_id, facility_id, purpose, route, &points, minute, destination)? {
+        Some(trip) => Ok(Approach::Travel(trip)),
+        None => Ok(Approach::Reject),
+    }
+}
+
+/// The action of a resource request at a facility of this kind.
+fn action_of(kind: Option<&str>) -> &'static str {
+    if kind.and_then(service::resource_of) == Some("water_ml") {
+        "fetch_water"
+    } else {
+        "collect_meal"
+    }
+}
+
+/// `_reject_room_approach`: for a resource request with a resource service (`resource`), the
+/// request's outcome rejected ("room_route_blocked") from the origin zone when a str, else the
+/// person's zone, and counted; always counted as `facility_approach_rejected_count`.
+pub fn reject_room(world: &World, service: &Held, metric_state_held: bool, resource: bool, agent_id: &str, facility_id: &str, origin: Option<&Arc<str>>) -> Result<()> {
+    kit::check_metric_state(world, metric_state_held)?;
+    if resource {
+        let (kind, zone) = {
+            let rows = world.rows()?;
+            let Some(agent) = rows.agents.get(agent_id) else {
+                return refuse("no such person");
+            };
+            (rows.facilities.get(facility_id).map(|facility| facility.kind.clone()), agent.zone_id.clone())
+        };
+        let record = RequestRecord {
+            minute: world.minute_index()?,
+            agent_id: Arc::from(agent_id),
+            action: Arc::from(action_of(kind.as_deref())),
+            outcome: Arc::from("rejected"),
+            reason: Arc::from("room_route_blocked"),
+            facility_id: Some(Arc::from(facility_id)),
+            origin_zone_id: origin.cloned().unwrap_or(zone),
+            detail: None,
+        };
+        service::append_outcome(world, service, record)?;
+        kit::add_metric(world, "resource_service_request_rejected_count")?;
+    }
+    kit::add_metric(world, "facility_approach_rejected_count")
+}
+
+/// What a resource request turned down records: the arrival stands, and the outcome says why the
+/// person is not in the queue (`request_rejected`, the text as its detail), counted.
+pub fn rejected_request(world: &World, service: &Held, agent_id: &str, facility_id: &str, origin: &Arc<str>, minute: i64, text: &str) -> Result<()> {
+    let kind = world.rows()?.facilities.get(facility_id).map(|facility| facility.kind.clone());
+    let Some(kind) = kind else {
+        return refuse("no such facility");
+    };
+    let record = RequestRecord {
+        minute,
+        agent_id: Arc::from(agent_id),
+        action: Arc::from(action_of(Some(&kind))),
+        outcome: Arc::from("rejected"),
+        reason: Arc::from("request_rejected"),
+        facility_id: Some(Arc::from(facility_id)),
+        origin_zone_id: origin.clone(),
+        detail: Some(Arc::from(text)),
+    };
+    service::append_outcome(world, service, record)?;
+    kit::add_metric(world, "resource_service_request_rejected_count")
+}
+
+/// What the resource branch of `_after_arrival` checks before the request, which may write the
+/// task counter and then turn the person down: the service's row and the metric state.
+pub fn check_resource_request(world: &World, service: &Held, metric_state_held: bool) -> Result<()> {
+    if let Held::Other(reason) = service {
+        return Err(Error::unsupported(*reason));
+    }
+    world.row::<crate::state::resource_service::ServiceRow>(crate::state::resource_service::NAME)?;
+    kit::check_metric_state(world, metric_state_held)
 }

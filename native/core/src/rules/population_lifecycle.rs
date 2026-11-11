@@ -1,82 +1,354 @@
-//! `domain/population_lifecycle.py`: the same person leaving and coming back. See
-//! docs/rust-port/lanes/m6-population-rules.md and the head of `rules/population.rs`, whose two
-//! stages and whose way of writing these kernels share.
+//! `domain/population_lifecycle.py`: the same person leaving and coming back (lane c7 of Issue #152;
+//! the contracts are the docstrings of `domain/population_lifecycle.py`).
 //!
-//! `apply_population_presence_command` keeps its parsing of the command (the contract, a Python call)
-//! in a Python call, and changes the world in a transaction (`rules/transaction.rs`) that stands for
-//! its copy through canonical JSON: `apply_presence_action` is the part of it between those two. The saved texts of these rules are raised here, before anything is written, as in
-//! `rules/population.rs`.
+//! The rules are functions on the `World`. `population_lifecycle_v1`, `population_presence_v1` and
+//! `geometry_overlay_v1` are `ValueRow` namespaces, the others typed rows: a rule reads and writes
+//! their rows alone, and an attached tree follows the row when the PyO3 crate gives the world back
+//! (lane P8-0c). A person who leaves is archived as values: the agent's record, the records the
+//! typed namespaces held of them (`Tree::to_v`, the fields in the order of the tree) and the ties
+//! they had. A person who comes back is a new row of `agents` (`Table::insert`, at the end of the
+//! table, as the Python rule's `world.agents[id] = AgentState(...)` put them), and their records go
+//! back into the typed rows (`Tree::from_v`).
+//!
+//! Each rule plans, refusing with `Unsupported` before its first write what no valid input holds
+//! (a `KernelRefusal` in Python), and then writes. The texts (`EventSuppressed`,
+//! `EventApplicationError`, the validation's `ValueError`s) are saved data and are the Python
+//! rules', in their order of checks.
+//!
+//! What only Python has comes as an input, read by the PyO3 crate before the world is borrowed:
+//! whether `model_state` holds each namespace (`kit::Held`), the sections of the configs, the floor
+//! plan, the movement model of a relocation, and the records of the EventLog a command's program
+//! scheduled (the log's records are Python's to read). The command's contract
+//! (`PopulationPresenceCommand`) is parsed by the PyO3 crate, and the transaction that stands for
+//! the Python rule's copy is the PyO3 crate's (`RuleTxn`, lane 6-3), whose validation of the whole
+//! world goes through the host (`Host::validate_world`, `Host::validate_extensions`).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use pyo3::exceptions::{PyKeyError, PyRuntimeError, PyTypeError, PyValueError};
-use pyo3::intern;
-use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyString, PyTuple};
+use indexmap::IndexMap;
 
-use crate::core::configs;
-use crate::core::errors;
-use crate::core::row::{attribute, exact_dict, exact_int, exact_str, unsupported};
-use crate::core::world_core::{state_value, with_state_value};
-use crate::core::value::{V, VPy};
-use crate::rules::movement::{mobility_text, start_movement};
-use crate::rules::movement_geometry::{Geo, GeoPy, Pt};
+use crate::config::movement::{MovementModel, EXACT_INT};
+use crate::entities::{Activity, AgentRow, Mobility, NeedRow, TaskRow};
+use crate::error::{Error, Result};
+use crate::events::{EventKind, EventRow, EventStatus};
+use crate::geometry::{Geo, Pt};
+use crate::row::{same_names, IdMap, StrEnum, ValueRow};
+use crate::rules::kit::movement::KEY as MOVEMENT;
+use crate::rules::kit::{self, Events, Held};
 use crate::rules::population::{
-    schedule_population_retry, cancel_agent_events, check_admission_paths, check_information, check_queue_rows, check_relationship_keys, drop_support_requests, event_row,
-    filter_support_requests, get, get_map, has_namespace, identifier, is_dict, namespace, optional_identifier, optional_text, pair_of,
-    payload, person_in, place_in_room, planning, invalid, as_refusal, is_one, presence_value_is_plain, presence_state, nothing_in, profile_object, record_hash, release_room, reset_position,
-    sha_hex, sorted_keys, sorted_set, strings, text, v_map, write_presence, write_room_admission, writing, Person, Places, Transition, AGENT_DYNAMICS,
-    BODY, INFORMATION, MOVEMENT, PRESENCE, SOCIAL_NETWORK, SOCIAL_RUNTIME,
+    self, build_agent, cancels_of, check_admission_paths, check_information, check_queue_rows, check_relationship_keys, doc, equals_int, failed, field,
+    identifier, invalid, is_held, list_of, map_of, optional, optional_identifier, pairs_naming, person_in, plain, presence_is_plain, presence_state, refuse,
+    reset_position, sha_hex, sorted_set, strings, typed_of, v_str, value_of, write_presence, write_room_admission, zone_rows, Built, Doc, Person, Transition,
+    NO_ROW, PRESENCE,
 };
-use crate::rules::transaction::RuleTxn;
-use crate::rules::travel::{route_class, world_route};
-use crate::state::entities::{entities_of, insert_entity, Activity, EntityStore, Member, TaskRow};
-use crate::state::events::{EventKind, EventRow, EventWriter, QueueStore};
-use crate::Unsupported;
-use sheltersim_core::txn::TxnKind;
+use crate::rules::{agent_dynamics, movement, overlay, travel};
+use crate::state::agent_dynamics::{AgentDynamicsRow, AgentMemory, NAME as AGENT_DYNAMICS};
+use crate::state::body_state::{BodyRecord, BodyRow, Relationship as BodyTie, NAME as BODY};
+use crate::state::effect_program::{EffectProgramRow, NAME as EFFECT_PROGRAM};
+use crate::state::information::{BeliefRow, ContactRow, InformationRow, MessageRow, NAME as INFORMATION};
+use crate::state::movement::{Journey, MovementRow};
+use crate::state::social_network::{Relationship as SocialTie, SocialNetworkRow, NAME as SOCIAL_NETWORK};
+use crate::state::social_propagation::{ContactRecord, SocialRow, NAME as SOCIAL_RUNTIME};
+use crate::text::py_repr;
+use crate::value::V;
+use crate::world::World;
 
-const KEY: &str = "population_lifecycle_v1";
-const POLICY_VERSION: &str = "same-id-population-lifecycle-v1";
-const SOURCE_ID: &str = "ASM-POPULATION-LIFECYCLE-V1";
-const MAX_HISTORY: usize = 20_000;
-const MAX_RETAINED_PEOPLE: usize = 10_000;
-const MAX_RELATIONSHIP_ARCHIVE: usize = 200_000;
+pub const KEY: &str = "population_lifecycle_v1";
+pub const POLICY_VERSION: &str = "same-id-population-lifecycle-v1";
+pub const SOURCE_ID: &str = "ASM-POPULATION-LIFECYCLE-V1";
+pub const MAX_HISTORY: usize = 20_000;
+pub const MAX_RETAINED_PEOPLE: usize = 10_000;
+pub const MAX_RELATIONSHIP_ARCHIVE: usize = 200_000;
+const OVERLAY: &str = population::OVERLAY;
 
-fn deep_copy<'py>(value: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    value.py().import("copy")?.getattr("deepcopy")?.call1((value,))
+// ---- The records of the typed rows as their trees hold them ---------------------------------------
+
+/// A value of a field of a record, as the tree holds it and as the PyO3 crate's `PyField` takes it
+/// back: of the exact type, nothing else.
+trait Leaf: Sized {
+    fn leaf(&self) -> V;
+    fn from_leaf(value: &V) -> Option<Self>;
 }
 
-fn pop<'py>(map: &Bound<'py, PyAny>, key: &str) -> PyResult<Bound<'py, PyAny>> {
-    map.call_method1(intern!(map.py(), "pop"), (key,))
+impl Leaf for f64 {
+    fn leaf(&self) -> V {
+        V::Float(*self)
+    }
+
+    fn from_leaf(value: &V) -> Option<Self> {
+        match value {
+            V::Float(number) => Some(*number),
+            _ => None,
+        }
+    }
 }
 
-fn pop_or_none<'py>(map: &Bound<'py, PyAny>, key: &str) -> PyResult<Bound<'py, PyAny>> {
-    let py = map.py();
-    map.call_method1(intern!(py, "pop"), (key, py.None()))
+impl Leaf for i64 {
+    fn leaf(&self) -> V {
+        V::Int(*self)
+    }
+
+    fn from_leaf(value: &V) -> Option<Self> {
+        match value {
+            V::Int(number) => Some(*number),
+            _ => None,
+        }
+    }
 }
 
-fn append<'py>(list: &Bound<'py, PyAny>, value: Bound<'py, PyDict>) -> PyResult<()> {
-    list.call_method1(intern!(list.py(), "append"), (value,))?;
+impl Leaf for bool {
+    fn leaf(&self) -> V {
+        V::Bool(*self)
+    }
+
+    fn from_leaf(value: &V) -> Option<Self> {
+        match value {
+            V::Bool(flag) => Some(*flag),
+            _ => None,
+        }
+    }
+}
+
+impl Leaf for Arc<str> {
+    fn leaf(&self) -> V {
+        V::Str(self.clone())
+    }
+
+    fn from_leaf(value: &V) -> Option<Self> {
+        match value {
+            V::Str(text) => Some(text.clone()),
+            _ => None,
+        }
+    }
+}
+
+impl<T: Leaf> Leaf for Option<T> {
+    fn leaf(&self) -> V {
+        self.as_ref().map_or(V::Null, Leaf::leaf)
+    }
+
+    fn from_leaf(value: &V) -> Option<Self> {
+        match value {
+            V::Null => Some(None),
+            other => T::from_leaf(other).map(Some),
+        }
+    }
+}
+
+impl<T: Leaf> Leaf for Vec<T> {
+    fn leaf(&self) -> V {
+        V::List(self.iter().map(Leaf::leaf).collect())
+    }
+
+    fn from_leaf(value: &V) -> Option<Self> {
+        match value {
+            V::List(items) => items.iter().map(T::from_leaf).collect(),
+            _ => None,
+        }
+    }
+}
+
+/// A record of a typed row as its tree holds it: a dict of its fields, in the row's order.
+pub trait Tree: Sized {
+    fn to_v(&self) -> V;
+    /// The record of a tree's value, or Unsupported for a value the row would not take.
+    fn from_v(value: &V) -> Result<Self>;
+}
+
+macro_rules! tree {
+    ($name:ty { $($field:ident),* $(,)? }) => {
+        const _: () = assert!(same_names(<$name>::NAMES, &[$(stringify!($field)),*]), "tree! lists the fields in their order");
+
+        impl Tree for $name {
+            fn to_v(&self) -> V {
+                let mut map = IndexMap::with_capacity(<$name>::NAMES.len());
+                $( map.insert(Arc::from(stringify!($field)), Leaf::leaf(&self.$field)); )*
+                V::Map(map)
+            }
+
+            fn from_v(value: &V) -> Result<Self> {
+                let V::Map(map) = value else {
+                    return refuse("an archived record is not a dict");
+                };
+                if map.len() != <$name>::NAMES.len() {
+                    return refuse("an archived record has other fields than the row's");
+                }
+                Ok(Self {
+                    $(
+                        $field: map
+                            .get(stringify!($field))
+                            .and_then(Leaf::from_leaf)
+                            .ok_or_else(|| Error::unsupported("an archived record's field does not fit its row"))?,
+                    )*
+                })
+            }
+        }
+    };
+}
+
+tree!(BeliefRow {
+    message_id,
+    belief,
+    source,
+    last_contact,
+    last_event_id,
+    exposed,
+    belief_strength,
+    share_propensity,
+    correction_exposed,
+    correction_accepted,
+    ever_misbelieved,
+    ever_forgotten,
+    last_correction_accepted,
+});
+tree!(MessageRow { id, truth_status, source_id, zone_id, time, origin_event_id, origin_agent_id });
+tree!(ContactRow { last_seen_minute, consecutive_minutes });
+tree!(ContactRecord { last_seen_minute, consecutive_minutes });
+tree!(BodyRecord { sleep_debt_minutes, uncertainty, reassurance, discontent, positive_affect, negative_affect, hygiene_need });
+tree!(BodyTie { contact_count, trust, contact_minutes, last_contact_minute, last_interaction, topic_ids });
+tree!(SocialTie { contact_count, conversation_count, cooperation_count, trust, shared_message_ids, last_contact_minute, last_interaction });
+tree!(AgentMemory { known_facility_ids, last_action, last_target_id, last_decision_minute, decision_due_minute, decision_reason });
+
+/// A dict of records, as its tree holds it.
+fn records_v<T: Tree>(records: &IdMap<T>) -> V {
+    V::Map(records.iter().map(|(key, record)| (key.clone(), record.to_v())).collect())
+}
+
+fn records_from<T: Tree>(value: &V) -> Result<IdMap<T>> {
+    let mut records = IdMap::default();
+    for (key, record) in map_of(value)? {
+        records.insert(key.clone(), T::from_v(record)?);
+    }
+    Ok(records)
+}
+
+// ---- What the PyO3 crate reads for the rules -------------------------------------------------------
+
+/// What a relocation reads of the configs: whether passages have capacities
+/// (`max_agents_in_transit_by_edge`), and the movement model that times a route (None where the
+/// configs time no route). An error is the refusal reading it gave.
+pub struct Relocation {
+    pub transit_capacities: Result<bool>,
+    pub timing: Result<Option<MovementModel>>,
+}
+
+/// What the rules read beside the world's rows.
+pub struct Inputs<'a> {
+    /// The population rules' inputs: the namespaces, the overlay's schema, the agent dynamics'
+    /// policy and awareness, the floor plan.
+    pub population: &'a population::Inputs,
+    /// Whether `model_state` holds `population_lifecycle_v1`.
+    pub lifecycle: Held,
+    /// What a relocation reads, read for a relocate command alone.
+    pub relocation: Option<&'a Relocation>,
+}
+
+impl Inputs<'_> {
+    fn geo(&self) -> Result<&Geo> {
+        self.population.geo.as_deref().ok_or_else(|| Error::unsupported(population::PLAN_UNREAD))
+    }
+
+    fn places(&self) -> overlay::Places<'_> {
+        let inputs = self.population;
+        overlay::Places { spaces: &inputs.namespaces.spaces, overlay: &inputs.namespaces.overlay, schema: &inputs.schema }
+    }
+
+    fn intake(&self) -> overlay::Intake<'_> {
+        let inputs = self.population;
+        overlay::Intake { overlay: &inputs.namespaces.overlay, movement: &inputs.namespaces.movement, schema: &inputs.schema, geo: inputs.geo.as_deref() }
+    }
+}
+
+/// `model_state.get(KEY)` as the rules read it: the row, or None for no such key or a None.
+fn lifecycle_of<'w>(world: &'w World, inputs: &Inputs<'_>) -> Result<Option<crate::cell::ShardRef<'w, ValueRow>>> {
+    value_of(world, KEY, &inputs.lifecycle)
+}
+
+/// The lifecycle's row, to write: the plan found it.
+fn lifecycle_mut(world: &World) -> Result<crate::cell::ShardMut<'_, ValueRow>> {
+    world.row_mut::<ValueRow>(KEY)
+}
+
+fn part_mut<'a>(state: &'a mut V, name: &str) -> Result<&'a mut V> {
+    population::field_mut(state, name)
+}
+
+fn dict_mut(value: &mut V) -> Result<&mut Doc> {
+    population::map_mut(value)
+}
+
+fn list_mut(value: &mut V) -> Result<&mut Vec<V>> {
+    population::list_mut(value)
+}
+
+/// `value == text`, of a value of a document.
+fn is_text(value: Option<&V>, wanted: &str) -> bool {
+    matches!(value, Some(V::Str(found)) if &**found == wanted)
+}
+
+/// `str` of a value of a document that must be one.
+fn text(value: &V) -> Result<Arc<str>> {
+    population::text(value)
+}
+
+/// None, or the exact str.
+fn optional_text(value: &V) -> Result<Option<Arc<str>>> {
+    Ok(kit::optional_text(value)?.cloned())
+}
+
+/// What a plan read raised, as the plan says it: a refusal or a text of the rules stays itself,
+/// any other error is `the plan read: ...` (the PyO3 crate's `planning`).
+pub fn plan_read(error: Error) -> Error {
+    match error {
+        Error::Unsupported(_) | Error::Refused { .. } | Error::Outcome(..) | Error::MarkedValue(_) => error,
+        other => Error::unsupported(format!("the plan read: {other}")),
+    }
+}
+
+/// A namespace a rule writes must be the world's own.
+fn check_own(held: &Held) -> Result<()> {
+    match held {
+        Held::Other(reason) => Err(Error::unsupported(*reason)),
+        _ => Ok(()),
+    }
+}
+
+/// What the archive and the restore write: each namespace the world's own.
+fn check_writable(inputs: &Inputs<'_>) -> Result<()> {
+    let namespaces = &inputs.population.namespaces;
+    for held in [
+        &namespaces.information,
+        &namespaces.body,
+        &namespaces.agent_dynamics,
+        &namespaces.social_network,
+        &namespaces.social_runtime,
+        &namespaces.movement,
+        &namespaces.overlay,
+        &namespaces.presence,
+    ] {
+        check_own(held)?;
+    }
     Ok(())
 }
 
 // ---- `_set_presence`, `_history` -----------------------------------------------------------------
 
 /// What `_set_presence` reads of an event.
-struct EventIds {
-    event_id: Arc<str>,
-    causation_id: Option<Arc<str>>,
-    source_id: Arc<str>,
+#[derive(Clone)]
+pub struct EventIds {
+    pub event_id: Arc<str>,
+    pub causation_id: Option<Arc<str>>,
+    pub source_id: Arc<str>,
 }
 
 impl EventIds {
     /// The event of a command, checked as `PresenceTransition` will.
-    fn of(row: &EventRow) -> PyResult<Self> {
+    pub fn of(row: &EventRow) -> Result<Self> {
         identifier(&row.event_id)?;
         optional_identifier(row.causation_id.as_deref())?;
         let Some(source_id) = row.source_id.clone() else {
-            return unsupported("an event without a source");
+            return refuse("an event without a source");
         };
         identifier(&source_id)?;
         Ok(Self { event_id: row.event_id.clone(), causation_id: row.causation_id.clone(), source_id })
@@ -94,9 +366,17 @@ struct PresenceChange {
     action: Option<&'static str>,
 }
 
+/// Whether the world holds the presence ledger as a dict (`namespace(...).filter(is_dict)`).
+fn has_presence(world: &World, inputs: &Inputs<'_>) -> Result<bool> {
+    population::is_dict_namespace(world, PRESENCE, &inputs.population.namespaces.presence)
+}
+
 /// `_set_presence`. A plan has called `presence_state`, so the record there is a plain one.
-fn set_presence(presence: &Bound<'_, PyAny>, event: &EventIds, agent_id: &Arc<str>, status: &str, minute: i64, change: &PresenceChange) -> PyResult<()> {
-    let old = person_in(presence, agent_id)?;
+fn set_presence(world: &World, inputs: &Inputs<'_>, event: &EventIds, agent_id: &Arc<str>, status: &str, minute: i64, change: &PresenceChange) -> Result<()> {
+    let old = {
+        let raw = value_of(world, PRESENCE, &inputs.population.namespaces.presence)?.ok_or_else(|| Error::unsupported("the presence left"))?;
+        person_in(&raw.0, agent_id)?
+    };
     let current_household = change.household_id.clone().or_else(|| old.as_ref().and_then(|person| person.household_id.clone()));
     let retained = matches!(status, "temporarily_absent" | "transferred" | "awaiting_admission");
     let archive_path = retained.then(|| vec![Arc::from(KEY), Arc::from("people"), agent_id.clone()]);
@@ -123,13 +403,14 @@ fn set_presence(presence: &Bound<'_, PyAny>, event: &EventIds, agent_id: &Arc<st
         "awaiting_admission" => "waiting",
         _ => "admitted",
     });
+    // A NUL between the parts, as the Python rule wrote it.
     let digest = sha_hex(&format!("{}\0{agent_id}\0{action}", event.event_id));
     let mut sources = change.source_ids.clone();
     sources.push(event.source_id.clone());
     let transition = Transition {
         transition_id: format!("presence-{}", &digest[..24]),
-        event_id: &event.event_id,
-        agent_id,
+        event_id: event.event_id.clone(),
+        agent_id: agent_id.clone(),
         minute,
         action,
         from_zone_id: change.from_zone.clone(),
@@ -138,93 +419,64 @@ fn set_presence(presence: &Bound<'_, PyAny>, event: &EventIds, agent_id: &Arc<st
         to_household_id: current_household,
         causation_id: event.causation_id.clone(),
         source_ids: sorted_set(sources),
-        state_snapshot_hash: Some(record_hash(&person)?),
+        state_snapshot_hash: Some(person.hash()?),
     };
-    write_presence(presence, &person, &transition)
+    write_presence(world, &person, &transition)
 }
 
-fn append_history(state: &Bound<'_, PyAny>, row: Bound<'_, PyDict>) -> PyResult<()> {
-    let py = state.py();
-    let history = state.get_item("history")?;
-    append(&history, row)?;
-    let length = history.len()?;
-    if length > MAX_HISTORY {
-        history.del_item(pyo3::types::PySlice::new(py, 0, (length - MAX_HISTORY) as isize, 1))?;
+/// The append of `_history` and `admit_pending_returns`, kept to its last `MAX_HISTORY` rows.
+fn append_history(world: &World, row: V) -> Result<()> {
+    let mut state = lifecycle_mut(world)?;
+    let history = list_mut(part_mut(&mut state.0, "history")?)?;
+    history.push(row);
+    if history.len() > MAX_HISTORY {
+        let extra = history.len() - MAX_HISTORY;
+        history.drain(..extra);
     }
     Ok(())
 }
 
-/// `current_household_id`.
-fn household_of(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Option<Arc<str>>> {
-    let py = world.py();
-    // The presence state is read as a `V`, a detached one from its row. None: the profile's group.
-    let found = with_state_value(world, PRESENCE, |presence| {
-        let Some(V::Map(presence)) = presence else {
-            return Ok(None);
-        };
-        let people = match presence.get("people") {
-            None => return Ok(Some(None)),
-            Some(V::Map(people)) => people,
-            Some(_) => return unsupported("the presence's people are not a dict"),
-        };
-        match people.get(agent_id) {
-            // `.get(agent_id, {})`, a dict without a household.
-            None => Ok(Some(None)),
-            Some(V::Map(person)) => match person.get("household_id") {
-                None | Some(V::Null) => Ok(Some(None)),
-                Some(V::Str(household)) => Ok(Some(Some(household.clone()))),
-                Some(_) => unsupported("a household is not a str"),
-            },
-            Some(_) => Ok(None),
+/// `current_household_id`: with the presence ledger as a dict, the household of the person's
+/// record there (None for no record); otherwise the profile's group of an admitted person. Its own
+/// refusals, which are not those of `kit::household_of`.
+pub fn household_of(world: &World, presence: &Held, agent_id: &str) -> Result<Option<Arc<str>>> {
+    if let Some(raw) = value_of(world, PRESENCE, presence)? {
+        if let V::Map(state) = &raw.0 {
+            let people = match state.get("people") {
+                None => return Ok(None),
+                Some(V::Map(people)) => people,
+                Some(_) => return refuse("the presence's people are not a dict"),
+            };
+            match people.get(agent_id) {
+                // `.get(agent_id, {})`, a dict without a household.
+                None => return Ok(None),
+                Some(V::Map(person)) => {
+                    return match person.get("household_id") {
+                        None | Some(V::Null) => Ok(None),
+                        Some(V::Str(household)) => Ok(Some(household.clone())),
+                        Some(_) => refuse("a household is not a str"),
+                    };
+                }
+                // A record that is no dict: the profile's group.
+                Some(_) => {}
+            }
         }
-    })?;
-    if let Some(found) = found {
-        return Ok(found);
     }
-    let agent = get(&attribute(world, intern!(py, "agents"))?, agent_id)?;
-    if agent.is_none() {
-        return Ok(None);
-    }
-    optional_text(&attribute(&attribute(&agent, intern!(py, "profile"))?, intern!(py, "group_id"))?)
+    Ok(world.rows()?.agents.get(agent_id).and_then(|agent| agent.profile.group_id.clone()))
 }
 
-#[pyfunction]
-fn current_household_id(world: &Bound<'_, PyAny>, agent_id: &Bound<'_, PyAny>) -> PyResult<Option<String>> {
-    Ok(planning(household_of(world, exact_str(agent_id)?))?.map(|text| text.to_string()))
-}
-
-struct Command {
-    action: Arc<str>,
-    zone_id: Option<Arc<str>>,
-    household_id: Option<Arc<str>>,
-    expected_return: Option<i64>,
-    source_ids: Vec<Arc<str>>,
-    ids: Vec<Arc<str>>,
+/// A command as `PopulationPresenceCommand` validated it, with its `selected_ids`.
+#[derive(Clone, Debug)]
+pub struct Command {
+    pub action: Arc<str>,
+    pub zone_id: Option<Arc<str>>,
+    pub household_id: Option<Arc<str>>,
+    pub expected_return: Option<i64>,
+    pub source_ids: Vec<Arc<str>>,
+    pub ids: Vec<Arc<str>>,
 }
 
 impl Command {
-    /// What `PopulationPresenceCommand` validated, read back.
-    fn of(typed: &Bound<'_, PyAny>, ids: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let py = typed.py();
-        let mut source_ids = Vec::new();
-        for source in attribute(typed, intern!(py, "source_ids"))?.try_iter()? {
-            source_ids.push(text(&source?)?);
-        }
-        let expected = attribute(typed, intern!(py, "expected_return_minute"))?;
-        let mut people = Vec::new();
-        for id in ids.try_iter()? {
-            people.push(text(&id?)?);
-        }
-        Ok(Self {
-            action: text(&attribute(typed, intern!(py, "action"))?)?,
-            zone_id: optional_text(&attribute(typed, intern!(py, "zone_id"))?)?,
-            household_id: optional_text(&attribute(typed, intern!(py, "household_id"))?)?,
-            expected_return: if expected.is_none() { None } else { Some(exact_int(&expected)?) },
-            source_ids,
-            ids: people,
-        })
-    }
-
     fn sources_with(&self, event: &EventIds) -> Vec<Arc<str>> {
         let mut sources = self.source_ids.clone();
         sources.push(event.source_id.clone());
@@ -232,103 +484,70 @@ impl Command {
     }
 }
 
+/// A row of the lifecycle's history.
+#[allow(clippy::too_many_arguments)]
+fn history_row(event_id: &Arc<str>, agent_id: &str, action: &str, minute: i64, from_zone: Option<&Arc<str>>, to_zone: Option<&Arc<str>>, household: Option<Arc<str>>, sources: &[Arc<str>]) -> V {
+    V::Map(doc([
+        ("event_id", V::Str(event_id.clone())),
+        ("agent_id", v_str(agent_id)),
+        ("action", v_str(action)),
+        ("minute", V::Int(minute)),
+        ("from_zone_id", from_zone.map_or(V::Null, |zone| V::Str(zone.clone()))),
+        ("to_zone_id", to_zone.map_or(V::Null, |zone| V::Str(zone.clone()))),
+        ("household_id", optional(&household)),
+        ("source_ids", strings(sources)),
+    ]))
+}
+
 /// `_history`: the row, written, and its copy for the receipt.
 #[allow(clippy::too_many_arguments)]
-fn history<'py>(
-    world: &Bound<'py, PyAny>,
-    state: &Bound<'py, PyAny>,
-    event: &EventIds,
-    agent_id: &str,
-    action: &str,
-    minute: i64,
-    from_zone: Option<&Arc<str>>,
-    to_zone: Option<&Arc<str>>,
-    command: &Command,
-) -> PyResult<Bound<'py, PyDict>> {
-    let py = world.py();
+fn history(world: &World, inputs: &Inputs<'_>, event: &EventIds, agent_id: &str, action: &str, minute: i64, from_zone: Option<&Arc<str>>, to_zone: Option<&Arc<str>>, command: &Command) -> Result<V> {
     let household = match &command.household_id {
         Some(household) => Some(household.clone()),
-        None => household_of(world, agent_id)?,
+        None => household_of(world, &inputs.population.namespaces.presence, agent_id)?,
     };
-    let row = || -> PyResult<Bound<'py, PyDict>> {
-        let row = PyDict::new(py);
-        row.set_item("event_id", &*event.event_id)?;
-        row.set_item("agent_id", agent_id)?;
-        row.set_item("action", action)?;
-        row.set_item("minute", minute)?;
-        row.set_item("from_zone_id", from_zone.map(|zone| &**zone))?;
-        row.set_item("to_zone_id", to_zone.map(|zone| &**zone))?;
-        row.set_item("household_id", household.as_deref())?;
-        row.set_item("source_ids", strings(&command.sources_with(event)).to_py(py)?)?;
-        Ok(row)
-    };
-    append_history(state, row()?)?;
-    row()
+    let row = history_row(&event.event_id, agent_id, action, minute, from_zone, to_zone, household, &command.sources_with(event));
+    append_history(world, row.clone())?;
+    Ok(row)
 }
 
 // ---- `_archive_person` ---------------------------------------------------------------------------
 
-/// `_archive_relationship`.
-fn archive_relationship(state: &Bound<'_, PyAny>, namespace_name: &str, key: &str, pair: &[String; 2], value: &Bound<'_, PyAny>) -> PyResult<()> {
-    let py = state.py();
-    let archive = state.get_item("relationship_archive")?;
-    for item in archive.try_iter()? {
-        let item = item?;
-        if item.get_item("namespace")?.eq(namespace_name)? && item.get_item("pair_key")?.eq(key)? {
+/// `_archive_relationship`: the tie, unless the archive holds one of this namespace and key.
+fn archive_relationship(world: &World, namespace: &str, key: &Arc<str>, value: V) -> Result<()> {
+    let pair = population::pair_of(key)?;
+    let mut state = lifecycle_mut(world)?;
+    let archive = list_mut(part_mut(&mut state.0, "relationship_archive")?)?;
+    for item in archive.iter() {
+        let item = map_of(item)?;
+        if is_text(item.get("namespace"), namespace) && is_text(item.get("pair_key"), key) {
             return Ok(());
         }
     }
-    let record = PyDict::new(py);
-    record.set_item("namespace", namespace_name)?;
-    record.set_item("pair_key", key)?;
-    record.set_item("agent_ids", PyList::new(py, pair.iter().map(String::as_str))?)?;
-    record.set_item("value", deep_copy(value)?)?;
-    record.set_item("restore_when_both_active", true)?;
-    append(&archive, record)
-}
-
-fn archive_pairs(state: &Bound<'_, PyAny>, name: &str, map: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<()> {
-    for key in sorted_keys(map)? {
-        let pair = pair_of(&key)?;
-        if pair.iter().any(|part| part == agent_id) {
-            let value = pop(map, &key)?;
-            archive_relationship(state, name, &key, &pair, &value)?;
-        }
-    }
+    archive.push(V::Map(doc([
+        ("namespace", v_str(namespace)),
+        ("pair_key", V::Str(key.clone())),
+        ("agent_ids", V::List(pair.iter().map(|part| v_str(part)).collect())),
+        ("value", value),
+        ("restore_when_both_active", V::Bool(true)),
+    ])));
     Ok(())
 }
 
 /// `_agent_record`.
-fn agent_record<'py>(agent: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>> {
-    let py = agent.py();
-    let profile = attribute(agent, intern!(py, "profile"))?;
-    let needs_of = |object: &Bound<'py, PyAny>| -> PyResult<Bound<'py, PyDict>> {
-        let needs = PyDict::new(py);
-        for name in ["toilet_urgency", "hunger", "fatigue", "hydration_need"] {
-            needs.set_item(name, object.getattr(name)?)?;
-        }
-        Ok(needs)
-    };
-    let saved = PyDict::new(py);
-    for name in ["id", "group_id", "initial_zone_id"] {
-        saved.set_item(name, profile.getattr(name)?)?;
-    }
-    saved.set_item("mobility", profile.getattr("mobility")?.getattr("value")?)?;
-    for name in ["support_need", "stress_sensitivity", "rng_key"] {
-        saved.set_item(name, profile.getattr(name)?)?;
-    }
-    saved.set_item("initial_needs", needs_of(&profile.getattr("initial_needs")?)?)?;
-    saved.set_item("provenance", deep_copy(&profile.getattr("provenance")?)?)?;
-    let record = PyDict::new(py);
-    record.set_item("profile", saved)?;
-    record.set_item("zone_id", agent.getattr("zone_id")?)?;
-    record.set_item("activity", agent.getattr("activity")?.getattr("value")?)?;
-    record.set_item("target_id", agent.getattr("target_id")?)?;
-    record.set_item("needs", needs_of(&agent.getattr("needs")?)?)?;
-    for name in ["stress", "trust", "next_decision_at", "support_request_id", "support_cooldown_until"] {
-        record.set_item(name, agent.getattr(name)?)?;
-    }
-    Ok(record)
+fn agent_record(agent: &AgentRow) -> V {
+    V::Map(doc([
+        ("profile", population::profile_record(agent)),
+        ("zone_id", V::Str(agent.zone_id.clone())),
+        ("activity", v_str(agent.activity.text())),
+        ("target_id", optional(&agent.target_id)),
+        ("needs", population::needs_value(&agent.needs)),
+        ("stress", V::Float(agent.stress)),
+        ("trust", V::Float(agent.trust)),
+        ("next_decision_at", V::Int(agent.next_decision_at)),
+        ("support_request_id", optional(&agent.support_request_id)),
+        ("support_cooldown_until", V::Int(agent.support_cooldown_until)),
+    ]))
 }
 
 fn all_finite(value: &V) -> bool {
@@ -342,393 +561,776 @@ fn all_finite(value: &V) -> bool {
 
 /// `_validate_agent_snapshot` of the record `_agent_record` will make, and the other asks of
 /// `_archive_person`.
-fn check_archive(world: &Bound<'_, PyAny>, state: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<()> {
-    if state.get_item("people")?.contains(agent_id)? {
-        return errors::failed(world.py(), "person already has a retained lifecycle archive");
+fn check_archive(world: &World, inputs: &Inputs<'_>, state: &V, agent_id: &str) -> Result<()> {
+    if map_of(field(state, "people")?)?.contains_key(agent_id) {
+        return failed("person already has a retained lifecycle archive");
     }
-    EntityStore::with_rows(&entities_of(world)?, |rows| {
+    {
+        let rows = world.rows()?;
         let Some(agent) = rows.agents.get(agent_id) else {
-            return unsupported("no such person");
+            return refuse("no such person");
         };
         let unit = |value: f64| value.is_finite() && (0.0..=1.0).contains(&value);
         let profile = &agent.profile;
         let needs_fit = [agent.needs.toilet_urgency, agent.needs.hunger, agent.needs.fatigue, agent.needs.hydration_need].iter().all(|value| value.is_finite());
         if !unit(agent.stress) || !unit(agent.trust) || !unit(profile.support_need) || !unit(profile.stress_sensitivity) || !needs_fit || !all_finite(&profile.provenance) {
-            return unsupported("a person's values do not fit a snapshot");
+            return refuse("a person's values do not fit a snapshot");
         }
-        Ok(())
-    })?;
-    check_information(world)?;
-    check_relationship_keys(world)?;
+    }
+    check_writable(inputs)?;
+    check_information(world, inputs.population)?;
+    check_relationship_keys(world, inputs.population)?;
     check_queue_rows(world)
 }
 
-/// `_archive_person`.
-fn archive_person(world: &Bound<'_, PyAny>, agent_id: &str, row: &EventRow, state: &Bound<'_, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    let agents = attribute(world, intern!(py, "agents"))?;
-    let agent = agents.get_item(agent_id)?;
-    release_room(world, agent_id)?;
-    let information = PyDict::new(py);
-    information.set_item("beliefs", PyDict::new(py))?;
-    information.set_item("query_pressure", py.None())?;
-    if let Some(info) = namespace(world, INFORMATION)?.filter(is_dict) {
-        let beliefs = info.get_item("beliefs")?;
-        let popped = beliefs.call_method1(intern!(py, "pop"), (agent_id, PyDict::new(py)))?;
-        information.set_item("beliefs", deep_copy(&popped)?)?;
-        information.set_item("query_pressure", info.get_item("query_pressure")?.call_method1(intern!(py, "pop"), (agent_id, 0.0))?)?;
-        archive_pairs(state, INFORMATION, &info.get_item("contacts")?, agent_id)?;
-        let messages = info.get_item("messages")?;
-        for message_id in sorted_keys(&messages)? {
-            let message = messages.get_item(&*message_id)?;
-            if !get(&message, "origin_agent_id")?.eq(agent_id)? {
+/// `state["deferred_beliefs"].setdefault(agent_id, {})[message_id] = belief`.
+fn defer_belief(state: &mut V, agent_id: &Arc<str>, message_id: &Arc<str>, belief: V) -> Result<()> {
+    let deferred = dict_mut(part_mut(state, "deferred_beliefs")?)?;
+    let held = deferred.entry(agent_id.clone()).or_insert_with(|| V::Map(IndexMap::new()));
+    dict_mut(held)?.insert(message_id.clone(), belief);
+    Ok(())
+}
+
+/// What a person who leaves keeps of the information state: their beliefs and query pressure.
+struct Information {
+    beliefs: V,
+    query_pressure: V,
+}
+
+/// The information part of `_archive_person`, of a world that holds the namespace: the person's
+/// beliefs and pressure leave, their contacts are archived, and the claims they started are kept
+/// with everyone's beliefs in them, deferred.
+fn archive_information(world: &World, agent_id: &Arc<str>) -> Result<Information> {
+    let mut contacts = Vec::new();
+    let mut moved = Vec::new();
+    let information = {
+        let mut info = world.row_mut::<InformationRow>(INFORMATION)?;
+        let beliefs = info.beliefs.shift_remove(&**agent_id).unwrap_or_default();
+        let query_pressure = info.query_pressure.shift_remove(&**agent_id).unwrap_or(0.0);
+        for key in pairs_naming(info.contacts.iter(), agent_id)? {
+            let record = info.contacts.shift_remove(&*key).ok_or_else(|| Error::Key(key.to_string()))?;
+            contacts.push((key, record.to_v()));
+        }
+        let mut message_ids: Vec<Arc<str>> = info.messages.keys().cloned().collect();
+        message_ids.sort_unstable_by(|first, second| first.as_bytes().cmp(second.as_bytes()));
+        for message_id in message_ids {
+            if info.messages.get(&*message_id).is_none_or(|message| message.origin_agent_id != *agent_id) {
                 continue;
             }
-            let moved = pop(&messages, &message_id)?;
-            state.get_item("messages")?.set_item(&*message_id, moved)?;
-            let deferred = state.get_item("deferred_beliefs")?;
-            let defer = |other: &Bound<'_, PyAny>, belief: Bound<'_, PyAny>| -> PyResult<()> {
-                deferred.call_method1(intern!(py, "setdefault"), (other, PyDict::new(py)))?.set_item(&*message_id, belief)
-            };
-            for item in beliefs.call_method0(intern!(py, "items"))?.try_iter()? {
-                let (other, held): (Bound<'_, PyAny>, Bound<'_, PyAny>) = item?.extract()?;
-                let belief = pop_or_none(&held, &message_id)?;
-                if !belief.is_none() {
-                    defer(&other, belief)?;
+            let message = info.messages.shift_remove(&*message_id).ok_or_else(|| Error::Key(message_id.to_string()))?;
+            let mut deferred = Vec::new();
+            for (other, held) in info.beliefs.iter_mut() {
+                if let Some(belief) = held.shift_remove(&*message_id) {
+                    deferred.push((other.clone(), belief.to_v()));
                 }
             }
-            for item in state.get_item("people")?.call_method0(intern!(py, "items"))?.try_iter()? {
-                let (archived, archive): (Bound<'_, PyAny>, Bound<'_, PyAny>) = item?.extract()?;
-                let belief = pop_or_none(&archive.get_item("information")?.get_item("beliefs")?, &message_id)?;
-                if !belief.is_none() {
-                    defer(&archived, belief)?;
+            moved.push((message_id, message.to_v(), deferred));
+        }
+        info.support_requests.retain(|item| item.agent_id != *agent_id);
+        Information { beliefs: records_v(&beliefs), query_pressure: V::Float(query_pressure) }
+    };
+    for (key, value) in contacts {
+        archive_relationship(world, INFORMATION, &key, value)?;
+    }
+    let mut state = lifecycle_mut(world)?;
+    for (message_id, message, deferred) in moved {
+        dict_mut(part_mut(&mut state.0, "messages")?)?.insert(message_id.clone(), message);
+        for (other, belief) in deferred {
+            defer_belief(&mut state.0, &other, &message_id, belief)?;
+        }
+        // The beliefs of those archived before.
+        let mut found = Vec::new();
+        for (archived, archive) in dict_mut(part_mut(&mut state.0, "people")?)?.iter_mut() {
+            let beliefs = dict_mut(part_mut(part_mut(archive, "information")?, "beliefs")?)?;
+            if let Some(belief) = beliefs.shift_remove(&*message_id) {
+                if !matches!(belief, V::Null) {
+                    found.push((archived.clone(), belief));
                 }
             }
         }
-        filter_support_requests(&info, agent_id)?;
-    }
-    let mut withdrawn = HashSet::new();
-    for item in state.get_item("messages")?.call_method0(intern!(py, "items"))?.try_iter()? {
-        let (message_id, message): (Bound<'_, PyAny>, Bound<'_, PyAny>) = item?.extract()?;
-        if get(&message, "origin_agent_id")?.eq(agent_id)? {
-            withdrawn.insert(text(&message_id)?);
+        for (archived, belief) in found {
+            defer_belief(&mut state.0, &archived, &message_id, belief)?;
         }
     }
-    let mut body_agent = py.None().into_bound(py);
-    if let Some(body) = namespace(world, BODY)?.filter(is_dict) {
-        body_agent = deep_copy(&pop_or_none(&body.get_item("agents")?, agent_id)?)?;
-        archive_pairs(state, BODY, &body.get_item("relationships")?, agent_id)?;
+    Ok(information)
+}
+
+/// The ties of a map of pairs that name the person, taken out in key order, then archived.
+fn archive_ties<T: Tree>(world: &World, namespace: &str, ties: Vec<(Arc<str>, T)>) -> Result<()> {
+    for (key, tie) in ties {
+        archive_relationship(world, namespace, &key, tie.to_v())?;
     }
-    let mut dynamics_record = py.None().into_bound(py);
-    if let Some(dynamics) = namespace(world, AGENT_DYNAMICS)?.filter(is_dict) {
-        dynamics_record = pop_or_none(&dynamics.get_item("agents")?, agent_id)?;
+    Ok(())
+}
+
+/// `_archive_person`. Gives the serials of the queue's slots its cancellations took out.
+fn archive_person(world: &World, inputs: &Inputs<'_>, agent_id: &Arc<str>, row: &EventRow) -> Result<Vec<u64>> {
+    let namespaces = &inputs.population.namespaces;
+    let agent = world.rows()?.agents.get(agent_id).cloned().ok_or_else(|| Error::Key(agent_id.to_string()))?;
+    release_room(world, inputs, agent_id)?;
+    let mut information = Information { beliefs: V::Map(IndexMap::new()), query_pressure: V::Null };
+    if is_held(&namespaces.information) {
+        information = archive_information(world, agent_id)?;
     }
-    if let Some(social) = namespace(world, SOCIAL_NETWORK)?.filter(is_dict) {
-        archive_pairs(state, SOCIAL_NETWORK, &social.get_item("relationships")?, agent_id)?;
+    let withdrawn: HashSet<Arc<str>> = {
+        let state = lifecycle_mut(world)?;
+        map_of(field(&state.0, "messages")?)?
+            .iter()
+            .filter(|(_, message)| matches!(message, V::Map(message) if is_text(message.get("origin_agent_id"), agent_id)))
+            .map(|(message_id, _)| message_id.clone())
+            .collect()
+    };
+    let mut body_agent = V::Null;
+    if is_held(&namespaces.body) {
+        let ties = {
+            let mut body = world.row_mut::<BodyRow>(BODY)?;
+            if let Some(record) = body.agents.shift_remove(&**agent_id) {
+                body_agent = record.to_v();
+            }
+            let mut ties = Vec::new();
+            for key in pairs_naming(body.relationships.map.iter(), agent_id)? {
+                let tie = body.relationships.map.shift_remove(&*key).ok_or_else(|| Error::Key(key.to_string()))?;
+                ties.push((key, tie));
+            }
+            ties
+        };
+        archive_ties(world, BODY, ties)?;
     }
-    if let Some(runtime) = namespace(world, SOCIAL_RUNTIME)?.filter(is_dict) {
-        let contacts = get_map(&runtime, "contacts")?;
-        archive_pairs(state, SOCIAL_RUNTIME, &contacts, agent_id)?;
-        pop_or_none(&get_map(&runtime, "agent_cooldown_until")?, agent_id)?;
+    let mut dynamics_record = V::Null;
+    if is_held(&namespaces.agent_dynamics) {
+        if let Some(record) = world.row_mut::<AgentDynamicsRow>(AGENT_DYNAMICS)?.agents.shift_remove(&**agent_id) {
+            dynamics_record = record.to_v();
+        }
     }
-    let snapshot = PyDict::new(py);
-    snapshot.set_item("agent", agent_record(&agent)?)?;
-    snapshot.set_item("agent_dynamics", dynamics_record)?;
-    snapshot.set_item("body_agent", body_agent)?;
-    snapshot.set_item("information", information)?;
-    snapshot.set_item("since_minute", row.due_minute)?;
+    if is_held(&namespaces.social_network) {
+        let ties = {
+            let mut network = world.row_mut::<SocialNetworkRow>(SOCIAL_NETWORK)?;
+            let mut ties = Vec::new();
+            for key in pairs_naming(network.relationships.map.iter(), agent_id)? {
+                let tie = network.relationships.map.shift_remove(&*key).ok_or_else(|| Error::Key(key.to_string()))?;
+                ties.push((key, tie));
+            }
+            ties
+        };
+        archive_ties(world, SOCIAL_NETWORK, ties)?;
+    }
+    if is_held(&namespaces.social_runtime) {
+        let contacts = {
+            let mut runtime = world.row_mut::<SocialRow>(SOCIAL_RUNTIME)?;
+            let mut contacts = Vec::new();
+            for key in pairs_naming(runtime.contacts.iter(), agent_id)? {
+                let contact = runtime.contacts.shift_remove(&*key).ok_or_else(|| Error::Key(key.to_string()))?;
+                contacts.push((key, contact));
+            }
+            runtime.agent_cooldown_until.shift_remove(&**agent_id);
+            contacts
+        };
+        archive_ties(world, SOCIAL_RUNTIME, contacts)?;
+    }
     let mut events = vec![row.event_id.clone()];
     events.extend(row.causation_id.iter().filter(|id| !id.is_empty()).cloned());
-    snapshot.set_item("source_event_ids", strings(&sorted_set(events)).to_py(py)?)?;
-    state.get_item("people")?.set_item(agent_id, snapshot)?;
-    cancel_agent_events(world, agent_id, &withdrawn)?;
-    drop_support_requests(world, agent_id)?;
-    if let Some(movement) = namespace(world, MOVEMENT)? {
-        pop_or_none(&movement.get_item("journeys")?, agent_id)?;
-        pop_or_none(&movement.get_item("positions")?, agent_id)?;
+    let snapshot = V::Map(doc([
+        ("agent", agent_record(&agent)),
+        ("agent_dynamics", dynamics_record),
+        ("body_agent", body_agent),
+        ("information", V::Map(doc([("beliefs", information.beliefs), ("query_pressure", information.query_pressure)]))),
+        ("since_minute", V::Int(row.due_minute)),
+        ("source_event_ids", strings(&sorted_set(events))),
+    ]));
+    {
+        let mut state = lifecycle_mut(world)?;
+        dict_mut(part_mut(&mut state.0, "people")?)?.insert(agent_id.clone(), snapshot);
     }
-    pop(&agents, agent_id)?;
+    let serials = cancel_agent_events(world, agent_id, &withdrawn)?;
+    {
+        let mut rows = world.rows_mut()?;
+        let requests: Vec<Arc<str>> = rows.support_requests.iter().filter(|(_, request)| request.agent_id == *agent_id).map(|(id, _)| id.clone()).collect();
+        for id in requests {
+            rows.support_requests.remove_row(&id);
+        }
+    }
+    if is_held(&namespaces.movement) {
+        let mut movement = world.row_mut::<MovementRow>(MOVEMENT)?;
+        movement.journeys.shift_remove(&**agent_id);
+        movement.positions.shift_remove(&**agent_id);
+    }
+    world.rows_mut()?.agents.remove_row(agent_id);
+    Ok(serials)
+}
+
+/// `_cancel_agent_events`: the person's pending events, then the claims of theirs withdrawn,
+/// settled as SUPPRESSED on the world's queue and log. Gives the serials of the slots taken out.
+fn cancel_agent_events(world: &World, agent_id: &str, withdrawn: &HashSet<Arc<str>>) -> Result<Vec<u64>> {
+    let pending: Vec<Arc<EventRow>> = {
+        let queue = world.queue()?;
+        queue.ordered().iter().filter_map(|(_, serial)| queue.slot(*serial).row.clone()).collect()
+    };
+    let mut found = Vec::new();
+    cancels_of(&pending, &mut HashSet::new(), agent_id, withdrawn, &mut found);
+    let mut serials = Vec::new();
+    if !found.is_empty() {
+        let events = Events::of(world)?;
+        let minute = world.minute_index()?;
+        for (event, detail) in &found {
+            let settled = events.settle(event, minute, EventStatus::Suppressed, Some(detail)).map_err(plain)?;
+            serials.extend(settled.taken);
+        }
+    }
+    Ok(serials)
+}
+
+/// `release_sleep_bed` and `release_temporary_room_admission`, of an overlay that is a dict: each
+/// of the two parts that is a dict lets the person go.
+fn release_room(world: &World, inputs: &Inputs<'_>, agent_id: &str) -> Result<()> {
+    let held = &inputs.population.namespaces.overlay;
+    let parts: Vec<&str> = {
+        let Some(state) = value_of(world, OVERLAY, held)? else {
+            return Ok(());
+        };
+        let V::Map(state) = &state.0 else {
+            return Ok(());
+        };
+        ["bed_reservations", "room_admissions"]
+            .into_iter()
+            .filter(|name| matches!(state.get(*name), Some(V::Map(part)) if part.contains_key(agent_id)))
+            .collect()
+    };
+    if parts.is_empty() {
+        return Ok(());
+    }
+    let mut row = world.row_mut::<ValueRow>(OVERLAY)?;
+    for name in parts {
+        dict_mut(part_mut(&mut row.0, name)?)?.shift_remove(agent_id);
+    }
     Ok(())
 }
 
 // ---- `_restore_person` ---------------------------------------------------------------------------
 
-/// What `_restore_person` asks that the Python rule alone answers.
-fn check_restore(world: &Bound<'_, PyAny>, state: &Bound<'_, PyAny>, agent_id: &str, zone: &str) -> PyResult<()> {
-    let snapshot = get(&state.get_item("people")?, agent_id)?;
-    if !is_dict(&snapshot) {
-        return unsupported("the retained person is missing");
+/// The keys `NeedState(**needs)` takes.
+const NEED_NAMES: [&str; 4] = ["toilet_urgency", "hunger", "fatigue", "hydration_need"];
+
+/// `AgentState(profile=..., zone_id=zone, needs=NeedState(**needs), stress=..., trust=...,
+/// next_decision_at=minute, support_cooldown_until=...)` of an archived agent, as `_restore_person`
+/// makes it (`schema_version` is the world's: v5 has no hydration, which is then 0.0): the row, or
+/// the `ValueError` the constructors raise in their order (`Mobility`, `InitialNeedProfile`, then
+/// `AgentState`'s stress, trust, `next_decision_at` and `support_cooldown_until`). Unsupported where
+/// they raise another error or make an object no row holds.
+pub fn restored_agent(raw: &V, zone_id: &Arc<str>, minute: i64, schema_version: i64) -> Result<Built> {
+    // The profile's constructors; the minute is checked after the person's values.
+    let mut agent = match build_agent(field(raw, "profile")?, zone_id, minute.max(0), schema_version)? {
+        Built::Row(agent) => agent,
+        raises @ Built::Raises(_) => return Ok(raises),
+    };
+    // `NeedState(**needs)`, with v5's hydration: the levels are not checked, but each is a float.
+    let mut needs: Doc = map_of(field(raw, "needs")?)?.clone();
+    if schema_version == 5 {
+        needs.insert(Arc::from("hydration_need"), V::Float(0.0));
     }
-    // `_initial_dynamics` of a person saved without their record.
-    if has_namespace(world, AGENT_DYNAMICS)? && snapshot.get_item("agent_dynamics")?.is_none() {
-        crate::rules::agent_dynamics::check_add_agent(world)?;
+    if needs.keys().any(|key| !NEED_NAMES.contains(&&**key)) {
+        return refuse("archived needs have another key");
     }
-    check_admission_paths(world, &[zone])
+    let mut levels = [0.0; 4];
+    for (place, name) in NEED_NAMES.iter().enumerate() {
+        match needs.get(*name) {
+            None => {}
+            Some(V::Float(value)) => levels[place] = *value,
+            Some(_) => return refuse("an archived need is not a float"),
+        }
+    }
+    // `validate_unit_interval` of stress and trust.
+    let unit = |name: &str, value: &V| -> Result<std::result::Result<f64, Error>> {
+        match value {
+            V::Float(number) if number.is_finite() && (0.0..=1.0).contains(number) => Ok(Ok(*number)),
+            V::Int(0 | 1) => refuse("an archived value is an int"),
+            V::Int(_) | V::Float(_) | V::Big(_) => Ok(Err(Error::Value(format!("{name} must be finite and between 0 and 1")))),
+            _ => refuse("an archived value is not a number"),
+        }
+    };
+    let stress = match unit("stress", field(raw, "stress")?)? {
+        Ok(stress) => stress,
+        Err(error) => return Ok(Built::Raises(error)),
+    };
+    let trust = match unit("trust", field(raw, "trust")?)? {
+        Ok(trust) => trust,
+        Err(error) => return Ok(Built::Raises(error)),
+    };
+    if minute < 0 {
+        return Ok(Built::Raises(Error::Value("next_decision_at must be a non-negative integer".to_owned())));
+    }
+    let cooldown = match field(raw, "support_cooldown_until")? {
+        V::Int(cooldown) if *cooldown >= 0 => *cooldown,
+        V::Int(_) | V::Big(_) | V::Float(_) | V::Bool(_) => return Ok(Built::Raises(Error::Value("support_cooldown_until must be a non-negative integer".to_owned()))),
+        _ => return refuse("an archived cooldown is not a number"),
+    };
+    agent.needs = NeedRow { toilet_urgency: levels[0], hunger: levels[1], fatigue: levels[2], hydration_need: levels[3] };
+    agent.stress = stress;
+    agent.trust = trust;
+    agent.next_decision_at = minute;
+    agent.support_cooldown_until = cooldown;
+    Ok(Built::Row(agent))
 }
 
-/// `_restore_person`.
-#[allow(clippy::too_many_arguments)]
-fn restore_person(world: &Bound<'_, PyAny>, agent_id: &str, zone_id: &str, minute: i64, state: &Bound<'_, PyAny>, room: Option<&(Arc<str>, Pt)>, event_id: &str) -> PyResult<()> {
-    let py = world.py();
-    let snapshot = state.get_item("people")?.get_item(agent_id)?;
-    let raw = snapshot.get_item("agent")?;
-    let (profile, _) = profile_object(world, &raw.get_item("profile")?)?;
-    let models = py.import("sheltersim.domain.models")?;
-    let needs = PyDict::new(py);
-    needs.call_method1(intern!(py, "update"), (raw.get_item("needs")?,))?;
-    if exact_int(&attribute(world, intern!(py, "schema_version"))?)? == 5 {
-        needs.set_item("hydration_need", 0.0)?;
+/// What `_restore_person` asks that only the plan answers: the archive, the paths it writes
+/// through, and that each archived value fits the row it goes back to.
+fn check_restore(world: &World, inputs: &Inputs<'_>, state: &V, agent_id: &str, zone: &Arc<str>) -> Result<()> {
+    let Some(snapshot @ V::Map(_)) = map_of(field(state, "people")?)?.get(agent_id) else {
+        return refuse("the retained person is missing");
+    };
+    let namespaces = &inputs.population.namespaces;
+    // `_initial_dynamics` of a person saved without their record.
+    if is_held(&namespaces.agent_dynamics) && matches!(field(snapshot, "agent_dynamics")?, V::Null) {
+        agent_dynamics::check_add_agent(world, &inputs.population.policy, &inputs.population.awareness)?;
     }
-    let options = PyDict::new(py);
-    options.set_item("profile", profile)?;
-    options.set_item("zone_id", zone_id)?;
-    options.set_item("activity", models.getattr("Activity")?.getattr("IDLE")?)?;
-    options.set_item("target_id", py.None())?;
-    options.set_item("needs", models.getattr("NeedState")?.call((), Some(&needs))?)?;
-    options.set_item("stress", raw.get_item("stress")?)?;
-    options.set_item("trust", raw.get_item("trust")?)?;
-    options.set_item("next_decision_at", minute)?;
-    options.set_item("support_request_id", py.None())?;
-    options.set_item("support_cooldown_until", raw.get_item("support_cooldown_until")?)?;
-    let agent = models.getattr("AgentState")?.call((), Some(&options))?;
-    attribute(world, intern!(py, "agents"))?.set_item(agent_id, agent)?;
-    if let Some(dynamics) = namespace(world, AGENT_DYNAMICS)? {
-        let agents = dynamics.get_item("agents")?;
-        let saved = snapshot.get_item("agent_dynamics")?;
+    check_admission_paths(world, inputs.population, &[zone])?;
+    check_writable(inputs)?;
+    // What the writes put back into the rows.
+    restored_agent(field(snapshot, "agent")?, zone, 0, world.schema_version()?)?;
+    if is_held(&namespaces.agent_dynamics) {
+        world.row::<AgentDynamicsRow>(AGENT_DYNAMICS)?;
+        let saved = field(snapshot, "agent_dynamics")?;
+        if !matches!(saved, V::Null) {
+            AgentMemory::from_v(saved)?;
+        }
+    }
+    if is_held(&namespaces.body) {
+        world.row::<BodyRow>(BODY)?;
+        let saved = field(snapshot, "body_agent")?;
+        if !matches!(saved, V::Null) {
+            BodyRecord::from_v(saved)?;
+        }
+    }
+    if is_held(&namespaces.information) {
+        world.row::<InformationRow>(INFORMATION)?;
+        let saved = field(snapshot, "information")?;
+        records_from::<BeliefRow>(field(saved, "beliefs")?)?;
+        match field(saved, "query_pressure")? {
+            pressure if !pressure.is_truthy() => {}
+            V::Float(_) => {}
+            _ => return refuse("an archived query pressure is not a float"),
+        }
+        for message in map_of(field(state, "messages")?)?.values() {
+            MessageRow::from_v(message)?;
+        }
+        for beliefs in map_of(field(state, "deferred_beliefs")?)?.values() {
+            records_from::<BeliefRow>(beliefs)?;
+        }
+    }
+    if is_held(&namespaces.movement) {
+        world.row::<MovementRow>(MOVEMENT)?;
+    }
+    check_archive_ties(inputs, state)
+}
+
+/// Each archived tie fits the row it would go back to, and names two people a dict can look up.
+fn check_archive_ties(inputs: &Inputs<'_>, state: &V) -> Result<()> {
+    let namespaces = &inputs.population.namespaces;
+    for item in list_of(field(state, "relationship_archive")?)? {
+        for id in list_of(field(item, "agent_ids")?)? {
+            if matches!(id, V::List(_) | V::Map(_)) {
+                return refuse("an archived pair holds what a dict can't look up");
+            }
+        }
+        let value = field(item, "value")?;
+        match field(item, "namespace")? {
+            V::Str(name) if &**name == SOCIAL_NETWORK && is_held(&namespaces.social_network) => drop(SocialTie::from_v(value)?),
+            V::Str(name) if &**name == BODY && is_held(&namespaces.body) => drop(BodyTie::from_v(value)?),
+            V::Str(name) if &**name == INFORMATION && is_held(&namespaces.information) => drop(ContactRow::from_v(value)?),
+            V::Str(name) if &**name == SOCIAL_RUNTIME && is_held(&namespaces.social_runtime) => drop(ContactRecord::from_v(value)?),
+            V::Str(_) => {}
+            _ => return refuse("an archived namespace is not a str"),
+        }
+        text(field(item, "pair_key")?)?;
+    }
+    Ok(())
+}
+
+/// `_restore_person`. The plan checked what it reads (`check_restore`).
+fn restore_person(world: &World, inputs: &Inputs<'_>, agent_id: &Arc<str>, zone_id: &Arc<str>, minute: i64, room: Option<&(Arc<str>, Pt)>, event_id: &str) -> Result<()> {
+    let namespaces = &inputs.population.namespaces;
+    let snapshot = {
+        let state = lifecycle_mut(world)?;
+        field(field(&state.0, "people")?, agent_id)?.clone()
+    };
+    let agent = match restored_agent(field(&snapshot, "agent")?, zone_id, minute, world.schema_version()?)? {
+        Built::Row(agent) => agent,
+        Built::Raises(error) => return Err(error),
+    };
+    // At the end of the table, as the Python dict put the person back.
+    world.rows_mut()?.agents.insert(agent_id.clone(), *agent);
+    if is_held(&namespaces.agent_dynamics) {
+        let saved = field(&snapshot, "agent_dynamics")?;
         // `_initial_dynamics`, of the person just added, for one saved without their record.
-        let record = if saved.is_none() {
-            crate::rules::agent_dynamics::create_state(world)?.get_item("agents")?.get_item(agent_id)?
+        let mut record = if matches!(saved, V::Null) {
+            let policy = *kit::kept(&inputs.population.policy)?;
+            let awareness = kit::kept(&inputs.population.awareness)?.as_ref();
+            let state = agent_dynamics::create_state(world, policy, awareness)?;
+            state.agents.get(&**agent_id).cloned().ok_or_else(|| Error::Key(agent_id.to_string()))?
         } else {
-            deep_copy(&saved)?
+            AgentMemory::from_v(saved)?
         };
-        agents.set_item(agent_id, record)?;
-        agents.get_item(agent_id)?.set_item("decision_due_minute", minute)?;
+        record.decision_due_minute = minute;
+        world.row_mut::<AgentDynamicsRow>(AGENT_DYNAMICS)?.agents.insert(agent_id.clone(), record);
     }
-    if let Some(body) = namespace(world, BODY)? {
-        let record = snapshot.get_item("body_agent")?;
-        if !record.is_none() {
-            body.get_item("agents")?.set_item(agent_id, deep_copy(&record)?)?;
-        }
-    }
-    if let Some(info) = namespace(world, INFORMATION)? {
-        let deferred_all = state.get_item("deferred_beliefs")?;
-        let deferred = deferred_all.call_method1(intern!(py, "setdefault"), (agent_id, PyDict::new(py)))?;
-        let messages = info.get_item("messages")?;
-        let saved = snapshot.get_item("information")?;
-        let beliefs = saved.get_item("beliefs")?;
-        let restored = PyDict::new(py);
-        for item in beliefs.call_method0(intern!(py, "items"))?.try_iter()? {
-            let (message_id, belief): (Bound<'_, PyAny>, Bound<'_, PyAny>) = item?.extract()?;
-            if messages.contains(&message_id)? {
-                restored.set_item(message_id, deep_copy(&belief)?)?;
-            }
-        }
-        info.get_item("beliefs")?.set_item(agent_id, restored)?;
-        for item in beliefs.call_method0(intern!(py, "items"))?.try_iter()? {
-            let (message_id, belief): (Bound<'_, PyAny>, Bound<'_, PyAny>) = item?.extract()?;
-            if !messages.contains(&message_id)? {
-                deferred.set_item(message_id, deep_copy(&belief)?)?;
-            }
-        }
-        if !deferred.is_truthy()? {
-            pop_or_none(&deferred_all, agent_id)?;
-        }
-        let pressure = saved.get_item("query_pressure")?;
-        info.get_item("query_pressure")?.set_item(agent_id, if pressure.is_truthy()? { pressure } else { 0.0f64.into_pyobject(py)?.into_any() })?;
-        let retained = state.get_item("messages")?;
-        let mut moving = Vec::new();
-        for item in retained.call_method0(intern!(py, "items"))?.try_iter()? {
-            let (message_id, message): (Bound<'_, PyAny>, Bound<'_, PyAny>) = item?.extract()?;
-            if get(&message, "origin_agent_id")?.eq(agent_id)? {
-                moving.push(text(&message_id)?);
-            }
-        }
-        for message_id in moving {
-            messages.set_item(&*message_id, pop(&retained, &message_id)?)?;
+    if is_held(&namespaces.body) {
+        let saved = field(&snapshot, "body_agent")?;
+        if !matches!(saved, V::Null) {
+            let record = BodyRecord::from_v(saved)?;
+            world.row_mut::<BodyRow>(BODY)?.agents.insert(agent_id.clone(), record);
         }
     }
-    if let Some(movement) = namespace(world, MOVEMENT)?.filter(is_dict) {
-        pop_or_none(&movement.get_item("journeys")?, agent_id)?;
-        reset_position(world, &movement, agent_id, zone_id)?;
+    if is_held(&namespaces.information) {
+        restore_information(world, agent_id, field(&snapshot, "information")?)?;
+    }
+    if is_held(&namespaces.movement) {
+        world.row_mut::<MovementRow>(MOVEMENT)?.journeys.shift_remove(&**agent_id);
+        reset_position(world, inputs.geo()?, agent_id, zone_id)?;
     }
     if let Some((room_id, point)) = room {
-        write_room_admission(world, agent_id, room_id, minute, event_id)?;
-        if let Some(movement) = namespace(world, MOVEMENT)?.filter(is_dict) {
-            let position = get(&get_map(&movement, "positions")?, agent_id)?;
-            if is_dict(&position) {
-                place_in_room(&position, zone_id, *point)?;
-            }
+        write_room_admission(world, &namespaces.overlay, agent_id, room_id, minute, event_id)?;
+        if is_held(&namespaces.movement) {
+            let mut row = world.row_mut::<MovementRow>(MOVEMENT)?;
+            kit::place_in_bed(&mut row, agent_id, zone_id, *point);
         }
     }
-    restore_ready_relationships(world, state)?;
-    restore_deferred_beliefs(world, state)?;
-    pop(&state.get_item("people")?, agent_id)?;
-    let kept = PyList::empty(py);
-    for item in state.get_item("pending_returns")?.try_iter()? {
-        let item = item?;
-        if !item.get_item("agent_id")?.eq(agent_id)? {
-            kept.append(item)?;
-        }
-    }
-    state.set_item("pending_returns", kept)
+    restore_ready_relationships(world, inputs)?;
+    restore_deferred_beliefs(world, inputs)?;
+    let mut state = lifecycle_mut(world)?;
+    dict_mut(part_mut(&mut state.0, "people")?)?.shift_remove(&**agent_id);
+    let returns = part_mut(&mut state.0, "pending_returns")?;
+    let kept: Vec<V> = list_of(returns)?.iter().filter(|item| !matches!(item, V::Map(item) if is_text(item.get("agent_id"), agent_id))).cloned().collect();
+    *returns = V::List(kept);
+    Ok(())
 }
 
-/// `_restore_ready_relationships`. A list that keeps everyone stays, since each new one is read again.
-fn restore_ready_relationships(world: &Bound<'_, PyAny>, state: &Bound<'_, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    let agents = attribute(world, intern!(py, "agents"))?;
-    let archive = state.get_item("relationship_archive")?;
-    let remaining = PyList::empty(py);
-    let mut total = 0;
-    for item in archive.try_iter()? {
-        let item = item?;
-        total += 1;
-        let ids = item.get_item("agent_ids")?;
-        let (first, second) = (ids.get_item(0)?, ids.get_item(1)?);
-        if item.get_item("restore_when_both_active")?.is_truthy()? && (!agents.contains(&first)? || !agents.contains(&second)?) {
-            remaining.append(item)?;
+/// The information part of `_restore_person`: the beliefs in claims still told, the others
+/// deferred, the pressure, and the claims the person started back.
+fn restore_information(world: &World, agent_id: &Arc<str>, saved: &V) -> Result<()> {
+    let beliefs = map_of(field(saved, "beliefs")?)?;
+    let pressure = match field(saved, "query_pressure")? {
+        V::Float(pressure) if *pressure != 0.0 => *pressure,
+        pressure if !pressure.is_truthy() => 0.0,
+        _ => return refuse("an archived query pressure is not a float"),
+    };
+    let (restored, deferred): (Vec<_>, Vec<_>) = {
+        let info = world.row::<InformationRow>(INFORMATION)?;
+        beliefs.iter().map(|(message_id, belief)| (message_id.clone(), belief.clone())).partition(|(message_id, _)| info.messages.contains_key(&**message_id))
+    };
+    let moving: Vec<(Arc<str>, V)> = {
+        let mut state = lifecycle_mut(world)?;
+        let all = dict_mut(part_mut(&mut state.0, "deferred_beliefs")?)?;
+        let held = all.entry(agent_id.clone()).or_insert_with(|| V::Map(IndexMap::new()));
+        let held = dict_mut(held)?;
+        for (message_id, belief) in deferred {
+            held.insert(message_id, belief);
+        }
+        if held.is_empty() {
+            all.shift_remove(&**agent_id);
+        }
+        let messages = dict_mut(part_mut(&mut state.0, "messages")?)?;
+        let ids: Vec<Arc<str>> = messages
+            .iter()
+            .filter(|(_, message)| matches!(message, V::Map(message) if is_text(message.get("origin_agent_id"), agent_id)))
+            .map(|(message_id, _)| message_id.clone())
+            .collect();
+        ids.into_iter().filter_map(|message_id| messages.shift_remove(&*message_id).map(|message| (message_id, message))).collect()
+    };
+    let mut info = world.row_mut::<InformationRow>(INFORMATION)?;
+    let mut records = IdMap::default();
+    for (message_id, belief) in restored {
+        records.insert(message_id, BeliefRow::from_v(&belief)?);
+    }
+    info.beliefs.insert(agent_id.clone(), records);
+    info.query_pressure.insert(agent_id.clone(), pressure);
+    for (message_id, message) in moving {
+        info.messages.insert(message_id, MessageRow::from_v(&message)?);
+    }
+    Ok(())
+}
+
+/// Whether the world has this person: Unsupported for an ID a dict can't look up.
+fn admitted(world: &World, id: &V) -> Result<bool> {
+    match id {
+        V::Str(id) => Ok(world.rows()?.agents.contains_key(id)),
+        V::List(_) | V::Map(_) => refuse("an ID a dict can't look up"),
+        _ => Ok(false),
+    }
+}
+
+/// `_restore_ready_relationships`: each archived tie whose two people are back, into its namespace
+/// unless the namespace has one of its key.
+fn restore_ready_relationships(world: &World, inputs: &Inputs<'_>) -> Result<()> {
+    let namespaces = &inputs.population.namespaces;
+    let archive = {
+        let state = lifecycle_mut(world)?;
+        list_of(field(&state.0, "relationship_archive")?)?.clone()
+    };
+    let total = archive.len();
+    let mut remaining = Vec::with_capacity(total);
+    for item in archive {
+        let ids = list_of(field(&item, "agent_ids")?)?;
+        let (first, second) = (ids.first().ok_or_else(|| Error::unsupported("no pair"))?, ids.get(1).ok_or_else(|| Error::unsupported("no pair"))?);
+        if field(&item, "restore_when_both_active")?.is_truthy() && (!admitted(world, first)? || !admitted(world, second)?) {
+            remaining.push(item);
             continue;
         }
-        let name = item.get_item("namespace")?;
-        let name_text = exact_str(&name)?;
-        let target = namespace(world, name_text)?;
-        let Some(target) = target.filter(is_dict) else {
-            remaining.append(item)?;
-            continue;
-        };
-        let collection = if name_text == SOCIAL_NETWORK || name_text == BODY {
-            target.get_item("relationships")?
-        } else if name_text == INFORMATION {
-            target.get_item("contacts")?
-        } else if name_text == SOCIAL_RUNTIME {
-            let contacts = get(&target, "contacts")?;
-            if !is_dict(&contacts) {
-                remaining.append(item)?;
+        let name = text(field(&item, "namespace")?)?;
+        let key = text(field(&item, "pair_key")?)?;
+        let value = field(&item, "value")?;
+        let held = match &*name {
+            SOCIAL_NETWORK => &namespaces.social_network,
+            BODY => &namespaces.body,
+            INFORMATION => &namespaces.information,
+            SOCIAL_RUNTIME => &namespaces.social_runtime,
+            _ => {
+                remaining.push(item);
                 continue;
             }
-            contacts
-        } else {
-            remaining.append(item)?;
-            continue;
         };
-        let key = item.get_item("pair_key")?;
-        if !collection.contains(&key)? {
-            collection.set_item(key, deep_copy(&item.get_item("value")?)?)?;
+        if !is_held(held) {
+            remaining.push(item);
+            continue;
+        }
+        match &*name {
+            SOCIAL_NETWORK => {
+                let mut row = world.row_mut::<SocialNetworkRow>(SOCIAL_NETWORK)?;
+                if !row.relationships.map.contains_key(&*key) {
+                    row.relationships.map.insert(key.clone(), SocialTie::from_v(value)?);
+                    row.relationships.note_write(&key);
+                }
+            }
+            BODY => {
+                let mut row = world.row_mut::<BodyRow>(BODY)?;
+                if !row.relationships.map.contains_key(&*key) {
+                    row.relationships.map.insert(key.clone(), BodyTie::from_v(value)?);
+                    row.relationships.written.push(key.clone());
+                }
+            }
+            INFORMATION => {
+                let mut row = world.row_mut::<InformationRow>(INFORMATION)?;
+                if !row.contacts.contains_key(&*key) {
+                    row.contacts.insert(key.clone(), ContactRow::from_v(value)?);
+                }
+            }
+            _ => {
+                let mut row = world.row_mut::<SocialRow>(SOCIAL_RUNTIME)?;
+                if !row.contacts.contains_key(&*key) {
+                    row.contacts.insert(key.clone(), ContactRecord::from_v(value)?);
+                }
+            }
         }
     }
     if remaining.len() != total {
-        state.set_item("relationship_archive", remaining)?;
+        let mut state = lifecycle_mut(world)?;
+        *part_mut(&mut state.0, "relationship_archive")? = V::List(remaining);
     }
     Ok(())
 }
 
-/// `_restore_deferred_beliefs`.
-fn restore_deferred_beliefs(world: &Bound<'_, PyAny>, state: &Bound<'_, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    let Some(info) = namespace(world, INFORMATION)?.filter(is_dict) else {
+/// `_restore_deferred_beliefs`: the deferred beliefs of the people here in claims still told.
+fn restore_deferred_beliefs(world: &World, inputs: &Inputs<'_>) -> Result<()> {
+    if !is_held(&inputs.population.namespaces.information) {
         return Ok(());
+    }
+    let mut agents: Vec<Arc<str>> = {
+        let state = lifecycle_mut(world)?;
+        map_of(field(&state.0, "deferred_beliefs")?)?.keys().cloned().collect()
     };
-    let agents = attribute(world, intern!(py, "agents"))?;
-    let deferred = state.get_item("deferred_beliefs")?;
-    let messages = info.get_item("messages")?;
-    for agent_id in sorted_keys(&deferred)? {
-        if !agents.contains(&*agent_id)? {
+    agents.sort_unstable_by(|first, second| first.as_bytes().cmp(second.as_bytes()));
+    for agent_id in agents {
+        if !world.rows()?.agents.contains_key(&agent_id) {
             continue;
         }
-        let beliefs = deferred.get_item(&*agent_id)?;
-        for message_id in sorted_keys(&beliefs)? {
-            if messages.contains(&*message_id)? {
-                info.get_item("beliefs")?.get_item(&*agent_id)?.set_item(&*message_id, pop(&beliefs, &message_id)?)?;
+        let mut state = lifecycle_mut(world)?;
+        let deferred = dict_mut(part_mut(&mut state.0, "deferred_beliefs")?)?;
+        let beliefs = dict_mut(deferred.get_mut(&*agent_id).ok_or_else(|| Error::Key(agent_id.to_string()))?)?;
+        let mut message_ids: Vec<Arc<str>> = beliefs.keys().cloned().collect();
+        message_ids.sort_unstable_by(|first, second| first.as_bytes().cmp(second.as_bytes()));
+        let mut info = world.row_mut::<InformationRow>(INFORMATION)?;
+        for message_id in message_ids {
+            if !info.messages.contains_key(&*message_id) {
+                continue;
             }
+            let belief = beliefs.shift_remove(&*message_id).ok_or_else(|| Error::Key(message_id.to_string()))?;
+            let record = BeliefRow::from_v(&belief)?;
+            info.beliefs.get_mut(&*agent_id).ok_or_else(|| Error::Key(agent_id.to_string()))?.insert(message_id, record);
         }
-        if !beliefs.is_truthy()? {
-            pop(&deferred, &agent_id)?;
+        if beliefs.is_empty() {
+            deferred.shift_remove(&*agent_id);
         }
     }
     Ok(())
 }
 
-// ---- The commands ---------------------------------------------------------------------------------
+// ---- Room in a zone: `_zone_has_room` ------------------------------------------------------------
+
+/// What `effective_capacity` is made of, for one zone.
+#[derive(Clone, Copy)]
+struct Room {
+    nominal: i64,
+    active_people: i64,
+    expired_people: i64,
+}
+
+impl Room {
+    /// `nominal + active_people + retained`, for this many people.
+    fn effective(self, current: i64) -> i64 {
+        let retained = self.expired_people.min((current - self.nominal - self.active_people).max(0));
+        self.nominal + self.active_people + retained
+    }
+}
+
+/// The people of a world and the rooms given in this plan, as the lifecycle counts them.
+pub struct Places {
+    occupancy: HashMap<Arc<str>, i64>,
+    incoming: HashMap<Arc<str>, i64>,
+    capacity: HashMap<Arc<str>, Option<Room>>,
+    planned_rooms: Vec<(Arc<str>, Option<Pt>)>,
+}
+
+/// The zone a moving person is bound for: their target's facility's zone, or the target itself.
+fn bound_for<'a>(rows: &'a crate::entities::Entities, agent: &'a AgentRow) -> Option<&'a Arc<str>> {
+    if agent.activity != Activity::Moving {
+        return None;
+    }
+    let target = agent.target_id.as_ref()?;
+    Some(rows.facilities.get(target).map_or(target, |facility| &facility.zone_id))
+}
+
+impl Places {
+    pub fn of(world: &World) -> Result<Self> {
+        let rows = world.rows()?;
+        let mut occupancy: HashMap<Arc<str>, i64> = HashMap::new();
+        let mut incoming: HashMap<Arc<str>, i64> = HashMap::new();
+        for (_, agent) in rows.agents.iter() {
+            *occupancy.entry(agent.zone_id.clone()).or_default() += 1;
+            if let Some(zone) = bound_for(&rows, agent) {
+                *incoming.entry(zone.clone()).or_default() += 1;
+            }
+        }
+        Ok(Self { occupancy, incoming, capacity: HashMap::new(), planned_rooms: Vec::new() })
+    }
+
+    fn capacity(&mut self, world: &World, inputs: &Inputs<'_>, zone_id: &str) -> Result<Option<Room>> {
+        if let Some(known) = self.capacity.get(zone_id) {
+            return Ok(*known);
+        }
+        let found = match overlay::nominal_capacity(world, zone_id)? {
+            None => None,
+            Some(nominal) => {
+                let read = overlay::capacity(world, &inputs.places(), zone_id, nominal, Some(nominal))?;
+                Some(Room { nominal, active_people: read.active_people, expired_people: read.expired_people })
+            }
+        };
+        self.capacity.insert(Arc::from(zone_id), found);
+        Ok(found)
+    }
+
+    /// `_zone_has_room`: the residents and the people bound for the zone, `excluding` one person,
+    /// below its effective capacity (none: always).
+    pub fn has_room_for(&mut self, world: &World, inputs: &Inputs<'_>, zone_id: &str, excluding: Option<&str>) -> Result<bool> {
+        let mut total = self.occupancy.get(zone_id).copied().unwrap_or(0) + self.incoming.get(zone_id).copied().unwrap_or(0);
+        if let Some(excluded) = excluding {
+            let rows = world.rows()?;
+            if let Some(agent) = rows.agents.get(excluded) {
+                total -= i64::from(&*agent.zone_id == zone_id);
+                total -= i64::from(bound_for(&rows, agent).is_some_and(|zone| &**zone == zone_id));
+            }
+        }
+        let Some(capacity) = self.capacity(world, inputs, zone_id)? else {
+            return Ok(true);
+        };
+        Ok(total < capacity.effective(total))
+    }
+
+    /// A person is planned into this zone.
+    pub fn add(&mut self, zone_id: &Arc<str>) {
+        *self.occupancy.entry(zone_id.clone()).or_default() += 1;
+    }
+
+    /// `available_temporary_room`, and the point `admit_to_temporary_room` then gives.
+    pub fn available_room(&self, world: &World, inputs: &Inputs<'_>, zone_id: &str) -> Result<Option<(Arc<str>, Pt)>> {
+        overlay::available_room_after(world, &inputs.intake(), zone_id, &self.planned_rooms)
+    }
+
+    /// The room this plan fills, for the admissions that follow it.
+    pub fn take_room(&mut self, inputs: &Inputs<'_>, room_id: &Arc<str>, point: Pt) {
+        self.planned_rooms.push((room_id.clone(), is_held(&inputs.population.namespaces.movement).then_some(point)));
+    }
+}
+
+/// `_zone_has_room`.
+pub fn zone_has_room(world: &World, inputs: &Inputs<'_>, zone_id: &str, excluding: Option<&str>) -> Result<bool> {
+    Places::of(world)?.has_room_for(world, inputs, zone_id, excluding)
+}
+
+// ---- What a command reads of the world it came from ------------------------------------------------
 
 fn free(activity: Activity) -> bool {
     matches!(activity, Activity::Idle | Activity::Resting | Activity::Sleeping)
 }
 
-/// What `_defer_while_busy` says, on the world itself: None for someone who is free.
-fn busy_reason(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Option<String>> {
-    let py = world.py();
-    let activity = EntityStore::with_rows(&entities_of(world)?, |rows| {
-        let Some(agent) = rows.agents.get(agent_id) else {
-            return unsupported("no such person");
-        };
-        if !free(agent.activity) {
-            return Ok(Some((agent.activity, None)));
-        }
-        if agent.support_request_id.is_some() {
-            return Ok(Some((agent.activity, Some("the person is waiting for support"))));
-        }
-        if rows.active_tasks.iter().any(|(_, task)| task.agent_id.as_deref() == Some(agent_id)) {
-            return Ok(Some((agent.activity, Some("the person owns an active task"))));
-        }
-        Ok(None)
-    })?;
-    Ok(match activity {
-        None => None,
-        Some((_, Some(reason))) => Some(reason.to_owned()),
-        Some((activity, None)) => {
-            let value = activity.member(py)?.getattr(intern!(py, "value"))?;
-            Some(format!("the person is {}", exact_str(&value)?))
-        }
-    })
+/// What `_defer_while_busy` says: None for someone who is free.
+fn busy_reason(world: &World, agent_id: &str) -> Result<Option<String>> {
+    let rows = world.rows()?;
+    let Some(agent) = rows.agents.get(agent_id) else {
+        return refuse("no such person");
+    };
+    if !free(agent.activity) {
+        return Ok(Some(format!("the person is {}", agent.activity.text())));
+    }
+    if agent.support_request_id.is_some() {
+        return Ok(Some("the person is waiting for support".to_owned()));
+    }
+    if rows.active_tasks.iter().any(|(_, task)| task.agent_id.as_deref() == Some(agent_id)) {
+        return Ok(Some("the person owns an active task".to_owned()));
+    }
+    Ok(None)
 }
 
-/// `_program_presence_minutes`.
-fn program_minutes(world: &Bound<'_, PyAny>, row: &EventRow, agent_id: &str, action: &str) -> PyResult<Vec<i64>> {
-    let py = world.py();
-    let mut minutes = Vec::new();
-    let Some(V::Map(marker)) = crate::rules::population::provenance(row, "effect_program_v1") else {
-        return Ok(minutes);
+/// The records of the EventLog a command's program scheduled, by event ID, as the PyO3 crate read
+/// them (`event_log.find(...).event`): the row of an `effect_program_population` event, or the
+/// refusal reading it gave. Another event is not here.
+pub type Logged = HashMap<Arc<str>, Result<EventRow>>;
+
+/// The event IDs the program of an event's `effect_program_v1` provenance scheduled, for the PyO3
+/// crate to look up in the EventLog.
+pub fn program_event_ids(world: &World, effects: &Held, row: &EventRow) -> Result<Vec<Arc<str>>> {
+    let Some(V::Map(marker)) = kit::provenance(row, "effect_program_v1") else {
+        return Ok(Vec::new());
     };
     let Some(V::Str(program_id)) = marker.get("program_id") else {
-        return Ok(minutes);
+        return Ok(Vec::new());
     };
-    let Some(effects) = namespace(world, "effect_program_v1")? else {
-        return Ok(minutes);
+    let Some(programs) = typed_of::<EffectProgramRow>(world, EFFECT_PROGRAM, effects)? else {
+        return Ok(Vec::new());
     };
-    let program = get(&get_map(&effects, "programs")?, program_id)?;
-    if !is_dict(&program) {
+    Ok(programs.programs.get(&**program_id).map_or(Vec::new(), |program| program.scheduled_event_ids.clone()))
+}
+
+/// `_program_presence_minutes`: the due minutes of the program's population commands of this
+/// action for this person, pending or in the log.
+fn program_minutes(world: &World, effects: &Held, logged: &Logged, row: &EventRow, agent_id: &str, action: &str) -> Result<Vec<i64>> {
+    let mut minutes = Vec::new();
+    let ids = program_event_ids(world, effects, row)?;
+    if ids.is_empty() {
         return Ok(minutes);
     }
-    let scheduled_ids = program.call_method1(intern!(py, "get"), ("scheduled_event_ids", PyList::empty(py)))?;
-    let queue = attribute(world, intern!(py, "event_queue"))?;
-    let log = attribute(world, intern!(py, "event_log"))?;
-    let pending = PyDict::new(py);
-    for item in queue.call_method0(intern!(py, "pending"))?.try_iter()? {
-        let item = item?;
-        pending.set_item(attribute(&item, intern!(py, "event_id"))?, item)?;
-    }
-    for event_id in scheduled_ids.try_iter()? {
-        let event_id = event_id?;
-        let scheduled = match pending.get_item(&event_id)? {
-            Some(event) => Some(event),
-            None => {
-                let record = log.call_method1(intern!(py, "find"), (&event_id,))?;
-                if record.is_none() {
-                    None
-                } else {
-                    Some(attribute(&record, intern!(py, "event"))?)
-                }
-            }
+    let queue = world.queue()?;
+    for event_id in ids {
+        let scheduled: Arc<EventRow> = match queue.serial_of(&event_id) {
+            Some(serial) => queue.slot(serial).row.clone().ok_or_else(|| Error::unsupported(NO_ROW))?,
+            None => match logged.get(&event_id) {
+                Some(Ok(found)) => Arc::new(found.clone()),
+                Some(Err(error)) => return Err(error.clone()),
+                None => continue,
+            },
         };
-        let Some(scheduled) = scheduled else {
-            continue;
-        };
-        if !attribute(&scheduled, intern!(py, "event_type"))?.eq("effect_program_population")? {
+        if &*scheduled.event_type != "effect_program_population" {
             continue;
         }
-        let scheduled = event_row(&scheduled)?;
-        if let Some(V::Map(command)) = payload(&scheduled, "command") {
-            if matches!(command.get("action"), Some(V::Str(found)) if &**found == action) && matches!(command.get("agent_id"), Some(V::Str(found)) if &**found == agent_id) {
+        if let Some(V::Map(command)) = kit::payload(&scheduled, "command") {
+            if is_text(command.get("action"), action) && is_text(command.get("agent_id"), agent_id) {
                 minutes.push(scheduled.due_minute);
             }
         }
@@ -736,8 +1338,38 @@ fn program_minutes(world: &Bound<'_, PyAny>, row: &EventRow, agent_id: &str, act
     Ok(minutes)
 }
 
+/// What the plan of a command reads of `world` rather than of the world it changes (the same in a
+/// transaction): whether the person is busy, and the program's minutes of their returns and exits.
+/// Each is read now and raised where the plan reads it.
+pub struct WorldReads {
+    busy: Result<Option<String>>,
+    returns: Result<Vec<i64>>,
+    exits: Result<Vec<i64>>,
+}
+
+/// The reads of `world` the plan of this command makes. `effects` is whether `world` holds
+/// `effect_program_v1`, `logged` its log's records of the program.
+pub fn world_reads(world: &World, effects: &Held, logged: &Logged, row: &EventRow, command: &Command) -> WorldReads {
+    fn not_read<T>() -> Result<T> {
+        Err(Error::unsupported("the plan does not read it"))
+    }
+    let Some(first) = command.ids.first() else {
+        return WorldReads { busy: not_read(), returns: not_read(), exits: not_read() };
+    };
+    let action = &*command.action;
+    WorldReads {
+        busy: if matches!(action, "temporary_exit" | "transfer") { busy_reason(world, first) } else { not_read() },
+        returns: if action == "temporary_exit" { program_minutes(world, effects, logged, row, first, "return") } else { not_read() },
+        exits: if action == "return" { program_minutes(world, effects, logged, row, first, "temporary_exit") } else { not_read() },
+    }
+}
+
+// ---- The commands ---------------------------------------------------------------------------------
+
 struct PlannedRoute {
-    route: Py<PyAny>,
+    zone_ids: Vec<Arc<str>>,
+    edge_ids: Vec<Arc<str>>,
+    destination: Arc<str>,
     due: i64,
     event: EventRow,
     task_id: Arc<str>,
@@ -757,539 +1389,477 @@ enum Plan {
     Reunite { zone: Arc<str> },
 }
 
-/// Whether `model_configs.get("layout_routing", {}).get("max_agents_in_transit_by_edge", {})` is
-/// truthy: the section `transit_capacities`, kept for the stamp of `model_configs`.
-pub(crate) fn transit_capacities_of(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    Ok(*configs::kept_python(world, |configs| &configs.transit_capacities, transit_capacities)?)
+fn zone_of(world: &World, agent_id: &str) -> Result<Option<Arc<str>>> {
+    Ok(world.rows()?.agents.get(agent_id).map(|agent| agent.zone_id.clone()))
 }
 
-fn transit_capacities(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let configs = attribute(world, intern!(world.py(), "model_configs"))?;
-    get_map(&get_map(&configs, "layout_routing")?, "max_agents_in_transit_by_edge")?.is_truthy()
+fn zone_known(world: &World, zone_id: &str) -> Result<bool> {
+    Ok(zone_rows(world)?.zones.contains_key(zone_id))
 }
 
-fn plan_relocation(candidate: &Bound<'_, PyAny>, row: &EventRow, agent_id: &Arc<str>, from_zone: &Arc<str>, destination: &Arc<str>) -> PyResult<Box<PlannedRoute>> {
-    let py = candidate.py();
-    if transit_capacities_of(candidate)? {
-        return unsupported("passage capacities read every trip under way");
+/// The route of a relocation, its arrival event and its task.
+fn plan_relocation(world: &World, inputs: &Inputs<'_>, row: &EventRow, agent_id: &Arc<str>, from_zone: &Arc<str>, destination: &Arc<str>) -> Result<Box<PlannedRoute>> {
+    let relocation = inputs.relocation.ok_or_else(|| Error::unsupported("the relocation's configs were not read"))?;
+    if relocation.transit_capacities.clone()? {
+        return refuse("passage capacities read every trip under way");
     }
     const NO_ROUTE: &str = "no accessible, physically clear relocation route is available";
-    let Some(route) = world_route(candidate, from_zone, destination)? else {
-        return errors::failed(py, NO_ROUTE);
+    let Some(route) = travel::world_route(world, from_zone, destination).map_err(plan_read)? else {
+        return failed(NO_ROUTE);
     };
-    let mobility = EntityStore::with_rows(&entities_of(candidate)?, |rows| {
-        rows.agents.get(&**agent_id).map(mobility_text).ok_or_else(|| Unsupported::new_err("no such person"))
-    })?;
-    let geo = Geo::of(candidate)?;
+    let mobility = world.rows()?.agents.get(&**agent_id).map(kit::mobility_text).ok_or_else(|| Error::unsupported("no such person"))?;
+    let geo = inputs.geo()?;
     if route.edge_ids.iter().any(|edge| !geo.route_is_clear(edge, mobility)) {
-        return errors::failed(py, NO_ROUTE);
+        return failed(NO_ROUTE);
     }
-    let zones = PyTuple::new(py, route.zone_ids.iter().map(|id| &**id))?;
-    let edges = PyTuple::new(py, route.edge_ids.iter().map(|id| &**id))?;
-    let object = route_class(py)?.call1((&**from_zone, &**destination, zones, edges, route.minutes))?;
-    let agent_key = PyString::new(py, agent_id);
-    let timed = crate::rules::movement::route_with_movement_time(candidate, agent_key.as_any(), &object)?;
-    let minutes = exact_int(&attribute(&timed, intern!(py, "travel_minutes"))?)?;
-    let due = row.due_minute + minutes;
-    let writer = EventWriter::of(candidate)?;
-    if due >= writer.duration() {
-        return errors::failed(py, "relocation route would finish after the scenario boundary");
-    }
-    if has_namespace(candidate, MOVEMENT)? {
-        if minutes <= 0 {
-            return unsupported("a journey has no duration");
+    // `route_with_movement_time`.
+    let minutes = match relocation.timing.as_ref().map_err(|error| error.clone())? {
+        None => route.minutes,
+        Some(model) => {
+            if route.minutes.abs() >= EXACT_INT {
+                return refuse("the route's minutes are too large");
+            }
+            let zones: Vec<&str> = route.zone_ids.iter().map(|zone| &**zone).collect();
+            let edges: Vec<&str> = route.edge_ids.iter().map(|edge| &**edge).collect();
+            let timed = movement::movement_minutes(world, geo, model, agent_id, &zones, &edges, route.minutes).map_err(plan_read)?;
+            if edges.is_empty() {
+                route.minutes
+            } else {
+                timed
+            }
         }
-        check_admission_paths(candidate, &[])?;
+    };
+    let due = row.due_minute + minutes;
+    let events = Events::of(world)?;
+    if due >= events.duration() {
+        return failed("relocation route would finish after the scenario boundary");
     }
-    let sequence = writer.next_sequence()?;
+    if is_held(&inputs.population.namespaces.movement) {
+        if minutes <= 0 {
+            return refuse("a journey has no duration");
+        }
+        check_admission_paths(world, inputs.population, &[])?;
+    }
+    let sequence = events.next_sequence()?;
     let task_id: Arc<str> = Arc::from(format!("presence-relocation-{sequence}"));
-    let event_id: Arc<str> = Arc::from(format!("presence-relocation-arrival-{sequence}"));
-    let event = EventRow::new(
-        event_id,
-        EventKind::Completion,
-        due,
-        row.priority,
+    let event = kit::new_event(kit::NewEvent {
+        event_id: Arc::from(format!("presence-relocation-arrival-{sequence}")),
+        kind: EventKind::Completion,
+        due_minute: due,
+        priority: row.priority,
         sequence,
-        Arc::from("agent_travel_complete"),
-        v_map! {
-            "agent_id" => V::Str(agent_id.clone()),
-            "task_id" => V::Str(task_id.clone()),
-            "purpose" => V::Str(Arc::from("presence_relocation")),
-            "destination_zone_id" => V::Str(destination.clone()),
-            "origin_zone_id" => V::Str(from_zone.clone()),
-            "route_zone_ids" => strings(&route.zone_ids),
-            "route_edge_ids" => strings(&route.edge_ids),
-            "travel_minutes" => V::Int(minutes),
-        },
-        Some(Arc::from(SOURCE_ID)),
-        Some(row.event_id.clone()),
-        v_map! {
-            "source_type" => V::Str(Arc::from("assumption")),
-            "source_id" => V::Str(Arc::from(SOURCE_ID)),
-            "policy_version" => V::Str(Arc::from(POLICY_VERSION)),
-        },
-    )
-    .ok_or_else(|| Unsupported::new_err("ScheduledEvent refuses the arrival"))?;
-    Ok(Box::new(PlannedRoute { route: timed.unbind(), due, event, task_id }))
+        event_type: Arc::from("agent_travel_complete"),
+        payload: doc([
+            ("agent_id", V::Str(agent_id.clone())),
+            ("task_id", V::Str(task_id.clone())),
+            ("purpose", v_str("presence_relocation")),
+            ("destination_zone_id", V::Str(destination.clone())),
+            ("origin_zone_id", V::Str(from_zone.clone())),
+            ("route_zone_ids", strings(&route.zone_ids)),
+            ("route_edge_ids", strings(&route.edge_ids)),
+            ("travel_minutes", V::Int(minutes)),
+        ]),
+        source_id: Some(Arc::from(SOURCE_ID)),
+        causation_id: Some(row.event_id.clone()),
+        provenance: kit::assumption(v_str(SOURCE_ID), POLICY_VERSION),
+    })
+    .map_err(|_| Error::unsupported("ScheduledEvent refuses the arrival"))?;
+    Ok(Box::new(PlannedRoute { zone_ids: route.zone_ids, edge_ids: route.edge_ids, destination: route.destination, due, event, task_id }))
 }
 
-/// The plan of a command on `candidate`, which is the copy `apply_population_presence_command` made.
-fn plan_action(world: &Bound<'_, PyAny>, candidate: &Bound<'_, PyAny>, row: &EventRow, command: &Command, state: &Bound<'_, PyAny>) -> PyResult<Plan> {
-    let py = world.py();
+/// The plan of a command on the world it changes; `reads` are what it reads of the world it came
+/// from.
+fn plan_action(world: &World, inputs: &Inputs<'_>, row: &EventRow, command: &Command, state: &V, reads: &WorldReads) -> Result<Plan> {
     let minute = row.due_minute;
-    let agents = attribute(candidate, intern!(py, "agents"))?;
-    let zones = attribute(candidate, intern!(py, "zones"))?;
-    let zone_of = |id: &str| -> PyResult<Option<Arc<str>>> {
-        let agent = get(&agents, id)?;
-        if agent.is_none() {
-            Ok(None)
-        } else {
-            text(&attribute(&agent, intern!(py, "zone_id"))?).map(Some)
-        }
-    };
-    let presence = presence_state(candidate)?;
-    let first = command.ids.first().cloned().ok_or_else(|| Unsupported::new_err("no one is selected"))?;
+    let presence = presence_state(world, &inputs.population.namespaces.presence)?;
+    let first = command.ids.first().cloned().ok_or_else(|| Error::unsupported("no one is selected"))?;
     let action = &*command.action;
     match action {
         "temporary_exit" | "transfer" => {
-            let Some(from_zone) = zone_of(&first)? else {
-                return errors::failed(py, if action == "temporary_exit" { "temporary exit requires an admitted person" } else { "transfer requires an admitted person" });
+            let Some(from_zone) = zone_of(world, &first)? else {
+                return failed(if action == "temporary_exit" { "temporary exit requires an admitted person" } else { "transfer requires an admitted person" });
             };
-            if action == "temporary_exit" && program_minutes(world, row, &first, "return")?.iter().any(|due| *due <= minute) {
+            if action == "temporary_exit" && reads.returns.clone()?.iter().any(|due| *due <= minute) {
                 return Ok(Plan::Suppress("temporary exit dropped: the person was not free before the return in the same EffectProgram"));
             }
-            if let Some(reason) = busy_reason(world, &first)? {
+            if let Some(reason) = reads.busy.clone()? {
                 return Ok(Plan::Defer(reason));
             }
             identifier(&first)?;
             identifier(&from_zone)?;
-            check_archive(candidate, state, &first)?;
-            if let Some(raw) = &presence {
-                let old = person_in(raw, &first)?;
+            check_archive(world, inputs, state, &first)?;
+            if presence {
+                let old = {
+                    let raw = value_of(world, PRESENCE, &inputs.population.namespaces.presence)?.ok_or_else(|| Error::unsupported("no presence"))?;
+                    person_in(&raw.0, &first)?
+                };
                 let expected = command.expected_return.or_else(|| old.and_then(|person| person.expected_return_minute));
                 if action == "temporary_exit" && expected.is_some_and(|due| due < minute) {
-                    return unsupported("an expected return before the exit");
+                    return refuse("an expected return before the exit");
                 }
                 if let Some(zone) = &command.zone_id {
                     identifier(zone)?;
                 }
             }
-            if action == "temporary_exit" {
-                Ok(Plan::Exit { agent_id: first, from_zone })
-            } else {
-                Ok(Plan::Transfer { agent_id: first, from_zone })
-            }
+            Ok(if action == "temporary_exit" { Plan::Exit { agent_id: first, from_zone } } else { Plan::Transfer { agent_id: first, from_zone } })
         }
         "return" => {
-            let admitted = agents.contains(&*first)?;
-            if admitted && program_minutes(world, row, &first, "temporary_exit")?.iter().any(|due| *due < minute) {
+            let is_admitted = world.rows()?.agents.contains_key(&first);
+            if is_admitted && reads.exits.clone()?.iter().any(|due| *due < minute) {
                 return Ok(Plan::Suppress("return skipped: the person had not left before the return in the same EffectProgram"));
             }
-            if admitted || !state.get_item("people")?.contains(&*first)? {
-                return errors::failed(py, "return requires a retained absent person");
+            if is_admitted || !map_of(field(state, "people")?)?.contains_key(&*first) {
+                return failed("return requires a retained absent person");
             }
-            let old = match &presence {
-                Some(raw) => person_in(raw, &first)?,
-                None => None,
+            let old = if presence {
+                let raw = value_of(world, PRESENCE, &inputs.population.namespaces.presence)?.ok_or_else(|| Error::unsupported("no presence"))?;
+                person_in(&raw.0, &first)?
+            } else {
+                None
             };
             let destination = command.zone_id.clone().or_else(|| old.as_ref().and_then(|person| person.return_zone_id.clone()));
             let destination = match destination {
-                Some(zone) if zones.contains(&*zone)? => zone,
-                _ => return errors::failed(py, "return requires a valid destination zone"),
+                Some(zone) if zone_known(world, &zone)? => zone,
+                _ => return failed("return requires a valid destination zone"),
             };
             identifier(&destination)?;
             identifier(&first)?;
             let household = command.household_id.clone().or_else(|| old.as_ref().and_then(|person| person.household_id.clone()));
-            let mut places = Places::of(candidate)?;
-            if places.has_room_for(&destination, None)? {
-                check_restore(candidate, state, &first, &destination)?;
-                check_information(candidate)?;
+            let mut places = Places::of(world)?;
+            if places.has_room_for(world, inputs, &destination, None)? {
+                check_restore(world, inputs, state, &first, &destination)?;
+                check_information(world, inputs.population)?;
                 return Ok(Plan::Return { agent_id: first, destination, household, room: None });
             }
-            match places.available_room(&destination)? {
+            match places.available_room(world, inputs, &destination)? {
                 Some(room) => {
-                    check_restore(candidate, state, &first, &destination)?;
-                    check_information(candidate)?;
+                    check_restore(world, inputs, state, &first, &destination)?;
+                    check_information(world, inputs.population)?;
                     Ok(Plan::Return { agent_id: first, destination, household, room: Some(room) })
                 }
                 None => Ok(Plan::ReturnWait { agent_id: first, destination, household, from_zone: old.and_then(|person| person.transition_zone_id) }),
             }
         }
         "relocate" => {
-            let not_here = || errors::failed(py, "relocation requires an admitted person and valid destination");
-            let Some(from_zone) = zone_of(&first)? else {
+            let not_here = || failed("relocation requires an admitted person and valid destination");
+            let Some(from_zone) = zone_of(world, &first)? else {
                 return not_here();
             };
             let destination = match command.zone_id.clone() {
-                Some(zone) if zones.contains(&*zone)? => zone,
+                Some(zone) if zone_known(world, &zone)? => zone,
                 _ => return not_here(),
             };
-            let activity = EntityStore::with_rows(&entities_of(candidate)?, |rows| {
-                rows.agents.get(&*first).map(|agent| agent.activity).ok_or_else(|| Unsupported::new_err("no row"))
-            })?;
+            let activity = world.rows()?.agents.get(&*first).map(|agent| agent.activity).ok_or_else(|| Error::unsupported("no row"))?;
             if !free(activity) {
-                return errors::failed(py, "relocation requires a person who is not in an active task");
+                return failed("relocation requires a person who is not in an active task");
             }
-            if !Places::of(candidate)?.has_room_for(&destination, Some(&first))? {
-                return errors::failed(py, "relocation destination has no available capacity");
+            if !Places::of(world)?.has_room_for(world, inputs, &destination, Some(&first))? {
+                return failed("relocation destination has no available capacity");
             }
             identifier(&first)?;
             identifier(&from_zone)?;
             identifier(&destination)?;
+            check_own(&inputs.population.namespaces.overlay)?;
             if destination == from_zone {
                 Ok(Plan::RelocateHere { agent_id: first, from_zone })
             } else {
-                let route = plan_relocation(candidate, row, &first, &from_zone, &destination)?;
+                let route = plan_relocation(world, inputs, row, &first, &from_zone, &destination)?;
                 Ok(Plan::Relocate { agent_id: first, from_zone, destination, route })
             }
         }
         "reunite" => {
             if command.household_id.is_none() {
-                return errors::failed(py, "reunion requires a target household id");
+                return failed("reunion requires a target household id");
             }
-            // `candidate.agents.get(id)` of each, then each one's zone: the rule's order of checks.
-            let mut people = Vec::with_capacity(command.ids.len());
-            for id in &command.ids {
-                people.push(get(&agents, id)?);
+            // Each one's row, then each one's zone: the rule's order of checks.
+            let zones: Vec<Option<Arc<str>>> = {
+                let rows = world.rows()?;
+                command.ids.iter().map(|id| rows.agents.get(id).map(|agent| agent.zone_id.clone())).collect()
+            };
+            if zones.iter().any(Option::is_none) {
+                return failed("reunion requires every person to be admitted");
             }
-            if people.iter().any(|agent| agent.is_none()) {
-                return errors::failed(py, "reunion requires every person to be admitted");
-            }
-            let mut zones_of_people: Vec<Arc<str>> = Vec::with_capacity(people.len());
-            for agent in &people {
-                let zone = text(&attribute(agent, intern!(py, "zone_id"))?)?;
-                if !zones_of_people.contains(&zone) {
-                    zones_of_people.push(zone);
+            let mut distinct: Vec<Arc<str>> = Vec::with_capacity(zones.len());
+            for zone in zones.into_iter().flatten() {
+                if !distinct.contains(&zone) {
+                    distinct.push(zone);
                 }
             }
-            if zones_of_people.len() != 1 {
-                return errors::failed(py, "reunion requires people to be physically co-located");
+            if distinct.len() != 1 {
+                return failed("reunion requires people to be physically co-located");
             }
-            if presence.is_none() {
-                return errors::failed(py, "reunion requires the population presence contract");
+            if !presence {
+                return failed("reunion requires the population presence contract");
             }
             for id in &command.ids {
                 identifier(id)?;
             }
-            let zone = zones_of_people[0].clone();
+            let zone = distinct[0].clone();
             identifier(&zone)?;
             Ok(Plan::Reunite { zone })
         }
-        _ => unsupported("another action"),
+        _ => refuse("another action"),
     }
 }
 
-fn write_action<'py>(candidate: &Bound<'py, PyAny>, row: &EventRow, event: &EventIds, command: &Command, state: &Bound<'py, PyAny>, plan: Plan) -> PyResult<Bound<'py, PyAny>> {
-    let py = candidate.py();
-    let minute = row.due_minute;
-    let change = |value: PresenceChange| PresenceChange { household_id: command.household_id.clone(), source_ids: command.source_ids.clone(), ..value };
-    let presence = namespace(candidate, PRESENCE)?.filter(is_dict);
-    let receipt = match plan {
-        Plan::Suppress(_) | Plan::Defer(_) => return Err(PyRuntimeError::new_err("a deferral has nothing to write")),
-        Plan::Exit { agent_id, from_zone } | Plan::Transfer { agent_id, from_zone } => {
-            let exit = &*command.action == "temporary_exit";
-            archive_person(candidate, &agent_id, row, state)?;
-            if let Some(raw) = &presence {
-                let status = if exit { "temporarily_absent" } else { "transferred" };
-                let return_zone = if exit { Some(from_zone.clone()) } else { command.zone_id.clone() };
-                set_presence(raw, event, &agent_id, status, minute, &change(PresenceChange { from_zone: Some(from_zone.clone()), return_zone, expected_return: command.expected_return, ..Default::default() }))?;
-            }
-            let (action, to_zone) = if exit { ("temporary_exit", None) } else { ("transferred", command.zone_id.as_ref()) };
-            history(candidate, state, event, &agent_id, action, minute, Some(&from_zone), to_zone, command)?
-        }
-        Plan::ReturnWait { agent_id, destination, household, from_zone } => {
-            let item = PyDict::new(py);
-            item.set_item("agent_id", &*agent_id)?;
-            item.set_item("zone_id", &*destination)?;
-            item.set_item("event_id", &*event.event_id)?;
-            item.set_item("minute", minute)?;
-            item.set_item("household_id", household.as_deref())?;
-            item.set_item("source_ids", strings(&command.sources_with(event)).to_py(py)?)?;
-            let kept = PyList::empty(py);
-            for other in state.get_item("pending_returns")?.try_iter()? {
-                let other = other?;
-                if !other.get_item("agent_id")?.eq(&*agent_id)? {
-                    kept.append(other)?;
-                }
-            }
-            state.set_item("pending_returns", kept)?;
-            append(&state.get_item("pending_returns")?, item)?;
-            if let Some(raw) = &presence {
-                let details = PresenceChange { from_zone, return_zone: Some(destination.clone()), household_id: household, source_ids: command.source_ids.clone(), ..Default::default() };
-                set_presence(raw, event, &agent_id, "awaiting_admission", minute, &details)?;
-            }
-            history(candidate, state, event, &agent_id, "waiting", minute, None, Some(&destination), command)?
-        }
-        Plan::Return { agent_id, destination, household, room } => {
-            restore_person(candidate, &agent_id, &destination, minute, state, room.as_ref(), &event.event_id)?;
-            if let Some(raw) = &presence {
-                let details = PresenceChange { to_zone: Some(destination.clone()), household_id: household, source_ids: command.source_ids.clone(), ..Default::default() };
-                set_presence(raw, event, &agent_id, "admitted", minute, &details)?;
-            }
-            history(candidate, state, event, &agent_id, "returned", minute, None, Some(&destination), command)?
-        }
-        Plan::RelocateHere { agent_id, from_zone } => {
-            attribute(candidate, intern!(py, "agents"))?.get_item(&*agent_id)?.setattr(intern!(py, "next_decision_at"), minute + 1)?;
-            if let Some(raw) = &presence {
-                set_presence(raw, event, &agent_id, "admitted", minute, &change(PresenceChange { from_zone: Some(from_zone.clone()), to_zone: Some(from_zone.clone()), action: Some("relocated"), ..Default::default() }))?;
-            }
-            history(candidate, state, event, &agent_id, "relocated", minute, Some(&from_zone), Some(&from_zone), command)?
-        }
-        Plan::Relocate { agent_id, from_zone, destination, route } => {
-            release_room(candidate, &agent_id)?;
-            let writer = EventWriter::of(candidate)?;
-            writer.allocate_sequence()?;
-            let event_id = route.event.event_id.clone();
-            let task_id: Arc<str> = Arc::from(&*route.task_id);
-            insert_entity(candidate, &task_id, TaskRow {
-                id: task_id.clone(),
-                kind: Arc::from("travel_return"),
-                agent_id: Some(Arc::from(&*agent_id)),
-                resource_id: None,
-                start_minute: minute,
-                due_minute: route.due,
-                staff_id: None,
-            })?;
-            let agent = attribute(candidate, intern!(py, "agents"))?.get_item(&*agent_id)?;
-            agent.setattr(intern!(py, "activity"), py.import("sheltersim.domain.models")?.getattr("Activity")?.getattr("MOVING")?)?;
-            agent.setattr(intern!(py, "target_id"), &*destination)?;
-            writer.schedule(route.event.clone())?;
-            if has_namespace(candidate, MOVEMENT)? {
-                let none = py.None().into_bound(py);
-                start_movement(
-                    candidate,
-                    PyString::new(py, &agent_id).as_any(),
-                    route.route.bind(py),
-                    PyString::new(py, "presence_relocation").as_any(),
-                    &none,
-                    minute.into_pyobject(py)?.as_any(),
-                    route.due.into_pyobject(py)?.as_any(),
-                    PyString::new(py, &event_id).as_any(),
-                    PyString::new(py, &route.task_id).as_any(),
-                    None,
-                    None,
-                    None,
-                    None,
-                )?;
-            }
-            let sources = strings(&command.sources_with(event));
-            let record = PyDict::new(py);
-            record.set_item("task_id", &*route.task_id)?;
-            record.set_item("event_id", &*event_id)?;
-            record.set_item("from_zone_id", &*from_zone)?;
-            record.set_item("to_zone_id", &*destination)?;
-            record.set_item("household_id", command.household_id.as_deref())?;
-            record.set_item("source_ids", sources.to_py(py)?)?;
-            record.set_item("started_minute", minute)?;
-            record.set_item("due_minute", route.due)?;
-            state.get_item("pending_relocations")?.set_item(&*agent_id, record)?;
-            let receipt = PyDict::new(py);
-            receipt.set_item("event_id", &*event.event_id)?;
-            receipt.set_item("agent_id", &*agent_id)?;
-            receipt.set_item("action", "relocation_scheduled")?;
-            receipt.set_item("minute", minute)?;
-            receipt.set_item("from_zone_id", &*from_zone)?;
-            receipt.set_item("to_zone_id", &*destination)?;
-            receipt.set_item("arrival_minute", route.due)?;
-            receipt.set_item("task_id", &*route.task_id)?;
-            receipt.set_item("source_ids", sources.to_py(py)?)?;
-            receipt
-        }
-        Plan::Reunite { zone } => {
-            let raw = presence.as_ref().ok_or_else(|| Unsupported::new_err("the presence left"))?;
-            for agent_id in &command.ids {
-                set_presence(raw, event, agent_id, "admitted", minute, &change(PresenceChange { from_zone: Some(zone.clone()), to_zone: Some(zone.clone()), action: Some("reunited"), ..Default::default() }))?;
-                history(candidate, state, event, agent_id, "reunited", minute, Some(&zone), Some(&zone), command)?;
-            }
-            let receipt = PyDict::new(py);
-            receipt.set_item("event_id", &*event.event_id)?;
-            receipt.set_item("agent_ids", strings(&command.ids).to_py(py)?)?;
-            receipt.set_item("household_id", command.household_id.as_deref())?;
-            receipt.set_item("minute", minute)?;
-            receipt.set_item("action", "reunited")?;
-            receipt
-        }
-    };
-    Ok(receipt.into_any())
+/// What a command wrote: its receipt, and the serials of the queue's slots it took out.
+pub struct Written {
+    pub receipt: V,
+    pub taken: Vec<u64>,
 }
 
-/// What a command did: its receipt, or the reason it waits for the person (`_defer_while_busy`),
-/// whose retry the caller schedules on the world as it was before the command.
-enum Acted<'py> {
-    Done(Bound<'py, PyAny>),
+fn write_action(world: &World, inputs: &Inputs<'_>, row: &EventRow, event: &EventIds, command: &Command, plan: Plan) -> Result<Written> {
+    let minute = row.due_minute;
+    let change = |value: PresenceChange| PresenceChange { household_id: command.household_id.clone(), source_ids: command.source_ids.clone(), ..value };
+    let presence = has_presence(world, inputs)?;
+    let mut taken = Vec::new();
+    let receipt = match plan {
+        Plan::Suppress(_) | Plan::Defer(_) => return Err(Error::Runtime("a deferral has nothing to write".to_owned())),
+        Plan::Exit { agent_id, from_zone } | Plan::Transfer { agent_id, from_zone } => {
+            let exit = &*command.action == "temporary_exit";
+            taken = archive_person(world, inputs, &agent_id, row)?;
+            if presence {
+                let status = if exit { "temporarily_absent" } else { "transferred" };
+                let return_zone = if exit { Some(from_zone.clone()) } else { command.zone_id.clone() };
+                let details = change(PresenceChange { from_zone: Some(from_zone.clone()), return_zone, expected_return: command.expected_return, ..Default::default() });
+                set_presence(world, inputs, event, &agent_id, status, minute, &details)?;
+            }
+            let (action, to_zone) = if exit { ("temporary_exit", None) } else { ("transferred", command.zone_id.as_ref()) };
+            history(world, inputs, event, &agent_id, action, minute, Some(&from_zone), to_zone, command)?
+        }
+        Plan::ReturnWait { agent_id, destination, household, from_zone } => {
+            let item = V::Map(doc([
+                ("agent_id", V::Str(agent_id.clone())),
+                ("zone_id", V::Str(destination.clone())),
+                ("event_id", V::Str(event.event_id.clone())),
+                ("minute", V::Int(minute)),
+                ("household_id", optional(&household)),
+                ("source_ids", strings(&command.sources_with(event))),
+            ]));
+            {
+                let mut state = lifecycle_mut(world)?;
+                let returns = part_mut(&mut state.0, "pending_returns")?;
+                let mut kept: Vec<V> = list_of(returns)?.iter().filter(|other| !matches!(other, V::Map(other) if is_text(other.get("agent_id"), &agent_id))).cloned().collect();
+                kept.push(item);
+                *returns = V::List(kept);
+            }
+            if presence {
+                let details = PresenceChange { from_zone, return_zone: Some(destination.clone()), household_id: household, source_ids: command.source_ids.clone(), ..Default::default() };
+                set_presence(world, inputs, event, &agent_id, "awaiting_admission", minute, &details)?;
+            }
+            history(world, inputs, event, &agent_id, "waiting", minute, None, Some(&destination), command)?
+        }
+        Plan::Return { agent_id, destination, household, room } => {
+            restore_person(world, inputs, &agent_id, &destination, minute, room.as_ref(), &event.event_id)?;
+            if presence {
+                let details = PresenceChange { to_zone: Some(destination.clone()), household_id: household, source_ids: command.source_ids.clone(), ..Default::default() };
+                set_presence(world, inputs, event, &agent_id, "admitted", minute, &details)?;
+            }
+            history(world, inputs, event, &agent_id, "returned", minute, None, Some(&destination), command)?
+        }
+        Plan::RelocateHere { agent_id, from_zone } => {
+            world.rows_mut()?.agents.get_mut(&agent_id).ok_or_else(|| Error::Key(agent_id.to_string()))?.next_decision_at = minute + 1;
+            if presence {
+                let details = change(PresenceChange { from_zone: Some(from_zone.clone()), to_zone: Some(from_zone.clone()), action: Some("relocated"), ..Default::default() });
+                set_presence(world, inputs, event, &agent_id, "admitted", minute, &details)?;
+            }
+            history(world, inputs, event, &agent_id, "relocated", minute, Some(&from_zone), Some(&from_zone), command)?
+        }
+        Plan::Relocate { agent_id, from_zone, destination, route } => {
+            release_room(world, inputs, &agent_id)?;
+            let events = Events::of(world)?;
+            events.allocate_sequence()?;
+            let event_id = route.event.event_id.clone();
+            {
+                let mut rows = world.rows_mut()?;
+                rows.active_tasks.insert(
+                    route.task_id.clone(),
+                    TaskRow {
+                        id: route.task_id.clone(),
+                        kind: Arc::from("travel_return"),
+                        agent_id: Some(agent_id.clone()),
+                        resource_id: None,
+                        start_minute: minute,
+                        due_minute: route.due,
+                        staff_id: None,
+                    },
+                );
+                kit::set_agent(&mut rows, &agent_id, Activity::Moving, Some(&destination))?;
+            }
+            events.schedule(route.event.clone()).map_err(plain)?;
+            if is_held(&inputs.population.namespaces.movement) {
+                let journey = Journey {
+                    event_id: event_id.clone(),
+                    task_id: route.task_id.clone(),
+                    purpose: Arc::from("presence_relocation"),
+                    facility_id: None,
+                    destination_zone_id: route.destination.clone(),
+                    route_zone_ids: route.zone_ids.clone(),
+                    route_edge_ids: route.edge_ids.clone(),
+                    route_points: Vec::new(),
+                    started_minute: minute,
+                    due_minute: route.due,
+                    queue_id: None,
+                    support_request_id: None,
+                    support_staff_id: None,
+                };
+                let duration = route.due - minute;
+                if duration <= 0 || duration >= EXACT_INT {
+                    return refuse("a journey has no plain duration");
+                }
+                let start = movement::Start { agent_id: &agent_id, journey, origin: &from_zone, points: &[], edge_ids: &route.edge_ids, started: minute, duration };
+                movement::start(world, inputs.geo()?, start)?;
+            }
+            let sources = strings(&command.sources_with(event));
+            let record = V::Map(doc([
+                ("task_id", V::Str(route.task_id.clone())),
+                ("event_id", V::Str(event_id.clone())),
+                ("from_zone_id", V::Str(from_zone.clone())),
+                ("to_zone_id", V::Str(destination.clone())),
+                ("household_id", optional(&command.household_id)),
+                ("source_ids", sources.clone()),
+                ("started_minute", V::Int(minute)),
+                ("due_minute", V::Int(route.due)),
+            ]));
+            {
+                let mut state = lifecycle_mut(world)?;
+                dict_mut(part_mut(&mut state.0, "pending_relocations")?)?.insert(agent_id.clone(), record);
+            }
+            V::Map(doc([
+                ("event_id", V::Str(event.event_id.clone())),
+                ("agent_id", V::Str(agent_id.clone())),
+                ("action", v_str("relocation_scheduled")),
+                ("minute", V::Int(minute)),
+                ("from_zone_id", V::Str(from_zone)),
+                ("to_zone_id", V::Str(destination)),
+                ("arrival_minute", V::Int(route.due)),
+                ("task_id", V::Str(route.task_id.clone())),
+                ("source_ids", sources),
+            ]))
+        }
+        Plan::Reunite { zone } => {
+            if !presence {
+                return refuse("the presence left");
+            }
+            for agent_id in &command.ids {
+                let details = change(PresenceChange { from_zone: Some(zone.clone()), to_zone: Some(zone.clone()), action: Some("reunited"), ..Default::default() });
+                set_presence(world, inputs, event, agent_id, "admitted", minute, &details)?;
+                history(world, inputs, event, agent_id, "reunited", minute, Some(&zone), Some(&zone), command)?;
+            }
+            V::Map(doc([
+                ("event_id", V::Str(event.event_id.clone())),
+                ("agent_ids", strings(&command.ids)),
+                ("household_id", optional(&command.household_id)),
+                ("minute", V::Int(minute)),
+                ("action", v_str("reunited")),
+            ]))
+        }
+    };
+    Ok(Written { receipt, taken })
+}
+
+/// What a command did: what it wrote, or why it waits for the person (`_defer_while_busy`), whose
+/// retry the caller schedules on the world as it was before the command.
+pub enum Acted {
+    Done(Written),
     Deferred(String),
 }
 
-/// The suppression of a deferred command, after its retry.
-fn deferred<T>(py: Python<'_>, reason: &str) -> PyResult<T> {
-    errors::suppressed(py, format!("population exit waits until the person is free: {reason}"))
+/// The text of a deferred command, after its retry.
+pub fn deferred_text(reason: &str) -> String {
+    format!("population exit waits until the person is free: {reason}")
 }
 
-/// The part of `apply_population_presence_command` between its parse and its validation: the plan
-/// reads `world` (the program's minutes of the person, whether they are busy) and `candidate`, and
-/// the writes go to `candidate`. The command's own transaction passes its world as both: the plan's
-/// reads of `world` don't depend on the order of the world's maps, which the transaction changes to
-/// the copy's (tests/unit/domain/test_population_rules.py).
-fn presence_action<'py>(
-    world: &Bound<'py, PyAny>,
-    candidate: &Bound<'py, PyAny>,
-    event: &Bound<'py, PyAny>,
-    typed: &Bound<'py, PyAny>,
-    ids: &Bound<'py, PyAny>,
-) -> PyResult<Acted<'py>> {
-    let (row, command, state, ids_of_event, plan) = planning((|| {
-        let row = event_row(event)?;
-        let command = Command::of(typed, ids)?;
-        let Some(state) = namespace(candidate, KEY)? else {
-            return unsupported("the lifecycle is not installed");
+/// The part of `apply_population_presence_command` between the command's parse and the validation
+/// of the world it changed: the plan reads `world` and `reads` (what it reads of the world the
+/// command came from, the same world in a transaction), and the writes go to `world`.
+pub fn presence_action(world: &World, inputs: &Inputs<'_>, row: &EventRow, command: &Command, reads: &WorldReads) -> Result<Acted> {
+    let (event, plan) = {
+        let Some(state) = lifecycle_of(world, inputs)? else {
+            return refuse("the lifecycle is not installed");
         };
-        let ids_of_event = EventIds::of(&row)?;
-        let plan = plan_action(world, candidate, &row, &command, &state)?;
-        Ok((row, command, state, ids_of_event, plan))
-    })())?;
-    match plan {
-        Plan::Suppress(text) => errors::suppressed(candidate.py(), text),
-        Plan::Defer(reason) => Ok(Acted::Deferred(reason)),
-        plan => writing(write_action(candidate, &row, &ids_of_event, &command, &state, plan)).map(Acted::Done),
-    }
-}
-
-/// `_apply_presence_action`: `presence_action` on a copy of the world, whose deferral schedules the
-/// retry on `world` itself.
-#[pyfunction]
-fn apply_presence_action<'py>(
-    world: &Bound<'py, PyAny>,
-    candidate: &Bound<'py, PyAny>,
-    event: &Bound<'py, PyAny>,
-    typed: &Bound<'py, PyAny>,
-    ids: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyAny>> {
-    match presence_action(world, candidate, event, typed, ids)? {
-        Acted::Done(receipt) => Ok(receipt),
-        Acted::Deferred(reason) => {
-            schedule_population_retry(world, event, "presence-retry", "population exit")?;
-            deferred(world.py(), &reason)
-        }
-    }
-}
-
-/// `apply_population_presence_command`. The command's contract and the validation of the changed
-/// world stay Python's, and what they refuse is the Python rule's, with its text. The command runs
-/// in a transaction that stands for the Python rule's copy (`from_dict(deepcopy(to_dict()))`, the
-/// EventLog included); anything but its receipt rolls it back. A deferral then schedules its retry
-/// on the world as it was, as the Python rule did on the world it had copied.
-#[pyfunction]
-pub(crate) fn apply_presence_command<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>, command: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    let py = world.py();
-    let (typed, ids, txn, dropped) = planning((|| {
-        let module = py.import("sheltersim.domain.population_lifecycle")?;
-        let contract = module.getattr("PopulationPresenceCommand")?;
-        // The contract's parse in the rule's `try`: its TypeError or ValueError is the rule's text.
-        let parsed = (|| -> PyResult<_> {
-            let typed = if command.is_instance(&contract)? { command.clone() } else { contract.call_method1("model_validate", (command,))? };
-            let ids = typed.call_method0("selected_ids")?;
-            Ok((typed, ids))
-        })();
-        let (typed, ids) = match parsed {
-            Ok(parsed) => parsed,
-            Err(error) if !error.is_instance_of::<Unsupported>(py) && (error.is_instance_of::<PyTypeError>(py) || error.is_instance_of::<PyValueError>(py)) => {
-                return errors::failed(py, format!("population command is invalid: {}", error.value(py).str()?));
-            }
-            Err(error) => return Err(error),
-        };
-        if !has_namespace(world, KEY)? {
-            return errors::failed(py, "population lifecycle contract is not installed");
-        }
-        let txn = RuleTxn::begin(world, TxnKind::Full)?;
-        let checked = (|| {
-            let row = event_row(event)?;
-            if row.due_minute != exact_int(&attribute(txn.world(), intern!(py, "minute_index"))?)? {
-                return errors::failed(py, "population command minute must match the current event boundary");
-            }
-            let expected = attribute(&typed, intern!(py, "expected_return_minute"))?;
-            let mut dropped = false;
-            if !expected.is_none() && exact_int(&expected)? < row.due_minute {
-                if crate::rules::population::provenance(&row, "population_retry").is_none() {
-                    return errors::failed(py, "expected return minute precedes the departure event");
-                }
-                dropped = true;
-            }
-            Ok(dropped)
-        })();
-        let (txn, dropped) = txn.keep(checked)?;
-        Ok((typed, ids, txn, dropped))
-    })())?;
-    if dropped {
-        txn.rollback()?;
-        return errors::suppressed(py, "temporary exit dropped: the person was not free before the expected return".to_owned());
-    }
-    let acted = presence_action(txn.world(), txn.world(), event, &typed, &ids);
-    let (txn, acted) = txn.keep(acted)?;
-    let receipt = match acted {
-        Acted::Done(receipt) => receipt,
-        Acted::Deferred(reason) => {
-            txn.rollback()?;
-            schedule_population_retry(world, event, "presence-retry", "population exit")?;
-            return deferred(py, &reason);
-        }
+        let event = EventIds::of(row)?;
+        let plan = plan_action(world, inputs, row, command, &state.0, reads)?;
+        (event, plan)
     };
-    let candidate = txn.world();
-    let checked = (|| -> PyResult<()> {
-        validate_population_lifecycle_state(candidate).or_else(|error| {
-            if error.is_instance_of::<Unsupported>(py) {
-                py.import("sheltersim.domain.population_lifecycle")?.getattr("validate_population_lifecycle_state")?.call1((candidate,)).map(|_| ())
-            } else {
-                Err(error)
-            }
-        })?;
-        candidate.call_method0(intern!(py, "validate"))?;
-        py.import("sheltersim.domain.simulator_state")?.getattr("validate_simulator_extensions")?.call1((candidate,))?;
-        Ok(())
-    })();
-    if let Err(error) = checked {
-        txn.rollback()?;
-        if error.is_instance_of::<PyTypeError>(py) || error.is_instance_of::<PyKeyError>(py) || error.is_instance_of::<PyValueError>(py) {
-            return errors::failed(py, format!("population command failed validation: {}", error.value(py).str()?));
-        }
-        return Err(error);
+    match plan {
+        Plan::Suppress(text) => Err(Error::suppressed(text)),
+        Plan::Defer(reason) => Ok(Acted::Deferred(reason)),
+        plan => kit::writing(write_action(world, inputs, row, &event, command, plan)).map(Acted::Done),
     }
-    txn.commit()?;
-    Ok(receipt)
 }
+
+/// The checks of `apply_population_presence_command` on the world of its transaction, before the
+/// command: whether the command is dropped (a retried exit whose expected return has passed).
+pub fn check_command(world: &World, row: &EventRow, expected_return: Option<i64>) -> Result<bool> {
+    if row.due_minute != world.minute_index()? {
+        return failed("population command minute must match the current event boundary");
+    }
+    if let Some(expected) = expected_return {
+        if expected < row.due_minute {
+            if kit::provenance(row, "population_retry").is_none() {
+                return failed("expected return minute precedes the departure event");
+            }
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// The text of a dropped command.
+pub const DROPPED: &str = "temporary exit dropped: the person was not free before the expected return";
 
 // ---- `admit_pending_returns` ---------------------------------------------------------------------
 
-struct PendingReturn<'py> {
-    item: Bound<'py, PyAny>,
+struct PendingReturn {
+    item: V,
     minute: i64,
     event_id: Arc<str>,
     agent_id: Arc<str>,
     zone_id: Arc<str>,
 }
 
-fn returns_inner<'py>(world: &Bound<'py, PyAny>, minute: i64) -> PyResult<Bound<'py, PyTuple>> {
-    let py = world.py();
-    let plan = planning((|| {
-        if nothing_in(world, KEY, "pending_returns")? {
-            return Ok(None);
+/// Whether `admit_returns` surely has nothing to do: the world holds no lifecycle, or one whose
+/// `pending_returns` is there and empty.
+pub fn nothing_to_admit(world: &World, lifecycle: &Held) -> Result<bool> {
+    Ok(nothing_waiting(value_of(world, KEY, lifecycle)?.as_deref().map(|row| &row.0)))
+}
+
+/// Whether the lifecycle surely has no one waiting: absent, None, or a dict whose
+/// `pending_returns` is there and empty.
+fn nothing_waiting(state: Option<&V>) -> bool {
+    match state {
+        None | Some(V::Null) => true,
+        Some(V::Map(state)) => state.get("pending_returns").is_some_and(|value| !value.is_truthy()),
+        Some(_) => false,
+    }
+}
+
+/// `admit_pending_returns`: in (minute, event, person) order, each waiting person whose zone has
+/// room, or a room of the overlay, comes back; the archived ties of people both back follow.
+/// Gives the IDs admitted.
+pub fn admit_returns(world: &World, inputs: &Inputs<'_>, minute: i64) -> Result<Vec<Arc<str>>> {
+    let (admit, remaining) = {
+        let held = lifecycle_of(world, inputs)?;
+        if nothing_waiting(held.as_deref().map(|row| &row.0)) {
+            return Ok(Vec::new());
         }
-        let Some(state) = namespace(world, KEY)?.filter(is_dict) else {
-            return Ok(None);
+        let Some(state) = held.filter(|row| matches!(row.0, V::Map(_))) else {
+            return Ok(Vec::new());
         };
-        let pending = state.get_item("pending_returns")?;
-        if !pending.is_truthy()? {
-            return Ok(None);
+        let pending = field(&state.0, "pending_returns")?;
+        if !pending.is_truthy() {
+            return Ok(Vec::new());
         }
-        presence_state(world)?;
+        presence_state(world, &inputs.population.namespaces.presence)?;
         let mut waiting = Vec::new();
-        for item in pending.try_iter()? {
-            let item = item?;
+        for item in list_of(pending)? {
             waiting.push(PendingReturn {
-                minute: exact_int(&item.get_item("minute")?)?,
-                event_id: text(&item.get_item("event_id")?)?,
-                agent_id: text(&item.get_item("agent_id")?)?,
-                zone_id: text(&item.get_item("zone_id")?)?,
-                item,
+                minute: kit::exact_int(field(item, "minute")?)?,
+                event_id: text(field(item, "event_id")?)?,
+                agent_id: text(field(item, "agent_id")?)?,
+                zone_id: text(field(item, "zone_id")?)?,
+                item: item.clone(),
             });
         }
         waiting.sort_by(|first, second| (first.minute, first.event_id.as_bytes(), first.agent_id.as_bytes()).cmp(&(second.minute, second.event_id.as_bytes(), second.agent_id.as_bytes())));
@@ -1297,263 +1867,241 @@ fn returns_inner<'py>(world: &Bound<'py, PyAny>, minute: i64) -> PyResult<Bound<
         let mut admit = Vec::new();
         let mut remaining = Vec::new();
         for entry in waiting {
-            let room = if places.has_room_for(&entry.zone_id, None)? {
+            let room = if places.has_room_for(world, inputs, &entry.zone_id, None)? {
                 Some(None)
             } else {
-                places.available_room(&entry.zone_id)?.map(Some)
+                places.available_room(world, inputs, &entry.zone_id)?.map(Some)
             };
             let Some(room) = room else {
                 remaining.push(entry.item);
                 continue;
             };
-            check_restore(world, &state, &entry.agent_id, &entry.zone_id)?;
+            check_restore(world, inputs, &state.0, &entry.agent_id, &entry.zone_id)?;
             identifier(&entry.event_id)?;
             identifier(&entry.agent_id)?;
             identifier(&entry.zone_id)?;
-            optional_identifier(optional_text(&entry.item.get_item("household_id")?)?.as_deref())?;
-            for source in entry.item.get_item("source_ids")?.try_iter()? {
-                identifier(exact_str(&source?)?)?;
+            optional_identifier(optional_text(field(&entry.item, "household_id")?)?.as_deref())?;
+            for source in list_of(field(&entry.item, "source_ids")?)? {
+                identifier(kit::exact_str(source)?)?;
             }
             places.add(&entry.zone_id);
             if let Some((room_id, point)) = &room {
-                places.take_room(room_id, *point)?;
+                places.take_room(inputs, room_id, *point);
             }
             admit.push((entry, room));
         }
         if !admit.is_empty() {
-            check_information(world)?;
-            check_relationship_keys(world)?;
+            check_information(world, inputs.population)?;
+            check_relationship_keys(world, inputs.population)?;
         }
-        check_lifecycle(world, None)?;
-        Ok(Some((state, pending, admit, remaining)))
-    })())?;
-    let Some((state, pending, admit, remaining)) = plan else {
-        return Ok(PyTuple::empty(py));
+        drop(state);
+        validate(world, &inputs.lifecycle, &inputs.population.namespaces.presence, None)?;
+        (admit, remaining)
     };
-    writing((|| {
-        let presence = namespace(world, PRESENCE)?.filter(is_dict);
-        let mut admitted: Vec<Arc<str>> = Vec::with_capacity(admit.len());
-        for (entry, room) in &admit {
-            restore_person(world, &entry.agent_id, &entry.zone_id, minute, &state, room.as_ref(), &entry.event_id)?;
-            let household = optional_text(&entry.item.get_item("household_id")?)?;
-            let mut sources = Vec::new();
-            for source in entry.item.get_item("source_ids")?.try_iter()? {
-                sources.push(text(&source?)?);
-            }
-            if let Some(raw) = &presence {
-                let synthetic = EventIds { event_id: entry.event_id.clone(), causation_id: None, source_id: Arc::from(SOURCE_ID) };
-                let details = PresenceChange { to_zone: Some(entry.zone_id.clone()), household_id: household.clone(), source_ids: sources.clone(), action: Some("returned"), ..Default::default() };
-                set_presence(raw, &synthetic, &entry.agent_id, "admitted", minute, &details)?;
-            }
-            let row = PyDict::new(py);
-            row.set_item("event_id", &*entry.event_id)?;
-            row.set_item("agent_id", &*entry.agent_id)?;
-            row.set_item("action", "admitted")?;
-            row.set_item("minute", minute)?;
-            row.set_item("from_zone_id", py.None())?;
-            row.set_item("to_zone_id", &*entry.zone_id)?;
-            row.set_item("household_id", household.as_deref())?;
-            row.set_item("source_ids", strings(&sources).to_py(py)?)?;
-            append_history(&state, row)?;
-            admitted.push(entry.agent_id.clone());
-        }
-        // A list of the same people in the same order is the same state.
-        let mut same = admit.is_empty() && remaining.len() == pending.len()?;
-        if same {
-            for (index, item) in remaining.iter().enumerate() {
-                if !item.is(&pending.get_item(index)?) {
-                    same = false;
-                    break;
-                }
-            }
-        }
-        if !same {
-            state.set_item("pending_returns", PyList::new(py, &remaining)?)?;
-        }
-        restore_ready_relationships(world, &state)?;
-        PyTuple::new(py, admitted.iter().map(|id| &**id))
-    })())
+    kit::writing(write_returns(world, inputs, minute, admit, remaining))
 }
 
-#[pyfunction]
-pub(crate) fn admit_pending_returns<'py>(world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyTuple>> {
-    returns_inner(world, exact_int(minute)?)
+fn write_returns(world: &World, inputs: &Inputs<'_>, minute: i64, admit: Vec<(PendingReturn, Option<(Arc<str>, Pt)>)>, remaining: Vec<V>) -> Result<Vec<Arc<str>>> {
+    let presence = has_presence(world, inputs)?;
+    let mut admitted: Vec<Arc<str>> = Vec::with_capacity(admit.len());
+    for (entry, room) in &admit {
+        restore_person(world, inputs, &entry.agent_id, &entry.zone_id, minute, room.as_ref(), &entry.event_id)?;
+        let household = optional_text(field(&entry.item, "household_id")?)?;
+        let mut sources = Vec::new();
+        for source in list_of(field(&entry.item, "source_ids")?)? {
+            sources.push(text(source)?);
+        }
+        if presence {
+            let synthetic = EventIds { event_id: entry.event_id.clone(), causation_id: None, source_id: Arc::from(SOURCE_ID) };
+            let details = PresenceChange { to_zone: Some(entry.zone_id.clone()), household_id: household.clone(), source_ids: sources.clone(), action: Some("returned"), ..Default::default() };
+            set_presence(world, inputs, &synthetic, &entry.agent_id, "admitted", minute, &details)?;
+        }
+        append_history(world, history_row(&entry.event_id, &entry.agent_id, "admitted", minute, None, Some(&entry.zone_id), household, &sources))?;
+        admitted.push(entry.agent_id.clone());
+    }
+    // No one admitted leaves the same people in the same order.
+    if !admit.is_empty() {
+        let mut state = lifecycle_mut(world)?;
+        *part_mut(&mut state.0, "pending_returns")? = V::List(remaining);
+    }
+    restore_ready_relationships(world, inputs)?;
+    Ok(admitted)
 }
 
-/// What `returns_inner` asks of the waiting, whoever gets a place. A rule that writes and then
-/// admits asks this first: it can't refuse then.
-fn check_waiting_returns(world: &Bound<'_, PyAny>) -> PyResult<()> {
-    let Some(state) = namespace(world, KEY)?.filter(is_dict) else {
+/// What `admit_returns` asks of the waiting, whoever gets a place: a rule that writes and then
+/// admits asks this first, as it can't refuse then.
+fn check_waiting_returns(world: &World, inputs: &Inputs<'_>) -> Result<()> {
+    let Some(state) = lifecycle_of(world, inputs)?.filter(|row| matches!(row.0, V::Map(_))) else {
         return Ok(());
     };
-    let pending = state.get_item("pending_returns")?;
-    if !pending.is_truthy()? {
+    let pending = field(&state.0, "pending_returns")?;
+    if !pending.is_truthy() {
         return Ok(());
     }
-    presence_state(world)?;
+    presence_state(world, &inputs.population.namespaces.presence)?;
     let mut places = Places::of(world)?;
-    for item in pending.try_iter()? {
-        let item = item?;
-        exact_int(&item.get_item("minute")?)?;
-        let (event_id, agent_id, zone_id) = (text(&item.get_item("event_id")?)?, text(&item.get_item("agent_id")?)?, text(&item.get_item("zone_id")?)?);
-        places.has_room_for(&zone_id, None)?;
-        places.available_room(&zone_id)?;
-        check_restore(world, &state, &agent_id, &zone_id)?;
+    for item in list_of(pending)? {
+        kit::exact_int(field(item, "minute")?)?;
+        let (event_id, agent_id, zone_id) = (text(field(item, "event_id")?)?, text(field(item, "agent_id")?)?, text(field(item, "zone_id")?)?);
+        places.has_room_for(world, inputs, &zone_id, None)?;
+        places.available_room(world, inputs, &zone_id)?;
+        check_restore(world, inputs, &state.0, &agent_id, &zone_id)?;
         identifier(&event_id)?;
         identifier(&agent_id)?;
         identifier(&zone_id)?;
-        optional_identifier(optional_text(&item.get_item("household_id")?)?.as_deref())?;
-        for source in item.get_item("source_ids")?.try_iter()? {
-            identifier(exact_str(&source?)?)?;
+        optional_identifier(optional_text(field(item, "household_id")?)?.as_deref())?;
+        for source in list_of(field(item, "source_ids")?)? {
+            identifier(kit::exact_str(source)?)?;
         }
     }
-    check_information(world)?;
-    check_relationship_keys(world)
+    check_information(world, inputs.population)?;
+    check_relationship_keys(world, inputs.population)
 }
 
 // ---- `complete_presence_relocation` --------------------------------------------------------------
 
-/// What `complete_presence_relocation` refuses, for a rule that writes first and then calls it.
-/// `arriving` is the zone the caller's writes will put the person in.
-pub(crate) fn check_relocation_completes(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, arriving: &str) -> PyResult<()> {
-    match plan_relocation_completion(world, event, Some(arriving))? {
-        Ok(_) => Ok(()),
-        // Raised after the caller's writes: that caller's Python rule says it.
-        Err(_) => unsupported("the completion does not match its route"),
-    }
+const MISMATCH: &str = "relocation completion does not match its pending route";
+
+struct Completion {
+    agent_id: Arc<str>,
+    event: EventIds,
+    from_zone: Arc<str>,
+    to_zone: Arc<str>,
+    household: Option<Arc<str>>,
+    sources: Vec<Arc<str>>,
 }
 
 /// The plan of `complete_presence_relocation`, or the rule's text, before anything is written.
-#[allow(clippy::type_complexity)]
-fn plan_relocation_completion<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>, arriving: Option<&str>) -> PyResult<Result<(EventRow, Bound<'py, PyAny>, Arc<str>, Bound<'py, PyAny>, EventIds), &'static str>> {
-    const MISMATCH: &str = "relocation completion does not match its pending route";
-    planning((|| {
-        let row = event_row(event)?;
-        let Some(V::Str(agent_id)) = payload(&row, "agent_id").cloned() else {
-            return unsupported("the event names no one");
-        };
-        let Some(state) = namespace(world, KEY)?.filter(is_dict) else {
-            return Ok(Err(MISMATCH));
-        };
-        let relocation = get(&get_map(&state, "pending_relocations")?, &agent_id)?;
-        if !is_dict(&relocation) || relocation.get_item("event_id")?.ne(&*row.event_id)? || relocation.get_item("due_minute")?.ne(row.due_minute)? {
-            return Ok(Err(MISMATCH));
-        }
-        let to_zone = text(&relocation.get_item("to_zone_id")?)?;
-        let in_place = arriving == Some(&*to_zone)
-            || EntityStore::with_rows(&entities_of(world)?, |rows| Ok(rows.agents.get(&*agent_id).is_some_and(|agent| agent.zone_id == to_zone)))?;
-        if !in_place {
-            return Ok(Err(MISMATCH));
-        }
-        presence_state(world)?;
-        let ids_of_event = EventIds::of(&row)?;
-        identifier(&agent_id)?;
-        identifier(&to_zone)?;
-        identifier(exact_str(&relocation.get_item("from_zone_id")?)?)?;
-        optional_identifier(optional_text(&relocation.get_item("household_id")?)?.as_deref())?;
-        for source in relocation.get_item("source_ids")?.try_iter()? {
-            identifier(exact_str(&source?)?)?;
-        }
-        check_lifecycle(world, Some(&agent_id))?;
-        check_waiting_returns(world)?;
-        Ok(Ok((row, state, agent_id, relocation, ids_of_event)))
-    })())
+/// `arriving` is the zone a caller's writes will put the person in.
+fn plan_completion(world: &World, inputs: &Inputs<'_>, row: &EventRow, arriving: Option<&str>) -> Result<std::result::Result<Completion, &'static str>> {
+    let Some(V::Str(agent_id)) = kit::payload(row, "agent_id").cloned() else {
+        return refuse("the event names no one");
+    };
+    let Some(state) = lifecycle_of(world, inputs)?.filter(|row| matches!(row.0, V::Map(_))) else {
+        return Ok(Err(MISMATCH));
+    };
+    let relocation = match map_of(&state.0)?.get("pending_relocations") {
+        None => None,
+        Some(relocations) => map_of(relocations)?.get(&*agent_id).cloned(),
+    };
+    let Some(relocation @ V::Map(_)) = relocation else {
+        return Ok(Err(MISMATCH));
+    };
+    if !is_text(Some(field(&relocation, "event_id")?), &row.event_id) || !equals_int(field(&relocation, "due_minute")?, row.due_minute) {
+        return Ok(Err(MISMATCH));
+    }
+    let to_zone = text(field(&relocation, "to_zone_id")?)?;
+    let in_place = arriving == Some(&*to_zone) || world.rows()?.agents.get(&*agent_id).is_some_and(|agent| agent.zone_id == to_zone);
+    if !in_place {
+        return Ok(Err(MISMATCH));
+    }
+    presence_state(world, &inputs.population.namespaces.presence)?;
+    let event = EventIds::of(row)?;
+    identifier(&agent_id)?;
+    identifier(&to_zone)?;
+    let from_zone = text(field(&relocation, "from_zone_id")?)?;
+    identifier(&from_zone)?;
+    let household = optional_text(field(&relocation, "household_id")?)?;
+    optional_identifier(household.as_deref())?;
+    let mut sources = Vec::new();
+    for source in list_of(field(&relocation, "source_ids")?)? {
+        let source = text(source)?;
+        identifier(&source)?;
+        sources.push(source);
+    }
+    drop(state);
+    validate(world, &inputs.lifecycle, &inputs.population.namespaces.presence, Some(&agent_id))?;
+    check_waiting_returns(world, inputs)?;
+    Ok(Ok(Completion { agent_id, event, from_zone, to_zone, household, sources }))
 }
 
-#[pyfunction]
-pub(crate) fn complete_presence_relocation(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    let (row, state, agent_id, relocation, ids_of_event) = match plan_relocation_completion(world, event, None)? {
-        Ok(plan) => plan,
-        Err(text) => return errors::failed(py, text),
+/// What `complete_presence_relocation` refuses, for a rule that writes first and then calls it:
+/// `arriving` is the zone the caller's writes will put the person in.
+pub fn check_relocation_completes(world: &World, inputs: &Inputs<'_>, row: &EventRow, arriving: &str) -> Result<()> {
+    match plan_completion(world, inputs, row, Some(arriving))? {
+        Ok(_) => Ok(()),
+        // Raised after the caller's writes: that caller's rule says it.
+        Err(_) => refuse("the completion does not match its route"),
+    }
+}
+
+/// `complete_presence_relocation`: the presence change and the history row of a relocation that
+/// arrived, the relocation dropped, then `admit_pending_returns` at the due minute. Gives the IDs
+/// that admitted.
+pub fn complete_relocation(world: &World, inputs: &Inputs<'_>, row: &EventRow) -> Result<Vec<Arc<str>>> {
+    let completion = match plan_completion(world, inputs, row, None)? {
+        Ok(completion) => completion,
+        Err(text) => return failed(text),
     };
-    writing((|| {
-        let from_zone = text(&relocation.get_item("from_zone_id")?)?;
-        let to_zone = text(&relocation.get_item("to_zone_id")?)?;
-        let household = optional_text(&relocation.get_item("household_id")?)?;
-        let mut sources = Vec::new();
-        for source in relocation.get_item("source_ids")?.try_iter()? {
-            sources.push(text(&source?)?);
+    kit::writing((|| {
+        let Completion { agent_id, event, from_zone, to_zone, household, sources } = completion;
+        if has_presence(world, inputs)? {
+            let details = PresenceChange { from_zone: Some(from_zone.clone()), to_zone: Some(to_zone.clone()), household_id: household.clone(), source_ids: sources.clone(), action: Some("relocated") , ..Default::default() };
+            set_presence(world, inputs, &event, &agent_id, "admitted", row.due_minute, &details)?;
         }
-        if let Some(raw) = namespace(world, PRESENCE)?.filter(is_dict) {
-            let details = PresenceChange { from_zone: Some(from_zone.clone()), to_zone: Some(to_zone.clone()), household_id: household.clone(), source_ids: sources.clone(), action: Some("relocated"), ..Default::default() };
-            set_presence(&raw, &ids_of_event, &agent_id, "admitted", row.due_minute, &details)?;
-        }
-        let history_row = PyDict::new(py);
-        history_row.set_item("event_id", &*row.event_id)?;
-        history_row.set_item("agent_id", &*agent_id)?;
-        history_row.set_item("action", "relocated")?;
-        history_row.set_item("minute", row.due_minute)?;
-        history_row.set_item("from_zone_id", &*from_zone)?;
-        history_row.set_item("to_zone_id", &*to_zone)?;
-        history_row.set_item("household_id", household.as_deref())?;
-        history_row.set_item("source_ids", strings(&sources).to_py(py)?)?;
-        append_history(&state, history_row)?;
-        pop(&state.get_item("pending_relocations")?, &agent_id)?;
+        append_history(world, history_row(&row.event_id, &agent_id, "relocated", row.due_minute, Some(&from_zone), Some(&to_zone), household, &sources))?;
+        let mut state = lifecycle_mut(world)?;
+        dict_mut(part_mut(&mut state.0, "pending_relocations")?)?.shift_remove(&*agent_id);
         Ok(())
     })())?;
     // Written, so nothing can fall back from here: `check_waiting_returns` read what this reads.
-    writing(returns_inner(world, row.due_minute)).map(|_| ())
-}
-
-// ---- Room ----------------------------------------------------------------------------------------
-
-#[pyfunction]
-#[pyo3(signature = (world, zone_id, *, excluding=None))]
-fn zone_has_room(world: &Bound<'_, PyAny>, zone_id: &Bound<'_, PyAny>, excluding: Option<&str>) -> PyResult<bool> {
-    planning(Places::of(world)?.has_room_for(exact_str(zone_id)?, excluding))
+    kit::writing(admit_returns(world, inputs, row.due_minute))
 }
 
 // ---- `validate_population_lifecycle_state` -------------------------------------------------------
 
-/// `_validate_json(value)`: `json.dumps(value, allow_nan=False, sort_keys=True)`, whose ValueError
-/// for a value that is not finite is Python's own text. A value read into `V` holds nothing else
-/// `json.dumps` refuses.
-fn json_checked(value: &V) -> PyResult<()> {
-    if all_finite(value) {
-        return Ok(());
-    }
-    Python::with_gil(|py| {
-        let keywords = PyDict::new(py);
-        keywords.set_item("allow_nan", false)?;
-        keywords.set_item("sort_keys", true)?;
-        match py.import("json")?.getattr("dumps")?.call((value.to_py(py)?,), Some(&keywords)) {
-            Ok(_) => unsupported("json.dumps took a value that is not finite"),
-            Err(error) if error.is_instance_of::<PyValueError>(py) => invalid(&error.value(py).str()?.to_string_lossy()),
-            Err(error) => Err(error),
+/// The first value `json.dumps(value, allow_nan=False, sort_keys=True)` refuses, in its order: the
+/// keys of each dict sorted.
+fn first_not_finite(value: &V) -> Option<f64> {
+    match value {
+        V::Float(number) if !number.is_finite() => Some(*number),
+        V::List(items) => items.iter().find_map(first_not_finite),
+        V::Map(map) => {
+            let mut keys: Vec<&Arc<str>> = map.keys().collect();
+            keys.sort_unstable_by(|first, second| first.as_bytes().cmp(second.as_bytes()));
+            keys.into_iter().find_map(|key| first_not_finite(&map[&**key]))
         }
-    })
+        _ => None,
+    }
 }
 
-/// `Activity(value)` or `Mobility(value)`: the enum's ValueError, as a validation's.
-fn enum_checked(py: Python<'_>, name: &str, value: &V) -> PyResult<()> {
-    let models = py.import("sheltersim.domain.models")?;
-    match models.getattr(name)?.call1((value.to_py(py)?,)) {
-        Ok(_) => Ok(()),
-        Err(error) if error.is_instance_of::<PyValueError>(py) => invalid(&error.value(py).str()?.to_string_lossy()),
-        Err(error) => Err(error),
+/// `_validate_json(value)`: `json.dumps`' ValueError for a value that is not finite, with its text.
+/// A value read into `V` holds nothing else `json.dumps` refuses.
+fn json_checked(value: &V) -> Result<()> {
+    match first_not_finite(value) {
+        None => Ok(()),
+        // `repr` of the float: only these three are not finite.
+        Some(number) => invalid(&format!("Out of range float values are not JSON compliant: {}", if number.is_nan() { "nan" } else if number > 0.0 { "inf" } else { "-inf" })),
+    }
+}
+
+/// `Activity(value)` or `Mobility(value)`: the enum's ValueError, as a validation's. A value that is
+/// not a str, whose repr Python would write, is refused.
+fn enum_checked<E: StrEnum>(name: &str, value: &V) -> Result<()> {
+    match value {
+        V::Str(text) if E::from_text(text).is_some() => Ok(()),
+        V::Str(text) => invalid(&format!("{} is not a valid {name}", py_repr(text))),
+        _ => refuse("an enum's value is not a str"),
     }
 }
 
 /// `_validate_agent_snapshot`.
-fn snapshot_checked(raw: &V, expected_id: &str) -> PyResult<()> {
+fn snapshot_checked(raw: &V, expected_id: &str) -> Result<()> {
     const FIELDS: [&str; 10] = ["profile", "zone_id", "activity", "target_id", "needs", "stress", "trust", "next_decision_at", "support_request_id", "support_cooldown_until"];
     let fields = match raw {
         V::Map(fields) if fields.len() == FIELDS.len() && FIELDS.iter().all(|key| fields.contains_key(*key)) => fields,
         _ => return invalid("population lifecycle Agent snapshot has an invalid schema"),
     };
     let profile = match fields.get("profile") {
-        Some(V::Map(profile)) if matches!(profile.get("id"), Some(V::Str(id)) if &**id == expected_id) => profile,
+        Some(V::Map(profile)) if is_text(profile.get("id"), expected_id) => profile,
         _ => return invalid("population lifecycle Agent snapshot identity is invalid"),
     };
     const PROFILE: [&str; 9] = ["id", "group_id", "initial_zone_id", "mobility", "support_need", "stress_sensitivity", "rng_key", "initial_needs", "provenance"];
     if profile.len() != PROFILE.len() || PROFILE.iter().any(|key| !profile.contains_key(*key)) || !matches!(profile.get("initial_needs"), Some(V::Map(_))) {
         return invalid("population lifecycle profile snapshot is invalid");
     }
-    Python::with_gil(|py| -> PyResult<()> {
-        enum_checked(py, "Activity", fields.get("activity").ok_or_else(|| Unsupported::new_err("no activity"))?)?;
-        enum_checked(py, "Mobility", profile.get("mobility").ok_or_else(|| Unsupported::new_err("no mobility"))?)
-    })?;
+    enum_checked::<Activity>("Activity", fields.get("activity").ok_or_else(|| Error::unsupported("no activity"))?)?;
+    enum_checked::<Mobility>("Mobility", profile.get("mobility").ok_or_else(|| Error::unsupported("no mobility"))?)?;
     for value in [fields.get("stress"), fields.get("trust"), profile.get("support_need"), profile.get("stress_sensitivity")] {
         let good = match value {
             Some(V::Float(number)) => number.is_finite() && (0.0..=1.0).contains(number),
@@ -1568,24 +2116,84 @@ fn snapshot_checked(raw: &V, expected_id: &str) -> PyResult<()> {
 }
 
 /// `value in mapping` of a value Python hashes as it is: false for a scalar that is not a str.
-fn scalar_in(value: &V, contains: impl FnOnce(&str) -> PyResult<bool>) -> PyResult<bool> {
+fn scalar_in(value: &V, contains: impl FnOnce(&str) -> Result<bool>) -> Result<bool> {
     match value {
         V::Str(text) => contains(text),
-        V::List(_) | V::Map(_) => unsupported("a key is not hashable"),
+        V::List(_) | V::Map(_) => refuse("a key is not hashable"),
         _ => Ok(false),
     }
 }
 
+/// A task as the validator reads it: its person, kind and due minute.
+pub struct TaskFacts {
+    pub agent_id: Option<Arc<str>>,
+    pub kind: Arc<str>,
+    pub due_minute: i64,
+}
+
+/// What `validate_population_lifecycle_state` reads of a world: the rows of a world the core holds
+/// (`validate`), or the PyO3 crate's reads of a world it doesn't (a save's world before its core).
+pub struct Facts<'a> {
+    /// `model_state.get(KEY)`.
+    pub state: Option<&'a V>,
+    /// `model_state[PRESENCE]` where `model_state` has the key.
+    pub presence: Option<Option<&'a V>>,
+    pub has_agent: &'a dyn Fn(&str) -> Result<bool>,
+    pub has_zone: &'a dyn Fn(&str) -> Result<bool>,
+    /// The active tasks of this ID.
+    pub tasks: &'a dyn Fn(&str) -> Result<Vec<TaskFacts>>,
+    /// The pending event of this ID, if any.
+    pub event: &'a dyn Fn(&str) -> Result<Option<Arc<EventRow>>>,
+}
+
 const LIFECYCLE_SCHEMA: &str = "population_lifecycle_v1 has an invalid exact schema";
+
+/// `validate_population_lifecycle_state` of the world's rows. `lifecycle` and `presence` are
+/// whether the world holds the two namespaces; `leaving` is a person whose finished relocation is
+/// about to be dropped.
+pub fn validate(world: &World, lifecycle: &Held, presence: &Held, leaving: Option<&str>) -> Result<()> {
+    let state = value_of(world, KEY, lifecycle)?;
+    let presence_held = presence;
+    let presence = match presence_held {
+        Held::Absent => None,
+        held => Some(kit::held_row::<ValueRow>(world, PRESENCE, held)?),
+    };
+    let has_agent = |id: &str| -> Result<bool> { Ok(world.rows()?.agents.contains_key(id)) };
+    let has_zone = |id: &str| -> Result<bool> { zone_known(world, id) };
+    let tasks = |id: &str| -> Result<Vec<TaskFacts>> {
+        let rows = world.rows()?;
+        Ok(rows
+            .active_tasks
+            .iter()
+            .filter(|(_, task)| &*task.id == id)
+            .map(|(_, task)| TaskFacts { agent_id: task.agent_id.clone(), kind: task.kind.clone(), due_minute: task.due_minute })
+            .collect())
+    };
+    let event = |id: &str| -> Result<Option<Arc<EventRow>>> {
+        let queue = world.queue()?;
+        match queue.serial_of(id) {
+            None => Ok(None),
+            Some(serial) => queue.slot(serial).row.clone().map(Some).ok_or_else(|| Error::unsupported(NO_ROW)),
+        }
+    };
+    validate_facts(
+        &Facts {
+            state: state.as_deref().map(|row| &row.0),
+            presence: presence.as_ref().map(|row| row.as_deref().map(|row| &row.0)),
+            has_agent: &has_agent,
+            has_zone: &has_zone,
+            tasks: &tasks,
+            event: &event,
+        },
+        leaving,
+    )
+}
 
 /// `validate_population_lifecycle_state`: its ValueErrors in its order of checks. Unsupported, a
 /// `KernelRefusal` in Python, for what `PresenceState` decided (its plain form is read here) and for
-/// a key that is not hashable. `leaving` is a person whose finished relocation is about to be
-/// dropped.
-fn check_lifecycle(world: &Bound<'_, PyAny>, leaving: Option<&str>) -> PyResult<()> {
-    let py = world.py();
-    // Read as a `V`, a detached one from its row.
-    let Some(state) = state_value(world, KEY)?.filter(|state| !matches!(state, V::Null)) else {
+/// a key that is not hashable.
+pub fn validate_facts(facts: &Facts<'_>, leaving: Option<&str>) -> Result<()> {
+    let Some(state) = facts.state.filter(|state| !matches!(state, V::Null)) else {
         return Ok(());
     };
     let V::Map(document) = state else {
@@ -1595,9 +2203,7 @@ fn check_lifecycle(world: &Bound<'_, PyAny>, leaving: Option<&str>) -> PyResult<
     if document.len() != FIELDS.len() || FIELDS.iter().any(|key| !document.contains_key(*key)) {
         return invalid(LIFECYCLE_SCHEMA);
     }
-    let header = is_one(document.get("schema_version"))
-        && matches!(document.get("policy_version"), Some(V::Str(text)) if &**text == POLICY_VERSION)
-        && matches!(document.get("source_id"), Some(V::Str(text)) if &**text == SOURCE_ID);
+    let header = population::is_one(document.get("schema_version")) && is_text(document.get("policy_version"), POLICY_VERSION) && is_text(document.get("source_id"), SOURCE_ID);
     let (Some(V::Map(people)), Some(V::List(archive)), Some(V::Map(messages)), Some(V::Map(deferred)), Some(V::List(returns)), Some(V::Map(relocations)), Some(V::List(history_rows))) = (
         document.get("people"),
         document.get("relationship_archive"),
@@ -1612,15 +2218,13 @@ fn check_lifecycle(world: &Bound<'_, PyAny>, leaving: Option<&str>) -> PyResult<
     if !header || people.len() > MAX_RETAINED_PEOPLE || archive.len() > MAX_RELATIONSHIP_ARCHIVE || history_rows.len() > MAX_HISTORY {
         return invalid(LIFECYCLE_SCHEMA);
     }
-    let agents = attribute(world, intern!(py, "agents"))?;
-    let zones = attribute(world, intern!(py, "zones"))?;
     const PERSON: &str = "population_lifecycle_v1 archived person is invalid";
     const RECORD: [&str; 6] = ["agent", "agent_dynamics", "body_agent", "information", "since_minute", "source_event_ids"];
     for (agent_id, record) in people {
         let V::Map(fields) = record else {
             return invalid(PERSON);
         };
-        if agents.contains(&**agent_id)? || fields.len() != RECORD.len() || RECORD.iter().any(|key| !fields.contains_key(*key)) {
+        if (facts.has_agent)(agent_id)? || fields.len() != RECORD.len() || RECORD.iter().any(|key| !fields.contains_key(*key)) {
             return invalid(PERSON);
         }
         if !matches!(fields.get("since_minute"), Some(V::Int(minute)) if *minute >= 0) || !matches!(fields.get("source_event_ids"), Some(V::List(_))) {
@@ -1632,7 +2236,7 @@ fn check_lifecycle(world: &Bound<'_, PyAny>, leaving: Option<&str>) -> PyResult<
         if information.len() != 2 || !matches!(information.get("beliefs"), Some(V::Map(_))) || !information.contains_key("query_pressure") {
             return invalid(PERSON);
         }
-        snapshot_checked(fields.get("agent").ok_or_else(|| Unsupported::new_err("no agent"))?, agent_id)?;
+        snapshot_checked(fields.get("agent").ok_or_else(|| Error::unsupported("no agent"))?, agent_id)?;
         json_checked(record)?;
     }
     let mut pending_ids: Vec<&str> = Vec::with_capacity(returns.len());
@@ -1652,9 +2256,9 @@ fn check_lifecycle(world: &Bound<'_, PyAny>, leaving: Option<&str>) -> PyResult<
             return invalid(RETURN_INVALID);
         }
         let V::Str(agent_id) = agent_value else {
-            return unsupported("a returning ID is not a str");
+            return refuse("a returning ID is not a str");
         };
-        if agents.contains(&**agent_id)? || !scalar_in(zone_value, |zone| zones.contains(zone))? || pending_ids.contains(&&**agent_id) {
+        if (facts.has_agent)(agent_id)? || !scalar_in(zone_value, |zone| (facts.has_zone)(zone))? || pending_ids.contains(&&**agent_id) {
             return invalid(RETURN_INVALID);
         }
         if !matches!(fields.get("minute"), Some(V::Int(minute)) if *minute >= 0) || !matches!(fields.get("event_id"), Some(V::Str(_))) || !matches!(fields.get("source_ids"), Some(V::List(_))) {
@@ -1665,7 +2269,7 @@ fn check_lifecycle(world: &Bound<'_, PyAny>, leaving: Option<&str>) -> PyResult<
     const RELOCATION_INVALID: &str = "population_lifecycle_v1 pending relocation is invalid";
     const RELOCATION: [&str; 8] = ["task_id", "event_id", "from_zone_id", "to_zone_id", "household_id", "source_ids", "started_minute", "due_minute"];
     for (agent_id, relocation) in relocations {
-        if !agents.contains(&**agent_id)? {
+        if !(facts.has_agent)(agent_id)? {
             return invalid(RELOCATION_INVALID);
         }
         let V::Map(fields) = relocation else {
@@ -1677,7 +2281,7 @@ fn check_lifecycle(world: &Bound<'_, PyAny>, leaving: Option<&str>) -> PyResult<
         let (Some(from), Some(to)) = (fields.get("from_zone_id"), fields.get("to_zone_id")) else {
             return invalid(RELOCATION_INVALID);
         };
-        if !scalar_in(from, |zone| zones.contains(zone))? || !scalar_in(to, |zone| zones.contains(zone))? {
+        if !scalar_in(from, |zone| (facts.has_zone)(zone))? || !scalar_in(to, |zone| (facts.has_zone)(zone))? {
             return invalid(RELOCATION_INVALID);
         }
         let (Some(V::Int(started)), Some(V::Int(due)), Some(V::List(_))) = (fields.get("started_minute"), fields.get("due_minute"), fields.get("source_ids")) else {
@@ -1697,7 +2301,7 @@ fn check_lifecycle(world: &Bound<'_, PyAny>, leaving: Option<&str>) -> PyResult<
         if fields.len() != ARCHIVE.len() || ARCHIVE.iter().any(|key| !fields.contains_key(*key)) {
             return invalid(ARCHIVE_INVALID);
         }
-        let namespace_value = fields.get("namespace").ok_or_else(|| Unsupported::new_err("no namespace"))?;
+        let namespace_value = fields.get("namespace").ok_or_else(|| Error::unsupported("no namespace"))?;
         let good = scalar_in(namespace_value, |name| Ok(NAMES.contains(&name)))?
             && matches!(fields.get("pair_key"), Some(V::Str(_)))
             && matches!(fields.get("agent_ids"), Some(V::List(ids)) if ids.len() == 2 && ids[0] != ids[1])
@@ -1705,43 +2309,26 @@ fn check_lifecycle(world: &Bound<'_, PyAny>, leaving: Option<&str>) -> PyResult<
         if !good {
             return invalid(ARCHIVE_INVALID);
         }
-        json_checked(fields.get("value").ok_or_else(|| Unsupported::new_err("no value"))?)?;
+        json_checked(fields.get("value").ok_or_else(|| Error::unsupported("no value"))?)?;
     }
-    let queue = attribute(&attribute(world, intern!(py, "event_queue"))?, intern!(py, "_store")).ok().and_then(|store| store.downcast_into::<QueueStore>().ok());
     for (agent_id, relocation) in relocations {
         const INCONSISTENT: &str = "population_lifecycle_v1 relocation task/event is inconsistent";
         if leaving == Some(&**agent_id) {
             continue;
         }
         let V::Map(fields) = relocation else {
-            return unsupported("a relocation is not a mapping");
+            return refuse("a relocation is not a mapping");
         };
         let (Some(V::Str(task_id)), Some(V::Str(event_id)), Some(V::Int(due))) = (fields.get("task_id"), fields.get("event_id"), fields.get("due_minute")) else {
             return invalid(INCONSISTENT);
         };
-        // The objects, as the rule reads them: `task.__dict__[...] = ...` reaches no row
-        // (docs/rust-port/lanes/t-tick-validation.md).
-        let mut matching = Vec::new();
-        for task in exact_dict(&attribute(world, intern!(py, "active_tasks"))?)?.values() {
-            if exact_str(&attribute(&task, intern!(py, "id"))?)? == &**task_id {
-                matching.push(task);
-            }
-        }
+        let matching = (facts.tasks)(task_id)?;
         let task_fits = match matching.as_slice() {
-            [task] => {
-                let task_agent = attribute(task, intern!(py, "agent_id"))?;
-                !task_agent.is_none()
-                    && exact_str(&task_agent)? == &**agent_id
-                    && exact_str(&attribute(task, intern!(py, "kind"))?)? == "travel_return"
-                    && exact_int(&attribute(task, intern!(py, "due_minute"))?)? == *due
-            }
+            [task] => task.agent_id.as_deref() == Some(&**agent_id) && &*task.kind == "travel_return" && task.due_minute == *due,
             _ => false,
         };
-        let Some(queue) = &queue else {
-            return unsupported("the queue is not in Rust");
-        };
-        let event = queue.get().row(py, event_id)?;
-        let event_fits = event.is_some_and(|event| &*event.event_type == "agent_travel_complete" && matches!(payload(&event, "purpose"), Some(V::Str(purpose)) if &**purpose == "presence_relocation"));
+        let event = (facts.event)(event_id)?;
+        let event_fits = event.is_some_and(|event| &*event.event_type == "agent_travel_complete" && is_text(kit::payload(&event, "purpose"), "presence_relocation"));
         if !task_fits || !event_fits {
             return invalid(INCONSISTENT);
         }
@@ -1758,16 +2345,10 @@ fn check_lifecycle(world: &Bound<'_, PyAny>, leaving: Option<&str>) -> PyResult<
         }
         json_checked(beliefs)?;
     }
-    if has_namespace(world, PRESENCE)? {
-        // Read as a `V`, a detached one from its row.
-        let raw = state_value(world, PRESENCE)?.filter(|raw| !matches!(raw, V::Null)).ok_or_else(|| Unsupported::new_err("no presence"))?;
-        presence_value_is_plain(&raw)?;
-        let V::Map(presence) = &raw else {
-            return unsupported("the presence state is not a mapping");
-        };
-        let Some(V::Map(people)) = presence.get("people") else {
-            return unsupported("the presence state lacks its people");
-        };
+    if let Some(raw) = facts.presence {
+        let raw = raw.filter(|raw| !matches!(raw, V::Null)).ok_or_else(|| Error::unsupported("no presence"))?;
+        presence_is_plain(raw)?;
+        let people = map_of(field(raw, "people")?)?;
         for agent_id in pending_ids {
             let record = people.get(agent_id).filter(|record| !matches!(record, V::Null)).map(Person::parse).transpose()?;
             if !record.is_some_and(|person| &*person.status == "awaiting_admission") {
@@ -1775,29 +2356,5 @@ fn check_lifecycle(world: &Bound<'_, PyAny>, leaving: Option<&str>) -> PyResult<
             }
         }
     }
-    Ok(())
-}
-
-#[pyfunction]
-fn validate_population_lifecycle_state(world: &Bound<'_, PyAny>) -> PyResult<()> {
-    planning(check_lifecycle(world, None))
-}
-
-/// `validate_population_lifecycle_state` as a validator of `state_mirror._RUST_VALIDATORS`: true, or
-/// Unsupported, and the validation where it runs then raises its own text.
-#[pyfunction]
-fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    as_refusal(planning(check_lifecycle(world, None))).map(|()| true)
-}
-
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(current_household_id, m)?)?;
-    m.add_function(wrap_pyfunction!(apply_presence_action, m)?)?;
-    m.add_function(wrap_pyfunction!(admit_pending_returns, m)?)?;
-    m.add_function(wrap_pyfunction!(complete_presence_relocation, m)?)?;
-    m.add_function(wrap_pyfunction!(apply_presence_command, m)?)?;
-    m.add_function(wrap_pyfunction!(zone_has_room, m)?)?;
-    m.add_function(wrap_pyfunction!(validate_population_lifecycle_state, m)?)?;
-    m.add_function(wrap_pyfunction!(validate, m)?)?;
     Ok(())
 }
