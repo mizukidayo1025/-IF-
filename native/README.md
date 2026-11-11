@@ -125,9 +125,13 @@ Checkpoint document) and times them.
   and the stop of trips over a closed route, on the row of `staff_operations_v1` and the entities,
   with the staff positions, `staff_dynamics` and the receipts called directly; an intake's
   admission stays the glue's between the plan and the writes) and `staff_order.rs` (an operator's
-  order of a routed task) (lane P8 b2);
+  order of a routed task) (lane P8 b2); `staff.rs` (the support requests' assignment with the
+  controller's own route and trip called directly, the complaints that come due through
+  `Host::consider_complaint_response`, the waits the metrics read, the zones' sanitation, the
+  routed tasks and their relief, on the rows; the service's parameters from the Run's `Policies`)
+  (lane P8 b3);
   the file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4, P8-0a, c1,
-  P8b-1, P8 a2, P8 a1, P8 d1, P8 a3, P8 c3, P8 a5, P8 c4, P8 c6, P8 c5 and P8 b2),
+  P8b-1, P8 a2, P8 a1, P8 d1, P8 a3, P8 c3, P8 a5, P8 c4, P8 c6, P8 c5, P8 b2 and P8 b3),
   `text.rs` (`casefold`, CPython 3.12's full fold from a generated table, `text/casefold.rs`
   by `tools/casefold_table.py`, tested at every code point against `tests/data/casefold.txt`;
   `g_text`, `format(value, "g")`; `py_repr`, `repr` of a str, from the table of what
