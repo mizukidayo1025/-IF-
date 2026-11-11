@@ -13,8 +13,10 @@ pub mod action_lifecycle;
 pub mod agent_dynamics;
 pub mod body_state;
 pub mod person_context;
+pub mod psychology;
 pub mod social_dialogue;
 pub mod social_network;
+pub mod trace;
 pub mod world_view;
 pub mod zone_environment;
 

@@ -109,6 +109,15 @@ impl<'py> PyHost<'py> {
         Ok(Self { world, controller: Some(controller.clone()), policies, observer: None, rng: None, kept: PyDict::new(py) })
     }
 
+    /// The host of a holder of the update steps (lane P8 a3): its policies as given
+    /// (`run::policies_of`), and its world if it has one, which only the methods that reach the
+    /// world use (a test's namespace may hold no world).
+    pub(crate) fn of_holder(controller: &Bound<'py, PyAny>, policies: Arc<Policies>) -> Self {
+        let py = controller.py();
+        let world = controller.getattr(intern!(py, "world")).unwrap_or_else(|_| py.None().into_bound(py));
+        Self { world, controller: Some(controller.clone()), policies: Some(policies), observer: None, rng: None, kept: PyDict::new(py) }
+    }
+
     /// With `TickEngine.phase_observer` (None for none).
     pub(crate) fn with_observer(mut self, observer: &Bound<'py, PyAny>) -> Self {
         self.observer = (!observer.is_none()).then(|| observer.clone());

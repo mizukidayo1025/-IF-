@@ -30,7 +30,7 @@ use sheltersim_core::config::{Fault, Selection};
 use sheltersim_core::rules::world_view::{self as view, Inputs, ViewCache};
 
 pub(crate) use sheltersim_core::rules::world_view::{
-    status_text, BodyFields, DemandModifier, Household, PersonFields, ViewAgent, ViewData, ViewFacility, ViewZone,
+    status_text, BodyFields, DemandModifier, Household, PersonFields, ViewAgent, ViewData, ViewZone,
 };
 
 use crate::core::configs;

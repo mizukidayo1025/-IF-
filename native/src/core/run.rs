@@ -32,7 +32,7 @@ use sheltersim_core::run::held::{Class, Held, Obj, Spec};
 use sheltersim_core::rules::action_lifecycle::ActiveActions;
 use sheltersim_core::run::policies::CONTROLLER;
 use sheltersim_core::rules::world_view::ViewCache;
-use sheltersim_core::run::{Capacity, Policies, RouteCapacities, Run, RunConfig};
+use sheltersim_core::run::{Capacity, Policies, RouteCapacities, Run, RunConfig, Scratch};
 use sheltersim_core::value::V;
 
 use crate::core::configs::fault_of;
@@ -230,6 +230,12 @@ impl RunCore {
         Ok(self.lock()?.policies.clone())
     }
 
+    /// Run f on the values of the tick under way (`Run::scratch`, lane P8 a3), with the Run locked:
+    /// f must not reach this Run again.
+    pub(crate) fn with_scratch<R>(&self, f: impl FnOnce(&mut Scratch) -> R) -> PyResult<R> {
+        Ok(f(&mut self.lock()?.scratch))
+    }
+
     /// `controller.route_capacities`, or the refusal reading them gives.
     pub(crate) fn capacities(&self) -> PyResult<Arc<RouteCapacities>> {
         self.lock()?.config.route_capacities().cloned().or_py()
@@ -376,6 +382,18 @@ impl RunCore {
         let texts = |ids: &[Arc<str>]| ids.iter().map(|id| id.to_string()).collect::<Vec<String>>();
         Ok(found.map(|route| (texts(&route.zone_ids), texts(&route.edge_ids), route.minutes)))
     }
+}
+
+/// The policies of a controller (lane P8 a3): those its Run read, or, for a holder without a Run
+/// that read them (a test's namespace, a Run made without its controller), read now.
+pub(crate) fn policies_of(controller: &Bound<'_, PyAny>) -> PyResult<Arc<Policies>> {
+    if let Ok(run) = run_of(controller) {
+        let policies = run.get().policies()?;
+        if policies.has_controller() {
+            return Ok(policies);
+        }
+    }
+    Ok(Arc::new(read_policies(controller)))
 }
 
 /// `controller._run_core`.
