@@ -669,7 +669,7 @@ impl<'py> Phase<'_, 'py> {
             Err(error) => return Err(error),
         };
         let state = match &writer {
-            Some(writer) => writer.queue().borrow().state_of_due(&due),
+            Some(writer) => writer.queue().get().state_of_due(py, &due)?,
             None => DueState::Changed,
         };
         let snapshot_object = |due: &DueEvent| -> PyResult<Bound<'py, PyAny>> {
@@ -695,8 +695,8 @@ impl<'py> Phase<'_, 'py> {
             match &due.object {
                 Some(object) => Ok(object.bind(py).clone()),
                 None => match EventWriter::of(self.world) {
-                    Ok(writer) if writer.queue().borrow().state_of_due(&due) == DueState::Same => {
-                        Ok(writer.queue().borrow_mut().object_of_due(py, &due)?.into_bound(py))
+                    Ok(writer) if writer.queue().get().state_of_due(py, &due)? == DueState::Same => {
+                        Ok(writer.queue().get().object_of_due(py, &due)?.into_bound(py))
                     }
                     _ => snapshot_object(&due),
                 },
@@ -1009,7 +1009,7 @@ impl<'py> Phase<'_, 'py> {
         let controller = self.controller;
         let due_events = {
             let writer = EventWriter::of(world)?;
-            let due = writer.queue().borrow().due_events(py, self.minute_value);
+            let due = writer.queue().get().due_events(py, self.minute_value)?;
             due
         };
         let mut outcomes = Vec::with_capacity(due_events.len());

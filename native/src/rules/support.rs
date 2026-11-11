@@ -941,8 +941,7 @@ pub(crate) fn plan_request(
     let sequence = writer.next_sequence()?;
     let event_id: Arc<str> = Arc::from(format!("support-timeout-{sequence}"));
     {
-        let past = writer.log().borrow();
-        if past.has_event_id(&event_id) || past.has_sequence(sequence) || writer.queue().borrow().has_event(&event_id) {
+        if writer.is_taken(&event_id, Some(sequence))? {
             return unsupported("the event's identity is taken");
         }
     }
@@ -1045,7 +1044,7 @@ pub(crate) fn support_kind_of(world: &Bound<'_, PyAny>, writer: &EventWriter<'_>
     let Some(person) = as_readable_dict(&person) else {
         return if person.is_instance_of::<PyDict>() { unsupported("another kind of dict") } else { Ok(default()) };
     };
-    let completed = writer.log().borrow().completed_kinds(agent_id).to_vec();
+    let completed = writer.log().get().completed_kinds(py, agent_id)?;
     let done = |kind: &str| completed.iter().any(|known| known == kind);
     if let Some(configured) = person.get_item(intern!(py, "care_support_needs"))? {
         let items: Vec<Bound<'_, PyAny>> = match (configured.downcast::<PyList>(), configured.downcast::<PyTuple>()) {

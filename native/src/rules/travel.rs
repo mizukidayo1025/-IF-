@@ -323,7 +323,7 @@ fn pending_edges(event: &PendingEvent<'_>) -> PyResult<Vec<Arc<str>>> {
 
 fn pending_events<'py>(world: &Bound<'py, PyAny>) -> PyResult<Vec<PendingEvent<'py>>> {
     let writer = EventWriter::of(world)?;
-    let pending = writer.queue().borrow().pending_events(world.py())?;
+    let pending = writer.queue().get().pending_events(world.py())?;
     pending.ok_or_else(|| Unsupported::new_err("an event in the queue is not a plain one"))
 }
 
@@ -763,9 +763,8 @@ pub(crate) fn plan_travel(world: &Bound<'_, PyAny>, writer: &EventWriter<'_>, tr
     let event_id: Arc<str> = Arc::from(format!("agent-travel-complete-{sequence}"));
     let task_id: Arc<str> = Arc::from(format!("agent-travel-{sequence}"));
     {
-        let past = writer.log().borrow();
         let task_is_taken = EntityStore::with_rows(&store, |rows| Ok(rows.active_tasks.get(&task_id).is_some()))?;
-        if past.has_event_id(&event_id) || past.has_sequence(sequence) || writer.queue().borrow().has_event(&event_id) || task_is_taken {
+        if writer.is_taken(&event_id, Some(sequence))? || task_is_taken {
             return unsupported("the trip's identity is taken");
         }
     }
@@ -891,9 +890,8 @@ pub(crate) fn plan_room_approach(
     let event_id: Arc<str> = Arc::from(format!("agent-facility-approach-complete-{sequence}"));
     let task_id: Arc<str> = Arc::from(format!("agent-facility-approach-{sequence}"));
     {
-        let past = writer.log().borrow();
         let task_is_taken = EntityStore::with_rows(&store, |rows| Ok(rows.active_tasks.get(&task_id).is_some()))?;
-        if past.has_event_id(&event_id) || past.has_sequence(sequence) || writer.queue().borrow().has_event(&event_id) || task_is_taken {
+        if writer.is_taken(&event_id, Some(sequence))? || task_is_taken {
             return unsupported("the approach's identity is taken");
         }
     }

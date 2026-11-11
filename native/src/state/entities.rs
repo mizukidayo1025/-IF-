@@ -1130,6 +1130,27 @@ impl EntityStore {
         Ok(())
     }
 
+    /// The world died (`WorldCore::owner_died`, lane 6-5): every object it held and every bound
+    /// map work on as plain objects with the values they have, which are their rows' (they follow
+    /// the rows at every return to Python, rule R5). The rows are not reached after this.
+    pub(crate) fn detach_all(slf: &Bound<'_, Self>) -> PyResult<()> {
+        let py = slf.py();
+        let views = std::mem::take(&mut *slf.get().views.try_borrow_mut().or_py()?);
+        for (kind, objects) in views.objects.iter().enumerate() {
+            for object in objects.iter().flatten() {
+                let object = object.bind(py);
+                Self::unlink_children(slf, kind as u8, object)?;
+                Self::mark_detached(object)?;
+                count(&slf.get().detaches);
+            }
+        }
+        for map in views.maps.iter().flatten() {
+            map.bind(py).setattr(intern!(py, "_store"), py.None())?;
+        }
+        drop(views);
+        Ok(())
+    }
+
     /// The object left its slot: the slot no longer names it.
     fn forget_object(&self, kind: u8, slot: u32, object: &Bound<'_, PyAny>) -> PyResult<()> {
         let mut views = self.views.try_borrow_mut().or_py()?;

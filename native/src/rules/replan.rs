@@ -79,8 +79,8 @@ impl<'py> Replan<'_, 'py> {
     /// their position says, and no journey. Says Unsupported only before its first write.
     fn stop(&self, agent_id: &Arc<str>, journey: &Journey) -> PyResult<()> {
         let py = self.world.py();
-        let old = self.writer.queue().borrow_mut().row(py, &journey.event_id)?;
-        if self.writer.queue().borrow().has_event(&journey.event_id) && old.is_none() {
+        let old = self.writer.queue().get().row(py, &journey.event_id)?;
+        if self.writer.is_pending(&journey.event_id)? && old.is_none() {
             return unsupported("the trip's event has no row");
         }
         let zone = NamespaceMirror::with_row::<MovementRow, _>(self.mirror, |row| {
@@ -265,10 +265,10 @@ impl<'py> Replan<'_, 'py> {
             })
         })?;
         // The completion of this task, which must be one and due with it.
-        let ids = self.writer.queue().borrow().pending_ids(None);
+        let ids = self.writer.queue().get().pending_ids(py, None)?;
         let mut completions = Vec::new();
         for id in ids {
-            let Some(row) = self.writer.queue().borrow_mut().row(py, &id)? else {
+            let Some(row) = self.writer.queue().get().row(py, &id)? else {
                 return unsupported("a pending event has no row");
             };
             let V::Map(payload) = &row.payload else {

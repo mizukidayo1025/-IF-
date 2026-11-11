@@ -10,9 +10,16 @@
 //! other key a `ValueRow` slot (`Place::Value`, lane 5-3), made when the key is first stored.
 //!
 //! The scalars (`Scalars`), the zones and zone edges (tables of `Entities`), `resources` and
-//! `id_counters` (slots of `Place::Field`) joined in 5-2. Parts that join later, each in its own
-//! lane: the event queue and the log (6-5). The field `derived` (configs and caches keyed by
-//! stamps, design-p7.md §2, lane 7-1) is not state: a snapshot, a fork or a hash never reads it.
+//! `id_counters` (slots of `Place::Field`) joined in 5-2, the event queue (`Queue`) and the log
+//! (`EventLog`) in 6-5. The field `derived` (configs and caches keyed by stamps, design-p7.md §2,
+//! lane 7-1) is not state: a snapshot, a fork or a hash never reads it.
+//!
+//! The queue and the log are the world's while its Python `EventQueue` and `EventLog` are Rust
+//! stores attached to its core (`queue_held`, `log_held`): the PyO3 crate's `QueueStore` and
+//! `EventStore` are then handles that keep only the Python objects of the events and records, and
+//! reach the events and records here. A store that belongs to no world holds its own, and moves it
+//! in when it is attached (`hold_queue`, `hold_log`) and out again when it is let go
+//! (`release_queue`, `release_log`); nothing is copied either way.
 //!
 //! A kernel of the core reads the world through the typed accessors of `World` (`rows`, `row`,
 //! `metric_state`, `configs`, the scalars), each a shared borrow of its part. Who holds the world
@@ -32,6 +39,8 @@ use crate::cell::{CowShard, Shard, ShardMut, ShardRef};
 use crate::config::{Configs, Derived};
 use crate::entities::Entities;
 use crate::error::{Error, Result};
+use crate::events::log::{EventLog, LogMark};
+use crate::events::queue::Queue;
 use crate::row::{IdMap, Row, ValueRow};
 use crate::stamp::Stamp;
 use crate::state::metric_state::MetricRow;
@@ -49,19 +58,32 @@ pub struct World {
     pub slots: Slots,
     /// Not state: what is derived from it, by stamp (`config::Derived`).
     pub derived: Shard<Derived>,
+    /// The pending events (`EventQueue`), while `queue_held`; empty otherwise.
+    pub queue: CowShard<Queue>,
+    /// The realized records (`EventLog`), while `log_held`; empty otherwise.
+    pub log: CowShard<EventLog>,
+    /// Not state: whether `queue` is the world's event queue. False while the world's queue is
+    /// held in Python, or by a store attached to another world's core.
+    pub queue_held: bool,
+    /// Not state: whether `log` is the world's EventLog, as `queue_held` says of the queue. A copy
+    /// that holds the EventLog of the world it was made from (`_effect_candidate`) does not hold it.
+    pub log_held: bool,
     /// Not state: a transaction is open on the world (`txn::Txn`), which does not nest (rule R8).
     pub(crate) txn_open: bool,
 }
 
-/// The state parts of a world at one moment (lane 6-2): the scalars, the entities and every slot,
-/// each the `Arc` its `CowShard` held. Taking it copies nothing; the next write to a part copies
-/// that part. The event queue and the log join in lane 6-5 (until then the PyO3 crate's stores
-/// keep theirs: a copy of the queue and an `EventLog::mark`).
+/// The state parts of a world at one moment (lane 6-2): the scalars, the entities, every slot and
+/// the event queue, each the `Arc` its `CowShard` held, and where the log was (`EventLog::mark`,
+/// lane 6-5): a rollback takes the records appended since out, so a snapshot does not share the
+/// log, whose first write would copy all of it. Taking it copies nothing; the next write to a part
+/// copies that part.
 pub struct Snapshot {
     scalars: Arc<Scalars>,
     entities: Arc<Entities>,
     /// By slot index: the slots registered after the snapshot are not here.
     slots: Vec<Arc<Slot>>,
+    queue: Arc<Queue>,
+    log: LogMark,
 }
 
 impl Snapshot {
@@ -82,6 +104,16 @@ impl Snapshot {
 
     pub fn scalars(&self) -> &Scalars {
         &self.scalars
+    }
+
+    /// The event queue as it was: its serials, which `World::canonicalize` gave new ones.
+    pub fn queue(&self) -> &Queue {
+        &self.queue
+    }
+
+    /// Where the log was.
+    pub fn log(&self) -> &LogMark {
+        &self.log
     }
 }
 
@@ -242,14 +274,19 @@ impl World {
             scalars: self.scalars.share_mut(),
             entities: self.entities.share_mut(),
             slots: self.slots.by_name.values_mut().map(CowShard::share_mut).collect(),
+            queue: self.queue.share_mut(),
+            log: self.log.share_mut().mark(),
         }
     }
 
     /// Give a snapshot back: every part as it was then. A slot registered since has no state
     /// again (a key of `model_state` first stored after the snapshot), as a deleted key has. The
     /// rows of the entities are all marked changed, since the document bytes the PyO3 crate keeps
-    /// by slot may be of rows written since.
+    /// by slot may be of rows written since. The queue comes back with its serials; the log loses
+    /// the records appended since (`EventLog::rollback`).
     pub fn restore(&mut self, snapshot: Snapshot) {
+        self.queue.put(snapshot.queue);
+        self.log.get_mut().rollback(snapshot.log);
         self.scalars.put(snapshot.scalars);
         self.entities.put(snapshot.entities);
         self.entities.get_mut().mark_all_changed();
@@ -265,11 +302,14 @@ impl World {
 
     /// Put the world in the order `WorldState.from_dict(world.to_dict())` gives it (design §1.3
     /// F1, lane 6-2): each table of entities by the entity's ID (`Entities::canonicalize`), the
-    /// keys of every map of every row sorted (`Row::canonicalize`). Every slot gets a new stamp,
-    /// as every namespace of a new world has one; the scalars are as they were. The PyO3 crate
-    /// makes its Python containers in the same order (the views of the rows).
+    /// keys of every map of every row sorted (`Row::canonicalize`), the queue scheduled again in
+    /// queue order under new serials (`Queue::canonicalize`). Every slot gets a new stamp, as
+    /// every namespace of a new world has one; the scalars and the log are as they were. The PyO3
+    /// crate makes its Python containers in the same order (the views of the rows), and its queue
+    /// store finds the old serials in the snapshot.
     pub fn canonicalize(&mut self) {
         self.entities.get_mut().canonicalize();
+        self.queue.get_mut().canonicalize();
         for slot in self.slots.by_name.values_mut() {
             let slot = slot.get_mut();
             if let Some(row) = slot.row.as_deref_mut() {
@@ -282,8 +322,8 @@ impl World {
     /// A new world with the same state, for `deepcopy(world)` and the previews that change a copy
     /// and drop it (lane 6-6, design-p5-p6.md §6 and §7). It shares every part with this world
     /// (the scalars, the entities, each slot, in the same slot order and with the same stamps: a
-    /// stamp names one state, and both hold it) until either writes the part, which copies it
-    /// then (`CowShard`). The order of every table and row is this world's. What is derived
+    /// stamp names one state, and both hold it; the queue and the log, lane 6-5) until either
+    /// writes the part, which copies it then (`CowShard`). The order of every table and row is this world's. What is derived
     /// (`derived`) is not state, so the fork starts with none; it has no open transaction.
     /// `Error::Runtime(BORROWED)` while a part is borrowed mutably.
     pub fn fork(&self) -> Result<World> {
@@ -296,6 +336,10 @@ impl World {
             entities: CowShard::from_shared(self.entities.share()?),
             slots: Slots { by_name },
             derived: Shard::default(),
+            queue: CowShard::from_shared(self.queue.share()?),
+            log: CowShard::from_shared(self.log.share()?),
+            queue_held: self.queue_held,
+            log_held: self.log_held,
             txn_open: false,
         })
     }
@@ -303,6 +347,75 @@ impl World {
     /// Whether a transaction is open on the world (`txn::Txn`).
     pub fn in_transaction(&self) -> bool {
         self.txn_open
+    }
+
+    /// The world's event queue, borrowed shared; Unsupported while the world's queue is not held
+    /// here (`queue_held`).
+    #[track_caller]
+    pub fn queue(&self) -> Result<ShardRef<'_, Queue>> {
+        if !self.queue_held {
+            return Err(Error::unsupported("the event queue is not in Rust"));
+        }
+        self.queue.try_borrow()
+    }
+
+    /// `queue`, borrowed mutably.
+    #[track_caller]
+    pub fn queue_mut(&self) -> Result<ShardMut<'_, Queue>> {
+        if !self.queue_held {
+            return Err(Error::unsupported("the event queue is not in Rust"));
+        }
+        self.queue.try_borrow_mut()
+    }
+
+    /// The world's EventLog, borrowed shared; Unsupported while it is not held here (`log_held`).
+    #[track_caller]
+    pub fn log(&self) -> Result<ShardRef<'_, EventLog>> {
+        if !self.log_held {
+            return Err(Error::unsupported("the event log is not in Rust"));
+        }
+        self.log.try_borrow()
+    }
+
+    /// `log`, borrowed mutably.
+    #[track_caller]
+    pub fn log_mut(&self) -> Result<ShardMut<'_, EventLog>> {
+        if !self.log_held {
+            return Err(Error::unsupported("the event log is not in Rust"));
+        }
+        self.log.try_borrow_mut()
+    }
+
+    /// Hold this queue as the world's (a store attached to the world's core), nothing copied.
+    /// Whatever queue was held before comes out.
+    pub fn hold_queue(&mut self, queue: Arc<Queue>) -> Option<Arc<Queue>> {
+        let before = self.release_queue();
+        self.queue.put(queue);
+        self.queue_held = true;
+        before
+    }
+
+    /// Let the world's queue go (its store leaves the core), nothing copied: the queue held, or
+    /// None. The world then holds none.
+    pub fn release_queue(&mut self) -> Option<Arc<Queue>> {
+        let held = std::mem::replace(&mut self.queue_held, false);
+        let queue = self.queue.replace(Arc::default());
+        held.then_some(queue)
+    }
+
+    /// `hold_queue` of the EventLog.
+    pub fn hold_log(&mut self, log: Arc<EventLog>) -> Option<Arc<EventLog>> {
+        let before = self.release_log();
+        self.log.put(log);
+        self.log_held = true;
+        before
+    }
+
+    /// `release_queue` of the EventLog.
+    pub fn release_log(&mut self) -> Option<Arc<EventLog>> {
+        let held = std::mem::replace(&mut self.log_held, false);
+        let log = self.log.replace(Arc::default());
+        held.then_some(log)
     }
 
     /// The scalars, borrowed shared: for a shim that holds the world shared.

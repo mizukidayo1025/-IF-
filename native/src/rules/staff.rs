@@ -1924,7 +1924,7 @@ struct PlannedRelief {
 fn plan_relief(world: &Bound<'_, PyAny>, at: i64, next: i64, duration: i64) -> PyResult<Vec<PlannedRelief>> {
     let py = world.py();
     let writer = crate::state::events::EventWriter::of(world)?;
-    let pending = writer.queue().borrow().pending_events(py)?;
+    let pending = writer.queue().get().pending_events(py)?;
     let Some(pending) = pending else {
         return unsupported("an event in the queue is not a plain one");
     };

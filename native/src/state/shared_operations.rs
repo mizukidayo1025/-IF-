@@ -153,13 +153,12 @@ fn validate_tick(world: &Bound<'_, PyAny>) -> PyResult<bool> {
         let Some(recent) = row.history.recent_verified(minute) else {
             return Ok(false);
         };
-        let log = writer.log().borrow();
         let mut seen: Vec<&str> = Vec::new();
         for item in recent {
             let Some(event_id) = item.event_id.as_deref() else {
                 return Ok(false);
             };
-            if seen.contains(&event_id) || !log.has_event_id(event_id) {
+            if seen.contains(&event_id) || !writer.is_realized(event_id, None)? {
                 return Ok(false);
             }
             seen.push(event_id);

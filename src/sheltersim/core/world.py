@@ -141,6 +141,9 @@ class WorldState:
                 object.__setattr__(self, name, value)
                 core.set_scalar(name, value)
                 return
+            elif name in state_mirror.EVENT_FIELDS:
+                # world.event_log = ...: the core holds the new queue or log, and lets the old go.
+                core.attach_events(self, name, value)
         object.__setattr__(self, name, value)
 
     def __deepcopy__(self, memo: dict[int, Any]) -> WorldState:

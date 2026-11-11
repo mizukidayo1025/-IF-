@@ -3,7 +3,8 @@
 //! indexes, and `writer` what a rule does to schedule and record an event, with the errors of
 //! `WorldState.schedule_event` and `EventLog.append`.
 //!
-//! The PyO3 crate keeps the Python objects beside these, in side tables indexed the same way:
+//! A world's queue and log are parts of its `World` (`World::queue`, `World::log`, lane 6-5). The
+//! PyO3 crate keeps the Python objects beside them, in side tables indexed the same way:
 //! `QueueStore` (`native/src/state/events.rs`) by slot serial, `EventStore`
 //! (`native/src/eventlog.rs`) by record position.
 

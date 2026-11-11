@@ -1740,7 +1740,7 @@ fn check_lifecycle(world: &Bound<'_, PyAny>, leaving: Option<&str>) -> PyResult<
         let Some(queue) = &queue else {
             return unsupported("the queue is not in Rust");
         };
-        let event = queue.borrow_mut().row(py, event_id)?;
+        let event = queue.get().row(py, event_id)?;
         let event_fits = event.is_some_and(|event| &*event.event_type == "agent_travel_complete" && matches!(payload(&event, "purpose"), Some(V::Str(purpose)) if &**purpose == "presence_relocation"));
         if !task_fits || !event_fits {
             return invalid(INCONSISTENT);

@@ -14,6 +14,7 @@ from dataclasses import replace
 
 import pytest
 
+from sheltersim.core import state_mirror
 from sheltersim.core.engine import TickEngine, TickPhase
 from sheltersim.core.world import StateInvariantError, WorldState
 from sheltersim.domain.models import SupportRequestState, SupportRequestStatus
@@ -412,8 +413,10 @@ def test_a_world_whose_contents_are_swapped_starts_a_new_memo(finished_world) ->
     """Interventions replace the world's contents with a checked copy (events/effects.py)."""
     world = _checked_world(finished_world)
     candidate = WorldState.from_dict(world.to_dict())
+    old_core = world.__dict__["_core"]
     world.__dict__.clear()
     world.__dict__.update(candidate.__dict__)
+    state_mirror.owned_again(world, old_core)
 
     world.validate_after_tick()
     _settled(world).agent_id = "nobody"
@@ -550,7 +553,9 @@ def test_replaced_or_removed_requests_are_not_read_from_the_memo(finished_world)
 def test_a_swapped_or_copied_world_reads_its_own_requests(finished_world) -> None:
     world = _checked_world(finished_world)
     candidate = WorldState.from_dict(world.to_dict())
+    old_core = world.__dict__["_core"]
     world.__dict__.update(candidate.__dict__)
+    state_mirror.owned_again(world, old_core)
     _settled(world).status = SupportRequestStatus.PENDING
     _assert_scans_agree(world)
 

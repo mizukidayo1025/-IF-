@@ -515,7 +515,7 @@ pub(crate) fn entity_rules_watching<'py>(
     if writer.queue().call_method0(intern!(py, "validate"))?.extract::<u8>()? != 0 {
         return unsupported("the event queue repeats an identity");
     }
-    let Some(events) = writer.queue().borrow().pending_events(py)? else {
+    let Some(events) = writer.queue().get().pending_events(py)? else {
         return unsupported("a pending event is not a plain ScheduledEvent");
     };
     let mut toilet_events: FxHashMap<&str, Named> = FxHashMap::default();
@@ -1039,14 +1039,19 @@ pub(crate) fn entity_rules_watching<'py>(
             return unsupported("an ID counter is negative");
         }
     }
-    let log = writer.log().borrow();
-    let mut newest = log.max_realized_sequence();
-    for event in &events {
-        if log.has_event_id(&event.event_id) || log.has_sequence(event.sequence) || event.due_minute >= duration {
-            return unsupported("a pending event is the Python rule's");
+    let newest = writer.with_log(|log| {
+        let mut newest = log.max_sequence();
+        for event in &events {
+            if log.has_event_id(&event.event_id) || log.has_sequence(event.sequence) || event.due_minute >= duration {
+                return None;
+            }
+            newest = newest.max(event.sequence);
         }
-        newest = newest.max(event.sequence);
-    }
+        Some(newest)
+    })?;
+    let Some(newest) = newest else {
+        return unsupported("a pending event is the Python rule's");
+    };
     let counter = counters.get_item(intern!(py, "event"))?.map_or(Ok(0), |value| exact_int(&value))?;
     if counter <= newest {
         return unsupported("the event counter is not past the sequences");

@@ -21,6 +21,7 @@ from support.world import NATIVE_OUTCOME
 
 from sheltersim import native
 from sheltersim.contracts.presence import PRESENCE_NAMESPACE, PresenceState
+from sheltersim.core import state_mirror
 from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.world import WorldState
 from sheltersim.domain import population, population_lifecycle
@@ -684,8 +685,11 @@ def _command(world: WorldState, minute: int = 0, **fields: Any) -> dict[str, Any
     )
     _python_gave(receipt, candidate)
     population_lifecycle.validate_population_lifecycle_state(candidate)
+    old_core = world.__dict__["_core"]
     world.__dict__.clear()
     world.__dict__.update(candidate.__dict__)
+    # The copy's core is the world's now (lane 6-5 of Issue #152).
+    state_mirror.owned_again(world, old_core)
     return receipt
 
 

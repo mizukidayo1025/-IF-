@@ -629,8 +629,7 @@ pub(crate) fn apply_effect<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound
                 let sequence = writer.next_sequence()?;
                 let event_id: Arc<str> = Arc::from(format!("autonomous-social-action-{sequence}"));
                 {
-                    let past = writer.log().borrow();
-                    if past.has_event_id(&event_id) || past.has_sequence(sequence) || writer.queue().borrow().has_event(&event_id) {
+                    if writer.is_taken(&event_id, Some(sequence))? {
                         return unsupported("the event's identity is taken");
                     }
                 }

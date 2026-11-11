@@ -1,6 +1,7 @@
 //! Lane 6-2: the order a copy through canonical JSON gives (`canonicalize`), the copy on write of a
 //! world's parts (`snapshot`, `restore`), the EventLog's mark and rollback, the queue made again in
-//! pending order, and the transaction around them (`txn::Txn`).
+//! pending order, and the transaction around them (`txn::Txn`). Lane 6-5: the queue and the log as
+//! parts of the world.
 //!
 //! The order of `WorldState.from_dict(world.to_dict())` is that of `json.dumps(sort_keys=True)`:
 //! the keys of every dict sorted by code point (UTF-8 bytes), lists as they are, the entities by
@@ -17,7 +18,8 @@ use sheltersim_core::entities::{
 use sheltersim_core::error::Error;
 use sheltersim_core::events::log::{EventLog, Fields};
 use sheltersim_core::events::queue::Queue;
-use sheltersim_core::events::{EventKind, EventRow};
+use sheltersim_core::events::writer::{self, WriteError};
+use sheltersim_core::events::{EventKind, EventRow, EventStatus};
 use sheltersim_core::json::Encoder;
 use sheltersim_core::row::{Field, IdMap, Maybe, Row, ValueRow};
 use sheltersim_core::state::body_state::{History, Relationship as BodyRelationship, Relationships as BodyRelationships};
@@ -596,6 +598,95 @@ fn a_fork_shares_every_part_until_either_world_writes_it() {
     assert!(world.fork().is_err());
 }
 
+/// Lane 6-5: the queue and the log are parts of the world. A snapshot shares the queue and marks the
+/// log; `canonicalize` gives the queue new serials (the old ones stay in the snapshot); `restore`
+/// gives the queue back and cuts the log at the mark.
+#[test]
+fn a_snapshot_gives_the_queue_and_the_log_back() {
+    let mut world = small_world();
+    let mut queue = Queue::new();
+    let late = queue.add(text("late"), (30, 0, 5), Some(Arc::new(event("late", 30, 5))));
+    let early = queue.add(text("early"), (10, 0, 7), None);
+    let mut log = EventLog::new();
+    append_all(&mut log, 0, 1);
+    assert!(world.hold_queue(Arc::new(queue.clone())).is_none());
+    assert!(world.hold_log(Arc::new(log.clone())).is_none());
+    let snapshot = world.snapshot();
+    assert_eq!(snapshot.log().len(), log.len());
+    world.canonicalize();
+    // The snapshot holds the old serials in the old order; the world's queue is in queue order.
+    let old: Vec<u64> = snapshot.queue().ordered().iter().map(|(_, serial)| *serial).collect();
+    assert_eq!(old, [early, late]);
+    let new: Vec<u64> = world.queue().unwrap().ordered().iter().map(|(_, serial)| *serial).collect();
+    assert!(new.iter().all(|serial| *serial > early));
+    assert_eq!(world.queue().unwrap().insertion(), new.as_slice());
+    // Writes of both, then the snapshot back.
+    world.queue_mut().unwrap().schedule_row(event("more", 40, 9));
+    append_all(&mut world.log_mut().unwrap(), 1_000, 3);
+    assert_ne!(*world.log().unwrap(), log);
+    world.restore(snapshot);
+    assert_eq!(world.queue().unwrap().insertion(), [late, early]);
+    assert!(!world.queue().unwrap().has_event("more"));
+    assert_eq!(*world.log().unwrap(), log);
+}
+
+/// Lane 6-5: a world holds the queue and the log a store gives it, and lets them go, nothing copied;
+/// while it holds none its accessors say so.
+#[test]
+fn a_world_holds_its_queue_and_log_and_lets_them_go() {
+    let mut world = World::default();
+    assert_eq!(world.queue().err(), Some(Error::Unsupported("the event queue is not in Rust".into())));
+    assert_eq!(world.log().err(), Some(Error::Unsupported("the event log is not in Rust".into())));
+    assert!(world.release_queue().is_none());
+    let mut queue = Queue::new();
+    queue.add(text("a"), (1, 0, 1), None);
+    let queue = Arc::new(queue);
+    let log = Arc::new(EventLog::new());
+    assert!(world.hold_queue(queue.clone()).is_none());
+    assert!(world.hold_log(log.clone()).is_none());
+    assert!(world.queue_held && world.log_held);
+    assert!(world.queue().unwrap().has_event("a"));
+    // The world shares what it was given: its first write copies it, and the store's stays.
+    world.queue_mut().unwrap().schedule_row(event("b", 2, 2));
+    assert!(!queue.has_event("b"));
+    let held = world.release_queue().unwrap();
+    assert!(held.has_event("b"));
+    assert!(!world.queue_held);
+    assert!(world.queue().is_err());
+    // Holding another lets the one held before go.
+    let before = world.hold_log(Arc::new(EventLog::new())).unwrap();
+    assert!(Arc::ptr_eq(&before, &log));
+}
+
+/// Lane 6-5, for the core writer of P8-0a: a rule that holds the world schedules into its queue and
+/// records into its log through the writer, with the checks a store's writer has.
+#[test]
+fn a_rule_writes_the_worlds_queue_and_log_through_the_writer() {
+    let mut world = World::default();
+    world.hold_queue(Arc::new(Queue::new()));
+    world.hold_log(Arc::new(EventLog::new()));
+    let cell = Shard::new(world);
+    cell.with(|world| {
+        let after = writer::schedule(&mut world.queue_mut().unwrap(), &world.log().unwrap(), 100, event("a", 10, 3));
+        assert_eq!(after, Ok(4));
+        let row = event("b", 5, 4);
+        assert_eq!(writer::record(&mut world.log_mut().unwrap(), &row, 5, EventStatus::Applied, None), Ok(()));
+        // The log refuses the queue an event it realized, and the queue a repeated one.
+        let again = writer::schedule(&mut world.queue_mut().unwrap(), &world.log().unwrap(), 100, event("b", 9, 4));
+        assert_eq!(again, Err(WriteError::Duplicate("event 'b' already realized".to_owned())));
+        let twice = writer::schedule(&mut world.queue_mut().unwrap(), &world.log().unwrap(), 100, event("a", 11, 8));
+        assert_eq!(twice, Err(WriteError::Duplicate("duplicate event ID 'a'".to_owned())));
+        assert_eq!(world.queue().unwrap().pending_ids(None).iter().map(|id| &**id).collect::<Vec<_>>(), ["a"]);
+        assert!(world.log().unwrap().has_event_id("b"));
+        // The queue and the log are two parts: both can be borrowed at once, each once.
+        let queue = world.queue_mut().unwrap();
+        assert!(world.queue().is_err());
+        assert!(world.log().is_ok());
+        drop(queue);
+    })
+    .unwrap();
+}
+
 /// A host that writes down what it was asked, and fails where it is told to.
 #[derive(Default)]
 struct Recorder {
@@ -621,7 +712,7 @@ impl Host for Recorder {
         self.call(format!("validate {kind:?} {stage:?}"))
     }
 
-    fn canonicalized(&mut self, _kind: TxnKind) -> Result<(), Error> {
+    fn canonicalized(&mut self, _kind: TxnKind, _before: &Snapshot) -> Result<(), Error> {
         self.call("canonicalized".to_owned())
     }
 

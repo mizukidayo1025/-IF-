@@ -539,12 +539,11 @@ fn start_one<'py>(
     let event_id: Arc<str> = Arc::from(format!("toilet-complete-{sequence}"));
     let task_id: Arc<str> = Arc::from(format!("toilet-service-{sequence}"));
     {
-        let past = writer.log().borrow();
         let task_is_taken = EntityStore::with_rows(&store, |rows| Ok(rows.active_tasks.get(&*task_id).is_some()))?;
-        if past.has_event_id(&event_id) || writer.queue().borrow().has_event(&event_id) || task_is_taken {
+        if writer.is_taken(&event_id, None)? || task_is_taken {
             return unsupported("the service's identity is taken");
         }
-        if past.has_sequence(sequence) {
+        if writer.with_log(|log| log.has_sequence(sequence))? {
             return unsupported("the service's sequence is taken");
         }
     }

@@ -116,8 +116,8 @@ impl<T> CowShard<T> {
         Self::from_shared(Arc::new(value))
     }
 
-    /// A part that holds a value another part shares (`share`): a fork's part (lane 6-6). The
-    /// first write of either copies it.
+    /// A part that holds a value another part shares (`share`): a fork's part (lane 6-6), or the
+    /// queue or the log a store moves into a world (lane 6-5). The first write of either copies it.
     pub fn from_shared(value: Arc<T>) -> Self {
         Self { flag: AtomicIsize::new(0), value: UnsafeCell::new(value) }
     }
@@ -159,6 +159,17 @@ impl<T> CowShard<T> {
     /// Give back a snapshot: the value is the one `share` took.
     pub fn put(&mut self, value: Arc<T>) {
         *self.value.get_mut() = value;
+    }
+
+    /// Put another value in, and give the one it held out (a store's queue or log moving between
+    /// worlds, lane 6-5): nothing is copied.
+    pub fn replace(&mut self, value: Arc<T>) -> Arc<T> {
+        std::mem::replace(self.value.get_mut(), value)
+    }
+
+    /// The `Arc` it holds, nothing copied.
+    pub fn into_shared(self) -> Arc<T> {
+        self.value.into_inner()
     }
 
     /// Whether any borrow is alive now.

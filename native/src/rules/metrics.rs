@@ -68,14 +68,14 @@ fn snapshot_fields<'py>(
             })
         })
         .collect::<PyResult<Vec<_>>>()?;
-    let writer = EventWriter::of(world)?;
+    // The refusals of a world whose events are not Rust's, as before; the log is the world's.
+    EventWriter::of(world)?;
     let metric_state_held = field_held(world, intern!(py, "metric_state"))?;
     let mut folds = Folds::default();
     // Once, or twice when a kind isn't ASCII: no borrow is held while Python folds it.
     let taken = loop {
         let taken = {
-            let log = writer.log().borrow();
-            let inputs = Inputs { sample, waits: &waits, log: log.log(), folds: &folds, metric_state_held };
+            let inputs = Inputs { sample, waits: &waits, folds: &folds, metric_state_held };
             with_world(world, |world| -> sheltersim_core::error::Result<_> {
                 let unfolded = metrics::unfolded_kinds(world, inputs.folds)?;
                 if !unfolded.is_empty() {

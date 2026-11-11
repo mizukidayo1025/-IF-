@@ -2265,9 +2265,9 @@ pub(crate) fn check_relationship_keys(world: &Bound<'_, PyAny>) -> PyResult<()> 
 pub(crate) fn check_queue_rows(world: &Bound<'_, PyAny>) -> PyResult<()> {
     let py = world.py();
     let writer = EventWriter::of(world)?;
-    let ids = writer.queue().borrow().pending_ids(None);
+    let ids = writer.queue().get().pending_ids(py, None)?;
     for id in ids {
-        if writer.queue().borrow_mut().row(py, &id)?.is_none() {
+        if writer.queue().get().row(py, &id)?.is_none() {
             return unsupported("a pending event has no row");
         }
     }
@@ -2286,10 +2286,10 @@ pub(crate) fn cancel_agent_events(world: &Bound<'_, PyAny>, agent_id: &str, with
     let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
     let writer = EventWriter::of(world)?;
     let pending = |writer: &EventWriter<'_>| -> PyResult<Vec<Arc<EventRow>>> {
-        let ids = writer.queue().borrow().pending_ids(None);
+        let ids = writer.queue().get().pending_ids(py, None)?;
         let mut rows = Vec::with_capacity(ids.len());
         for id in ids {
-            if let Some(row) = writer.queue().borrow_mut().row(py, &id)? {
+            if let Some(row) = writer.queue().get().row(py, &id)? {
                 rows.push(row);
             }
         }
@@ -3063,7 +3063,7 @@ fn check_pending_items(world: &Bound<'_, PyAny>, pending: &[V], contexts: &Index
                 }
                 let store = events.as_ref().ok_or_else(|| Unsupported::new_err("no queue"))?;
                 let queue = store.downcast::<crate::state::events::QueueStore>().map_err(|_| Unsupported::new_err("the queue is not in Rust"))?;
-                let Some(event) = queue.borrow_mut().row(py, completion_id)? else {
+                let Some(event) = queue.get().row(py, completion_id)? else {
                     return invalid(MISSING);
                 };
                 if &*event.event_type != "population_approach_complete" {

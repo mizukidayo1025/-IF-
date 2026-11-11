@@ -26,7 +26,7 @@ use crate::core::row::{attribute, exact_dict, exact_int, exact_str, state_row, u
 use crate::core::value::V;
 use crate::core::world_core::{held_state, raw_dict_get, with_state_value, Held, NamespaceMirror};
 use crate::state::body_state::BodyRow;
-use crate::eventlog::{AppliedOutcome, EventStore};
+use crate::eventlog::AppliedOutcome;
 use crate::state::entities::{entities_of, Activity, EntityStore};
 use crate::state::events::{is_stable_id, EventKind, EventRef, EventRow, EventRowPy, EventStatus, EventWriter};
 use crate::Unsupported;
@@ -334,7 +334,7 @@ fn fits_chars(value: Option<&str>, limit: usize) -> bool {
 /// where the event or the log would refuse it. So the Python rule then decides, and raises.
 #[allow(clippy::too_many_arguments)]
 fn receipt(
-    log: &EventStore,
+    writer: &EventWriter<'_>,
     action: &ActiveAction,
     transition: &str,
     minute: i64,
@@ -388,7 +388,7 @@ fn receipt(
     provenance.insert(words.source_id.clone(), V::Str(words.model_source.clone()));
     provenance.insert(words.policy_version.clone(), V::Str(words.model.clone()));
     let event_id: Arc<str> = Arc::from(format!("action-lifecycle-{sequence}"));
-    if log.has_event_id(&event_id) || log.has_sequence(sequence) {
+    if writer.is_realized(&event_id, Some(sequence))? {
         return unsupported("the log already has this receipt's identity");
     }
     let row = EventRow::new(
@@ -453,7 +453,6 @@ pub(crate) fn commit_action(
     this.into_rows(py)?;
     let (minute, activity) = (proposal.minute, Some(agent.activity));
     let first = writer.next_sequence()?;
-    let log = writer.log().borrow();
     let mut receipts = Vec::with_capacity(2);
     if let Some(current) = this.rows.get(proposal.agent_id) {
         let same_target = current.target_id.as_deref() == proposal.target_id;
@@ -462,7 +461,7 @@ pub(crate) fn commit_action(
                 return Ok(());
             }
             receipts.push(receipt(
-                &log,
+                &writer,
                 current,
                 "continued",
                 minute,
@@ -472,7 +471,6 @@ pub(crate) fn commit_action(
                 first,
                 Some(&agent.needs),
             )?);
-            drop(log);
             commit(&writer, receipts)?;
             if let Some(current) = this.rows.get_mut(proposal.agent_id) {
                 current.continued = true;
@@ -481,7 +479,7 @@ pub(crate) fn commit_action(
         }
         let status = completion_status(world, current, &agent.needs)?;
         receipts.push(receipt(
-            &log,
+            &writer,
             current,
             status,
             minute,
@@ -511,7 +509,7 @@ pub(crate) fn commit_action(
         continued: false,
     };
     receipts.push(receipt(
-        &log,
+        &writer,
         &started,
         "started",
         minute,
@@ -521,7 +519,6 @@ pub(crate) fn commit_action(
         sequence,
         Some(&agent.needs),
     )?);
-    drop(log);
     commit(&writer, receipts)?;
     // The old action goes and the new one is the dict's last key, as pop and insert leave it.
     this.rows.shift_remove(proposal.agent_id);
@@ -696,7 +693,7 @@ pub(crate) fn complete_for_event(
     let agent = agent_of(world, &store, &agent_id)?;
     let sequence = writer.next_sequence()?;
     let planned = receipt(
-        &writer.log().borrow(),
+        &writer,
         current,
         status,
         minute,
@@ -800,14 +797,13 @@ fn record_applied_population_exit(
     let mut receipts = Vec::new();
     let mut closed = Vec::new();
     {
-        let log = writer.log().borrow();
         for (agent_id, reason) in &causes {
             let Some(current) = this.rows.get(agent_id.as_str()) else {
                 continue;
             };
             let agent = agent_of(world, &store, agent_id)?;
             receipts.push(receipt(
-                &log,
+                &writer,
                 current,
                 "interrupted",
                 minute,
@@ -848,7 +844,6 @@ fn finalize_active_actions(
     let first = writer.next_sequence()?;
     let mut receipts = Vec::with_capacity(ordered.len());
     {
-        let log = writer.log().borrow();
         for (index, current) in ordered.into_iter().enumerate() {
             let agent = agent_of(world, &store, &current.agent_id)?;
             let status = match &agent {
@@ -857,7 +852,7 @@ fn finalize_active_actions(
                 Some(_) => "censored",
             };
             receipts.push(receipt(
-                &log,
+                &writer,
                 current,
                 status,
                 minute,

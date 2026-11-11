@@ -44,11 +44,15 @@ Checkpoint document) and times them.
   value a `Fit`, a misfit when Python holds another type; the seed is a `Seed`, decimal text of
   an int of any size), `entities`, and `slots`, one `Slot` per owned field or namespace with its
   row, taint, detach flag, generation and counters; every other str key of `model_state` has a
-  `ValueRow` slot, `Place::Value`, read by `Slots::value`; typed readers such as `minute_index`,
-  `resources`, `id_counter`, `rows` (the entity rows, refused while tainted), `row::<T>(name)`,
-  `metric_state`, `stamp_of` and `configs`, each a borrow of its part; `snapshot` and `restore`
-  (the parts' `Arc`s, copied on the next write), `canonicalize` (the order a copy through
-  canonical JSON gives: entities by ID, every map's keys sorted, `Row::canonicalize`) and `fork`
+  `ValueRow` slot, `Place::Value`, read by `Slots::value`; the event `queue` and the `log`, while
+  the world's Python queue and log are stores attached to its core (`queue_held`, `log_held`;
+  `hold_queue`, `release_queue` and the same of the log move them in and out, nothing copied);
+  typed readers such as `minute_index`, `resources`, `id_counter`, `rows` (the entity rows,
+  refused while tainted), `row::<T>(name)`, `metric_state`, `queue`, `log` (refused while not
+  held), `stamp_of` and `configs`, each a borrow of its part; `snapshot` and `restore` (the parts'
+  `Arc`s, copied on the next write; the log by its mark), `canonicalize` (the order a copy through
+  canonical JSON gives: entities by ID, every map's keys sorted, `Row::canonicalize`, the queue in
+  queue order under new serials) and `fork`
   (a new `World` sharing every part, stamps included, until either writes it; lane 6-6); and
   `WorldCell`, what holds a world and lends it whole to a core function, `with(|world| ...)`),
   `txn.rs` (`Txn`: a transaction in place, begin (validate, snapshot, canonicalize, validate the
@@ -82,9 +86,11 @@ Checkpoint document) and times them.
   its Python class (`to_py_err`; `core_call().or_py()?`), `src/core/value.rs` reads and makes
   Python values (`VPy`), `lib.rs` walks Python values into an `Encoder` (`PyEncoder`), and
   `world_core.rs` makes a Python call's error a `Misfit` (`or_misfit()`). The pyclasses over
-  the events, `QueueStore` (`src/state/events.rs`) and `EventStore` (`src/eventlog.rs`), hold the
-  core's `Queue` and `EventLog` and keep the Python objects beside them in side tables, by slot
-  serial and by record position; `EventRowPy` reads a row from a `ScheduledEvent` and makes one.
+  the events, `QueueStore` (`src/state/events.rs`) and `EventStore` (`src/eventlog.rs`), are
+  frozen handles of the core's `Queue` and `EventLog` (`Home`: their own while they belong to no
+  world, or the `World::queue`/`World::log` of the core they are attached to) and keep the Python
+  objects beside them in side tables, by slot serial and by record position; `EventRowPy` reads a
+  row from a `ScheduledEvent` and makes one.
   A namespace moved to the core keeps its `src/state/<name>.rs`, which re-exports the row, gives
   it its Python side (`py_row!`) and holds `register` and the validators. An `Error` can't be
   turned into a `PyErr` with `?`, because neither type is the wrapper's. `native/Cargo.toml` is
@@ -119,8 +125,13 @@ Checkpoint document) and times them.
   `rules/parity.rs` is the example and exposes `core` to the tests. `rules/social_propagation.rs`
   and `rules/information.rs` hold the contact kernels; what they share is in `contacts.rs`.
 - `src/core/world_core.rs`: `WorldCore`, one per world, in `world.__dict__["_core"]`. It holds the
-  core's `World` and its handles: a `NamespaceMirror` per owned field or namespace, and the
-  `EntityStore`. `own_value` gives a key no lane owns its `ValueRow` slot when
+  core's `World` and its handles: a `NamespaceMirror` per owned field or namespace, the
+  `EntityStore`, and the `QueueStore` and `EventStore` whose queue and log are the `World`'s
+  (`attach_events`; a store of another live world's core stays there). It holds its world by a weak
+  reference (`adopt`, from `state_mirror.start_core`, `deepcopy_world` and `owned_again`);
+  `with_world` refuses a world whose core is another's (`NOT_OWNER`), and when the world dies the
+  callback lets its objects go (`owner_died`: the entity objects and maps become plain, the queue
+  and the log go back to their stores). `own_value` gives a key no lane owns its `ValueRow` slot when
   `state_mirror.NamespaceTable` first stores it; the tree stays attached, and the slot stays when the
   key goes, with no row. A mirror is the core, its slot's index and the Python side: the tracked tree,
   whose sink it is (`sheltersim/core/state_mirror.py`), the node table and the bytes a save was
@@ -141,9 +152,12 @@ Checkpoint document) and times them.
   Python or from Rust (it is a new stamp each time), so a check that read a namespace need not read
   it again (`state_mirror.namespace_stamp`, `field_stamp`; `src/rules/after_tick.rs`).
 - `src/core/txn.rs`: a transaction on a Python world, the core's `Txn` with the native host
-  (`state_mirror.transaction` and its `_txn_*` functions): the open one is the `WorldCore`'s.
-  `QueueStore`, `EventStore`, `EntityStore` and `NamespaceMirror` have the steps it takes
-  (`txn_begin`, `txn_rollback`, `txn_commit`; `take_root`, `root_from_row`, `put_root`).
+  (`state_mirror.transaction` and its `_txn_*` functions): the open one is the `WorldCore`'s. The
+  queue and the log are in the core's snapshot (the queue shared, the log by its mark); the host
+  moves the objects of the queue's events to the canonical serials and back
+  (`QueueStore::txn_remap`, `txn_begin`, `txn_rollback`, `txn_commit`) and cuts the record objects
+  at the log's length (`EventStore::cut_to_log`). `EntityStore` and `NamespaceMirror` have the steps
+  they take (`txn_begin`, `txn_rollback`, `txn_commit`; `take_root`, `root_from_row`, `put_root`).
   `WorldCore.fork(world)` is `deepcopy(world)` (`state_mirror.deepcopy_world`, lane 6-6): the core
   of the copy, from `World::fork`, with a new mirror per slot and an `EntityStore` whose objects are
   made from the rows in the keys' order (`EntityStore::fork_rows`, `fork_objects`); None for a
@@ -538,8 +552,10 @@ are correctly rounded everywhere, and not `**` with a float.
   events behind
   `sheltersim.events.queue.EventQueue`, in the order of `pending()`, and what a Rust rule uses to
   allocate a sequence, schedule an `EventRow` and record an outcome with no Python object. Python
-  gets a `ScheduledEvent` when it first reads the event. An order outside i64 moves that queue to
-  Python (`_LargeOrderEventQueue`), and `EventWriter::of` then says `Unsupported`.
+  gets a `ScheduledEvent` when it first reads the event. `EventWriter::of` takes the stores from
+  the world's core (or, for a copy that holds another world's EventLog, from the world's
+  attributes). An order outside i64 moves that queue to Python (`_LargeOrderEventQueue`; the world
+  then holds no queue), and `EventWriter::of` then says `Unsupported`.
 
 - `state.agent_dynamics.ROW` and `rules.agent_dynamics`: Rust owns `agent_dynamics_v1` and every
   writer but `remove_agent` and `population_lifecycle.py`, which forward one record each
