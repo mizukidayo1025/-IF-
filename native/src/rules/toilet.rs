@@ -184,7 +184,7 @@ pub(crate) fn queue_up<'py>(
                 active_task_id: task_id.clone(),
             };
             let sequence = writer.next_sequence()?;
-            Some(transition_row(py, &writer, &request, "queued", &task_id, None, None, Some(position), Some(point.service_capacity), sequence, minute)?)
+            Some(transition_row(&writer, &request, "queued", &task_id, None, None, Some(position), Some(point.service_capacity), sequence, minute)?)
         }
         None => None,
     };
@@ -599,7 +599,7 @@ fn start_one<'py>(
     let transition = match &head {
         Some(head) => {
             let capacity = Some(head.point_capacity);
-            Some(transition_row(py, &writer, &head.request, "service_started", &task_id, Some(wait), Some(&event_id), None, capacity, sequence + 1, minute_value)?)
+            Some(transition_row(&writer, &head.request, "service_started", &task_id, Some(wait), Some(&event_id), None, capacity, sequence + 1, minute_value)?)
         }
         None => None,
     };
@@ -761,7 +761,7 @@ pub(crate) fn complete_event<'py>(world: &Bound<'py, PyAny>, event: EventRef<'_,
             let wait = task_start.checked_sub(request.requested_minute).ok_or_else(|| Unsupported::new_err("a wait out of range"))?;
             let capacity = point_of(&*Geo::of(world)?, &request.queue_id).map(|point| point.service_capacity);
             let sequence = writer.next_sequence()?;
-            let row = transition_row(py, &writer, &request, "completed", &task_id, Some(wait), Some(&task_id), position, capacity, sequence, minute)?;
+            let row = transition_row(&writer, &request, "completed", &task_id, Some(wait), Some(&task_id), position, capacity, sequence, minute)?;
             Some((request, row))
         }
         None => None,

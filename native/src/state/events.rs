@@ -1057,11 +1057,16 @@ fn duplicate_error(py: Python<'_>, message: String) -> PyErr {
 }
 
 /// A write's error as Python's: a core error's class, or `DuplicateEventError`.
-fn write_error(py: Python<'_>, error: WriteError) -> PyErr {
+pub(crate) fn write_error(py: Python<'_>, error: WriteError) -> PyErr {
     match error {
         WriteError::Error(error) => to_py_err(error),
         WriteError::Duplicate(message) => duplicate_error(py, message),
     }
+}
+
+/// A core kernel's result with the writer's errors, as the PyO3 crate's `EventWriter` raises them.
+pub(crate) fn write_result<T>(py: Python<'_>, result: sheltersim_core::events::writer::WriteResult<T>) -> PyResult<T> {
+    result.map_err(|error| write_error(py, error))
 }
 
 /// The store of a world's event queue or EventLog: the one its core holds (lane 6-5), or else the

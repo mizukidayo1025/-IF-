@@ -12,7 +12,7 @@
 //!
 //! No Python runs in the plan or the writes but `Geo::of`, before them, and reads of plain data.
 
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
@@ -23,18 +23,22 @@ use sheltersim_core::config::movement::{Movement, MovementModel};
 use sheltersim_core::config::read::Read;
 use sheltersim_core::rules::kit::{self, Placed};
 pub(crate) use sheltersim_core::rules::kit::mobility_text;
+pub(crate) use sheltersim_core::rules::kit::movement::Changes;
+use sheltersim_core::rules::kit::movement::{self as walking, record, KINDS};
 use sheltersim_core::rules::kit::same_position;
 
 use crate::core::configs;
+use crate::core::errors::OrPy;
 use crate::core::mathx::{py_fsum, py_max, py_min, py_sum};
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_list, exact_str, map_set, unsupported, PyField};
 use crate::core::value::V;
 use crate::core::world_core::{mirror_of, with_state_value, NamespaceMirror, Tree};
 use crate::rules::movement_geometry::{
-    distance, point_along_polyline, point_in_polygon, point_in_value, point_walkable, polyline_length, usable, Geo, GeoPy, Pt,
+    distance, point_along_polyline, point_in_polygon, point_in_value, polyline_length, usable, Geo, GeoPy, Pt,
 };
 use crate::state::entities::{entities_of, Activity, AgentRow, Entities, EntityStore};
-use crate::rules::queues::{plan_trip, slot_route, write_plan, Fifo, Plan, Route as QueueRoute, BLOCKED_METRIC};
+use crate::rules::queues::{plan_trip, slot_route, trip_id, write_plan, Plan, Route as QueueRoute, BLOCKED_METRIC};
+use crate::state::facility_queues::read_fifo;
 use crate::rules::service::{add_one, metrics_of};
 use crate::state::events::{EventRow, EventStatus, EventWriter, QueueStore};
 use crate::state::movement::{Journey, MovementRow, Point, Position};
@@ -44,41 +48,11 @@ pub(crate) const KEY: &str = "movement_v1";
 const OVERLAY_KEY: &str = "geometry_overlay_v1";
 // `_MOVEMENT_DEFAULTS` are the core's (`config::movement`), with the model they make. Above
 // `EXACT_INT` an int does not always fit a float, and a Python division of ints is not an f64 one.
-pub(crate) use sheltersim_core::config::movement::{EXACT_INT, MOVEMENT_SOURCE_ID, POLICY_VERSION};
-// `_queue_slot_position`'s spacing and `facility_approach_route`'s clearance, in metres.
-const SPACING_INDEPENDENT: f64 = 0.6;
-const SPACING_ASSISTED: f64 = 0.9;
-const SPACING_WHEELCHAIR: f64 = 1.0;
-const APPROACH_INDEPENDENT: f64 = 0.30;
-const APPROACH_ASSISTED: f64 = 0.45;
-const APPROACH_WHEELCHAIR: f64 = 0.50;
+pub(crate) use sheltersim_core::config::movement::{EXACT_INT, POLICY_VERSION};
 
-struct Kinds {
-    physical: Arc<str>,
-    display_only: Arc<str>,
-    unavailable: Arc<str>,
-}
-
-static KINDS: LazyLock<Kinds> = LazyLock::new(|| Kinds {
-    physical: Arc::from("physical"),
-    display_only: Arc::from("display_only"),
-    unavailable: Arc::from("unavailable"),
-});
-
+/// A journey to a place of a facility's queue or service (`kit::movement`).
 pub(crate) fn is_queue_trip(purpose: &str) -> bool {
-    matches!(
-        purpose,
-        "toilet_queue_position" | "resource_queue_position" | "toilet_queue_service" | "resource_queue_service"
-    )
-}
-
-fn point_row(point: Pt) -> Point {
-    Point { x: point.x, y: point.y }
-}
-
-/// `_position_record`, with its kind.
-fn record(zone_id: Arc<str>, point: Option<Pt>, position_kind: Arc<str>, edge_id: Option<Arc<str>>, progress: f64) -> Position {
-    Position { zone_id, point: point.map(point_row), edge_id, progress, position_kind }
+    walking::is_queue_trip(purpose)
 }
 
 /// The physical-or-unavailable kind of a person on a route.
@@ -308,75 +282,53 @@ fn points_of_journey(journey: &Journey) -> PyResult<Vec<Pt>> {
 
 // ---- Writing a plan ----------------------------------------------------------------------------
 
-/// What a kernel found to change. Applied in this order, each map in its own order.
-#[derive(Default)]
-pub(crate) struct Changes {
-    /// `(record's key, new record)`, dropped when the same bits are there already.
-    positions: Vec<(Arc<str>, Position)>,
-    gone_positions: Vec<Arc<str>>,
-    gone_journeys: Vec<Arc<str>>,
-    /// In the order of the walk, which is the order they take in the map.
-    new_journeys: Vec<(Arc<str>, Journey)>,
-    staff: Vec<(Arc<str>, Position)>,
-    /// The edges one step more, in the order of the walk.
-    usage: Vec<Arc<str>>,
-    minute: Option<i64>,
-}
-
 /// One write of the tree, which needs the mirror itself.
 pub(crate) enum TreeWrite<'py> {
     Set(&'static str, Arc<str>, Bound<'py, PyAny>),
     Delete(&'static str, Arc<str>),
 }
 
-impl Changes {
-    /// What another plan changes, after what this one does.
-    pub(crate) fn absorb(&mut self, other: Changes) {
-        self.positions.extend(other.positions);
-        self.new_journeys.extend(other.new_journeys);
+/// Put a plan (`kit::movement::Changes`) in the row, and the scalars in the tree. Returns what the
+/// tree still needs.
+pub(crate) fn apply_tree<'py>(changes: Changes, row: &mut MovementRow, tree: &Tree<'py>) -> PyResult<Vec<TreeWrite<'py>>> {
+    let py = tree.py();
+    let mut writes = Vec::new();
+    if let Some(minute) = changes.minute {
+        row.set_last_updated_minute(tree, minute)?;
     }
-
-    /// Put the plan in the row, and the scalars in the tree. Returns what the tree still needs.
-    pub(crate) fn apply<'py>(self, row: &mut MovementRow, tree: &Tree<'py>) -> PyResult<Vec<TreeWrite<'py>>> {
-        let py = tree.py();
-        let mut writes = Vec::new();
-        if let Some(minute) = self.minute {
-            row.set_last_updated_minute(tree, minute)?;
+    for id in changes.gone_journeys {
+        if row.journeys.shift_remove(&*id).is_some() {
+            writes.push(TreeWrite::Delete("journeys", id));
         }
-        for id in self.gone_journeys {
-            if row.journeys.shift_remove(&*id).is_some() {
-                writes.push(TreeWrite::Delete("journeys", id));
-            }
-        }
-        for id in self.gone_positions {
-            if row.positions.shift_remove(&*id).is_some() {
-                writes.push(TreeWrite::Delete("positions", id));
-            }
-        }
-        for (id, journey) in self.new_journeys {
-            writes.push(TreeWrite::Set("journeys", id.clone(), PyField::to_py(&journey, py)?));
-            row.journeys.insert(id, journey);
-        }
-        for (name, map, changes) in
-            [("positions", &mut row.positions, self.positions), ("staff_positions", &mut row.staff_positions, self.staff)]
-        {
-            for (id, position) in changes {
-                if map.get(&*id).is_some_and(|current| same_position(current, &position)) {
-                    continue;
-                }
-                writes.push(TreeWrite::Set(name, id.clone(), PyField::to_py(&position, py)?));
-                map.insert(id, position);
-            }
-        }
-        if !self.usage.is_empty() {
-            let node = tree.child(intern!(py, "edge_usage_minutes"))?;
-            for edge in self.usage {
-                let count = row.edge_usage_minutes.get(&*edge).copied().unwrap_or(0) + 1;
-                map_set(&mut row.edge_usage_minutes, &node, &edge, count)?;
-            }
-        }
-        Ok(writes)
     }
+    for id in changes.gone_positions {
+        if row.positions.shift_remove(&*id).is_some() {
+            writes.push(TreeWrite::Delete("positions", id));
+        }
+    }
+    for (id, journey) in changes.new_journeys {
+        writes.push(TreeWrite::Set("journeys", id.clone(), PyField::to_py(&journey, py)?));
+        row.journeys.insert(id, journey);
+    }
+    for (name, map, items) in
+        [("positions", &mut row.positions, changes.positions), ("staff_positions", &mut row.staff_positions, changes.staff)]
+    {
+        for (id, position) in items {
+            if map.get(&*id).is_some_and(|current| same_position(current, &position)) {
+                continue;
+            }
+            writes.push(TreeWrite::Set(name, id.clone(), PyField::to_py(&position, py)?));
+            map.insert(id, position);
+        }
+    }
+    if !changes.usage.is_empty() {
+        let node = tree.child(intern!(py, "edge_usage_minutes"))?;
+        for edge in changes.usage {
+            let count = row.edge_usage_minutes.get(&*edge).copied().unwrap_or(0) + 1;
+            map_set(&mut row.edge_usage_minutes, &node, &edge, count)?;
+        }
+    }
+    Ok(writes)
 }
 
 pub(crate) fn write_tree<'py>(mirror: &Bound<'py, NamespaceMirror>, writes: Vec<TreeWrite<'py>>) -> PyResult<()> {
@@ -393,7 +345,7 @@ pub(crate) fn write_tree<'py>(mirror: &Bound<'py, NamespaceMirror>, writes: Vec<
 pub(crate) fn stop_journey(mirror: &Bound<'_, NamespaceMirror>, agent_id: &Arc<str>) -> PyResult<()> {
     let mut changes = Changes::default();
     changes.gone_journeys.push(agent_id.clone());
-    let writes = NamespaceMirror::with_row_tree::<MovementRow, _>(mirror, |row, tree| changes.apply(row, tree))?;
+    let writes = NamespaceMirror::with_row_tree::<MovementRow, _>(mirror, |row, tree| apply_tree(changes, row, tree))?;
     write_tree(mirror, writes)
 }
 
@@ -401,7 +353,7 @@ pub(crate) fn stop_journey(mirror: &Bound<'_, NamespaceMirror>, agent_id: &Arc<s
 pub(crate) fn place_in_room(mirror: &Bound<'_, NamespaceMirror>, agent_id: &Arc<str>, zone_id: &Arc<str>, point: Pt) -> PyResult<()> {
     let mut changes = Changes::default();
     changes.positions.push((agent_id.clone(), record(zone_id.clone(), Some(point), KINDS.physical.clone(), None, 0.0)));
-    let writes = NamespaceMirror::with_row_tree::<MovementRow, _>(mirror, |row, tree| changes.apply(row, tree))?;
+    let writes = NamespaceMirror::with_row_tree::<MovementRow, _>(mirror, |row, tree| apply_tree(changes, row, tree))?;
     write_tree(mirror, writes)
 }
 
@@ -504,14 +456,7 @@ pub(crate) fn no_positions() -> MovementRow {
 
 /// `_state`'s records for the people who have none.
 fn missing_positions(row: &MovementRow, rows: &Entities, changes: &mut Changes) {
-    for (id, agent) in rows.agents.iter() {
-        if !row.positions.contains_key(&**id) {
-            changes.positions.push((
-                id.clone(),
-                record(agent.zone_id.clone(), None, KINDS.unavailable.clone(), None, 0.0),
-            ));
-        }
-    }
+    walking::missing_positions(row, rows, changes)
 }
 
 /// The record of a queue trip's end: `finish_movement`'s branch for it.
@@ -532,7 +477,7 @@ pub(crate) fn refused(reason: &'static str) -> PyErr {
 }
 
 pub(crate) fn position_point(position: Option<&Position>) -> Option<Pt> {
-    position.and_then(|position| position.point).map(|point| Pt { x: point.x, y: point.y })
+    walking::position_point(position)
 }
 
 /// `_queue_slot_position` of a facility's own queue: the slot first free of the people ahead as
@@ -550,72 +495,7 @@ pub(crate) fn queue_slot_in(
     facility_id: &str,
     independent: Option<(&[Arc<str>], Option<Pt>)>,
 ) -> PyResult<Option<Pt>> {
-    let Some(facility) = rows.facilities.get(facility_id) else {
-        return Ok(None);
-    };
-    let Some(layout) = &geo.layout else {
-        return Ok(None);
-    };
-    let signed = independent.and_then(|(_, point)| point);
-    let own = signed.or_else(|| layout.facility_points.get(facility_id).copied());
-    let (Some(facility_point), Some(zone)) = (own, layout.zones.get(&*facility.zone_id)) else {
-        return Ok(None);
-    };
-    let holds = |queue: &[Arc<str>]| queue.iter().position(|id| &**id == agent_id);
-    let (queue, slot_index): (&[Arc<str>], Option<usize>) = match independent {
-        Some((members, _)) => (members, holds(members)),
-        None => match holds(&facility.resource_queue_agent_ids) {
-            Some(slot) => (&facility.resource_queue_agent_ids, Some(slot)),
-            None => (&facility.queue_agent_ids, holds(&facility.queue_agent_ids)),
-        },
-    };
-    let Some(slot_index) = slot_index else {
-        return Ok(Some(facility_point));
-    };
-    let Some(anchor) = geo.zone_center(&facility.zone_id)? else {
-        return Ok(None);
-    };
-    let (dx, dy) = (anchor.x - facility_point.x, anchor.y - facility_point.y);
-    let length = crate::core::mathx::hypot(&[dx, dy]);
-    if length <= 1e-9 {
-        return Ok(None);
-    }
-    let (ux, uy) = (dx / length, dy / length);
-    let Some(agent) = rows.agents.get(agent_id) else {
-        return unsupported("no such agent");
-    };
-    let mobility = mobility_text(agent);
-    let spacing = match mobility {
-        "independent" => SPACING_INDEPENDENT,
-        "assisted" => SPACING_ASSISTED,
-        _ => SPACING_WHEELCHAIR,
-    };
-    let occupied: Vec<Pt> =
-        queue[..slot_index].iter().filter_map(|other| position_point(row.positions.get(&**other))).collect();
-    if occupied.iter().any(|point| !usable(point.x, point.y)) {
-        return unsupported("a position is not a usable point");
-    }
-    let start = position_point(row.positions.get(agent_id)).or(occupied.last().copied()).unwrap_or(anchor);
-    if !usable(start.x, start.y) {
-        return unsupported("a position is not a usable point");
-    }
-    let no_blocks = Vec::new();
-    let blocked = geo.constraints.as_ref().map_or(&no_blocks, |constraints| &constraints.blocked);
-    for ring in slot_index + 1..slot_index + 65 {
-        for side in [0.0, 1.0, -1.0, 2.0, -2.0] {
-            let along = spacing * ring as f64;
-            let across = spacing * side;
-            let candidate =
-                Pt { x: facility_point.x + ux * along - uy * across, y: facility_point.y + uy * along + ux * across };
-            if point_walkable(candidate, &zone.polygon, blocked)
-                && occupied.iter().all(|other| distance(candidate, *other) >= spacing)
-                && geo.room_route(&facility.zone_id, Some(start), candidate, mobility).map_err(refused)?.is_some()
-            {
-                return Ok(Some(candidate));
-            }
-        }
-    }
-    Ok(None)
+    walking::queue_slot_in(geo, row, rows, agent_id, facility_id, independent).or_py()
 }
 
 /// `Point2D(x=..., y=...)`.
@@ -736,7 +616,7 @@ fn queue_slot_position<'py>(
     let store = entities_of(world)?;
     let geo = Geo::of(world)?;
     let fifo = match queue_id {
-        Some(queue) if !queue.is_none() => crate::rules::queues::Fifo::read(world, &geo, exact_str(queue)?)?,
+        Some(queue) if !queue.is_none() => read_fifo(world, &geo, exact_str(queue)?)?,
         _ => None,
     };
     let independent = fifo.as_ref().map(crate::rules::queues::Fifo::slot_view);
@@ -782,7 +662,7 @@ pub(crate) fn at_queue_slot(world: &Bound<'_, PyAny>, agent_id: &str, facility_i
         return Ok(false);
     }
     let fifo = match queue_id {
-        Some(queue) => crate::rules::queues::Fifo::read(world, &geo, queue)?,
+        Some(queue) => read_fifo(world, &geo, queue)?,
         None => None,
     };
     let independent = fifo.as_ref().map(crate::rules::queues::Fifo::slot_view);
@@ -869,22 +749,6 @@ fn agent_is_at_queue_trip_destination(world: &Bound<'_, PyAny>, agent_id: &Bound
     with_positions(world, |row| is_near(row, agent_id, destination))
 }
 
-/// `min(options, key=(distance, points))`: the tuple order on finite floats.
-fn is_shorter(first: (f64, &[Pt]), second: (f64, &[Pt])) -> bool {
-    if first.0 != second.0 {
-        return first.0 < second.0;
-    }
-    for (a, b) in first.1.iter().zip(second.1) {
-        if a.x != b.x {
-            return a.x < b.x;
-        }
-        if a.y != b.y {
-            return a.y < b.y;
-        }
-    }
-    first.1.len() < second.1.len()
-}
-
 /// `facility_approach_route`.
 #[pyfunction]
 #[pyo3(signature = (world, agent_id, facility_id, service_point_id=None))]
@@ -934,27 +798,10 @@ pub(crate) fn room_minutes(
     mobility: &str,
     length: f64,
 ) -> PyResult<i64> {
-    let Some(layout) = &geo.layout else {
-        return unsupported("no floor plan");
-    };
-    let model = configs::read(model.clone())?;
-    let speed = model.speed(mobility);
-    let loads = rows.agents.iter().filter(|(_, other)| &*other.zone_id == agent_zone).count();
-    let density = match layout.zones.get(agent_zone).map(|zone| zone.usable_area).filter(|area| *area > 0.0) {
-        Some(area) => loads as f64 / area,
-        None => 0.0,
-    };
-    let crowding = py_min(model.maximum_slowdown, 1.0 + model.density_slowdown * py_max(0.0, density - 0.5));
-    let minutes = length / speed * crowding;
-    if !minutes.is_finite() || minutes.abs() >= EXACT_INT as f64 {
-        return unsupported("the duration is too large");
-    }
-    Ok((minutes.ceil() as i64).max(1))
+    walking::room_minutes(model, geo, rows, agent_zone, mobility, length).or_py()
 }
 
-/// `facility_approach_route` in a placed world, to a facility's own point, or to a surveyed service
-/// point when one is given: then no point beside a footprint. The route's minutes and its path, or
-/// None for no route. Says Unsupported without a floor plan.
+/// `facility_approach_route` in a placed world (`kit::movement::approach_point`).
 pub(crate) fn approach_point(
     geo: &Geo,
     row: &MovementRow,
@@ -964,81 +811,7 @@ pub(crate) fn approach_point(
     facility_id: &str,
     service_point: Option<&str>,
 ) -> PyResult<Option<(i64, Arc<[Pt]>)>> {
-    let (Some(agent), Some(facility)) = (rows.agents.get(agent_id), rows.facilities.get(facility_id)) else {
-        return unsupported("no such agent or facility");
-    };
-    let Some(layout) = &geo.layout else {
-        return unsupported("no floor plan");
-    };
-    let mobility = mobility_text(agent);
-    if agent.zone_id != facility.zone_id {
-        return Ok(None);
-    }
-    let start = position_point(row.positions.get(agent_id));
-    if start.is_some_and(|start| !usable(start.x, start.y)) {
-        return unsupported("a position is not a usable point");
-    }
-    let facility_point = match service_point {
-        Some(id) => match layout.service_points.iter().find(|point| &*point.id == id) {
-            Some(point) if &*point.facility_id == facility_id => point.point,
-            _ => return Ok(None),
-        },
-        None => match layout.facility_points.get(facility_id) {
-            Some(point) => *point,
-            None => return Ok(None),
-        },
-    };
-    let mut candidates = vec![facility_point];
-    let footprint = geo.constraints.as_ref().filter(|_| service_point.is_none()).and_then(|constraints| {
-        constraints.footprints.iter().find(|(id, _)| &**id == facility_id).map(|(_, polygon)| polygon)
-    });
-    if let Some(footprint) = footprint {
-        let count = footprint.len() as f64;
-        let not_plain = || Unsupported::new_err("a footprint's centre is not a plain sum");
-        let center = Pt {
-            x: py_fsum(&footprint.iter().map(|point| point.x).collect::<Vec<_>>()).ok_or_else(not_plain)? / count,
-            y: py_fsum(&footprint.iter().map(|point| point.y).collect::<Vec<_>>()).ok_or_else(not_plain)? / count,
-        };
-        let clearance = match mobility {
-            "independent" => APPROACH_INDEPENDENT,
-            "assisted" => APPROACH_ASSISTED,
-            _ => APPROACH_WHEELCHAIR,
-        };
-        let outward = |candidates: &mut Vec<Pt>, point: Pt| {
-            let (dx, dy) = (point.x - center.x, point.y - center.y);
-            let length = crate::core::mathx::hypot(&[dx, dy]);
-            if length > 1e-9 {
-                candidates.push(Pt { x: point.x + dx / length * clearance, y: point.y + dy / length * clearance });
-            }
-        };
-        for (index, &first) in footprint.iter().enumerate() {
-            let second = footprint[(index + 1) % footprint.len()];
-            outward(&mut candidates, Pt { x: (first.x + second.x) / 2.0, y: (first.y + second.y) / 2.0 });
-        }
-        for &corner in footprint {
-            outward(&mut candidates, corner);
-        }
-    }
-    let mut best: Option<(f64, Arc<[Pt]>)> = None;
-    for destination in candidates {
-        let Some(path) = geo.room_route(&facility.zone_id, start, destination, mobility).map_err(refused)? else {
-            continue;
-        };
-        let length = polyline_length(&path).ok_or_else(|| Unsupported::new_err("not a plain sum"))?;
-        if best.as_ref().is_none_or(|(known, known_path)| is_shorter((length, &path), (*known, known_path))) {
-            best = Some((length, path));
-        }
-    }
-    let Some((length, path)) = best else {
-        return Ok(None);
-    };
-    // in_room_travel_minutes, then what facility_approach_route makes of it.
-    let mut duration =
-        if path.len() < 2 { 0 } else { room_minutes(model, geo, rows, &agent.zone_id, mobility, length)? };
-    if path.len() == 1 || path.windows(2).all(|pair| distance(pair[0], pair[1]) <= 1e-8) {
-        duration = 0;
-    }
-    Ok(Some((duration, path)))
+    walking::approach_point(geo, row, rows, model, agent_id, facility_id, service_point).or_py()
 }
 
 fn zone_route_class(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
@@ -1361,7 +1134,7 @@ fn staff_position_snapshots<'py>(world: &Bound<'py, PyAny>, boundary_minute: Opt
             }
             Ok(())
         })?;
-        let writes = changes.apply(row, tree)?;
+        let writes = apply_tree(changes, row, tree)?;
         let mut records: Vec<(Arc<str>, Position)> = row.staff_positions.iter().map(|(id, position)| (id.clone(), position.clone())).collect();
         records.sort_unstable_by(|first, second| first.0.cmp(&second.0));
         Ok((records, writes))
@@ -1439,14 +1212,14 @@ fn plan_queue_replan(
     let resource = journey.purpose.starts_with("resource_");
     let position_trip = journey.purpose.ends_with("_position");
     let fifo = match &journey.queue_id {
-        Some(queue_id) => match Fifo::read(world, &scene.geo, queue_id)? {
+        Some(queue_id) => match read_fifo(world, &scene.geo, queue_id)? {
             Some(fifo) => Some(fifo),
             None => return unsupported("a queue ID without the queues"),
         },
         None => None,
     };
     let route = if position_trip {
-        slot_route(&scene.geo, view, rows, model, agent_id, facility, facility_id, fifo.as_ref())?
+        slot_route(&scene.geo, view, rows, model, agent_id, facility, facility_id, fifo.as_ref()).or_py()?
     } else if scene.geo.layout.is_none() {
         Some((0, Arc::from(Vec::new())))
     } else {
@@ -1474,7 +1247,8 @@ fn plan_queue_replan(
     };
     let phase = if position_trip { "position" } else { "service" };
     let trip = QueueRoute { agent_id: agent_id.clone(), index, minutes, path };
-    let mut plan = plan_trip(scene, writer, view, rows, facility_id, resource, trip, minute, phase, fifo.as_ref(), sequence)?;
+    let taken = writer.is_taken(&trip_id(sequence), Some(sequence))?;
+    let mut plan = plan_trip(writer.duration(), taken, view, rows, facility_id, resource, trip, minute, phase, fifo.as_ref(), sequence).or_py()?;
     changes.absorb(plan.take_changes());
     Ok(found(if matches!(plan, Plan::Blocked) { QueueReplanEnd::PastTheEnd } else { QueueReplanEnd::Trip(plan) }))
 }
@@ -1589,15 +1363,12 @@ fn plan_walk(
 /// The queue replans of a walk, in its order: the events, the people and the counts.
 fn write_queue_replans<'py>(
     world: &Bound<'py, PyAny>,
-    mirror: &Bound<'py, NamespaceMirror>,
-    store: &Bound<'py, EntityStore>,
     writer: &EventWriter<'py>,
     metrics: &Bound<'py, NamespaceMirror>,
     old_events: Vec<Arc<EventRow>>,
     replans: Vec<QueueReplan>,
     minute: i64,
 ) -> PyResult<()> {
-    let py = world.py();
     for (old, replan) in old_events.into_iter().zip(replans) {
         writer.settle(&old, minute, EventStatus::Suppressed, Some("In-room queue route changed after a wall, obstacle, or equipment update"))?;
         match replan.end {
@@ -1610,8 +1381,7 @@ fn write_queue_replans<'py>(
             QueueReplanEnd::PastTheEnd => add_one(metrics, BLOCKED_METRIC)?,
             QueueReplanEnd::Placed => {}
             QueueReplanEnd::Trip(plan) => {
-                let facility = PyString::new(py, replan.facility_id.as_deref().unwrap_or_default());
-                write_plan(world, mirror, store, writer, facility.as_any(), plan)?;
+                write_plan(world, replan.facility_id.as_deref().unwrap_or_default(), plan)?;
             }
         }
         add_one(metrics, "physical_queue_replan_count")?;
@@ -1679,11 +1449,11 @@ pub(crate) fn advance_movement<'py>(world: &Bound<'py, PyAny>, minute: &Bound<'p
                 }
             }
         }
-        Ok((replans, changes.apply(row, tree)?, (old_events, queue_replans)))
+        Ok((replans, apply_tree(changes, row, tree)?, (old_events, queue_replans)))
     })?;
     write_tree(&mirror, writes)?;
     if let Some((writer, metrics)) = &in_order_tools {
-        write_queue_replans(world, &mirror, &store, writer, metrics, queue_replans.0, queue_replans.1, minute)?;
+        write_queue_replans(world, writer, metrics, queue_replans.0, queue_replans.1, minute)?;
     }
     PyTuple::new(py, replans.iter().map(|id| PyString::new(py, id)))
 }
@@ -1775,7 +1545,7 @@ pub(crate) fn start_movement<'py>(
         destination_zone_id: Arc::from(exact_str(&attribute(route, intern!(py, "destination_zone_id"))?)?),
         route_zone_ids: zone_ids,
         route_edge_ids: edge_ids.clone(),
-        route_points: points.iter().copied().map(point_row).collect(),
+        route_points: points.iter().map(|point| Point { x: point.x, y: point.y }).collect(),
         started_minute: started,
         due_minute: due,
         queue_id: optional_str(queue_id)?,
@@ -1785,7 +1555,7 @@ pub(crate) fn start_movement<'py>(
     let scene = Scene::of(world)?;
     let writes = NamespaceMirror::with_row_tree::<MovementRow, _>(&mirror, |row, tree| {
         let changes = EntityStore::with_rows(&store, |rows| plan_start(&scene, row, rows, &agent_id, journey, &origin, &points, &edge_ids, started, duration))?;
-        changes.apply(row, tree)
+        apply_tree(changes, row, tree)
     })?;
     write_tree(&mirror, writes)
 }
@@ -1804,33 +1574,17 @@ pub(crate) fn plan_start(
     started: i64,
     duration: i64,
 ) -> PyResult<Changes> {
-    let mut changes = Changes::default();
-    missing_positions(row, rows, &mut changes);
-    let elapsed = i64::from(row.last_updated_minute >= started);
-    let initial_progress = py_min(1.0, elapsed as f64 / duration as f64);
-    let point = if !points.is_empty() {
-        if elapsed != 0 {
-            match point_along_polyline(points, initial_progress) {
-                Some(point) => Some(point),
-                None => return unsupported("a route's length is not a plain sum"),
-            }
-        } else {
-            Some(points[0])
+    // The point of a journey without the points of a path, which the scene reads.
+    let off_path = if points.is_empty() {
+        let (elapsed, initial_progress) = walking::start_progress(row, started, duration);
+        match edge_ids.first() {
+            Some(edge) => scene.route_point(edge, if elapsed { initial_progress } else { 0.0 }, origin)?,
+            None => scene.geo.zone_center(origin)?,
         }
-    } else if let Some(edge) = edge_ids.first() {
-        let progress = if elapsed != 0 { initial_progress } else { 0.0 };
-        scene.route_point(edge, progress, origin)?
     } else {
-        scene.geo.zone_center(origin)?
+        None
     };
-    let kind = if point.is_some() && (!edge_ids.is_empty() || !points.is_empty()) {
-        KINDS.physical.clone()
-    } else {
-        KINDS.unavailable.clone()
-    };
-    changes.positions.push((agent_id.clone(), record(origin.clone(), point, kind, edge_ids.first().cloned(), initial_progress)));
-    changes.new_journeys.push((agent_id.clone(), journey));
-    Ok(changes)
+    walking::plan_start(row, rows, agent_id, journey, origin, points, edge_ids, started, duration, off_path).or_py()
 }
 
 /// `finish_movement`.
@@ -1866,7 +1620,7 @@ pub(crate) fn finish_movement<'py>(world: &Bound<'py, PyAny>, agent_id: &Bound<'
                 changes.positions.push((key, position));
             }
         }
-        changes.apply(row, tree)
+        apply_tree(changes, row, tree)
     })?;
     write_tree(&mirror, writes)
 }

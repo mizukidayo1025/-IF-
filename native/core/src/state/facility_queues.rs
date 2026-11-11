@@ -1,7 +1,7 @@
 //! `facility_queues_v1`: the independent FIFO of each service point (`domain/facility_queues.py`).
-//! `rules/facility_queues.rs` reads the row and writes through the tree, whose writes reach it, or
-//! the row itself while the namespace is detached. A value of another type than the rules write
-//! taints the namespace, and the Python rules and their errors run on the tree.
+//! The rules (`rules/facility_queues.rs`, `rules/queues.rs`) read and write the row alone; an
+//! attached tree follows it (lane P8-0c). A value of another type than the rules write taints the
+//! namespace, and the kernels refuse it.
 
 use std::sync::Arc;
 

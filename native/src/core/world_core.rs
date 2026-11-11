@@ -2705,6 +2705,25 @@ pub(crate) fn field_stamp<'py>(
     Ok(mirror.and_then(|mirror| mirror.get().held_stamp(held)).map(|stamp| (core, stamp)))
 }
 
+/// Whether the world holds the slot of the namespace `name`, as a kernel of the core takes it
+/// (`kit::Held`, lane c1): absent from `model_state`, the slot's tree or its detached placeholder,
+/// or something else, whose refusal (`other`, or that of the table or the slot) the kernel says
+/// where it reads the namespace. The same answers as the namespaces' `held_mirror`, none raised.
+pub(crate) fn namespace_held(world: &Bound<'_, PyAny>, name: &Bound<'_, PyString>, other: &'static str) -> PyResult<sheltersim_core::rules::kit::Held> {
+    use sheltersim_core::rules::kit::Held;
+    let table = super::row::attribute(world, intern!(world.py(), "model_state"))?;
+    if as_readable_dict(&table).is_none() {
+        return Ok(Held::Other("model_state is another kind of mapping"));
+    }
+    let Some(held) = raw_dict_get(&table, name.as_any())? else {
+        return Ok(Held::Absent);
+    };
+    let Ok(mirror) = mirror_of(world, name.to_str()?) else {
+        return Ok(Held::Other("the namespace is not owned"));
+    };
+    Ok(if mirror.try_borrow().is_ok_and(|mirror| mirror.holds_state(&held)) { Held::Held } else { Held::Other(other) })
+}
+
 /// The mirror of a namespace of a world, read now, or Unsupported if it is not owned.
 pub(crate) fn mirror_of<'py>(world: &Bound<'py, PyAny>, name: &str) -> PyResult<Bound<'py, NamespaceMirror>> {
     let core = core_of(world)?;

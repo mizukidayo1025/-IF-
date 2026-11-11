@@ -33,6 +33,9 @@ use crate::text::casefold;
 use crate::value::V;
 use crate::world::{set_id_counter, World, ID_COUNTERS, METRIC_STATE};
 
+/// What the queue rules ask of the movement rules (lane c1).
+pub mod movement;
+
 /// `population_presence_v1`, the ledger of who is where.
 pub const PRESENCE: &str = "population_presence_v1";
 /// `population_dynamics_v1`, the arrivals and departures.
@@ -670,4 +673,31 @@ fn check_item_for_admission(waiting: &V, zone: &str) -> Result<()> {
         }
     }
     Ok(())
+}
+
+// ---- Namespaces the Python world holds (lane c1) -------------------------------------------------
+
+/// Whether the Python world holds a namespace's slot, as the PyO3 crate's `held_mirror` of it
+/// answers: a row left behind by a write past `model_state` answers for nothing. The PyO3 crate
+/// reads it before it borrows the world, and a kernel says `Other`'s refusal where it read the
+/// namespace before.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Held {
+    /// `model_state` has no such key.
+    Absent,
+    /// The key holds the slot's tree, or the placeholder of the detached slot.
+    Held,
+    /// Another value, or no slot: the refusal the read says.
+    Other(&'static str),
+}
+
+/// The row of a namespace the world holds, borrowed shared: None for an absent key, the refusal of
+/// `Other`, or the slot's own (a tainted namespace has no row).
+#[track_caller]
+pub fn held_row<'w, T: crate::row::Row>(world: &'w World, name: &str, held: &Held) -> Result<Option<crate::cell::ShardRef<'w, T>>> {
+    match held {
+        Held::Absent => Ok(None),
+        Held::Other(reason) => Err(Error::unsupported(*reason)),
+        Held::Held => world.row::<T>(name).map(Some),
+    }
 }
