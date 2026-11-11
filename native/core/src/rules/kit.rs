@@ -404,6 +404,17 @@ pub fn metrics_of(world: &World) -> Result<ShardMut<'_, MetricRow>> {
     world.row_mut::<MetricRow>(METRIC_STATE)
 }
 
+/// `world.metric_state` as the PyO3 crate's `metrics_of` reads it before a kernel adds to it: the
+/// field must still be its slot's tree (`metric_state_held`, read by the PyO3 crate), and the slot
+/// must have its row.
+pub fn check_metric_state(world: &World, metric_state_held: bool) -> Result<()> {
+    if world.slots.get(METRIC_STATE).is_some() && !metric_state_held {
+        return Err(Error::unsupported("the field holds another dict"));
+    }
+    world.metric_state()?;
+    Ok(())
+}
+
 /// `set_event(metric, get + 1.0)` of `world.metric_state`, on its row.
 pub fn add_metric(world: &World, name: &str) -> Result<()> {
     let Ok(()) = add_one(&mut *metrics_of(world)?, &NoTree, name);

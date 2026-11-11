@@ -74,7 +74,11 @@ Checkpoint document) and times them.
   `Changes` of the row of `movement_v1` and `plan_start`; lane c1); `facility_queues.rs`, the
   independent FIFO of each service point on the row of `facility_queues_v1`, and `queues.rs`, a
   facility's physical queue (`prepare_facility_queue`, the walks to the queue's places and to
-  service, those who give up), which write the rows alone (lane c1);
+  service, those who give up), which write the rows alone (lane c1); `movement.rs`, the movement rules of a tick
+  (`advance_movement` with its walk in order, `start_movement`, `finish_movement`,
+  `staff_position_snapshots`, the readers of where a person is, `route_with_movement_time`'s
+  minutes and the validation), on the zone and edge rows, the floor plan and the overlay's value,
+  writing the row of `movement_v1` alone (lane c2);
   the P8b-1 operations: `staff_dynamics.rs` (shift, rest and fatigue), `resources.rs` (the
   ledger's operations, which return the new balance for the PyO3 crate's new `world.resources`),
   `common_operations.rs` (`record_shared_operation`, and the receipts typed as `Receipt` with the
@@ -461,7 +465,10 @@ are correctly rounded everywhere, and not `**` with a float.
   (`docs/rust-port/lanes/m3-social-network.md`, `m3-dispatch.md`).
 
 - `state.movement.ROW`: Rust owns `movement_v1` (`src/state/movement.rs`).
-- `rules.movement`: the movement rules of a tick (`src/rules/movement.rs`; the floor plan and its
+- `rules.movement`: the movement rules of a tick (`src/rules/movement.rs`, the glue of
+  `core/src/rules/movement.rs`: it reads the arguments, the floor plan, the movement section of
+  the configs and the staff's operations where their row does not answer, and makes the
+  `ZoneRoute`, `Point2D` and dict values; the floor plan and its
   geometry are the core's, and `src/rules/movement_geometry.rs` reads the section `geometry` from
   the Python contracts and gives `Geo::of(world)`, the arrival approach routes and
   `independent_queues_required` of a world's configs): `advance_movement(world, minute)`,

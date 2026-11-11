@@ -1109,17 +1109,6 @@ impl NamespaceMirror {
         f(row, &tree)
     }
 
-    /// Run f on the row as this crate's `PyRow`, for a reader that makes Python values of it.
-    /// Unsupported without a row.
-    pub(crate) fn with_py_row<R>(slf: &Bound<'_, Self>, f: impl FnOnce(&dyn PyRow) -> PyResult<R>) -> PyResult<R> {
-        let this = slf.get();
-        let ops = this.ops();
-        this.with_slot(slf.py(), |slot| {
-            let row = slot.row.as_deref().ok_or_else(|| Unsupported::new_err("the namespace has no row"))?;
-            f(ops.py(row)?)
-        })?
-    }
-
     /// Whether value is the root of this mirror's tree.
     pub(crate) fn root_is(&self, value: &Bound<'_, PyAny>) -> bool {
         self.tree
@@ -1436,25 +1425,6 @@ pub(crate) fn held_state<'py>(world: &Bound<'py, PyAny>, name: &str) -> PyResult
         }
     }
     Ok(Some(Held::Value(value)))
-}
-
-/// `model_state[name].get(key)` of a detached namespace, for a kernel that only reads that part: a
-/// new value made from that one field of its row (`NamespaceMirror.document_part`), or None for a
-/// key the row does not have. For a reader of a part of the tree, when `held` is the placeholder.
-pub(crate) fn detached_part<'py>(world: &Bound<'py, PyAny>, name: &str, key: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
-    let mirror = mirror_of(world, name)?;
-    NamespaceMirror::with_py_row(&mirror, |row| row.part_to_py(world.py(), key))
-}
-
-/// `{"staff": ...}` of a detached `staff_operations_v1`: a reader of its staff records, which are
-/// few, gets them as documents, as the tree would hold them.
-pub(crate) fn detached_staff_operations<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
-    let py = world.py();
-    let state = PyDict::new(py);
-    if let Some(staff) = detached_part(world, "staff_operations_v1", "staff")? {
-        state.set_item(intern!(py, "staff"), staff)?;
-    }
-    Ok(Some(state.into_any()))
 }
 
 /// `model_state.get(name)` through the C API, but a detached namespace comes back as its tree,

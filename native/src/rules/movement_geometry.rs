@@ -376,29 +376,16 @@ pub(crate) fn reset_stale_geometry_hits() {
     STALE_HITS.store(0, Ordering::Relaxed);
 }
 
-/// The bytes of a part of the overlay: empty for no entries, so most ticks encode nothing.
-fn overlay_bytes(overlay: &indexmap::IndexMap<Arc<str>, V>, name: &str) -> PyResult<Vec<u8>> {
-    match overlay.get(name) {
-        None => Ok(Vec::new()),
-        Some(V::Map(items)) if items.is_empty() => Ok(Vec::new()),
-        Some(part @ V::Map(_)) => part.to_json().or_py(),
-        Some(_) => unsupported("a value is not a plain dict"),
-    }
-}
-
-/// The key of the overlay a world holds now, by bytes, with its stamp.
+/// The key of the overlay a world holds now, by bytes, with its stamp (`OverlayKey::of`). The
+/// overlay is read as a `V`: a detached one from its row.
 fn overlay_key(world: &Bound<'_, PyAny>, present: bool, stamp: Option<sheltersim_core::stamp::Stamp>) -> PyResult<OverlayKey> {
     if !present {
-        return Ok(OverlayKey { present, stamp: None, moves: Vec::new(), partitions: Vec::new() });
+        return OverlayKey::of(None, None).or_py();
     }
-    // The overlay is read as a `V`: a detached one from its row.
-    let (moves, partitions) = with_state_value(world, OVERLAY_KEY, |overlay| {
-        let Some(V::Map(overlay)) = overlay else {
-            return unsupported("a value is not a plain dict");
-        };
-        Ok((overlay_bytes(overlay, "facility_points")?, overlay_bytes(overlay, "partitions")?))
-    })?;
-    Ok(OverlayKey { present, stamp, moves, partitions })
+    with_state_value(world, OVERLAY_KEY, |overlay| match overlay {
+        Some(overlay) => OverlayKey::of(Some(overlay), stamp).or_py(),
+        None => unsupported("a value is not a plain dict"),
+    })
 }
 
 /// Whether `model_state` holds the overlay, and the stamp of its slot where one follows it.
@@ -460,13 +447,7 @@ impl GeoPy for Geo {
             None
         };
         // The overlay's parts are read only when they have entries, as the key's bytes say.
-        let (moves, partitions) = with_state_value(world, OVERLAY_KEY, |overlay| {
-            let part = |name: &str, bytes: &[u8]| match (overlay, bytes.is_empty()) {
-                (Some(V::Map(overlay)), false) => overlay.get(name).cloned(),
-                _ => None,
-            };
-            Ok((part("facility_points", &key.moves), part("partitions", &key.partitions)))
-        })?;
+        let (moves, partitions) = with_state_value(world, OVERLAY_KEY, |overlay| Ok(key.parts(overlay)))?;
         let geo = Arc::new(Geo::new(facility.as_deref(), spatial.as_deref(), moves.as_ref(), partitions.as_ref()).or_py()?);
         if let Ok(mut cache) = configs.geo.lock() {
             cache.insert(key, geo.clone());

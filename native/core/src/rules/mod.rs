@@ -26,6 +26,7 @@ pub mod staff_dynamics;
 
 // ---- P8c: population and movement --------------------------------------------------------------
 pub mod facility_queues;
+pub mod movement;
 pub mod queues;
 
 // ---- P8d: events and checks --------------------------------------------------------------------

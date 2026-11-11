@@ -1,398 +1,56 @@
-//! `domain/movement.py`: the rules of a tick. The Python rules stay as the comparison base and for
-//! every value these kernels do not decide, which is also how a bad value gets its error text
-//! (docs/rust-port/lanes/m4-movement.md).
+//! `domain/movement.py`: the glue of the core's kernels (`sheltersim_core::rules::movement`, lane c2
+//! of Issue #152). Each entry reads its arguments and what Python holds (the floor plan, the
+//! movement section of the configs, whether the world holds the namespaces and `metric_state`, the
+//! staff's operations where the row of `staff_operations_v1` does not answer) in the order the
+//! kernel read them before, runs the core on the world borrowed whole (`with_world`), and makes the
+//! Python values of what it returns (`ZoneRoute`, `Point2D`, the dicts). The core writes the row of
+//! `movement_v1` alone, and an attached tree follows it when the world is given back (lane P8-0c).
 //!
-//! Every kernel plans first: it reads the rows and the plan of the floor and works out each record,
-//! with nothing changed, and says Unsupported for anything it does not decide. Then it writes.
-//! Planning reads only what the tick started with, so one person's result depends on nobody else's,
-//! except in two branches of `advance_movement`: a queue trip that must replan, and a person placed
-//! in a queue slot. They read the positions the walk has written so far and take event numbers in
-//! its order (docs/rust-port/lanes/i-movement.md). The first walk stops at either branch, and a
-//! second one reads a copy of the positions it keeps up to date, as the Python rule's walk does.
-//!
-//! No Python runs in the plan or the writes but `Geo::of`, before them, and reads of plain data.
+//! What stays here besides: settling a replanned queue trip's pending event, whose object may be
+//! Python's (`EventWriter::settle`), and the readers that make Python documents of the row for the
+//! rules not yet in the core (`row_position`, `journey_of`).
 
 use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
-use pyo3::types::{PyBool, PyDict, PyString, PyTuple, PyType};
+use pyo3::types::{PyDict, PyString, PyTuple, PyType};
 
 use sheltersim_core::config::movement::{Movement, MovementModel};
 use sheltersim_core::config::read::Read;
-use sheltersim_core::rules::kit::{self, Placed};
+use sheltersim_core::rules::kit::movement as walking;
+use sheltersim_core::rules::kit::Held;
+use sheltersim_core::rules::movement::{self as core, Advanced, InOrder, StaffOp, StaffOps, StaffTravel, Start, Tick, Validated, Where};
+
+pub(crate) use sheltersim_core::config::movement::EXACT_INT;
 pub(crate) use sheltersim_core::rules::kit::mobility_text;
 pub(crate) use sheltersim_core::rules::kit::movement::Changes;
-use sheltersim_core::rules::kit::movement::{self as walking, record, KINDS};
-use sheltersim_core::rules::kit::same_position;
+pub(crate) use sheltersim_core::rules::movement::no_positions;
 
 use crate::core::configs;
 use crate::core::errors::OrPy;
-use crate::core::mathx::{py_fsum, py_max, py_min, py_sum};
-use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_list, exact_str, map_set, unsupported, PyField};
-use crate::core::value::V;
-use crate::core::world_core::{mirror_of, with_state_value, NamespaceMirror, Tree};
-use crate::rules::movement_geometry::{
-    distance, point_along_polyline, point_in_polygon, point_in_value, polyline_length, usable, Geo, GeoPy, Pt,
-};
-use crate::state::entities::{entities_of, Activity, AgentRow, Entities, EntityStore};
-use crate::rules::queues::{plan_trip, slot_route, trip_id, write_plan, Plan, Route as QueueRoute, BLOCKED_METRIC};
-use crate::state::facility_queues::read_fifo;
-use crate::rules::service::{add_one, metrics_of};
-use crate::state::events::{EventRow, EventStatus, EventWriter, QueueStore};
-use crate::state::movement::{Journey, MovementRow, Point, Position};
+use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_list, exact_str, unsupported, IdMap, PyField};
+use crate::core::world_core::{field_held, mirror_of, namespace_held, with_world, NamespaceMirror};
+use crate::rules::movement_geometry::{usable, Geo, GeoPy, Pt};
+use crate::state::entities::Entities;
+use crate::state::events::{write_result, EventStatus, EventWriter};
+use crate::state::movement::{Journey, MovementRow, Point};
+use crate::state::staff_operations::NAME as STAFF_OPERATIONS;
 use crate::Unsupported;
 
 pub(crate) const KEY: &str = "movement_v1";
-const OVERLAY_KEY: &str = "geometry_overlay_v1";
-// `_MOVEMENT_DEFAULTS` are the core's (`config::movement`), with the model they make. Above
-// `EXACT_INT` an int does not always fit a float, and a Python division of ints is not an f64 one.
-pub(crate) use sheltersim_core::config::movement::{EXACT_INT, POLICY_VERSION};
 
 /// A journey to a place of a facility's queue or service (`kit::movement`).
 pub(crate) fn is_queue_trip(purpose: &str) -> bool {
     walking::is_queue_trip(purpose)
 }
 
-/// The physical-or-unavailable kind of a person on a route.
-fn on_route_kind(point: &Option<Pt>) -> Arc<str> {
-    if point.is_some() {
-        KINDS.physical.clone()
-    } else {
-        KINDS.unavailable.clone()
-    }
+pub(crate) fn refused(reason: &'static str) -> PyErr {
+    Unsupported::new_err(reason)
 }
 
-/// What a tick's kernel reads beside the rows.
-pub(crate) struct Scene<'py> {
-    world: Bound<'py, PyAny>,
-    geo: Arc<Geo>,
-    zones: Bound<'py, PyAny>,
-    edges: Bound<'py, PyAny>,
-}
-
-impl<'py> Scene<'py> {
-    pub(crate) fn of(world: &Bound<'py, PyAny>) -> PyResult<Self> {
-        let py = world.py();
-        Ok(Self {
-            world: world.clone(),
-            geo: Geo::of(world)?,
-            zones: attribute(world, intern!(py, "zones"))?,
-            edges: attribute(world, intern!(py, "zone_edges"))?,
-        })
-    }
-
-    fn edge(&self, edge_id: &str) -> PyResult<Bound<'py, PyAny>> {
-        let edges = exact_dict(&self.edges)?;
-        edges.get_item(edge_id)?.ok_or_else(|| Unsupported::new_err("a journey's edge is unknown"))
-    }
-
-    pub(crate) fn edge_minutes(&self, edge_id: &str) -> PyResult<i64> {
-        let minutes = exact_int(&attribute(&self.edge(edge_id)?, intern!(self.world.py(), "travel_minutes"))?)?;
-        if minutes <= 0 || minutes >= EXACT_INT {
-            return unsupported("an edge's minutes are not a plain duration");
-        }
-        Ok(minutes)
-    }
-
-    /// `_route_point`.
-    fn route_point(&self, edge_id: &str, progress: f64, current_zone: &str) -> PyResult<Option<Pt>> {
-        let Some(layout) = &self.geo.layout else {
-            return Ok(None);
-        };
-        let Some(route) = layout.routes.get(edge_id) else {
-            return self.geo.zone_center(current_zone);
-        };
-        let py = self.world.py();
-        let from_zone = attribute(&self.edge(edge_id)?, intern!(py, "from_zone_id"))?;
-        let forward = exact_str(&from_zone)? == current_zone;
-        let at = |index: usize| {
-            if forward {
-                route.points[index]
-            } else {
-                route.points[route.points.len() - 1 - index]
-            }
-        };
-        let segments = route.points.len() - 1;
-        let lengths: Vec<f64> = (0..segments).map(|index| distance(at(index), at(index + 1))).collect();
-        let total = py_sum(&lengths);
-        if total <= 0.0 {
-            return Ok(Some(at(0)));
-        }
-        let mut remaining = py_min(1.0, py_max(0.0, progress)) * total;
-        for (index, &length) in lengths.iter().enumerate() {
-            if remaining <= length || index == segments - 1 {
-                let ratio = if length == 0.0 { 0.0 } else { py_min(1.0, py_max(0.0, remaining / length)) };
-                let (first, second) = (at(index), at(index + 1));
-                let point = Pt { x: first.x + (second.x - first.x) * ratio, y: first.y + (second.y - first.y) * ratio };
-                return Ok(Some(point));
-            }
-            remaining -= length;
-        }
-        Ok(Some(at(segments)))
-    }
-
-    /// `_reserved_bed_point`. The overlay is read as a `V`: a detached one from its row.
-    fn reserved_bed_point(&self, agent_id: &str) -> PyResult<Option<Pt>> {
-        with_state_value(&self.world, OVERLAY_KEY, |overlay| {
-            let Some(overlay) = overlay else {
-                return Ok(None);
-            };
-            let V::Map(overlay) = overlay else {
-                return unsupported("the overlay is not a plain dict");
-            };
-            let Some(reservations) = overlay.get("bed_reservations") else {
-                return Ok(None);
-            };
-            let V::Map(reservations) = reservations else {
-                return unsupported("a value is not a plain dict");
-            };
-            let reservation = match reservations.get(agent_id) {
-                None | Some(V::Null) => return Ok(None),
-                Some(V::Map(reservation)) => reservation,
-                Some(_) => return unsupported("a reservation is not a plain dict"),
-            };
-            let Some(rooms) = overlay.get("temporary_rooms") else {
-                return Ok(None);
-            };
-            let Some(room_id) = reservation.get("room_id") else {
-                return Ok(None);
-            };
-            let (V::Map(rooms), V::Str(room_id)) = (rooms, room_id) else {
-                return unsupported("the rooms are not a plain dict, or a room ID is not a str");
-            };
-            let Some(room) = rooms.get(&**room_id) else {
-                return Ok(None);
-            };
-            let V::Map(room) = room else {
-                return unsupported("a value is not a plain dict");
-            };
-            let Some(beds) = room.get("bed_points_m") else {
-                return Ok(None);
-            };
-            let V::List(beds) = beds else {
-                return unsupported("a value is not a plain list");
-            };
-            // An exact int that fits: a bool, a negative or a big one reads as no bed.
-            let Some(V::Int(index)) = reservation.get("bed_index") else {
-                return Ok(None);
-            };
-            match usize::try_from(*index).ok().and_then(|index| beds.get(index)) {
-                Some(bed) => Ok(Some(point_in_value(bed)?)),
-                None => Ok(None),
-            }
-        })
-    }
-
-    /// What `stationary` would refuse for a person idle in this zone, for a plan that makes one.
-    pub(crate) fn check_idle_point(&self, zone_id: &str) -> PyResult<()> {
-        let py = self.world.py();
-        if self.geo.layout.is_some() {
-            self.geo.zone_center(zone_id)?;
-        } else if let Some(zone) = exact_dict(&self.zones)?.get_item(zone_id)? {
-            let x = attribute(&zone, intern!(py, "display_x"))?;
-            let y = attribute(&zone, intern!(py, "display_y"))?;
-            if !x.is_none() && !y.is_none() && !usable(exact_float(&x)?, exact_float(&y)?) {
-                return unsupported("a display point is not a usable point");
-            }
-        }
-        Ok(())
-    }
-
-    /// Whether `_set_stationary_position` reads the positions of the people ahead for this person.
-    fn stands_in_a_slot(&self, agent: &AgentRow) -> bool {
-        self.geo.layout.is_some() && agent.activity == Activity::Queued && agent.target_id.as_deref().is_some_and(|target| !target.is_empty())
-    }
-
-    /// `_set_stationary_position`'s record. A person in a queue slot reads the people ahead, so
-    /// `slots` is what they are read from, or None where who walked first would matter.
-    fn stationary(&self, agent_id: &str, agent: &AgentRow, slots: Option<(&MovementRow, &Entities)>) -> PyResult<Position> {
-        let py = self.world.py();
-        let mut point = None;
-        let target = agent.target_id.as_deref().filter(|target| !target.is_empty());
-        let placed = self.geo.layout.as_ref();
-        if let Some(layout) = placed {
-            if agent.activity == Activity::Queued && target.is_some() {
-                let Some((row, rows)) = slots else {
-                    return unsupported("a person stands in a queue slot, which depends on the people ahead");
-                };
-                point = queue_slot(&self.geo, row, rows, agent_id, target.unwrap_or_default())?;
-            } else if agent.activity == Activity::InService && target.is_some() {
-                point = target.and_then(|target| layout.facility_points.get(target)).copied();
-            } else if agent.activity == Activity::Sleeping {
-                point = self.reserved_bed_point(agent_id)?;
-            }
-            if point.is_none() {
-                point = self.geo.zone_center(&agent.zone_id)?;
-            }
-        } else if let Some(zone) = exact_dict(&self.zones)?.get_item(&*agent.zone_id)? {
-            let x = attribute(&zone, intern!(py, "display_x"))?;
-            let y = attribute(&zone, intern!(py, "display_y"))?;
-            if !x.is_none() && !y.is_none() {
-                let (x, y) = (exact_float(&x)?, exact_float(&y)?);
-                if !usable(x, y) {
-                    return unsupported("a display point is not a usable point");
-                }
-                point = Some(Pt { x, y });
-            }
-        }
-        let kind = match (placed, &point) {
-            (Some(_), Some(_)) => KINDS.physical.clone(),
-            (None, Some(_)) => KINDS.display_only.clone(),
-            _ => KINDS.unavailable.clone(),
-        };
-        Ok(record(agent.zone_id.clone(), point, kind, None, 0.0))
-    }
-}
-
-/// `Point2D.model_validate` of a plain record: only the case where it gives the same two floats.
-fn plain_point(value: &Bound<'_, PyAny>) -> PyResult<Pt> {
-    let py = value.py();
-    let record = exact_dict(value)?;
-    if record.len() != 2 {
-        return unsupported("a point has other fields");
-    }
-    let field = |name| -> PyResult<f64> {
-        match record.get_item(name)? {
-            Some(item) => exact_float(&item),
-            None => unsupported("a point lacks a field"),
-        }
-    };
-    let (x, y) = (field(intern!(py, "x"))?, field(intern!(py, "y"))?);
-    if !usable(x, y) {
-        return unsupported("a point is not a usable point");
-    }
-    Ok(Pt { x, y })
-}
-
-fn points_of_journey(journey: &Journey) -> PyResult<Vec<Pt>> {
-    journey
-        .route_points
-        .iter()
-        .map(|point| {
-            if usable(point.x, point.y) {
-                Ok(Pt { x: point.x, y: point.y })
-            } else {
-                unsupported("a route point is not a usable point")
-            }
-        })
-        .collect()
-}
-
-// ---- Writing a plan ----------------------------------------------------------------------------
-
-/// One write of the tree, which needs the mirror itself.
-pub(crate) enum TreeWrite<'py> {
-    Set(&'static str, Arc<str>, Bound<'py, PyAny>),
-    Delete(&'static str, Arc<str>),
-}
-
-/// Put a plan (`kit::movement::Changes`) in the row, and the scalars in the tree. Returns what the
-/// tree still needs.
-pub(crate) fn apply_tree<'py>(changes: Changes, row: &mut MovementRow, tree: &Tree<'py>) -> PyResult<Vec<TreeWrite<'py>>> {
-    let py = tree.py();
-    let mut writes = Vec::new();
-    if let Some(minute) = changes.minute {
-        row.set_last_updated_minute(tree, minute)?;
-    }
-    for id in changes.gone_journeys {
-        if row.journeys.shift_remove(&*id).is_some() {
-            writes.push(TreeWrite::Delete("journeys", id));
-        }
-    }
-    for id in changes.gone_positions {
-        if row.positions.shift_remove(&*id).is_some() {
-            writes.push(TreeWrite::Delete("positions", id));
-        }
-    }
-    for (id, journey) in changes.new_journeys {
-        writes.push(TreeWrite::Set("journeys", id.clone(), PyField::to_py(&journey, py)?));
-        row.journeys.insert(id, journey);
-    }
-    for (name, map, items) in
-        [("positions", &mut row.positions, changes.positions), ("staff_positions", &mut row.staff_positions, changes.staff)]
-    {
-        for (id, position) in items {
-            if map.get(&*id).is_some_and(|current| same_position(current, &position)) {
-                continue;
-            }
-            writes.push(TreeWrite::Set(name, id.clone(), PyField::to_py(&position, py)?));
-            map.insert(id, position);
-        }
-    }
-    if !changes.usage.is_empty() {
-        let node = tree.child(intern!(py, "edge_usage_minutes"))?;
-        for edge in changes.usage {
-            let count = row.edge_usage_minutes.get(&*edge).copied().unwrap_or(0) + 1;
-            map_set(&mut row.edge_usage_minutes, &node, &edge, count)?;
-        }
-    }
-    Ok(writes)
-}
-
-pub(crate) fn write_tree<'py>(mirror: &Bound<'py, NamespaceMirror>, writes: Vec<TreeWrite<'py>>) -> PyResult<()> {
-    for write in writes {
-        match write {
-            TreeWrite::Set(map, id, value) => NamespaceMirror::write_through(mirror, &[map], &id, &value)?,
-            TreeWrite::Delete(map, id) => NamespaceMirror::remove_through(mirror, &[map], &id)?,
-        }
-    }
-    Ok(())
-}
-
-/// `state["journeys"].pop(agent_id)`.
-pub(crate) fn stop_journey(mirror: &Bound<'_, NamespaceMirror>, agent_id: &Arc<str>) -> PyResult<()> {
-    let mut changes = Changes::default();
-    changes.gone_journeys.push(agent_id.clone());
-    let writes = NamespaceMirror::with_row_tree::<MovementRow, _>(mirror, |row, tree| apply_tree(changes, row, tree))?;
-    write_tree(mirror, writes)
-}
-
-/// `state["positions"][agent_id] = ...` of someone who is at the end of a path in a room.
-pub(crate) fn place_in_room(mirror: &Bound<'_, NamespaceMirror>, agent_id: &Arc<str>, zone_id: &Arc<str>, point: Pt) -> PyResult<()> {
-    let mut changes = Changes::default();
-    changes.positions.push((agent_id.clone(), record(zone_id.clone(), Some(point), KINDS.physical.clone(), None, 0.0)));
-    let writes = NamespaceMirror::with_row_tree::<MovementRow, _>(mirror, |row, tree| apply_tree(changes, row, tree))?;
-    write_tree(mirror, writes)
-}
-
-/// `state["positions"][agent_id].update(zone_id=..., point=point, edge_id=None, progress=1.0,
-/// position_kind="physical")` on the row of a detached namespace, which has no tree to update:
-/// None, having written nothing, where the namespace is not held detached; Some(false) where the
-/// row has no record of the person, and Some(true) once written.
-pub(crate) fn place_at_point(world: &Bound<'_, PyAny>, agent_id: &str, zone_id: &Arc<str>, point: Pt) -> PyResult<Option<bool>> {
-    if !held_detached(world)? {
-        return Ok(None);
-    }
-    let mirror = mirror_held(world)?;
-    if !NamespaceMirror::with_row::<MovementRow, _>(&mirror, |row| Ok(row.positions.contains_key(agent_id)))? {
-        return Ok(Some(false));
-    }
-    let py = world.py();
-    let writes = NamespaceMirror::with_row_tree::<MovementRow, _>(&mirror, |row, _| match kit::place_in_bed(row, agent_id, zone_id, point) {
-        Placed::Changed(id) => {
-            let value = PyField::to_py(&row.positions[&*id], py)?;
-            Ok(vec![TreeWrite::Set("positions", id, value)])
-        }
-        Placed::Absent | Placed::Same => Ok(Vec::new()),
-    })?;
-    write_tree(&mirror, writes)?;
-    Ok(Some(true))
-}
-
-/// `place_at_point` of a bed's point as Python holds it: false, having written nothing, unless
-/// the namespace is held detached, the row has the record and the point is two usable floats.
-/// The caller then writes through the tree as before.
-pub(crate) fn place_at_bed(world: &Bound<'_, PyAny>, agent_id: &str, zone_id: &Arc<str>, point: &Bound<'_, PyAny>) -> PyResult<bool> {
-    if !held_detached(world)? {
-        return Ok(false);
-    }
-    let Ok(point) = plain_point(point) else {
-        return Ok(false);
-    };
-    Ok(place_at_point(world, agent_id, zone_id, point)? == Some(true))
-}
+// ---- What the world holds --------------------------------------------------------------------
 
 /// The mirror of a namespace the world really holds: Python stores past the table are not the row's.
 pub(crate) fn mirror_held<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, NamespaceMirror>> {
@@ -404,6 +62,21 @@ pub(crate) fn mirror_held<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py,
         return unsupported("the world holds another movement state");
     }
     Ok(mirror)
+}
+
+/// Whether the world holds `movement_v1`, as a kernel of the core takes it.
+fn movement_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
+    namespace_held(world, intern!(world.py(), KEY), "the world holds another movement state")
+}
+
+fn queues_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
+    crate::state::facility_queues::held(world)
+}
+
+/// Whether `model_state` has `movement_v1`.
+fn has_movement(world: &Bound<'_, PyAny>) -> PyResult<bool> {
+    let table = attribute(world, intern!(world.py(), "model_state"))?;
+    exact_dict(&table)?.contains(KEY)
 }
 
 /// Whether the world holds the namespace detached, so that a rule reading its tree reads the
@@ -441,61 +114,118 @@ pub(crate) fn journey_of<'py>(world: &Bound<'py, PyAny>, held: &Bound<'py, PyAny
     }
 }
 
-/// What a rule reads of a world without the namespace: `world.model_state.get(KEY, {})`.
-pub(crate) fn no_positions() -> MovementRow {
-    MovementRow {
-        schema_version: 2,
-        policy_version: Arc::from(POLICY_VERSION),
-        positions: Default::default(),
-        staff_positions: Default::default(),
-        journeys: Default::default(),
-        edge_usage_minutes: Default::default(),
-        last_updated_minute: 0,
+/// The staff's operations as `staff_position_snapshots` reads them: the row of
+/// `staff_operations_v1` where it answers for the namespace (held, and not tainted), else what the
+/// world holds under the key, read as the kernel read the tree: no operations unless it is a dict,
+/// its `staff` an exact dict, and each record a dict or None.
+fn staff_ops(world: &Bound<'_, PyAny>) -> PyResult<StaffOps> {
+    let py = world.py();
+    let held = namespace_held(world, intern!(py, STAFF_OPERATIONS), "the world holds another staff state")?;
+    match held {
+        Held::Absent => return Ok(StaffOps::None),
+        Held::Held => {
+            let mirror = mirror_of(world, STAFF_OPERATIONS)?;
+            let answers = NamespaceMirror::with_row::<crate::state::staff_operations::StaffOperationsRow, _>(&mirror, |_| Ok(())).is_ok();
+            if answers {
+                return Ok(StaffOps::Row);
+            }
+        }
+        Held::Other(_) => {}
+    }
+    let table = attribute(world, intern!(py, "model_state"))?;
+    let Some(operations) = exact_dict(&table)?.get_item(STAFF_OPERATIONS)? else {
+        return Ok(StaffOps::None);
+    };
+    let Some(operations) = crate::core::tracked::as_readable_dict(&operations) else {
+        return Ok(StaffOps::None);
+    };
+    let Some(records) = operations.get_item(intern!(py, "staff"))? else {
+        return Ok(StaffOps::None);
+    };
+    let records = exact_dict(&records)?;
+    let mut ops = IdMap::default();
+    for (staff_id, record) in records.iter() {
+        let Ok(staff_id) = staff_id.downcast_exact::<PyString>() else {
+            continue;
+        };
+        let op = staff_op(&record)?;
+        ops.insert(Arc::from(staff_id.to_str()?), op);
+    }
+    Ok(StaffOps::Tree(ops))
+}
+
+/// One record of a staff operations tree, as the kernel reads it: travelling only with the str
+/// `"travel"` as its phase; the fields of a travelling one, or the refusal of the first that is not
+/// what the kernel reads.
+fn staff_op(record: &Bound<'_, PyAny>) -> PyResult<StaffOp> {
+    let py = record.py();
+    let Some(operation) = crate::core::tracked::as_readable_dict(record) else {
+        return Ok(if record.is_none() { StaffOp::NotTravelling } else { StaffOp::Refused("a staff operation is not a plain dict") });
+    };
+    let travelling = match operation.get_item(intern!(py, "phase"))? {
+        Some(phase) => phase.downcast_exact::<PyString>().is_ok_and(|phase| phase.to_str().is_ok_and(|text| text == "travel")),
+        None => false,
+    };
+    if !travelling {
+        return Ok(StaffOp::NotTravelling);
+    }
+    let read = || -> PyResult<StaffTravel> {
+        let required = |name| -> PyResult<Bound<'_, PyAny>> {
+            operation.get_item(name)?.ok_or_else(|| Unsupported::new_err("a staff operation lacks a field"))
+        };
+        let travel_minutes = exact_int(&required(intern!(py, "travel_minutes"))?)?;
+        let started_minute = exact_int(&required(intern!(py, "started_minute"))?)?;
+        let edges = required(intern!(py, "route_edge_ids"))?;
+        let zones = required(intern!(py, "route_zone_ids"))?;
+        let ids = |list: &Bound<'_, PyAny>| -> PyResult<Vec<Option<Arc<str>>>> {
+            Ok(exact_list(list)?.iter().map(|id| exact_str(&id).ok().map(Arc::from)).collect())
+        };
+        let route_edge_ids = ids(&edges)?;
+        Ok(StaffTravel { travel_minutes, started_minute, route_edge_ids, route_zone_ids: ids(&zones)? })
+    };
+    match read() {
+        Ok(travel) => Ok(StaffOp::Travel(travel)),
+        Err(error) if error.is_instance_of::<Unsupported>(py) => {
+            let reason = error.value(py).str()?.to_string();
+            Ok(StaffOp::Refused(refusal_text(&reason)))
+        }
+        Err(error) => Err(error),
     }
 }
 
-/// `_state`'s records for the people who have none.
-fn missing_positions(row: &MovementRow, rows: &Entities, changes: &mut Changes) {
-    walking::missing_positions(row, rows, changes)
+/// The static text of a refusal of the reads in `staff_op`.
+fn refusal_text(reason: &str) -> &'static str {
+    const TEXTS: [&str; 6] = [
+        "a staff operation lacks a field",
+        "a value is not an int",
+        "an int is too large",
+        "a value is not a plain list",
+        "a value is not a str",
+        "a str is not UTF-8",
+    ];
+    TEXTS.into_iter().find(|text| *text == reason).unwrap_or("a staff operation is not what the kernel reads")
 }
 
-/// The record of a queue trip's end: `finish_movement`'s branch for it.
-fn arrived(current: &Position) -> Option<Position> {
-    current.point.map(|point| Position {
-        zone_id: current.zone_id.clone(),
-        point: Some(point),
-        edge_id: None,
-        progress: 0.0,
-        position_kind: KINDS.physical.clone(),
-    })
-}
+// ---- Python values ---------------------------------------------------------------------------
 
-// ---- Queue slots and the walk to a facility --------------------------------------------------
-
-pub(crate) fn refused(reason: &'static str) -> PyErr {
-    Unsupported::new_err(reason)
-}
-
-pub(crate) fn position_point(position: Option<&Position>) -> Option<Pt> {
-    walking::position_point(position)
-}
-
-/// `_queue_slot_position` of a facility's own queue: the slot first free of the people ahead as
-/// they stand now, with a real route from where the person is.
-pub(crate) fn queue_slot(geo: &Geo, row: &MovementRow, rows: &Entities, agent_id: &str, facility_id: &str) -> PyResult<Option<Pt>> {
-    queue_slot_in(geo, row, rows, agent_id, facility_id, None)
-}
-
-/// The same, or of an independent queue: its people, and its signed point if it has one.
-pub(crate) fn queue_slot_in(
-    geo: &Geo,
-    row: &MovementRow,
-    rows: &Entities,
-    agent_id: &str,
-    facility_id: &str,
-    independent: Option<(&[Arc<str>], Option<Pt>)>,
-) -> PyResult<Option<Pt>> {
-    walking::queue_slot_in(geo, row, rows, agent_id, facility_id, independent).or_py()
+/// `Point2D.model_validate` of a plain record: only the case where it gives the same two floats.
+fn plain_point(value: &Bound<'_, PyAny>) -> PyResult<Pt> {
+    let py = value.py();
+    let record = exact_dict(value)?;
+    if record.len() != 2 {
+        return unsupported("a point has other fields");
+    }
+    let field = |name| -> PyResult<f64> {
+        match record.get_item(name)? {
+            Some(item) => exact_float(&item),
+            None => unsupported("a point lacks a field"),
+        }
+    };
+    let (x, y) = (field(intern!(py, "x"))?, field(intern!(py, "y"))?);
+    if !usable(x, y) {
+        return unsupported("a point is not a usable point");
+    }
+    Ok(Pt { x, y })
 }
 
 /// `Point2D(x=..., y=...)`.
@@ -541,6 +271,185 @@ fn mobility_of(value: &Bound<'_, PyAny>) -> PyResult<&'static str> {
     }
 }
 
+fn zone_route_class(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
+    static CLASS: GILOnceCell<Py<PyAny>> = GILOnceCell::new();
+    let class = CLASS.get_or_try_init(py, || -> PyResult<Py<PyAny>> {
+        Ok(py.import("sheltersim.policies.space")?.getattr("ZoneRoute")?.unbind())
+    })?;
+    Ok(class.bind(py).clone())
+}
+
+fn points_tuple<'py>(py: Python<'py>, points: &[Pt]) -> PyResult<Bound<'py, PyTuple>> {
+    let points = points.iter().map(|point| point_object(py, *point)).collect::<PyResult<Vec<_>>>()?;
+    PyTuple::new(py, points)
+}
+
+pub(crate) fn optional_str(value: Option<&Bound<'_, PyAny>>) -> PyResult<Option<Arc<str>>> {
+    match value {
+        Some(value) if !value.is_none() => Ok(Some(Arc::from(exact_str(value)?))),
+        _ => Ok(None),
+    }
+}
+
+pub(crate) fn str_tuple(value: &Bound<'_, PyAny>) -> PyResult<Vec<Arc<str>>> {
+    value
+        .downcast_exact::<PyTuple>()
+        .map_err(|_| Unsupported::new_err("not a tuple"))?
+        .iter()
+        .map(|item| Ok(Arc::from(exact_str(&item)?)))
+        .collect()
+}
+
+/// The points of a route: `Point2D` itself, so `model_dump` would give the same two floats.
+pub(crate) fn route_points_of(value: Option<&Bound<'_, PyAny>>) -> PyResult<Vec<Pt>> {
+    let Some(value) = value else {
+        return Ok(Vec::new());
+    };
+    let points = value.downcast_exact::<PyTuple>().map_err(|_| Unsupported::new_err("the points are not a tuple"))?;
+    let mut found = Vec::with_capacity(points.len());
+    for point in points.iter() {
+        let py = point.py();
+        if point.get_type().name()?.to_str()? != "Point2D" {
+            return unsupported("a route point is not a Point2D");
+        }
+        let (x, y) = (exact_float(&attribute(&point, intern!(py, "x"))?)?, exact_float(&attribute(&point, intern!(py, "y"))?)?);
+        if !usable(x, y) {
+            return unsupported("a route point is not a usable point");
+        }
+        found.push(Pt { x, y });
+    }
+    Ok(found)
+}
+
+// ---- The kit's rules, for the kernels not yet in the core ---------------------------------------
+
+/// `in_room_travel_minutes` of a path of this length, for a person standing in `agent_zone`.
+pub(crate) fn room_minutes(model: &Read<MovementModel>, geo: &Geo, rows: &Entities, agent_zone: &str, mobility: &str, length: f64) -> PyResult<i64> {
+    walking::room_minutes(model, geo, rows, agent_zone, mobility, length).or_py()
+}
+
+/// `facility_approach_route` in a placed world (`kit::movement::approach_point`).
+pub(crate) fn approach_point(
+    geo: &Geo,
+    row: &MovementRow,
+    rows: &Entities,
+    model: &Read<MovementModel>,
+    agent_id: &str,
+    facility_id: &str,
+    service_point: Option<&str>,
+) -> PyResult<Option<(i64, Arc<[Pt]>)>> {
+    walking::approach_point(geo, row, rows, model, agent_id, facility_id, service_point).or_py()
+}
+
+/// The movement section of the world's configs (`config::movement`), kept for the stamp of
+/// `model_configs`. A configs that is not a dict is refused here, as `exact_dict` refused it; the
+/// model's own refusal is said where a walk is timed (`room_minutes`, `movement_minutes`).
+#[track_caller]
+pub(crate) fn movement_of(world: &Bound<'_, PyAny>) -> PyResult<Arc<Movement>> {
+    configs::kept_value(world, |configs| &configs.movement, Movement::parse)
+}
+
+// ---- Writes of the kernels not yet in the core (travel, replan, admission) ----------------------
+
+/// `start_movement`'s plan of a trip that `travel.rs` schedules, changing nothing.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn plan_start(
+    world: &Bound<'_, PyAny>,
+    agent_id: &Arc<str>,
+    journey: Journey,
+    origin: &Arc<str>,
+    points: &[Pt],
+    edge_ids: &[Arc<str>],
+    started: i64,
+    duration: i64,
+) -> PyResult<Changes> {
+    mirror_held(world)?;
+    let geo = Geo::of(world)?;
+    let start = Start { agent_id, journey, origin, points, edge_ids, started, duration };
+    with_world(world, |world| core::plan_start_in(world, &geo, start))?.or_py()
+}
+
+/// A plan of the row put in it (`travel.rs`).
+pub(crate) fn write_changes(world: &Bound<'_, PyAny>, changes: Changes) -> PyResult<()> {
+    mirror_held(world)?;
+    with_world(world, |world| core::write_changes(world, changes))?.or_py()
+}
+
+/// `state["journeys"].pop(agent_id)`.
+pub(crate) fn stop_journey(world: &Bound<'_, PyAny>, agent_id: &Arc<str>) -> PyResult<()> {
+    with_world(world, |world| core::stop_journey(world, agent_id))?.or_py()
+}
+
+/// `state["positions"][agent_id] = ...` of someone who is at the end of a path in a room.
+pub(crate) fn place_in_room(world: &Bound<'_, PyAny>, agent_id: &Arc<str>, zone_id: &Arc<str>, point: Pt) -> PyResult<()> {
+    with_world(world, |world| core::place_in_room(world, agent_id, zone_id, point))?.or_py()
+}
+
+/// What `stationary` would refuse for a person idle in each of these zones (admission's plan).
+pub(crate) fn check_idle_points(world: &Bound<'_, PyAny>, zones: &[&str]) -> PyResult<()> {
+    let geo = Geo::of(world)?;
+    with_world(world, |world| core::check_idle_points(world, &geo, zones))?.or_py()
+}
+
+/// `state["positions"][agent_id].update(zone_id=..., point=point, edge_id=None, progress=1.0,
+/// position_kind="physical")` on the row of a detached namespace, which has no tree to update:
+/// None, having written nothing, where the namespace is not held detached; Some(false) where the
+/// row has no record of the person, and Some(true) once written.
+pub(crate) fn place_at_point(world: &Bound<'_, PyAny>, agent_id: &str, zone_id: &Arc<str>, point: Pt) -> PyResult<Option<bool>> {
+    if !held_detached(world)? {
+        return Ok(None);
+    }
+    mirror_held(world)?;
+    let placed = with_world(world, |world| core::place_at_point(world, agent_id, zone_id, point))?.or_py()?;
+    Ok(Some(placed))
+}
+
+/// `place_at_point` of a bed's point as Python holds it: false, having written nothing, unless
+/// the namespace is held detached, the row has the record and the point is two usable floats.
+/// The caller then writes through the tree as before.
+pub(crate) fn place_at_bed(world: &Bound<'_, PyAny>, agent_id: &str, zone_id: &Arc<str>, point: &Bound<'_, PyAny>) -> PyResult<bool> {
+    if !held_detached(world)? {
+        return Ok(false);
+    }
+    let Ok(point) = plain_point(point) else {
+        return Ok(false);
+    };
+    Ok(place_at_point(world, agent_id, zone_id, point)? == Some(true))
+}
+
+// ---- Where a person is -------------------------------------------------------------------------
+
+/// What the readers of a person's place take: `queues` only where a queue ID is given.
+fn where_of<'a>(world: &Bound<'_, PyAny>, geo: &'a Geo, queue_id: Option<&str>) -> PyResult<Where<'a>> {
+    let queues = if queue_id.is_some() { queues_held(world)? } else { Held::Absent };
+    Ok(Where { geo, movement: movement_held(world)?, queues })
+}
+
+/// `agent_is_at_queue_slot`.
+pub(crate) fn at_queue_slot(world: &Bound<'_, PyAny>, agent_id: &str, facility_id: &str, queue_id: Option<&str>) -> PyResult<bool> {
+    let geo = Geo::of(world)?;
+    let at = where_of(world, &geo, queue_id)?;
+    with_world(world, |world| core::at_queue_slot(world, &at, agent_id, facility_id, queue_id))?.or_py()
+}
+
+/// `agent_is_at_facility_service_point`.
+pub(crate) fn at_service_point(world: &Bound<'_, PyAny>, agent_id: &str, facility_id: &str, service_point: Option<&str>) -> PyResult<bool> {
+    let geo = Geo::of(world)?;
+    if geo.layout.is_none() {
+        // The route of no floor plan: none of its minutes.
+        return with_world(world, |world| core::agent_and_facility(world, agent_id, facility_id))?.or_py().map(|_| true);
+    }
+    let movement = movement_of(world)?;
+    let at = where_of(world, &geo, None)?;
+    with_world(world, |world| core::at_service_point(world, &at, &movement.model, agent_id, facility_id, service_point))?.or_py()
+}
+
+/// `agent_is_at_queue_trip_destination`, of the person's own journey in the row.
+pub(crate) fn at_trip_destination(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<bool> {
+    let movement = movement_held(world)?;
+    with_world(world, |world| core::at_trip_destination(world, &movement, agent_id))?.or_py()
+}
+
 /// `plan_in_room_route`.
 #[pyfunction]
 #[pyo3(signature = (world, *, zone_id, start, destination, mobility=None))]
@@ -563,10 +472,7 @@ fn plan_in_room_route<'py>(
     };
     let geo = Geo::of(world)?;
     match geo.room_route(zone_id, start, destination, mobility).map_err(refused)? {
-        Some(route) => {
-            let points = route.iter().map(|point| point_object(py, *point)).collect::<PyResult<Vec<_>>>()?;
-            Ok(PyTuple::new(py, points)?.into_any())
-        }
+        Some(route) => Ok(points_tuple(py, &route)?.into_any()),
         None => Ok(py.None().into_bound(py)),
     }
 }
@@ -613,103 +519,13 @@ fn queue_slot_position<'py>(
     let py = world.py();
     let _ = geometry; // What _geometry(world) gives, as every caller passes.
     let (agent_id, facility_id) = (exact_str(agent_id)?, exact_str(facility_id)?);
-    let store = entities_of(world)?;
     let geo = Geo::of(world)?;
-    let fifo = match queue_id {
-        Some(queue) if !queue.is_none() => read_fifo(world, &geo, exact_str(queue)?)?,
-        _ => None,
-    };
-    let independent = fifo.as_ref().map(crate::rules::queues::Fifo::slot_view);
-    let slot = with_positions(world, |row| {
-        EntityStore::with_rows(&store, |rows| queue_slot_in(&geo, row, rows, agent_id, facility_id, independent))
-    })?;
-    match slot {
+    let queue = queue_id.filter(|queue| !queue.is_none()).map(exact_str).transpose()?;
+    let at = where_of(world, &geo, queue)?;
+    match with_world(world, |world| core::queue_slot_position(world, &at, agent_id, facility_id, queue))?.or_py()? {
         Some(point) => point_object(py, point),
         None => Ok(py.None().into_bound(py)),
     }
-}
-
-/// How near counts as being there, in `agent_is_at_queue_slot` and its siblings, in metres.
-const ARRIVED_WITHIN: f64 = 0.05;
-
-/// The rule on the row of the world's positions, or on none in a world without the namespace.
-fn with_positions<R>(world: &Bound<'_, PyAny>, read: impl FnOnce(&MovementRow) -> PyResult<R>) -> PyResult<R> {
-    let py = world.py();
-    let table = attribute(world, intern!(py, "model_state"))?;
-    if exact_dict(&table)?.contains(KEY)? {
-        NamespaceMirror::with_row::<MovementRow, _>(&mirror_held(world)?, |row| read(row))
-    } else {
-        read(&no_positions())
-    }
-}
-
-/// Whether the person's record is this near a point. A record's point is not usable: the rule's.
-fn is_near(row: &MovementRow, agent_id: &str, point: Pt) -> PyResult<bool> {
-    let Some(current) = position_point(row.positions.get(agent_id)) else {
-        return Ok(false);
-    };
-    if !usable(current.x, current.y) {
-        return unsupported("a position is not a usable point");
-    }
-    Ok(distance(point, current) <= ARRIVED_WITHIN)
-}
-
-/// `agent_is_at_queue_slot`.
-pub(crate) fn at_queue_slot(world: &Bound<'_, PyAny>, agent_id: &str, facility_id: &str, queue_id: Option<&str>) -> PyResult<bool> {
-    let store = entities_of(world)?;
-    let geo = Geo::of(world)?;
-    if geo.layout.is_none() {
-        return Ok(false);
-    }
-    let fifo = match queue_id {
-        Some(queue) => read_fifo(world, &geo, queue)?,
-        None => None,
-    };
-    let independent = fifo.as_ref().map(crate::rules::queues::Fifo::slot_view);
-    with_positions(world, |row| {
-        EntityStore::with_rows(&store, |rows| {
-            if rows.facilities.get(facility_id).is_none() {
-                return Ok(false);
-            }
-            match queue_slot_in(&geo, row, rows, agent_id, facility_id, independent)? {
-                Some(target) => is_near(row, agent_id, target),
-                None => Ok(false),
-            }
-        })
-    })
-}
-
-/// `agent_is_at_facility_service_point`.
-pub(crate) fn at_service_point(world: &Bound<'_, PyAny>, agent_id: &str, facility_id: &str, service_point: Option<&str>) -> PyResult<bool> {
-    let store = entities_of(world)?;
-    let geo = Geo::of(world)?;
-    if geo.layout.is_none() {
-        // The route of no floor plan: none of its minutes.
-        return EntityStore::with_rows(&store, |rows| {
-            if rows.agents.get(agent_id).is_none() || rows.facilities.get(facility_id).is_none() {
-                return unsupported("no such agent or facility");
-            }
-            Ok(true)
-        });
-    }
-    let movement = movement_of(world)?;
-    let found = with_positions(world, |row| {
-        EntityStore::with_rows(&store, |rows| approach_point(&geo, row, rows, &movement.model, agent_id, facility_id, service_point))
-    })?;
-    Ok(found.is_some_and(|(minutes, path)| minutes <= 0 || path.len() < 2))
-}
-
-/// `agent_is_at_queue_trip_destination`, of the person's own journey in the row.
-pub(crate) fn at_trip_destination(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<bool> {
-    with_positions(world, |row| {
-        let Some(point) = row.journeys.get(agent_id).and_then(|journey| journey.route_points.last()) else {
-            return Ok(false);
-        };
-        if !usable(point.x, point.y) {
-            return unsupported("a route point is not a usable point");
-        }
-        is_near(row, agent_id, Pt { x: point.x, y: point.y })
-    })
 }
 
 #[pyfunction]
@@ -746,7 +562,8 @@ fn agent_is_at_queue_trip_destination(world: &Bound<'_, PyAny>, agent_id: &Bound
     }
     let destination = plain_point(&points.get_item(points.len() - 1)?)?;
     let agent_id = exact_str(agent_id)?;
-    with_positions(world, |row| is_near(row, agent_id, destination))
+    let movement = movement_held(world)?;
+    with_world(world, |world| core::near_point(world, &movement, agent_id, destination))?.or_py()
 }
 
 /// `facility_approach_route`.
@@ -764,630 +581,46 @@ fn facility_approach_route<'py>(
         _ => None,
     };
     let (agent_id, facility_id) = (exact_str(agent_id)?, exact_str(facility_id)?);
-    let store = entities_of(world)?;
     let geo = Geo::of(world)?;
     let movement = movement_of(world)?;
-    let (agent_zone, facility_zone) = EntityStore::with_rows(&store, |rows| {
-        let (Some(agent), Some(facility)) = (rows.agents.get(agent_id), rows.facilities.get(facility_id)) else {
-            return unsupported("no such agent or facility");
-        };
-        Ok((agent.zone_id.clone(), facility.zone_id.clone()))
-    })?;
+    let (agent_zone, facility_zone) = with_world(world, |world| core::agent_and_facility(world, agent_id, facility_id))?.or_py()?;
     let route_class = zone_route_class(py)?;
     if geo.layout.is_none() {
         let route = route_class.call1((&*agent_zone, &*facility_zone, (&*agent_zone,), PyTuple::empty(py), 0))?;
         return Ok((route, PyTuple::empty(py)).into_pyobject(py)?.into_any());
     }
-    let found = with_positions(world, |row| {
-        EntityStore::with_rows(&store, |rows| approach_point(&geo, row, rows, &movement.model, agent_id, facility_id, service_point))
-    })?;
+    let at = where_of(world, &geo, None)?;
+    let found = with_world(world, |world| core::approach_route(world, &at, &movement.model, agent_id, facility_id, service_point))?.or_py()?;
     let Some((duration, path)) = found else {
         return Ok(py.None().into_bound(py));
     };
     let route = route_class.call1((&*facility_zone, &*facility_zone, (&*facility_zone, &*facility_zone), PyTuple::empty(py), duration))?;
-    let points = path.iter().map(|point| point_object(py, *point)).collect::<PyResult<Vec<_>>>()?;
-    Ok((route, PyTuple::new(py, points)?).into_pyobject(py)?.into_any())
+    Ok((route, points_tuple(py, &path)?).into_pyobject(py)?.into_any())
 }
 
-/// `in_room_travel_minutes` of a path of this length, for a person standing in `agent_zone`.
-pub(crate) fn room_minutes(
-    model: &Read<MovementModel>,
-    geo: &Geo,
-    rows: &Entities,
-    agent_zone: &str,
-    mobility: &str,
-    length: f64,
-) -> PyResult<i64> {
-    walking::room_minutes(model, geo, rows, agent_zone, mobility, length).or_py()
-}
-
-/// `facility_approach_route` in a placed world (`kit::movement::approach_point`).
-pub(crate) fn approach_point(
-    geo: &Geo,
-    row: &MovementRow,
-    rows: &Entities,
-    model: &Read<MovementModel>,
-    agent_id: &str,
-    facility_id: &str,
-    service_point: Option<&str>,
-) -> PyResult<Option<(i64, Arc<[Pt]>)>> {
-    walking::approach_point(geo, row, rows, model, agent_id, facility_id, service_point).or_py()
-}
-
-fn zone_route_class(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
-    static CLASS: GILOnceCell<Py<PyAny>> = GILOnceCell::new();
-    let class = CLASS.get_or_try_init(py, || -> PyResult<Py<PyAny>> {
-        Ok(py.import("sheltersim.policies.space")?.getattr("ZoneRoute")?.unbind())
-    })?;
-    Ok(class.bind(py).clone())
-}
-
-// ---- advance_movement --------------------------------------------------------------------------
-
-/// `_facility_move_invalidated_journey`. The overlay is read as a `V`: a detached one from its row.
-fn facility_move_invalidates(scene: &Scene<'_>, journey: &Journey) -> PyResult<bool> {
-    let Some(facility_id) = &journey.facility_id else {
-        return Ok(false);
-    };
-    with_state_value(&scene.world, OVERLAY_KEY, |overlay| {
-        let Some(overlay) = overlay else {
-            return Ok(false);
-        };
-        let V::Map(overlay) = overlay else {
-            return unsupported("a value is not a plain dict");
-        };
-        let Some(moves) = overlay.get("facility_points") else {
-            return Ok(false);
-        };
-        let V::Map(moves) = moves else {
-            return unsupported("a value is not a plain dict");
-        };
-        let Some(V::Map(moved)) = moves.get(&**facility_id) else {
-            return Ok(false);
-        };
-        match moved.get("minute") {
-            Some(V::Int(minute)) => Ok(*minute > journey.started_minute),
-            Some(V::Big(_)) => unsupported("a move's minute is too large"),
-            _ => Ok(false),
-        }
-    })
-}
-
-/// `_room_path_is_clear`, with its record of the person.
-fn room_path_is_clear(geo: &Geo, position: Option<&Position>, zone_id: &str, points: &[Pt], mobility: &str) -> PyResult<bool> {
-    let (Some(constraints), Some(layout)) = (&geo.constraints, &geo.layout) else {
-        return Ok(true);
-    };
-    let Some(zone) = layout.zones.get(zone_id) else {
-        return Ok(false);
-    };
-    let current = match position.and_then(|position| position.point) {
-        Some(point) => {
-            if !usable(point.x, point.y) {
-                return unsupported("a position is not a usable point");
-            }
-            Pt { x: point.x, y: point.y }
-        }
-        None => points[0],
-    };
-    let lengths: Vec<f64> = points.windows(2).map(|pair| distance(pair[0], pair[1])).collect();
-    let Some(total) = py_fsum(&lengths) else {
-        return unsupported("a route's length is not a plain sum");
-    };
-    let progress = position.map_or(0.0, |position| position.progress);
-    let target_distance = py_min(1.0, py_max(0.0, progress)) * total;
-    let mut cumulative = 0.0;
-    let mut remaining = vec![current];
-    for (index, &length) in lengths.iter().enumerate() {
-        if cumulative + length + 1e-9 >= target_distance {
-            if length > 1e-12 {
-                let fraction = py_min(1.0, py_max(0.0, (target_distance - cumulative) / length));
-                if fraction < 1.0 - 1e-9 {
-                    remaining.push(points[index + 1]);
-                }
-            }
-            remaining.extend_from_slice(&points[index + 2..]);
-            break;
-        }
-        cumulative += length;
-    }
-    if remaining.len() == 1 {
-        remaining.push(points[points.len() - 1]);
-    }
-    Ok(remaining
-        .windows(2)
-        .all(|pair| Geo::room_segment_clear(constraints, pair[0], pair[1], &zone.polygon, mobility)))
-}
-
-/// `min(1.0, max(0.0, a / b))` of ints that a float holds exactly.
-fn progress_of(part: i64, whole: i64) -> f64 {
-    py_min(1.0, py_max(0.0, part as f64 / whole as f64))
-}
-
-/// The plan of one journey in `advance_movement`.
-enum Step {
-    Replan,
-    /// A queue trip's replan, which reads the positions of the walk and writes an event.
-    QueueReplan,
-    Stop,
-    Finish,
-    Walk { position: Position, edge: Option<Arc<str>>, completed: bool },
-}
-
-fn plan_journey(
-    scene: &Scene<'_>,
-    queue: &QueueStore,
-    row: &MovementRow,
-    rows: &Entities,
-    agent_id: &str,
-    agent: &AgentRow,
-    journey: &Journey,
-    minute: i64,
-) -> PyResult<Step> {
-    let py = scene.world.py();
-    let queue_trip = is_queue_trip(&journey.purpose);
-    let task_active = rows.active_tasks.get(&journey.task_id).is_some();
-    let queued = agent.activity == Activity::Queued;
-    let trip_active = queued && queue_trip && task_active;
-    let pending = queue.has_event(py, &journey.event_id)?;
-    if trip_active && !pending {
-        return Ok(Step::Finish);
-    }
-    if (agent.activity != Activity::Moving && !trip_active) || !pending || !task_active {
-        return Ok(Step::Stop);
-    }
-    // From here the person walks or replans.
-    let replan = || if queue_trip { Step::QueueReplan } else { Step::Replan };
-    let facility = journey
-        .facility_id
-        .as_deref()
-        .filter(|facility_id| !facility_id.is_empty())
-        .and_then(|facility_id| rows.facilities.get(facility_id));
-    let destination = facility.map_or(&journey.destination_zone_id, |facility| &facility.zone_id);
-    if *destination != journey.destination_zone_id || facility_move_invalidates(scene, journey)? {
-        return Ok(replan());
-    }
-    if journey.due_minute <= journey.started_minute
-        || journey.due_minute.abs() >= EXACT_INT
-        || journey.started_minute.abs() >= EXACT_INT
-    {
-        return unsupported("a journey has no plain duration");
-    }
-    let mobility = mobility_text(agent);
-    let boundary = (minute + 1).min(journey.due_minute);
-    let completed = queued && queue_trip && boundary >= journey.due_minute;
-    let duration = journey.due_minute - journey.started_minute;
-    if !journey.route_points.is_empty() {
-        let points = points_of_journey(journey)?;
-        if !room_path_is_clear(&scene.geo, row.positions.get(agent_id), &journey.destination_zone_id, &points, mobility)? {
-            return Ok(replan());
-        }
-        let progress = progress_of(boundary - journey.started_minute, duration);
-        let Some(point) = point_along_polyline(&points, progress) else {
-            return unsupported("a route's length is not a plain sum");
-        };
-        return Ok(Step::Walk {
-            position: record(journey.destination_zone_id.clone(), Some(point), KINDS.physical.clone(), None, progress),
-            edge: None,
-            completed,
-        });
-    }
-    let durations =
-        journey.route_edge_ids.iter().map(|edge| scene.edge_minutes(edge)).collect::<PyResult<Vec<i64>>>()?;
-    // A frame at boundary M is the state before tick M, so the sample is the next boundary.
-    let elapsed = (boundary - journey.started_minute).max(0);
-    let (mut edge_index, mut progress) = (0, 0.0);
-    if !durations.is_empty() {
-        let total: i64 = durations.iter().sum();
-        if total >= EXACT_INT {
-            return unsupported("a route's minutes are too large");
-        }
-        let duration_scale = duration as f64 / total as f64;
-        let mut cumulative = 0.0;
-        for (index, &raw_duration) in durations.iter().enumerate() {
-            let scaled = raw_duration as f64 * duration_scale;
-            if (elapsed as f64) < cumulative + scaled || index == durations.len() - 1 {
-                edge_index = index;
-                progress = py_min(1.0, py_max(0.0, (elapsed as f64 - cumulative) / scaled));
-                break;
-            }
-            cumulative += scaled;
-            edge_index = (index + 1).min(durations.len() - 1);
-            progress = 0.0;
-        }
-    }
-    let edge_id = journey.route_edge_ids.get(edge_index).filter(|_| !durations.is_empty());
-    if let Some(edge_id) = edge_id {
-        let closed = attribute(&scene.edge(edge_id)?, intern!(py, "closed"))?;
-        let closed = closed.downcast_exact::<PyBool>().map_err(|_| Unsupported::new_err("closed is not a bool"))?;
-        if closed.is_true() || !scene.geo.route_is_clear(edge_id, mobility) {
-            // A closure invalidates this completion event, whatever the trip is for.
-            return Ok(Step::Replan);
-        }
-    }
-    let current_zone = if durations.is_empty() {
-        &journey.destination_zone_id
-    } else {
-        journey.route_zone_ids.get(edge_index).ok_or_else(|| Unsupported::new_err("a route has fewer zones"))?
-    };
-    let point = match edge_id {
-        Some(edge_id) => scene.route_point(edge_id, progress, current_zone)?,
-        None => scene.geo.zone_center(current_zone)?,
-    };
-    let kind = on_route_kind(&point);
-    Ok(Step::Walk {
-        position: record(current_zone.clone(), point, kind, edge_id.cloned(), progress),
-        edge: edge_id.cloned(),
-        completed,
-    })
-}
-
-
-/// `staff_position_snapshots`' record of one staff member.
-fn plan_staff(scene: &Scene<'_>, operations: Option<&Bound<'_, PyDict>>, staff_id: &str, zone_id: &Arc<str>, boundary: i64) -> PyResult<Position> {
-    let py = scene.world.py();
-    let operation = match operations {
-        Some(records) => records.get_item(staff_id)?,
-        None => None,
-    };
-    let travel = operation.as_ref().and_then(|operation| crate::core::tracked::as_readable_dict(operation));
-    let travelling = match travel {
-        Some(operation) => match operation.get_item(intern!(py, "phase"))? {
-            Some(phase) => phase.downcast_exact::<PyString>().is_ok_and(|phase| phase.to_str().is_ok_and(|text| text == "travel")),
-            None => false,
-        },
-        None => {
-            if operation.as_ref().is_some_and(|operation| !operation.is_none()) {
-                return unsupported("a staff operation is not a plain dict");
-            }
-            false
-        }
-    };
-    if !travelling {
-        let point = scene.geo.zone_center(zone_id)?;
-        let kind = on_route_kind(&point);
-        return Ok(record(zone_id.clone(), point, kind, None, 0.0));
-    }
-    let operation = travel.ok_or_else(|| Unsupported::new_err("no operation"))?;
-    let required = |name| -> PyResult<Bound<'_, PyAny>> {
-        operation.get_item(name)?.ok_or_else(|| Unsupported::new_err("a staff operation lacks a field"))
-    };
-    let travel_minutes = exact_int(&required(intern!(py, "travel_minutes"))?)?;
-    let started = exact_int(&required(intern!(py, "started_minute"))?)?;
-    let edges = required(intern!(py, "route_edge_ids"))?;
-    let edges = exact_list(&edges)?;
-    let zones = required(intern!(py, "route_zone_ids"))?;
-    let zones = exact_list(&zones)?;
-    let elapsed = travel_minutes.min(boundary.saturating_sub(started)).max(0);
-    let (mut cumulative, mut edge_id, mut progress) = (0_i64, None::<Arc<str>>, 0.0);
-    let mut current_zone = zone_id.clone();
-    let last = edges.len().wrapping_sub(1);
-    for (index, route_edge) in edges.iter().enumerate() {
-        let route_edge = exact_str(&route_edge)?;
-        let minutes = scene.edge_minutes(route_edge)?;
-        if elapsed < cumulative + minutes {
-            edge_id = Some(Arc::from(route_edge));
-            progress = (elapsed - cumulative) as f64 / minutes as f64;
-            let zone = zones.get_item(index).map_err(|_| Unsupported::new_err("a route has fewer zones"))?;
-            current_zone = Arc::from(exact_str(&zone)?);
-            break;
-        }
-        cumulative += minutes;
-        let to_zone = attribute(&scene.edge(route_edge)?, intern!(py, "to_zone_id"))?;
-        current_zone = Arc::from(exact_str(&to_zone)?);
-        if index == last {
-            edge_id = Some(Arc::from(route_edge));
-            progress = 1.0;
-        }
-    }
-    let point = match &edge_id {
-        Some(edge) => scene.route_point(edge, progress, &current_zone)?,
-        None => scene.geo.zone_center(&current_zone)?,
-    };
-    let kind = on_route_kind(&point);
-    Ok(record(current_zone, point, kind, edge_id, progress))
-}
+// ---- The kernels of a tick ---------------------------------------------------------------------
 
 /// `staff_position_snapshots`, from outside `advance_movement`.
 #[pyfunction]
 #[pyo3(signature = (world, *, boundary_minute=None))]
 fn staff_position_snapshots<'py>(world: &Bound<'py, PyAny>, boundary_minute: Option<&Bound<'py, PyAny>>) -> PyResult<Bound<'py, PyDict>> {
     let py = world.py();
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let table = exact_dict(&table)?;
     let result = PyDict::new(py);
-    if !table.contains(KEY)? {
+    if !has_movement(world)? {
         return Ok(result);
     }
     let boundary = match boundary_minute.filter(|boundary| !boundary.is_none()) {
         Some(boundary) => exact_int(boundary)?,
         None => exact_int(&attribute(world, intern!(py, "minute_index"))?)?,
     };
-    let mirror = mirror_held(world)?;
-    let store = entities_of(world)?;
-    let scene = Scene::of(world)?;
-    let operations = match table.get_item("staff_operations_v1")? {
-        // A detached namespace's staff records, made from its row: these are read only.
-        Some(held) if crate::core::tracked::is_detached(&held) => {
-            crate::core::world_core::detached_staff_operations(world)?
-        }
-        held => held,
-    };
-    let staff_records = match &operations {
-        Some(operations) => match crate::core::tracked::as_readable_dict(operations) {
-            Some(operations) => operations.get_item(intern!(py, "staff"))?,
-            None => None,
-        },
-        None => None,
-    };
-    let staff_records = match &staff_records {
-        Some(records) => Some(exact_dict(records)?),
-        None => None,
-    };
-    let (records, writes) = NamespaceMirror::with_row_tree::<MovementRow, _>(&mirror, |row, tree| {
-        let mut changes = Changes::default();
-        EntityStore::with_rows(&store, |rows| {
-            let mut staff: Vec<_> = rows.staff.iter().collect();
-            staff.sort_unstable_by(|first, second| first.0.cmp(second.0));
-            for (staff_id, member) in staff {
-                changes.staff.push((staff_id.clone(), plan_staff(&scene, staff_records, staff_id, &member.zone_id, boundary)?));
-            }
-            Ok(())
-        })?;
-        let writes = apply_tree(changes, row, tree)?;
-        let mut records: Vec<(Arc<str>, Position)> = row.staff_positions.iter().map(|(id, position)| (id.clone(), position.clone())).collect();
-        records.sort_unstable_by(|first, second| first.0.cmp(&second.0));
-        Ok((records, writes))
-    })?;
-    write_tree(&mirror, writes)?;
+    mirror_held(world)?;
+    let geo = Geo::of(world)?;
+    let staff = staff_ops(world)?;
+    let records = with_world(world, |world| core::staff_position_snapshots(world, &geo, &staff, boundary))?.or_py()?;
     for (id, position) in &records {
         result.set_item(&**id, PyField::to_py(position, py)?)?;
     }
     Ok(result)
-}
-
-/// The rows of the world's event queue.
-fn queue_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, QueueStore>> {
-    let py = world.py();
-    world
-        .getattr(intern!(py, "event_queue"))?
-        .getattr(intern!(py, "_store"))
-        .map_err(|_| Unsupported::new_err("the world's events are not in Rust"))?
-        .downcast_into::<QueueStore>()
-        .map_err(|_| Unsupported::new_err("the event queue is not in Rust"))
-}
-
-/// `_replan_physical_queue_trip`, planned with the positions the walk has written so far.
-enum QueueReplanEnd {
-    /// `facility is None`: the trip only ends.
-    NoFacility,
-    Blocked,
-    /// `_schedule_queue_trip` gave up: past the end of the Run. The replan still counts.
-    PastTheEnd,
-    /// A route that takes no time: the person is placed at its end.
-    Placed,
-    Trip(Plan),
-}
-
-struct QueueReplan {
-    event_id: Arc<str>,
-    facility_id: Option<Arc<str>>,
-    end: QueueReplanEnd,
-}
-
-/// What `advance_movement` found to do.
-struct WalkPlan {
-    changes: Changes,
-    replans: Vec<Arc<str>>,
-    queue_replans: Vec<QueueReplan>,
-}
-
-/// `facility_queue_slot_route` or `facility_approach_route`, then what the Python rule makes of it.
-#[allow(clippy::too_many_arguments)]
-fn plan_queue_replan(
-    scene: &Scene<'_>,
-    writer: &EventWriter<'_>,
-    model: &Read<MovementModel>,
-    view: &MovementRow,
-    rows: &Entities,
-    agent_id: &Arc<str>,
-    journey: &Journey,
-    minute: i64,
-    sequence: i64,
-    changes: &mut Changes,
-) -> PyResult<QueueReplan> {
-    let world = &scene.world;
-    let found = |end| QueueReplan {
-        event_id: journey.event_id.clone(),
-        facility_id: journey.facility_id.clone(),
-        end,
-    };
-    changes.gone_journeys.push(agent_id.clone());
-    let Some(facility_id) = &journey.facility_id else {
-        return Ok(found(QueueReplanEnd::NoFacility));
-    };
-    let Some(facility) = rows.facilities.get(facility_id) else {
-        return Ok(found(QueueReplanEnd::NoFacility));
-    };
-    let resource = journey.purpose.starts_with("resource_");
-    let position_trip = journey.purpose.ends_with("_position");
-    let fifo = match &journey.queue_id {
-        Some(queue_id) => match read_fifo(world, &scene.geo, queue_id)? {
-            Some(fifo) => Some(fifo),
-            None => return unsupported("a queue ID without the queues"),
-        },
-        None => None,
-    };
-    let route = if position_trip {
-        slot_route(&scene.geo, view, rows, model, agent_id, facility, facility_id, fifo.as_ref()).or_py()?
-    } else if scene.geo.layout.is_none() {
-        Some((0, Arc::from(Vec::new())))
-    } else {
-        let point = fifo.as_ref().and_then(|fifo| fifo.request_of(agent_id)).map(|request| request.service_point_id.clone());
-        approach_point(&scene.geo, view, rows, model, agent_id, facility_id, point.as_deref())?
-    };
-    let Some((minutes, path)) = route.filter(|(_, path)| !path.is_empty()) else {
-        return Ok(found(QueueReplanEnd::Blocked));
-    };
-    if minutes <= 0 || path.len() < 2 {
-        let target = path[path.len() - 1];
-        changes.positions.push((agent_id.clone(), record(facility.zone_id.clone(), Some(target), KINDS.physical.clone(), None, 0.0)));
-        return Ok(found(QueueReplanEnd::Placed));
-    }
-    // `.index(agent_id)` of the provenance, which `_schedule_queue_trip` builds only if it schedules.
-    let index = if fifo.is_some() {
-        0
-    } else {
-        let members = if resource { &facility.resource_queue_agent_ids } else { &facility.queue_agent_ids };
-        match members.iter().position(|member| member == agent_id) {
-            Some(index) => index,
-            None if minute.checked_add(minutes).is_some_and(|due| due >= writer.duration()) => 0,
-            None => return unsupported("a trip of the queue by someone not in it"),
-        }
-    };
-    let phase = if position_trip { "position" } else { "service" };
-    let trip = QueueRoute { agent_id: agent_id.clone(), index, minutes, path };
-    let taken = writer.is_taken(&trip_id(sequence), Some(sequence))?;
-    let mut plan = plan_trip(writer.duration(), taken, view, rows, facility_id, resource, trip, minute, phase, fifo.as_ref(), sequence).or_py()?;
-    changes.absorb(plan.take_changes());
-    Ok(found(if matches!(plan, Plan::Blocked) { QueueReplanEnd::PastTheEnd } else { QueueReplanEnd::Trip(plan) }))
-}
-
-/// The walk of `advance_movement`, changing nothing. `in_order` is the second walk, with what the
-/// branches that read the others need; without it None says that the walk reached one of them.
-fn plan_walk(
-    scene: &Scene<'_>,
-    queue: &QueueStore,
-    row: &MovementRow,
-    rows: &Entities,
-    minute: i64,
-    staff_records: Option<&Bound<'_, PyDict>>,
-    in_order: Option<&(EventWriter<'_>, Arc<Movement>)>,
-) -> PyResult<Option<WalkPlan>> {
-    let mut changes = Changes::default();
-    missing_positions(row, rows, &mut changes);
-    let mut plan = WalkPlan { changes: Changes::default(), replans: Vec::new(), queue_replans: Vec::new() };
-    if row.last_updated_minute >= minute {
-        plan.changes = changes;
-        return Ok(Some(plan));
-    }
-    changes.minute = Some(minute);
-    // The positions as the walk has left them, read by the branches that depend on its order.
-    let mut walked = in_order.map(|_| MovementRow {
-        schema_version: row.schema_version,
-        policy_version: row.policy_version.clone(),
-        positions: row.positions.clone(),
-        staff_positions: Default::default(),
-        journeys: Default::default(),
-        edge_usage_minutes: Default::default(),
-        last_updated_minute: minute,
-    });
-    let mut applied = 0;
-    let mut next_sequence = match in_order {
-        Some((writer, _)) => writer.next_sequence()?,
-        None => 0,
-    };
-    let mut completed: Vec<&str> = Vec::new();
-    let mut seen_events: Vec<&str> = Vec::new();
-    let mut journeys: Vec<(&Arc<str>, &Journey)> = row.journeys.iter().collect();
-    journeys.sort_unstable_by(|first, second| first.0.cmp(second.0));
-    for (agent_id, journey) in journeys {
-        if let Some(walked) = &mut walked {
-            for (id, position) in &changes.positions[applied..] {
-                walked.positions.insert(id.clone(), position.clone());
-            }
-            applied = changes.positions.len();
-        }
-        let view: &MovementRow = walked.as_ref().unwrap_or(row);
-        let Some(agent) = rows.agents.get(agent_id) else {
-            changes.gone_journeys.push(agent_id.clone());
-            changes.gone_positions.push(agent_id.clone());
-            if let Some(walked) = &mut walked {
-                walked.positions.shift_remove(&**agent_id);
-            }
-            continue;
-        };
-        match plan_journey(scene, queue, view, rows, agent_id, agent, journey, minute)? {
-            Step::Replan => plan.replans.push(agent_id.clone()),
-            Step::QueueReplan => {
-                let Some((writer, movement)) = in_order else {
-                    return Ok(None);
-                };
-                if seen_events.contains(&&*journey.event_id) {
-                    return unsupported("two journeys name one event");
-                }
-                seen_events.push(&journey.event_id);
-                let replan = plan_queue_replan(scene, writer, &movement.model, view, rows, agent_id, journey, minute, next_sequence, &mut changes)?;
-                next_sequence += i64::from(matches!(replan.end, QueueReplanEnd::Trip(_)));
-                plan.queue_replans.push(replan);
-            }
-            Step::Stop => {
-                if in_order.is_none() && scene.stands_in_a_slot(agent) {
-                    return Ok(None);
-                }
-                changes.gone_journeys.push(agent_id.clone());
-                let slots = in_order.map(|_| (view, rows));
-                changes.positions.push((agent_id.clone(), scene.stationary(agent_id, agent, slots)?));
-            }
-            Step::Finish => {
-                changes.gone_journeys.push(agent_id.clone());
-                if let Some(position) = view.positions.get(&**agent_id).and_then(arrived) {
-                    changes.positions.push((agent_id.clone(), position));
-                }
-            }
-            Step::Walk { position, edge, completed: done } => {
-                changes.positions.push((agent_id.clone(), position));
-                changes.usage.extend(edge);
-                if done {
-                    completed.push(agent_id);
-                }
-            }
-        }
-    }
-    for (agent_id, agent) in rows.agents.iter() {
-        let stays_on_journey = (row.journeys.contains_key(&**agent_id) && !changes.gone_journeys.iter().any(|gone| gone == agent_id))
-            || changes.new_journeys.iter().any(|(id, _)| id == agent_id);
-        if !stays_on_journey && agent.activity != Activity::Queued && !completed.contains(&&**agent_id) {
-            changes.positions.push((agent_id.clone(), scene.stationary(agent_id, agent, None)?));
-        }
-    }
-    let mut staff: Vec<_> = rows.staff.iter().collect();
-    staff.sort_unstable_by(|first, second| first.0.cmp(second.0));
-    for (staff_id, member) in staff {
-        changes.staff.push((staff_id.clone(), plan_staff(scene, staff_records, staff_id, &member.zone_id, minute + 1)?));
-    }
-    plan.changes = changes;
-    Ok(Some(plan))
-}
-
-/// The queue replans of a walk, in its order: the events, the people and the counts.
-fn write_queue_replans<'py>(
-    world: &Bound<'py, PyAny>,
-    writer: &EventWriter<'py>,
-    metrics: &Bound<'py, NamespaceMirror>,
-    old_events: Vec<Arc<EventRow>>,
-    replans: Vec<QueueReplan>,
-    minute: i64,
-) -> PyResult<()> {
-    for (old, replan) in old_events.into_iter().zip(replans) {
-        writer.settle(&old, minute, EventStatus::Suppressed, Some("In-room queue route changed after a wall, obstacle, or equipment update"))?;
-        match replan.end {
-            QueueReplanEnd::NoFacility => continue,
-            QueueReplanEnd::Blocked => {
-                add_one(metrics, "physical_queue_replan_blocked_count")?;
-                add_one(metrics, "movement_replan_blocked_count")?;
-                continue;
-            }
-            QueueReplanEnd::PastTheEnd => add_one(metrics, BLOCKED_METRIC)?,
-            QueueReplanEnd::Placed => {}
-            QueueReplanEnd::Trip(plan) => {
-                write_plan(world, replan.facility_id.as_deref().unwrap_or_default(), plan)?;
-            }
-        }
-        add_one(metrics, "physical_queue_replan_count")?;
-        add_one(metrics, "movement_replan_count")?;
-    }
-    Ok(())
 }
 
 /// `advance_movement`.
@@ -1398,103 +631,44 @@ pub(crate) fn advance_movement<'py>(world: &Bound<'py, PyAny>, minute: &Bound<'p
     if minute.abs() >= EXACT_INT {
         return unsupported("a minute is too large");
     }
-    let mirror = mirror_held(world)?;
-    let store = entities_of(world)?;
-    let queue = queue_of(world)?;
-    let scene = Scene::of(world)?;
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let operations = match exact_dict(&table)?.get_item("staff_operations_v1")? {
-        Some(held) if crate::core::tracked::is_detached(&held) => {
-            crate::core::world_core::detached_staff_operations(world)?
-        }
-        held => held,
-    };
-    let staff_records = match &operations {
-        Some(operations) => match crate::core::tracked::as_readable_dict(operations) {
-            Some(operations) => operations.get_item(intern!(py, "staff"))?,
-            None => None,
-        },
-        None => None,
-    };
-    let staff_records = match &staff_records {
-        Some(records) => Some(exact_dict(records)?),
-        None => None,
-    };
-    let mut in_order_tools = None;
-    let (replans, writes, queue_replans) = NamespaceMirror::with_row_tree::<MovementRow, _>(&mirror, |row, tree| {
-        let plan = {
-            let held = queue.get();
-            EntityStore::with_rows(&store, |rows| {
-                if let Some(plan) = plan_walk(&scene, held, row, rows, minute, staff_records, None)? {
-                    return Ok(plan);
-                }
-                let tools = (EventWriter::of(world)?, movement_of(world)?);
-                match plan_walk(&scene, held, row, rows, minute, staff_records, Some(&tools))? {
-                    Some(plan) => {
-                        in_order_tools = Some((tools.0, metrics_of(world)?));
-                        Ok(plan)
-                    }
-                    None => unsupported("the walk in order asked for itself"),
-                }
-            })?
+    mirror_held(world)?;
+    let geo = Geo::of(world)?;
+    let staff = staff_ops(world)?;
+    let tick = Tick { geo: &geo, staff: &staff };
+    let mut advanced = with_world(world, |world| core::advance(world, &tick, minute, None))?.or_py()?;
+    if matches!(advanced, Advanced::NeedsInOrder) {
+        // A branch reads the walk so far: what it needs, read as the kernel read it then.
+        let movement = movement_of(world)?;
+        let in_order = InOrder {
+            model: &movement.model,
+            queues: queues_held(world)?,
+            metric_state_held: field_held(world, intern!(py, "metric_state"))?,
         };
-        let WalkPlan { changes, replans, queue_replans } = plan;
-        // The old events, as rows: nothing is refused after this.
-        let mut old_events = Vec::with_capacity(queue_replans.len());
-        if let Some((writer, _)) = &in_order_tools {
-            for replan in &queue_replans {
+        advanced = with_world(world, |world| core::advance(world, &tick, minute, Some(&in_order)))?.or_py()?;
+    }
+    let replans = match advanced {
+        Advanced::Done(replans) => replans,
+        Advanced::NeedsInOrder => return unsupported("the walk in order asked for itself"),
+        Advanced::Planned(plan) => {
+            // The old events, as rows: nothing is refused after this.
+            let writer = EventWriter::of(world)?;
+            let mut old_events = Vec::with_capacity(plan.queue_replans().len());
+            for replan in plan.queue_replans() {
                 match writer.queue().get().row(py, &replan.event_id)? {
                     Some(row) => old_events.push(row),
                     None => return unsupported("the trip's event has no row"),
                 }
             }
+            let (replans, queue_replans) = with_world(world, |world| core::write_walk(world, plan))?.or_py()?;
+            for (old, replan) in old_events.into_iter().zip(queue_replans) {
+                writer.settle(&old, minute, EventStatus::Suppressed, Some(core::QUEUE_REPLAN_DETAIL))?;
+                let written = with_world(world, |world| core::write_queue_replan(world, replan))?;
+                write_result(py, written)?;
+            }
+            replans
         }
-        Ok((replans, apply_tree(changes, row, tree)?, (old_events, queue_replans)))
-    })?;
-    write_tree(&mirror, writes)?;
-    if let Some((writer, metrics)) = &in_order_tools {
-        write_queue_replans(world, writer, metrics, queue_replans.0, queue_replans.1, minute)?;
-    }
-    PyTuple::new(py, replans.iter().map(|id| PyString::new(py, id)))
-}
-
-// ---- start_movement, finish_movement -----------------------------------------------------------
-
-pub(crate) fn optional_str(value: Option<&Bound<'_, PyAny>>) -> PyResult<Option<Arc<str>>> {
-    match value {
-        Some(value) if !value.is_none() => Ok(Some(Arc::from(exact_str(value)?))),
-        _ => Ok(None),
-    }
-}
-
-pub(crate) fn str_tuple(value: &Bound<'_, PyAny>) -> PyResult<Vec<Arc<str>>> {
-    value
-        .downcast_exact::<PyTuple>()
-        .map_err(|_| Unsupported::new_err("not a tuple"))?
-        .iter()
-        .map(|item| Ok(Arc::from(exact_str(&item)?)))
-        .collect()
-}
-
-/// The points of a route: `Point2D` itself, so `model_dump` would give the same two floats.
-pub(crate) fn route_points_of(value: Option<&Bound<'_, PyAny>>) -> PyResult<Vec<Pt>> {
-    let Some(value) = value else {
-        return Ok(Vec::new());
     };
-    let points = value.downcast_exact::<PyTuple>().map_err(|_| Unsupported::new_err("the points are not a tuple"))?;
-    let mut found = Vec::with_capacity(points.len());
-    for point in points.iter() {
-        let py = point.py();
-        if point.get_type().name()?.to_str()? != "Point2D" {
-            return unsupported("a route point is not a Point2D");
-        }
-        let (x, y) = (exact_float(&attribute(&point, intern!(py, "x"))?)?, exact_float(&attribute(&point, intern!(py, "y"))?)?);
-        if !usable(x, y) {
-            return unsupported("a route point is not a usable point");
-        }
-        found.push(Pt { x, y });
-    }
-    Ok(found)
+    PyTuple::new(py, replans.iter().map(|id| PyString::new(py, id)))
 }
 
 /// `start_movement`.
@@ -1520,8 +694,7 @@ pub(crate) fn start_movement<'py>(
     support_staff_id: Option<&Bound<'py, PyAny>>,
 ) -> PyResult<()> {
     let py = world.py();
-    let mirror = mirror_held(world)?;
-    let store = entities_of(world)?;
+    mirror_held(world)?;
     let started = exact_int(started_minute)?;
     let due = exact_int(due_minute)?;
     let duration = due.checked_sub(started).filter(|duration| *duration > 0 && *duration < EXACT_INT);
@@ -1552,88 +725,24 @@ pub(crate) fn start_movement<'py>(
         support_request_id: support.0,
         support_staff_id: support.1,
     };
-    let scene = Scene::of(world)?;
-    let writes = NamespaceMirror::with_row_tree::<MovementRow, _>(&mirror, |row, tree| {
-        let changes = EntityStore::with_rows(&store, |rows| plan_start(&scene, row, rows, &agent_id, journey, &origin, &points, &edge_ids, started, duration))?;
-        apply_tree(changes, row, tree)
-    })?;
-    write_tree(&mirror, writes)
-}
-
-/// What `start_movement` writes, changing nothing.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn plan_start(
-    scene: &Scene<'_>,
-    row: &MovementRow,
-    rows: &Entities,
-    agent_id: &Arc<str>,
-    journey: Journey,
-    origin: &Arc<str>,
-    points: &[Pt],
-    edge_ids: &[Arc<str>],
-    started: i64,
-    duration: i64,
-) -> PyResult<Changes> {
-    // The point of a journey without the points of a path, which the scene reads.
-    let off_path = if points.is_empty() {
-        let (elapsed, initial_progress) = walking::start_progress(row, started, duration);
-        match edge_ids.first() {
-            Some(edge) => scene.route_point(edge, if elapsed { initial_progress } else { 0.0 }, origin)?,
-            None => scene.geo.zone_center(origin)?,
-        }
-    } else {
-        None
-    };
-    walking::plan_start(row, rows, agent_id, journey, origin, points, edge_ids, started, duration, off_path).or_py()
+    let geo = Geo::of(world)?;
+    let start = Start { agent_id: &agent_id, journey, origin: &origin, points: &points, edge_ids: &edge_ids, started, duration };
+    with_world(world, |world| core::start(world, &geo, start))?.or_py()
 }
 
 /// `finish_movement`.
 #[pyfunction]
 pub(crate) fn finish_movement<'py>(world: &Bound<'py, PyAny>, agent_id: &Bound<'py, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    let table = attribute(world, intern!(py, "model_state"))?;
-    if !exact_dict(&table)?.contains(KEY)? {
+    if !has_movement(world)? {
         return Ok(());
     }
-    let mirror = mirror_held(world)?;
-    let store = entities_of(world)?;
+    mirror_held(world)?;
     let agent_id = exact_str(agent_id)?;
-    let scene = Scene::of(world)?;
-    let writes = NamespaceMirror::with_row_tree::<MovementRow, _>(&mirror, |row, tree| {
-        let mut changes = Changes::default();
-        let journey = row.journeys.get(agent_id);
-        let key: Arc<str> = Arc::from(agent_id);
-        if journey.is_some() {
-            changes.gone_journeys.push(key.clone());
-        }
-        if journey.is_some_and(|journey| is_queue_trip(&journey.purpose)) {
-            // The person is still reserved in the FIFO queue: keep their surveyed arrival.
-            if let Some(position) = row.positions.get(agent_id).and_then(arrived) {
-                changes.positions.push((key, position));
-            }
-        } else {
-            let position = EntityStore::with_rows(&store, |rows| match rows.agents.get(agent_id) {
-                Some(agent) => scene.stationary(agent_id, agent, Some((&*row, &*rows))).map(Some),
-                None => Ok(None),
-            })?;
-            if let Some(position) = position {
-                changes.positions.push((key, position));
-            }
-        }
-        apply_tree(changes, row, tree)
-    })?;
-    write_tree(&mirror, writes)
+    let geo = Geo::of(world)?;
+    with_world(world, |world| core::finish(world, &geo, agent_id))?.or_py()
 }
 
 // ---- route_with_movement_time ------------------------------------------------------------------
-
-/// The movement section of the world's configs (`config::movement`), kept for the stamp of
-/// `model_configs`. A configs that is not a dict is refused here, as `exact_dict` refused it; the
-/// model's own refusal is said where a walk is timed (`room_minutes`, `movement_minutes`).
-#[track_caller]
-pub(crate) fn movement_of(world: &Bound<'_, PyAny>) -> PyResult<Arc<Movement>> {
-    configs::kept_value(world, |configs| &configs.movement, Movement::parse)
-}
 
 /// `route_with_movement_time`.
 #[pyfunction]
@@ -1673,13 +782,7 @@ pub(crate) fn route_with_movement_time<'py>(
 }
 
 /// The minutes `route_with_movement_time` gives a route of these zones and edges.
-pub(crate) fn movement_minutes(
-    world: &Bound<'_, PyAny>,
-    agent_id: &str,
-    zones: &[&str],
-    edges: &[&str],
-    declared: i64,
-) -> PyResult<i64> {
+pub(crate) fn movement_minutes(world: &Bound<'_, PyAny>, agent_id: &str, zones: &[&str], edges: &[&str], declared: i64) -> PyResult<i64> {
     let movement = movement_of(world)?;
     if !movement.times_routes() {
         return Ok(declared);
@@ -1689,163 +792,10 @@ pub(crate) fn movement_minutes(
         return unsupported("the route's minutes are too large");
     }
     let geo = Geo::of(world)?;
-    let store = entities_of(world)?;
-    let mut wanted: Vec<(&str, i64)> = zones.iter().map(|zone| (*zone, 0)).collect();
-    let speed = EntityStore::with_rows(&store, |rows| {
-        let Some(agent) = rows.agents.get(agent_id) else {
-            return unsupported("no such agent");
-        };
-        for (_, other) in rows.agents.iter() {
-            for (zone, count) in wanted.iter_mut() {
-                if *zone == &*other.zone_id {
-                    *count += 1;
-                }
-            }
-        }
-        Ok(model.speed(mobility_text(agent)))
-    })?;
-    let mut lengths = Vec::new();
-    if let Some(layout) = &geo.layout {
-        for edge in edges {
-            if let Some(found) = layout.routes.get(*edge) {
-                lengths.push(polyline_length(&found.points).ok_or_else(|| Unsupported::new_err("not a plain sum"))?);
-            }
-        }
-    }
-    let distance_m = py_fsum(&lengths).ok_or_else(|| Unsupported::new_err("not a plain sum"))?;
-    let base = model.independent;
-    let physical = if distance_m > 0.0 { distance_m / base } else { declared as f64 };
-    let mut density: Option<f64> = None;
-    if let Some(layout) = &geo.layout {
-        let mut done: Vec<&str> = Vec::with_capacity(wanted.len());
-        for &(zone, count) in &wanted {
-            if done.contains(&zone) {
-                continue;
-            }
-            done.push(zone);
-            if let Some(area) = layout.zones.get(zone).map(|zone| zone.usable_area).filter(|area| *area > 0.0) {
-                let value = count as f64 / area;
-                density = Some(density.map_or(value, |best| py_max(best, value)));
-            }
-        }
-    }
-    let crowding = py_min(model.maximum_slowdown, 1.0 + model.density_slowdown * py_max(0.0, density.unwrap_or(0.0) - 0.5));
-    let duration = py_max(declared as f64, physical) * (base / speed) * crowding;
-    if edges.is_empty() {
-        return Ok(declared);
-    }
-    if !duration.is_finite() || duration.abs() >= EXACT_INT as f64 {
-        return unsupported("the duration is too large");
-    }
-    Ok((duration.ceil() as i64).max(1))
+    with_world(world, |world| core::movement_minutes(world, &geo, &model, agent_id, zones, edges, declared))?.or_py()
 }
 
 // ---- validate ----------------------------------------------------------------------------------
-
-/// `position_kind` of the two record maps, with the rules both share.
-fn position_is_plain(position: &Position, zones: &Bound<'_, PyDict>, edges: &Bound<'_, PyDict>) -> PyResult<bool> {
-    if !zones.contains(&*position.zone_id)?
-        || !matches!(&*position.position_kind, "physical" | "display_only" | "unavailable")
-        || !(0.0..=1.0).contains(&position.progress)
-    {
-        return Ok(false);
-    }
-    if position.point.is_some_and(|point| !point.x.is_finite() || !point.y.is_finite()) {
-        return Ok(false);
-    }
-    match &position.edge_id {
-        Some(edge) => edges.contains(&**edge),
-        None => Ok(true),
-    }
-}
-
-/// One journey against what `validate_movement_runtime_state` checks.
-fn journey_is_valid(
-    world: &Bound<'_, PyAny>,
-    agent: &AgentRow,
-    journey: &Journey,
-    zones: &Bound<'_, PyDict>,
-    edges: &Bound<'_, PyDict>,
-    geo: &mut Option<Arc<Geo>>,
-) -> PyResult<bool> {
-    let py = world.py();
-    let support = journey.support_request_id.is_some() && journey.support_staff_id.is_some();
-    if journey.support_request_id.is_some() != journey.support_staff_id.is_some() {
-        return Ok(false);
-    }
-    let staff_travel = &*journey.purpose == "staff_support_travel";
-    if support != staff_travel {
-        return Ok(false);
-    }
-    if support && journey.support_request_id.iter().chain(&journey.support_staff_id).any(|id| id.is_empty()) {
-        return Ok(false);
-    }
-    if let Some(queue_id) = &journey.queue_id {
-        if queue_id.is_empty() || !is_queue_trip(&journey.purpose) {
-            return Ok(false);
-        }
-        // The Python rule reads the queue's facility: anything with a queue ID goes to it.
-        let table = attribute(world, intern!(py, "model_state"))?;
-        let Some(queues) = exact_dict(&table)?.get_item("facility_queues_v1")? else {
-            return Ok(false);
-        };
-        if let Some(facility) = crate::rules::facility_queues::detached_queue_facility(world, queue_id)? {
-            match (&facility, &journey.facility_id) {
-                (Some(facility), Some(id)) if facility == id => {}
-                _ => return Ok(false),
-            }
-        } else {
-            let Some(queues) = exact_dict(&queues)?.get_item(intern!(py, "queues"))? else {
-                return Ok(false);
-            };
-            let Some(queue) = exact_dict(&queues)?.get_item(&**queue_id)? else {
-                return Ok(false);
-            };
-            let Some(facility) = exact_dict(&queue)?.get_item(intern!(py, "facility_id"))? else {
-                return Ok(false);
-            };
-            match &journey.facility_id {
-                Some(id) if !facility.is_none() && exact_str(&facility)? == &**id => {}
-                _ => return Ok(false),
-            }
-        }
-    }
-    if !zones.contains(&*journey.destination_zone_id)? || journey.due_minute <= journey.started_minute {
-        return Ok(false);
-    }
-    for zone in &journey.route_zone_ids {
-        if !zones.contains(&**zone)? {
-            return Ok(false);
-        }
-    }
-    for edge in &journey.route_edge_ids {
-        if !edges.contains(&**edge)? {
-            return Ok(false);
-        }
-    }
-    if journey.route_points.is_empty() {
-        return Ok(true);
-    }
-    if journey.route_points.len() < 2
-        || !journey.route_edge_ids.is_empty()
-        || journey.route_zone_ids.len() != 2
-        || journey.route_zone_ids[0] != agent.zone_id
-        || journey.route_zone_ids[1] != journey.destination_zone_id
-    {
-        return Ok(false);
-    }
-    let Ok(points) = points_of_journey(journey) else {
-        return Ok(false);
-    };
-    let geo = match geo {
-        Some(geo) => geo,
-        None => geo.insert(Geo::of(world)?),
-    };
-    let Some(zone) = geo.layout.as_ref().and_then(|layout| layout.zones.get(&agent.zone_id)) else {
-        return Ok(false);
-    };
-    Ok(points.iter().all(|point| point_in_polygon(*point, &zone.polygon)))
-}
 
 /// `validate_movement_runtime_state`: accepts, or leaves it to the Python rule and its error text.
 #[pyfunction]
@@ -1858,46 +808,18 @@ fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     if held.is_none() {
         return Ok(true);
     }
-    let mirror = mirror_held(world)?;
-    let store = entities_of(world)?;
-    let zones = attribute(world, intern!(py, "zones"))?;
-    let zones = exact_dict(&zones)?;
-    let edges = attribute(world, intern!(py, "zone_edges"))?;
-    let edges = exact_dict(&edges)?;
-    // Geo::of may run Python, which the row's borrow must not see: only journeys in rooms need it.
-    let needs_plan = NamespaceMirror::with_row::<MovementRow, _>(&mirror, |row| {
-        Ok(row.journeys.values().any(|journey| !journey.route_points.is_empty()))
-    })?;
-    let mut geo = if needs_plan { Some(Geo::of(world)?) } else { None };
-    NamespaceMirror::with_row::<MovementRow, _>(&mirror, |row| {
-        if row.schema_version != 2 || &*row.policy_version != POLICY_VERSION {
-            return Ok(false);
-        }
-        EntityStore::with_rows(&store, |rows| {
-            if row.positions.len() != rows.agents.len() || row.staff_positions.len() != rows.staff.len() {
-                return Ok(false);
-            }
-            for (id, position) in &row.positions {
-                if rows.agents.get(id).is_none() || !position_is_plain(position, zones, edges)? {
-                    return Ok(false);
-                }
-            }
-            for (id, position) in &row.staff_positions {
-                if rows.staff.get(id).is_none() || !position_is_plain(position, zones, edges)? {
-                    return Ok(false);
-                }
-            }
-            for (id, journey) in &row.journeys {
-                let Some(agent) = rows.agents.get(id) else {
-                    return Ok(false);
-                };
-                if !journey_is_valid(world, agent, journey, zones, edges, &mut geo)? {
-                    return Ok(false);
-                }
-            }
-            Ok(true)
-        })
-    })
+    mirror_held(world)?;
+    let queues = queues_held(world)?;
+    let mut found = with_world(world, |world| core::validate(world, &queues, None))?.or_py()?;
+    if found == Validated::NeedsGeo {
+        // Only journeys in rooms need the floor plan, whose read may run Python.
+        let geo = Geo::of(world)?;
+        found = with_world(world, |world| core::validate(world, &queues, Some(&geo)))?.or_py()?;
+    }
+    match found {
+        Validated::Is(valid) => Ok(valid),
+        Validated::NeedsGeo => unsupported("the floor plan was asked for twice"),
+    }
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

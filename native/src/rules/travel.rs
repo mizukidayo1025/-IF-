@@ -24,7 +24,7 @@ use crate::core::world_core::{core_of, raw_dict_get, NamespaceMirror, WorldCore}
 use crate::rules::agent_dynamics::agent_knows_facility;
 use crate::rules::handlers::{log_record, new_event, NewEvent};
 use crate::rules::movement::{
-    approach_point, mirror_held, mobility_text, movement_minutes, movement_of, no_positions, optional_str, plan_start, route_points_of, str_tuple, write_tree, apply_tree, Changes, Scene,
+    approach_point, mirror_held, mobility_text, movement_minutes, movement_of, no_positions, optional_str, plan_start, route_points_of, str_tuple, write_changes, Changes,
     EXACT_INT, KEY,
 };
 use crate::rules::movement_geometry::{Geo, GeoPy, Pt};
@@ -835,8 +835,6 @@ pub(crate) fn plan_travel(world: &Bound<'_, PyAny>, writer: &EventWriter<'_>, tr
     };
     let table = attribute(world, intern!(py, "model_state"))?;
     let changes = if exact_dict(&table)?.contains(KEY)? {
-        let mirror = mirror_held(world)?;
-        let scene = Scene::of(world)?;
         let journey = Journey {
             event_id,
             task_id: task_id.clone(),
@@ -852,11 +850,7 @@ pub(crate) fn plan_travel(world: &Bound<'_, PyAny>, writer: &EventWriter<'_>, tr
             support_request_id,
             support_staff_id,
         };
-        Some(NamespaceMirror::with_row::<MovementRow, _>(&mirror, |row| {
-            EntityStore::with_rows(&store, |rows| {
-                plan_start(&scene, row, rows, &agent_id, journey, &route.origin, &points, &route.edge_ids, minute, route.minutes)
-            })
-        })?)
+        Some(plan_start(world, &agent_id, journey, &route.origin, &points, &route.edge_ids, minute, route.minutes)?)
     } else {
         None
     };
@@ -928,8 +922,6 @@ pub(crate) fn plan_room_approach(
     };
     let table = attribute(world, intern!(py, "model_state"))?;
     let changes = if exact_dict(&table)?.contains(KEY)? {
-        let mirror = mirror_held(world)?;
-        let scene = Scene::of(world)?;
         let journey = Journey {
             event_id,
             task_id: task_id.clone(),
@@ -945,11 +937,7 @@ pub(crate) fn plan_room_approach(
             support_request_id: None,
             support_staff_id: None,
         };
-        Some(NamespaceMirror::with_row::<MovementRow, _>(&mirror, |row| {
-            EntityStore::with_rows(&store, |rows| {
-                plan_start(&scene, row, rows, agent_id, journey, &route.origin, points, &route.edge_ids, minute, route.minutes)
-            })
-        })?)
+        Some(plan_start(world, agent_id, journey, &route.origin, points, &route.edge_ids, minute, route.minutes)?)
     } else {
         None
     };
@@ -975,9 +963,7 @@ pub(crate) fn write_travel(world: &Bound<'_, PyAny>, writer: &EventWriter<'_>, t
     set_agent(world, &store, agent_text.as_any(), Activity::Moving, Some(PyString::new(py, &target_id).as_any()))?;
     writer.schedule(event)?;
     if let Some(changes) = changes {
-        let mirror = mirror_held(world)?;
-        let writes = NamespaceMirror::with_row_tree::<MovementRow, _>(&mirror, |row, tree| apply_tree(changes, row, tree))?;
-        write_tree(&mirror, writes)?;
+        write_changes(world, changes)?;
     }
     Ok(())
 }

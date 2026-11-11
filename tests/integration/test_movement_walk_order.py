@@ -10,6 +10,7 @@ recorded once from it at 2d8fb46 (ANSWERS, at the end).
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import random
 from collections.abc import Iterator
@@ -267,7 +268,8 @@ def test_two_replans_take_their_event_numbers_in_the_order_of_the_walk(
 def test_a_replan_for_a_wall_on_the_walk(generated_scenario_with_split_queues: Any) -> None:
     world = _two_trips_in_two_queues(generated_scenario_with_split_queues)
     _obstacle_on_the_walk(world, "A002")
-    before = dict(world.model_state[KEY]["journeys"]["A002"])
+    # A copy of the values: the tree's nodes follow the row in place (PR P8-0c).
+    before = copy.deepcopy(world.model_state[KEY]["journeys"]["A002"])
     assert _same_after(world, 1) == ()
     after = world.model_state[KEY]["journeys"]["A002"]
     assert after["event_id"] != before["event_id"]
