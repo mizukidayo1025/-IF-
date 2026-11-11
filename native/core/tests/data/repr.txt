@@ -1,0 +1,6 @@
+# repr(str) of CPython 3.12, Unicode 15.0.0 (native/core/tools/repr_table.py)
+# sha256 of the UTF-8 repr of each code point but the surrogates, each followed by a NUL:
+sha256 bd81261a5a5bda981c9f0db958c67cc20ab85b2c8b8d4a5e1335b2b2b6e8e931
+# sha256 of the repr of the test's texts, each followed by a NUL:
+texts 38fa8c395d58f86ea1eed27291b36046490dae9d3bfa62763bcff17bf5e25798
+ranges 711

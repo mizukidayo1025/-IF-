@@ -794,10 +794,9 @@ pub(crate) fn apply_effect<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound
                 target = PyString::new(py, facility_id).into_any();
             }
         }
-        if let (Some((outcome, reason, detail)), Some(held), Effect::Resource(_, action)) = (planned.outcome, &held, &effect) {
+        if let (Some((outcome, reason, detail)), Some(_), Effect::Resource(_, action)) = (planned.outcome, &held, &effect) {
             append_outcome(
-                py,
-                held,
+                &world,
                 RequestRecord {
                     minute,
                     agent_id: Arc::from(agent_id),

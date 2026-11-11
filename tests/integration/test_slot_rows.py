@@ -63,23 +63,44 @@ def test_a_metric_the_core_counts_reaches_the_same_tree() -> None:
 
 
 def test_a_map_of_floats_writes_only_what_changed_or_else_is_patched_whole() -> None:
-    """`metric_state` takes the changed values and the new keys at its end without the whole row
-    made in Python (lane P8 a3); a tree whose keys are not the row's in order is patched whole."""
+    """`metric_state` written whole (no keys told) takes the changed values and the new keys at its
+    end without the whole row made in Python (lane P8 a3); a tree whose keys are not the row's in
+    order is patched whole."""
     world = _world()
     tree = world.metric_state
     tree["probe_a"] = 1.0
     tree["probe_b"] = 2.0
     # A value only the tree has, of another type: the row's float comes back.
     dict.__setitem__(tree, "probe_a", 5)
-    _ops(world, ("metric", "probe_c"))
+    _ops(world, ("metric_whole", "probe_c"))
     assert world.metric_state is tree
     assert type(tree["probe_a"]) is float and tree["probe_a"] == 1.0
     assert list(tree)[-3:] == ["probe_a", "probe_b", "probe_c"]
     assert _mirror(world, "metric_state").verify() and _mirror(world, "metric_state").verify_order()
     # A key only the tree moved to its end: the general patch puts it back in the row's order.
     dict.__setitem__(tree, "probe_a", dict.pop(tree, "probe_a"))
-    _ops(world, ("metric", "probe_c"))
+    _ops(world, ("metric_whole", "probe_c"))
     assert list(tree)[-3:] == ["probe_a", "probe_b", "probe_c"] and tree["probe_c"] == 2.0
+    assert _mirror(world, "metric_state").verify() and _mirror(world, "metric_state").verify_order()
+
+
+def test_a_count_the_core_adds_reaches_its_key_alone_in_the_row_s_order() -> None:
+    """`kit::add_metric` tells the key it writes (lane P8 c3): the tree takes that key alone, a new
+    key last as in the row. A new key the row has elsewhere than next, or a tree of another length,
+    makes the whole row follow instead."""
+    world = _world()
+    tree = world.metric_state
+    tree["probe_a"] = 1.0
+    _ops(world, ("metric", "probe_a"), ("metric", "probe_b"), ("metric", "probe_b"))
+    assert world.metric_state is tree
+    assert (tree["probe_a"], tree["probe_b"]) == (2.0, 2.0)
+    assert list(tree)[-2:] == ["probe_a", "probe_b"]
+    assert _mirror(world, "metric_state").verify() and _mirror(world, "metric_state").verify_order()
+    # A key the tree lost behind the row's back: the tree is shorter than the row, so the whole
+    # row follows and puts it back in its place.
+    dict.__delitem__(tree, "probe_a")
+    _ops(world, ("metric", "probe_c"))
+    assert list(tree)[-3:] == ["probe_a", "probe_b", "probe_c"] and tree["probe_a"] == 2.0
     assert _mirror(world, "metric_state").verify() and _mirror(world, "metric_state").verify_order()
 
 

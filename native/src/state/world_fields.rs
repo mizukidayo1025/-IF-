@@ -109,15 +109,6 @@ pub(crate) fn write_id_counter(mirror: &Bound<'_, NamespaceMirror>, name: &str, 
     }
 }
 
-/// `world.id_counters[name] = value` from a Rust rule. A world whose field holds no tree (stored
-/// past `WorldState.__setattr__`) gets the plain dict write it always got.
-pub(crate) fn set_id_counter(world: &Bound<'_, PyAny>, counters: &Bound<'_, PyDict>, name: &Bound<'_, PyString>, value: i64) -> PyResult<()> {
-    match counters_mirror(world)? {
-        Some(mirror) if mirror.get().root_is(counters.as_any()) => write_id_counter(&mirror, name.to_str()?, value),
-        _ => counters.set_item(name, value),
-    }
-}
-
 /// `world.resources = next`, a new dict, from a Rust rule: the field's new tree, and whoever holds
 /// the old one keeps its old values. A world whose field holds no tree gets `next` as it is.
 pub(crate) fn replace_resources(world: &Bound<'_, PyAny>, next: &Bound<'_, PyDict>) -> PyResult<()> {

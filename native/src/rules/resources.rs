@@ -14,15 +14,14 @@ use crate::core::errors::{self, ledger_error, to_py_err, OrPy};
 use crate::core::row::{attribute, namespace_is_absent, unsupported};
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::{VPy, V};
-use crate::core::world_core::{with_world, NamespaceMirror};
+use crate::core::world_core::with_world;
 use crate::state::events::{EventRow, EventRowPy};
 use crate::state::resource_ledger::{held_mirror, RESOURCE_IDS};
 use crate::state::world_fields;
 
-pub(crate) use sheltersim_core::rules::resources::Operation;
 
 /// The error of an operation that did nothing.
-fn raised(py: Python<'_>, fail: Fail) -> PyErr {
+pub(crate) fn raised(py: Python<'_>, fail: Fail) -> PyErr {
     match fail {
         Fail::Error(error) => to_py_err(error),
         Fail::Ledger(fault) => {
@@ -40,7 +39,7 @@ fn raised(py: Python<'_>, fail: Fail) -> PyErr {
 }
 
 /// `world.resources = {**world.resources, resource: remaining}`, a new dict.
-fn replace_resources(world: &Bound<'_, PyAny>, applied: Applied) -> PyResult<()> {
+pub(crate) fn replace_resources(world: &Bound<'_, PyAny>, applied: Applied) -> PyResult<()> {
     let resources = attribute(world, intern!(world.py(), "resources"))?;
     let next = as_readable_dict(&resources).map_or_else(|| unsupported("the resources are not a dict"), |resources| Ok(resources.copy()?))?;
     next.set_item(RESOURCE_IDS[applied.index], applied.remaining)?;
@@ -74,16 +73,6 @@ pub(crate) fn apply_operation<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py,
     match with_world(world, |world| core::apply_operation(world, &event, operation))? {
         Ok(applied) => replace_resources(world, applied),
         Err(fail) => Err(raised(py, fail)),
-    }
-}
-
-/// An operation a rule planned without its event (the water and meal service). What the Python
-/// rule turned down is its `ResourceLedgerError`, and a state its check of the ledger turned down is
-/// Unsupported, both with nothing changed. Every ID is checked by the caller to be a stable ID.
-pub(crate) fn apply_planned(world: &Bound<'_, PyAny>, _mirror: &Bound<'_, NamespaceMirror>, planned: &Operation<'_>) -> PyResult<()> {
-    match with_world(world, |world| core::apply_planned(world, planned))? {
-        Ok(applied) => replace_resources(world, applied),
-        Err(fail) => Err(raised(world.py(), fail)),
     }
 }
 

@@ -397,6 +397,29 @@ fn a_write_from_the_core_marks_its_slot_once_with_a_new_stamp() {
 }
 
 #[test]
+fn a_write_of_some_keys_marks_its_slot_with_those_keys_unless_the_whole_row_is_written() {
+    let mut world = value_world(&["a", "b"]);
+    let before = world.stamp_of("a").unwrap().unwrap();
+    // Keyed writes gather their keys; a write of the whole row asks the whole row to follow.
+    world.slots.try_row_keys_mut::<ValueRow>("a", &["x", "y"]).unwrap();
+    world.slots.try_row_keys_mut::<ValueRow>("a", &["z"]).unwrap();
+    world.slots.try_row_keys_mut::<ValueRow>("b", &["x"]).unwrap();
+    world.slots.try_row_mut::<ValueRow>("b").unwrap();
+    world.slots.try_row_keys_mut::<ValueRow>("b", &["y"]).unwrap();
+    assert_ne!(world.stamp_of("a").unwrap().unwrap(), before);
+    assert_eq!(marked(&world), ["a", "b"]);
+    let keys = |names: &[&str]| Some(names.iter().map(|name| Arc::from(*name)).collect::<Vec<Arc<str>>>());
+    assert_eq!(world.slots.take_written_keys(), [(0, keys(&["x", "y", "z"])), (1, None)]);
+    assert!(world.slots.take_written_keys().is_empty());
+    // A keyed write after the marks were taken starts its keys again.
+    world.slots.try_row_keys_mut::<ValueRow>("b", &["w"]).unwrap();
+    assert_eq!(world.slots.take_written_keys(), [(1, keys(&["w"]))]);
+    // A refused one marks nothing.
+    assert!(world.slots.try_row_keys_mut::<ResourcesRow>("a", &["x"]).is_err());
+    assert!(marked(&world).is_empty());
+}
+
+#[test]
 fn a_refused_write_marks_nothing() {
     let mut world = value_world(&["a"]);
     let stamp = world.stamp_of("a").unwrap().unwrap();

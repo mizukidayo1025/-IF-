@@ -625,10 +625,10 @@ def test_a_config_python_turns_down_raises_the_python_rule_s_error(
 
 
 def _with_stall(world: WorldState, facility: str, agent_id: str) -> None:
+    """A stall record of the namespace's shape, which its row holds (a key it lacks taints it)."""
     world.model_state["resource_service_v1"]["stall_state"][facility] = {
         "agent_id": agent_id,
         "reason": "stock",
-        "minute": 1,
     }
 
 

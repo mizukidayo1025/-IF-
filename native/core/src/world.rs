@@ -558,6 +558,10 @@ pub struct Slot {
     /// A kernel of the core wrote the row since the PyO3 crate last took the marks
     /// (`Slots::take_written`): its tree, if it has one, does not follow the row yet. Not state.
     pub written: bool,
+    /// The keys of a map row the kernels wrote since the marks were taken, when they wrote only
+    /// those (`row_keys_written`): the tree follows those keys alone. None for a write of the whole
+    /// row (or no write). Not state.
+    pub keys: Option<Vec<Arc<str>>>,
 }
 
 /// A copy of the row too (`Row::clone_row`), for a snapshot's copy on write.
@@ -571,6 +575,7 @@ impl Clone for Slot {
             generation: self.generation,
             counts: self.counts,
             written: self.written,
+            keys: self.keys.clone(),
         }
     }
 }
@@ -585,6 +590,7 @@ impl Slot {
             generation: Stamp::next(),
             counts: SlotCounts::default(),
             written: false,
+            keys: None,
         }
     }
 
@@ -596,6 +602,24 @@ impl Slot {
         self.row::<T>()?;
         self.touch();
         self.written = true;
+        self.keys = None;
+        self.row_mut::<T>()
+    }
+
+    /// `row_written` of a map row of which the kernel writes these keys alone (each set to the
+    /// row's value, or gone): the tree follows those keys when the world is given back, unless a
+    /// write of the whole row comes too.
+    #[track_caller]
+    pub fn row_keys_written<T: Row>(&mut self, keys: &[&str]) -> Result<&mut T> {
+        self.row::<T>()?;
+        self.touch();
+        if !self.written {
+            self.written = true;
+            self.keys = Some(Vec::with_capacity(keys.len()));
+        }
+        if let Some(known) = &mut self.keys {
+            known.extend(keys.iter().map(|key| Arc::from(*key)));
+        }
         self.row_mut::<T>()
     }
 
@@ -696,6 +720,29 @@ impl Slots {
         let row = ShardMut::try_map(slot, |slot| slot.row_written::<T>())?;
         self.any_written.store(true, Ordering::Relaxed);
         Ok(row)
+    }
+
+    /// `try_row_mut` of a map row of which the kernel writes these keys alone
+    /// (`Slot::row_keys_written`).
+    #[track_caller]
+    pub fn try_row_keys_mut<T: Row>(&self, name: &str, keys: &[&str]) -> Result<ShardMut<'_, T>> {
+        let slot = self.owned(name)?.try_borrow_mut()?;
+        let row = ShardMut::try_map(slot, |slot| slot.row_keys_written::<T>(keys))?;
+        self.any_written.store(true, Ordering::Relaxed);
+        Ok(row)
+    }
+
+    /// `take_written`, with the keys each slot's tree is to follow (`Slot::keys`): None for the
+    /// whole row.
+    pub fn take_written_keys(&mut self) -> Vec<(usize, Option<Vec<Arc<str>>>)> {
+        let written = self.take_written();
+        written
+            .into_iter()
+            .map(|index| {
+                let keys = self.by_name.get_index_mut(index).and_then(|(_, slot)| slot.get_mut().keys.take());
+                (index, keys)
+            })
+            .collect()
     }
 
     /// The indexes of the slots a kernel of the core wrote since the last call, in index order,

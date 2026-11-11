@@ -2190,24 +2190,6 @@ pub(crate) fn insert_entity<R: KeyedRow>(world: &Bound<'_, PyAny>, key: &Arc<str
     })
 }
 
-/// `del world.<field>[key]` of a rule: the row leaves now (the others keep their order), and its
-/// object gets its last values and leaves the map when the borrow ends. `KeyError(key)` as a dict
-/// says for a key it does not hold. While the kind's rows are tainted, the map's own `del` runs.
-pub(crate) fn remove_entity<R: KeyedRow>(world: &Bound<'_, PyAny>, key: &str) -> PyResult<()> {
-    let py = world.py();
-    let store = entities_of(world)?;
-    if store.get().is_tainted(py, R::KIND)? {
-        return world.getattr(R::FIELD)?.del_item(key);
-    }
-    EntityStore::with_rows(&store, |rows| {
-        if R::table(rows).remove_row(key) {
-            Ok(())
-        } else {
-            Err(PyKeyError::new_err(key.to_owned()))
-        }
-    })
-}
-
 /// The template of a rule that writes an entity: read and write the row; the object follows when
 /// the borrow ends. Used by the tests. Says Unsupported, before any change, for a tainted store or
 /// an unknown ID.

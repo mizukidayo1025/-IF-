@@ -115,7 +115,7 @@ fn on_shift_now(world: &Bound<'_, PyAny>, staff_id: &Bound<'_, PyAny>, minute: &
 /// `operation.get("phase") == "idle"` of a tainted `staff_operations_v1`, whose tree holds it (the
 /// core's `operation_is_idle` reads the row otherwise): what the rules of a task still write as a
 /// tree, until their lane writes the row.
-fn tree_operation_is_idle(world: &Bound<'_, PyAny>, id: &Bound<'_, PyString>) -> PyResult<bool> {
+pub(crate) fn tree_operation_is_idle(world: &Bound<'_, PyAny>, id: &Bound<'_, PyString>) -> PyResult<bool> {
     let py = world.py();
     let table = attribute(world, intern!(py, "model_state"))?;
     let Some(operations) = exact_dict(&table)?.get_item(intern!(py, "staff_operations_v1"))? else {
