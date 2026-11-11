@@ -11,24 +11,18 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString, PyTuple};
 use sheltersim_core::config::body::CareOutcome;
-use sheltersim_core::error::Error;
-use sheltersim_core::rules::kit::{self, Held, PRESENCE};
+use sheltersim_core::rules::kit::Held;
 use sheltersim_core::rules::support::{
-    self as core, Completion, Formula, Handler, Inputs, RequestService, SupportEvent, AFTER_UNREAD, COOLDOWN_UNREAD, NAMESPACE_IS_NONE, OTHER_DOCUMENT,
-    POLICY_UNREAD,
+    self as core, Completion, Formula, Handler, Inputs, SupportEvent, NAMESPACE_IS_NONE, OTHER_DOCUMENT,
 };
-
-pub(crate) use sheltersim_core::rules::support::PlannedRequest;
 
 use crate::core::configs;
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, namespace_is_absent};
 use crate::core::value::{VPy, V};
-use crate::core::world_core::{field_held, namespace_held, with_state_value, with_world, NamespaceMirror};
+use crate::core::world_core::{field_held, namespace_held, with_world};
 use crate::rules::care_receipts::{transition_record, PlannedTransition};
-use crate::rules::service::add_one;
 use crate::state::body_state::NAME as BODY;
-use crate::state::entities::{entities_of, EntityStore};
 use crate::state::events::{write_result, EventRef, EventWriter};
 use crate::state::shared_operations::NAME as SHARED;
 use crate::Unsupported;
@@ -236,85 +230,6 @@ pub(crate) fn selected_care_formula(world: &Bound<'_, PyAny>) -> PyResult<Option
 }
 
 // ---- A request, for `seek_help` and `seek_information` -----------------------------------------------
-
-/// `exact_int(service.<name>)` as the rule reads it.
-fn service_int(service: &Bound<'_, PyAny>, name: &Bound<'_, PyString>) -> PyResult<i64> {
-    exact_int(&attribute(service, name)?)
-}
-
-/// `exact_str(service.policy_version)` as the rule reads it.
-fn service_policy(service: &Bound<'_, PyAny>) -> PyResult<Arc<str>> {
-    Ok(Arc::from(exact_str(&attribute(service, intern!(service.py(), "policy_version"))?)?))
-}
-
-/// `StaffService.request`, without the world's whole validation, past the sequences the caller's
-/// writer reserved. The service's values are read first; one whose read raised is read again where
-/// the rule reads it, and raises there.
-pub(crate) fn plan_request(service: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, writer: &EventWriter<'_>, agent_id: &str, minute: i64) -> PyResult<PlannedRequest> {
-    let py = world.py();
-    let (after, cooldown) = (intern!(py, "unresolved_after_minutes"), intern!(py, "cooldown_minutes"));
-    let values = RequestService {
-        unresolved_after_minutes: service_int(service, after).ok(),
-        cooldown_minutes: service_int(service, cooldown).ok(),
-        policy_version: service_policy(service).ok(),
-    };
-    let reserved = writer.reserved();
-    match with_world(world, |cell| core::plan_request(cell, &values, reserved, agent_id, minute))? {
-        Err(Error::Unsupported(reason)) if reason == AFTER_UNREAD => service_int(service, after).and(Err(unread())),
-        Err(Error::Unsupported(reason)) if reason == COOLDOWN_UNREAD => service_int(service, cooldown).and(Err(unread())),
-        Err(Error::Unsupported(reason)) if reason == POLICY_UNREAD => service_policy(service).and(Err(unread())),
-        other => other.or_py(),
-    }
-}
-
-fn unread() -> PyErr {
-    pyo3::exceptions::PyRuntimeError::new_err("a value of the service read again did not raise")
-}
-
-/// The writes of `StaffService.request` for a request that opens.
-pub(crate) fn write_request(
-    world: &Bound<'_, PyAny>,
-    _writer: &EventWriter<'_>,
-    agent_id: &str,
-    minute: i64,
-    request_id: &Arc<str>,
-    timeout_minute: i64,
-    event: crate::state::events::EventRow,
-) -> PyResult<()> {
-    write_result(world.py(), with_world(world, |cell| core::write_request(cell, agent_id, minute, request_id, timeout_minute, event))?)
-}
-
-/// The writes of `StaffService.request` for a request closed at once. The person stays as they are.
-pub(crate) fn write_closed_request(
-    world: &Bound<'_, PyAny>,
-    _metrics: &Bound<'_, NamespaceMirror>,
-    agent_id: &str,
-    minute: i64,
-    request_id: &Arc<str>,
-    until: i64,
-) -> PyResult<()> {
-    let held = metric_state_held(world)?;
-    with_world(world, |cell| core::write_closed_request(cell, held, agent_id, minute, request_id, until))?.or_py()
-}
-
-/// `support_kind_for_agent`.
-pub(crate) fn support_kind_of(world: &Bound<'_, PyAny>, _writer: &EventWriter<'_>, agent_id: &str) -> PyResult<Arc<str>> {
-    with_world(world, |cell| core::support_kind_of(cell, agent_id))?.or_py()
-}
-
-/// `current_household_id` (`sheltersim_core::rules::kit::household_of`): the presence state read
-/// as a `V`, a detached one from its row, then the profile's group from the rows.
-pub(crate) fn household_of(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Option<Arc<str>>> {
-    if let Some(found) = with_state_value(world, PRESENCE, |presence| kit::presence_household(presence, agent_id).or_py())? {
-        return Ok(found);
-    }
-    EntityStore::with_rows(&entities_of(world)?, |rows| Ok(kit::group_of(rows, agent_id)))
-}
-
-/// The metric of a request the service turned down.
-pub(crate) fn add_rejected(metrics: &Bound<'_, NamespaceMirror>) -> PyResult<()> {
-    add_one(metrics, "support_request_rejected_count")
-}
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(assign_staff_support, m)?)?;

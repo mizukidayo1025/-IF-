@@ -15,7 +15,7 @@ use sheltersim_core::rules::common_operations::{self as operations, Receipt, REC
 
 pub(crate) use sheltersim_core::rules::care_receipts::{PlannedTransition, Transition};
 
-use crate::core::errors::{self, to_py_err, OrPy};
+use crate::core::errors::{to_py_err, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, namespace_is_absent, unsupported};
 use crate::core::world_core::{mirror_of, with_world};
 use crate::rules::common_operations::record;
@@ -63,21 +63,9 @@ fn shared_held(world: &Bound<'_, PyAny>) -> PyResult<()> {
 
 // ---- A care transition ------------------------------------------------------------------------------
 
-/// `make_care_transition_record` and the checks of `record_shared_operation`, with `sequence` for
-/// what `allocate_event_sequence` will give then.
-pub(crate) fn plan_transition(world: &Bound<'_, PyAny>, _writer: &EventWriter<'_>, transition: Transition, sequence: i64) -> PyResult<PlannedTransition> {
-    shared_held(world)?;
-    with_world(world, |world| core::plan_transition(world, transition, sequence))?.or_py()
-}
-
 /// The record of an allocated transition, and its receipt.
 pub(crate) fn record_transition(world: &Bound<'_, PyAny>, _writer: &EventWriter<'_>, planned: PlannedTransition) -> PyResult<()> {
     with_world(world, |world| core::record_transition(world, planned))?.map_err(|error| write_error(world.py(), error))
-}
-
-/// What `plan_transition` planned, with its sequence allocated now.
-pub(crate) fn write_transition(world: &Bound<'_, PyAny>, _writer: &EventWriter<'_>, planned: PlannedTransition) -> PyResult<()> {
-    with_world(world, |world| core::write_transition(world, planned))?.map_err(|error| write_error(world.py(), error))
 }
 
 /// The record of an allocated transition as Python's object, which the dispatcher then appends and
@@ -104,18 +92,6 @@ fn absent(world: &Bound<'_, PyAny>) -> PyResult<bool> {
         return unsupported("the namespace is None");
     }
     Ok(true)
-}
-
-/// `append_applied_care_transition` of a step past its first change, as its Python entry does it:
-/// nothing without the namespace, and a refusal is that entry's KernelRefusal.
-pub(crate) fn append_applied(world: &Bound<'_, PyAny>, transition: Transition) -> PyResult<()> {
-    let py = world.py();
-    let done = match absent(world) {
-        Ok(true) => Ok(()),
-        Ok(false) => append(world, transition),
-        Err(error) => Err(error),
-    };
-    done.map_err(|error| errors::kernel_refusal(py, "care_receipts.append_transition", error))
 }
 
 fn optional_text(value: Option<&Bound<'_, PyAny>>) -> PyResult<Option<Arc<str>>> {
@@ -166,11 +142,6 @@ fn append_transition<'py>(
             outcome: None,
         },
     )
-}
-
-/// `care_source_ids_for_agent`.
-pub(crate) fn source_ids_of(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Vec<Arc<str>>> {
-    with_world(world, |world| core::source_ids_of(world, agent_id))?.or_py()
 }
 
 // ---- ingest_applied_shared_operation_records ---------------------------------------------------------

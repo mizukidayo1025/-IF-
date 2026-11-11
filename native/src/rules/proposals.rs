@@ -1,571 +1,284 @@
-//! `_apply_effect` (`experiments/phases/propose.py`): what a decision does to the world before it is
-//! recorded.
+//! `_apply_effect` (`experiments/phases/propose.py`): the glue of the core's step
+//! (`sheltersim_core::rules::proposals`, lane P8 e1 of Issue #152).
 //!
-//! One call plans with nothing changed and then writes. The step has no Python body any more
-//! (segments.py, KERNEL_ONLY_SEGMENTS): what it doesn't take is refused before any write and becomes
-//! KernelRefusal, anything that isn't plainly what the Python step accepted
-//! (docs/rust-port/lanes/m4-service.md).
+//! The entry reads what only Python holds, by the proposal's action: the proposal's values, whether
+//! the world holds each namespace the action reaches, the configs' sections, the floor plan, the
+//! Run's router, the managers (a `request` a test set on one, the resource service's config), the
+//! staff service's values and the information policy's threshold. It runs the core on the world
+//! borrowed whole and makes the Python tuple of what comes back. A request (`seek_help`,
+//! `seek_information`) is written on one borrow, and then the LLM's hooks run through the native
+//! host (`Host::prioritize_support_request`, `Host::consider_support_request`) with nothing
+//! borrowed.
 //!
-//! A person who asks a queue at once (no trip to make, or an independent FIFO at their facility) goes
-//! through the queue's own kernel, which plans and writes in one and refuses before its first write:
-//! it runs last in the plan, after only the capacity waits the choice of the facility recorded. A
-//! person the water or meal queue turns down is recorded with the text the queue gives.
+//! A value whose read raised is read again where the core says the rule reads it, and raises
+//! there: the floor plan (`PLAN_UNREAD`), the resource service's manager (`MANAGER_UNREAD`), the
+//! staff service's values (`support::AFTER_UNREAD` and the others) and the information policy's
+//! threshold (`THRESHOLD_UNREAD`).
 
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use indexmap::IndexMap;
-use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDict, PyString, PyTuple};
+use pyo3::types::{PyBool, PyString, PyTuple};
+use sheltersim_core::config::movement::Movement;
+use sheltersim_core::config::population::AccessibilityNeeds;
+use sheltersim_core::rules::kit::{Held, Kept};
+use sheltersim_core::rules::proposals::{
+    self as core, Action, Applied, Asked, Information, Inputs, Proposal, Seek, Sleep, Trips, Walk, INFORMATION, MANAGER_UNREAD, THRESHOLD_UNREAD,
+};
+use sheltersim_core::rules::support::{RequestService, AFTER_UNREAD, COOLDOWN_UNREAD, NAMESPACE_IS_NONE, OTHER_DOCUMENT, POLICY_UNREAD};
 
-use crate::host::PyHost;
-use sheltersim_core::host::Host;
 use crate::core::configs;
-use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, namespace_is_absent, str_value, unsupported};
-use crate::core::tracked::as_readable_dict;
-use crate::core::value::V;
-use crate::core::tracked::is_detached;
-use crate::core::world_core::{mirror_of, raw_dict_get, NamespaceMirror, ValueRow};
-use crate::rules::care_receipts::{plan_transition, source_ids_of, write_transition, Transition};
-use crate::rules::facility_queues::has_independent;
-use crate::rules::movement::KEY;
-use crate::rules::movement_geometry::Pt;
-use crate::rules::overlay;
-use crate::rules::service::{self, add_one, append_outcome, metrics_of};
-use crate::rules::toilet;
-use crate::rules::social_dialogue::context_value;
-use crate::rules::care_receipts::append_applied;
-use crate::rules::support::{PlannedRequest, add_rejected, household_of, plan_request, support_kind_of, write_closed_request, write_request};
-use crate::rules::travel::{CapacityWait, PlannedTrip, Route, Selected, Trip, approach_route, plan_travel, rows_of, select_resource, select_toilet, write_capacity_wait, write_travel};
-use crate::state::entities::{entities_of, Activity, EntityStore};
-use crate::state::events::{EventKind, EventRow, EventWriter};
-use crate::state::resource_service::{held_mirror as service_mirror, RequestRecord};
-use sheltersim_core::config::body::social_interaction_minutes;
+use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, namespace_is_absent, unsupported};
+use crate::core::value::{VPy, V};
+use crate::core::world_core::{field_held, namespace_held, raw_dict_get, with_world, PyWorldCell};
+use crate::host::PyHost;
+use crate::rules::travel::{movement_held, movement_section, read_queue_rows, rows_of, staff_held, Plan, RunGraph};
+use crate::state::events::write_result;
+use crate::state::shared_operations::NAME as SHARED;
+use crate::Unsupported;
 
-
-const SHARED_OPERATIONS: &str = "shared_operations_v1";
-const INFORMATION: &str = "information_spread_v1";
 const OVERLAY_KEY: &str = "geometry_overlay_v1";
-const REJECTED_METRIC: &str = "resource_service_request_rejected_count";
-const TRAVEL_REJECTED_DETAIL: &str = "travel could not be scheduled within current limits";
-/// The schedule's priority of a person's own social action.
-const SOCIAL_PRIORITY: i64 = 35;
-const SOCIAL_POLICY: &str = "event-triggered-social-v2";
-const SOCIAL_SOURCE: &str = "ASM-EVENT-TRIGGERED-SOCIAL-INTERACTIONS-V1";
 
-/// The fixed strings of the event, each shared by all its rows.
-struct Names {
-    interaction_type: Arc<str>,
-    agent_id: Arc<str>,
-    participant_agent_id: Arc<str>,
-    conversation_state_context: Arc<str>,
-    zone_id: Arc<str>,
-    topic_id: Arc<str>,
-    action: Arc<str>,
-    reason_short: Arc<str>,
-    interaction_duration_minutes: Arc<str>,
-    source_type: Arc<str>,
-    source_id: Arc<str>,
-    policy_version: Arc<str>,
-    event_type: Arc<str>,
-    autonomous_need_choice: Arc<str>,
-    assumption: Arc<str>,
-    social_source: Arc<str>,
-    social_policy: Arc<str>,
-}
+// ---- What Python holds ----------------------------------------------------------------------------
 
-static NAMES: LazyLock<Names> = LazyLock::new(|| Names {
-    interaction_type: Arc::from("interaction_type"),
-    agent_id: Arc::from("agent_id"),
-    participant_agent_id: Arc::from("participant_agent_id"),
-    conversation_state_context: Arc::from("conversation_state_context"),
-    zone_id: Arc::from("zone_id"),
-    topic_id: Arc::from("topic_id"),
-    action: Arc::from("action"),
-    reason_short: Arc::from("reason_short"),
-    interaction_duration_minutes: Arc::from("interaction_duration_minutes"),
-    source_type: Arc::from("source_type"),
-    source_id: Arc::from("source_id"),
-    policy_version: Arc::from("policy_version"),
-    event_type: Arc::from("social_interaction"),
-    autonomous_need_choice: Arc::from("autonomous_need_choice"),
-    assumption: Arc::from("assumption"),
-    social_source: Arc::from(SOCIAL_SOURCE),
-    social_policy: Arc::from(SOCIAL_POLICY),
-});
-
-/// `interaction_data`: the interaction, its action and its topic.
-struct Interaction {
-    kind: &'static str,
-    action: &'static str,
-    topic: &'static str,
-}
-
-const SOCIALIZE: Interaction = Interaction { kind: "reassurance_exchange", action: "offer_reassurance", topic: "emotional_check_in" };
-const CARE_FAMILY: Interaction = Interaction { kind: "family_care", action: "provide_family_support", topic: "family_care" };
-const HELP_OTHERS: Interaction = Interaction { kind: "voluntary_support", action: "offer_practical_help", topic: "mutual_aid" };
-
-enum Effect {
-    /// `wait`, `rest`, or `sleep` without a bed: the activity to take, with no target.
-    Still(Activity),
-    Social(Interaction),
-    Toilet,
-    Resource(&'static str, &'static str),
-}
-
-/// What a trip action does, planned.
-struct TripEffect {
-    /// What `_route` records while the facility is chosen.
-    waits: Vec<CapacityWait>,
-    trip: Option<PlannedTrip>,
-    facility_id: Option<Arc<str>>,
-    /// The person is at the facility and asks its queue, with no trip.
-    at_once: bool,
-    /// The request's record: `(outcome, reason, detail)`.
-    outcome: Option<(&'static str, &'static str, Option<Arc<str>>)>,
-    rejected: bool,
-}
-
-/// A trip within the facility's zone, or to it.
-fn plan_facility_trip<'py>(
-    world: &Bound<'py, PyAny>,
-    writer: &EventWriter<'py>,
-    agent_id: &Arc<str>,
-    route: Route,
-    points: Vec<Pt>,
-    purpose: &'static str,
-    facility_id: &Arc<str>,
-    minute: i64,
-) -> PyResult<Option<PlannedTrip>> {
-    plan_travel(
-        world,
-        writer,
-        Trip {
-            agent_id: agent_id.clone(),
-            route,
-            points,
-            purpose,
-            facility_id: Some(facility_id.clone()),
-            minute,
-            causation_id: None,
-            support_request_id: None,
-            support_staff_id: None,
-        },
-    )
-}
-
-/// The `request_toilet` branch, changing nothing.
-fn plan_toilet<'py>(
-    controller: &Bound<'py, PyAny>,
-    world: &Bound<'py, PyAny>,
-    writer: &EventWriter<'py>,
-    agent_object: &Bound<'py, PyAny>,
-    agent_id: &Arc<str>,
-    zone_id: &Arc<str>,
-    minute: i64,
-) -> PyResult<TripEffect> {
-    let graph = rows_of(controller)?;
-    let mut effect = TripEffect { waits: Vec::new(), trip: None, facility_id: None, at_once: false, outcome: None, rejected: false };
-    let Selected::Found(facility_id, route) = select_toilet(world, &graph, writer, agent_object, &mut effect.waits)? else {
-        return Ok(effect);
-    };
-    effect.trip = if route.destination == *zone_id && has_independent(world, &facility_id)? {
-        effect.at_once = true;
-        None
-    } else if route.destination == *zone_id {
-        match approach_route(world, agent_id, &facility_id)? {
-            None => None,
-            Some((local, _)) if local.minutes <= 0 => {
-                effect.at_once = true;
-                None
-            }
-            Some((local, points)) => plan_facility_trip(world, writer, agent_id, local, points, "toilet_request", &facility_id, minute)?,
-        }
-    } else {
-        plan_facility_trip(world, writer, agent_id, route, Vec::new(), "toilet_request", &facility_id, minute)?
-    };
-    effect.facility_id = Some(facility_id);
-    Ok(effect)
-}
-
-/// The `fetch_water` and `collect_meal` branch, changing nothing.
-fn plan_resource<'py>(
-    controller: &Bound<'py, PyAny>,
-    world: &Bound<'py, PyAny>,
-    writer: &EventWriter<'py>,
-    agent_object: &Bound<'py, PyAny>,
-    agent_id: &Arc<str>,
-    zone_id: &Arc<str>,
-    kind: &str,
-    minute: i64,
-) -> PyResult<TripEffect> {
-    let graph = rows_of(controller)?;
-    let mut effect = TripEffect { waits: Vec::new(), trip: None, facility_id: None, at_once: false, outcome: None, rejected: false };
-    match select_resource(world, &graph, writer, agent_object, kind, &mut effect.waits)? {
-        Selected::NoFacility => {
-            effect.outcome = Some(("rejected", "no_facility", None));
-            effect.rejected = true;
-        }
-        Selected::NoRoute(facility_id) => {
-            effect.facility_id = Some(facility_id);
-            effect.outcome = Some(("rejected", "no_route", None));
-            effect.rejected = true;
-        }
-        Selected::Found(facility_id, route) => {
-            if route.destination == *zone_id && has_independent(world, &facility_id)? {
-                effect.at_once = true;
-            } else if route.destination == *zone_id {
-                match approach_route(world, agent_id, &facility_id)? {
-                    None => effect.outcome = Some(("rejected", "room_route_blocked", None)),
-                    Some((local, _)) if local.minutes <= 0 => effect.at_once = true,
-                    Some((local, points)) => {
-                        effect.trip = plan_facility_trip(world, writer, agent_id, local, points, "resource_request", &facility_id, minute)?;
-                        if effect.trip.is_some() {
-                            effect.outcome = Some(("travel_scheduled", "in_room_route_available", None));
-                        }
-                    }
-                }
-            } else {
-                effect.trip = plan_facility_trip(world, writer, agent_id, route, Vec::new(), "resource_request", &facility_id, minute)?;
-                if effect.trip.is_some() {
-                    effect.outcome = Some(("travel_scheduled", "route_available", None));
-                } else {
-                    effect.outcome = Some(("rejected", "travel_rejected", Some(Arc::from(TRAVEL_REJECTED_DETAIL))));
-                    effect.rejected = true;
-                }
-            }
-            effect.facility_id = Some(facility_id);
-        }
-    }
-    Ok(effect)
-}
-
-/// A method set on the manager (a test's patch) is not the queue's kernel: refused.
-fn own_request(manager: &Bound<'_, PyAny>) -> PyResult<()> {
+/// `"request" in manager.__dict__`: a method set on the manager (a test's patch) is not the queue's
+/// kernel.
+fn patched(manager: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = manager.py();
-    if raw_dict_get(&manager.getattr(intern!(py, "__dict__"))?, intern!(py, "request").as_any())?.is_some() {
-        return unsupported("the manager's request is another function");
+    Ok(raw_dict_get(&manager.getattr(intern!(py, "__dict__"))?, intern!(py, "request").as_any())?.is_some())
+}
+
+/// What `ResourceServiceManager.request` reads of the manager: its `config` dict, as values.
+fn manager_config(manager: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>) -> PyResult<IndexMap<Arc<str>, V>> {
+    let py = manager.py();
+    attribute(manager, intern!(py, "world"))?;
+    let config = attribute(manager, intern!(py, "config"))?;
+    exact_dict(&config)?;
+    exact_dict(&attribute(world, intern!(py, "model_state"))?)?;
+    match <V as VPy>::from_py(&config)? {
+        V::Map(config) => Ok(config),
+        _ => unsupported("the config is not a dict"),
     }
-    Ok(())
 }
 
-/// What `release_sleep_bed` deletes the person's reservation from.
-enum HeldBed<'py> {
-    /// The reservations of the overlay's tree.
-    Tree(Bound<'py, PyAny>),
-    /// The row of the detached overlay, which alone holds it.
-    Row(Bound<'py, NamespaceMirror>),
+/// `exact_int(service.<name>)` as the rule reads it.
+fn service_int(service: &Bound<'_, PyAny>, name: &Bound<'_, PyString>) -> PyResult<i64> {
+    exact_int(&attribute(service, name)?)
 }
 
-impl<'py> HeldBed<'py> {
-    fn release(&self, agent_id: &Bound<'py, PyAny>) -> PyResult<()> {
-        match self {
-            // Through the map's own method: the map is a tree's.
-            HeldBed::Tree(reservations) => reservations.del_item(agent_id),
-            HeldBed::Row(mirror) => {
-                let agent_id = exact_str(agent_id)?;
-                NamespaceMirror::with_row_tree::<ValueRow, _>(mirror, |row, _| {
-                    if let V::Map(state) = &mut row.0 {
-                        if let Some(V::Map(held)) = state.get_mut("bed_reservations") {
-                            held.shift_remove(agent_id);
-                        }
-                    }
-                    Ok(())
-                })
-            }
+/// `exact_str(service.policy_version)` as the rule reads it.
+fn service_policy(service: &Bound<'_, PyAny>) -> PyResult<Arc<str>> {
+    Ok(Arc::from(exact_str(&attribute(service, intern!(service.py(), "policy_version"))?)?))
+}
+
+/// `policy.config.query_threshold` as the rule reads it.
+fn threshold_of(policy: &Bound<'_, PyAny>) -> PyResult<f64> {
+    let py = policy.py();
+    exact_float(&attribute(&attribute(policy, intern!(py, "config"))?, intern!(py, "query_threshold"))?)
+}
+
+/// `shared_operations_v1` as the request takes it: absent from `model_state`, None there
+/// (`NAMESPACE_IS_NONE`), the slot's tree, or another document.
+fn shared_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
+    let py = world.py();
+    let key = PyString::intern(py, SHARED);
+    if namespace_is_absent(world, &key)? {
+        let table = attribute(world, intern!(py, "model_state"))?;
+        return Ok(if exact_dict(&table)?.contains(&key)? { Held::Other(NAMESPACE_IS_NONE) } else { Held::Absent });
+    }
+    namespace_held(world, &key, OTHER_DOCUMENT)
+}
+
+/// What the step reads of the Python world for a trip action, owned here and lent to the core.
+struct TripsIn {
+    plan: Plan,
+    section: Kept<Movement>,
+    movement: Held,
+    staff: Held,
+    graph: RunGraph,
+    knows: Kept<bool>,
+    queues: Held,
+    needs: Kept<AccessibilityNeeds>,
+    patched: bool,
+    /// The resource service's config, or what reading it raised; None for the toilet.
+    config: Option<PyResult<IndexMap<Arc<str>, V>>>,
+    service: Held,
+    ledger: Held,
+}
+
+/// What the step reads of the Python world for `sleep`.
+struct SleepIn {
+    plan: Plan,
+    section: Kept<Movement>,
+    movement: Held,
+    schema: Kept<Option<i64>>,
+}
+
+/// What the step reads of the Python world, by the action.
+struct Read {
+    overlay: Held,
+    metric_state_held: bool,
+    social_minutes: Option<i64>,
+    sleep: Option<SleepIn>,
+    trips: Option<TripsIn>,
+    seek: Option<Seek>,
+}
+
+impl Read {
+    fn of(controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, action: Action) -> PyResult<Self> {
+        let py = world.py();
+        let overlay = namespace_held(world, intern!(py, OVERLAY_KEY), "the world holds another overlay state")?;
+        let metric_state_held = field_held(world, intern!(py, "metric_state"))?;
+        let social_minutes = if action.is_social() {
+            Some(*configs::kept_value(world, |configs| &configs.social_interaction_minutes, sheltersim_core::config::body::social_interaction_minutes)?)
+        } else {
+            None
+        };
+        let sleep = if action == Action::Sleep {
+            Some(SleepIn { plan: Plan::of(world), section: movement_section(world)?, movement: movement_held(world)?, schema: crate::rules::overlay::schema_of(world)? })
+        } else {
+            None
+        };
+        let trips = if action.trips() { trips_of(controller, world, action)? } else { None };
+        let seek = if action.seeks() { Some(seek_of(controller, world)?) } else { None };
+        Ok(Self { overlay, metric_state_held, social_minutes, sleep, trips, seek })
+    }
+
+    fn inputs(&self) -> Inputs<'_> {
+        Inputs {
+            overlay: self.overlay.clone(),
+            metric_state_held: self.metric_state_held,
+            social_minutes: self.social_minutes,
+            sleep: self.sleep.as_ref().map(|sleep| Sleep {
+                walk: Walk { movement: sleep.movement.clone(), section: &sleep.section, geo: sleep.plan.get() },
+                schema: &sleep.schema,
+            }),
+            trips: self.trips.as_ref().map(|trips| Trips {
+                walk: Walk { movement: trips.movement.clone(), section: &trips.section, geo: trips.plan.get() },
+                staff: trips.staff.clone(),
+                graph: &trips.graph,
+                knows: &trips.knows,
+                queues: trips.queues.clone(),
+                needs: &trips.needs,
+                asked: match &trips.config {
+                    None => Asked::Toilet { patched: trips.patched },
+                    Some(config) => Asked::Resource { patched: trips.patched, config: config.as_ref().ok(), service: trips.service.clone(), ledger: trips.ledger.clone() },
+                },
+            }),
+            seek: self.seek.as_ref().map(|seek| Seek {
+                service: seek.service.clone(),
+                shared: seek.shared.clone(),
+                information: seek.information.as_ref().map(|information| Information { threshold: information.threshold, held: information.held.clone() }),
+            }),
         }
     }
-}
 
-/// `release_sleep_bed`, not done yet: where to delete from, if the person has a reservation. A
-/// detached overlay is read from its row, building no tree.
-fn held_bed<'py>(world: &Bound<'py, PyAny>, agent_id: &Bound<'py, PyAny>) -> PyResult<Option<HeldBed<'py>>> {
-    let py = world.py();
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let Some(state) = exact_dict(&table)?.get_item(OVERLAY_KEY)? else {
-        return Ok(None);
-    };
-    if is_detached(&state) {
-        let agent = exact_str(agent_id)?;
-        let mirror = mirror_of(world, OVERLAY_KEY)?;
-        let holds = NamespaceMirror::with_value(&mirror, |state| {
-            let V::Map(fields) = state else {
-                return unsupported("the overlay is not a plain dict");
-            };
-            match fields.get("bed_reservations") {
-                None => Ok(false),
-                Some(V::Map(held)) => Ok(held.contains_key(agent)),
-                Some(_) => unsupported("the bed reservations are not a plain dict"),
-            }
-        })?;
-        return Ok(holds.then_some(HeldBed::Row(mirror)));
+    /// The floor plan the action read, if any.
+    fn plan(&self) -> Option<&Plan> {
+        self.sleep.as_ref().map(|sleep| &sleep.plan).or(self.trips.as_ref().map(|trips| &trips.plan))
     }
-    let Some(fields) = as_readable_dict(&state) else {
-        return unsupported("the overlay is not a plain dict");
-    };
-    let Some(reservations) = fields.get_item(intern!(py, "bed_reservations"))? else {
-        return Ok(None);
-    };
-    let Some(held) = as_readable_dict(&reservations) else {
-        return unsupported("the bed reservations are not a plain dict");
-    };
-    Ok(if raw_dict_get(held.as_any(), agent_id)?.is_some() { Some(HeldBed::Tree(reservations)) } else { None })
 }
 
-/// What `sleep` does beside the activity, planned.
-enum SleepPlan<'py> {
-    /// A walk to the bed, with the reservation the person takes.
-    Walk(overlay::Bed, Box<PlannedTrip>, EventWriter<'py>),
-    /// The person is at the bed.
-    Stay(overlay::Bed),
-    /// No trip could be scheduled: what the person held is released.
-    NoRoom(Option<HeldBed<'py>>),
-}
-
-/// The `sleep` branch, changing nothing. None for no bed.
-fn plan_sleep<'py>(
-    world: &Bound<'py, PyAny>,
-    agent_object: &Bound<'py, PyAny>,
-    agent_id: &str,
-    zone_id: &Arc<str>,
-) -> PyResult<Option<SleepPlan<'py>>> {
+/// What `request_toilet`, `fetch_water` and `collect_meal` read: None for a resource action without
+/// a resource service, which reads nothing more.
+fn trips_of(controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, action: Action) -> PyResult<Option<TripsIn>> {
     let py = world.py();
-    let Some(bed) = overlay::plan_bed(world, agent_id)? else {
-        return Ok(None);
-    };
-    if bed.travel_minutes <= 0 {
-        return Ok(Some(SleepPlan::Stay(bed)));
-    }
-    let writer = EventWriter::of(world)?;
-    let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
-    let route = Route {
-        origin: zone_id.clone(),
-        destination: zone_id.clone(),
-        zone_ids: vec![zone_id.clone(), zone_id.clone()],
-        edge_ids: Vec::new(),
-        minutes: bed.travel_minutes,
-    };
-    let trip = plan_travel(
-        world,
-        &writer,
-        Trip {
-            agent_id: Arc::from(agent_id),
-            route,
-            points: bed.path.to_vec(),
-            purpose: "sleep_bed",
-            facility_id: None,
-            minute,
-            causation_id: None,
-            support_request_id: None,
-            support_staff_id: None,
-        },
-    )?;
-    Ok(Some(match trip {
-        Some(trip) => SleepPlan::Walk(bed, Box::new(trip), writer),
-        None => {
-            SleepPlan::NoRoom(held_bed(world, agent_object)?)
+    let resource = action.resource().is_some();
+    let manager = if resource {
+        let manager = attribute(controller, intern!(py, "resource_service"))?;
+        if manager.is_none() {
+            return Ok(None);
         }
+        manager
+    } else {
+        attribute(controller, intern!(py, "toilet_service"))?
+    };
+    let graph = rows_of(controller)?;
+    let knows = configs::kept_section(world, |configs| &configs.knowledge_is_limited, sheltersim_core::config::agent_dynamics::knowledge_is_limited)?;
+    // The rows of the events Python scheduled, for the core's reads of the whole queue (the edge
+    // loads, the pending reservations).
+    if graph.capacities.any || resource {
+        read_queue_rows(world)?;
+    }
+    let config = if resource { Some(manager_config(&manager, world)) } else { None };
+    Ok(Some(TripsIn {
+        plan: Plan::of(world),
+        section: movement_section(world)?,
+        movement: movement_held(world)?,
+        staff: staff_held(world)?,
+        graph,
+        knows,
+        queues: crate::state::facility_queues::held(world)?,
+        needs: configs::kept_section(world, |configs| &configs.accessibility_needs, AccessibilityNeeds::parse)?,
+        patched: patched(&manager)?,
+        config,
+        service: namespace_held(world, intern!(py, "resource_service_v1"), "the world holds another service state")?,
+        ledger: namespace_held(world, intern!(py, "resource_ledger_v1"), "the world holds another ledger")?,
     }))
 }
 
-/// `position.update(...)` of a person already at their bed: on the row of a detached namespace
-/// (`movement::place_at_point`, over `sheltersim_core::rules::kit::place_in_bed`), else through the
-/// tree, which tells the row.
-pub(crate) fn place_in_bed(world: &Bound<'_, PyAny>, agent_object: &Bound<'_, PyAny>, bed: &overlay::Bed, zone_id: &Arc<str>) -> PyResult<()> {
+/// What `seek_help` and `seek_information` read. A value whose read raised is read again where the
+/// core says the rule reads it.
+fn seek_of(controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>) -> PyResult<Seek> {
     let py = world.py();
-    // A detached namespace's row takes the place, as the tree's record would.
-    if let Some(agent_id) = str_value(agent_object) {
-        if crate::rules::movement::place_at_point(world, agent_id, zone_id, bed.point)?.is_some() {
-            return Ok(());
-        }
-    }
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let Some(movement) = exact_dict(&table)?.get_item(KEY)? else {
-        return Ok(());
+    let service = attribute(controller, intern!(py, "staff_service"))?;
+    let policy = attribute(controller, intern!(py, "information_policy"))?;
+    let information = if policy.is_none() {
+        None
+    } else {
+        Some(Information {
+            threshold: threshold_of(&policy).ok(),
+            held: namespace_held(world, intern!(py, INFORMATION), "the information state is for the Python rule")?,
+        })
     };
-    let Some(positions) = exact_dict(&movement)?.get_item(intern!(py, "positions"))? else {
-        return Ok(());
-    };
-    let Some(position) = exact_dict(&positions)?.get_item(agent_object)? else {
-        return Ok(());
-    };
-    if as_readable_dict(&position).is_none() {
-        return Ok(());
-    }
-    let point = PyDict::new(py);
-    point.set_item(intern!(py, "x"), bed.point.x)?;
-    point.set_item(intern!(py, "y"), bed.point.y)?;
-    let fields = PyDict::new(py);
-    fields.set_item(intern!(py, "zone_id"), &**zone_id)?;
-    fields.set_item(intern!(py, "point"), point)?;
-    fields.set_item(intern!(py, "edge_id"), py.None())?;
-    fields.set_item(intern!(py, "progress"), 1.0)?;
-    fields.set_item(intern!(py, "position_kind"), "physical")?;
-    position.call_method1(intern!(py, "update"), (fields,))?;
-    Ok(())
+    Ok(Seek {
+        service: RequestService {
+            unresolved_after_minutes: service_int(&service, intern!(py, "unresolved_after_minutes")).ok(),
+            cooldown_minutes: service_int(&service, intern!(py, "cooldown_minutes")).ok(),
+            policy_version: service_policy(&service).ok(),
+        },
+        shared: shared_held(world)?,
+        information,
+    })
 }
 
-/// The `seek_help` and `seek_information` branch of `_apply_effect`. What the LLM's hooks and the
-/// information policy do goes through their Python, where the step calls them, with no borrow held.
-fn apply_seek<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound<'py, PyAny>, seek_help: bool) -> PyResult<Bound<'py, PyTuple>> {
+/// The core's refusal of a value whose read raised, as what reading it again raises.
+fn read_again<T>(controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, read: &Read, result: PyResult<T>) -> PyResult<T> {
     let py = controller.py();
-    let world = attribute(controller, intern!(py, "world"))?;
-    let agent_object = attribute(proposal, intern!(py, "agent_id"))?;
-    let agent_id = exact_str(&agent_object)?;
-    let next = exact_int(&attribute(proposal, intern!(py, "next_decision_at"))?)?;
-    let store = entities_of(&world)?;
-    let table_object = attribute(&world, intern!(py, "model_state"))?;
-    let table = exact_dict(&table_object)?;
-    let agents = attribute(&world, intern!(py, "agents"))?;
-    let Some(_) = raw_dict_get(&agents, &agent_object)? else {
-        return unsupported("no such agent");
+    let result = match read.plan() {
+        Some(plan) => plan.finish(py, result),
+        None => result,
     };
-    let service_object = attribute(controller, intern!(py, "staff_service"))?;
-    let minute = exact_int(&attribute(&world, intern!(py, "minute_index"))?)?;
-    let writer = EventWriter::of(&world)?;
-    let metrics = metrics_of(&world)?;
-    let bed = held_bed(&world, &agent_object)?;
-    let planned = plan_request(&service_object, &world, &writer, agent_id, minute)?;
-    let mut care = None;
-    let mut interrupted = None;
-    let mut pressure_due = false;
-    let opened = match &planned {
-        PlannedRequest::Opens { request_id, event, .. } => Some((request_id, event.sequence + 1)),
-        PlannedRequest::Closes { request_id, .. } => Some((request_id, writer.next_sequence()?)),
-        PlannedRequest::Rejected => None,
+    let Err(error) = result else {
+        return result;
     };
-    if let Some((request_id, sequence)) = opened {
-        if seek_help && !namespace_is_absent(&world, intern!(py, SHARED_OPERATIONS))? {
-            let transition = |status| -> PyResult<Transition> {
-                Ok(Transition {
-                    request_id: request_id.clone(),
-                    agent_id: Arc::from(agent_id),
-                    household_id: household_of(&world, agent_id)?,
-                    support_kind: support_kind_of(&world, &writer, agent_id)?,
-                    status,
-                    staff_id: None,
-                    causation_id: None,
-                    source_ids: source_ids_of(&world, agent_id)?,
-                    outcome: None,
-                })
-            };
-            care = Some(plan_transition(&world, &writer, transition("requested")?, sequence)?);
-            if matches!(planned, PlannedRequest::Closes { .. }) {
-                interrupted = Some(transition("interrupted")?);
-            }
-        } else if seek_help && table.contains(intern!(py, SHARED_OPERATIONS))? {
-            return unsupported("the namespace is None");
-        }
-        let policy = attribute(controller, intern!(py, "information_policy"))?;
-        if !policy.is_none() {
-            pressure_due = !seek_help || query_pressure_is_high(&world, table, &policy, agent_id)?;
-        }
+    if !error.is_instance_of::<Unsupported>(py) {
+        return Err(error);
     }
-
-    // Write. Nothing below refuses.
-    if let Some(reservations) = bed {
-        reservations.release(&agent_object)?;
-    }
-    EntityStore::with_rows(&store, |rows| {
-        let Some(row) = rows.agents.get_mut(agent_id) else {
-            return unsupported("the rows have no such agent");
-        };
-        row.next_decision_at = next;
-        Ok(())
-    })?;
-    let (request_id, is_open) = match planned {
-        PlannedRequest::Rejected => {
-            add_rejected(&metrics)?;
-            return PyTuple::new(py, [py.None().into_bound(py), next.into_pyobject(py)?.into_any(), PyBool::new(py, false).to_owned().into_any()]);
-        }
-        PlannedRequest::Opens { request_id, timeout_minute, event } => {
-            write_request(&world, &writer, agent_id, minute, &request_id, timeout_minute, event)?;
-            (request_id, true)
-        }
-        PlannedRequest::Closes { request_id, until } => {
-            write_closed_request(&world, &metrics, agent_id, minute, &request_id, until)?;
-            (request_id, false)
-        }
+    let reason = error.value(py).to_string();
+    let again = match reason.as_str() {
+        MANAGER_UNREAD => manager_config(&attribute(controller, intern!(py, "resource_service"))?, world).map(drop),
+        AFTER_UNREAD => service_int(&attribute(controller, intern!(py, "staff_service"))?, intern!(py, "unresolved_after_minutes")).map(drop),
+        COOLDOWN_UNREAD => service_int(&attribute(controller, intern!(py, "staff_service"))?, intern!(py, "cooldown_minutes")).map(drop),
+        POLICY_UNREAD => service_policy(&attribute(controller, intern!(py, "staff_service"))?).map(drop),
+        THRESHOLD_UNREAD => threshold_of(&attribute(controller, intern!(py, "information_policy"))?).map(drop),
+        _ => return Err(error),
     };
-    if let Some(care) = care {
-        write_transition(&world, &writer, care)?;
-    }
-    let request_text = PyString::new(py, &request_id);
-    let after = (|| -> PyResult<()> {
-        if let Some(interrupted) = interrupted {
-            append_applied(&world, interrupted)?;
-        }
-        if pressure_due {
-            let kwargs = PyDict::new(py);
-            kwargs.set_item(intern!(py, "agent_id"), &agent_object)?;
-            kwargs.set_item(intern!(py, "request_id"), &request_text)?;
-            kwargs.set_item(intern!(py, "minute"), minute)?;
-            // A detached namespace's row takes the record; its tree is rebuilt only for the
-            // Python rule's KeyError.
-            let recorded = match crate::rules::information::detached_mirror(&world)? {
-                Some(mirror) => crate::rules::information::record_support_request(&mirror, agent_id, &request_id, minute)?,
-                None => false,
-            };
-            if !recorded {
-                let state = crate::core::world_core::attached_state(table.as_any(), INFORMATION)?
-                    .ok_or_else(|| PyRuntimeError::new_err("no information state"))?;
-                attribute(controller, intern!(py, "information_policy"))?.call_method(intern!(py, "record_support_request"), (state,), Some(&kwargs))?;
-            }
-        }
-        if !is_open {
-            return Ok(());
-        }
-        if !attribute(controller, intern!(py, "llm_router"))?.is_none() {
-            controller.call_method1(intern!(py, "_prioritize_support_request"), (&request_text, proposal))?;
-        }
-        let social = attribute(controller, intern!(py, "social_policy"))?;
-        if !social.is_none() {
-            // `social_policy.consider_support_request(world, agent_id=, request_id=)`.
-            PyHost::of_controller(controller)?.consider_support_request(agent_id, &request_id).map_err(|error| error.0)?;
-        }
-        Ok(())
-    })();
-    match after {
-        Ok(()) => {}
-        // `except ValueError` of the step, around all of the above.
-        Err(error) if error.is_instance_of::<PyValueError>(py) => add_rejected(&metrics_of(&world)?)?,
-        Err(error) => return Err(error),
-    }
-    // The person now seeks help: their activity has changed unless they were already, which the
-    // service does not let them.
-    let next_now = EntityStore::with_rows(&entities_of(&world)?, |rows| Ok(rows.agents.get(agent_id).map(|row| row.next_decision_at)))?;
-    let next_now = next_now.ok_or_else(|| PyRuntimeError::new_err("the person has gone"))?;
-    // A request closed at once did not commit the decision.
-    PyTuple::new(py, [request_text.into_any(), next_now.into_pyobject(py)?.into_any(), PyBool::new(py, is_open).to_owned().into_any()])
+    again?;
+    Err(pyo3::exceptions::PyRuntimeError::new_err("a value read again did not raise"))
 }
 
-/// `model_state[INFORMATION]["query_pressure"][agent] >= policy.config.query_threshold`.
-fn query_pressure_is_high(world: &Bound<'_, PyAny>, table: &Bound<'_, PyDict>, policy: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<bool> {
-    let py = table.py();
-    let threshold = exact_float(&attribute(&attribute(policy, intern!(py, "config"))?, intern!(py, "query_threshold"))?)?;
-    if let Some(mirror) = crate::rules::information::detached_mirror(world)? {
-        return match crate::rules::information::row_query_pressure(&mirror, agent_id)? {
-            Some(pressure) => Ok(pressure >= threshold),
-            None => unsupported("the person has no query pressure"),
-        };
-    }
-    let Some(state) = table.get_item(intern!(py, INFORMATION))? else {
-        return unsupported("no information state");
+// ---- The step -------------------------------------------------------------------------------------
+
+/// `(target_id, next_decision_at, committed)`.
+fn applied_tuple<'py>(py: Python<'py>, applied: Applied) -> PyResult<Bound<'py, PyTuple>> {
+    let target = match &applied.target {
+        Some(target) => PyString::new(py, target).into_any(),
+        None => py.None().into_bound(py),
     };
-    let Some(state) = as_readable_dict(&state) else {
-        return unsupported("the information state is for the Python rule");
-    };
-    let Some(pressures) = state.get_item(intern!(py, "query_pressure"))? else {
-        return unsupported("no query pressure");
-    };
-    let Some(pressures) = as_readable_dict(&pressures) else {
-        return unsupported("the query pressure is for the Python rule");
-    };
-    let Some(pressure) = pressures.get_item(agent_id)? else {
-        return unsupported("the person has no query pressure");
-    };
-    Ok(exact_float(&pressure)? >= threshold)
+    PyTuple::new(py, [target, applied.next_decision_at.into_pyobject(py)?.into_any(), PyBool::new(py, applied.committed).to_owned().into_any()])
 }
 
 /// `_apply_effect`: the target, the next decision, and whether the decision committed.
@@ -574,247 +287,39 @@ pub(crate) fn apply_effect<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound
     let py = controller.py();
     let action = attribute(proposal, intern!(py, "action"))?;
     let action = attribute(&action, intern!(py, "_value_"))?;
-    let action = exact_str(&action)?;
-    let effect = match action {
-        "wait" => Effect::Still(Activity::Idle),
-        "rest" => Effect::Still(Activity::Resting),
-        "sleep" => Effect::Still(Activity::Sleeping),
-        "socialize" => Effect::Social(SOCIALIZE),
-        "care_family" => Effect::Social(CARE_FAMILY),
-        "help_others" => Effect::Social(HELP_OTHERS),
-        "request_toilet" => Effect::Toilet,
-        "fetch_water" => Effect::Resource("water_station", "fetch_water"),
-        "collect_meal" => Effect::Resource("meal_distribution", "collect_meal"),
-        "seek_help" | "seek_information" => return apply_seek(controller, proposal, action == "seek_help"),
-        _ => return unsupported("an action unknown here"),
+    let Some(action) = Action::parse(exact_str(&action)?) else {
+        return unsupported("an action unknown here");
     };
     let world = attribute(controller, intern!(py, "world"))?;
-    let agent_object = attribute(proposal, intern!(py, "agent_id"))?;
-    let agent_id = exact_str(&agent_object)?;
-    let planned_next = exact_int(&attribute(proposal, intern!(py, "next_decision_at"))?)?;
-    let store = entities_of(&world)?;
-    let table_object = attribute(&world, intern!(py, "model_state"))?;
-    exact_dict(&table_object)?;
-    let agents = attribute(&world, intern!(py, "agents"))?;
-    let Some(_) = raw_dict_get(&agents, &agent_object)? else {
-        return unsupported("no such agent");
-    };
-    let (zone_id, own_id, _, _) = EntityStore::with_rows(&store, |rows| {
-        let Some(agent) = rows.agents.get(agent_id) else {
-            return unsupported("the rows have no such agent");
-        };
-        Ok((agent.zone_id.clone(), agent.profile.id.clone(), agent.activity, agent.target_id.is_some()))
-    })?;
-
-    // Plan.
-    let bed = if action == "sleep" { None } else { held_bed(&world, &agent_object)? };
-    let sleep = if action == "sleep" { plan_sleep(&world, &agent_object, agent_id, &zone_id)? } else { None };
-    let mut social: Option<(EventRow, EventWriter<'py>, Arc<str>, i64)> = None;
-    if let Effect::Social(interaction) = &effect {
-        let minutes = *configs::kept_value(&world, |configs| &configs.social_interaction_minutes, social_interaction_minutes)?;
-        let minute = exact_int(&attribute(&world, intern!(py, "minute_index"))?)?;
-        let duration = exact_int(&attribute(&world, intern!(py, "duration_minutes"))?)?;
-        let Some(due) = minute.checked_add(minutes) else {
-            return unsupported("a due minute out of range");
-        };
+    let agent_id: Arc<str> = Arc::from(exact_str(&attribute(proposal, intern!(py, "agent_id"))?)?);
+    let next_decision_at = exact_int(&attribute(proposal, intern!(py, "next_decision_at"))?)?;
+    exact_dict(&attribute(&world, intern!(py, "model_state"))?)?;
+    let read = Read::of(controller, &world, action)?;
+    let target_id = if action.is_social() {
         let target = attribute(proposal, intern!(py, "target_id"))?;
-        let participant = if target.is_none() { None } else { Some(Arc::<str>::from(exact_str(&target)?)) };
-        let meets = EntityStore::with_rows(&store, |rows| {
-            let Some(id) = &participant else {
-                return Ok(None);
-            };
-            Ok(rows.agents.get(id).map(|row| (row.profile.id.clone(), row.zone_id.clone())))
-        })?;
-        if let Some((participant_id, participant_zone)) = meets {
-            if participant_id != own_id && participant_zone == zone_id && due < duration {
-                let writer = EventWriter::of(&world)?;
-                let sequence = writer.next_sequence()?;
-                let event_id: Arc<str> = Arc::from(format!("autonomous-social-action-{sequence}"));
-                {
-                    if writer.is_taken(&event_id, Some(sequence))? {
-                        return unsupported("the event's identity is taken");
-                    }
-                }
-                let names = &*NAMES;
-                let mut payload = IndexMap::with_capacity(9);
-                payload.insert(names.interaction_type.clone(), V::Str(Arc::from(interaction.kind)));
-                payload.insert(names.agent_id.clone(), V::Str(own_id.clone()));
-                payload.insert(names.participant_agent_id.clone(), V::Str(participant_id.clone()));
-                payload.insert(names.conversation_state_context.clone(), context_value(&world, &own_id, &participant_id)?);
-                payload.insert(names.zone_id.clone(), V::Str(zone_id.clone()));
-                payload.insert(names.topic_id.clone(), V::Str(Arc::from(interaction.topic)));
-                payload.insert(names.action.clone(), V::Str(Arc::from(interaction.action)));
-                payload.insert(names.reason_short.clone(), V::Str(names.autonomous_need_choice.clone()));
-                payload.insert(names.interaction_duration_minutes.clone(), V::Int(minutes));
-                let mut provenance = IndexMap::with_capacity(3);
-                provenance.insert(names.source_type.clone(), V::Str(names.assumption.clone()));
-                provenance.insert(names.source_id.clone(), V::Str(names.social_source.clone()));
-                provenance.insert(names.policy_version.clone(), V::Str(names.social_policy.clone()));
-                let Some(event) = EventRow::new(
-                    event_id,
-                    EventKind::Endogenous,
-                    due,
-                    SOCIAL_PRIORITY,
-                    sequence,
-                    names.event_type.clone(),
-                    payload,
-                    Some(names.social_policy.clone()),
-                    None,
-                    provenance,
-                ) else {
-                    return unsupported("the event's values are not what an event takes");
-                };
-                social = Some((event, writer, participant_id, due));
-            }
-        }
-    }
-
-    let mut trip_effect = None;
-    if matches!(effect, Effect::Toilet | Effect::Resource(..)) {
-        let writer = EventWriter::of(&world)?;
-        let minute = exact_int(&attribute(&world, intern!(py, "minute_index"))?)?;
-        let agent_arc: Arc<str> = Arc::from(agent_id);
-        let planned = match &effect {
-            Effect::Toilet => plan_toilet(controller, &world, &writer, &agent_object, &agent_arc, &zone_id, minute)?,
-            Effect::Resource(kind, _) => {
-                if attribute(controller, intern!(py, "resource_service"))?.is_none() {
-                    TripEffect { waits: Vec::new(), trip: None, facility_id: None, at_once: false, outcome: None, rejected: true }
-                } else {
-                    plan_resource(controller, &world, &writer, &agent_object, &agent_arc, &zone_id, kind, minute)?
-                }
-            }
-            _ => return unsupported("not a trip"),
-        };
-        let held = if planned.outcome.is_some() { Some(service_mirror(&world)?) } else { None };
-        let metrics = if planned.rejected { Some(metrics_of(&world)?) } else { None };
-        trip_effect = Some((planned, writer, held, metrics, minute));
-    }
-    // A capacity wait comes before the queue's own events: `_route` recorded it while the facility
-    // was chosen, and its sequence is only reserved. Before a request at once it is written here,
-    // so the queue's kernel takes the next sequences. That kernel's refusal then leaves the wait
-    // written, which no Python step could undo; the step has none (segments.py), so it fails.
-    if let Some((planned, writer, ..)) = trip_effect.as_mut() {
-        if planned.at_once {
-            for wait in planned.waits.drain(..) {
-                write_capacity_wait(&world, writer, wait)?;
-            }
-        }
-    }
-    // The queue's kernel, which writes all it does or refuses having written nothing. It reads
-    // nothing that the writes below change.
-    if let Some((planned, _, held, metrics, _)) = trip_effect.as_mut() {
-        if let (true, Some(facility_id)) = (planned.at_once, planned.facility_id.clone()) {
-            let facility = PyString::new(py, &facility_id);
-            match &effect {
-                Effect::Toilet => {
-                    own_request(&attribute(controller, intern!(py, "toilet_service"))?)?;
-                    toilet::queue_up(&world, &agent_object, facility.as_any(), None)?;
-                }
-                _ => {
-                    let manager = attribute(controller, intern!(py, "resource_service"))?;
-                    own_request(&manager)?;
-                    // Read before the request, which may write the task counter and then turn the
-                    // person down.
-                    let rows = (service_mirror(&world)?, metrics_of(&world)?);
-                    if let Err(text) = service::queue_up_or_refusal(&manager, &agent_object, facility.as_any())? {
-                        // `except ValueError as exc`: the record says why, with `str(exc)`, and the
-                        // person is not at the facility's queue.
-                        planned.at_once = false;
-                        planned.outcome = Some(("rejected", "request_rejected", Some(Arc::from(text))));
-                        planned.rejected = true;
-                        *held = Some(rows.0);
-                        *metrics = Some(rows.1);
-                    }
-                }
-            }
-        }
-    }
-
-    // Write. Nothing below refuses.
-    if let Some(reservations) = bed {
-        // Through the map's own method: the map may be a tree's.
-        reservations.release(&agent_object)?;
-    }
-    let next = social.as_ref().map_or(planned_next, |(.., due)| *due);
-    let walks_to_bed = matches!(&sleep, Some(SleepPlan::Walk(..)));
-    let still = match effect {
-        Effect::Still(activity) if !walks_to_bed => Some(activity),
-        _ => None,
+        if target.is_none() { None } else { Some(Arc::from(exact_str(&target)?)) }
+    } else {
+        None
     };
-    EntityStore::with_rows(&store, |rows| {
-        let Some(row) = rows.agents.get_mut(agent_id) else {
-            return unsupported("the rows have no such agent");
-        };
-        row.next_decision_at = next;
-        if let Some(activity) = still {
-            row.activity = activity;
-            row.target_id = None;
-        }
-        Ok(())
-    })?;
-    let mut target = match social {
-        Some((event, writer, participant_id, _)) => {
-            writer.allocate_sequence()?;
-            writer.schedule(event)?;
-            PyString::new(py, &participant_id).into_any()
-        }
-        None => py.None().into_bound(py),
-    };
-    match sleep {
-        None => {}
-        Some(SleepPlan::Walk(bed, trip, writer)) => {
-            overlay::write_bed(&world, agent_id, &bed)?;
-            write_travel(&world, &writer, *trip)?;
-            target = PyString::new(py, &bed.target_id).into_any();
-        }
-        Some(SleepPlan::Stay(bed)) => {
-            overlay::write_bed(&world, agent_id, &bed)?;
-            place_in_bed(&world, &agent_object, &bed, &zone_id)?;
-            target = PyString::new(py, &bed.target_id).into_any();
-        }
-        Some(SleepPlan::NoRoom(Some(reservations))) => {
-            reservations.release(&agent_object)?;
-        }
-        Some(SleepPlan::NoRoom(None)) => {}
+    if !action.seeks() {
+        let proposal = Proposal { action, agent_id, next_decision_at, target_id, observed_state_hash: None };
+        let applied = with_world(&world, |world| core::apply(world, &read.inputs(), &proposal))?;
+        let applied = read_again(controller, &world, &read, write_result(py, applied))?;
+        return applied_tuple(py, applied);
     }
-    if let Some((planned, writer, held, metrics, minute)) = trip_effect {
-        // What `_route` recorded while the facility was chosen, before the trip's sequence.
-        for wait in planned.waits {
-            write_capacity_wait(&world, &writer, wait)?;
-        }
-        let facility_id = planned.facility_id;
-        if planned.at_once {
-            if let Some(facility_id) = &facility_id {
-                target = PyString::new(py, facility_id).into_any();
-            }
-        }
-        if let Some(trip) = planned.trip {
-            write_travel(&world, &writer, trip)?;
-            if let Some(facility_id) = &facility_id {
-                target = PyString::new(py, facility_id).into_any();
-            }
-        }
-        if let (Some((outcome, reason, detail)), Some(_), Effect::Resource(_, action)) = (planned.outcome, &held, &effect) {
-            append_outcome(
-                &world,
-                RequestRecord {
-                    minute,
-                    agent_id: Arc::from(agent_id),
-                    action: Arc::from(*action),
-                    outcome: Arc::from(outcome),
-                    reason: Arc::from(reason),
-                    facility_id,
-                    origin_zone_id: zone_id.clone(),
-                    detail,
-                },
-            )?;
-        }
-        if let Some(metrics) = &metrics {
-            add_one(metrics, REJECTED_METRIC)?;
-        }
-    }
-    let committed = still.is_some() || !target.is_none();
-    PyTuple::new(py, [target, next.into_pyobject(py)?.into_any(), PyBool::new(py, committed).to_owned().into_any()])
+    let mut host = PyHost::of_controller(controller)?;
+    // What the Provider's priority reads of the proposal besides the person (`Host`'s signature):
+    // a proposal's hash is always a str.
+    let observed_state_hash = proposal
+        .getattr(intern!(py, "observed_state_hash"))
+        .ok()
+        .and_then(|hash| hash.downcast_exact::<PyString>().ok().and_then(|hash| hash.to_str().ok().map(Arc::from)));
+    let proposal = Proposal { action, agent_id, next_decision_at, target_id, observed_state_hash };
+    let inputs = read.inputs();
+    let sought = with_world(&world, |world| core::seek_write(world, &inputs, &proposal))?;
+    let sought = read_again(controller, &world, &read, write_result(py, sought))?;
+    let applied = core::seek_after(&PyWorldCell(&world), &mut host, &inputs, &proposal, sought).map_err(|error| error.0)?;
+    applied_tuple(py, applied)
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

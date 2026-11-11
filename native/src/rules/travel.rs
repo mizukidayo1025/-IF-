@@ -14,9 +14,8 @@
 //! A floor plan that `Geo::of` could not read is passed as none, and where the core reads it, it
 //! says `PLAN_UNREAD`: the glue raises what `Geo::of` raised instead, as the rule raised it there.
 //!
-//! The rules of the other files that plan a trip and write it later (`proposals.rs`,
-//! `travel_completion.rs`) keep their `EventWriter`: what it reserved for the capacity waits is
-//! handed to the core's writer and back.
+//! The rules that plan a trip and write it later (`_apply_effect`, the arrivals) are the core's
+//! (lanes c7 and e1), with the core's writer.
 
 use std::sync::Arc;
 
@@ -30,7 +29,7 @@ use sheltersim_core::rules::overlay::PLAN_UNREAD;
 use sheltersim_core::rules::travel::{self as core, Graph, Routing, Walking};
 use sheltersim_core::world::World;
 
-pub(crate) use sheltersim_core::rules::travel::{CapacityWait, PlannedTrip, Route, Selected, Trip};
+pub(crate) use sheltersim_core::rules::travel::{PlannedTrip, Route, Trip};
 
 use crate::core::configs;
 use crate::core::errors::{self, OrPy};
@@ -38,7 +37,7 @@ use crate::core::row::{attribute, exact_int, exact_str, unsupported};
 use crate::core::run::{run_of, RunCore};
 use crate::core::world_core::{core_of, field_held, namespace_held, with_world};
 use crate::rules::movement::{optional_str, route_points_of, str_tuple, KEY as MOVEMENT};
-use crate::rules::movement_geometry::{Geo, GeoPy, Pt};
+use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::state::events::{write_result, EventRef, EventRow, EventRowPy, EventWriter};
 use crate::state::staff_operations::NAME as STAFF_OPERATIONS;
 use crate::Unsupported;
@@ -255,18 +254,6 @@ fn events_of<'w>(world: &'w World, reserved: usize) -> sheltersim_core::error::R
     Ok(events)
 }
 
-/// `_record_route_capacity_wait`, of a sequence the caller's writer reserved.
-pub(crate) fn write_capacity_wait(world: &Bound<'_, PyAny>, writer: &EventWriter<'_>, wait: CapacityWait) -> PyResult<()> {
-    let reserved = writer.reserved();
-    let left = with_world(world, |cell| -> sheltersim_core::events::writer::WriteResult<usize> {
-        let events = events_of(cell, reserved)?;
-        core::write_capacity_wait(cell, &events, wait)?;
-        Ok(events.reserved())
-    })?;
-    writer.reserve(write_result(world.py(), left)?);
-    Ok(())
-}
-
 pub(crate) fn route_class(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
     py.import("sheltersim.policies.space")?.getattr("ZoneRoute")
 }
@@ -299,14 +286,6 @@ pub(crate) fn route<'py>(
 }
 
 // ---- _schedule_travel ---------------------------------------------------------------------------
-
-/// `_schedule_travel`, changing nothing, for a rule that writes it later with `write_travel`.
-pub(crate) fn plan_travel(world: &Bound<'_, PyAny>, writer: &EventWriter<'_>, trip: Trip<'_>) -> PyResult<Option<PlannedTrip>> {
-    let inputs = Inputs::of(world)?;
-    let reserved = writer.reserved();
-    let planned = with_world(world, |cell| events_of(cell, reserved).and_then(|events| core::plan_travel(cell, &events, inputs.walking(), trip)))?;
-    inputs.finish(world.py(), planned.or_py())
-}
 
 /// The writes of `_schedule_travel` and `_schedule_room_approach`.
 pub(crate) fn write_travel(world: &Bound<'_, PyAny>, writer: &EventWriter<'_>, trip: PlannedTrip) -> PyResult<()> {
@@ -460,56 +439,6 @@ fn schedule_return_step<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, 
 }
 
 // ---- The choice of a facility -------------------------------------------------------------------
-
-/// `_select_toilet` (no kind) and `_select_resource_facility`: the waits the routes record go in
-/// `waits`, whose sequences `writer` reserves before the trip planned after this.
-fn select(
-    world: &Bound<'_, PyAny>,
-    graph: &RunGraph,
-    writer: &EventWriter<'_>,
-    agent_id: &Bound<'_, PyAny>,
-    kind: Option<&str>,
-    waits: &mut Vec<CapacityWait>,
-) -> PyResult<Selected> {
-    let agent = exact_str(agent_id)?;
-    let knows = configs::kept_section(world, |configs| &configs.knowledge_is_limited, sheltersim_core::config::agent_dynamics::knowledge_is_limited)?;
-    if graph.capacities.any {
-        read_queue_rows(world)?;
-    }
-    let inputs = Inputs::of(world)?;
-    let selected = with_world(world, |cell| core::select(cell, &inputs.routing(graph), &knows, agent, kind, waits))?;
-    let selected = inputs.finish(world.py(), selected.or_py())?;
-    writer.reserve(waits.len());
-    Ok(selected)
-}
-
-pub(crate) fn select_toilet(
-    world: &Bound<'_, PyAny>,
-    graph: &RunGraph,
-    writer: &EventWriter<'_>,
-    agent_id: &Bound<'_, PyAny>,
-    waits: &mut Vec<CapacityWait>,
-) -> PyResult<Selected> {
-    select(world, graph, writer, agent_id, None, waits)
-}
-
-pub(crate) fn select_resource(
-    world: &Bound<'_, PyAny>,
-    graph: &RunGraph,
-    writer: &EventWriter<'_>,
-    agent_id: &Bound<'_, PyAny>,
-    kind: &str,
-    waits: &mut Vec<CapacityWait>,
-) -> PyResult<Selected> {
-    select(world, graph, writer, agent_id, Some(kind), waits)
-}
-
-/// `_facility_approach`: its route and path, or None for no route.
-pub(crate) fn approach_route(world: &Bound<'_, PyAny>, agent_id: &str, facility_id: &str) -> PyResult<Option<(Route, Vec<Pt>)>> {
-    let inputs = Inputs::of(world)?;
-    let found = with_world(world, |cell| core::approach_route(cell, inputs.walking(), &inputs.section, agent_id, facility_id))?;
-    inputs.finish(world.py(), found.or_py())
-}
 
 /// Whether `world.metric_state` is still its slot's tree (`kit::check_metric_state`).
 pub(crate) fn metric_state_held(world: &Bound<'_, PyAny>) -> PyResult<bool> {
