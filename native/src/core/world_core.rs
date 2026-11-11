@@ -1141,6 +1141,36 @@ impl NamespaceMirror {
         Err(PyRuntimeError::new_err(format!("{ROOT_CHANGED}: {}", this.name)))
     }
 
+    /// `follow_row` of a map row of which the kernels wrote these keys alone (`Slot::keys`): each
+    /// key of the tree takes the row's value, as `with_row_tree` writes an entry, and a new key
+    /// comes last, as in the row. A row of floats (`metric_state`) alone; any other follows whole.
+    pub(crate) fn follow_keys(slf: &Bound<'_, Self>, keys: &[Arc<str>]) -> PyResult<()> {
+        let py = slf.py();
+        let this = slf.get();
+        let Some(root) = this.root(py)? else {
+            return Ok(());
+        };
+        let values = this.with_slot(py, |slot| -> Option<Vec<(Arc<str>, f64)>> {
+            let row = slot.row.as_deref()?.as_any().downcast_ref::<crate::state::metric_state::MetricRow>()?;
+            keys.iter().map(|key| row.get(&**key).map(|value| (key.clone(), *value))).collect()
+        })?;
+        let Some(values) = values else {
+            return Self::follow_row(slf);
+        };
+        if as_readable_dict(&root).is_none() {
+            return Self::follow_row(slf);
+        }
+        for (key, value) in values {
+            let key = PyString::new(py, &key);
+            let same = raw_dict_get(&root, key.as_any())?
+                .is_some_and(|old| old.downcast_exact::<PyFloat>().is_ok_and(|old| old.value().to_bits() == value.to_bits()));
+            if !same {
+                raw_dict_set(&root, key.as_any(), &PyFloat::new(py, value))?;
+            }
+        }
+        Ok(())
+    }
+
     /// Patch `node`, a container of the tree at this depth, to hold what `new` holds, if both are
     /// dicts or both lists: true then. False, changing nothing, when they are not of one kind (or
     /// `node` is not a node of the tree, as a value past `MAX_DEPTH` is not).
@@ -2439,9 +2469,9 @@ impl WorldCore {
 
     /// The mirrors of the slots a kernel of the core wrote (`Slots::take_written`), their marks
     /// cleared: their trees are to follow the rows once the core is no longer borrowed.
-    fn written_mirrors(&mut self, py: Python<'_>) -> Vec<Py<NamespaceMirror>> {
-        let written = self.world.slots.take_written();
-        written.iter().filter_map(|&index| self.mirrors.get_index(index).map(|(_, mirror)| mirror.clone_ref(py))).collect()
+    fn written_mirrors(&mut self, py: Python<'_>) -> Vec<(Py<NamespaceMirror>, Option<Vec<Arc<str>>>)> {
+        let written = self.world.slots.take_written_keys();
+        written.into_iter().filter_map(|(index, keys)| self.mirrors.get_index(index).map(|(_, mirror)| (mirror.clone_ref(py), keys))).collect()
     }
 
     /// Whether this core is `world`'s: its weak reference is to `world`, which is alive.
@@ -2538,8 +2568,11 @@ impl WorldCell for PyWorldCell<'_, '_> {
         if let Some((flush, store)) = flush {
             flushed = EntityStore::flush(store.bind(core.py()), flush);
         }
-        for mirror in written {
-            let followed = NamespaceMirror::follow_row(mirror.bind(core.py()));
+        for (mirror, keys) in written {
+            let followed = match keys {
+                Some(keys) => NamespaceMirror::follow_keys(mirror.bind(core.py()), &keys),
+                None => NamespaceMirror::follow_row(mirror.bind(core.py())),
+            };
             flushed = flushed.and(followed);
         }
         flushed.map_err(|error| CoreError::Runtime(error.to_string()))?;

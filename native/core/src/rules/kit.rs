@@ -415,9 +415,16 @@ pub fn check_metric_state(world: &World, metric_state_held: bool) -> Result<()> 
     Ok(())
 }
 
+/// `world.metric_state` as its row, to write these entries alone: its tree follows those keys
+/// (`Slot::row_keys_written`), not the whole row.
+#[track_caller]
+pub fn metric_entries_of<'w>(world: &'w World, keys: &[&str]) -> Result<ShardMut<'w, MetricRow>> {
+    world.slots.try_row_keys_mut::<MetricRow>(METRIC_STATE, keys)
+}
+
 /// `set_event(metric, get + 1.0)` of `world.metric_state`, on its row.
 pub fn add_metric(world: &World, name: &str) -> Result<()> {
-    let Ok(()) = add_one(&mut *metrics_of(world)?, &NoTree, name);
+    let Ok(()) = add_one(&mut *metric_entries_of(world, &[name])?, &NoTree, name);
     Ok(())
 }
 

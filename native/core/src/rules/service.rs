@@ -30,7 +30,7 @@ use crate::mathx::py_max;
 use crate::row::{map_set, ValueRow};
 use crate::rules::facility_queues::{self as fifo, point_of, position_in, request_of_task};
 use crate::rules::kit::movement::config_read;
-use crate::rules::kit::{add_metric, check_metric_state, held_row, kept, metrics_of, namespace_absent, payload, set_agent, Events, Held, Kept, NoTree};
+use crate::rules::kit::{add_metric, check_metric_state, held_row, kept, metric_entries_of, namespace_absent, payload, set_agent, Events, Held, Kept, NoTree};
 use crate::rules::queues::{self as queues, Walk};
 use crate::rules::resources::{apply_planned, Applied, Fail, LedgerFault, Operation};
 use crate::rules::staff_dynamics;
@@ -413,8 +413,8 @@ pub(crate) fn release_staff(world: &World, staff_id: &str) -> Result<()> {
 
 /// `_record_queue_wait`: the wait counted under `key` (`toilet_wait`, `water_service_wait`, ...).
 pub(crate) fn record_wait(world: &World, key: &str, wait: i64) -> Result<()> {
-    let mut row = metrics_of(world)?;
     let (count, total, maximum) = (format!("{key}_count"), format!("{key}_total_minutes"), format!("{key}_max_minutes"));
+    let mut row = metric_entries_of(world, &[&count, &total, &maximum])?;
     let value = row.get(&*count).copied().unwrap_or(0.0) + 1.0;
     let Ok(()) = map_set(&mut row, &NoTree, &count, value);
     let value = row.get(&*total).copied().unwrap_or(0.0) + wait as f64;
