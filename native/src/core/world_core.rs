@@ -2525,6 +2525,53 @@ pub(crate) fn namespace_held(world: &Bound<'_, PyAny>, name: &Bound<'_, PyString
     Ok(if mirror.try_borrow().is_ok_and(|mirror| mirror.holds_state(&held)) { Held::Held } else { Held::Other(other) })
 }
 
+/// Whether the world holds each namespace and owned field, read now (`Host::holding`, lane P9-0):
+/// the same answers `namespace_held`, `namespace_is_absent` and `field_held` give, for every key of
+/// `model_state` and every owned field at once. Reading raises only where those raise (a world
+/// without `model_state`, a field whose read raises).
+pub(crate) fn holding_of(world: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::host::Holding> {
+    use sheltersim_core::host::{Hold, Holding, Key};
+    let py = world.py();
+    let table = super::row::attribute(world, intern!(py, "model_state"))?;
+    let mut mirrors: IndexMap<Arc<str>, (Py<NamespaceMirror>, Place)> = IndexMap::new();
+    if let Ok(core) = core_of(world) {
+        let core = core.try_borrow()?;
+        for (name, mirror) in &core.mirrors {
+            let place = match core.world.slots.get(name) {
+                Some(slot) => slot.try_borrow().or_py()?.place,
+                None => continue,
+            };
+            mirrors.insert(name.clone(), (mirror.clone_ref(py), place));
+        }
+    }
+    let mut holding = Holding::default();
+    match as_readable_dict(&table) {
+        None => holding.table = false,
+        Some(table) => {
+            for (key, held) in table.iter() {
+                let Ok(key) = key.downcast::<PyString>() else {
+                    continue;
+                };
+                let name = key.to_str()?;
+                let none = held.is_none();
+                let hold = match mirrors.get(name) {
+                    None => Hold::NotOwned,
+                    Some((mirror, _)) if mirror.get().holds_state(&held) => Hold::Held,
+                    Some(_) => Hold::Other,
+                };
+                holding.keys.insert(Arc::from(name), Key::new(hold, none));
+            }
+        }
+    }
+    for (name, (mirror, place)) in &mirrors {
+        if *place == Place::Field {
+            let held = mirror.get().root_is(&world.getattr(&**name)?);
+            holding.fields.insert(name.clone(), held);
+        }
+    }
+    Ok(holding)
+}
+
 /// The mirror of a namespace of a world, read now, or Unsupported if it is not owned.
 pub(crate) fn mirror_of<'py>(world: &Bound<'py, PyAny>, name: &str) -> PyResult<Bound<'py, NamespaceMirror>> {
     let core = core_of(world)?;

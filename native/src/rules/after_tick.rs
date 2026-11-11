@@ -357,14 +357,9 @@ fn check(table: &Table, world: &Bound<'_, PyAny>, memo: &Bound<'_, TickMemo>) ->
     let Some(stamp) = held.stamp else {
         return unsupported("no mirror follows the configs");
     };
-    // The contracts, which raise for configs the check would turn down.
-    let plan_of = || -> PyResult<Arc<TickPlan>> {
-        let plan = table.tick_plan.bind(py).call1((world,))?;
-        Ok(Arc::new(plan.downcast_exact::<Plan>()?.get().plan.clone()))
-    };
-    let plan = match held.tick_plan.get_or_parse(|| configs::section_of(py, plan_of())) {
+    let plan = match held.tick_plan.get_or_parse(|| configs::section_of(py, plan_of(table, world))) {
         Section::Ok(plan) => plan.clone(),
-        Section::Fault(_) => return Err(configs::reraise(plan_of)),
+        Section::Fault(_) => return Err(configs::reraise(|| plan_of(table, world))),
         Section::Absent => return unsupported("no plan"),
     };
     if memo.borrow().memo.configs != Some(stamp) {
@@ -387,6 +382,24 @@ fn check(table: &Table, world: &Bound<'_, PyAny>, memo: &Bound<'_, TickMemo>) ->
         (Err(_), Some(raised)) => Err(raised),
         (Err(error), None) => Err(error).or_py(),
     }
+}
+
+/// The plan of the configs the world holds, from the contracts, which raise for configs the check
+/// would turn down.
+fn plan_of(table: &Table, world: &Bound<'_, PyAny>) -> PyResult<Arc<TickPlan>> {
+    let plan = table.tick_plan.bind(world.py()).call1((world,))?;
+    Ok(Arc::new(plan.downcast_exact::<Plan>()?.get().plan.clone()))
+}
+
+/// Fill the plan of these configs, the world's now, as the check does at its first read (the host's
+/// `fill_section`, lane P9-0).
+pub(crate) fn fill_tick_plan(world: &Bound<'_, PyAny>, configs: &sheltersim_core::config::Configs) -> PyResult<()> {
+    let py = world.py();
+    let Some(table) = TABLE.get(py) else {
+        return unsupported("domain/simulator_state.py has not installed the table");
+    };
+    let _ = configs.tick_plan.get_or_parse(|| configs::section_of(py, plan_of(table, world)));
+    Ok(())
 }
 
 /// The check, with the memo moved on, or Unsupported with the memo as it was but for the configs'

@@ -16,6 +16,7 @@ use crate::config::read::Read;
 use crate::config::Fault;
 
 use super::behavior::{self, Behavior};
+use super::dispatch::Dispatch;
 use super::held::{Obj, Spec, NO_CONTROLLER};
 use super::information::{self, Information};
 use super::proximity::{self, Proximity};
@@ -54,6 +55,9 @@ pub struct Policies {
     pub social: Social,
     pub services: Services,
     pub sinks: Sinks,
+    /// `controller.event_dispatcher` and its handlers (lane P9-0). Not read by a `Spec`: the PyO3
+    /// crate reads it against the table `events/handlers.py` installed, and sets it after `of`.
+    pub dispatch: Dispatch,
 }
 
 impl Policies {
@@ -68,6 +72,7 @@ impl Policies {
             social: Social::of(&controller),
             services: Services::of(&controller),
             sinks: Sinks::of(&controller),
+            dispatch: Dispatch::faulted(Fault::refused(super::dispatch::NO_TABLE)),
             controller: Ok(controller),
         }
     }
@@ -81,6 +86,7 @@ impl Policies {
         }
         let mut policies = Self::of(Arc::new(empty));
         policies.controller = Err(Fault::refused(NO_CONTROLLER));
+        policies.dispatch = Dispatch::default();
         policies
     }
 

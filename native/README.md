@@ -63,7 +63,12 @@ Checkpoint document) and times them.
   views; `HostFailure` gives an error's Python class; lane P8-0b; the validation with an event in
   flight (`validate_in_flight`), the EventLog's records by ID (`find_record`) and the queue's slots
   a rule changed (`slots_changed`), lane P8 d2; the floor plan read again (`floor_plan`), and
-  `HostFailure::text` and `is_outcome` for a rule that wraps an error's text in its own, lane P8 d3),
+  `HostFailure::text` and `is_outcome` for a rule that wraps an error's text in its own, lane P8 d3;
+  what the world holds (`holding`, a `Holding` of every namespace and owned field, read again by
+  the native host after a call of its own runs Python), the configs' sections a rule found empty
+  (`fill_section` by `config::SectionId`), a handler the core does not run (`apply_foreign`) and a
+  decision a Python sink records (`record_decision_python`), lane P9-0; `rules/kit.rs` reads the
+  first two through the host: `holding`, `section` and `section_value`),
   `rules/` (the kernels moved
   to the core, pure functions over `&World`, listed in `rules/mod.rs` by lane block:
   `metrics.rs`, the columns of `MetricSnapshot` with the open requests' waits of `staff.rs`, and
@@ -185,7 +190,10 @@ Checkpoint document) and times them.
   `information.rs`, `proximity.rs`, `social.rs`, `services.rs`, `sinks.rs`), each made from what
   the PyO3 crate read by the part's `Spec` (`held.rs`: classes by name and whether the name finds
   them, values as `V`, faults kept for the read site); and `Scratch`, one tick's values by type;
-  lane P8-0b). `tests/support/` holds `TestHost`, the host of a build without Python.
+  lane P8-0b; `dispatch.rs`, the dispatcher's handlers by event type, each a `HandlerKind` the core
+  runs with what it reads of the handler, or foreign, lane P9-0). `tests/support/` holds
+  `TestHost`, the host of a build without Python, which fills every section of the configs from
+  outside the crate.
   The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,

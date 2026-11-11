@@ -12,6 +12,7 @@ use pyo3::types::PyDict;
 use sheltersim_core::config::body::{BodyModels, LINEAR_AFFECT, TRUST_WEIGHTED_AFFECT, DISTANCE_TRUST, DURATION_TRUST};
 use sheltersim_core::config::body::{AffectModel, TrustModel};
 use sheltersim_core::config::Selection;
+use sheltersim_core::rules::kit::Kept;
 use sheltersim_core::rules::body_state::{self as rules, records_event, SocialEvent};
 
 use crate::core::configs;
@@ -63,20 +64,33 @@ pub(crate) fn model_names_of(world: &Bound<'_, PyAny>) -> PyResult<(&'static str
 /// The operators the rule creates, kept for the configs' stamp (`core/configs.rs`). An ID this
 /// kernel doesn't know is left to Python's factory.
 fn models_of(world: &Bound<'_, PyAny>, selection: &Selection) -> PyResult<Arc<BodyModels>> {
-    let py = world.py();
-    let affect = || match selection.get("affect") {
+    match models_section(world, selection)? {
+        Ok(models) => Ok(models),
+        Err(fault) => Err(configs::raise(&fault, || affect_of(world, selection))),
+    }
+}
+
+fn affect_of(world: &Bound<'_, PyAny>, selection: &Selection) -> PyResult<Arc<str>> {
+    match selection.get("affect") {
         Some(affect) => Ok(affect.clone()),
         None => affect_of_the_config(world),
-    };
+    }
+}
+
+/// `models_of` without its raise: the section, or its fault (the host's `fill_section`, lane P9-0).
+pub(crate) fn models_section(world: &Bound<'_, PyAny>, selection: &Selection) -> PyResult<Kept<BodyModels>> {
+    let py = world.py();
     let relationship = selection.get("relationship").cloned();
-    let parse = || match affect() {
+    let parse = || match affect_of(world, selection) {
         Ok(affect) => configs::parsed_value(world, |configs| BodyModels::parse(&affect, relationship.as_deref(), configs)),
         Err(error) => Ok(configs::parsed(py, Err(error))),
     };
-    match configs::kept_with_selection(world, |configs| &configs.body_models, parse)? {
-        Ok(models) => Ok(models),
-        Err(fault) => Err(configs::raise(&fault, affect)),
-    }
+    configs::kept_with_selection(world, |configs| &configs.body_models, parse)
+}
+
+/// The model selection the body's rule reads (`selected_models`), for the host (lane P9-0).
+pub(crate) fn selection_of(world: &Bound<'_, PyAny>) -> PyResult<Arc<Selection>> {
+    selected_models(world)
 }
 
 /// The payload's fields the rule reads of an event of this type.

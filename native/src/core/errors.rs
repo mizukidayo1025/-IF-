@@ -42,6 +42,7 @@ pub(crate) fn to_py_err(error: Error) -> PyErr {
         Error::Ledger(text) => PyErr::new::<ResourceLedgerError, _>(text),
         corrupt @ Error::Corrupt { .. } => PyErr::new::<StateInvariantError, _>(corrupt.to_string()),
         Error::Math(error) => crate::core::mathx::math_error(error),
+        Error::Clock => PyErr::new::<TickExecutionError, _>(sheltersim_core::error::CLOCK),
     }
 }
 
@@ -77,7 +78,13 @@ fn class(py: Python<'_>, outcome: Outcome) -> PyResult<&Bound<'_, PyType>> {
 
 /// Whether an exception is an `EventSuppressed` or an `EventApplicationError`.
 pub(crate) fn is_outcome(py: Python<'_>, error: &PyErr) -> bool {
-    [Outcome::Suppressed, Outcome::Failed].into_iter().any(|outcome| class(py, outcome).is_ok_and(|class| error.is_instance(py, class)))
+    outcome_of(py, error).is_some()
+}
+
+/// Which outcome an error is an instance of, if any (`except EventSuppressed`, then `except
+/// EventApplicationError`, as `dispatch_one` asks).
+pub(crate) fn outcome_of(py: Python<'_>, error: &PyErr) -> Option<Outcome> {
+    [Outcome::Suppressed, Outcome::Failed].into_iter().find(|outcome| class(py, *outcome).is_ok_and(|class| error.is_instance(py, class)))
 }
 
 /// The exception of an outcome, marked as made here.
@@ -274,6 +281,15 @@ mod invariant_class {
 }
 #[allow(unused_imports)]
 pub(crate) use invariant_class::StateInvariantError;
+
+// `to_py_err` maps the core's `Error::Clock` (lane P9-0); the tick driver raises it itself until the
+// core's tick does (P9-2b).
+#[allow(dead_code)]
+mod clock_class {
+    use super::*;
+    python_class!(TickExecutionError, "sheltersim.core.engine", "TickExecutionError");
+}
+pub(crate) use clock_class::TickExecutionError;
 
 // `new_err` is left for the lanes; `ledger_error` maps the core error.
 #[allow(dead_code)]

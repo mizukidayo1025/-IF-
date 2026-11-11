@@ -46,6 +46,11 @@ pub struct ProposalRow {
 }
 
 impl ProposalRow {
+    /// The view's data and the proposal (the host's tests, lane P9-0).
+    pub(crate) fn parts(&self) -> (&RustView, &Proposal) {
+        (self.view.get(), &self.proposal)
+    }
+
     fn made<'py>(&self, py: Python<'py>) -> PyResult<&Bound<'py, PyAny>> {
         let made = self
             .made

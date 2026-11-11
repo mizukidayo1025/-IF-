@@ -19,14 +19,22 @@
 
 use std::sync::Arc;
 
+use indexmap::IndexMap;
+
+use crate::config::{Configs, Filled, SectionId};
 use crate::error::Error;
-use crate::events::EventRow;
+use crate::events::{EventRow, EventStatus};
 use crate::geometry::Geo;
 use crate::mathx::MathError;
+use crate::rules::behavior::Proposal;
 use crate::rules::common_operations::Logged;
+use crate::rules::decisions::Observed;
+use crate::rules::kit::Held;
 use crate::rules::metrics::MetricSample;
+use crate::rules::world_view::ViewData;
 use crate::value::V;
-use crate::world::Snapshot;
+use crate::row::ValueRow;
+use crate::world::{Place, Snapshot, World};
 
 pub use crate::run::sinks::{DecisionSink, Llm, TraceLevel};
 pub use crate::txn::{Stage, TxnKind};
@@ -73,7 +81,8 @@ impl HostFailure for Error {
             | Error::Math(MathError::NegativeToFraction) => ErrorClass::Value,
             Error::Key(_) => ErrorClass::Key,
             Error::Type(_) => ErrorClass::Type,
-            Error::Runtime(_) | Error::Math(_) => ErrorClass::Other,
+            // `TickExecutionError` is a RuntimeError.
+            Error::Runtime(_) | Error::Math(_) | Error::Clock => ErrorClass::Other,
         }
     }
 
@@ -212,6 +221,152 @@ pub enum Part {
     Int(i64),
 }
 
+// ---- What the world holds (lane P9-0, H1 of design-p9.md) -----------------------------------------
+
+/// The refusal of a `model_state` that is not a dict the kernels read (`namespace_held`).
+pub const TABLE_MAPPING: &str = "model_state is another kind of mapping";
+/// The refusal of the same table where a rule asks whether a namespace is absent
+/// (`namespace_is_absent`).
+pub const TABLE_NOT_PLAIN: &str = "a value is not a plain dict";
+/// The refusal of a key of `model_state` no slot owns.
+pub const NOT_OWNED: &str = "the namespace is not owned";
+
+/// What `model_state` holds under a key, against the key's slot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Hold {
+    /// The slot's tree, or the placeholder of the detached slot.
+    Held,
+    /// Another value.
+    Other,
+    /// A key no slot owns.
+    NotOwned,
+}
+
+/// A key of `model_state`: what it holds, and whether the value is None.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Key {
+    pub hold: Hold,
+    pub none: bool,
+}
+
+impl Key {
+    pub fn new(hold: Hold, none: bool) -> Self {
+        Self { hold, none }
+    }
+}
+
+/// Whether the world holds each namespace and owned field: what the PyO3 crate's
+/// `namespace_held`, `namespace_is_absent` and `field_held` read at each call, read once
+/// (`Host::holding`). A rule says its own refusal for a namespace the world holds another value
+/// of (`held`).
+///
+/// It is good until the next host call that runs Python (an LLM hook, `space_refreshed`, a foreign
+/// handler: the native host then reads it again), or a write of the core that adds or takes away
+/// a key of `model_state`, after which a rule asks for it again.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Holding {
+    /// Whether `model_state` is a dict the kernels read.
+    pub table: bool,
+    /// The keys of `model_state`, in its order, and what each holds.
+    pub keys: IndexMap<Arc<str>, Key>,
+    /// The owned fields (`world.metric_state` and the others) and whether each holds its slot's
+    /// tree. A field not listed is held (`field_held` of a name that is not owned).
+    pub fields: IndexMap<Arc<str>, bool>,
+}
+
+impl Default for Holding {
+    fn default() -> Self {
+        Self { table: true, keys: IndexMap::new(), fields: IndexMap::new() }
+    }
+}
+
+impl Holding {
+    /// What a world that no Python view holds holds: every slot of a namespace with a row (or a
+    /// taint, whose tree stays) is held, every other is absent, and every owned field is held. A
+    /// host without Python answers `holding` with this (the core's `kit::holding`).
+    pub fn of_world(world: &World) -> crate::error::Result<Self> {
+        let mut holding = Self::default();
+        for name in world.slots.names() {
+            let slot = world.slots.get(name).expect("a slot of its own name").try_borrow()?;
+            match slot.place {
+                Place::Field => {
+                    holding.fields.insert(name.clone(), true);
+                }
+                Place::Namespace | Place::Value => {
+                    if slot.row.is_some() || slot.taint.is_some() {
+                        let none = matches!(slot.row.as_deref().and_then(|row| row.as_any().downcast_ref::<ValueRow>()), Some(ValueRow(V::Null)));
+                        holding.keys.insert(name.clone(), Key::new(Hold::Held, none));
+                    }
+                }
+            }
+        }
+        Ok(holding)
+    }
+
+    /// `namespace_held(world, name, other)`: absent, held, or the refusal `other` of a namespace
+    /// the world holds another value of (or the table's or the slot's own).
+    pub fn held(&self, name: &str, other: &'static str) -> Held {
+        if !self.table {
+            return Held::Other(TABLE_MAPPING);
+        }
+        match self.keys.get(name).map(|key| key.hold) {
+            None => Held::Absent,
+            Some(Hold::Held) => Held::Held,
+            Some(Hold::Other) => Held::Other(other),
+            Some(Hold::NotOwned) => Held::Other(NOT_OWNED),
+        }
+    }
+
+    /// `namespace_is_absent(world, name)`: the key is missing or None. The refusal of a table
+    /// that is not a plain dict.
+    pub fn is_absent(&self, name: &str) -> Result<bool, &'static str> {
+        if !self.table {
+            return Err(TABLE_NOT_PLAIN);
+        }
+        Ok(self.keys.get(name).is_none_or(|key| key.none))
+    }
+
+    /// `field_held(world, name)`: whether `world.<name>` is its slot's tree.
+    pub fn field(&self, name: &str) -> bool {
+        self.fields.get(name).copied().unwrap_or(true)
+    }
+}
+
+// ---- A handler the core does not know (lane P9-0, H4 of design-p9.md) ------------------------------
+
+/// A record a handler gave back for the dispatcher to append (`EventLogRecord`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ForeignRecord {
+    pub event: EventRow,
+    pub realized_minute: i64,
+    pub status: EventStatus,
+    pub detail: Option<String>,
+}
+
+impl ForeignRecord {
+    /// The record as `event_log.find` reads it.
+    pub fn logged(&self) -> Logged {
+        Logged { status: self.status, realized_minute: self.realized_minute, event: self.event.clone() }
+    }
+}
+
+/// What a foreign handler's `apply` did: its status, `str(exc)` of an `EventSuppressed` or
+/// `EventApplicationError`, and the records it gave back, which the core settles, compares and takes
+/// in as its own handlers'.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Foreign {
+    pub status: EventStatus,
+    pub detail: Option<String>,
+    pub records: Vec<ForeignRecord>,
+}
+
+/// The text of a host that runs no foreign handler (`Host::apply_foreign`).
+pub const NO_FOREIGN: &str = "the host runs no foreign handler";
+/// The text of a host that fills no section of the configs (`Host::fill_section`).
+pub const NO_SECTIONS: &str = "the host fills no section of the configs";
+/// The text of a host without a decision sink that runs Python (`Host::record_decision_python`).
+pub const NO_PYTHON_SINK: &str = "the host has no sink that records in Python";
+
 /// The text of a host that cannot draw (`Host::draw` of any host but a test's).
 pub const NO_DRAW: &str = "not a CounterRNG";
 /// The text of a host that cannot look up the EventLog's records (`Host::find_record`).
@@ -331,6 +486,50 @@ pub trait Host {
     fn phase(&mut self, phase: Phase, before: bool) -> Result<(), Self::Error>;
     /// The space changed (a geometry or structure event applied): the Python views of it follow.
     fn space_refreshed(&mut self) -> Result<(), Self::Error>;
+
+    // ---- What the world holds and its configs (lane P9-0) ------------------------------------------
+
+    /// Whether the world holds each namespace and owned field (H1). None: no Python view holds the
+    /// world, so its slots answer (`Holding::of_world`, which `kit::holding` reads). The native host
+    /// reads `model_state` and the fields against their mirrors, and keeps what it read until a
+    /// call of its own runs Python.
+    fn holding(&mut self) -> Result<Option<Arc<Holding>>, Self::Error> {
+        Ok(None)
+    }
+
+    /// Fill the section `which` of `configs`, the configs of the world now, which a rule found
+    /// empty (H2). The native host runs today's parse at the same first read: the Python contract,
+    /// or the core's parser of the configs read from Python where no row holds them. A parse never
+    /// raises here; what it raised is the section's fault, which the read site raises. A host
+    /// without the configs' parsers refuses.
+    fn fill_section(&mut self, _configs: &Arc<Configs>, _which: SectionId) -> Result<Filled, Self::Error> {
+        Err(Error::unsupported(NO_SECTIONS).into())
+    }
+
+    // ---- The dispatcher's handlers (lane P9-0, H4) ---------------------------------------------------
+
+    /// `handler.apply(world, event)` of a handler the core does not run: one a test registered, or
+    /// a class whose `apply` was patched (a test's hook, design-p9.md H4). The core has run the
+    /// guard; it settles the event with what this gives back.
+    fn apply_foreign(&mut self, _event: &EventRow) -> Result<Foreign, Self::Error> {
+        Err(Error::unsupported(NO_FOREIGN).into())
+    }
+
+    // ---- A decision a Python sink records (lane P9-0, H5) -------------------------------------------
+
+    /// `artifacts.record_decision(proposal.with_outcome(target_id, next_decision_at),
+    /// observed_state=observed)`, for `DecisionSink::Python`. The core commits and remembers the
+    /// decision itself after it.
+    fn record_decision_python(
+        &mut self,
+        _data: &ViewData,
+        _proposal: &Proposal,
+        _target_id: Option<&str>,
+        _next_decision_at: i64,
+        _observed: &Observed<'_>,
+    ) -> Result<(), Self::Error> {
+        Err(Error::unsupported(NO_PYTHON_SINK).into())
+    }
 
     // ---- An older state (policy E11) ---------------------------------------------------------------
 

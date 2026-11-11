@@ -19,6 +19,8 @@ use std::sync::{Arc, Mutex};
 use indexmap::IndexMap;
 
 use crate::cell::ShardMut;
+use crate::config::read::Read;
+use crate::config::{count_parse, parse_configs, Configs, Filled, Lazy, Section, SectionId};
 use crate::entities::{Activity, AgentRow, Entities};
 use crate::error::{Error, Result};
 use crate::events::log::EventLog;
@@ -31,7 +33,8 @@ use crate::state::metric_state::MetricRow;
 use crate::state::movement::{MovementRow, Point, Position};
 use crate::text::casefold;
 use crate::value::V;
-use crate::world::{set_id_counter, World, ID_COUNTERS, METRIC_STATE};
+use crate::host::{Holding, Host};
+use crate::world::{set_id_counter, World, WorldCell, ID_COUNTERS, METRIC_STATE, MODEL_CONFIGS};
 
 /// What the queue rules ask of the movement rules (lane c1).
 pub mod movement;
@@ -221,6 +224,93 @@ pub fn kept<T>(section: &Kept<T>) -> Result<&T> {
         Ok(value) => Ok(value),
         Err(fault) if fault.is_refusal() => Err(Error::unsupported(fault.text.to_string())),
         Err(_) => Err(Error::corrupt(crate::world::MODEL_CONFIGS, "a value of a section holds an error")),
+    }
+}
+
+// ---- What the world holds and its configs, through the host (lane P9-0) ---------------------------
+
+/// The refusal of a section a host was asked for and did not fill.
+pub const NOT_FILLED: &str = "the host did not fill the section";
+
+/// Whether the world holds each namespace and owned field (H1 of design-p9.md): the host's
+/// `Holding`, or, for a host without Python views, the world's own slots. Asked with nothing of the
+/// world borrowed.
+pub fn holding<C: WorldCell, H: Host>(cell: &C, host: &mut H) -> std::result::Result<Arc<Holding>, H::Error> {
+    if let Some(holding) = host.holding()? {
+        return Ok(holding);
+    }
+    Ok(Arc::new(cell.with(|world| Holding::of_world(world))??))
+}
+
+/// The configs of the world now: those kept for the stamp of the `model_configs` slot while the
+/// world holds that field, else new ones that serve one read (the PyO3 crate's `configs::current`).
+pub fn configs_now(world: &World, holding: &Holding) -> Result<Arc<Configs>> {
+    if holding.field(MODEL_CONFIGS) {
+        if let Some(slot) = world.slots.get(MODEL_CONFIGS) {
+            let stamp = slot.try_borrow()?.generation;
+            return world.configs(stamp);
+        }
+    }
+    Ok(Arc::new(Configs::new(None)))
+}
+
+/// A section of the configs now, as a rule's reader reads it (H2 of design-p9.md): kept for the
+/// configs' stamp, else filled by the host, which is asked with nothing of the world borrowed and at
+/// the read where the rule reads the section first, as the PyO3 crate parses it today. A parse never
+/// raises: what it raised is the section's fault, for the rule to raise where it reads it.
+pub fn section<C: WorldCell, H: Host, T>(
+    cell: &C,
+    host: &mut H,
+    holding: &Holding,
+    which: SectionId,
+    get: fn(&Configs) -> &Lazy<T>,
+) -> std::result::Result<Section<T>, H::Error> {
+    let configs = cell.with(|world| configs_now(world, holding))??;
+    if let Some(section) = get(&configs).get() {
+        return Ok(section.clone());
+    }
+    filled(host, configs, which, get)
+}
+
+/// `section` of a section the core parses from the configs' `V` (`Parser::Value`): an empty one is
+/// parsed from the row of the `model_configs` slot now, and counted as the PyO3 crate counts a parse
+/// (`config::count_parse`). Configs no row holds (a field assigned whole, or not JSON) are the
+/// host's to read.
+pub fn section_value<C: WorldCell, H: Host, T>(
+    cell: &C,
+    host: &mut H,
+    holding: &Holding,
+    which: SectionId,
+    get: fn(&Configs) -> &Lazy<T>,
+    parse: fn(&V) -> Read<T>,
+) -> std::result::Result<Section<T>, H::Error> {
+    let (configs, parsed) = cell.with(|world| -> Result<_> {
+        let configs = configs_now(world, holding)?;
+        if get(&configs).get().is_some() || configs.stamp.is_none() {
+            return Ok((configs, None));
+        }
+        Ok((configs, parse_configs(world, parse)?))
+    })??;
+    if let Some(section) = get(&configs).get() {
+        return Ok(section.clone());
+    }
+    match parsed {
+        Some(section) => {
+            count_parse();
+            Ok(get(&configs).get_or_parse(|| section).clone())
+        }
+        None => filled(host, configs, which, get),
+    }
+}
+
+fn filled<H: Host, T>(host: &mut H, configs: Arc<Configs>, which: SectionId, get: fn(&Configs) -> &Lazy<T>) -> std::result::Result<Section<T>, H::Error> {
+    let from = match host.fill_section(&configs, which)? {
+        Filled::Kept => configs,
+        Filled::Once(other) => other,
+    };
+    match get(&from).get() {
+        Some(section) => Ok(section.clone()),
+        None => Err(Error::unsupported(NOT_FILLED).into()),
     }
 }
 
