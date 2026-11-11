@@ -244,7 +244,6 @@ fn sheltersim_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<history::HistoryPins>()?;
     module.add_function(wrap_pyfunction!(validation::movement_positions_valid, module)?)?;
     module.add_function(wrap_pyfunction!(validation::world_agents_valid, module)?)?;
-    module.add_class::<validation::ValuesSnapshot>()?;
     module.add_function(wrap_pyfunction!(contacts::fsum, module)?)?;
     module.add_class::<eventlog::EventStore>()?;
     module.add_function(wrap_pyfunction!(eventlog::split_json_array, module)?)?;

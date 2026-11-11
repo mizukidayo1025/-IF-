@@ -1,4 +1,4 @@
-"""What the check at the end of a tick reads of the configs, for native/src/rules/after_tick.rs.
+"""What the check at the end of a tick reads of the configs, for the core's rules/after_tick.rs.
 
 WorldState.validate_after_tick is one call to the kernel, which keeps the memo of the last passed
 check (its TickMemo, in world.__dict__["_tick_memo"]) and runs every rule of the per-tick check.

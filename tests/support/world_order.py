@@ -134,8 +134,7 @@ def shape(value: Any, depth: int = 0) -> Any:
     if isinstance(value, (list, tuple)):
         return (type(value).__name__, [shape(item, depth + 1) for item in value])
     if hasattr(value, "__dict__"):
-        # An object's private attributes are not its state (SupportRequestState's
-        # _write_listener, which a manager leaves None and a copy does not have).
+        # An object's private attributes are not its state.
         items = [
             (key, shape(item, depth + 1))
             for key, item in vars(value).items()

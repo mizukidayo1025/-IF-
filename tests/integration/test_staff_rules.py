@@ -563,9 +563,6 @@ def test_what_the_plain_kernel_doesnt_decide_goes_to_assign_work() -> None:
     assert kernel(service, 0, validate_state=False) is None
     world.model_state["llm"] = {"support_priorities": {request.id: True}}
     assert kernel(service, 0, validate_state=False) == ()
-    world.metric_state["support_assignment_metrics_minute"] = -1.0
-    request.report_writes_to([])
-    assert kernel(service, 0, validate_state=False) is None
 
 
 # ---- What the metrics read ----

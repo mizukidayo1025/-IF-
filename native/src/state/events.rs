@@ -459,28 +459,13 @@ pub(crate) enum DueState {
 
 /// A pending event as `QueueStore::pending_events` found it.
 pub(crate) struct PendingEvent<'py> {
-    pub(crate) event_id: Arc<str>,
     pub(crate) due_minute: i64,
-    pub(crate) sequence: i64,
     pub(crate) source: PendingSource<'py>,
 }
 
 pub(crate) enum PendingSource<'py> {
     Row(Arc<EventRow>),
     Object(Bound<'py, PyAny>),
-}
-
-impl PendingEvent<'_> {
-    /// `event.kind is EventKind.COMPLETION`.
-    pub(crate) fn is_completion(&self) -> PyResult<bool> {
-        match &self.source {
-            PendingSource::Row(row) => Ok(row.kind == EventKind::Completion),
-            PendingSource::Object(object) => {
-                let py = object.py();
-                Ok(object.getattr(intern!(py, "kind"))?.is(models(py)?.kinds[1].bind(py)))
-            }
-        }
-    }
 }
 
 /// The Python objects of a queue's events by the serial of their slot, apart so that a slot's row
@@ -692,7 +677,7 @@ impl QueueStore {
                         PendingSource::Object(object.clone())
                     }
                 };
-                events.push(PendingEvent { event_id: slot.event_id.clone(), due_minute: key.0, sequence: key.2, source });
+                events.push(PendingEvent { due_minute: key.0, source });
             }
             Some(events)
         })

@@ -74,8 +74,8 @@ pub enum FaultClass {
     Other(Arc<str>),
 }
 
-/// A value only the PyO3 crate reads, such as the Python plan of the end-of-tick check (P7-1 keeps
-/// it until that check's plan moves here, design-p7.md §2).
+/// A value only the PyO3 crate reads (design-p7.md §2). Nothing holds one since the plan of the
+/// end-of-tick check moved here (lane P8 d4).
 pub type Opaque = dyn Any + Send + Sync;
 
 /// A section parsed at its first read and then kept: a parse runs only where the configs are read.

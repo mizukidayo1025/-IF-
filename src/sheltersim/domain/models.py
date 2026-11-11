@@ -669,25 +669,9 @@ class SupportRequestState:
     cooldown_until: int = 0
     last_assignment_attempt_minute: int | None = None
     last_assignment_wait_reason_code: str | None = None
-    # Where to report writes; see report_writes_to. Not state, so not a field.
-    _write_listener: ClassVar[list[Any] | None] = None
 
     def __post_init__(self) -> None:
         self.status = SupportRequestStatus(self.status)
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        object.__setattr__(self, name, value)
-        listener = self._write_listener
-        if listener is not None:
-            listener.append(self)
-
-    def report_writes_to(self, listener: list[Any] | None) -> None:
-        """Append this request to listener whenever a field is assigned from now on.
-
-        The end-of-tick check does not read settled requests again until one reports
-        a write (core/tick_validation.py).
-        """
-        object.__setattr__(self, "_write_listener", listener)
 
 
 @dataclass
@@ -732,17 +716,6 @@ def _forward_write(self: Any, name: str, value: Any) -> None:
         store.write(self, self._kind, self._slot, name, value)
 
 
-def _forward_request_write(self: Any, name: str, value: Any) -> None:
-    store = self._store
-    if store is None:
-        object.__setattr__(self, name, value)
-    else:
-        store.write(self, 4, self._slot, name, value)
-    listener = self._write_listener
-    if listener is not None:
-        listener.append(self)
-
-
 def _forward_delete(self: Any, name: str) -> None:
     object.__delattr__(self, name)
     store = self._store
@@ -768,7 +741,6 @@ def _install_rows() -> None:
         kind.__setattr__ = _forward_write  # type: ignore[assignment]
         kind.__delattr__ = _forward_delete  # type: ignore[assignment]
         kind.__getstate__ = _state_without_links  # type: ignore[method-assign]
-    SupportRequestState.__setattr__ = _forward_request_write  # type: ignore[assignment]
     native.state("entities").install(
         AgentState,
         NeedState,

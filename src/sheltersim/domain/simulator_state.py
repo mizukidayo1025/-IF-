@@ -552,7 +552,7 @@ def simulator_state_catalog() -> dict[str, Any]:
 
 
 def _install_after_tick_kernel() -> None:
-    """Tell native/src/rules/after_tick.rs what the Python check would call, as defined here.
+    """Tell native/core/src/rules/after_tick.rs what the Python check would call, as defined here.
 
     A patch of one of these, and the python_rules mark, leave a tick to the Python check.
     """
@@ -615,7 +615,6 @@ def _install_after_tick_kernel() -> None:
         common_operations._TICK_VALID,
         native.rules("effects").validate_state,
         (tick_validation.tick_plan, tick_validation.body_config_ids),
-        (world_module.InitialNeedProfile, world_module.NeedState),
     )
 
 

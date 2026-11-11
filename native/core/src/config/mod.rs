@@ -33,6 +33,7 @@ pub mod section;
 pub mod selection;
 pub mod service;
 pub mod staff;
+pub mod tick_plan;
 
 use std::sync::{Arc, Mutex};
 
@@ -46,6 +47,7 @@ use crate::world::{World, MODEL_CONFIGS};
 pub use geometry::{ApproachRoute, FacilityGeometry, FacilityPlan, SpatialConstraints};
 pub use section::{Fault, FaultClass, Lazy, Opaque, Section};
 pub use selection::Selection;
+pub use tick_plan::{ResourceNumbers, TickPlan};
 
 use agent_dynamics::Awareness;
 use body::{BodyModels, CareOutcome};
@@ -67,9 +69,9 @@ pub struct Configs {
     pub stamp: Option<Stamp>,
     /// `selected_models(model_configs)`.
     pub selection: Lazy<Selection>,
-    /// The plan of the end-of-tick check (`core/tick_validation.py`'s `tick_plan`), a Python
-    /// object of the PyO3 crate.
-    pub tick_plan: Lazy<Opaque>,
+    /// The plan of the end-of-tick check (`core/tick_validation.py`'s `tick_plan`), as the PyO3
+    /// crate read it from the Python contracts (lane P8 d4).
+    pub tick_plan: Lazy<TickPlan>,
     /// `facility_geometry`, parsed. Absent where the key is missing or None.
     pub facility_geometry: Lazy<FacilityGeometry>,
     /// `spatial_constraints`, or `{}` where the key is missing, parsed.

@@ -1457,8 +1457,7 @@ def deepcopy_world(world: Any, memo: dict[int, Any]) -> Any:
     either writes them; the copy's core holds them, WorldCore.adopt). A world its core does
     not all hold (a tainted entity store, a map stored past IdMap, an open transaction), or whose
     parts the memo holds already, is copied the old way: every attribute as plain containers,
-    owned again by a new core. Both ways give the same state, order and types; a support request
-    has no _write_listener of the world's tick check, which is not state.
+    owned again by a new core. Both ways give the same state, order and types.
     """
     state = world.__dict__
     core = state.get("_core")

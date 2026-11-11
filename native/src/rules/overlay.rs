@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex};
 
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyTuple};
+use pyo3::types::{PyDict, PyString, PyTuple};
 
 use sheltersim_core::config::movement::Movement;
 use sheltersim_core::config::overlay::overlay_schema as parse_overlay_schema;
@@ -33,6 +33,7 @@ use crate::core::value::{V, VPy};
 use crate::core::world_core::{core_of, namespace_held, raw_dict_get, state_value, with_world, PyWorldCell};
 use crate::host::PyHost;
 use crate::rules::movement::point_object;
+use crate::state::entities::{entities_of, EntityStore};
 use crate::rules::movement_geometry::{Geo, GeoPy, Pt};
 use crate::state::events::{EventRow, EventRowPy};
 use crate::Unsupported;
@@ -90,7 +91,7 @@ fn movement_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
     namespace_held(world, intern!(world.py(), crate::rules::movement::KEY), "the world holds another movement state")
 }
 
-fn schema_of(world: &Bound<'_, PyAny>) -> PyResult<Kept<Option<i64>>> {
+pub(crate) fn schema_of(world: &Bound<'_, PyAny>) -> PyResult<Kept<Option<i64>>> {
     configs::kept_section(world, |configs| &configs.overlay_schema, parse_overlay_schema)
 }
 
@@ -228,10 +229,33 @@ pub(crate) fn capacity_of(world: &Bound<'_, PyAny>, zone_id: &str, nominal: i64,
     core::capacity_of_values(spaces.as_ref(), overlay.as_ref(), &inputs.schema, zone_id, nominal, current).or_py()
 }
 
-/// `zone.capacity` of a zone of the world, read from its Python object as the checks of a state
-/// read it (a test may write the object's `__dict__`, policy E12): None for a zone without one.
+/// `zone.capacity` of a zone of the world: None for a zone without one. Read from the zone's row
+/// where the core holds the world's maps and zones (lane P8 d4; policy E12: a write past the
+/// object's `__setattr__` reaches no rule), and else from the Python object, which is the truth then:
+/// a world without a core (a save's world being validated before its core), maps stored past
+/// `IdMap`, tainted zones.
 fn nominal_of(world: &Bound<'_, PyAny>, zone_id: &Bound<'_, PyAny>) -> PyResult<Option<i64>> {
     let py = world.py();
+    if let Ok(store) = entities_of(world) {
+        let state = attribute(world, intern!(py, "__dict__"))?;
+        if let (Ok(zone_id), Ok(state)) = (zone_id.downcast_exact::<PyString>(), state.downcast::<PyDict>()) {
+            if EntityStore::follows_every_map(&store, state)? {
+                let zone_id = zone_id.to_str()?;
+                let found = with_world(world, |cell| -> sheltersim_core::error::Result<Option<Option<i64>>> {
+                    let rows = cell.entities.try_borrow()?;
+                    if rows.zones_tainted().is_some() {
+                        return Ok(None);
+                    }
+                    drop(rows);
+                    core::nominal_capacity(cell, zone_id).map(Some)
+                })?
+                .or_py()?;
+                if let Some(nominal) = found {
+                    return Ok(nominal);
+                }
+            }
+        }
+    }
     let zones = attribute(world, intern!(py, "zones"))?;
     let Some(zone) = raw_dict_get(&zones, zone_id)? else {
         return unsupported("no such zone");
@@ -306,15 +330,6 @@ fn effective_zone_capacity(world: &Bound<'_, PyAny>, zone_id: &Bound<'_, PyAny>,
 fn effective_total_zone_capacity(world: &Bound<'_, PyAny>, zone_id: &Bound<'_, PyAny>, occupancy: Option<&Bound<'_, PyAny>>) -> PyResult<Option<i64>> {
     let result = (|| zone_capacity(world, zone_id, occupancy)?.map(|(_, found)| found.total().or_py()).transpose())();
     counted(world.py(), "effective_total_zone_capacity", result)
-}
-
-/// `effective_total_zone_capacity(world, zone_id, occupancy=occupancy)` for a caller in Rust
-/// (`rules/after_tick.rs`), without the Python entry's count.
-pub(crate) fn total_zone_capacity(world: &Bound<'_, PyAny>, zone_id: &Bound<'_, PyAny>, occupancy: i64) -> PyResult<Option<i64>> {
-    let Some(nominal) = nominal_of(world, zone_id)? else {
-        return Ok(None);
-    };
-    capacity_of(world, exact_str(zone_id)?, nominal, Some(occupancy))?.total().or_py().map(Some)
 }
 
 /// `incoming_travelers`.

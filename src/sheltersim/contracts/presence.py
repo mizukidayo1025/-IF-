@@ -173,5 +173,5 @@ def register_presence_contract() -> None:
     from sheltersim import native
     from sheltersim.core.state_mirror import register_rust_validator
 
-    # native/src/rules/tick_validation.rs: validate_presence_state, or Unsupported.
+    # native/core/src/rules/tick_validation.rs: validate_presence_state, or Unsupported.
     register_rust_validator(PRESENCE_NAMESPACE, native.rules("tick_validation").validate_presence)

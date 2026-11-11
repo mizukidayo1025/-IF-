@@ -47,7 +47,9 @@ pub mod replan;
 pub mod travel;
 
 // ---- P8d: events and checks --------------------------------------------------------------------
+pub mod after_tick;
 pub mod information_events;
 pub mod social_interaction;
+pub mod tick_validation;
 
 // ---- P8e: proposals ----------------------------------------------------------------------------

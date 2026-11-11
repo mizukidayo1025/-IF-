@@ -49,7 +49,7 @@ def _checked(document: dict) -> WorldState:
 
 
 def _unchanged(world: WorldState) -> dict[str, bool]:
-    """What the last check the kernel passed found unchanged (native/src/rules/after_tick.rs)."""
+    """What the last check the kernel passed found unchanged (core rules/after_tick.rs)."""
     return world.__dict__["_tick_memo"].facts()["unchanged"]
 
 

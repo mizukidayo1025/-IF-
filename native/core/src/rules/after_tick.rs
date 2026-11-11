@@ -1,1196 +1,863 @@
 //! The check at the end of a tick (`WorldState.validate_after_tick`) in one call, with its memo.
 //!
 //! It holds no error text. It returns only if every rule of `validate(validate_event_history=False)`
-//! passes, and anything else says `Unsupported`: `validate_after_tick` then runs that Python check,
-//! with no memo, which passes or raises its own text. So what a yes means is the one thing that must
-//! hold (`benchmarks/rule_shadow/shadow_after_tick.py`, `tests/integration/test_after_tick_kernel.py`).
-//! Since every rule passes, their order can't show.
+//! passes, and anything else is a refusal: `validate_after_tick` then runs that Python check, with no
+//! memo, which passes or raises its own text (policy E6 of docs/rust-port/step5-plan.md). So what a
+//! yes means is the one thing that must hold (`tests/integration/test_after_tick_kernel.py`). Since
+//! every rule passes, their order can't show.
 //!
-//! The memo (`TickMemo`) is the facts of the last check this kernel passed, and lets it skip what is
-//! provably unchanged since: see "What the memo skips" below. A check that refuses leaves the memo as
-//! it was, but for the plan of the configs, which holds whatever the state is.
+//! The rules read the rows (Issue #152, lane P8 d4): the entity rows (`rules/tick_validation.rs`),
+//! the rows of the namespaces and fields, and the queue's event rows. The validators of the
+//! namespaces whose kernels are still the PyO3 crate's, the effect program's check and the reading
+//! of the saved body config are asked through `Checks`, with the world given back (rule R6 of
+//! design-p8.md): the check borrows the world twice, before and after them.
 //!
-//! The configs are read by the contracts in Python (`core/tick_validation.py`, decision D3 of
-//! docs/rust-port/step4-plan.md): `tick_plan` when the configs have no plan yet, which is the first
-//! check of a world and the check after a write to `model_configs`, and `body_config_ids` when the
-//! saved body config changed. The plan is kept with the world's configs, by the stamp of
-//! `model_configs` (`Configs.tick_plan`, `core/configs.rs`); a plan that raised raises again. Every rule of the state is here or in the kernel of its namespace
-//! (`state_mirror._RUST_VALIDATORS`); a namespace with no kernel is refused.
+//! The memo (`Memo`) is the facts of the last check this kernel passed, and lets it skip what is
+//! provably unchanged since: see "What the memo skips" below. A check that refuses leaves the memo
+//! as it was, but for the stamp of the configs and the people the body config names, which hold
+//! whatever the state is.
 //!
-//! **The entity rules read the objects, not the rows**: see `tick_validation.rs`, whose kernel this
-//! calls, and docs/rust-port/lanes/t-tick-validation.md. So do the rules of an active staff task.
+//! The configs are read by the contracts in Python (`core/tick_validation.py`): the plan
+//! (`TickPlan`) is the section `tick_plan` of the configs, kept by the stamp of `model_configs`
+//! (`Configs.tick_plan`, lane 7-1), which the PyO3 crate fills at the first check after a write to
+//! the configs. The people the saved body config names (`body_config_ids`) are asked of Python when
+//! that config's JSON changed, and kept here with the JSON while the configs' stamp stands.
 //!
 //! What the memo skips (each rests on one argument; a full validation at each save reads them all):
-//! - The configs are parsed only when the stamp of `model_configs` changes: its mirror's generation,
-//!   which sees every write through the tree. A world whose configs no mirror follows is refused.
-//! - A settled support request (resolved or unresolved) depends only on its own fields, which
-//!   `SupportRequestState` reports writing, on the set of Agent IDs, and on the clock only through
-//!   "not after the current minute". It is checked again when written or when the Agent IDs change.
-//!   The scans of unsettled requests during a tick use the same reports (`unsettled_requests`).
+//! - The configs are parsed only when the stamp of `model_configs` changes, which every write to it
+//!   gives (`Slot::touch`).
+//! - A settled support request (resolved or unresolved) depends only on its own fields, on the set
+//!   of Agent IDs, and on the clock only through "not after the current minute". It is checked again
+//!   when its row is written or filled (`Table::marked`, from Rust or from Python) or when the Agent
+//!   IDs change. The scans of unsettled requests during a tick use the same marks
+//!   (`unsettled_requests`).
 //! - The population presence, lifecycle and dynamics states and the geometry overlay are skipped when
-//!   everything their rules read is unchanged: their own state by its mirror's generation, the Agent
-//!   and zone IDs, and the facilities' zones for the overlay. A write of the same value counts as a
-//!   change. The generation does not see dict.__setitem__ on a node of the tree; the next full
-//!   validation reads it, as for the rows' own checks (docs/rust-port/lanes/t-tick-validation.md).
+//!   everything their rules read is unchanged: their own state by its slot's stamp, the Agent and zone
+//!   IDs, and the facilities' zones for the overlay. A write of the same value counts as a change.
 //! - The saved body config is checked again when its JSON or the configs change.
 
-use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use pyo3::exceptions::PyException;
-use pyo3::ffi;
-use pyo3::intern;
-use pyo3::prelude::*;
-use pyo3::sync::GILOnceCell;
-use pyo3::types::{PyBool, PyDict, PyFrozenSet, PyList, PyString, PyTuple};
-use rustc_hash::FxHashSet;
-use sheltersim_core::config::{Opaque, Section};
-use sheltersim_core::stamp::Stamp as ConfigsStamp;
+use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::core::configs;
-use crate::core::row::{attribute, exact_int, exact_str, unsupported};
-use crate::core::tracked::{as_readable_dict, as_readable_list, is_detached};
-use crate::core::errors::OrPy;
-use crate::core::value::V;
-use crate::core::world_core::{core_of, raw_dict_get, with_state_value, Items, NamespaceMirror};
+use crate::config::movement::RouteCapacities;
+use crate::config::TickPlan;
+use crate::entities::{RequestRow, RequestStatus, Table};
+use crate::error::{Error, Result};
+use crate::row::ValueRow;
+use crate::rules::kit::{Held, Kept};
+use crate::rules::overlay::Places;
+use crate::rules::tick_validation::{self as entity, EntityInputs, Requests};
+use crate::stamp::Stamp;
 use crate::state::body_state::BodyRow;
-use crate::rules::tick_validation::entity_rules_watching;
-use crate::state::entities::entities_of;
-use crate::validation::ValuesSnapshot;
-use crate::Unsupported;
+use crate::value::V;
+use crate::world::{World, WorldCell};
 
-const PRESENCE: &str = "population_presence_v1";
-const LIFECYCLE: &str = "population_lifecycle_v1";
-const DYNAMICS: &str = "population_dynamics_v1";
-const OVERLAY: &str = "geometry_overlay_v1";
-const BODY: &str = "body_state_v1";
-const SHARED: &str = "shared_operations_v1";
-const QUEUES: &str = "facility_queues_v1";
-const QUEUES_LEGACY: &str = "facility_queues_legacy_mode_v1";
-const SPACES: &str = "temporary_spaces_v1";
-const OPERATIONAL: &str = "operational_events_v1";
-const INFRASTRUCTURE: &str = "infrastructure_v1";
-const ENVIRONMENT: &str = "zone_environment_v1";
-const SERVICE: &str = "resource_service_v1";
-const LEDGER: &str = "resource_ledger_v1";
-const INFORMATION: &str = "information_spread_v1";
-const PSYCHOLOGY: &str = "psychological_distress_v1";
+pub const PRESENCE: &str = "population_presence_v1";
+pub const LIFECYCLE: &str = "population_lifecycle_v1";
+pub const DYNAMICS: &str = "population_dynamics_v1";
+pub const OVERLAY: &str = "geometry_overlay_v1";
+pub const BODY: &str = "body_state_v1";
+pub const SHARED: &str = "shared_operations_v1";
+pub const QUEUES: &str = "facility_queues_v1";
+pub const QUEUES_LEGACY: &str = "facility_queues_legacy_mode_v1";
+pub const SPACES: &str = "temporary_spaces_v1";
+pub const OPERATIONAL: &str = "operational_events_v1";
+pub const INFRASTRUCTURE: &str = "infrastructure_v1";
+pub const ENVIRONMENT: &str = "zone_environment_v1";
+pub const SERVICE: &str = "resource_service_v1";
+pub const LEDGER: &str = "resource_ledger_v1";
+pub const INFORMATION: &str = "information_spread_v1";
+pub const PSYCHOLOGY: &str = "psychological_distress_v1";
 const ENVIRONMENT_EVENTS: &str = "effect_program_environment";
-/// The namespaces `begin` compared, in the order of `TickMemo::seen`.
+
+/// The namespaces the check reads or asks about besides the declared and required ones, for the
+/// PyO3 crate to say whether the Python world holds each (`Inputs::held`).
+pub const READ: [&str; 16] = [
+    PRESENCE,
+    LIFECYCLE,
+    DYNAMICS,
+    OVERLAY,
+    BODY,
+    SHARED,
+    QUEUES,
+    QUEUES_LEGACY,
+    SPACES,
+    OPERATIONAL,
+    INFRASTRUCTURE,
+    ENVIRONMENT,
+    SERVICE,
+    LEDGER,
+    INFORMATION,
+    PSYCHOLOGY,
+];
+
+/// The namespaces the memo compares, in the order of `Memo::seen`.
 const COMPARED: [&str; 4] = [PRESENCE, LIFECYCLE, DYNAMICS, OVERLAY];
 
-/// What Python gives once, in `domain/simulator_state.py`.
-struct Table {
-    /// `(holder, name, as defined)` of what the Python check would call. A patch of one, or the
-    /// `python_rules` mark, leaves the tick to the Python check.
-    watched: Vec<(Py<PyAny>, Py<PyString>, Py<PyAny>)>,
-    /// `_RUST_VALIDATORS`.
-    validators: Py<PyDict>,
-    rows_valid: Py<PyAny>,
-    tick_valid: Py<PyAny>,
-    effects_valid: Py<PyAny>,
-    /// `core/tick_validation.py`: the contracts' reading of the configs.
-    tick_plan: Py<PyAny>,
-    body_config_ids: Py<PyAny>,
-    initial_needs: Py<PyAny>,
-    needs: Py<PyAny>,
+#[track_caller]
+fn refuse<T>(reason: &'static str) -> Result<T> {
+    Err(Error::unsupported(reason))
 }
 
-static TABLE: GILOnceCell<Table> = GILOnceCell::new();
-static RAN: AtomicU64 = AtomicU64::new(0);
-static REFUSALS: Mutex<BTreeMap<String, u64>> = Mutex::new(BTreeMap::new());
-
-/// What the rules read from `model_configs`, from the contracts (`tick_plan`). A new one is made
-/// when the configs change. Rows and the plan never hold each other.
-#[pyclass(frozen, module = "sheltersim_native.rules.after_tick")]
-struct Plan {
-    declared: Vec<(Py<PyString>, i64)>,
-    required: Vec<Py<PyString>>,
-    independent_queues: bool,
-    information_enabled: bool,
-    mean_reverting: bool,
-    shared_configured: bool,
-    /// None where `operational_events_enabled` raises, which the rule reads only without a state.
-    operational_enabled: Option<bool>,
-    /// The zones of the zone environment's baselines, or None without its config.
-    environment_zones: Option<Vec<String>>,
-    infrastructure_configured: bool,
-    operational_events: FxHashSet<String>,
-    infrastructure_events: FxHashSet<String>,
-    resource_config: Py<PyAny>,
+/// What the Python check would call that the PyO3 crate still holds: asked with the world given
+/// back. An error refuses the check.
+pub trait Checks {
+    /// The validator registered for a namespace (`state_mirror._RUST_VALIDATORS`): whether it takes
+    /// the world, its rows being what the world holds; None where none is registered.
+    fn namespace(&mut self, name: &str) -> Result<Option<bool>>;
+    /// `body_state._ROWS_VALID`: the rows of the body state are the world's and valid.
+    fn body_rows(&mut self) -> Result<bool>;
+    /// `common_operations._TICK_VALID`: the shared operations of the tick.
+    fn shared_operations(&mut self) -> Result<bool>;
+    /// The effect program's check, `effects.validate_state(world, validate_event_history=False)`.
+    fn effects(&mut self) -> Result<()>;
+    /// `tick_validation.body_config_ids(world)`: the people the saved body config names.
+    fn body_config_ids(&mut self) -> Result<Vec<Arc<str>>>;
 }
 
-#[pymethods]
-impl Plan {
-    #[new]
-    #[pyo3(signature = (*, declared, required, independent_queues, information_enabled, mean_reverting, shared_configured, operational_enabled, environment_zones, infrastructure_configured, operational_events, infrastructure_events, resource_config))]
-    #[allow(clippy::too_many_arguments)]
-    fn new(
-        declared: Vec<(Py<PyString>, i64)>,
-        required: Vec<Py<PyString>>,
-        independent_queues: bool,
-        information_enabled: bool,
-        mean_reverting: bool,
-        shared_configured: bool,
-        operational_enabled: Option<bool>,
-        environment_zones: Option<Vec<String>>,
-        infrastructure_configured: bool,
-        operational_events: &Bound<'_, PyFrozenSet>,
-        infrastructure_events: &Bound<'_, PyFrozenSet>,
-        resource_config: Py<PyAny>,
-    ) -> PyResult<Self> {
-        let texts = |items: &Bound<'_, PyFrozenSet>| -> PyResult<FxHashSet<String>> {
-            items.iter().map(|item| item.extract::<String>()).collect()
-        };
-        Ok(Self {
-            declared,
-            required,
-            independent_queues,
-            information_enabled,
-            mean_reverting,
-            shared_configured,
-            operational_enabled,
-            environment_zones,
-            infrastructure_configured,
-            operational_events: texts(operational_events)?,
-            infrastructure_events: texts(infrastructure_events)?,
-            resource_config,
-        })
+/// Whether the Python world holds each namespace the check reads, as the PyO3 crate read it before
+/// the check: the names of `READ` and the plan's declared and required ones.
+#[derive(Default)]
+pub struct HeldNamespaces(FxHashMap<Arc<str>, Held>);
+
+impl HeldNamespaces {
+    pub fn insert(&mut self, name: Arc<str>, held: Held) {
+        self.0.insert(name, held);
+    }
+
+    #[track_caller]
+    fn of(&self, name: &str) -> Result<&Held> {
+        self.0.get(name).ok_or_else(|| Error::unsupported("a namespace the check reads was not read"))
+    }
+
+    /// `name in model_state`.
+    fn contains(&self, name: &str) -> Result<bool> {
+        Ok(!matches!(self.of(name)?, Held::Absent))
     }
 }
 
-/// A namespace as the last passed check saw it.
-enum Stamp {
-    Absent,
-    /// The tree, or the mirror of a detached namespace, and the mirror's generation.
-    Tree(Py<PyAny>, u64),
+/// What the check reads besides the world and the memo.
+pub struct Inputs<'a> {
+    pub plan: &'a TickPlan,
+    /// The stamp of `model_configs`, which the plan was read for.
+    pub configs: Stamp,
+    pub held: &'a HeldNamespaces,
+    pub route_capacities: &'a Kept<Option<RouteCapacities>>,
+    /// The overlay's schema, for the capacity of zones with spaces or rooms.
+    pub overlay_schema: &'a Kept<Option<i64>>,
 }
 
-/// The facts of the last check this kernel passed for one world (`world.__dict__["_tick_memo"]`).
-/// It holds no simulation state: dropping it costs one slower check and changes no result.
-#[pyclass(module = "sheltersim_native.rules.after_tick")]
-pub struct TickMemo {
+/// How a namespace stood at a passed check.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Seen {
+    Absent,
+    Stamp(Stamp),
+}
+
+/// The facts of the last check this kernel passed for one world. It holds no simulation state:
+/// dropping it costs one slower check and changes no result.
+#[derive(Clone, Debug)]
+pub struct Memo {
     /// The minute of that check; rules bound past times by the clock, so a memo only holds going
     /// forward, and `validate_after_tick` starts a new one for an earlier minute.
-    #[pyo3(get)]
-    minute: i64,
-    /// The stamp of `model_configs` the last plan was read for; the plan is kept with the configs
-    /// of that stamp (`Configs.tick_plan`).
-    configs: Option<ConfigsStamp>,
-    /// `geometry_overlay._CONFIG_SCOPE` across ticks while the configs are unchanged: the geometry
-    /// configs the Python rules of the check parsed (`_parsed_config`). The kernels read the
-    /// configs' section `geometry` instead (`rules/movement_geometry.rs`).
-    #[pyo3(get)]
-    geometry_scope: Py<PyDict>,
-    agent_ids: Option<FxHashSet<String>>,
-    zone_ids: Option<FxHashSet<String>>,
+    pub minute: i64,
+    /// The stamp of `model_configs` the last plan was read for.
+    pub configs: Option<Stamp>,
+    pub agent_ids: Option<FxHashSet<Arc<str>>>,
+    pub zone_ids: Option<FxHashSet<Arc<str>>>,
     /// `{key: item.zone_id for key, item in facilities.items()}`.
-    facility_zones: Option<Py<PyDict>>,
-    seen: [Option<Stamp>; 4],
-    presence_is_self_contained: bool,
-    /// Support requests: every value of the dict, in order; the ones open; the settled ones written
-    /// since (each settled one reports a write to this list).
-    requests: ValuesSnapshot,
-    open: Py<PyList>,
-    written: Py<PyList>,
-    /// The saved body config's JSON that passed under these configs, and the people it names.
-    body_config: Option<(Vec<u8>, Vec<String>)>,
+    pub facility_zones: Option<FxHashMap<Arc<str>, Arc<str>>>,
+    pub seen: [Option<Seen>; 4],
+    pub presence_is_self_contained: bool,
+    /// The keys of the support requests, in order.
+    pub requests: Vec<Arc<str>>,
+    /// The keys of the ones open, in the order of the requests.
+    pub open: Vec<Arc<str>>,
+    /// The saved body config's JSON read under these configs, and the people it names.
+    pub body_config: Option<(Vec<u8>, Vec<Arc<str>>)>,
     /// What the last passed check found unchanged: configs, presence, lifecycle, dynamics, overlay.
-    unchanged: [bool; 5],
+    pub unchanged: [bool; 5],
 }
 
-impl TickMemo {
-    fn empty(py: Python<'_>) -> Self {
+impl Default for Memo {
+    fn default() -> Self {
         Self {
             minute: -1,
             configs: None,
-            geometry_scope: PyDict::new(py).unbind(),
             agent_ids: None,
             zone_ids: None,
             facility_zones: None,
-            seen: [None, None, None, None],
+            seen: [None; 4],
             presence_is_self_contained: false,
-            requests: ValuesSnapshot::default(),
-            open: PyList::empty(py).unbind(),
-            written: PyList::empty(py).unbind(),
+            requests: Vec::new(),
+            open: Vec::new(),
             body_config: None,
             unchanged: [false; 5],
         }
     }
 }
 
-#[pymethods]
-impl TickMemo {
-    #[new]
-    fn new(py: Python<'_>) -> Self {
-        Self::empty(py)
-    }
+fn is_settled(row: &RequestRow) -> bool {
+    matches!(row.status, RequestStatus::Resolved | RequestStatus::Unresolved)
+}
 
-    /// A copied world holds new objects, so it starts with nothing proven.
-    fn __deepcopy__(&self, py: Python<'_>, _memo: &Bound<'_, PyAny>) -> Self {
-        Self::empty(py)
-    }
+/// Whether the requests' keys start with these, in order.
+fn starts_with(table: &Table<RequestRow>, kept: &[Arc<str>]) -> bool {
+    table.len() >= kept.len() && table.slots().zip(kept).all(|((key, _), kept)| Arc::ptr_eq(key, kept) || key == kept)
+}
 
-    /// What the memo holds, for the tests and `shadow_after_tick.py`: a dict of copies.
-    fn facts<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let facts = PyDict::new(py);
-        let sorted = |ids: &Option<FxHashSet<String>>| {
-            ids.as_ref().map(|ids| {
-                let mut ids: Vec<&String> = ids.iter().collect();
-                ids.sort();
-                ids.into_iter().cloned().collect::<Vec<String>>()
-            })
-        };
-        facts.set_item("minute", self.minute)?;
-        facts.set_item("planned", self.configs.is_some())?;
-        facts.set_item("agent_ids", sorted(&self.agent_ids))?;
-        facts.set_item("zone_ids", sorted(&self.zone_ids))?;
-        facts.set_item("facility_zones", self.facility_zones.as_ref().map(|zones| zones.bind(py).copy()).transpose()?)?;
-        facts.set_item("requests", self.requests.values(py)?)?;
-        facts.set_item("open", self.open.bind(py).get_slice(0, usize::MAX))?;
-        facts.set_item("written", self.written.bind(py))?;
-        facts.set_item("body_config_ids", self.body_config.as_ref().map(|(_, ids)| ids.clone()))?;
-        facts.set_item("seen", self.seen.iter().map(|stamp| stamp.is_some()).collect::<Vec<bool>>())?;
-        facts.set_item("presence_is_self_contained", self.presence_is_self_contained)?;
-        let unchanged = PyDict::new(py);
-        for (name, fact) in ["configs", "presence", "lifecycle", "dynamics", "overlay"].iter().zip(self.unchanged) {
-            unchanged.set_item(name, fact)?;
-        }
-        facts.set_item("unchanged", unchanged)?;
-        Ok(facts)
-    }
-
-    /// The requests of the dict that may not be settled, in its order, or None if that is not known
-    /// and the caller has to read them all. For scans during a tick (`unsettled_support_requests`).
+impl Memo {
+    /// The requests that may not be settled, in the order of the table, or None if that is not
+    /// known and the caller has to read them all: for the scans during a tick
+    /// (`unsettled_support_requests`).
     ///
-    /// What was settled at the last check reports any write, so this needs only the requests open
-    /// then, the ones added since, and that no settled one was reopened. The result may hold
+    /// What was settled at the last check marks any write, so this needs only the requests open
+    /// then, the ones added since, and that no other one was opened since. The result may hold
     /// requests settled since; the caller reads their status.
-    fn unsettled_requests<'py>(&self, requests: &Bound<'py, PyDict>) -> PyResult<Option<Bound<'py, PyList>>> {
-        let py = requests.py();
-        let Some(added) = self.requests.added_values(requests)? else {
+    pub fn unsettled_requests(&self, world: &World) -> Result<Option<Vec<Arc<str>>>> {
+        let rows = world.rows()?;
+        let table = &rows.support_requests;
+        if !starts_with(table, &self.requests) {
             return Ok(None);
-        };
-        for request in self.written.bind(py).iter() {
-            if !is_settled(&request)? {
+        }
+        let added: Vec<(&Arc<str>, u32)> = table.slots().skip(self.requests.len()).collect();
+        let known: FxHashSet<u32> = self.open.iter().filter_map(|key| table.slot_of(key)).chain(added.iter().map(|(_, slot)| *slot)).collect();
+        for slot in table.marked() {
+            if !known.contains(slot) && table.row_at(*slot).is_some_and(|row| !is_settled(row)) {
                 return Ok(None);
             }
         }
-        let result = PyList::empty(py);
-        for request in self.open.bind(py).iter().chain(added.iter()) {
-            result.append(request)?;
-        }
+        let mut result = self.open.clone();
+        result.extend(added.into_iter().map(|(key, _)| key.clone()));
         Ok(Some(result))
     }
 }
 
-/// How a namespace stands against the memo.
-enum Seen {
-    Same,
-    Changed(Stamp),
+/// What the first part of a check found: what it asks of Python, and what the memo keeps if the
+/// rest passes.
+struct Found {
+    validators: Vec<(Arc<str>, Asked)>,
+    body_rows: bool,
+    shared_operations: bool,
+    /// The saved body config's JSON, if the world has a body state.
+    body_config: Option<Vec<u8>>,
+    agents_unchanged: bool,
+    zones_unchanged: bool,
+    facilities_unchanged: bool,
+    seen: [Option<Seen>; 4],
+    presence_is_self_contained: bool,
+    unchanged: [bool; 5],
+    requests: Checked,
 }
 
-struct Check<'a, 'py> {
-    world: &'a Bound<'py, PyAny>,
-    model_state: &'a Bound<'py, PyDict>,
-    mirrors: &'a Bound<'py, PyAny>,
-    validators: &'a Bound<'py, PyDict>,
+/// The support requests a check reads.
+struct Checked {
+    /// Their slots, in the order they are checked: the ones open at the last check, the ones
+    /// written since, the ones added since; or, after a restart, all.
+    slots: Vec<u32>,
+    /// The keys and slots of the ones open at the last check, and of the ones added since.
+    open: Vec<(Arc<str>, u32)>,
+    added: Vec<(Arc<str>, u32)>,
+    /// The memo's requests are no longer the table's first, or the Agents changed.
+    restart: bool,
+    /// A request settled at the last check is open again.
+    reopened: bool,
 }
 
-fn as_mirror<'a, 'py>(value: &'a Bound<'py, PyAny>) -> PyResult<&'a Bound<'py, NamespaceMirror>> {
-    Ok(value.downcast::<NamespaceMirror>()?)
+/// Who wants a validator's yes: what it says if the answer is no.
+#[derive(Clone, Copy)]
+enum Asked {
+    /// A declared namespace (`validate_declared_states`).
+    Declared,
+    /// A rule of `validate_simulator_extensions` or `validate`.
+    Rule,
 }
 
-impl<'py> Check<'_, 'py> {
-    fn py(&self) -> Python<'py> {
-        self.world.py()
+/// The check, with the memo moved on; a refusal leaves the memo as it was, but for the configs'
+/// stamp and the body config's people.
+pub fn check<C: WorldCell, K: Checks>(cell: &C, memo: &mut Memo, inputs: &Inputs<'_>, checks: &mut K) -> Result<()> {
+    let configs_unchanged = memo.configs == Some(inputs.configs);
+    if !configs_unchanged {
+        memo.configs = Some(inputs.configs);
+        memo.body_config = None;
     }
-
-    /// `model_state.get(name)`, where a stored None reads as absent, as the rules read it.
-    fn state(&self, name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
-        Ok(self.model_state.get_item(name)?.filter(|state| !state.is_none()))
-    }
-
-    /// `_rows_are_what_the_world_holds`, past its check of the entities, made once in `check`.
-    fn rows_hold(&self, name: &Bound<'py, PyString>) -> PyResult<bool> {
-        let Some(mirror) = raw_dict_get(self.mirrors, name.as_any())? else {
-            return Ok(true);
-        };
-        let mirror = as_mirror(&mirror)?;
-        match raw_dict_get(self.model_state.as_any(), name.as_any())? {
-            None => Ok(mirror.call_method0(intern!(self.py(), "row_json"))?.is_none()),
-            Some(value) => Ok(mirror.try_borrow()?.holds_state(&value)),
+    let found = cell.with(|world| first(world, memo, inputs, configs_unchanged))??;
+    for (name, asked) in &found.validators {
+        match (checks.namespace(name)?, asked) {
+            (Some(true), _) => {}
+            (None, Asked::Declared) => return refuse("a declared namespace has no kernel"),
+            (Some(false), Asked::Declared) => return refuse("a declared namespace's kernel did not take it"),
+            (None, Asked::Rule) => return Err(Error::unsupported(format!("{name}: no kernel is registered"))),
+            (Some(false), Asked::Rule) => return Err(Error::unsupported(format!("{name}: its kernel did not take it"))),
         }
     }
-
-    /// `rust_accepts`.
-    fn accepts(&self, name: &str, kernel: &Bound<'py, PyAny>) -> PyResult<bool> {
-        let name = PyString::intern(self.py(), name);
-        if !self.rows_hold(&name)? {
-            return Ok(false);
-        }
-        match kernel.call1((self.world,)) {
-            Ok(answer) => Ok(answer.is_exact_instance_of::<PyBool>() && answer.is_truthy()?),
-            Err(error) if error.is_instance_of::<Unsupported>(self.py()) => Ok(false),
-            Err(error) => Err(error),
-        }
+    if found.body_rows && !checks.body_rows()? {
+        return refuse("the rows of the body state are the Python rule's");
     }
-
-    /// The namespace's validator must say yes; its Python rule stays the way to say no.
-    fn must_validate(&self, name: &'static str) -> PyResult<()> {
-        let Some(kernel) = self.validators.get_item(name)? else {
-            return Err(Unsupported::new_err(format!("{name}: no kernel is registered")));
-        };
-        if self.accepts(name, &kernel)? {
-            return Ok(());
-        }
-        Err(Unsupported::new_err(format!("{name}: its kernel did not take it")))
+    if found.shared_operations && !checks.shared_operations()? {
+        return refuse("the shared operations are the Python rule's");
     }
-
-    fn seen(&self, kept: Option<&Stamp>, name: &'static str) -> PyResult<Seen> {
-        let py = self.py();
-        let key = PyString::intern(py, name);
-        let Some(mirror) = raw_dict_get(self.mirrors, key.as_any())? else {
-            return unsupported("a namespace the memo compares has no mirror");
-        };
-        let Some(value) = raw_dict_get(self.model_state.as_any(), key.as_any())? else {
-            return Ok(if matches!(kept, Some(Stamp::Absent)) { Seen::Same } else { Seen::Changed(Stamp::Absent) });
-        };
-        let mirror = as_mirror(&mirror)?;
-        let Some(generation) = mirror.try_borrow()?.held_generation(&value) else {
-            return unsupported("a namespace the memo compares holds another tree");
-        };
-        // A detached namespace is told apart by its mirror, since every world holds the one
-        // placeholder.
-        let value = if is_detached(&value) { mirror.clone().into_any() } else { value };
-        if let Some(Stamp::Tree(before, before_generation)) = kept {
-            if before.bind(py).is(&value) && *before_generation == generation {
-                return Ok(Seen::Same);
+    checks.effects()?;
+    let named = match &found.body_config {
+        None => None,
+        Some(json) => match memo.body_config.as_ref().filter(|(kept, _)| kept == json) {
+            Some((_, named)) => Some(named.clone()),
+            None => {
+                let named = checks.body_config_ids()?;
+                memo.body_config = Some((json.clone(), named.clone()));
+                Some(named)
             }
-        }
-        Ok(Seen::Changed(Stamp::Tree(value.unbind(), generation)))
-    }
+        },
+    };
+    cell.with(|world| last(world, memo, inputs, found, named.as_deref()))?
+}
 
-    /// The IDs a body record or config may name besides the people here: the population state's
-    /// `initial_agent_ids` and `profile_traits`, and its departures for the history.
-    fn historical_ids(&self, with_departures: bool) -> PyResult<FxHashSet<String>> {
-        // Read as a `V`, a detached one from its row.
-        with_state_value(self.world, DYNAMICS, |population| {
-            let mut ids = FxHashSet::default();
-            let Some(V::Map(population)) = population else {
-                return Ok(ids);
+/// `model_state.get(name)` is not None: a value row holding None reads as absent, as the rules
+/// read it.
+fn present(world: &World, held: &HeldNamespaces, name: &str) -> Result<bool> {
+    match held.of(name)? {
+        Held::Absent => Ok(false),
+        Held::Other(reason) => Err(Error::unsupported(*reason)),
+        Held::Held => {
+            let Some(slot) = world.slots.get(name) else {
+                return refuse("the namespace is not owned");
             };
-            if let Some(initial) = population.get("initial_agent_ids") {
-                let V::List(initial) = initial else {
-                    return unsupported("the initial agents are not a list");
-                };
-                for id in initial {
-                    let V::Str(id) = id else {
-                        return unsupported("a value is not a str");
-                    };
-                    ids.insert(id.to_string());
-                }
-            }
-            if let Some(traits) = population.get("profile_traits") {
-                let V::Map(traits) = traits else {
-                    return unsupported("a value is not a plain dict");
-                };
-                ids.extend(traits.keys().map(|id| id.to_string()));
-            }
-            if with_departures {
-                if let Some(departures) = population.get("departures") {
-                    let V::List(departures) = departures else {
-                        return unsupported("the departures are not a list");
-                    };
-                    for item in departures {
-                        if let V::Map(item) = item {
-                            if let Some(V::Str(id)) = item.get("agent_id") {
-                                ids.insert(id.to_string());
-                            }
-                        }
-                    }
-                }
-            }
-            Ok(ids)
-        })
-    }
-
-    /// The mirror of a namespace that holds nothing but its row: detached.
-    fn detached_mirror(&self, name: &str, held: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, NamespaceMirror>>> {
-        if !is_detached(held) {
-            return Ok(None);
-        }
-        let Some(mirror) = raw_dict_get(self.mirrors, PyString::intern(self.py(), name).as_any())? else {
-            return unsupported("a detached namespace has no mirror");
-        };
-        Ok(Some(as_mirror(&mirror)?.clone()))
-    }
-
-    /// `records_since_previous_tick` of the body history: its items from the last one before the
-    /// tick, as the tree holds them. A detached namespace's are made from its row, these alone.
-    fn recent_body_items(&self, body: &Bound<'py, PyAny>, minute: i64) -> PyResult<Bound<'py, PyList>> {
-        let py = self.py();
-        if let Some(mirror) = self.detached_mirror(BODY, body)? {
-            let items = NamespaceMirror::with_row::<BodyRow, _>(&mirror, |row| {
-                let history = &row.history;
-                let mut scratch = crate::Encoder { out: Vec::new() };
-                let mut start = history.count();
-                while start > 0 {
-                    let item: serde_json::Value = serde_json::from_slice(history.item_json(start - 1, &mut scratch).or_py()?)
-                        .map_err(|_| Unsupported::new_err("a body history item is not JSON"))?;
-                    if let Some(recorded) = item.get("minute").filter(|value| value.is_number()) {
-                        let Some(recorded) = recorded.as_i64() else {
-                            if recorded.is_f64() {
-                                start -= 1;
-                                continue;
-                            }
-                            return unsupported("a body history minute is past i64");
-                        };
-                        if recorded < minute - 1 {
-                            break;
-                        }
-                    }
-                    start -= 1;
-                }
-                let first = start.saturating_sub(1);
-                let items: PyResult<Vec<Box<[u8]>>> =
-                    (first..history.count()).map(|index| history.item_json(index, &mut scratch).map(Box::from).or_py()).collect();
-                items
-            })?;
-            return crate::core::world_core::loads_items(py, items.iter().map(|item| &**item));
-        }
-        let Some(state) = as_readable_dict(body) else {
-            return unsupported("the body state is another kind of dict");
-        };
-        let Some(history) = state.get_item(intern!(py, "history"))? else {
-            return unsupported("the body state has no history");
-        };
-        let Some(history) = as_readable_list(&history) else {
-            return unsupported("the body history is another kind of list");
-        };
-        // records_since_previous_tick
-        let mut start = history.len();
-        while start > 0 {
-            let item = history.get_item(start - 1)?;
-            let recorded = as_readable_dict(&item).map(|item| item.get_item(intern!(py, "minute"))).transpose()?.flatten();
-            if let Some(recorded) = recorded {
-                if recorded.is_exact_instance_of::<pyo3::types::PyInt>() && exact_int(&recorded)? < minute - 1 {
-                    break;
-                }
-            }
-            start -= 1;
-        }
-        let first = start.saturating_sub(1);
-        Ok(pyo3::types::PyListMethods::get_slice(history, first, history.len()))
-    }
-
-    /// The history rule of `validate_body_state`, for the records since the last tick, past the
-    /// rows' own check and the config's.
-    fn body_history(&self, body: &Bound<'py, PyAny>, minute: i64, agents: &Bound<'py, PyDict>) -> PyResult<()> {
-        let py = self.py();
-        let recent = self.recent_body_items(body, minute)?;
-        let mut historical: Option<FxHashSet<String>> = None;
-        for item in recent.iter() {
-            let Some(item) = as_readable_dict(&item) else {
-                return unsupported("a body history item is the Python rule's");
-            };
-            let read = |name: &Bound<'py, PyString>| -> PyResult<Bound<'py, PyAny>> {
-                item.get_item(name)?.ok_or_else(|| Unsupported::new_err("a body history item lacks a field"))
-            };
-            exact_str(&read(intern!(py, "event_id"))?)?;
-            exact_str(&read(intern!(py, "kind"))?)?;
-            read(intern!(py, "topic_id"))?;
-            read(intern!(py, "causation_id"))?;
-            let actors = read(intern!(py, "actor_ids"))?;
-            let deltas = read(intern!(py, "deltas"))?;
-            if item.len() != 7
-                || exact_int(&read(intern!(py, "minute"))?)? < 0
-                || as_readable_dict(&deltas).is_none()
-            {
-                return unsupported("a body history item is the Python rule's");
-            }
-            let Some(actors) = as_readable_list(&actors) else {
-                return unsupported("a body history item's actors are the Python rule's");
-            };
-            for actor in actors.iter() {
-                let actor_id = exact_str(&actor)?;
-                if agents.contains(&actor)? {
-                    continue;
-                }
-                if historical.is_none() {
-                    historical = Some(self.historical_ids(true)?);
-                }
-                if !historical.as_ref().is_some_and(|ids| ids.contains(actor_id)) {
-                    return unsupported("a body history actor is unknown");
-                }
+            let slot = slot.try_borrow()?;
+            match slot.row.as_deref() {
+                None => refuse("the namespace has no row"),
+                Some(row) => Ok(row.as_any().downcast_ref::<ValueRow>().is_none_or(|row| !matches!(row.0, V::Null))),
             }
         }
-        Ok(())
-    }
-
-    /// `_has_exact_schema`.
-    fn environment_schema(&self, state: Option<&Bound<'py, PyAny>>) -> PyResult<()> {
-        let py = self.py();
-        let Some(state) = state.and_then(as_readable_dict) else {
-            return unsupported("the zone environment is the Python rule's");
-        };
-        let version = state.get_item(intern!(py, "schema_version"))?;
-        let modifiers = state.get_item(intern!(py, "modifiers"))?;
-        if state.len() != 2
-            || exact_int(&version.ok_or_else(|| Unsupported::new_err("no schema version"))?)? != 1
-            || modifiers.as_ref().and_then(as_readable_dict).is_none()
-        {
-            return unsupported("the zone environment is the Python rule's");
-        }
-        Ok(())
-    }
-
-    /// The first half of `validate_operational_events_state`, which is all of it at a tick. The
-    /// events are read by `watch`.
-    fn operational_schema(&self, state: &Bound<'py, PyAny>) -> PyResult<()> {
-        let py = self.py();
-        let Some(state) = as_readable_dict(state) else {
-            return unsupported("the operational events are the Python rule's");
-        };
-        let is_dict = |name: &Bound<'py, PyString>| -> PyResult<bool> {
-            Ok(state.get_item(name)?.as_ref().and_then(as_readable_dict).is_some())
-        };
-        let list = state.get_item(intern!(py, "cancelled_staff_task_ids"))?;
-        let version = state.get_item(intern!(py, "schema_version"))?;
-        if state.len() != 5
-            || exact_int(&version.ok_or_else(|| Unsupported::new_err("no schema version"))?)? != 1
-            || !is_dict(intern!(py, "shipments"))?
-            || !is_dict(intern!(py, "water_outages"))?
-            || !is_dict(intern!(py, "staff_status"))?
-            || list.as_ref().and_then(as_readable_list).is_none()
-        {
-            return unsupported("the operational events are the Python rule's");
-        }
-        Ok(())
-    }
-
-    /// `validate_infrastructure_runtime_state` of a tick with its config, past the config's own
-    /// check (`tick_plan`): the state's shape and the base capacity of each facility.
-    fn infrastructure(&self, state: Option<&Bound<'py, PyAny>>, facilities: &Bound<'py, PyDict>) -> PyResult<()> {
-        let py = self.py();
-        let Some(state) = state.and_then(as_readable_dict) else {
-            return unsupported("the infrastructure state is the Python rule's");
-        };
-        let version = state.get_item(intern!(py, "schema_version"))?;
-        let part = |name: &Bound<'py, PyString>| -> PyResult<Option<Bound<'py, PyDict>>> {
-            Ok(state.get_item(name)?.as_ref().and_then(as_readable_dict).cloned())
-        };
-        let base = part(intern!(py, "base_working_units"))?;
-        if state.len() != 5
-            || exact_int(&version.ok_or_else(|| Unsupported::new_err("no schema version"))?)? != 1
-            || part(intern!(py, "outages"))?.is_none()
-            || part(intern!(py, "environmental_stressors"))?.is_none()
-            || part(intern!(py, "route_interruptions"))?.is_none()
-        {
-            return unsupported("the infrastructure state is the Python rule's");
-        }
-        let Some(base) = base else {
-            return unsupported("the infrastructure state is the Python rule's");
-        };
-        for (facility_id, units) in base.iter() {
-            let Some(facility) = facilities.get_item(&facility_id)? else {
-                return unsupported("an infrastructure base capacity names an unknown facility");
-            };
-            let capacity = exact_int(&attribute(&facility, intern!(py, "capacity"))?)?;
-            let units = exact_int(&units)?;
-            if !(0..=capacity).contains(&units) {
-                return unsupported("an infrastructure base capacity is out of range");
-            }
-        }
-        Ok(())
     }
 }
 
-/// `{key: item.zone_id for key, item in facilities.items()} == kept`.
-fn same_facility_zones(facilities: &Bound<'_, PyDict>, kept: &Bound<'_, PyDict>) -> PyResult<bool> {
-    let py = facilities.py();
-    if kept.len() != facilities.len() {
-        return Ok(false);
+/// The value of a namespace held as a `V`: None for an absent key.
+fn value_of<'w>(world: &'w World, held: &HeldNamespaces, name: &str) -> Result<Option<crate::cell::ShardRef<'w, V>>> {
+    match held.of(name)? {
+        Held::Absent => Ok(None),
+        Held::Other(reason) => Err(Error::unsupported(*reason)),
+        Held::Held => world.slots.try_value(name),
     }
-    for (key, facility) in facilities.iter() {
-        let Some(zone) = raw_dict_get(kept.as_any(), &key)? else {
-            return Ok(false);
-        };
-        let now = attribute(&facility, intern!(py, "zone_id"))?;
-        if !now.is(&zone) && !now.eq(&zone)? {
-            return Ok(false);
-        }
-    }
-    Ok(true)
 }
 
-fn facility_zones_of<'py>(facilities: &Bound<'py, PyDict>) -> PyResult<Bound<'py, PyDict>> {
-    let py = facilities.py();
-    let zones = PyDict::new(py);
-    for (key, facility) in facilities.iter() {
-        zones.set_item(key, attribute(&facility, intern!(py, "zone_id"))?)?;
+/// How a namespace the memo compares stands now.
+fn seen_now(world: &World, held: &HeldNamespaces, name: &str) -> Result<Seen> {
+    match held.of(name)? {
+        Held::Absent => Ok(Seen::Absent),
+        Held::Other(_) => refuse("a namespace the memo compares holds another tree"),
+        Held::Held => match world.stamp_of(name)? {
+            Some(stamp) => Ok(Seen::Stamp(stamp)),
+            None => refuse("a namespace the memo compares has no mirror"),
+        },
     }
-    Ok(zones)
 }
 
-/// `map.keys() == kept`.
-fn same_keys(map: &Bound<'_, PyDict>, kept: Option<&FxHashSet<String>>) -> PyResult<bool> {
-    let Some(kept) = kept else {
+/// A map's part is absent or empty (not truthy), in a state that is a map.
+fn empty_part(world: &World, held: &HeldNamespaces, name: &str, part: &str) -> Result<bool> {
+    let Some(state) = value_of(world, held, name)? else {
         return Ok(false);
     };
-    if kept.len() != map.len() {
+    let V::Map(state) = &*state else {
         return Ok(false);
-    }
-    for (key, _) in map.iter() {
-        if !kept.contains(exact_str(&key)?) {
-            return Ok(false);
+    };
+    Ok(!state.get(part).is_some_and(V::is_truthy))
+}
+
+/// Whether no presence record points into other model state, which may change.
+fn no_archive_paths(world: &World, held: &HeldNamespaces) -> Result<bool> {
+    let Some(presence) = value_of(world, held, PRESENCE)? else {
+        return Ok(false);
+    };
+    let V::Map(presence) = &*presence else {
+        return Ok(false);
+    };
+    let Some(V::Map(people)) = presence.get("people") else {
+        return Ok(false);
+    };
+    Ok(people.values().all(|person| !matches!(person, V::Map(person) if person.get("archive_path").is_some_and(V::is_truthy))))
+}
+
+/// `table.keys() == kept`, as sets.
+fn same_keys<R>(table: &Table<R>, kept: Option<&FxHashSet<Arc<str>>>) -> bool {
+    let Some(kept) = kept else {
+        return false;
+    };
+    table.len() == kept.len() && table.slots().all(|(key, _)| kept.contains(key))
+}
+
+fn keys_of<R>(table: &Table<R>) -> FxHashSet<Arc<str>> {
+    table.slots().map(|(key, _)| key.clone()).collect()
+}
+
+/// The IDs a body record or config may name besides the people here: the population state's
+/// `initial_agent_ids` and `profile_traits`, and its departures for the history.
+fn historical_ids(world: &World, held: &HeldNamespaces, with_departures: bool) -> Result<FxHashSet<Arc<str>>> {
+    let mut ids = FxHashSet::default();
+    let Some(population) = value_of(world, held, DYNAMICS)? else {
+        return Ok(ids);
+    };
+    let V::Map(population) = &*population else {
+        return Ok(ids);
+    };
+    if let Some(initial) = population.get("initial_agent_ids") {
+        let V::List(initial) = initial else {
+            return refuse("the initial agents are not a list");
+        };
+        for id in initial {
+            let V::Str(id) = id else {
+                return refuse("a value is not a str");
+            };
+            ids.insert(id.clone());
         }
     }
-    Ok(true)
-}
-
-fn keys_of(map: &Bound<'_, PyDict>) -> PyResult<FxHashSet<String>> {
-    let mut keys = FxHashSet::default();
-    keys.reserve(map.len());
-    for (key, _) in map.iter() {
-        keys.insert(exact_str(&key)?.to_owned());
+    if let Some(traits) = population.get("profile_traits") {
+        let V::Map(traits) = traits else {
+            return refuse("a value is not a plain dict");
+        };
+        ids.extend(traits.keys().cloned());
     }
-    Ok(keys)
+    if with_departures {
+        if let Some(departures) = population.get("departures") {
+            let V::List(departures) = departures else {
+                return refuse("the departures are not a list");
+            };
+            for item in departures {
+                if let V::Map(item) = item {
+                    if let Some(V::Str(id)) = item.get("agent_id") {
+                        ids.insert(id.clone());
+                    }
+                }
+            }
+        }
+    }
+    Ok(ids)
 }
 
-/// `_is_settled`, of a status that is a str: the values of SupportRequestStatus.RESOLVED and
-/// UNRESOLVED; a StrEnum equals its value.
-fn is_settled(request: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let py = request.py();
-    let status = attribute(request, intern!(py, "status"))?;
-    let status = status.downcast::<PyString>()?;
-    let status = status.to_str()?;
-    Ok(status == "resolved" || status == "unresolved")
-}
-
-/// `object.__setattr__(request, "_write_listener", listener)`: `report_writes_to`.
-fn report_writes_to(request: &Bound<'_, PyAny>, listener: &Bound<'_, PyAny>) -> PyResult<()> {
-    let name = intern!(request.py(), "_write_listener");
-    // SAFETY: all three are live objects; the function is in the stable ABI and sets an error on failure.
-    if unsafe { ffi::PyObject_GenericSetAttr(request.as_ptr(), name.as_ptr(), listener.as_ptr()) } != 0 {
-        return Err(PyErr::fetch(request.py()));
+/// The history rule of `validate_body_state`, for the records since the last tick
+/// (`records_since_previous_tick`: from the last one before the tick), past the rows' own check and
+/// the config's.
+fn body_history(world: &World, held: &HeldNamespaces, body: &BodyRow, minute: i64) -> Result<()> {
+    let items = &body.history.items;
+    let parse = |index: usize| -> Result<serde_json::Value> { serde_json::from_slice(&items[index]).map_err(|_| Error::unsupported("a body history item is not JSON")) };
+    let mut start = items.len();
+    while start > 0 {
+        let item = parse(start - 1)?;
+        if let Some(recorded) = item.get("minute").filter(|value| value.is_number()) {
+            match recorded.as_i64() {
+                Some(recorded) if recorded < minute - 1 => break,
+                Some(_) => {}
+                None if recorded.is_f64() => {}
+                None => return refuse("a body history minute is past i64"),
+            }
+        }
+        start -= 1;
+    }
+    let rows = world.rows()?;
+    let mut historical: Option<FxHashSet<Arc<str>>> = None;
+    for index in start.saturating_sub(1)..items.len() {
+        let item = parse(index)?;
+        let Some(item) = item.as_object() else {
+            return refuse("a body history item is the Python rule's");
+        };
+        let read = |name: &str| item.get(name).ok_or_else(|| Error::unsupported("a body history item lacks a field"));
+        if !read("event_id")?.is_string() || !read("kind")?.is_string() {
+            return refuse("a value is not a str");
+        }
+        read("topic_id")?;
+        read("causation_id")?;
+        let actors = read("actor_ids")?;
+        let deltas = read("deltas")?;
+        let minute_is_count = read("minute")?.as_i64().is_some_and(|recorded| recorded >= 0);
+        if item.len() != 7 || !minute_is_count || !deltas.is_object() {
+            return refuse("a body history item is the Python rule's");
+        }
+        let Some(actors) = actors.as_array() else {
+            return refuse("a body history item's actors are the Python rule's");
+        };
+        for actor in actors {
+            let Some(actor_id) = actor.as_str() else {
+                return refuse("a value is not a str");
+            };
+            if rows.agents.contains_key(actor_id) {
+                continue;
+            }
+            if historical.is_none() {
+                historical = Some(historical_ids(world, held, true)?);
+            }
+            if !historical.as_ref().is_some_and(|ids| ids.contains(actor_id)) {
+                return refuse("a body history actor is unknown");
+            }
+        }
     }
     Ok(())
 }
 
-/// A dict's `pending` part (`pending_relocations`, `pending_arrivals`, ...) is empty or absent, in a
-/// state that is a dict.
-/// Whether `model_state[name]` is a dict whose part is absent or empty. The namespaces of the
-/// memo are read as a `V`, a detached one from its row.
-fn empty_part(world: &Bound<'_, PyAny>, name: &str, part: &str) -> PyResult<bool> {
-    with_state_value(world, name, |state| {
-        let Some(V::Map(state)) = state else {
-            return Ok(false);
-        };
-        Ok(!state.get(part).is_some_and(V::is_truthy))
-    })
-}
-
-/// Whether no presence record points into other model state, which may change.
-fn no_archive_paths(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    with_state_value(world, PRESENCE, |presence| {
-        let Some(V::Map(presence)) = presence else {
-            return Ok(false);
-        };
-        let Some(V::Map(people)) = presence.get("people") else {
-            return Ok(false);
-        };
-        for person in people.values() {
-            if let V::Map(person) = person {
-                if person.get("archive_path").is_some_and(V::is_truthy) {
-                    return Ok(false);
-                }
-            }
-        }
-        Ok(true)
-    })
-}
-
-fn check(table: &Table, world: &Bound<'_, PyAny>, memo: &Bound<'_, TickMemo>) -> PyResult<()> {
-    let py = world.py();
-    for (holder, name, defined) in &table.watched {
-        if !holder.bind(py).getattr(name.bind(py))?.is(defined.bind(py)) {
-            return unsupported("a rule of the check is patched");
-        }
-    }
-
-    // ---- What `_rows_are_what_the_world_holds` asks of the whole world, for every namespace below.
-    let world_state = attribute(world, intern!(py, "__dict__"))?;
-    core_of(world)?;
-    let store = entities_of(world)?;
-    if !store.call_method1(intern!(py, "follows"), (&world_state,))?.is_truthy()? {
-        return unsupported("the maps of the world are not the ones the rows follow");
-    }
-    let Some(model_state) = raw_dict_get(&world_state, intern!(py, "model_state"))? else {
-        return unsupported("the world has no model state");
+/// `_has_exact_schema` of the zone environment.
+fn environment_schema(state: Option<&V>) -> Result<()> {
+    let Some(V::Map(state)) = state else {
+        return refuse("the zone environment is the Python rule's");
     };
-    if !crate::core::tracked::is_table_type(model_state.get_type().as_ptr().cast()) {
-        return unsupported("the model state is not the table");
+    if state.len() != 2 || !matches!(state.get("schema_version"), Some(V::Int(1))) || !matches!(state.get("modifiers"), Some(V::Map(_))) {
+        return refuse("the zone environment is the Python rule's");
     }
-    let model_state = model_state.downcast::<PyDict>()?;
-    let mirrors = attribute(model_state, intern!(py, "_mirrors"))?;
-    let validators = table.validators.bind(py);
-    let cx = Check { world, model_state, mirrors: &mirrors, validators };
+    Ok(())
+}
+
+/// The first half of `validate_operational_events_state`, which is all of it at a tick. The events
+/// are read by the entity rules' `watch`.
+fn operational_schema(state: &V) -> Result<()> {
+    let V::Map(state) = state else {
+        return refuse("the operational events are the Python rule's");
+    };
+    let is_map = |name: &str| matches!(state.get(name), Some(V::Map(_)));
+    if state.len() != 5
+        || !matches!(state.get("schema_version"), Some(V::Int(1)))
+        || !is_map("shipments")
+        || !is_map("water_outages")
+        || !is_map("staff_status")
+        || !matches!(state.get("cancelled_staff_task_ids"), Some(V::List(_)))
+    {
+        return refuse("the operational events are the Python rule's");
+    }
+    Ok(())
+}
+
+/// `validate_infrastructure_runtime_state` of a tick with its config, past the config's own check
+/// (`tick_plan`): the state's shape and the base capacity of each facility.
+fn infrastructure(world: &World, state: Option<&V>) -> Result<()> {
+    let Some(V::Map(state)) = state else {
+        return refuse("the infrastructure state is the Python rule's");
+    };
+    let is_map = |name: &str| matches!(state.get(name), Some(V::Map(_)));
+    let base = match state.get("base_working_units") {
+        Some(V::Map(base)) => Some(base),
+        _ => None,
+    };
+    if state.len() != 5 || !matches!(state.get("schema_version"), Some(V::Int(1))) || !is_map("outages") || !is_map("environmental_stressors") || !is_map("route_interruptions") {
+        return refuse("the infrastructure state is the Python rule's");
+    }
+    let Some(base) = base else {
+        return refuse("the infrastructure state is the Python rule's");
+    };
+    let rows = world.rows()?;
+    for (facility_id, units) in base {
+        let Some(facility) = rows.facilities.get(facility_id) else {
+            return refuse("an infrastructure base capacity names an unknown facility");
+        };
+        let V::Int(units) = units else {
+            return refuse("a value is not an int");
+        };
+        if !(0..=facility.capacity).contains(units) {
+            return refuse("an infrastructure base capacity is out of range");
+        }
+    }
+    Ok(())
+}
+
+/// The rules read with the world borrowed, before the validators are asked.
+fn first(world: &World, memo: &Memo, inputs: &Inputs<'_>, configs_unchanged: bool) -> Result<Found> {
+    let (plan, held) = (inputs.plan, inputs.held);
     // A WorldState v5 is the world of a Scenario without resource_service, written today
     // (docs/rust-port/lanes/l7b-world-v5.md); it differs only in the resource service's rules.
-    let v6 = match exact_int(&attribute(world, intern!(py, "schema_version"))?)? {
+    let v6 = match world.schema_version()? {
         6 => true,
         5 => false,
-        _ => return unsupported("not a WorldState v5 or v6"),
+        _ => return refuse("not a WorldState v5 or v6"),
     };
-    let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
-
-    // ---- The configs: the plan of the configs the world holds, kept for their stamp with the other
-    // sections the kernels read (`core/configs.rs`).
-    let held = configs::current(world)?;
-    let Some(stamp) = held.stamp else {
-        return unsupported("no mirror follows the configs");
-    };
-    let configs_unchanged = memo.borrow().configs == Some(stamp);
-    // The contracts, which raise for configs the check would turn down.
-    let plan_of = || -> PyResult<Py<Plan>> {
-        let plan = table.tick_plan.bind(py).call1((world,))?;
-        Ok(plan.downcast_exact::<Plan>()?.clone().unbind())
-    };
-    let plan = match held.tick_plan.get_or_parse(|| configs::section_of(py, plan_of().map(|plan| Arc::new(plan) as Arc<Opaque>))) {
-        Section::Ok(plan) => plan.downcast_ref::<Py<Plan>>().ok_or_else(|| Unsupported::new_err("another plan"))?.clone_ref(py),
-        Section::Fault(_) => return Err(configs::reraise(plan_of)),
-        Section::Absent => return unsupported("no plan"),
-    };
-    if !configs_unchanged {
-        let mut kept = memo.borrow_mut();
-        kept.geometry_scope.bind(py).clear();
-        kept.configs = Some(stamp);
-        kept.body_config = None;
-    }
-    let plan = plan.get();
+    let minute = world.minute_index()?;
     // "resource_service requires WorldState v6; v6 requires resource_service": the plan has a
     // resource config exactly when the configs hold resource_service, and the entity rules below
     // take a v6 world only with one and a v5 world only without.
 
     // ---- What the memo compares.
-    let agents = attribute(world, intern!(py, "agents"))?;
-    let agents = agents.downcast::<PyDict>()?;
-    let zones = attribute(world, intern!(py, "zones"))?;
-    let zones = zones.downcast::<PyDict>()?;
-    let facilities = attribute(world, intern!(py, "facilities"))?;
-    let facilities = facilities.downcast::<PyDict>()?;
-    let (agents_unchanged, zones_unchanged, facilities_unchanged, seen, self_contained_before) = {
-        let kept = memo.borrow();
-        let facilities_unchanged = match &kept.facility_zones {
-            Some(zones) => same_facility_zones(facilities, zones.bind(py))?,
+    let (agents_unchanged, zones_unchanged, facilities_unchanged) = {
+        let rows = entity::tables(world)?;
+        let facilities_unchanged = match &memo.facility_zones {
+            Some(kept) => kept.len() == rows.facilities.len() && rows.facilities.iter().all(|(key, facility)| kept.get(key) == Some(&facility.zone_id)),
             None => false,
         };
-        let mut seen = Vec::with_capacity(COMPARED.len());
-        for (index, name) in COMPARED.iter().enumerate() {
-            seen.push(cx.seen(kept.seen[index].as_ref(), name)?);
-        }
-        (
-            same_keys(agents, kept.agent_ids.as_ref())?,
-            same_keys(zones, kept.zone_ids.as_ref())?,
-            facilities_unchanged,
-            seen,
-            kept.presence_is_self_contained,
-        )
+        (same_keys(&rows.agents, memo.agent_ids.as_ref()), same_keys(&rows.zones, memo.zone_ids.as_ref()), facilities_unchanged)
     };
-    let same = |index: usize| matches!(seen[index], Seen::Same);
-    let presence = cx.state(PRESENCE)?;
-    let presence_is_self_contained = if same(0) { self_contained_before } else { no_archive_paths(world)? };
+    let mut seen = [None; 4];
+    for (index, name) in COMPARED.iter().enumerate() {
+        seen[index] = Some(seen_now(world, held, name)?);
+    }
+    let same = |index: usize| seen[index] == memo.seen[index];
+    let presence = present(world, held, PRESENCE)?;
+    let presence_is_self_contained = if same(0) { memo.presence_is_self_contained } else { no_archive_paths(world, held)? };
     let presence_unchanged = agents_unchanged && zones_unchanged && same(0) && presence_is_self_contained;
     let lifecycle_unchanged = agents_unchanged
         && zones_unchanged
         && same(1)
-        && (presence.is_none() || presence_unchanged)
+        && (!presence || presence_unchanged)
         // A pending relocation is compared with the tasks and the event queue.
-        && empty_part(world, LIFECYCLE, "pending_relocations")?;
+        && empty_part(world, held, LIFECYCLE, "pending_relocations")?;
     let dynamics_unchanged = agents_unchanged
         && zones_unchanged
         && same(2)
         // A pending arrival is compared with the event queue, the clock and the presence.
-        && empty_part(world, DYNAMICS, "pending_arrivals")?;
+        && empty_part(world, held, DYNAMICS, "pending_arrivals")?;
     let overlay_unchanged = configs_unchanged
         && agents_unchanged
         && facilities_unchanged
         && same(3)
         // Rooms expire with the clock, and route access is compared with the graph.
-        && empty_part(world, OVERLAY, "temporary_rooms")?
-        && empty_part(world, OVERLAY, "route_modifiers")?;
+        && empty_part(world, held, OVERLAY, "temporary_rooms")?
+        && empty_part(world, held, OVERLAY, "route_modifiers")?;
 
     // ---- The support requests to check: open, written or new since the last check. Their order does
     // not matter to a valid world; with several broken ones it decides only which error comes first.
-    let support_requests = attribute(world, intern!(py, "support_requests"))?;
-    let support_requests = support_requests.downcast::<PyDict>()?;
-    let (added, restart) = {
-        let kept = memo.borrow();
-        match agents_unchanged.then(|| kept.requests.added_values(support_requests)).transpose()?.flatten() {
-            Some(added) => (added, false),
-            // The dict no longer starts with the requests held, or the Agents changed: read them all.
-            None => (PyList::new(py, support_requests.values())?, true),
-        }
-    };
-    let (open, written) = {
-        let kept = memo.borrow();
-        if restart {
-            (PyList::empty(py), PyList::empty(py))
+    let requests = {
+        let rows = world.rows()?;
+        let table = &rows.support_requests;
+        if !agents_unchanged || !starts_with(table, &memo.requests) {
+            // The table no longer starts with the requests held, or the Agents changed: read them all.
+            Checked { slots: table.slots().map(|(_, slot)| slot).collect(), open: Vec::new(), added: Vec::new(), restart: true, reopened: false }
         } else {
-            (kept.open.bind(py).clone(), kept.written.bind(py).clone())
+            let open: Vec<(Arc<str>, u32)> = memo.open.iter().filter_map(|key| Some((key.clone(), table.slot_of(key)?))).collect();
+            let added: Vec<(Arc<str>, u32)> = table.slots().skip(memo.requests.len()).map(|(key, slot)| (key.clone(), slot)).collect();
+            let known: FxHashSet<u32> = open.iter().chain(&added).map(|(_, slot)| *slot).collect();
+            // A request settled at the last check and written since may be open again.
+            let reopened = table.marked().iter().any(|slot| !known.contains(slot) && table.row_at(*slot).is_some_and(|row| !is_settled(row)));
+            let mut read: FxHashSet<u32> = FxHashSet::default();
+            let mut slots = Vec::with_capacity(open.len() + added.len());
+            let order = open.iter().map(|(_, slot)| *slot).chain(table.marked().iter().copied()).chain(added.iter().map(|(_, slot)| *slot));
+            for slot in order {
+                if table.row_at(slot).is_some() && read.insert(slot) {
+                    slots.push(slot);
+                }
+            }
+            Checked { slots, open, added, restart: false, reopened }
         }
     };
-    let mut read: FxHashSet<*mut ffi::PyObject> = FxHashSet::default();
-    let checked = PyList::empty(py);
-    for request in open.iter().chain(written.iter()).chain(added.iter()) {
-        if read.insert(request.as_ptr()) {
-            checked.append(request)?;
-        }
-    }
+
+    let mut validators: Vec<(Arc<str>, Asked)> = Vec::new();
+    let mut rule = |name: &str| validators.push((Arc::from(name), Asked::Rule));
 
     // ---- `validate_declared_states`.
+    let mut declared: Vec<(Arc<str>, Asked)> = Vec::new();
     for (name, version) in &plan.declared {
-        let name = name.bind(py);
-        let Some(state) = model_state.get_item(name)? else {
-            return unsupported("a declared namespace is missing");
-        };
-        let text = name.to_str()?;
-        let found = if is_detached(&state) {
-            // The row alone holds it.
-            with_state_value(world, text, |state| match state {
-                Some(V::Map(state)) => match state.get("schema_version") {
-                    Some(V::Int(found)) => Ok(*found),
-                    Some(_) => unsupported("a value is not an int"),
-                    None => unsupported("no schema version"),
+        if !held.contains(name)? {
+            return refuse("a declared namespace is missing");
+        }
+        let found = match value_of(world, held, name)? {
+            Some(state) => match &*state {
+                V::Map(state) => match state.get("schema_version") {
+                    Some(V::Int(found)) => *found,
+                    Some(_) => return refuse("a value is not an int"),
+                    None => return refuse("no schema version"),
                 },
-                _ => unsupported("a declared namespace is the Python rule's"),
-            })?
-        } else {
-            let Some(state) = as_readable_dict(&state) else {
-                return unsupported("a declared namespace is the Python rule's");
-            };
-            let found = state.get_item(intern!(py, "schema_version"))?;
-            exact_int(&found.ok_or_else(|| Unsupported::new_err("no schema version"))?)?
+                _ => return refuse("a declared namespace is the Python rule's"),
+            },
+            None => return refuse("a declared namespace is the Python rule's"),
         };
         if found != *version {
-            return unsupported("a declared namespace has another version");
+            return refuse("a declared namespace has another version");
         }
-        if text == PRESENCE && presence_unchanged {
+        if &**name == PRESENCE && presence_unchanged {
             continue;
         }
-        let Some(kernel) = validators.get_item(name)? else {
-            return unsupported("a declared namespace has no kernel");
-        };
-        if !cx.accepts(text, &kernel)? {
-            return unsupported("a declared namespace's kernel did not take it");
-        }
+        declared.push((name.clone(), Asked::Declared));
     }
 
     // ---- `validate_simulator_extensions`.
     for name in &plan.required {
-        if !model_state.contains(name.bind(py))? {
-            return unsupported("a required namespace is missing");
+        if !held.contains(name)? {
+            return refuse("a required namespace is missing");
         }
     }
-    if model_state.contains(SPACES)? && !plan.required.iter().any(|name| name.bind(py).to_str().is_ok_and(|text| text == SPACES)) {
-        return unsupported("temporary spaces without their contract");
+    if held.contains(SPACES)? && !plan.required.iter().any(|name| &**name == SPACES) {
+        return refuse("temporary spaces without their contract");
     }
-    if model_state.contains(QUEUES_LEGACY)? {
+    if held.contains(QUEUES_LEGACY)? {
         // A checkpoint of the queues before facility_queues_v1, an old model: L9 of step4-plan.md.
-        return unsupported("a legacy queue checkpoint");
+        return refuse("a legacy queue checkpoint");
     }
-    cx.must_validate("agent_dynamics_v1")?;
-    if let Some(body) = cx.state(BODY)? {
-        if !cx.accepts(BODY, table.rows_valid.bind(py))? {
-            return unsupported("the rows of the body state are the Python rule's");
-        }
-        let config_json = match cx.detached_mirror(BODY, &body)? {
-            Some(mirror) => NamespaceMirror::with_row::<BodyRow, _>(&mirror, |row| {
-                let mut encoder = crate::Encoder { out: Vec::new() };
-                row.config.write_json(&mut encoder).or_py()?;
-                Ok(encoder.out)
-            })?,
-            None => {
-                let Some(state) = as_readable_dict(&body) else {
-                    return unsupported("the body state is another kind of dict");
-                };
-                let Some(config) = state.get_item(intern!(py, "config"))? else {
-                    return unsupported("the body state has no config");
-                };
-                crate::encode(&config)?
-            }
-        };
-        let known = memo.borrow().body_config.as_ref().filter(|(json, _)| *json == config_json).map(|(_, ids)| ids.clone());
-        let named = match known {
-            Some(named) => named,
-            None => {
-                let named: Vec<String> = table.body_config_ids.bind(py).call1((world,))?.extract()?;
-                memo.borrow_mut().body_config = Some((config_json, named.clone()));
-                named
-            }
-        };
-        // Each person a per-person parameter names is here or in the population state's history.
-        let mut historical: Option<FxHashSet<String>> = None;
-        for id in &named {
-            if agents.contains(id.as_str())? {
-                continue;
-            }
-            if historical.is_none() {
-                historical = Some(cx.historical_ids(false)?);
-            }
-            if !historical.as_ref().is_some_and(|ids| ids.contains(id)) {
-                return unsupported("the body config names an unknown resident");
-            }
-        }
-        cx.body_history(&body, minute, agents)?;
+    rule("agent_dynamics_v1");
+    let mut body_config = None;
+    let body_rows = present(world, held, BODY)?;
+    if body_rows {
+        let body = world.row::<BodyRow>(BODY)?;
+        let mut encoder = crate::json::Encoder { out: Vec::new() };
+        body.config.write_json(&mut encoder)?;
+        body_config = Some(encoder.out);
+        body_history(world, held, &body, minute)?;
     }
     if !dynamics_unchanged {
-        cx.must_validate(DYNAMICS)?;
+        rule(DYNAMICS);
     }
     if !lifecycle_unchanged {
-        cx.must_validate(LIFECYCLE)?;
+        rule(LIFECYCLE);
     }
-    cx.must_validate("social_network_v1")?;
-    cx.must_validate("staff_dynamics_v1")?;
-    cx.must_validate("staff_operations_v1")?;
-    cx.must_validate(SPACES)?;
-    cx.must_validate("movement_v1")?;
+    rule("social_network_v1");
+    rule("staff_dynamics_v1");
+    rule("staff_operations_v1");
+    rule(SPACES);
+    rule("movement_v1");
     if !overlay_unchanged {
-        cx.must_validate(OVERLAY)?;
+        rule(OVERLAY);
     }
-    if cx.state(QUEUES)?.is_some() || plan.independent_queues {
-        cx.must_validate(QUEUES)?;
+    if present(world, held, QUEUES)? || plan.independent_queues {
+        rule(QUEUES);
     }
-    if model_state.contains(SHARED)? && !plan.shared_configured {
-        return unsupported("shared operations without their contract");
+    if held.contains(SHARED)? && !plan.shared_configured {
+        return refuse("shared operations without their contract");
     }
-    if cx.state(SHARED)?.is_some() && !cx.accepts(SHARED, table.tick_valid.bind(py))? {
-        return unsupported("the shared operations are the Python rule's");
-    }
+    let shared_operations = present(world, held, SHARED)?;
 
     // ---- The rest of `validate`.
     // A v6 world has a ledger and the service state; a v5 world has no service state, and a ledger
     // only with an initial stock.
-    let ledger = model_state.contains(LEDGER)?;
+    let ledger = held.contains(LEDGER)?;
     if v6 {
         if !ledger {
-            return unsupported("WorldState v6 without a ledger");
+            return refuse("WorldState v6 without a ledger");
         }
-        cx.must_validate(SERVICE)?;
-    } else if model_state.contains(SERVICE)? {
-        return unsupported("resource service state in a WorldState v5");
+        rule(SERVICE);
+    } else if held.contains(SERVICE)? {
+        return refuse("resource service state in a WorldState v5");
     }
     if plan.information_enabled {
-        cx.must_validate(INFORMATION)?;
-    } else if model_state.contains(INFORMATION)? {
-        return unsupported("information state without its model");
+        rule(INFORMATION);
+    } else if held.contains(INFORMATION)? {
+        return refuse("information state without its model");
     }
     if plan.mean_reverting {
-        cx.must_validate(PSYCHOLOGY)?;
-    } else if model_state.contains(PSYCHOLOGY)? {
-        return unsupported("psychological state without its model");
+        rule(PSYCHOLOGY);
+    } else if held.contains(PSYCHOLOGY)? {
+        return refuse("psychological state without its model");
     }
-    let operational = cx.state(OPERATIONAL)?;
-    match &operational {
-        Some(state) => cx.operational_schema(state)?,
-        None if plan.operational_enabled != Some(false) => return unsupported("operational events without their state"),
-        None => {}
+    let operational = present(world, held, OPERATIONAL)?;
+    if operational {
+        match value_of(world, held, OPERATIONAL)? {
+            Some(state) => operational_schema(&state)?,
+            None => return refuse("the operational events are the Python rule's"),
+        }
+    } else if plan.operational_enabled != Some(false) {
+        return refuse("operational events without their state");
     }
-    let infrastructure = cx.state(INFRASTRUCTURE)?;
+    let infrastructure_present = present(world, held, INFRASTRUCTURE)?;
     if plan.infrastructure_configured {
-        cx.infrastructure(infrastructure.as_ref(), facilities)?;
-    } else if infrastructure.is_some() {
-        return unsupported("infrastructure state without its model");
+        let state = if infrastructure_present { value_of(world, held, INFRASTRUCTURE)? } else { None };
+        infrastructure(world, state.as_deref())?;
+    } else if infrastructure_present {
+        return refuse("infrastructure state without its model");
     }
-    let environment = cx.state(ENVIRONMENT)?;
+    let environment_present = present(world, held, ENVIRONMENT)?;
     match &plan.environment_zones {
         Some(baselines) => {
-            for zone in baselines {
-                if !zones.contains(zone.as_str())? {
-                    return unsupported("a zone environment baseline names an unknown zone");
+            {
+                let rows = entity::tables(world)?;
+                if baselines.iter().any(|zone| !rows.zones.contains_key(zone)) {
+                    return refuse("a zone environment baseline names an unknown zone");
                 }
             }
-            cx.environment_schema(environment.as_ref())?;
+            let state = if environment_present { value_of(world, held, ENVIRONMENT)? } else { None };
+            environment_schema(state.as_deref())?;
         }
-        None if environment.is_some() => return unsupported("a zone environment without its config"),
+        None if environment_present => return refuse("a zone environment without its config"),
         None => {}
     }
-    let options = PyDict::new(py);
-    options.set_item(intern!(py, "validate_event_history"), false)?;
-    table.effects_valid.bind(py).call((world,), Some(&options))?;
     let mut event_rule_broken: Option<&'static str> = None;
-    let left = entity_rules_watching(
-        world,
-        &checked,
-        plan.resource_config.bind(py),
-        table.initial_needs.bind(py),
-        table.needs.bind(py),
-        &mut |kind: &str| {
-            if !plan.infrastructure_configured && plan.infrastructure_events.contains(kind) {
-                event_rule_broken = Some("an infrastructure event without the model");
-            } else if plan.environment_zones.is_none() && kind.starts_with(ENVIRONMENT_EVENTS) {
-                event_rule_broken = Some("a zone environment event without the policy");
-            } else if operational.is_none() && plan.operational_events.contains(kind) {
-                event_rule_broken = Some("an operational event without its state");
-            }
-        },
-    )?;
+    let entity_inputs = EntityInputs {
+        requests: Requests::Slots(&requests.slots),
+        resource_config: plan.resource_config.as_ref(),
+        route_capacities: inputs.route_capacities,
+        ledger: held.of(LEDGER)?,
+        service: held.of(SERVICE)?,
+        spaces: held.of(SPACES)?,
+        overlay: held.of(OVERLAY)?,
+    };
+    let left = entity::entity_rules(world, &entity_inputs, &mut |kind: &str| {
+        if !plan.infrastructure_configured && plan.infrastructure_events.contains(kind) {
+            event_rule_broken = Some("an infrastructure event without the model");
+        } else if plan.environment_zones.is_none() && kind.starts_with(ENVIRONMENT_EVENTS) {
+            event_rule_broken = Some("a zone environment event without the policy");
+        } else if !operational && plan.operational_events.contains(kind) {
+            event_rule_broken = Some("an operational event without its state");
+        }
+    })?;
     if let Some(reason) = event_rule_broken {
-        return unsupported(reason);
+        return refuse(reason);
     }
     if ledger {
-        cx.must_validate(LEDGER)?;
+        rule(LEDGER);
     }
     // `_validate_zone_capacity` of the zones the entity rules leave: their temporary spaces and
-    // rooms count too (`rules/overlay.rs`).
-    for item in left.iter() {
-        let item = item.downcast::<PyTuple>()?;
-        let (zone, occupancy) = (item.get_item(0)?, exact_int(&item.get_item(1)?)?);
-        if let Some(capacity) = crate::rules::overlay::total_zone_capacity(world, &zone, occupancy)? {
-            if occupancy > capacity {
-                return unsupported("a zone holds more than its capacity");
+    // rooms count too.
+    let places = Places { spaces: held.of(SPACES)?, overlay: held.of(OVERLAY)?, schema: inputs.overlay_schema };
+    entity::zone_capacity_passes(world, &places, &left)?;
+
+    declared.append(&mut validators);
+    Ok(Found {
+        validators: declared,
+        body_rows,
+        shared_operations,
+        body_config,
+        agents_unchanged,
+        zones_unchanged,
+        facilities_unchanged,
+        seen,
+        presence_is_self_contained,
+        unchanged: [configs_unchanged, presence_unchanged, lifecycle_unchanged, dynamics_unchanged, overlay_unchanged],
+        requests,
+    })
+}
+
+/// The rules read after the validators, and the memo moved on.
+fn last(world: &mut World, memo: &mut Memo, inputs: &Inputs<'_>, found: Found, named: Option<&[Arc<str>]>) -> Result<()> {
+    // Each person a per-person parameter of the body config names is here or in the population
+    // state's history.
+    if let Some(named) = named {
+        let rows = world.rows()?;
+        let mut historical: Option<FxHashSet<Arc<str>>> = None;
+        for id in named {
+            if rows.agents.contains_key(id) {
+                continue;
+            }
+            if historical.is_none() {
+                historical = Some(historical_ids(world, inputs.held, false)?);
+            }
+            if !historical.as_ref().is_some_and(|ids| ids.contains(id)) {
+                return refuse("the body config names an unknown resident");
             }
         }
     }
 
-    // ---- Everything passed: what the memo keeps. Nothing above wrote to it but the configs' plan.
-    let mut reopened = false;
-    for request in written.iter() {
-        if !is_settled(&request)? {
-            reopened = true;
-            break;
-        }
-    }
-    // The memo's list, or after a restart a new one: requests settled before write to the old.
-    let new_written = written.clone();
-    let still_open = PyList::empty(py);
-    let none = py.None().into_bound(py);
-    for request in checked.iter() {
-        if is_settled(&request)? {
-            report_writes_to(&request, new_written.as_any())?;
+    // ---- Everything passed: what the memo keeps.
+    let minute = world.minute_index()?;
+    let mut rows = world.rows_mut()?;
+    let requests = found.requests;
+    {
+        let table = &mut rows.support_requests;
+        let still_open: Vec<Arc<str>> = if requests.restart || requests.reopened {
+            // A request open again keeps its place in the table.
+            table.iter().filter(|(_, row)| !is_settled(row)).map(|(key, _)| key.clone()).collect()
         } else {
-            report_writes_to(&request, &none)?;
-            still_open.append(&request)?;
+            let open = |(key, slot): &(Arc<str>, u32)| table.row_at(*slot).is_some_and(|row| !is_settled(row)).then(|| key.clone());
+            requests.open.iter().filter_map(open).chain(requests.added.iter().filter_map(open)).collect()
+        };
+        if requests.restart {
+            memo.requests = table.slots().map(|(key, _)| key.clone()).collect();
+        } else {
+            memo.requests.extend(requests.added.into_iter().map(|(key, _)| key));
         }
+        memo.open = still_open;
+        table.take_marked();
     }
-    // A reopened request came last in the check; unsettled_requests keeps the dict's order.
-    let still_open = if reopened {
-        let every = PyList::empty(py);
-        for (_, request) in support_requests.iter() {
-            if !is_settled(&request)? {
-                every.append(request)?;
-            }
-        }
-        every
-    } else {
-        still_open
-    };
-    let mut kept = memo.borrow_mut();
-    if restart {
-        kept.requests.clear();
-        kept.written = new_written.clone().unbind();
+    if !found.agents_unchanged {
+        memo.agent_ids = Some(keys_of(&rows.agents));
     }
-    kept.requests.extend(&added);
-    new_written.call_method0(intern!(py, "clear"))?;
-    kept.open = still_open.unbind();
-    if !agents_unchanged {
-        kept.agent_ids = Some(keys_of(agents)?);
+    if !found.zones_unchanged {
+        memo.zone_ids = Some(keys_of(&rows.zones));
     }
-    if !zones_unchanged {
-        kept.zone_ids = Some(keys_of(zones)?);
+    if !found.facilities_unchanged {
+        memo.facility_zones = Some(rows.facilities.iter().map(|(key, facility)| (key.clone(), facility.zone_id.clone())).collect());
     }
-    if !facilities_unchanged {
-        kept.facility_zones = Some(facility_zones_of(facilities)?.unbind());
-    }
-    for (index, now) in seen.into_iter().enumerate() {
-        if let Seen::Changed(stamp) = now {
-            kept.seen[index] = Some(stamp);
-        }
-    }
-    kept.presence_is_self_contained = presence_is_self_contained;
-    kept.unchanged = [configs_unchanged, presence_unchanged, lifecycle_unchanged, dynamics_unchanged, overlay_unchanged];
-    kept.minute = minute;
-    Ok(())
-}
-
-/// The check, with the memo moved on, or Unsupported with the memo as it was but for the configs'
-/// plan.
-#[pyfunction]
-fn after_tick(world: &Bound<'_, PyAny>, memo: &Bound<'_, TickMemo>) -> PyResult<()> {
-    let py = world.py();
-    let answer = match TABLE.get(py) {
-        None => unsupported("domain/simulator_state.py has not installed the table"),
-        Some(table) => check(table, world, memo),
-    };
-    match answer {
-        Ok(()) => {
-            RAN.fetch_add(1, Ordering::Relaxed);
-            Ok(())
-        }
-        // A rule or contract that raises, called from here or read here, is the Python check's to raise.
-        Err(error) if error.is_instance_of::<PyException>(py) => {
-            let reason = error.value(py).to_string();
-            if let Ok(mut refusals) = REFUSALS.lock() {
-                *refusals.entry(reason.clone()).or_default() += 1;
-            }
-            Err(Unsupported::new_err(reason))
-        }
-        Err(error) => Err(error),
-    }
-}
-
-/// What `domain/simulator_state.py` gives once.
-#[pyfunction]
-#[allow(clippy::too_many_arguments)]
-fn install(
-    py: Python<'_>,
-    watched: Vec<(Py<PyAny>, Py<PyString>)>,
-    validators: Py<PyDict>,
-    rows_valid: Py<PyAny>,
-    tick_valid: Py<PyAny>,
-    effects_valid: Py<PyAny>,
-    configs: (Py<PyAny>, Py<PyAny>),
-    needs: (Py<PyAny>, Py<PyAny>),
-) -> PyResult<()> {
-    let mut defined = Vec::with_capacity(watched.len());
-    for (holder, name) in watched {
-        let value = holder.bind(py).getattr(name.bind(py))?.unbind();
-        defined.push((holder, name, value));
-    }
-    let (tick_plan, body_config_ids) = configs;
-    TABLE.get_or_init(py, || Table {
-        watched: defined,
-        validators,
-        rows_valid,
-        tick_valid,
-        effects_valid,
-        tick_plan,
-        body_config_ids,
-        initial_needs: needs.0,
-        needs: needs.1,
-    });
-    Ok(())
-}
-
-/// What has run in this process: `(checks taken, refusals by reason)`.
-#[pyfunction]
-fn stats<'py>(py: Python<'py>) -> PyResult<(u64, Bound<'py, PyDict>)> {
-    let refusals = PyDict::new(py);
-    if let Ok(known) = REFUSALS.lock() {
-        for (reason, count) in known.iter() {
-            refusals.set_item(reason, count)?;
-        }
-    }
-    Ok((RAN.load(Ordering::Relaxed), refusals))
-}
-
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<Plan>()?;
-    m.add_class::<TickMemo>()?;
-    m.add_function(wrap_pyfunction!(after_tick, m)?)?;
-    m.add_function(wrap_pyfunction!(install, m)?)?;
-    m.add_function(wrap_pyfunction!(stats, m)?)?;
+    memo.seen = found.seen;
+    memo.presence_is_self_contained = found.presence_is_self_contained;
+    memo.unchanged = found.unchanged;
+    memo.minute = minute;
     Ok(())
 }

@@ -742,12 +742,8 @@ fn assign_none<'py>(
     let mut no_qualified = 0.0;
     let mut busy = 0.0;
     let mut off_shift = 0.0;
-    let listener_name = intern!(py, "_write_listener");
     for request in &requests {
         if !raw_dict_get(&map, &request.id)?.is_some_and(|object| object.is(&request.object)) {
-            return Ok(None);
-        }
-        if !attribute(&request.object, listener_name)?.is_none() {
             return Ok(None);
         }
         let kind = kinds.kind_of(&request.id)?;

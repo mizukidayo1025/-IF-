@@ -36,7 +36,7 @@ from sheltersim.domain.infrastructure import (
     ScenarioInfrastructureSpec,
     create_infrastructure_runtime_state,
 )
-from sheltersim.domain.models import Activity, SupportRequestStatus
+from sheltersim.domain.models import Activity, InitialNeedProfile, SupportRequestStatus
 from sheltersim.domain.operational import H03_EVENT_TYPES
 from sheltersim.domain.population_lifecycle import (
     PopulationPresenceCommand,
@@ -149,14 +149,18 @@ def _is_settled(request: Any) -> bool:
     return request.status in ("resolved", "unresolved")
 
 
+def _written(world: WorldState) -> list[str]:
+    """The requests whose rows were written since the last passed check (Table.marked)."""
+    return native.rules("after_tick").written_requests(world)
+
+
 def _memo_facts(memo: Any) -> tuple[Any, ...]:
-    """What a refused check must leave as it was; the configs' plan may be new."""
+    """What a refused check must leave as it was; the configs' stamp may be new."""
     facts = memo.facts()
     return (
         facts["minute"],
-        tuple(id(item) for item in facts["open"]),
-        tuple(id(item) for item in facts["written"]),
-        tuple(id(item) for item in facts["requests"]),
+        tuple(facts["open"]),
+        tuple(facts["requests"]),
         facts["agent_ids"],
         facts["zone_ids"],
         facts["facility_zones"],
@@ -187,16 +191,17 @@ def _remove(world: WorldState, name: str) -> None:
     del world.model_state[name]
 
 
-def _recent_body_record(world: WorldState) -> dict[str, Any]:
-    """A good record of this minute, which the rule reads: what it holds passed the row too, so a
-    test of the rule writes past the row with dict.__setitem__, as only the tree holds that."""
+def _recent_body_record(world: WorldState, actor_id: str | None = None) -> dict[str, Any]:
+    """A good record of this minute, which the rule reads from the row: a test of the rule writes
+    the record through the tree, which writes the row (a record the row does not take taints the
+    namespace, which the kernel refuses)."""
     history = world.model_state["body_state_v1"]["history"]
     history.append(
         {
             "event_id": "probe",
             "minute": world.minute_index,
             "kind": "probe",
-            "actor_ids": [next(iter(world.agents))],
+            "actor_ids": [actor_id or next(iter(world.agents))],
             "topic_id": None,
             "causation_id": None,
             "deltas": {},
@@ -324,11 +329,9 @@ BREAKS: dict[str, Callable[[WorldState], Any]] = {
     "a temporary space state turned down": lambda w: _set_item(
         w.model_state["temporary_spaces_v1"], "schema_version", 2
     ),
-    # ---- An entity, read from the object by the entity rules.
-    "stress above 1 past the row": lambda w: next(iter(w.agents.values())).__dict__.__setitem__(
-        "stress", 1.01
-    ),
-    "a schema version": lambda w: w.__dict__.__setitem__("schema_version", 5),
+    # ---- An entity, read from the row by the entity rules.
+    "stress above 1": lambda w: setattr(next(iter(w.agents.values())), "stress", 1.01),
+    "a schema version": lambda w: setattr(w, "schema_version", 5),
 }
 
 
@@ -353,7 +356,7 @@ def test_a_broken_state_is_left_to_the_python_check_with_the_memo_as_it_was(
 @pytest.mark.parametrize(
     "what",
     [
-        "stress above 1 past the row",
+        "stress above 1",
         "the ledger removed",
         "the body config",
         "the body config names someone unknown",
@@ -461,7 +464,8 @@ def test_the_body_history_is_read_from_the_last_record_before_the_tick(documents
     if len(history) < 3:
         pytest.skip("this Run has too little history")
     old = history[0]
-    # Older than the slice: neither rule reads it at a tick.
+    # Older than the slice: neither rule reads it at a tick. Written past the row, which would turn
+    # it down: the full validation of a save reads the tree.
     if history[1]["minute"] < world.minute_index - 1:
         dict.__setitem__(old, "probe", 1)
         assert _takes(world, memo)
@@ -481,13 +485,13 @@ BODY_RECORD_BREAKS: dict[str, tuple[str, Any]] = {
 
 
 @pytest.mark.parametrize("what", sorted(BODY_RECORD_BREAKS))
-def test_a_recent_body_record_past_the_row_is_left_to_the_python_rule(documents, what) -> None:
+def test_a_recent_body_record_is_left_to_the_python_rule(documents, what) -> None:
     world, memo = _primed(documents[0])
     record = _recent_body_record(world)
     world.validate_after_tick()
     assert _takes(world, memo)
     name, value = BODY_RECORD_BREAKS[what]
-    dict.__setitem__(record, name, value)
+    record[name] = value
     assert not _takes(world, memo)
     assert _python_error(world) == "invalid simulator extension state"
 
@@ -496,18 +500,17 @@ def test_a_body_record_of_someone_in_the_population_s_history_is_taken(documents
     world, memo = _primed(documents[0])
     population = world.model_state["population_dynamics_v1"]
     population["departures"].append({"agent_id": "gone-before"})
-    record = _recent_body_record(world)
-    dict.__setitem__(record, "actor_ids", ["gone-before"])
+    _recent_body_record(world, "gone-before")
     if _python_error(world) is not None:
         pytest.skip("this Run's population state takes no such departure")
     assert _takes(world, memo)
 
 
-def test_a_body_record_missing_a_field_past_the_row_is_left_to_the_python_rule(documents) -> None:
+def test_a_body_record_missing_a_field_is_left_to_the_python_rule(documents) -> None:
     world, memo = _primed(documents[0])
     record = _recent_body_record(world)
     assert _takes(world, memo)
-    dict.pop(record, "deltas")
+    del record["deltas"]
     assert not _takes(world, memo)
     assert _python_error(world) == "invalid simulator extension state"
 
@@ -516,7 +519,7 @@ def test_a_zone_over_its_capacity_is_left_to_the_python_rule(documents) -> None:
     world, memo = _primed(documents[-1])
     zone = world.zones[next(iter(world.agents.values())).zone_id]
     inside = sum(agent.zone_id == zone.id for agent in world.agents.values())
-    zone.__dict__["capacity"] = inside - 1
+    zone.capacity = inside - 1
     assert not _takes(world, memo)
     with pytest.raises(StateInvariantError, match="exceeds nominal plus approved"):
         world.validate_after_tick()
@@ -527,7 +530,7 @@ def test_a_zone_at_its_capacity_is_taken(documents) -> None:
     world, memo = _primed(documents[-1])
     zone = world.zones[next(iter(world.agents.values())).zone_id]
     inside = sum(agent.zone_id == zone.id for agent in world.agents.values())
-    zone.__dict__["capacity"] = inside
+    zone.capacity = inside
     assert _python_error(world) is None
     assert _takes(world, memo)
 
@@ -545,15 +548,13 @@ ACTIVE_BREAKS: dict[str, Callable[[WorldState, str, dict[str, Any]], Any]] = {
     "the due minute": lambda w, key, record: _set_item(
         record, "due_minute", record["due_minute"] + 1
     ),
-    "the staff member's end, past the row": lambda w, key, record: w.staff[
-        key
-    ].__dict__.__setitem__("busy_until", record["due_minute"] + 1),
-    "the staff member's queue, past the row": lambda w, key, record: w.staff[
-        key
-    ].__dict__.__setitem__("work_queue", []),
-    "the task's worker, past the row": lambda w, key, record: w.active_tasks[
-        record["task_id"]
-    ].__dict__.__setitem__("staff_id", "somebody"),
+    "the staff member's end": lambda w, key, record: setattr(
+        w.staff[key], "busy_until", record["due_minute"] + 1
+    ),
+    "the staff member's queue": lambda w, key, record: setattr(w.staff[key], "work_queue", []),
+    "the task's worker": lambda w, key, record: setattr(
+        w.active_tasks[record["task_id"]], "staff_id", "somebody"
+    ),
     "the target zone": lambda w, key, record: _set_item(record, "target_zone_id", "nowhere"),
     "the target": lambda w, key, record: _set_item(record, "target_id", "nothing"),
     "the travel minutes": lambda w, key, record: _set_item(
@@ -733,39 +734,30 @@ def test_shared_operations_without_their_contract_are_not_taken(documents) -> No
 def _expected_after(world: WorldState, memo: Any) -> dict[str, Any]:
     """What the memo holds after a check of these requests, worked out on the side."""
     facts = memo.facts()
-    requests = list(world.support_requests.values())
+    keys = list(world.support_requests)
     held = facts["requests"]
-    starts = len(requests) >= len(held) and all(a is b for a, b in zip(held, requests))
-    restart = not starts or facts["agent_ids"] != sorted(world.agents)
+    restart = keys[: len(held)] != held or facts["agent_ids"] != sorted(world.agents)
+    open_keys = [key for key, item in world.support_requests.items() if not _is_settled(item)]
     if restart:
-        checked = requests
-        reopened = False
+        still_open = open_keys
     else:
-        checked = list({id(item): item for item in facts["open"] + facts["written"]}.values())
-        known = {id(item) for item in checked}
-        checked += [item for item in requests[len(held) :] if id(item) not in known]
-        reopened = any(not _is_settled(item) for item in facts["written"])
-    still_open = [item for item in checked if not _is_settled(item)]
-    if reopened:
-        still_open = [item for item in requests if not _is_settled(item)]
-    return {
-        "open": still_open,
-        "settled": [item for item in checked if _is_settled(item)],
-        "held": len(requests),
-    }
+        known = set(facts["open"]) | set(keys[len(held) :])
+        reopened = any(key not in known for key in _written(world) if key in open_keys)
+        still_open = (
+            open_keys
+            if reopened
+            else [key for key in facts["open"] + keys[len(held) :] if key in open_keys]
+        )
+    return {"open": still_open, "held": keys}
 
 
 def _step(world: WorldState, memo: Any) -> None:
     expected = _expected_after(world, memo)
     _kernel(world, memo)
     facts = memo.facts()
-    assert [id(item) for item in facts["open"]] == [id(i) for i in expected["open"]]
-    assert len(facts["requests"]) == expected["held"]
-    assert facts["written"] == []
-    for item in expected["settled"]:
-        assert item._write_listener is facts["written"]
-    for item in expected["open"]:
-        assert item._write_listener is None
+    assert facts["open"] == expected["open"]
+    assert facts["requests"] == expected["held"]
+    assert _written(world) == []
     assert facts["minute"] == world.minute_index
     assert facts["agent_ids"] == sorted(world.agents)
     assert facts["zone_ids"] == sorted(world.zones)
@@ -788,7 +780,7 @@ def test_the_memo_follows_the_requests_as_they_change(documents) -> None:
     if settled:
         # A settled request that writes is read again.
         settled[0].cooldown_until = settled[0].cooldown_until
-        assert memo.facts()["written"] == [settled[0]]
+        assert _written(world) == [settled[0].id]
         _step(world, memo)
     if pending:
         pending[0].last_assignment_wait_reason_code = None
@@ -803,10 +795,23 @@ def test_a_new_request_is_read_and_held(documents) -> None:
     held = len(memo.facts()["requests"])
     _kernel(world, memo)
     assert len(memo.facts()["requests"]) == held + 1
-    assert new._write_listener is memo.facts()["written"]
-    new.__dict__["requested_minute"] = -1
-    new.cooldown_until = new.cooldown_until
-    assert memo.facts()["written"] == [new]
+    assert _written(world) == []
+    new.requested_minute = -1
+    assert _written(world) == [new.id]
+    assert not _takes(world, memo)
+
+
+def test_a_request_written_by_a_rule_of_the_core_is_read_again(documents) -> None:
+    """A rule of the core writes the row alone: its slot is marked, as a write from Python marks
+    it, and the memo reads the request again (it replaced SupportRequestState._write_listener)."""
+    world, memo = _primed(documents[0])
+    request = next(item for item in world.support_requests.values() if _is_settled(item))
+    native.state("entities").apply_row_ops(
+        world, "support_requests", [("write", request.id, "requested_minute", -1)]
+    )
+    assert request.requested_minute == -1
+    assert _written(world) == [request.id]
+    assert _python_error(world) is not None
     assert not _takes(world, memo)
 
 
@@ -857,22 +862,16 @@ def test_a_change_of_people_is_the_kernel_s_and_reads_every_request_again(docume
 
 
 def test_a_settled_request_is_read_again_when_the_people_change(documents) -> None:
-    # A presence command builds the world anew, so the requests are new objects too, and either
-    # sends the kernel back to every request (l7-validate.md says which a test can tell apart).
-    def broken(world: WorldState) -> None:
-        request = next(item for item in world.support_requests.values() if _is_settled(item))
-        # Past the report of the write: a settled request depends only on its fields and the
-        # people, so the memo skips it until they change; the save's full validation reads it.
-        object.__setattr__(request, "requested_minute", world.minute_index + 1)
-        assert _python_error(world) is not None
-
-    world, memo = _primed(documents[0])
-    broken(world)
-    assert _takes(world, memo)
+    """A change of people sends the check back to every request: a write past the request's
+    __setattr__ reaches no row and no rule (policy E12), and the save's full validation reads it."""
     world, memo = _primed(documents[0])
     _exit(world)
-    broken(world)
-    assert not _takes(world, memo)
+    _kernel(world, memo)
+    assert memo.facts()["requests"] == list(world.support_requests)
+    request = next(item for item in world.support_requests.values() if _is_settled(item))
+    request.__dict__["requested_minute"] = world.minute_index + 1
+    assert _python_error(world) is not None
+    assert _takes(world, memo)
 
 
 def test_the_body_config_s_past_residents_are_read_at_each_tick(documents) -> None:
@@ -884,19 +883,19 @@ def test_the_body_config_s_past_residents_are_read_at_each_tick(documents) -> No
     # Gone, and still in the population's history: the config may name them.
     _exit(world, leaver)
     _kernel(world, memo)
-    # Out of the history too, past the tree's report, so only this rule reads it.
+    # Out of the history too.
     population = world.model_state["population_dynamics_v1"]
     initial = population["initial_agent_ids"]
-    list.__delitem__(initial, initial.index(leaver))
+    del initial[initial.index(leaver)]
     if leaver in population["profile_traits"]:
-        dict.__delitem__(population["profile_traits"], leaver)
+        del population["profile_traits"][leaver]
     assert _python_error(world) is not None
     assert not _takes(world, memo)
 
 
 def test_the_memo_moves_on_to_the_minute_it_checked(documents) -> None:
     world, memo = _primed(documents[0])
-    world.__dict__["minute_index"] += 1
+    world.minute_index += 1
     _kernel(world, memo)
     assert memo.minute == world.minute_index
 
@@ -960,12 +959,11 @@ def test_a_reopened_request_comes_back_in_the_order_of_the_dict(documents) -> No
         if item is not None:
             break
     assert item is not None
-    assert item in memo.facts()["written"]
-    wanted = [req for req in world.support_requests.values() if not _is_settled(req)]
+    assert item.id in _written(world)
+    wanted = [key for key, req in world.support_requests.items() if not _is_settled(req)]
     assert _python_error(world) is None
     _kernel(world, memo)
     assert memo.facts()["open"] == wanted
-    assert item._write_listener is None
 
 
 def test_random_writes_taken_by_the_kernel_pass_the_python_rules(runs) -> None:
@@ -1013,13 +1011,32 @@ def test_random_writes_taken_by_the_kernel_pass_the_python_rules(runs) -> None:
             holder[name] = value
         else:
             name = generator.choice(sorted(holder.__dict__))
-            holder.__dict__[name] = value
+            if not _write_entity(world, holder, name, value):
+                continue
         if _takes(world, memo):
             taken += 1
             assert _python_error(world) is None, (type(holder).__name__, name, value)
         else:
             refused += 1
     assert taken > 0 and refused > 0
+
+
+def _write_entity(world: WorldState, holder: Any, name: str, value: Any) -> bool:
+    """A write through the row: the attribute, or for a frozen initial need profile a new profile
+    of its person. False where the object takes no such value."""
+    if isinstance(holder, InitialNeedProfile):
+        agent = next(a for a in world.agents.values() if a.profile.initial_needs is holder)
+        try:
+            needs = dataclasses.replace(holder, **{name: value})
+        except (TypeError, ValueError):
+            return False
+        agent.profile = dataclasses.replace(agent.profile, initial_needs=needs)
+        return True
+    try:
+        setattr(holder, name, value)
+    except (TypeError, ValueError, AttributeError):
+        return False
+    return True
 
 
 # ---- WorldState v5 ------------------------------------------------------------------------------
@@ -1097,10 +1114,10 @@ V5_BREAKS: dict[str, Callable[[WorldState], Any]] = {
             "stall_state": {},
         },
     ),
-    "a hydration need": lambda w: next(iter(w.agents.values())).needs.__dict__.__setitem__(
-        "hydration_need", 0.5
+    "a hydration need": lambda w: setattr(
+        next(iter(w.agents.values())).needs, "hydration_need", 0.5
     ),
-    "a schema version 6": lambda w: w.__dict__.__setitem__("schema_version", 6),
+    "a schema version 6": lambda w: setattr(w, "schema_version", 6),
 }
 
 
@@ -1207,7 +1224,8 @@ def test_random_writes_to_a_v5_world_taken_by_the_kernel_pass_the_python_rules(
             holder[name] = value
         else:
             name = generator.choice(sorted(holder.__dict__))
-            holder.__dict__[name] = value
+            if not _write_entity(world, holder, name, value):
+                continue
         if _takes(world, memo):
             taken += 1
             assert _python_error(world) is None, (type(holder).__name__, name, value)
