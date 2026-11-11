@@ -132,7 +132,8 @@ Checkpoint document) and times them.
   the `PyRow` of the slot's `dyn Row` by `as_any`. `src/state/sample_namespace.rs` is the small
   test-only namespace; `docs/rust-port/lanes/p4-world-core.md` explains the mechanism. Rows hold no
   Python handles. A `PyRow`'s `apply` runs no Python code and no borrow is held across a callback.
-  Read the world's core again after any callback (`core_of`), since a copy-and-swap may have moved
+  Read the world's core again after any callback (`core_of`), since a copy-and-swap (where a
+  transaction is refused: `rules/transaction.rs`, `state_mirror.transaction_or_copy`) may have moved
   it. `with_world(world, |world| ...)` (`PyWorldCell`, the `WorldCell` of a Python world) borrows
   the `WorldCore` exclusively and gives a core function `&mut World`; nothing inside may call Python
   (R2). `field_held` says whether `world.<name>` is still its slot's tree, for a core function that
@@ -288,13 +289,20 @@ are correctly rounded everywhere, and not `**` with a float.
   serve an independent FIFO through it.
 - `rules/effects.rs`: the rules of an EffectProgram's events: the guard, the five handlers of
   `events/effects.py`, the two reads of modifier stacks and `validate_effect_program_state`. A
-  handler keeps the Python rule's copy, check and swap. `model_validate` and the rules of other
-  modules are Python, called by name. Each handler and the guard raise their suppressed and failed
-  texts themselves (`core/errors.rs`), in the Python rule's order of checks; a value Rust can't
+  handler changes the world in a rule transaction (`rules/transaction.rs`). `model_validate` and
+  the rules of other modules are Python, called by name. Each handler and the guard raise their
+  suppressed and failed texts themselves (`core/errors.rs`), in the Python rule's order of checks; a value Rust can't
   judge as Python would says `Unsupported` with the world as it was. `rules/staff_order.rs` is
   `order_staff_operation` with `validate_staff_operation_order`'s checks, for the `staff_task_order`
   structure change (the Python validator stays for `validate_effect_program`).
   `state/effect_program.rs` is the row of `effect_program_v1`.
+- `rules/transaction.rs`: the transaction of a rule that changes the world and keeps the change only
+  if the changed world passes its checks (the effect handlers, the operational handlers' transaction,
+  population, `apply_presence_command`). `RuleTxn` opens a transaction of the world's core
+  (`core/txn.rs`, lane 6-2) and the rule writes `RuleTxn::world`; `finish`, `commit`, `rollback`
+  and `keep` end it. A world the transaction refuses takes the old copy (`from_dict(to_dict())`,
+  `_effect_candidate`), which a commit swaps in. A rule called inside another's open transaction
+  validates the world as a start does and writes it as it is. `counts()` says what ran, for the gate.
 
 - `rules/tick.rs`: `run_tick(controller, world, minute, rng, observer)`, one tick's phases in order,
   through `controller.run_tick` (`experiments/phases/driver.py`). Unsupported before anything changes

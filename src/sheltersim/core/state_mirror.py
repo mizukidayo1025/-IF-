@@ -35,6 +35,7 @@ from collections.abc import Callable, Iterator, Mapping, Sequence
 from typing import Any
 
 from sheltersim import native
+from sheltersim.core import txn_checks
 
 _MISSING = object()
 
@@ -1555,8 +1556,9 @@ def copy_through_json(world: Any, kind: str) -> Any:
 # serials, rng_state and any value no row holds through canonical JSON. It then validates the world
 # as from_dict validated the copy. A rollback gives back the snapshot and every old container,
 # object and tree; a commit drops them. BranchRuntime.apply and schedule_effect_program use it
-# through transaction_or_copy (lane 6-4): see docs/rust-port/step5-plan.md, PR 6-2 and PR 6-4. The
-# functions starting with _txn_ are the native host's (native/src/core/txn.rs).
+# through transaction_or_copy (lane 6-4), the rules of a tick that changed a copy and swapped it in
+# through native/src/rules/transaction.rs (lane 6-3): see docs/rust-port/step5-plan.md, PRs 6-2,
+# 6-4 and 6-3. The functions starting with _txn_ are the native host's (native/src/core/txn.rs).
 
 
 class Transaction:
@@ -1638,6 +1640,8 @@ def transaction_or_copy(world: Any, kind: str, make_copy: Callable[[Any], Any]) 
 
 def _txn_check(world: Any) -> None:
     """Unsupported unless the world's core holds every part a transaction gives back."""
+    if txn_checks.refused():
+        raise native.Unsupported("transactions are refused (txn_checks.refuse_transactions)")
     state = world.__dict__
     core = state["_core"]
     table = state.get("model_state")
@@ -1763,10 +1767,13 @@ def _txn_canonicalized(world: Any, kept: dict[str, Any]) -> None:
             dict.__setitem__(new, key, mirror.root_from_row())
     _settle(new)
     kept["roots_done"] = True
+    if txn_checks.poisoning():
+        kept["poisoned"] = txn_checks.poison(kept["state"], state)
 
 
 def _txn_restored(world: Any, kept: dict[str, Any]) -> None:
     """The containers the transaction started from, after the core's snapshot came back."""
+    txn_checks.unpoison(kept.pop("poisoned", None))
     state = world.__dict__
     core = state["_core"]
     if "log" in kept:

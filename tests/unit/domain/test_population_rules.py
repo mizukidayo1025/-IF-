@@ -1128,3 +1128,96 @@ def test_a_broken_presence_ledger_stops_the_kernels_before_a_write(world) -> Non
     with pytest.raises(native.Unsupported):
         native.rules("population").admit_pending_arrivals(world, 0)
     assert _document(world) == before
+
+
+# ---- The plan's reads of the world, in any order (lane 6-3) -------------------------------------
+
+
+def _out_and_back(agent_id: str, exit_minute: int, return_minute: int) -> EffectProgram:
+    """One program that takes a person out and brings them back."""
+    effects = [
+        TimedAction(
+            effect_id=effect_id,
+            op="population_presence",
+            target_selector=TargetSelector(kind="person", target_id=agent_id),
+            start_minute=minute,
+            parameters={"action": action},
+            units="population_transition",
+            source_id="TEST-PRESENCE",
+            assumption_ids=[],
+            policy_dependencies=["population_lifecycle_v1"],
+            reversible=False,
+        )
+        for effect_id, minute, action in (
+            ("out", exit_minute, "temporary_exit"),
+            ("back", return_minute, "return"),
+        )
+    ]
+    return EffectProgram(
+        program_id="program-out-and-back",
+        narrative="out and back",
+        source_text="out and back",
+        simulation_start_minute=exit_minute,
+        effects=effects,
+        assumptions=[],
+        support_mode=SupportMode.NATIVE,
+        compiler_provenance={"compiler_kind": "offline_rule", "compiler_version": "test-v1"},
+    )
+
+
+def _in_order(world: WorldState, reverse: bool) -> WorldState:
+    """A copy whose people and tasks are in the canonical order (by ID), or its reverse."""
+    other = copy.deepcopy(world)
+    other.agents = dict(sorted(other.agents.items(), reverse=reverse))
+    other.active_tasks = dict(sorted(other.active_tasks.items(), reverse=reverse))
+    return other
+
+
+@pytest.mark.parametrize("case", ["busy", "return_due"])
+def test_the_plan_reads_the_world_in_any_order(world, case: str) -> None:
+    """A presence command's transaction reads the world in the order the copy had, where the rule
+    read the world as it was: what the plan reads of it (whether the person is busy, the minutes
+    of the program's other commands) must not depend on that order."""
+    person, other = sorted(world.agents)[:2]
+    schedule_effect_program(world, _out_and_back(person, 1, 3))
+    exit_event = next(
+        event
+        for event in world.event_queue.pending()
+        if event.event_type == "effect_program_population"
+        and event.payload["command"]["action"] == "temporary_exit"
+    )
+    for task_id, agent_id in (("task-b", person), ("task-a", other)):
+        world.active_tasks[task_id] = ActiveTask(
+            id=task_id,
+            kind="travel_return",
+            agent_id=agent_id,
+            resource_id=None,
+            start_minute=0,
+            due_minute=5,
+        )
+    if case == "busy":
+        text = "population exit waits until the person is free: the person owns an active task"
+    else:
+        # The exit is retried at the minute its program's return is due: that is read first.
+        exit_event = ScheduledEvent(
+            **{**exit_event.to_dict(), "kind": exit_event.kind, "due_minute": 3}
+        )
+        text = (
+            "temporary exit dropped: the person was not free before the return in the same "
+            "EffectProgram"
+        )
+    world.minute_index = exit_event.due_minute
+    typed = PopulationPresenceCommand.model_validate(exit_event.payload["command"])
+    readers = [_in_order(world, reverse=False), _in_order(world, reverse=True)]
+    assert list(readers[0].agents) != list(readers[1].agents)
+    assert list(readers[0].active_tasks) != list(readers[1].active_tasks)
+    outcomes = []
+    for reader in readers:
+        candidate = copy.deepcopy(world)
+        with pytest.raises(EventSuppressed) as raised:
+            native.rules("population_lifecycle").apply_presence_action(
+                reader, candidate, exit_event, typed, typed.selected_ids()
+            )
+        outcomes.append((str(raised.value), _document(candidate), _document(reader)))
+    assert outcomes[0][0] == text
+    assert outcomes[0] == outcomes[1]
