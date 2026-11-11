@@ -121,8 +121,13 @@ Checkpoint document) and times them.
   departures and the validation of `population_dynamics_v1`, on the rows of the population
   namespaces and the entity tables: an admitted person is a new `agents` row that `build_agent`
   makes as the Python constructors did; the input contracts through `Host::contract`) (lane P8 c5);
+  `staff_operation_events.rs` (a staff operation's arrival, relief, completion and interruption,
+  and the stop of trips over a closed route, on the row of `staff_operations_v1` and the entities,
+  with the staff positions, `staff_dynamics` and the receipts called directly; an intake's
+  admission stays the glue's between the plan and the writes) and `staff_order.rs` (an operator's
+  order of a routed task) (lane P8 b2);
   the file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4, P8-0a, c1,
-  P8b-1, P8 a2, P8 a1, P8 d1, P8 a3, P8 c3, P8 a5, P8 c4, P8 c6 and P8 c5),
+  P8b-1, P8 a2, P8 a1, P8 d1, P8 a3, P8 c3, P8 a5, P8 c4, P8 c6, P8 c5 and P8 b2),
   `text.rs` (`casefold`, CPython 3.12's full fold from a generated table, `text/casefold.rs`
   by `tools/casefold_table.py`, tested at every code point against `tests/data/casefold.txt`;
   `g_text`, `format(value, "g")`; `py_repr`, `repr` of a str, from the table of what
@@ -398,8 +403,9 @@ are correctly rounded everywhere, and not `**` with a float.
   the rules of other modules are Python, called by name. Each handler and the guard raise their
   suppressed and failed texts themselves (`core/errors.rs`), in the Python rule's order of checks; a value Rust can't
   judge as Python would says `Unsupported` with the world as it was. `rules/staff_order.rs` is
-  `order_staff_operation` with `validate_staff_operation_order`'s checks, for the `staff_task_order`
-  structure change (the Python validator stays for `validate_effect_program`).
+  the glue of `order_staff_operation` with `validate_staff_operation_order`'s checks
+  (`core/src/rules/staff_order.rs`), for the `staff_task_order` structure change (the Python
+  validator stays for `validate_effect_program`).
   `state/effect_program.rs` is the row of `effect_program_v1`.
 - `rules/transaction.rs`: the transaction of a rule that changes the world and keeps the change only
   if the changed world passes its checks (the effect handlers, the operational handlers' transaction,
