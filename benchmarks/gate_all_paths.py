@@ -6,12 +6,19 @@ runs every scenario under other process settings and compares them with the firs
 to model_configs in place inside a tick phase is a problem too (native/src/core/configs.rs).
 With --verify-rows, each tick's end also checks that every entity object holds what its row holds
 (core/state_mirror.py, watch_entity_rows); a tick where they differ is a problem.
+With --poison, every object a rule's transaction (or the copy it stands for) takes out of the world
+gets a class that raises on any use (core/txn_checks.py); a use is a problem.
+With --refuse-transactions, the rules take the copy they made before transactions in place
+(txn_checks.refuse_transactions). Each result.json also holds the dispatcher's counts (how many
+due events went to the Python dispatcher because a copy or a transaction replaced them) and how many
+rule transactions ran in place or on a copy.
 
     python benchmarks/gate_all_paths.py --output DIR --expect fixtures/gate-all-paths.json
     python benchmarks/gate_all_paths.py --output DIR --determinism
     python benchmarks/gate_all_paths.py --output DIR --reversed-order
     python benchmarks/gate_all_paths.py --output DIR --coverage
     python benchmarks/gate_all_paths.py --output DIR --verify-rows
+    python benchmarks/gate_all_paths.py --output DIR --poison [--refuse-transactions]
     python benchmarks/gate_all_paths.py --output DIR --write-expected fixtures/gate-all-paths.json
 
 Run from the repository root with src on PYTHONPATH. Output belongs outside the repository.
@@ -73,6 +80,9 @@ ORDER_VARIABLE = "SHELTERSIM_GATE_REVERSE"
 ORDER_VARIANTS = (Variant("reversed_order", {"PYTHONHASHSEED": "1", ORDER_VARIABLE: "phase"}),)
 # Set by --verify-rows for the scenarios' processes.
 VERIFY_ROWS_VARIABLE = "SHELTERSIM_GATE_VERIFY_ROWS"
+# Set by --poison and --refuse-transactions.
+POISON_VARIABLE = "SHELTERSIM_GATE_POISON"
+REFUSE_VARIABLE = "SHELTERSIM_GATE_REFUSE_TRANSACTIONS"
 
 
 def run_one(name: str, output: Path, chosen: Any = None) -> None:
@@ -114,6 +124,15 @@ def run_one(name: str, output: Path, chosen: Any = None) -> None:
         from sheltersim.core.state_mirror import watch_entity_rows
 
         watch_entity_rows(True)
+    poison = bool(os.environ.get(POISON_VARIABLE))
+    if poison:
+        from sheltersim.core.txn_checks import poison_replaced
+
+        poison_replaced(True)
+    if os.environ.get(REFUSE_VARIABLE):
+        from sheltersim.core.txn_checks import refuse_transactions
+
+        refuse_transactions(True)
     order = os.environ.get(ORDER_VARIABLE)
     if order:
         from tick_probe import ReversedOrder, install
@@ -145,6 +164,9 @@ def run_one(name: str, output: Path, chosen: Any = None) -> None:
                     sheltersim_native, "stale_geometry_hits", lambda: None
                 )(),
                 "entity_rows": _entity_rows() if verify_rows else None,
+                "poison": _poison_uses() if poison else None,
+                "dispatch": dict(sheltersim_native.rules.dispatch.stats()[0]),
+                "transactions": _transactions(sheltersim_native),
             },
             ensure_ascii=False,
             indent=2,
@@ -158,6 +180,18 @@ def _entity_rows() -> dict[str, Any]:
     from sheltersim.core.state_mirror import entity_row_mismatches
 
     return entity_row_mismatches()
+
+
+def _poison_uses() -> dict[str, Any]:
+    from sheltersim.core.txn_checks import poison_uses
+
+    return poison_uses()
+
+
+def _transactions(native: Any) -> dict[str, int] | None:
+    """What the rule transactions did (native/src/rules/transaction.rs), or None before them."""
+    counts = getattr(getattr(native.rules, "transaction", None), "counts", None)
+    return None if counts is None else dict(counts())
 
 
 def _spawn(
@@ -242,6 +276,12 @@ def _problems_within(results: dict[str, dict[str, Any]]) -> list[str]:
             problems.append(
                 f"{name}: the entity objects differed from their rows at {rows['mismatches']} of "
                 f"{rows['checked']} tick ends; first {rows['first']}"
+            )
+        poisoned = result.get("poison")
+        if poisoned and poisoned["uses"]:
+            problems.append(
+                f"{name}: an object taken out of the world was used {poisoned['uses']} times; "
+                f"first {poisoned['first']}"
             )
     return problems
 
@@ -342,6 +382,16 @@ def main() -> int:
         action="store_true",
         help="check the entity objects against their rows at the end of every tick",
     )
+    parser.add_argument(
+        "--poison",
+        action="store_true",
+        help="make every object a rule's transaction takes out of the world raise on any use",
+    )
+    parser.add_argument(
+        "--refuse-transactions",
+        action="store_true",
+        help="make the rules take their copy instead of a transaction in place",
+    )
     parser.add_argument("--only", action="append", help="scenarios whose name starts with this")
     parser.add_argument("--jobs", type=int, default=min(os.cpu_count() or 1, 12))
     parser.add_argument("--run-one", help=argparse.SUPPRESS)
@@ -353,6 +403,10 @@ def main() -> int:
     args.output.mkdir(parents=True, exist_ok=False)
     if args.verify_rows:
         os.environ[VERIFY_ROWS_VARIABLE] = "1"
+    if args.poison:
+        os.environ[POISON_VARIABLE] = "1"
+    if args.refuse_transactions:
+        os.environ[REFUSE_VARIABLE] = "1"
     started = time.perf_counter()
     names = _scenario_names(args.only)
     coverage_dir = args.output / "coverage" if args.coverage else None
@@ -371,6 +425,9 @@ def main() -> int:
                 "refused": result.get("refused"),
                 "crashed": bool(result.get("crashed")),
                 "entity_rows": result.get("entity_rows"),
+                "poison": result.get("poison"),
+                "dispatch": result.get("dispatch"),
+                "transactions": result.get("transactions"),
             }
             for name, result in results.items()
         },
@@ -422,6 +479,21 @@ def main() -> int:
         checked = sum(row.get("checked", 0) for row in rows)
         differed = sum(row.get("mismatches", 0) for row in rows)
         print(f"entity rows checked at {checked} tick ends; {differed} differed")
+    if args.poison:
+        poisoned = [result.get("poison") or {} for result in results.values()]
+        print(
+            f"{sum(row.get('poisoned', 0) for row in poisoned)} objects poisoned; "
+            f"{sum(row.get('uses', 0) for row in poisoned)} uses"
+        )
+    dispatch = [result.get("dispatch") or {} for result in results.values()]
+    transactions = [result.get("transactions") or {} for result in results.values()]
+    print(
+        "events to the Python dispatcher: "
+        f"{sum(row.get('events_python', 0) for row in dispatch)}, of which replaced: "
+        f"{sum(row.get('events_replaced', 0) for row in dispatch)}; rule transactions in place: "
+        f"{sum(row.get('in_place', 0) for row in transactions)}, on a copy: "
+        f"{sum(row.get('copy', 0) for row in transactions)}"
+    )
     for problem in problems:
         print(f"PROBLEM {problem}")
     return 1 if problems else 0
