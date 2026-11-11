@@ -719,6 +719,8 @@ def test_a_person_with_two_open_requests_is_the_last_in_the_snapshot(documents) 
         ("Straße-TOILET", "toilet"),
         # İ folds to i and a combining dot, so "toilet" is not in it.
         ("TOİLET", "storage"),
+        # ﬆ folds to "st", which no lower casing gives (the core asks Python's fold, PR 5-4).
+        ("ﬆoilet", "toilet"),
     ],
 )
 def test_a_kind_that_is_not_ascii_is_folded_as_python_folds_it(
@@ -730,6 +732,24 @@ def test_a_kind_that_is_not_ascii_is_folded_as_python_folds_it(
     world.facilities[facility_id].kind = kind
     twin.facilities[facility_id].kind = like
     assert _fields(world) == _fields(twin)
+
+
+def test_kinds_that_are_not_ascii_are_folded_once_each(documents) -> None:
+    """The glue folds every kind that isn't ASCII before the core computes (PR 5-4)."""
+    world = _world(documents[0])
+    twin = _world(documents[0])
+    for (key, facility), like in zip(world.facilities.items(), ("Ⓣoilet", "ﬆoilet", "TOİLET")):
+        facility.kind = like
+        twin.facilities[key].kind = "toilet" if like == "ﬆoilet" else "storage"
+    assert _fields(world) == _fields(twin)
+
+
+def test_a_metric_state_assigned_whole_is_refused(documents) -> None:
+    """A field assigned whole is no longer its slot's tree: the core says so, as the kernel did."""
+    world = _world(documents[0])
+    world.metric_state = dict(world.metric_state)
+    with pytest.raises(KernelRefusal, match="the field holds another dict"):
+        metrics.MetricSnapshot.from_world(world)
 
 
 def test_a_metric_state_that_is_not_floats_is_refused(documents) -> None:

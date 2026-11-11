@@ -19,6 +19,12 @@ pub mod mathx;
 pub mod parallel;
 pub mod rng;
 pub mod row;
+
+/// The kernels moved to the core: pure functions over `&World`, whose PyO3 crate's file of the same
+/// name gathers what Python holds and makes the Python values (lane 5-4, step5-plan.md).
+pub mod rules {
+    pub mod metrics;
+}
 pub mod stamp;
 
 /// The rows of the namespaces of `model_state` and of the owned world fields. The PyO3 crate's

@@ -1,92 +1,51 @@
 //! `experiments/metrics.py` and `experiments/operational_kpis.py`: the KPI columns of a minute, read
 //! from the rows in one call. They only read, so a call changes nothing.
 //!
+//! The columns of `MetricSnapshot` are computed in the core (`sheltersim_core::rules::metrics`);
+//! `snapshot_fields` is its glue. `kpi_values` still reads here: it passes Python's own values of
+//! `world.resources` and of the snapshot through.
+//!
 //! The Python rules' errors are raised with their classes and texts. What only a state the checks of
 //! the Python rules never let through reaches is Unsupported, which the entries raise as
 //! `KernelRefusal`: a tainted row, a staff queue naming no task (a KeyError of the Python rule).
-//!
-//! The ID lists and the JSON are written by byte order, which is the code point order of Python's
-//! `sorted` and of `canonical_json`.
 
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 
-use crate::core::errors;
+use std::sync::Arc;
+
+use sheltersim_core::rules::metrics::{self, Folds, Inputs, OpenWait};
+
+use crate::core::errors::{self, OrPy};
 use crate::core::mathx::py_sum;
 use crate::core::row::{attribute, exact_dict, exact_int, exact_list, exact_str, namespace_is_absent, unsupported};
-use crate::core::world_core::{field_mirror_of, NamespaceMirror};
-use crate::rules::staff::{open_waits, OpenWaits};
+use crate::core::world_core::{field_held, field_mirror_of, with_world, NamespaceMirror};
+use crate::rules::staff::open_waits;
 use crate::state::entities::{entities_of, EntityStore};
 use crate::state::events::EventWriter;
 use crate::state::metric_state::MetricRow;
 use crate::state::resource_ledger::{held_mirror, LedgerRow};
-use crate::write_json_string;
 
-const HIGH_STRESS_AT_LEAST: f64 = 0.7;
-const EXPOSURE_SEMANTICS: &str = "per-minute observed request exposure by blocker; reason totals may overlap \
-                                  and are not exclusive causal attribution";
-
-/// `"toilet" in kind.casefold()`. A kind that isn't ASCII (a Scenario's kind is any str) goes to
-/// Python's own `str.casefold`, whose folding Rust doesn't have.
-fn is_toilet(kind: &str) -> PyResult<bool> {
-    if !kind.is_ascii() {
-        return Python::with_gil(|py| {
-            let folded = PyString::new(py, kind).call_method0(intern!(py, "casefold"))?;
-            Ok(exact_str(&folded)?.contains("toilet"))
-        });
+/// `"toilet" in kind.casefold()` of each facility kind that isn't ASCII, by Python's own fold, which
+/// Rust doesn't have: the folds the core's `sample` reads.
+fn folds_of(py: Python<'_>, kinds: Vec<Arc<str>>, folds: &mut Folds) -> PyResult<()> {
+    for kind in kinds {
+        let folded = PyString::new(py, &kind).call_method0(intern!(py, "casefold"))?;
+        let toilet = exact_str(&folded)?.contains("toilet");
+        folds.insert(kind, toilet);
     }
-    Ok(kind.as_bytes().windows(6).any(|part| part.eq_ignore_ascii_case(b"toilet")))
-}
-
-fn write_ids(out: &mut Vec<u8>, ids: &[impl AsRef<str>]) {
-    out.push(b'[');
-    for (index, id) in ids.iter().enumerate() {
-        if index > 0 {
-            out.push(b',');
-        }
-        write_json_string(out, id.as_ref());
-    }
-    out.push(b']');
-}
-
-fn write_key(out: &mut Vec<u8>, key: &str, first: bool) {
-    if !first {
-        out.push(b',');
-    }
-    write_json_string(out, key);
-    out.push(b':');
-}
-
-/// `support_wait_by_agent`, by agent: a later request of the same agent replaces an earlier one, as
-/// in the dict the Python rule fills.
-fn write_waits(out: &mut Vec<u8>, open: &OpenWaits<'_>) -> PyResult<()> {
-    let mut order: Vec<usize> = (0..open.requests.len()).collect();
-    order.sort_by(|first, second| open.requests[*first].agent.as_bytes().cmp(open.requests[*second].agent.as_bytes()));
-    out.push(b'{');
-    let mut first = true;
-    for (place, index) in order.iter().enumerate() {
-        let request = &open.requests[*index];
-        if order.get(place + 1).is_some_and(|next| open.requests[*next].agent == request.agent) {
-            continue;
-        }
-        write_key(out, &request.agent, first);
-        first = false;
-        out.extend_from_slice(b"{\"reason_codes\":");
-        write_ids(out, &open.reasons_of(request));
-        out.extend_from_slice(b",\"request_id\":");
-        write_json_string(out, exact_str(&request.id)?);
-        out.extend_from_slice(b",\"waited_minutes\":");
-        out.extend_from_slice(itoa::Buffer::new().format(request.waited).as_bytes());
-        out.push(b'}');
-    }
-    out.push(b'}');
     Ok(())
 }
 
 /// `MetricSnapshot.from_world`: the fields of the dataclass in their order, for a sample minute
 /// that is the world's. `unsettled` is `world.unsettled_support_requests()` as a list.
+///
+/// The pilot of a kernel split into a core function and its glue (step5-plan.md, PR 5-4): this
+/// gathers what Python holds (the open requests' waits, the event log, the folds of kinds that
+/// aren't ASCII, whether `metric_state` is its slot's tree), runs `sheltersim_core::rules::metrics::
+/// sample` on the world borrowed whole, and makes the Python tuple of what it returns.
 #[pyfunction]
 fn snapshot_fields<'py>(
     world: &Bound<'py, PyAny>,
@@ -96,130 +55,62 @@ fn snapshot_fields<'py>(
     let py = world.py();
     let sample = exact_int(sample_minute)?;
     let open = open_waits(world, unsettled, sample, true)?;
-    let writer = EventWriter::of(world)?;
-    let store = entities_of(world)?;
-    let mut queued: Vec<std::sync::Arc<str>> = Vec::new();
-    let mut active: Vec<std::sync::Arc<str>> = Vec::new();
-    let mut high_stress: Vec<std::sync::Arc<str>> = Vec::new();
-    let mut staff_tasks: Vec<std::sync::Arc<str>> = Vec::new();
-    let mut busy_staff: Vec<std::sync::Arc<str>> = Vec::new();
-    let (working_units, stress_mean, staff_count) = EntityStore::with_rows(&store, |rows| {
-        let mut working: i64 = 0;
-        for (_, facility) in rows.facilities.iter() {
-            if is_toilet(&facility.kind)? {
-                queued.extend(facility.queue_agent_ids.iter().cloned());
-                active.extend(facility.active_agent_ids.iter().cloned());
-                let Some(total) = working.checked_add(facility.working_units) else {
-                    return unsupported("the working units do not fit an i64");
-                };
-                working = total;
-            }
-        }
-        let mut stresses = Vec::with_capacity(rows.agents.len());
-        for (_, agent) in rows.agents.iter() {
-            stresses.push(agent.stress);
-            if agent.stress >= HIGH_STRESS_AT_LEAST {
-                high_stress.push(agent.profile.id.clone());
-            }
-        }
-        let mean = if stresses.is_empty() { 0.0 } else { py_sum(&stresses) / stresses.len() as f64 };
-        for (_, member) in rows.staff.iter() {
-            let mut busy = false;
-            for task_id in &member.work_queue {
-                staff_tasks.push(task_id.clone());
-                let Some(task) = rows.active_tasks.get(task_id) else {
-                    return unsupported("a staff queue names no task");
-                };
-                busy |= task.start_minute <= sample && sample < task.due_minute;
-            }
-            if busy {
-                busy_staff.push(member.id.clone());
-            }
-        }
-        Ok((working, mean, rows.staff.len()))
-    })?;
-    queued.sort_unstable();
-    active.sort_unstable();
-    high_stress.sort_unstable();
-    staff_tasks.sort_unstable();
-    busy_staff.sort_unstable();
-    let mut unresolved: Vec<&str> = open.requests.iter().map(|request| &*request.agent).collect();
-    unresolved.sort_unstable();
-    let mut no_qualified: Vec<&str> = open
+    let waits = open
         .requests
         .iter()
-        .filter(|request| open.has_no_qualified_staff(request))
-        .map(|request| &*request.agent)
-        .collect();
-    no_qualified.sort_unstable();
-    let log = writer.log().borrow();
-    let mut events: Vec<&str> = log.event_ids_at(sample).collect();
-    events.sort_unstable();
-
-    // Keys by their bytes, as canonical_json writes them.
-    let mut out: Vec<u8> = Vec::with_capacity(1024);
-    out.push(b'{');
-    write_key(&mut out, "busy_staff", true);
-    write_ids(&mut out, &busy_staff);
-    write_key(&mut out, "high_stress_agents", false);
-    write_ids(&mut out, &high_stress);
-    write_key(&mut out, "realized_events", false);
-    write_ids(&mut out, &events);
-    write_key(&mut out, "staff_tasks", false);
-    write_ids(&mut out, &staff_tasks);
-    write_key(&mut out, "support_requests_without_qualified_staff", false);
-    write_ids(&mut out, &no_qualified);
-    write_key(&mut out, "support_wait_by_agent", false);
-    write_waits(&mut out, &open)?;
-    write_key(&mut out, "support_wait_exposure_semantics", false);
-    write_json_string(&mut out, EXPOSURE_SEMANTICS);
-    write_key(&mut out, "toilet_active_agents", false);
-    write_ids(&mut out, &active);
-    write_key(&mut out, "toilet_queue_agents", false);
-    write_ids(&mut out, &queued);
-    write_key(&mut out, "unresolved_support_agents", false);
-    write_ids(&mut out, &unresolved);
-    out.push(b'}');
-    // Only str went in, and write_json_string writes UTF-8.
-    let source_ids = PyString::new(py, std::str::from_utf8(&out)?);
-
-    let metrics = field_mirror_of(world, intern!(py, "metric_state"))?;
-    let read = |row: &MetricRow, name: &str| row.get(name).copied().unwrap_or(0.0);
-    let (count, total, longest, no_worker, promoted, staff_busy, off_shift) =
-        NamespaceMirror::with_row::<MetricRow, _>(&metrics, |row| {
-            Ok((
-                read(row, "toilet_wait_count"),
-                read(row, "toilet_wait_total_minutes"),
-                read(row, "toilet_wait_max_minutes"),
-                read(row, "support_no_qualified_worker_request_minutes"),
-                read(row, "support_fairness_promoted_assignment_count"),
-                read(row, "support_wait_staff_busy_request_minutes"),
-                read(row, "support_wait_staff_off_shift_request_minutes"),
-            ))
-        })?;
-    let mean_wait = if count != 0.0 { total / count } else { 0.0 };
-    let load = if staff_count == 0 { 0.0 } else { busy_staff.len() as f64 / staff_count as f64 };
+        .map(|request| {
+            Ok(OpenWait {
+                agent: &request.agent,
+                request_id: exact_str(&request.id)?,
+                waited: request.waited,
+                reasons: open.reasons_of(request),
+                without_qualified_staff: open.has_no_qualified_staff(request),
+            })
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    let writer = EventWriter::of(world)?;
+    let metric_state_held = field_held(world, intern!(py, "metric_state"))?;
+    let mut folds = Folds::default();
+    // Once, or twice when a kind isn't ASCII: no borrow is held while Python folds it.
+    let taken = loop {
+        let taken = {
+            let log = writer.log().borrow();
+            let inputs = Inputs { sample, waits: &waits, log: log.log(), folds: &folds, metric_state_held };
+            with_world(world, |world| -> sheltersim_core::error::Result<_> {
+                let unfolded = metrics::unfolded_kinds(world, inputs.folds)?;
+                if !unfolded.is_empty() {
+                    return Ok(Err(unfolded));
+                }
+                metrics::sample(world, &inputs).map(Ok)
+            })?
+            .or_py()?
+        };
+        match taken {
+            Ok(taken) => break taken,
+            Err(unfolded) => folds_of(py, unfolded, &mut folds)?,
+        }
+    };
     let fields: [Bound<'py, PyAny>; 20] = [
         sample_minute.clone(),
-        queued.len().into_pyobject(py)?.into_any(),
-        active.len().into_pyobject(py)?.into_any(),
-        working_units.into_pyobject(py)?.into_any(),
-        count.into_pyobject(py)?.into_any(),
-        total.into_pyobject(py)?.into_any(),
-        mean_wait.into_pyobject(py)?.into_any(),
-        longest.into_pyobject(py)?.into_any(),
-        stress_mean.into_pyobject(py)?.into_any(),
-        high_stress.len().into_pyobject(py)?.into_any(),
-        staff_tasks.len().into_pyobject(py)?.into_any(),
-        busy_staff.len().into_pyobject(py)?.into_any(),
-        load.into_pyobject(py)?.into_any(),
-        unresolved.len().into_pyobject(py)?.into_any(),
-        source_ids.into_any(),
-        no_qualified.len().into_pyobject(py)?.into_any(),
-        no_worker.into_pyobject(py)?.into_any(),
-        promoted.into_pyobject(py)?.into_any(),
-        staff_busy.into_pyobject(py)?.into_any(),
-        off_shift.into_pyobject(py)?.into_any(),
+        taken.toilet_queue_length.into_pyobject(py)?.into_any(),
+        taken.toilet_active_users.into_pyobject(py)?.into_any(),
+        taken.toilet_working_units.into_pyobject(py)?.into_any(),
+        taken.toilet_wait_count.into_pyobject(py)?.into_any(),
+        taken.toilet_wait_total_minutes.into_pyobject(py)?.into_any(),
+        taken.toilet_wait_mean_minutes.into_pyobject(py)?.into_any(),
+        taken.toilet_wait_max_minutes.into_pyobject(py)?.into_any(),
+        taken.stress_mean.into_pyobject(py)?.into_any(),
+        taken.stress_high_count.into_pyobject(py)?.into_any(),
+        taken.staff_assigned_task_count.into_pyobject(py)?.into_any(),
+        taken.staff_busy_count.into_pyobject(py)?.into_any(),
+        taken.staff_load_ratio.into_pyobject(py)?.into_any(),
+        taken.unresolved_support_request_count.into_pyobject(py)?.into_any(),
+        PyString::new(py, &taken.source_ids_json).into_any(),
+        taken.support_no_qualified_worker_count.into_pyobject(py)?.into_any(),
+        taken.support_no_qualified_worker_request_minutes.into_pyobject(py)?.into_any(),
+        taken.support_fairness_promoted_assignment_count.into_pyobject(py)?.into_any(),
+        taken.support_wait_staff_busy_request_minutes.into_pyobject(py)?.into_any(),
+        taken.support_wait_staff_off_shift_request_minutes.into_pyobject(py)?.into_any(),
     ];
     PyTuple::new(py, fields)
 }

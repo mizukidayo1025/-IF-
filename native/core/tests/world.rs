@@ -1,5 +1,6 @@
 //! The core `World` of lanes 5-1 and 5-3: `Shard`'s borrow rules, `Slots`, value slots and stamps;
-//! and of lane 5-2: the scalars (`Fit`, `Seed`) and the rows of `resources` and `id_counters`.
+//! of lane 5-2: the scalars (`Fit`, `Seed`) and the rows of `resources` and `id_counters`; and of
+//! lane 5-4: the typed accessors of `World`.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -314,4 +315,44 @@ fn a_world_reads_resources_and_counters_from_their_slots() {
     assert_eq!(world.resources().unwrap()["water_ml"], 5_000);
     assert_eq!(world.id_counter("event"), Ok(Some(3)));
     assert_eq!(world.id_counter("agent"), Ok(None));
+}
+
+#[test]
+fn the_typed_accessors_borrow_their_part_and_say_what_is_wrong() {
+    let mut world = World::default();
+    let configs = world.slots.add(Arc::from(sheltersim_core::world::MODEL_CONFIGS), Place::Field).unwrap();
+    assert_eq!(world.stamp_of("absent"), Ok(None));
+    let stamp = world.stamp_of(sheltersim_core::world::MODEL_CONFIGS).unwrap().unwrap();
+    // The configs of a stamp are kept until two newer stamps were asked for.
+    let first = world.configs(stamp).unwrap();
+    assert!(Arc::ptr_eq(&first, &world.configs(stamp).unwrap()));
+    world.slots.at(configs).unwrap().try_borrow_mut().unwrap().touch();
+    let next = world.stamp_of(sheltersim_core::world::MODEL_CONFIGS).unwrap().unwrap();
+    assert_ne!(next, stamp);
+    assert!(!Arc::ptr_eq(&first, &world.configs(next).unwrap()));
+    // A slot borrowed elsewhere: its stamp can't be read now.
+    let held = world.slots.at(configs).unwrap().try_borrow_mut().unwrap();
+    assert_eq!(world.stamp_of(sheltersim_core::world::MODEL_CONFIGS), Err(borrowed()));
+    drop(held);
+
+    assert_eq!(world.metric_state().err(), Some(unsupported("the namespace is not owned")));
+    let metrics = world.slots.add(Arc::from(sheltersim_core::world::METRIC_STATE), Place::Field).unwrap();
+    assert_eq!(world.metric_state().err(), Some(unsupported("the namespace has no row")));
+    world.slots.at(metrics).unwrap().try_borrow_mut().unwrap().row = Some(Box::new(ValueRow(V::Null)));
+    assert_eq!(world.metric_state().err(), Some(unsupported("the namespace has another row")));
+    let mut row: IdMap<f64> = IdMap::default();
+    row.insert(Arc::from("toilet_wait_count"), 2.0);
+    world.slots.at(metrics).unwrap().try_borrow_mut().unwrap().row = Some(Box::new(row));
+    assert_eq!(world.metric_state().unwrap().get("toilet_wait_count"), Some(&2.0));
+    assert_eq!(world.row::<ValueRow>("metric_state").err(), Some(unsupported("the namespace has another row")));
+    {
+        let mut row = world.row_mut::<IdMap<f64>>("metric_state").unwrap();
+        row.insert(Arc::from("toilet_wait_max_minutes"), 1.0);
+        assert_eq!(world.metric_state().err(), Some(borrowed()));
+    }
+
+    assert_eq!(world.rows().unwrap().agents.len(), 0);
+    world.entities.get_mut().taint("why".to_owned());
+    assert_eq!(world.rows().err(), Some(unsupported("the entity store is tainted")));
+    assert_eq!(world.rows_mut().err(), Some(unsupported("the entity store is tainted")));
 }

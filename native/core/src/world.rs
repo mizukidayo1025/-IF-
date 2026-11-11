@@ -13,6 +13,10 @@
 //! `id_counters` (slots of `Place::Field`) joined in 5-2. Parts that join later, each in its own
 //! lane: the event queue and the log (6-5). The field `derived` (configs and caches keyed by
 //! stamps, design-p7.md §2, lane 7-1) is not state: a snapshot, a fork or a hash never reads it.
+//!
+//! A kernel of the core reads the world through the typed accessors of `World` (`rows`, `row`,
+//! `metric_state`, `configs`, the scalars), each a shared borrow of its part. Who holds the world
+//! hands it over as `&mut World` (`WorldCell::with`, the PyO3 crate's `with_world`), lane 5-4.
 
 use std::sync::Arc;
 
@@ -20,11 +24,12 @@ use indexmap::IndexMap;
 use rustc_hash::FxBuildHasher;
 
 use crate::cell::{Shard, ShardMut, ShardRef};
-use crate::config::Derived;
+use crate::config::{Configs, Derived};
 use crate::entities::Entities;
 use crate::error::{Error, Result};
 use crate::row::{IdMap, Row, ValueRow};
 use crate::stamp::Stamp;
+use crate::state::metric_state::MetricRow;
 use crate::value::V;
 
 /// The state of one world.
@@ -39,6 +44,25 @@ pub struct World {
     pub slots: Slots,
     /// Not state: what is derived from it, by stamp (`config::Derived`).
     pub derived: Shard<Derived>,
+}
+
+// ---- Who holds the world ------------------------------------------------------------------
+
+/// A world that a core function borrows for a while and gives back (policy E4, rules R2 and R6 of
+/// design-p5-p6.md). `with` holds the whole world exclusively while `f` runs; a function that calls
+/// a Host borrows between its calls, never across one. The PyO3 crate's cell is the world's
+/// `WorldCore` (`native/src/core/world_core.rs`, `with_world`).
+pub trait WorldCell {
+    /// Run `f` on the world. `Error::Runtime(BORROWED)` while any of it is borrowed.
+    fn with<R>(&self, f: impl FnOnce(&mut World) -> R) -> Result<R>;
+}
+
+/// A world held by Rust alone (tests, and a build without Python).
+impl WorldCell for Shard<World> {
+    fn with<R>(&self, f: impl FnOnce(&mut World) -> R) -> Result<R> {
+        let mut world = self.try_borrow_mut()?;
+        Ok(f(&mut world))
+    }
 }
 
 // ---- Scalars ---------------------------------------------------------------------------------
@@ -136,6 +160,10 @@ impl Scalars {
 pub const RESOURCES: &str = "resources";
 /// `world.id_counters`: a `ValueRow` slot of `Place::Field`, so a counter past i64 still fits.
 pub const ID_COUNTERS: &str = "id_counters";
+/// `world.metric_state`: a slot of `Place::Field` whose row is a `MetricRow`.
+pub const METRIC_STATE: &str = "metric_state";
+/// `world.model_configs`: a slot of `Place::Field`; its stamp keys `Derived`.
+pub const MODEL_CONFIGS: &str = "model_configs";
 
 /// The row of `world.resources`.
 pub type ResourcesRow = IdMap<i64>;
@@ -205,6 +233,61 @@ impl World {
     #[track_caller]
     pub fn id_counter(&self, name: &str) -> Result<Option<i64>> {
         id_counter(&*self.slots.try_row::<ValueRow>(ID_COUNTERS)?, name)
+    }
+
+    /// The rows of the entities, borrowed shared. Unsupported while the people's tables are
+    /// tainted, as the PyO3 crate's `EntityStore::with_rows` says.
+    #[track_caller]
+    pub fn rows(&self) -> Result<ShardRef<'_, Entities>> {
+        let rows = self.entities.try_borrow()?;
+        if rows.tainted().is_some() {
+            return Err(Error::unsupported("the entity store is tainted"));
+        }
+        Ok(rows)
+    }
+
+    /// `rows`, borrowed mutably.
+    #[track_caller]
+    pub fn rows_mut(&self) -> Result<ShardMut<'_, Entities>> {
+        let rows = self.entities.try_borrow_mut()?;
+        if rows.tainted().is_some() {
+            return Err(Error::unsupported("the entity store is tainted"));
+        }
+        Ok(rows)
+    }
+
+    /// The row of an owned field or namespace as its type, borrowed shared: Unsupported when the
+    /// name is not owned, has no row (absent or tainted) or has a row of another type.
+    #[track_caller]
+    pub fn row<T: Row>(&self, name: &str) -> Result<ShardRef<'_, T>> {
+        self.slots.try_row::<T>(name)
+    }
+
+    /// `row`, borrowed mutably.
+    #[track_caller]
+    pub fn row_mut<T: Row>(&self, name: &str) -> Result<ShardMut<'_, T>> {
+        self.slots.try_row_mut::<T>(name)
+    }
+
+    /// `world.metric_state` as its row.
+    #[track_caller]
+    pub fn metric_state(&self) -> Result<ShardRef<'_, MetricRow>> {
+        self.row::<MetricRow>(METRIC_STATE)
+    }
+
+    /// The stamp of a slot now: it changes with every write to the slot's row or tree. None when
+    /// the name is not owned.
+    pub fn stamp_of(&self, name: &str) -> Result<Option<Stamp>> {
+        match self.slots.get(name) {
+            None => Ok(None),
+            Some(slot) => Ok(Some(slot.try_borrow()?.generation)),
+        }
+    }
+
+    /// The configs parsed from the state of `model_configs` that has this stamp (`Derived`): kept,
+    /// or new with nothing parsed yet.
+    pub fn configs(&self, stamp: Stamp) -> Result<Arc<Configs>> {
+        Ok(self.derived.try_borrow_mut()?.configs(stamp))
     }
 }
 

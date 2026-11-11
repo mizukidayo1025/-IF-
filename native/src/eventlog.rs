@@ -523,9 +523,9 @@ impl EventStore {
         self.log.max_sequence()
     }
 
-    /// The event IDs of `at_minute(minute)`.
-    pub(crate) fn event_ids_at(&self, minute: i64) -> impl Iterator<Item = &str> {
-        self.log.event_ids_at(minute)
+    /// The core's log, for a core function that reads it (`sheltersim_core::rules`).
+    pub(crate) fn log(&self) -> &EventLog {
+        &self.log
     }
 
     pub(crate) fn has_event_id(&self, event_id: &str) -> bool {

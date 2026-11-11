@@ -45,7 +45,11 @@ Checkpoint document) and times them.
   an int of any size), `entities`, and `slots`, one `Slot` per owned field or namespace with its
   row, taint, detach flag, generation and counters; every other str key of `model_state` has a
   `ValueRow` slot, `Place::Value`, read by `Slots::value`; typed readers such as `minute_index`,
-  `resources` and `id_counter`),
+  `resources`, `id_counter`, `rows` (the entity rows, refused while tainted), `row::<T>(name)`,
+  `metric_state`, `stamp_of` and `configs`, each a borrow of its part; and `WorldCell`, what holds
+  a world and lends it whole to a core function, `with(|world| ...)`), `rules/` (the kernels moved
+  to the core, pure functions over `&World`: `metrics.rs`, the columns of `MetricSnapshot`; the
+  file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4),
   `cell.rs` (`Shard`, a part borrowed on its own; a second borrow of a part is an
   `Error::Runtime`, never a panic), `stamp.rs` (`Stamp`, process-unique numbers from one
   counter: a slot's generation is one) and `config/` (`Configs`, the sections the kernels read
@@ -108,7 +112,10 @@ Checkpoint document) and times them.
   test-only namespace; `docs/rust-port/lanes/p4-world-core.md` explains the mechanism. Rows hold no
   Python handles. A `PyRow`'s `apply` runs no Python code and no borrow is held across a callback.
   Read the world's core again after any callback (`core_of`), since a copy-and-swap may have moved
-  it. `NamespaceMirror.generation_of(tree)` changes with every write that reaches a tree, from
+  it. `with_world(world, |world| ...)` (`PyWorldCell`, the `WorldCell` of a Python world) borrows
+  the `WorldCore` exclusively and gives a core function `&mut World`; nothing inside may call Python
+  (R2). `field_held` says whether `world.<name>` is still its slot's tree, for a core function that
+  reads a field's row. `NamespaceMirror.generation_of(tree)` changes with every write that reaches a tree, from
   Python or from Rust (it is a new stamp each time), so a check that read a namespace need not read
   it again (`state_mirror.namespace_stamp`, `field_stamp`; `src/rules/after_tick.rs`).
 - `src/core/configs.rs`: fills the core's `Configs` with the Python contracts
