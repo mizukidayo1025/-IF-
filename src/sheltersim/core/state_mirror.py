@@ -27,7 +27,9 @@ returns, and an insert moves it in as itself.
 
 from __future__ import annotations
 
+import contextlib
 import copy
+import json
 import operator
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from typing import Any
@@ -1390,6 +1392,243 @@ def deepcopy_world(world: Any, memo: dict[int, Any]) -> Any:
         start_core(result)
     return result
 
+
+# ---- Transactions (lane 6-2 of Issue #152, policy E5) --------------------------------------------
+#
+# A transaction stands for the copy through canonical JSON a rule changes and swaps in
+# (WorldState.from_dict(world.to_dict()), or _effect_candidate of events/effects.py), on the world
+# itself. Its start validates the world, keeps a snapshot of the core (copy on write), puts the
+# core's rows in canonical order (World::canonicalize in native/core/src/world.rs) and makes the
+# Python containers again in the order and with the types the copy had: new maps of the entities
+# (the same objects, by ID), new trees of the attached namespaces and owned fields from their rows,
+# a new model_state table with its keys sorted, the pending events again in queue order under new
+# serials, rng_state and any value no row holds through canonical JSON. It then validates the world
+# as from_dict validated the copy. A rollback gives back the snapshot and every old container,
+# object and tree; a commit drops them. Nothing calls this yet (lane 6-3 does): see
+# docs/rust-port/step5-plan.md, PR 6-2. The functions starting with _txn_ are the native host's
+# (native/src/core/txn.rs).
+
+
+class Transaction:
+    """An open transaction on a world (transaction()): commit() or rollback() ends it early."""
+
+    __slots__ = ("_world", "open")
+
+    def __init__(self, world: Any) -> None:
+        self._world = world
+        self.open = True
+
+    def commit(self) -> None:
+        self._end(True)
+
+    def rollback(self) -> None:
+        self._end(False)
+
+    def _end(self, commit: bool) -> None:
+        if not self.open:
+            raise RuntimeError("the transaction is over")
+        self.open = False
+        core = self._world.__dict__["_core"]
+        if commit:
+            core.commit_transaction(self._world)
+        else:
+            core.rollback_transaction(self._world)
+
+
+@contextlib.contextmanager
+def transaction(world: Any, kind: str) -> Iterator[Transaction]:
+    """`with transaction(world, "full" | "effect") as txn:` changes the world in place.
+
+    The block's writes are kept when it ends, and rolled back when it raises (the error passes on)
+    or calls txn.rollback(). "effect" stands for _effect_candidate, "full" for
+    from_dict(to_dict()); both validate the world first (its error as it is), then the world in
+    canonical order (its error wrapped as from_dict wraps it). Transactions don't nest.
+    native.Unsupported, with nothing changed, for a world whose parts its core does not all hold.
+    """
+    core = world.__dict__.get("_core")
+    if core is None:
+        raise native.Unsupported("the world has no core")
+    core.begin_transaction(world, kind)
+    txn = Transaction(world)
+    try:
+        yield txn
+    except BaseException:
+        if txn.open:
+            txn.rollback()
+        raise
+    if txn.open:
+        txn.commit()
+
+
+def _txn_check(world: Any) -> None:
+    """Unsupported unless the world's core holds every part a transaction gives back."""
+    state = world.__dict__
+    core = state["_core"]
+    table = state.get("model_state")
+    if not isinstance(table, NamespaceTable) or table._core is not core:
+        raise native.Unsupported("model_state is not the table of the world's core")
+    if any(type(key) is not str for key in dict.keys(table)):
+        raise native.Unsupported("a key of model_state is not a str")
+    if not isinstance(getattr(state.get("event_queue"), "_store", None), _QueueStore):
+        raise native.Unsupported("the event queue is not held in Rust")
+    if not hasattr(getattr(state.get("event_log"), "_store", None), "txn_begin"):
+        raise native.Unsupported("the EventLog is not held in Rust")
+    store = core.entities()
+    if store.tainted is not None or store.zones_tainted is not None:
+        raise native.Unsupported("the entity store is tainted")
+    if not store.follows(state):
+        raise native.Unsupported("a map of entities is not the rows' map")
+    for name in OWNED_FIELDS:
+        if core.mirror(name) is None:
+            raise native.Unsupported("an owned field has no mirror")
+
+
+def _txn_validate(world: Any, candidate: bool) -> None:
+    """world.validate(); for the candidate, its error wrapped as from_dict wraps it."""
+    if not candidate:
+        world.validate()
+        return
+    from sheltersim.core.world import StateInvariantError
+
+    try:
+        world.validate()
+    except (KeyError, TypeError, ValueError) as exc:
+        if isinstance(exc, StateInvariantError):
+            raise
+        raise StateInvariantError(f"invalid WorldState document: {exc}") from exc
+
+
+def _canonical_copy(value: Any) -> Any:
+    """json.loads of the canonical JSON of value: what a copy through canonical JSON holds."""
+    from sheltersim.core.world import WorldState
+
+    return json.loads(WorldState._canonical_text(value))
+
+
+def _canonical_event(event: Any) -> Any:
+    """The event as from_dict reads it back from the world's document."""
+    from sheltersim.events.models import ScheduledEvent
+
+    return ScheduledEvent(**_canonical_copy(event.to_dict()))
+
+
+def _txn_canonicalized(world: Any, kept: dict[str, Any]) -> None:
+    """The Python containers in canonical order, after the core's rows (World::canonicalize).
+
+    What is made through canonical JSON is made first, so an error there changes nothing; each
+    change is then written down in kept as it is made, for _txn_restored.
+    """
+    state = world.__dict__
+    core = state["_core"]
+    table = state["model_state"]
+    rng_state = _canonical_copy(state["rng_state"])
+    plain_fields = {}
+    for name in OWNED_FIELDS:
+        mirror = core.mirror(name)
+        value = state[name]
+        if not (mirror.has_row and mirror.holds(value)):
+            plain_fields[name] = _canonical_copy(value)
+    keys = sorted(dict.keys(table))
+    plain = {}
+    for key in keys:
+        held = dict.__getitem__(table, key)
+        if held is _DETACHED:
+            continue
+        mirror = table._mirrors.get(key)
+        if mirror is None or not mirror.has_row or not mirror.holds(held):
+            plain[key] = _canonical_copy(held)
+    queue = state["event_queue"]._store
+    log = state["event_log"]._store
+    events = [_canonical_event(event) for event in queue.object_only_events()]
+
+    kept["state"] = dict(state)
+    core.entities().txn_begin(world)
+    kept["entities"] = True
+    queue.txn_begin(events)
+    kept["queue"] = queue
+    log.txn_begin()
+    kept["log"] = log
+    state["rng_state"] = rng_state
+    roots: dict[str, Any] = {}
+    kept["roots"] = roots
+    for name in OWNED_FIELDS:
+        mirror = core.mirror(name)
+        roots[name] = mirror.take_root()
+        if name not in plain_fields:
+            state[name] = mirror.root_from_row()
+        elif isinstance(plain_fields[name], dict):
+            state[name] = mirror.replace_root(plain_fields[name])
+        else:
+            mirror.clear_root()
+            state[name] = plain_fields[name]
+    new = NamespaceTable()
+    new._core = core
+    new._mirrors, table._mirrors = table._mirrors, {}
+    table._core = None
+    kept["table"] = (table, new)
+    state["model_state"] = new
+    for key in keys:
+        held = dict.__getitem__(table, key)
+        if held is _DETACHED:
+            dict.__setitem__(new, key, _DETACHED)
+            continue
+        mirror = new._mirrors.get(key)
+        if mirror is not None:
+            roots[key] = mirror.take_root()
+        if key in plain:
+            if mirror is None:
+                dict.__setitem__(new, key, plain[key])
+            else:
+                _store_owned(new, key, mirror, plain[key])
+        elif key in DETACHED_NAMESPACES:
+            mirror.detach(_DEAD_SINK)
+            dict.__setitem__(new, key, _DETACHED)
+        else:
+            dict.__setitem__(new, key, mirror.root_from_row())
+    _settle(new)
+    kept["roots_done"] = True
+
+
+def _txn_restored(world: Any, kept: dict[str, Any]) -> None:
+    """The containers the transaction started from, after the core's snapshot came back."""
+    state = world.__dict__
+    core = state["_core"]
+    if "log" in kept:
+        kept["log"].txn_rollback()
+    if "queue" in kept:
+        kept["queue"].txn_rollback()
+    if "entities" in kept:
+        core.entities().txn_rollback(world)
+    if "table" in kept:
+        old, new = kept["table"]
+        old._mirrors, new._mirrors = new._mirrors, {}
+        old._core, new._core = core, None
+    roots = kept.get("roots", {})
+    # Every tree a mirror has now leaves, and the one it had comes back; without roots_done only
+    # the mirrors the start reached had theirs taken.
+    names = core.owned_names() if "roots_done" in kept else list(roots)
+    for name in names:
+        core.mirror(name).put_root(roots.get(name))
+    saved = kept.get("state")
+    if saved is not None:
+        for key in [key for key in state if key not in saved]:
+            del state[key]
+        for key, value in saved.items():
+            if state.get(key, _MISSING) is not value:
+                state[key] = value
+
+
+def _txn_committed(world: Any, kept: dict[str, Any]) -> None:
+    """The transaction's writes stay: what it kept goes, and so does the tick's memo, as a world
+    swapped in had none."""
+    kept["log"].txn_commit()
+    kept["queue"].txn_commit()
+    world.__dict__["_core"].entities().txn_commit()
+    world.__dict__.pop("_tick_memo", None)
+    kept.clear()
+
+
+_QueueStore = native.state("events").QueueStore
 
 native.install_tracked_types(TrackedDict, TrackedList, NamespaceTable)
 native.install_id_map_type(IdMap)
