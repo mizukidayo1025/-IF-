@@ -113,7 +113,13 @@ impl<T: Default> Default for CowShard<T> {
 
 impl<T> CowShard<T> {
     pub fn new(value: T) -> Self {
-        Self { flag: AtomicIsize::new(0), value: UnsafeCell::new(Arc::new(value)) }
+        Self::from_shared(Arc::new(value))
+    }
+
+    /// A part that holds a value another part shares (`share`): a fork's part (lane 6-6). The
+    /// first write of either copies it.
+    pub fn from_shared(value: Arc<T>) -> Self {
+        Self { flag: AtomicIsize::new(0), value: UnsafeCell::new(value) }
     }
 
     /// A shared borrow, or `Error::Runtime(BORROWED)` while the part is borrowed mutably.

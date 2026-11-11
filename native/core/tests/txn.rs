@@ -521,7 +521,8 @@ fn small_world() -> World {
 }
 
 fn agent_order(world: &mut World) -> Vec<String> {
-    world.entities.get_mut().agents.key_order().iter().map(|key| key.to_string()).collect()
+    // Read shared: a read does not copy a part a fork shares.
+    world.entities.try_borrow().unwrap().agents.key_order().iter().map(|key| key.to_string()).collect()
 }
 
 #[test]
@@ -560,6 +561,39 @@ fn a_snapshot_keeps_the_world_and_restore_gives_it_back() {
     // The rows' document bytes are to be written again.
     let rows = world.entities.get_mut();
     assert!(rows.agents.slots().all(|(_, slot)| rows.agents.changed(slot)));
+}
+
+#[test]
+fn a_fork_shares_every_part_until_either_world_writes_it() {
+    let mut world = small_world();
+    let slots = slot_state(&mut world);
+    let mut fork = world.fork().unwrap();
+    // The same state, order and stamps, and nothing copied yet.
+    assert_eq!(slot_state(&mut fork), slots);
+    assert_eq!(agent_order(&mut fork), ["b", "a"]);
+    assert_eq!(fork.minute_index(), Ok(5));
+    assert!(!fork.in_transaction());
+    assert!(world.scalars.is_shared() && world.entities.is_shared());
+    // A write to the fork copies what it writes; the world keeps its own.
+    fork.entities.try_borrow_mut().unwrap().agents.get_mut("a").unwrap().stress = 0.75;
+    fork.entities.get_mut().agents.insert(text("c"), agent("c"));
+    fork.scalars.try_borrow_mut().unwrap().minute_index = Fit::Ok(6);
+    fork.slots.row_mut::<IdMap<f64>>("metric_state").unwrap().insert(text("new"), 1.0);
+    let added = fork.slots.add(text("later"), Place::Value).unwrap();
+    fork.slots.at(added).unwrap().try_borrow_mut().unwrap().row = Some(Box::new(ValueRow(V::Int(1))));
+    assert_eq!(world.minute_index(), Ok(5));
+    assert_eq!(world.entities.get_mut().agents.get("a").unwrap().stress, 0.25);
+    assert_eq!(agent_order(&mut world), ["b", "a"]);
+    assert_eq!(slot_state(&mut world), slots);
+    assert_eq!(world.slots.len(), 2);
+    // And the other way: the world's writes don't reach the fork.
+    world.canonicalize();
+    world.slots.row_mut::<ValueRow>("operational_events_v1").unwrap().0 = V::Null;
+    assert_eq!(agent_order(&mut fork), ["b", "a", "c"]);
+    assert_eq!(slot_state(&mut fork)[0], slots[0]);
+    // A part borrowed mutably can't be forked.
+    let _writing = world.entities.try_borrow_mut().unwrap();
+    assert!(world.fork().is_err());
 }
 
 /// A host that writes down what it was asked, and fails where it is told to.
