@@ -104,9 +104,13 @@ Checkpoint document) and times them.
   PyO3 crate to write with Python's `repr`) and `toilet.rs` (`queue_up`/`request`, `start` with
   the duration drawn from the Run's `CounterRNG`, or from `Host::draw` for another random source,
   and `complete`, which returns `ScheduleReturn`: the PyO3 crate calls the walk home), which write
-  the rows alone (a tainted `resource_service_v1` is refused);
+  the rows alone (a tainted `resource_service_v1` is refused); `behavior.rs` (the proposals of the
+  behavior policies the `Run`'s `Policies` read, the trigger texts with `format(x, "g")`, and the
+  observed state as a `V`) and `decisions.rs` (a decision's record: the indexed sink's JSON bytes,
+  the trace's document, through `Host::decision`; then the lifecycle and the memory, called
+  directly) (lane P8 a5);
   the file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4, P8-0a, c1,
-  P8b-1, P8 a2, P8 a1, P8 d1, P8 a3 and P8 c3),
+  P8b-1, P8 a2, P8 a1, P8 d1, P8 a3, P8 c3 and P8 a5),
   `text.rs` (`casefold`, CPython 3.12's full fold from a generated table, `text/casefold.rs`
   by `tools/casefold_table.py`, tested at every code point against `tests/data/casefold.txt`;
   `g_text`, `format(value, "g")`; `py_repr`, `repr` of a str, from the table of what
@@ -415,20 +419,22 @@ are correctly rounded everywhere, and not `**` with a float.
 - `rules/decisions.rs`: `propose_rows(controller, view, rng)`, `observed_row(controller, view,
   agent_id)` and `record_outcome(controller, proposal, *, target_id, next_decision_at, committed,
   observed_state)` are the steps `_propose_due`, `_observed_state` and `_record_outcome`, which have
-  no Python body (`KERNEL_ONLY_SEGMENTS`). A `ProposalRow` answers what `_apply_effect` reads and
-  makes the `ActionProposal` for anything else. `record_outcome` appends the `_IndexedMetricSink`
-  record as JSON bytes (`decision_sink` in a sink's own class says what it may do), then calls
-  `commit_action` and `remember_decision`. What the rows don't take (a sink of another class, a
-  proposal Python made, a long observed state, a value they can't write) goes, before anything is
-  appended, to the sink's own `record_decision` and the domain rules, in the step's order. With a
-  trace `RunArtifactWriter` gets the document of `_decision_document` (`record_decision_document`).
+  no Python body (`KERNEL_ONLY_SEGMENTS`), as glue over the core's `rules::behavior` and
+  `rules::decisions` (lane P8 a5). A `ProposalRow` holds the core's `Proposal` and answers what
+  `_apply_effect` reads; anything else makes the `ActionProposal`. `record_outcome` calls the core's
+  record through the `PyHost` (`Host::decision_sink`, `decision_source` and `decision`: the
+  `_IndexedMetricSink` record as JSON bytes, or the document of `_decision_document` for
+  `RunArtifactWriter` with a trace), then the core's lifecycle and memory. What the core does not
+  take (a sink of another class, a proposal Python made, a long observed state, a value the bytes
+  can't write) goes, before anything is recorded, to the sink's own `record_decision`, then the same
+  rules. A refusal of the lifecycle or the memory is the `KernelRefusal` of its Python entry.
 - `rules/behavior.rs`: `propose_due(controller, view, rng)` and `observed_state(controller, view,
-  agent_id)` compute the proposals and the snapshot `rules/decisions.rs` keeps as rows, here as the
-  Python `ActionProposal`s and the snapshot dict (for tests). They read the snapshot of
-  `rules/world_view.rs`, so a tick makes no Python view of the people for them. They run for
-  `UtilityBehaviorPolicy` and `PriorityRuleBehaviorPolicy` (the exact classes, which keep only their
-  settings) with a `CounterRNG`. They write nothing, so `Unsupported` at any point leaves the world
-  as it was, and the step raises KernelRefusal: a view Python made (or a partial one), another
+  agent_id)` give the core's proposals and the snapshot as the Python `ActionProposal`s and the
+  snapshot dict (for tests). They read the core's view, the `Run`'s `Policies` (`refresh_policies`
+  after a test puts another `decisions` on the controller), the `CounterRNG`'s seed and the view's
+  hash. They run for `UtilityBehaviorPolicy` and `PriorityRuleBehaviorPolicy` (the exact classes,
+  which keep only their settings). They write nothing, so `Unsupported` at any point leaves the
+  world as it was, and the step raises KernelRefusal: a view Python made (or a partial one), another
   class, and anything `ActionCandidate` and `ActionProposal` would turn down.
 
 - `rules/proximity.rs`: `sample_contacts(controller, minute)` replaces the step

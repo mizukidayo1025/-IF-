@@ -49,7 +49,7 @@ class ProposePhase:
             )
 
     def _propose_due(self, view: WorldView, rng: KeyedRandom) -> tuple[Any, ...]:
-        """The proposals of everyone due, which native/src/rules/behavior.rs and decisions.rs make.
+        """The proposals of everyone due, made by native/core/src/rules/behavior.rs.
 
         In ID order, one for each person whose `next_decision_at` has come and who is idle,
         resting or sleeping. `decisions.policy` (`UtilityBehaviorPolicy`, or a
@@ -66,7 +66,7 @@ class ProposePhase:
         """
 
     def _observed_state(self, view: WorldView, agent_id: str) -> Any:
-        """What a decision records it observed of the person, made by native/src/rules/decisions.rs.
+        """What a decision records it observed of the person (native/core/src/rules/behavior.rs).
 
         The person's ID, zone, activity and target, needs (with `hydration_need` when the resource
         service is on), psychological values, the zone's sanitation, stress, trust, queue and
@@ -126,7 +126,7 @@ class ProposePhase:
         committed: bool,
         observed_state: Any,
     ) -> None:
-        """Record the decision with its outcome, which native/src/rules/decisions.rs does.
+        """Record the decision with its outcome, which native/core/src/rules/decisions.rs does.
 
         In this order: `artifacts.record_decision(proposal.with_outcome(target_id,
         next_decision_at), observed_state=observed_state)`, which the kernel writes itself for a

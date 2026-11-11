@@ -209,7 +209,7 @@ def view_of(world: Any, *, include_state_hash: bool = True) -> Any:
 
 def decisions_of(world: Any, policy: Any = None, *, rng: Any = None) -> dict[str, Any]:
     """The `ActionProposal` of each person due at the world's minute, by ID, as the propose phase
-    makes them: native/src/rules/world_view.rs's view, then native/src/rules/behavior.rs.
+    makes them: native/src/rules/world_view.rs's view, then native/core/src/rules/behavior.rs.
 
     `policy` is the runner's default (`UtilityBehaviorPolicy()`) when None, `rng` CounterRNG of
     the world's seed. Nothing of an earlier view is kept, and nothing changes.
