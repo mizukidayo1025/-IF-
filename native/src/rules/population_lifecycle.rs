@@ -177,6 +177,12 @@ fn act(world: &Bound<'_, PyAny>, candidate: &Bound<'_, PyAny>, row: &EventRow, c
     let same = world.is(candidate);
     let read = LifecycleIn::of(candidate, &*command.action == "relocate")?;
     let effects = held(world, EFFECT_PROGRAM, "the world holds another effect program state")?;
+    // The plan reads the pending events as rows (an archive cancels the person's): those Python
+    // scheduled are read first.
+    crate::rules::travel::read_queue_rows(world)?;
+    if !same {
+        crate::rules::travel::read_queue_rows(candidate)?;
+    }
     let once = || -> PyResult<Acted> {
         let logged = if matches!(&*command.action, "temporary_exit" | "return") { logged(world, &effects, row)? } else { Logged::new() };
         let inputs = read.inputs();
@@ -311,6 +317,7 @@ pub(crate) fn admit_pending_returns<'py>(world: &Bound<'py, PyAny>, minute: &Bou
         return Ok(PyTuple::empty(py));
     }
     let read = LifecycleIn::of(world, false)?;
+    crate::rules::travel::read_queue_rows(world)?;
     let admitted = crate::rules::population::with_rows(world, || read.run(world, |cell, inputs| core::admit_returns(cell, inputs, minute)))?;
     PyTuple::new(py, admitted.iter().map(|id| &**id))
 }
@@ -320,6 +327,7 @@ pub(crate) fn admit_pending_returns<'py>(world: &Bound<'py, PyAny>, minute: &Bou
 pub(crate) fn complete_presence_relocation(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
     let row = event_row(event)?;
     let read = LifecycleIn::of(world, false)?;
+    crate::rules::travel::read_queue_rows(world)?;
     crate::rules::population::with_rows(world, || read.run(world, |cell, inputs| core::complete_relocation(cell, inputs, &row))).map(drop)
 }
 

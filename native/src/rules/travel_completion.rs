@@ -305,6 +305,10 @@ pub(crate) fn apply_event<'py>(
         EventRef::Object(object) => walk_row(object)?,
     };
     let read = TravelIn::of(handler, world, &row)?;
+    if read.lifecycle.is_some() {
+        // A relocation's completion reads the pending events as rows.
+        crate::rules::travel::read_queue_rows(world)?;
+    }
     let lifecycle = read.lifecycle.as_ref().map(LifecycleIn::inputs);
     let inputs = core::Inputs {
         movement: read.movement.clone(),

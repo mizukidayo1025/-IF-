@@ -1350,8 +1350,9 @@ pub struct WorldReads {
 /// The reads of `world` the plan of this command makes. `effects` is whether `world` holds
 /// `effect_program_v1`, `logged` its log's records of the program.
 pub fn world_reads(world: &World, effects: &Held, logged: &Logged, row: &EventRow, command: &Command) -> WorldReads {
+    // Not counted as a refusal: no plan raises it.
     fn not_read<T>() -> Result<T> {
-        Err(Error::unsupported("the plan does not read it"))
+        Err(Error::Unsupported("the plan does not read it".into()))
     }
     let Some(first) = command.ids.first() else {
         return WorldReads { busy: not_read(), returns: not_read(), exits: not_read() };
