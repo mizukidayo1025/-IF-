@@ -25,14 +25,15 @@ ACTION_LIFECYCLE_SOURCE_ID = "ASM-ACTION-LIFECYCLE-V1"
 ACTION_LIFECYCLE_POLICY_VERSION = "applied-action-lifecycle-v2"
 
 
-def active_action_store(world: WorldState) -> Any:
-    """What a controller keeps of the open actions: the Rust rows."""
+def active_action_store(world: WorldState, run_core: Any = None) -> Any:
+    """What a controller keeps of the open actions: the Rust rows, in its Run (`run_core`,
+    `Run::actions`) when it has one."""
     index = active_action_index(world)
     # A restored record's needs are a frozen payload's.
     for record in index.values():
         if isinstance(record["start_needs"], Mapping):
             record["start_needs"] = dict(record["start_needs"])
-    return native.rules("action_lifecycle").ActiveActions(index)
+    return native.rules("action_lifecycle").ActiveActions(index, run_core)
 
 
 def active_action_index(world: WorldState) -> dict[str, dict[str, Any]]:

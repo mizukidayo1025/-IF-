@@ -385,6 +385,20 @@ fn a_population_event_interrupts_the_actions_of_those_it_took_away() {
 }
 
 #[test]
+fn a_run_keeps_the_open_actions_from_tick_to_tick() {
+    use sheltersim_core::run::{RouteCapacities, Run, RunConfig};
+    let world = world();
+    let mut run = Run::new(RunConfig { route_capacities: Ok(Arc::new(RouteCapacities::default())) });
+    assert!(run.actions.is_empty());
+    lifecycle::commit_action(&world, &mut run.actions, &proposal("a1", "rest", None, 10)).unwrap();
+    // A new tick clears the scratch, not the open actions.
+    run.scratch.begin(11);
+    assert!(run.actions.contains("a1"));
+    lifecycle::finalize(&world, &mut run.actions, 12).unwrap();
+    assert!(run.actions.is_empty());
+}
+
+#[test]
 fn active_actions_must_be_under_their_own_agents() {
     let mut world = world();
     let mut active = ActiveActions::default();

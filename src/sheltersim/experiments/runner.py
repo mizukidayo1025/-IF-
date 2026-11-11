@@ -115,7 +115,6 @@ class OfflineSimulationController(
         # Initialization may install state; a world restored for viewing gets none.
         require_tickable(world, "simulated")
         self.world = world
-        self.active_actions = active_action_store(world)
         # The update phase's view, from which the next phase's view is made.
         self._view_before_proposals: WorldView | None = None
         # What rules/world_view.rs keeps between views.
@@ -263,6 +262,8 @@ class OfflineSimulationController(
         self.route_capacities = route_config.get("max_agents_in_transit_by_edge", {})
         # Also reads the policies and managers above, which the kernels read (core/run.rs).
         self._run_core = run_core(self.route_capacities, self)
+        # The open actions are the Run's rows (Run::actions), made again from the event log.
+        self.active_actions = active_action_store(world, self._run_core)
         self._refresh_space()
         infrastructure_handler = InfrastructureEventHandler()
         self.event_dispatcher = EventDispatcher(

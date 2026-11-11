@@ -956,7 +956,7 @@ def test_a_tick_makes_no_lifecycle_object_and_writes_no_whole_namespace(generate
         engine.step()
         if minute == 0:
             whole_writes = world._core.mirror(KEY).stats()["whole_writes"]
-    assert controller.active_actions.in_rows()
+    assert controller.active_actions.in_rows() and controller.active_actions.in_run()
     assert world._core.mirror(KEY).stats()["whole_writes"] == whole_writes
     # Records of the type have no object until something reads them.
     rows = native.state("events").saved_rows(world, "agent_action_lifecycle")
