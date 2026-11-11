@@ -25,7 +25,7 @@ use sheltersim_core::config::overlay::{overlay_schema as parse_overlay_schema, O
 use sheltersim_core::error::Error as CoreError;
 use sheltersim_core::rules::kit::{self, Held};
 use sheltersim_core::rules::population::{
-    self as core, Alternates, ArrivalArgs, Built, DepartureArgs, Departures, Inputs, Language, Namespaces, Overrides, RoutesFault, NO_ROW, PLAN_UNREAD,
+    self as core, Alternates, ArrivalArgs, Built, DepartureArgs, Departures, Inputs, Language, Namespaces, Overrides, RoutesFault, PLAN_UNREAD,
 };
 use sheltersim_core::value::V as CoreV;
 
@@ -161,17 +161,12 @@ fn fill_rows(world: &Bound<'_, PyAny>) -> PyResult<()> {
     crate::rules::travel::read_queue_rows(world)
 }
 
-/// A kernel that reads the pending events as rows: where it finds an event that has none, the
-/// rows are made and it runs again (it has written nothing then).
-fn with_rows<T>(world: &Bound<'_, PyAny>, mut kernel: impl FnMut() -> PyResult<T>) -> PyResult<T> {
-    let py = world.py();
-    match kernel() {
-        Err(error) if error.is_instance_of::<Unsupported>(py) && error.value(py).to_string() == NO_ROW => {
-            fill_rows(world)?;
-            kernel()
-        }
-        result => result,
-    }
+/// A kernel that reads the pending events as rows: the rows are made before it runs, as the
+/// rules of travel make them, so that the core refuses (`NO_ROW`) only for an object that is no
+/// row. Running the kernel first and again after its refusal counted that refusal in the census.
+fn with_rows<T>(world: &Bound<'_, PyAny>, kernel: impl FnOnce() -> PyResult<T>) -> PyResult<T> {
+    fill_rows(world)?;
+    kernel()
 }
 
 /// `model_state[DYNAMICS] = state`, the first write of a rule whose plan made the state.
