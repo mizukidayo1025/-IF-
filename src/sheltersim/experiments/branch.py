@@ -11,6 +11,7 @@ from typing import Any, ClassVar, TypeAlias
 from sheltersim.core.checkpoint import Checkpoint, CheckpointError
 from sheltersim.core.checkpoint_cache import CheckpointHistoryCache
 from sheltersim.core.model_version import ViewOnlyRunError, require_tickable
+from sheltersim.core.state_mirror import transaction_or_copy
 from sheltersim.core.world import WorldState
 from sheltersim.domain.models import FacilityState, StaffState
 from sheltersim.domain.zones import ZoneGraph
@@ -377,29 +378,29 @@ class BranchRuntime:
         ):
             raise BranchError("unsupported intervention command type")
 
-        candidate = WorldState.from_dict(self.world.to_dict())
-        _apply_to_world(candidate, command)
-        sequence = candidate.allocate_event_sequence()
-        event_id = f"branch-intervention-{sequence}"
-        event = ScheduledEvent(
-            event_id=event_id,
-            kind=EventKind.INTERVENTION,
-            due_minute=candidate.minute_index,
-            priority=0,
-            sequence=sequence,
-            event_type=f"branch-{command.kind.replace('_', '-')}",
-            payload=command.to_dict(),
-            source_id=self.branch_id,
-            provenance={"branch_id": self.branch_id, "parent_branch_id": self.parent_branch_id},
-        )
-        candidate.event_log.append(
-            EventLogRecord(
-                event=event, realized_minute=candidate.minute_index, status=EventStatus.APPLIED
+        # On the world in a transaction of kind "full" (lane 6-4 of #152), or on
+        # WorldState.from_dict(world.to_dict()), swapped in, where the world's core holds none.
+        with transaction_or_copy(self.world, "full", _full_copy) as candidate:
+            _apply_to_world(candidate, command)
+            sequence = candidate.allocate_event_sequence()
+            event_id = f"branch-intervention-{sequence}"
+            event = ScheduledEvent(
+                event_id=event_id,
+                kind=EventKind.INTERVENTION,
+                due_minute=candidate.minute_index,
+                priority=0,
+                sequence=sequence,
+                event_type=f"branch-{command.kind.replace('_', '-')}",
+                payload=command.to_dict(),
+                source_id=self.branch_id,
+                provenance={"branch_id": self.branch_id, "parent_branch_id": self.parent_branch_id},
             )
-        )
-        candidate.validate()
-        self.world.__dict__.clear()
-        self.world.__dict__.update(candidate.__dict__)
+            candidate.event_log.append(
+                EventLogRecord(
+                    event=event, realized_minute=candidate.minute_index, status=EventStatus.APPLIED
+                )
+            )
+            candidate.validate()
         receipt = CommandReceipt(
             command_id=f"command-{sequence}",
             branch_id=self.branch_id,
@@ -429,6 +430,10 @@ class BranchRuntime:
             }
         )
         return receipt
+
+
+def _full_copy(world: WorldState) -> WorldState:
+    return WorldState.from_dict(world.to_dict())
 
 
 def _apply_to_world(world: WorldState, command: BranchCommand) -> None:
