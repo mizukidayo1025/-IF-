@@ -339,6 +339,60 @@ pub fn write_stall(world: &World, queue_id: &str, request_id: &str, reason: &str
     stall_row(&mut *row_mut(world)?, queue_id, stall)
 }
 
+/// `enqueue`: Python's one ValueError for no namespace, no signed point of the queue, or the ID
+/// taken; then the request at the end of the queue.
+#[allow(clippy::too_many_arguments)]
+pub fn enqueue(
+    world: &World,
+    held: &Held,
+    geo: &Geo,
+    queue_id: &str,
+    request_id: &str,
+    task_id: &str,
+    agent_id: &str,
+    service_kind: &str,
+    requested_minute: i64,
+) -> Result<()> {
+    let found = queues(world, held)?.map(|row| (row.requests.contains_key(request_id), row.queues.contains_key(queue_id)));
+    let (Some((false, has_queue)), Some(point)) = (found, point_of(geo, queue_id)) else {
+        return Err(Error::value_error(NOT_INSTALLED_OR_TAKEN));
+    };
+    if !has_queue {
+        // A signed point whose queue the state lacks, which its check turns down.
+        return Err(Error::unsupported("a signed point has no queue"));
+    }
+    write_enqueue(world, point, request_id, task_id, agent_id, service_kind, requested_minute)
+}
+
+/// `start_service` of a request its queue holds as queued.
+pub fn start_service(world: &World, held: &Held, request_id: &str, active_task_id: &str) -> Result<()> {
+    let queue_id = {
+        let Some(row) = queues(world, held)? else {
+            return Err(Error::unsupported("no queue state"));
+        };
+        let Some(request) = row.requests.get(request_id) else {
+            return Err(Error::unsupported("no such request"));
+        };
+        let Some(queue) = row.queues.get(&*request.queue_id) else {
+            return Err(Error::unsupported("no such queue"));
+        };
+        if !queue.queued_request_ids.iter().any(|id| &**id == request_id) {
+            return Err(Error::unsupported("the request is not queued"));
+        }
+        request.queue_id.clone()
+    };
+    write_start(world, request_id, &queue_id, active_task_id)
+}
+
+/// `mark_stall`: nothing for an unknown queue or without the namespace.
+pub fn mark_stall(world: &World, held: &Held, queue_id: &str, request_id: &str, reason: &str) -> Result<()> {
+    let known = queues(world, held)?.is_some_and(|row| row.queues.contains_key(queue_id));
+    if !known {
+        return Ok(());
+    }
+    write_stall(world, queue_id, request_id, reason)
+}
+
 // ---- The record of a transition ------------------------------------------------------------------
 
 fn text(value: &str) -> V {

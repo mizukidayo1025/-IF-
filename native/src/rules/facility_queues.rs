@@ -22,7 +22,7 @@ pub(crate) use crate::state::facility_queues::{
 
 use crate::core::configs;
 use crate::core::errors::{self, OrPy};
-use crate::core::row::{attribute, exact_dict, exact_int, exact_str, unsupported, PyField};
+use crate::core::row::{attribute, exact_dict, exact_int, exact_str, PyField};
 use crate::core::world_core::{namespace_held, with_world};
 use crate::rules::movement_geometry::{self, Geo, GeoPy, ServicePoint};
 use crate::state::events::{write_result, EventRow, EventStatus, EventWriter};
@@ -227,39 +227,20 @@ fn enqueue(
     requested_minute: &Bound<'_, PyAny>,
 ) -> PyResult<()> {
     let (queue_id, request_id) = (exact_str(queue_id)?, exact_str(request_id)?);
+    let (task_id, agent_id, service_kind) = (exact_str(task_id)?, exact_str(agent_id)?, exact_str(service_kind)?);
+    let requested_minute = exact_int(requested_minute)?;
     let geo = Geo::of(world)?;
-    let found = with_queues(world, |row| Ok((row.requests.contains_key(request_id), row.queues.contains_key(queue_id))))?;
-    // Not installed, no signed point of that queue, or the ID taken: the Python rule's one text.
-    let (Some((false, has_queue)), Some(point)) = (found, point_of(&geo, queue_id)) else {
-        return Err(errors::value_error(core::NOT_INSTALLED_OR_TAKEN));
-    };
-    if !has_queue {
-        // A signed point whose queue the state lacks, which its check turns down.
-        return unsupported("a signed point has no queue");
-    }
-    write_enqueue(world, point, request_id, exact_str(task_id)?, exact_str(agent_id)?, exact_str(service_kind)?, exact_int(requested_minute)?)
+    let held = held(world)?;
+    with_world(world, |world| core::enqueue(world, &held, &geo, queue_id, request_id, task_id, agent_id, service_kind, requested_minute))?
+        .or_py()
 }
 
 /// `start_service`.
 #[pyfunction]
 fn start_service<'py>(world: &Bound<'py, PyAny>, request_id: &Bound<'py, PyAny>, active_task_id: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    let request_text = exact_str(request_id)?;
-    let queue_id = with_queues(world, |row| {
-        let Some(request) = row.requests.get(request_text) else {
-            return unsupported("no such request");
-        };
-        let Some(queue) = row.queues.get(&*request.queue_id) else {
-            return unsupported("no such queue");
-        };
-        if !queue.queued_request_ids.iter().any(|id| &**id == request_text) {
-            return unsupported("the request is not queued");
-        }
-        Ok(request.queue_id.clone())
-    })?;
-    let Some(queue_id) = queue_id else {
-        return unsupported("no queue state");
-    };
-    write_start(world, request_text, &queue_id, exact_str(active_task_id)?)?;
+    let (request_text, active_task_id) = (exact_str(request_id)?, exact_str(active_task_id)?);
+    let held = held(world)?;
+    with_world(world, |world| core::start_service(world, &held, request_text, active_task_id))?.or_py()?;
     request_node(world, request_text)?.ok_or_else(|| Unsupported::new_err("no such request"))
 }
 
@@ -284,14 +265,9 @@ fn finish_service<'py>(world: &Bound<'py, PyAny>, task_id: &Bound<'py, PyAny>, s
 /// `mark_stall`.
 #[pyfunction]
 fn mark_stall(world: &Bound<'_, PyAny>, queue_id: &Bound<'_, PyAny>, request_id: &Bound<'_, PyAny>, reason: &Bound<'_, PyAny>) -> PyResult<()> {
-    let queue_text = exact_str(queue_id)?;
-    let known = with_queues(world, |row| Ok(row.queues.contains_key(queue_text)))?;
-    if known != Some(true) {
-        return Ok(());
-    }
-    // `world.minute_index`, as the stall's record holds it.
-    exact_int(&attribute(world, intern!(world.py(), "minute_index"))?)?;
-    write_stall(world, queue_text, exact_str(request_id)?, exact_str(reason)?)
+    let (queue_id, request_id, reason) = (exact_str(queue_id)?, exact_str(request_id)?, exact_str(reason)?);
+    let held = held(world)?;
+    with_world(world, |world| core::mark_stall(world, &held, queue_id, request_id, reason))?.or_py()
 }
 
 /// `record_queue_transition`.
