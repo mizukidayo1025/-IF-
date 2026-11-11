@@ -1904,7 +1904,7 @@ impl WorldCell for PyWorldCell<'_, '_> {
         let (result, flush) = {
             let mut held = core.try_borrow_mut().map_err(|_| CoreError::Runtime(BORROWED.to_owned()))?;
             let result = f(&mut held.world);
-            let flush = crate::state::entities::plan_flush(held.world.entities.get_mut());
+            let flush = crate::state::entities::plan_flush(core.py(), held.world.entities.get_mut());
             let store = held.store.as_ref().map(|store| store.clone_ref(core.py()));
             (result, flush.zip(store))
         };

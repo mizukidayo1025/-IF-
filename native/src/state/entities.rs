@@ -319,11 +319,13 @@ macro_rules! py_entity_row {
         }
 
         impl ViewRow for $name {
-            fn cells(&self, view: &Self, mask: u32, out: &mut Vec<(&'static str, Cell)>) {
+            fn cells(&self, py: Python<'_>, view: &Self, mask: u32, out: &mut Vec<Named>) {
                 let mut bit = 1_u32;
                 $(
                     if mask & bit != 0 {
-                        out.push((stringify!($field), ViewField::cell(&self.$field, &view.$field)));
+                        // Interned once per process: no Python code runs here.
+                        let name = intern!(py, stringify!($field)).clone().unbind();
+                        out.push((name, ViewField::cell(&self.$field, &view.$field)));
                     }
                     bit <<= 1;
                 )*
@@ -383,6 +385,9 @@ pub(crate) enum Cell {
     Profile(Box<ProfileRow>),
     Value(V),
 }
+
+/// A field's interned name and its value.
+pub(crate) type Named = (Py<PyString>, Cell);
 
 /// What a field of a row is in its object: `cell` for a flush (`view` is what the object holds
 /// now), `to_view` for an object made from a row.
@@ -477,7 +482,7 @@ impl ViewField for ProfileRow {
 
 /// A row and its object: the cells of the fields of a mask, and the fields of a new object.
 pub(crate) trait ViewRow: PyEntityField + RowFields + Clone {
-    fn cells(&self, view: &Self, mask: u32, out: &mut Vec<(&'static str, Cell)>);
+    fn cells(&self, py: Python<'_>, view: &Self, mask: u32, out: &mut Vec<Named>);
     fn view_fields<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>>;
 }
 
@@ -514,10 +519,10 @@ impl<R: ViewRow> MakeView for R {
 /// One thing a flush does, in order.
 enum Step {
     /// Write these fields into the object of the slot.
-    Fields { kind: u8, slot: u32, cells: Vec<(&'static str, Cell)> },
+    Fields { kind: u8, slot: u32, cells: Vec<Named> },
     /// The object of the slot gets the row's last values and leaves; so does its key, unless a new
     /// row took the key.
-    Detach { kind: u8, slot: u32, cells: Vec<(&'static str, Cell)>, key: Arc<str>, drop_key: bool },
+    Detach { kind: u8, slot: u32, cells: Vec<Named>, key: Arc<str>, drop_key: bool },
     /// A key whose row never had an object leaves the map, if it is there.
     DropKey { kind: u8, key: Arc<str> },
     /// Make the object of a row and store it under its key: a new key at the end, a key already
@@ -528,7 +533,7 @@ enum Step {
 /// What a flush writes, taken from the rows while they are borrowed.
 pub(crate) struct Flush(Vec<Step>);
 
-fn plan_table<R: ViewRow + 'static>(kind: u8, table: &mut Table<R>, steps: &mut Vec<Step>) {
+fn plan_table<R: ViewRow + 'static>(py: Python<'_>, kind: u8, table: &mut Table<R>, steps: &mut Vec<Step>) {
     if !table.has_changes() {
         return;
     }
@@ -537,7 +542,7 @@ fn plan_table<R: ViewRow + 'static>(kind: u8, table: &mut Table<R>, steps: &mut 
             let mask = row.diff(view);
             if mask != 0 {
                 let mut cells = Vec::with_capacity(mask.count_ones() as usize);
-                row.cells(view, mask, &mut cells);
+                row.cells(py, view, mask, &mut cells);
                 row.copy_fields(mask, view);
                 steps.push(Step::Fields { kind, slot, cells });
             }
@@ -559,7 +564,7 @@ fn plan_table<R: ViewRow + 'static>(kind: u8, table: &mut Table<R>, steps: &mut 
                 match view {
                     Some(view) => {
                         let mut cells = Vec::new();
-                        row.cells(&view, row.diff(&view), &mut cells);
+                        row.cells(py, &view, row.diff(&view), &mut cells);
                         steps.push(Step::Detach { kind, slot, cells, key, drop_key: !replaced });
                     }
                     None if !replaced => steps.push(Step::DropKey { kind, key }),
@@ -579,26 +584,26 @@ fn plan_table<R: ViewRow + 'static>(kind: u8, table: &mut Table<R>, steps: &mut 
 
 /// What the objects need to follow the rows, or None: the end of a borrow that may have written
 /// them. The views of the rows take the values now, so the objects must get them (`apply_flush`).
-pub(crate) fn plan_flush(rows: &mut Entities) -> Option<Flush> {
+pub(crate) fn plan_flush(py: Python<'_>, rows: &mut Entities) -> Option<Flush> {
     if !rows.has_changes() {
         return None;
     }
     let mut steps = Vec::new();
-    plan_table(AGENT, &mut rows.agents, &mut steps);
-    plan_table(FACILITY, &mut rows.facilities, &mut steps);
-    plan_table(STAFF, &mut rows.staff, &mut steps);
-    plan_table(REQUEST, &mut rows.support_requests, &mut steps);
-    plan_table(TASK, &mut rows.active_tasks, &mut steps);
-    plan_table(ZONE, &mut rows.zones, &mut steps);
-    plan_table(EDGE, &mut rows.zone_edges, &mut steps);
+    plan_table(py, AGENT, &mut rows.agents, &mut steps);
+    plan_table(py, FACILITY, &mut rows.facilities, &mut steps);
+    plan_table(py, STAFF, &mut rows.staff, &mut steps);
+    plan_table(py, REQUEST, &mut rows.support_requests, &mut steps);
+    plan_table(py, TASK, &mut rows.active_tasks, &mut steps);
+    plan_table(py, ZONE, &mut rows.zones, &mut steps);
+    plan_table(py, EDGE, &mut rows.zone_edges, &mut steps);
     Some(Flush(steps))
 }
 
 /// Write the cells into an object, past its `__setattr__`: what the row holds already.
-fn write_cells(object: &Bound<'_, PyAny>, cells: Vec<(&'static str, Cell)>) -> PyResult<()> {
+fn write_cells(object: &Bound<'_, PyAny>, cells: Vec<Named>) -> PyResult<()> {
     let py = object.py();
     for (name, cell) in cells {
-        let name = PyString::intern(py, name);
+        let name = name.into_bound(py);
         let value: Bound<'_, PyAny> = match cell {
             Cell::Float(value) => PyFloat::new(py, value).into_any(),
             Cell::Int(value) => value.into_pyobject(py)?.into_any(),
@@ -625,7 +630,7 @@ fn write_cells(object: &Bound<'_, PyAny>, cells: Vec<(&'static str, Cell)>) -> P
             Cell::Needs(mask, needs) => {
                 let target = object.getattr(&name)?;
                 let mut cells = Vec::with_capacity(mask.count_ones() as usize);
-                needs.cells(&needs, mask, &mut cells);
+                needs.cells(py, &needs, mask, &mut cells);
                 write_cells(&target, cells)?;
                 continue;
             }
@@ -1666,7 +1671,7 @@ impl EntityStore {
                 return Err(Unsupported::new_err("the entity store is tainted"));
             }
             let result = f(&mut rows);
-            (result, plan_flush(&mut rows))
+            (result, plan_flush(slf.py(), &mut rows))
         };
         if let Some(flush) = flush {
             Self::flush(slf, flush)?;
