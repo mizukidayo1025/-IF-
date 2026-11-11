@@ -117,9 +117,12 @@ Checkpoint document) and times them.
   world's writer, a trip planned and written, the walk home, the choice of a facility, the edge
   loads), `proximity.rs` (the proximity sampler and its step, from the Run's `Policies`) and
   `replan.rs` (a replanned person's stop and new route, the old events settled on the world's
-  queue) (lane P8 c6);
+  queue) (lane P8 c6); `population.rs` (arrivals, admission, approach completion, retries,
+  departures and the validation of `population_dynamics_v1`, on the rows of the population
+  namespaces and the entity tables: an admitted person is a new `agents` row that `build_agent`
+  makes as the Python constructors did; the input contracts through `Host::contract`) (lane P8 c5);
   the file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4, P8-0a, c1,
-  P8b-1, P8 a2, P8 a1, P8 d1, P8 a3, P8 c3, P8 a5, P8 c4 and P8 c6),
+  P8b-1, P8 a2, P8 a1, P8 d1, P8 a3, P8 c3, P8 a5, P8 c4, P8 c6 and P8 c5),
   `text.rs` (`casefold`, CPython 3.12's full fold from a generated table, `text/casefold.rs`
   by `tools/casefold_table.py`, tested at every code point against `tests/data/casefold.txt`;
   `g_text`, `format(value, "g")`; `py_repr`, `repr` of a str, from the table of what
@@ -272,12 +275,14 @@ Checkpoint document) and times them.
   rules are the core's): whether the world holds it, and the readers the service, movement and tick
   rules call while they hold other borrows (`with_queues`, `read_fifo`, the records as Python
   documents). The core's kernels write the row alone, and an attached tree follows it (lane P8-0c).
-- `src/rules/population.rs`, `src/rules/population_lifecycle.rs`: the rules of `domain/population.py`
-  and `domain/population_lifecycle.py`, each `kernel_only`. A kernel plans, refuses before
-  its first write what the Python rule raised on, then writes with the rule's operations on the
-  tracked containers, which forward them to the rows. `rules/population.rs` also reads what admission
-  needs of `temporary_spaces.py` and `geometry_overlay.py`
-  (`docs/rust-port/lanes/m6-population-rules.md`).
+- `src/rules/population.rs`: the glue of `core/src/rules/population.rs` (`domain/population.py`,
+  each `kernel_only`): it reads what Python holds, puts a new `population_dynamics_v1` into
+  `model_state`, and settles the events a departure cancels. Its last section holds the helpers
+  `src/rules/population_lifecycle.rs` still reads through Python (lane c7).
+- `src/rules/population_lifecycle.rs`: the rules of `domain/population_lifecycle.py`, each
+  `kernel_only`. A kernel plans, refuses before its first write what the Python rule raised on,
+  then writes with the rule's operations on the tracked containers, which forward them to the
+  rows (`docs/rust-port/lanes/m6-population-rules.md`).
 - `src/core/row.rs`: typed rows. The core's `state_row!` (`core/src/row.rs`) writes a record's
   struct, `write_json` and mirrored setters from its list of fields, and any `Field` is a `Row`;
   a setter writes the tree through `TreeSink`, which `Tree` implements. Here, `py_row!` writes

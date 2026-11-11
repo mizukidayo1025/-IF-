@@ -82,10 +82,10 @@ PYTHON_GAVE: dict[str, list[str]] = {
         "4e17d33e56d39170",
     ],
     "test_a_retry_at_the_end_of_the_scenario_is_suppressed": ["7c4adaf0460d6974"],
-    "test_a_retry_is_the_rule_s_event[0]": ["b686a48151af3159"],
-    "test_a_retry_is_the_rule_s_event[1]": ["7c875bac1caf678f"],
-    "test_a_retry_is_the_rule_s_event[2]": ["92a51d6e8aa30bb9"],
-    "test_a_retry_is_the_rule_s_event[3]": ["121c37b230924401"],
+    "test_a_retry_is_the_rule_s_event[0]": ["4e66d9984e4a7b06"],
+    "test_a_retry_is_the_rule_s_event[1]": ["6951328349cd462d"],
+    "test_a_retry_is_the_rule_s_event[2]": ["e53f4d9c2590002a"],
+    "test_a_retry_is_the_rule_s_event[3]": ["6f8c63ae362597a9"],
     "test_a_return_to_a_full_zone_waits_and_the_rule_admits_it_later": [
         "f7b1822a9fe74c25",
         "aacc2e1ff3b22fd9",
@@ -464,8 +464,23 @@ def _retry_event(**provenance: Any) -> ScheduledEvent:
     ],
 )
 def test_a_retry_is_the_rule_s_event(world, provenance: dict[str, Any]) -> None:
+    # A program as its row holds one: the kernel reads the namespace's row.
     world.model_state["effect_program_v1"] = {
-        "programs": {"p": {"effect_ids": ["e"], "scheduled_event_ids": []}}
+        "schema_version": 1,
+        "programs": {
+            "p": {
+                "program_hash": "hash",
+                "source_text_hash": "text-hash",
+                "narrative": "",
+                "compiler_provenance": {},
+                "assumptions": [],
+                "support_mode": "simulation",
+                "effect_ids": ["e"],
+                "operators": {"e": "depart_evacuees"},
+                "scheduled_event_ids": [],
+            }
+        },
+        "active_facility_modifiers": {},
     }
     _same_as_rule(
         "population",
@@ -1225,3 +1240,242 @@ def test_the_plan_reads_the_world_in_any_order(world, case: str) -> None:
         outcomes.append((str(raised.value), _document(candidate), _document(reader)))
     assert outcomes[0][0] == text
     assert outcomes[0] == outcomes[1]
+
+
+# ---- The agent an admission makes (lane c5 of Issue #152) ---------------------------------------
+#
+# An admission puts the person's row into the world's table, and the entity store makes the Python
+# object from it; `build_agent` of the core is what `_admit_profile`'s constructors made of a saved
+# profile. Each case runs both: the same fields with the same types, the same ValueError, or a
+# refusal where the constructors raise another error or make an object no row holds (the store
+# would taint), or the profile has a mobility that is not a str (no saved profile has one).
+
+
+def _constructed(profile: dict[str, Any], zone_id: str, minute: int, schema_version: int):
+    """`_admit_profile`'s constructors, in their order."""
+    from sheltersim.domain.models import (
+        AgentProfile,
+        AgentState,
+        InitialNeedProfile,
+        Mobility,
+        NeedState,
+    )
+
+    initial: dict[str, Any] = {}
+    initial.update(profile["initial_needs"])
+    if schema_version == 5:
+        initial["hydration_need"] = 0.0
+    provenance: dict[str, Any] = {}
+    provenance.update(profile["provenance"])
+    options = {
+        "id": profile["id"],
+        "group_id": profile["group_id"],
+        "initial_zone_id": profile["initial_zone_id"],
+        "mobility": Mobility(profile["mobility"]),
+        "support_need": profile["support_need"],
+        "stress_sensitivity": profile["stress_sensitivity"],
+        "rng_key": profile["rng_key"],
+        "initial_needs": InitialNeedProfile(**initial),
+        "provenance": provenance,
+    }
+    made = AgentProfile(**options)
+    return AgentState(
+        profile=made, zone_id=zone_id, needs=NeedState(**initial), next_decision_at=minute
+    )
+
+
+def _needs(value: Any) -> dict[str, Any]:
+    return {
+        name: getattr(value, name)
+        for name in ("toilet_urgency", "hunger", "fatigue", "hydration_need")
+    }
+
+
+def _fields(agent: Any) -> dict[str, Any]:
+    needs = _needs
+    profile = agent.profile
+    return {
+        "profile": {
+            "id": profile.id,
+            "group_id": profile.group_id,
+            "initial_zone_id": profile.initial_zone_id,
+            "mobility": profile.mobility.value,
+            "support_need": profile.support_need,
+            "stress_sensitivity": profile.stress_sensitivity,
+            "rng_key": profile.rng_key,
+            "initial_needs": needs(profile.initial_needs),
+            "provenance": profile.provenance,
+        },
+        "zone_id": agent.zone_id,
+        "activity": agent.activity.value,
+        "target_id": agent.target_id,
+        "needs": needs(agent.needs),
+        "stress": agent.stress,
+        "trust": agent.trust,
+        "next_decision_at": agent.next_decision_at,
+        "support_request_id": agent.support_request_id,
+        "support_cooldown_until": agent.support_cooldown_until,
+    }
+
+
+def _typed(value: Any) -> Any:
+    """A value with the type of each atom, so that 1 and 1.0 differ."""
+    if isinstance(value, dict):
+        return {key: _typed(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_typed(item) for item in value]
+    return (type(value).__name__, repr(value))
+
+
+def _fits_a_row(fields: dict[str, Any]) -> bool:
+    profile = fields["profile"]
+    floats = [
+        *profile["initial_needs"].values(),
+        *fields["needs"].values(),
+        profile["support_need"],
+        profile["stress_sensitivity"],
+    ]
+    texts = [profile["id"], profile["initial_zone_id"], profile["rng_key"]]
+    return (
+        all(type(value) is float for value in floats)
+        and all(type(value) is str for value in texts)
+        and (profile["group_id"] is None or type(profile["group_id"]) is str)
+    )
+
+
+def _profile(**changes: Any) -> dict[str, Any]:
+    profile: dict[str, Any] = {
+        "id": "arrival-1",
+        "group_id": "household-1",
+        "initial_zone_id": "z0",
+        "mobility": "independent",
+        "support_need": 0.25,
+        "stress_sensitivity": 0.5,
+        "rng_key": "arrival:1",
+        "initial_needs": {
+            "toilet_urgency": 0.1,
+            "hunger": 0.2,
+            "fatigue": 0.3,
+            "hydration_need": 0.4,
+        },
+        "provenance": {"source_type": "assumption", "seed": 2026},
+    }
+    for key, value in changes.items():
+        if value is _MISSING:
+            profile.pop(key)
+        else:
+            profile[key] = value
+    return profile
+
+
+_MISSING = object()
+
+
+def _profiles() -> list[tuple[dict[str, Any], int, int]]:
+    import random
+
+    cases: list[tuple[dict[str, Any], int, int]] = [
+        (_profile(), 3, 6),
+        (_profile(), 0, 5),
+        (_profile(), -1, 6),
+    ]
+    for mobility in (
+        "assisted",
+        "wheelchair",
+        "flying",
+        "",
+        "It's",
+        "INDEPENDENT",
+        3,
+        None,
+        ["independent"],
+    ):
+        cases.append((_profile(mobility=mobility), 0, 6))
+    for value in (
+        0.0,
+        1.0,
+        -0.0,
+        -0.1,
+        1.0000001,
+        float("nan"),
+        float("inf"),
+        True,
+        False,
+        0,
+        1,
+        2,
+        "0.5",
+        None,
+        [0.1],
+    ):
+        for name in ("toilet_urgency", "hydration_need"):
+            needs = dict(_profile()["initial_needs"], **{name: value})
+            cases.append((_profile(initial_needs=needs), 1, 6))
+            cases.append((_profile(initial_needs=needs), 1, 5))
+    cases.append((_profile(initial_needs={}), 0, 6))
+    cases.append((_profile(initial_needs={"hunger": 0.5, "thirst": 0.1}), 0, 6))
+    cases.append((_profile(initial_needs={"hunger": 2.0, "thirst": 0.1}), 0, 6))
+    cases.append((_profile(mobility="x", initial_needs={"hunger": 2.0}), 0, 6))
+    cases.append((_profile(mobility="x", rng_key=_MISSING), 0, 6))
+    cases.append((_profile(mobility="x", support_need=0), 0, 6))
+    for key in (
+        "id",
+        "group_id",
+        "initial_zone_id",
+        "support_need",
+        "stress_sensitivity",
+        "rng_key",
+        "initial_needs",
+        "provenance",
+    ):
+        cases.append((_profile(**{key: _MISSING}), 0, 6))
+    for key, value in (
+        ("group_id", None),
+        ("group_id", 3),
+        ("support_need", 0),
+        ("support_need", 1),
+        ("stress_sensitivity", "high"),
+        ("id", 5),
+        ("rng_key", None),
+    ):
+        cases.append((_profile(**{key: value}), 0, 6))
+    draws = random.Random(2026)
+    for _ in range(200):
+        needs = {
+            name: draws.choice([draws.random(), draws.uniform(-0.5, 1.5), 0.0, 1.0])
+            for name in ("toilet_urgency", "hunger", "fatigue", "hydration_need")
+            if draws.random() < 0.9
+        }
+        profile = _profile(
+            mobility=draws.choice(["independent", "assisted", "wheelchair", "walking"]),
+            support_need=draws.random(),
+            stress_sensitivity=draws.random(),
+            initial_needs=needs,
+            group_id=draws.choice([None, "household-2"]),
+        )
+        cases.append((profile, draws.randrange(-2, 1000), draws.choice([5, 6])))
+    return cases
+
+
+def test_an_admitted_agent_is_what_the_constructors_make_of_its_profile() -> None:
+    kernel = native.rules("population").agent_of_profile
+    for profile, minute, version in _profiles():
+        said, value = kernel(profile, "z1", minute, version)
+        try:
+            agent = _constructed(profile, "z1", minute, version)
+        except ValueError as error:
+            if said == "refused":
+                # The enum's ValueError of a mobility that is not a str: no saved profile has one.
+                assert not isinstance(profile.get("mobility"), str), (profile, value)
+                continue
+            assert (said, value) == ("value_error", str(error)), profile
+            continue
+        except (KeyError, TypeError):
+            assert said == "refused", (profile, said, value)
+            continue
+        fields = _fields(agent)
+        if not _fits_a_row(fields):
+            assert said == "refused", (profile, said, value)
+            continue
+        assert said == "row", (profile, value)
+        assert _typed(value) == _typed(fields), profile
