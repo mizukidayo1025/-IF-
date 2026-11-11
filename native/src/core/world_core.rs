@@ -1141,31 +1141,54 @@ impl NamespaceMirror {
         Err(PyRuntimeError::new_err(format!("{ROOT_CHANGED}: {}", this.name)))
     }
 
-    /// `follow_row` of a map row of which the kernels wrote these keys alone (`Slot::keys`): each
-    /// key of the tree takes the row's value, as `with_row_tree` writes an entry, and a new key
-    /// comes last, as in the row. A row of floats (`metric_state`) alone; any other follows whole.
+    /// `follow_row` of a map row of which the kernels wrote these keys alone (`Slot::keys`,
+    /// `Slots::try_row_keys_mut`, lane P8 c3): each key of the tree takes the row's value, and a
+    /// new key comes last, where the row has it. A row of floats (`metric_state`) alone, and only
+    /// when the tree then holds the row's keys in the row's order: each new key must be the next
+    /// one of the row, and the tree as long as the row. Otherwise, with nothing written, the whole
+    /// row (`follow_row`: lane P8 a3's `follow_float_map`, then the general patch).
     pub(crate) fn follow_keys(slf: &Bound<'_, Self>, keys: &[Arc<str>]) -> PyResult<()> {
         let py = slf.py();
         let this = slf.get();
         let Some(root) = this.root(py)? else {
             return Ok(());
         };
-        let values = this.with_slot(py, |slot| -> Option<Vec<(Arc<str>, f64)>> {
-            let row = slot.row.as_deref()?.as_any().downcast_ref::<crate::state::metric_state::MetricRow>()?;
-            keys.iter().map(|key| row.get(&**key).map(|value| (key.clone(), *value))).collect()
-        })?;
-        let Some(values) = values else {
-            return Self::follow_row(slf);
-        };
-        if as_readable_dict(&root).is_none() {
+        if tracked_kind(&root) != Some(false) {
             return Self::follow_row(slf);
         }
-        for (key, value) in values {
-            let key = PyString::new(py, &key);
-            let same = raw_dict_get(&root, key.as_any())?
-                .is_some_and(|old| old.downcast_exact::<PyFloat>().is_ok_and(|old| old.value().to_bits() == value.to_bits()));
+        // Each written key once, in the order first written: its value and its place in the row.
+        let mut seen = std::collections::HashSet::with_capacity(keys.len());
+        let unique: Vec<&Arc<str>> = keys.iter().filter(|key| seen.insert(&***key)).collect();
+        let values = this.with_slot(py, |slot| -> Option<(usize, Vec<(Arc<str>, f64, usize)>)> {
+            let row = slot.row.as_deref()?.as_any().downcast_ref::<MetricRow>()?;
+            let written = unique.iter().map(|key| row.get_full(&***key).map(|(place, _, value)| ((*key).clone(), *value, place))).collect::<Option<Vec<_>>>()?;
+            Some((row.len(), written))
+        })?;
+        let Some((row_len, values)) = values else {
+            return Self::follow_row(slf);
+        };
+        // The keys the tree lacks go at its end: they must be the row's next ones, in order.
+        let mut held = Vec::with_capacity(values.len());
+        // SAFETY: `root` is a live dict (a tracked dict is a dict subclass).
+        let mut next = unsafe { ffi::PyDict_Size(root.as_ptr()) } as usize;
+        for (key, value, place) in values {
+            let name = PyString::new(py, &key);
+            let old = raw_dict_get(&root, name.as_any())?;
+            if old.is_none() {
+                if place != next {
+                    return Self::follow_row(slf);
+                }
+                next += 1;
+            }
+            held.push((name, value, old));
+        }
+        if next != row_len {
+            return Self::follow_row(slf);
+        }
+        for (name, value, old) in held {
+            let same = old.is_some_and(|old| old.downcast_exact::<PyFloat>().is_ok_and(|old| old.value().to_bits() == value.to_bits()));
             if !same {
-                raw_dict_set(&root, key.as_any(), &PyFloat::new(py, value))?;
+                raw_dict_set(&root, name.as_any(), PyFloat::new(py, value).as_any())?;
             }
         }
         Ok(())
@@ -2658,7 +2681,8 @@ pub(crate) fn field_mirror_of<'py>(
 
 /// For the tests of lane P8-0c: write slot rows as a kernel of the core does, in one borrow of the
 /// world (`with_world`), so the trees follow when it ends. Each op is `("value", name, value)`: the
-/// whole `V` of a `ValueRow` slot; `("metric", name)`: `kit::add_metric`; `("allocate",)`:
+/// whole `V` of a `ValueRow` slot; `("metric", name)`: `kit::add_metric`, which marks the key it
+/// writes; `("metric_whole", name)`: the same count through a write of the whole row; `("allocate",)`:
 /// `Events::allocate_sequence`, whose number is returned in order; `("fail",)`: the borrow ends with
 /// an error after the ops before it.
 #[pyfunction]
@@ -2667,6 +2691,7 @@ pub(crate) fn apply_slot_ops(world: &Bound<'_, PyAny>, ops: Vec<Bound<'_, PyTupl
     enum Op {
         Value(String, V),
         Metric(String),
+        WholeMetric(String),
         Allocate,
         Fail,
     }
@@ -2676,6 +2701,7 @@ pub(crate) fn apply_slot_ops(world: &Bound<'_, PyAny>, ops: Vec<Bound<'_, PyTupl
         planned.push(match what.as_str() {
             "value" => Op::Value(op.get_item(1)?.extract()?, <V as VPy>::from_py(&op.get_item(2)?)?),
             "metric" => Op::Metric(op.get_item(1)?.extract()?),
+            "metric_whole" => Op::WholeMetric(op.get_item(1)?.extract()?),
             "allocate" => Op::Allocate,
             "fail" => Op::Fail,
             _ => return Err(PyValueError::new_err("not an op")),
@@ -2687,6 +2713,10 @@ pub(crate) fn apply_slot_ops(world: &Bound<'_, PyAny>, ops: Vec<Bound<'_, PyTupl
             match op {
                 Op::Value(name, value) => world.row_mut::<ValueRow>(&name)?.0 = value,
                 Op::Metric(name) => kit::add_metric(world, &name)?,
+                // The same count through a write of the whole row, which tells no keys.
+                Op::WholeMetric(name) => {
+                    let Ok(()) = kit::add_one(&mut *kit::metrics_of(world)?, &kit::NoTree, &name);
+                }
                 Op::Allocate => allocated.push(kit::Events::of(world)?.allocate_sequence()?),
                 Op::Fail => return Err(CoreError::Runtime("the ops failed".to_owned())),
             }
