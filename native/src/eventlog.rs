@@ -17,7 +17,7 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 
-pub(crate) use sheltersim_core::events::log::{EventLog, Fields, ACTION_LIFECYCLE_EVENT_TYPE, EVENT_FIELDS, RECORD_FIELDS};
+pub(crate) use sheltersim_core::events::log::{EventLog, Fields, LogMark, ACTION_LIFECYCLE_EVENT_TYPE, EVENT_FIELDS, RECORD_FIELDS};
 
 use crate::core::errors::OrPy;
 use crate::state::events::{EventRow, EventStatus};
@@ -41,6 +41,8 @@ pub struct EventStore {
     factory: Option<Py<PyAny>>,
     // The exact types whose records `checkpoint::encode_record` may write.
     types: Option<(Py<PyAny>, Py<PyAny>)>,
+    /// Where an open transaction found the log (`txn_begin`, lane 6-2).
+    mark: Option<LogMark>,
 }
 
 fn mapping_get<'py>(
@@ -67,6 +69,7 @@ impl EventStore {
             encoder: None,
             factory: None,
             types: None,
+            mark: None,
         }
     }
 
@@ -413,7 +416,28 @@ impl EventStore {
                 .types
                 .as_ref()
                 .map(|(record, event)| (record.clone_ref(py), event.clone_ref(py))),
+            mark: None,
         }
+    }
+
+    /// Mark the log for a transaction (`core/state_mirror.py`, `transaction`): a rollback takes out
+    /// the records appended after this, and their objects.
+    fn txn_begin(&mut self) {
+        self.mark = Some(self.log.mark());
+    }
+
+    /// The transaction rolled back: the log is what it was at `txn_begin`.
+    fn txn_rollback(&mut self) {
+        if let Some(mark) = self.mark.take() {
+            let len = mark.len();
+            self.log.rollback(mark);
+            self.handles.truncate(len);
+        }
+    }
+
+    /// The transaction kept its writes.
+    fn txn_commit(&mut self) {
+        self.mark = None;
     }
 
     /// The indexes' sizes, for tests that compare them with the records.

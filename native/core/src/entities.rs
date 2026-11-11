@@ -501,6 +501,8 @@ pub trait AnyTable {
     }
     /// The keys in their order, for checks.
     fn key_order(&self) -> Vec<Arc<str>>;
+    /// The keys and their slots in their order.
+    fn key_slots(&self) -> Vec<(Arc<str>, u32)>;
     /// Whether anything was touched or journaled since it was last taken.
     fn has_changes(&self) -> bool;
 }
@@ -561,6 +563,10 @@ impl<R> AnyTable for Table<R> {
 
     fn key_order(&self) -> Vec<Arc<str>> {
         self.ids.keys().cloned().collect()
+    }
+
+    fn key_slots(&self) -> Vec<(Arc<str>, u32)> {
+        self.ids.iter().map(|(key, slot)| (key.clone(), *slot)).collect()
     }
 
     fn has_changes(&self) -> bool {
