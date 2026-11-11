@@ -8,6 +8,10 @@
 //! does not run the containers' overrides. So the row and the tree hold the same values, and
 //! `verify` compares their canonical JSON.
 //!
+//! A kernel of the core writes a row alone (`World::row_mut`), which marks its slot: when the borrow
+//! of the world ends, before any Python runs, the attached tree follows the row
+//! (`NamespaceMirror::follow_row`, lane P8-0c), as the entity objects follow theirs (lane 6-1).
+//!
 //! A write that does not fit the row taints the namespace: the row is dropped, kernels get
 //! `Unsupported`, and the Python rules run on the tree, which stays right whatever was written.
 //!
@@ -39,7 +43,7 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::pyclass::boolean_struct::True;
-use pyo3::types::{PyBytes, PyCFunction, PyDict, PyList, PyString, PyTuple, PyWeakrefMethods, PyWeakrefReference};
+use pyo3::types::{PyBytes, PyCFunction, PyDict, PyFloat, PyList, PyString, PyTuple, PyWeakrefMethods, PyWeakrefReference};
 use pyo3::{PyClass, PyTraverseError};
 use sheltersim_core::cell::{CowShard, Shard, ShardMut, BORROWED};
 use sheltersim_core::stamp::Stamp;
@@ -48,7 +52,7 @@ use sheltersim_core::world::{Place, Slot, World, WorldCell};
 use smallvec::SmallVec;
 
 use super::row::{atom_to_py, Atom, PyField, PyItems, Scalar, TreeSink};
-use super::tracked::{as_readable_dict, is_detached, tracked_dict_type, tracked_list_type};
+use super::tracked::{as_readable_dict, as_readable_list, is_detached, tracked_dict_type, tracked_list_type};
 use super::errors::OrPy;
 use super::value::{V, VPy};
 use crate::eventlog::{EventLog, EventStore};
@@ -1199,6 +1203,193 @@ impl NamespaceMirror {
     }
 }
 
+// ---- The tree follows the row (lane P8-0c) ------------------------------------------------------
+
+/// The text of a patch that cannot keep the root: a kernel of the core made the row's value a
+/// container of another kind, or an atom other than the tree's.
+pub(crate) const ROOT_CHANGED: &str = "a kernel of the core changed the kind of a tree's root";
+
+impl NamespaceMirror {
+    /// Make the tree hold what the row holds, after a kernel of the core wrote the row alone
+    /// (`Slot::written`): rule R5 of design-p5-p6.md for a slot, run when the borrow of the world
+    /// ends and before any Python runs (`PyWorldCell::with`). The root stays the same object, and
+    /// so does every container of the tree whose place the row still has as a container of that
+    /// kind: a dict gets only the keys whose values changed, the keys the row dropped go and new
+    /// keys come at the end, as Python's dict assignment does; a list keeps its items that are
+    /// still there (a run dropped from the front and items appended, as a history does, or item by
+    /// item in place). Python that holds an inner node so sees the current values. A detached or
+    /// absent namespace has no tree, and nothing is done. No override runs and nothing is
+    /// forwarded: the row has the values already.
+    pub(crate) fn follow_row(slf: &Bound<'_, Self>) -> PyResult<()> {
+        let py = slf.py();
+        let this = slf.get();
+        let Some(root) = this.root(py)? else {
+            return Ok(());
+        };
+        let ops = this.ops();
+        let plain = this.with_slot(py, |slot| slot.row.as_deref().map(|row| ops.py(row)?.to_py(py)).transpose())??;
+        let Some(plain) = plain else {
+            return Ok(());
+        };
+        if Self::patch_in_place(slf, &root, &plain, 0)? || same_value(&root, &plain)? {
+            return Ok(());
+        }
+        Err(PyRuntimeError::new_err(format!("{ROOT_CHANGED}: {}", this.name)))
+    }
+
+    /// Patch `node`, a container of the tree at this depth, to hold what `new` holds, if both are
+    /// dicts or both lists: true then. False, changing nothing, when they are not of one kind (or
+    /// `node` is not a node of the tree, as a value past `MAX_DEPTH` is not).
+    fn patch_in_place(slf: &Bound<'_, Self>, node: &Bound<'_, PyAny>, new: &Bound<'_, PyAny>, depth: usize) -> PyResult<bool> {
+        match tracked_kind(node) {
+            Some(false) if as_readable_dict(new).is_some() => Self::patch_dict(slf, node, new, depth).map(|()| true),
+            Some(true) if as_readable_list(new).is_some() => Self::patch_list(slf, node, new, depth).map(|()| true),
+            _ => Ok(false),
+        }
+    }
+
+    fn patch_dict(slf: &Bound<'_, Self>, node: &Bound<'_, PyAny>, new: &Bound<'_, PyAny>, depth: usize) -> PyResult<()> {
+        let py = slf.py();
+        let id: u32 = node.getattr(intern!(py, "_node"))?.extract()?;
+        for (key, old) in dict_values(node) {
+            if raw_dict_get(new, &key)?.is_none() {
+                // SAFETY: both are live objects, and the type is a dict subclass whose override this
+                // call means not to run.
+                if unsafe { ffi::PyDict_DelItem(node.as_ptr(), key.as_ptr()) } != 0 {
+                    return Err(PyErr::fetch(py));
+                }
+                Self::release_value(slf, &old, py.None().bind(py))?;
+            }
+        }
+        for (key, value) in dict_values(new) {
+            match raw_dict_get(node, &key)? {
+                Some(old) => {
+                    if Self::patch_in_place(slf, &old, &value, depth + 1)? || same_value(&old, &value)? {
+                        continue;
+                    }
+                    let stored = Self::adopt_value(slf, id, exact_str_key(&key), &value, depth + 1)?;
+                    raw_dict_set(node, &key, &stored)?;
+                    Self::release_value(slf, &old, py.None().bind(py))?;
+                }
+                None => {
+                    let stored = Self::adopt_value(slf, id, exact_str_key(&key), &value, depth + 1)?;
+                    raw_dict_set(node, &key, &stored)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn patch_list(slf: &Bound<'_, Self>, node: &Bound<'_, PyAny>, new: &Bound<'_, PyAny>, depth: usize) -> PyResult<()> {
+        let py = slf.py();
+        let id: u32 = node.getattr(intern!(py, "_node"))?.extract()?;
+        let old = list_values(node);
+        let items = list_values(new);
+        let append = |from: &[Bound<'_, PyAny>]| -> PyResult<()> {
+            for item in from {
+                let stored = Self::adopt_value(slf, id, NodeKey::ListItem, item, depth + 1)?;
+                raw_list_append(node, &stored)?;
+            }
+            Ok(())
+        };
+        let cut = |start: usize, stop: usize| -> PyResult<()> {
+            // SAFETY: node is a live list and start..stop is within it; a null value deletes the
+            // slice, whose items `old` still holds.
+            if unsafe { ffi::PyList_SetSlice(node.as_ptr(), start as ffi::Py_ssize_t, stop as ffi::Py_ssize_t, null_mut()) } != 0 {
+                return Err(PyErr::fetch(py));
+            }
+            for item in &old[start..stop] {
+                Self::release_value(slf, item, py.None().bind(py))?;
+            }
+            Ok(())
+        };
+        if let Some(dropped) = dropped_front(&old, &items)? {
+            if dropped > 0 {
+                cut(0, dropped)?;
+            }
+            return append(&items[old.len() - dropped..]);
+        }
+        let common = old.len().min(items.len());
+        for index in 0..common {
+            let (before, value) = (&old[index], &items[index]);
+            if Self::patch_in_place(slf, before, value, depth + 1)? || same_value(before, value)? {
+                continue;
+            }
+            let stored = Self::adopt_value(slf, id, NodeKey::ListItem, value, depth + 1)?;
+            // SAFETY: index is within the list; PyList_SetItem steals the new reference and drops
+            // the old item's, which `old` still holds.
+            if unsafe { ffi::PyList_SetItem(node.as_ptr(), index as ffi::Py_ssize_t, stored.into_ptr()) } != 0 {
+                return Err(PyErr::fetch(py));
+            }
+            Self::release_value(slf, before, py.None().bind(py))?;
+        }
+        if old.len() > common {
+            cut(common, old.len())?;
+        }
+        append(&items[common..])
+    }
+}
+
+/// How many items left the front of a list whose other items are still there, in order, at the
+/// start of `new`, which may have more after them: Some(0) for a list only appended to (or the
+/// same), as a history that drops its oldest items and appends new ones is. None when no kept item
+/// is left that way.
+fn dropped_front(old: &[Bound<'_, PyAny>], new: &[Bound<'_, PyAny>]) -> PyResult<Option<usize>> {
+    'dropped: for dropped in 0..old.len().max(1) {
+        let kept = old.len() - dropped;
+        if kept > new.len() {
+            continue;
+        }
+        for index in 0..kept {
+            if !same_value(&old[dropped + index], &new[index])? {
+                continue 'dropped;
+            }
+        }
+        return Ok(Some(dropped));
+    }
+    Ok(None)
+}
+
+/// Whether two values are the same JSON value, with Python's types: a dict or list holds the same
+/// items (a dict's order aside, as `==` has it), an atom is of the same exact type with the same
+/// value, a float with the same bits (so `-0.0` is not `0.0`, and a NaN is itself).
+fn same_value(first: &Bound<'_, PyAny>, second: &Bound<'_, PyAny>) -> PyResult<bool> {
+    if first.is(second) {
+        return Ok(true);
+    }
+    if let (Some(one), Some(two)) = (as_readable_dict(first), as_readable_dict(second)) {
+        if one.len() != two.len() {
+            return Ok(false);
+        }
+        for (key, value) in dict_values(one) {
+            match raw_dict_get(two, &key)? {
+                Some(other) if same_value(&value, &other)? => {}
+                _ => return Ok(false),
+            }
+        }
+        return Ok(true);
+    }
+    if let (Some(one), Some(two)) = (as_readable_list(first), as_readable_list(second)) {
+        if one.len() != two.len() {
+            return Ok(false);
+        }
+        for (value, other) in list_values(one).iter().zip(&list_values(two)) {
+            if !same_value(value, other)? {
+                return Ok(false);
+            }
+        }
+        return Ok(true);
+    }
+    // SAFETY: the type pointers are only compared.
+    if unsafe { ffi::Py_TYPE(first.as_ptr()) != ffi::Py_TYPE(second.as_ptr()) } {
+        return Ok(false);
+    }
+    if let (Ok(one), Ok(two)) = (first.downcast_exact::<PyFloat>(), second.downcast_exact::<PyFloat>()) {
+        return Ok(one.value().to_bits() == two.value().to_bits());
+    }
+    first.eq(second)
+}
+
 /// What `model_state` holds under an owned namespace, for a kernel that reads it.
 pub(crate) enum Held<'py> {
     /// The row is what the world holds: its tree, or the row alone while the namespace is detached.
@@ -2213,6 +2404,49 @@ impl WorldCore {
         Ok(Some((core, maps)))
     }
 
+    /// The check of `--verify-rows` for the slots (lane P8-0c, `state_mirror.check_slot_rows`):
+    /// how many attached trees were compared with their rows (`NamespaceMirror.verify`, canonical
+    /// JSON), and the names of those that differ, after the names of the slots marked written that
+    /// no patch followed. A tree is attached when the slot has a row and is not detached, and the
+    /// world holds the tree: `world.<name>` for a field, `model_state[name]` for a namespace.
+    fn verify_slots(slf: &Bound<'_, Self>, world: &Bound<'_, PyAny>) -> PyResult<(usize, Vec<String>)> {
+        let py = slf.py();
+        let (mirrors, pending) = {
+            let this = slf.try_borrow()?;
+            let mirrors: Vec<Py<NamespaceMirror>> = this.mirrors.values().map(|mirror| mirror.clone_ref(py)).collect();
+            (mirrors, this.world.slots.written_names())
+        };
+        let mut differing: Vec<String> = pending.iter().map(|name| format!("{name} (not followed)")).collect();
+        let state = world.getattr(intern!(py, "__dict__"))?;
+        let state = state.downcast::<PyDict>()?;
+        let table = state.get_item(intern!(py, "model_state"))?;
+        let table = table.as_ref().and_then(as_readable_dict);
+        let mut checked = 0;
+        for mirror in mirrors {
+            let mirror = mirror.bind(py);
+            let this = mirror.get();
+            let (place, attached) = this.with_slot(py, |slot| (slot.place, slot.row.is_some() && !slot.detached))?;
+            let Some(root) = this.root(py)?.filter(|_| attached) else {
+                continue;
+            };
+            let held = match place {
+                Place::Field => state.get_item(&*this.name)?,
+                Place::Namespace | Place::Value => match table {
+                    Some(table) => table.get_item(&*this.name)?,
+                    None => None,
+                },
+            };
+            if !held.is_some_and(|held| held.is(&root)) {
+                continue;
+            }
+            checked += 1;
+            if !NamespaceMirror::verify(mirror)? {
+                differing.push(this.name.to_string());
+            }
+        }
+        Ok((checked, differing))
+    }
+
     fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
         for mirror in self.mirrors.values() {
             visit.call(mirror)?;
@@ -2241,6 +2475,13 @@ impl WorldCore {
     /// The stores of the world's queue and log, while this core holds them.
     pub(crate) fn event_stores(&self, py: Python<'_>) -> (Option<Py<QueueStore>>, Option<Py<EventStore>>) {
         (self.queue.as_ref().map(|store| store.clone_ref(py)), self.log.as_ref().map(|store| store.clone_ref(py)))
+    }
+
+    /// The mirrors of the slots a kernel of the core wrote (`Slots::take_written`), their marks
+    /// cleared: their trees are to follow the rows once the core is no longer borrowed.
+    fn written_mirrors(&mut self, py: Python<'_>) -> Vec<Py<NamespaceMirror>> {
+        let written = self.world.slots.take_written();
+        written.iter().filter_map(|&index| self.mirrors.get_index(index).map(|(_, mirror)| mirror.clone_ref(py))).collect()
     }
 
     /// Whether this core is `world`'s: its weak reference is to `world`, which is alive.
@@ -2320,7 +2561,7 @@ pub(crate) struct PyWorldCell<'a, 'py>(pub(crate) &'a Bound<'py, PyAny>);
 impl WorldCell for PyWorldCell<'_, '_> {
     fn with<R>(&self, f: impl FnOnce(&mut World) -> R) -> sheltersim_core::error::Result<R> {
         let core = core_of(self.0).map_err(|_| CoreError::unsupported("the world has no core"))?;
-        let (result, flush) = {
+        let (result, flush, written) = {
             let mut held = core.try_borrow_mut().map_err(|_| CoreError::Runtime(BORROWED.to_owned()))?;
             if !held.owned_by(self.0) {
                 return Err(CoreError::Runtime(NOT_OWNER.to_owned()));
@@ -2328,12 +2569,20 @@ impl WorldCell for PyWorldCell<'_, '_> {
             let result = f(&mut held.world);
             let flush = crate::state::entities::plan_flush(core.py(), held.world.entities.get_mut());
             let store = held.store.as_ref().map(|store| store.clone_ref(core.py()));
-            (result, flush.zip(store))
+            let written = held.written_mirrors(core.py());
+            (result, flush.zip(store), written)
         };
-        // The objects follow the rows f wrote (rule R5), with the world no longer borrowed.
+        // The objects and the attached trees follow the rows f wrote (rule R5, lanes 6-1 and
+        // P8-0c), with the world no longer borrowed and before any Python runs.
+        let mut flushed = Ok(());
         if let Some((flush, store)) = flush {
-            EntityStore::flush(store.bind(core.py()), flush).map_err(|error| CoreError::Runtime(error.to_string()))?;
+            flushed = EntityStore::flush(store.bind(core.py()), flush);
         }
+        for mirror in written {
+            let followed = NamespaceMirror::follow_row(mirror.bind(core.py()));
+            flushed = flushed.and(followed);
+        }
+        flushed.map_err(|error| CoreError::Runtime(error.to_string()))?;
         Ok(result)
     }
 }
@@ -2393,4 +2642,44 @@ pub(crate) fn field_mirror_of<'py>(
         return Err(Unsupported::new_err("the field holds another dict"));
     }
     Ok(mirror)
+}
+
+/// For the tests of lane P8-0c: write slot rows as a kernel of the core does, in one borrow of the
+/// world (`with_world`), so the trees follow when it ends. Each op is `("value", name, value)`: the
+/// whole `V` of a `ValueRow` slot; `("metric", name)`: `kit::add_metric`; `("allocate",)`:
+/// `Events::allocate_sequence`, whose number is returned in order; `("fail",)`: the borrow ends with
+/// an error after the ops before it.
+#[pyfunction]
+pub(crate) fn apply_slot_ops(world: &Bound<'_, PyAny>, ops: Vec<Bound<'_, PyTuple>>) -> PyResult<Vec<i64>> {
+    use sheltersim_core::rules::kit;
+    enum Op {
+        Value(String, V),
+        Metric(String),
+        Allocate,
+        Fail,
+    }
+    let mut planned = Vec::with_capacity(ops.len());
+    for op in &ops {
+        let what: String = op.get_item(0)?.extract()?;
+        planned.push(match what.as_str() {
+            "value" => Op::Value(op.get_item(1)?.extract()?, <V as VPy>::from_py(&op.get_item(2)?)?),
+            "metric" => Op::Metric(op.get_item(1)?.extract()?),
+            "allocate" => Op::Allocate,
+            "fail" => Op::Fail,
+            _ => return Err(PyValueError::new_err("not an op")),
+        });
+    }
+    with_world(world, |world| -> sheltersim_core::error::Result<Vec<i64>> {
+        let mut allocated = Vec::new();
+        for op in planned {
+            match op {
+                Op::Value(name, value) => world.row_mut::<ValueRow>(&name)?.0 = value,
+                Op::Metric(name) => kit::add_metric(world, &name)?,
+                Op::Allocate => allocated.push(kit::Events::of(world)?.allocate_sequence()?),
+                Op::Fail => return Err(CoreError::Runtime("the ops failed".to_owned())),
+            }
+        }
+        Ok(allocated)
+    })?
+    .or_py()
 }
