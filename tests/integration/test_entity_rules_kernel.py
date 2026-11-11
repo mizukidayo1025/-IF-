@@ -1,8 +1,8 @@
 """The KPI columns and the per-tick entity rules in Rust give what the Python rules give.
 
-native/src/rules/metrics.rs and tick_validation.rs (docs/rust-port/lanes/m5-metrics.md). The KPI
-kernels must give the Python rule's values to the bit. The check kernel has no text: what must hold
-is that a yes means the Python rules pass, and that a state it turns down gets the Python text.
+native/core/src/rules/metrics.rs and tick_validation.rs (docs/rust-port/lanes/m5-metrics.md). The
+KPI kernels must give the Python rule's values to the bit. The check kernel has no text: what must
+hold is that a yes means the Python rules pass, and that a state it turns down gets the Python text.
 These run on worlds from the middle of a Run, where queues, trips and open requests are in use, of
 WorldState v6 (a Scenario with resource_service) and v5 (one without, docs/rust-port/lanes/
 l7b-world-v5.md).
@@ -11,6 +11,7 @@ l7b-world-v5.md).
 from __future__ import annotations
 
 import copy
+import dataclasses
 import json
 import random
 from typing import Any
@@ -28,7 +29,6 @@ from sheltersim.domain.models import (
     Activity,
     FacilityState,
     InitialNeedProfile,
-    NeedState,
     SupportRequestStatus,
 )
 from sheltersim.domain.population import validate_population_dynamics_state
@@ -95,13 +95,7 @@ def _world(document: dict) -> WorldState:
 def _accepts(world: WorldState) -> bool:
     config = _resource_config(world)
     try:
-        entity_kernel(
-            world,
-            list(world.support_requests.values()),
-            config,
-            InitialNeedProfile,
-            NeedState,
-        )
+        entity_kernel(world, config)
     except native.Unsupported:
         return False
     return True
@@ -127,8 +121,33 @@ def _python_error(world: WorldState) -> str | None:
 
 
 def _set(item: Any, name: str, value: Any) -> None:
-    """Reaches the object only: the kernel must read it there."""
-    item.__dict__[name] = value
+    """A write through the row, as every write in src/ is: the kernel reads the rows (policy E12 of
+    docs/rust-port/step5-plan.md). A value the row cannot hold taints the store, which the kernel
+    refuses."""
+    setattr(item, name, value)
+
+
+def _set_initial_need(world: WorldState, agent: Any, name: str, value: Any) -> bool:
+    """A new initial need profile of a person, through the person's row: the profile is frozen.
+    False where the profile takes no such value."""
+    try:
+        needs = dataclasses.replace(agent.profile.initial_needs, **{name: value})
+    except (TypeError, ValueError):
+        return False
+    agent.profile = dataclasses.replace(agent.profile, initial_needs=needs)
+    return True
+
+
+def _write(world: WorldState, holder: Any, name: str, value: Any) -> bool:
+    """`_set`, or a new initial need profile; false where the object takes no such value."""
+    if isinstance(holder, InitialNeedProfile):
+        agent = next(a for a in world.agents.values() if a.profile.initial_needs is holder)
+        return _set_initial_need(world, agent, name, value)
+    try:
+        setattr(holder, name, value)
+    except (TypeError, ValueError, AttributeError):
+        return False
+    return True
 
 
 def _moving(world: WorldState) -> Any:
@@ -197,7 +216,7 @@ def _second_open_request(world: WorldState) -> None:
 
 
 def _inventory_below_zero(world: WorldState) -> None:
-    dict.__setitem__(world.resources, next(iter(world.resources)), -1)
+    world.resources[next(iter(world.resources))] = -1
 
 
 def _counter_below_zero(world: WorldState) -> None:
@@ -328,7 +347,8 @@ def test_random_writes_taken_by_the_check_pass_the_python_rules(documents) -> No
         ]
         holder = generator.choice(holders)
         name = generator.choice(sorted(holder.__dict__))
-        holder.__dict__[name] = generator.choice(values)
+        if not _write(world, holder, name, generator.choice(values)):
+            continue
         if _accepts(world):
             taken += 1
             assert _python_error(world) is None, (type(holder).__name__, name)
@@ -404,15 +424,13 @@ def _resource_completion_in_v5(world: WorldState) -> None:
 
 V5_BREAKS = {
     "a hydration need": lambda w: _set(_agent(w).needs, "hydration_need", 0.5),
-    "an initial hydration need": lambda w: _set(
-        _agent(w).profile.initial_needs, "hydration_need", 0.5
-    ),
+    "an initial hydration need": lambda w: _set_initial_need(w, _agent(w), "hydration_need", 0.5),
     "a resource queue task": _resource_queue_task_in_v5,
     "a resource completion": _resource_completion_in_v5,
     "a resource slot without its task": lambda w: _queued_at_water(
         w, slot="resource_queue_agent_ids"
     ),
-    "an inventory below 0 without a stock": lambda w: dict.__setitem__(w.resources, "water_ml", -1),
+    "an inventory below 0 without a stock": lambda w: w.resources.__setitem__("water_ml", -1),
 }
 
 
@@ -473,9 +491,7 @@ def test_a_v5_world_is_not_taken_with_a_resource_config(v5_documents) -> None:
         }
     )
     with pytest.raises(native.Unsupported):
-        entity_kernel(
-            world, list(world.support_requests.values()), config, InitialNeedProfile, NeedState
-        )
+        entity_kernel(world, config)
 
 
 def _no_service_under_way(documents: list[dict]) -> dict:
@@ -494,9 +510,7 @@ def test_a_v6_world_is_not_taken_without_its_resource_config(documents) -> None:
     world = _world(_no_service_under_way(documents))
     assert _accepts(world)
     with pytest.raises(native.Unsupported):
-        entity_kernel(
-            world, list(world.support_requests.values()), None, InitialNeedProfile, NeedState
-        )
+        entity_kernel(world, None)
 
 
 def test_random_writes_to_a_v5_world_taken_by_the_check_pass_the_python_rules(
@@ -523,7 +537,8 @@ def test_random_writes_to_a_v5_world_taken_by_the_check_pass_the_python_rules(
         ]
         holder = generator.choice(holders)
         name = generator.choice(sorted(holder.__dict__))
-        holder.__dict__[name] = generator.choice(values)
+        if not _write(world, holder, name, generator.choice(values)):
+            continue
         if _accepts(world):
             taken += 1
             assert _python_error(world) is None, (type(holder).__name__, name)
@@ -537,25 +552,9 @@ def test_a_zone_with_temporary_space_is_left_to_the_python_rule(documents) -> No
     state = world.model_state.setdefault(
         "temporary_spaces_v1", {"schema_version": 1, "spaces": {}, "history": []}
     )
-    assert (
-        entity_kernel(
-            world,
-            list(world.support_requests.values()),
-            _resource_config(world),
-            InitialNeedProfile,
-            NeedState,
-        )
-        == []
-        or True
-    )
+    assert isinstance(entity_kernel(world, _resource_config(world)), list)
     state["spaces"]["room"] = {"zone_id": next(iter(world.zones))}
-    left = entity_kernel(
-        world,
-        list(world.support_requests.values()),
-        _resource_config(world),
-        InitialNeedProfile,
-        NeedState,
-    )
+    left = entity_kernel(world, _resource_config(world))
     with_capacity = [zone for zone in world.zones.values() if zone.capacity is not None]
     assert {zone for zone, _ in left} == {zone.id for zone in with_capacity}
     occupancy = {zone: 0 for zone in world.zones}
@@ -568,13 +567,7 @@ def test_a_zone_over_its_capacity_is_left_to_the_python_rule(documents) -> None:
     world = _world(documents[0])
     zone = next(zone for zone in world.zones.values() if zone.capacity is not None)
     _set(zone, "capacity", -1)
-    left = entity_kernel(
-        world,
-        list(world.support_requests.values()),
-        _resource_config(world),
-        InitialNeedProfile,
-        NeedState,
-    )
+    left = entity_kernel(world, _resource_config(world))
     assert [item[0] for item in left] == [zone.id]
     with pytest.raises(StateInvariantError, match="exceeds nominal"):
         world._validate_zone_capacity(*left[0])

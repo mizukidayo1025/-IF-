@@ -1303,6 +1303,34 @@ fn new_id_map<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
     class.call0()
 }
 
+impl EntityStore {
+    /// `follows`, of these maps.
+    pub(crate) fn maps_follow(slf: &Bound<'_, Self>, state: &Bound<'_, PyDict>, fields: &[(&str, u8)]) -> PyResult<bool> {
+        let py = slf.py();
+        for &(name, kind) in fields {
+            let Some(map) = raw_dict_get(state, PyString::intern(py, name).as_any())? else {
+                return Ok(false);
+            };
+            let Ok(map) = map.downcast::<PyDict>() else {
+                return Ok(false);
+            };
+            if map.get_type().as_ptr() != id_map_type().cast()
+                || !map.getattr(intern!(py, "_store"))?.is(slf)
+                || map.len() != slf.get().rows_ref(py, |rows| rows.table(kind).len())?
+            {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    /// `follows` of every map, the zones' and the edges' too: for a check that reads their rows
+    /// (`rules/after_tick.rs`).
+    pub(crate) fn follows_every_map(slf: &Bound<'_, Self>, state: &Bound<'_, PyDict>) -> PyResult<bool> {
+        Self::maps_follow(slf, state, &FIELDS)
+    }
+}
+
 #[pymethods]
 impl EntityStore {
     /// `object.name = value` on an attached object, from its `__setattr__`.
@@ -1483,25 +1511,10 @@ impl EntityStore {
 
     /// Whether `state`, a world's `__dict__`, holds the maps these rows follow, with as many entries
     /// as they have. Something stored past `WorldState.__setattr__` and `IdMap` shows here, unless it
-    /// keeps the length, which the Python rules that read the maps then see. The people's maps only:
-    /// no kernel reads the rows of the zones yet.
+    /// keeps the length, which the Python rules that read the maps then see. The people's maps only
+    /// (`follows_every_map` adds the zones' and the edges').
     fn follows(slf: &Bound<'_, Self>, state: &Bound<'_, PyDict>) -> PyResult<bool> {
-        let py = slf.py();
-        for (name, kind) in PEOPLE {
-            let Some(map) = raw_dict_get(state, PyString::intern(py, name).as_any())? else {
-                return Ok(false);
-            };
-            let Ok(map) = map.downcast::<PyDict>() else {
-                return Ok(false);
-            };
-            if map.get_type().as_ptr() != id_map_type().cast()
-                || !map.getattr(intern!(py, "_store"))?.is(slf)
-                || map.len() != slf.get().rows_ref(py, |rows| rows.table(kind).len())?
-            {
-                return Ok(false);
-            }
-        }
-        Ok(true)
+        Self::maps_follow(slf, state, &PEOPLE)
     }
 
     /// The first difference between the rows and the objects of the world, or None: the check

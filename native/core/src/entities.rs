@@ -449,6 +449,11 @@ pub struct Table<R> {
     is_touched: Vec<bool>,
     /// The keys put in or taken out by the core since `take_journal`, in order.
     journal: Vec<Change<R>>,
+    /// The slots written or filled since `take_marked`, each once and in the order of their first
+    /// write, from Rust or from Python: what the end-of-tick check's memo reads again (lane P8 d4).
+    /// Not state.
+    marked: Vec<u32>,
+    is_marked: Vec<bool>,
 }
 
 /// A key the core put into a table or took out of it, for the view's owner to follow.
@@ -473,7 +478,18 @@ impl<R> Default for Table<R> {
             touched: Vec::new(),
             is_touched: Vec::new(),
             journal: Vec::new(),
+            marked: Vec::new(),
+            is_marked: Vec::new(),
         }
+    }
+}
+
+/// Mark a slot written for the end-of-tick check's memo (`Table::marked`), once.
+#[inline]
+fn mark(marked: &mut Vec<u32>, is_marked: &mut [bool], slot: u32) {
+    if !is_marked[slot as usize] {
+        is_marked[slot as usize] = true;
+        marked.push(slot);
     }
 }
 
@@ -514,6 +530,7 @@ impl<R> AnyTable for Table<R> {
             self.changed.push(true);
             self.views.push(None);
             self.is_touched.push(false);
+            self.is_marked.push(false);
             u32::try_from(self.rows.len() - 1).expect("under 2**32 entities")
         });
         self.changed[slot as usize] = true;
@@ -591,6 +608,7 @@ impl<R> Table<R> {
             self.is_touched[slot as usize] = true;
             self.touched.push(slot);
         }
+        mark(&mut self.marked, &mut self.is_marked, slot);
         Some(row)
     }
 
@@ -649,6 +667,7 @@ impl<R> Table<R> {
     pub fn row_and_view_mut(&mut self, slot: u32) -> Option<(&mut R, Option<&mut R>)> {
         let row = self.rows.get_mut(slot as usize)?.as_mut()?;
         self.changed[slot as usize] = true;
+        mark(&mut self.marked, &mut self.is_marked, slot);
         Some((row, self.views[slot as usize].as_mut()))
     }
 
@@ -678,6 +697,26 @@ impl<R> Table<R> {
         std::mem::take(&mut self.journal)
     }
 
+    /// The slots written or filled since the last `take_marked`, in the order of their first write.
+    /// A slot may have lost its row since.
+    pub fn marked(&self) -> &[u32] {
+        &self.marked
+    }
+
+    /// Whether the slot was written or filled since the last `take_marked`.
+    pub fn is_marked(&self, slot: u32) -> bool {
+        self.is_marked.get(slot as usize).copied().unwrap_or(false)
+    }
+
+    /// `marked`, and the marks cleared.
+    pub fn take_marked(&mut self) -> Vec<u32> {
+        let marked = std::mem::take(&mut self.marked);
+        for slot in &marked {
+            self.is_marked[*slot as usize] = false;
+        }
+        marked
+    }
+
     /// Every row may differ from the bytes last written of it: after a snapshot came back, when
     /// the bytes the view's owner keeps may be of rows written since (`World::restore`).
     pub fn mark_all_changed(&mut self) {
@@ -691,6 +730,7 @@ impl<R: Clone> Table<R> {
     pub fn fill_slot(&mut self, slot: u32, row: R) {
         self.views[slot as usize] = Some(row.clone());
         self.rows[slot as usize] = Some(row);
+        mark(&mut self.marked, &mut self.is_marked, slot);
     }
 
     /// The slot's view holds the row now: the view's owner made it from the row.
@@ -707,6 +747,7 @@ impl<R: Clone> Table<R> {
         }
         let slot = self.reserve_slot();
         self.rows[slot as usize] = Some(row);
+        mark(&mut self.marked, &mut self.is_marked, slot);
         self.bind(key.clone(), slot);
         self.journal.push(Change::Inserted { key, slot });
         slot

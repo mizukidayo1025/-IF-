@@ -739,18 +739,6 @@ def test_a_timeout_of_what_has_left_pending_says_python_s_text(generated_scenari
     assert _bytes(world) == before
 
 
-def test_a_timeout_writes_through_the_request_s_listener(generated_scenario: Any) -> None:
-    # The end-of-tick check reads a settled request again only when it reports a write.
-    world, _ = _run(generated_scenario, 5)
-    agent_id = _idle_person(world)
-    _open_request(world, agent_id)
-    listener: list[Any] = []
-    world.support_requests["support-t1"].report_writes_to(listener)
-    handler = SupportRequestTimeoutHandler(cooldown_minutes=30)
-    native.rules("support").timeout(handler, world, _timeout_event(world, agent_id))
-    assert listener
-
-
 def test_a_timeout_of_another_person_s_request_is_python_s_error(generated_scenario: Any) -> None:
     world, _ = _run(generated_scenario, 5)
     agent_id = _idle_person(world)

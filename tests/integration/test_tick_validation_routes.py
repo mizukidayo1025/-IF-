@@ -12,6 +12,7 @@ always run, so all of this holds in both modes, apart from the writes past a Tra
 from __future__ import annotations
 
 import copy
+import dataclasses
 from collections.abc import Callable
 from typing import Any
 
@@ -383,20 +384,25 @@ def _stress_attribute(world: WorldState) -> None:
     _agent(world).stress = 1.5
 
 
-def _stress_in_dict(world: WorldState) -> None:
+def _stress_in_the_row(world: WorldState) -> None:
+    """The row alone, as a rule of the core writes it; the object follows."""
+    native.state("entities").apply_row_ops(
+        world, "agents", [("write", _agent(world).id, "stress", 1.5)]
+    )
+
+
+def _stress_in_object_dict(world: WorldState) -> None:
     _agent(world).__dict__["stress"] = 1.5
 
 
-def _stress_past_setattr(world: WorldState) -> None:
-    object.__setattr__(_agent(world), "stress", 1.5)
+def _need_attribute(world: WorldState) -> None:
+    _agent(world).needs.hunger = 1.5
 
 
-def _need_in_dict(world: WorldState) -> None:
-    _agent(world).needs.__dict__["hunger"] = 1.5
-
-
-def _profile_needs_past_frozen(world: WorldState) -> None:
-    object.__setattr__(_agent(world).profile, "initial_needs", "unknown")
+def _profile_needs_replaced(world: WorldState) -> None:
+    """A profile the row cannot hold: the store is tainted, and the objects are the truth."""
+    agent = _agent(world)
+    agent.profile = dataclasses.replace(agent.profile, initial_needs="unknown")
 
 
 def _agents_written_whole(world: WorldState) -> None:
@@ -414,12 +420,12 @@ def _agent_past_the_map(world: WorldState) -> None:
     dict.__setitem__(world.agents, agent.id, agent)
 
 
-def _facility_capacity_in_dict(world: WorldState) -> None:
-    _first(world.facilities).__dict__["capacity"] = -1
+def _facility_capacity(world: WorldState) -> None:
+    _first(world.facilities).capacity = -1
 
 
-def _staff_busy_in_dict(world: WorldState) -> None:
-    _first(world.staff).__dict__["busy_until"] = -1
+def _staff_busy(world: WorldState) -> None:
+    _first(world.staff).busy_until = -1
 
 
 def _staff_taken_away(world: WorldState) -> None:
@@ -449,17 +455,15 @@ def _agents_short_in_world_dict(world: WorldState) -> None:
 STRESS = "Agent 'A001' has invalid stress: stress must be finite and between 0 and 1"
 ENTITY_ROUTES = {
     "attribute": (_stress_attribute, STRESS),
-    "__dict__": (_stress_in_dict, STRESS),
-    "object.__setattr__": (_stress_past_setattr, STRESS),
+    "the row alone": (_stress_in_the_row, STRESS),
     "whole map": (_agents_written_whole, STRESS),
     "__dict__ of the world": (_agents_in_world_dict, STRESS),
-    "past the IdMap": (_agent_past_the_map, STRESS),
-    "need in __dict__": (
-        _need_in_dict,
+    "need attribute": (
+        _need_attribute,
         "Agent 'A001' has invalid need levels: hunger must be finite and between 0 and 1",
     ),
-    "frozen profile": (
-        _profile_needs_past_frozen,
+    "profile replaced": (
+        _profile_needs_replaced,
         "Agent 'A001' has invalid initial need profile",
     ),
     "staff taken away": (_staff_taken_away, EXTENSION),
@@ -486,11 +490,11 @@ def test_a_broken_entity_stops_the_tick_whichever_way_it_was_written(
 @pytest.mark.parametrize(
     "corrupt",
     [
-        _facility_capacity_in_dict,
-        _staff_busy_in_dict,
+        _facility_capacity,
+        _staff_busy,
     ],
 )
-def test_the_entity_rules_read_the_objects_not_the_rows(
+def test_the_entity_rules_read_the_rows_a_write_reaches(
     finished_world, monkeypatch, corrupt
 ) -> None:
     world = _checked_world(finished_world)
@@ -543,3 +547,19 @@ def test_a_write_past_a_tracked_dict_is_seen_only_by_the_python_rules(
     assert rust_validated(world, PSYCHOLOGY)
     assert _error_of(world.validate_after_tick) is None
     assert not world.__dict__["_core"].mirror(PSYCHOLOGY).verify()
+
+
+@pytest.mark.parametrize("corrupt", [_stress_in_object_dict, _agent_past_the_map])
+def test_a_write_past_an_entity_s_setattr_is_seen_only_by_the_python_rules(
+    finished_world, monkeypatch, corrupt
+) -> None:
+    """A write to an attached object's __dict__, or an object put under a key past the IdMap,
+    reaches no row, and so no kernel (policy E12 of docs/rust-port/step5-plan.md): the end-of-tick
+    check reads the rows since PR P8 d4. The full validation of a save reads the objects, and
+    EntityStore.verify finds the difference."""
+    world = _checked_world(finished_world)
+    corrupt(world)
+    expected = _python_error(world, monkeypatch)
+    assert expected is not None and expected[0] == STRESS
+    assert _error_of(world.validate_after_tick) is None
+    assert world.__dict__["_core"].entities().verify(world) is not None

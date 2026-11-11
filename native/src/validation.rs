@@ -13,7 +13,7 @@
 
 use pyo3::ffi;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyString};
+use pyo3::types::{PyDict, PyString};
 use std::ptr::{addr_of_mut, null_mut};
 
 use crate::core::tracked::is_readable_dict_type;
@@ -289,60 +289,3 @@ pub fn world_agents_valid(
     })
 }
 
-/// The values a dict held at the last check, in order, held so their identity can be
-/// compared with the dict's values later.
-#[pyclass(module = "sheltersim_native")]
-#[derive(Default)]
-pub struct ValuesSnapshot {
-    values: Vec<Py<PyAny>>,
-}
-
-#[pymethods]
-impl ValuesSnapshot {
-    #[new]
-    fn new() -> Self {
-        Self::default()
-    }
-
-    /// The dict's values after the snapshot's, or None unless the dict starts with
-    /// the very objects of the snapshot, in order.
-    pub(crate) fn added_values<'py>(
-        &self,
-        values: &Bound<'py, PyDict>,
-    ) -> PyResult<Option<Bound<'py, PyList>>> {
-        if values.len() < self.values.len() {
-            return Ok(None);
-        }
-        let added = PyList::empty(values.py());
-        let mut position = 0;
-        let same = all_items(values.as_ptr(), |_, value| {
-            if position < self.values.len() {
-                position += 1;
-                return Ok(self.values[position - 1].as_ptr() == value);
-            }
-            // SAFETY: value is borrowed from the dict being walked.
-            added.append(unsafe { Bound::from_borrowed_ptr(values.py(), value) })?;
-            Ok(true)
-        })?;
-        Ok(same.then_some(added))
-    }
-
-    /// Hold these values after the ones held already.
-    pub(crate) fn extend(&mut self, added: &Bound<'_, PyList>) {
-        self.values.extend(added.iter().map(Bound::unbind));
-    }
-
-    /// Forget every value.
-    /// The values held, in order.
-    pub(crate) fn values<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
-        PyList::new(py, self.values.iter().map(|value| value.bind(py)))
-    }
-
-    pub(crate) fn clear(&mut self) {
-        self.values.clear();
-    }
-
-    fn __len__(&self) -> usize {
-        self.values.len()
-    }
-}

@@ -89,8 +89,9 @@ def _event_from_document(document: dict[str, Any]) -> ScheduledEvent:
     return ScheduledEvent(**document)
 
 
-# native/src/rules/after_tick.rs: validate_after_tick in one call, with its memo. The entity rules
-# it calls are native/src/rules/tick_validation.rs; the python_rules mark replaces this one.
+# native/core/src/rules/after_tick.rs: validate_after_tick in one call, with its memo, over the
+# rows. The entity rules it calls are native/core/src/rules/tick_validation.rs; the python_rules
+# mark replaces this one.
 _entity_rules_kernel = native.rules("tick_validation").entity_rules
 _after_tick_kernel = native.rules("after_tick").after_tick
 _TickMemo = native.rules("after_tick").TickMemo
@@ -305,7 +306,7 @@ class WorldState:
 
         _history_memo is for a Checkpoint capture only: entries of append-only histories
         that are unchanged since they last passed are not read again
-        (core/save_validation.py). native/src/rules/after_tick.rs stands in front of the
+        (core/save_validation.py). native/core/src/rules/after_tick.rs stands in front of the
         per-tick check (validate_event_history=False), so a rule added here belongs there too.
         """
         if (
@@ -674,7 +675,7 @@ class WorldState:
     def _validate_entity_rules(self, resource_config: Any) -> tuple[ScheduledEvent, ...]:
         """The rules of entities and of the events that serve them; returns the pending events.
 
-        native/src/rules/tick_validation.rs stands in front of these and the event rules at the
+        native/core/src/rules/tick_validation.rs stands in front of these and the event rules at the
         end of a tick, so a change here belongs there too.
         """
         if self.duration_minutes <= 0 or not 0 <= self.minute_index <= self.duration_minutes:
@@ -1466,9 +1467,9 @@ class WorldState:
         """The per-tick validation: validate(validate_event_history=False), as one Rust call.
 
         Each world keeps the memo of the last check the kernel passed
-        (native/src/rules/after_tick.rs), which skips what is proven unchanged since; it does not
-        outlive a failed check. A state the kernel doesn't take, and a test with the python_rules
-        mark, gets the Python check, which passes or raises its own text.
+        (native/core/src/rules/after_tick.rs), which skips what is proven unchanged since; it
+        does not outlive a failed check. A state the kernel doesn't take, and a test with the
+        python_rules mark, gets the Python check, which passes or raises its own text.
         """
         if _after_tick_kernel is None:
             self.validate(validate_event_history=False)
@@ -1498,7 +1499,7 @@ class WorldState:
         a long Run are settled; the last end-of-tick check knows which.
         """
         memo = self.__dict__.get("_tick_memo")
-        unsettled = None if memo is None else memo.unsettled_requests(self.support_requests)
+        unsettled = None if memo is None else memo.unsettled_requests(self)
         return self.support_requests.values() if unsettled is None else unsettled
 
     def allocate_event_sequence(self) -> int:

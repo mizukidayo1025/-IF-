@@ -2,8 +2,7 @@
 //! receipts of the steps around them (`experiments/phases/dispatch.py`). Each kernel plans with
 //! nothing changed and then writes (docs/rust-port/lanes/m6-handlers.md).
 //!
-//! A `SupportRequestState` reports its writes (`_write_listener`), so what changes in one goes through
-//! its own `__setattr__`.
+//! What changes in a `SupportRequestState` goes through its own `__setattr__`, which writes its row.
 
 use std::sync::{Arc, LazyLock};
 

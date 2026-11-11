@@ -649,21 +649,6 @@ def test_to_dict_copies_lists_and_keeps_a_value_that_is_not_a_list() -> None:
     assert bad.to_dict() == asdict(bad)
 
 
-def test_a_settled_request_still_reports_its_writes() -> None:
-    world = _world()
-    request = world.support_requests["R1"]
-    reported: list[Any] = []
-    request.report_writes_to(reported)
-    request.status = SupportRequestStatus.RESOLVED
-    assert reported == [request]
-    assert _row_of(world, "support_requests", "R1")["status"] is SupportRequestStatus.RESOLVED
-    assert "report" not in _store(world).stats()
-    request.report_writes_to(None)
-    request.status = SupportRequestStatus.PENDING
-    assert reported == [request]
-    _in_step(world)
-
-
 def test_kernels_read_an_id_map_as_a_plain_dict() -> None:
     world = _world()
     assert native.world_agents_valid(

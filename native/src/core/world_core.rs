@@ -63,7 +63,7 @@ use crate::{encode, Encoder, Unsupported, MAX_DEPTH};
 
 const NO_PARENT: u32 = u32::MAX;
 
-pub(crate) use sheltersim_core::row::{Items, Part, Row, ValueRow};
+pub(crate) use sheltersim_core::row::{Part, Row, ValueRow};
 
 /// A write from Python, at the node a path leads to. Values are the tree's stored values.
 pub(crate) enum Write<'a, 'py> {

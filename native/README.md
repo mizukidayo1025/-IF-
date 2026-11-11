@@ -229,7 +229,7 @@ Checkpoint document) and times them.
   (R2). `field_held` says whether `world.<name>` is still its slot's tree, for a core function that
   reads a field's row. `NamespaceMirror.generation_of(tree)` changes with every write that reaches a tree, from
   Python or from Rust (it is a new stamp each time), so a check that read a namespace need not read
-  it again (`state_mirror.namespace_stamp`, `field_stamp`; `src/rules/after_tick.rs`).
+  it again (`state_mirror.namespace_stamp`, `field_stamp`; `core/src/rules/after_tick.rs`).
 - `src/core/txn.rs`: a transaction on a Python world, the core's `Txn` with the native host
   (`state_mirror.transaction` and its `_txn_*` functions): the open one is the `WorldCore`'s. The
   queue and the log are in the core's snapshot (the queue shared, the log by its mark); the host
@@ -393,8 +393,9 @@ are correctly rounded everywhere, and not `**` with a float.
 - `rules/overlay.rs`: `domain/temporary_spaces.py` and the rules of `domain/geometry_overlay.py`,
   the glue of `core/src/rules/overlay.rs`: capacity, beds and room intake, placing an installed
   facility, checking and applying a floor-plan change, and the checks of both states.
-  `rules/effects.rs`, `rules/proposals.rs`, `rules/replan.rs`, `rules/population.rs` and
-  `rules/after_tick.rs` call it directly.
+  `rules/effects.rs`, `rules/proposals.rs`, `rules/replan.rs` and `rules/population.rs` call it
+  directly, and the core's end-of-tick check calls the core's capacity. A zone's nominal capacity
+  is read from its row where the core holds the world's maps (lane P8 d4), and else from the object.
 - `rules/facility_queues.rs`: `domain/facility_queues.py`, the glue of
   `core/src/rules/facility_queues.rs`.
 - `rules/effects.rs`: the rules of an EffectProgram's events: the guard, the five handlers of
@@ -576,23 +577,29 @@ are correctly rounded everywhere, and not `**` with a float.
   `kpi_values(world, snapshot)` for `operational_kpi_values`. They read the rows and change nothing.
   `capture(world, recorder, minute)` is `MetricsRecorder.capture`, which `rules/tick.rs` calls for a
   `_MetricSink`; it says Unsupported with nothing changed for what the Python rule raises on.
-- `rules.tick_validation`: the per-tick check (`src/rules/tick_validation.rs`):
-  `entity_rules(world, requests, resource_config, initial_needs_type, needs_type)` answers for the
-  entity and event rules of `WorldState.validate` at the end of a tick, reading the objects and not
-  the entity rows, for a WorldState v6 with its resource config and a v5 one (no resource_service)
-  with None. It has no text: it returns the zones whose capacity is still the Python rule's,
-  or says Unsupported and the Python rules run. `population_dynamics(world)` is the validator of
-  that namespace with no one pending, `validate_presence(world)` the one of the declared
-  `population_presence_v1`. See `docs/rust-port/lanes/m5-metrics.md`.
-- `rules.after_tick`: all of `WorldState.validate_after_tick` (`src/rules/after_tick.rs`), at every
-  tick of a WorldState v5 or v6: `after_tick(world, memo, shadow=False)` returns with the memo
-  (`TickMemo`, in `world.__dict__["_tick_memo"]`) moved on, or says Unsupported with the memo as it
-  was but for the configs' plan, and `validate(validate_event_history=False)` runs with no memo.
-  `Plan` is what it reads of `model_configs`, made by the contracts in `core/tick_validation.py`
-  (`tick_plan`) when the configs change. Validators come from `_RUST_VALIDATORS`; a namespace with
-  none is refused. `TickMemo.unsettled_requests` serves `WorldState.unsettled_support_requests`;
-  `facts()` is for tests and shadows. `install` lists what a patch of sends the tick to the Python
-  check. `stats()` says what ran. See `docs/rust-port/lanes/l7-validate.md` and, for v5,
+- `rules.tick_validation`: the per-tick check (`src/rules/tick_validation.rs`, the glue of
+  `core/src/rules/tick_validation.rs`, lane P8 d4): `entity_rules(world, resource_config)` answers
+  for the entity and event rules of `WorldState.validate` at the end of a tick, of every request,
+  reading the entity rows, the field and namespace rows and the queue's event rows (an event that
+  is only a Python object gets its row first), for a WorldState v6 with its
+  resource config and a v5 one (no resource_service) with None. A write past an object's
+  `__setattr__` or past an `IdMap` reaches no row and no rule (policy E12). It has no text: it
+  returns the zones whose capacity is still the overlay's rule, or says Unsupported and the Python
+  rules run. `population_dynamics(world)` is the validator of that namespace with no one pending,
+  `validate_presence(world)` the one of the declared `population_presence_v1`. See
+  `docs/rust-port/lanes/m5-metrics.md`.
+- `rules.after_tick`: all of `WorldState.validate_after_tick` (`src/rules/after_tick.rs`, the glue
+  of `core/src/rules/after_tick.rs`, lane P8 d4), at every tick of a WorldState v5 or v6:
+  `after_tick(world, memo)` returns with the memo (`TickMemo`, in `world.__dict__["_tick_memo"]`,
+  which holds the core's `Memo`) moved on, or says Unsupported with the memo as it was but for the
+  configs' stamp, and `validate(validate_event_history=False)` runs with no memo. `Plan` is what it
+  reads of `model_configs`, made by the contracts in `core/tick_validation.py` (`tick_plan`) when the
+  configs change and kept as the core's `TickPlan` in the section `tick_plan` of the configs.
+  Validators come from `_RUST_VALIDATORS`, asked with the world given back (the core's `Checks`); a
+  namespace with none is refused. The memo reads a settled request again when its row is written
+  (`Table::marked`, from Rust or Python). `TickMemo.unsettled_requests(world)` serves
+  `WorldState.unsettled_support_requests`; `facts()` and `written_requests(world)` are for tests.
+  `install` lists what a patch of sends the tick to the Python check. `stats()` says what ran. See `docs/rust-port/lanes/l7-validate.md` and, for v5,
   `l7b-world-v5.md`.
 - `state.shared_operations.ROW`: Rust owns `shared_operations_v1`
   (`src/state/shared_operations.rs`, the row in `core/src/state/`): the heads typed, each receipt
@@ -666,12 +673,6 @@ are correctly rounded everywhere, and not `**` with a float.
   returns true only if every entry passes the Python rules; on false the caller runs
   those rules, which accept the value or raise their own error, so results and error
   messages come from one place.
-
-- `ValuesSnapshot`: the values of a dict at the last check, held so that the next
-  check can tell by identity that the dict still starts with them. It lets the
-  end-of-tick check (`WorldState.validate_after_tick`) skip settled support requests, and
-  the scans of unsettled requests during a tick (`WorldState.unsettled_support_requests`)
-  read only the rest.
 
 - `state.events.QueueStore` and `EventWriter` (`src/state/events.rs` over
   `core/src/events/queue.rs` and `writer.rs`, `docs/rust-port/lanes/e-events.md`): the pending

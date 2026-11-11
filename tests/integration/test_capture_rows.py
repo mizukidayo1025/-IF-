@@ -59,7 +59,7 @@ def _python_items(world: WorldState) -> dict[str, list[bytes]]:
 @pytest.mark.parametrize("version", [6, 5])
 def test_each_row_writes_the_bytes_of_its_python_document(finished_document, version) -> None:
     world = _world(finished_document)
-    world.__dict__["schema_version"] = version
+    world.schema_version = version
     assert world._core.entities().rows_json(version).keys() == set(_ENTITIES)
     assert dict(world._core.entities().rows_json(version)) == _python_items(world)
 

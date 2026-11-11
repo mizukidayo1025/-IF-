@@ -253,7 +253,7 @@ _RELATIONSHIP_FIELDS = frozenset(
 def validate_body_config(world: WorldState, state: dict[str, Any]) -> set[str]:
     """Check the saved config; return the people its per-person parameters name. Past the saved
     config and the configs, the check reads only whether each of them is here now or in the
-    population state's history (native/src/rules/after_tick.rs checks that at each tick)."""
+    population state's history (native/core/src/rules/after_tick.rs checks that at each tick)."""
     config = canonical_body_config(state["config"])
     per_agent_fields = (
         "sleep_debt_stress_rate_by_agent",

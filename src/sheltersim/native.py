@@ -149,11 +149,6 @@ def same_json_items(current: Any, documents: list[Any], start: int, count: int) 
     return _native.same_json_items(current, documents, start, count)
 
 
-def values_snapshot() -> Any:
-    """A new held list of a dict's values (sheltersim_native.ValuesSnapshot)."""
-    return _native.ValuesSnapshot()
-
-
 def event_store() -> Any:
     """A new Rust EventLog store (sheltersim_native.EventStore)."""
     return _native.EventStore()

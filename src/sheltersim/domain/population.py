@@ -45,7 +45,7 @@ def create_population_dynamics_state(world: WorldState) -> dict[str, Any]:
     }
 
 
-# The state with no one pending: native/src/rules/tick_validation.rs.
+# The state with no one pending: native/core/src/rules/tick_validation.rs.
 register_rust_validator(
     POPULATION_DYNAMICS_STATE_KEY,
     native.rules("tick_validation").population_dynamics,
