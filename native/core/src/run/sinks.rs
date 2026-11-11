@@ -15,7 +15,7 @@ use super::held::{Attr, Held, Obj, Spec};
 
 /// `controller.artifacts`: the trace level, and `decision_sink` of its own class.
 pub const ARTIFACTS: Attr = Attr::object("artifacts", &ARTIFACTS_SPEC);
-const ARTIFACTS_SPEC: Spec = Spec { attrs: &[Attr::value("trace_level")], fields: false, class_own: &["decision_sink"] };
+const ARTIFACTS_SPEC: Spec = Spec { attrs: &[Attr::value("trace_level")], fields: false, class_own: &["decision_sink"], own: &[] };
 
 /// `controller.llm_router`, read for whether it is None.
 pub const LLM_ROUTER: Attr = Attr::value("llm_router");

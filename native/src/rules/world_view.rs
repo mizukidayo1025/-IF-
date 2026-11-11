@@ -90,7 +90,7 @@ pub(crate) fn extensions_enabled_of(world: &Bound<'_, PyAny>) -> PyResult<bool> 
     Ok(*configs::kept_python(world, |configs| &configs.extensions_enabled, extensions_enabled)?)
 }
 
-fn extensions_enabled(world: &Bound<'_, PyAny>) -> PyResult<bool> {
+pub(crate) fn extensions_enabled(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = world.py();
     let configs = configs_of(world)?;
     let Some(configs) = as_readable_dict(&configs) else {

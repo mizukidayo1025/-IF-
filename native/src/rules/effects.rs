@@ -237,22 +237,28 @@ fn facility(handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bound<
 /// `ScenarioZoneEnvironmentConfig.model_validate(model_configs["zone_environment"])`, kept for the
 /// configs' stamp (`core/configs.rs`); what it raises is relayed as it is.
 pub(crate) fn zone_environment_spec(world: &Bound<'_, PyAny>) -> PyResult<Arc<ZoneEnvironmentSpec>> {
-    let py = world.py();
-    let parse = || -> PyResult<ZoneEnvironmentSpec> {
-        let config_data = attribute(world, intern!(py, "model_configs"))?.get_item("zone_environment")?;
-        let config = py
-            .import(intern!(py, "sheltersim.domain.environment"))?
-            .getattr(intern!(py, "ScenarioZoneEnvironmentConfig"))?
-            .call_method1(intern!(py, "model_validate"), (config_data,))?;
-        let keywords = PyDict::new(py);
-        keywords.set_item("mode", "json")?;
-        let dumped = config.call_method(intern!(py, "model_dump"), (), Some(&keywords))?;
-        configs::read(ZoneEnvironmentSpec::from_v(&<V as VPy>::from_py(&dumped)?))
-    };
-    match configs::kept(world, |configs| &configs.zone_environment, || Ok(configs::parsed(py, parse())))? {
+    match zone_environment_section(world)? {
         Ok(spec) => Ok(spec),
-        Err(fault) => Err(configs::raise(&fault, parse)),
+        Err(fault) => Err(configs::raise(&fault, || parse_zone_environment(world))),
     }
+}
+
+/// `zone_environment_spec` without its raise (the host's `fill_section`, lane P9-0).
+pub(crate) fn zone_environment_section(world: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::rules::kit::Kept<ZoneEnvironmentSpec>> {
+    configs::kept(world, |configs| &configs.zone_environment, || Ok(configs::parsed(world.py(), parse_zone_environment(world))))
+}
+
+fn parse_zone_environment(world: &Bound<'_, PyAny>) -> PyResult<ZoneEnvironmentSpec> {
+    let py = world.py();
+    let config_data = attribute(world, intern!(py, "model_configs"))?.get_item("zone_environment")?;
+    let config = py
+        .import(intern!(py, "sheltersim.domain.environment"))?
+        .getattr(intern!(py, "ScenarioZoneEnvironmentConfig"))?
+        .call_method1(intern!(py, "model_validate"), (config_data,))?;
+    let keywords = PyDict::new(py);
+    keywords.set_item("mode", "json")?;
+    let dumped = config.call_method(intern!(py, "model_dump"), (), Some(&keywords))?;
+    configs::read(ZoneEnvironmentSpec::from_v(&<V as VPy>::from_py(&dumped)?))
 }
 
 fn environment_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: bool) -> PyResult<()> {

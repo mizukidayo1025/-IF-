@@ -30,6 +30,7 @@ use rustc_hash::FxHashMap;
 use sheltersim_core::routes::{Router, Which};
 use sheltersim_core::run::held::{Class, Held, Obj, Spec};
 use sheltersim_core::rules::action_lifecycle::ActiveActions;
+use sheltersim_core::run::dispatch::RETURN_RULE;
 use sheltersim_core::run::policies::CONTROLLER;
 use sheltersim_core::rules::world_view::ViewCache;
 use sheltersim_core::run::{Capacity, Policies, RouteCapacities, Run, RunConfig, Scratch};
@@ -129,14 +130,17 @@ pub(crate) fn installed_step(function: &Bound<'_, PyAny>) -> Option<&'static str
     STEPS.into_iter().find(|step| own.get_item(*step).is_ok_and(|installed| installed.is(function)))
 }
 
-/// `value.__self__ is root` and the name of the installed step its `__func__` is.
+/// `value.__self__ is root` and the name of the installed step its `__func__` is, or of the
+/// dispatch phase's return rule (`phases/dispatch.py`, which a toilet's completion leads to; lane
+/// P9-0).
 fn method_of(value: &Bound<'_, PyAny>, root: &Bound<'_, PyAny>) -> Option<&'static str> {
     let py = value.py();
     let owner = value.getattr(intern!(py, "__self__")).ok()?;
     if !owner.is(root) {
         return None;
     }
-    installed_step(&value.getattr(intern!(py, "__func__")).ok()?)
+    let function = value.getattr(intern!(py, "__func__")).ok()?;
+    installed_step(&function).or_else(|| crate::rules::dispatch::is_return_rule(&function).then_some(RETURN_RULE))
 }
 
 /// A value as a `Held`: an object its spec reads, a plain JSON value, a str subclass's text, a
@@ -227,6 +231,15 @@ pub(crate) fn read_object(object: &Bound<'_, PyAny>, spec: &'static Spec, root: 
         }
     }
     found.attrs = attrs;
+    if !spec.own.is_empty() {
+        if let Some(own) = object.getattr(intern!(py, "__dict__")).ok().and_then(|own| own.downcast_into::<PyDict>().ok()) {
+            for name in spec.own {
+                if let Ok(Some(value)) = own.get_item(*name) {
+                    found.own.insert(Arc::from(*name), held_of(&value, None, root));
+                }
+            }
+        }
+    }
     if !spec.class_own.is_empty() {
         if let Ok(own) = object.get_type().getattr(intern!(py, "__dict__")) {
             for name in spec.class_own {
@@ -239,9 +252,11 @@ pub(crate) fn read_object(object: &Bound<'_, PyAny>, spec: &'static Spec, root: 
     found
 }
 
-/// The policies of a controller, read now.
+/// The policies of a controller, read now, with its dispatcher (lane P9-0).
 fn read_policies(controller: &Bound<'_, PyAny>) -> Policies {
-    Policies::of(Arc::new(read_object(controller, &CONTROLLER, controller)))
+    let mut policies = Policies::of(Arc::new(read_object(controller, &CONTROLLER, controller)));
+    policies.dispatch = crate::rules::dispatch::read_dispatch(controller);
+    policies
 }
 
 impl RunCore {
@@ -328,6 +343,17 @@ impl RunCore {
         Ok(())
     }
 
+    /// Read the controller's dispatcher again (`Policies::dispatch`): the controller makes it after
+    /// its Run's core, and calls this then (lane P9-0).
+    fn refresh_dispatch(&self, controller: &Bound<'_, PyAny>) -> PyResult<()> {
+        let dispatch = crate::rules::dispatch::read_dispatch(controller);
+        let mut run = self.lock()?;
+        let mut policies = Policies::clone(&run.policies);
+        policies.dispatch = dispatch;
+        run.policies = Arc::new(policies);
+        Ok(())
+    }
+
     /// What the policies say, by part, as text: for tests. A fault is `"!"` and its text, a
     /// refusal `"refused: "` and its text.
     fn policies_summary<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
@@ -354,6 +380,49 @@ impl RunCore {
         summary.set_item("decision_sink", said(&policies.sinks.decision_sink))?;
         summary.set_item("trace_level", said(&policies.sinks.trace_level))?;
         summary.set_item("llm", said(&policies.llm()))?;
+        summary.set_item("dispatch_known", said(&policies.dispatch.known))?;
+        let handlers = PyDict::new(py);
+        if let Ok(table) = &policies.dispatch.handlers {
+            use sheltersim_core::run::dispatch::{AfterComplete, Handler};
+            for (event_type, handler) in table.iter() {
+                let text = match handler {
+                    Handler::Foreign => "foreign".to_owned(),
+                    Handler::Native(native) => {
+                        let mut text = format!("{:?}", native.kind);
+                        let mut add = |name: &str, value: String| text.push_str(&format!(" {name}={value}"));
+                        if native.handler.attrs.contains_key("cooldown_minutes") {
+                            add("cooldown", said(&native.cooldown_minutes()));
+                        }
+                        if native.handler.attrs.contains_key("require_colocated") {
+                            add("colocated", said(&native.require_colocated()));
+                        }
+                        if native.handler.attrs.contains_key("expire") {
+                            add("expire", said(&native.expire()));
+                        }
+                        if native.handler.attrs.contains_key("operation") {
+                            add("operation", said(&native.operation()));
+                        }
+                        if native.handler.attrs.contains_key("after_complete") {
+                            add("after", said(&native.after_complete().map(|after| match after {
+                                AfterComplete::None => "none",
+                                AfterComplete::Own => "own",
+                                AfterComplete::Other => "other",
+                            })));
+                        }
+                        for manager in ["toilet_service", "resource_service", "service"] {
+                            if native.handler.attrs.contains_key(manager) {
+                                add(manager, said(&native.own_request(manager).map(|own| if own { "own_request" } else { "as_defined" })));
+                            }
+                        }
+                        add("own_managers", native.own_managers.to_string());
+                        add("arrival", native.after_arrival_as_defined.to_string());
+                        text
+                    }
+                };
+                handlers.set_item(&**event_type, text)?;
+            }
+        }
+        summary.set_item("dispatch", (said(&policies.dispatch.handlers.clone().map(|table| table.len())), handlers))?;
         Ok(summary)
     }
 

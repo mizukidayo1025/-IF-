@@ -35,6 +35,7 @@ pub mod service;
 pub mod staff;
 pub mod tick_plan;
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use crate::error::Result;
@@ -134,6 +135,126 @@ impl Configs {
     pub fn new(stamp: Option<Stamp>) -> Self {
         Self { stamp, ..Self::default() }
     }
+}
+
+// ---- Each section by name, for a host that fills it (lane P9-0, H2 of design-p9.md) ------------------
+
+macro_rules! sections {
+    ($($(#[$doc:meta])* $id:ident => $field:ident, $by:ident;)*) => {
+        /// A section of `Configs`: one `Lazy` of it. A rule's reader that finds its section empty
+        /// for the configs of the world now asks the host to fill it (`Host::fill_section`) before
+        /// it borrows the world, then reads it from the configs again.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+        pub enum SectionId {
+            $($(#[$doc])* $id,)*
+        }
+
+        impl SectionId {
+            /// Every section, in the order of the fields of `Configs`.
+            pub const ALL: &'static [SectionId] = &[$(SectionId::$id),*];
+
+            /// The name of the field of `Configs`.
+            pub fn name(self) -> &'static str {
+                match self {
+                    $(SectionId::$id => stringify!($field),)*
+                }
+            }
+
+            /// Whether these configs hold the section: parsed, absent or a fault.
+            pub fn is_filled(self, configs: &Configs) -> bool {
+                match self {
+                    $(SectionId::$id => configs.$field.get().is_some(),)*
+                }
+            }
+
+            /// Who parses it: a Python contract or factory (`Parser::Host`), or the core's own parser
+            /// of the configs' `V` (`Parser::Value`), which a host runs only where the world's
+            /// `model_configs` has no row.
+            pub fn parser(self) -> Parser {
+                match self {
+                    $(SectionId::$id => Parser::$by,)*
+                }
+            }
+        }
+    };
+}
+
+/// Who parses a section (`SectionId::parser`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Parser {
+    /// A Python contract or factory, which only the host runs.
+    Host,
+    /// A parser of the core, from the `V` of the `model_configs` slot.
+    Value,
+}
+
+sections! {
+    /// `selected_models(model_configs)`.
+    Selection => selection, Host;
+    /// The plan of the end-of-tick check.
+    TickPlan => tick_plan, Host;
+    /// `FacilityGeometry`.
+    FacilityGeometry => facility_geometry, Host;
+    /// `SpatialConstraints`.
+    SpatialConstraints => spatial_constraints, Host;
+    StaffFatigue => staff_fatigue, Value;
+    /// `create_staff_operations_formula`.
+    StaffOperations => staff_operations, Host;
+    StaffOperationsKnown => staff_operations_known, Value;
+    SupportTaskMinutes => support_task_minutes, Value;
+    /// `model_configs.get("staff", {}).get("support_cooldown_minutes", 30)`, read in Python.
+    SupportCooldownMinutes => support_cooldown_minutes, Host;
+    /// `InformationSpreadConfig.from_mapping`.
+    InformationSpread => information_spread, Host;
+    /// The body's operators, by the model selection.
+    BodyModels => body_models, Host;
+    SocialInteractionMinutes => social_interaction_minutes, Value;
+    /// `create_care_outcome_formula`.
+    CareOutcome => care_outcome, Host;
+    AgentDynamicsPolicy => agent_dynamics_policy, Value;
+    FacilityAwareness => facility_awareness, Value;
+    KnowledgeIsLimited => knowledge_is_limited, Value;
+    /// `ScenarioZoneEnvironmentConfig`.
+    ZoneEnvironment => zone_environment, Host;
+    /// `ScenarioInfrastructureSpec`.
+    Infrastructure => infrastructure, Host;
+    /// `canonical_proximity_contact_config`.
+    Proximity => proximity, Host;
+    Movement => movement, Value;
+    RouteCapacities => route_capacities, Value;
+    /// `layout_routing.max_agents_in_transit_by_edge`, read in Python.
+    TransitCapacities => transit_capacities, Host;
+    FacilityQueues => facility_queues, Value;
+    OverlaySchema => overlay_schema, Value;
+    /// `geometry_overlay`, read in Python.
+    OverlayRooms => overlay_rooms, Host;
+    ResourceService => resource_service, Value;
+    AccessibilityNeeds => accessibility_needs, Value;
+    /// `simulator_extensions.get("enabled")`, read in Python.
+    ExtensionsEnabled => extensions_enabled, Host;
+}
+
+/// Where a host filled a section (`Host::fill_section`).
+pub enum Filled {
+    /// In the configs it was given, which keep it for their stamp.
+    Kept,
+    /// In these other configs, which serve this read alone: the section is not kept for the stamp
+    /// (a test has patched the model selection, whose sections are then parsed at every read).
+    Once(Arc<Configs>),
+}
+
+static PARSES: AtomicU64 = AtomicU64::new(0);
+
+/// A section is parsed now: at its first read for a stamp, or at every read of configs no slot
+/// follows. `config_parses()` of the PyO3 crate reads the count, so a parse the core runs counts as
+/// one the PyO3 crate runs.
+pub fn count_parse() {
+    PARSES.fetch_add(1, Ordering::Relaxed);
+}
+
+/// How many sections were parsed in this process.
+pub fn parses() -> u64 {
+    PARSES.load(Ordering::Relaxed)
 }
 
 /// A section the kernels parse themselves, parsed from the configs as the world holds them: the

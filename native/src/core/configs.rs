@@ -100,7 +100,7 @@ pub(crate) fn kept<T>(
     let configs = current(world)?;
     let lazy = section(&configs);
     if lazy.get().is_none() {
-        PARSES.fetch_add(1, Ordering::Relaxed);
+        sheltersim_core::config::count_parse();
         // A parse that fails to run at all (no configs, a borrow) raises here, as it did.
         let parsed = parse()?;
         let _ = lazy.get_or_parse(|| parsed);
@@ -112,13 +112,11 @@ pub(crate) fn kept<T>(
     })
 }
 
-static PARSES: AtomicU64 = AtomicU64::new(0);
-
-/// How many sections `kept` has parsed in this process, for the tests: a read that finds its
-/// section kept for the stamp adds nothing.
+/// How many sections `kept` (or the core, lane P9-0) has parsed in this process, for the tests: a
+/// read that finds its section kept for the stamp adds nothing.
 #[pyfunction]
 pub(crate) fn config_parses() -> u64 {
-    PARSES.load(Ordering::Relaxed)
+    sheltersim_core::config::parses()
 }
 
 /// `kept` for a section parsed from the model selection too (`selection`): while a test has patched

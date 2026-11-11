@@ -706,7 +706,7 @@ pub(crate) fn overlay_rooms_of(world: &Bound<'_, PyAny>) -> PyResult<(bool, bool
 
 /// `model_configs.get("geometry_overlay", {})` as the arrivals read it: whether it is a dict, and
 /// for a dict `room_schema` of it or what that raised. The section `overlay_rooms`.
-fn overlay_rooms(world: &Bound<'_, PyAny>) -> PyResult<OverlayRooms> {
+pub(crate) fn overlay_rooms(world: &Bound<'_, PyAny>) -> PyResult<OverlayRooms> {
     let py = world.py();
     let config = get_map(&attribute(world, intern!(py, "model_configs"))?, "geometry_overlay")?;
     let is_dict = is_dict(&config);

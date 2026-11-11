@@ -202,7 +202,6 @@ fn complete_support<'py>(handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>,
 /// from the Python factory; a build without Python takes the built-in formulas
 /// (`CareOutcome::parse`).
 pub(crate) fn selected_care_formula(world: &Bound<'_, PyAny>) -> PyResult<Option<Arc<CareOutcome>>> {
-    let py = world.py();
     let selection = match configs::selection(world)? {
         Ok(selection) => selection,
         Err(fault) if fault.is_refusal() => return Err(Unsupported::new_err("not a selection")),
@@ -211,22 +210,30 @@ pub(crate) fn selected_care_formula(world: &Bound<'_, PyAny>) -> PyResult<Option
     if selection.get("care_outcome").is_none() {
         return Ok(None);
     }
-    let parse = || -> PyResult<CareOutcome> {
-        let configs = attribute(world, intern!(py, "model_configs"))?;
-        let formula = py
-            .import("sheltersim.policies.registry")?
-            .getattr("create_care_outcome_formula")?
-            .call1((configs,))
-            .map_err(|_| Unsupported::new_err("the formula refuses"))?;
-        let text = |name| -> PyResult<Arc<str>> { Ok(Arc::from(exact_str(&attribute(&formula, name)?)?)) };
-        let (model_id, source_id) = (text(intern!(py, "model_id"))?, text(intern!(py, "source_id"))?);
-        let config = <V as VPy>::from_py(&attribute(&formula, intern!(py, "config"))?)?;
-        configs::read(CareOutcome::new(model_id, source_id, config))
-    };
-    match configs::kept_with_selection(world, |configs| &configs.care_outcome, || Ok(configs::parsed(py, parse())))? {
+    match care_outcome_section(world)? {
         Ok(formula) => Ok(Some(formula)),
-        Err(fault) => Err(configs::raise(&fault, parse)),
+        Err(fault) => Err(configs::raise(&fault, || parse_care_outcome(world))),
     }
+}
+
+/// The section `care_outcome`, parsed if the selection names no care model too (the host's
+/// `fill_section`, lane P9-0; a rule asks it only where the selection names one).
+pub(crate) fn care_outcome_section(world: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::rules::kit::Kept<CareOutcome>> {
+    configs::kept_with_selection(world, |configs| &configs.care_outcome, || Ok(configs::parsed(world.py(), parse_care_outcome(world))))
+}
+
+fn parse_care_outcome(world: &Bound<'_, PyAny>) -> PyResult<CareOutcome> {
+    let py = world.py();
+    let configs = attribute(world, intern!(py, "model_configs"))?;
+    let formula = py
+        .import("sheltersim.policies.registry")?
+        .getattr("create_care_outcome_formula")?
+        .call1((configs,))
+        .map_err(|_| Unsupported::new_err("the formula refuses"))?;
+    let text = |name| -> PyResult<Arc<str>> { Ok(Arc::from(exact_str(&attribute(&formula, name)?)?)) };
+    let (model_id, source_id) = (text(intern!(py, "model_id"))?, text(intern!(py, "source_id"))?);
+    let config = <V as VPy>::from_py(&attribute(&formula, intern!(py, "config"))?)?;
+    configs::read(CareOutcome::new(model_id, source_id, config))
 }
 
 // ---- A request, for `seek_help` and `seek_information` -----------------------------------------------

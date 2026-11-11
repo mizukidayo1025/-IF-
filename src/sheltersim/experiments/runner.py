@@ -334,6 +334,8 @@ class OfflineSimulationController(
                 ),
             }
         )
+        # The Run reads the handlers the core dispatches with (core/run.rs, Policies.dispatch).
+        self._run_core.refresh_dispatch(self)
 
     def _refresh_space(self) -> None:
         """Rebuild immutable routing snapshots after an applied graph/geometry change."""

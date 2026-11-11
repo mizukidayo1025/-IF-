@@ -19,6 +19,7 @@ use pyo3::IntoPyObjectExt;
 
 use sheltersim_core::rules::behavior::{self as core, Proposal, ACTION_VALUES};
 use sheltersim_core::rules::psychology::Bad;
+use sheltersim_core::rules::world_view::ViewData;
 
 use crate::core::errors::to_py_err;
 use crate::core::run::policies_of;
@@ -153,8 +154,18 @@ macro_rules! set {
 
 /// One `ActionProposal`, with the fields in the order its `__init__` sets them.
 pub(crate) fn proposal_of<'py>(py: Python<'py>, rust: &RustView, proposal: &Proposal) -> PyResult<Bound<'py, PyAny>> {
+    proposal_of_data(py, rust.data(), &|index| rust.key(py, index).clone(), proposal)
+}
+
+/// `proposal_of` of a view's data, the people's IDs made by `id_of` (the host's
+/// `record_decision_python`, lane P9-0, makes them from the data).
+pub(crate) fn proposal_of_data<'py>(
+    py: Python<'py>,
+    data: &ViewData,
+    id_of: &dyn Fn(usize) -> Bound<'py, PyString>,
+    proposal: &Proposal,
+) -> PyResult<Bound<'py, PyAny>> {
     let classes = classes(py)?;
-    let data = rust.data();
     let outcome = &proposal.outcome;
     let common = &proposal.common;
     let mut candidates = Vec::with_capacity(outcome.candidates.len());
@@ -176,7 +187,7 @@ pub(crate) fn proposal_of<'py>(py: Python<'py>, rust: &RustView, proposal: &Prop
         });
     }
     let fields = PyDict::new(py);
-    set!(py, fields, "agent_id", rust.key(py, proposal.index));
+    set!(py, fields, "agent_id", id_of(proposal.index));
     set!(py, fields, "minute_index", data.minute_index.into_bound_py_any(py)?);
     set!(py, fields, "observed_state_hash", PyString::new(py, &common.state_hash));
     set!(py, fields, "action", classes.actions[outcome.action as usize].bind(py));
@@ -188,7 +199,7 @@ pub(crate) fn proposal_of<'py>(py: Python<'py>, rust: &RustView, proposal: &Prop
     set!(py, fields, "policy_version", PyString::new(py, &common.policy_version));
     set!(py, fields, "next_decision_at", outcome.next_decision_at.into_bound_py_any(py)?);
     match outcome.target {
-        Some(target) => set!(py, fields, "target_id", rust.key(py, target)),
+        Some(target) => set!(py, fields, "target_id", id_of(target)),
         None => set!(py, fields, "target_id", py.None().into_bound(py)),
     }
     new_object(classes, &classes.proposal, &fields)

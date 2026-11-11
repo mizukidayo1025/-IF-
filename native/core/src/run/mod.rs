@@ -13,6 +13,7 @@
 //! another's.
 
 pub mod behavior;
+pub mod dispatch;
 pub mod held;
 pub mod information;
 pub mod policies;

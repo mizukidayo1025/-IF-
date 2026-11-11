@@ -40,16 +40,19 @@ pub struct Spec {
     pub fields: bool,
     /// Names read from the class's own `__dict__` (not one it inherits), kept only when present.
     pub class_own: &'static [&'static str],
+    /// Names read from the object's own `__dict__` (a method a test set on the object), kept only
+    /// when present (lane P9-0).
+    pub own: &'static [&'static str],
 }
 
 impl Spec {
     pub const fn of(attrs: &'static [Attr]) -> Self {
-        Self { attrs, fields: false, class_own: &[] }
+        Self { attrs, fields: false, class_own: &[], own: &[] }
     }
 
     /// The attributes and every field of the object's `__dict__`.
     pub const fn with_fields(attrs: &'static [Attr]) -> Self {
-        Self { attrs, fields: true, class_own: &[] }
+        Self { attrs, fields: true, class_own: &[], own: &[] }
     }
 }
 
@@ -160,11 +163,13 @@ pub struct Obj {
     pub attrs: IndexMap<Arc<str>, Read<Held>>,
     /// The names of `Spec::class_own` the class's own `__dict__` has.
     pub class_own: IndexMap<Arc<str>, Held>,
+    /// The names of `Spec::own` the object's own `__dict__` has.
+    pub own: IndexMap<Arc<str>, Held>,
 }
 
 impl Obj {
     pub fn new(class: Class) -> Self {
-        Self { class, attrs: IndexMap::new(), class_own: IndexMap::new() }
+        Self { class, attrs: IndexMap::new(), class_own: IndexMap::new(), own: IndexMap::new() }
     }
 
     /// The attribute as read, or what its read raised. One no `Spec` reads is a refusal.

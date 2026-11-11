@@ -220,7 +220,7 @@ pub(crate) fn facility_geometry<'c>(configs: &'c Configs, raw_configs: &Bound<'_
 
 /// The section `spatial_constraints` of these configs: `model_configs.get("spatial_constraints",
 /// {})`, parsed at its first read.
-fn spatial_constraints<'c>(configs: &'c Configs, raw_configs: &Bound<'_, PyAny>) -> &'c Section<SpatialConstraints> {
+pub(crate) fn spatial_constraints<'c>(configs: &'c Configs, raw_configs: &Bound<'_, PyAny>) -> &'c Section<SpatialConstraints> {
     let py = raw_configs.py();
     configs.spatial_constraints.get_or_parse(|| {
         let read = || -> PyResult<SpatialConstraints> {

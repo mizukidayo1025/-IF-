@@ -54,7 +54,13 @@ pub enum Error {
     Corrupt { namespace: String, check: String },
     /// The exception CPython raised in `exp`, `expm1` or `pow` (`mathx`).
     Math(MathError),
+    /// `TickExecutionError(CLOCK)` of `core/engine.py`: a tick phase moved the clock the engine
+    /// owns (lane P9-0, for the core's tick driver).
+    Clock,
 }
+
+/// The text of `Error::Clock`, as `TickEngine` and the tick driver raise it.
+pub const CLOCK: &str = "tick phase attempted to change the engine-owned clock";
 
 /// What the core's fallible calls return.
 pub type Result<T> = std::result::Result<T, Error>;
@@ -163,6 +169,7 @@ impl fmt::Display for Error {
             | Error::Ledger(text) => f.write_str(text),
             Error::Corrupt { namespace, check } => f.write_str(&corrupt_text(namespace, check)),
             Error::Math(error) => f.write_str(error.text()),
+            Error::Clock => f.write_str(CLOCK),
         }
     }
 }

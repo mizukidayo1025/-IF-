@@ -101,58 +101,76 @@ pub(crate) fn status_member<'py>(py: Python<'py>, member: &str) -> PyResult<Boun
 /// `canonical_proximity_contact_config(model_configs.get("social_proximity"))`, kept for the
 /// configs' stamp (`core/configs.rs`); what it raises is relayed as it is.
 pub(crate) fn proximity_config(world: &Bound<'_, PyAny>) -> PyResult<Arc<Option<Proximity>>> {
-    let py = world.py();
-    let parse = || -> PyResult<Option<Proximity>> {
-        let configs = attribute(world, intern!(py, "model_configs"))?;
-        let config = py
-            .import("sheltersim.domain.social_network")?
-            .getattr("canonical_proximity_contact_config")?
-            .call1((get(&configs, "social_proximity")?,))?;
-        configs::read(Proximity::from_v(&<V as VPy>::from_py(&config)?))
-    };
-    match configs::kept(world, |configs| &configs.proximity, || Ok(configs::parsed(py, parse())))? {
+    match proximity_section(world)? {
         Ok(config) => Ok(config),
-        Err(fault) => Err(configs::raise(&fault, parse)),
+        Err(fault) => Err(configs::raise(&fault, || parse_proximity(world))),
     }
+}
+
+/// `proximity_config` without its raise (the host's `fill_section`, lane P9-0).
+pub(crate) fn proximity_section(world: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::rules::kit::Kept<Option<Proximity>>> {
+    configs::kept(world, |configs| &configs.proximity, || Ok(configs::parsed(world.py(), parse_proximity(world))))
+}
+
+fn parse_proximity(world: &Bound<'_, PyAny>) -> PyResult<Option<Proximity>> {
+    let py = world.py();
+    let configs = attribute(world, intern!(py, "model_configs"))?;
+    let config = py
+        .import("sheltersim.domain.social_network")?
+        .getattr("canonical_proximity_contact_config")?
+        .call1((get(&configs, "social_proximity")?,))?;
+    configs::read(Proximity::from_v(&<V as VPy>::from_py(&config)?))
 }
 
 /// `model_configs.get("staff", {}).get("support_cooldown_minutes", 30)`, kept for the configs'
 /// stamp (`core/configs.rs`); what the reads raise is relayed as it is.
 pub(crate) fn support_cooldown_minutes(world: &Bound<'_, PyAny>) -> PyResult<Arc<i64>> {
-    let py = world.py();
-    let parse = || -> PyResult<i64> {
-        let configs = attribute(world, intern!(py, "model_configs"))?;
-        let cooldown = configs
-            .call_method1(intern!(py, "get"), ("staff", PyDict::new(py)))?
-            .call_method1(intern!(py, "get"), ("support_cooldown_minutes", 30))?;
-        exact_int(&cooldown)
-    };
-    match configs::kept(world, |configs| &configs.support_cooldown_minutes, || Ok(configs::parsed(py, parse())))? {
+    match support_cooldown_section(world)? {
         Ok(minutes) => Ok(minutes),
-        Err(fault) => Err(configs::raise(&fault, parse)),
+        Err(fault) => Err(configs::raise(&fault, || parse_support_cooldown(world))),
     }
+}
+
+/// `support_cooldown_minutes` without its raise (the host's `fill_section`, lane P9-0).
+pub(crate) fn support_cooldown_section(world: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::rules::kit::Kept<i64>> {
+    configs::kept(world, |configs| &configs.support_cooldown_minutes, || Ok(configs::parsed(world.py(), parse_support_cooldown(world))))
+}
+
+fn parse_support_cooldown(world: &Bound<'_, PyAny>) -> PyResult<i64> {
+    let py = world.py();
+    let configs = attribute(world, intern!(py, "model_configs"))?;
+    let cooldown = configs
+        .call_method1(intern!(py, "get"), ("staff", PyDict::new(py)))?
+        .call_method1(intern!(py, "get"), ("support_cooldown_minutes", 30))?;
+    exact_int(&cooldown)
 }
 
 /// `ScenarioInfrastructureSpec.model_validate(configs["infrastructure"])`, kept for the configs'
 /// stamp, for the sections' tests (`core/configs.rs`). The rules read it through the host
 /// (`Host::contract`, policy E15).
 pub(crate) fn infrastructure_config(world: &Bound<'_, PyAny>) -> PyResult<Arc<Infrastructure>> {
-    let py = world.py();
-    let parse = || -> PyResult<Infrastructure> {
-        let raw = attribute(world, intern!(py, "model_configs"))?.get_item("infrastructure")?;
-        let spec = py
-            .import("sheltersim.domain.infrastructure")?
-            .getattr("ScenarioInfrastructureSpec")?
-            .call_method1("model_validate", (raw,))?;
-        let keywords = PyDict::new(py);
-        keywords.set_item("mode", "json")?;
-        let dumped = spec.call_method("model_dump", (), Some(&keywords))?;
-        configs::read(Infrastructure::from_v(&<V as VPy>::from_py(&dumped)?))
-    };
-    match configs::kept(world, |configs| &configs.infrastructure, || Ok(configs::parsed(py, parse())))? {
+    match infrastructure_section(world)? {
         Ok(spec) => Ok(spec),
-        Err(fault) => Err(configs::raise(&fault, parse)),
+        Err(fault) => Err(configs::raise(&fault, || parse_infrastructure(world))),
     }
+}
+
+/// `infrastructure_config` without its raise (the host's `fill_section`, lane P9-0).
+pub(crate) fn infrastructure_section(world: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::rules::kit::Kept<Infrastructure>> {
+    configs::kept(world, |configs| &configs.infrastructure, || Ok(configs::parsed(world.py(), parse_infrastructure(world))))
+}
+
+fn parse_infrastructure(world: &Bound<'_, PyAny>) -> PyResult<Infrastructure> {
+    let py = world.py();
+    let raw = attribute(world, intern!(py, "model_configs"))?.get_item("infrastructure")?;
+    let spec = py
+        .import("sheltersim.domain.infrastructure")?
+        .getattr("ScenarioInfrastructureSpec")?
+        .call_method1("model_validate", (raw,))?;
+    let keywords = PyDict::new(py);
+    keywords.set_item("mode", "json")?;
+    let dumped = spec.call_method("model_dump", (), Some(&keywords))?;
+    configs::read(Infrastructure::from_v(&<V as VPy>::from_py(&dumped)?))
 }
 
 // ---- What the rules read of the Python world ----------------------------------------------------------

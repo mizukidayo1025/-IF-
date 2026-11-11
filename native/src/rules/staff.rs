@@ -397,23 +397,29 @@ fn format_g(value: f64) -> PyResult<String> {
 /// for the configs' stamp as their section (`core/configs.rs`). What the factory raises is relayed
 /// as it is. A build without Python takes the built-in formulas (`StaffOperations::parse`).
 pub(crate) fn staff_operations(world: &Bound<'_, PyAny>) -> PyResult<Arc<StaffOperations>> {
-    let py = world.py();
-    let parse = || -> PyResult<StaffOperations> {
-        let configs = attribute(world, intern!(py, "model_configs"))?;
-        let formula = py.import("sheltersim.policies.registry")?.getattr("create_staff_operations_formula")?.call1((&configs,))?;
-        let selected = get(&configs, "policy_registry")?;
-        let selected = !selected.is_none() && selected.contains("staff_operations")?;
-        let model_id = Arc::from(exact_str(&attribute(&formula, intern!(py, "model_id"))?)?);
-        let selected_source = match selected {
-            true => Some(Arc::from(exact_str(&attribute(&formula, intern!(py, "source_id"))?)?)),
-            false => None,
-        };
-        Ok(StaffOperations { model_id, selected_source })
-    };
-    match configs::kept(world, |configs| &configs.staff_operations, || Ok(configs::parsed(py, parse())))? {
+    match staff_operations_section(world)? {
         Ok(formula) => Ok(formula),
-        Err(fault) => Err(configs::raise(&fault, parse)),
+        Err(fault) => Err(configs::raise(&fault, || parse_staff_operations(world))),
     }
+}
+
+/// `staff_operations` without its raise (the host's `fill_section`, lane P9-0).
+pub(crate) fn staff_operations_section(world: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::rules::kit::Kept<StaffOperations>> {
+    configs::kept(world, |configs| &configs.staff_operations, || Ok(configs::parsed(world.py(), parse_staff_operations(world))))
+}
+
+fn parse_staff_operations(world: &Bound<'_, PyAny>) -> PyResult<StaffOperations> {
+    let py = world.py();
+    let configs = attribute(world, intern!(py, "model_configs"))?;
+    let formula = py.import("sheltersim.policies.registry")?.getattr("create_staff_operations_formula")?.call1((&configs,))?;
+    let selected = get(&configs, "policy_registry")?;
+    let selected = !selected.is_none() && selected.contains("staff_operations")?;
+    let model_id = Arc::from(exact_str(&attribute(&formula, intern!(py, "model_id"))?)?);
+    let selected_source = match selected {
+        true => Some(Arc::from(exact_str(&attribute(&formula, intern!(py, "source_id"))?)?)),
+        false => None,
+    };
+    Ok(StaffOperations { model_id, selected_source })
 }
 
 /// `assign_staff_operations`, called from Python with a `SpaceRouter`: that caller's input, whose

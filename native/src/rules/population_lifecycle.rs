@@ -48,7 +48,7 @@ pub(crate) fn transit_capacities_of(world: &Bound<'_, PyAny>) -> PyResult<bool> 
     Ok(*configs::kept_python(world, |configs| &configs.transit_capacities, transit_capacities)?)
 }
 
-fn transit_capacities(world: &Bound<'_, PyAny>) -> PyResult<bool> {
+pub(crate) fn transit_capacities(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let configs = attribute(world, intern!(world.py(), "model_configs"))?;
     get_map(&get_map(&configs, "layout_routing")?, "max_agents_in_transit_by_edge")?.is_truthy()
 }

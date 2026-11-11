@@ -86,6 +86,79 @@ pub(crate) fn return_rule_owner<'py>(after: &Bound<'py, PyAny>) -> PyResult<Opti
     })
 }
 
+/// Whether `function` is `DispatchPhase._schedule_return_to_initial_zone` as `phases/dispatch.py`
+/// defines it (lane P9-0: `Held::Method` of the Run's policies).
+pub(crate) fn is_return_rule(function: &Bound<'_, PyAny>) -> bool {
+    RETURN_RULE.get(function.py()).is_some_and(|known| function.is(known.bind(function.py())))
+}
+
+/// `controller.event_dispatcher` and its handlers as the Run reads them (lane P9-0, H3 of
+/// design-p9.md): a handler whose class is one the table was installed with, and whose class's
+/// `apply` is the one installed, is the core's, with what its kind reads of it; any other is the
+/// host's (`Foreign`). Reading never raises: what a read raised is the fault the core says.
+pub(crate) fn read_dispatch(controller: &Bound<'_, PyAny>) -> sheltersim_core::run::dispatch::Dispatch {
+    use sheltersim_core::run::dispatch::{Dispatch, NO_TABLE};
+    let py = controller.py();
+    let Some(table) = TABLE.get(py) else {
+        return Dispatch::faulted(sheltersim_core::config::Fault::refused(NO_TABLE));
+    };
+    let read = || -> PyResult<Dispatch> {
+        let dispatcher = controller.getattr(intern!(py, "event_dispatcher"))?;
+        let known = dispatcher.get_type().is(table.dispatcher.bind(py));
+        let handlers = dispatcher.getattr(intern!(py, "handlers"))?;
+        let Some(handlers) = crate::core::tracked::as_readable_dict(&handlers) else {
+            return Ok(Dispatch { known: Ok(known), handlers: Err(sheltersim_core::config::Fault::refused("a value is not a plain dict")) });
+        };
+        let mut read = IndexMap::with_capacity(handlers.len());
+        for (event_type, handler) in handlers.iter() {
+            let Some(event_type) = event_type.downcast::<PyString>().ok().and_then(|text| text.to_str().ok().map(Arc::<str>::from)) else {
+                continue;
+            };
+            read.insert(event_type, handler_of(table, controller, &handler)?);
+        }
+        Ok(Dispatch { known: Ok(known), handlers: Ok(Arc::new(read)) })
+    };
+    read().unwrap_or_else(|error| Dispatch::faulted(crate::core::configs::fault_of(py, &error)))
+}
+
+/// A registered handler as the core takes it.
+fn handler_of(table: &Table, controller: &Bound<'_, PyAny>, handler: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::run::dispatch::Handler> {
+    use sheltersim_core::run::dispatch::{Handler, HandlerKind, Native};
+    let py = handler.py();
+    let entries = [&table.social, &table.travel, &table.toilet, &table.resource, &table.timeout, &table.support];
+    let kind = handler.get_type();
+    let Some((class, apply)) = entries.into_iter().chain(table.others.iter()).find(|(class, _)| kind.is(class.bind(py))) else {
+        return Ok(Handler::Foreign);
+    };
+    if !class.bind(py).getattr(intern!(py, "apply"))?.is(apply.bind(py)) {
+        return Ok(Handler::Foreign);
+    }
+    let text = |name: &Bound<'_, PyString>| -> Option<String> { kind.getattr(name).ok()?.extract::<String>().ok() };
+    let (Some(module), Some(qualname)) = (text(intern!(py, "__module__")), text(intern!(py, "__qualname__"))) else {
+        return Ok(Handler::Foreign);
+    };
+    let Some(handler_kind) = HandlerKind::of_class(&module, &qualname) else {
+        return Ok(Handler::Foreign);
+    };
+    let same = |own: &str, controllers: &str| -> bool {
+        match (handler.getattr(own), controller.getattr(controllers)) {
+            (Ok(mine), Ok(theirs)) => mine.is(&theirs),
+            _ => false,
+        }
+    };
+    let own_managers = match handler_kind {
+        HandlerKind::ResourceServiceCompletion | HandlerKind::ResourceServiceCancellation => same("service", "resource_service"),
+        HandlerKind::AgentTravelCompletion => same("toilet_service", "toilet_service") && same("resource_service", "resource_service"),
+        _ => true,
+    };
+    let after_arrival_as_defined = match handler_kind {
+        HandlerKind::AgentTravelCompletion => kind.getattr(intern!(py, "_after_arrival")).is_ok_and(|defined| defined.is(table.after_arrival.bind(py))),
+        _ => true,
+    };
+    let read = crate::core::run::read_object(handler, handler_kind.spec(), controller);
+    Ok(Handler::Native(Native { kind: handler_kind, handler: Arc::new(read), own_managers, after_arrival_as_defined }))
+}
+
 // ---- What ran, for benchmarks/rule_shadow and its report ------------------------------------------
 
 macro_rules! counters {
