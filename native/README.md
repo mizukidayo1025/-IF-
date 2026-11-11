@@ -103,7 +103,8 @@ Checkpoint document) and times them.
   `interrupt`, the stall records; the ledger's refusal comes back as `Failure::Ledger` for the
   PyO3 crate to write with Python's `repr`) and `toilet.rs` (`queue_up`/`request`, `start` with
   the duration drawn from the Run's `CounterRNG`, or from `Host::draw` for another random source,
-  and `complete`, which returns `ScheduleReturn`: the PyO3 crate calls the walk home), which write
+  and `complete`, which returns `ScheduleReturn`: the glue then runs the core's walk home on the
+  same borrow), which write
   the rows alone (a tainted `resource_service_v1` is refused); `behavior.rs` (the proposals of the
   behavior policies the `Run`'s `Policies` read, the trigger texts with `format(x, "g")`, and the
   observed state as a `V`) and `decisions.rs` (a decision's record: the indexed sink's JSON bytes,
@@ -111,9 +112,14 @@ Checkpoint document) and times them.
   directly) (lane P8 a5); `overlay.rs` (the temporary spaces, capacity, beds and room intake,
   installed facilities, and the floor-plan changes with their checks, on the rows of
   `temporary_spaces_v1` and `geometry_overlay_v1`, a facility's `zone_id` and an edge's `closed`;
-  the parameters' contracts through `Host::contract`, policy E15) (lane P8 c4);
+  the parameters' contracts through `Host::contract`, policy E15) (lane P8 c4); `travel.rs` (the
+  routers of a Run from the zone and edge tables, a route with its capacity waits through the
+  world's writer, a trip planned and written, the walk home, the choice of a facility, the edge
+  loads), `proximity.rs` (the proximity sampler and its step, from the Run's `Policies`) and
+  `replan.rs` (a replanned person's stop and new route, the old events settled on the world's
+  queue) (lane P8 c6);
   the file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4, P8-0a, c1,
-  P8b-1, P8 a2, P8 a1, P8 d1, P8 a3, P8 c3, P8 a5 and P8 c4),
+  P8b-1, P8 a2, P8 a1, P8 d1, P8 a3, P8 c3, P8 a5, P8 c4 and P8 c6),
   `text.rs` (`casefold`, CPython 3.12's full fold from a generated table, `text/casefold.rs`
   by `tools/casefold_table.py`, tested at every code point against `tests/data/casefold.txt`;
   `g_text`, `format(value, "g")`; `py_repr`, `repr` of a str, from the table of what
@@ -253,11 +259,12 @@ Checkpoint document) and times them.
   Branch), in `controller._run_core`. The controller makes it in `__init__` from
   `route_capacities` and itself (its `Policies` are read then by the core's `CONTROLLER` spec,
   never raising; `refresh_policies(controller)` reads them again), and each `_refresh_space` calls `refresh_routes(world)`, which starts a new
-  epoch and builds (`rules/travel.rs`, `build_routes`) the people's and the staff's router from the
-  world's zone and edge tables right then; the staff's keeps, with a floor plan, the edges the core
-  `Geo` finds clear for an independent walker. Where the tables do not follow the world's maps or
-  the capacities are no plain dict, and after `refresh_routes()` without a world, the routers are
-  built from `controller.space` and `staff_space` when a kernel first asks in the epoch.
+  epoch and builds (`core/src/rules/travel.rs`, `routers_of`) the people's and the staff's router
+  from the world's zone and edge tables right then; the staff's keeps, with a floor plan, the edges
+  the core `Geo` finds clear for an independent walker. Where the tables dropped their rows or the
+  capacities are no plain dict, and after `refresh_routes()` without a world, the routers are built
+  from the controller's world when a kernel first asks in the epoch, which refuses tables that
+  dropped their rows (lane P8 c6: `controller.space` and `staff_space` are not read).
 - `src/state/population.rs`: the `V` row of `population_presence_v1`, `population_lifecycle_v1`,
   `population_dynamics_v1`, `temporary_spaces_v1`, `geometry_overlay_v1` and `model_configs`
   (`docs/rust-port/lanes/m6-population.md`).
@@ -445,7 +452,8 @@ are correctly rounded everywhere, and not `**` with a float.
 
 - `rules/proximity.rs`: `sample_contacts(controller, minute)` replaces the step
   `_sample_proximity_contacts`, with `DistanceSampledProximityPolicy.sample` on the positions of the
-  `movement_v1` row, or of its tree when the row is tainted. `sample_of` gives the pairs alone.
+  `movement_v1` row (a tainted row is refused): the glue of `core/src/rules/proximity.rs`, which
+  reads the config and the policy from the Run's `Policies`. `sample_of` gives the pairs alone.
 - `rules/world_view.rs`: `view_after_movement(controller, world)` and
   `view_for_proposals(controller, world, minute)` are the two steps of the phases that make a
   `WorldView`, which have no Python body (`KERNEL_ONLY_SEGMENTS`). They are glue (lane P8 a1): the
@@ -523,7 +531,8 @@ are correctly rounded everywhere, and not `**` with a float.
   reads the positions as it leaves them. `zone_center` is for the tests.
   See `docs/rust-port/lanes/m4-movement.md` and `docs/rust-port/lanes/l3-movement.md`.
 - `rules.replan.replan_journeys(controller, state, agent_ids, minute)`: `_replan_journeys` and
-  `_replan_staff_support_trip` (`src/rules/replan.rs`). It writes each person's stop before it plans
+  `_replan_staff_support_trip` (`src/rules/replan.rs`, the glue of `core/src/rules/replan.rs`).
+  It writes each person's stop before it plans
   their new route, so `Unsupported` comes only before the first person's stop (lane L10: the step
   has no Python body, so any refusal is `KernelRefusal`).
 - `rules.queues`: a facility's physical queue (`src/rules/queues.rs`, the glue of
@@ -609,10 +618,9 @@ are correctly rounded everywhere, and not `**` with a float.
   own events.
 - `rules.travel`: `route(controller, origin_zone_id, destination_zone_id, agent_id)` and
   `schedule_travel(controller, *, ...)`: `_route` and `_schedule_travel` (`src/rules/travel.rs`).
-  The graph is the core's `Router` of the controller's Run (`src/core/run.rs`), built from the
-  world's tables at each refresh of the space; where it is read from `controller.space` instead,
-  another route policy gives `Unsupported`. See `docs/rust-port/lanes/m4-service.md` and
-  step5-plan.md, PRs 7-3 and 7-4.
+  The glue of `core/src/rules/travel.rs`. The graph is the core's `Router` of the controller's Run
+  (`src/core/run.rs`), built from the world's tables at each refresh of the space. See
+  `docs/rust-port/lanes/m4-service.md` and step5-plan.md, PRs 7-3, 7-4 and P8 c6.
 
 - `state.body_state.ROW`: Rust owns `body_state_v1` (`src/state/body_state.rs`): the records and
   relationships typed, the history as the canonical bytes of each item. `rules.body_state.
