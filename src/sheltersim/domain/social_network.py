@@ -11,7 +11,6 @@ from sheltersim import native
 from sheltersim.core.kernels import kernel_only
 from sheltersim.core.state_mirror import register_rust_validator
 from sheltersim.core.world import WorldState
-from sheltersim.domain.models import ordered_pair_key
 from sheltersim.events.models import ScheduledEvent
 
 SOCIAL_NETWORK_STATE_KEY = "social_network_v1"
@@ -175,27 +174,6 @@ def validate_social_network_state(world: WorldState) -> None:
             raise ValueError("social_network_v1 contact time is invalid")
 
 
-def record_observed_contact(
-    world: WorldState, *, recipient_id: str, source_id: str, minute: int
-) -> None:
-    """Record a sampled nearby contact without claiming that dialogue occurred."""
-    if recipient_id == source_id:
-        return
-    state = _state(world)
-    record = _relationship(state, recipient_id, source_id)
-    record["contact_count"] += 1
-    record["last_contact_minute"] = minute
-    state["interaction_count"] += 1
-
-
-def record_observed_contacts(world: WorldState, pairs: list[tuple[str, str]], minute: int) -> None:
-    """record_observed_contact of each (recipient, source), for the Rust social kernel."""
-    for recipient_id, source_id in pairs:
-        record_observed_contact(
-            world, recipient_id=recipient_id, source_id=source_id, minute=minute
-        )
-
-
 @kernel_only("social_network", "observe_event")
 def observe_event(world: WorldState, event: ScheduledEvent, minute: int) -> None:
     """Extract only allowlisted, structured contact data from an applied event.
@@ -237,30 +215,6 @@ def remove_agent(world: WorldState, agent_id: str) -> list[dict[str, Any]]:
         if agent_id in pair:
             archived.append({"pair": pair, "record": state["relationships"].pop(pair_key)})
     return archived
-
-
-def _state(world: WorldState) -> dict[str, Any]:
-    if SOCIAL_NETWORK_STATE_KEY not in world.model_state:
-        world.model_state[SOCIAL_NETWORK_STATE_KEY] = create_social_network_state()
-    return world.model_state[SOCIAL_NETWORK_STATE_KEY]
-
-
-def _relationship(state: dict[str, Any], recipient_id: str, sender_id: str) -> dict[str, Any]:
-    key = ordered_pair_key(recipient_id, sender_id)
-    relationships = state["relationships"]
-    if key not in relationships:
-        if len(relationships) >= MAX_RELATIONSHIPS:
-            raise ValueError("social_network_v1 reached the configured relationship bound")
-        relationships[key] = {
-            "contact_count": 0,
-            "conversation_count": 0,
-            "cooperation_count": 0,
-            "trust": None,
-            "shared_message_ids": [],
-            "last_contact_minute": None,
-            "last_interaction": None,
-        }
-    return relationships[key]
 
 
 register_rust_validator(SOCIAL_NETWORK_STATE_KEY, native.state("social_network").validate)

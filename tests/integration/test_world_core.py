@@ -20,7 +20,6 @@ from support.paths import SCENARIO_100_AGENTS
 from sheltersim import native
 from sheltersim.core import state_mirror
 from sheltersim.core.checkpoint_cache import canonical_bytes
-from sheltersim.core.engine import TickEngine
 from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.state_mirror import (
     DetachedNodeError,
@@ -33,11 +32,8 @@ from sheltersim.core.state_mirror import (
 )
 from sheltersim.core.world import StateInvariantError, WorldState
 from sheltersim.domain.psychological_state import PSYCHOLOGICAL_STATE_KEY
-from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.phases.segments import install_segments
-from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
-from sheltersim.experiments.timeline import _MetricSink
 
 SAMPLE = "sample_v1"
 
@@ -555,55 +551,6 @@ def test_a_segment_is_its_kernel_and_turns_unsupported_into_a_kernel_refusal() -
         Controller().step(2)
     with pytest.raises(ValueError, match="no step"):
         install_segments(Controller, {"nope": kernel})
-
-
-# ---- Real rules on a tree -------------------------------------------------------------------
-
-
-def _run_world(scenario: Any, minutes: int, check: Any = None) -> WorldState:
-    world = WorldState.from_scenario(scenario)
-    controller = OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
-    engine = TickEngine(world, phase_handler=controller)
-    for _ in range(minutes):
-        engine.step()
-        if check is not None:
-            check(world)
-    return world
-
-
-# Every namespace of the first ticks that the ledger's size doesn't make slow here, but
-# shared_operations_v1, movement_v1, body_state_v1, agent_dynamics_v1, staff_operations_v1,
-# information_spread_v1, social_propagation_v1 and psychological_distress_v1:
-# `prepare_facility_queue`, the steps of experiments/phases/dispatch.py that follow an event
-# (`_record_staff_support_started`, `_schedule_return_to_initial_zone`), a toilet completion, the
-# decision memory, the staff's tasks, the metrics' wait of each support request
-# (`_support_wait_snapshot`) and the social, information and psychology steps read their own typed
-# rows and have no Python rule left to run on a generic one (`kernel_only`, KERNEL_ONLY_SEGMENTS,
-# lane L10).
-REAL_NAMESPACES = ("social_network_v1",)
-
-
-def test_real_rules_on_owned_trees_give_the_same_world_and_the_row_follows(
-    generated_scenario: Any, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    minutes = 25
-    plain = _run_world(generated_scenario, minutes)
-    for name in REAL_NAMESPACES:
-        monkeypatch.setitem(state_mirror.OWNED_NAMESPACES, name, ("sample_namespace", "VALUE_ROW"))
-
-    def check(world: WorldState) -> None:
-        # _DetachingTable while state_mirror.DETACHED_NAMESPACES hold their rows alone.
-        assert isinstance(world.model_state, NamespaceTable)
-        for name in world._core.owned_names():
-            mirror = world._core.mirror(name)
-            if name in world.model_state:
-                assert mirror.tainted is None, name
-                assert mirror.verify(), name
-
-    tracked = _run_world(generated_scenario, minutes, check)
-    assert tracked.canonical_json() == plain.canonical_json()
-    assert tracked.state_digest() == plain.state_digest()
-    assert sum(tracked._core.mirror(name).stats()["forwards"] for name in REAL_NAMESPACES) > 100
 
 
 def test_a_run_ends_with_every_value_row_equal_to_its_tree(
