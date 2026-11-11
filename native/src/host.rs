@@ -21,6 +21,9 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyFloat, PyString, PyTuple};
 
 use sheltersim_core::error::Error as CoreError;
+use sheltersim_core::events::writer::WriteError;
+use sheltersim_core::events::EventRow;
+use sheltersim_core::rules::common_operations::Logged;
 use sheltersim_core::host::{
     Contract, Decision, DecisionSink, ErrorClass, Host, HostFailure, Llm, Part, Phase, Stage, Trace, TraceLevel, TxnKind,
 };
@@ -37,7 +40,7 @@ use crate::core::value::VPy;
 use crate::core::world_core::{attached_state, core_of, mirror_of, raw_dict_get, raw_list_append};
 use crate::eventlog::EventStore;
 use crate::state::information::{NAME as INFORMATION, SCHEMA_VERSION as INFORMATION_VERSION};
-use crate::state::events::QueueStore;
+use crate::state::events::{write_error, EventRowPy, QueueStore};
 use crate::Unsupported;
 
 /// A Python error, as the host's error.
@@ -46,6 +49,12 @@ pub(crate) struct HostError(pub(crate) PyErr);
 impl From<CoreError> for HostError {
     fn from(error: CoreError) -> Self {
         HostError(to_py_err(error))
+    }
+}
+
+impl From<WriteError> for HostError {
+    fn from(error: WriteError) -> Self {
+        HostError(Python::with_gil(|py| write_error(py, error)))
     }
 }
 
@@ -90,12 +99,15 @@ pub(crate) struct PyHost<'py> {
     rng: Option<Bound<'py, PyAny>>,
     /// What a transaction keeps of the Python containers (`_txn_canonicalized`).
     pub(crate) kept: Bound<'py, PyDict>,
+    /// The object of the event a handler applies, which `validate_in_flight` hands Python as the
+    /// rule did (lane P8 d2).
+    in_flight: Option<Bound<'py, PyAny>>,
 }
 
 impl<'py> PyHost<'py> {
     /// A transaction's host: the world and what the transaction keeps.
     pub(crate) fn of_world(world: &Bound<'py, PyAny>, kept: Bound<'py, PyDict>) -> Self {
-        Self { world: world.clone(), controller: None, policies: None, observer: None, rng: None, kept }
+        Self { world: world.clone(), controller: None, policies: None, observer: None, rng: None, kept, in_flight: None }
     }
 
     /// A tick's host: the controller's world, its `Policies`, and nothing a transaction keeps.
@@ -106,7 +118,7 @@ impl<'py> PyHost<'py> {
             Ok(run) => Some(run.get().policies()?),
             Err(_) => None,
         };
-        Ok(Self { world, controller: Some(controller.clone()), policies, observer: None, rng: None, kept: PyDict::new(py) })
+        Ok(Self { world, controller: Some(controller.clone()), policies, observer: None, rng: None, kept: PyDict::new(py), in_flight: None })
     }
 
     /// The host of a holder of the update steps (lane P8 a3): its policies as given
@@ -115,12 +127,18 @@ impl<'py> PyHost<'py> {
     pub(crate) fn of_holder(controller: &Bound<'py, PyAny>, policies: Arc<Policies>) -> Self {
         let py = controller.py();
         let world = controller.getattr(intern!(py, "world")).unwrap_or_else(|_| py.None().into_bound(py));
-        Self { world, controller: Some(controller.clone()), policies: Some(policies), observer: None, rng: None, kept: PyDict::new(py) }
+        Self { world, controller: Some(controller.clone()), policies: Some(policies), observer: None, rng: None, kept: PyDict::new(py), in_flight: None }
     }
 
     /// With `TickEngine.phase_observer` (None for none).
     pub(crate) fn with_observer(mut self, observer: &Bound<'py, PyAny>) -> Self {
         self.observer = (!observer.is_none()).then(|| observer.clone());
+        self
+    }
+
+    /// With the object of the event a handler applies.
+    pub(crate) fn with_in_flight(mut self, event: &Bound<'py, PyAny>) -> Self {
+        self.in_flight = Some(event.clone());
         self
     }
 
@@ -255,6 +273,40 @@ impl<'py> Host for PyHost<'py> {
             .getattr(intern!(py, "validate_simulator_extensions"))?
             .call1((&self.world,))?;
         Ok(())
+    }
+
+    /// `world.validate(_in_flight_event=event)`: the handler's own object of the event where this
+    /// host was given it, else the event's object made from its row (equal to the queue's).
+    fn validate_in_flight(&mut self, event: &EventRow) -> Result<(), HostError> {
+        let py = self.py();
+        let given = match &self.in_flight {
+            Some(object) if attribute(object, intern!(py, "event_id"))?.eq(&*event.event_id)? => Some(object.clone()),
+            _ => None,
+        };
+        let object = match given {
+            Some(object) => object,
+            None => event.to_py(py)?,
+        };
+        let options = PyDict::new(py);
+        options.set_item(intern!(py, "_in_flight_event"), object)?;
+        self.world.call_method(intern!(py, "validate"), (), Some(&options))?;
+        Ok(())
+    }
+
+    /// The objects of these slots of the world's queue go (`QueueStore::forget`): the store makes
+    /// them again from their rows.
+    fn slots_changed(&mut self, serials: &[u64]) -> Result<(), HostError> {
+        if serials.is_empty() {
+            return Ok(());
+        }
+        crate::state::events::EventWriter::of(&self.world)?.queue().get().forget(serials)?;
+        Ok(())
+    }
+
+    /// `event_log.find(event_id)`, read as the core reads a record.
+    fn find_record(&mut self, event_id: &str) -> Result<Option<Logged>, HostError> {
+        let found = crate::rules::common_operations::found_records(&self.world, vec![Arc::from(event_id)])?;
+        Ok(found.0.into_iter().next().and_then(|(_, logged)| logged))
     }
 
     /// `Model.model_validate(input).model_dump(mode="json")`, the model's error as it is.

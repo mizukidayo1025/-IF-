@@ -20,7 +20,9 @@
 use std::sync::Arc;
 
 use crate::error::Error;
+use crate::events::EventRow;
 use crate::mathx::MathError;
+use crate::rules::common_operations::Logged;
 use crate::rules::metrics::MetricSample;
 use crate::value::V;
 use crate::world::Snapshot;
@@ -193,6 +195,8 @@ pub enum Part {
 
 /// The text of a host that cannot draw (`Host::draw` of any host but a test's).
 pub const NO_DRAW: &str = "not a CounterRNG";
+/// The text of a host that cannot look up the EventLog's records (`Host::find_record`).
+pub const NO_RECORDS: &str = "the host has no records";
 
 /// The outside of the world. Each call runs with nothing of the world borrowed (rule R6).
 pub trait Host {
@@ -221,6 +225,29 @@ pub trait Host {
     fn validate_world(&mut self) -> Result<(), Self::Error>;
     /// `validate_simulator_extensions(world)` of `domain/simulator_state.py`.
     fn validate_extensions(&mut self) -> Result<(), Self::Error>;
+    /// `world.validate(_in_flight_event=event)`: the whole world, with this pending event in flight
+    /// (lane P8 d2, the operational events). A host that validates nothing validates this as the
+    /// world.
+    fn validate_in_flight(&mut self, _event: &EventRow) -> Result<(), Self::Error> {
+        self.validate_world()
+    }
+
+    /// The world's queue gave these slots a new row, or took them out (lane P8 d2): the host's views
+    /// of their events go, to be made again from the rows. A rule calls it before a host call that
+    /// reads the queue.
+    fn slots_changed(&mut self, _serials: &[u64]) -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    // ---- The EventLog's records (lane P8 d2) ------------------------------------------------------
+
+    /// `event_log.find(event_id)` as the core reads a record: its status, minute and event, or None
+    /// for no such record. The core's EventLog does not keep the bytes of a record once Python has
+    /// taken them, so a rule that reads an older record's event (a continuity receipt's cause and the
+    /// request's head) asks the host. A host without the records refuses.
+    fn find_record(&mut self, _event_id: &str) -> Result<Option<Logged>, Self::Error> {
+        Err(Error::unsupported(NO_RECORDS).into())
+    }
 
     // ---- Input contracts (policy E15) ------------------------------------------------------------
 

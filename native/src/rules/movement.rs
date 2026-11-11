@@ -30,7 +30,7 @@ use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_list
 use crate::core::world_core::{field_held, mirror_of, namespace_held, raw_dict_get, with_world, NamespaceMirror};
 use crate::rules::movement_geometry::{usable, Geo, GeoPy, Pt};
 use crate::state::events::{write_result, EventWriter};
-use crate::state::movement::{Journey, MovementRow, Point};
+use crate::state::movement::{Journey, Point};
 use crate::state::staff_operations::NAME as STAFF_OPERATIONS;
 use crate::Unsupported;
 
@@ -77,15 +77,6 @@ pub(crate) fn held_detached(world: &Bound<'_, PyAny>) -> PyResult<bool> {
         Some(table) => Ok(table.get_item(KEY)?.is_some_and(|held| crate::core::tracked::is_detached(&held))),
         None => Ok(false),
     }
-}
-
-/// `state["positions"].get(agent_id)` of a detached namespace, as a new document of the row's
-/// record (read it, never write).
-pub(crate) fn row_position<'py>(world: &Bound<'py, PyAny>, agent_id: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
-    let py = world.py();
-    NamespaceMirror::with_row::<MovementRow, _>(&mirror_held(world)?, |row| {
-        row.positions.get(agent_id).map(|position| position.to_py(py)).transpose()
-    })
 }
 
 /// The staff's operations as `staff_position_snapshots` reads them: the row of

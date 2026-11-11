@@ -223,22 +223,6 @@ pub(crate) fn handoff_record<'py>(
     made_record(world.py(), made).map(Some)
 }
 
-/// `make_staff_support_continuity_record`.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn continuity_record<'py>(
-    world: &Bound<'py, PyAny>,
-    request_id: &str,
-    agent_id: &str,
-    task_id: &str,
-    previous_staff: &str,
-    status: &str,
-    causation: &str,
-    cause_type: &str,
-) -> PyResult<Bound<'py, PyAny>> {
-    let made = with_world(world, |world| core::continuity_record(world, request_id, agent_id, task_id, previous_staff, status, causation, cause_type))?.or_py()?;
-    made_record(world.py(), made)
-}
-
 // ---- ingest_applied_shared_operation_records ---------------------------------------------------------
 
 /// `ingest_applied_shared_operation_records`.

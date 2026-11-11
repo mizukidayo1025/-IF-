@@ -21,6 +21,12 @@ use crate::world::{Snapshot, WorldCell};
 /// The text of a transaction begun inside another (`Error::Runtime`, a `RuntimeError` in Python).
 pub const NESTED: &str = "a transaction is open on the world already";
 
+/// How many rules ran inside another rule's open transaction in this process (a rule's own start
+/// validates the world and writes it as it is; the outer transaction commits or rolls back): the
+/// PyO3 crate's `RuleTxn` and the delivery delays of a supply route's interruption
+/// (`rules::handlers`). For the gate's counts.
+pub static NESTED_RULES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 /// Which copy a transaction stands for, which says how its candidate is validated.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TxnKind {
