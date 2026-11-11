@@ -150,10 +150,13 @@ Checkpoint document) and times them.
   through `Host::contract`, the changed world's validation through `Host::validate_world`, and the
   rules of other files (temporary spaces, geometry changes, an installed facility's place and
   announcement, the staff positions, the staff's availability) called directly, a refusal of one
-  being its `KernelRefusal`) (lane P8 d3);
+  being its `KernelRefusal`) (lane P8 d3); `proposals.rs` (`_apply_effect`, the join of the rules
+  above: a decision's bed, trip, queue, request, information record and social event; a request's
+  LLM hooks through `Host::prioritize_support_request` and `Host::consider_support_request`, with
+  the world let go of) (lane P8 e1);
   the file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4, P8-0a, c1,
   P8b-1, P8 a2, P8 a1, P8 d1, P8 a3, P8 c3, P8 a5, P8 c4, P8 c6, P8 c5, P8 b2, P8 b3, P8 b4,
-  P8 d2 and P8 d3),
+  P8 d2, P8 d3 and P8 e1),
   `text.rs` (`casefold`, CPython 3.12's full fold from a generated table, `text/casefold.rs`
   by `tools/casefold_table.py`, tested at every code point against `tests/data/casefold.txt`;
   `g_text`, `format(value, "g")`; `py_repr`, `repr` of a str, from the table of what
@@ -601,8 +604,9 @@ are correctly rounded everywhere, and not `**` with a float.
   the rows can't hold and for another staff formula. `format_g` is there for the tests.
   See `docs/rust-port/lanes/m4-staff.md`, `l2-staff.md`.
 - `rules.travel.route`: `_route`, with edge capacities too: it counts the trips under way and records
-  `zone_edge_capacity_wait` as the Python rule does. A rule that plans (`proposals.apply_effect`) holds
-  that record and reserves its sequence on the `EventWriter` until it writes.
+  `zone_edge_capacity_wait` as the Python rule does. A rule that plans (the core's
+  `proposals::apply`) holds that record and reserves its sequence on the core's `Events` until it
+  writes.
 - `rules.metrics`: the KPI columns of a minute (`src/rules/metrics.rs`):
   `snapshot_fields(world, unsettled, minute)` for `MetricSnapshot.from_world` and
   `kpi_values(world, snapshot)` for `operational_kpi_values`. They read the rows and change nothing.
@@ -663,11 +667,16 @@ are correctly rounded everywhere, and not `**` with a float.
   `record_request_outcome(manager, *, ...)`, each `kernel_only` on `ResourceServiceManager`.
   `serve_head` is one pass of `arbitrate`'s loop after the positions; it returns the started event's
   ID, or None to stop. `serve_independent_head` is the same pass of one independent queue.
-- `rules.proposals.apply_effect(controller, proposal)`: `_apply_effect` (`src/rules/proposals.rs`),
-  which returns `(target_id, next_decision_at, committed)`; the step has no Python body
-  (`KERNEL_ONLY_SEGMENTS`). A person the water or meal queue turns down at once is recorded with the
-  queue's text; a capacity wait recorded while the facility was chosen is written before the queue's
-  own events.
+- `rules.proposals.apply_effect(controller, proposal)`: `_apply_effect`, which returns
+  `(target_id, next_decision_at, committed)`; the step has no Python body (`KERNEL_ONLY_SEGMENTS`).
+  The rules are the core's (`core/src/rules/proposals.rs`, lane P8 e1): the bed, the choice of a
+  facility and the trip, the queues asked at once, the support request with its care receipts, the
+  information model's record of it (on the row of `information_spread_v1`; the tree follows), and a
+  social action's event. `src/rules/proposals.rs` reads what Python holds by the action and calls
+  the core; a request's LLM hooks go through the native host (`Host::prioritize_support_request`,
+  `Host::consider_support_request`) with the world let go of, and the step reads again after them.
+  A person the water or meal queue turns down at once is recorded with the queue's text; a capacity
+  wait recorded while the facility was chosen is written before the queue's own events.
 - `rules.travel`: `route(controller, origin_zone_id, destination_zone_id, agent_id)` and
   `schedule_travel(controller, *, ...)`: `_route` and `_schedule_travel` (`src/rules/travel.rs`).
   The glue of `core/src/rules/travel.rs`. The graph is the core's `Router` of the controller's Run

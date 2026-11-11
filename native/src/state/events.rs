@@ -647,11 +647,6 @@ impl QueueStore {
         })
     }
 
-    /// Whether this event is pending.
-    pub(crate) fn has_event(&self, py: Python<'_>, event_id: &str) -> PyResult<bool> {
-        self.with_queue(py, |queue| queue.has_event(event_id))
-    }
-
     /// The IDs of the pending events in queue order, through `minute` if given.
     pub(crate) fn pending_ids(&self, py: Python<'_>, minute: Option<i64>) -> PyResult<Vec<Arc<str>>> {
         self.with_queue(py, |queue| queue.pending_ids(minute))
@@ -1022,19 +1017,10 @@ impl<'py> EventWriter<'py> {
         Ok(Self { queue, log, counters, duration, reserved: Reserved::default() })
     }
 
-    /// What `allocate_sequence` would return, changing nothing, past the sequences reserved.
-    pub(crate) fn next_sequence(&self) -> PyResult<i64> {
-        Ok(self.reserved.after(self.counter()?))
-    }
-
     /// Sets how many sequences `allocate_reserved` will take before what is planned from now on.
     /// How many sequences `allocate_reserved` will still take.
     pub(crate) fn reserved(&self) -> usize {
         self.reserved.count()
-    }
-
-    pub(crate) fn reserve(&self, count: usize) {
-        self.reserved.set(count);
     }
 
     fn counter(&self) -> PyResult<i64> {
@@ -1134,21 +1120,11 @@ impl<'py> EventWriter<'py> {
         self.log.get().with_log(self.counters.py(), f)
     }
 
-    /// Whether this event is pending.
-    pub(crate) fn is_pending(&self, event_id: &str) -> PyResult<bool> {
-        self.queue.get().has_event(self.counters.py(), event_id)
-    }
-
     /// Whether the log holds a record of this event ID, or of this sequence if one is given.
     pub(crate) fn is_realized(&self, event_id: &str, sequence: Option<i64>) -> PyResult<bool> {
         self.with_log(|log| log.has_event_id(event_id) || sequence.is_some_and(|sequence| log.has_sequence(sequence)))
     }
 
-    /// Whether a new event of this ID (and of this sequence, if one is given) would be refused as a
-    /// repeat: realized, or pending.
-    pub(crate) fn is_taken(&self, event_id: &str, sequence: Option<i64>) -> PyResult<bool> {
-        Ok(self.is_realized(event_id, sequence)? || self.is_pending(event_id)?)
-    }
 }
 
 // ---- For tests and benchmarks/rule_shadow ---------------------------------------------------------

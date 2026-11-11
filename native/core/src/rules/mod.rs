@@ -64,3 +64,4 @@ pub mod handlers;
 pub mod effects;
 
 // ---- P8e: proposals ----------------------------------------------------------------------------
+pub mod proposals;

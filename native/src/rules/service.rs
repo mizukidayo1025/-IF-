@@ -19,7 +19,7 @@ use pyo3::types::{PyBool, PyDict, PyList, PyString, PyTuple};
 
 use sheltersim_core::config::population::AccessibilityNeeds;
 use sheltersim_core::config::service::ResourceService;
-use sheltersim_core::rules::kit::{self, Held, Kept};
+use sheltersim_core::rules::kit::{Held, Kept};
 use sheltersim_core::rules::resources::Applied;
 use sheltersim_core::rules::service::{self as core, Failure, Manager, Minute, Pending, Request, Requested, Serve, Served};
 
@@ -28,14 +28,13 @@ use crate::core::configs;
 use crate::core::errors::{self, to_py_err, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, str_value, unsupported, PyField};
 use crate::core::value::{VPy, V};
-use crate::core::world_core::{field_held, field_mirror_of, namespace_held, raw_dict_get, with_world, NamespaceMirror, PyWorldCell};
+use crate::core::world_core::{field_held, namespace_held, raw_dict_get, with_world, PyWorldCell};
 use crate::host::PyHost;
 use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::rules::queues::Walking;
 use crate::rules::resources::{raised, replace_resources};
 use crate::rules::social_network::mapping_get;
 use crate::state::events::{write_error, EventRef, EventRow, EventRowPy, EventWriter};
-use crate::state::metric_state::MetricRow;
 use crate::state::resource_service::{RequestRecord, Stall};
 use crate::Unsupported;
 
@@ -497,18 +496,6 @@ fn interrupt_with<'py>(inputs: &Inputs<'py>, staff_id: &Bound<'py, PyAny>, causa
 }
 
 // ---- Helpers for the rules still in this crate ----------------------------------------------------
-
-/// `metric_state[name] = metric_state.get(name, 0.0) + 1.0`, on the row and the tree
-/// (`sheltersim_core::rules::kit::add_one`).
-pub(crate) fn add_one(metrics: &Bound<'_, NamespaceMirror>, name: &str) -> PyResult<()> {
-    NamespaceMirror::with_row_tree::<MetricRow, _>(metrics, |row, tree| kit::add_one(row, tree, name))
-}
-
-pub(crate) fn metrics_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, NamespaceMirror>> {
-    let metrics = field_mirror_of(world, intern!(world.py(), "metric_state"))?;
-    NamespaceMirror::with_row::<MetricRow, _>(&metrics, |_| Ok(()))?;
-    Ok(metrics)
-}
 
 /// `record_request_outcome`: the record at the end of the service's `request_history`, on the row
 /// (an attached tree follows it).

@@ -8,6 +8,8 @@ pinned on every OS as the gate's hashes are.
 
 from __future__ import annotations
 
+import copy
+import json
 from types import SimpleNamespace
 from typing import Any
 
@@ -20,13 +22,16 @@ from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.world import WorldState
 from sheltersim.domain import movement
 from sheltersim.domain.agent_dynamics import learn_facility
-from sheltersim.domain.models import Activity, SupportRequestStatus
+from sheltersim.domain.information import INFORMATION_SPREAD_STATE_KEY as INFORMATION
+from sheltersim.domain.information import create_information_runtime_state
+from sheltersim.domain.models import Activity, InformationSpreadConfig, SupportRequestStatus
 from sheltersim.domain.movement import MOVEMENT_STATE_KEY as KEY
 from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _MetricSink
 from sheltersim.policies.behavior import ActionKind
+from sheltersim.policies.information import InformationSpreadPolicy
 from sheltersim.policies.space import ZoneRoute
 
 SEEKS = (ActionKind.SEEK_HELP, ActionKind.SEEK_INFORMATION)
@@ -301,6 +306,60 @@ def test_a_person_in_a_cooldown_is_turned_down_in_the_last_minute_too(
     assert target is None
     assert committed is False
     assert world.metric_state["support_request_rejected_count"] == 1.0
+
+
+# ---- The information model's record of a request ------------------------------------------------
+
+
+def _heard(message: str, belief: str) -> dict[str, Any]:
+    return {
+        "message_id": message,
+        "belief": belief,
+        "source": "SRC",
+        "last_contact": 0,
+        "last_event_id": f"event-{message}",
+        "exposed": True,
+        "belief_strength": 0.5,
+        "share_propensity": 0.5,
+        "correction_exposed": False,
+        "correction_accepted": False,
+        "ever_misbelieved": False,
+        "ever_forgotten": False,
+        "last_correction_accepted": False,
+    }
+
+
+def test_a_request_records_the_heard_claims_on_the_tree_as_the_python_rule_does(
+    generated_scenario: Any,
+) -> None:
+    """The core writes the record on the row of `information_spread_v1` (lane P8 e1, #152): the
+    attached tree follows it, the same objects with the Python rule's values and key order."""
+    world = WorldState.from_scenario(generated_scenario)
+    state = create_information_runtime_state(set(world.agents))
+    for message, belief in (("m2", "heard"), ("m3", "believed"), ("m1", "heard")):
+        state["beliefs"]["A001"][message] = _heard(message, belief)
+    state["query_pressure"]["A001"] = 0.75
+    world.model_state[INFORMATION] = state
+    tree = world.model_state[INFORMATION]
+    expected = copy.deepcopy(tree)
+    controller = _controller(world)
+    controller.information_policy = InformationSpreadPolicy(InformationSpreadConfig(enabled=True))
+    target, _, committed = native.rules("proposals").apply_effect(
+        controller, _proposal(ActionKind.SEEK_INFORMATION, "A001", world)
+    )
+    assert committed is True
+    InformationSpreadPolicy(InformationSpreadConfig(enabled=True)).record_support_request(
+        expected, agent_id="A001", request_id=target, minute=world.minute_index
+    )
+    assert world.model_state[INFORMATION] is tree
+    assert json.dumps(tree) == json.dumps(expected)
+    assert tree["support_requests"][-1]["message_ids"] == ["m1", "m2"]
+    # Someone with no heard claim: nothing changes.
+    before = json.dumps(tree)
+    native.rules("proposals").apply_effect(
+        controller, _proposal(ActionKind.SEEK_INFORMATION, "A002", world)
+    )
+    assert json.dumps(tree) == before
 
 
 # ---- Having arrived ------------------------------------------------------------------------------

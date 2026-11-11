@@ -141,11 +141,6 @@ fn capture_context<'py>(world: &Bound<'py, PyAny>, participant_ids: &Bound<'py, 
     context.to_py(world.py())
 }
 
-/// `capture_context` of two different people as the value of an event's payload.
-pub(crate) fn context_value(world: &Bound<'_, PyAny>, first: &str, second: &str) -> PyResult<V> {
-    with_world(world, |cell| rules::context_value(cell, first, second))?.or_py()
-}
-
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_context, m)?)?;
     m.add_function(wrap_pyfunction!(capture_context, m)?)?;
