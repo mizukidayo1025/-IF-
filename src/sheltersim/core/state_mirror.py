@@ -1380,17 +1380,167 @@ def model_state_assigned(world: Any, value: Any) -> Any:
     return value
 
 
+# ---- A copy of a world (lane 6-6 of Issue #152) -------------------------------------------------
+
+
 def deepcopy_world(world: Any, memo: dict[int, Any]) -> Any:
-    """deepcopy(world): the state is copied as plain containers, and owned again by a new core."""
+    """deepcopy(world): a new world holding what the world holds, in the same order.
+
+    A world whose state its core holds is forked (design-p5-p6.md §7): the new core shares every
+    part of the state with the world's until either writes it (WorldCore.fork, World::fork in
+    native/core/src/world.rs); the entities are new objects made from their rows, in the order of
+    the maps; each tree of a key of model_state and of an owned field is made from its row; and a
+    namespace its row alone holds stays so, with no tree. What no row holds (a tainted value, a
+    value stored past the tree, a namespace of DETACHED_NAMESPACES that has its tree now) is
+    copied as plain containers and owned again, as before, and so is every other attribute (the
+    event queue and the EventLog share their frozen events and records). A world its core does
+    not all hold (a tainted entity store, a map stored past IdMap, an open transaction), or whose
+    parts the memo holds already, is copied the old way: every attribute as plain containers,
+    owned again by a new core. Both ways give the same state, order and types; a support request
+    has no _write_listener of the world's tick check, which is not state.
+    """
+    state = world.__dict__
+    core = state.get("_core")
+    forked = None if core is None else _fork_core(world, core, memo)
     result = object.__new__(type(world))
     memo[id(world)] = result
-    state = result.__dict__
-    for key, value in world.__dict__.items():
-        if key != "_core":
-            state[key] = copy.deepcopy(value, memo)
-    if "_core" in world.__dict__:
-        start_core(result)
+    copied = result.__dict__
+    if forked is None:
+        for key, value in state.items():
+            if key != "_core":
+                copied[key] = copy.deepcopy(value, memo)
+        if core is not None:
+            start_core(result)
+        return result
+    new_core, maps = forked
+    for key, value in state.items():
+        if key == "_core":
+            continue
+        if key in ENTITY_FIELDS:
+            new = maps[key]
+            memo[id(value)] = new
+            for old_entity, new_entity in zip(dict.values(value), dict.values(new), strict=True):
+                memo[id(old_entity)] = new_entity
+            copied[key] = new
+        elif key == "model_state":
+            copied[key] = _forked_table(value, new_core, memo)
+        elif key in OWNED_FIELDS:
+            copied[key] = _forked_field(core, new_core, key, value, memo)
+        else:
+            copied[key] = copy.deepcopy(value, memo)
+    # As start_core reads them: a scalar written past WorldState.__setattr__ is the copy's too.
+    for name in SCALAR_FIELDS:
+        new_core.set_scalar(name, copied.get(name))
+    copied["_core"] = new_core
     return result
+
+
+def _fork_core(world: Any, core: Any, memo: dict[int, Any]) -> Any:
+    """core.fork(world) for a world whose model_state and owned fields its core follows, or None."""
+    state = world.__dict__
+    table = state.get("model_state")
+    if not isinstance(table, NamespaceTable) or table._core is not core:
+        return None
+    if any(core.mirror(name) is None for name in OWNED_FIELDS):
+        return None
+    # A caller's memo that holds a part already wants that part shared: the old way does that.
+    for name in (*ENTITY_FIELDS, "model_state", *OWNED_FIELDS):
+        if id(state.get(name)) in memo:
+            return None
+    return core.fork(world)
+
+
+def _forked_table(table: NamespaceTable, core: Any, memo: dict[int, Any]) -> NamespaceTable:
+    """model_state of a fork whose core is core: the same keys in the same order."""
+    new = NamespaceTable()
+    new._core = core
+    new._mirrors = {key: core.mirror(key) for key in table._mirrors}
+    memo[id(table)] = new
+    for key, held in dict.items(table):
+        mirror = new._mirrors.get(key)
+        if held is _DETACHED:
+            # The row alone holds it, in the slot the fork shares.
+            dict.__setitem__(new, key, _DETACHED)
+            continue
+        old = table._mirrors.get(key)
+        if (
+            mirror is not None
+            and key not in DETACHED_NAMESPACES
+            and old.has_row
+            and old.holds(held)
+        ):
+            root = mirror.root_from_row()
+            memo[id(held)] = root
+            dict.__setitem__(new, key, root)
+            continue
+        # As the old copy stores it (_fill_table): a namespace of DETACHED_NAMESPACES that has its
+        # tree now is detached again, and what no row holds is owned again from a plain copy.
+        value = copy.deepcopy(held, memo)
+        if mirror is None:
+            mirror = _value_mirror(new, key)
+        if mirror is None:
+            dict.__setitem__(new, key, value)
+        else:
+            _store_owned(new, key, mirror, value)
+    _settle(new)
+    return new
+
+
+def _forked_field(core: Any, new_core: Any, name: str, value: Any, memo: dict[int, Any]) -> Any:
+    """An owned field of a fork: a tree from its row, or what _attach_fields stores."""
+    mirror = new_core.mirror(name)
+    old = core.mirror(name)
+    if old.has_row and old.holds(value):
+        root = mirror.root_from_row()
+        memo[id(value)] = root
+        return root
+    copied = copy.deepcopy(value, memo)
+    if isinstance(copied, dict):
+        return mirror.replace_root(copied)
+    mirror.clear_root()
+    return copied
+
+
+def canonical_copy(world: Any, kind: str) -> Any:
+    """A copy of the world in canonical order, for a preview that changes it and drops it.
+
+    "full" stands for WorldState.from_dict(world.to_dict()), and "effect" for the copy of
+    copy_through_json(world, "effect"), which holds the world's own EventLog: the same state in
+    the same order (design-p5-p6.md §6). It is a fork of the world (deepcopy_world) that a
+    transaction puts in canonical order and commits at once, so it is validated as those copies
+    are: as it is, with its error as it is, and in canonical order, with its error wrapped as
+    from_dict wraps it. The world itself is not reordered. A world a transaction refuses
+    (native.Unsupported) is copied through canonical JSON as before.
+    """
+    if kind not in ("full", "effect"):
+        raise ValueError(f"unknown kind of transaction {kind!r}")
+    if "_core" in world.__dict__:
+        candidate = copy.deepcopy(world)
+        core = candidate.__dict__["_core"]
+        try:
+            core.begin_transaction(candidate, kind)
+        except native.Unsupported:
+            pass
+        else:
+            core.commit_transaction(candidate)
+            if kind == "effect":
+                candidate.event_log = world.event_log
+            return candidate
+    return copy_through_json(world, kind)
+
+
+def copy_through_json(world: Any, kind: str) -> Any:
+    """The copy through canonical JSON that canonical_copy stands for.
+
+    "full" is WorldState.from_dict(world.to_dict()); "effect" is _effect_candidate of
+    events/effects.py, which holds the world's own EventLog. Both validate the world first, with
+    its error as it is, and the copy with its full history, wrapped as from_dict wraps it.
+    """
+    if kind == "full":
+        return type(world).from_dict(world.to_dict())
+    from sheltersim.events.effects import _effect_candidate
+
+    return _effect_candidate(world)
 
 
 # ---- Transactions (lane 6-2 of Issue #152, policy E5) --------------------------------------------
