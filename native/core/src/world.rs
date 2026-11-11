@@ -17,13 +17,18 @@
 //! A kernel of the core reads the world through the typed accessors of `World` (`rows`, `row`,
 //! `metric_state`, `configs`, the scalars), each a shared borrow of its part. Who holds the world
 //! hands it over as `&mut World` (`WorldCell::with`, the PyO3 crate's `with_world`), lane 5-4.
+//!
+//! The parts of the state (the scalars, the entities, each slot) are `CowShard`s (lane 6-2): a
+//! `Snapshot` keeps their `Arc`s, a write copies a part a snapshot shares, and `restore` gives the
+//! snapshot back. A transaction (`txn.rs`) takes one, then puts the world in the order a copy
+//! through canonical JSON gives it (`canonicalize`).
 
 use std::sync::Arc;
 
 use indexmap::IndexMap;
 use rustc_hash::FxBuildHasher;
 
-use crate::cell::{Shard, ShardMut, ShardRef};
+use crate::cell::{CowShard, Shard, ShardMut, ShardRef};
 use crate::config::{Configs, Derived};
 use crate::entities::Entities;
 use crate::error::{Error, Result};
@@ -36,14 +41,48 @@ use crate::value::V;
 #[derive(Default)]
 pub struct World {
     /// `scenario_id`, `seed`, `duration_minutes`, `minute_index` and `schema_version`.
-    pub scalars: Shard<Scalars>,
+    pub scalars: CowShard<Scalars>,
     /// The rows of the entities (`world.agents` and the others, `world.zones`, `world.zone_edges`).
-    pub entities: Shard<Entities>,
+    pub entities: CowShard<Entities>,
     /// The owned world fields (`metric_state`, `model_configs`, `resources`, `id_counters`) and the
     /// keys of `model_state`.
     pub slots: Slots,
     /// Not state: what is derived from it, by stamp (`config::Derived`).
     pub derived: Shard<Derived>,
+    /// Not state: a transaction is open on the world (`txn::Txn`), which does not nest (rule R8).
+    pub(crate) txn_open: bool,
+}
+
+/// The state parts of a world at one moment (lane 6-2): the scalars, the entities and every slot,
+/// each the `Arc` its `CowShard` held. Taking it copies nothing; the next write to a part copies
+/// that part. The event queue and the log join in lane 6-5 (until then the PyO3 crate's stores
+/// keep theirs: a copy of the queue and an `EventLog::mark`).
+pub struct Snapshot {
+    scalars: Arc<Scalars>,
+    entities: Arc<Entities>,
+    /// By slot index: the slots registered after the snapshot are not here.
+    slots: Vec<Arc<Slot>>,
+}
+
+impl Snapshot {
+    /// How many slots the world had.
+    pub fn slot_count(&self) -> usize {
+        self.slots.len()
+    }
+
+    /// A slot as it was.
+    pub fn slot(&self, index: usize) -> Option<&Slot> {
+        self.slots.get(index).map(|slot| &**slot)
+    }
+
+    /// The entities as they were.
+    pub fn entities(&self) -> &Entities {
+        &self.entities
+    }
+
+    pub fn scalars(&self) -> &Scalars {
+        &self.scalars
+    }
 }
 
 // ---- Who holds the world ------------------------------------------------------------------
@@ -197,6 +236,54 @@ pub fn set_id_counter(counters: &mut ValueRow, name: &str, value: i64) -> Result
 }
 
 impl World {
+    /// The state parts now (`Snapshot`), for the one who holds the whole world.
+    pub fn snapshot(&mut self) -> Snapshot {
+        Snapshot {
+            scalars: self.scalars.share_mut(),
+            entities: self.entities.share_mut(),
+            slots: self.slots.by_name.values_mut().map(CowShard::share_mut).collect(),
+        }
+    }
+
+    /// Give a snapshot back: every part as it was then. A slot registered since has no state
+    /// again (a key of `model_state` first stored after the snapshot), as a deleted key has. The
+    /// rows of the entities are all marked changed, since the document bytes the PyO3 crate keeps
+    /// by slot may be of rows written since.
+    pub fn restore(&mut self, snapshot: Snapshot) {
+        self.scalars.put(snapshot.scalars);
+        self.entities.put(snapshot.entities);
+        self.entities.get_mut().mark_all_changed();
+        let count = snapshot.slots.len();
+        for (slot, old) in self.slots.by_name.values_mut().zip(snapshot.slots) {
+            slot.put(old);
+        }
+        for slot in self.slots.by_name.values_mut().skip(count) {
+            let place = slot.get_mut().place;
+            *slot.get_mut() = Slot::new(place);
+        }
+    }
+
+    /// Put the world in the order `WorldState.from_dict(world.to_dict())` gives it (design §1.3
+    /// F1, lane 6-2): each table of entities by the entity's ID (`Entities::canonicalize`), the
+    /// keys of every map of every row sorted (`Row::canonicalize`). Every slot gets a new stamp,
+    /// as every namespace of a new world has one; the scalars are as they were. The PyO3 crate
+    /// makes its Python containers in the same order (the views of the rows).
+    pub fn canonicalize(&mut self) {
+        self.entities.get_mut().canonicalize();
+        for slot in self.slots.by_name.values_mut() {
+            let slot = slot.get_mut();
+            if let Some(row) = slot.row.as_deref_mut() {
+                row.canonicalize();
+            }
+            slot.touch();
+        }
+    }
+
+    /// Whether a transaction is open on the world (`txn::Txn`).
+    pub fn in_transaction(&self) -> bool {
+        self.txn_open
+    }
+
     /// The scalars, borrowed shared: for a shim that holds the world shared.
     pub fn scalars(&self) -> Result<ShardRef<'_, Scalars>> {
         self.scalars.try_borrow()
@@ -329,6 +416,20 @@ pub struct Slot {
     pub counts: SlotCounts,
 }
 
+/// A copy of the row too (`Row::clone_row`), for a snapshot's copy on write.
+impl Clone for Slot {
+    fn clone(&self) -> Self {
+        Self {
+            place: self.place,
+            row: self.row.as_ref().map(|row| row.clone_row()),
+            taint: self.taint.clone(),
+            detached: self.detached,
+            generation: self.generation,
+            counts: self.counts,
+        }
+    }
+}
+
 impl Slot {
     pub fn new(place: Place) -> Self {
         Self { place, row: None, taint: None, detached: false, generation: Stamp::next(), counts: SlotCounts::default() }
@@ -365,7 +466,7 @@ impl Slot {
 /// The order of `model_state` is the Python table's, not this.
 #[derive(Default)]
 pub struct Slots {
-    by_name: IndexMap<Arc<str>, Shard<Slot>, FxBuildHasher>,
+    by_name: IndexMap<Arc<str>, CowShard<Slot>, FxBuildHasher>,
 }
 
 impl Slots {
@@ -374,7 +475,7 @@ impl Slots {
         if self.by_name.contains_key(&name) {
             return Err(Error::Value(format!("{name} is owned already")));
         }
-        let (index, _) = self.by_name.insert_full(name, Shard::new(Slot::new(place)));
+        let (index, _) = self.by_name.insert_full(name, CowShard::new(Slot::new(place)));
         Ok(index)
     }
 
@@ -396,17 +497,17 @@ impl Slots {
     }
 
     #[inline]
-    pub fn at(&self, index: usize) -> Option<&Shard<Slot>> {
+    pub fn at(&self, index: usize) -> Option<&CowShard<Slot>> {
         self.by_name.get_index(index).map(|(_, slot)| slot)
     }
 
     #[inline]
-    pub fn get(&self, name: &str) -> Option<&Shard<Slot>> {
+    pub fn get(&self, name: &str) -> Option<&CowShard<Slot>> {
         self.by_name.get(name)
     }
 
     #[track_caller]
-    fn owned(&self, name: &str) -> Result<&Shard<Slot>> {
+    fn owned(&self, name: &str) -> Result<&CowShard<Slot>> {
         self.by_name.get(name).ok_or_else(|| Error::unsupported("the namespace is not owned"))
     }
 

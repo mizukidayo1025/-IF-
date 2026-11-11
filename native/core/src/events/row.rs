@@ -83,6 +83,13 @@ impl EventRow {
     }
 
     /// The canonical JSON of `event.to_dict()`.
+    /// The keys of the payload and the provenance sorted, as an event read back from canonical
+    /// JSON has them (`ScheduledEvent(**json.loads(...))`, lane 6-2).
+    pub fn canonicalize(&mut self) {
+        self.payload.canonicalize();
+        self.provenance.canonicalize();
+    }
+
     pub fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         let name = |encoder: &mut Encoder, text: &str| {
             encoder.out.push(b',');

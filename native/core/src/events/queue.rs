@@ -184,6 +184,38 @@ impl Queue {
         self.ordered[..end].iter().map(|(_, serial)| self.slots[serial].event_id.clone()).collect()
     }
 
+    /// The queue `EventQueue([...pending...])` makes of the pending events, as
+    /// `WorldState.from_dict(world.to_dict())` does (design §1.3 F1, F3; lane 6-2): scheduled in
+    /// queue order, each under a new serial past every serial given before (so a due snapshot
+    /// taken earlier finds every event changed), with the keys of its payload and provenance
+    /// sorted. A slot keeps its row, if it has one. Returns each old serial with its new one, in
+    /// the new order, for the owner of the objects.
+    pub fn canonicalize(&mut self) -> Vec<(u64, u64)> {
+        let old = std::mem::take(&mut self.slots);
+        let order = std::mem::take(&mut self.ordered);
+        self.insertion.clear();
+        self.by_id.clear();
+        let mut moved = Vec::with_capacity(order.len());
+        let mut slots = HashMap::with_capacity(old.len());
+        let mut old = old;
+        for (key, serial) in order {
+            let mut slot = old.remove(&serial).expect("an ordered serial has a slot");
+            if let Some(row) = &mut slot.row {
+                Arc::make_mut(row).canonicalize();
+            }
+            let new = self.next_serial;
+            self.next_serial += 1;
+            self.by_id.entry(slot.event_id.clone()).or_insert(new);
+            self.insertion.push(new);
+            self.ordered.push((key, new));
+            slots.insert(new, slot);
+            moved.push((serial, new));
+        }
+        self.slots = slots;
+        self.generation += 1;
+        moved
+    }
+
     /// 0, or 1 for a repeated ID, 2 for a repeated sequence.
     pub fn validate(&self) -> u8 {
         if !self.maybe_repeated {

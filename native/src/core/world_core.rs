@@ -34,7 +34,7 @@ use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 use pyo3::PyTraverseError;
-use sheltersim_core::cell::{Shard, ShardMut, BORROWED};
+use sheltersim_core::cell::{CowShard, Shard, ShardMut, BORROWED};
 use sheltersim_core::stamp::Stamp;
 use sheltersim_core::error::Error as CoreError;
 use sheltersim_core::world::{Place, Slot, World, WorldCell};
@@ -1794,7 +1794,7 @@ impl WorldCore {
     }
 
     #[inline]
-    fn slot(&self, index: usize) -> PyResult<&Shard<Slot>> {
+    fn slot(&self, index: usize) -> PyResult<&CowShard<Slot>> {
         self.world.slots.at(index).ok_or_else(|| PyRuntimeError::new_err("a mirror's slot is not in its core"))
     }
 

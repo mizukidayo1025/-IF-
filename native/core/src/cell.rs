@@ -8,12 +8,17 @@
 //!
 //! PyO3 0.23 requires every `#[pyclass]` to be `Sync`, so the flag is atomic, as in
 //! `atomic_refcell`. All the borrows happen under the GIL, so the flag is never contended.
+//!
+//! `CowShard<T>` is the same cell over an `Arc<T>`: a part of the world's state (lane 6-2). A
+//! snapshot (`share`) keeps the `Arc`; the next mutable borrow copies the value first if a snapshot
+//! still holds it (`Arc::make_mut`), so the snapshot stays as it was. `put` gives a snapshot back.
 
 use std::cell::UnsafeCell;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicIsize, Ordering};
+use std::sync::Arc;
 
 use crate::error::{Error, Result};
 
@@ -85,6 +90,105 @@ impl<T> Shard<T> {
     /// Whether any borrow is alive now.
     pub fn is_borrowed(&self) -> bool {
         self.flag.load(Ordering::Relaxed) != 0
+    }
+}
+
+/// A `Shard` whose value is copied on write while a snapshot holds it (design-p5-p6.md §2, lane 6-2).
+/// The borrows are those of `Shard`: two of the same part are `Error::Runtime(BORROWED)`.
+pub struct CowShard<T> {
+    /// 0: free; n > 0: n shared borrows; `WRITING`: one mutable borrow.
+    flag: AtomicIsize,
+    value: UnsafeCell<Arc<T>>,
+}
+
+// SAFETY: as for `Shard`. The `Arc` is replaced only by `put` (`&mut self`) or under the mutable
+// borrow (`make_mut`), when no other borrow can be reading the value.
+unsafe impl<T: Send + Sync> Sync for CowShard<T> {}
+
+impl<T: Default> Default for CowShard<T> {
+    fn default() -> Self {
+        Self::new(T::default())
+    }
+}
+
+impl<T> CowShard<T> {
+    pub fn new(value: T) -> Self {
+        Self { flag: AtomicIsize::new(0), value: UnsafeCell::new(Arc::new(value)) }
+    }
+
+    /// A shared borrow, or `Error::Runtime(BORROWED)` while the part is borrowed mutably.
+    #[inline]
+    pub fn try_borrow(&self) -> Result<ShardRef<'_, T>> {
+        let mut current = self.flag.load(Ordering::Relaxed);
+        loop {
+            if current < 0 || current == isize::MAX {
+                return Err(borrowed());
+            }
+            match self.flag.compare_exchange_weak(current, current + 1, Ordering::Acquire, Ordering::Relaxed) {
+                Ok(_) => break,
+                Err(found) => current = found,
+            }
+        }
+        // SAFETY: the flag now counts this borrow, so the `Arc` is not replaced until it is
+        // released, and its value is never written while it is shared.
+        let value = unsafe { NonNull::from(&**self.value.get()) };
+        Ok(ShardRef { flag: &self.flag, value, _borrow: PhantomData })
+    }
+
+    /// The `Arc` now, for a snapshot; `Error::Runtime(BORROWED)` while the part is borrowed
+    /// mutably. The next write copies the value first.
+    pub fn share(&self) -> Result<Arc<T>> {
+        let held = self.try_borrow()?;
+        // SAFETY: the shared borrow keeps the `Arc` in place while it is cloned.
+        let shared = unsafe { (*self.value.get()).clone() };
+        drop(held);
+        Ok(shared)
+    }
+
+    /// `share`, for the one who holds the whole: no guard can be alive.
+    pub fn share_mut(&mut self) -> Arc<T> {
+        self.value.get_mut().clone()
+    }
+
+    /// Give back a snapshot: the value is the one `share` took.
+    pub fn put(&mut self, value: Arc<T>) {
+        *self.value.get_mut() = value;
+    }
+
+    /// Whether any borrow is alive now.
+    pub fn is_borrowed(&self) -> bool {
+        self.flag.load(Ordering::Relaxed) != 0
+    }
+
+    /// Whether a snapshot shares the value now, so that a write would copy it.
+    pub fn is_shared(&mut self) -> bool {
+        Arc::strong_count(self.value.get_mut()) > 1
+    }
+}
+
+impl<T: Clone> CowShard<T> {
+    /// The value, for the one who holds the whole: no guard can be alive. Copied first if a
+    /// snapshot shares it.
+    #[inline]
+    pub fn get_mut(&mut self) -> &mut T {
+        Arc::make_mut(self.value.get_mut())
+    }
+
+    pub fn into_inner(self) -> T {
+        Arc::unwrap_or_clone(self.value.into_inner())
+    }
+
+    /// A mutable borrow, or `Error::Runtime(BORROWED)` while the part is borrowed at all. Copies
+    /// the value first if a snapshot shares it.
+    #[inline]
+    pub fn try_borrow_mut(&self) -> Result<ShardMut<'_, T>> {
+        if self.flag.compare_exchange(0, WRITING, Ordering::Acquire, Ordering::Relaxed).is_err() {
+            return Err(borrowed());
+        }
+        // SAFETY: the flag says this is the only borrow until it is released, so nothing reads the
+        // `Arc` while `make_mut` may replace it.
+        let value = unsafe { NonNull::from(Arc::make_mut(&mut *self.value.get())) };
+        Ok(ShardMut { flag: &self.flag, value, _borrow: PhantomData })
     }
 }
 
