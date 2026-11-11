@@ -282,12 +282,13 @@ Checkpoint document) and times them.
   documents). The core's kernels write the row alone, and an attached tree follows it (lane P8-0c).
 - `src/rules/population.rs`: the glue of `core/src/rules/population.rs` (`domain/population.py`,
   each `kernel_only`): it reads what Python holds, puts a new `population_dynamics_v1` into
-  `model_state`, and settles the events a departure cancels. Its last section holds the helpers
-  `src/rules/population_lifecycle.rs` still reads through Python (lane c7).
-- `src/rules/population_lifecycle.rs`: the rules of `domain/population_lifecycle.py`, each
-  `kernel_only`. A kernel plans, refuses before its first write what the Python rule raised on,
-  then writes with the rule's operations on the tracked containers, which forward them to the
-  rows (`docs/rust-port/lanes/m6-population-rules.md`).
+  `model_state`, and settles the events a departure cancels.
+- `src/rules/population_lifecycle.rs`: the glue of `core/src/rules/population_lifecycle.rs`
+  (`domain/population_lifecycle.py`, each `kernel_only`; lane c7): it reads what Python holds and
+  the EventLog's records of a command's program, parses the command with its contract, runs the
+  command in the transaction of lane 6-3 (`RuleTxn`) with the world's validation through the
+  native host, and validates a world from its Python values (policy E6). The core archives and
+  restores a person as values and rows; a restored person is a new row at the end of `agents`.
 - `src/core/row.rs`: typed rows. The core's `state_row!` (`core/src/row.rs`) writes a record's
   struct, `write_json` and mirrored setters from its list of fields, and any `Field` is a `Row`;
   a setter writes the tree through `TreeSink`, which `Tree` implements. Here, `py_row!` writes
@@ -435,7 +436,7 @@ are correctly rounded everywhere, and not `**` with a float.
   guard is recorded with the Python rule's text), then goes on as an unmarked one; a marked event of
   a type with a Rust function, a patched handler and any other event a Rust function refused calls
   `controller._dispatch_one_event` (docs/rust-port/lanes/l8-texts-saved.md). Unsupported only before the first change. `rules/travel_completion.rs`
-  is the walk's handler, with `_after_arrival`'s kernel, and `rules/toilet.rs`, `rules/support.rs` and
+  is the walk's handler, the glue of `core/src/rules/travel_completion.rs` (lane c7), with `_after_arrival`'s kernel, and `rules/toilet.rs`, `rules/support.rs` and
   `rules/care_receipts.rs` the toilet's service, the support requests and the care receipts
   (`docs/rust-port/lanes/m6-handlers.md`). No borrow is held
   across a Python call. What follows the events is the kernels', called directly; a refusal there
