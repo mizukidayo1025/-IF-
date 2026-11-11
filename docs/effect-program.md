@@ -26,7 +26,7 @@ zone_environment_v1は任意設定で、既存Zoneに限定されます。編集
 
 validate_effect_program(world, program)は、対象、parameter model、単位、導入済みPolicy、時刻、効果数、queue上限、guard対象、使用中設備、effect間の競合を変更なしで検証します。
 
-schedule_effect_program(world, program)は事前検証を再度行い、分離した候補WorldStateを作成します。開始・期限eventを追加し、水停止用stateを更新して候補全体を検証した後に一括commitします。不正effectがあれば元stateは変わりません。BranchRuntime.apply_effect_programも同じ操作を行い、program hashと予定event IDをBranch command historyに記録します。
+schedule_effect_program(world, program)は事前検証を再度行い、世界をトランザクション（`state_mirror.transaction(world, "effect")`）で開きます。開始・期限eventを追加し、水停止用stateを更新して世界全体を検証した後に一括commitします。不正effectがあれば取り消し、元stateは変わりません。世界の中核がトランザクションを持てないとき（`Unsupported`）は、以前と同じく分離した候補WorldStateを作って差し替えます（`state_mirror.transaction_or_copy`）。BranchRuntime.apply_effect_programも同じ操作を行い、program hashと予定event IDをBranch command historyに記録します。
 
 ## 承認済みCheckpointからのBranch
 
