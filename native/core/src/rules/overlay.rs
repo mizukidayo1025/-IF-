@@ -1,44 +1,53 @@
 //! `domain/temporary_spaces.py` and `domain/geometry_overlay.py`: capacity added during a Run, beds
 //! and intake in a physical temporary room, the floor-plan point of a facility installed during a
-//! Run, and the approved changes of the floor plan.
+//! Run, and the approved changes of the floor plan (lane c4 of Issue #152).
 //!
-//! Each call plans with nothing changed and then writes through the namespace's tree, whose writes
-//! reach the rows. Anything but a plain success says Unsupported before any write: the Python rule
-//! then runs from the start and raises its own text (docs/rust-port/lanes/m6-overlay.md). A rule
-//! whose Python body is gone (`kernel_only`: all but `reserve_sleep_bed` and the checks of the
-//! states) raises the texts its callers save or show itself, and says Unsupported, a `KernelRefusal`
-//! in Python, only for an input outside its contract. The
-//! pydantic contracts of the parameters stay Python's: a rule calls `model_validate` where its
-//! Python rule does.
+//! The rules are functions on the `World`. `temporary_spaces_v1` and `geometry_overlay_v1` are
+//! `ValueRow` namespaces: a rule reads and writes their rows alone, and an attached tree follows the
+//! row when the PyO3 crate gives the world back (lane P8-0c). A transfer writes the facility's
+//! `zone_id` and a route-access change the edge's `closed` on the entity rows, which the Python
+//! objects follow (lane 6-1).
+//!
+//! What only Python has comes as an input, read by the PyO3 crate before the world is borrowed:
+//! whether `model_state` holds each namespace (`kit::Held`), the sections of the configs
+//! (`kit::Kept`), and the floor plan (`Geo`). A plan the PyO3 crate could not read is None here, and
+//! a rule that reads it says `PLAN_UNREAD`, for the PyO3 crate to raise what the read raised, at the
+//! point the rule read the plan before. The pydantic contracts of a change's parameters (policy E15)
+//! go through `Host::contract`, which gives back `model_dump(mode="json")`: a check reads that, and
+//! the change writes it.
+//!
+//! A rule raises the texts its callers save or show (a `ValueError`), and says Unsupported, a
+//! `KernelRefusal` in Python, only for an input outside its contract (a state of another shape).
 
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::sync::{Arc, Mutex};
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use indexmap::IndexMap;
-use pyo3::intern;
-use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDict, PyList, PySlice, PyString, PyTuple};
 use sha2::{Digest, Sha256};
 
-use crate::core::configs;
-use crate::core::errors;
-use crate::core::mathx::{hypot, math_error, pow, py_max, py_min, py_round, py_sum};
-use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, unsupported};
-use crate::core::tracked::is_detached;
-use crate::core::value::{V, VPy};
-use crate::core::world_core::{attached_state, mirror_of, raw_dict_get, state_value, with_state_value, NamespaceMirror};
-use crate::rules::movement::{mirror_held, mobility_text, point_object, room_minutes, KEY as MOVEMENT_KEY};
-use crate::rules::movement_geometry::{
+use crate::cell::ShardRef;
+use crate::config::movement::Movement;
+use crate::config::service::ResourceService;
+use crate::entities::{Activity, Entities};
+use crate::error::{Error, Result};
+use crate::events::EventRow;
+use crate::geometry::{
     is_identifier, point_in_polygon, point_in_value, point_segment_distance, point_walkable, points_in_value, polyline_length,
-    segment_clear_of_polygon, segment_inside_polygon, usable, Constraints, Geo, GeoPy, Layout, Pt,
+    segment_clear_of_polygon, segment_inside_polygon, usable, Constraints, Geo, Layout, Pt,
 };
-use crate::state::entities::{entities_of, EntityStore};
-use crate::state::events::{EventRow, EventRowPy};
+use crate::host::{Contract, Host};
+use crate::mathx::{hypot, pow, py_max, py_min, py_round, py_sum};
+use crate::row::ValueRow;
+use crate::rules::kit::movement::{self as walking, KEY as MOVEMENT_KEY};
+use crate::rules::kit::{self, Held, Kept};
 use crate::state::movement::MovementRow;
-use crate::Unsupported;
+use crate::state::staff_operations::{StaffOperationsRow, NAME as STAFF_OPERATIONS};
+use crate::text::py_repr;
+use crate::value::V;
+use crate::world::{World, WorldCell};
 
-pub(crate) const OVERLAY_KEY: &str = "geometry_overlay_v1";
-const SPACES_KEY: &str = "temporary_spaces_v1";
+pub const OVERLAY_KEY: &str = "geometry_overlay_v1";
+pub const SPACES_KEY: &str = "temporary_spaces_v1";
 const MAX_SPACES: usize = 256;
 const MAX_SPACE_HISTORY: usize = 20_000;
 const MAX_OVERLAY_HISTORY: usize = 20_000;
@@ -59,118 +68,113 @@ const ADMISSION_RADIUS: f64 = 0.5;
 /// How near a moved facility may stand to a wall.
 const WALL_CLEARANCE: f64 = 0.5;
 
+/// What a rule says where it reads a floor plan the PyO3 crate could not read (`Geo::of` raised):
+/// the PyO3 crate raises that error instead.
+pub const PLAN_UNREAD: &str = "the floor plan could not be read";
+
+/// The text of a room admission that no longer lets a person in.
+const NOT_AVAILABLE: &str = "temporary room admission is no longer available";
+
 type Doc = IndexMap<Arc<str>, V>;
-
-// ---- What ran and what was refused --------------------------------------------------------------
-
-static RAN: Mutex<BTreeMap<&'static str, u64>> = Mutex::new(BTreeMap::new());
-static REFUSALS: Mutex<BTreeMap<String, u64>> = Mutex::new(BTreeMap::new());
-
-fn counted<T>(py: Python<'_>, label: &'static str, result: PyResult<T>) -> PyResult<T> {
-    match &result {
-        Ok(_) => {
-            if let Ok(mut ran) = RAN.lock() {
-                *ran.entry(label).or_insert(0) += 1;
-            }
-        }
-        Err(error) if error.is_instance_of::<Unsupported>(py) => {
-            if let Ok(mut refusals) = REFUSALS.lock() {
-                *refusals.entry(format!("{label}: {}", error.value(py))).or_insert(0) += 1;
-            }
-        }
-        Err(_) => {}
-    }
-    result
-}
-
-#[pyfunction]
-fn stats<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyDict>, Bound<'py, PyDict>)> {
-    let counts = PyDict::new(py);
-    if let Ok(ran) = RAN.lock() {
-        for (label, times) in ran.iter() {
-            counts.set_item(*label, *times)?;
-        }
-    }
-    let reasons = PyDict::new(py);
-    if let Ok(refusals) = REFUSALS.lock() {
-        for (reason, times) in refusals.iter() {
-            reasons.set_item(reason, *times)?;
-        }
-    }
-    Ok((counts, reasons))
-}
 
 // ---- Reading ---------------------------------------------------------------------------------------
 
-fn table_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    let table = attribute(world, intern!(world.py(), "model_state"))?;
-    exact_dict(&table)?;
-    Ok(table)
+#[track_caller]
+fn refuse<T>(reason: &'static str) -> Result<T> {
+    Err(Error::unsupported(reason))
 }
 
-/// `world.model_state.get(name)`, the tree's node; a detached namespace's is rebuilt.
-fn state_of<'py>(world: &Bound<'py, PyAny>, name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
-    let table = table_of(world)?;
-    attached_state(&table, name)
+/// `raise ValueError(text)` of the rules.
+#[track_caller]
+fn invalid<T>(text: &str) -> Result<T> {
+    Err(Error::value_error(text))
 }
 
-/// `world.model_state.get(name)` as it is held: the placeholder for a detached namespace.
-fn held_of<'py>(world: &Bound<'py, PyAny>, name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
-    let table = table_of(world)?;
-    exact_dict(&table)?.get_item(name)
+/// The plan the PyO3 crate read, or `PLAN_UNREAD`.
+#[track_caller]
+fn plan(geo: Option<&Geo>) -> Result<&Geo> {
+    geo.ok_or_else(|| Error::unsupported(PLAN_UNREAD))
 }
 
-/// A node of a dict, read as Python's `node[name]`.
-fn child<'py>(node: &Bound<'py, PyAny>, name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
-    exact_dict(node)?.get_item(name)
+/// The row of a namespace the world holds (`kit::held_row`).
+fn state_of<'w>(world: &'w World, name: &str, held: &Held) -> Result<Option<ShardRef<'w, ValueRow>>> {
+    kit::held_row::<ValueRow>(world, name, held)
 }
 
-fn required<'py>(node: &Bound<'py, PyAny>, name: &str) -> PyResult<Bound<'py, PyAny>> {
-    child(node, name)?.ok_or_else(|| Unsupported::new_err("the state has no such field"))
+/// A node of a dict, read as Python's `node[name]`, the node being a plain dict.
+fn child<'a>(node: &'a V, name: &str) -> Result<Option<&'a V>> {
+    match node {
+        V::Map(map) => Ok(map.get(name)),
+        _ => refuse("a value is not a plain dict"),
+    }
+}
+
+fn required<'a>(node: &'a V, name: &str) -> Result<&'a V> {
+    child(node, name)?.ok_or_else(|| Error::unsupported("the state has no such field"))
+}
+
+fn required_mut<'a>(node: &'a mut V, name: &str) -> Result<&'a mut V> {
+    match node {
+        V::Map(map) => map.get_mut(name).ok_or_else(|| Error::unsupported("the state has no such field")),
+        _ => refuse("a value is not a plain dict"),
+    }
 }
 
 /// `state.get(name, {})` as a value.
-fn part(state: &Bound<'_, PyAny>, name: &str) -> PyResult<V> {
-    Ok(match child(state, name)? {
-        Some(value) => V::from_py(&value)?,
-        None => V::Map(IndexMap::new()),
-    })
+fn part(state: &V, name: &str) -> Result<V> {
+    Ok(child(state, name)?.cloned().unwrap_or_else(|| V::Map(IndexMap::new())))
 }
 
-fn map_of(value: &V) -> PyResult<&Doc> {
+fn map_of(value: &V) -> Result<&Doc> {
     match value {
         V::Map(map) => Ok(map),
-        _ => unsupported("a value is not a dict"),
+        _ => refuse("a value is not a dict"),
     }
 }
 
-fn list_of(value: &V) -> PyResult<&[V]> {
+/// A part of the state that the rule writes, as a plain dict.
+fn dict_mut(value: &mut V) -> Result<&mut Doc> {
+    match value {
+        V::Map(map) => Ok(map),
+        _ => refuse("a value is not a plain dict"),
+    }
+}
+
+fn list_of(value: &V) -> Result<&[V]> {
     match value {
         V::List(items) => Ok(items),
-        _ => unsupported("a value is not a list"),
+        _ => refuse("a value is not a list"),
     }
 }
 
-fn int_of(map: &Doc, key: &str) -> PyResult<i64> {
+/// A history the rule appends to, as a plain list.
+fn list_mut(value: &mut V) -> Result<&mut Vec<V>> {
+    match value {
+        V::List(items) => Ok(items),
+        _ => refuse("a value is not a plain list"),
+    }
+}
+
+fn int_of(map: &Doc, key: &str) -> Result<i64> {
     match map.get(key) {
         Some(V::Int(number)) => Ok(*number),
-        _ => unsupported("a value is not a plain int"),
+        _ => refuse("a value is not a plain int"),
     }
 }
 
-fn str_of<'a>(map: &'a Doc, key: &str) -> PyResult<&'a Arc<str>> {
+fn str_of<'a>(map: &'a Doc, key: &str) -> Result<&'a Arc<str>> {
     match map.get(key) {
         Some(V::Str(text)) => Ok(text),
-        _ => unsupported("a value is not a str"),
+        _ => refuse("a value is not a str"),
     }
 }
 
-/// `row.get(key)` as a truth: a bool or nothing. Other values go to Python.
-fn flag_of(map: &Doc, key: &str) -> PyResult<bool> {
+/// `row.get(key)` as a truth: a bool or nothing. Other values are refused.
+fn flag_of(map: &Doc, key: &str) -> Result<bool> {
     match map.get(key) {
         Some(V::Bool(flag)) => Ok(*flag),
         Some(V::Null) | None => Ok(false),
-        _ => unsupported("a flag is not a bool"),
+        _ => refuse("a flag is not a bool"),
     }
 }
 
@@ -179,55 +183,44 @@ fn has_exactly(map: &Doc, names: &[&str]) -> bool {
 }
 
 /// `tuple(Point2D.model_validate(point) for point in value)`, for a polygon a rule then tests.
-fn polygon_of(value: Option<&V>) -> PyResult<Vec<Pt>> {
+fn polygon_of(value: Option<&V>) -> Result<Vec<Pt>> {
     let Some(value) = value else {
-        return unsupported("no polygon");
+        return refuse("no polygon");
     };
     let polygon = points_in_value(value)?;
     if polygon.is_empty() {
-        return unsupported("a polygon has no corners");
+        return refuse("a polygon has no corners");
     }
     Ok(polygon)
 }
 
-fn square(value: f64) -> PyResult<f64> {
-    Ok(pow(value, 2.0).map_err(math_error)?)
+fn square(value: f64) -> Result<f64> {
+    Ok(pow(value, 2.0)?)
 }
 
 /// `(x - a) ** 2 + (y - b) ** 2`.
-fn squared_distance(first: Pt, second: Pt) -> PyResult<f64> {
+fn squared_distance(first: Pt, second: Pt) -> Result<f64> {
     Ok(square(first.x - second.x)? + square(first.y - second.y)?)
 }
 
-fn dict_of<'py>(py: Python<'py>, items: &[(&str, Bound<'py, PyAny>)]) -> PyResult<Bound<'py, PyAny>> {
-    let dict = PyDict::new(py);
-    for (key, value) in items {
-        dict.set_item(*key, value)?;
-    }
-    Ok(dict.into_any())
+fn text(value: &str) -> V {
+    V::Str(Arc::from(value))
 }
 
-fn py_str<'py>(py: Python<'py>, text: &str) -> Bound<'py, PyAny> {
-    PyString::new(py, text).into_any()
+fn doc<const N: usize>(items: [(&str, V); N]) -> V {
+    V::Map(items.into_iter().map(|(key, value)| (Arc::from(key), value)).collect())
 }
 
-fn py_int<'py>(py: Python<'py>, number: i64) -> PyResult<Bound<'py, PyAny>> {
-    Ok(number.into_pyobject(py)?.into_any())
+fn point_doc(point: Pt) -> V {
+    doc([("x", V::Float(point.x)), ("y", V::Float(point.y))])
 }
 
-fn py_flag<'py>(py: Python<'py>, flag: bool) -> Bound<'py, PyAny> {
-    PyBool::new(py, flag).to_owned().into_any()
+fn id_list<'a>(ids: impl IntoIterator<Item = &'a str>) -> V {
+    V::List(ids.into_iter().map(text).collect())
 }
 
-fn point_dict<'py>(py: Python<'py>, point: Pt) -> PyResult<Bound<'py, PyAny>> {
-    let dict = PyDict::new(py);
-    dict.set_item(intern!(py, "x"), point.x)?;
-    dict.set_item(intern!(py, "y"), point.y)?;
-    Ok(dict.into_any())
-}
-
-fn hex_of(text: &str) -> String {
-    let digest = Sha256::digest(text.as_bytes());
+fn hex_of(value: &str) -> String {
+    let digest = Sha256::digest(value.as_bytes());
     let mut out = String::with_capacity(24);
     for byte in digest.iter().take(12) {
         out.push_str(&format!("{byte:02x}"));
@@ -236,7 +229,7 @@ fn hex_of(text: &str) -> String {
 }
 
 /// `_bed_target_id`.
-fn bed_target_id(room_id: &str, bed_index: i64) -> String {
+pub fn bed_target_id(room_id: &str, bed_index: i64) -> String {
     format!("bed-{}", hex_of(&format!("{room_id}:{bed_index}")))
 }
 
@@ -248,239 +241,305 @@ fn sorted_set<'a>(values: impl IntoIterator<Item = &'a str>) -> Vec<&'a str> {
     out
 }
 
-/// `del history[:-limit]`.
-fn trim_history(history: &Bound<'_, PyAny>, limit: usize) -> PyResult<()> {
-    let py = history.py();
-    let count = history.len()?;
-    if count > limit {
-        history.del_item(PySlice::new(py, 0, (count - limit) as isize, 1))?;
+/// `history.append(entry)` and `del history[:-limit]`.
+fn append_bounded(history: &mut Vec<V>, entry: V, limit: usize) {
+    history.push(entry);
+    if history.len() > limit {
+        let extra = history.len() - limit;
+        history.drain(..extra);
     }
-    Ok(())
+}
+
+/// The zones and the zone edges, which a rule reads as `world.zones` and `world.zone_edges`.
+fn zone_rows(world: &World) -> Result<ShardRef<'_, Entities>> {
+    let rows = world.entities.try_borrow()?;
+    if rows.zones_tainted().is_some() {
+        return refuse("the zones are tainted");
+    }
+    Ok(rows)
+}
+
+/// The row of `movement_v1` where the world holds it.
+fn movement_of<'w>(world: &'w World, held: &Held) -> Result<Option<ShardRef<'w, MovementRow>>> {
+    kit::held_row::<MovementRow>(world, MOVEMENT_KEY, held)
+}
+
+fn position_of(movement: Option<&MovementRow>, agent_id: &str) -> Result<Option<Pt>> {
+    let Some(row) = movement else {
+        return Ok(None);
+    };
+    let Some(point) = row.positions.get(agent_id).and_then(|position| position.point) else {
+        return Ok(None);
+    };
+    if !usable(point.x, point.y) {
+        return refuse("a position is not a usable point");
+    }
+    Ok(Some(Pt { x: point.x, y: point.y }))
+}
+
+/// `config.get("schema_version")` of the overlay's config (`config::overlay::overlay_schema`).
+#[track_caller]
+fn schema_of(schema: &Kept<Option<i64>>) -> Result<Option<i64>> {
+    Ok(*kit::kept(schema)?)
 }
 
 // ---- domain/temporary_spaces.py -----------------------------------------------------------------
 
-/// `register_temporary_space`, on a dict the caller made.
-pub(crate) fn register_space(world: &Bound<'_, PyAny>, record: &Bound<'_, PyAny>, event_id: &str) -> PyResult<()> {
-    let py = world.py();
-    let Some(state) = state_of(world, SPACES_KEY)? else {
-        return Err(errors::value_error("temporary_spaces_v1 is not installed"));
+/// `register_temporary_space`, of a record the caller made.
+pub fn register_space(world: &World, held: &Held, record: V, event_id: &str) -> Result<()> {
+    let Some(state) = state_of(world, SPACES_KEY, held)? else {
+        return invalid("temporary_spaces_v1 is not installed");
     };
-    let fields = exact_dict(record)?;
-    let Some(space_id) = fields.get_item(intern!(py, "space_id"))? else {
-        return unsupported("the record has no space_id");
+    let V::Map(fields) = &record else {
+        return refuse("a value is not a plain dict");
     };
-    let space_text = exact_str(&space_id)?;
-    let Some(zone_id) = fields.get_item(intern!(py, "zone_id"))? else {
-        return unsupported("the record has no zone_id");
+    let Some(space_id) = fields.get("space_id") else {
+        return refuse("the record has no space_id");
     };
-    let spaces = required(&state, "spaces")?;
-    let history = required(&state, "history")?;
-    if exact_dict(&spaces)?.contains(space_text)? {
-        return Err(errors::value_error("temporary space ID already exists"));
+    let space_text = kit::exact_str(space_id)?.clone();
+    let Some(zone_id) = fields.get("zone_id") else {
+        return refuse("the record has no zone_id");
+    };
+    let (space_value, zone_value) = (space_id.clone(), zone_id.clone());
+    {
+        let spaces = required(&state.0, "spaces")?;
+        let history = required(&state.0, "history")?;
+        let V::Map(spaces) = spaces else {
+            return refuse("a value is not a plain dict");
+        };
+        if spaces.contains_key(&*space_text) {
+            return invalid("temporary space ID already exists");
+        }
+        if spaces.len() >= MAX_SPACES {
+            return invalid("temporary space runtime limit reached");
+        }
+        if !matches!(history, V::List(_)) {
+            return refuse("a value is not a plain list");
+        }
     }
-    if spaces.len()? >= MAX_SPACES {
-        return Err(errors::value_error("temporary space runtime limit reached"));
-    }
-    let minute = attribute(world, intern!(py, "minute_index"))?;
-    let entry = dict_of(
-        py,
-        &[
-            ("event_id", py_str(py, event_id)),
-            ("space_id", space_id.clone()),
-            ("zone_id", zone_id),
-            ("minute", minute),
-            ("transition", py_str(py, "activated")),
-            ("causation_id", py.None().into_bound(py)),
-        ],
-    )?;
-    spaces.set_item(&space_id, record)?;
-    history.call_method1(intern!(py, "append"), (entry,))?;
-    trim_history(&history, MAX_SPACE_HISTORY)
+    drop(state);
+    let minute = world.minute_index()?;
+    let entry = doc([
+        ("event_id", text(event_id)),
+        ("space_id", space_value),
+        ("zone_id", zone_value),
+        ("minute", V::Int(minute)),
+        ("transition", text("activated")),
+        ("causation_id", V::Null),
+    ]);
+    let mut row = world.row_mut::<ValueRow>(SPACES_KEY)?;
+    dict_mut(required_mut(&mut row.0, "spaces")?)?.insert(space_text, record);
+    append_bounded(list_mut(required_mut(&mut row.0, "history")?)?, entry, MAX_SPACE_HISTORY);
+    Ok(())
 }
 
-/// `expire_temporary_space`.
-pub(crate) fn expire_space(world: &Bound<'_, PyAny>, space_id: &str, event_id: &str, causation_id: Option<&str>) -> PyResult<bool> {
-    let py = world.py();
-    let Some(state) = state_of(world, SPACES_KEY)? else {
-        return Err(errors::value_error("temporary_spaces_v1 is not installed"));
+/// `expire_temporary_space`: whether the space was active.
+pub fn expire_space(world: &World, held: &Held, space_id: &str, event_id: &str, causation_id: Option<&str>) -> Result<bool> {
+    let Some(state) = state_of(world, SPACES_KEY, held)? else {
+        return invalid("temporary_spaces_v1 is not installed");
     };
-    let spaces = required(&state, "spaces")?;
-    let Some(record) = child(&spaces, space_id)? else {
+    let spaces = required(&state.0, "spaces")?;
+    let Some(record) = child(spaces, space_id)? else {
         return Ok(false);
     };
-    let active = required(&record, "active")?;
-    if !active.downcast_exact::<PyBool>().map_err(|_| Unsupported::new_err("not a bool"))?.is_true() {
+    let V::Bool(active) = required(record, "active")? else {
+        return refuse("not a bool");
+    };
+    if !active {
         return Ok(false);
     }
-    let held_id = required(&record, "space_id")?;
-    let zone_id = required(&record, "zone_id")?;
-    let history = required(&state, "history")?;
-    let minute = attribute(world, intern!(py, "minute_index"))?;
-    let entry = dict_of(
-        py,
-        &[
-            ("event_id", py_str(py, event_id)),
-            ("space_id", held_id),
-            ("zone_id", zone_id),
-            ("minute", minute),
-            ("transition", py_str(py, "expired")),
-            ("causation_id", causation_id.map_or_else(|| py.None().into_bound(py), |id| py_str(py, id))),
-        ],
-    )?;
-    record.set_item(intern!(py, "active"), false)?;
-    record.set_item(intern!(py, "end_event_id"), event_id)?;
-    history.call_method1(intern!(py, "append"), (entry,))?;
-    trim_history(&history, MAX_SPACE_HISTORY)?;
+    let held_id = required(record, "space_id")?.clone();
+    let zone_id = required(record, "zone_id")?.clone();
+    if !matches!(required(&state.0, "history")?, V::List(_)) {
+        return refuse("a value is not a plain list");
+    }
+    drop(state);
+    let minute = world.minute_index()?;
+    let entry = doc([
+        ("event_id", text(event_id)),
+        ("space_id", held_id),
+        ("zone_id", zone_id),
+        ("minute", V::Int(minute)),
+        ("transition", text("expired")),
+        ("causation_id", causation_id.map_or(V::Null, text)),
+    ]);
+    let mut row = world.row_mut::<ValueRow>(SPACES_KEY)?;
+    let record = dict_mut(required_mut(&mut row.0, "spaces")?)?.get_mut(space_id).ok_or_else(|| Error::unsupported("the space is gone"))?;
+    let record = dict_mut(record)?;
+    record.insert(Arc::from("active"), V::Bool(false));
+    record.insert(Arc::from("end_event_id"), text(event_id));
+    append_bounded(list_mut(required_mut(&mut row.0, "history")?)?, entry, MAX_SPACE_HISTORY);
     Ok(true)
 }
 
-#[pyfunction]
-#[pyo3(signature = (world, record, *, event_id))]
-fn register_temporary_space(world: &Bound<'_, PyAny>, record: &Bound<'_, PyAny>, event_id: &Bound<'_, PyAny>) -> PyResult<()> {
-    counted(world.py(), "register_temporary_space", register_space(world, record, exact_str(event_id)?))
-}
-
-#[pyfunction]
-#[pyo3(signature = (world, space_id, *, event_id, causation_id))]
-fn expire_temporary_space(
-    world: &Bound<'_, PyAny>,
-    space_id: &Bound<'_, PyAny>,
-    event_id: &Bound<'_, PyAny>,
-    causation_id: &Bound<'_, PyAny>,
-) -> PyResult<bool> {
-    let cause = if causation_id.is_none() { None } else { Some(exact_str(causation_id)?) };
-    counted(world.py(), "expire_temporary_space", expire_space(world, exact_str(space_id)?, exact_str(event_id)?, cause))
-}
-
 /// `validate_temporary_spaces_state`: true only for what the Python rule passes.
-#[pyfunction]
-fn validate_spaces(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let py = world.py();
-    let result = (|| {
-        let Some(state) = held_of(world, SPACES_KEY)? else {
-            return Ok(true);
-        };
-        let zones = attribute(world, intern!(py, "zones"))?;
-        let zones = exact_dict(&zones)?;
-        if is_detached(&state) {
-            // The row alone holds it; the checks read no Python code.
-            return NamespaceMirror::with_value(&mirror_of(world, SPACES_KEY)?, |state| spaces_pass(state, zones));
-        }
-        spaces_pass(&V::from_py(&state)?, zones)
-    })();
-    counted(py, "validate_spaces", result)
+pub fn validate_spaces(world: &World, held: &Held) -> Result<bool> {
+    let Some(state) = state_of(world, SPACES_KEY, held)? else {
+        return Ok(true);
+    };
+    let rows = zone_rows(world)?;
+    spaces_pass(&state.0, &rows)
 }
 
 /// The rules of `validate_temporary_spaces_state` on the namespace as a `V`.
-fn spaces_pass(state: &V, zones: &Bound<'_, PyDict>) -> PyResult<bool> {
+fn spaces_pass(state: &V, rows: &Entities) -> Result<bool> {
+    let state = map_of(state)?;
+    let (Some(V::Map(spaces)), Some(V::List(history))) = (state.get("spaces"), state.get("history")) else {
+        return refuse("the state has another shape");
+    };
+    if !has_exactly(state, &["schema_version", "policy_version", "spaces", "history"])
+        || state.get("schema_version") != Some(&V::Int(1))
+        || str_of(state, "policy_version")?.as_ref() != POLICY_SPACES
+        || spaces.len() > MAX_SPACES
+        || history.len() > MAX_SPACE_HISTORY
     {
-        let state = map_of(state)?;
-        let (Some(V::Map(spaces)), Some(V::List(history))) = (state.get("spaces"), state.get("history")) else {
-            return unsupported("the state has another shape");
-        };
-        if !has_exactly(state, &["schema_version", "policy_version", "spaces", "history"])
-            || state.get("schema_version") != Some(&V::Int(1))
-            || str_of(state, "policy_version")?.as_ref() != POLICY_SPACES
-            || spaces.len() > MAX_SPACES
-            || history.len() > MAX_SPACE_HISTORY
-        {
-            return unsupported("the state has another shape");
-        }
-        for (space_id, row) in spaces {
-            let row = map_of(row)?;
-            let names = [
-                "space_id", "zone_id", "people_capacity", "sleeping_capacity", "start_minute", "end_minute", "active",
-                "start_event_id", "end_event_id", "program_id", "effect_id", "source_ids", "geometry_status",
-            ];
-            if !has_exactly(row, &names) || str_of(row, "space_id")? != space_id || !zones.contains(&**str_of(row, "zone_id")?)? {
-                return unsupported("a space has another shape");
-            }
-            let people = int_of(row, "people_capacity")?;
-            let sleeping = int_of(row, "sleeping_capacity")?;
-            let (start, end) = (int_of(row, "start_minute")?, int_of(row, "end_minute")?);
-            let Some(V::Bool(active)) = row.get("active") else {
-                return unsupported("a space has another shape");
-            };
-            let ended = match row.get("end_event_id") {
-                Some(V::Null) => false,
-                Some(V::Str(id)) => !id.is_empty(),
-                _ => return unsupported("a space's end event is another value"),
-            };
-            if !(1..=1000).contains(&people)
-                || !(0..=people).contains(&sleeping)
-                || start < 0
-                || end <= start
-                || str_of(row, "start_event_id")?.is_empty()
-                || (*active && ended)
-                || (*active && row.get("end_event_id") != Some(&V::Null))
-                || (!*active && !ended)
-            {
-                return unsupported("a space's values are not what the Python rule passes");
-            }
-            str_of(row, "program_id")?;
-            str_of(row, "effect_id")?;
-            if !list_of(row.get("source_ids").unwrap_or(&V::Null))?.iter().all(|item| matches!(item, V::Str(id) if !id.is_empty())) {
-                return unsupported("a space's source is another value");
-            }
-            if str_of(row, "geometry_status")?.as_ref() != "zone_only_capacity" {
-                return unsupported("a space's status is another value");
-            }
-        }
-        for row in history {
-            let row = map_of(row)?;
-            if !has_exactly(row, &["event_id", "space_id", "zone_id", "minute", "transition", "causation_id"]) {
-                return unsupported("a history record has another shape");
-            }
-            str_of(row, "event_id")?;
-            str_of(row, "space_id")?;
-            int_of(row, "minute")?;
-            if !zones.contains(&**str_of(row, "zone_id")?)?
-                || !matches!(&**str_of(row, "transition")?, "activated" | "expired")
-                || !matches!(row.get("causation_id"), Some(V::Null | V::Str(_)))
-            {
-                return unsupported("a history record has another value");
-            }
-        }
-        Ok(true)
+        return refuse("the state has another shape");
     }
+    for (space_id, row) in spaces {
+        let row = map_of(row)?;
+        let names = [
+            "space_id", "zone_id", "people_capacity", "sleeping_capacity", "start_minute", "end_minute", "active",
+            "start_event_id", "end_event_id", "program_id", "effect_id", "source_ids", "geometry_status",
+        ];
+        if !has_exactly(row, &names) || str_of(row, "space_id")? != space_id || !rows.zones.contains_key(str_of(row, "zone_id")?) {
+            return refuse("a space has another shape");
+        }
+        let people = int_of(row, "people_capacity")?;
+        let sleeping = int_of(row, "sleeping_capacity")?;
+        let (start, end) = (int_of(row, "start_minute")?, int_of(row, "end_minute")?);
+        let Some(V::Bool(active)) = row.get("active") else {
+            return refuse("a space has another shape");
+        };
+        let ended = match row.get("end_event_id") {
+            Some(V::Null) => false,
+            Some(V::Str(id)) => !id.is_empty(),
+            _ => return refuse("a space's end event is another value"),
+        };
+        if !(1..=1000).contains(&people)
+            || !(0..=people).contains(&sleeping)
+            || start < 0
+            || end <= start
+            || str_of(row, "start_event_id")?.is_empty()
+            || (*active && ended)
+            || (*active && row.get("end_event_id") != Some(&V::Null))
+            || (!*active && !ended)
+        {
+            return refuse("a space's values are not what the Python rule passes");
+        }
+        str_of(row, "program_id")?;
+        str_of(row, "effect_id")?;
+        if !list_of(row.get("source_ids").unwrap_or(&V::Null))?.iter().all(|item| matches!(item, V::Str(id) if !id.is_empty())) {
+            return refuse("a space's source is another value");
+        }
+        if str_of(row, "geometry_status")?.as_ref() != "zone_only_capacity" {
+            return refuse("a space's status is another value");
+        }
+    }
+    for row in history {
+        let row = map_of(row)?;
+        if !has_exactly(row, &["event_id", "space_id", "zone_id", "minute", "transition", "causation_id"]) {
+            return refuse("a history record has another shape");
+        }
+        str_of(row, "event_id")?;
+        str_of(row, "space_id")?;
+        int_of(row, "minute")?;
+        if !rows.zones.contains_key(str_of(row, "zone_id")?)
+            || !matches!(&**str_of(row, "transition")?, "activated" | "expired")
+            || !matches!(row.get("causation_id"), Some(V::Null | V::Str(_)))
+        {
+            return refuse("a history record has another value");
+        }
+    }
+    Ok(true)
 }
 
-pub(crate) struct Capacity {
-    effective: i64,
-    pub(crate) active_people: i64,
-    pub(crate) expired_people: i64,
-    retained: i64,
-    sleeping: i64,
-    room_capacity: i64,
-    active_admissions: i64,
-    retained_rooms: i64,
+/// What `capacity_metrics` reads beside the world's rows: whether the world holds the two
+/// namespaces, and the overlay's schema.
+pub struct Places<'a> {
+    pub spaces: &'a Held,
+    pub overlay: &'a Held,
+    pub schema: &'a Kept<Option<i64>>,
 }
 
 /// `capacity_metrics` of a zone with a capacity.
-pub(crate) fn capacity_of(world: &Bound<'_, PyAny>, zone_id: &str, nominal: i64, occupancy: Option<i64>) -> PyResult<Capacity> {
-    let py = world.py();
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Capacity {
+    pub effective: i64,
+    pub active_people: i64,
+    pub expired_people: i64,
+    pub retained: i64,
+    pub sleeping: i64,
+    pub room_capacity: i64,
+    pub active_admissions: i64,
+    pub retained_rooms: i64,
+}
+
+impl Capacity {
+    /// `effective_total_capacity`: the effective capacity with the rooms.
+    pub fn total(&self) -> Result<i64> {
+        let total = self.effective.checked_add(self.room_capacity).and_then(|sum| sum.checked_add(self.retained_rooms));
+        total.ok_or_else(|| Error::unsupported("a capacity out of range"))
+    }
+}
+
+/// `capacity_metrics` of a zone with a capacity (`nominal`), for this many people in it, or as many
+/// as stand in it now.
+pub fn capacity(world: &World, places: &Places<'_>, zone_id: &str, nominal: i64, occupancy: Option<i64>) -> Result<Capacity> {
     let current = match occupancy {
         Some(occupancy) => occupancy,
-        None => {
-            let store = entities_of(world)?;
-            EntityStore::with_rows(&store, |rows| Ok(rows.agents.iter().filter(|(_, agent)| &*agent.zone_id == zone_id).count() as i64))?
-        }
+        None => world.rows()?.agents.iter().filter(|(_, agent)| &*agent.zone_id == zone_id).count() as i64,
     };
-    let add = |first: i64, second: i64| first.checked_add(second).ok_or_else(|| Unsupported::new_err("a capacity out of range"));
+    let spaces = state_of(world, SPACES_KEY, places.spaces)?;
+    let spaces = spaces.as_deref().map(|row| &row.0);
+    // The overlay is read after the spaces are counted and the schema is read, as the rule reads it.
+    let overlay = || state_of(world, OVERLAY_KEY, places.overlay);
+    capacity_in(spaces, overlay, places.schema, zone_id, nominal, current)
+}
+
+/// `capacity_metrics` of the values of the two namespaces (None where `model_state` has no such
+/// key), for `current` people in the zone: for a world the core does not hold (a save's world
+/// being validated, one whose `model_state` is another mapping), whose values the PyO3 crate reads.
+pub fn capacity_of_values(spaces: Option<&V>, overlay: Option<&V>, schema: &Kept<Option<i64>>, zone_id: &str, nominal: i64, current: i64) -> Result<Capacity> {
+    capacity_in(spaces, || Ok(overlay), schema, zone_id, nominal, current)
+}
+
+/// A namespace's value, borrowed from its row or given.
+trait Value {
+    fn value(&self) -> &V;
+}
+
+impl Value for &V {
+    fn value(&self) -> &V {
+        self
+    }
+}
+
+impl Value for ShardRef<'_, ValueRow> {
+    fn value(&self) -> &V {
+        &self.0
+    }
+}
+
+fn capacity_in<O: Value>(
+    spaces: Option<&V>,
+    overlay: impl FnOnce() -> Result<Option<O>>,
+    schema: &Kept<Option<i64>>,
+    zone_id: &str,
+    nominal: i64,
+    current: i64,
+) -> Result<Capacity> {
+    let add = |first: i64, second: i64| first.checked_add(second).ok_or_else(|| Error::unsupported("a capacity out of range"));
     let (mut active_people, mut expired_people, mut sleeping) = (0, 0, 0);
-    let table = table_of(world)?;
-    let table = exact_dict(&table)?;
-    let mut count = |row: &V| -> PyResult<()> {
+    let mut count = |row: &V| -> Result<()> {
         let row = map_of(row)?;
         if !matches!(row.get("zone_id"), Some(V::Str(zone)) if &**zone == zone_id) {
             if !matches!(row.get("zone_id"), Some(V::Str(_) | V::Null) | None) {
-                return unsupported("a space's zone is another value");
+                return refuse("a space's zone is another value");
             }
             return Ok(());
         }
         let Some(V::Bool(active)) = row.get("active") else {
-            return unsupported("a space's active is not a bool");
+            return refuse("a space's active is not a bool");
         };
         let people = int_of(row, "people_capacity")?;
         if *active {
@@ -491,51 +550,33 @@ pub(crate) fn capacity_of(world: &Bound<'_, PyAny>, zone_id: &str, nominal: i64,
         }
         Ok(())
     };
-    if let Some(state) = table.get_item(SPACES_KEY)? {
-        if is_detached(&state) {
-            // The row alone holds it.
-            NamespaceMirror::with_value(&mirror_of(world, SPACES_KEY)?, |state| {
-                let V::Map(fields) = state else {
-                    return unsupported("the spaces' state is not a plain dict");
-                };
-                if let Some(spaces) = fields.get("spaces") {
-                    let V::Map(spaces) = spaces else {
-                        return unsupported("a value is not a plain dict");
-                    };
-                    for row in spaces.values() {
-                        count(row)?;
-                    }
-                }
-                Ok(())
-            })?;
-        } else if let Some(fields) = crate::core::tracked::as_readable_dict(&state) {
-            if let Some(spaces) = fields.get_item(intern!(py, "spaces"))? {
-                for (_, row) in exact_dict(&spaces)?.iter() {
-                    count(&V::from_py(&row)?)?;
-                }
+    if let Some(state) = spaces {
+        let V::Map(fields) = state else {
+            return refuse("the spaces' state is not a plain dict");
+        };
+        if let Some(spaces) = fields.get("spaces") {
+            let V::Map(spaces) = spaces else {
+                return refuse("a value is not a plain dict");
+            };
+            for row in spaces.values() {
+                count(row)?;
             }
-        } else {
-            return unsupported("the spaces' state is not a plain dict");
         }
     }
     let beyond = current.checked_sub(nominal).and_then(|over| over.checked_sub(active_people));
-    let retained = expired_people.min(beyond.ok_or_else(|| Unsupported::new_err("a capacity out of range"))?.max(0));
+    let retained = expired_people.min(beyond.ok_or_else(|| Error::unsupported("a capacity out of range"))?.max(0));
     let effective = add(add(nominal, active_people)?, retained)?;
 
-    let rooms_count = matches!(overlay_schema(world)?, Some(3 | 4));
+    let rooms_count = matches!(schema_of(schema)?, Some(3 | 4));
     let (mut room_capacity, mut active_admissions, mut expired_capacity, mut expired_admissions) = (0, 0, 0, 0);
-    // The overlay is read as a `V`, a detached one from its row.
-    let empty = V::Map(IndexMap::new());
-    with_state_value(world, OVERLAY_KEY, |overlay| {
-        let Some(overlay) = overlay else {
-            return Ok(());
+    if let Some(overlay) = overlay()? {
+        let V::Map(overlay) = overlay.value() else {
+            return refuse("the overlay is not a plain dict");
         };
-        let V::Map(overlay) = overlay else {
-            return unsupported("the overlay is not a plain dict");
-        };
+        let empty = V::Map(IndexMap::new());
         let rooms = map_of(overlay.get("temporary_rooms").unwrap_or(&empty))?;
         if !rooms.is_empty() {
-            let counts = admission_counts(overlay.get("room_admissions").unwrap_or(&empty))?;
+            let counts = admission_counts(overlay.get("room_admissions").unwrap_or(&empty));
             let mut active_ids: HashSet<Arc<str>> = HashSet::new();
             for row in rooms.values() {
                 let V::Map(row) = row else {
@@ -560,8 +601,7 @@ pub(crate) fn capacity_of(world: &Bound<'_, PyAny>, zone_id: &str, nominal: i64,
                 }
             }
         }
-        Ok(())
-    })?;
+    }
     Ok(Capacity {
         effective,
         active_people,
@@ -574,171 +614,69 @@ pub(crate) fn capacity_of(world: &Bound<'_, PyAny>, zone_id: &str, nominal: i64,
     })
 }
 
-/// `zone.capacity`, the zone being one the world has.
-fn nominal_of(world: &Bound<'_, PyAny>, zone_id: &Bound<'_, PyAny>) -> PyResult<Option<i64>> {
-    let py = world.py();
-    let zones = attribute(world, intern!(py, "zones"))?;
-    let Some(zone) = raw_dict_get(&zones, zone_id)? else {
-        return unsupported("no such zone");
+/// `world.zones[zone_id].capacity`: Unsupported for a zone the world does not have.
+pub fn nominal_capacity(world: &World, zone_id: &str) -> Result<Option<i64>> {
+    let rows = zone_rows(world)?;
+    let Some(zone) = rows.zones.get(zone_id) else {
+        return refuse("no such zone");
     };
-    let capacity = attribute(&zone, intern!(py, "capacity"))?;
-    if capacity.is_none() {
-        return Ok(None);
-    }
-    Ok(Some(exact_int(&capacity)?))
+    Ok(zone.capacity)
 }
 
-fn occupancy_of(occupancy: Option<&Bound<'_, PyAny>>) -> PyResult<Option<i64>> {
-    match occupancy {
-        Some(value) if !value.is_none() => Ok(Some(exact_int(value)?)),
-        _ => Ok(None),
-    }
-}
-
-#[pyfunction]
-#[pyo3(name = "capacity_metrics", signature = (world, zone_id, *, occupancy=None))]
-fn capacity_metrics_kernel<'py>(world: &Bound<'py, PyAny>, zone_id: &Bound<'py, PyAny>, occupancy: Option<&Bound<'py, PyAny>>) -> PyResult<Bound<'py, PyDict>> {
-    let py = world.py();
-    let result = (|| {
-        let out = PyDict::new(py);
-        let Some(nominal) = nominal_of(world, zone_id)? else {
-            let none = py.None();
-            out.set_item(intern!(py, "nominal_capacity"), &none)?;
-            out.set_item(intern!(py, "effective_capacity"), &none)?;
-            out.set_item(intern!(py, "temporary_people_capacity"), 0)?;
-            out.set_item(intern!(py, "retained_expired_capacity"), 0)?;
-            out.set_item(intern!(py, "temporary_sleeping_capacity"), 0)?;
-            out.set_item(intern!(py, "physical_room_capacity"), 0)?;
-            out.set_item(intern!(py, "active_room_admissions"), 0)?;
-            out.set_item(intern!(py, "retained_expired_room_admissions"), 0)?;
-            out.set_item(intern!(py, "effective_total_capacity"), &none)?;
-            return Ok(out);
-        };
-        let found = capacity_of(world, exact_str(zone_id)?, nominal, occupancy_of(occupancy)?)?;
-        let total = found.effective.checked_add(found.room_capacity).and_then(|sum| sum.checked_add(found.retained_rooms));
-        out.set_item(intern!(py, "nominal_capacity"), nominal)?;
-        out.set_item(intern!(py, "effective_capacity"), found.effective)?;
-        out.set_item(intern!(py, "temporary_people_capacity"), found.active_people)?;
-        out.set_item(intern!(py, "retained_expired_capacity"), found.retained)?;
-        out.set_item(intern!(py, "temporary_sleeping_capacity"), found.sleeping)?;
-        out.set_item(intern!(py, "physical_room_capacity"), found.room_capacity)?;
-        out.set_item(intern!(py, "active_room_admissions"), found.active_admissions)?;
-        out.set_item(intern!(py, "retained_expired_room_admissions"), found.retained_rooms)?;
-        out.set_item(intern!(py, "effective_total_capacity"), total.ok_or_else(|| Unsupported::new_err("a capacity out of range"))?)?;
-        Ok(out)
-    })();
-    counted(py, "capacity_metrics", result)
-}
-
-#[pyfunction]
-#[pyo3(signature = (world, zone_id, *, occupancy=None))]
-fn effective_zone_capacity(world: &Bound<'_, PyAny>, zone_id: &Bound<'_, PyAny>, occupancy: Option<&Bound<'_, PyAny>>) -> PyResult<Option<i64>> {
-    let result = (|| {
-        let Some(nominal) = nominal_of(world, zone_id)? else {
-            return Ok(None);
-        };
-        Ok(Some(capacity_of(world, exact_str(zone_id)?, nominal, occupancy_of(occupancy)?)?.effective))
-    })();
-    counted(world.py(), "effective_zone_capacity", result)
-}
-
-#[pyfunction]
-#[pyo3(signature = (world, zone_id, *, occupancy=None))]
-fn effective_total_zone_capacity(world: &Bound<'_, PyAny>, zone_id: &Bound<'_, PyAny>, occupancy: Option<&Bound<'_, PyAny>>) -> PyResult<Option<i64>> {
-    let result = (|| {
-        let Some(nominal) = nominal_of(world, zone_id)? else {
-            return Ok(None);
-        };
-        let found = capacity_of(world, exact_str(zone_id)?, nominal, occupancy_of(occupancy)?)?;
-        let total = found.effective.checked_add(found.room_capacity).and_then(|sum| sum.checked_add(found.retained_rooms));
-        total.map(Some).ok_or_else(|| Unsupported::new_err("a capacity out of range"))
-    })();
-    counted(world.py(), "effective_total_zone_capacity", result)
-}
-
-/// `effective_total_zone_capacity(world, zone_id, occupancy=occupancy)` for a caller in Rust
-/// (`rules/after_tick.rs`), without the Python entry's count.
-pub(crate) fn total_zone_capacity(world: &Bound<'_, PyAny>, zone_id: &Bound<'_, PyAny>, occupancy: i64) -> PyResult<Option<i64>> {
-    let Some(nominal) = nominal_of(world, zone_id)? else {
+/// `capacity_metrics`' reads of a zone: its nominal capacity and what the spaces and rooms add, or
+/// None for a zone without a capacity.
+pub fn zone_capacity(world: &World, places: &Places<'_>, zone_id: &str, occupancy: Option<i64>) -> Result<Option<(i64, Capacity)>> {
+    let Some(nominal) = nominal_capacity(world, zone_id)? else {
         return Ok(None);
     };
-    let found = capacity_of(world, exact_str(zone_id)?, nominal, Some(occupancy))?;
-    let total = found.effective.checked_add(found.room_capacity).and_then(|sum| sum.checked_add(found.retained_rooms));
-    total.map(Some).ok_or_else(|| Unsupported::new_err("a capacity out of range"))
+    Ok(Some((nominal, capacity(world, places, zone_id, nominal, occupancy)?)))
 }
 
-/// `incoming_travelers`.
-#[pyfunction]
-#[pyo3(signature = (world, zone_id, *, excluding=None))]
-fn incoming_travelers(world: &Bound<'_, PyAny>, zone_id: &Bound<'_, PyAny>, excluding: Option<&Bound<'_, PyAny>>) -> PyResult<i64> {
-    let result = (|| {
-        let zone_id = exact_str(zone_id)?;
-        let excluding = match excluding {
-            Some(value) if !value.is_none() => Some(exact_str(value)?),
-            _ => None,
+/// `incoming_travelers`: the people moving to a facility of the zone, or to the zone itself.
+pub fn incoming_travelers(world: &World, zone_id: &str, excluding: Option<&str>) -> Result<i64> {
+    let rows = world.rows()?;
+    let mut count = 0;
+    for (agent_id, agent) in rows.agents.iter() {
+        if excluding == Some(&**agent_id) || agent.activity != Activity::Moving {
+            continue;
+        }
+        let Some(target) = &agent.target_id else {
+            continue;
         };
-        let store = entities_of(world)?;
-        EntityStore::with_rows(&store, |rows| {
-            let mut count = 0;
-            for (agent_id, agent) in rows.agents.iter() {
-                if excluding == Some(&**agent_id) || agent.activity != crate::state::entities::Activity::Moving {
-                    continue;
-                }
-                let Some(target) = &agent.target_id else {
-                    continue;
-                };
-                let place = rows.facilities.get(target).map_or(target, |facility| &facility.zone_id);
-                count += i64::from(&**place == zone_id);
-            }
-            Ok(count)
-        })
-    })();
-    counted(world.py(), "incoming_travelers", result)
+        let place = rows.facilities.get(target).map_or(target, |facility| &facility.zone_id);
+        count += i64::from(&**place == zone_id);
+    }
+    Ok(count)
 }
 
 // ---- Beds and intake ----------------------------------------------------------------------------
 
-/// `config.get("schema_version")` of the overlay's config, for a dict config: the section
-/// `overlay_schema` (`config::overlay`), kept for the stamp of `model_configs`; refused here.
-#[track_caller]
-pub(crate) fn overlay_schema(world: &Bound<'_, PyAny>) -> PyResult<Option<i64>> {
-    Ok(*configs::kept_value(world, |configs| &configs.overlay_schema, sheltersim_core::config::overlay::overlay_schema)?)
-}
-
-/// `release_sleep_bed`, for a rule in another file.
-pub(crate) fn release_bed(world: &Bound<'_, PyAny>, agent_id: &Bound<'_, PyAny>) -> PyResult<bool> {
-    release_sleep_bed(world, agent_id)
-}
-
-#[pyfunction]
-fn release_sleep_bed(world: &Bound<'_, PyAny>, agent_id: &Bound<'_, PyAny>) -> PyResult<bool> {
-    counted(world.py(), "release_sleep_bed", release_from(world, "bed_reservations", agent_id))
-}
-
-#[pyfunction]
-fn release_temporary_room_admission(world: &Bound<'_, PyAny>, agent_id: &Bound<'_, PyAny>) -> PyResult<bool> {
-    counted(world.py(), "release_temporary_room_admission", release_from(world, "room_admissions", agent_id))
-}
-
-/// `isinstance(part, dict) and part.pop(agent_id, None) is not None`, through the part's own method.
-fn release_from(world: &Bound<'_, PyAny>, name: &str, agent_id: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let py = world.py();
-    let Some(state) = state_of(world, OVERLAY_KEY)? else {
+/// `release_sleep_bed` (`part` "bed_reservations") and `release_temporary_room_admission`
+/// ("room_admissions"): whether the person held one. `agent_id` is None for an ID that is not a str.
+pub fn release(world: &World, overlay: &Held, part: &str, agent_id: Option<&str>) -> Result<bool> {
+    let Some(state) = state_of(world, OVERLAY_KEY, overlay)? else {
         return Ok(false);
     };
-    let Some(part) = child(&state, name)? else {
+    let Some(held) = child(&state.0, part)? else {
         return Ok(false);
     };
-    let held = exact_dict(&part)?;
-    exact_str(agent_id)?;
-    if !held.contains(agent_id)? {
+    let V::Map(held) = held else {
+        return refuse("a value is not a plain dict");
+    };
+    let Some(agent_id) = agent_id else {
+        return refuse("a value is not a str");
+    };
+    if !held.contains_key(agent_id) {
         return Ok(false);
     }
-    Ok(!part.call_method1(intern!(py, "pop"), (agent_id, py.None()))?.is_none())
+    drop(state);
+    let mut row = world.row_mut::<ValueRow>(OVERLAY_KEY)?;
+    let removed = dict_mut(required_mut(&mut row.0, part)?)?.shift_remove(agent_id);
+    Ok(removed.is_some_and(|value| value != V::Null))
 }
 
 /// `{room_id: count}` of the room admissions, as `available_temporary_room` and `capacity_metrics`.
-fn admission_counts(admissions: &V) -> PyResult<HashMap<Arc<str>, i64>> {
+fn admission_counts(admissions: &V) -> HashMap<Arc<str>, i64> {
     let mut counts = HashMap::new();
     if let V::Map(admissions) = admissions {
         for row in admissions.values() {
@@ -749,7 +687,7 @@ fn admission_counts(admissions: &V) -> PyResult<HashMap<Arc<str>, i64>> {
             }
         }
     }
-    Ok(counts)
+    counts
 }
 
 fn sorted_rooms(rooms: &Doc) -> Vec<(&Arc<str>, &V)> {
@@ -758,32 +696,12 @@ fn sorted_rooms(rooms: &Doc) -> Vec<(&Arc<str>, &V)> {
     sorted
 }
 
-/// `movement_v1`, if the world has one.
-fn movement_mirror<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, NamespaceMirror>>> {
-    if held_of(world, MOVEMENT_KEY)?.is_none() {
-        return Ok(None);
-    }
-    Ok(Some(mirror_held(world)?))
-}
-
-fn position_of(mirror: &Option<Bound<'_, NamespaceMirror>>, agent_id: &str) -> PyResult<Option<Pt>> {
-    let Some(mirror) = mirror else {
-        return Ok(None);
-    };
-    NamespaceMirror::with_row::<MovementRow, _>(mirror, |row| {
-        let Some(point) = row.positions.get(agent_id).and_then(|position| position.point) else {
-            return Ok(None);
-        };
-        if !usable(point.x, point.y) {
-            return unsupported("a position is not a usable point");
-        }
-        Ok(Some(Pt { x: point.x, y: point.y }))
-    })
-}
-
-/// `room_admission_point`.
-fn admission_point(world: &Bound<'_, PyAny>, state: &RoomParts, room_id: &str) -> PyResult<Option<Pt>> {
-    admission_point_after(world, state, room_id, &[])
+/// What the intake of a room reads beside the world's rows.
+pub struct Intake<'a> {
+    pub overlay: &'a Held,
+    pub movement: &'a Held,
+    pub schema: &'a Kept<Option<i64>>,
+    pub geo: Option<&'a Geo>,
 }
 
 /// `state.get("temporary_rooms", {})` and `state.get("room_admissions", {})` of the overlay, copied.
@@ -793,31 +711,25 @@ struct RoomParts {
 }
 
 impl RoomParts {
-    fn of_tree(state: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self { rooms: part(state, "temporary_rooms")?, admissions: part(state, "room_admissions")? })
-    }
-
-    /// Read from the overlay as a `V`, a detached one from its row. None for no overlay.
-    fn of_world(world: &Bound<'_, PyAny>) -> PyResult<Option<Self>> {
-        with_state_value(world, OVERLAY_KEY, |state| {
-            let Some(state) = state else {
-                return Ok(None);
-            };
-            let V::Map(state) = state else {
-                return unsupported("a value is not a plain dict");
-            };
-            let part = |name: &str| state.get(name).cloned().unwrap_or_else(|| V::Map(IndexMap::new()));
-            Ok(Some(Self { rooms: part("temporary_rooms"), admissions: part("room_admissions") }))
-        })
+    /// Of the overlay's row; None for no overlay.
+    fn of_world(world: &World, overlay: &Held) -> Result<Option<Self>> {
+        let Some(state) = state_of(world, OVERLAY_KEY, overlay)? else {
+            return Ok(None);
+        };
+        let V::Map(state) = &state.0 else {
+            return refuse("a value is not a plain dict");
+        };
+        let part = |name: &str| state.get(name).cloned().unwrap_or_else(|| V::Map(IndexMap::new()));
+        Ok(Some(Self { rooms: part("temporary_rooms"), admissions: part("room_admissions") }))
     }
 }
 
 /// `room_admission_point`, after the admissions a plan has given this far: `(room, point)`, the
 /// point being None in a world that keeps no positions.
-fn admission_point_after(world: &Bound<'_, PyAny>, state: &RoomParts, room_id: &str, planned: &[(Arc<str>, Option<Pt>)]) -> PyResult<Option<Pt>> {
+fn admission_point_after(world: &World, intake: &Intake<'_>, state: &RoomParts, room_id: &str, planned: &[(Arc<str>, Option<Pt>)]) -> Result<Option<Pt>> {
     let rooms = &state.rooms;
     let Some(V::Map(room)) = map_of(rooms)?.get(room_id) else {
-        return if map_of(rooms)?.contains_key(room_id) { unsupported("a room is another value") } else { Ok(None) };
+        return if map_of(rooms)?.contains_key(room_id) { refuse("a room is another value") } else { Ok(None) };
     };
     let polygon = match room.get("polygon_m") {
         Some(value) => points_in_value(value)?,
@@ -829,10 +741,9 @@ fn admission_point_after(world: &Bound<'_, PyAny>, state: &RoomParts, room_id: &
     let lowest = |value: fn(&Pt) -> f64| polygon.iter().map(value).fold(f64::INFINITY, py_min);
     let highest = |value: fn(&Pt) -> f64| polygon.iter().map(value).fold(f64::NEG_INFINITY, py_max);
     let (min_x, max_x, min_y, max_y) = (lowest(|point| point.x), highest(|point| point.x), lowest(|point| point.y), highest(|point| point.y));
-    let admissions = &state.admissions;
-    let movement = movement_mirror(world)?;
+    let movement = movement_of(world, intake.movement)?;
     let mut occupied = Vec::new();
-    if let V::Map(admissions) = admissions {
+    if let V::Map(admissions) = &state.admissions {
         for (agent_id, admission) in admissions {
             let V::Map(admission) = admission else {
                 continue;
@@ -840,11 +751,12 @@ fn admission_point_after(world: &Bound<'_, PyAny>, state: &RoomParts, room_id: &
             if !matches!(admission.get("room_id"), Some(V::Str(id)) if &**id == room_id) {
                 continue;
             }
-            if let Some(point) = position_of(&movement, agent_id)? {
+            if let Some(point) = position_of(movement.as_deref(), agent_id)? {
                 occupied.push(point);
             }
         }
     }
+    drop(movement);
     for (other, point) in planned {
         if &**other == room_id {
             occupied.extend(point.iter().copied());
@@ -873,7 +785,7 @@ fn admission_point_after(world: &Bound<'_, PyAny>, state: &RoomParts, room_id: &
     let mut unique: Vec<Pt> = Vec::with_capacity(candidates.len());
     let bits = |value: f64| (value + 0.0).to_bits();
     for point in candidates {
-        let not_plain = || Unsupported::new_err("a round Python decides");
+        let not_plain = || Error::unsupported("a round Python decides");
         let key = (bits(py_round(point.x, 8).ok_or_else(not_plain)?), bits(py_round(point.y, 8).ok_or_else(not_plain)?));
         match places.get(&key) {
             Some(&place) => unique[place] = point,
@@ -893,7 +805,7 @@ fn admission_point_after(world: &Bound<'_, PyAny>, state: &RoomParts, room_id: &
         ordered.push((squared_distance(point, center)?, point));
     }
     if ordered.iter().any(|(key, _)| !key.is_finite()) {
-        return unsupported("a distance is not finite");
+        return refuse("a distance is not finite");
     }
     ordered.sort_by(|first, second| {
         let (a, b) = (first.1, second.1);
@@ -902,9 +814,9 @@ fn admission_point_after(world: &Bound<'_, PyAny>, state: &RoomParts, room_id: &
     let radius = square(ADMISSION_RADIUS)?;
     let zone_id = match room.get("zone_id") {
         Some(V::Str(zone_id)) => zone_id.clone(),
-        _ => return unsupported("a room's zone is not a str"),
+        _ => return refuse("a room's zone is not a str"),
     };
-    let geo = Geo::of(world)?;
+    let geo = plan(intake.geo)?;
     for (_, candidate) in ordered.into_iter().take(MAX_ADMISSION_POINTS) {
         let mut taken = false;
         for other in &occupied {
@@ -916,39 +828,31 @@ fn admission_point_after(world: &Bound<'_, PyAny>, state: &RoomParts, room_id: &
         if taken {
             continue;
         }
-        if geo.room_route(&zone_id, Some(candidate), candidate, "independent").map_err(crate::rules::movement::refused)?.is_some() {
+        if geo.room_route(&zone_id, Some(candidate), candidate, "independent").map_err(Error::unsupported)?.is_some() {
             return Ok(Some(candidate));
         }
     }
     Ok(None)
 }
 
-#[pyfunction]
-fn room_admission_point<'py>(world: &Bound<'py, PyAny>, room_id: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    let py = world.py();
-    let result = (|| {
-        let room_id = exact_str(room_id)?;
-        let Some(state) = RoomParts::of_world(world)? else {
-            return Ok(py.None().into_bound(py));
-        };
-        match admission_point(world, &state, room_id)? {
-            Some(point) => point_object(py, point),
-            None => Ok(py.None().into_bound(py)),
-        }
-    })();
-    counted(py, "room_admission_point", result)
+/// `room_admission_point`.
+pub fn room_admission_point(world: &World, intake: &Intake<'_>, room_id: &str) -> Result<Option<Pt>> {
+    let Some(state) = RoomParts::of_world(world, intake.overlay)? else {
+        return Ok(None);
+    };
+    admission_point_after(world, intake, &state, room_id, &[])
 }
 
 /// `available_temporary_room`, after the admissions a plan has given this far, with the point
 /// `admit_to_temporary_room` then gives.
-pub(crate) fn available_room_after(world: &Bound<'_, PyAny>, zone_id: &str, planned: &[(Arc<str>, Option<Pt>)]) -> PyResult<Option<(Arc<str>, Pt)>> {
-    if !matches!(overlay_schema(world)?, Some(3 | 4)) {
+pub fn available_room_after(world: &World, intake: &Intake<'_>, zone_id: &str, planned: &[(Arc<str>, Option<Pt>)]) -> Result<Option<(Arc<str>, Pt)>> {
+    if !matches!(schema_of(intake.schema)?, Some(3 | 4)) {
         return Ok(None);
     }
-    let Some(state) = RoomParts::of_world(world)? else {
+    let Some(state) = RoomParts::of_world(world, intake.overlay)? else {
         return Ok(None);
     };
-    let mut counts = admission_counts(&state.admissions)?;
+    let mut counts = admission_counts(&state.admissions);
     for (room_id, _) in planned {
         *counts.entry(room_id.clone()).or_insert(0) += 1;
     }
@@ -960,10 +864,10 @@ pub(crate) fn available_room_after(world: &Bound<'_, PyAny>, zone_id: &str, plan
         let capacity = match room.get("people_capacity") {
             Some(V::Int(capacity)) => *capacity,
             None => 0,
-            _ => return unsupported("a room's capacity is not a plain int"),
+            _ => return refuse("a room's capacity is not a plain int"),
         };
         if counts.get(room_id).copied().unwrap_or(0) < capacity {
-            if let Some(point) = admission_point_after(world, &state, room_id, planned)? {
+            if let Some(point) = admission_point_after(world, intake, &state, room_id, planned)? {
                 return Ok(Some((room_id.clone(), point)));
             }
         }
@@ -971,161 +875,135 @@ pub(crate) fn available_room_after(world: &Bound<'_, PyAny>, zone_id: &str, plan
     Ok(None)
 }
 
-/// `available_temporary_room`.
-#[pyfunction]
-fn available_temporary_room(world: &Bound<'_, PyAny>, zone_id: &Bound<'_, PyAny>) -> PyResult<Option<String>> {
-    let result = (|| Ok(available_room_after(world, exact_str(zone_id)?, &[])?.map(|(room_id, _)| room_id.to_string())))();
-    counted(world.py(), "available_temporary_room", result)
-}
-
-/// `admit_to_temporary_room`.
-#[pyfunction]
-#[pyo3(signature = (world, *, agent_id, room_id, minute, event_id))]
-fn admit_to_temporary_room<'py>(
-    world: &Bound<'py, PyAny>,
-    agent_id: &Bound<'py, PyAny>,
-    room_id: &Bound<'py, PyAny>,
-    minute: &Bound<'py, PyAny>,
-    event_id: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyAny>> {
-    let py = world.py();
-    let result = (|| {
-        let (agent_text, room_text) = (exact_str(agent_id)?, exact_str(room_id)?);
-        let minute = exact_int(minute)?;
-        exact_str(event_id)?;
-        // The Python rule's one text for each of these.
-        let not_available = || Err(errors::value_error("temporary room admission is no longer available"));
-        let Some(state) = state_of(world, OVERLAY_KEY)? else {
-            return not_available();
+/// `admit_to_temporary_room`: the person's point in the room.
+pub fn admit(world: &World, intake: &Intake<'_>, agent_id: &str, room_id: &str, minute: i64, event_id: &str) -> Result<Pt> {
+    let Some(state) = state_of(world, OVERLAY_KEY, intake.overlay)? else {
+        return invalid(NOT_AVAILABLE);
+    };
+    let Some(admissions) = child(&state.0, "room_admissions")? else {
+        return invalid(NOT_AVAILABLE);
+    };
+    let V::Map(admissions) = admissions else {
+        return refuse("a value is not a plain dict");
+    };
+    let admissions = V::Map(admissions.clone());
+    let rooms = part(&state.0, "temporary_rooms")?;
+    drop(state);
+    let room = match map_of(&rooms)?.get(room_id) {
+        Some(V::Map(room)) => room,
+        None => return invalid(NOT_AVAILABLE),
+        Some(_) => return refuse("a room is another value"),
+    };
+    let known = world.rows()?.agents.contains_key(agent_id);
+    if !matches!(room.get("active"), Some(V::Bool(true))) || minute < 0 || !known {
+        return invalid(NOT_AVAILABLE);
+    }
+    let parts = RoomParts { rooms: rooms.clone(), admissions };
+    let Some(point) = admission_point_after(world, intake, &parts, room_id, &[])? else {
+        return invalid(NOT_AVAILABLE);
+    };
+    let sources = list_of(room.get("source_ids").unwrap_or(&V::Null))?;
+    let mut names = vec![INTAKE_SOURCE];
+    for source in sources {
+        let V::Str(source) = source else {
+            return refuse("a source is not a str");
         };
-        let Some(admissions) = child(&state, "room_admissions")? else {
-            return not_available();
-        };
-        exact_dict(&admissions)?;
-        let rooms = part(&state, "temporary_rooms")?;
-        let room = match map_of(&rooms)?.get(room_text) {
-            Some(V::Map(room)) => room,
-            None => return not_available(),
-            Some(_) => return unsupported("a room is another value"),
-        };
-        let agents = attribute(world, intern!(py, "agents"))?;
-        if !matches!(room.get("active"), Some(V::Bool(true))) || minute < 0 || raw_dict_get(&agents, agent_id)?.is_none() {
-            return not_available();
-        }
-        let Some(point) = admission_point(world, &RoomParts::of_tree(&state)?, room_text)? else {
-            return not_available();
-        };
-        let sources = list_of(room.get("source_ids").unwrap_or(&V::Null))?;
-        let mut names = vec![INTAKE_SOURCE];
-        for source in sources {
-            let V::Str(source) = source else {
-                return unsupported("a source is not a str");
-            };
-            names.push(source);
-        }
-        let record = dict_of(
-            py,
-            &[
-                ("agent_id", py_str(py, agent_text)),
-                ("room_id", py_str(py, room_text)),
-                ("admitted_minute", py_int(py, minute)?),
-                ("event_id", event_id.clone()),
-                ("source_ids", PyList::new(py, sorted_set(names))?.into_any()),
-            ],
-        )?;
-        let point = point_object(py, point)?;
-        admissions.set_item(agent_id, record)?;
-        Ok(point)
-    })();
-    counted(py, "admit_to_temporary_room", result)
+        names.push(source);
+    }
+    let record = doc([
+        ("agent_id", text(agent_id)),
+        ("room_id", text(room_id)),
+        ("admitted_minute", V::Int(minute)),
+        ("event_id", text(event_id)),
+        ("source_ids", id_list(sorted_set(names))),
+    ]);
+    let mut row = world.row_mut::<ValueRow>(OVERLAY_KEY)?;
+    dict_mut(required_mut(&mut row.0, "room_admissions")?)?.insert(Arc::from(agent_id), record);
+    Ok(point)
 }
 
 /// What `reserve_sleep_bed` finds, written or not.
-pub(crate) struct Bed {
-    pub(crate) room_id: Arc<str>,
-    pub(crate) bed_index: i64,
-    pub(crate) target_id: String,
-    pub(crate) reserved_minute: i64,
-    pub(crate) point: Pt,
-    pub(crate) path: Arc<[Pt]>,
-    pub(crate) travel_minutes: i64,
+#[derive(Clone, Debug, PartialEq)]
+pub struct Bed {
+    pub room_id: Arc<str>,
+    pub bed_index: i64,
+    pub target_id: String,
+    pub reserved_minute: i64,
+    pub point: Pt,
+    pub path: Arc<[Pt]>,
+    pub travel_minutes: i64,
     /// A reservation to make: the person has none.
-    pub(crate) is_new: bool,
+    pub is_new: bool,
 }
 
-/// `reserve_sleep_bed`, changing nothing: None for no bed.
-pub(crate) fn plan_bed(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Option<Bed>> {
-    let py = world.py();
-    let Some(held) = held_of(world, OVERLAY_KEY)? else {
+/// What `reserve_sleep_bed` reads beside the world's rows.
+pub struct Beds<'a> {
+    pub overlay: &'a Held,
+    pub movement: &'a Held,
+    pub schema: &'a Kept<Option<i64>>,
+    /// The movement section of the configs, for the minutes in the room.
+    pub walking: &'a Kept<Movement>,
+    pub geo: Option<&'a Geo>,
+}
+
+/// `reserve_sleep_bed`, writing only the empty reservations of a state saved before beds were
+/// reserved: None for no bed.
+pub fn plan_bed(world: &World, beds: &Beds<'_>, agent_id: &str) -> Result<Option<Bed>> {
+    let Some(state) = state_of(world, OVERLAY_KEY, beds.overlay)? else {
         return Ok(None);
     };
-    // The reservations and the rooms, copied from the row of a detached overlay, which then needs
-    // no tree; None to read them from the tree.
-    let parts = if is_detached(&held) {
-        NamespaceMirror::with_value(&mirror_of(world, OVERLAY_KEY)?, |state| {
-            let state = map_of(state)?;
-            Ok(state.get("bed_reservations").map(|held| (held.clone(), state.get("temporary_rooms").cloned())))
-        })?
-    } else {
-        exact_dict(&held)?;
-        None
+    let V::Map(fields) = &state.0 else {
+        return refuse("a value is not a plain dict");
     };
-    if !matches!(overlay_schema(world)?, Some(2..=4)) {
+    let has_reservations = fields.contains_key("bed_reservations");
+    drop(state);
+    if !matches!(schema_of(beds.schema)?, Some(2..=4)) {
         return Ok(None);
     }
-    let store = entities_of(world)?;
-    let known = EntityStore::with_rows(&store, |rows| Ok(rows.agents.get(agent_id).map(|agent| agent.zone_id.clone())))?;
-    let Some(zone_id) = known else {
+    let Some(zone_id) = world.rows()?.agents.get(agent_id).map(|agent| agent.zone_id.clone()) else {
         return Ok(None);
     };
-    let (reserved, rooms_value) = match parts {
-        Some(parts) => parts,
-        None => {
-            let state = state_of(world, OVERLAY_KEY)?.ok_or_else(|| Unsupported::new_err("no overlay"))?;
-            // `state.setdefault("bed_reservations", {})`, through the map's own method: a state saved
-            // before beds were reserved has none, and the rule writes the empty map even when no bed
-            // follows.
-            let reservations = match child(&state, "bed_reservations")? {
-                Some(reservations) => reservations,
-                None => state.call_method1(intern!(py, "setdefault"), ("bed_reservations", PyDict::new(py)))?,
-            };
-            (V::from_py(&reservations)?, child(&state, "temporary_rooms")?.map(|rooms| V::from_py(&rooms)).transpose()?)
-        }
+    if !has_reservations {
+        // `state.setdefault("bed_reservations", {})`: a state saved before beds were reserved has
+        // none, and the rule writes the empty map even when no bed follows.
+        let mut row = world.row_mut::<ValueRow>(OVERLAY_KEY)?;
+        dict_mut(&mut row.0)?.insert(Arc::from("bed_reservations"), V::Map(IndexMap::new()));
+    }
+    let (reserved, rooms_value) = {
+        let state = state_of(world, OVERLAY_KEY, beds.overlay)?.ok_or_else(|| Error::unsupported("no overlay"))?;
+        let fields = map_of(&state.0)?;
+        (fields.get("bed_reservations").cloned().unwrap_or(V::Null), fields.get("temporary_rooms").cloned())
     };
-    let geo = Geo::of(world)?;
+    let geo = plan(beds.geo)?;
     if geo.layout.is_none() {
         return Ok(None);
     }
-    let movement = movement_mirror(world)?;
-    let Some(mirror) = &movement else {
-        return unsupported("a bed's positions without the movement state");
+    let Some(movement) = movement_of(world, beds.movement)? else {
+        return refuse("a bed's positions without the movement state");
     };
     let rooms_empty = match &rooms_value {
         Some(rooms) => map_of(rooms)?.is_empty(),
         None => true,
     };
-    let start = position_of(&movement, agent_id)?;
+    let start = position_of(Some(&movement), agent_id)?;
+    let rows = world.rows()?;
     // Each person in the zone: a cell of the grid the size of a bed's radius.
     let mut by_cell: HashMap<(i64, i64), Vec<Pt>> = HashMap::new();
-    NamespaceMirror::with_row::<MovementRow, _>(mirror, |row| {
-        EntityStore::with_rows(&store, |rows| {
-            for (other_id, other) in rows.agents.iter() {
-                if &**other_id == agent_id || other.zone_id != zone_id {
-                    continue;
-                }
-                let Some(point) = row.positions.get(&**other_id).and_then(|position| position.point) else {
-                    continue;
-                };
-                if !usable(point.x, point.y) {
-                    return unsupported("a position is not a usable point");
-                }
-                if !rooms_empty {
-                    by_cell.entry(cell_of(Pt { x: point.x, y: point.y })?).or_default().push(Pt { x: point.x, y: point.y });
-                }
-            }
-            Ok(())
-        })
-    })?;
+    for (other_id, other) in rows.agents.iter() {
+        if &**other_id == agent_id || other.zone_id != zone_id {
+            continue;
+        }
+        let Some(point) = movement.positions.get(&**other_id).and_then(|position| position.point) else {
+            continue;
+        };
+        if !usable(point.x, point.y) {
+            return refuse("a position is not a usable point");
+        }
+        if !rooms_empty {
+            by_cell.entry(cell_of(Pt { x: point.x, y: point.y })?).or_default().push(Pt { x: point.x, y: point.y });
+        }
+    }
+    drop(movement);
     if rooms_empty {
         return Ok(None);
     }
@@ -1139,12 +1017,12 @@ pub(crate) fn plan_bed(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Opt
     let existing = match reserved.get(agent_id) {
         None | Some(V::Null) => None,
         Some(V::Map(row)) => Some(row),
-        _ => return unsupported("a reservation is another value"),
+        _ => return refuse("a reservation is another value"),
     };
     let held_room = existing.map(|row| str_of(row, "room_id")).transpose()?;
     let held_index = existing.map(|row| int_of(row, "bed_index")).transpose()?;
-    let rooms = rooms_value.ok_or_else(|| Unsupported::new_err("no rooms"))?;
-    let movement = crate::rules::movement::movement_of(world)?;
+    let rooms = rooms_value.ok_or_else(|| Error::unsupported("no rooms"))?;
+    let movement = kit::kept(beds.walking)?;
     let radius = square(BED_RADIUS)?;
     let mut attempts = 0;
     let mut best: Option<(i64, Arc<str>, i64, Pt, Arc<[Pt]>)> = None;
@@ -1156,12 +1034,10 @@ pub(crate) fn plan_bed(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Opt
             best = Some((travel, room_id.clone(), index, bed, path));
         }
     };
-    let (mobility, agent_zone) = EntityStore::with_rows(&store, |rows| {
-        let Some(agent) = rows.agents.get(agent_id) else {
-            return unsupported("no such agent");
-        };
-        Ok((mobility_text(agent), agent.zone_id.clone()))
-    })?;
+    let Some(agent) = rows.agents.get(agent_id) else {
+        return refuse("no such agent");
+    };
+    let (mobility, agent_zone) = (kit::mobility_text(agent), agent.zone_id.clone());
     'rooms: for (room_id, room) in sorted_rooms(map_of(&rooms)?) {
         if attempts >= MAX_BED_ROUTES {
             break;
@@ -1208,21 +1084,19 @@ pub(crate) fn plan_bed(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Opt
                 continue;
             }
             attempts += 1;
-            let Some(path) = geo.room_route(&zone_id, start, bed, mobility).map_err(crate::rules::movement::refused)? else {
+            let Some(path) = geo.room_route(&zone_id, start, bed, mobility).map_err(Error::unsupported)? else {
                 continue;
             };
             let mut lengths = Vec::with_capacity(path.len());
             for pair in path.windows(2) {
-                let length = pow(squared_distance(pair[1], pair[0])?, 0.5).map_err(math_error)?;
+                let length = pow(squared_distance(pair[1], pair[0])?, 0.5)?;
                 lengths.push(length);
             }
-            let travel = if py_sum(&lengths) <= 1e-8 {
-                0
-            } else if path.len() < 2 {
+            let travel = if py_sum(&lengths) <= 1e-8 || path.len() < 2 {
                 0
             } else {
-                let length = polyline_length(&path).ok_or_else(|| Unsupported::new_err("not a plain sum"))?;
-                EntityStore::with_rows(&store, |rows| room_minutes(&movement.model, &geo, rows, &agent_zone, mobility, length))?
+                let length = polyline_length(&path).ok_or_else(|| Error::unsupported("not a plain sum"))?;
+                walking::room_minutes(&movement.model, geo, &rows, &agent_zone, mobility, length)?
             };
             consider(travel, room_id, index, bed, path);
             if attempts >= MAX_BED_ROUTES {
@@ -1233,7 +1107,7 @@ pub(crate) fn plan_bed(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Opt
     let Some((travel_minutes, room_id, bed_index, point, path)) = best else {
         return Ok(None);
     };
-    let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
+    let minute = world.minute_index()?;
     let reserved_minute = match existing {
         Some(row) => int_of(row, "reserved_minute")?,
         None => minute,
@@ -1243,78 +1117,44 @@ pub(crate) fn plan_bed(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Opt
 }
 
 /// `(math.floor(x / 0.75), math.floor(y / 0.75))`.
-fn cell_of(point: Pt) -> PyResult<(i64, i64)> {
+fn cell_of(point: Pt) -> Result<(i64, i64)> {
     let (x, y) = ((point.x / BED_RADIUS).floor(), (point.y / BED_RADIUS).floor());
     const LIMIT: f64 = 4_503_599_627_370_496.0;
     if x.abs() >= LIMIT || y.abs() >= LIMIT {
-        return unsupported("a cell of the grid is too far");
+        return refuse("a cell of the grid is too far");
     }
     Ok((x as i64, y as i64))
 }
 
 /// The reservation of `plan_bed`, when it is new.
-pub(crate) fn write_bed(world: &Bound<'_, PyAny>, agent_id: &str, bed: &Bed) -> PyResult<()> {
+pub fn write_bed(world: &World, overlay: &Held, agent_id: &str, bed: &Bed) -> Result<()> {
     if !bed.is_new {
         return Ok(());
     }
-    let py = world.py();
-    let state = state_of(world, OVERLAY_KEY)?.ok_or_else(|| Unsupported::new_err("no overlay"))?;
-    let reservations = required(&state, "bed_reservations")?;
-    let record = dict_of(
-        py,
-        &[
-            ("agent_id", py_str(py, agent_id)),
-            ("room_id", py_str(py, &bed.room_id)),
-            ("bed_index", py_int(py, bed.bed_index)?),
-            ("target_id", py_str(py, &bed.target_id)),
-            ("reserved_minute", py_int(py, bed.reserved_minute)?),
-        ],
-    )?;
-    reservations.set_item(agent_id, record)
-}
-
-#[pyfunction]
-fn reserve_sleep_bed<'py>(world: &Bound<'py, PyAny>, agent_id: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    let py = world.py();
-    let result = (|| {
-        let agent_text = exact_str(agent_id)?;
-        let Some(bed) = plan_bed(world, agent_text)? else {
-            return Ok(py.None().into_bound(py));
-        };
-        let route = bed.path.iter().map(|point| point_object(py, *point)).collect::<PyResult<Vec<_>>>()?;
-        let answer = dict_of(
-            py,
-            &[
-                ("agent_id", agent_id.clone()),
-                ("room_id", py_str(py, &bed.room_id)),
-                ("bed_index", py_int(py, bed.bed_index)?),
-                ("target_id", py_str(py, &bed.target_id)),
-                ("reserved_minute", py_int(py, bed.reserved_minute)?),
-                ("point", point_object(py, bed.point)?),
-                ("route_points", PyTuple::new(py, route)?.into_any()),
-                ("travel_minutes", py_int(py, bed.travel_minutes)?),
-            ],
-        )?;
-        write_bed(world, agent_text, &bed)?;
-        Ok(answer)
-    })();
-    counted(py, "reserve_sleep_bed", result)
+    if state_of(world, OVERLAY_KEY, overlay)?.is_none() {
+        return refuse("no overlay");
+    }
+    let record = doc([
+        ("agent_id", text(agent_id)),
+        ("room_id", V::Str(bed.room_id.clone())),
+        ("bed_index", V::Int(bed.bed_index)),
+        ("target_id", text(&bed.target_id)),
+        ("reserved_minute", V::Int(bed.reserved_minute)),
+    ]);
+    let mut row = world.row_mut::<ValueRow>(OVERLAY_KEY)?;
+    dict_mut(required_mut(&mut row.0, "bed_reservations")?)?.insert(Arc::from(agent_id), record);
+    Ok(())
 }
 
 // ---- Facilities installed during a Run ----------------------------------------------------------
 
-/// `installed_facility_placement_enabled`.
-pub(crate) fn placement_enabled(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    if overlay_schema(world)? != Some(4) {
+/// `installed_facility_placement_enabled`: schema 4, and an overlay state that is a dict (the PyO3
+/// crate says whether `model_state` holds one).
+pub fn placement_enabled(schema: &Kept<Option<i64>>, overlay_is_dict: bool) -> Result<bool> {
+    if schema_of(schema)? != Some(4) {
         return Ok(false);
     }
-    // A detached overlay is a dict.
-    Ok(held_of(world, OVERLAY_KEY)?.is_some_and(|state| is_detached(&state) || crate::core::tracked::as_readable_dict(&state).is_some()))
-}
-
-#[pyfunction]
-fn installed_facility_placement_enabled(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    counted(world.py(), "installed_facility_placement_enabled", placement_enabled(world))
+    Ok(overlay_is_dict)
 }
 
 /// `facility_grid_point`.
@@ -1332,39 +1172,34 @@ fn grid_point(polygon: &[Pt], index: usize, count: usize) -> Pt {
 }
 
 /// `installed_facility_point`.
-fn installed_point(world: &Bound<'_, PyAny>, facility_id: &str) -> PyResult<Option<Pt>> {
-    let store = entities_of(world)?;
-    let geo = Geo::of(world)?;
+pub fn installed_point(world: &World, overlay: &Held, geo: Option<&Geo>, facility_id: &str) -> Result<Option<Pt>> {
+    let rows = world.rows()?;
+    let geo = plan(geo)?;
     let Some(layout) = &geo.layout else {
         return Ok(None);
     };
-    let found = EntityStore::with_rows(&store, |rows| {
-        let Some(facility) = rows.facilities.get(facility_id) else {
-            return Ok(None);
-        };
-        let zone_id = facility.zone_id.clone();
-        let mut others = Vec::new();
-        let mut ids: Vec<&Arc<str>> = rows.facilities.iter().map(|(id, _)| id).collect();
-        ids.sort_unstable_by(|first, second| first.as_bytes().cmp(second.as_bytes()));
-        for id in ids {
-            if &**id == facility_id || rows.facilities.get(id).is_none_or(|item| item.zone_id != zone_id) {
-                continue;
-            }
-            if let Some(point) = layout.facility_points.get(&**id) {
-                others.push(*point);
-            }
-        }
-        Ok(Some((zone_id, others)))
-    })?;
-    let Some((zone_id, others)) = found else {
+    let Some(facility) = rows.facilities.get(facility_id) else {
         return Ok(None);
     };
+    let zone_id = facility.zone_id.clone();
+    let mut others = Vec::new();
+    let mut ids: Vec<&Arc<str>> = rows.facilities.iter().map(|(id, _)| id).collect();
+    ids.sort_unstable_by(|first, second| first.as_bytes().cmp(second.as_bytes()));
+    for id in ids {
+        if &**id == facility_id || rows.facilities.get(id).is_none_or(|item| item.zone_id != zone_id) {
+            continue;
+        }
+        if let Some(point) = layout.facility_points.get(&**id) {
+            others.push(*point);
+        }
+    }
+    drop(rows);
     let Some(zone) = layout.zones.get(&*zone_id) else {
         return Ok(None);
     };
     let mut blocked: Vec<Vec<Pt>> = geo.constraints.as_ref().map_or_else(Vec::new, |constraints| constraints.blocked.clone());
-    if let Some(state) = state_of(world, OVERLAY_KEY)? {
-        let rooms = part(&state, "temporary_rooms")?;
+    if let Some(state) = state_of(world, OVERLAY_KEY, overlay)? {
+        let rooms = part(&state.0, "temporary_rooms")?;
         for room in map_of(&rooms)?.values() {
             let room = map_of(room)?;
             if flag_of(room, "active")? {
@@ -1376,11 +1211,11 @@ fn installed_point(world: &Bound<'_, PyAny>, facility_id: &str) -> PyResult<Opti
         for index in 0..count {
             let point = grid_point(&zone.polygon, index, count);
             if !usable(point.x, point.y) {
-                return unsupported("a grid point is not a usable point");
+                return refuse("a grid point is not a usable point");
             }
             if point_walkable(point, &zone.polygon, &blocked)
                 && others.iter().all(|other| hypot(&[point.x - other.x, point.y - other.y]) >= MIN_SEPARATION)
-                && geo.room_route(&zone_id, None, point, "independent").map_err(crate::rules::movement::refused)?.is_some()
+                && geo.room_route(&zone_id, None, point, "independent").map_err(Error::unsupported)?.is_some()
             {
                 return Ok(Some(point));
             }
@@ -1389,75 +1224,38 @@ fn installed_point(world: &Bound<'_, PyAny>, facility_id: &str) -> PyResult<Opti
     Ok(None)
 }
 
-/// `place_installed_facility`.
-pub(crate) fn place_facility(world: &Bound<'_, PyAny>, facility_id: &str, event_id: &str, source_ids: &[&str]) -> PyResult<Pt> {
-    let py = world.py();
-    let Some(point) = installed_point(world, facility_id)? else {
-        return Err(errors::value_error(format!("no free floor-plan point for installed facility {}", errors::repr_str(py, facility_id)?)));
+/// `place_installed_facility`: the facility's point, recorded with a history row.
+pub fn place_facility(world: &World, overlay: &Held, geo: Option<&Geo>, facility_id: &str, event_id: &str, source_ids: &[&str]) -> Result<Pt> {
+    let Some(point) = installed_point(world, overlay, geo, facility_id)? else {
+        return invalid(&format!("no free floor-plan point for installed facility {}", py_repr(facility_id)));
     };
-    let state = state_of(world, OVERLAY_KEY)?.ok_or_else(|| Unsupported::new_err("no overlay"))?;
-    let points = required(&state, "facility_points")?;
-    let history = required(&state, "history")?;
-    let minute = attribute(world, intern!(py, "minute_index"))?;
+    {
+        let state = state_of(world, OVERLAY_KEY, overlay)?.ok_or_else(|| Error::unsupported("no overlay"))?;
+        if !matches!(required(&state.0, "facility_points")?, V::Map(_)) {
+            return refuse("a value is not a plain dict");
+        }
+        if !matches!(required(&state.0, "history")?, V::List(_)) {
+            return refuse("a value is not a plain list");
+        }
+    }
+    let minute = world.minute_index()?;
     let names = sorted_set(source_ids.iter().copied().chain([PLACEMENT_SOURCE]));
-    let sources = || PyList::new(py, names.iter().copied()).map(Bound::into_any);
-    let record = dict_of(
-        py,
-        &[
-            ("point_m", point_dict(py, point)?),
-            ("event_id", py_str(py, event_id)),
-            ("source_ids", sources()?),
-            ("minute", minute.clone()),
-        ],
-    )?;
+    let record = doc([("point_m", point_doc(point)), ("event_id", text(event_id)), ("source_ids", id_list(names.iter().copied())), ("minute", V::Int(minute))]);
     let transition = format!("install-{}", hex_of(&format!("{event_id}:{facility_id}")));
-    let entry = dict_of(
-        py,
-        &[
-            ("transition_id", py_str(py, &transition)),
-            ("op", py_str(py, "install_facility")),
-            ("target_id", py_str(py, facility_id)),
-            ("status", py_str(py, "applied")),
-            ("causation_id", py_str(py, event_id)),
-            ("event_id", py_str(py, event_id)),
-            ("source_ids", sources()?),
-            ("minute", minute),
-        ],
-    )?;
-    points.set_item(facility_id, record)?;
-    history.call_method1(intern!(py, "append"), (entry,))?;
-    trim_history(&history, MAX_OVERLAY_HISTORY)?;
+    let entry = doc([
+        ("transition_id", text(&transition)),
+        ("op", text("install_facility")),
+        ("target_id", text(facility_id)),
+        ("status", text("applied")),
+        ("causation_id", text(event_id)),
+        ("event_id", text(event_id)),
+        ("source_ids", id_list(names.iter().copied())),
+        ("minute", V::Int(minute)),
+    ]);
+    let mut row = world.row_mut::<ValueRow>(OVERLAY_KEY)?;
+    dict_mut(required_mut(&mut row.0, "facility_points")?)?.insert(Arc::from(facility_id), record);
+    append_bounded(list_mut(required_mut(&mut row.0, "history")?)?, entry, MAX_OVERLAY_HISTORY);
     Ok(point)
-}
-
-#[pyfunction]
-#[pyo3(signature = (world, facility_id))]
-fn installed_facility_point<'py>(world: &Bound<'py, PyAny>, facility_id: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    let py = world.py();
-    let result = (|| match installed_point(world, exact_str(facility_id)?)? {
-        Some(point) => point_object(py, point),
-        None => Ok(py.None().into_bound(py)),
-    })();
-    counted(py, "installed_facility_point", result)
-}
-
-#[pyfunction]
-#[pyo3(signature = (world, facility_id, *, event_id, source_ids))]
-fn place_installed_facility<'py>(
-    world: &Bound<'py, PyAny>,
-    facility_id: &Bound<'py, PyAny>,
-    event_id: &Bound<'py, PyAny>,
-    source_ids: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyAny>> {
-    let py = world.py();
-    let result = (|| {
-        let tuple = source_ids.downcast_exact::<PyTuple>().map_err(|_| Unsupported::new_err("the sources are not a tuple"))?;
-        let held: Vec<Bound<'_, PyAny>> = tuple.iter().collect();
-        let names = held.iter().map(|item| exact_str(item)).collect::<PyResult<Vec<&str>>>()?;
-        let point = place_facility(world, exact_str(facility_id)?, exact_str(event_id)?, &names)?;
-        point_object(py, point)
-    })();
-    counted(py, "place_installed_facility", result)
 }
 
 // ---- The geometry the checks of a change read: region/facility.py --------------------------------
@@ -1563,71 +1361,65 @@ fn polygons_overlap(left: &[Pt], right: &[Pt]) -> bool {
 
 /// `_validate_partition_polygon`, `_validate_room_polygon`: whether the Python rule passes.
 fn inside_zone(zone: &[Pt], polygon: &[Pt]) -> bool {
-    valid_simple(polygon)
-        && polygon.iter().all(|point| point_in_polygon(*point, zone))
-        && sides(polygon).all(|(a, b)| segment_inside_polygon(a, b, zone))
+    valid_simple(polygon) && polygon.iter().all(|point| point_in_polygon(*point, zone)) && sides(polygon).all(|(a, b)| segment_inside_polygon(a, b, zone))
 }
 
 // ---- validate_geometry_change -------------------------------------------------------------------
 //
 // Each check raises the Python rule's ValueError with its text, in its order
 // (docs/rust-port/lanes/l8-texts-rest.md). What the rows cannot judge as Python does (a value that is
-// not a plain point, a flag that is not a bool) still says Unsupported.
+// not a plain point, a flag that is not a bool) says Unsupported. The parameters are read from the
+// contract's `model_dump(mode="json")`.
 
-/// `raise ValueError(text)` of `validate_geometry_change` and its helpers.
-#[track_caller]
-fn invalid<T>(text: &str) -> PyResult<T> {
-    Err(errors::value_error(text))
+/// What a geometry change reads beside the world's rows.
+pub struct Change<'a> {
+    pub overlay: &'a Held,
+    pub movement: &'a Held,
+    pub staff_operations: &'a Held,
+    pub resource_service: &'a Held,
+    /// The resource service's section of the configs, for the skills a moved station needs.
+    pub service: &'a Kept<ResourceService>,
+    pub geo: Option<&'a Geo>,
 }
 
-fn model_of<'py>(py: Python<'py>, module: &str, name: &str, raw: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    py.import(module)?
-        .getattr(name)?
-        .call_method1(intern!(py, "model_validate"), (raw,))
-        .map_err(|_| Unsupported::new_err("the contract refuses the parameters"))
-}
-
-/// `Model.model_validate(parameters)` of the check: the contract's own error, as the rule raises it.
-#[track_caller]
-fn checked_model<'py>(py: Python<'py>, module: &str, name: &str, raw: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    let class = py.import(module)?.getattr(name)?;
-    match class.call_method1(intern!(py, "model_validate"), (raw,)) {
-        Ok(model) => Ok(model),
-        Err(error) => Err(errors::relayed(py, error)),
+/// A field of the contract's dump, as an attribute of the model is read.
+fn field<'a>(data: &'a V, name: &str) -> Result<&'a V> {
+    match data {
+        V::Map(map) => map.get(name).ok_or_else(|| Error::unsupported("an input has no such attribute")),
+        _ => refuse("an input has no such attribute"),
     }
 }
 
-const OVERLAY_MODULE: &str = "sheltersim.domain.geometry_overlay";
-const OPERATIONS_MODULE: &str = "sheltersim.contracts.operations";
+fn float_field(point: &V, name: &str) -> Result<f64> {
+    match field(point, name)? {
+        V::Float(number) => Ok(*number),
+        _ => refuse("a value is not a float"),
+    }
+}
 
-fn point_attr(model: &Bound<'_, PyAny>, name: &Bound<'_, PyString>) -> PyResult<Pt> {
-    let py = model.py();
-    let point = attribute(model, name)?;
-    let (x, y) = (exact_float(&attribute(&point, intern!(py, "x"))?)?, exact_float(&attribute(&point, intern!(py, "y"))?)?);
+fn point_of(point: &V) -> Result<Pt> {
+    let (x, y) = (float_field(point, "x")?, float_field(point, "y")?);
     if !usable(x, y) {
-        return unsupported("a point is not a usable point");
+        return refuse("a point is not a usable point");
     }
     Ok(Pt { x, y })
 }
 
-fn points_attr(model: &Bound<'_, PyAny>, name: &Bound<'_, PyString>) -> PyResult<Vec<Pt>> {
-    let py = model.py();
-    let points = attribute(model, name)?;
-    let points = points.downcast_exact::<PyTuple>().map_err(|_| Unsupported::new_err("not a tuple"))?;
-    points
-        .iter()
-        .map(|point| {
-            let (x, y) = (exact_float(&attribute(&point, intern!(py, "x"))?)?, exact_float(&attribute(&point, intern!(py, "y"))?)?);
-            if !usable(x, y) {
-                return unsupported("a point is not a usable point");
-            }
-            Ok(Pt { x, y })
-        })
-        .collect()
+/// A `Point2D` field of the dump.
+fn point_field(data: &V, name: &str) -> Result<Pt> {
+    point_of(field(data, name)?)
 }
 
-fn text_attr(model: &Bound<'_, PyAny>, name: &Bound<'_, PyString>) -> PyResult<Arc<str>> {
-    Ok(Arc::from(exact_str(&attribute(model, name)?)?))
+/// A `tuple[Point2D, ...]` field of the dump.
+fn points_field(data: &V, name: &str) -> Result<Vec<Pt>> {
+    let V::List(points) = field(data, name)? else {
+        return refuse("not a tuple");
+    };
+    points.iter().map(point_of).collect()
+}
+
+fn text_field(data: &V, name: &str) -> Result<Arc<str>> {
+    Ok(kit::exact_str(field(data, name)?)?.clone())
 }
 
 /// A route of `world.zone_edges`.
@@ -1637,45 +1429,33 @@ struct Edge {
     closed: bool,
 }
 
-fn edges_of(world: &Bound<'_, PyAny>) -> PyResult<HashMap<Arc<str>, Edge>> {
-    let py = world.py();
-    let edges = attribute(world, intern!(py, "zone_edges"))?;
-    let mut found = HashMap::new();
-    for (id, edge) in exact_dict(&edges)?.iter() {
-        found.insert(
-            Arc::from(exact_str(&id)?),
-            Edge {
-                from: text_attr(&edge, intern!(py, "from_zone_id"))?,
-                to: text_attr(&edge, intern!(py, "to_zone_id"))?,
-                closed: attribute(&edge, intern!(py, "closed"))?.downcast_exact::<PyBool>().map_err(|_| Unsupported::new_err("not a bool"))?.is_true(),
-            },
-        );
-    }
-    Ok(found)
+fn edges_of(world: &World) -> Result<HashMap<Arc<str>, Edge>> {
+    let rows = zone_rows(world)?;
+    Ok(rows.zone_edges.iter().map(|(id, edge)| (id.clone(), Edge { from: edge.from_zone_id.clone(), to: edge.to_zone_id.clone(), closed: edge.closed })).collect())
 }
 
-fn constraints_of_plan(geo: &Geo) -> PyResult<&Constraints> {
-    geo.constraints.as_ref().ok_or_else(|| Unsupported::new_err("no constraints"))
+fn constraints_of_plan(geo: &Geo) -> Result<&Constraints> {
+    geo.constraints.as_ref().ok_or_else(|| Error::unsupported("no constraints"))
 }
 
-fn layout_of_plan(geo: &Geo) -> PyResult<&Layout> {
-    geo.layout.as_ref().ok_or_else(|| Unsupported::new_err("no floor plan"))
+fn layout_of_plan(geo: &Geo) -> Result<&Layout> {
+    geo.layout.as_ref().ok_or_else(|| Error::unsupported("no floor plan"))
 }
 
 fn walls_are_near(constraints: &Constraints, point: Pt) -> bool {
     constraints.walls.iter().any(|wall| point_segment_distance(point, wall.start, wall.end) < WALL_CLEARANCE)
 }
 
-fn walkable_at(geo: &Geo, zone_id: &str, point: Pt) -> PyResult<bool> {
-    Ok(geo.room_route(zone_id, Some(point), point, "independent").map_err(crate::rules::movement::refused)?.is_some())
+fn walkable_at(geo: &Geo, zone_id: &str, point: Pt) -> Result<bool> {
+    Ok(geo.room_route(zone_id, Some(point), point, "independent").map_err(Error::unsupported)?.is_some())
 }
 
 /// `_validate_facility_room_clearance`.
-fn clear_of_rooms(geo: &Geo, rooms: &Doc, facility_id: &str, zone_id: &str, point: Pt) -> PyResult<()> {
+fn clear_of_rooms(geo: &Geo, rooms: &Doc, facility_id: &str, zone_id: &str, point: Pt) -> Result<()> {
     let layout = layout_of_plan(geo)?;
     let constraints = constraints_of_plan(geo)?;
     let Some(&old) = layout.facility_points.get(facility_id) else {
-        return unsupported("the facility has no point");
+        return refuse("the facility has no point");
     };
     let (dx, dy) = (point.x - old.x, point.y - old.y);
     for room in rooms.values() {
@@ -1702,39 +1482,26 @@ fn clear_of_rooms(geo: &Geo, rooms: &Doc, facility_id: &str, zone_id: &str, poin
     Ok(())
 }
 
-/// A facility with people or a staff task: `facility_in_use`, with the texts of the operation.
-fn facility_is_free(world: &Bound<'_, PyAny>, target: &str, busy: &str, tasked: &str) -> PyResult<(Arc<str>, Arc<str>)> {
-    let store = entities_of(world)?;
-    let found = EntityStore::with_rows(&store, |rows| {
+/// A facility with people or a staff task: `facility_in_use`, with the texts of the operation. The
+/// facility's zone and kind.
+fn facility_is_free(world: &World, change: &Change<'_>, target: &str, busy: &str, tasked: &str) -> Result<(Arc<str>, Arc<str>)> {
+    let found = {
+        let rows = world.rows()?;
         let Some(facility) = rows.facilities.get(target) else {
-            return unsupported("the facility is gone");
+            return refuse("the facility is gone");
         };
         if !facility.queue_agent_ids.is_empty()
             || !facility.active_agent_ids.is_empty()
             || !facility.resource_queue_agent_ids.is_empty()
             || !facility.resource_active_agent_ids.is_empty()
         {
-            return Ok(Err(()));
+            return invalid(busy);
         }
-        Ok(Ok((facility.zone_id.clone(), facility.kind.clone())))
-    })?;
-    let Ok(found) = found else {
-        return invalid(busy);
+        (facility.zone_id.clone(), facility.kind.clone())
     };
-    if let Some(operations) = state_of(world, "staff_operations_v1")? {
-        if let Some(staff) = child(&operations, "staff")? {
-            for (_, row) in exact_dict(&staff)?.iter() {
-                if let Some(row) = crate::core::tracked::as_readable_dict(&row) {
-                    if let Some(other) = row.get_item(intern!(world.py(), "target_id"))? {
-                        if other.downcast_exact::<PyString>().is_ok_and(|other| other.to_str().is_ok_and(|other| other == target)) {
-                            return invalid(tasked);
-                        }
-                        if !other.is_none() && other.downcast_exact::<PyString>().is_err() {
-                            return unsupported("a task's target is another value");
-                        }
-                    }
-                }
-            }
+    if let Some(operations) = kit::held_row::<StaffOperationsRow>(world, STAFF_OPERATIONS, change.staff_operations)? {
+        if operations.staff.values().any(|record| record.target_id.as_deref() == Some(target)) {
+            return invalid(tasked);
         }
     }
     Ok(found)
@@ -1768,20 +1535,19 @@ fn zones_connected(edges: &HashMap<Arc<str>, Edge>, source: &str, destination: &
 }
 
 /// `_require_service_staff_in_zone`.
-fn service_staff_in_zone(world: &Bound<'_, PyAny>, geo: &Geo, facility_id: &str, kind: &str, zone_id: &str) -> PyResult<()> {
-    let py = world.py();
+fn service_staff_in_zone(world: &World, change: &Change<'_>, geo: &Geo, facility_id: &str, kind: &str, zone_id: &str) -> Result<()> {
     let water = match kind {
         "water_station" => true,
         "meal_distribution" => false,
         _ => return Ok(()),
     };
-    let service = crate::rules::service::resource_service_of(world)?;
+    let service = kit::kept(change.service)?;
     if !service.present {
         return Ok(());
     }
-    let skills = configs::read(service.skills.clone())?;
+    let skills = walking::config_read(service.skills.clone())?;
     // Whether it is there, as it is held: a detached one is not rebuilt for that.
-    if held_of(world, "resource_service_v1")?.is_none() {
+    if matches!(change.resource_service, Held::Absent) {
         return Ok(());
     }
     let Some(skill) = (if water { skills.water } else { skills.meal }) else {
@@ -1793,10 +1559,7 @@ fn service_staff_in_zone(world: &Bound<'_, PyAny>, geo: &Geo, facility_id: &str,
             wanted.extend(point.required_staff_skills.iter().cloned());
         }
     }
-    let store = entities_of(world)?;
-    let staffed = EntityStore::with_rows(&store, |rows| {
-        Ok(rows.staff.iter().any(|(_, staff)| &*staff.zone_id == zone_id && wanted.iter().all(|name| staff.skills.0.contains(name))))
-    })?;
+    let staffed = world.rows()?.staff.iter().any(|(_, staff)| &*staff.zone_id == zone_id && wanted.iter().all(|name| staff.skills.0.contains(name)));
     if staffed {
         return Ok(());
     }
@@ -1804,15 +1567,11 @@ fn service_staff_in_zone(world: &Bound<'_, PyAny>, geo: &Geo, facility_id: &str,
     wanted.sort_unstable_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
     wanted.dedup();
     let skills: Vec<&str> = wanted.iter().map(|name| &**name).collect();
-    invalid(&format!(
-        "staff_unavailable: no staff with {} works in {}, so the moved station would not be served",
-        skills.join(", "),
-        errors::repr_str(py, zone_id)?
-    ))
+    invalid(&format!("staff_unavailable: no staff with {} works in {}, so the moved station would not be served", skills.join(", "), py_repr(zone_id)))
 }
 
 /// The corners of a footprint moved by `to - from`, as the operation adds them.
-fn shifted_footprint(footprint: &[Pt], from: Pt, to: Pt, transfer: bool) -> PyResult<Vec<Pt>> {
+fn shifted_footprint(footprint: &[Pt], from: Pt, to: Pt, transfer: bool) -> Result<Vec<Pt>> {
     footprint
         .iter()
         .map(|point| {
@@ -1824,14 +1583,14 @@ fn shifted_footprint(footprint: &[Pt], from: Pt, to: Pt, transfer: bool) -> PyRe
             if usable(shifted.x, shifted.y) {
                 Ok(shifted)
             } else {
-                unsupported("a moved corner is not a usable point")
+                refuse("a moved corner is not a usable point")
             }
         })
         .collect()
 }
 
 /// The footprint a transfer gives: inside the zone, past no wall, overlapping nothing.
-fn transferred_footprint_fits(constraints: &Constraints, facility_id: &str, zone: &[Pt], from: Pt, to: Pt) -> PyResult<()> {
+fn transferred_footprint_fits(constraints: &Constraints, facility_id: &str, zone: &[Pt], from: Pt, to: Pt) -> Result<()> {
     let Some((_, footprint)) = constraints.footprints.iter().find(|(id, _)| &**id == facility_id) else {
         return Ok(());
     };
@@ -1844,7 +1603,7 @@ fn transferred_footprint_fits(constraints: &Constraints, facility_id: &str, zone
     }
     // `item.facility_id` of an obstacle raises AttributeError in the transfer's Python rule.
     if constraints.obstacle_count > 0 {
-        return unsupported("the Python rule raises on an obstacle");
+        return refuse("the Python rule raises on an obstacle");
     }
     let others = constraints.footprints.iter().filter(|(id, _)| &**id != facility_id).map(|(_, polygon)| polygon);
     for shape in others {
@@ -1859,7 +1618,7 @@ fn transferred_footprint_fits(constraints: &Constraints, facility_id: &str, zone
 }
 
 /// The footprint a same-zone move gives, in the checks' order of the Python rule.
-fn moved_footprint_fits(constraints: &Constraints, facility_id: &str, zone: &[Pt], from: Pt, to: Pt) -> PyResult<()> {
+fn moved_footprint_fits(constraints: &Constraints, facility_id: &str, zone: &[Pt], from: Pt, to: Pt) -> Result<()> {
     let Some((_, footprint)) = constraints.footprints.iter().find(|(id, _)| &**id == facility_id) else {
         return Ok(());
     };
@@ -1883,21 +1642,66 @@ fn moved_footprint_fits(constraints: &Constraints, facility_id: &str, zone: &[Pt
     Ok(())
 }
 
-fn check_change(world: &Bound<'_, PyAny>, op: &str, target: &str, parameters: &Bound<'_, PyAny>, end_minute: Option<i64>) -> PyResult<()> {
-    let py = world.py();
-    let Some(state) = state_of(world, OVERLAY_KEY)? else {
+/// The contract of an operator's parameters; None for an operator the overlay does not have.
+fn contract_of(op: &str) -> Option<Contract> {
+    Some(match op {
+        "set_route_access" => Contract::RouteAccess,
+        "transfer_equipment" => Contract::EquipmentTransfer,
+        "move_facility" => Contract::MoveFacility,
+        "set_partition" => Contract::Partition,
+        "temporary_room_geometry" => Contract::TemporaryRoom,
+        _ => return None,
+    })
+}
+
+/// The overlay is there and a plain dict, and the floor plan has a layout and constraints: the
+/// checks before the parameters' contract.
+fn change_is_possible<'g>(world: &World, change: &Change<'g>) -> Result<&'g Geo> {
+    let Some(state) = state_of(world, OVERLAY_KEY, change.overlay)? else {
         return invalid("geometry_overlay_required: declare the versioned geometry overlay before approving effects");
     };
-    exact_dict(&state)?;
-    let geo = Geo::of(world)?;
-    let Some(layout) = geo.layout.as_ref() else {
+    if !matches!(state.0, V::Map(_)) {
+        return refuse("a value is not a plain dict");
+    }
+    drop(state);
+    let geo = plan(change.geo)?;
+    if geo.layout.is_none() {
         return invalid("geometry_unavailable");
+    }
+    constraints_of_plan(geo)?;
+    Ok(geo)
+}
+
+/// `validate_geometry_change`: the contract's dump of the parameters when the change may be applied.
+/// The contract's own error (policy E15) comes as the host gives it.
+pub fn check_change<C: WorldCell, H: Host>(
+    cell: &C,
+    host: &mut H,
+    change: &Change<'_>,
+    op: &str,
+    target: &str,
+    parameters: &V,
+    end_minute: Option<i64>,
+) -> std::result::Result<V, H::Error> {
+    let geo = cell.with(|world| change_is_possible(world, change))??;
+    let Some(contract) = contract_of(op) else {
+        return Err(Error::value_error("unsupported_geometry_operator").into());
     };
-    let constraints = constraints_of_plan(&geo)?;
+    let data = host.contract(&contract, parameters)?;
+    cell.with(|world| check_op(world, change, geo, op, target, &data, end_minute))??;
+    Ok(data)
+}
+
+/// The checks of an operator, on its parameters' dump.
+fn check_op(world: &World, change: &Change<'_>, geo: &Geo, op: &str, target: &str, data: &V, end_minute: Option<i64>) -> Result<()> {
+    let layout = layout_of_plan(geo)?;
+    let constraints = constraints_of_plan(geo)?;
+    let state = state_of(world, OVERLAY_KEY, change.overlay)?.ok_or_else(|| Error::unsupported("no overlay"))?;
     match op {
         "set_route_access" => {
-            let data = checked_model(py, OVERLAY_MODULE, "RouteAccessParameters", parameters)?;
-            let accessible = attribute(&data, intern!(py, "accessible"))?.is_truthy()?;
+            let V::Bool(accessible) = field(data, "accessible")? else {
+                return refuse("accessible is not a bool");
+            };
             let edges = edges_of(world)?;
             let Some(edge) = edges.get(target) else {
                 return invalid("target_missing: route does not exist");
@@ -1905,11 +1709,11 @@ fn check_change(world: &Bound<'_, PyAny>, op: &str, target: &str, parameters: &B
             if end_minute.is_none() {
                 return invalid("expiry_required: route-access changes require a bounded end");
             }
-            if accessible && edge.closed {
+            if *accessible && edge.closed {
                 return invalid("unsupported_reopening: this operation cannot override a prior graph closure");
             }
-            if !accessible {
-                let rooms = part(&state, "temporary_rooms")?;
+            if !*accessible {
+                let rooms = part(&state.0, "temporary_rooms")?;
                 for room in map_of(&rooms)?.values() {
                     let room = map_of(room)?;
                     if !flag_of(room, "active")? {
@@ -1927,7 +1731,7 @@ fn check_change(world: &Bound<'_, PyAny>, op: &str, target: &str, parameters: &B
                     let mut outgoing = false;
                     for id in ids {
                         let V::Str(id) = id else {
-                            return unsupported("a route's ID is not a str");
+                            return refuse("a route's ID is not a str");
                         };
                         if &**id == target {
                             continue;
@@ -1949,23 +1753,16 @@ fn check_change(world: &Bound<'_, PyAny>, op: &str, target: &str, parameters: &B
             Ok(())
         }
         "transfer_equipment" => {
-            let data = checked_model(py, OPERATIONS_MODULE, "EquipmentTransferParameters", parameters)?;
-            let (equipment, from_zone, to_zone) = (
-                text_attr(&data, intern!(py, "equipment_id"))?,
-                text_attr(&data, intern!(py, "from_zone_id"))?,
-                text_attr(&data, intern!(py, "to_zone_id"))?,
-            );
-            let point = point_attr(&data, intern!(py, "point_m"))?;
-            let store = entities_of(world)?;
-            let known = EntityStore::with_rows(&store, |rows| Ok(rows.facilities.get(target).map(|facility| facility.zone_id.clone())))?;
+            let (equipment, from_zone, to_zone) = (text_field(data, "equipment_id")?, text_field(data, "from_zone_id")?, text_field(data, "to_zone_id")?);
+            let point = point_field(data, "point_m")?;
+            let known = world.rows()?.facilities.get(target).map(|facility| facility.zone_id.clone());
             let (Some(zone_now), Some(&old)) = (known, layout.facility_points.get(target)) else {
                 return invalid("target_missing: equipment must identify a positioned facility");
             };
             if &*equipment != target {
                 return invalid("target_mismatch: equipment_id must match the selected facility");
             }
-            let zones = attribute(world, intern!(py, "zones"))?;
-            if from_zone != zone_now || !exact_dict(&zones)?.contains(&*to_zone)? {
+            if from_zone != zone_now || !zone_rows(world)?.zones.contains_key(&*to_zone) {
                 return invalid("precondition_failed: equipment source/destination zone does not match");
             }
             if end_minute.is_some() {
@@ -1973,6 +1770,7 @@ fn check_change(world: &Bound<'_, PyAny>, op: &str, target: &str, parameters: &B
             }
             let (_, kind) = facility_is_free(
                 world,
+                change,
                 target,
                 "facility_in_use: equipment queues and services must be empty",
                 "facility_in_use: an active staff task targets this equipment",
@@ -1983,16 +1781,16 @@ fn check_change(world: &Bound<'_, PyAny>, op: &str, target: &str, parameters: &B
             if !point_in_polygon(point, &destination.polygon) {
                 return invalid("area_invalid: transfer point must lie inside the destination zone");
             }
-            let rooms = part(&state, "temporary_rooms")?;
-            clear_of_rooms(&geo, map_of(&rooms)?, target, &to_zone, point)?;
+            let rooms = part(&state.0, "temporary_rooms")?;
+            clear_of_rooms(geo, map_of(&rooms)?, target, &to_zone, point)?;
             if !zones_connected(&edges_of(world)?, &from_zone, &to_zone) {
                 return invalid("route_unavailable: equipment zones have no open directed route");
             }
-            service_staff_in_zone(world, &geo, target, &kind, &to_zone)?;
+            service_staff_in_zone(world, change, geo, target, &kind, &to_zone)?;
             if walls_are_near(constraints, point) {
                 return invalid("clear_width_insufficient: transferred equipment must remain half a metre from walls");
             }
-            if !walkable_at(&geo, &to_zone, point)? {
+            if !walkable_at(geo, &to_zone, point)? {
                 return invalid("clear_width_insufficient: transfer point is not walkable");
             }
             let (dx, dy) = (point.x - old.x, point.y - old.y);
@@ -2002,22 +1800,20 @@ fn check_change(world: &Bound<'_, PyAny>, op: &str, target: &str, parameters: &B
                 }
                 let shifted = Pt { x: service.point.x + dx, y: service.point.y + dy };
                 if !usable(shifted.x, shifted.y) {
-                    return unsupported("a moved service point is not a usable point");
+                    return refuse("a moved service point is not a usable point");
                 }
                 if !point_in_polygon(shifted, &destination.polygon) {
                     return invalid("area_invalid: transferred service point leaves its destination zone");
                 }
-                if walls_are_near(constraints, shifted) || !walkable_at(&geo, &to_zone, shifted)? {
+                if walls_are_near(constraints, shifted) || !walkable_at(geo, &to_zone, shifted)? {
                     return invalid("clear_width_insufficient: transferred service point is not walkable");
                 }
             }
             transferred_footprint_fits(constraints, target, &destination.polygon, old, point)
         }
         "move_facility" => {
-            let data = checked_model(py, OVERLAY_MODULE, "MoveFacilityParameters", parameters)?;
-            let point = point_attr(&data, intern!(py, "point_m"))?;
-            let store = entities_of(world)?;
-            let known = EntityStore::with_rows(&store, |rows| Ok(rows.facilities.get(target).is_some()))?;
+            let point = point_field(data, "point_m")?;
+            let known = world.rows()?.facilities.contains_key(target);
             let (true, Some(&old)) = (known, layout.facility_points.get(target)) else {
                 return invalid("target_missing: facility has no surveyed position");
             };
@@ -2026,18 +1822,19 @@ fn check_change(world: &Bound<'_, PyAny>, op: &str, target: &str, parameters: &B
             }
             let (zone_id, _) = facility_is_free(
                 world,
+                change,
                 target,
                 "facility_in_use: queues and services must be empty",
                 "facility_in_use: an active staff task targets this facility",
             )?;
             let Some(zone) = layout.zones.get(&*zone_id) else {
-                return unsupported("a facility in a zone with no polygon");
+                return refuse("a facility in a zone with no polygon");
             };
             if !point_in_polygon(point, &zone.polygon) {
                 return invalid("area_invalid: cross-zone facility moves are unsupported");
             }
-            let rooms = part(&state, "temporary_rooms")?;
-            clear_of_rooms(&geo, map_of(&rooms)?, target, &zone_id, point)?;
+            let rooms = part(&state.0, "temporary_rooms")?;
+            clear_of_rooms(geo, map_of(&rooms)?, target, &zone_id, point)?;
             if walls_are_near(constraints, point) {
                 return invalid("clear_width_insufficient: moved service point requires half a metre from walls");
             }
@@ -2047,7 +1844,7 @@ fn check_change(world: &Bound<'_, PyAny>, op: &str, target: &str, parameters: &B
                 }
                 let shifted = Pt { x: service.point.x + point.x - old.x, y: service.point.y + point.y - old.y };
                 if !usable(shifted.x, shifted.y) {
-                    return unsupported("a moved service point is not a usable point");
+                    return refuse("a moved service point is not a usable point");
                 }
                 if !point_in_polygon(shifted, &zone.polygon) {
                     return invalid("area_invalid: moved facility would move a service point outside its zone");
@@ -2055,18 +1852,17 @@ fn check_change(world: &Bound<'_, PyAny>, op: &str, target: &str, parameters: &B
                 if walls_are_near(constraints, shifted) {
                     return invalid("clear_width_insufficient: moved service point is too close to a wall");
                 }
-                if !walkable_at(&geo, &zone_id, shifted)? {
+                if !walkable_at(geo, &zone_id, shifted)? {
                     return invalid("clear_width_insufficient: moved service point is not walkable");
                 }
             }
-            if !walkable_at(&geo, &zone_id, point)? {
+            if !walkable_at(geo, &zone_id, point)? {
                 return invalid("clear_width_insufficient: moved service point is not walkable");
             }
             moved_footprint_fits(constraints, target, &zone.polygon, old, point)
         }
         "set_partition" => {
-            let data = checked_model(py, OVERLAY_MODULE, "PartitionParameters", parameters)?;
-            let polygon = points_attr(&data, intern!(py, "polygon_m"))?;
+            let polygon = points_field(data, "polygon_m")?;
             let Some(zone) = layout.zones.get(target) else {
                 return invalid("target_missing: zone does not exist");
             };
@@ -2091,27 +1887,23 @@ fn check_change(world: &Bound<'_, PyAny>, op: &str, target: &str, parameters: &B
                     return invalid("area_invalid: partition overlaps equipment or another obstacle");
                 }
             }
-            let movement = movement_mirror(world)?;
-            let store = entities_of(world)?;
-            if let Some(mirror) = &movement {
-                NamespaceMirror::with_row::<MovementRow, _>(mirror, |row| {
-                    for position in row.positions.values() {
-                        if let Some(point) = position.point {
-                            if !usable(point.x, point.y) {
-                                return unsupported("a position is not a usable point");
-                            }
-                            if point_in_polygon(Pt { x: point.x, y: point.y }, &polygon) {
-                                return invalid("route_in_use: partition covers a current person");
-                            }
+            let movement = movement_of(world, change.movement)?;
+            if let Some(row) = &movement {
+                for position in row.positions.values() {
+                    if let Some(point) = position.point {
+                        if !usable(point.x, point.y) {
+                            return refuse("a position is not a usable point");
+                        }
+                        if point_in_polygon(Pt { x: point.x, y: point.y }, &polygon) {
+                            return invalid("route_in_use: partition covers a current person");
                         }
                     }
-                    Ok(())
-                })?;
+                }
             }
-            let staff_zones = EntityStore::with_rows(&store, |rows| Ok(rows.staff.iter().map(|(_, staff)| staff.zone_id.clone()).collect::<Vec<_>>()))?;
+            let staff_zones: Vec<Arc<str>> = world.rows()?.staff.iter().map(|(_, staff)| staff.zone_id.clone()).collect();
             for zone_id in staff_zones {
                 if layout.zones.get(&*zone_id).is_some() {
-                    if let Some(centre) = geo.zone_center(&zone_id)? {
+                    if let Some(centre) = geo.center(&zone_id)? {
                         if point_in_polygon(centre, &polygon) {
                             return invalid("route_in_use: partition covers a staff standing point");
                         }
@@ -2123,34 +1915,31 @@ fn check_change(world: &Bound<'_, PyAny>, op: &str, target: &str, parameters: &B
                     return invalid("clear_width_insufficient: partition obstructs a declared passage");
                 }
             }
-            if let Some(mirror) = &movement {
-                NamespaceMirror::with_row::<MovementRow, _>(mirror, |row| {
-                    for journey in row.journeys.values() {
-                        let points: Vec<Pt> = journey.route_points.iter().map(|point| Pt { x: point.x, y: point.y }).collect();
-                        if points.iter().any(|point| !usable(point.x, point.y)) {
-                            return unsupported("a route point is not a usable point");
-                        }
-                        if points.windows(2).any(|pair| !segment_clear_of_polygon(pair[0], pair[1], &polygon, WALL_CLEARANCE))
-                            && !crate::rules::movement::is_queue_trip(&journey.purpose)
-                        {
-                            return invalid("route_in_use: partition intersects current room travel");
-                        }
+            if let Some(row) = &movement {
+                for journey in row.journeys.values() {
+                    let points: Vec<Pt> = journey.route_points.iter().map(|point| Pt { x: point.x, y: point.y }).collect();
+                    if points.iter().any(|point| !usable(point.x, point.y)) {
+                        return refuse("a route point is not a usable point");
                     }
-                    Ok(())
-                })?;
+                    if points.windows(2).any(|pair| !segment_clear_of_polygon(pair[0], pair[1], &polygon, WALL_CLEARANCE))
+                        && !walking::is_queue_trip(&journey.purpose)
+                    {
+                        return invalid("route_in_use: partition intersects current room travel");
+                    }
+                }
             }
             Ok(())
         }
         "temporary_room_geometry" => {
-            let data = checked_model(py, OPERATIONS_MODULE, "TemporaryRoomGeometry", parameters)?;
-            let polygon = points_attr(&data, intern!(py, "polygon_m"))?;
-            let beds = points_attr(&data, intern!(py, "bed_points_m"))?;
-            let room_id = text_attr(&data, intern!(py, "room_id"))?;
-            let zone_id = text_attr(&data, intern!(py, "zone_id"))?;
-            let route_ids = attribute(&data, intern!(py, "route_edge_ids"))?;
-            let route_ids = route_ids.downcast_exact::<PyTuple>().map_err(|_| Unsupported::new_err("not a tuple"))?;
-            let route_ids: Vec<Arc<str>> = route_ids.iter().map(|id| Ok(Arc::from(exact_str(&id)?))).collect::<PyResult<_>>()?;
-            let duration = exact_int(&attribute(world, intern!(py, "duration_minutes"))?)?;
+            let polygon = points_field(data, "polygon_m")?;
+            let beds = points_field(data, "bed_points_m")?;
+            let room_id = text_field(data, "room_id")?;
+            let zone_id = text_field(data, "zone_id")?;
+            let V::List(route_ids) = field(data, "route_edge_ids")? else {
+                return refuse("not a tuple");
+            };
+            let route_ids: Vec<Arc<str>> = route_ids.iter().map(|id| Ok(kit::exact_str(id)?.clone())).collect::<Result<_>>()?;
+            let duration = world.duration_minutes()?;
             if &*zone_id != target {
                 return invalid("target_mismatch: temporary room zone must match its selected zone");
             }
@@ -2187,24 +1976,21 @@ fn check_change(world: &Bound<'_, PyAny>, op: &str, target: &str, parameters: &B
             if !incoming || !outgoing {
                 return invalid("route_unavailable: temporary room requires directed ingress and egress routes");
             }
-            let rooms = part(&state, "temporary_rooms")?;
+            let rooms = part(&state.0, "temporary_rooms")?;
             let rooms = map_of(&rooms)?;
             if rooms.contains_key(&*room_id) {
                 return invalid("room_exists: temporary room ID already exists");
             }
             for row in rooms.values() {
                 let row = map_of(row)?;
-                if flag_of(row, "active")?
-                    && matches!(row.get("zone_id"), Some(V::Str(zone)) if &**zone == target)
-                    && polygons_overlap(&polygon, &polygon_of(row.get("polygon_m"))?)
-                {
+                if flag_of(row, "active")? && matches!(row.get("zone_id"), Some(V::Str(zone)) if &**zone == target) && polygons_overlap(&polygon, &polygon_of(row.get("polygon_m"))?) {
                     return invalid("area_invalid: temporary room overlaps another active room");
                 }
             }
             if layout.facility_points.values().any(|point| point_in_polygon(*point, &polygon)) {
                 return invalid("area_invalid: temporary room covers a facility");
             }
-            let reservations = part(&state, "bed_reservations")?;
+            let reservations = part(&state.0, "bed_reservations")?;
             for reservation in map_of(&reservations)?.values() {
                 let reservation = map_of(reservation)?;
                 let Some(V::Str(room)) = reservation.get("room_id") else {
@@ -2229,25 +2015,22 @@ fn check_change(world: &Bound<'_, PyAny>, op: &str, target: &str, parameters: &B
             if sides(&polygon).any(|(a, b)| constraints.walls.iter().any(|wall| segments_meet(a, b, wall.start, wall.end))) {
                 return invalid("area_invalid: temporary room boundary crosses a declared wall");
             }
-            if let Some(mirror) = &movement_mirror(world)? {
-                NamespaceMirror::with_row::<MovementRow, _>(mirror, |row| {
-                    for (positions, text) in [
-                        (&row.positions, "room_in_use: temporary room would cover a current person"),
-                        (&row.staff_positions, "room_in_use: temporary room would cover a current staff member"),
-                    ] {
-                        for position in positions.values() {
-                            if let Some(point) = position.point {
-                                if !usable(point.x, point.y) {
-                                    return unsupported("a position is not a usable point");
-                                }
-                                if point_in_polygon(Pt { x: point.x, y: point.y }, &polygon) {
-                                    return invalid(text);
-                                }
+            if let Some(row) = movement_of(world, change.movement)? {
+                for (positions, text) in [
+                    (&row.positions, "room_in_use: temporary room would cover a current person"),
+                    (&row.staff_positions, "room_in_use: temporary room would cover a current staff member"),
+                ] {
+                    for position in positions.values() {
+                        if let Some(point) = position.point {
+                            if !usable(point.x, point.y) {
+                                return refuse("a position is not a usable point");
+                            }
+                            if point_in_polygon(Pt { x: point.x, y: point.y }, &polygon) {
+                                return invalid(text);
                             }
                         }
                     }
-                    Ok(())
-                })?;
+                }
             }
             let mut access = Vec::with_capacity(route_ids.len() + 1);
             for id in &route_ids {
@@ -2255,13 +2038,13 @@ fn check_change(world: &Bound<'_, PyAny>, op: &str, target: &str, parameters: &B
                 let point = if &*edge.to == target { route.points[route.points.len() - 1] } else { route.points[0] };
                 access.push(point);
             }
-            if let Some(center) = geo.zone_center(target)? {
+            if let Some(center) = geo.center(target)? {
                 access.push(center);
             }
             for bed in &beds {
                 let mut reachable = false;
                 for entry in &access {
-                    if geo.room_route(target, Some(*entry), *bed, "independent").map_err(crate::rules::movement::refused)?.is_some() {
+                    if geo.room_route(target, Some(*entry), *bed, "independent").map_err(Error::unsupported)?.is_some() {
                         reachable = true;
                         break;
                     }
@@ -2276,80 +2059,52 @@ fn check_change(world: &Bound<'_, PyAny>, op: &str, target: &str, parameters: &B
     }
 }
 
-fn end_of(end_minute: &Bound<'_, PyAny>) -> PyResult<Option<i64>> {
-    if end_minute.is_none() {
-        Ok(None)
-    } else {
-        Ok(Some(exact_int(end_minute)?))
-    }
-}
-
-#[pyfunction]
-fn validate_geometry_change(
-    world: &Bound<'_, PyAny>,
-    op: &Bound<'_, PyAny>,
-    target: &Bound<'_, PyAny>,
-    parameters: &Bound<'_, PyAny>,
-    end_minute: &Bound<'_, PyAny>,
-) -> PyResult<()> {
-    let result = (|| check_change(world, exact_str(op)?, exact_str(target)?, parameters, end_of(end_minute)?))();
-    counted(world.py(), "validate_geometry_change", result)
-}
-
 // ---- apply_geometry_change ----------------------------------------------------------------------
 
 /// `{..first, **common, "end_minute": end}`.
-fn stamped_record<'py>(
-    py: Python<'py>,
-    first: Vec<(&'static str, Bound<'py, PyAny>)>,
-    event_id: &str,
-    sources: &[&str],
-    minute: &Bound<'py, PyAny>,
-    end: Option<Bound<'py, PyAny>>,
-) -> PyResult<Bound<'py, PyAny>> {
-    let dict = PyDict::new(py);
-    for (key, value) in first {
-        dict.set_item(key, value)?;
-    }
-    dict.set_item("event_id", event_id)?;
-    dict.set_item("source_ids", PyList::new(py, sources.iter().copied())?)?;
-    dict.set_item("minute", minute)?;
+fn stamped_record<const N: usize>(first: [(&str, V); N], event_id: &str, sources: &[&str], minute: i64, end: Option<V>) -> V {
+    let mut map: Doc = first.into_iter().map(|(key, value)| (Arc::from(key), value)).collect();
+    map.insert(Arc::from("event_id"), text(event_id));
+    map.insert(Arc::from("source_ids"), id_list(sources.iter().copied()));
+    map.insert(Arc::from("minute"), V::Int(minute));
     if let Some(end) = end {
-        dict.set_item("end_minute", end)?;
+        map.insert(Arc::from("end_minute"), end);
     }
-    Ok(dict.into_any())
+    V::Map(map)
 }
 
-/// `apply_geometry_change`: the event's writes on this world, after its checks.
-pub(crate) fn apply_change(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: bool) -> PyResult<()> {
-    let py = world.py();
-    let Some(row) = EventRow::from_event(event)? else {
-        return unsupported("not a ScheduledEvent");
-    };
-    let V::Map(payload) = &row.payload else {
-        return unsupported("the payload is not a dict");
+/// `apply_geometry_change`: the event's writes on this world, after its checks (none for an
+/// expiry).
+pub fn apply_change<C: WorldCell, H: Host>(cell: &C, host: &mut H, change: &Change<'_>, event: &EventRow, expire: bool) -> std::result::Result<(), H::Error> {
+    let V::Map(payload) = &event.payload else {
+        return Err(Error::unsupported("the payload is not a dict").into());
     };
     let (op, target, modifier) = (str_of(payload, "op")?, str_of(payload, "target_id")?, str_of(payload, "modifier_id")?);
-    let Some(state) = state_of(world, OVERLAY_KEY)? else {
-        return Err(errors::value_error("geometry_overlay_required"));
+    cell.with(|world| -> Result<()> {
+        let Some(state) = state_of(world, OVERLAY_KEY, change.overlay)? else {
+            return invalid("geometry_overlay_required");
+        };
+        if !matches!(state.0, V::Map(_)) {
+            return refuse("a value is not a plain dict");
+        }
+        Ok(())
+    })??;
+    let Some(raw_parameters) = payload.get("parameters") else {
+        return Err(Error::unsupported("no parameters").into());
     };
-    exact_dict(&state)?;
-    let raw_parameters = event.getattr(intern!(py, "payload"))?.get_item(intern!(py, "parameters")).map_err(|_| Unsupported::new_err("no parameters"))?;
     let end_minute = match payload.get("end_minute") {
         Some(V::Int(minute)) => Some(*minute),
         Some(V::Null) => None,
-        _ => return unsupported("the end minute is another value"),
+        _ => return Err(Error::unsupported("the end minute is another value").into()),
     };
-    if !expire {
-        check_change(world, op, target, &raw_parameters, end_minute)?;
-    }
+    let checked = if expire { None } else { Some(check_change(cell, host, change, op, target, raw_parameters, end_minute)?) };
     // {event.source_id, *parameters.source_ids, *marker.assumption_ids}, what is a str with text.
     let mut sources: Vec<&str> = Vec::new();
-    if let Some(source) = row.source_id.as_deref().filter(|source| !source.is_empty()) {
+    if let Some(source) = event.source_id.as_deref().filter(|source| !source.is_empty()) {
         sources.push(source);
     }
-    match payload.get("parameters") {
-        Some(V::Map(parameters)) => {
+    match raw_parameters {
+        V::Map(parameters) => {
             if let Some(list) = parameters.get("source_ids") {
                 for item in list_of(list)? {
                     if let V::Str(item) = item {
@@ -2360,10 +2115,9 @@ pub(crate) fn apply_change(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, e
                 }
             }
         }
-        None => {}
-        _ => return unsupported("the parameters are another value"),
+        _ => return Err(Error::unsupported("the parameters are another value").into()),
     }
-    if let V::Map(provenance) = &row.provenance {
+    if let V::Map(provenance) = &event.provenance {
         match provenance.get("effect_program_v1") {
             Some(V::Map(marker)) => {
                 if let Some(list) = marker.get("assumption_ids") {
@@ -2377,152 +2131,237 @@ pub(crate) fn apply_change(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, e
                 }
             }
             None => {}
-            _ => return unsupported("the marker is another value"),
+            _ => return Err(Error::unsupported("the marker is another value").into()),
         }
     }
     let sources = sorted_set(sources);
-    let source_list = || PyList::new(py, sources.iter().copied()).map(Bound::into_any);
-    let minute = attribute(world, intern!(py, "minute_index"))?;
-    let event_text = py_str(py, &row.event_id);
-    let history = required(&state, "history")?;
-    let end_object = |py: Python<'_>| -> PyResult<Py<PyAny>> {
-        Ok(match end_minute {
-            Some(end) => end.into_pyobject(py)?.into_any().unbind(),
-            None => py.None(),
-        })
+    // The parameters as their contract gives them, for the operators that read the model: what the
+    // check validated, or, for an expiry, the contract now, whose refusal is a refusal.
+    let data = match &**op {
+        "move_facility" | "transfer_equipment" | "temporary_room_geometry" => Some(match checked {
+            Some(data) => data,
+            None => {
+                let contract = contract_of(op).ok_or_else(|| Error::unsupported("no contract"))?;
+                match host.contract(&contract, raw_parameters) {
+                    Ok(data) => data,
+                    Err(_) => return Err(Error::unsupported("the contract refuses the parameters").into()),
+                }
+            }
+        }),
+        "set_partition" if !expire => checked,
+        _ => None,
     };
-    let mut history_target: Arc<str> = target.clone();
-    match &**op {
-        "move_facility" | "transfer_equipment" => {
-            let (point, zone) = if &**op == "transfer_equipment" {
-                let data = model_of(py, OPERATIONS_MODULE, "EquipmentTransferParameters", &raw_parameters)?;
-                (point_attr(&data, intern!(py, "point_m"))?, Some(attribute(&data, intern!(py, "to_zone_id"))?))
-            } else {
-                let data = model_of(py, OVERLAY_MODULE, "MoveFacilityParameters", &raw_parameters)?;
-                (point_attr(&data, intern!(py, "point_m"))?, None)
-            };
-            let points = required(&state, "facility_points")?;
-            let record = stamped_record(py, vec![("point_m", point_dict(py, point)?)], &row.event_id, &sources, &minute, None)?;
-            if let Some(zone) = zone {
-                let facilities = attribute(world, intern!(py, "facilities"))?;
-                let Some(facility) = raw_dict_get(&facilities, py_str(py, target).as_any())? else {
-                    return unsupported("no such facility");
-                };
-                facility.setattr(intern!(py, "zone_id"), zone)?;
-            }
-            points.set_item(&**target, record)?;
-        }
-        "set_partition" => {
-            let partitions = required(&state, "partitions")?;
-            if expire {
-                partitions.call_method1(intern!(py, "pop"), (&**modifier, py.None()))?;
-            } else {
-                let data = model_of(py, OVERLAY_MODULE, "PartitionParameters", &raw_parameters)?;
-                let polygon = points_attr(&data, intern!(py, "polygon_m"))?;
-                let corners = polygon.iter().map(|point| point_dict(py, *point)).collect::<PyResult<Vec<_>>>()?;
-                let items = vec![("zone_id", py_str(py, target)), ("polygon_m", PyList::new(py, corners)?.into_any())];
-                let end = end_object(py)?.into_bound(py);
-                partitions.set_item(&**modifier, stamped_record(py, items, &row.event_id, &sources, &minute, Some(end))?)?;
-            }
-        }
-        "set_route_access" => {
-            let edges = attribute(world, intern!(py, "zone_edges"))?;
-            let Some(edge) = raw_dict_get(&edges, py_str(py, target).as_any())? else {
-                return unsupported("no such route");
-            };
-            let routes = required(&state, "route_modifiers")?;
-            let accessible = if expire {
-                None
-            } else {
-                match payload.get("parameters") {
-                    Some(V::Map(parameters)) => match parameters.get("accessible") {
-                        Some(V::Bool(flag)) => Some(*flag),
-                        _ => return unsupported("accessible is not a bool"),
-                    },
-                    _ => return unsupported("no parameters"),
-                }
-            };
-            let record = match child(&routes, target)? {
-                Some(record) => record,
-                None => {
-                    let fresh = dict_of(py, &[("base_closed", attribute(&edge, intern!(py, "closed"))?), ("modifiers", PyDict::new(py).into_any())])?;
-                    routes.set_item(&**target, fresh)?;
-                    required(&routes, target)?
-                }
-            };
-            let modifiers = required(&record, "modifiers")?;
-            if let Some(accessible) = accessible {
-                let items = vec![("accessible", py_flag(py, accessible))];
-                let end = end_object(py)?.into_bound(py);
-                modifiers.set_item(&**modifier, stamped_record(py, items, &row.event_id, &sources, &minute, Some(end))?)?;
-            } else {
-                modifiers.call_method1(intern!(py, "pop"), (&**modifier, py.None()))?;
-            }
-            let base = required(&record, "base_closed")?;
-            let mut closed = base.downcast_exact::<PyBool>().map_err(|_| Unsupported::new_err("not a bool"))?.is_true();
-            for (_, item) in exact_dict(&modifiers)?.iter() {
-                let flag = required(&item, "accessible")?;
-                closed |= !flag.downcast_exact::<PyBool>().map_err(|_| Unsupported::new_err("not a bool"))?.is_true();
-            }
-            edge.setattr(intern!(py, "closed"), closed)?;
-            if exact_dict(&modifiers)?.is_empty() {
-                routes.del_item(&**target)?;
-            }
-        }
-        "temporary_room_geometry" => {
-            let data = model_of(py, OPERATIONS_MODULE, "TemporaryRoomGeometry", &raw_parameters)?;
-            let room_id = text_attr(&data, intern!(py, "room_id"))?;
-            let rooms = match child(&state, "temporary_rooms")? {
-                Some(rooms) => rooms,
-                None => return unsupported("the rooms are still to be made"),
-            };
-            if expire {
-                let Some(record) = child(&rooms, &room_id)? else {
-                    return unsupported("the room did not start");
-                };
-                record.set_item(intern!(py, "active"), false)?;
-                record.set_item(intern!(py, "end_event_id"), &event_text)?;
-            } else {
-                let dump = PyDict::new(py);
-                dump.set_item("mode", "json")?;
-                let record = data.call_method(intern!(py, "model_dump"), (), Some(&dump))?;
-                let fields = record.downcast_exact::<PyDict>().map_err(|_| Unsupported::new_err("not a dict"))?;
-                fields.set_item("start_minute", &minute)?;
-                fields.set_item("end_minute", end_object(py)?)?;
-                fields.set_item("active", true)?;
-                fields.set_item("start_event_id", &event_text)?;
-                fields.set_item("end_event_id", py.None())?;
-                fields.set_item("program_id", &**str_of(payload, "program_id")?)?;
-                fields.set_item("effect_id", &**str_of(payload, "effect_id")?)?;
-                fields.set_item("source_ids", source_list()?)?;
-                rooms.set_item(&*room_id, record)?;
-            }
-            history_target = room_id;
-        }
-        _ => return invalid("unsupported_geometry_operator"),
-    }
-    let entry = stamped_record(
-        py,
-        vec![
-            ("transition_id", py_str(py, &row.event_id)),
-            ("op", py_str(py, op)),
-            ("target_id", py_str(py, &history_target)),
-            ("status", py_str(py, if expire { "expired" } else { "applied" })),
-            ("causation_id", row.causation_id.as_deref().map_or_else(|| py.None().into_bound(py), |id| py_str(py, id))),
-        ],
-        &row.event_id,
-        &sources,
-        &minute,
-        None,
-    )?;
-    history.call_method1(intern!(py, "append"), (entry,))?;
-    trim_history(&history, MAX_OVERLAY_HISTORY)
+    let write = Write { change, event, payload, op, target, modifier, expire, end_minute, sources: &sources, data: data.as_ref() };
+    cell.with(|world| write.apply(world))??;
+    Ok(())
 }
 
-#[pyfunction]
-#[pyo3(signature = (world, event, *, expire=false))]
-fn apply_geometry_change(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: bool) -> PyResult<()> {
-    counted(world.py(), "apply_geometry_change", apply_change(world, event, expire))
+/// What `apply_geometry_change` writes, planned.
+struct Write<'a> {
+    change: &'a Change<'a>,
+    event: &'a EventRow,
+    payload: &'a Doc,
+    op: &'a Arc<str>,
+    target: &'a Arc<str>,
+    modifier: &'a Arc<str>,
+    expire: bool,
+    end_minute: Option<i64>,
+    sources: &'a [&'a str],
+    /// The parameters as their contract gives them.
+    data: Option<&'a V>,
+}
+
+impl Write<'_> {
+    fn data(&self) -> Result<&V> {
+        self.data.ok_or_else(|| Error::unsupported("the contract refuses the parameters"))
+    }
+
+    /// The overlay's part `name`, which must be a plain dict.
+    fn part_is_a_dict(&self, world: &World, name: &str) -> Result<()> {
+        let state = state_of(world, OVERLAY_KEY, self.change.overlay)?.ok_or_else(|| Error::unsupported("no overlay"))?;
+        if !matches!(required(&state.0, name)?, V::Map(_)) {
+            return refuse("a value is not a plain dict");
+        }
+        Ok(())
+    }
+
+    fn apply(&self, world: &World) -> Result<()> {
+        let (event_id, target, modifier) = (&*self.event.event_id, &**self.target, &**self.modifier);
+        {
+            let state = state_of(world, OVERLAY_KEY, self.change.overlay)?.ok_or_else(|| Error::unsupported("no overlay"))?;
+            if !matches!(required(&state.0, "history")?, V::List(_)) {
+                return refuse("a value is not a plain list");
+            }
+        }
+        let minute = world.minute_index()?;
+        let end = || self.end_minute.map_or(V::Null, V::Int);
+        let mut history_target: Arc<str> = self.target.clone();
+        match &**self.op {
+            "move_facility" | "transfer_equipment" => {
+                let data = self.data()?;
+                let point = point_field(data, "point_m")?;
+                let zone = if &**self.op == "transfer_equipment" { Some(text_field(data, "to_zone_id")?) } else { None };
+                self.part_is_a_dict(world, "facility_points")?;
+                let record = stamped_record([("point_m", point_doc(point))], event_id, self.sources, minute, None);
+                if let Some(zone) = zone {
+                    let mut rows = world.rows_mut()?;
+                    let Some(facility) = rows.facilities.get_mut(target) else {
+                        return refuse("no such facility");
+                    };
+                    facility.zone_id = zone;
+                }
+                let mut row = world.row_mut::<ValueRow>(OVERLAY_KEY)?;
+                dict_mut(required_mut(&mut row.0, "facility_points")?)?.insert(self.target.clone(), record);
+            }
+            "set_partition" => {
+                self.part_is_a_dict(world, "partitions")?;
+                let record = if self.expire {
+                    None
+                } else {
+                    let polygon = points_field(self.data()?, "polygon_m")?;
+                    let corners = V::List(polygon.iter().map(|point| point_doc(*point)).collect());
+                    Some(stamped_record([("zone_id", text(target)), ("polygon_m", corners)], event_id, self.sources, minute, Some(end())))
+                };
+                let mut row = world.row_mut::<ValueRow>(OVERLAY_KEY)?;
+                let partitions = dict_mut(required_mut(&mut row.0, "partitions")?)?;
+                match record {
+                    None => {
+                        partitions.shift_remove(modifier);
+                    }
+                    Some(record) => {
+                        partitions.insert(self.modifier.clone(), record);
+                    }
+                }
+            }
+            "set_route_access" => self.route_access(world, minute, end())?,
+            "temporary_room_geometry" => {
+                let data = self.data()?;
+                let room_id = text_field(data, "room_id")?;
+                {
+                    let state = state_of(world, OVERLAY_KEY, self.change.overlay)?.ok_or_else(|| Error::unsupported("no overlay"))?;
+                    match child(&state.0, "temporary_rooms")? {
+                        None => return refuse("the rooms are still to be made"),
+                        Some(V::Map(rooms)) => {
+                            if self.expire && !rooms.contains_key(&*room_id) {
+                                return refuse("the room did not start");
+                            }
+                        }
+                        Some(_) => return refuse("a value is not a plain dict"),
+                    }
+                }
+                let record = if self.expire {
+                    None
+                } else {
+                    let V::Map(mut fields) = data.clone() else {
+                        return refuse("not a dict");
+                    };
+                    fields.insert(Arc::from("start_minute"), V::Int(minute));
+                    fields.insert(Arc::from("end_minute"), end());
+                    fields.insert(Arc::from("active"), V::Bool(true));
+                    fields.insert(Arc::from("start_event_id"), text(event_id));
+                    fields.insert(Arc::from("end_event_id"), V::Null);
+                    fields.insert(Arc::from("program_id"), V::Str(str_of(self.payload, "program_id")?.clone()));
+                    fields.insert(Arc::from("effect_id"), V::Str(str_of(self.payload, "effect_id")?.clone()));
+                    fields.insert(Arc::from("source_ids"), id_list(self.sources.iter().copied()));
+                    Some(V::Map(fields))
+                };
+                let mut row = world.row_mut::<ValueRow>(OVERLAY_KEY)?;
+                let rooms = dict_mut(required_mut(&mut row.0, "temporary_rooms")?)?;
+                match record {
+                    None => {
+                        let record = rooms.get_mut(&*room_id).ok_or_else(|| Error::unsupported("the room did not start"))?;
+                        let record = dict_mut(record)?;
+                        record.insert(Arc::from("active"), V::Bool(false));
+                        record.insert(Arc::from("end_event_id"), text(event_id));
+                    }
+                    Some(record) => {
+                        rooms.insert(room_id.clone(), record);
+                    }
+                }
+                history_target = room_id;
+            }
+            _ => return invalid("unsupported_geometry_operator"),
+        }
+        let entry = stamped_record(
+            [
+                ("transition_id", text(event_id)),
+                ("op", V::Str(self.op.clone())),
+                ("target_id", V::Str(history_target)),
+                ("status", text(if self.expire { "expired" } else { "applied" })),
+                ("causation_id", self.event.causation_id.as_deref().map_or(V::Null, text)),
+            ],
+            event_id,
+            self.sources,
+            minute,
+            None,
+        );
+        let mut row = world.row_mut::<ValueRow>(OVERLAY_KEY)?;
+        append_bounded(list_mut(required_mut(&mut row.0, "history")?)?, entry, MAX_OVERLAY_HISTORY);
+        Ok(())
+    }
+
+    /// `set_route_access`: the modifier written or popped, and the route's closure from its base and
+    /// modifiers, written on the edge's row.
+    fn route_access(&self, world: &World, minute: i64, end: V) -> Result<()> {
+        let (target, modifier) = (&**self.target, &**self.modifier);
+        let base_now = match zone_rows(world)?.zone_edges.get(target) {
+            Some(edge) => edge.closed,
+            None => return refuse("no such route"),
+        };
+        self.part_is_a_dict(world, "route_modifiers")?;
+        let accessible = if self.expire {
+            None
+        } else {
+            match self.payload.get("parameters") {
+                Some(V::Map(parameters)) => match parameters.get("accessible") {
+                    Some(V::Bool(flag)) => Some(*flag),
+                    _ => return refuse("accessible is not a bool"),
+                },
+                _ => return refuse("no parameters"),
+            }
+        };
+        let closed = {
+            let mut row = world.row_mut::<ValueRow>(OVERLAY_KEY)?;
+            let routes = dict_mut(required_mut(&mut row.0, "route_modifiers")?)?;
+            if !routes.contains_key(target) {
+                routes.insert(self.target.clone(), doc([("base_closed", V::Bool(base_now)), ("modifiers", V::Map(IndexMap::new()))]));
+            }
+            let record = routes.get_mut(target).ok_or_else(|| Error::unsupported("the state has no such field"))?;
+            let modifiers = dict_mut(required_mut(record, "modifiers")?)?;
+            match accessible {
+                Some(accessible) => {
+                    let entry = stamped_record([("accessible", V::Bool(accessible))], &self.event.event_id, self.sources, minute, Some(end));
+                    modifiers.insert(self.modifier.clone(), entry);
+                }
+                None => {
+                    modifiers.shift_remove(modifier);
+                }
+            }
+            let V::Bool(mut closed) = *required(record, "base_closed")? else {
+                return refuse("not a bool");
+            };
+            let modifiers = map_of(required(record, "modifiers")?)?;
+            for item in modifiers.values() {
+                let V::Bool(flag) = required(item, "accessible")? else {
+                    return refuse("not a bool");
+                };
+                closed |= !*flag;
+            }
+            if modifiers.is_empty() {
+                routes.shift_remove(target);
+            }
+            closed
+        };
+        let mut rows = world.entities.try_borrow_mut()?;
+        if rows.zones_tainted().is_some() {
+            return refuse("the zones are tainted");
+        }
+        let Some(edge) = rows.zone_edges.get_mut(target) else {
+            return refuse("no such route");
+        };
+        edge.closed = closed;
+        Ok(())
+    }
 }
 
 // ---- validate_geometry_overlay_state ------------------------------------------------------------
@@ -2540,38 +2379,34 @@ fn ids_are_unique(value: Option<&V>) -> bool {
 }
 
 /// What `_FacilityPointOverride`, `_PartitionOverride` and `_RouteModifier` have in common.
-fn stamped_is_good(row: &Doc) -> PyResult<i64> {
+fn stamped_is_good(row: &Doc) -> Result<i64> {
     let minute = int_of(row, "minute")?;
     if minute < 0 || !matches!(row.get("event_id"), Some(V::Str(id)) if is_identifier(id)) || !id_list_is_good(row.get("source_ids")) {
-        return unsupported("a record has another shape");
+        return refuse("a record has another shape");
     }
     Ok(minute)
 }
 
-/// `_GeometryOverlayState` for what it takes as it is, and the rule's checks after it.
-fn check_overlay(world: &Bound<'_, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    // Read as a `V`, a detached one from its row.
-    let Some(value) = state_value(world, OVERLAY_KEY)? else {
+/// `validate_geometry_overlay_state`: `_GeometryOverlayState` for what it takes as it is, and the
+/// rule's checks after it. Ok only for what the Python rule passes.
+pub fn check_overlay(world: &World, overlay: &Held, geo: Option<&Geo>) -> Result<()> {
+    let Some(value) = state_of(world, OVERLAY_KEY, overlay)? else {
         return Ok(());
     };
-    let state = map_of(&value)?;
+    let state = map_of(&value.0)?;
     const NAMES: [&str; 9] = [
         "schema_version", "policy_version", "facility_points", "partitions", "route_modifiers", "history", "temporary_rooms",
         "bed_reservations", "room_admissions",
     ];
-    if state.keys().any(|key| !NAMES.contains(&&**key))
-        || state.get("schema_version") != Some(&V::Int(1))
-        || str_of(state, "policy_version")?.as_ref() != POLICY_OVERLAY
-    {
-        return unsupported("the overlay has another shape");
+    if state.keys().any(|key| !NAMES.contains(&&**key)) || state.get("schema_version") != Some(&V::Int(1)) || str_of(state, "policy_version")?.as_ref() != POLICY_OVERLAY {
+        return refuse("the overlay has another shape");
     }
     let empty = IndexMap::new();
-    let optional = |name: &str| -> PyResult<&Doc> {
+    let optional = |name: &str| -> Result<&Doc> {
         match state.get(name) {
             Some(V::Map(map)) => Ok(map),
             None => Ok(&empty),
-            _ => unsupported("a part of the overlay is another value"),
+            _ => refuse("a part of the overlay is another value"),
         }
     };
     let points = map_of(state.get("facility_points").unwrap_or(&V::Null))?;
@@ -2589,15 +2424,15 @@ fn check_overlay(world: &Bound<'_, PyAny>) -> PyResult<()> {
         || reservations.len() > 10_000
         || admissions.len() > 10_000
     {
-        return unsupported("the overlay exceeds a limit");
+        return refuse("the overlay exceeds a limit");
     }
-    let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
+    let minute = world.minute_index()?;
     let mut seen = HashSet::new();
     let mut previous = None;
     for row in history {
         let row = map_of(row)?;
         if !has_exactly(row, &["transition_id", "op", "target_id", "status", "causation_id", "event_id", "source_ids", "minute"]) {
-            return unsupported("a history record has another shape");
+            return refuse("a history record has another shape");
         }
         let at = stamped_is_good(row)?;
         let transition = str_of(row, "transition_id")?;
@@ -2614,22 +2449,22 @@ fn check_overlay(world: &Bound<'_, PyAny>) -> PyResult<()> {
             || at > minute
             || previous.is_some_and(|before| before > at)
         {
-            return unsupported("a history record is not what the Python rule passes");
+            return refuse("a history record is not what the Python rule passes");
         }
         previous = Some(at);
     }
-    let geo = Geo::of(world)?;
-    let layout = layout_of_plan(&geo)?;
+    let geo = plan(geo)?;
+    let layout = layout_of_plan(geo)?;
     let constraints = geo.constraints.as_ref();
     let edges = edges_of(world)?;
-    let store = entities_of(world)?;
     // Facility and person facts, read once.
-    let (facility_zones, agents): (HashMap<Arc<str>, Arc<str>>, HashSet<Arc<str>>) = EntityStore::with_rows(&store, |rows| {
-        Ok((
+    let (facility_zones, agents): (HashMap<Arc<str>, Arc<str>>, HashSet<Arc<str>>) = {
+        let rows = world.rows()?;
+        (
             rows.facilities.iter().map(|(id, facility)| (id.clone(), facility.zone_id.clone())).collect(),
             rows.agents.iter().map(|(id, _)| id.clone()).collect(),
-        ))
-    })?;
+        )
+    };
     let mut active_rooms: Vec<(&Arc<str>, Vec<Pt>, &Arc<str>)> = Vec::new();
     let mut room_capacity: HashMap<&str, i64> = HashMap::new();
     let mut sleeping: HashMap<&str, i64> = HashMap::new();
@@ -2640,18 +2475,18 @@ fn check_overlay(world: &Bound<'_, PyAny>) -> PyResult<()> {
             "start_minute", "end_minute", "active", "start_event_id", "end_event_id", "program_id", "effect_id", "source_ids",
         ];
         if !has_exactly(room, &names) || room.get("schema_version") != Some(&V::Int(1)) || !is_identifier(room_id) {
-            return unsupported("a room has another shape");
+            return refuse("a room has another shape");
         }
         let zone_id = str_of(room, "zone_id")?;
         let (people, beds_wanted) = (int_of(room, "people_capacity")?, int_of(room, "sleeping_capacity")?);
         let (start, end) = (int_of(room, "start_minute")?, int_of(room, "end_minute")?);
         let Some(V::Bool(active)) = room.get("active") else {
-            return unsupported("a room's active is not a bool");
+            return refuse("a room's active is not a bool");
         };
         let ended = match room.get("end_event_id") {
             Some(V::Null) => false,
             Some(V::Str(id)) if is_identifier(id) => true,
-            _ => return unsupported("a room's end event is another value"),
+            _ => return refuse("a room's end event is another value"),
         };
         let polygon = points_in_value(room.get("polygon_m").unwrap_or(&V::Null))?;
         let beds = points_in_value(room.get("bed_points_m").unwrap_or(&V::Null))?;
@@ -2673,25 +2508,25 @@ fn check_overlay(world: &Bound<'_, PyAny>) -> PyResult<()> {
             || !is_identifier(str_of(room, "program_id")?)
             || !is_identifier(str_of(room, "effect_id")?)
         {
-            return unsupported("a room is not what its contract takes");
+            return refuse("a room is not what its contract takes");
         }
         let Some(zone) = layout.zones.get(&**zone_id) else {
-            return unsupported("a room in an unknown zone");
+            return refuse("a room in an unknown zone");
         };
         if start > minute || (*active && minute > end) || !inside_zone(&zone.polygon, &polygon) {
-            return unsupported("a room is not what the Python rule passes");
+            return refuse("a room is not what the Python rule passes");
         }
         if beds.iter().any(|point| !point_in_polygon(*point, &polygon)) {
-            return unsupported("a bed lies outside its room");
+            return refuse("a bed lies outside its room");
         }
         let route_ids = list_of(room.get("route_edge_ids").unwrap_or(&V::Null))?;
         let (mut incoming, mut outgoing) = (false, false);
         for id in route_ids {
             let V::Str(id) = id else {
-                return unsupported("a route's ID is not a str");
+                return refuse("a route's ID is not a str");
             };
             let Some(edge) = edges.get(id) else {
-                return unsupported("a room references an unknown route");
+                return refuse("a room references an unknown route");
             };
             if !edge.closed && layout.routes.get(&**id).is_some_and(|route| route.accessible) {
                 incoming |= edge.to == *zone_id;
@@ -2699,7 +2534,7 @@ fn check_overlay(world: &Bound<'_, PyAny>) -> PyResult<()> {
             }
         }
         if *active && (!incoming || !outgoing) {
-            return unsupported("an active room lacks a route");
+            return refuse("an active room lacks a route");
         }
         room_capacity.insert(room_id, people);
         sleeping.insert(room_id, beds_wanted);
@@ -2710,110 +2545,109 @@ fn check_overlay(world: &Bound<'_, PyAny>) -> PyResult<()> {
     for (index, (_, polygon, zone_id)) in active_rooms.iter().enumerate() {
         for (_, other, other_zone) in &active_rooms[index + 1..] {
             if zone_id == other_zone && polygons_overlap(polygon, other) {
-                return unsupported("active rooms overlap");
+                return refuse("active rooms overlap");
             }
         }
         if layout.facility_points.values().any(|point| point_in_polygon(*point, polygon)) {
-            return unsupported("an active room covers a facility");
+            return refuse("an active room covers a facility");
         }
     }
     for (key, row) in points {
         let row = map_of(row)?;
         if !has_exactly(row, &["point_m", "event_id", "source_ids", "minute"]) || !is_identifier(key) {
-            return unsupported("a move has another shape");
+            return refuse("a move has another shape");
         }
         let at = stamped_is_good(row)?;
         let point = point_in_value(row.get("point_m").unwrap_or(&V::Null))?;
         let Some(zone) = facility_zones.get(&**key).and_then(|zone| layout.zones.get(&**zone)) else {
-            return unsupported("a move of an unknown facility");
+            return refuse("a move of an unknown facility");
         };
         if at > minute || !point_in_polygon(point, &zone.polygon) {
-            return unsupported("a move is not what the Python rule passes");
+            return refuse("a move is not what the Python rule passes");
         }
     }
     for service in &layout.service_points {
         let Some(zone) = facility_zones.get(&*service.facility_id).and_then(|zone| layout.zones.get(&**zone)) else {
-            return unsupported("a service point of an unknown facility");
+            return refuse("a service point of an unknown facility");
         };
         if !point_in_polygon(service.point, &zone.polygon) {
-            return unsupported("a service point leaves its zone");
+            return refuse("a service point leaves its zone");
         }
     }
     for (key, row) in partitions {
         let row = map_of(row)?;
         if !has_exactly(row, &["zone_id", "polygon_m", "event_id", "source_ids", "minute", "end_minute"]) || !is_identifier(key) {
-            return unsupported("a partition has another shape");
+            return refuse("a partition has another shape");
         }
         let at = stamped_is_good(row)?;
         let end = int_of(row, "end_minute")?;
         let polygon = points_in_value(row.get("polygon_m").unwrap_or(&V::Null))?;
         let zone_id = str_of(row, "zone_id")?;
         let Some(zone) = layout.zones.get(&**zone_id) else {
-            return unsupported("a partition in an unknown zone");
+            return refuse("a partition in an unknown zone");
         };
         if !is_identifier(zone_id) || !(3..=64).contains(&polygon.len()) || end <= at || end <= 0 || at > minute || !inside_zone(&zone.polygon, &polygon) {
-            return unsupported("a partition is not what the Python rule passes");
+            return refuse("a partition is not what the Python rule passes");
         }
     }
     let mut nested = 0;
     for (key, row) in route_modifiers {
         let row = map_of(row)?;
         let (Some(V::Bool(base)), Some(V::Map(modifiers)), 2) = (row.get("base_closed"), row.get("modifiers"), row.len()) else {
-            return unsupported("a route's overlay has another shape");
+            return refuse("a route's overlay has another shape");
         };
         let Some(edge) = edges.get(&**key) else {
-            return unsupported("an unknown route");
+            return refuse("an unknown route");
         };
         if modifiers.is_empty() || !is_identifier(key) {
-            return unsupported("a route's overlay has no modifier");
+            return refuse("a route's overlay has no modifier");
         }
         nested += modifiers.len();
         let mut closed = *base;
         for (id, record) in modifiers {
             let record = map_of(record)?;
             if !has_exactly(record, &["accessible", "event_id", "source_ids", "minute", "end_minute"]) || !is_identifier(id) {
-                return unsupported("a route modifier has another shape");
+                return refuse("a route modifier has another shape");
             }
             let at = stamped_is_good(record)?;
             let end = int_of(record, "end_minute")?;
             let Some(V::Bool(accessible)) = record.get("accessible") else {
-                return unsupported("accessible is not a bool");
+                return refuse("accessible is not a bool");
             };
             if end <= at || end <= 0 || at > minute {
-                return unsupported("a route modifier is not what the Python rule passes");
+                return refuse("a route modifier is not what the Python rule passes");
             }
             closed |= !*accessible;
         }
         if edge.closed != closed {
-            return unsupported("the overlay and the graph disagree");
+            return refuse("the overlay and the graph disagree");
         }
     }
     if nested > 256 {
-        return unsupported("the overlay exceeds a limit");
+        return refuse("the overlay exceeds a limit");
     }
-    if let Some(constraints) = constraints {
-        for (facility_id, footprint) in &constraints.footprints {
-            let Some(zone_id) = facility_zones.get(facility_id) else {
-                return unsupported("a footprint of an unknown facility");
-            };
-            let Some(zone) = layout.zones.get(&**zone_id) else {
-                return unsupported("a footprint in an unknown zone");
-            };
-            if footprint.iter().any(|point| !point_in_polygon(*point, &zone.polygon)) {
-                return unsupported("a footprint leaves its zone");
-            }
-            if active_rooms.iter().any(|(_, polygon, room_zone)| *room_zone == zone_id && polygons_overlap(polygon, footprint)) {
-                return unsupported("an active room overlaps a footprint");
-            }
+    let Some(constraints) = constraints else {
+        return refuse("no constraints");
+    };
+    for (facility_id, footprint) in &constraints.footprints {
+        let Some(zone_id) = facility_zones.get(facility_id) else {
+            return refuse("a footprint of an unknown facility");
+        };
+        let Some(zone) = layout.zones.get(&**zone_id) else {
+            return refuse("a footprint in an unknown zone");
+        };
+        if footprint.iter().any(|point| !point_in_polygon(*point, &zone.polygon)) {
+            return refuse("a footprint leaves its zone");
         }
-    } else {
-        return unsupported("no constraints");
+        if active_rooms.iter().any(|(_, polygon, room_zone)| *room_zone == zone_id && polygons_overlap(polygon, footprint)) {
+            return refuse("an active room overlaps a footprint");
+        }
     }
     let mut beds_held: HashSet<(Arc<str>, i64)> = HashSet::new();
     for (agent_id, reservation) in reservations {
         let reservation = map_of(reservation)?;
         if !has_exactly(reservation, &["agent_id", "room_id", "bed_index", "target_id", "reserved_minute"]) {
-            return unsupported("a reservation has another shape");
+            return refuse("a reservation has another shape");
         }
         let room_id = str_of(reservation, "room_id")?;
         let index = int_of(reservation, "bed_index")?;
@@ -2830,15 +2664,14 @@ fn check_overlay(world: &Bound<'_, PyAny>) -> PyResult<()> {
             || at > minute
             || !beds_held.insert((room_id.clone(), index))
         {
-            return unsupported("a reservation is not what the Python rule passes");
+            return refuse("a reservation is not what the Python rule passes");
         }
     }
     let mut counts: HashMap<&str, i64> = HashMap::new();
     for (agent_id, admission) in admissions {
         let admission = map_of(admission)?;
-        let names_with = has_exactly(admission, &["agent_id", "room_id", "admitted_minute", "event_id", "source_ids"]);
-        if !names_with {
-            return unsupported("an admission has another shape");
+        if !has_exactly(admission, &["agent_id", "room_id", "admitted_minute", "event_id", "source_ids"]) {
+            return refuse("an admission has another shape");
         }
         let room_id = str_of(admission, "room_id")?;
         let at = int_of(admission, "admitted_minute")?;
@@ -2852,42 +2685,12 @@ fn check_overlay(world: &Bound<'_, PyAny>) -> PyResult<()> {
             || !agents.contains(agent_id)
             || !room_capacity.contains_key(&**room_id)
         {
-            return unsupported("an admission is not what the Python rule passes");
+            return refuse("an admission is not what the Python rule passes");
         }
         *counts.entry(room_id).or_insert(0) += 1;
     }
     if counts.iter().any(|(room_id, count)| room_capacity.get(room_id).is_none_or(|capacity| count > capacity)) {
-        return unsupported("admissions exceed a room");
+        return refuse("admissions exceed a room");
     }
-    Ok(())
-}
-
-/// `validate_geometry_overlay_state`: true only for what the Python rule passes.
-#[pyfunction]
-fn validate_overlay(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    counted(world.py(), "validate_overlay", check_overlay(world).map(|()| true))
-}
-
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(register_temporary_space, m)?)?;
-    m.add_function(wrap_pyfunction!(expire_temporary_space, m)?)?;
-    m.add_function(wrap_pyfunction!(validate_spaces, m)?)?;
-    m.add_function(wrap_pyfunction!(capacity_metrics_kernel, m)?)?;
-    m.add_function(wrap_pyfunction!(effective_zone_capacity, m)?)?;
-    m.add_function(wrap_pyfunction!(effective_total_zone_capacity, m)?)?;
-    m.add_function(wrap_pyfunction!(incoming_travelers, m)?)?;
-    m.add_function(wrap_pyfunction!(release_sleep_bed, m)?)?;
-    m.add_function(wrap_pyfunction!(release_temporary_room_admission, m)?)?;
-    m.add_function(wrap_pyfunction!(room_admission_point, m)?)?;
-    m.add_function(wrap_pyfunction!(available_temporary_room, m)?)?;
-    m.add_function(wrap_pyfunction!(admit_to_temporary_room, m)?)?;
-    m.add_function(wrap_pyfunction!(reserve_sleep_bed, m)?)?;
-    m.add_function(wrap_pyfunction!(installed_facility_placement_enabled, m)?)?;
-    m.add_function(wrap_pyfunction!(installed_facility_point, m)?)?;
-    m.add_function(wrap_pyfunction!(place_installed_facility, m)?)?;
-    m.add_function(wrap_pyfunction!(validate_geometry_change, m)?)?;
-    m.add_function(wrap_pyfunction!(apply_geometry_change, m)?)?;
-    m.add_function(wrap_pyfunction!(validate_overlay, m)?)?;
-    m.add_function(wrap_pyfunction!(stats, m)?)?;
     Ok(())
 }

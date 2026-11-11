@@ -26,21 +26,10 @@ use crate::core::configs::{self, fault_of};
 use crate::core::errors::OrPy;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, unsupported, IdMap};
 use crate::core::tracked::as_readable_dict;
-use crate::core::value::V;
 use crate::core::world_core::{field_stamp, with_state_value};
 use crate::Unsupported;
 
 const OVERLAY_KEY: &str = "geometry_overlay_v1";
-
-/// `point_in_value` of the core, for a rule.
-pub(crate) fn point_in_value(value: &V) -> PyResult<Pt> {
-    sheltersim_core::geometry::point_in_value(value).or_py()
-}
-
-/// `points_in_value` of the core, for a rule.
-pub(crate) fn points_in_value(value: &V) -> PyResult<Vec<Pt>> {
-    sheltersim_core::geometry::points_in_value(value).or_py()
-}
 
 // ---- The section `geometry`: the parsed models, read ---------------------------------------------
 

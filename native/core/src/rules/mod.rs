@@ -33,6 +33,7 @@ pub mod staff_dynamics;
 // ---- P8c: population and movement --------------------------------------------------------------
 pub mod facility_queues;
 pub mod movement;
+pub mod overlay;
 pub mod queues;
 pub mod service;
 pub mod toilet;
