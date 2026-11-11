@@ -62,7 +62,8 @@ Checkpoint document) and times them.
   boundary, the sinks (metrics, decisions, traces, the phase observer) and the space's Python
   views; `HostFailure` gives an error's Python class; lane P8-0b; the validation with an event in
   flight (`validate_in_flight`), the EventLog's records by ID (`find_record`) and the queue's slots
-  a rule changed (`slots_changed`), lane P8 d2),
+  a rule changed (`slots_changed`), lane P8 d2; the floor plan read again (`floor_plan`), and
+  `HostFailure::text` and `is_outcome` for a rule that wraps an error's text in its own, lane P8 d3),
   `rules/` (the kernels moved
   to the core, pure functions over `&World`, listed in `rules/mod.rs` by lane block:
   `metrics.rs`, the columns of `MetricSnapshot` with the open requests' waits of `staff.rs`, and
@@ -143,9 +144,16 @@ Checkpoint document) and times them.
   `kit::Events`; the end of an operational transaction, `settle`, with the world's validation, the
   continuity receipt's ingest and the records it reads through the `Host`; the infrastructure's spec
   through `Host::contract`) (lane P8 d2);
+  `effects.rs` (the rules of an EffectProgram's events: the guard, the five handlers' checks on the
+  world and their writes on the rule transaction's world, the reads of the modifier stacks and the
+  tick's and the history's check of `effect_program_v1`; the parameters' and a guard's contracts
+  through `Host::contract`, the changed world's validation through `Host::validate_world`, and the
+  rules of other files (temporary spaces, geometry changes, an installed facility's place and
+  announcement, the staff positions, the staff's availability) called directly, a refusal of one
+  being its `KernelRefusal`) (lane P8 d3);
   the file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4, P8-0a, c1,
-  P8b-1, P8 a2, P8 a1, P8 d1, P8 a3, P8 c3, P8 a5, P8 c4, P8 c6, P8 c5, P8 b2, P8 b3, P8 b4 and
-  P8 d2),
+  P8b-1, P8 a2, P8 a1, P8 d1, P8 a3, P8 c3, P8 a5, P8 c4, P8 c6, P8 c5, P8 b2, P8 b3, P8 b4,
+  P8 d2 and P8 d3),
   `text.rs` (`casefold`, CPython 3.12's full fold from a generated table, `text/casefold.rs`
   by `tools/casefold_table.py`, tested at every code point against `tests/data/casefold.txt`;
   `g_text`, `format(value, "g")`; `py_repr`, `repr` of a str, from the table of what
@@ -412,17 +420,19 @@ are correctly rounded everywhere, and not `**` with a float.
 - `rules/overlay.rs`: `domain/temporary_spaces.py` and the rules of `domain/geometry_overlay.py`,
   the glue of `core/src/rules/overlay.rs`: capacity, beds and room intake, placing an installed
   facility, checking and applying a floor-plan change, and the checks of both states.
-  `rules/effects.rs`, `rules/proposals.rs`, `rules/replan.rs` and `rules/population.rs` call it
-  directly, and the core's end-of-tick check calls the core's capacity. A zone's nominal capacity
+  `core/src/rules/effects.rs`, `rules/proposals.rs`, `rules/replan.rs` and `rules/population.rs`
+  call it directly, and the core's end-of-tick check calls the core's capacity. A zone's nominal capacity
   is read from its row where the core holds the world's maps (lane P8 d4), and else from the object.
 - `rules/facility_queues.rs`: `domain/facility_queues.py`, the glue of
   `core/src/rules/facility_queues.rs`.
-- `rules/effects.rs`: the rules of an EffectProgram's events: the guard, the five handlers of
-  `events/effects.py`, the two reads of modifier stacks and `validate_effect_program_state`. A
-  handler changes the world in a rule transaction (`rules/transaction.rs`). `model_validate` and
-  the rules of other modules are Python, called by name. Each handler and the guard raise their
-  suppressed and failed texts themselves (`core/errors.rs`), in the Python rule's order of checks; a value Rust can't
-  judge as Python would says `Unsupported` with the world as it was. `rules/staff_order.rs` is
+- `rules/effects.rs`: the glue of `core/src/rules/effects.rs` (lane P8 d3), the rules of an
+  EffectProgram's events: the guard, the five handlers of `events/effects.py`, the two reads of
+  modifier stacks and `validate_effect_program_state`. A handler runs the core's checks on the
+  world and its writes in a rule transaction (`rules/transaction.rs`), with the native host for the
+  contracts (which takes an event's values frozen, as the Python rule gave them) and the
+  validation. Each handler and the guard raise their suppressed and failed texts themselves, in the
+  Python rule's order of checks; a value Rust can't judge as Python would says `Unsupported` with
+  the world as it was. `rules/staff_order.rs` is
   the glue of `order_staff_operation` with `validate_staff_operation_order`'s checks
   (`core/src/rules/staff_order.rs`), for the `staff_task_order` structure change (the Python
   validator stays for `validate_effect_program`).
