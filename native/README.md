@@ -55,7 +55,10 @@ Checkpoint document) and times them.
   counter: a slot's generation is one) and `config/` (`Configs`, the sections the kernels read
   of one state of `model_configs`, each parsed at its first read as a value or a `Fault`, kept in
   the world's `derived` part by the stamp of the `model_configs` slot; `config/geometry.rs` is
-  the section of `facility_geometry` and `spatial_constraints`), `geometry.rs` (the floor plan
+  the section of `facility_geometry` and `spatial_constraints`; `config/read.rs` reads a section
+  from the configs as a `V` with the kernels' refusal texts, and `staff.rs`, `body.rs`,
+  `information.rs`, `agent_dynamics.rs`, `environment.rs` and `proximity.rs` hold the sections of
+  lane 7-5b and their parses), `geometry.rs` (the floor plan
   `Geo`, its `Layout` and `Constraints`, the geometry of `domain/movement.py`, and `GeoCache`, the
   plans one `Configs` keeps by the overlay's stamp, then by the bytes of its moves and partitions).
   The files
@@ -128,7 +131,13 @@ Checkpoint document) and times them.
   fault as its own refusal, or, where the rule relays the error as it is, as the error of a second
   parse (`reraise`), so the class, the text and the moment of every config error stay the same
   (policies E7 and E14 of `docs/rust-port/step5-plan.md`). Configs no mirror follows, and a patched
-  `selected_models`, are parsed at every read. `watch_config_writes(True)` counts the writes to a
+  `selected_models`, are parsed at every read. A section the kernels parse themselves is parsed in
+  the core from the row of the `model_configs` slot (`kept_value`, `parsed_value`, the core's
+  `parse_configs(&World, parse)`); a section a
+  Python contract parses (`create_*_formula`, `InformationSpreadConfig.from_mapping`,
+  `canonical_proximity_contact_config`, the pydantic zone environment and infrastructure specs)
+  keeps the typed values the core defines. `config_section(world, name)` reads a section through
+  its read site's accessor, for the tests. `watch_config_writes(True)` counts the writes to a
   `model_configs` tree in place inside a tick phase (`config_writes_in_tick()`); the all-path gate
   turns it on and reports any. While it counts, a geometry plan found by the overlay's stamp is
   also checked against the overlay held now (`stale_geometry_hits()`, also reported by the gate).
