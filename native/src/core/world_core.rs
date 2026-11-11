@@ -528,14 +528,6 @@ impl<'py> Tree<'py> {
             None => Ok(()),
         }
     }
-
-    /// items.append(value) on a list of scalars, which leaves the table of nodes as it is.
-    pub(crate) fn list_append<T: Scalar>(&self, value: &T) -> PyResult<()> {
-        match &self.node {
-            Some(node) => raw_list_append(node, &atom_to_py(self.py, value.atom())?),
-            None => Ok(()),
-        }
-    }
 }
 
 /// The setters of the core's rows write the tree here: a field's key is interned, as `intern!`
@@ -990,32 +982,6 @@ impl NamespaceMirror {
         let id: u32 = list.getattr(intern!(slf.py(), "_node"))?.extract()?;
         let stored = Self::adopt_value(slf, id, NodeKey::ListItem, value, 0)?;
         raw_list_append(&list, &stored)
-    }
-
-    /// del items[:count] in the tree from Rust, after the row dropped them. See `write_through`.
-    pub(crate) fn drop_oldest_through(slf: &Bound<'_, Self>, path: &[&str], count: usize) -> PyResult<()> {
-        let py = slf.py();
-        slf.get().touch(py)?;
-        let Some(list) = Self::list_at(slf, path)? else {
-            return Ok(());
-        };
-        let list_pointer = list.as_ptr();
-        // SAFETY: list is a live list, the indexes are within it when the row has this many, and
-        // each item gets its own reference before it leaves the list.
-        let old: Vec<Bound<'_, PyAny>> = unsafe {
-            let size = ffi::PyList_Size(list_pointer) as usize;
-            (0..count.min(size))
-                .map(|index| Bound::from_borrowed_ptr(py, ffi::PyList_GetItem(list_pointer, index as ffi::Py_ssize_t)))
-                .collect()
-        };
-        // SAFETY: a null value deletes the slice.
-        if unsafe { ffi::PyList_SetSlice(list_pointer, 0, old.len() as ffi::Py_ssize_t, null_mut()) } != 0 {
-            return Err(PyErr::fetch(py));
-        }
-        for item in &old {
-            Self::release_value(slf, item, py.None().bind(py))?;
-        }
-        Ok(())
     }
 
     /// d[key] = value in the tree, keeping the table right, without touching the row.
