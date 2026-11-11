@@ -745,6 +745,10 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
 
 - **PR P8 b2 の後に載せ直して**（`main` `0c03928` の上で。衝突は文書（`architecture.md`、この記録）だけで、`rules/mod.rs` は自動で合わさりました）：`cargo check --workspace`、`cargo test -p sheltersim_core`（341件）、clippy、`cargo tree` に `pyo3` なし。念のためビルドし直して、tick の検査のテストの6ファイル（686 passed）と `--verify-rows` 付きのゲートも通しました（55 scenarios、0 problems。実体 0 differed、木 189362 本 0 differed。1171・1171、その場で 390）。
 
+### 長いテストの退行の修正
+
+- #152 のレーンと PR の CI は `-m "not long_simulation"` で走らせていたので、`main`（`52f3f70`）では長いテスト10件のうち `test_arrivals_and_departures_with_a_seed_past_64_bits_give_the_python_rules_results` だけが落ちていました。原因は PR P8 c5（#191）の窓口が、中核が「a pending event has no row」で断ってから行を作ってもう一度呼んでいたことで、結果（digest）は同じでも census がその断りを数えました。旅の規則と同じく中核を呼ぶ前に行を作るようにし、通常のテスト `test_population_rules.py` の `test_a_departure_reads_events_scheduled_as_objects_without_a_refusal` で確かめます。PR P8 b2 の後の `main`（`0c03928`）の上で、`cargo test -p sheltersim_core`（333件）、clippy、`cargo tree` に `pyo3` なし、ruff、offline の pytest（5307 passed、6 skipped）、長いテスト全件（`-m long_simulation`：10 passed）、`--verify-rows` 付きのゲート（55 scenarios、0 problems）、7日分1回（world、events、metrics のハッシュは同じ。wall 77.89 s、thread 68.15 s、`computation_mib` 904.4 MiB、load average 13 の中なので時間は比べません）を通しました。
+
 ### この後
 
 残りの PR は、下の「レーン」の順に進めます。各レーンは、終わったときにこの節の前に記録を足します。

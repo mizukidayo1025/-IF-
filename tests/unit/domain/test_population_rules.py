@@ -13,6 +13,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import re
 from typing import Any
 
@@ -402,6 +403,40 @@ def test_a_departure_of_initial_people_keeps_their_history_and_withdraws_their_e
     assert person not in world.agents
     assert {event.event_id for event in world.event_queue.pending()} >= {"mentions-another"}
     assert "mentions-them" not in {event.event_id for event in world.event_queue.pending()}
+
+
+def test_a_departure_reads_events_scheduled_as_objects_without_a_refusal(world) -> None:
+    # Events Python schedules are held as objects, without rows, until a kernel reads them. The
+    # departure reads every pending event as a row: the glue makes the rows before the core runs,
+    # so the core's "a pending event has no row" is never raised (and counted by the census) for
+    # them. Lane c5 (#191) ran the core first and again after that refusal; only the long seed
+    # test (tests/integration/test_scenario_seeds.py) saw it.
+    import sheltersim_native
+
+    person = next(iter(world.agents))
+    world.schedule_event(_event("mentions-them", minute=5, agent_id=person))
+    world.schedule_event(_event("mentions-another", minute=5, agent_id="someone-else"))
+    # Under a census of the tests, its switch is not this test's to turn.
+    counting = "SHELTERSIM_REFUSAL_CENSUS" not in os.environ
+    if counting:
+        sheltersim_native.census_take()
+        sheltersim_native.census_switch(True)
+    try:
+        departed = native.rules("population").queue_departures(
+            world,
+            event=_event("departure-event", minute=world.minute_index),
+            zone_id=_zone(world),
+            count=1,
+            include_initial=True,
+        )
+        assert native.rules("population").validate_population_dynamics_state(world) is None
+        raised, _ = sheltersim_native.census_take() if counting else ([], [])
+    finally:
+        if counting:
+            sheltersim_native.census_switch(False)
+    assert departed == 1
+    assert raised == []
+    assert "mentions-another" in {event.event_id for event in world.event_queue.pending()}
 
 
 def test_the_rule_says_why_a_departure_can_not_happen(world) -> None:
