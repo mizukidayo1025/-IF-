@@ -24,8 +24,8 @@
 //! a program may do was validated before it was scheduled, by `validate_effect_program`, which is
 //! not touched (docs/rust-port/lanes/m6-effects.md).
 
-use std::collections::{BTreeMap, HashSet};
-use std::sync::{Arc, Mutex};
+use std::collections::HashSet;
+use std::sync::Arc;
 
 use indexmap::IndexMap;
 use pyo3::intern;
@@ -35,11 +35,11 @@ use pyo3::types::{PyBool, PyDict, PyList, PySlice, PyString, PyTuple};
 use sha2::{Digest, Sha256};
 
 use crate::core::configs;
-use crate::core::errors::{self, Outcome};
+use crate::core::errors::{self, OrPy, Outcome};
 use crate::core::row::{attribute, exact_int, exact_str, namespace_is_absent, unsupported};
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::{VPy, V};
-use crate::core::world_core::{mirror_of, raw_dict_get, read_only_state, NamespaceMirror};
+use crate::core::world_core::{mirror_of, raw_dict_get, read_only_state, with_state_value, NamespaceMirror};
 use crate::rules::care_receipts::{facility_recovery_record, handoff_record};
 use crate::rules::staff_dynamics::{is_available, staff_status};
 use crate::rules::staff_order::{order_operation, Order};
@@ -51,28 +51,20 @@ use crate::rules::transaction::RuleTxn;
 use crate::state::resource_ledger::{held_mirror, resource_index, LedgerRow};
 use crate::Unsupported;
 use sheltersim_core::config::environment::ZoneEnvironmentSpec;
+use sheltersim_core::rules::kit::{self, Counts};
 use sheltersim_core::txn::TxnKind;
 
 const MARKER: &str = "effect_program_v1";
 
 // ---- What ran and what was refused --------------------------------------------------------------
 
-static RAN: Mutex<BTreeMap<&'static str, u64>> = Mutex::new(BTreeMap::new());
-static REFUSALS: Mutex<BTreeMap<String, u64>> = Mutex::new(BTreeMap::new());
+static COUNTS: Counts = Counts::new();
 
-/// Count a kernel's result under its label. Each handler also has one label per operator.
+/// Count a kernel's result under its label (`sheltersim_core::rules::kit::Counts`).
 fn counted<T>(py: Python<'_>, label: &'static str, result: PyResult<T>) -> PyResult<T> {
     match &result {
-        Ok(_) => {
-            if let Ok(mut ran) = RAN.lock() {
-                *ran.entry(label).or_insert(0) += 1;
-            }
-        }
-        Err(error) if error.is_instance_of::<Unsupported>(py) => {
-            if let Ok(mut refusals) = REFUSALS.lock() {
-                *refusals.entry(format!("{label}: {}", error.value(py))).or_insert(0) += 1;
-            }
-        }
+        Ok(_) => COUNTS.ran(label),
+        Err(error) if error.is_instance_of::<Unsupported>(py) => COUNTS.refused(label, &error.value(py).to_string()),
         Err(_) => {}
     }
     result
@@ -751,17 +743,13 @@ pub(crate) fn guard_or_suppress<'py>(
 
 // ---- What other modules ask ----------------------------------------------------------------------
 
-/// `has_active_facility_modifier`.
+/// `has_active_facility_modifier` (`sheltersim_core::rules::kit::has_active_modifier`).
 #[pyfunction]
 pub(crate) fn has_active_modifier(world: &Bound<'_, PyAny>, facility_id: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = world.py();
     let result = (|| {
         let id = exact_str(facility_id)?;
-        program_state(world, |state| {
-            Ok(state
-                .and_then(|state| state.active_facility_modifiers.get(id))
-                .is_some_and(|record| !record.modifiers.is_empty()))
-        })
+        program_state(world, |state| Ok(kit::has_active_modifier(state.as_deref(), id)))
     })();
     counted(py, "has_active_modifier", result)
 }
@@ -796,26 +784,10 @@ fn has_pending_modifier(world: &Bound<'_, PyAny>, facility_id: &Bound<'_, PyAny>
     counted(py, "has_pending_modifier", result)
 }
 
-/// `active_facility_outage`: `bool(infrastructure_event_context_ids(world, facility_id))`.
+/// `active_facility_outage`: `bool(infrastructure_event_context_ids(world, facility_id))`, of
+/// `infrastructure_v1` as a value (`sheltersim_core::rules::kit::active_outage`).
 pub(crate) fn active_outage(world: &Bound<'_, PyAny>, facility_id: &str) -> PyResult<bool> {
-    let py = world.py();
-    let table = model_state(world)?;
-    let Some(state) = get_or_none(&table, "infrastructure_v1")? else {
-        return Ok(false);
-    };
-    if !is_dict(&state) {
-        return Ok(false);
-    }
-    let outages = state.get_item(intern!(py, "outages"))?;
-    for record in outages.call_method0(intern!(py, "values"))?.try_iter()? {
-        let record = record?;
-        if record.get_item(intern!(py, "active"))?.is_truthy()?
-            && record.get_item(intern!(py, "affected_facility_ids"))?.contains(facility_id)?
-        {
-            return Ok(true);
-        }
-    }
-    Ok(false)
+    with_state_value(world, "infrastructure_v1", |state| kit::active_outage(state, facility_id).or_py())
 }
 
 fn occupancy(world: &Bound<'_, PyAny>, facility: &Bound<'_, PyAny>) -> PyResult<i64> {
@@ -2074,9 +2046,7 @@ fn structure<'py>(
         return counted(py, "structure.set_staff_role", result);
     }
     let result = add_structure(world, &row).map(|label| {
-        if let Ok(mut ran) = RAN.lock() {
-            *ran.entry(label).or_insert(0) += 1;
-        }
+        COUNTS.ran(label);
         none()
     });
     counted(py, "structure.add", result)
@@ -2442,16 +2412,12 @@ fn event_type_of(phase: &str, op: &str) -> Option<&'static str> {
 #[pyfunction]
 fn stats<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyDict>, Bound<'py, PyDict>)> {
     let counts = PyDict::new(py);
-    if let Ok(ran) = RAN.lock() {
-        for (label, times) in ran.iter() {
-            counts.set_item(*label, *times)?;
-        }
+    for (label, times) in COUNTS.ran_counts() {
+        counts.set_item(label, times)?;
     }
     let reasons = PyDict::new(py);
-    if let Ok(refusals) = REFUSALS.lock() {
-        for (reason, times) in refusals.iter() {
-            reasons.set_item(reason, *times)?;
-        }
+    for (reason, times) in COUNTS.refusal_counts() {
+        reasons.set_item(reason, times)?;
     }
     Ok((counts, reasons))
 }

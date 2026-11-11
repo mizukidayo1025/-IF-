@@ -1307,33 +1307,9 @@ fn every_fatigue_is_finite(world: &Bound<'_, PyAny>) -> PyResult<()> {
     })
 }
 
-/// `format(value, "g")` of a float, or of an int as a float: six significant digits.
+/// `format(value, "g")` of a float, or of an int as a float (`sheltersim_core::text::g_text`).
 fn g_text(value: f64) -> PyResult<String> {
-    if !value.is_finite() {
-        return unsupported("a threshold is not finite");
-    }
-    if value == 0.0 {
-        return Ok(if value.is_sign_negative() { "-0" } else { "0" }.to_owned());
-    }
-    // Both round the exact value of the double half to even, as CPython's `%g` does.
-    let scientific = format!("{value:.5e}");
-    let Some((mantissa, exponent)) = scientific.split_once('e') else {
-        return unsupported("a float with no exponent");
-    };
-    let exponent: i32 = exponent.parse().map_err(|_| Unsupported::new_err("a float with no exponent"))?;
-    fn trimmed(text: &str) -> &str {
-        if text.contains('.') {
-            text.trim_end_matches('0').trim_end_matches('.')
-        } else {
-            text
-        }
-    }
-    if (-4..6).contains(&exponent) {
-        let fixed = format!("{:.*}", (5 - exponent) as usize, value);
-        return Ok(trimmed(&fixed).to_owned());
-    }
-    let sign = if exponent < 0 { '-' } else { '+' };
-    Ok(format!("{}e{sign}{:02}", trimmed(mantissa), exponent.abs()))
+    sheltersim_core::text::g_text(value).or_py()
 }
 
 /// `format(value, "g")`, to compare with Python's in the tests.

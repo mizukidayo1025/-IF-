@@ -719,7 +719,7 @@ def test_a_person_with_two_open_requests_is_the_last_in_the_snapshot(documents) 
         ("Straße-TOILET", "toilet"),
         # İ folds to i and a combining dot, so "toilet" is not in it.
         ("TOİLET", "storage"),
-        # ﬆ folds to "st", which no lower casing gives (the core asks Python's fold, PR 5-4).
+        # ﬆ folds to "st", which no lower casing gives (the core's full fold, P8-0a).
         ("ﬆoilet", "toilet"),
     ],
 )
@@ -735,7 +735,7 @@ def test_a_kind_that_is_not_ascii_is_folded_as_python_folds_it(
 
 
 def test_kinds_that_are_not_ascii_are_folded_once_each(documents) -> None:
-    """The glue folds every kind that isn't ASCII before the core computes (PR 5-4)."""
+    """Every kind that isn't ASCII is folded as Python folds it (the core's table since P8-0a)."""
     world = _world(documents[0])
     twin = _world(documents[0])
     for (key, facility), like in zip(world.facilities.items(), ("Ⓣoilet", "ﬆoilet", "TOİLET")):

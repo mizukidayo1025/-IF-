@@ -12,7 +12,7 @@
 //! until `core.fork()` (docs/rust-port/step3-design.md).
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::intern;
@@ -33,6 +33,7 @@ use crate::rules::transaction::RuleTxn;
 use crate::Unsupported;
 use sheltersim_core::config::environment::Infrastructure;
 use sheltersim_core::config::proximity::Proximity;
+use sheltersim_core::rules::kit::Counts;
 use sheltersim_core::txn::TxnKind;
 
 const OPERATIONAL: &str = "operational_events_v1";
@@ -47,22 +48,13 @@ const SHARED_CONFIG: &str = "shared_operations";
 
 // ---- What ran and what was refused --------------------------------------------------------------
 
-static RAN: Mutex<BTreeMap<&'static str, u64>> = Mutex::new(BTreeMap::new());
-static REFUSALS: Mutex<BTreeMap<String, u64>> = Mutex::new(BTreeMap::new());
+static COUNTS: Counts = Counts::new();
 
-/// Count a kernel's result under its label.
+/// Count a kernel's result under its label (`sheltersim_core::rules::kit::Counts`).
 pub(crate) fn counted<T>(py: Python<'_>, label: &'static str, result: PyResult<T>) -> PyResult<T> {
     match &result {
-        Ok(_) => {
-            if let Ok(mut ran) = RAN.lock() {
-                *ran.entry(label).or_insert(0) += 1;
-            }
-        }
-        Err(error) if error.is_instance_of::<Unsupported>(py) => {
-            if let Ok(mut refusals) = REFUSALS.lock() {
-                *refusals.entry(format!("{label}: {}", error.value(py))).or_insert(0) += 1;
-            }
-        }
+        Ok(_) => COUNTS.ran(label),
+        Err(error) if error.is_instance_of::<Unsupported>(py) => COUNTS.refused(label, &error.value(py).to_string()),
         Err(_) => {}
     }
     result
@@ -72,21 +64,22 @@ pub(crate) fn counted<T>(py: Python<'_>, label: &'static str, result: PyResult<T
 #[pyfunction]
 fn stats<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyDict>, Bound<'py, PyDict>)> {
     let counts = PyDict::new(py);
-    if let Ok(ran) = RAN.lock() {
-        for (label, times) in ran.iter() {
-            counts.set_item(*label, *times)?;
-        }
+    for (label, times) in COUNTS.ran_counts() {
+        counts.set_item(label, times)?;
     }
     let reasons = PyDict::new(py);
-    if let Ok(refusals) = REFUSALS.lock() {
-        for (reason, times) in refusals.iter() {
-            reasons.set_item(reason, *times)?;
-        }
+    for (reason, times) in COUNTS.refusal_counts() {
+        reasons.set_item(reason, times)?;
     }
     Ok((counts, reasons))
 }
 
 // ---- Reading and making Python's values ----------------------------------------------------------
+//
+// These read and make Python objects for the kernels still here. A kernel in the core uses the row
+// versions in `sheltersim_core::rules::kit`: `get`, `kind_is`, `status_member`, `new_event` (an
+// `EventRow`), `log_record` and `Events` (the world's queue, log and counter), `assumption`,
+// `add_metric`.
 
 /// `map.get(key)`, which is None when absent.
 pub(crate) fn get<'py>(map: &Bound<'py, PyAny>, key: &str) -> PyResult<Bound<'py, PyAny>> {

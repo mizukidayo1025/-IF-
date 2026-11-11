@@ -6,11 +6,10 @@
 //! Handed in, because Python holds it or computes it:
 //! - the open support requests and their wait reasons (`OpenWait`), which `rules/staff.rs` reads
 //!   from the Python objects of the unsettled requests and the routes;
-//! - `str.casefold` of a facility kind that isn't ASCII (`Folds`): Python's fold, which Rust has no
-//!   table of. An ASCII kind is folded here, as ASCII lower case is what `casefold` gives it;
 //! - whether `world.metric_state` holds its slot's tree (a field assigned whole doesn't).
 //!
-//! The realized events of the minute come from the world's log (`World::log`, lane 6-5), which is
+//! A facility kind is folded here with the core's `str.casefold` (`text::casefold`, P8-0a), which
+//! before was Python's for a kind that isn't ASCII. The realized events of the minute come from the world's log (`World::log`, lane 6-5), which is
 //! Unsupported while the world's EventLog is not held there.
 //!
 //! The sums go over `world.agents` in insertion order with `py_sum`, so every float has the bits of
@@ -24,6 +23,7 @@ use std::sync::Arc;
 use crate::error::{Error, Result};
 use crate::json::write_json_string;
 use crate::mathx::py_sum;
+use crate::rules::kit::is_toilet;
 use crate::world::World;
 
 /// `agent.stress >= 0.7` is high stress.
@@ -33,52 +33,6 @@ pub const EXPOSURE_SEMANTICS: &str = "per-minute observed request exposure by bl
                                       and are not exclusive causal attribution";
 /// The owned world field the counters are read from.
 pub use crate::world::METRIC_STATE;
-
-/// `"toilet" in kind.casefold()` of the facility kinds that aren't ASCII, which the caller folded
-/// with Python's `str.casefold`.
-#[derive(Default, Debug)]
-pub struct Folds {
-    kinds: Vec<(Arc<str>, bool)>,
-}
-
-impl Folds {
-    /// Say whether `"toilet"` is in the casefolded kind.
-    pub fn insert(&mut self, kind: Arc<str>, toilet: bool) {
-        if self.get(&kind).is_none() {
-            self.kinds.push((kind, toilet));
-        }
-    }
-
-    fn get(&self, kind: &str) -> Option<bool> {
-        self.kinds.iter().find(|(known, _)| &**known == kind).map(|(_, toilet)| *toilet)
-    }
-}
-
-/// `"toilet" in kind.casefold()`: here for an ASCII kind, from `folds` for any other.
-#[track_caller]
-pub fn is_toilet(kind: &str, folds: &Folds) -> Result<bool> {
-    if kind.is_ascii() {
-        return Ok(kind.as_bytes().windows(6).any(|part| part.eq_ignore_ascii_case(b"toilet")));
-    }
-    folds.get(kind).ok_or_else(|| Error::unsupported("a facility kind was not folded"))
-}
-
-/// The facility kinds that aren't ASCII and aren't in `folds`, in the facilities' order without
-/// repeats: what the caller folds before `sample`. None for a tainted store, which `sample` refuses.
-pub fn unfolded_kinds(world: &World, folds: &Folds) -> Result<Vec<Arc<str>>> {
-    let entities = world.entities.try_borrow()?;
-    if entities.tainted().is_some() {
-        return Ok(Vec::new());
-    }
-    let mut kinds: Vec<Arc<str>> = Vec::new();
-    for (_, facility) in entities.facilities.iter() {
-        let kind = &facility.kind;
-        if !kind.is_ascii() && folds.get(kind).is_none() && !kinds.iter().any(|known| known == kind) {
-            kinds.push(kind.clone());
-        }
-    }
-    Ok(kinds)
-}
 
 /// What the metrics read of one open (pending or assigned) support request, in the order of
 /// `world.unsettled_support_requests()`.
@@ -99,7 +53,6 @@ pub struct Inputs<'a> {
     /// The minute sampled, the world's.
     pub sample: i64,
     pub waits: &'a [OpenWait<'a>],
-    pub folds: &'a Folds,
     /// Whether `world.metric_state` is its slot's tree. Not owned: either.
     pub metric_state_held: bool,
 }
@@ -186,7 +139,7 @@ pub fn sample(world: &World, inputs: &Inputs<'_>) -> Result<MetricSample> {
         let rows = world.rows()?;
         let mut working: i64 = 0;
         for (_, facility) in rows.facilities.iter() {
-            if is_toilet(&facility.kind, inputs.folds)? {
+            if is_toilet(&facility.kind) {
                 queued.extend(facility.queue_agent_ids.iter().cloned());
                 active.extend(facility.active_agent_ids.iter().cloned());
                 let Some(total) = working.checked_add(facility.working_units) else {

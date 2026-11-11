@@ -40,16 +40,9 @@ const COMPLETED_METRIC: &str = "toilet_service_completed_count";
 const DURATION_SOURCE: &str = "ASM-TOILET-SERVICE-DURATION-V1";
 static COUNTER_RNG: GILOnceCell<Py<PyAny>> = GILOnceCell::new();
 
-/// `"toilet" in kind.casefold()`. A kind that isn't ASCII (a Scenario's kind is any str) goes to
-/// Python's own `str.casefold`, whose folding Rust doesn't have.
+/// `"toilet" in kind.casefold()`, with the core's fold (`sheltersim_core::rules::kit::is_toilet`).
 pub(crate) fn is_toilet(kind: &str) -> PyResult<bool> {
-    if !kind.is_ascii() {
-        return Python::with_gil(|py| {
-            let folded = PyString::new(py, kind).call_method0(intern!(py, "casefold"))?;
-            Ok(exact_str(&folded)?.contains("toilet"))
-        });
-    }
-    Ok(kind.to_ascii_lowercase().contains("toilet"))
+    Ok(sheltersim_core::rules::kit::is_toilet(kind))
 }
 
 fn receipt_class(py: Python<'_>) -> PyResult<&Bound<'_, PyAny>> {
