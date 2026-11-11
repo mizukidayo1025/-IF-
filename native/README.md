@@ -68,18 +68,24 @@ Checkpoint document) and times them.
   counts, a person's activity, the readers of payloads and of a few namespaces, `place_in_bed`,
   `check_waiting_for_admission` with the rules it still asks through `Admission`, `Counts`, `Held`
   (whether the Python world holds a namespace, which the PyO3 crate reads and a kernel says
-  where it reads the namespace) and `kit/movement.rs` (what the queues ask of the movement rules:
-  the queue slots, the walk to a facility, the minutes of a walk in a room, `Changes` of the row
-  of `movement_v1` and `plan_start`; lane c1); `facility_queues.rs`, the independent FIFO of each
-  service point on the row of `facility_queues_v1`, and `queues.rs`, a facility's physical queue
-  (`prepare_facility_queue`, the walks to the queue's places and to service, those who give up),
-  which write the rows alone (lane c1);
+  where it reads the namespace), `namespace_absent`, `Kept` (a config section the glue read for a
+  kernel, raised where the rule reads it; lane P8 a2) and `kit/movement.rs` (what the queues ask
+  of the movement rules: the queue slots, the walk to a facility, the minutes of a walk in a room,
+  `Changes` of the row of `movement_v1` and `plan_start`; lane c1); `facility_queues.rs`, the
+  independent FIFO of each service point on the row of `facility_queues_v1`, and `queues.rs`, a
+  facility's physical queue (`prepare_facility_queue`, the walks to the queue's places and to
+  service, those who give up), which write the rows alone (lane c1);
   the P8b-1 operations: `staff_dynamics.rs` (shift, rest and fatigue), `resources.rs` (the
   ledger's operations, which return the new balance for the PyO3 crate's new `world.resources`),
   `common_operations.rs` (`record_shared_operation`, and the receipts typed as `Receipt` with the
   Rust check of their contracts) and `care_receipts.rs` (a care transition's record and receipt,
-  the other receipts' applied records, the person's context);
-  the file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4 and P8-0a),
+  the other receipts' applied records, the person's context); the leaves of the people rules
+  (lane P8 a2): `agent_dynamics.rs`, `action_lifecycle.rs` (with `ActiveActions`, a controller's
+  open actions as rows, kept in its `Run`), `body_state.rs`, `social_network.rs` and
+  `social_dialogue.rs`, which read and write the slot rows alone and take an event as its fields
+  and the payload's fields they read, as a `V`;
+  the file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4, P8-0a, c1,
+  P8b-1 and P8 a2),
   `text.rs` (`casefold`, CPython 3.12's full fold from a generated table, `text/casefold.rs`
   by `tools/casefold_table.py`, tested at every code point against `tests/data/casefold.txt`;
   `g_text`, `format(value, "g")`),
@@ -438,7 +444,8 @@ are correctly rounded everywhere, and not `**` with a float.
   contacts through the same code, with no Python call. `rules.social_dialogue.capture_context`,
   `validate_context`: the state context of a social event, read from the rows. Each is
   `kernel_only`: what the Python rule refused, or a value of another type, gives `Unsupported`
-  before any change.
+  before any change. The rules are the core's (`core/src/rules/`, lane P8 a2): they read
+  `body_state_v1` from its row alone, so a tainted body namespace is refused.
 
 - `rules.social_interaction.apply(handler, world, event)`: `SocialInteractionHandler.apply` for a
   social action, which raises the rule's `EventSuppressed` text for one that no longer applies. A
@@ -552,7 +559,9 @@ are correctly rounded everywhere, and not `**` with a float.
 - `state.body_state.ROW`: Rust owns `body_state_v1` (`src/state/body_state.rs`): the records and
   relationships typed, the history as the canonical bytes of each item. `rules.body_state.
   record_social_event(world, event, minute)` is `domain/body_state.py`'s rule with the operators of
-  `policies/affect.py` and `policies/relationships.py`; `rules.psychology.apply_deltas` writes the
+  `policies/affect.py` and `policies/relationships.py`, in the core since lane P8 a2 (it writes the
+  row alone; a history item is its canonical JSON, and a tree Python reads has the item's keys in
+  that order); `rules.psychology.apply_deltas` writes the
   row. `state.body_state.rows_valid(world)` accepts the header, records and relationships, reading
   only the relationships written since it last said yes. The config and history rules read what
   the row doesn't hold and stay in Python (`docs/rust-port/lanes/m3-body-state.md`).
@@ -599,9 +608,13 @@ are correctly rounded everywhere, and not `**` with a float.
 - `state.agent_dynamics.ROW` and `rules.agent_dynamics`: Rust owns `agent_dynamics_v1` and every
   writer but `remove_agent` and `population_lifecycle.py`, which forward one record each
   (`docs/rust-port/lanes/f-action-lifecycle.md`). `rules.action_lifecycle`: the lifecycle receipts.
-  `ActiveActions` holds a controller's open actions as rows, gives a Python rule a plain dict
+  `ActiveActions` is a window on a controller's open actions, the core's rows in its Run
+  (`Run::actions`, through `RunCore::with_actions`; a store made without a Run holds its own),
+  gives a Python rule a plain dict
   (`as_plain`) and reads it back when it fits; it is not saved. A receipt is an `EventRow` appended
-  through `EventWriter`, with no Python object until Python reads the record.
+  through the core's `kit::Events`, with no Python object until Python reads the record. The rules
+  are the core's (`core/src/rules/`, lane P8 a2); the glue reads the configs they read
+  (`configs::kept_section`) and whether the log holds an event applied.
 
 - `EventStore` (stage B1, `src/eventlog.rs` over `core/src/events/log.rs`): the realized
   EventLog behind `sheltersim.events.queue.EventLog`.
