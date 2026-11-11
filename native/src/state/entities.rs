@@ -533,6 +533,27 @@ enum Step {
 /// What a flush writes, taken from the rows while they are borrowed.
 pub(crate) struct Flush(Vec<Step>);
 
+/// What a fork makes its objects of (`EntityStore::fork_rows`, lane 6-6): by kind, in the order of
+/// `FIELDS`, each key in its order with its slot and a copy of its row.
+pub(crate) struct ForkRows(Vec<(u8, Vec<(Arc<str>, u32, Box<dyn MakeView>)>)>);
+
+/// A copy of the row in a slot of a kind's table, to make its object from; None for a slot with
+/// no row.
+fn boxed_row(rows: &Entities, kind: u8, slot: u32) -> Option<Box<dyn MakeView>> {
+    fn boxed<R: ViewRow + 'static>(table: &Table<R>, slot: u32) -> Option<Box<dyn MakeView>> {
+        table.row_at(slot).map(|row| Box::new(row.clone()) as Box<dyn MakeView>)
+    }
+    match kind {
+        AGENT => boxed(&rows.agents, slot),
+        FACILITY => boxed(&rows.facilities, slot),
+        STAFF => boxed(&rows.staff, slot),
+        REQUEST => boxed(&rows.support_requests, slot),
+        ZONE => boxed(&rows.zones, slot),
+        EDGE => boxed(&rows.zone_edges, slot),
+        _ => boxed(&rows.active_tasks, slot),
+    }
+}
+
 fn plan_table<R: ViewRow + 'static>(py: Python<'_>, kind: u8, table: &mut Table<R>, steps: &mut Vec<Step>) {
     if !table.has_changes() {
         return;
@@ -1901,6 +1922,99 @@ impl EntityStore {
             order.push(key.downcast_exact::<PyString>()?.to_str()?);
         }
         this.rows_mut(py, |rows| rows.table_mut(kind).reorder_keys(&order))
+    }
+
+    // ---- A fork (lane 6-6, `WorldCore.fork`) --------------------------------------------------
+
+    /// What a fork of the world takes of these rows (`deepcopy(world)`): for each map, its keys in
+    /// their order with their slots and a copy of each row. None, with nothing changed, when the
+    /// objects are not all what the rows say: a tainted store, a map of the world that is not the
+    /// bound one, or one whose keys, their order or their objects are not the table's (something
+    /// written past `IdMap`). `state_mirror.deepcopy_world` then copies the world as before.
+    pub(crate) fn fork_rows(slf: &Bound<'_, Self>, world: &Bound<'_, PyAny>) -> PyResult<Option<ForkRows>> {
+        let py = slf.py();
+        let this = slf.get();
+        let orders = this.rows_ref(py, |rows| {
+            if rows.tainted().is_some() || rows.zones_tainted().is_some() {
+                return None;
+            }
+            Some(FIELDS.map(|(_, kind)| rows.table(kind).key_slots()))
+        })?;
+        let Some(orders) = orders else {
+            return Ok(None);
+        };
+        let state = world.getattr(intern!(py, "__dict__"))?;
+        let mut held = Vec::with_capacity(FIELDS.len());
+        for (name, _) in FIELDS {
+            held.push(raw_dict_get(&state, PyString::intern(py, name).as_any())?);
+        }
+        {
+            // Reads of dicts and str only below: no Python code runs while the views are borrowed.
+            let views = this.views.try_borrow().or_py()?;
+            for (((_, kind), order), held) in FIELDS.iter().zip(&orders).zip(&held) {
+                let objects = &views.objects[*kind as usize];
+                let Some(map) = &views.maps[*kind as usize] else {
+                    return Ok(None);
+                };
+                let map = map.bind(py);
+                if !held.as_ref().is_some_and(|held| held.is(map)) {
+                    return Ok(None);
+                }
+                let map = map.downcast::<PyDict>()?;
+                if map.len() != order.len() {
+                    return Ok(None);
+                }
+                for ((key, object), (id, slot)) in dict_items(map).iter().zip(order) {
+                    let same_key = key.downcast_exact::<PyString>().is_ok_and(|key| key.to_str().is_ok_and(|key| key == &**id));
+                    let attached = objects
+                        .get(*slot as usize)
+                        .and_then(Option::as_ref)
+                        .is_some_and(|attached| attached.bind(py).is(object));
+                    if !same_key || !attached {
+                        return Ok(None);
+                    }
+                }
+            }
+        }
+        let rows = this.rows_ref(py, |rows| {
+            let mut kinds = Vec::with_capacity(FIELDS.len());
+            for ((_, kind), order) in FIELDS.iter().zip(&orders) {
+                let mut entries = Vec::with_capacity(order.len());
+                for (key, slot) in order {
+                    entries.push((key.clone(), *slot, boxed_row(rows, *kind, *slot)?));
+                }
+                kinds.push((*kind, entries));
+            }
+            Some(kinds)
+        })?;
+        Ok(rows.map(ForkRows))
+    }
+
+    /// The objects of a fork's store (`WorldCore.fork`): the object of each row made from the row,
+    /// as a flush makes the object of a row the core put in, attached to its slot, in the order of
+    /// the keys; and each kind's new bound map. Returns the maps by the world's field name.
+    pub(crate) fn fork_objects<'py>(slf: &Bound<'py, Self>, rows: ForkRows) -> PyResult<Bound<'py, PyDict>> {
+        let py = slf.py();
+        let this = slf.get();
+        let maps = PyDict::new(py);
+        for ((name, kind), (made_kind, entries)) in FIELDS.iter().zip(rows.0) {
+            debug_assert_eq!(*kind, made_kind);
+            let map = new_id_map(py)?;
+            for (key, slot, row) in entries {
+                let object = row.make(py, *kind)?;
+                Self::link_children(slf, *kind, &object, slot).map_err(misfit_error)?;
+                Self::mark_attached(slf, &object, slot)?;
+                this.set_object(*kind, slot, Some(object.clone().unbind()))?;
+                count(&this.attaches);
+                raw_dict_set(&map, PyString::new(py, &key).as_any(), &object)?;
+            }
+            map.setattr(intern!(py, "_store"), slf)?;
+            map.setattr(intern!(py, "_table"), *kind)?;
+            let old = this.views.try_borrow_mut().or_py()?.maps[*kind as usize].replace(map.clone().unbind());
+            drop(old);
+            maps.set_item(PyString::intern(py, name), map)?;
+        }
+        Ok(maps)
     }
 
     /// Run f on the rows. f must not run Python code; kernels get Unsupported from a tainted

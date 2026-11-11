@@ -11,7 +11,7 @@ from pydantic import Field, model_validator
 
 from sheltersim.contracts.extensions import ExtensionModel, Finite, Identifier
 from sheltersim.contracts.workspace import StateDescriptor
-from sheltersim.core.state_mirror import read_only_state, rust_validated
+from sheltersim.core.state_mirror import canonical_copy, read_only_state, rust_validated
 
 if TYPE_CHECKING:
     from sheltersim.core.rng import KeyedRandom
@@ -105,7 +105,8 @@ def apply_model_proposal(world: Any, proposal: ModelStateProposal) -> None:
             or after != contribution.after
         ):
             raise ValueError("contribution values disagree with proposed state")
-    candidate = type(world).from_dict(world.to_dict())
+    # The copy in canonical order, as from_dict(to_dict()) made it; the world is not reordered.
+    candidate = canonical_copy(world, "full")
     candidate.model_state[proposal.namespace] = deepcopy(proposal.proposed_state)
     candidate.validate()
     world.model_state[proposal.namespace] = deepcopy(candidate.model_state[proposal.namespace])

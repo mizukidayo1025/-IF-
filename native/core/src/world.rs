@@ -279,6 +279,27 @@ impl World {
         }
     }
 
+    /// A new world with the same state, for `deepcopy(world)` and the previews that change a copy
+    /// and drop it (lane 6-6, design-p5-p6.md §6 and §7). It shares every part with this world
+    /// (the scalars, the entities, each slot, in the same slot order and with the same stamps: a
+    /// stamp names one state, and both hold it) until either writes the part, which copies it
+    /// then (`CowShard`). The order of every table and row is this world's. What is derived
+    /// (`derived`) is not state, so the fork starts with none; it has no open transaction.
+    /// `Error::Runtime(BORROWED)` while a part is borrowed mutably.
+    pub fn fork(&self) -> Result<World> {
+        let mut by_name = IndexMap::with_capacity_and_hasher(self.slots.len(), FxBuildHasher);
+        for (name, slot) in &self.slots.by_name {
+            by_name.insert(name.clone(), CowShard::from_shared(slot.share()?));
+        }
+        Ok(World {
+            scalars: CowShard::from_shared(self.scalars.share()?),
+            entities: CowShard::from_shared(self.entities.share()?),
+            slots: Slots { by_name },
+            derived: Shard::default(),
+            txn_open: false,
+        })
+    }
+
     /// Whether a transaction is open on the world (`txn::Txn`).
     pub fn in_transaction(&self) -> bool {
         self.txn_open

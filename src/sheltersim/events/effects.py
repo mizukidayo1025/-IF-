@@ -38,7 +38,12 @@ from sheltersim.contracts.operations import (
 )
 from sheltersim.contracts.population import DynamicArrivalPersonContext
 from sheltersim.core.kernels import kernel_only
-from sheltersim.core.state_mirror import read_only_part, read_only_state, transaction_or_copy
+from sheltersim.core.state_mirror import (
+    canonical_copy,
+    read_only_part,
+    read_only_state,
+    transaction_or_copy,
+)
 from sheltersim.domain.environment import (
     ZONE_ENVIRONMENT_POLICY,
     ZONE_ENVIRONMENT_STATE_KEY,
@@ -846,7 +851,8 @@ def _toilet_placement_issues(world: WorldState, additions: list[tuple[str, str, 
 
     from sheltersim.domain.models import FacilityState
 
-    candidate = _effect_candidate(world)
+    # The copy in canonical order; the world is not reordered.
+    candidate = canonical_copy(world, "effect")
     for label, zone_id, count in additions:
         if zone_id not in candidate.zones:
             continue

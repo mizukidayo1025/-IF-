@@ -20,6 +20,7 @@ from support.paths import SMALL_REPLAY
 
 from sheltersim import native
 from sheltersim.contracts.operations import SHARED_OPERATIONS_KEY, NumericStateChange
+from sheltersim.core import state_mirror
 from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.state_mirror import rust_validated
 from sheltersim.core.world import WorldState
@@ -800,6 +801,18 @@ def test_a_state_change_that_is_not_the_world_s_is_the_rules_to_refuse() -> None
         record_shared_operation(world, receipt)
 
 
+def _restored(world: WorldState) -> WorldState:
+    """The world copied as plain values and owned again by a new core, as a restore owns them:
+    the rows read from the values, with nothing verified."""
+    copied = object.__new__(WorldState)
+    memo: dict[int, Any] = {}
+    for key, value in world.__dict__.items():
+        if key != "_core":
+            copied.__dict__[key] = copy.deepcopy(value, memo)
+    state_mirror.start_core(copied)
+    return copied
+
+
 def test_a_restored_receipt_is_read_by_the_python_rule_once_and_then_trusted() -> None:
     world = _world()
     world.minute_index = 3
@@ -814,13 +827,15 @@ def test_a_restored_receipt_is_read_by_the_python_rule_once_and_then_trusted() -
     )
     assert _TICK_VALID(world)
 
-    copied = copy.deepcopy(world)
+    # A restore reads the receipts from their documents, unverified. (deepcopy forks the rows,
+    # with what was verified of them, since lane 6-6 of #152, so it no longer stands for one.)
+    copied = _restored(world)
     assert not _TICK_VALID(copied)
     # What the kernel did not check, the contract does, as in the Python rule.
     _record(copied, _receipt(copied, 2, "requested"))
     assert _mirror(copied, SHARED).verify()
     assert _digest(json.dumps(copied.model_state[SHARED])) == "0ceb8b43d18e84a9"
-    world_two = copy.deepcopy(world)
+    world_two = _restored(world)
     assert not _TICK_VALID(world_two)
     validate_shared_operations_state(world_two, validate_event_history=False)
     assert _TICK_VALID(world_two)
