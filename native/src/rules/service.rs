@@ -49,7 +49,7 @@ pub(crate) fn resource_service_of(world: &Bound<'_, PyAny>) -> PyResult<Arc<Reso
 }
 
 /// What a kernel takes of the manager and of the Python world (`core::Manager`).
-struct Inputs<'py> {
+pub(crate) struct Inputs<'py> {
     world: Bound<'py, PyAny>,
     config: Arc<IndexMap<Arc<str>, V>>,
     service: Held,
@@ -81,7 +81,7 @@ impl<'py> Inputs<'py> {
 
     /// `ResourceServiceManager(world)`, which holds nothing else: its config is a copy of
     /// `model_configs["resource_service"]`, from the section kept for the stamp.
-    fn of_world(world: &Bound<'py, PyAny>) -> PyResult<Self> {
+    pub(crate) fn of_world(world: &Bound<'py, PyAny>) -> PyResult<Self> {
         let py = world.py();
         let service = resource_service_of(world)?;
         let table = attribute(world, intern!(py, "model_state"))?;
@@ -121,7 +121,7 @@ impl<'py> Inputs<'py> {
         })
     }
 
-    fn manager(&self) -> Manager<'_> {
+    pub(crate) fn manager(&self) -> Manager<'_> {
         Manager {
             config: &self.config,
             service: self.service.clone(),
@@ -159,7 +159,7 @@ fn pending_reserves(world: &Bound<'_, PyAny>) -> PyResult<Vec<Pending>> {
 
 /// The error of a kernel: the ledger's text inside its rule's error, or what the world or a write
 /// said.
-fn failed(py: Python<'_>, failure: Failure) -> PyErr {
+pub(crate) fn failed(py: Python<'_>, failure: Failure) -> PyErr {
     match failure {
         Failure::Write(error) => write_error(py, error),
         Failure::Ledger(fault, wrap) => {
@@ -482,11 +482,6 @@ pub(crate) fn cancel_service<'py>(manager: &Bound<'py, PyAny>, event: &Bound<'py
 /// `interrupt_for_staff` of the manager's world.
 pub(crate) fn interrupt_service<'py>(manager: &Bound<'py, PyAny>, staff_id: &Bound<'py, PyAny>, causation_event: &Bound<'py, PyAny>) -> PyResult<()> {
     interrupt_with(&Inputs::of(manager)?, staff_id, causation_event)
-}
-
-/// `ResourceServiceManager(world).interrupt_for_staff(staff_id, causation_event=event)`.
-pub(crate) fn interrupt_service_of_world<'py>(world: &Bound<'py, PyAny>, staff_id: &Bound<'py, PyAny>, causation_event: &Bound<'py, PyAny>) -> PyResult<()> {
-    interrupt_with(&Inputs::of_world(world)?, staff_id, causation_event)
 }
 
 fn interrupt_with<'py>(inputs: &Inputs<'py>, staff_id: &Bound<'py, PyAny>, causation_event: &Bound<'py, PyAny>) -> PyResult<()> {

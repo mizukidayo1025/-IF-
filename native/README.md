@@ -60,7 +60,9 @@ Checkpoint document) and times them.
   `host.rs` (`Host`, the world's outside as the core's rules see it: the transaction's views and
   the whole world's validation (E6), the pydantic contracts of inputs (`contract`, E15), the LLM
   boundary, the sinks (metrics, decisions, traces, the phase observer) and the space's Python
-  views; `HostFailure` gives an error's Python class; lane P8-0b),
+  views; `HostFailure` gives an error's Python class; lane P8-0b; the validation with an event in
+  flight (`validate_in_flight`), the EventLog's records by ID (`find_record`) and the queue's slots
+  a rule changed (`slots_changed`), lane P8 d2),
   `rules/` (the kernels moved
   to the core, pure functions over `&World`, listed in `rules/mod.rs` by lane block:
   `metrics.rs`, the columns of `MetricSnapshot` with the open requests' waits of `staff.rs`, and
@@ -134,8 +136,16 @@ Checkpoint document) and times them.
   (lane P8 b3); `support.rs` (a support request's plan and writes, its timeout, the end of a staff
   member's support with the care of the selected formula, which the glue reads where the care
   needs it, and the care receipts around a request, on the rows) (lane P8 b4);
+  `handlers.rs` (the rest of `events/handlers.py`: proximity contacts, the resource ledger's events,
+  facility outages and recoveries, deliveries, water, staff unavailable and restored with the stop
+  of what the member was doing, the population primitives' checks and the infrastructure events, on
+  the rows of `operational_events_v1`, `infrastructure_v1` and the entities; events through
+  `kit::Events`; the end of an operational transaction, `settle`, with the world's validation, the
+  continuity receipt's ingest and the records it reads through the `Host`; the infrastructure's spec
+  through `Host::contract`) (lane P8 d2);
   the file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4, P8-0a, c1,
-  P8b-1, P8 a2, P8 a1, P8 d1, P8 a3, P8 c3, P8 a5, P8 c4, P8 c6, P8 c5, P8 b2, P8 b3 and P8 b4),
+  P8b-1, P8 a2, P8 a1, P8 d1, P8 a3, P8 c3, P8 a5, P8 c4, P8 c6, P8 c5, P8 b2, P8 b3, P8 b4 and
+  P8 d2),
   `text.rs` (`casefold`, CPython 3.12's full fold from a generated table, `text/casefold.rs`
   by `tools/casefold_table.py`, tested at every code point against `tests/data/casefold.txt`;
   `g_text`, `format(value, "g")`; `py_repr`, `repr` of a str, from the table of what
@@ -423,7 +433,9 @@ are correctly rounded everywhere, and not `**` with a float.
   (`core/txn.rs`, lane 6-2) and the rule writes `RuleTxn::world`; `finish`, `commit`, `rollback`
   and `keep` end it. A world the transaction refuses takes the old copy (`from_dict(to_dict())`,
   `_effect_candidate`), which a commit swaps in. A rule called inside another's open transaction
-  validates the world as a start does and writes it as it is. `counts()` says what ran, for the gate.
+  validates the world as a start does and writes it as it is (the delivery delays of a supply
+  route's interruption do this in the core through `Host::validate_candidate`, lane P8 d2).
+  `counts()` says what ran, for the gate.
 
 - `rules/tick.rs`: `run_tick(controller, world, minute, rng, observer)`, one tick's phases in order,
   through `controller.run_tick` (`experiments/phases/driver.py`). Unsupported before anything changes
@@ -438,7 +450,7 @@ are correctly rounded everywhere, and not `**` with a float.
   `resource_service_complete`, `support_request_timeout`, `staff_support_complete`) runs it when the registered handler
   is that class with its `apply` as defined. The loop calls the other handlers' `apply`, listed in
   `install_table`, with the Python dispatcher's steps around it: that runs their kernels
-  (`rules/handlers.rs`, `rules/information_events.rs`, `rules/staff_operation_events.rs`,
+  (`rules/handlers.rs`, the glue of `core/src/rules/handlers.rs` since lane P8 d2, `rules/information_events.rs`, `rules/staff_operation_events.rs`,
   `docs/rust-port/lanes/m6-handlers-rest.md`); a refusal is their `KernelRefusal`. An EffectProgram's
   marked event has its guard asked in Rust first (`effects::guard_or_suppress`; a false or failing
   guard is recorded with the Python rule's text), then goes on as an unmarked one; a marked event of

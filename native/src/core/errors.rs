@@ -14,7 +14,7 @@ use pyo3::exceptions::{PyKeyError, PyRuntimeError, PyTypeError, PyValueError};
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
-use pyo3::types::{PyBool, PyFloat, PyInt, PyString, PyType};
+use pyo3::types::{PyBool, PyInt, PyString, PyType};
 
 pub(crate) use sheltersim_core::error::Outcome;
 use sheltersim_core::error::{refused_text, Error};
@@ -196,27 +196,6 @@ pub(crate) fn str_of<'a>(value: &'a Bound<'_, PyAny>) -> PyResult<Option<&'a str
         return Ok(None);
     }
     crate::core::row::exact_str(value).map(Some)
-}
-
-/// `isinstance(value, str) and value`: Some(text), None when it isn't a non-empty str.
-pub(crate) fn nonempty_str<'a>(value: &'a Bound<'_, PyAny>) -> PyResult<Option<&'a str>> {
-    Ok(str_of(value)?.filter(|text| !text.is_empty()))
-}
-
-/// `not isinstance(value, bool) and isinstance(value, (int, float))`, as `float(value)`: None when it
-/// isn't one. A subclass, or an int a float can't hold exactly, is refused.
-pub(crate) fn real_number(value: &Bound<'_, PyAny>) -> PyResult<Option<f64>> {
-    if value.is_instance_of::<PyBool>() || !(value.is_instance_of::<PyInt>() || value.is_instance_of::<PyFloat>()) {
-        return Ok(None);
-    }
-    if let Ok(float) = value.downcast_exact::<PyFloat>() {
-        return Ok(Some(float.value()));
-    }
-    let int = crate::core::row::exact_int(value)?;
-    if !(-(1 << 53)..=1 << 53).contains(&int) {
-        return crate::core::row::unsupported("a number does not fit a float");
-    }
-    Ok(Some(int as f64))
 }
 
 /// `Enum(value)` of a str enum whose values are `members`: Some(the value), None where the Python rule

@@ -14,9 +14,10 @@
 //! core). For it the rule takes today's path: `RuleTxn::world` is the copy (`copy_of`,
 //! `effect_copy_of`), a commit swaps it in and a rollback drops it.
 //!
-//! A rule called inside another rule's open transaction (the delivery delays of a supply route's
-//! interruption) validates the world as a start does and writes it as it is; the outer rule's
-//! commit or rollback covers it. Its copy used to put the world in canonical order once more, so
+//! A rule called inside another rule's open transaction validates the world as a start does and
+//! writes it as it is; the outer rule's commit or rollback covers it. The delivery delays of a supply
+//! route's interruption do this in the core since lane P8 d2 (`rules::handlers`, through
+//! `Host::validate_candidate`), and count in the same `NESTED_RULES`. Its copy used to put the world in canonical order once more, so
 //! the order of what the outer rule wrote before it is the one difference (no hash reads it; the
 //! next transaction or Checkpoint puts it in canonical order).
 //!
@@ -30,7 +31,7 @@ use std::time::Instant;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use sheltersim_core::txn::TxnKind;
+use sheltersim_core::txn::{TxnKind, NESTED_RULES};
 
 use crate::core::txn as core_txn;
 use crate::core::world_core::core_of;
@@ -40,7 +41,6 @@ use crate::Unsupported;
 
 static IN_PLACE: AtomicU64 = AtomicU64::new(0);
 static ON_COPY: AtomicU64 = AtomicU64::new(0);
-static NESTED: AtomicU64 = AtomicU64::new(0);
 static COMMITTED: AtomicU64 = AtomicU64::new(0);
 static ROLLED_BACK: AtomicU64 = AtomicU64::new(0);
 /// Nanoseconds in the start of a transaction in place, and in the copy of the other path.
@@ -123,7 +123,7 @@ impl<'py> RuleTxn<'py> {
             let validate = state_mirror(py)?.getattr(intern!(py, "_txn_validate"))?;
             validate.call1((world, false))?;
             validate.call1((world, true))?;
-            NESTED.fetch_add(1, Ordering::Relaxed);
+            NESTED_RULES.fetch_add(1, Ordering::Relaxed);
             return Ok(Self { world: world.clone(), path: Some(Path::Nested) });
         }
         let started = Instant::now();
@@ -233,7 +233,7 @@ fn counts(py: Python<'_>) -> PyResult<Bound<'_, PyDict>> {
     for (name, counter) in [
         ("in_place", &IN_PLACE),
         ("copy", &ON_COPY),
-        ("nested", &NESTED),
+        ("nested", &NESTED_RULES),
         ("committed", &COMMITTED),
         ("rolled_back", &ROLLED_BACK),
         ("begin_ns", &BEGIN_NS),
