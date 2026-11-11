@@ -643,13 +643,13 @@ def test_care_history_rows_are_kept_with_the_event_log_and_a_caller_can_not_chan
 
 def test_a_recorded_event_is_not_recorded_again_however_old_it_is() -> None:
     """Only an event realized now looks among the newest records (their minutes order them)."""
-    from sheltersim.domain.care_receipts import make_facility_recovery_record
+    from support.receipts import facility_recovery_record
 
     world = make_world()
     facility = world.facilities[sorted(world.facilities)[0]]
 
     def recovery() -> object:
-        record, _ = make_facility_recovery_record(
+        record, _ = facility_recovery_record(
             world,
             facility_id=facility.id,
             component_id="component-1",

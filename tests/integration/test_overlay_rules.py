@@ -2013,14 +2013,16 @@ def _resource_queues(world: WorldState) -> tuple[str, str] | None:
 # The water and meal service has no Python rule left (lane L10, `kernel_only`). What its rules
 # made of each case, recorded from them: the results and worlds, by sha256 (on every OS, as the
 # gate's hashes).
+# Recorded again in #152 P8b-1, where the ledger's audit records appended to its tree took the
+# row's key order (the tree follows the row); nothing else changed.
 RESOURCE_FIFO = {
-    "serves": "4eea79e30c852220",
-    "interrupted": "d86c01db591bca29",
-    "cancelled-operator_cancelled": "41226e92a37ea317",
-    "cancelled-facility_stopped": "41226e92a37ea317",
-    "cancelled-staff_unavailable": "1820a6203f51d466",
+    "serves": "12ee531de9f4a9d9",
+    "interrupted": "0c2f18efc96b1f29",
+    "cancelled-operator_cancelled": "3099156a68b1e887",
+    "cancelled-facility_stopped": "3099156a68b1e887",
+    "cancelled-staff_unavailable": "80e6c1450c8741b2",
     "cancelled-place": "272f389bc92cfc29",
-    "completed": "74ebe88f8e58b979",
+    "completed": "66d5b4df331e7441",
 }
 
 

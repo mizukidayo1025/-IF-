@@ -74,6 +74,11 @@ Checkpoint document) and times them.
   service point on the row of `facility_queues_v1`, and `queues.rs`, a facility's physical queue
   (`prepare_facility_queue`, the walks to the queue's places and to service, those who give up),
   which write the rows alone (lane c1);
+  the P8b-1 operations: `staff_dynamics.rs` (shift, rest and fatigue), `resources.rs` (the
+  ledger's operations, which return the new balance for the PyO3 crate's new `world.resources`),
+  `common_operations.rs` (`record_shared_operation`, and the receipts typed as `Receipt` with the
+  Rust check of their contracts) and `care_receipts.rs` (a care transition's record and receipt,
+  the other receipts' applied records, the person's context);
   the file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4 and P8-0a),
   `text.rs` (`casefold`, CPython 3.12's full fold from a generated table, `text/casefold.rs`
   by `tools/casefold_table.py`, tested at every code point against `tests/data/casefold.txt`;
@@ -241,7 +246,8 @@ Checkpoint document) and times them.
   `row.rs` also has `Maybe<T>` (a key a record may not have), `str_enum!`, `set_all`,
   `namespace_is_absent` and the `exact_*` readers of a kernel's inputs. A rule other modules call as
   a function uses `core/kernels.py`'s `kernel_only`; `src/state/staff_dynamics.rs` and
-  `src/rules/staff_dynamics.rs` are the example of a whole module
+  `src/rules/staff_dynamics.rs` (glue over `core/src/rules/staff_dynamics.rs`) are the example of
+  a whole module
   (`docs/rust-port/lanes/s-staff-dynamics.md`).
 - `src/state/entities.rs`: `EntityStore`, the handle of the typed rows of a world's agents,
   facilities, staff, support requests, active tasks, zones and zone edges (kinds 6 and 7, with a
@@ -511,7 +517,8 @@ are correctly rounded everywhere, and not `**` with a float.
   appended the recent receipts, or the Python rules through `recent_passed(world)` or
   `history_passed(world)`, checked them; it compares a recent staff operation receipt with the
   retained completions of `staff_operations_v1` itself.
-  `rules.common_operations.record_shared_operation(world, record)` appends a `CareTransitionReceipt`.
+  `rules.common_operations.record_shared_operation(world, record)` appends a receipt of
+  `contracts/operations.py`, read as the core's `Receipt` (`core/src/rules/common_operations.rs`).
 - `state.resource_ledger.ROW`, `validate`: Rust owns `resource_ledger_v1`
   (`src/state/resource_ledger.rs`; the row and `passes_rules_in` in `core/src/state/`, which reads
   the world's resources, people and zones through a `LedgerWorld`): the accounts typed, the audit trail as the canonical bytes of each

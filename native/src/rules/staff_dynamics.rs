@@ -1,30 +1,27 @@
-//! `domain/staff_dynamics.py`: staff shift, rest and fatigue. Its rules are these kernels alone (lane
-//! L10, `kernel_only`), and what they refuse is a KernelRefusal there; the checks of a Scenario's
-//! config and of an override stay in Python (docs/rust-port/lanes/s-staff-dynamics.md).
+//! `domain/staff_dynamics.py`: the entries of its kernels, whose rules are the core's
+//! (`sheltersim_core::rules::staff_dynamics`, P8b-1). Each reads what Python holds (whether the
+//! namespace is there, the fatigue formula of the configs), calls the core on the world and converts
+//! what it returns. What the core refuses is a KernelRefusal at the Python entry.
 //!
-//! `update` plans everything from the rows first, so an Unsupported changes nothing. Every other
-//! kernel only reads, or builds a new value.
+//! Kept here: `canonical_staff_dynamics_config` and the state of a world built from a Scenario
+//! (decision 4: building a world stays out of the core), and `staff_status`/`is_available` on the
+//! Python objects for the kernels of the PyO3 crate that still read them (service, toilet, staff,
+//! staff_order, staff_operation_events, effects) until their lanes move them
+//! (docs/rust-port/lanes/s-staff-dynamics.md).
 
 use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyList, PyString};
+use sheltersim_core::config::staff::StaffFatigue;
+use sheltersim_core::rules::staff_dynamics as core;
 
 use crate::core::configs;
-use crate::core::errors;
-use crate::core::mathx::{exp, py_max, py_min};
-use crate::core::row::{
-    attribute, exact_dict, exact_int, exact_list, exact_str, namespace_is_absent,
-    unsupported, PyField,
-};
-use crate::core::world_core::{mirror_of, NamespaceMirror};
-use sheltersim_core::config::staff::StaffFatigue;
-use crate::state::entities::{entities_of, EntityStore};
-use crate::state::staff_dynamics::{
-    shifts_are_valid, ConfigRow, LastActivity, Shift, StaffDynamicsRow, StaffRecord, MAX_REST_MINUTES, MAX_SHIFTS,
-    MINUTES_PER_DAY, MINUTES_PER_WEEK, NAME, POLICY_V1, POLICY_V2,
-};
+use crate::core::errors::{self, OrPy};
+use crate::core::row::{attribute, exact_dict, exact_int, exact_list, exact_str, namespace_is_absent, unsupported, PyField};
+use crate::core::world_core::with_world;
+use crate::state::staff_dynamics::{shifts_are_valid, ConfigRow, Shift, StaffRecord, MAX_REST_MINUTES, MAX_SHIFTS, MINUTES_PER_DAY, MINUTES_PER_WEEK, NAME, POLICY_V1, POLICY_V2};
 
 const SOURCE_V1: &str = "ASM-STAFF-DYNAMICS-V1";
 const SOURCE_V2: &str = "ASM-STAFF-DYNAMICS-V2";
@@ -38,13 +35,11 @@ const CONFIG_FIELDS: [&str; 8] = [
     "shift_windows_by_staff",
     "off_shift_fatigue_recovery_per_minute",
 ];
-/// Above this an int does not always fit a float, and Python's int / int is correctly rounded.
-const FLOAT_EXACT_INT: u64 = 1 << 53;
 
-// ---- What the rules read from the rest of the world ------------------------------------------
+// ---- For the kernels of this crate that read the Python objects ------------------------------------
 
 /// `state["staff_status"]` of `operational_events_v1`, or None without that namespace: the input
-/// of `staff_is_available` in `domain/operational.py`.
+/// of `staff_is_available` in `domain/operational.py` (the core's is `with_staff_status`).
 pub(crate) fn staff_status<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
     let py = world.py();
     let table = attribute(world, intern!(py, "model_state"))?;
@@ -63,7 +58,7 @@ pub(crate) fn staff_status<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bo
     }
 }
 
-/// `staff_is_available`.
+/// `staff_is_available` (the core's is `is_available`).
 pub(crate) fn is_available(status: Option<&Bound<'_, PyAny>>, id: &Bound<'_, PyString>) -> PyResult<bool> {
     let Some(status) = status else {
         return Ok(true);
@@ -73,7 +68,7 @@ pub(crate) fn is_available(status: Option<&Bound<'_, PyAny>>, id: &Bound<'_, PyS
         None => Ok(true),
         Some(record) if record.is_none() => Ok(true),
         Some(record) => match exact_dict(&record)?.get_item(intern!(py, "available"))? {
-            Some(available) => match available.downcast_exact::<pyo3::types::PyBool>() {
+            Some(available) => match available.downcast_exact::<PyBool>() {
                 Ok(available) => Ok(available.is_true()),
                 Err(_) => unsupported("available is not a bool"),
             },
@@ -82,226 +77,50 @@ pub(crate) fn is_available(status: Option<&Bound<'_, PyAny>>, id: &Bound<'_, PyS
     }
 }
 
-/// `_on_shift`. A config of the oldest schema has no windows, and the Python rule raises.
+/// `_on_shift`, for a kernel of this crate that holds the row.
 pub(crate) fn on_shift(config: &ConfigRow, id: &str, minute: i64) -> PyResult<bool> {
-    let Some(windows) = &config.shift_windows_by_staff.0 else {
-        return unsupported("the config has no shift windows");
-    };
-    let Some(shifts) = windows.get(id) else {
-        return Ok(true);
-    };
-    let week_minute = minute.rem_euclid(MINUTES_PER_WEEK);
-    Ok(shifts
-        .iter()
-        .any(|shift| shift.start_minute <= week_minute && week_minute < shift.end_minute))
+    core::on_shift(config, id, minute).or_py()
 }
 
-// ---- The fatigue formula -----------------------------------------------------------------------
-
-/// `create_staff_fatigue_formula`, for the formulas this kernel knows, kept for the configs' stamp
-/// (`core/configs.rs`). A later registered one, or anything but plain documents, is the Python
-/// rule's.
+/// `create_staff_fatigue_formula`, for the formulas the core knows, kept for the configs' stamp
+/// (`core/configs.rs`). A later registered one, or anything but plain documents, is refused.
 pub(crate) fn fatigue_formula(world: &Bound<'_, PyAny>) -> PyResult<Arc<StaffFatigue>> {
     configs::kept_value(world, |configs| &configs.staff_fatigue, StaffFatigue::parse)
 }
 
-/// `StaffFatigueFormula.fatigue`, or None where Python's result isn't sure to be f64 division.
-#[inline]
-fn fatigue_of(saturating: bool, consecutive: i64, maximum: i64) -> Option<f64> {
-    if maximum == 0
-        || consecutive.unsigned_abs() > FLOAT_EXACT_INT
-        || maximum.unsigned_abs() > FLOAT_EXACT_INT
-    {
-        return None;
-    }
-    let fraction = consecutive as f64 / maximum as f64;
-    if saturating {
-        return Some(1.0 - exp(-fraction).ok()?);
-    }
-    Some(py_min(1.0, fraction))
-}
-
-// ---- update_staff_dynamics ---------------------------------------------------------------------
-
-/// What one tick needs to know of one member, read before the row is.
-struct Member<'py> {
-    id: Bound<'py, PyString>,
-    working: bool,
-    /// `staff_is_available`; only asked of who has no task.
-    available: bool,
-    maximum: Option<i64>,
-}
-
-struct Parameters {
-    saturating: bool,
-    default_maximum: i64,
-    rest_minutes: i64,
-    recovery: Option<f64>,
-    duration: i64,
-    minute: i64,
-}
-
-/// One member's next record: the loop body of `update_staff_dynamics`. None when an int leaves
-/// what the kernel holds or a config key the Python rule reads is not there.
-fn next_record(
-    record: &StaffRecord,
-    working: bool,
-    available_on_shift: bool,
-    maximum: i64,
-    parameters: &Parameters,
-) -> Option<StaffRecord> {
-    let mut next = *record;
-    if working {
-        next.consecutive_work_minutes = next.consecutive_work_minutes.checked_add(1)?;
-        next.total_work_minutes = next.total_work_minutes.checked_add(1)?;
-        next.fatigue = fatigue_of(parameters.saturating, next.consecutive_work_minutes, maximum)?;
-        next.last_activity = LastActivity::Working;
-        return Some(next);
-    }
-    if !available_on_shift {
-        next.last_activity = LastActivity::OffDuty;
-        next.consecutive_work_minutes = 0;
-        next.total_rest_minutes = next.total_rest_minutes.checked_add(1)?;
-        next.fatigue = py_max(0.0, next.fatigue - parameters.recovery?);
-        return Some(next);
-    }
-    if parameters.minute < next.rest_until_minute {
-        next.total_rest_minutes = next.total_rest_minutes.checked_add(1)?;
-        next.last_activity = LastActivity::Resting;
-        return Some(next);
-    }
-    if next.rest_until_minute != 0 {
-        next.consecutive_work_minutes = 0;
-        next.fatigue = 0.0;
-        next.rest_until_minute = 0;
-    }
-    if next.consecutive_work_minutes >= maximum {
-        next.rest_until_minute =
-            parameters.duration.min(parameters.minute.checked_add(parameters.rest_minutes)?);
-        next.last_activity = LastActivity::Resting;
-    } else {
-        next.last_activity = LastActivity::OffDuty;
-    }
-    Some(next)
-}
-
-fn plan(
-    row: &StaffDynamicsRow,
-    members: &[Member<'_>],
-    parameters: &Parameters,
-) -> PyResult<Vec<StaffRecord>> {
-    let mut planned = Vec::with_capacity(members.len());
-    for member in members {
-        let id = member.id.to_str()?;
-        let Some(record) = row.staff.get(id) else {
-            return unsupported("a member has no record");
-        };
-        let maximum = member.maximum.unwrap_or(parameters.default_maximum);
-        // In the Python rule's order: _on_shift is only asked of who has no task and is available.
-        let available_on_shift =
-            !member.working && member.available && on_shift(&row.config, id, parameters.minute)?;
-        let Some(next) = next_record(record, member.working, available_on_shift, maximum, parameters)
-        else {
-            return unsupported("a value leaves what this kernel holds");
-        };
-        planned.push(next);
-    }
-    Ok(planned)
-}
+// ---- The entries -----------------------------------------------------------------------------------
 
 /// `update_staff_dynamics`.
 #[pyfunction]
 pub(crate) fn update(world: &Bound<'_, PyAny>, minute: &Bound<'_, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    if namespace_is_absent(world, intern!(py, NAME))? {
+    if namespace_is_absent(world, intern!(world.py(), NAME))? {
         return Ok(());
     }
     let minute = exact_int(minute)?;
-    let duration = exact_int(&attribute(world, intern!(py, "duration_minutes"))?)?;
-    let mirror = mirror_of(world, NAME)?;
     let formula = fatigue_formula(world)?;
-    let status = staff_status(world)?;
-
-    let store = entities_of(world)?;
-    let staff: Vec<(Arc<str>, bool)> = EntityStore::with_rows(&store, |rows| {
-        Ok(rows
-            .staff
-            .iter()
-            .map(|(id, row)| (id.clone(), row.active_task_id.is_some()))
-            .collect())
-    })?;
-    let mut members = Vec::with_capacity(staff.len());
-    for (id, working) in staff {
-        let maximum = configs::read(formula.limit(&id))?;
-        let id = PyString::new(py, &id);
-        let available = working || is_available(status.as_ref(), &id)?;
-        members.push(Member { id, working, available, maximum });
-    }
-
-    let planned = NamespaceMirror::with_row::<StaffDynamicsRow, _>(&mirror, |row| {
-        let parameters = Parameters {
-            saturating: formula.saturating,
-            default_maximum: row.config.max_continuous_work_minutes,
-            rest_minutes: row.config.rest_minutes,
-            recovery: row.config.off_shift_fatigue_recovery_per_minute.0.map(|recovery| recovery.value),
-            duration,
-            minute,
-        };
-        plan(row, &members, &parameters)
-    })?;
-    NamespaceMirror::with_row_tree::<StaffDynamicsRow, _>(&mirror, |row, tree| {
-        let staff = tree.child(intern!(py, "staff"))?;
-        for (member, next) in members.iter().zip(&planned) {
-            let id = member.id.to_str()?;
-            let Some(record) = row.staff.get_mut(id) else {
-                return unsupported("the row changed under the plan");
-            };
-            let node = staff.child(&member.id)?;
-            record.set_all(&node, next)?;
-        }
-        Ok(())
-    })
+    with_world(world, |world| core::update(world, minute, &formula))?.or_py()
 }
-
-// ---- The readers --------------------------------------------------------------------------------
 
 /// `staff_dynamics_on_shift`.
 #[pyfunction(name = "on_shift")]
-fn on_shift_now(
-    world: &Bound<'_, PyAny>,
-    staff_id: &Bound<'_, PyAny>,
-    minute: &Bound<'_, PyAny>,
-) -> PyResult<bool> {
+fn on_shift_now(world: &Bound<'_, PyAny>, staff_id: &Bound<'_, PyAny>, minute: &Bound<'_, PyAny>) -> PyResult<bool> {
     if namespace_is_absent(world, intern!(world.py(), NAME))? {
         return Ok(true);
     }
     let id = exact_str(staff_id)?;
     let minute = exact_int(minute)?;
-    let mirror = mirror_of(world, NAME)?;
-    NamespaceMirror::with_row::<StaffDynamicsRow, _>(&mirror, |row| {
-        let Some(record) = row.staff.get(id) else {
-            return Ok(false);
-        };
-        Ok(on_shift(&row.config, id, minute)? && minute >= record.rest_until_minute)
-    })
+    with_world(world, |world| core::on_shift_now(world, id, minute))?.or_py()
 }
 
-/// `operation is None or operation.get("phase") == "idle"` for staff_operations_v1 as the Python
-/// rule reads it, which is before anything else, so a bad document always goes to it.
-fn operation_is_idle(world: &Bound<'_, PyAny>, id: &Bound<'_, PyString>) -> PyResult<bool> {
+/// `operation.get("phase") == "idle"` of a tainted `staff_operations_v1`, whose tree holds it (the
+/// core's `operation_is_idle` reads the row otherwise): what the rules of a task still write as a
+/// tree, until their lane writes the row.
+fn tree_operation_is_idle(world: &Bound<'_, PyAny>, id: &Bound<'_, PyString>) -> PyResult<bool> {
     let py = world.py();
     let table = attribute(world, intern!(py, "model_state"))?;
     let Some(operations) = exact_dict(&table)?.get_item(intern!(py, "staff_operations_v1"))? else {
         return Ok(true);
     };
-    if crate::core::tracked::is_detached(&operations) {
-        // The row's records always have a phase.
-        let id = id.to_str()?;
-        return NamespaceMirror::with_row::<crate::state::staff_operations::StaffOperationsRow, _>(
-            &mirror_of(world, "staff_operations_v1")?,
-            |row| Ok(row.staff.get(id).is_none_or(|record| record.phase == crate::state::staff_operations::Phase::Idle)),
-        );
-    }
     if operations.is_none() {
         return Ok(true);
     }
@@ -322,56 +141,35 @@ fn operation_is_idle(world: &Bound<'_, PyAny>, id: &Bound<'_, PyString>) -> PyRe
 
 /// `staff_dynamics_is_available`.
 #[pyfunction(name = "is_available")]
-pub(crate) fn is_available_now(
-    world: &Bound<'_, PyAny>,
-    staff_id: &Bound<'_, PyAny>,
-    minute: &Bound<'_, PyAny>,
-) -> PyResult<bool> {
+pub(crate) fn is_available_now(world: &Bound<'_, PyAny>, staff_id: &Bound<'_, PyAny>, minute: &Bound<'_, PyAny>) -> PyResult<bool> {
     if namespace_is_absent(world, intern!(world.py(), NAME))? {
         return Ok(true);
     }
-    let Ok(id) = staff_id.downcast_exact::<PyString>() else {
+    let Ok(text) = staff_id.downcast_exact::<PyString>() else {
         return unsupported("the id is not a str");
     };
-    let text = exact_str(staff_id)?;
+    let id = exact_str(staff_id)?;
     let minute = exact_int(minute)?;
-    let idle = operation_is_idle(world, id)?;
-    let mirror = mirror_of(world, NAME)?;
-    let eligible = NamespaceMirror::with_row::<StaffDynamicsRow, _>(&mirror, |row| {
-        let Some(record) = row.staff.get(text) else {
-            return Ok(false);
-        };
-        Ok(on_shift(&row.config, text, minute)? && minute >= record.rest_until_minute)
-    })?;
-    if !eligible {
-        return Ok(false);
+    if let Some(answer) = with_world(world, |world| core::is_available_now(world, id, minute, None))?.or_py()? {
+        return Ok(answer);
     }
-    let status = staff_status(world)?;
-    Ok(is_available(status.as_ref(), id)? && idle)
+    let idle = tree_operation_is_idle(world, text)?;
+    with_world(world, |world| core::is_available_now(world, id, minute, Some(idle)))?
+        .or_py()?
+        .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("the operation's answer was asked again"))
 }
 
-// ---- add_staff, and what a new world starts from ---------------------------------------------------
-
-/// `add_staff`: one record, forwarded neither way.
+/// `add_staff`: one record.
 #[pyfunction]
 fn add_staff(world: &Bound<'_, PyAny>, staff_id: &Bound<'_, PyAny>) -> PyResult<()> {
     if namespace_is_absent(world, intern!(world.py(), NAME))? {
         return Ok(());
     }
     let id = exact_str(staff_id)?;
-    let mirror = mirror_of(world, NAME)?;
-    let record = StaffRecord::new();
-    NamespaceMirror::with_row::<StaffDynamicsRow, _>(&mirror, |row| {
-        match row.staff.get_mut(id) {
-            Some(slot) => *slot = record,
-            None => {
-                row.staff.insert(Arc::from(id), record);
-            }
-        }
-        Ok(())
-    })?;
-    NamespaceMirror::write_through(&mirror, &["staff"], id, &PyField::to_py(&record, world.py())?)
+    with_world(world, |world| core::add_staff(world, id))?.or_py()
 }
+
+// ---- What a new world starts from (decision 4) -----------------------------------------------------
 
 /// An exact non-empty str key of a config map.
 fn staff_key<'a>(key: &'a Bound<'_, PyAny>) -> PyResult<&'a str> {
@@ -721,8 +519,7 @@ fn create_state<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>> 
 /// The fatigue formula alone, for the bit comparison of the tests.
 #[pyfunction]
 fn fatigue_value(saturating: bool, consecutive: i64, maximum: i64) -> PyResult<f64> {
-    fatigue_of(saturating, consecutive, maximum)
-        .ok_or_else(|| crate::Unsupported::new_err("the formula's inputs are out of range"))
+    core::fatigue(saturating, consecutive, maximum).ok_or_else(|| crate::Unsupported::new_err("the formula's inputs are out of range"))
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

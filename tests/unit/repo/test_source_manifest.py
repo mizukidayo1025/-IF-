@@ -2,7 +2,8 @@
 
 AGENTS.md asks that a new coefficient is registered in the source manifest. This
 test finds the assumption (ASM-) and source (SRC-) IDs written as fixed strings
-in src/ and in the string literals of native/src/ (the kernels that write provenance) and fails
+in src/ and in the string literals of native/src/ and native/core/src/ (the kernels that write
+provenance) and fails
 when one is neither in the manifest nor a known gap below.
 IDs built at runtime (SRC-PLAN-<digest>, ASM-POLICY-OVERRIDE-<hash>) and
 prefixes passed to str.startswith are not IDs and are skipped.
@@ -155,8 +156,9 @@ def _cited_ids() -> set[str]:
         cited |= _ids_in_python(path.read_text(encoding="utf-8"))
     for path in (ROOT / "src").rglob("*.json"):
         cited |= set(EVIDENCE_ID.findall(path.read_text(encoding="utf-8")))
-    for path in (ROOT / "native" / "src").rglob("*.rs"):
-        cited |= _ids_in_rust(path.read_text(encoding="utf-8"))
+    for crate in (ROOT / "native" / "src", ROOT / "native" / "core" / "src"):
+        for path in crate.rglob("*.rs"):
+            cited |= _ids_in_rust(path.read_text(encoding="utf-8"))
     return cited
 
 

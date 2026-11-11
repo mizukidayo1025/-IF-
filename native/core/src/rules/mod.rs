@@ -11,6 +11,10 @@ pub mod metrics;
 // ---- P8a: people rules -------------------------------------------------------------------------
 
 // ---- P8b: operations ---------------------------------------------------------------------------
+pub mod care_receipts;
+pub mod common_operations;
+pub mod resources;
+pub mod staff_dynamics;
 
 // ---- P8c: population and movement --------------------------------------------------------------
 pub mod facility_queues;
