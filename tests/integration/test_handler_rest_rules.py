@@ -755,11 +755,13 @@ def test_only_the_due_requests_go_to_the_policy(generated_scenario: Any) -> None
 
 
 def test_ingest_of_a_record_of_this_tick_is_python_s(generated_scenario: Any) -> None:
+    from support.receipts import facility_recovery_record
+
     from sheltersim.domain import care_receipts
 
     world, _ = _small_world(generated_scenario)
     facility_id = sorted(world.facilities)[0]
-    record = care_receipts.make_facility_recovery_record(
+    record = facility_recovery_record(
         world,
         facility_id=facility_id,
         component_id="component-1",

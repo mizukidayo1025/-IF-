@@ -17,6 +17,7 @@ from typing import Any
 
 import pytest
 from support.paths import SMALL_REPLAY
+from support.receipts import care_transition_record, facility_recovery_record
 
 from sheltersim import native
 from sheltersim.contracts.operations import SHARED_OPERATIONS_KEY, NumericStateChange
@@ -24,10 +25,6 @@ from sheltersim.core import state_mirror
 from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.state_mirror import rust_validated
 from sheltersim.core.world import WorldState
-from sheltersim.domain.care_receipts import (
-    make_care_transition_record,
-    make_facility_recovery_record,
-)
 from sheltersim.domain.common_operations import (
     _TICK_PASSED,
     _TICK_VALID,
@@ -680,7 +677,7 @@ def test_a_free_worker_s_route_is_read_as_the_python_rule_reads_it() -> None:
 
 
 def _receipt(world: WorldState, number: int, status: str, **fields: Any) -> Any:
-    event_record, receipt = make_care_transition_record(
+    event_record, receipt = care_transition_record(
         world,
         request_id=f"request-{number}",
         agent_id=sorted(world.agents)[0],
@@ -731,7 +728,7 @@ def test_a_request_s_receipts_are_the_python_rules_and_kept_in_the_row() -> None
     assert world.model_state[SHARED]["support_requests"] == {}
     assert len(world.model_state[SHARED]["history"]) == 4
     # The stress after it is a float of the run, pinned as the gate's hashes are.
-    assert _digest("\n".join(states)) == "39e19ebf3cd90657"
+    assert _digest("\n".join(states)) == "f685064e884a4da6"
 
 
 @pytest.mark.parametrize(
@@ -767,7 +764,7 @@ def test_an_order_or_identity_the_rule_refuses_is_its_own() -> None:
         record_shared_operation(world, _receipt(world, 1, "completed"))
     with pytest.raises(ValueError, match="out of order"):
         record_shared_operation(world, _receipt(world, 2, "assigned"))
-    other = make_care_transition_record(
+    other = care_transition_record(
         world,
         request_id="request-1",
         agent_id=sorted(world.agents)[1],
@@ -834,7 +831,7 @@ def test_a_restored_receipt_is_read_by_the_python_rule_once_and_then_trusted() -
     # What the kernel did not check, the contract does, as in the Python rule.
     _record(copied, _receipt(copied, 2, "requested"))
     assert _mirror(copied, SHARED).verify()
-    assert _digest(json.dumps(copied.model_state[SHARED])) == "0ceb8b43d18e84a9"
+    assert _digest(json.dumps(copied.model_state[SHARED])) == "7de6086f49c6ebd0"
     world_two = _restored(world)
     assert not _TICK_VALID(world_two)
     validate_shared_operations_state(world_two, validate_event_history=False)
@@ -845,7 +842,11 @@ def test_a_restored_receipt_is_read_by_the_python_rule_once_and_then_trusted() -
 
 
 def _same_receipt(world: WorldState, record: Any, digest: str) -> None:
-    """The kernel leaves the document the rule left, by its digest recorded from the rule."""
+    """The kernel leaves the document the rule left, by its digest recorded from the rule.
+
+    Since #152 P8b-1 the kernel writes the row and the tree follows it, so a receipt appended to the
+    tree has the row's key order (sorted, as a tree built again from the row always had): the
+    digests were recorded again then, with only that order changed."""
     _record(world, record)
     assert _mirror(world, SHARED).verify()
     assert _digest(json.dumps(world.model_state[SHARED])) == digest
@@ -855,7 +856,7 @@ def test_a_facility_s_recovery_receipt_is_the_rule_s() -> None:
     world = _world()
     world.minute_index = 3
     facility = next(iter(world.facilities.values()))
-    made = make_facility_recovery_record(
+    made = facility_recovery_record(
         world,
         facility_id=facility.id,
         component_id="component",
@@ -866,7 +867,7 @@ def test_a_facility_s_recovery_receipt_is_the_rule_s() -> None:
     )
     event_record, receipt = made
     world.event_log.append(event_record)
-    _same_receipt(world, receipt, "97fa51c95ba42e42")
+    _same_receipt(world, receipt, "60ddeee8a3409092")
     # The rule turns down a second receipt of one event.
     before = json.dumps(world.model_state[SHARED])
     with pytest.raises(ValueError) as raised:
@@ -879,7 +880,7 @@ def test_a_recovery_receipt_of_another_state_is_left_to_the_rule_s_text() -> Non
     world = _world()
     world.minute_index = 3
     facility = next(iter(world.facilities.values()))
-    event_record, receipt = make_facility_recovery_record(
+    event_record, receipt = facility_recovery_record(
         world,
         facility_id=facility.id,
         component_id="component",

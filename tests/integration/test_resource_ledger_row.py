@@ -92,7 +92,11 @@ def _text(value: Any) -> str:
 
 
 def _digest(world: Any) -> str:
-    """A digest of the ledger and the resources, to pin what the Python rule wrote."""
+    """A digest of the ledger and the resources, to pin what the Python rule wrote.
+
+    Since #152 P8b-1 the kernel writes the row and the tree follows it, so an audit record appended
+    to the tree has the row's key order (sorted, as a tree built again from the row always had):
+    the digests were recorded again then, with only that order changed."""
     text = _text(world.model_state[KEY]) + _text(world.resources)
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
@@ -140,7 +144,7 @@ def _whole_reservation_and_a_new_source(world: WorldState, agent: str) -> None:
 def test_each_operation_writes_what_the_python_rule_wrote() -> None:
     world = _world()
     _operate(world)
-    assert _digest(world) == "4077215d5a94dd42"
+    assert _digest(world) == "85afdc35f4831e99"
     account = world.model_state[KEY]["accounts"]["food_meal_units"]
     assert account["reservations"]["r-1"]["quantity"] == 1
     assert world.model_state[KEY]["used_reservation_ids"] == ["r-1", "r-2"]
@@ -154,7 +158,7 @@ def test_a_consume_of_the_whole_reservation_and_a_new_source() -> None:
     world = _world()
     agent = _operate(world)
     _whole_reservation_and_a_new_source(world, agent)
-    assert _digest(world) == "0e81c8c83d0c3d2d"
+    assert _digest(world) == "6b42bdea996b6a19"
     assert world.model_state[KEY]["accounts"]["food_meal_units"]["reservations"] == {}
     assert world.model_state[KEY]["accounts"]["water_ml"]["source_ids"][-1] == "ASM-ANOTHER-SOURCE"
     assert world.model_state[KEY]["audit"][-1]["source_ids"][-1] == "ASM-ANOTHER-SOURCE"
@@ -509,7 +513,7 @@ def _random_sequences() -> tuple[str, int, int]:
 
 
 def test_random_sequences_with_refusals_are_the_python_rule_s() -> None:
-    assert _random_sequences() == ("878738072d3482ee", 720, 755)
+    assert _random_sequences() == ("8408b20f6024ef1b", 720, 755)
 
 
 def test_the_metric_columns_and_the_used_ids() -> None:

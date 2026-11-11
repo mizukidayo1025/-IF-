@@ -1,329 +1,24 @@
 """Event-backed producer helpers for the shared care operation contract.
 
 This module projects only care transitions that already happened in the WorldState.
-It does not create a support request or claim a completed outcome by itself.
+It does not create a support request or claim a completed outcome by itself. The receipts and
+their events are made by native/core/src/rules/care_receipts.rs.
 """
 
 from __future__ import annotations
 
-from functools import lru_cache
 from typing import Any
-
-from pydantic import TypeAdapter
 
 from sheltersim.contracts.operations import (
     SHARED_OPERATIONS_KEY,
     CareTransitionReceipt,
-    FacilityRecoveryReceipt,
-    NumericStateChange,
-    OperationHistoryRecord,
-    StaffHandoffReceipt,
-    StaffOperationReceipt,
     StaffSupportContinuityReceipt,
 )
 from sheltersim.contracts.population import population_context_people
 from sheltersim.core.kernels import kernel_only
 from sheltersim.core.state_mirror import read_only_part
 from sheltersim.core.world import WorldState
-from sheltersim.events.models import EventKind, EventLogRecord, EventStatus, ScheduledEvent
-
-CARE_RECEIPT_SOURCE_ID = "ASM-CARE-TRANSITION-PRODUCER-V1"
-CARE_RECEIPT_POLICY_VERSION = "applied-care-transition-v1"
-FACILITY_RECEIPT_SOURCE_ID = "ASM-FACILITY-RECOVERY-PRODUCER-V1"
-STAFF_HANDOFF_SOURCE_ID = "ASM-STAFF-HANDOFF-PRODUCER-V1"
-STAFF_OPERATION_RECEIPT_SOURCE_ID = "ASM-STAFF-OPERATION-RECEIPT-V1"
-
-
-def make_care_transition_record(
-    world: WorldState,
-    *,
-    request_id: str,
-    agent_id: str,
-    household_id: str | None,
-    support_kind: str,
-    status: str,
-    staff_id: str | None = None,
-    outcome_observation: str = "not_applicable",
-    state_changes: tuple[NumericStateChange, ...] = (),
-    causation_id: str | None = None,
-    source_ids: tuple[str, ...] = (),
-) -> tuple[EventLogRecord, CareTransitionReceipt]:
-    """Create a bounded applied evidence event for one observed care transition."""
-    sequence = world.allocate_event_sequence()
-    event_id = f"care-support-transition-{sequence}"
-    all_sources = tuple(sorted({CARE_RECEIPT_SOURCE_ID, *source_ids}))
-    receipt = CareTransitionReceipt(
-        event_id=event_id,
-        request_id=request_id,
-        agent_id=agent_id,
-        household_id=household_id,
-        support_kind=support_kind,
-        status=status,
-        minute=world.minute_index,
-        staff_id=staff_id,
-        outcome_observation=outcome_observation,
-        state_changes=state_changes,
-        causation_id=causation_id,
-        source_ids=all_sources,
-    )
-    event = ScheduledEvent(
-        event_id=event_id,
-        kind=EventKind.ENDOGENOUS,
-        due_minute=world.minute_index,
-        priority=0,
-        sequence=sequence,
-        event_type=receipt.event_type,
-        payload=receipt.model_dump(mode="json"),
-        source_id=CARE_RECEIPT_SOURCE_ID,
-        causation_id=causation_id,
-        provenance={
-            "source_type": "assumption",
-            "source_id": CARE_RECEIPT_SOURCE_ID,
-            "policy_version": CARE_RECEIPT_POLICY_VERSION,
-        },
-    )
-    return (
-        EventLogRecord(
-            event=event,
-            realized_minute=world.minute_index,
-            status=EventStatus.APPLIED,
-            detail=f"care transition {status} recorded after state application",
-        ),
-        receipt,
-    )
-
-
-def make_facility_recovery_record(
-    world: WorldState,
-    *,
-    facility_id: str,
-    component_id: str,
-    status: str,
-    previous_working_units: int,
-    working_units: int,
-    causation_id: str,
-    source_ids: tuple[str, ...] = (),
-) -> tuple[EventLogRecord, FacilityRecoveryReceipt] | None:
-    """Create a recovery receipt only when the shared operation contract is enabled."""
-    if SHARED_OPERATIONS_KEY not in world.model_state:
-        return None
-    sequence = world.allocate_event_sequence()
-    event_id = f"facility-recovery-transition-{sequence}"
-    all_sources = tuple(sorted({FACILITY_RECEIPT_SOURCE_ID, *source_ids}))
-    receipt = FacilityRecoveryReceipt(
-        event_id=event_id,
-        facility_id=facility_id,
-        component_id=component_id,
-        status=status,
-        minute=world.minute_index,
-        previous_working_units=previous_working_units,
-        working_units=working_units,
-        source_ids=all_sources,
-        causation_id=causation_id,
-    )
-    event = ScheduledEvent(
-        event_id=event_id,
-        kind=EventKind.ENDOGENOUS,
-        due_minute=world.minute_index,
-        priority=0,
-        sequence=sequence,
-        event_type=receipt.event_type,
-        payload=receipt.model_dump(mode="json"),
-        source_id=FACILITY_RECEIPT_SOURCE_ID,
-        causation_id=causation_id,
-        provenance={
-            "source_type": "assumption",
-            "source_id": FACILITY_RECEIPT_SOURCE_ID,
-            "policy_version": "applied-facility-recovery-v1",
-        },
-    )
-    return (
-        EventLogRecord(
-            event=event,
-            realized_minute=world.minute_index,
-            status=EventStatus.APPLIED,
-            detail=f"facility {status} receipt recorded after working-unit update",
-        ),
-        receipt,
-    )
-
-
-def make_staff_operation_record(
-    world: WorldState,
-    *,
-    operation: dict[str, Any],
-    state_changes: tuple[NumericStateChange, ...],
-    outcome_measured: bool,
-    causation_id: str,
-) -> tuple[EventLogRecord, StaffOperationReceipt] | None:
-    """Create bounded applied evidence for a completed autonomous staff task."""
-    if SHARED_OPERATIONS_KEY not in world.model_state:
-        return None
-    all_changes = tuple(
-        sorted(
-            state_changes,
-            key=lambda row: (row.entity_kind, row.entity_id, row.field_path),
-        )
-    )
-    sampled_changes = all_changes[:256]
-    source_ids = (STAFF_OPERATION_RECEIPT_SOURCE_ID,)
-    sequence = world.allocate_event_sequence()
-    event_id = f"staff-operation-transition-{sequence}"
-    receipt = StaffOperationReceipt(
-        event_id=event_id,
-        task_id=operation["task_id"],
-        staff_id=operation["staff_id"],
-        task_kind=operation["task_kind"],
-        target_id=operation["target_id"],
-        target_zone_id=operation["target_zone_id"],
-        reason=operation["reason"],
-        status=operation["status"],
-        minute=world.minute_index,
-        start_minute=operation["start_minute"],
-        arrival_minute=operation["arrival_minute"],
-        travel_minutes=operation["travel_minutes"],
-        outcome_observation=(
-            "observed_change"
-            if all_changes
-            else "observed_no_change"
-            if outcome_measured
-            else "not_measured"
-        ),
-        state_changes=sampled_changes,
-        total_state_change_count=len(all_changes),
-        state_changes_truncated=len(all_changes) > len(sampled_changes),
-        causation_id=causation_id,
-        source_ids=source_ids,
-    )
-    event = ScheduledEvent(
-        event_id=event_id,
-        kind=EventKind.ENDOGENOUS,
-        due_minute=world.minute_index,
-        priority=0,
-        sequence=sequence,
-        event_type=receipt.event_type,
-        payload=receipt.model_dump(mode="json"),
-        source_id=STAFF_OPERATION_RECEIPT_SOURCE_ID,
-        causation_id=causation_id,
-        provenance={
-            "source_type": "assumption",
-            "source_id": STAFF_OPERATION_RECEIPT_SOURCE_ID,
-            "policy_version": "applied-staff-operation-receipt-v1",
-        },
-    )
-    return (
-        EventLogRecord(
-            event=event,
-            realized_minute=world.minute_index,
-            status=EventStatus.APPLIED,
-            detail=f"staff operation {receipt.status} outcome recorded after state application",
-        ),
-        receipt,
-    )
-
-
-def make_staff_handoff_record(
-    world: WorldState,
-    *,
-    task_id: str,
-    previous_staff_id: str,
-    replacement_staff_id: str,
-    reason_code: str,
-    causation_id: str,
-    source_ids: tuple[str, ...] = (),
-) -> tuple[EventLogRecord, StaffHandoffReceipt] | None:
-    """Create a receipt for a staff replacement after assignment state is updated."""
-    if SHARED_OPERATIONS_KEY not in world.model_state:
-        return None
-    sequence = world.allocate_event_sequence()
-    event_id = f"staff-handoff-{sequence}"
-    all_sources = tuple(sorted({STAFF_HANDOFF_SOURCE_ID, *source_ids}))
-    receipt = StaffHandoffReceipt(
-        event_id=event_id,
-        task_id=task_id,
-        previous_staff_id=previous_staff_id,
-        replacement_staff_id=replacement_staff_id,
-        status="reassigned",
-        minute=world.minute_index,
-        reason_code=reason_code,
-        causation_id=causation_id,
-        source_ids=all_sources,
-    )
-    event = ScheduledEvent(
-        event_id=event_id,
-        kind=EventKind.ENDOGENOUS,
-        due_minute=world.minute_index,
-        priority=0,
-        sequence=sequence,
-        event_type=receipt.event_type,
-        payload=receipt.model_dump(mode="json"),
-        source_id=STAFF_HANDOFF_SOURCE_ID,
-        causation_id=causation_id,
-        provenance={
-            "source_type": "assumption",
-            "source_id": STAFF_HANDOFF_SOURCE_ID,
-            "policy_version": "applied-staff-handoff-v1",
-        },
-    )
-    return (
-        EventLogRecord(
-            event=event,
-            realized_minute=world.minute_index,
-            status=EventStatus.APPLIED,
-            detail="staff task assignment updated before handoff receipt",
-        ),
-        receipt,
-    )
-
-
-def make_staff_support_continuity_record(
-    world: WorldState,
-    *,
-    request_id: str,
-    agent_id: str,
-    task_id: str,
-    previous_staff_id: str,
-    status: str,
-    causation_id: str,
-    cause_type: str = "staff_unavailable",
-) -> EventLogRecord:
-    """Create applied evidence for a request interrupted after staff assignment."""
-    sequence = world.allocate_event_sequence()
-    event_id = f"staff-support-continuity-{sequence}"
-    receipt = StaffSupportContinuityReceipt(
-        event_id=event_id,
-        request_id=request_id,
-        agent_id=agent_id,
-        task_id=task_id,
-        previous_staff_id=previous_staff_id,
-        status=status,
-        cause_type=cause_type,
-        minute=world.minute_index,
-        causation_id=causation_id,
-        source_ids=("ASM-STAFF-SUPPORT-LIFECYCLE-V1",),
-    )
-    event = ScheduledEvent(
-        event_id=event_id,
-        kind=EventKind.ENDOGENOUS,
-        due_minute=world.minute_index,
-        priority=0,
-        sequence=sequence,
-        event_type=receipt.event_type,
-        payload=receipt.model_dump(mode="json"),
-        source_id="ASM-STAFF-SUPPORT-LIFECYCLE-V1",
-        causation_id=causation_id,
-        provenance={
-            "source_type": "assumption",
-            "source_id": "ASM-STAFF-SUPPORT-LIFECYCLE-V1",
-            "policy_version": "staff-support-continuity-v1",
-        },
-    )
-    return EventLogRecord(
-        event=event,
-        realized_minute=world.minute_index,
-        status=EventStatus.APPLIED,
-        detail=f"staff support request was {status} after assigned staff became unavailable",
-    )
+from sheltersim.events.models import EventStatus
 
 
 @kernel_only("care_receipts", "append_transition")
@@ -341,16 +36,11 @@ def append_applied_care_transition(
 ) -> None:
     """Append and project a care transition after its backing operation has applied.
 
-    Nothing without shared_operations_v1. Else `make_care_transition_record`'s applied record goes
-    to the EventLog and its receipt to `record_shared_operation`, whose ValueError it raises.
+    Nothing without shared_operations_v1. Else the applied record of a new
+    care_support_transition event (care-support-transition-{sequence}, source
+    ASM-CARE-TRANSITION-PRODUCER-V1, its payload the `CareTransitionReceipt` dump) goes to the
+    EventLog and its receipt to `record_shared_operation`, whose ValueError it raises.
     """
-
-
-@lru_cache(maxsize=1)
-def _operation_record_adapter() -> TypeAdapter:
-    # Building a TypeAdapter takes about a millisecond. native/src/rules/care_receipts.rs reads
-    # the receipts of `ingest_applied_shared_operation_records` with it.
-    return TypeAdapter(OperationHistoryRecord)
 
 
 @kernel_only("care_receipts", "ingest")
@@ -361,7 +51,8 @@ def ingest_applied_shared_operation_records(world: WorldState, outcomes: tuple[A
     staff_support_continuity, facility_recovery_transition, staff_handoff or
     staff_operation_transition event whose event_id has no record yet (among the records since the
     previous tick when it was realized now, else among all) goes to `record_shared_operation` as
-    the receipt `_operation_record_adapter` reads from its payload.
+    the receipt its payload is (native/core/src/rules/common_operations.rs checks it against
+    `OperationHistoryRecord`; a payload the contract does not take as it is is refused).
     """
 
 
@@ -390,7 +81,6 @@ def care_history_for_agent(
 
 def care_history_by_agent(world: WorldState, *, limit: int = 20) -> dict[str, list[dict[str, Any]]]:
     """Build bounded per-person views with one pass over the retained EventLog."""
-    from sheltersim.contracts.operations import CareTransitionReceipt
 
     if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
         raise ValueError("care history limit must be between 1 and 100")
