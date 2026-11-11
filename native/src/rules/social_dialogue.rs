@@ -50,13 +50,34 @@ pub(crate) fn is_other_json_value(value: &Bound<'_, PyAny>) -> bool {
         || value.is_exact_instance_of::<PyList>()
 }
 
-/// A frozen payload or a context as a `V`: a plain mapping (dict or mapping proxy) of str keys, a
-/// tuple or a list, and the JSON scalars. Unsupported for a value of another type, whose answer is
-/// its own.
-pub(crate) fn frozen_value(value: &Bound<'_, PyAny>) -> PyResult<V> {
-    context_of(value, 0)
+/// The fields of a payload a rule reads, as a map of those it has (`key in payload`), each value
+/// read as `context_of` reads it: the rest of the payload, such as a conversation's context, is
+/// not read. Unsupported for a payload that is not a mapping.
+pub(crate) fn payload_fields(payload: &Bound<'_, PyAny>, keys: &[&'static str]) -> PyResult<V> {
+    let py = payload.py();
+    let mut fields = IndexMap::with_capacity(keys.len());
+    if let Some(dict) = as_readable_dict(payload) {
+        for key in keys {
+            if let Some(value) = dict.get_item(PyString::intern(py, key))? {
+                fields.insert(Arc::from(*key), context_of(&value, 1)?);
+            }
+        }
+    } else if payload.get_type().is(mapping_proxy(py)?) {
+        for key in keys {
+            let key_object = PyString::intern(py, key);
+            if payload.contains(&key_object)? {
+                fields.insert(Arc::from(*key), context_of(&payload.get_item(&key_object)?, 1)?);
+            }
+        }
+    } else {
+        return unsupported("a payload cannot be read");
+    }
+    Ok(V::Map(fields))
 }
 
+/// A context or a payload's value as a `V`: a plain mapping (dict or mapping proxy) of str keys, a
+/// tuple or a list, and the JSON scalars. Unsupported for a value of another type, whose answer is
+/// its own.
 fn context_of(value: &Bound<'_, PyAny>, depth: usize) -> PyResult<V> {
     const REFUSED: &str = "a value of another type is for the Python rule to judge";
     if depth > crate::MAX_DEPTH {

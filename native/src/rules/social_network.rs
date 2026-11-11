@@ -15,7 +15,7 @@ use crate::core::row::{attribute, exact_float, exact_int, exact_str, unsupported
 use crate::core::tracked::as_readable_dict;
 use crate::core::world_core::{held_state, raw_dict_get, with_world, Held, NamespaceMirror};
 use crate::state::body_state::BodyRow;
-use crate::rules::social_dialogue::frozen_value;
+use crate::rules::social_dialogue::payload_fields;
 
 /// `mapping[key]`, or None for a key it does not have, of a Python mapping (the core's, of a `V`,
 /// is `sheltersim_core::rules::kit::mapping_get`).
@@ -113,9 +113,14 @@ pub(crate) fn observe_event<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, P
     if !observes_event(exact_str(&event_type)?) {
         return Ok(());
     }
-    let payload = frozen_value(&attribute(event, intern!(py, "payload"))?)?;
-    let minute = exact_int(minute)?;
     let event_type = exact_str(&event_type)?;
+    let keys: &[&str] = match event_type {
+        "information_contact_update" => &["recipient_agent_id", "sender_agent_id", "message_id"],
+        "proximity_contact_update" => &["first_agent_id", "second_agent_id", "observed_minute"],
+        _ => &["interaction_type", "agent_id", "participant_agent_id"],
+    };
+    let payload = payload_fields(&attribute(event, intern!(py, "payload"))?, keys)?;
+    let minute = exact_int(minute)?;
     with_world(world, |cell| rules::observe_event(cell, event_type, &payload, minute))?.or_py()
 }
 

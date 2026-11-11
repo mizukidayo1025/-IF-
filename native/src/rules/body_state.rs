@@ -13,14 +13,13 @@ use sheltersim_core::config::body::{BodyModels, LINEAR_AFFECT, TRUST_WEIGHTED_AF
 use sheltersim_core::config::body::{AffectModel, TrustModel};
 use sheltersim_core::config::Selection;
 use sheltersim_core::rules::body_state::{self as rules, records_event, SocialEvent};
-use sheltersim_core::rules::kit;
 
 use crate::core::configs;
 use crate::core::errors::OrPy;
-use crate::core::row::{attribute, exact_dict, exact_int, exact_str, str_value, unsupported};
+use crate::core::row::{attribute, exact_dict, exact_int, exact_str, namespace_is_absent, str_value, unsupported};
 use crate::core::world_core::with_world;
 use crate::state::body_state::NAME;
-use crate::rules::social_dialogue::{frozen_value, mapping_proxy};
+use crate::rules::social_dialogue::{mapping_proxy, payload_fields};
 use crate::Unsupported;
 
 /// `selected_models(model_configs)`, kept for the configs' stamp (`core/configs.rs`). What it raises
@@ -80,6 +79,21 @@ fn models_of(world: &Bound<'_, PyAny>, selection: &Selection) -> PyResult<Arc<Bo
     }
 }
 
+/// The payload's fields the rule reads of an event of this type.
+fn keys_of(event_type: &str) -> &'static [&'static str] {
+    const COMMON: [&str; 4] = ["contact_minutes", "message_id", "topic_id", "interaction_duration_minutes"];
+    match event_type {
+        "proximity_contact_update" => &[
+            COMMON[0], COMMON[1], COMMON[2], COMMON[3], "first_agent_id", "second_agent_id", "observed_minute", "distance_m",
+        ],
+        "information_contact_update" => &[COMMON[0], COMMON[1], COMMON[2], COMMON[3], "sender_agent_id", "recipient_agent_id"],
+        "social_interaction" => &[
+            COMMON[0], COMMON[1], COMMON[2], COMMON[3], "interaction_type", "agent_id", "participant_agent_id",
+        ],
+        _ => &[COMMON[0], COMMON[1], COMMON[2], COMMON[3], "zone_id"],
+    }
+}
+
 /// `record_social_event`.
 #[pyfunction]
 pub(crate) fn record_social_event<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<()> {
@@ -89,7 +103,7 @@ pub(crate) fn record_social_event<'py>(world: &Bound<'py, PyAny>, event: &Bound<
     if str_value(&event_type).is_some_and(|event_type| !records_event(event_type)) {
         return Ok(());
     }
-    if with_world(world, |cell| kit::namespace_absent(cell, NAME))?.or_py()? {
+    if namespace_is_absent(world, intern!(py, NAME))? {
         return Ok(());
     }
     let event_type = exact_str(&event_type)?;
@@ -104,7 +118,7 @@ pub(crate) fn record_social_event<'py>(world: &Bound<'py, PyAny>, event: &Bound<
     let causation_id = if causation_id.is_none() { None } else { Some(exact_str(&causation_id)?) };
     let selection = selected_models(world)?;
     let models = models_of(world, &selection)?;
-    let payload = frozen_value(&payload)?;
+    let payload = payload_fields(&payload, keys_of(event_type))?;
     let event = SocialEvent { event_id, event_type, causation_id, payload: &payload };
     with_world(world, |cell| rules::record_social_event(cell, &event, minute, &selection, &models))?.or_py()
 }
