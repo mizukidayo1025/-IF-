@@ -62,3 +62,13 @@ pub fn item<'a>(parent: &'a V, key: &str) -> Read<Option<&'a V>> {
 pub fn int_or(parent: &V, key: &str, default: i64) -> Read<i64> {
     item(parent, key)?.map_or(Ok(default), int)
 }
+
+pub const NOT_A_FLOAT_VALUE: &str = "a value is not a float";
+
+/// `exact_float`: a float and nothing else.
+pub fn float(value: &V) -> Read<f64> {
+    match value {
+        V::Float(number) => Ok(*number),
+        _ => Err(Fault::refused(NOT_A_FLOAT_VALUE)),
+    }
+}

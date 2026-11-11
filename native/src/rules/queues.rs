@@ -17,6 +17,10 @@ use indexmap::IndexMap;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyList, PySlice, PyString};
+use sheltersim_core::config::movement::MovementModel;
+use sheltersim_core::config::queues::{QueueConfig, QueuePolicy as Policy, RETRY_DELAY};
+use sheltersim_core::config::read::Read;
+use sheltersim_core::config::FaultClass;
 
 use crate::core::configs;
 use crate::core::errors;
@@ -29,7 +33,7 @@ use crate::rules::facility_queues::{
     independent_heads, point_of, request_of_task, transition_row, with_queues, write_finish, write_transition,
 };
 use crate::rules::movement::{
-    approach_point, is_queue_trip, mirror_held, mobility_text, plan_start, position_point, queue_slot_in, refused, room_minutes,
+    approach_point, is_queue_trip, mirror_held, mobility_text, movement_of, plan_start, position_point, queue_slot_in, refused, room_minutes,
     write_tree, Changes, Scene, EXACT_INT, KEY, MOVEMENT_SOURCE_ID, POLICY_VERSION,
 };
 use crate::rules::movement_geometry::{distance, polyline_length, usable, Geo, GeoPy, Pt};
@@ -44,11 +48,6 @@ use crate::Unsupported;
 
 const SERVICE_KEY: &str = "resource_service_v1";
 pub(crate) const BLOCKED_METRIC: &str = "physical_queue_route_blocked_count";
-/// `NeedWeightedPhysicalQueuePolicy`: abandon limits and the need that stays in line.
-const LIMIT_TOILET: i64 = 120;
-const LIMIT_WATER: i64 = 240;
-const LIMIT_MEAL: i64 = 360;
-const PERSISTENCE_THRESHOLD: f64 = 0.8;
 /// `priority`: the most a wait adds, over the minutes of a day.
 const AGING_WEIGHT: f64 = 0.1;
 const AGING_MINUTES: f64 = 1440.0;
@@ -57,7 +56,6 @@ const SLOT_TOLERANCE: f64 = 0.05;
 /// `NeedWeightedPhysicalQueuePolicy.model_id`, `source_id`, and its `retry_delay_minutes` by default.
 const NEED_WEIGHTED_ID: &str = "need-weighted-physical-queue-v1";
 const NEED_WEIGHTED_SOURCE: &str = "ASM-NEED-WEIGHTED-PHYSICAL-QUEUE-V1";
-const RETRY_DELAY: i64 = 15;
 const ABANDON_DETAIL: &str = "Agent left a prolonged low-urgency queue and will reconsider after a bounded delay";
 
 fn exact_bool(value: &Bound<'_, PyAny>) -> PyResult<bool> {
@@ -177,12 +175,6 @@ fn need_of(needs: &NeedRow, service: Service) -> PyResult<f64> {
     Ok(py_min(1.0, py_max(0.0, value)))
 }
 
-/// `create_queue_policy`, for the two bundled policies.
-enum Policy {
-    Strict,
-    NeedWeighted { limits: [i64; 3], threshold: f64, retry: i64 },
-}
-
 /// `selected_models(model_configs).get("queue")`, kept for the configs' stamp (`core/configs.rs`).
 fn selected_queue_model(world: &Bound<'_, PyAny>) -> PyResult<Option<Arc<str>>> {
     match configs::selection(world)? {
@@ -193,83 +185,11 @@ fn selected_queue_model(world: &Bound<'_, PyAny>) -> PyResult<Option<Arc<str>>> 
     }
 }
 
-/// `raise ValueError(text)` of the queue policy's constructor.
-#[track_caller]
-fn config_error<T>(text: &str) -> PyResult<T> {
-    Err(errors::value_error(text))
-}
-
-/// The checks of `NeedWeightedPhysicalQueuePolicy.__init__` (or of the strict policy), in their
-/// order: the Python rule's ValueError where one fails,
-/// Unsupported where a value's type is one the rows don't judge as Python does.
-fn config_errors(raw: &Bound<'_, PyAny>, need_weighted: bool) -> PyResult<()> {
-    let py = raw.py();
-    if raw.is_none() {
-        return Ok(());
-    }
-    if !raw.is_instance_of::<PyDict>() {
-        return config_error("facility_queues config must be an object");
-    }
-    if !need_weighted {
-        return Ok(());
-    }
-    let config = as_readable_dict(raw).ok_or_else(|| Unsupported::new_err("the queue config is another dict"))?;
-    const FIELDS: [&str; 5] = [
-        "schema_version",
-        "queue_capacity_by_facility",
-        "abandon_after_minutes_by_service",
-        "retry_delay_minutes",
-        "persistence_urgency_threshold",
-    ];
-    for (key, _) in config.iter() {
-        if !key.downcast_exact::<PyString>().is_ok_and(|key| key.to_str().is_ok_and(|key| FIELDS.contains(&key))) {
-            exact_str(&key)?;
-            return config_error("facility_queues config must be an object");
-        }
-    }
-    if let Some(schema) = config.get_item(intern!(py, "schema_version"))? {
-        // Python's `!=`: `1.0` and `True` pass, as they did in the Python rule.
-        if schema.ne(1)? {
-            return config_error("facility_queues requires schema_version 1");
-        }
-    }
-    let mut limits: Vec<Bound<'_, PyAny>> = Vec::new();
-    if let Some(given) = config.get_item(intern!(py, "abandon_after_minutes_by_service"))? {
-        if !given.is_instance_of::<PyDict>() {
-            return config_error("queue abandonment limits contain an unsupported service");
-        }
-        let given = as_readable_dict(&given).ok_or_else(|| Unsupported::new_err("the queue limits are another dict"))?;
-        for (service, limit) in given.iter() {
-            if !service.downcast_exact::<PyString>().is_ok_and(|key| key.to_str().is_ok_and(|key| matches!(key, "toilet" | "water" | "meal"))) {
-                exact_str(&service)?;
-                return config_error("queue abandonment limits contain an unsupported service");
-            }
-            limits.push(limit);
-        }
-    }
-    let within = |value: &Bound<'_, PyAny>, upper: i64| -> PyResult<bool> { Ok(errors::exactly_int(value)?.is_some_and(|value| (1..=upper).contains(&value))) };
-    for limit in &limits {
-        if !within(limit, 10080)? {
-            return config_error("queue abandonment limits must be within 1..10080 minutes");
-        }
-    }
-    if let Some(retry) = config.get_item(intern!(py, "retry_delay_minutes"))? {
-        if !within(&retry, 1440)? {
-            return config_error("queue retry delay must be between 1 and 1440 minutes");
-        }
-    }
-    if let Some(threshold) = config.get_item(intern!(py, "persistence_urgency_threshold"))? {
-        if !errors::real_number(&threshold)?.is_some_and(|value| (0.0..=1.0).contains(&value)) {
-            return config_error("queue persistence threshold must be normalized to 0..1");
-        }
-    }
-    Ok(())
-}
-
+/// `create_queue_policy` of the configs: the policy of the selected model, from the section of the
+/// queue configs (`config::queues`), kept for the stamp of `model_configs`. The constructor's
+/// `ValueError` and the kernel's refusals are raised here, as they were when it read the tree.
 fn policy_of(world: &Bound<'_, PyAny>) -> PyResult<Policy> {
-    let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let table = exact_dict(&configs)?;
+    let config = configs::kept_value(world, |configs| &configs.facility_queues, QueueConfig::parse)?;
     let selected = selected_queue_model(world)?;
     let need_weighted = match &selected {
         Some(model) => match &**model {
@@ -277,68 +197,22 @@ fn policy_of(world: &Bound<'_, PyAny>) -> PyResult<Policy> {
             "strict-fifo-queue-v1" => false,
             _ => return unsupported("another queue model"),
         },
-        None => table.contains(intern!(py, "facility_geometry"))?,
+        None => config.has_geometry,
     };
-    let raw = table.get_item(intern!(py, "facility_queues"))?;
-    // The bundled factories build the same two classes from the same config.
-    if let Some(raw) = &raw {
-        config_errors(raw, need_weighted)?;
+    match config.policy(need_weighted) {
+        Ok(policy) => Ok(*policy),
+        Err(fault) if fault.class == FaultClass::Value => Err(errors::value_error(&*fault.text)),
+        Err(fault) => configs::read(Err(fault.clone())),
     }
-    let Some(raw) = raw else {
-        return Ok(if need_weighted {
-            Policy::NeedWeighted { limits: [LIMIT_TOILET, LIMIT_WATER, LIMIT_MEAL], threshold: PERSISTENCE_THRESHOLD, retry: RETRY_DELAY }
-        } else {
-            Policy::Strict
-        });
-    };
-    let Some(config) = as_readable_dict(&raw) else {
-        return unsupported("the queue config is not a dict");
-    };
-    if !need_weighted {
-        return Ok(Policy::Strict);
-    }
-    let (mut limits, mut threshold) = ([LIMIT_TOILET, LIMIT_WATER, LIMIT_MEAL], PERSISTENCE_THRESHOLD);
-    let mut retry = None;
-    for (key, value) in config.iter() {
-        match exact_str(&key)? {
-            // `config_errors` has passed it.
-            "schema_version" | "queue_capacity_by_facility" => {}
-            "abandon_after_minutes_by_service" => {
-                let Some(given) = as_readable_dict(&value) else {
-                    return unsupported("the queue limits are not a dict");
-                };
-                for (service, limit) in given.iter() {
-                    let place = match exact_str(&service)? {
-                        "toilet" => 0,
-                        "water" => 1,
-                        "meal" => 2,
-                        _ => return unsupported("a limit of another service"),
-                    };
-                    limits[place] = exact_int(&limit)?;
-                }
-            }
-            "retry_delay_minutes" => retry = Some(exact_int(&value)?),
-            "persistence_urgency_threshold" => {
-                threshold = if let Ok(number) = value.downcast_exact::<pyo3::types::PyFloat>() {
-                    number.value()
-                } else {
-                    match exact_int(&value)? {
-                        0 => 0.0,
-                        1 => 1.0,
-                        _ => return unsupported("the threshold is not normalized"),
-                    }
-                };
-            }
-            _ => return unsupported("the queue config has another field"),
-        }
-    }
-    let good_limit = |limit: &i64| (1..=10080).contains(limit);
-    let good_retry = retry.is_none_or(|retry| (1..=1440).contains(&retry));
-    // As written, for a NaN.
-    if !limits.iter().all(good_limit) || !good_retry || !(0.0..=1.0).contains(&threshold) {
-        return unsupported("the queue config is out of its bounds");
-    }
-    Ok(Policy::NeedWeighted { limits, threshold, retry: retry.unwrap_or(RETRY_DELAY) })
+}
+
+/// The policy of the configs as `policy_of` reads it, for the tests: its name, then the limits,
+/// the threshold and the retry delay of the need-weighted one.
+pub(crate) fn policy_text(world: &Bound<'_, PyAny>) -> PyResult<(&'static str, Option<([i64; 3], f64, i64)>)> {
+    Ok(match policy_of(world)? {
+        Policy::Strict => ("strict", None),
+        Policy::NeedWeighted { limits, threshold, retry } => ("need_weighted", Some((limits, threshold, retry))),
+    })
 }
 
 /// `priority`.
@@ -710,7 +584,7 @@ impl Service {
 
 /// The walk back to the middle of the zone: None to leave at once, `Some(None)` when no path lets
 /// the person out, so the rule leaves them in line.
-fn return_path(geo: &Geo, movement: &MovementRow, rows: &Entities, raw_model: Option<Bound<'_, PyAny>>, agent_id: &str) -> PyResult<Option<Option<(i64, Arc<[Pt]>)>>> {
+fn return_path(geo: &Geo, movement: &MovementRow, rows: &Entities, model: &Read<MovementModel>, agent_id: &str) -> PyResult<Option<Option<(i64, Arc<[Pt]>)>>> {
     let Some(agent) = rows.agents.get(agent_id) else {
         return unsupported("no such agent");
     };
@@ -729,7 +603,7 @@ fn return_path(geo: &Geo, movement: &MovementRow, rows: &Entities, raw_model: Op
     let mut minutes = 0;
     if path.len() >= 2 {
         let length = polyline_length(&path).ok_or_else(|| Unsupported::new_err("not a plain sum"))?;
-        minutes = room_minutes(raw_model, geo, rows, &agent.zone_id, mobility, length)?;
+        minutes = room_minutes(model, geo, rows, &agent.zone_id, mobility, length)?;
     }
     Ok(Some(Some((minutes, path))))
 }
@@ -748,15 +622,13 @@ fn plan_leave(call: &LeaveCall<'_, '_>, person: &Leaving, sequence: i64) -> PyRe
     let writer = EventWriter::of(world)?;
     let store = entities_of(world)?;
     let table = attribute(world, intern!(py, "model_state"))?;
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let placed = exact_dict(&table)?.get_item(KEY)?.is_some_and(|state| !state.is_none())
-        && exact_dict(&configs)?.contains(intern!(py, "facility_geometry"))?;
+    let placed = exact_dict(&table)?.get_item(KEY)?.is_some_and(|state| !state.is_none()) && movement_of(world)?.has_geometry;
     let geo = if placed { Some(Geo::of(world)?) } else { None };
     let mirror = if placed { Some(mirror_held(world)?) } else { None };
-    let raw_model = raw_movement_model(world)?;
+    let movement = movement_of(world)?;
     let path = match (&geo, &mirror) {
         (Some(geo), Some(mirror)) => NamespaceMirror::with_row::<MovementRow, _>(mirror, |row| {
-            EntityStore::with_rows(&store, |rows| return_path(geo, row, rows, raw_model, &person.agent_id))
+            EntityStore::with_rows(&store, |rows| return_path(geo, row, rows, &movement.model, &person.agent_id))
         })?,
         _ => None,
     };
@@ -1200,14 +1072,7 @@ pub(crate) fn write_plan<'py>(
 fn no_geometry(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = world.py();
     let table = attribute(world, intern!(py, "model_state"))?;
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    Ok(!exact_dict(&table)?.contains(KEY)? || !exact_dict(&configs)?.contains(intern!(py, "facility_geometry"))?)
-}
-
-fn raw_movement_model<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
-    let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    exact_dict(&configs)?.get_item(intern!(py, "movement_model"))
+    Ok(!exact_dict(&table)?.contains(KEY)? || !movement_of(world)?.has_geometry)
 }
 
 /// `facility_queue_slot_route`: the route's minutes and its path, or None for no route.
@@ -1216,7 +1081,7 @@ pub(crate) fn slot_route(
     geo: &Geo,
     row: &MovementRow,
     rows: &Entities,
-    raw_model: Option<Bound<'_, PyAny>>,
+    model: &Read<MovementModel>,
     agent_id: &str,
     facility: &FacilityRow,
     facility_id: &str,
@@ -1239,7 +1104,7 @@ pub(crate) fn slot_route(
     let mut minutes = 0;
     if path.len() >= 2 {
         let length = polyline_length(&path).ok_or_else(|| Unsupported::new_err("not a plain sum"))?;
-        minutes = room_minutes(raw_model, geo, rows, &agent.zone_id, mobility, length)?;
+        minutes = room_minutes(model, geo, rows, &agent.zone_id, mobility, length)?;
     }
     if path.len() < 2 || path.windows(2).all(|pair| distance(pair[0], pair[1]) <= 1e-8) {
         minutes = 0;
@@ -1275,7 +1140,7 @@ pub(crate) fn progress_physical_queue_positions<'py>(
     let scene = Scene::of(world)?;
     let metrics = field_mirror_of(world, intern!(world.py(), "metric_state"))?;
     NamespaceMirror::with_row::<MetricRow, _>(&metrics, |_| Ok(()))?;
-    let raw_model = raw_movement_model(world)?;
+    let movement = movement_of(world)?;
     let (result, plan) = NamespaceMirror::with_row::<MovementRow, _>(&mirror, |row| {
         EntityStore::with_rows(&store, |rows| {
             let Some(facility) = rows.facilities.get(facility_name) else {
@@ -1297,7 +1162,7 @@ pub(crate) fn progress_physical_queue_positions<'py>(
                     if head_walks(row) {
                         continue;
                     }
-                    let route = approach_point(&geo, row, rows, raw_model.clone(), agent_id, facility_name, service_point)?;
+                    let route = approach_point(&geo, row, rows, &movement.model, agent_id, facility_name, service_point)?;
                     if route.is_some_and(|(minutes, path)| minutes <= 0 || path.len() < 2) {
                         continue;
                     }
@@ -1312,7 +1177,7 @@ pub(crate) fn progress_physical_queue_positions<'py>(
                         continue;
                     }
                 }
-                let route = slot_route(&geo, row, rows, raw_model.clone(), agent_id, facility, facility_name, fifo.as_ref())?;
+                let route = slot_route(&geo, row, rows, &movement.model, agent_id, facility, facility_name, fifo.as_ref())?;
                 let Some((minutes, path)) = route.filter(|(_, path)| !path.is_empty()) else {
                     if index > 0 {
                         return Ok((false, Plan::Blocked));
@@ -1380,7 +1245,7 @@ pub(crate) fn head_to_service<'py>(
     let scene = Scene::of(world)?;
     let metrics = field_mirror_of(world, intern!(world.py(), "metric_state"))?;
     NamespaceMirror::with_row::<MetricRow, _>(&metrics, |_| Ok(()))?;
-    let raw_model = raw_movement_model(world)?;
+    let movement = movement_of(world)?;
     let (result, plan) = NamespaceMirror::with_row::<MovementRow, _>(&mirror, |row| {
         EntityStore::with_rows(&store, |rows| {
             let Some(facility) = rows.facilities.get(facility_name) else {
@@ -1396,7 +1261,7 @@ pub(crate) fn head_to_service<'py>(
             if fifo_trips(row, facility_name, queue_name).any(|(id, _)| id == agent_id) {
                 return Ok((true, Plan::Nothing));
             }
-            let Some((minutes, path)) = approach_point(&geo, row, rows, raw_model, agent_id, facility_name, service_point)? else {
+            let Some((minutes, path)) = approach_point(&geo, row, rows, &movement.model, agent_id, facility_name, service_point)? else {
                 return Ok((true, Plan::Blocked));
             };
             if minutes <= 0 || path.len() < 2 {

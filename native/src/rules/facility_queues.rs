@@ -14,7 +14,9 @@ use indexmap::IndexMap;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PySet, PyTuple};
+use sheltersim_core::config::population::AccessibilityNeeds;
 
+use crate::core::configs;
 use crate::core::errors;
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, unsupported};
 use crate::core::value::{V, VPy};
@@ -476,7 +478,6 @@ fn create_facility_queue_state<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound
 /// `choose_queue_id`.
 #[pyfunction]
 pub(crate) fn choose_queue_id(world: &Bound<'_, PyAny>, facility_id: &Bound<'_, PyAny>, agent_id: &Bound<'_, PyAny>) -> PyResult<Option<String>> {
-    let py = world.py();
     let (facility_id, agent_id) = (exact_str(facility_id)?, exact_str(agent_id)?);
     let Some(loads) = with_queues(world, |row| {
         Ok(row.queues.iter().map(|(id, queue)| (id.clone(), (queue.queued_request_ids.len() + queue.active_request_ids.len()) as i64)).collect::<Vec<_>>())
@@ -484,26 +485,9 @@ pub(crate) fn choose_queue_id(world: &Bound<'_, PyAny>, facility_id: &Bound<'_, 
     else {
         return Ok(None);
     };
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let mut tags: HashSet<String> = HashSet::new();
-    if let Some(population) = exact_dict(&configs)?.get_item(intern!(py, "population"))? {
-        if let Some(people) = exact_dict(&population)?.get_item(intern!(py, "people"))? {
-            if let Some(traits) = exact_dict(&people)?.get_item(agent_id)? {
-                if let Some(needs) = exact_dict(&traits)?.get_item(intern!(py, "accessibility_needs"))? {
-                    let needs = V::from_py(&needs)?;
-                    let V::List(needs) = needs else {
-                        return unsupported("the needs are not a list");
-                    };
-                    for need in needs {
-                        let V::Str(need) = need else {
-                            return unsupported("a need is not a str");
-                        };
-                        tags.insert(need.to_string());
-                    }
-                }
-            }
-        }
-    }
+    // The population's needs (`config::population`), kept for the stamp of `model_configs`.
+    let needs = configs::kept_value(world, |configs| &configs.accessibility_needs, AccessibilityNeeds::parse)?;
+    let mut tags: HashSet<String> = configs::read(needs.of(agent_id))?.iter().map(|need| need.to_string()).collect();
     let store = entities_of(world)?;
     EntityStore::with_rows(&store, |rows| {
         if let Some(agent) = rows.agents.get(agent_id) {

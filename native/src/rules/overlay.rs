@@ -20,6 +20,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyList, PySlice, PyString, PyTuple};
 use sha2::{Digest, Sha256};
 
+use crate::core::configs;
 use crate::core::errors;
 use crate::core::mathx::{hypot, math_error, pow, py_max, py_min, py_round, py_sum};
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, unsupported};
@@ -521,18 +522,7 @@ pub(crate) fn capacity_of(world: &Bound<'_, PyAny>, zone_id: &str, nominal: i64,
     let retained = expired_people.min(beyond.ok_or_else(|| Unsupported::new_err("a capacity out of range"))?.max(0));
     let effective = add(add(nominal, active_people)?, retained)?;
 
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let rooms_count = match exact_dict(&configs)?.get_item(intern!(py, "geometry_overlay"))? {
-        Some(config) => match crate::core::tracked::as_readable_dict(&config) {
-            Some(config) => match config.get_item(intern!(py, "schema_version"))? {
-                Some(schema) if schema.is_none() => false,
-                Some(schema) => matches!(exact_int(&schema)?, 3 | 4),
-                None => false,
-            },
-            None => false,
-        },
-        None => false,
-    };
+    let rooms_count = matches!(overlay_schema(world)?, Some(3 | 4));
     let (mut room_capacity, mut active_admissions, mut expired_capacity, mut expired_admissions) = (0, 0, 0, 0);
     // The overlay is read as a `V`, a detached one from its row.
     let empty = V::Map(IndexMap::new());
@@ -708,20 +698,11 @@ fn incoming_travelers(world: &Bound<'_, PyAny>, zone_id: &Bound<'_, PyAny>, excl
 
 // ---- Beds and intake ----------------------------------------------------------------------------
 
-/// `config.get("schema_version")` of the overlay's config, for a dict config.
-fn overlay_schema(world: &Bound<'_, PyAny>) -> PyResult<Option<i64>> {
-    let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let Some(config) = exact_dict(&configs)?.get_item(intern!(py, "geometry_overlay"))? else {
-        return Ok(None);
-    };
-    let Some(config) = crate::core::tracked::as_readable_dict(&config) else {
-        return Ok(None);
-    };
-    match config.get_item(intern!(py, "schema_version"))? {
-        Some(schema) if !schema.is_none() => Ok(Some(exact_int(&schema)?)),
-        _ => Ok(None),
-    }
+/// `config.get("schema_version")` of the overlay's config, for a dict config: the section
+/// `overlay_schema` (`config::overlay`), kept for the stamp of `model_configs`; refused here.
+#[track_caller]
+pub(crate) fn overlay_schema(world: &Bound<'_, PyAny>) -> PyResult<Option<i64>> {
+    Ok(*configs::kept_value(world, |configs| &configs.overlay_schema, sheltersim_core::config::overlay::overlay_schema)?)
 }
 
 /// `release_sleep_bed`, for a rule in another file.
@@ -1163,8 +1144,7 @@ pub(crate) fn plan_bed(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Opt
     let held_room = existing.map(|row| str_of(row, "room_id")).transpose()?;
     let held_index = existing.map(|row| int_of(row, "bed_index")).transpose()?;
     let rooms = rooms_value.ok_or_else(|| Unsupported::new_err("no rooms"))?;
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let raw_model = exact_dict(&configs)?.get_item(intern!(py, "movement_model"))?;
+    let movement = crate::rules::movement::movement_of(world)?;
     let radius = square(BED_RADIUS)?;
     let mut attempts = 0;
     let mut best: Option<(i64, Arc<str>, i64, Pt, Arc<[Pt]>)> = None;
@@ -1242,7 +1222,7 @@ pub(crate) fn plan_bed(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Opt
                 0
             } else {
                 let length = polyline_length(&path).ok_or_else(|| Unsupported::new_err("not a plain sum"))?;
-                EntityStore::with_rows(&store, |rows| room_minutes(raw_model.clone(), &geo, rows, &agent_zone, mobility, length))?
+                EntityStore::with_rows(&store, |rows| room_minutes(&movement.model, &geo, rows, &agent_zone, mobility, length))?
             };
             consider(travel, room_id, index, bed, path);
             if attempts >= MAX_BED_ROUTES {
@@ -1790,29 +1770,24 @@ fn zones_connected(edges: &HashMap<Arc<str>, Edge>, source: &str, destination: &
 /// `_require_service_staff_in_zone`.
 fn service_staff_in_zone(world: &Bound<'_, PyAny>, geo: &Geo, facility_id: &str, kind: &str, zone_id: &str) -> PyResult<()> {
     let py = world.py();
-    let skill_key = match kind {
-        "water_station" => "water_staff_skill",
-        "meal_distribution" => "meal_staff_skill",
+    let water = match kind {
+        "water_station" => true,
+        "meal_distribution" => false,
         _ => return Ok(()),
     };
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let Some(config) = exact_dict(&configs)?.get_item(intern!(py, "resource_service"))? else {
+    let service = crate::rules::service::resource_service_of(world)?;
+    if !service.present {
         return Ok(());
-    };
-    let Some(config) = crate::core::tracked::as_readable_dict(&config) else {
-        return unsupported("the service config is another mapping");
-    };
+    }
+    let skills = configs::read(service.skills.clone())?;
     // Whether it is there, as it is held: a detached one is not rebuilt for that.
     if held_of(world, "resource_service_v1")?.is_none() {
         return Ok(());
     }
-    let Some(skill) = config.get_item(skill_key)? else {
+    let Some(skill) = (if water { skills.water } else { skills.meal }) else {
         return Ok(());
     };
-    let Ok(skill) = skill.downcast_exact::<PyString>() else {
-        return Ok(());
-    };
-    let mut wanted: Vec<Arc<str>> = vec![Arc::from(skill.to_str()?)];
+    let mut wanted: Vec<Arc<str>> = vec![skill];
     for point in &layout_of_plan(geo)?.service_points {
         if &*point.facility_id == facility_id {
             wanted.extend(point.required_staff_skills.iter().cloned());

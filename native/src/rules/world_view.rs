@@ -1068,6 +1068,27 @@ fn configs_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     Ok(configs)
 }
 
+/// `simulator_extensions.get("enabled")` of the configs, truthy: the section `extensions_enabled`,
+/// kept for the stamp of `model_configs`.
+pub(crate) fn extensions_enabled_of(world: &Bound<'_, PyAny>) -> PyResult<bool> {
+    Ok(*configs::kept_python(world, |configs| &configs.extensions_enabled, extensions_enabled)?)
+}
+
+fn extensions_enabled(world: &Bound<'_, PyAny>) -> PyResult<bool> {
+    let py = world.py();
+    let configs = configs_of(world)?;
+    let Some(configs) = as_readable_dict(&configs) else {
+        return unsupported("the configs are not a plain dict");
+    };
+    Ok(match configs.get_item(intern!(py, "simulator_extensions"))? {
+        Some(extensions) => match extensions.call_method1(intern!(py, "get"), (intern!(py, "enabled"),))? {
+            enabled if enabled.is_none() => false,
+            enabled => enabled.is_truthy()?,
+        },
+        None => false,
+    })
+}
+
 fn cache_of<'py>(controller: &Bound<'py, PyAny>) -> PyResult<Bound<'py, ViewCache>> {
     let py = controller.py();
     let name = intern!(py, "_rust_view_cache");
@@ -1122,14 +1143,7 @@ fn build(controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>) -> PyResult<(V
     read_body_and_distress(world, &model_state, &mut agents, &keys)?;
     read_facility_contexts(world, &model_state, &mut facilities)?;
 
-    let extensions = configs_dict.get_item(intern!(py, "simulator_extensions"))?;
-    let extensions_enabled = match &extensions {
-        Some(extensions) => match extensions.call_method1(intern!(py, "get"), (intern!(py, "enabled"),))? {
-            enabled if enabled.is_none() => false,
-            enabled => enabled.is_truthy()?,
-        },
-        None => false,
-    };
+    let extensions_enabled = extensions_enabled_of(world)?;
     let autonomy_enabled =
         extensions_enabled || has_population_context || model_state.contains(intern!(py, "body_state_v1"))?;
     Ok((

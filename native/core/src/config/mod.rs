@@ -11,7 +11,8 @@
 //! (`src/core/configs.rs`). Sections join lane by lane: P7-1 has the model selection and the plan
 //! of the end-of-tick check, 7-2 the geometry and the plans built from it, 7-5b the staff, the
 //! formulas, information, the body, agent dynamics, the zone environment, infrastructure and
-//! proximity; movement, routing and the rest follow in 7-5a.
+//! proximity; 7-5a movement, routing, the queue policy, the overlay's schema, the resource
+//! service, the population's needs and the simulator extensions.
 //!
 //! A section the kernels parse themselves is parsed here from the configs as a `V` (the row of the
 //! `model_configs` slot). A section that a Python contract parses keeps what the contract gave, as
@@ -22,10 +23,15 @@ pub mod body;
 pub mod environment;
 pub mod geometry;
 pub mod information;
+pub mod movement;
+pub mod overlay;
+pub mod population;
 pub mod proximity;
+pub mod queues;
 pub mod read;
 pub mod section;
 pub mod selection;
+pub mod service;
 pub mod staff;
 
 use std::sync::{Arc, Mutex};
@@ -45,7 +51,12 @@ use agent_dynamics::Awareness;
 use body::{BodyModels, CareOutcome};
 use environment::{Infrastructure, ZoneEnvironmentSpec};
 use information::InformationSpread;
+use movement::{Movement, RouteCapacities};
+use overlay::OverlayRooms;
+use population::AccessibilityNeeds;
 use proximity::Proximity;
+use queues::QueueConfig;
+use service::ResourceService;
 use staff::{StaffFatigue, StaffOperations};
 
 /// The sections parsed from one state of `model_configs`.
@@ -96,6 +107,25 @@ pub struct Configs {
     pub infrastructure: Lazy<Infrastructure>,
     /// `canonical_proximity_contact_config(model_configs.get("social_proximity"))`.
     pub proximity: Lazy<Option<Proximity>>,
+    // ---- Lane 7-5a ----
+    /// `movement_model` and whether the configs time routes.
+    pub movement: Lazy<Movement>,
+    /// `layout_routing` as the end-of-tick check reads it.
+    pub route_capacities: Lazy<Option<RouteCapacities>>,
+    /// `model_configs.get("layout_routing", {}).get("max_agents_in_transit_by_edge", {})`, truthy.
+    pub transit_capacities: Lazy<bool>,
+    /// `create_queue_policy` of the two bundled policies.
+    pub facility_queues: Lazy<QueueConfig>,
+    /// The schema of `geometry_overlay`'s config, for the beds and intake.
+    pub overlay_schema: Lazy<Option<i64>>,
+    /// `geometry_overlay` as the arrivals' alternate room admission reads it.
+    pub overlay_rooms: Lazy<OverlayRooms>,
+    /// `resource_service`.
+    pub resource_service: Lazy<ResourceService>,
+    /// The population's accessibility needs, for the queue choice.
+    pub accessibility_needs: Lazy<AccessibilityNeeds>,
+    /// `simulator_extensions.get("enabled")`, truthy, for the world view.
+    pub extensions_enabled: Lazy<bool>,
 }
 
 impl Configs {

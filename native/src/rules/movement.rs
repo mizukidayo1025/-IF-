@@ -17,8 +17,13 @@ use std::sync::{Arc, LazyLock};
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
-use pyo3::types::{PyBool, PyDict, PyInt, PyString, PyTuple, PyType};
+use pyo3::types::{PyBool, PyDict, PyString, PyTuple, PyType};
 
+use sheltersim_core::config::movement::{Movement, MovementModel};
+use sheltersim_core::config::read::Read;
+use sheltersim_core::config::Fault;
+
+use crate::core::configs;
 use crate::core::mathx::{py_fsum, py_max, py_min, py_sum};
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_list, exact_str, map_set, unsupported, PyField};
 use crate::core::value::V;
@@ -35,17 +40,9 @@ use crate::Unsupported;
 
 pub(crate) const KEY: &str = "movement_v1";
 const OVERLAY_KEY: &str = "geometry_overlay_v1";
-pub(crate) const POLICY_VERSION: &str = "spatial-route-and-room-waypoint-v2";
-/// Above this an int does not always fit a float, and a Python division of ints is not an f64 one.
-pub(crate) const EXACT_INT: i64 = 1 << 53;
-
-// `_MOVEMENT_DEFAULTS`.
-const SPEED_INDEPENDENT: f64 = 72.0;
-const SPEED_ASSISTED: f64 = 36.0;
-const SPEED_WHEELCHAIR: f64 = 48.0;
-const DENSITY_SLOWDOWN: f64 = 0.12;
-const MAXIMUM_SLOWDOWN: f64 = 2.5;
-pub(crate) const MOVEMENT_SOURCE_ID: &str = "ASM-SPATIAL-MOVEMENT-V2";
+// `_MOVEMENT_DEFAULTS` are the core's (`config::movement`), with the model they make. Above
+// `EXACT_INT` an int does not always fit a float, and a Python division of ints is not an f64 one.
+pub(crate) use sheltersim_core::config::movement::{EXACT_INT, MOVEMENT_SOURCE_ID, POLICY_VERSION};
 // `_queue_slot_position`'s spacing and `facility_approach_route`'s clearance, in metres.
 const SPACING_INDEPENDENT: f64 = 0.6;
 const SPACING_ASSISTED: f64 = 0.9;
@@ -810,7 +807,6 @@ pub(crate) fn at_queue_slot(world: &Bound<'_, PyAny>, agent_id: &str, facility_i
 
 /// `agent_is_at_facility_service_point`.
 pub(crate) fn at_service_point(world: &Bound<'_, PyAny>, agent_id: &str, facility_id: &str, service_point: Option<&str>) -> PyResult<bool> {
-    let py = world.py();
     let store = entities_of(world)?;
     let geo = Geo::of(world)?;
     if geo.layout.is_none() {
@@ -822,10 +818,9 @@ pub(crate) fn at_service_point(world: &Bound<'_, PyAny>, agent_id: &str, facilit
             Ok(true)
         });
     }
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let raw_model = exact_dict(&configs)?.get_item(intern!(py, "movement_model"))?;
+    let movement = movement_of(world)?;
     let found = with_positions(world, |row| {
-        EntityStore::with_rows(&store, |rows| approach_point(&geo, row, rows, raw_model, agent_id, facility_id, service_point))
+        EntityStore::with_rows(&store, |rows| approach_point(&geo, row, rows, &movement.model, agent_id, facility_id, service_point))
     })?;
     Ok(found.is_some_and(|(minutes, path)| minutes <= 0 || path.len() < 2))
 }
@@ -913,8 +908,7 @@ fn facility_approach_route<'py>(
     let (agent_id, facility_id) = (exact_str(agent_id)?, exact_str(facility_id)?);
     let store = entities_of(world)?;
     let geo = Geo::of(world)?;
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let raw_model = exact_dict(&configs)?.get_item(intern!(py, "movement_model"))?;
+    let movement = movement_of(world)?;
     let (agent_zone, facility_zone) = EntityStore::with_rows(&store, |rows| {
         let (Some(agent), Some(facility)) = (rows.agents.get(agent_id), rows.facilities.get(facility_id)) else {
             return unsupported("no such agent or facility");
@@ -927,7 +921,7 @@ fn facility_approach_route<'py>(
         return Ok((route, PyTuple::empty(py)).into_pyobject(py)?.into_any());
     }
     let found = with_positions(world, |row| {
-        EntityStore::with_rows(&store, |rows| approach_point(&geo, row, rows, raw_model, agent_id, facility_id, service_point))
+        EntityStore::with_rows(&store, |rows| approach_point(&geo, row, rows, &movement.model, agent_id, facility_id, service_point))
     })?;
     let Some((duration, path)) = found else {
         return Ok(py.None().into_bound(py));
@@ -939,7 +933,7 @@ fn facility_approach_route<'py>(
 
 /// `in_room_travel_minutes` of a path of this length, for a person standing in `agent_zone`.
 pub(crate) fn room_minutes(
-    raw_model: Option<Bound<'_, PyAny>>,
+    model: &Read<MovementModel>,
     geo: &Geo,
     rows: &Entities,
     agent_zone: &str,
@@ -949,12 +943,8 @@ pub(crate) fn room_minutes(
     let Some(layout) = &geo.layout else {
         return unsupported("no floor plan");
     };
-    let model = movement_model(raw_model)?;
-    let speed = match mobility {
-        "independent" => model.independent,
-        "assisted" => model.assisted,
-        _ => model.wheelchair,
-    };
+    let model = configs::read(model.clone())?;
+    let speed = model.speed(mobility);
     let loads = rows.agents.iter().filter(|(_, other)| &*other.zone_id == agent_zone).count();
     let density = match layout.zones.get(agent_zone).map(|zone| zone.usable_area).filter(|area| *area > 0.0) {
         Some(area) => loads as f64 / area,
@@ -969,7 +959,8 @@ pub(crate) fn room_minutes(
 }
 
 /// `facility_approach_route` in a placed world, for a facility's own point: the route's minutes and
-/// its path, or None for no route. Says Unsupported without a floor plan.
+/// its path, or None for no route. Says Unsupported without a floor plan. `raw_model` is the
+/// `movement_model` of the tree, read at each call (`travel.rs`, until lane 7-3 reads the section).
 pub(crate) fn approach(
     geo: &Geo,
     row: &MovementRow,
@@ -978,7 +969,7 @@ pub(crate) fn approach(
     agent_id: &str,
     facility_id: &str,
 ) -> PyResult<Option<(i64, Arc<[Pt]>)>> {
-    approach_point(geo, row, rows, raw_model, agent_id, facility_id, None)
+    approach_point(geo, row, rows, &model_of_tree(raw_model), agent_id, facility_id, None)
 }
 
 /// The same, to a surveyed service point when one is given: then no point beside a footprint.
@@ -986,7 +977,7 @@ pub(crate) fn approach_point(
     geo: &Geo,
     row: &MovementRow,
     rows: &Entities,
-    raw_model: Option<Bound<'_, PyAny>>,
+    model: &Read<MovementModel>,
     agent_id: &str,
     facility_id: &str,
     service_point: Option<&str>,
@@ -1061,7 +1052,7 @@ pub(crate) fn approach_point(
     };
     // in_room_travel_minutes, then what facility_approach_route makes of it.
     let mut duration =
-        if path.len() < 2 { 0 } else { room_minutes(raw_model, geo, rows, &agent.zone_id, mobility, length)? };
+        if path.len() < 2 { 0 } else { room_minutes(model, geo, rows, &agent.zone_id, mobility, length)? };
     if path.len() == 1 || path.windows(2).all(|pair| distance(pair[0], pair[1]) <= 1e-8) {
         duration = 0;
     }
@@ -1449,7 +1440,7 @@ struct WalkPlan {
 fn plan_queue_replan(
     scene: &Scene<'_>,
     writer: &EventWriter<'_>,
-    raw_model: Option<Bound<'_, PyAny>>,
+    model: &Read<MovementModel>,
     view: &MovementRow,
     rows: &Entities,
     agent_id: &Arc<str>,
@@ -1481,12 +1472,12 @@ fn plan_queue_replan(
         None => None,
     };
     let route = if position_trip {
-        slot_route(&scene.geo, view, rows, raw_model, agent_id, facility, facility_id, fifo.as_ref())?
+        slot_route(&scene.geo, view, rows, model, agent_id, facility, facility_id, fifo.as_ref())?
     } else if scene.geo.layout.is_none() {
         Some((0, Arc::from(Vec::new())))
     } else {
         let point = fifo.as_ref().and_then(|fifo| fifo.request_of(agent_id)).map(|request| request.service_point_id.clone());
-        approach_point(&scene.geo, view, rows, raw_model, agent_id, facility_id, point.as_deref())?
+        approach_point(&scene.geo, view, rows, model, agent_id, facility_id, point.as_deref())?
     };
     let Some((minutes, path)) = route.filter(|(_, path)| !path.is_empty()) else {
         return Ok(found(QueueReplanEnd::Blocked));
@@ -1523,7 +1514,7 @@ fn plan_walk(
     rows: &Entities,
     minute: i64,
     staff_records: Option<&Bound<'_, PyDict>>,
-    in_order: Option<&(EventWriter<'_>, Option<Bound<'_, PyAny>>)>,
+    in_order: Option<&(EventWriter<'_>, Arc<Movement>)>,
 ) -> PyResult<Option<WalkPlan>> {
     let mut changes = Changes::default();
     missing_positions(row, rows, &mut changes);
@@ -1571,14 +1562,14 @@ fn plan_walk(
         match plan_journey(scene, queue, view, rows, agent_id, agent, journey, minute)? {
             Step::Replan => plan.replans.push(agent_id.clone()),
             Step::QueueReplan => {
-                let Some((writer, raw_model)) = in_order else {
+                let Some((writer, movement)) = in_order else {
                     return Ok(None);
                 };
                 if seen_events.contains(&&*journey.event_id) {
                     return unsupported("two journeys name one event");
                 }
                 seen_events.push(&journey.event_id);
-                let replan = plan_queue_replan(scene, writer, raw_model.clone(), view, rows, agent_id, journey, minute, next_sequence, &mut changes)?;
+                let replan = plan_queue_replan(scene, writer, &movement.model, view, rows, agent_id, journey, minute, next_sequence, &mut changes)?;
                 next_sequence += i64::from(matches!(replan.end, QueueReplanEnd::Trip(_)));
                 plan.queue_replans.push(replan);
             }
@@ -1693,8 +1684,7 @@ pub(crate) fn advance_movement<'py>(world: &Bound<'py, PyAny>, minute: &Bound<'p
                 if let Some(plan) = plan_walk(&scene, &held, row, rows, minute, staff_records, None)? {
                     return Ok(plan);
                 }
-                let configs = attribute(world, intern!(py, "model_configs"))?;
-                let tools = (EventWriter::of(world)?, exact_dict(&configs)?.get_item(intern!(py, "movement_model"))?);
+                let tools = (EventWriter::of(world)?, movement_of(world)?);
                 match plan_walk(&scene, &held, row, rows, minute, staff_records, Some(&tools))? {
                     Some(plan) => {
                         in_order_tools = Some((tools.0, metrics_of(world)?));
@@ -1909,90 +1899,24 @@ pub(crate) fn finish_movement<'py>(world: &Bound<'py, PyAny>, agent_id: &Bound<'
 
 // ---- route_with_movement_time ------------------------------------------------------------------
 
-/// `canonical_movement_config`, for the values whose result is certain: floats, and what it accepts.
-struct MovementModel {
-    independent: f64,
-    assisted: f64,
-    wheelchair: f64,
-    density_slowdown: f64,
-    maximum_slowdown: f64,
+/// The movement section of the world's configs (`config::movement`), kept for the stamp of
+/// `model_configs`. A configs that is not a dict is refused here, as `exact_dict` refused it; the
+/// model's own refusal is said where a walk is timed (`room_minutes`, `movement_minutes`).
+#[track_caller]
+pub(crate) fn movement_of(world: &Bound<'_, PyAny>) -> PyResult<Arc<Movement>> {
+    configs::kept_value(world, |configs| &configs.movement, Movement::parse)
 }
 
-/// A coefficient as `canonical_movement_config` takes it: a float, or an int that is not a bool.
-/// The Python rule's arithmetic used such an int as the float of the same value.
-fn coefficient(value: &Bound<'_, PyAny>) -> PyResult<f64> {
-    if value.downcast_exact::<PyInt>().is_err() {
-        return exact_float(value);
+/// The model of a `movement_model` value read from the tree, at each call: the tree is the slot's
+/// row as Python values, so it reads as the row does. One that is not JSON is refused for that.
+fn model_of_tree(raw: Option<Bound<'_, PyAny>>) -> Read<MovementModel> {
+    match raw {
+        None => MovementModel::parse(None),
+        Some(raw) => match <V as crate::core::value::VPy>::from_py(&raw) {
+            Ok(value) => MovementModel::parse(Some(&value)),
+            Err(error) => Err(Fault::refused(error.value(raw.py()).to_string())),
+        },
     }
-    let number = exact_int(value)?;
-    if number.abs() >= EXACT_INT {
-        return unsupported("a coefficient is too large for a float");
-    }
-    Ok(number as f64)
-}
-
-fn movement_model(raw: Option<Bound<'_, PyAny>>) -> PyResult<MovementModel> {
-    let mut model = MovementModel {
-        independent: SPEED_INDEPENDENT,
-        assisted: SPEED_ASSISTED,
-        wheelchair: SPEED_WHEELCHAIR,
-        density_slowdown: DENSITY_SLOWDOWN,
-        maximum_slowdown: MAXIMUM_SLOWDOWN,
-    };
-    let Some(raw) = raw.filter(|raw| !raw.is_none()) else {
-        return Ok(model);
-    };
-    let py = raw.py();
-    for (name, value) in exact_dict(&raw)?.iter() {
-        match exact_str(&name)? {
-            "schema_version" => {
-                if exact_int(&value)? != 1 {
-                    return unsupported("another movement schema");
-                }
-            }
-            "policy_version" => {
-                if exact_str(&value)? != POLICY_VERSION {
-                    return unsupported("another movement policy");
-                }
-            }
-            "source_id" => {
-                if exact_str(&value)? != MOVEMENT_SOURCE_ID {
-                    return unsupported("another movement source");
-                }
-            }
-            "speed_m_per_minute_by_mobility" => {
-                let speeds = exact_dict(&value)?;
-                if speeds.len() != 3 {
-                    return unsupported("the speed table has other fields");
-                }
-                let speed = |name| -> PyResult<f64> {
-                    let value = speeds.get_item(name)?.ok_or_else(|| Unsupported::new_err("a speed is missing"))?;
-                    let speed = coefficient(&value)?;
-                    if !speed.is_finite() || speed <= 0.0 {
-                        return unsupported("a speed is not positive");
-                    }
-                    Ok(speed)
-                };
-                model.independent = speed(intern!(py, "independent"))?;
-                model.assisted = speed(intern!(py, "assisted"))?;
-                model.wheelchair = speed(intern!(py, "wheelchair"))?;
-            }
-            "density_slowdown_per_person_m2" => {
-                model.density_slowdown = coefficient(&value)?;
-                if !model.density_slowdown.is_finite() || model.density_slowdown < 0.0 {
-                    return unsupported("a slowdown is not a plain value");
-                }
-            }
-            "maximum_density_slowdown" => {
-                model.maximum_slowdown = coefficient(&value)?;
-                if !model.maximum_slowdown.is_finite() || model.maximum_slowdown < 1.0 {
-                    return unsupported("a slowdown is not a plain value");
-                }
-            }
-            _ => return unsupported("the movement config has other fields"),
-        }
-    }
-    Ok(model)
 }
 
 /// `route_with_movement_time`.
@@ -2006,9 +1930,7 @@ pub(crate) fn route_with_movement_time<'py>(
     let class: Bound<'py, PyType> = route.get_type();
     let edge_ids = attribute(route, intern!(py, "edge_ids"))?;
     let zone_ids = attribute(route, intern!(py, "zone_ids"))?;
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let configs = exact_dict(&configs)?;
-    if !configs.contains(intern!(py, "movement_model"))? && !configs.contains(intern!(py, "facility_geometry"))? {
+    if !movement_of(world)?.times_routes() {
         return Ok(route.clone());
     }
     if class.name()?.to_str()? != "ZoneRoute" {
@@ -2042,14 +1964,11 @@ pub(crate) fn movement_minutes(
     edges: &[&str],
     declared: i64,
 ) -> PyResult<i64> {
-    let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let configs = exact_dict(&configs)?;
-    let raw_model = configs.get_item(intern!(py, "movement_model"))?;
-    if raw_model.is_none() && !configs.contains(intern!(py, "facility_geometry"))? {
+    let movement = movement_of(world)?;
+    if !movement.times_routes() {
         return Ok(declared);
     }
-    let model = movement_model(raw_model)?;
+    let model = configs::read(movement.model.clone())?;
     if declared.abs() >= EXACT_INT {
         return unsupported("the route's minutes are too large");
     }
@@ -2067,11 +1986,7 @@ pub(crate) fn movement_minutes(
                 }
             }
         }
-        Ok(match mobility_text(agent) {
-            "independent" => model.independent,
-            "assisted" => model.assisted,
-            _ => model.wheelchair,
-        })
+        Ok(model.speed(mobility_text(agent)))
     })?;
     let mut lengths = Vec::new();
     if let Some(layout) = &geo.layout {

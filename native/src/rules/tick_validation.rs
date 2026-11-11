@@ -23,7 +23,9 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyDictMethods, PyInt, PyList, PyString, PyTuple};
 use rustc_hash::{FxHashMap, FxHashSet};
+use sheltersim_core::config::movement::RouteCapacities;
 
+use crate::core::configs;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_int_text, exact_str, str_value, unsupported};
 use crate::core::tracked::{as_readable_list, is_detached};
 use crate::core::value::V;
@@ -326,12 +328,9 @@ pub(crate) fn entity_rules_watching<'py>(
             return unsupported("an edge is the Python rule's");
         }
     }
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let configs = exact_dict(&configs)?;
-    if let Some(route_config) = configs.get_item(intern!(py, "layout_routing"))? {
-        if !route_config.is_none() {
-            route_capacities_pass(&route_config, &edges)?;
-        }
+    let routing = configs::kept_value(world, |configs| &configs.route_capacities, RouteCapacities::parse)?;
+    if let Some(routing) = &*routing {
+        route_capacities_pass(routing, &edges)?;
     }
 
     // ---- People: world_agents_valid, the keys, and what the rules below read.
@@ -1107,27 +1106,10 @@ fn namespace_part_is_empty(
 }
 
 /// The `layout_routing` config of `validate`.
-fn route_capacities_pass(config: &Bound<'_, PyAny>, edges: &Bound<'_, PyDict>) -> PyResult<()> {
-    let py = config.py();
-    let config = exact_dict(config)?;
-    let text_is = |name: &Bound<'_, PyString>, expected: &str| -> PyResult<bool> {
-        Ok(config.get_item(name)?.is_some_and(|value| str_value(&value) == Some(expected)))
-    };
-    let version_is_one = config
-        .get_item(intern!(py, "schema_version"))?
-        .is_some_and(|value| exact_int(&value).is_ok_and(|number| number == 1));
-    let Some(capacities) = config.get_item(intern!(py, "max_agents_in_transit_by_edge"))? else {
-        return unsupported("the route config lacks its capacities");
-    };
-    if config.len() != 4
-        || !version_is_one
-        || !text_is(intern!(py, "source_type"), "assumption")?
-        || !text_is(intern!(py, "source_id"), "ASM-A05-ROUTE-EDIT-V1")?
-    {
-        return unsupported("the route config is the Python rule's");
-    }
-    for (edge, capacity) in exact_dict(&capacities)?.iter() {
-        if !edges.contains(&edge)? || !(1..=100).contains(&exact_int(&capacity)?) {
+fn route_capacities_pass(routing: &RouteCapacities, edges: &Bound<'_, PyDict>) -> PyResult<()> {
+    // The config's own checks were made where the section was parsed, and said where it was read.
+    for (edge, capacity) in &routing.capacities {
+        if !edges.contains(&**edge)? || !(1..=100).contains(&configs::read(capacity.clone())?) {
             return unsupported("a route capacity is the Python rule's");
         }
     }

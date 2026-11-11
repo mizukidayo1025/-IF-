@@ -273,6 +273,53 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
 - **確かめたこと**：PR 7-2 の後の `main`（`9679fb7`）に載せ直して、`cargo test -p sheltersim_core`（80件）、`cargo clippy --workspace -- -A clippy::all -D clippy::disallowed_methods`、`cargo tree -p sheltersim_core -e normal,build` に `pyo3` がないこと、`ruff check .`、`ruff format --check .`、offline の pytest（`-m "not long_simulation"`：5190 passed、6 skipped。`native/pylib` にこのビルドを置きました）、全経路のゲート（55 scenarios、0 problems）、7日分を1回（ハッシュは下と同じ。wall 69.0 s、thread 63.8 s、`computation_mib` 894.8 MiB）。下の時間は、載せ直す前（PR 5-4 の後）に測ったものです。
 - **7日分**（100人、project の経路、生成 Scenario）：`675043a` のビルドと交互に2回ずつ測りました（load average 1.5〜6.5）。4回とも world、events、metrics のハッシュは同じです（69aba659…、5e4c7645…、94c8cbb2…）。wall は base 66.1・66.0 s、この PR 65.7・65.7 s、thread は 61.7・61.3 s と 60.8・60.8 s（約 -1%）、`TickEngine.step` の thread は 17.29・17.12 s と 17.00・17.02 s です。変えていない `phase.update_agent_state` も 4.43・4.40 s と 4.32・4.31 s なので、差の多くは揺れです。上の一覧のとおり、生成 Scenario で毎 tick 動くのは小さな Rust の解釈だけで、設計の見込み（0.5〜1.5%）の下の端です。計算のピークの RSS（`computation_mib`）は 894.6・896.5 MiB と 897.1・892.3 MiB で、増えていません。
 
+### PR 7-5a：移動、経路、待ち行列、上書き、資源サービス、人口の設定の節（レーン 7-5a）
+
+- **読む場所の一覧**（`main` の `9679fb7` で読み直しました。この PR の10のファイルの行は、7-5b の後も同じです）。頻度は呼ばれる契機です。誤りの種類は 7-5b と同じく、U が kernel の断り（`Unsupported`）、R が Python の誤りをそのまま伝えるもの、P が初期化か tick の後に出るものです。待ち行列の方針の `ValueError` は、Python の構築子と同じ文を kernel が作るもので、U と同じく固定の文です（下では V と書きます）。どれも、出る時点はその行です。
+
+  | # | 読む場所（`9679fb7`） | 頻度 | 解釈するもの | pydantic | 誤り | 節 |
+  |---|---|---|---|---|---|---|
+  | 1 | `rules/movement.rs:825` `at_service_point`（`agent_is_at_facility_service_point`） | 設備の前に着いたかの確かめごと | Rust（`movement_model`。`canonical_movement_config` のうち結果が決まるもの） | いいえ | U（設定が dict でなければその行。モデルの断りは歩く時間を計る `room_minutes`） | `movement` |
+  | 2 | `rules/movement.rs:916` `facility_approach_route` | Python から呼ぶごと | 同上 | いいえ | U（同上） | `movement` |
+  | 3 | `rules/movement.rs:1696` `advance_movement` の順番どおりの2回目の歩き | 待ち行列の経路を立て直す tick | 同上 | いいえ | U（同上） | `movement` |
+  | 4 | `rules/movement.rs:2009` `route_with_movement_time` | 経路に時間を付けるごと（移住など） | キーの有無 | いいえ | U（その行） | `movement` |
+  | 5 | `rules/movement.rs:2046` `movement_minutes`（`travel.rs:607`、`staff.rs:954` から） | 区域の間の移動ごと | 同上とモデル | いいえ | U（キーを見た直後にモデルの断り） | `movement` |
+  | 6 | `rules/queues.rs:271` `policy_of`（`prepare_facility_queue`、`prepare_independent_facility_queue`） | 待ち行列を並べ直すごと（tick ごと、設備ごと） | Rust（`create_queue_policy` と `NeedWeightedPhysicalQueuePolicy.__init__` の検査） | いいえ | V（構築子の文）、U。選ばれたモデルの誤りは 7-1 の節のまま | `facility_queues` |
+  | 7 | `rules/queues.rs:751`・`756` `plan_leave`（`_abandon_and_retry`） | 列を離れる人ごと | キーの有無とモデル | いいえ | U（キーは置いた世界でだけ見ます） | `movement` |
+  | 8 | `rules/queues.rs:1203` `no_geometry`（`progress_physical_queue_positions`、`head_to_service`） | 待ち行列を進めるごと（tick ごと、設備ごと） | キーの有無 | いいえ | U | `movement` |
+  | 9 | `rules/queues.rs:1207` `raw_movement_model`（1278、1383） | 同上 | モデル | いいえ | U（歩く時間を計るところ） | `movement` |
+  | 10 | `rules/tick_validation.rs:329` `layout_routing`（`route_capacities_pass`） | tick の終わりの検査ごと | Rust（`validate` の経路の容量の検査） | いいえ | U（設定の検査はその行、容量の型は辺を確かめた後） | `route_capacities` |
+  | 11 | `rules/overlay.rs:524` `capacity_of` の部屋の数え方 | 区域の受け入れの容量を読むごと | Rust（`geometry_overlay.schema_version`） | いいえ | U | `overlay_schema` |
+  | 12 | `rules/overlay.rs:714` `overlay_schema`（`available_room_after`、`plan_bed`、`placement_enabled`） | 部屋と寝床を選ぶごと、設置の確かめごと | 同上 | いいえ | U | `overlay_schema` |
+  | 13 | `rules/overlay.rs:1166` `plan_bed` の歩く時間 | 寝床を選ぶごと | モデル | いいえ | U（歩く時間を計るところ） | `movement` |
+  | 14 | `rules/overlay.rs:1798` `service_staff_in_zone`（`_require_service_staff_in_zone`） | 給水・配食の場所を置くごと | Rust（`resource_service` の技能） | いいえ | U | `resource_service` |
+  | 15 | `rules/service.rs:128` `Manager::of_world`（`ResourceServiceManager(world)`、`dict(model_configs["resource_service"])`） | 職員の中断ごと（写しの World） | 呼ぶたびの dict の写し | いいえ | U（設定がない、opt-in でない）、R（dict でない値の `dict.update`） | `resource_service` |
+  | 16 | `rules/service.rs:364` `service_capacity`（`physical_service_capacity`） | サービスの容量を読むごと | キーの有無 | いいえ | U | `movement` |
+  | 17 | `rules/facility_queues.rs:487` `choose_queue_id` | 待ち行列を選ぶごと | Rust（`population.people[人].accessibility_needs`） | いいえ | U（人ごとの断りはその人を読むとき） | `accessibility_needs` |
+  | 18 | `rules/population.rs:1435` 到着の別の部屋（`geometry_overlay` の `schema_version in {3, 4}`） | 到着のイベントごと | Python（`.get`、`isinstance`、集合の `in`） | いいえ | R（集合の `in` の `TypeError`。別の部屋があって設定が dict のときだけ） | `overlay_rooms` |
+  | 19 | `rules/population_lifecycle.rs:760` `plan_relocation` | 移住のイベントごと（写しの World） | Python（`.get` の連なりと真偽） | いいえ | R | `transit_capacities` |
+  | 20 | `rules/world_view.rs:1125` `simulator_extensions` | 世界の view を作るごと | Python（`.get("enabled")` と真偽） | いいえ | R | `extensions_enabled` |
+  | — | `rules/travel.rs:1312` `movement_model` | 経路の候補ごと | 同上 | いいえ | U | 変えません（`travel.rs` はレーン 7-3 が読み替えます。`approach` は今の木の値を受け、同じ `MovementModel::parse` で読みます） |
+  | — | `rules/care_receipts.rs:360` `person_context` の `population_context` | ケアの来歴ごと | 解釈なし（辞書を引くだけ） | いいえ | U | 変えません（人の辞書を Python のオブジェクトのまま `support.rs` に渡します。P8 で呼び手と一緒に） |
+  | — | `rules/world_view.rs:478` `person_contexts`、`kept_environment`（`ZoneInputs::read`） | view を作るごと | Rust | 移したもの | U | 変えません（`model_state` の文脈や modifiers と合わせて読み、Python の `_zone_environments` と同じ dict を設定のオブジェクトの同一性で持ちます。6-1 の `world_view.rs` で） |
+  | — | `rules/world_view.rs:1064` `configs_of`、`1230` `hashed_config` | view を作るごと | 解釈なし | いいえ | U | 変えません（型の確かめと、view の hash に Python の値を渡すだけです） |
+  | — | `rules/population.rs:2052` `new_dynamics_state`（`PopulationSpec.model_validate`） | 状態を作るとき1回 | pydantic | はい | P | 変えません（結果が状態になる新しい辞書です） |
+  | — | `rules/queues.rs:188` 選ばれたモデル、`population.rs` の接近経路、`facility_queues.rs` の独立した待ち行列 | — | — | — | — | 7-1、7-2 で済み |
+
+- **中核**（`native/core/src/config/`）：`movement.rs` は `MovementModel`（既定値と `speed`）、`Movement`（`movement_model` と `facility_geometry` のキーの有無、モデルか断り）、`RouteCapacities`（辺ごとの容量か断り）と、移動の定数（`POLICY_VERSION`、`EXACT_INT`、速さと混雑の既定値。値はそのまま窓口から移しました）です。`queues.rs` は `QueuePolicy` と `QueueConfig`（厳密な FIFO と必要に応じた方針の両方を、読んだときの値か誤りで持ちます）、`overlay.rs` は `overlay_schema` と `OverlayRooms`、`service.rs` は `ResourceService`（dict の写しと技能）、`population.rs` は `AccessibilityNeeds` です。`read.rs` に `float`（`exact_float` の断り）を足しました。`Configs` に9つの `Lazy` を足しました。
+- **窓口**（`native/src/core/configs.rs`）：kernel が解釈する節（#1〜17）は 7-5b の `kept_value` で `model_configs` の slot の行から解釈します。Python の式が答える節（#18〜20）は、新しい `kept_python(world, 節, parse)` で、stamp ごとに1回式を評価して値か誤りを持ち、誤りは読む場所でもう一度評価して Python と同じクラスと文で出します（方針 E14）。テスト用に、`config_section` に9つの名前を足し、`config_parses()`（節を解釈した回数）を足しました。
+- **読む場所**：上の #1〜20 は節の値を読みます。移動のモデルは `Read<MovementModel>` のまま歩く時間を計る `room_minutes` まで渡し、そこで今と同じく断ります。`approach_point`、`slot_route`、`return_path`、`plan_queue_replan` は Python の値の代わりに `&Read<MovementModel>` を受けます。待ち行列の方針は、選ばれたモデル（7-1 の節）で2つのどちらかを選び、`ValueError` は `errors::value_error` でその行で作ります。資源サービスの `Manager` は、設定の `dict` の写しの代わりに節の写し（`ServiceConfig::Kept`）を読みます。設定が dict でないときは、前と同じく Python の値を写します。
+- **決めたこと**：
+  - `travel.rs` の `movement_model` はレーン 7-3 に残しました。`movement::approach` は前と同じ形で木の値を受け、`V` にしてから節と同じ `MovementModel::parse` で読みます（呼ぶたびに解釈するのは前と同じです）。木は slot の行から作るので、Run の設定では同じ答えです。JSON でない値は、7-5b と同じく `V` にできない理由で断ります。
+  - 待ち行列の方針の `ValueError` は Python の構築子の文を kernel が作るもので、2回目の解釈は要りません。節は class `Value` の `Fault` に文を持ち、読む場所が同じ文の `ValueError` を出します。
+  - 待ち行列の方針は選ばれたモデルに依るので、節は両方の方針を持ちます（選択は 7-1 の節で、テストが `selected_models` を差し替えたときも今のまま読むたびに選びます）。
+  - `care_receipts.rs` と `world_view.rs` の人の文脈、区域の環境、view の hash は節にしていません（上の表）。
+  - `Fault` の census の位置は、断りを作る行（`read` を呼ぶ行）になりました。7-5b と同じです。
+- **中核のテスト**（`native/core/tests/config_movement_queues.rs`、5件）：移動のモデルの値と、キーの順の断り（schema、方針、来歴、速さの表、係数の型と大きさ、混雑、ほかのキー）、`Movement` がモデルの断りを持ったまま節は読めること、経路の容量の断りと辺ごとの値、2つの待ち行列の方針と構築子の `ValueError` の文（Python の `!=`、bool、大きな int、NaN を含む）、上書きの schema、資源サービスの写しと技能、人ごとの必要な配慮の断り。
+- **offline のテスト**（`tests/integration/test_config_sections_movement.py`、18件）：9つの節は、1つの stamp で1回だけ解釈し、読んでも stamp は変わらず、その場で書くと次に読むときに1回だけ解釈し直すこと（`config_parses`）。stamp のない設定は読むたびに解釈すること。R の誤り（経路の `.get` の `AttributeError`、`in {3, 4}` の `TypeError`、拡張の `.get` の `AttributeError`）は、何度読んでも Python と同じクラスと文であること。dict でない上書きは `in` を評価しないこと。待ち行列の方針の4つの `ValueError` が `create_queue_policy` と同じ文であること。U の断り（移動のモデルは `route_with_movement_time` の kernel でも）が何度読んでも同じ文であること。1つの節の誤りがほかの節に出ないこと。
+- **確かめたこと**：PR 7-5b の載せ直したブランチ（`67c8595`。`main` の `a74edc7` とは `step5-plan.md` の1行だけ違い、コードは同じ木です）の上で、`cargo test -p sheltersim_core`（85件）、`cargo clippy --workspace -- -A clippy::all -D clippy::disallowed_methods`、`cargo tree -p sheltersim_core -e normal,build` に `pyo3` がないこと、`ruff check .`、`ruff format --check .`、offline の pytest（`-m "not long_simulation"`：5208 passed、6 skipped。`native/pylib` にこのビルドを置きました）、全経路のゲート（55 scenarios、0 problems）。
+- **7日分**（100人、project の経路、生成 Scenario）：`67c8595` のビルドと交互に2回ずつ測りました（load average は始めが 15.2 で、後は 3.6〜5）。4回とも world、events、metrics のハッシュは同じです（69aba659…、5e4c7645…、94c8cbb2…）。wall は base 72.4・70.1 s、この PR 71.2・71.5 s、thread は 67.0・65.3 s と 65.8・66.5 s、`TickEngine.step` の thread は 18.14・17.77 s と 17.69・17.90 s で、差は揺れの中です。上の一覧の読む場所は、どれも Python の辞書を数回引く程度の読み直しだったので、設計の見込み（0.5〜1.5%）より小さく、測れる差は出ていません。計算のピークの RSS（`computation_mib`）は 892.3・883.4 MiB と 892.6・891.5 MiB で、増えていません。
+
 ### この後
 
 残りの PR は、下の「レーン」の順に進めます。各レーンは、終わったときにこの節の前に記録を足します。
