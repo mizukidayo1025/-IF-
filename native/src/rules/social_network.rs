@@ -23,13 +23,6 @@ pub(crate) fn mapping_get<'py>(mapping: &Bound<'py, PyAny>, key: &Bound<'py, PyS
     }
 }
 
-/// `record_observed_contact` of each (recipient, source), for `rules/social_propagation.rs`, which
-/// has written its own namespace by now: on Unsupported it calls the Python rule, and nothing has
-/// been written here.
-pub(crate) fn record_observed_contacts(world: &Bound<'_, PyAny>, pairs: &[(&str, &str)], minute: i64) -> PyResult<()> {
-    with_world(world, |cell| rules::record_observed_contacts(cell, pairs, minute))?.or_py()
-}
-
 /// `observe_event`: the event's contact or interaction, recorded, and the body's trust copied.
 #[pyfunction]
 pub(crate) fn observe_event<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<()> {

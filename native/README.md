@@ -183,8 +183,9 @@ Checkpoint document) and times them.
   through; its text is not Python's. `kernel_refusal(label, error)` is the one exit of a refusal no
   Python rule stands behind (lane L10): `KernelRefusal` of `core/kernels.py`, whose text names the
   kernel and gives its reason, as `kernel_only` raises it.
-  `rules/parity.rs` is the example and exposes `core` to the tests. `rules/social_propagation.rs`
-  and `rules/information.rs` hold the contact kernels; what they share is in `contacts.rs`.
+  `rules/parity.rs` is the example and exposes `core` to the tests. The contact kernels are in the
+  core (`core/src/rules/social_propagation.rs` and `information.rs`, lane P8 a4); what they share is
+  in `core/src/contacts.rs`, and `contacts.rs` here reads an exact int and gives `fsum` to the tests.
 - `src/core/world_core.rs`: `WorldCore`, one per world, in `world.__dict__["_core"]`. It holds the
   core's `World` and its handles: a `NamespaceMirror` per owned field or namespace, the
   `EntityStore`, and the `QueueStore` and `EventStore` whose queue and log are the `World`'s
@@ -353,9 +354,9 @@ are correctly rounded everywhere, and not `**` with a float.
 - `rules/trace.rs`: the glue of the core's trace documents (`core/src/rules/trace.rs`, lane P8 a3):
   `TraceRows` (the core's rows as `PsychologyUpdateResult.traces`), `record_psychology_trace`
   (`_record_psychology_trace`, which reads the rows and the final deltas and calls the core, whose
-  document goes to `artifacts.record_psychology_trace` through `Host::trace`), and `TraceSink`, which
-  hands the social contacts' document (made in the core) and the information document to the sink's
-  own `record_*` method until those kernels move. The writer and its `_sanitize` stay in Python.
+  document goes to `artifacts.record_psychology_trace` through `Host::trace`). The social and the
+  information steps send their documents through `Host::trace` too (lane P8 a4). The writer and its
+  `_sanitize` stay in Python.
 
 - `rules/psychology.rs`: the glue of the core's psychology (`core/src/rules/psychology.rs`, lane P8
   a3): each person's minute (`update_psychology`, all the built-in psychology models, with
@@ -464,22 +465,25 @@ are correctly rounded everywhere, and not `**` with a float.
 
 - `rules.social_propagation.update_social_propagation(controller, world, view, deltas, minute, rng)`:
   the update phase's step `_social_propagation` for the three social policies (contact sampling,
-  durations, cooldowns, each stress operator). Rust owns `social_propagation_v1`
-  (`src/state/social_propagation.rs`) and reads agents from the entity rows. Each tick refills the
-  contacts in the order of Python's new dict, reusing the nodes of the records
-  (`NamespaceMirror::refill_record_map`). `CounterRNG` draws, `math.fsum`, `sum`, `max`/`min` ties
-  and float order are those of Python. A trace's document comes from `core/src/rules/trace.rs`. Another RNG, a
-  policy's subclass, and what the
-  Python rule turns down give `Unsupported`, and the Python step runs. `core::rng` can keep each
-  draw of a thread for the tests' comparisons (`start_draw_log`, `take_draw_log`).
+  durations, cooldowns, each stress operator). The rules are in the core
+  (`core/src/rules/social_propagation.rs`, lane P8 a4): they take the psychology deltas as the core's
+  `Delta`s and the policy from the Run's `Policies` (`stress`), read the agents from the entity rows
+  and write the row of `social_propagation_v1` (its attached tree follows the row) and the observed
+  contacts of `social_network_v1`. The glue reads the Python deltas, makes the new ones at the edge
+  (a delta whose stress the model kept is itself), and on the first tick stores the empty namespace
+  before the core writes. `CounterRNG` draws, `math.fsum`, `sum`, `max`/`min` ties and float order
+  are those of Python. The trace's document goes through `Host::trace`. Another RNG, a policy's
+  subclass, and what the deleted Python rule turned down give `Unsupported`, which is
+  `KernelRefusal`. `core::rng` can keep each draw of a thread for the tests' comparisons
+  (`start_draw_log`, `take_draw_log`).
 
 - `state.social_network.ROW`, `validate`: Rust owns `social_network_v1`
   (`src/state/social_network.rs`). The row lists the records written since the last check, whichever
   way they were written, so the check of a tick reads those and not all of them.
 
 - `rules.social_network.observe_event(world, event, minute)`: what an applied event records, with the
-  body's trust copied (`domain/social_network.py`). `rules/social_propagation.rs` records its observed
-  contacts through the same code, with no Python call. `rules.social_dialogue.capture_context`,
+  body's trust copied (`domain/social_network.py`). The social step records its observed
+  contacts through the same code (`observed_contacts`, checked before the step writes). `rules.social_dialogue.capture_context`,
   `validate_context`: the state context of a social event, read from the rows. Each is
   `kernel_only`: what the Python rule refused, or a value of another type, gives `Unsupported`
   before any change. The rules are the core's (`core/src/rules/`, lane P8 a2): they read
@@ -617,14 +621,15 @@ are correctly rounded everywhere, and not `**` with a float.
 
 - `rules.information.sample_contacts(controller, minute, rng)`: the sample phase's step
   `_sample_information_contacts` for the three information policies (contact sampling, durations,
-  forgetting, transfers and their probabilities). Rust owns `information_spread_v1`
-  (`src/state/information.rs`) and reads agents from the entity rows; the household of the view is
-  read from `population_presence_v1`, which Python holds. The tree gets single values and the
-  refilled contacts, never the whole namespace, and the events are scheduled as rows
-  (`EventWriter` of `src/state/events.rs`), with the errors of `ScheduledEvent` for what a row
-  refuses. A trace's document is written here. Another RNG, a policy's subclass and whatever the Python
-  rule might raise on give `Unsupported`, and the Python step runs. `planned_contacts` returns the
-  same tick's draws and contacts without changing anything, for the tests.
+  forgetting, transfers and their probabilities). The rules are in the core
+  (`core/src/rules/information.rs`, lane P8 a4): the model and its config come from the Run's
+  `Policies` (`information`), the agents from the entity rows and the household of the view from
+  `population_presence_v1`'s row. The core writes the row of `information_spread_v1` (its attached
+  tree follows the row) and schedules the events through the world's queue (`kit::Events`), with the
+  errors of `ScheduledEvent` for what a row refuses. The trace's document goes through
+  `Host::trace`. Another RNG, a policy's subclass and whatever the deleted Python rule turned down
+  give `Unsupported`, which is `KernelRefusal`. `planned_contacts` returns the same tick's draws and
+  contacts without changing anything, for the tests.
 
   Seven days, run beside the previous commit: `update_agent_state` 76.4 s -> 26.1 s,
   `sample_endogenous_events` 38.6 s -> 1.8 s, with the other changes of this step

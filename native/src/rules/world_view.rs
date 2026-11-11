@@ -25,12 +25,11 @@ use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyString, PyTuple, PyType};
 use pyo3::IntoPyObjectExt;
-use rustc_hash::FxHashMap;
 use sheltersim_core::config::{Fault, Selection};
 use sheltersim_core::rules::world_view::{self as view, Inputs, ViewCache};
 
 pub(crate) use sheltersim_core::rules::world_view::{
-    status_text, BodyFields, DemandModifier, Household, PersonFields, ViewAgent, ViewData, ViewZone,
+    status_text, BodyFields, DemandModifier, PersonFields, ViewAgent, ViewData, ViewZone,
 };
 
 use crate::core::configs;
@@ -45,23 +44,6 @@ use crate::Unsupported;
 #[track_caller]
 fn unsupported<T>(reason: &'static str) -> PyResult<T> {
     Err(Unsupported::new_err(reason))
-}
-
-// ---- What other kernels read of the presence ledger --------------------------------------------
-
-/// `population_presence_v1.people`, for `group_of`; None for no such dict.
-pub(crate) fn presence_people_of(world: &Bound<'_, PyAny>) -> PyResult<Option<FxHashMap<Arc<str>, Household>>> {
-    with_world(world, |world| view::presence_people(world))?.or_py()
-}
-
-/// A person's `group_id` in a view: the household of the presence record, or the profile's.
-#[track_caller]
-pub(crate) fn group_of(
-    people: Option<&FxHashMap<Arc<str>, Household>>,
-    id: &str,
-    profile_group: &Option<Arc<str>>,
-) -> PyResult<Option<Arc<str>>> {
-    view::group_of(people, id, profile_group).or_py()
 }
 
 // ---- The inputs only Python has ----------------------------------------------------------------

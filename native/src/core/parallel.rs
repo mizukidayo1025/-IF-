@@ -1,7 +1,5 @@
 //! The per-person compute of a tick on more than one thread lives in `sheltersim_core::parallel`;
-//! this file gives it to the lanes under its old path and adds the Python entries for the tests.
-
-pub(crate) use sheltersim_core::parallel::*;
+//! this file adds its Python entries for the tests.
 
 /// For the tests and the gate: one helper for each `people` people from now on (at least 1), and
 /// the number before.

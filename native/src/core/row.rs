@@ -30,7 +30,7 @@ use pyo3::IntoPyObjectExt;
 use rustc_hash::FxBuildHasher;
 
 pub(crate) use sheltersim_core::row::{
-    map_set, same_names, Atom, Field, IdMap, Items, Maybe, Part, Scalar, StrEnum, TreeSink,
+    map_set, same_names, Atom, Field, IdMap, Items, Maybe, Part, StrEnum, TreeSink,
     ABSENT_KEY,
 };
 
