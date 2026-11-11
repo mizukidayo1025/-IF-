@@ -1215,7 +1215,9 @@ impl NamespaceMirror {
     /// ends and before any Python runs (`PyWorldCell::with`). The root stays the same object, and
     /// so does every container of the tree whose place the row still has as a container of that
     /// kind: a dict gets only the keys whose values changed, the keys the row dropped go and new
-    /// keys come at the end, as Python's dict assignment does; a list keeps its items that are
+    /// keys come at the end, as Python's dict assignment does, and if its keys are then in another
+    /// order than the row's (a key the row took out and put back comes last), they are put in the
+    /// row's order, the keys and values the same objects; a list keeps its items that are
     /// still there (a run dropped from the front and items appended, as a history does, or item by
     /// item in place). Python that holds an inner node so sees the current values. A detached or
     /// absent namespace has no tree, and nothing is done. No override runs and nothing is
@@ -1277,7 +1279,7 @@ impl NamespaceMirror {
                 }
             }
         }
-        Ok(())
+        reorder_like(node, new)
     }
 
     fn patch_list(slf: &Bound<'_, Self>, node: &Bound<'_, PyAny>, new: &Bound<'_, PyAny>, depth: usize) -> PyResult<()> {
@@ -1330,6 +1332,70 @@ impl NamespaceMirror {
     }
 }
 
+/// Whether two dicts have equal keys in the same order.
+fn same_key_order(first: &Bound<'_, PyAny>, second: &Bound<'_, PyAny>) -> PyResult<bool> {
+    let (one, two) = (dict_values(first), dict_values(second));
+    if one.len() != two.len() {
+        return Ok(false);
+    }
+    for ((key, _), (other, _)) in one.iter().zip(&two) {
+        if !key.is(other) && !key.eq(other)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+/// Put the keys of `node`, a dict of the tree with the same keys as `new`, in `new`'s order (the
+/// row's, which is a dict's: a key taken out and put back comes last), when they are in another:
+/// the keys and the values stay the same objects, so the table of nodes stays right. No override
+/// runs.
+fn reorder_like(node: &Bound<'_, PyAny>, new: &Bound<'_, PyAny>) -> PyResult<()> {
+    if same_key_order(node, new)? {
+        return Ok(());
+    }
+    let held = dict_values(node);
+    let mut ordered = Vec::with_capacity(held.len());
+    for (key, _) in dict_values(new) {
+        let found = held
+            .iter()
+            .find(|(own, _)| own.is(&key) || own.eq(&key).unwrap_or(false))
+            .ok_or_else(|| PyRuntimeError::new_err("the tree does not have the row's key"))?;
+        ordered.push(found);
+    }
+    // `held` keeps every key and value alive while the dict is empty.
+    raw_dict_clear(node);
+    for (key, value) in ordered {
+        raw_dict_set(node, key, value)?;
+    }
+    Ok(())
+}
+
+/// Whether every dict of `tree` has its keys in the order of the dict at the same place of `row`,
+/// a plain value of the row (`to_py`): the order a Python reader iterates. Places where one is a
+/// dict and the other not are left to the canonical JSON.
+fn same_order(tree: &Bound<'_, PyAny>, row: &Bound<'_, PyAny>) -> PyResult<bool> {
+    if let (Some(one), Some(two)) = (as_readable_dict(tree), as_readable_dict(row)) {
+        if !same_key_order(one, two)? {
+            return Ok(false);
+        }
+        for ((_, value), (_, other)) in dict_values(one).iter().zip(&dict_values(two)) {
+            if !same_order(value, other)? {
+                return Ok(false);
+            }
+        }
+        return Ok(true);
+    }
+    if let (Some(one), Some(two)) = (as_readable_list(tree), as_readable_list(row)) {
+        for (value, other) in list_values(one).iter().zip(&list_values(two)) {
+            if !same_order(value, other)? {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
 /// How many items left the front of a list whose other items are still there, in order, at the
 /// start of `new`, which may have more after them: Some(0) for a list only appended to (or the
 /// same), as a history that drops its oldest items and appends new ones is. None when no kept item
@@ -1350,21 +1416,20 @@ fn dropped_front(old: &[Bound<'_, PyAny>], new: &[Bound<'_, PyAny>]) -> PyResult
     Ok(None)
 }
 
-/// Whether two values are the same JSON value, with Python's types: a dict or list holds the same
-/// items (a dict's order aside, as `==` has it), an atom is of the same exact type with the same
+/// Whether two values are the same JSON value, with Python's types and order: a dict holds the
+/// same keys in the same order and the same values, a list the same items, an atom is of the same exact type with the same
 /// value, a float with the same bits (so `-0.0` is not `0.0`, and a NaN is itself).
 fn same_value(first: &Bound<'_, PyAny>, second: &Bound<'_, PyAny>) -> PyResult<bool> {
     if first.is(second) {
         return Ok(true);
     }
     if let (Some(one), Some(two)) = (as_readable_dict(first), as_readable_dict(second)) {
-        if one.len() != two.len() {
+        if !same_key_order(one, two)? {
             return Ok(false);
         }
-        for (key, value) in dict_values(one) {
-            match raw_dict_get(two, &key)? {
-                Some(other) if same_value(&value, &other)? => {}
-                _ => return Ok(false),
+        for ((_, value), (_, other)) in dict_values(one).iter().zip(&dict_values(two)) {
+            if !same_value(value, other)? {
+                return Ok(false);
             }
         }
         return Ok(true);
@@ -1985,6 +2050,23 @@ impl NamespaceMirror {
         Ok(encode(&root)? == row_bytes)
     }
 
+    /// Whether every dict of the tree has its keys in the order of the row's dict at that place
+    /// (lane P8-0c): what `verify` does not see, since canonical JSON sorts the keys. True without
+    /// a row or a tree.
+    fn verify_order(slf: &Bound<'_, Self>) -> PyResult<bool> {
+        let py = slf.py();
+        let this = slf.get();
+        let Some(root) = this.root(py)? else {
+            return Ok(true);
+        };
+        let ops = this.ops();
+        let plain = this.with_slot(py, |slot| slot.row.as_deref().map(|row| ops.py(row)?.to_py(py)).transpose())??;
+        match plain {
+            Some(plain) => same_order(&root, &plain),
+            None => Ok(true),
+        }
+    }
+
     /// Counters for the budget of a lane.
     fn stats<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let counts = self.with_slot(py, |slot| slot.counts)?;
@@ -2406,7 +2488,8 @@ impl WorldCore {
 
     /// The check of `--verify-rows` for the slots (lane P8-0c, `state_mirror.check_slot_rows`):
     /// how many attached trees were compared with their rows (`NamespaceMirror.verify`, canonical
-    /// JSON), and the names of those that differ, after the names of the slots marked written that
+    /// JSON, then `verify_order`, the order of the keys of every dict), and the names of those
+    /// that differ, after the names of the slots marked written that
     /// no patch followed. A tree is attached when the slot has a row and is not detached, and the
     /// world holds the tree: `world.<name>` for a field, `model_state[name]` for a namespace.
     fn verify_slots(slf: &Bound<'_, Self>, world: &Bound<'_, PyAny>) -> PyResult<(usize, Vec<String>)> {
@@ -2442,6 +2525,8 @@ impl WorldCore {
             checked += 1;
             if !NamespaceMirror::verify(mirror)? {
                 differing.push(this.name.to_string());
+            } else if !NamespaceMirror::verify_order(mirror)? {
+                differing.push(format!("{} (key order)", this.name));
             }
         }
         Ok((checked, differing))
