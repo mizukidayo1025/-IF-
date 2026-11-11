@@ -98,11 +98,20 @@ Checkpoint document) and times them.
   `Policies` read, as `Delta`s and the trace's rows; the distress monitor and the long-term
   distress; writing the final deltas) and `trace.rs` (the trace documents as `V`, the psychology
   document going out through `Host::trace`) (lane P8 a3);
+  the services of lane c3: `service.rs` (the water and meal service: `serve` a queue's head,
+  `complete`, `request` with the world's validation through `Host::validate_world`, `cancel`,
+  `interrupt`, the stall records; the ledger's refusal comes back as `Failure::Ledger` for the
+  PyO3 crate to write with Python's `repr`) and `toilet.rs` (`queue_up`/`request`, `start` with
+  the duration drawn from the Run's `CounterRNG`, or from `Host::draw` for another random source,
+  and `complete`, which returns `ScheduleReturn`: the PyO3 crate calls the walk home), which write
+  the rows alone (a tainted `resource_service_v1` is refused);
   the file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4, P8-0a, c1,
-  P8b-1, P8 a2, P8 a1, P8 d1 and P8 a3),
+  P8b-1, P8 a2, P8 a1, P8 d1, P8 a3 and P8 c3),
   `text.rs` (`casefold`, CPython 3.12's full fold from a generated table, `text/casefold.rs`
   by `tools/casefold_table.py`, tested at every code point against `tests/data/casefold.txt`;
-  `g_text`, `format(value, "g")`),
+  `g_text`, `format(value, "g")`; `py_repr`, `repr` of a str, from the table of what
+  `str.isprintable` says no to, `text/printable.rs` by `tools/repr_table.py`, tested at every code
+  point against `tests/data/repr.txt`),
   `cell.rs` (`Shard`, a part borrowed on its own; a second borrow of a part is an
   `Error::Runtime`, never a panic; `CowShard`, the same over an `Arc`, copied on write while a
   snapshot shares it), `stamp.rs` (`Stamp`, process-unique numbers from one
@@ -360,8 +369,7 @@ are correctly rounded everywhere, and not `**` with a float.
   capacity, beds and room intake, placing an installed facility, checking and applying a floor-plan
   change, and the checks of both states. `rules/effects.rs` and `rules/proposals.rs` call it directly.
 - `rules/facility_queues.rs`: `domain/facility_queues.py`, the glue of
-  `core/src/rules/facility_queues.rs`. `rules/queues.rs` and `rules/service.rs` serve an
-  independent FIFO through it.
+  `core/src/rules/facility_queues.rs`.
 - `rules/effects.rs`: the rules of an EffectProgram's events: the guard, the five handlers of
   `events/effects.py`, the two reads of modifier stacks and `validate_effect_program_state`. A
   handler changes the world in a rule transaction (`rules/transaction.rs`). `model_validate` and
@@ -572,7 +580,8 @@ are correctly rounded everywhere, and not `**` with a float.
 - `state.resource_service.ROW`, `validate`: Rust owns `resource_service_v1`
   (`src/state/resource_service.rs`): typed, with the two histories as lists of records. `validate`
   answers for the check of a tick; a save still reads the histories in Python.
-  `rules.service` (`src/rules/service.rs`): `facilities_to_serve(manager)`, `serve_head(manager,
+  `rules.service` (`src/rules/service.rs`, the glue of `core/src/rules/service.rs`):
+  `facilities_to_serve(manager)`, `serve_head(manager,
   facility_id, resource_id, minute)`, `complete(manager, event)`, `request(manager, agent_id,
   facility_id, *, minute=None, validate_state=None, queue_id=None)` and
   `record_request_outcome(manager, *, ...)`, each `kernel_only` on `ResourceServiceManager`.

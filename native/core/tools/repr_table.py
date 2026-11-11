@@ -1,4 +1,4 @@
-"""Write the core's table of what `repr(str)` escapes and the fixture its test reads (Issue #152, P8 c3).
+"""Write the core's table of what `repr(str)` escapes and its test's fixture (Issue #152, P8 c3).
 
 Run with the Python whose `repr` the core copies (CPython 3.12, Unicode 15.0.0):
 
@@ -21,7 +21,17 @@ TABLE = CORE / "src" / "text" / "printable.rs"
 FIXTURE = CORE / "tests" / "data" / "repr.txt"
 SURROGATES = range(0xD800, 0xE000)
 # Texts whose quotes and escapes the test checks as a whole.
-TEXTS = ["", "a'b", 'a"b', "a'\"b", "\\", "tab\there\nnew\rline", "\x00\x7f\x80\xff", "避難所", " \U0001f600"]
+TEXTS = [
+    "",
+    "a'b",
+    'a"b',
+    "a'\"b",
+    "\\",
+    "tab\there\nnew\rline",
+    "\x00\x7f\x80\xff",
+    "避難所",
+    "\u2028\U0001f600",
+]
 
 
 def code_points() -> list[int]:

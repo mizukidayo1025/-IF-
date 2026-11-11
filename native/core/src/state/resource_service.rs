@@ -1,9 +1,8 @@
 //! `resource_service_v1`: what the staffed water and meal service holds (`domain/resource_service.py`).
-//! `rules/service.rs` writes it in place; the rest of the Python rules write one value at a time
-//! through the forwarded writes (docs/rust-port/lanes/m4-service.md).
+//! `rules/service.rs` writes the row alone, and an attached tree follows it (lane c3 of #152); a
+//! Python write reaches the row through the forwarded writes (docs/rust-port/lanes/m4-service.md).
 //!
-//! A value of another type than the rules write taints the namespace, and the Python rules and their
-//! errors run on the tree.
+//! A value of another type than the rules write taints the namespace, and the rules refuse it.
 //!
 //! The PyO3 crate's `state/resource_service.rs` reads it from Python and holds its validator.
 
