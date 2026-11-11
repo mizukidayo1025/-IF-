@@ -12,7 +12,7 @@
 //! member.
 //!
 //! Rust rules read and write the rows through `with_rows` (or the whole world through
-//! `with_world`), and put in and take out rows by key (`insert_entity`, `remove_entity`). When the
+//! `with_world`), and put in and take out rows by key. When the
 //! borrow ends, before any Python runs, the objects follow (`EntityStore::flush`, rule R5 of
 //! design-p5-p6.md): each field whose row and view differ is written into the object past its
 //! `__setattr__`; a row the core put in gets an object made from it with no `__init__` (its
@@ -2155,17 +2155,12 @@ pub(crate) fn entities_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py,
 
 /// A row of a table that a rule can put in or take out by its key.
 pub(crate) trait KeyedRow: ViewRow + 'static {
-    /// The table's number, and its field of the world.
-    const KIND: u8;
-    const FIELD: &'static str;
     fn table(rows: &mut Entities) -> &mut Table<Self>;
 }
 
 macro_rules! keyed_row {
-    ($($row:ident: $kind:ident, $field:ident);+ $(;)?) => {
+    ($($row:ident: $field:ident);+ $(;)?) => {
         $(impl KeyedRow for $row {
-            const KIND: u8 = $kind;
-            const FIELD: &'static str = stringify!($field);
             fn table(rows: &mut Entities) -> &mut Table<Self> {
                 &mut rows.$field
             }
@@ -2174,33 +2169,13 @@ macro_rules! keyed_row {
 }
 
 keyed_row! {
-    AgentRow: AGENT, agents;
-    FacilityRow: FACILITY, facilities;
-    StaffRow: STAFF, staff;
-    RequestRow: REQUEST, support_requests;
-    TaskRow: TASK, active_tasks;
-    ZoneRow: ZONE, zones;
-    EdgeRow: EDGE, zone_edges;
-}
-
-/// `world.<field>[key] = <Class>(...)` of a rule: the row goes in now, under the key (a new key at
-/// the end, a key already there in its place), and its object, made from the row with no
-/// `__init__`, when the borrow of the rows ends (`EntityStore::flush`). While the kind's rows are
-/// tainted, the objects are the only truth, as before: Python's constructor makes the object of
-/// the same fields and the map stores it.
-pub(crate) fn insert_entity<R: KeyedRow>(world: &Bound<'_, PyAny>, key: &Arc<str>, row: R) -> PyResult<()> {
-    let py = world.py();
-    let store = entities_of(world)?;
-    if store.get().is_tainted(py, R::KIND)? {
-        let installed = installed().map_err(misfit_error)?;
-        let fields = PyEntityField::to_py(&row, py)?.into_bound(py);
-        let object = class_of(installed, R::KIND).bind(py).call((), Some(fields.downcast::<PyDict>()?))?;
-        return world.getattr(R::FIELD)?.set_item(&**key, object);
-    }
-    EntityStore::with_rows(&store, |rows| {
-        R::table(rows).insert(key.clone(), row);
-        Ok(())
-    })
+    AgentRow: agents;
+    FacilityRow: facilities;
+    StaffRow: staff;
+    RequestRow: support_requests;
+    TaskRow: active_tasks;
+    ZoneRow: zones;
+    EdgeRow: zone_edges;
 }
 
 /// The template of a rule that writes an entity: read and write the row; the object follows when

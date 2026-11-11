@@ -39,8 +39,9 @@ use crate::core::run::run_of;
 use crate::core::value::VPy;
 use crate::core::world_core::{attached_state, core_of, mirror_of, raw_dict_get, raw_list_append};
 use crate::eventlog::EventStore;
+use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::state::information::{NAME as INFORMATION, SCHEMA_VERSION as INFORMATION_VERSION};
-use crate::state::events::{write_error, EventRowPy, QueueStore};
+use crate::state::events::{frozen, write_error, EventRowPy, QueueStore};
 use crate::Unsupported;
 
 /// A Python error, as the host's error.
@@ -81,6 +82,34 @@ impl HostFailure for HostError {
                 ErrorClass::Other
             }
         })
+    }
+
+    /// `str(exc)`.
+    fn text(&self) -> String {
+        Python::with_gil(|py| self.0.value(py).to_string())
+    }
+
+    /// `isinstance(exc, (EventApplicationError, EventSuppressed))`.
+    fn is_outcome(&self) -> bool {
+        Python::with_gil(|py| errors::is_outcome(py, &self.0))
+    }
+}
+
+/// A contract's input as the Python rule gave it to `model_validate`. A guard and an effect's
+/// parameters are an event's values, which the event holds frozen (`_freeze_json`: a mapping proxy
+/// and tuples), so the contract's texts (`input_value=...`) are the same; `set_staff_role` builds a
+/// dict around the payload's skills (lane P8 d3). The other inputs are plain dicts and lists.
+fn contract_input<'py>(py: Python<'py>, which: &Contract, input: &V) -> PyResult<Bound<'py, PyAny>> {
+    match (which, input) {
+        (Contract::EffectParameters(operator), V::Map(fields)) if &**operator == "set_staff_role" => {
+            let built = PyDict::new(py);
+            for (key, value) in fields {
+                built.set_item(&**key, frozen(py, value)?)?;
+            }
+            Ok(built.into_any())
+        }
+        (Contract::Guard | Contract::EffectParameters(_), _) => frozen(py, input),
+        _ => input.to_py(py),
     }
 }
 
@@ -309,6 +338,11 @@ impl<'py> Host for PyHost<'py> {
         Ok(found.0.into_iter().next().and_then(|(_, logged)| logged))
     }
 
+    /// `Geo::of(world)`, the plan the PyO3 crate keeps by the stamps of the configs and the overlay.
+    fn floor_plan(&mut self) -> Result<Arc<Geo>, HostError> {
+        Ok(<Geo as GeoPy>::of(&self.world)?)
+    }
+
     /// `Model.model_validate(input).model_dump(mode="json")`, the model's error as it is.
     fn contract(&mut self, which: &Contract, input: &V) -> Result<V, HostError> {
         let py = self.py();
@@ -318,7 +352,7 @@ impl<'py> Host for PyHost<'py> {
             Contract::EffectParameters(operator) => found.get_item(&**operator)?,
             _ => found,
         };
-        let validated = model.call_method1(intern!(py, "model_validate"), (input.to_py(py)?,))?;
+        let validated = model.call_method1(intern!(py, "model_validate"), (contract_input(py, which, input)?,))?;
         let options = PyDict::new(py);
         options.set_item(intern!(py, "mode"), intern!(py, "json"))?;
         let dumped = validated.call_method(intern!(py, "model_dump"), (), Some(&options))?;

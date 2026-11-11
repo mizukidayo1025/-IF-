@@ -83,7 +83,7 @@ pub(crate) fn held_detached(world: &Bound<'_, PyAny>) -> PyResult<bool> {
 /// `staff_operations_v1` where the world holds the namespace (a tainted one is refused where the
 /// row is read: every rule writes the row, lanes b2 and b3), none where it holds something that
 /// is not a dict, and another dict is refused.
-fn staff_ops(world: &Bound<'_, PyAny>) -> PyResult<StaffOps> {
+pub(crate) fn staff_ops(world: &Bound<'_, PyAny>) -> PyResult<StaffOps> {
     let py = world.py();
     match namespace_held(world, intern!(py, STAFF_OPERATIONS), "the world holds another staff state")? {
         Held::Absent => Ok(StaffOps::None),

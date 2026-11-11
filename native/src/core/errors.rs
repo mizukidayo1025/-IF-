@@ -75,6 +75,11 @@ fn class(py: Python<'_>, outcome: Outcome) -> PyResult<&Bound<'_, PyType>> {
     })
 }
 
+/// Whether an exception is an `EventSuppressed` or an `EventApplicationError`.
+pub(crate) fn is_outcome(py: Python<'_>, error: &PyErr) -> bool {
+    [Outcome::Suppressed, Outcome::Failed].into_iter().any(|outcome| class(py, outcome).is_ok_and(|class| error.is_instance(py, class)))
+}
+
 /// The exception of an outcome, marked as made here.
 fn marked(py: Python<'_>, outcome: Outcome, text: &str) -> PyErr {
     let made = (|| -> PyResult<PyErr> {
@@ -105,15 +110,6 @@ pub(crate) fn error(py: Python<'_>, outcome: Outcome, text: impl Into<String>) -
 /// a Python call's exception into Unsupported lets it through (a check of `effect_program_v1`).
 pub(crate) fn marked_value_error(py: Python<'_>, text: &str) -> PyErr {
     marked_value(py, text)
-}
-
-/// The exception of a Python call that the rule makes at the same point and lets go as it is (the
-/// validation of a changed copy before it takes the world's place): marked like an outcome made
-/// here, so that a step which turns a call's exception into Unsupported lets it through.
-pub(crate) fn passed_on(py: Python<'_>, error: PyErr) -> PyErr {
-    // An exception that takes no attribute stays as it is, and is then refused as before.
-    let _ = error.value(py).setattr(intern!(py, MARK), true);
-    error
 }
 
 /// Whether this error is an outcome made here, rather than one a Python call raised: a step that

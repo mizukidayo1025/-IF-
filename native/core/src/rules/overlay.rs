@@ -1148,13 +1148,18 @@ pub fn write_bed(world: &World, overlay: &Held, agent_id: &str, bed: &Bed) -> Re
 
 // ---- Facilities installed during a Run ----------------------------------------------------------
 
-/// `installed_facility_placement_enabled`: schema 4, and an overlay state that is a dict (the PyO3
-/// crate says whether `model_state` holds one).
-pub fn placement_enabled(schema: &Kept<Option<i64>>, overlay_is_dict: bool) -> Result<bool> {
+/// `installed_facility_placement_enabled`: schema 4, and an overlay state that is a dict: the
+/// namespace the world holds (a detached overlay is one). Another value is refused (lane P8 d3; the
+/// PyO3 crate said whether that value was a dict before).
+pub fn placement_enabled(schema: &Kept<Option<i64>>, overlay: &Held) -> Result<bool> {
     if schema_of(schema)? != Some(4) {
         return Ok(false);
     }
-    Ok(overlay_is_dict)
+    match overlay {
+        Held::Absent => Ok(false),
+        Held::Held => Ok(true),
+        Held::Other(reason) => Err(Error::unsupported(*reason)),
+    }
 }
 
 /// `facility_grid_point`.

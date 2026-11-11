@@ -1373,29 +1373,6 @@ pub(crate) fn with_state_value<R>(
     }
 }
 
-/// `model_state.get(name)` for a kernel that reads it with Python's own reads at a rare event: a
-/// detached namespace comes back as a new document of its row (`state_mirror.read_only_state`),
-/// which nothing follows, so it must never be written. The tree otherwise.
-pub(crate) fn read_only_state<'py>(world: &Bound<'py, PyAny>, name: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
-    let py = world.py();
-    let table = world
-        .getattr(intern!(py, "model_state"))
-        .map_err(|_| Unsupported::new_err("an input has no such attribute"))?;
-    let dict = as_readable_dict(&table).ok_or_else(|| Unsupported::new_err("model_state is not a plain dict"))?;
-    match dict.get_item(name)? {
-        Some(held) if is_detached(&held) => {
-            let mirror = mirror_of(world, name)?;
-            let this = mirror.get();
-            let ops = this.ops();
-            this.with_slot(py, |slot| {
-                let row = slot.row.as_deref().ok_or_else(|| PyRuntimeError::new_err("a detached namespace always has a row"))?;
-                Ok(Some(ops.py(row)?.to_py(py)?))
-            })?
-        }
-        held => Ok(held),
-    }
-}
-
 /// `model_state.get(name)` as a new `V`, building no tree (`with_state_value`).
 pub(crate) fn state_value(world: &Bound<'_, PyAny>, name: &str) -> PyResult<Option<V>> {
     with_state_value(world, name, |value| Ok(value.cloned()))

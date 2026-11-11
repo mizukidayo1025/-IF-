@@ -54,7 +54,7 @@ pub(crate) struct Gathered {
 
 /// Whether `model_state` holds `staff_operations_v1`, as the rules take it: a value that is not a
 /// dict is no state (`Absent`); another dict than the row's is refused where a rule reads it.
-fn staff_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
+pub(crate) fn staff_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
     let py = world.py();
     let held = namespace_held(world, intern!(py, NAME), "the world holds another document than the row's")?;
     if let Held::Other(_) = held {

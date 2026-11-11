@@ -33,7 +33,7 @@ use sheltersim_core::world::World;
 
 pub(crate) use sheltersim_core::events::queue::{Key, Queue};
 pub(crate) use sheltersim_core::events::writer::{Reserved, WriteError, MAX_RULE_COUNTER};
-pub(crate) use sheltersim_core::events::{is_stable_id, EventKind, EventRow, EventStatus};
+pub(crate) use sheltersim_core::events::{EventKind, EventRow, EventStatus};
 
 use crate::core::errors::{to_py_err, OrPy};
 use crate::core::value::{V, VPy};
@@ -198,7 +198,7 @@ pub(crate) fn read_frozen(value: &Bound<'_, PyAny>, depth: usize) -> PyResult<Op
 }
 
 /// `_freeze_json` of a value: a map is a mapping proxy and a list a tuple.
-fn frozen<'py>(py: Python<'py>, value: &V) -> PyResult<Bound<'py, PyAny>> {
+pub(crate) fn frozen<'py>(py: Python<'py>, value: &V) -> PyResult<Bound<'py, PyAny>> {
     match value {
         V::List(items) => {
             let items = items.iter().map(|item| frozen(py, item)).collect::<PyResult<Vec<_>>>()?;
@@ -645,44 +645,6 @@ impl QueueStore {
             }
             Some(events)
         })
-    }
-
-    /// Whether a pending event's provenance has this key, without a copy of anything. Ok(None) if
-    /// an object is not a plain `ScheduledEvent`.
-    pub(crate) fn any_pending_has_provenance(&self, py: Python<'_>, key: &Bound<'_, PyString>) -> PyResult<Option<bool>> {
-        let class = models(py)?.event.bind(py);
-        let text = key.to_str()?;
-        // Each event's answer from its row, or its object to ask, in queue order; the objects are
-        // asked with nothing borrowed.
-        let found: Vec<Result<bool, Py<PyAny>>> = {
-            let side = self.side.try_borrow().or_py()?;
-            self.with_queue(py, |queue| {
-                queue
-                    .ordered()
-                    .iter()
-                    .map(|(_, serial)| match &queue.slot(*serial).row {
-                        Some(row) => Ok(matches!(&row.provenance, V::Map(provenance) if provenance.contains_key(text))),
-                        None => Err(side.objects[serial].clone_ref(py)),
-                    })
-                    .collect()
-            })?
-        };
-        for item in found {
-            let found = match item {
-                Ok(found) => found,
-                Err(object) => {
-                    let object = object.bind(py);
-                    if !object.get_type().is(class) {
-                        return Ok(None);
-                    }
-                    object.getattr(intern!(py, "provenance"))?.contains(key)?
-                }
-            };
-            if found {
-                return Ok(Some(true));
-            }
-        }
-        Ok(Some(false))
     }
 
     /// Whether this event is pending.
