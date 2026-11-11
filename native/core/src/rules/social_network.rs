@@ -122,6 +122,24 @@ struct NetworkWrite {
 }
 
 impl NetworkWrite {
+    /// Unsupported for a count a write would take past what is safe.
+    fn check_counts(&self, row: &SocialNetworkRow) -> Result<()> {
+        if row.interaction_count > LAST_SAFE_COUNT - self.interactions || row.information_transfer_count > LAST_SAFE_COUNT {
+            return Err(Error::unsupported("a count is too large"));
+        }
+        for write in &self.records {
+            if let Some(record) = row.relationships.map.get(write.key.as_str()) {
+                if record.contact_count > LAST_SAFE_COUNT
+                    || record.conversation_count > LAST_SAFE_COUNT
+                    || record.cooperation_count > LAST_SAFE_COUNT
+                {
+                    return Err(Error::unsupported("a count is too large"));
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn apply(&self, world: &World) -> Result<()> {
         // Says Unsupported for a tainted namespace. The Python rule's ValueError at the bound comes
         // before anything is written here; the Python rule wrote the records before that one.
@@ -137,21 +155,7 @@ impl NetworkWrite {
                     created.push(write.key.as_str());
                 }
             }
-            if row.interaction_count > LAST_SAFE_COUNT - self.interactions
-                || row.information_transfer_count > LAST_SAFE_COUNT
-            {
-                return Err(Error::unsupported("a count is too large"));
-            }
-            for write in &self.records {
-                if let Some(record) = relationships.get(write.key.as_str()) {
-                    if record.contact_count > LAST_SAFE_COUNT
-                        || record.conversation_count > LAST_SAFE_COUNT
-                        || record.cooperation_count > LAST_SAFE_COUNT
-                    {
-                        return Err(Error::unsupported("a count is too large"));
-                    }
-                }
-            }
+            self.check_counts(&row)?;
         }
         let mut row = world.row_mut::<SocialNetworkRow>(NAME)?;
         let mut transfers = 0;
@@ -219,9 +223,22 @@ fn body_of(world: &World) -> Result<Option<crate::cell::ShardRef<'_, BodyRow>>> 
     world.row::<BodyRow>(BODY_STATE).map(Some)
 }
 
-/// `record_observed_contact` of each (recipient, source), for the social propagation step, which
-/// has written its own namespace by now: Unsupported before anything is written here.
-pub fn record_observed_contacts(world: &World, pairs: &[(&str, &str)], minute: i64) -> Result<()> {
+/// What `record_observed_contacts` writes, its refusals checked (`observed_contacts`).
+pub struct ObservedContacts(NetworkWrite);
+
+impl ObservedContacts {
+    /// The writes, as the Python rule wrote them: its ValueError at the bound, and Unsupported only
+    /// if the row changed since the check.
+    pub fn apply(&self, world: &World) -> Result<()> {
+        self.0.apply(world)
+    }
+}
+
+/// `record_observed_contact` of each (recipient, source), for the social propagation step, checked
+/// before the step writes its own namespace: Unsupported for a pair of one person or with an ID
+/// JSON escapes, for a namespace without its row, and for a count past what is safe. The bound is
+/// the Python rule's ValueError, which `apply` raises after the step's own writes, as before.
+pub fn observed_contacts(world: &World, pairs: &[(&str, &str)], minute: i64) -> Result<ObservedContacts> {
     let mut records = Vec::with_capacity(pairs.len());
     for (recipient, source) in pairs {
         if recipient == source || !is_plain_id(recipient) || !is_plain_id(source) {
@@ -238,7 +255,14 @@ pub fn record_observed_contacts(world: &World, pairs: &[(&str, &str)], minute: i
             body_trust: None,
         });
     }
-    NetworkWrite { interactions: records.len() as i64, records, cooperation: false }.apply(world)
+    let write = NetworkWrite { interactions: records.len() as i64, records, cooperation: false };
+    write.check_counts(&*world.row::<SocialNetworkRow>(NAME)?)?;
+    Ok(ObservedContacts(write))
+}
+
+/// `observed_contacts` and its writes.
+pub fn record_observed_contacts(world: &World, pairs: &[(&str, &str)], minute: i64) -> Result<()> {
+    observed_contacts(world, pairs, minute)?.apply(world)
 }
 
 /// `value if isinstance(value, str) else None` of a payload's value: None for an absent key or a

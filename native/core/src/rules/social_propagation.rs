@@ -1,106 +1,228 @@
 //! The social model's step of the update phase: `_social_propagation` in
 //! `experiments/phases/update.py`, with the rules of `StressPropagationPolicy` and
 //! `ExpressivenessChannelOpennessPolicy` (`policies/social.py`) and `DeGrootContactPolicy`
-//! (`policies/alternatives.py`), which stay as the comparison base.
+//! (`policies/alternatives.py`), whose Python bodies lane L10 deleted. Moved to the core in lane
+//! P8 a4.
 //!
-//! The kernel changes nothing until it knows the Python rule would pass: `plan` computes everything,
-//! and any value the Python rule turns down, or that this kernel does not handle, gives Unsupported,
-//! so the Python step runs and raises its own text. An RNG other than `CounterRNG` and a
-//! subclass of a policy go to Python as well. A trace has its document from rules/trace.rs. Then the plan goes to the row and the tree, whose
-//! dicts have the keys in the order Python's new dicts have them, without replacing the namespace.
-//! Every float operation keeps the order of the Python expression.
+//! The step takes the psychology deltas of the minute (`Delta`, lane a3) and gives the deltas after
+//! the social model, in ID order. It changes nothing until it knows its checks pass: `update` plans
+//! everything from the rows, and any value the deleted rules turned down, or that this step does
+//! not handle, is Unsupported. Then the plan goes to the row of `social_propagation_v1` (its
+//! attached tree follows the row when the world is given back, lane P8-0c) and to
+//! `social_network_v1` (`record_observed_contacts`, whose refusals are checked before the first
+//! write). Every float operation keeps the order of the Python expression.
 //!
-//! Stress, zones and sensitivities come from the entity rows. The group comes from the snapshot of
-//! `rules/world_view.rs`: a person's household in `population_presence_v1` overrides
-//! `profile.group_id` there.
+//! The policy and its parameters are what the Run read of `controller.stress_policy`
+//! (`run::stress`); a read that raised in Python is a `PolicyFault`, which the PyO3 crate raises
+//! again (policy E14). Stress, zones and sensitivities come from the entity rows. The group comes
+//! from the core's view (`rules/world_view.rs`): a person's household in `population_presence_v1`
+//! overrides `profile.group_id` there. The trace's document goes to the host (`Host::trace`).
+//!
+//! The first tick of a Run makes the namespace, which the core cannot add to `model_state`: `update`
+//! then plans from the empty state and writes nothing, and the PyO3 crate stores the empty
+//! namespace before it calls `write`.
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
-use pyo3::intern;
-use pyo3::prelude::*;
-use pyo3::sync::GILOnceCell;
-use pyo3::types::{PyDict, PyInt, PyList, PyString, PyTuple, PyType};
-use pyo3::IntoPyObjectExt;
+use indexmap::IndexMap;
 use rustc_hash::FxBuildHasher;
 
-use crate::contacts::{
-    exact_float, exact_int, key_head, nearby_buckets, pair_key, quoted_ids, select_contacts, zone_members,
-    Basis, Bucket,
-};
-use crate::core::mathx::{max_num, min_num, py_fsum, py_max, py_min, sum_nums, Num};
-use crate::core::parallel::in_order;
-use crate::core::row::{namespace_is_absent, IdMap, PyField};
-use crate::core::rng::{label, start_draw_log, take_draw_log, KeyedDraws};
-use crate::core::tracked::{as_readable_dict, as_readable_list};
-use crate::core::world_core::{mirror_of, NamespaceMirror};
-use crate::rules::social_network::record_observed_contacts;
-use crate::rules::trace::{social_document, SocialContact, TraceSink};
-use crate::rules::world_view::view_of;
-use crate::state::entities::{entities_of, EntityStore};
+use crate::config::Fault;
+use crate::contacts::{key_head, nearby_buckets, pair_key, quoted_ids, select_contacts, zone_members, Basis, Bucket};
+use crate::error::{Error, Result};
+use crate::host::{Host, Trace};
+use crate::mathx::{max_num, min_num, py_fsum, py_max, py_min, sum_nums, Num};
+use crate::parallel::in_order;
+use crate::rng::{label, KeyedDraws};
+use crate::row::IdMap;
+use crate::rules::kit;
+use crate::rules::psychology::{Bad, Delta, PolicyFault};
+use crate::rules::social_network::{self, ObservedContacts};
+use crate::rules::trace::{social_document, SocialContact};
+use crate::rules::world_view::ViewData;
+use crate::run::held::{Held, Obj, NOT_AN_OBJECT};
+use crate::run::stress::{Model, Stress};
+use crate::state::social_network::NAME as SOCIAL_NETWORK;
 use crate::state::social_propagation::{ContactRecord, SocialRow, NAME, SCHEMA_VERSION};
-use crate::Unsupported;
+use crate::value::V;
+use crate::world::World;
 
 #[track_caller]
-fn unsupported<T>(reason: &'static str) -> PyResult<T> {
-    Err(Unsupported::new_err(reason))
+fn unsupported<T>(reason: &'static str) -> Result<T> {
+    Err(Error::unsupported(reason))
 }
 
-#[derive(Clone, Copy, PartialEq)]
-enum Policy {
-    Sparse,
-    Channel,
-    DeGroot,
+// ---- What the Run read of the policy -------------------------------------------------------------
+
+type Got<T> = std::result::Result<T, Bad>;
+
+fn fault_at(path: &[&'static str], fault: Fault) -> Bad {
+    Bad::Policy(PolicyFault { path: path.to_vec(), fault })
+}
+
+/// `controller.stress_policy`.
+fn policy_of(stress: &Stress) -> Got<&Arc<Obj>> {
+    stress.policy.as_ref().map_err(|fault| fault_at(&["stress_policy"], fault.clone()))
+}
+
+/// `controller.stress_policy.parameters`.
+fn parameters_of(stress: &Stress) -> Got<&Arc<Obj>> {
+    const PATH: [&str; 2] = ["stress_policy", "parameters"];
+    let held = policy_of(stress)?.get("parameters").map_err(|fault| fault_at(&PATH, fault))?;
+    let found = held.object().map_err(|fault| fault_at(&PATH, fault))?;
+    found.ok_or_else(|| fault_at(&PATH, Fault::refused(NOT_AN_OBJECT)))
+}
+
+/// A parameter as the Run read it.
+fn parameter<'a>(parameters: &'a Obj, name: &'static str) -> Got<&'a Held> {
+    parameters.get(name).map_err(|fault| fault_at(&["stress_policy", "parameters", name], fault))
+}
+
+/// Python's truth of a value the Run read.
+fn truth(held: &Held) -> Result<bool> {
+    Ok(match held {
+        Held::Value(value) => match value {
+            V::Null => false,
+            V::Bool(flag) => *flag,
+            V::Int(number) => *number != 0,
+            V::Big(_) => true,
+            V::Float(number) => *number != 0.0,
+            V::Str(text) => !text.is_empty(),
+            V::List(items) => !items.is_empty(),
+            V::Map(map) => !map.is_empty(),
+        },
+        Held::Text(text) => !text.is_empty(),
+        _ => return unsupported("the flag is not a plain value"),
+    })
+}
+
+/// `stress_policy.parameters.enabled`, by its truth: the step does nothing without it.
+pub fn enabled(stress: &Stress) -> Got<bool> {
+    Ok(truth(parameter(parameters_of(stress)?, "enabled")?)?)
+}
+
+/// `exact_int` of a parameter.
+fn int_of(held: &Held) -> Result<i64> {
+    match held {
+        Held::Value(V::Int(number)) => Ok(*number),
+        Held::Value(V::Big(_)) => unsupported("int out of range"),
+        _ => unsupported("not an int"),
+    }
+}
+
+/// A float, or an int that `SocialPropagationParameters` allows (within 0..1, so `0` or `1`).
+fn number_of(value: &V) -> Result<Num> {
+    match value {
+        V::Float(number) => Ok(Num::Float(*number)),
+        V::Int(whole @ 0..=1) => Ok(Num::Int(*whole)),
+        V::Int(_) => unsupported("an int coefficient is outside 0..1"),
+        V::Big(_) => unsupported("int out of range"),
+        _ => unsupported("not an int"),
+    }
+}
+
+fn number_param(held: &Held) -> Result<Num> {
+    match held {
+        Held::Value(value) => number_of(value),
+        _ => unsupported("not an int"),
+    }
 }
 
 /// `SocialPropagationParameters`. A rate or a strength may be an int (the config's `0` or `1`):
 /// where it meets a float it is the same f64, and the two caps keep their type, because
 /// `min(cap, x)` returns the int itself, which the trace writes as `0` and not `0.0`.
-struct Settings {
-    policy: Policy,
-    maximum: i64,
-    minimum_contact_minutes: i64,
-    cooldown_minutes: i64,
-    spread: f64,
-    recovery: f64,
-    pair_cap: Num,
-    agent_cap: Num,
-    family_strength: f64,
-    zone_strength: f64,
-    nearby_strength: f64,
+#[derive(Clone, Copy, Debug)]
+pub struct Settings {
+    pub policy: Model,
+    pub maximum: i64,
+    pub minimum_contact_minutes: i64,
+    pub cooldown_minutes: i64,
+    pub spread: f64,
+    pub recovery: f64,
+    pub pair_cap: Num,
+    pub agent_cap: Num,
+    pub family_strength: f64,
+    pub zone_strength: f64,
+    pub nearby_strength: f64,
 }
+
+/// The policy by its class, then its parameters, in the order the kernel read them.
+pub fn settings(stress: &Stress) -> Got<Settings> {
+    let policy = stress.model.clone().map_err(|fault| fault_at(&["stress_policy"], fault))?;
+    let parameters = parameters_of(stress)?;
+    let int = |name| -> Got<i64> { Ok(int_of(parameter(parameters, name)?)?) };
+    let cap = |name| -> Got<Num> { Ok(number_param(parameter(parameters, name)?)?) };
+    let float = |name| -> Got<f64> { cap(name).map(Num::value) };
+    Ok(Settings {
+        policy,
+        maximum: int("max_contacts_per_agent")?,
+        minimum_contact_minutes: int("minimum_contact_minutes")?,
+        cooldown_minutes: int("cooldown_minutes")?,
+        spread: float("stress_spread_per_minute")?,
+        recovery: float("natural_recovery_per_minute")?,
+        pair_cap: cap("max_pair_stress_increase")?,
+        agent_cap: cap("max_agent_stress_increase_per_minute")?,
+        family_strength: float("family_channel_strength")?,
+        zone_strength: float("same_zone_channel_strength")?,
+        nearby_strength: float("nearby_zone_channel_strength")?,
+    })
+}
+
+/// A plain dict the Run read.
+pub type Table = IndexMap<Arc<str>, V>;
+
+/// `parameters.source_expressiveness_by_agent`, a plain dict.
+pub fn expressiveness(stress: &Stress) -> Got<&Table> {
+    match parameter(parameters_of(stress)?, "source_expressiveness_by_agent")? {
+        Held::Value(V::Map(table)) => Ok(table),
+        _ => Err(Bad::Refused(Error::unsupported("the expressiveness is not a dict"))),
+    }
+}
+
+/// `stress_policy.policy_version`, as the trace's document holds it.
+pub fn policy_version(stress: &Stress) -> Got<V> {
+    const PATH: [&str; 2] = ["stress_policy", "policy_version"];
+    match policy_of(stress)?.get("policy_version").map_err(|fault| fault_at(&PATH, fault))? {
+        Held::Value(value) => Ok(value.clone()),
+        Held::Text(text) => Ok(V::Str(text.clone())),
+        _ => Err(Bad::Refused(Error::unsupported("the policy version is not a plain value"))),
+    }
+}
+
+// ---- The plan ------------------------------------------------------------------------------------
 
 /// One person's values of this tick. The people of a plan are sorted by id, and differ in id.
-struct Person<'a> {
-    id: &'a str,
-    group: Option<&'a str>,
-    zone: &'a str,
-    stress: f64,
-    sensitivity: f64,
-    expressiveness: f64,
+pub struct Person<'a> {
+    pub id: &'a str,
+    pub group: Option<&'a str>,
+    pub zone: &'a str,
+    pub stress: f64,
+    pub sensitivity: f64,
+    pub expressiveness: f64,
     /// The stress of the psychology delta.
-    base: f64,
+    pub base: f64,
 }
 
-struct Plan {
+pub struct Plan {
     /// The new stress of each person.
-    stresses: Vec<f64>,
+    pub stresses: Vec<f64>,
     /// The new contacts, in the order of Python's new dict.
-    contacts: IdMap<ContactRecord>,
+    pub contacts: IdMap<ContactRecord>,
     /// The new cooldowns, sorted, or None if the row has these already.
-    cooldowns: Option<IdMap<i64>>,
+    pub cooldowns: Option<IdMap<i64>>,
     /// (recipient, source) of what the step records in `social_network_v1`, in its order.
-    observed: Vec<(usize, usize)>,
+    pub observed: Vec<(usize, usize)>,
     /// What `SocialPropagationResult` holds for its trace, if the Run keeps one.
-    trace: Option<PlanTrace>,
+    pub trace: Option<PlanTrace>,
 }
 
 #[derive(Default)]
-struct PlanTrace {
+pub struct PlanTrace {
     /// By recipient, source and basis, as `update` sorts them.
-    contacts: Vec<SocialContact>,
-    contributing: i64,
-    total_added: f64,
+    pub contacts: Vec<SocialContact>,
+    pub contributing: i64,
+    pub total_added: f64,
 }
 
 /// What `ExpressivenessChannelOpennessPolicy.update` finds of each eligible contact.
@@ -121,8 +243,9 @@ struct DeGrootDetails {
     applied: f64,
 }
 
-fn checked<T>(value: Option<T>) -> PyResult<T> {
-    value.ok_or_else(|| Unsupported::new_err("a minute does not fit"))
+#[track_caller]
+fn checked<T>(value: Option<T>) -> Result<T> {
+    value.ok_or_else(|| Error::unsupported("a minute does not fit"))
 }
 
 /// What `plan` reads for every person, shared by the threads of its compute.
@@ -161,7 +284,7 @@ struct PersonPlan {
 }
 
 /// The compute of one recipient: their contacts and new stress. It reads only `shared`.
-fn plan_person(shared: &Shared<'_>, me: usize) -> PyResult<PersonPlan> {
+fn plan_person(shared: &Shared<'_>, me: usize) -> Result<PersonPlan> {
     let Shared { minute, last_minute, cooldown_after, settings, people, quoted, .. } = *shared;
     let person = &people[me];
     let mut buckets = Vec::new();
@@ -212,7 +335,7 @@ fn plan_person(shared: &Shared<'_>, me: usize) -> PyResult<PersonPlan> {
             if traced {
                 minutes_of.push((source, duration));
             }
-            if settings.policy == Policy::Sparse && minute >= cooldown.unwrap_or(0) {
+            if settings.policy == Model::Sparse && minute >= cooldown.unwrap_or(0) {
                 let difference = py_max(0.0, people[source].stress - person.stress);
                 let contribution = min_num(
                     settings.pair_cap,
@@ -239,7 +362,7 @@ fn plan_person(shared: &Shared<'_>, me: usize) -> PyResult<PersonPlan> {
                 }
             }
         }
-        if traced && settings.policy == Policy::Sparse {
+        if traced && settings.policy == Model::Sparse {
             out.trace_contacts.push(SocialContact {
                 recipient: me,
                 source,
@@ -257,18 +380,18 @@ fn plan_person(shared: &Shared<'_>, me: usize) -> PyResult<PersonPlan> {
         }
     }
     // Selected sources differ, and people are indexed in ID order: `contacts.sort`.
-    if traced && settings.policy == Policy::Sparse {
+    if traced && settings.policy == Model::Sparse {
         out.trace_contacts.sort_by_key(|contact| contact.source);
     }
 
     let stress = match settings.policy {
-        Policy::Sparse => {
+        Model::Sparse => {
             // Every selected contact, by source (people are indexed in ID order).
             out.observed.extend(selected.iter().map(|&(source, _)| (me, source)));
             out.observed.sort_unstable();
             py_min(1.0, py_max(0.0, person.base - settings.recovery + additions))
         }
-        Policy::Channel => {
+        Model::Channel => {
             lasting.sort_unstable_by_key(|contact| contact.0);
             out.observed.extend(lasting.iter().map(|&(source, _)| (me, source)));
             let can_contribute = minute >= shared.cooldowns_before.get(person.id).copied().unwrap_or(0);
@@ -310,7 +433,7 @@ fn plan_person(shared: &Shared<'_>, me: usize) -> PyResult<PersonPlan> {
             }
             stress
         }
-        Policy::DeGroot => {
+        Model::DeGroot => {
             lasting.sort_unstable_by_key(|contact| contact.0);
             out.observed.extend(lasting.iter().map(|&(source, _)| (me, source)));
             let mut details = traced.then(DeGrootDetails::default);
@@ -348,7 +471,10 @@ fn plan_person(shared: &Shared<'_>, me: usize) -> PyResult<PersonPlan> {
     Ok(out)
 }
 
-fn plan(
+/// The plan of a minute from plain values: the people sorted by ID, the neighbors of their zones,
+/// and the state before (empty on the first tick). Changes nothing.
+#[allow(clippy::too_many_arguments)]
+pub fn plan(
     seed: &str,
     minute: i64,
     settings: &Settings,
@@ -357,7 +483,7 @@ fn plan(
     previous: &IdMap<ContactRecord>,
     cooldowns_before: &IdMap<i64>,
     traced: bool,
-) -> PyResult<Plan> {
+) -> Result<Plan> {
     if previous.values().any(|record| record.last_seen_minute < 0 || record.consecutive_minutes < 0) {
         return unsupported("a contact field is negative");
     }
@@ -382,13 +508,13 @@ fn plan(
         .map(|&zone| (zone, nearby_buckets(zone, neighbors, &members)))
         .collect();
 
-    let keep_all = settings.policy == Policy::Sparse;
+    let keep_all = settings.policy == Model::Sparse;
     let mut cooldowns: BTreeMap<&str, i64> = cooldowns_before
         .iter()
         .filter(|(_, &due)| keep_all || due > minute)
         .map(|(id, &due)| (&**id, due))
         .collect();
-    if settings.policy == Policy::DeGroot {
+    if settings.policy == Model::DeGroot {
         cooldowns.clear();
     }
 
@@ -458,7 +584,7 @@ fn channel_stress(
     person: &Person<'_>,
     eligible: &[(usize, Basis)],
     details: Option<&mut ChannelDetails>,
-) -> PyResult<(f64, Num)> {
+) -> Result<(f64, Num)> {
     let weights: Vec<f64> = eligible
         .iter()
         .map(|&(source, basis)| {
@@ -470,8 +596,7 @@ fn channel_stress(
             people[source].expressiveness * channel * person.sensitivity
         })
         .collect();
-    let weight_total =
-        py_fsum(&weights).ok_or_else(|| Unsupported::new_err("weights are not finite"))?;
+    let weight_total = py_fsum(&weights).ok_or_else(|| Error::unsupported("weights are not finite"))?;
     // Weights are products of factors in 0..1, so a total of 0 means every contribution is 0:
     // no shift, and `details` keep no weights, so the trace has each contact as one without a
     // share, as the Python rule has it (#87, 元 #301).
@@ -489,8 +614,7 @@ fn channel_stress(
             .collect();
         // math.fsum reads an int as its float.
         let pair_values: Vec<f64> = pair_shifts.iter().map(|value| value.value()).collect();
-        let raw_shift =
-            py_fsum(&pair_values).ok_or_else(|| Unsupported::new_err("shifts are not finite"))?;
+        let raw_shift = py_fsum(&pair_values).ok_or_else(|| Error::unsupported("shifts are not finite"))?;
         shift = max_num(settings.agent_cap.neg(), min_num(settings.agent_cap, Num::Float(raw_shift)));
         shift = max_num(Num::Float(-person.base), min_num(Num::Float(1.0 - person.base), shift));
         if let Some(details) = details {
@@ -535,224 +659,129 @@ fn degroot_stress(
     recovered + applied
 }
 
-// ---- The step ----------------------------------------------------------------------------------
+// ---- The step ------------------------------------------------------------------------------------
 
-struct Classes {
-    sparse: Py<PyType>,
-    channel: Py<PyType>,
-    degroot: Py<PyType>,
-    counter_rng: Py<PyType>,
-    delta: Py<PyType>,
+/// `controller.zone_neighbors` as the PyO3 crate read it: by zone, the neighbors as strs or the
+/// refusal of that zone's value, which the step raises only for a zone somebody is in; or the
+/// refusal of a table that is not a dict.
+pub type Neighbors = std::result::Result<HashMap<String, std::result::Result<Vec<String>, &'static str>>, &'static str>;
+
+/// What the step reads besides the rows.
+pub struct Inputs<'a> {
+    pub settings: &'a Settings,
+    /// `source_expressiveness_by_agent`, which the channel model reads.
+    pub expressiveness: &'a Table,
+    pub view: &'a ViewData,
+    /// The psychology deltas of the minute, each checked to be of it.
+    pub deltas: &'a [Delta],
+    pub minute: i64,
+    /// `str(rng.seed)` of the step's `CounterRNG`.
+    pub seed: &'a str,
+    pub neighbors: &'a Neighbors,
+    /// The Run keeps a trace.
+    pub traced: bool,
 }
 
-static CLASSES: GILOnceCell<Classes> = GILOnceCell::new();
-
-fn classes(py: Python<'_>) -> PyResult<&'static Classes> {
-    CLASSES.get_or_try_init(py, || {
-        let class = |module: &str, name: &str| -> PyResult<Py<PyType>> {
-            Ok(py.import(module)?.getattr(name)?.downcast_into::<PyType>()?.unbind())
-        };
-        Ok(Classes {
-            sparse: class("sheltersim.policies.social", "StressPropagationPolicy")?,
-            channel: class("sheltersim.policies.social", "ExpressivenessChannelOpennessPolicy")?,
-            degroot: class("sheltersim.policies.alternatives", "DeGrootContactPolicy")?,
-            counter_rng: class("sheltersim.core.rng", "CounterRNG")?,
-            delta: class("sheltersim.policies.psychology", "AgentStateDelta")?,
-        })
-    })
+/// A minute of the social model, planned: the new deltas and what is to be written.
+pub struct Planned {
+    /// The place in the input of each delta, in ID order.
+    pub order: Vec<usize>,
+    /// The people's IDs, in ID order.
+    pub ids: Vec<Arc<str>>,
+    /// The plan; its contacts and cooldowns are taken out when it is written.
+    pub plan: Plan,
+    observed: Option<ObservedContacts>,
+    /// The namespace is not in `model_state`: the PyO3 crate stores the empty one, then calls
+    /// `write`. False once written.
+    pub first_use: bool,
+    written: bool,
 }
 
-fn settings_of(policy: &Bound<'_, PyAny>, parameters: &Bound<'_, PyAny>, known: &Classes) -> PyResult<Settings> {
-    let py = policy.py();
-    let kind = policy.get_type();
-    let policy = if kind.is(&known.channel) {
-        Policy::Channel
-    } else if kind.is(&known.sparse) {
-        Policy::Sparse
-    } else if kind.is(&known.degroot) {
-        Policy::DeGroot
-    } else {
-        return unsupported("a policy this kernel does not know");
-    };
-    let int = |name: &Bound<'_, PyString>| exact_int(&parameters.getattr(name)?);
-    let float = |name: &Bound<'_, PyString>| number(&parameters.getattr(name)?).map(Num::value);
-    let cap = |name: &Bound<'_, PyString>| number(&parameters.getattr(name)?);
-    Ok(Settings {
-        policy,
-        maximum: int(intern!(py, "max_contacts_per_agent"))?,
-        minimum_contact_minutes: int(intern!(py, "minimum_contact_minutes"))?,
-        cooldown_minutes: int(intern!(py, "cooldown_minutes"))?,
-        spread: float(intern!(py, "stress_spread_per_minute"))?,
-        recovery: float(intern!(py, "natural_recovery_per_minute"))?,
-        pair_cap: cap(intern!(py, "max_pair_stress_increase"))?,
-        agent_cap: cap(intern!(py, "max_agent_stress_increase_per_minute"))?,
-        family_strength: float(intern!(py, "family_channel_strength"))?,
-        zone_strength: float(intern!(py, "same_zone_channel_strength"))?,
-        nearby_strength: float(intern!(py, "nearby_zone_channel_strength"))?,
-    })
-}
-
-/// A float, or an int that `SocialPropagationParameters` allows (within 0..1, so `0` or `1`).
-fn number(value: &Bound<'_, PyAny>) -> PyResult<Num> {
-    if value.downcast_exact::<pyo3::types::PyFloat>().is_ok() {
-        return exact_float(value).map(Num::Float);
+impl Planned {
+    /// The deltas after the social model, in ID order: each base delta with its new stress.
+    pub fn deltas(&self, base: &[Delta]) -> Vec<Delta> {
+        self.order
+            .iter()
+            .zip(&self.plan.stresses)
+            .map(|(&place, &stress)| Delta { stress, ..base[place].clone() })
+            .collect()
     }
-    match exact_int(value)? {
-        whole @ 0..=1 => Ok(Num::Int(whole)),
-        _ => unsupported("an int coefficient is outside 0..1"),
+
+    /// Whether the plan is written.
+    pub fn is_written(&self) -> bool {
+        self.written
     }
 }
 
-fn unit_stress(value: &Bound<'_, PyAny>) -> PyResult<f64> {
-    let value = exact_float(value)?;
-    if !(0.0..=1.0).contains(&value) {
-        return unsupported("a stress is outside 0..1");
-    }
-    Ok(value)
-}
-
-/// `sorted(zone_neighbors.get(zone, ()))` needs these as strs.
-fn neighbors_of(zone_neighbors: &Bound<'_, PyAny>, zones: &[&str]) -> PyResult<HashMap<String, Vec<String>>> {
-    let py = zone_neighbors.py();
-    let Some(table) = as_readable_dict(zone_neighbors) else {
-        return unsupported("the zone neighbors are not a dict");
-    };
+/// The neighbors of the people's zones, or the refusal of the first zone whose value the step
+/// cannot read (people in ID order).
+fn neighbors_of(neighbors: &Neighbors, zones: &[&str]) -> Result<HashMap<String, Vec<String>>> {
+    let table = neighbors.as_ref().map_err(|reason| Error::unsupported(*reason))?;
     let mut found = HashMap::with_capacity(zones.len());
     for &zone in zones {
         if found.contains_key(zone) {
             continue;
         }
-        let Some(names) = table.get_item(PyString::new(py, zone))? else {
-            continue;
-        };
-        let mut texts = Vec::with_capacity(4);
-        let mut add = |name: Bound<'_, PyAny>| -> PyResult<()> {
-            let Ok(name) = name.downcast_exact::<PyString>() else {
-                return unsupported("a neighbor is not a str");
-            };
-            texts.push(name.to_str().map_err(|_| Unsupported::new_err("not UTF-8"))?.to_owned());
-            Ok(())
-        };
-        if let Ok(names) = names.downcast_exact::<PyTuple>() {
-            names.iter().try_for_each(&mut add)?;
-        } else if let Some(names) = as_readable_list(&names) {
-            names.iter().try_for_each(&mut add)?;
-        } else {
-            return unsupported("the neighbors of a zone are not a tuple or a list");
+        match table.get(zone) {
+            None => {}
+            Some(Ok(names)) => {
+                found.insert(zone.to_owned(), names.clone());
+            }
+            Some(Err(reason)) => return Err(Error::unsupported(*reason)),
         }
-        found.insert(zone.to_owned(), texts);
     }
     Ok(found)
 }
 
-/// One person's delta and what the view says of them.
-struct Input<'py> {
-    delta: Bound<'py, PyAny>,
-    id: Bound<'py, PyString>,
-    group: Option<Arc<str>>,
-    base: f64,
-    expressiveness: f64,
-}
-
-/// Python orders str by code point, the same as UTF-8 bytes. Ids were checked to have UTF-8.
-fn id_bytes<'a>(input: &'a Input<'_>) -> &'a [u8] {
-    input.id.to_str().unwrap_or("").as_bytes()
-}
-
-/// `_social_propagation` of the update phase (experiments/phases/segments.py).
-#[pyfunction]
-pub(crate) fn update_social_propagation<'py>(
-    controller: &Bound<'py, PyAny>,
-    world: &Bound<'py, PyAny>,
-    view: &Bound<'py, PyAny>,
-    base_deltas: &Bound<'py, PyAny>,
-    minute: &Bound<'py, PyAny>,
-    rng: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyAny>> {
-    let py = world.py();
-    let policy = controller.getattr(intern!(py, "stress_policy"))?;
-    let parameters = policy.getattr(intern!(py, "parameters"))?;
-    if !parameters.getattr(intern!(py, "enabled"))?.is_truthy()? {
-        return Ok(base_deltas.clone());
-    }
-    let sink = TraceSink::of(controller)?;
-    let known = classes(py)?;
-    if !rng.get_type().is(&known.counter_rng) {
-        return unsupported("the RNG is not a CounterRNG");
-    }
-    let settings = settings_of(&policy, &parameters, known)?;
-    let minute_value = exact_int(minute)?;
-    if minute_value < 0 || exact_int(&view.getattr(intern!(py, "minute_index"))?)? != minute_value {
-        return unsupported("the view is at another minute");
-    }
-    let Ok(deltas) = base_deltas.downcast_exact::<PyTuple>() else {
-        return unsupported("the deltas are not a tuple");
-    };
-
-    // Who is here, with what only Python holds.
-    let rust_view = view_of(view)?;
-    let view_data = rust_view.get().data();
-    if view_data.agents.len() != deltas.len() {
+/// `_social_propagation` of the update phase, with the model on: the plan of the minute and, when
+/// the namespace is in `model_state`, its writes. Unsupported before anything changes.
+pub fn update(world: &World, inputs: &Inputs<'_>) -> Result<Planned> {
+    let settings = inputs.settings;
+    let view = inputs.view;
+    let deltas = inputs.deltas;
+    if view.agents.len() != deltas.len() {
         return unsupported("the view and the deltas have different people");
     }
-    let expressiveness = parameters.getattr(intern!(py, "source_expressiveness_by_agent"))?;
-    let Some(expressiveness) = as_readable_dict(&expressiveness) else {
-        return unsupported("the expressiveness is not a dict");
-    };
-    let mut inputs = Vec::with_capacity(deltas.len());
-    for delta in deltas.iter() {
-        if !delta.get_type().is(&known.delta) {
-            return unsupported("a delta of another class");
-        }
-        let id = delta.getattr(intern!(py, "agent_id"))?;
-        let Ok(id) = id.downcast_into_exact::<PyString>() else {
-            return unsupported("an id is not a str");
-        };
-        if id.to_str().is_err() {
-            return unsupported("an id is not UTF-8");
-        }
-        if exact_int(&delta.getattr(intern!(py, "minute_index"))?)? != minute_value {
-            return unsupported("a delta is at another minute");
-        }
-        let Some(agent) = view_data.index_of(id.to_str()?) else {
+    // Each person's group and expressiveness, from the view and the policy.
+    let mut found = Vec::with_capacity(deltas.len());
+    for (place, delta) in deltas.iter().enumerate() {
+        let Some(agent) = view.index_of(&delta.agent_id) else {
             return unsupported("the view and the deltas have different people");
         };
-        let group = view_data.agents[agent].group_id.clone();
-        let source_value = if settings.policy == Policy::Channel && !expressiveness.is_empty() {
-            match expressiveness.get_item(&id)? {
-                Some(value) => number(&value)?.value(),
+        let expressiveness = if settings.policy == Model::Channel && !inputs.expressiveness.is_empty() {
+            match inputs.expressiveness.get(&*delta.agent_id) {
+                Some(value) => number_of(value)?.value(),
                 None => 1.0,
             }
         } else {
             1.0
         };
-        inputs.push(Input {
-            base: unit_stress(&delta.getattr(intern!(py, "stress"))?)?,
-            delta,
-            id,
-            group,
-            expressiveness: source_value,
-        });
+        if !(0.0..=1.0).contains(&delta.stress) {
+            return unsupported("a stress is outside 0..1");
+        }
+        found.push((place, view.agents[agent].group_id.as_deref(), expressiveness));
     }
-    if !inputs.windows(2).all(|pair| id_bytes(&pair[0]) < id_bytes(&pair[1])) {
+    let id_of = |item: &(usize, Option<&str>, f64)| deltas[item.0].agent_id.as_bytes();
+    if !found.windows(2).all(|pair| id_of(&pair[0]) < id_of(&pair[1])) {
         // Deltas come sorted. The Python rules sort them, except DeGroot's, which keeps their order.
-        if settings.policy == Policy::DeGroot {
+        if settings.policy == Model::DeGroot {
             return unsupported("the deltas are not in id order");
         }
-        inputs.sort_unstable_by(|first, second| id_bytes(first).cmp(id_bytes(second)));
-        if inputs.windows(2).any(|pair| id_bytes(&pair[0]) == id_bytes(&pair[1])) {
+        found.sort_unstable_by(|first, second| id_of(first).cmp(id_of(second)));
+        if found.windows(2).any(|pair| id_of(&pair[0]) == id_of(&pair[1])) {
             return unsupported("two deltas for one person");
         }
     }
 
     // The entity rows.
-    let rows = EntityStore::with_rows(&entities_of(world)?, |rows| {
-        if rows.agents.len() != inputs.len() {
+    let rows = {
+        let rows = world.rows()?;
+        if rows.agents.len() != found.len() {
             return unsupported("the view and the world have different people");
         }
-        let mut found = Vec::with_capacity(inputs.len());
-        for input in &inputs {
-            let id = input.id.to_str()?;
+        let mut people_rows = Vec::with_capacity(found.len());
+        for item in &found {
+            let id = &*deltas[item.0].agent_id;
             let Some(row) = rows.agents.get(id) else {
                 return unsupported("the view and the world have different people");
             };
@@ -762,207 +791,83 @@ pub(crate) fn update_social_propagation<'py>(
             if !(0.0..=1.0).contains(&row.stress) || !row.profile.stress_sensitivity.is_finite() {
                 return unsupported("a stress is outside 0..1");
             }
-            found.push((row.zone_id.clone(), row.stress, row.profile.stress_sensitivity));
+            people_rows.push((row.zone_id.clone(), row.stress, row.profile.stress_sensitivity));
         }
-        Ok(found)
-    })?;
+        people_rows
+    };
     let zones: Vec<&str> = rows.iter().map(|(zone, _, _)| &**zone).collect();
-    let neighbors = neighbors_of(&controller.getattr(intern!(py, "zone_neighbors"))?, &zones)?;
-    let mut people = Vec::with_capacity(inputs.len());
-    for (input, (zone, stress, sensitivity)) in inputs.iter().zip(&rows) {
-        people.push(Person {
-            id: input.id.to_str()?,
-            group: input.group.as_deref(),
-            zone,
-            stress: *stress,
-            sensitivity: *sensitivity,
-            expressiveness: input.expressiveness,
-            base: input.base,
-        });
-    }
-
-    let seed = rng.getattr(intern!(py, "seed"))?;
-    if !seed.is_exact_instance_of::<PyInt>() {
-        return unsupported("the seed is not an int");
-    }
-    let seed = seed.str()?;
-    let mirror = mirror_of(world, NAME)?;
-    // The first tick of a Run: `_read_runtime_state(None)`, and this step makes the namespace.
-    let first_use = namespace_is_absent(world, intern!(py, NAME))?;
-    let Plan { stresses, contacts, cooldowns, observed, trace } = if first_use {
-        plan(seed.to_str()?, minute_value, &settings, &people, &neighbors, &IdMap::default(), &IdMap::default(), sink.is_some())?
-    } else {
-        NamespaceMirror::with_row::<SocialRow, _>(&mirror, |row| {
-            if row.schema_version != SCHEMA_VERSION {
-                return unsupported("another schema version");
-            }
-            plan(
-                seed.to_str()?,
-                minute_value,
-                &settings,
-                &people,
-                &neighbors,
-                &row.contacts,
-                &row.agent_cooldown_until,
-                sink.is_some(),
-            )
-        })?
-    };
-
-    // The deltas first: they run a little Python, and nothing is written yet. A delta that keeps
-    // its stress is itself, since a delta is frozen. The people are in id order, as the Python
-    // rules sort them; DeGroot's keeps the order of the deltas, which was checked to be the same.
-    let mut final_deltas = Vec::with_capacity(inputs.len());
-    for (input, stress) in inputs.iter().zip(&stresses) {
-        final_deltas.push(if stress.to_bits() == input.base.to_bits() {
-            input.delta.clone()
-        } else {
-            input.delta.call_method1(intern!(py, "with_stress"), (*stress,))?
-        });
-    }
-    let final_deltas = PyTuple::new(py, final_deltas)?;
-
-    if first_use {
-        let state = PyDict::new(py);
-        state.set_item(intern!(py, "schema_version"), SCHEMA_VERSION)?;
-        state.set_item(intern!(py, "contacts"), PyDict::new(py))?;
-        state.set_item(intern!(py, "agent_cooldown_until"), PyDict::new(py))?;
-        world.getattr(intern!(py, "model_state"))?.set_item(NAME, state)?;
-    }
-    // The row and the tree. The namespace's dict gets the order of the Python rule's new one too.
-    NamespaceMirror::with_row_tree::<SocialRow, _>(&mirror, |row, tree| {
-        tree.order_keys([
-            intern!(py, "schema_version"),
-            intern!(py, "contacts"),
-            intern!(py, "agent_cooldown_until"),
-        ])?;
-        if let Some(cooldowns) = cooldowns {
-            let node = tree.child(intern!(py, "agent_cooldown_until"))?;
-            node.clear()?;
-            for (id, due) in &cooldowns {
-                node.set_str(id, due)?;
-            }
-            row.agent_cooldown_until = cooldowns;
-        }
-        Ok(())
-    })?;
-    // Python's dicts share the minute's one int, and so do these.
-    let minute_object = minute.clone();
-    NamespaceMirror::refill_record_map(
-        &mirror,
-        intern!(py, "contacts"),
-        [intern!(py, "last_seen_minute"), intern!(py, "consecutive_minutes")],
-        contacts.iter().map(|(key, record)| {
-            Ok((
-                PyString::new(py, key),
-                [minute_object.clone(), record.consecutive_minutes.into_bound_py_any(py)?],
-            ))
-        }),
-    )?;
-    NamespaceMirror::with_row::<SocialRow, _>(&mirror, |row| {
-        row.contacts = contacts;
-        Ok(())
-    })?;
-
-    // What it records in `social_network_v1`, after every write, as the Python step does.
-    if world.getattr(intern!(py, "model_state"))?.contains(intern!(py, "social_network_v1"))? {
-        let mut ids = Vec::with_capacity(observed.len());
-        for &(recipient, source) in &observed {
-            ids.push((inputs[recipient].id.to_str()?, inputs[source].id.to_str()?));
-        }
-        match record_observed_contacts(&world, &ids, minute_value) {
-            Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                // That namespace's own rules decide, in their own words; this one is written.
-                let pairs = PyList::empty(py);
-                for &(recipient, source) in &observed {
-                    pairs.append((&inputs[recipient].id, &inputs[source].id))?;
-                }
-                py.import(intern!(py, "sheltersim.domain.social_network"))?
-                    .getattr(intern!(py, "record_observed_contacts"))?
-                    .call1((world, pairs, minute))?;
-            }
-            other => other?,
-        }
-    }
-    if let (Some(sink), Some(trace)) = (sink, trace) {
-        let ids: Vec<&str> = people.iter().map(|person| person.id).collect();
-        let version = policy.getattr(intern!(py, "policy_version"))?;
-        sink.social(&social_document(py, minute, &version, &ids, &trace.contacts, trace.contributing, trace.total_added)?)?;
-    }
-    Ok(final_deltas.into_any())
-}
-
-// ---- For the bit comparisons of tests/integration/test_social_propagation_row.py ---------------
-
-/// `plan` from plain values: `ids` sorted, `rows` of (group or None, zone, stress, sensitivity,
-/// expressiveness, base stress), ints (max contacts, minimum minutes, cooldown) and floats (spread,
-/// recovery, pair cap, agent cap, family, same zone, nearby). Returns the stresses, the contacts
-/// and cooldowns as lists in order, and the observed pairs. It reads the state as a row does.
-#[pyfunction]
-#[allow(clippy::too_many_arguments, clippy::type_complexity)]
-fn plan_of_values(
-    policy: &str,
-    seed: &str,
-    minute: i64,
-    ints: [i64; 3],
-    floats: [f64; 7],
-    ids: Vec<String>,
-    rows: Vec<(Option<String>, String, f64, f64, f64, f64)>,
-    neighbors: HashMap<String, Vec<String>>,
-    previous: &Bound<'_, PyAny>,
-    cooldowns: &Bound<'_, PyAny>,
-) -> PyResult<(Vec<f64>, Vec<(String, i64, i64)>, Vec<(String, i64)>, Vec<(usize, usize)>)> {
-    let misfit = |error: crate::core::world_core::Misfit| Unsupported::new_err(error.0);
-    let previous = <IdMap<ContactRecord> as PyField>::from_py(previous).map_err(misfit)?;
-    let cooldowns = <IdMap<i64> as PyField>::from_py(cooldowns).map_err(misfit)?;
-    let settings = Settings {
-        policy: match policy {
-            "sparse" => Policy::Sparse,
-            "channel" => Policy::Channel,
-            "degroot" => Policy::DeGroot,
-            _ => return unsupported("a policy this kernel does not know"),
-        },
-        maximum: ints[0],
-        minimum_contact_minutes: ints[1],
-        cooldown_minutes: ints[2],
-        spread: floats[0],
-        recovery: floats[1],
-        pair_cap: Num::Float(floats[2]),
-        agent_cap: Num::Float(floats[3]),
-        family_strength: floats[4],
-        zone_strength: floats[5],
-        nearby_strength: floats[6],
-    };
-    let people: Vec<Person<'_>> = ids
+    let neighbors = neighbors_of(inputs.neighbors, &zones)?;
+    let people: Vec<Person<'_>> = found
         .iter()
         .zip(&rows)
-        .map(|(id, (group, zone, stress, sensitivity, expressiveness, base))| Person {
-            id,
-            group: group.as_deref(),
+        .map(|(&(place, group, expressiveness), (zone, stress, sensitivity))| Person {
+            id: &deltas[place].agent_id,
+            group,
             zone,
             stress: *stress,
             sensitivity: *sensitivity,
-            expressiveness: *expressiveness,
-            base: *base,
+            expressiveness,
+            base: deltas[place].stress,
         })
         .collect();
-    let plan = plan(seed, minute, &settings, &people, &neighbors, &previous, &cooldowns, false)?;
-    let new_cooldowns = plan.cooldowns.as_ref().unwrap_or(&cooldowns);
-    Ok((
-        plan.stresses,
-        plan.contacts
-            .iter()
-            .map(|(key, record)| (key.to_string(), record.last_seen_minute, record.consecutive_minutes))
-            .collect(),
-        new_cooldowns.iter().map(|(id, due)| (id.to_string(), *due)).collect(),
-        plan.observed,
-    ))
+
+    // The first tick of a Run: `_read_runtime_state(None)`, and this step makes the namespace.
+    let first_use = kit::namespace_absent(world, NAME)?;
+    let plan = if first_use {
+        plan(inputs.seed, inputs.minute, settings, &people, &neighbors, &IdMap::default(), &IdMap::default(), inputs.traced)?
+    } else {
+        let row = world.row::<SocialRow>(NAME)?;
+        if row.schema_version != SCHEMA_VERSION {
+            return unsupported("another schema version");
+        }
+        plan(inputs.seed, inputs.minute, settings, &people, &neighbors, &row.contacts, &row.agent_cooldown_until, inputs.traced)?
+    };
+    // What it records in `social_network_v1`, when that namespace is there, checked now so that its
+    // refusals come before any write.
+    let observed = if kit::namespace_absent(world, SOCIAL_NETWORK)? {
+        None
+    } else {
+        let pairs: Vec<(&str, &str)> =
+            plan.observed.iter().map(|&(recipient, source)| (people[recipient].id, people[source].id)).collect();
+        Some(social_network::observed_contacts(world, &pairs, inputs.minute)?)
+    };
+    let ids = people.iter().map(|person| Arc::from(person.id)).collect();
+    let mut planned =
+        Planned { order: found.iter().map(|item| item.0).collect(), ids, plan, observed, first_use, written: false };
+    if !first_use {
+        write(world, &mut planned)?;
+    }
+    Ok(planned)
 }
 
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(update_social_propagation, m)?)?;
-    m.add_function(wrap_pyfunction!(plan_of_values, m)?)?;
-    m.add_function(wrap_pyfunction!(start_draw_log, m)?)?;
-    m.add_function(wrap_pyfunction!(take_draw_log, m)?)?;
-    Ok(())
+/// The writes of a plan: the row of `social_propagation_v1`, which must be in `model_state` now,
+/// then what the step records in `social_network_v1`, in the order the Python step wrote them.
+pub fn write(world: &World, planned: &mut Planned) -> Result<()> {
+    if planned.written {
+        return Err(Error::Runtime("the plan is written already".to_owned()));
+    }
+    {
+        let mut row = world.row_mut::<SocialRow>(NAME)?;
+        if let Some(cooldowns) = planned.plan.cooldowns.take() {
+            row.agent_cooldown_until = cooldowns;
+        }
+        row.contacts = std::mem::take(&mut planned.plan.contacts);
+    }
+    planned.written = true;
+    planned.first_use = false;
+    match &planned.observed {
+        Some(observed) => observed.apply(world),
+        None => Ok(()),
+    }
+}
+
+/// The trace's document of a minute (`SocialPropagationResult.trace_document`) to the host's sink,
+/// when the plan keeps a trace. `minute` and `policy_version` are the values the document holds.
+pub fn record_social<H: Host>(host: &mut H, planned: &Planned, minute: &V, policy_version: &V) -> std::result::Result<(), H::Error> {
+    let Some(trace) = &planned.plan.trace else {
+        return Ok(());
+    };
+    let ids: Vec<&str> = planned.ids.iter().map(|id| &**id).collect();
+    let document = social_document(minute, policy_version, &ids, &trace.contacts, trace.contributing, trace.total_added);
+    host.trace(Trace::SocialContact(document))
 }

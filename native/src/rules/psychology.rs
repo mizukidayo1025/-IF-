@@ -53,7 +53,7 @@ pub(crate) fn policy_error(controller: &Bound<'_, PyAny>, path: &[&str], fault: 
 }
 
 /// The error of what the core could not make of the policy.
-fn bad_error(controller: &Bound<'_, PyAny>, bad: Bad) -> PyErr {
+pub(crate) fn bad_error(controller: &Bound<'_, PyAny>, bad: Bad) -> PyErr {
     match bad {
         Bad::Refused(error) => to_py_err(error),
         Bad::Policy(fault) => policy_error(controller, &fault.path, &fault.fault),
@@ -140,7 +140,7 @@ pub(crate) fn update_long_term<'py>(
 static DELTA_TYPES: GILOnceCell<(Py<PyType>, Py<PyType>, Py<PyAny>)> = GILOnceCell::new();
 
 /// `AgentStateDelta`, `PsychologyUpdateResult` and `object.__new__`.
-fn delta_types(py: Python<'_>) -> PyResult<&(Py<PyType>, Py<PyType>, Py<PyAny>)> {
+pub(crate) fn delta_types(py: Python<'_>) -> PyResult<&(Py<PyType>, Py<PyType>, Py<PyAny>)> {
     DELTA_TYPES.get_or_try_init(py, || {
         let module = py.import("sheltersim.policies.psychology")?;
         let new = py.import("builtins")?.getattr("object")?.getattr("__new__")?;
