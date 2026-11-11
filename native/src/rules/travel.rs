@@ -24,7 +24,7 @@ use crate::core::world_core::{core_of, raw_dict_get, NamespaceMirror, WorldCore}
 use crate::rules::agent_dynamics::agent_knows_facility;
 use crate::rules::handlers::{log_record, new_event, NewEvent};
 use crate::rules::movement::{
-    approach_point, mirror_held, mobility_text, movement_minutes, movement_of, no_positions, optional_str, plan_start, route_points_of, str_tuple, write_tree, Changes, Scene,
+    approach_point, mirror_held, mobility_text, movement_minutes, movement_of, no_positions, optional_str, plan_start, route_points_of, str_tuple, write_tree, apply_tree, Changes, Scene,
     EXACT_INT, KEY,
 };
 use crate::rules::movement_geometry::{Geo, GeoPy, Pt};
@@ -976,7 +976,7 @@ pub(crate) fn write_travel(world: &Bound<'_, PyAny>, writer: &EventWriter<'_>, t
     writer.schedule(event)?;
     if let Some(changes) = changes {
         let mirror = mirror_held(world)?;
-        let writes = NamespaceMirror::with_row_tree::<MovementRow, _>(&mirror, |row, tree| changes.apply(row, tree))?;
+        let writes = NamespaceMirror::with_row_tree::<MovementRow, _>(&mirror, |row, tree| apply_tree(changes, row, tree))?;
         write_tree(&mirror, writes)?;
     }
     Ok(())

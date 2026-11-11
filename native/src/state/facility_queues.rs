@@ -44,3 +44,109 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("ROW", Py::new(py, RowType::of::<QueuesRow>("facility_queues"))?)?;
     Ok(())
 }
+
+// ---- The Python side of the row, for the rules that read it (lane c1) ------------------------------
+//
+// The kernels of `facility_queues_v1` are the core's (`sheltersim_core::rules::facility_queues`).
+// What is here reads the row for a rule that holds other borrows (`with_queues`), or makes Python
+// values of it.
+
+/// Whether the world holds the namespace, as a kernel of the core takes it.
+pub(crate) fn held(world: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::rules::kit::Held> {
+    crate::core::world_core::namespace_held(world, intern!(world.py(), NAME), "the world holds another queue state")
+}
+
+/// Run f on the row, or give None for a world without the namespace.
+pub(crate) fn with_queues<R>(world: &Bound<'_, PyAny>, f: impl FnOnce(&mut QueuesRow) -> PyResult<R>) -> PyResult<Option<R>> {
+    match held_mirror(world)? {
+        Some(mirror) => Ok(Some(NamespaceMirror::with_row::<QueuesRow, _>(&mirror, f)?)),
+        None => Ok(None),
+    }
+}
+
+/// `facility_has_independent_queues`.
+pub(crate) fn has_independent(world: &Bound<'_, PyAny>, facility_id: &str) -> PyResult<bool> {
+    let rules = sheltersim_core::rules::facility_queues::has_independent;
+    Ok(with_queues(world, |row| Ok(rules(row, facility_id)))?.unwrap_or(false))
+}
+
+/// The heads of the facility's independent queues, or None for a facility without any.
+pub(crate) fn independent_heads(world: &Bound<'_, PyAny>, facility_id: &str) -> PyResult<Option<Vec<std::sync::Arc<str>>>> {
+    use crate::core::errors::OrPy;
+    let rules = sheltersim_core::rules::facility_queues::independent_heads;
+    Ok(with_queues(world, |row| rules(row, facility_id).or_py())?.flatten())
+}
+
+/// The FIFO of a queue, read now: None for a world without the namespace.
+pub(crate) fn read_fifo(
+    world: &Bound<'_, PyAny>,
+    geo: &sheltersim_core::geometry::Geo,
+    queue_id: &str,
+) -> PyResult<Option<sheltersim_core::rules::queues::Fifo>> {
+    use crate::core::errors::OrPy;
+    with_queues(world, |row| sheltersim_core::rules::queues::Fifo::of(row, geo, queue_id).or_py())
+}
+
+/// The mirror of the namespace while the world holds it detached, its row alone holding it. None
+/// while it has a tree.
+fn detached_mirror<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, NamespaceMirror>>> {
+    let table = attribute(world, intern!(world.py(), "model_state"))?;
+    let held = crate::core::row::exact_dict(&table)?.get_item(NAME)?;
+    match held {
+        Some(held) if crate::core::tracked::is_detached(&held) => held_mirror(world),
+        _ => Ok(None),
+    }
+}
+
+/// The tree's node of a request, for a rule that hands it to Python. A detached namespace gives a
+/// new document of the row's record: read it, never write.
+pub(crate) fn request_node<'py>(world: &Bound<'py, PyAny>, request_id: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
+    use crate::core::row::{exact_dict, unsupported, PyField};
+    let py = world.py();
+    if let Some(mirror) = detached_mirror(world)? {
+        return NamespaceMirror::with_row::<QueuesRow, _>(&mirror, |row| row.requests.get(request_id).map(|request| PyField::to_py(request, py)).transpose());
+    }
+    let table = attribute(world, intern!(py, "model_state"))?;
+    let Some(state) = exact_dict(&table)?.get_item(NAME)? else {
+        return Ok(None);
+    };
+    let Some(requests) = exact_dict(&state)?.get_item(intern!(py, "requests"))? else {
+        return unsupported("the queues have no requests");
+    };
+    exact_dict(&requests)?.get_item(request_id)
+}
+
+/// The facility of a queue, read from a detached namespace's row: None while the namespace has a
+/// tree (the caller reads it), Some(None) without the queue.
+pub(crate) fn detached_queue_facility(world: &Bound<'_, PyAny>, queue_id: &str) -> PyResult<Option<Option<std::sync::Arc<str>>>> {
+    let Some(mirror) = detached_mirror(world)? else {
+        return Ok(None);
+    };
+    NamespaceMirror::with_row::<QueuesRow, _>(&mirror, |row| Ok(Some(row.queues.get(queue_id).map(|queue| queue.facility_id.clone()))))
+}
+
+/// `{"requests": {request_id: ...}, "queues": {queue_id: ...}}` of a detached namespace's row, with
+/// only these records, as new documents: for a rule that reads them with `get`. None while the
+/// namespace has a tree.
+pub(crate) fn detached_records<'py>(world: &Bound<'py, PyAny>, request_id: Option<&str>, queue_id: Option<&str>) -> PyResult<Option<Bound<'py, PyAny>>> {
+    use crate::core::row::PyField;
+    use pyo3::types::PyDict;
+    let Some(mirror) = detached_mirror(world)? else {
+        return Ok(None);
+    };
+    let py = world.py();
+    NamespaceMirror::with_row::<QueuesRow, _>(&mirror, |row| {
+        let requests = PyDict::new(py);
+        if let Some((id, request)) = request_id.and_then(|id| row.requests.get_key_value(id)) {
+            requests.set_item(&**id, PyField::to_py(request, py)?)?;
+        }
+        let queues = PyDict::new(py);
+        if let Some((id, queue)) = queue_id.and_then(|id| row.queues.get_key_value(id)) {
+            queues.set_item(&**id, PyField::to_py(queue, py)?)?;
+        }
+        let state = PyDict::new(py);
+        state.set_item("requests", requests)?;
+        state.set_item("queues", queues)?;
+        Ok(Some(state.into_any()))
+    })
+}

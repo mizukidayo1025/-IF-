@@ -942,7 +942,6 @@ fn serve_one<'py>(
     // `record_queue_transition` after the start: the record takes the next sequence.
     let transition = match &head {
         Some(head) => Some(transition_row(
-            py,
             &writer,
             &head.request,
             "service_started",
@@ -1262,7 +1261,7 @@ pub(crate) fn complete_event<'py>(manager: &Bound<'py, PyAny>, event: EventRef<'
             })?;
             let wait = task_start.checked_sub(request.requested_minute).ok_or_else(|| Unsupported::new_err("a wait out of range"))?;
             let capacity = point_of(&*Geo::of(world)?, &request.queue_id).map(|point| point.service_capacity);
-            let row = transition_row(py, &writer, &request, "completed", task_id, Some(wait), Some(&event_id), position, capacity, audit.sequence + 1, minute)?;
+            let row = transition_row(&writer, &request, "completed", task_id, Some(wait), Some(&event_id), position, capacity, audit.sequence + 1, minute)?;
             Some((request, row))
         }
         None => None,
@@ -1580,7 +1579,7 @@ fn request_with<'py>(
                 active_task_id: task_id.clone(),
             };
             let sequence = writer.next_sequence()?;
-            Some(transition_row(py, &writer, &request, "queued", &task_id, None, None, Some(queue_position), Some(point.service_capacity), sequence, world_minute)?)
+            Some(transition_row(&writer, &request, "queued", &task_id, None, None, Some(queue_position), Some(point.service_capacity), sequence, world_minute)?)
         }
         None => None,
     };
@@ -1788,7 +1787,7 @@ fn plan_cancel(manager: &Manager<'_>, event_id: &Arc<str>, task_id: &str, interr
         Some((request, position)) => {
             let capacity = point_of(&*Geo::of(world)?, &request.queue_id).map(|point| point.service_capacity);
             let transition = if interrupted { "interrupted" } else { "cancelled" };
-            let record = transition_row(py, &writer, &request, transition, task_id, None, Some(event_id), position, capacity, next, minute)?;
+            let record = transition_row(&writer, &request, transition, task_id, None, Some(event_id), position, capacity, next, minute)?;
             next += 1;
             Some((request, record))
         }
@@ -2101,7 +2100,7 @@ fn interrupt_with<'py>(manager: &Manager<'py>, staff_id: &Bound<'py, PyAny>, cau
                 active_task_id: queue_task_id.clone(),
             };
             // First in its queue by then.
-            let record = transition_row(py, &writer, &request, "requeued", &queue_task_id, None, Some(&cause), Some(1), Some(point.service_capacity), sequence + 1 + plan.sequences, minute)?;
+            let record = transition_row(&writer, &request, "requeued", &queue_task_id, None, Some(&cause), Some(1), Some(point.service_capacity), sequence + 1 + plan.sequences, minute)?;
             Some((point, record))
         }
     };
@@ -2132,7 +2131,7 @@ fn interrupt_with<'py>(manager: &Manager<'py>, staff_id: &Bound<'py, PyAny>, cau
     attribute(&facility, intern!(py, "resource_queue_agent_ids"))?.call_method1(intern!(py, "insert"), (0, &agent_text))?;
     if let (Some(prior), Some((point, record))) = (&prior, &requeue) {
         write_enqueue(world, point, &queue_task_id, &queue_task_id, &agent_id, &prior.service_kind, queued_at)?;
-        crate::rules::facility_queues::write_to_head(world, &manager.table, &prior.queue_id, &queue_task_id)?;
+        crate::rules::facility_queues::write_to_head(world, &prior.queue_id, &queue_task_id)?;
         write_transition(&writer, record, minute)?;
     }
     clear_stall(&mirror, &facility_id)?;
