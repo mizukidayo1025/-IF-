@@ -189,10 +189,15 @@ Checkpoint document) and times them.
   `Table` and `Entities` are the core's (`core/src/entities.rs`), held in the core `World`; here
   are the counters, reading a row from an object and making a
   dict of it (`PyEntityField`, `py_entity_row!`), the enum members (`install`, `Member`), the
-  links of the objects and the bytes objects of `rows_json`. The objects stay the dataclasses
-  of `domain/models.py`, each mirroring its row; `IdMap`, `__setattr__` and `TrackedList` forward
-  every write. A rule reads with `with_rows` (a tainted store says `Unsupported`) and writes with
-  `write_field` (`docs/rust-port/lanes/p6-entity-windows.md`).
+  links of the objects and the bytes objects of `rows_json`. The rows are the truth (PR 6-1): the
+  objects stay the dataclasses of `domain/models.py`, each a view of its row; `IdMap`,
+  `__setattr__` and `TrackedList` forward Python's writes. A rule reads and writes the rows only,
+  with `with_rows` (a tainted store says `Unsupported`), and puts in or takes out rows by key with
+  `insert_entity` and `remove_entity`. When the borrow ends (`with_rows`, `with_world`), the
+  objects follow (`EntityStore::flush`): the fields that differ from the view, objects made from new
+  rows with no `__init__`, the last values of rows taken out. `verify` checks objects, views,
+  rows and key order; `apply_row_ops` drives one table for the tests
+  (`docs/rust-port/lanes/p6-entity-windows.md`, `docs/rust-port/step5-plan.md` PR 6-1).
 - `src/state/world_fields.rs`: the scalars as `WorldState.__setattr__` writes them
   (`WorldCore.set_scalar`), and the row types of `world.resources` (`IdMap<i64>`) and
   `world.id_counters` (`ValueRow`). A rule writes a counter with `set_id_counter` (the row, then

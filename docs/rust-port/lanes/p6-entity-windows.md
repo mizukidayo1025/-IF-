@@ -72,11 +72,12 @@ let total = EntityStore::with_rows(&store, |rows| {
 
 `Table` の `iter()` は dict の順、`get` はキーで読みます。`Activity` などの enum の Python のメンバーは `Member::member(py)` で得ます（窓口の trait なので `use crate::state::entities::Member` が要ります）。`with_rows` の中で Python を動かさないでください（`PyRefMut` を持っています）。
 
-**Rust から書く：** `with_rows` の中で行を変え、外で `write_field(world, "agents", id, "stress", 値)` で属性に書きます。`__setattr__` を通らないので転送は戻りません。例は `add_agent_stress` です。
+**Rust から書く（#152 の PR 6-1 から）：** 行が本体です。`with_rows` の中で行だけを変えます。借りが終わると、Python が動く前にオブジェクトが行に従います（`EntityStore::flush`：違う欄だけを `__setattr__` を通さずに書きます）。例は `add_agent_stress` です。実体を足すときは `insert_entity(world, &key, TaskRow { ... })`（新しいキーは最後、あるキーはその場所。オブジェクトは `__init__` を通さずに行から作ります）、除くときは `remove_entity::<TaskRow>(world, key)`（最後の値を書いてから切り離します。ないキーは dict と同じ `KeyError`）です。taint したストアでは、どちらも今までどおり Python の構築子と `IdMap` を使います。
 
-- **`SupportRequestState` を Rust から書くときは、`_write_listener` に自分で知らせてください。** `write_field` は知らせません。知らせないと、解決済みの要求の検証を省く判断（`core/tick_validation.py`）が誤ります。
-- ID のリストを Rust から書くときは、`TrackedList` の中身を C API で書き（`raw_list_append` など）、行も変えます。`write_field` で新しいリストを入れてはいけません（節点になりません）。
-- `agent.needs` は行の中の `NeedRow` です。ニーズの項目は `agent.needs` のオブジェクトに書きます。
+- **`SupportRequestState` を Rust から書いても、`_write_listener` には知らせません**（前の `raw_setattr` と同じです）。知らせる必要がある書き込みは、今までどおり `request.setattr(...)` で Python から書きます。
+- ID のリストは、今までどおり `TrackedList` を Python の操作で書きます（転送で行に届きます）。行の ID のリストだけを変えた場合は、flush がリストの中身をその場で入れ替えます（節点のまま）。
+- `agent.needs` は行の中の `NeedRow` です。行の `needs` の項目を変えると、flush は `agent.needs` のオブジェクトの違う項目だけを書きます。
+- 付いたオブジェクトの `__dict__` に直接書いても、行には届きません（次にその欄を flush すると上書きされます）。
 
 **そのほか：**
 
