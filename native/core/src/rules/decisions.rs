@@ -1,278 +1,96 @@
-//! The steps of the propose phase that make and record a decision (`experiments/phases/propose.py`),
-//! with no Python object for the proposal. They have no Python step (segments.py,
-//! KERNEL_ONLY_SEGMENTS).
+//! Recording a decision with its outcome, the step `_record_outcome` of the propose phase
+//! (`experiments/phases/propose.py`; moved to the core in lane P8 a5): the record, then the action's
+//! lifecycle, then the person's memory, in that order.
 //!
-//! `propose_rows` is `_propose_due`, returning `ProposalRow`s: what the phase reads of a proposal
-//! (`agent_id`, `action`, `next_decision_at`, `target_id`, `observed_state_hash`) comes from the
-//! row, and anything else makes the `ActionProposal` of rules/behavior.rs, once. `observed_row` is
-//! `_observed_state`, which keeps only where to find the person in the snapshot. `record_outcome` is
-//! `_record_outcome`: `record_decision`, then the lifecycle, then the memory, in that order.
+//! The record goes where the Run's sink takes it (`Host::decision_sink`): nothing for a silent sink;
+//! the JSON bytes of `_IndexedMetricSink.record_decision` (`decision_bytes`, with the keys in the
+//! order of its dict) for an indexed one; the document of `_decision_document` and the observed
+//! state for `RunArtifactWriter` while its trace is on. Everything that can turn the record down
+//! is read before the host takes it, and what this rule does not write itself (a sink that runs
+//! `record_decision` in Python, an observed state that is not the view's person, a NaN, a large
+//! observed state the sink measures, a tainted store, a household no row reads) is `Sunk::Python`:
+//! the PyO3 crate then calls the sink's own `record_decision` with the Python proposal, and the
+//! rules after it as here.
 //!
-//! The record `_IndexedMetricSink.record_decision` keeps is written as JSON bytes, with the keys in the
-//! order of its dict, and goes into `sink.observations` as bytes; the index reads them
-//! (`HistoryIndex.ingest`). Everything that can turn the record down is read before it is appended,
-//! and what the kernel does not write itself goes to the sink's own `record_decision` and the
-//! domain rules, as the phase called them (`record_through_python`): a sink that declares no
-//! `decision_sink`, a proposal Python made, a NaN, a large observed state (the sink measures it), a
-//! tainted store. A Run with a trace gives `RunArtifactWriter` the document of `_decision_document`,
-//! and the writer keeps it as before. After the append each rule says for itself: Unsupported from
-//! `commit_action` or `remember_decision` has changed nothing, and that one rule is then called
-//! through its Python entry.
+//! The lifecycle and the memory are `action_lifecycle::commit_action` and
+//! `agent_dynamics::remember_decision`, called directly. What they refuse has changed nothing and
+//! is the KernelRefusal of their Python entries (`Error::refused` with `LIFECYCLE` or `MEMORY`), as
+//! when the step called those entries.
 
 use std::sync::Arc;
 
-use pyo3::intern;
-use pyo3::prelude::*;
-use pyo3::sync::GILOnceCell;
-use pyo3::types::{PyBool, PyBytes, PyDict, PyInt, PyList, PyString, PyTuple};
-
-use crate::core::row::{attribute, exact_dict, exact_list, exact_str, unsupported};
-use crate::core::value::V;
-use crate::core::world_core::{raw_dict_get, raw_list_append, with_state_value};
-use crate::rules::action_lifecycle::{commit_action, ActiveActions, Proposal};
-use crate::rules::agent_dynamics::{remember_decision, Decision};
-use crate::rules::behavior::{
-    classes, demand_of, due_outcomes, observed_dict, person_of, proposal_of, snapshot_of, Common, Outcome,
-};
-use crate::rules::trace::Level;
-use crate::rules::world_view::RustView;
-use crate::state::entities::{entities_of, Activity, EntityStore, RequestStatus};
-use crate::{write_json_string, Encoder, PyEncoder, Unsupported};
+use crate::error::{Error, Result};
+use crate::host::{Decision, DecisionSink, Host, TraceLevel};
+use crate::json::Encoder;
+use crate::rules::action_lifecycle::{self, ActiveActions};
+use crate::rules::agent_dynamics::{self, Decision as Memory};
+use crate::rules::behavior::{observed_value, status_text, Proposal};
+use crate::rules::kit::PRESENCE;
+use crate::rules::world_view::ViewData;
+use crate::value::V;
+use crate::world::{World, WorldCell};
 
 /// `ActionProposal.trigger` of a scheduled decision.
-const TRIGGER: &str = "scheduled_decision";
+pub const TRIGGER: &str = "scheduled_decision";
 /// `len(json.dumps(observed))` is at most twice the length without its spaces, so a shorter one is
 /// within the 16,384 of `record_decision`. A longer one is left to Python, which measures it.
-const MAX_OBSERVED_BYTES: usize = 8192;
-const AGENT_DYNAMICS: &str = "agent_dynamics_v1";
-const PRESENCE: &str = "population_presence_v1";
+pub const MAX_OBSERVED_BYTES: usize = 8192;
+/// The label of the KernelRefusal of the lifecycle's rule.
+pub const LIFECYCLE: &str = "action_lifecycle.record_action_proposal";
+/// The label of the KernelRefusal of the memory's rule.
+pub const MEMORY: &str = "agent_dynamics.record_proposal";
 
-// ---- The proposal ------------------------------------------------------------------------------
-
-/// A proposal that has not become a Python object.
-#[pyclass(module = "sheltersim_native", frozen)]
-pub struct ProposalRow {
-    view: Py<RustView>,
-    index: usize,
-    outcome: Outcome,
-    common: Arc<Common>,
-    made: GILOnceCell<Py<PyAny>>,
+/// What a decision observed (`observed_state` of the step).
+#[derive(Clone)]
+pub enum Observed<'a> {
+    /// `_agent_view_snapshot` of a person of a view, not yet made.
+    Row { data: &'a ViewData, index: usize },
+    /// A plain value (a dict, or None).
+    Value(V),
+    /// Anything else, which only the sink's own `record_decision` takes.
+    Other,
 }
 
-impl ProposalRow {
-    fn made<'py>(&self, py: Python<'py>) -> PyResult<&Bound<'py, PyAny>> {
-        let made = self.made.get_or_try_init(py, || {
-            Ok::<_, PyErr>(proposal_of(py, &self.common, self.view.get(), self.index, &self.outcome)?.unbind())
-        })?;
-        Ok(made.bind(py))
-    }
-
-    /// `proposal.with_outcome(target_id, next_decision_at)`.
-    fn recorded<'py>(
-        &self,
-        py: Python<'py>,
-        target_id: &Bound<'py, PyAny>,
-        next_decision_at: &Bound<'py, PyAny>,
-    ) -> PyResult<Bound<'py, PyAny>> {
-        self.made(py)?.call_method1(intern!(py, "with_outcome"), (target_id, next_decision_at))
-    }
+/// A decision and its outcome, as `_record_outcome` takes them.
+pub struct Recording<'a> {
+    /// The view the proposal was made from.
+    pub data: &'a ViewData,
+    pub proposal: &'a Proposal,
+    pub target_id: Option<&'a str>,
+    /// After the proposal's minute.
+    pub next_decision_at: i64,
+    pub committed: bool,
+    pub observed: &'a Observed<'a>,
+    /// Whether `model_state` has `agent_dynamics_v1`.
+    pub remembers: bool,
 }
 
-#[pymethods]
-impl ProposalRow {
-    #[getter]
-    fn agent_id<'py>(&self, py: Python<'py>) -> Bound<'py, PyString> {
-        self.view.get().key(py, self.index).clone()
+impl Recording<'_> {
+    fn agent_id(&self) -> &str {
+        &self.data.agents[self.proposal.index].id
     }
 
-    #[getter]
-    fn action<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        Ok(classes(py)?.actions[self.outcome.action as usize].bind(py).clone())
-    }
-
-    #[getter]
-    fn next_decision_at(&self) -> i64 {
-        self.outcome.next_decision_at
-    }
-
-    #[getter]
-    fn target_id<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
-        match self.outcome.target {
-            Some(target) => self.view.get().key(py, target).clone().into_any(),
-            None => py.None().into_bound(py),
-        }
-    }
-
-    #[getter]
-    fn minute_index(&self) -> i64 {
-        self.view.get().data().minute_index
-    }
-
-    #[getter]
-    fn observed_state_hash<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
-        self.common.state_hash.bind(py).clone()
-    }
-
-    #[getter]
-    fn policy_version<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
-        self.common.policy_version.bind(py).clone()
-    }
-
-    /// Whether anything has needed the `ActionProposal` yet.
-    #[getter]
-    fn has_object(&self, py: Python<'_>) -> bool {
-        self.made.get(py).is_some()
-    }
-
-    /// The `ActionProposal`, the same object each time.
-    fn materialize<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        self.made(py).cloned()
-    }
-
-    fn with_outcome<'py>(
-        &self,
-        py: Python<'py>,
-        target_id: &Bound<'py, PyAny>,
-        next_decision_at: &Bound<'py, PyAny>,
-    ) -> PyResult<Bound<'py, PyAny>> {
-        self.recorded(py, target_id, next_decision_at)
-    }
-
-    /// Any other field of the `ActionProposal`.
-    fn __getattr__<'py>(&self, py: Python<'py>, name: &Bound<'py, PyString>) -> PyResult<Bound<'py, PyAny>> {
-        self.made(py)?.getattr(name)
+    fn minute(&self) -> i64 {
+        self.data.minute_index
     }
 }
 
-/// `_propose_due`, whose proposals the rest of the propose phase reads as rows.
-#[pyfunction]
-pub(crate) fn propose_rows<'py>(
-    controller: &Bound<'py, PyAny>,
-    view: &Bound<'py, PyAny>,
-    rng: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyAny>> {
-    let py = controller.py();
-    let Some(due) = due_outcomes(controller, view, rng)? else {
-        return Ok(PyTuple::empty(py).into_any());
-    };
-    let common = Arc::new(due.common);
-    let snapshot = due.rust.unbind();
-    let mut rows = Vec::with_capacity(due.outcomes.len());
-    for (index, outcome) in due.outcomes {
-        let row = ProposalRow {
-            view: snapshot.clone_ref(py),
-            index,
-            outcome,
-            common: common.clone(),
-            made: GILOnceCell::new(),
-        };
-        rows.push(Bound::new(py, row)?);
-    }
-    Ok(PyTuple::new(py, rows)?.into_any())
-}
-
-// ---- The observed state ------------------------------------------------------------------------
-
-/// `_agent_view_snapshot`, not yet made. `dict(row)` makes it, as `record_decision` does.
-#[pyclass(module = "sheltersim_native", frozen)]
-pub struct ObservedRow {
-    view: Py<RustView>,
-    index: usize,
-    made: GILOnceCell<Py<PyDict>>,
-}
-
-impl ObservedRow {
-    fn made<'py>(&self, py: Python<'py>) -> PyResult<&Bound<'py, PyDict>> {
-        let made = self
-            .made
-            .get_or_try_init(py, || Ok::<_, PyErr>(observed_dict(py, self.view.get(), self.index)?.unbind()))?;
-        Ok(made.bind(py))
-    }
-}
-
-#[pymethods]
-impl ObservedRow {
-    fn keys<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        self.made(py)?.call_method0(intern!(py, "keys"))
-    }
-
-    fn __getitem__<'py>(&self, py: Python<'py>, key: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-        self.made(py)?.as_any().get_item(key)
-    }
-}
-
-/// What a sink does with a decision.
-enum Sink<'py> {
-    /// Nothing: `_MetricSink`, or `RunArtifactWriter` without a trace.
-    Silent,
-    /// `_IndexedMetricSink`.
-    Indexed(Bound<'py, PyAny>),
-    /// `RunArtifactWriter` with a trace, which takes the document.
-    Traced(Bound<'py, PyAny>, bool),
-    /// `artifacts.record_decision` runs in Python.
+/// Where the record went.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Sunk {
+    /// The sink took it (or a silent sink, nothing).
+    Recorded,
+    /// Nothing was done: the sink's own `record_decision` takes it, with the Python proposal.
     Python,
-}
-
-/// A sink says what it does with `decision_sink` in its own class, not one it inherits: a subclass may
-/// have another `record_decision`.
-fn sink_of<'py>(controller: &Bound<'py, PyAny>) -> PyResult<Sink<'py>> {
-    let py = controller.py();
-    let Ok(artifacts) = controller.getattr(intern!(py, "artifacts")) else {
-        return Ok(Sink::Python);
-    };
-    let class = artifacts.get_type();
-    let Ok(kind) = class.getattr(intern!(py, "__dict__"))?.get_item(intern!(py, "decision_sink")) else {
-        return Ok(Sink::Python);
-    };
-    Ok(match kind.downcast_exact::<PyString>()?.to_str()? {
-        "silent" => Sink::Silent,
-        "indexed" => Sink::Indexed(artifacts),
-        "artifacts" => {
-            let level = Level::of(&artifacts)?;
-            let started = artifacts.getattr(intern!(py, "_started"))?.is_truthy()?;
-            let finalized = artifacts.getattr(intern!(py, "_finalized"))?.is_truthy()?;
-            match level {
-                _ if !started || finalized => Sink::Python,
-                Level::Off => Sink::Silent,
-                Level::Summary => Sink::Traced(artifacts, false),
-                Level::Full => Sink::Traced(artifacts, true),
-            }
-        }
-        _ => Sink::Python,
-    })
-}
-
-/// `_observed_state`. A sink in Python may read the document as a dict, so it gets one.
-#[pyfunction]
-pub(crate) fn observed_row<'py>(
-    controller: &Bound<'py, PyAny>,
-    view: &Bound<'py, PyAny>,
-    agent_id: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyAny>> {
-    let py = controller.py();
-    let snapshot = snapshot_of(view)?;
-    let index = person_of(snapshot.get(), agent_id)?;
-    if matches!(sink_of(controller)?, Sink::Python | Sink::Traced(..)) {
-        return Ok(observed_dict(py, snapshot.get(), index)?.into_any());
-    }
-    Ok(Bound::new(py, ObservedRow { view: snapshot.unbind(), index, made: GILOnceCell::new() })?.into_any())
 }
 
 // ---- The record as JSON ------------------------------------------------------------------------
 
-fn text(out: &mut Encoder, value: &str) {
-    write_json_string(&mut out.out, value);
-}
-
 fn option_text(out: &mut Encoder, value: Option<&str>) {
     match value {
-        Some(value) => text(out, value),
-        None => out.out.extend_from_slice(b"null"),
+        Some(value) => out.string(value),
+        None => out.null(),
     }
-}
-
-fn integer(out: &mut Encoder, value: i64) {
-    out.out.extend_from_slice(itoa::Buffer::new().format(value).as_bytes());
 }
 
 fn text_list(out: &mut Encoder, items: &[Arc<str>]) {
@@ -281,7 +99,7 @@ fn text_list(out: &mut Encoder, items: &[Arc<str>]) {
         if place > 0 {
             out.out.push(b',');
         }
-        text(out, item);
+        out.string(item);
     }
     out.out.push(b']');
 }
@@ -293,49 +111,48 @@ macro_rules! key {
     };
 }
 
-/// `_agent_view_snapshot` with its keys in that function's order.
-fn write_observed(out: &mut Encoder, py: Python<'_>, rust: &RustView, index: usize) -> PyResult<()> {
-    let data = rust.data();
+/// `_agent_view_snapshot` as JSON, with its keys in that function's order (`observed_value`).
+pub fn write_observed(out: &mut Encoder, data: &ViewData, index: usize) -> Result<()> {
     let agent = &data.agents[index];
     let zone = data.zone_of(agent);
     out.out.extend_from_slice(b"{\"agent_id\":");
-    text(out, rust.key(py, index).to_str()?);
+    out.string(&agent.id);
     key!(out, "zone_id");
-    text(out, &zone.id);
+    out.string(&zone.id);
     key!(out, "activity");
-    text(out, Activity::text(agent.activity));
+    out.string(agent.activity.text());
     key!(out, "target_id");
     option_text(out, agent.target_id.as_deref());
     out.out.extend_from_slice(b",\"needs\":{\"toilet_urgency\":");
-    out.float(agent.needs.toilet_urgency)?;
+    out.try_float(agent.needs.toilet_urgency)?;
     key!(out, "hunger");
-    out.float(agent.needs.hunger)?;
+    out.try_float(agent.needs.hunger)?;
     key!(out, "fatigue");
-    out.float(agent.needs.fatigue)?;
+    out.try_float(agent.needs.fatigue)?;
     key!(out, "hygiene_need");
-    out.float(agent.body.hygiene_need)?;
+    out.try_float(agent.body.hygiene_need)?;
     if data.resource_service_enabled {
         key!(out, "hydration_need");
-        out.float(agent.needs.hydration_need)?;
+        out.try_float(agent.needs.hydration_need)?;
     }
     out.out.extend_from_slice(b"},\"psychological\":{\"sleep_debt_minutes\":");
-    out.float(agent.body.sleep_debt_minutes)?;
+    out.try_float(agent.body.sleep_debt_minutes)?;
     key!(out, "uncertainty");
-    out.float(agent.body.uncertainty)?;
+    out.try_float(agent.body.uncertainty)?;
     key!(out, "reassurance");
-    out.float(agent.body.reassurance)?;
+    out.try_float(agent.body.reassurance)?;
     key!(out, "discontent");
-    out.float(agent.body.discontent)?;
+    out.try_float(agent.body.discontent)?;
     key!(out, "positive_affect");
-    out.float(agent.body.positive_affect)?;
+    out.try_float(agent.body.positive_affect)?;
     key!(out, "negative_affect");
-    out.float(agent.body.negative_affect)?;
+    out.try_float(agent.body.negative_affect)?;
     out.out.extend_from_slice(b"},\"sanitation_level\":");
-    out.float(zone.sanitation_level)?;
+    out.try_float(zone.sanitation_level)?;
     key!(out, "stress");
-    out.float(agent.stress)?;
+    out.try_float(agent.stress)?;
     key!(out, "trust");
-    out.float(agent.trust)?;
+    out.try_float(agent.trust)?;
     out.out.extend_from_slice(b",\"queue\":{\"task_id\":");
     option_text(out, agent.queue_task_id.as_deref());
     key!(out, "kind");
@@ -343,31 +160,23 @@ fn write_observed(out: &mut Encoder, py: Python<'_>, rust: &RustView, index: usi
     key!(out, "target_id");
     option_text(out, agent.queue_target_id.as_deref());
     key!(out, "wait_minutes");
-    integer(out, agent.queue_wait_minutes);
+    out.int(agent.queue_wait_minutes);
     out.out.extend_from_slice(b"},\"support\":{\"request_id\":");
     option_text(out, agent.support_request_id.as_deref());
     key!(out, "status");
-    option_text(
-        out,
-        agent.support_request_status.map(|status| match status {
-            RequestStatus::Pending => "pending",
-            RequestStatus::Assigned => "assigned",
-            RequestStatus::Resolved => "resolved",
-            RequestStatus::Unresolved => "unresolved",
-        }),
-    );
+    option_text(out, agent.support_request_status.map(status_text));
     key!(out, "assigned_staff_id");
     option_text(out, agent.support_assigned_staff_id.as_deref());
     key!(out, "wait_minutes");
-    integer(out, agent.support_wait_minutes);
+    out.int(agent.support_wait_minutes);
     key!(out, "cooldown_remaining_minutes");
-    integer(out, agent.support_cooldown_remaining_minutes);
+    out.int(agent.support_cooldown_remaining_minutes);
     out.out.push(b'}');
     if !zone.zone_environment_modifier_event_ids.is_empty() || !zone.demand_modifiers.is_empty() {
         out.out.extend_from_slice(b",\"zone_environment\":{\"ambient_noise_level\":");
-        out.float(zone.ambient_noise_level)?;
+        out.try_float(zone.ambient_noise_level)?;
         key!(out, "rest_efficiency_multiplier");
-        out.float(zone.rest_efficiency_multiplier)?;
+        out.try_float(zone.rest_efficiency_multiplier)?;
         key!(out, "modifier_event_ids");
         text_list(out, &zone.zone_environment_modifier_event_ids);
         key!(out, "assumption_ids");
@@ -378,11 +187,11 @@ fn write_observed(out: &mut Encoder, py: Python<'_>, rust: &RustView, index: usi
                 out.out.push(b',');
             }
             out.out.extend_from_slice(b"{\"action\":");
-            text(out, &item.action);
+            out.string(&item.action);
             key!(out, "probability_multiplier");
-            out.float(item.probability_multiplier)?;
+            out.try_float(item.probability_multiplier)?;
             key!(out, "duration_multiplier");
-            out.float(item.duration_multiplier)?;
+            out.try_float(item.duration_multiplier)?;
             key!(out, "event_ids");
             text_list(out, &item.modifier_event_ids);
             key!(out, "assumption_ids");
@@ -395,125 +204,112 @@ fn write_observed(out: &mut Encoder, py: Python<'_>, rust: &RustView, index: usi
     Ok(())
 }
 
-/// `current_household_id`, written. A value it cannot write is Python's.
-fn write_household(
-    out: &mut Encoder,
-    world: &Bound<'_, PyAny>,
-    agent_id: &Bound<'_, PyString>,
-    group_id: Option<&str>,
-) -> PyResult<()> {
-    let agent_id = agent_id.to_str()?;
-    // The presence state is read as a `V`, a detached one from its row. None: the profile's group.
-    let household = with_state_value(world, PRESENCE, |presence| {
-        let Some(V::Map(presence)) = presence else {
-            return Ok(None);
-        };
-        let Some(people) = presence.get("people") else {
-            return Ok(Some(None));
-        };
-        let V::Map(people) = people else {
-            return unsupported("the presence's people are not a dict");
-        };
-        let Some(person) = people.get(agent_id) else {
-            return Ok(Some(None));
-        };
-        let V::Map(person) = person else {
-            return Ok(None);
-        };
-        match person.get("household_id") {
-            None | Some(V::Null) => Ok(Some(None)),
-            Some(V::Str(household)) => Ok(Some(Some(household.clone()))),
-            Some(_) => unsupported("a value is not a str"),
-        }
-    })?;
-    match household {
-        Some(Some(household)) => text(out, &household),
-        Some(None) => out.out.extend_from_slice(b"null"),
-        None => option_text(out, group_id),
+/// `current_household_id` as the indexed sink writes it: the household of the person's record in
+/// `population_presence_v1` (None for none), or the profile's group without a dict there or with a
+/// record that is not one. A value no row reads is refused (the sink's rule then refuses it).
+fn household(world: &World, agent_id: &str, group_id: Option<&Arc<str>>) -> Result<Option<Arc<str>>> {
+    let presence = world.slots.try_value(PRESENCE)?;
+    let Some(V::Map(presence)) = presence.as_deref() else {
+        return Ok(group_id.cloned());
+    };
+    let Some(people) = presence.get("people") else {
+        return Ok(None);
+    };
+    let V::Map(people) = people else {
+        return Err(Error::unsupported("the presence's people are not a dict"));
+    };
+    let Some(person) = people.get(agent_id) else {
+        return Ok(None);
+    };
+    let V::Map(person) = person else {
+        return Ok(group_id.cloned());
+    };
+    match person.get("household_id") {
+        None | Some(V::Null) => Ok(None),
+        Some(V::Str(household)) => Ok(Some(household.clone())),
+        Some(_) => Err(Error::unsupported("a value is not a str")),
     }
-    Ok(())
 }
 
-/// What `_IndexedMetricSink.record_decision` appends, as JSON with the keys in that order.
-fn decision_bytes(
-    py: Python<'_>,
-    sink: &Bound<'_, PyAny>,
-    world: &Bound<'_, PyAny>,
-    row: &ProposalRow,
-    target_id: Option<&str>,
-    next_decision_at: i64,
-    observed: &ObservedRow,
-) -> PyResult<Vec<u8>> {
-    let rust = row.view.get();
-    let data = rust.data();
-    let agent_id = rust.key(py, row.index);
-    let id = agent_id.to_str()?;
-    let store = entities_of(world)?;
-    let (zone_id, group_id) = EntityStore::with_rows(&store, |rows| {
-        let Some(agent) = rows.agents.get(id) else {
-            return unsupported("the person is not in the world");
-        };
-        Ok((agent.zone_id.clone(), agent.profile.group_id.clone()))
-    })?;
-    let policy_version = row.common.policy_version.bind(py);
-    let sources = attribute(sink, intern!(py, "policy_sources"))?;
-    let source = raw_dict_get(exact_dict(&sources)?.as_any(), policy_version)?;
-    let hash = row.common.state_hash.bind(py);
+/// What `_IndexedMetricSink.record_decision` keeps of a decision that the view does not hold: the
+/// person's zone and household now, and the sink's source of the policy.
+pub struct DecisionRecord<'a> {
+    pub recording: &'a Recording<'a>,
+    pub zone_id: Arc<str>,
+    pub household_id: Option<Arc<str>>,
+    /// `policy_sources.get(policy_version)`.
+    pub source_id: Option<Arc<str>>,
+}
 
-    let mut out = Encoder { out: Vec::with_capacity(3072) };
+/// The record of a decision, read from the world.
+pub fn decision_record<'a>(world: &World, recording: &'a Recording<'a>, source_id: Option<Arc<str>>) -> Result<DecisionRecord<'a>> {
+    let agent_id = recording.agent_id();
+    let (zone_id, group_id) = {
+        let rows = world.rows()?;
+        let Some(agent) = rows.agents.get(agent_id) else {
+            return Err(Error::unsupported("the person is not in the world"));
+        };
+        (agent.zone_id.clone(), agent.profile.group_id.clone())
+    };
+    let household_id = household(world, agent_id, group_id.as_ref())?;
+    Ok(DecisionRecord { recording, zone_id, household_id, source_id })
+}
+
+/// What `_IndexedMetricSink.record_decision` appends, as JSON with the keys in that order, with the
+/// observed state of `data`'s person `index`.
+pub fn decision_bytes(record: &DecisionRecord<'_>, data: &ViewData, index: usize) -> Result<Vec<u8>> {
+    let recording = record.recording;
+    let proposal = recording.proposal;
+    let outcome = &proposal.outcome;
+    let mut out = Encoder::with_capacity(3072);
     out.out.extend_from_slice(b"{\"record_kind\":\"actions\",\"minute\":");
-    integer(&mut out, data.minute_index);
+    out.int(recording.minute());
     key!(out, "agent_id");
-    text(&mut out, id);
+    out.string(recording.agent_id());
     key!(out, "household_id");
-    write_household(&mut out, world, agent_id, group_id.as_deref())?;
+    option_text(&mut out, record.household_id.as_deref());
     key!(out, "zone_id");
-    text(&mut out, &zone_id);
+    out.string(&record.zone_id);
     key!(out, "action");
-    text(&mut out, row.outcome.action.value());
+    out.string(outcome.action.value());
     key!(out, "target_id");
-    option_text(&mut out, target_id);
+    option_text(&mut out, recording.target_id);
     key!(out, "trigger");
-    text(&mut out, TRIGGER);
+    out.string(TRIGGER);
     key!(out, "policy_version");
-    text(&mut out, exact_str(policy_version)?);
+    out.string(&proposal.common.policy_version);
     key!(out, "source_id");
-    match &source {
-        Some(source) if !source.is_none() => text(&mut out, exact_str(source)?),
-        _ => out.out.extend_from_slice(b"null"),
-    }
+    option_text(&mut out, record.source_id.as_deref());
     key!(out, "observed_state_hash");
-    text(&mut out, exact_str(hash)?);
+    out.string(&proposal.common.state_hash);
     key!(out, "observed_state");
     let start = out.out.len();
-    write_observed(&mut out, py, observed.view.get(), observed.index)?;
+    write_observed(&mut out, data, index)?;
     if out.out.len() - start > MAX_OBSERVED_BYTES {
-        return unsupported("the observed state is long");
+        return Err(Error::unsupported("the observed state is long"));
     }
     out.out.extend_from_slice(b",\"observed_state_status\":\"recorded\",\"candidates\":[");
-    let modifiers = &data.zone_of(&data.agents[row.index]).demand_modifiers;
-    for (place, candidate) in row.outcome.candidates.iter().enumerate() {
+    for (place, candidate) in outcome.candidates.iter().enumerate() {
         if place > 0 {
             out.out.push(b',');
         }
         out.out.extend_from_slice(b"{\"action\":");
-        text(&mut out, candidate.action.value());
+        out.string(candidate.action.value());
         out.out.extend_from_slice(if candidate.eligible { b",\"eligible\":true" } else { b",\"eligible\":false" });
         key!(out, "trigger");
-        let trigger = row.common.triggers.of(py, candidate.action, demand_of(modifiers, candidate.action))?;
-        text(&mut out, trigger.to_str()?);
+        out.string(&proposal.trigger_of(recording.data, candidate)?);
         key!(out, "utility");
-        out.float(candidate.utility)?;
+        out.try_float(candidate.utility)?;
         key!(out, "probability");
-        out.float(candidate.probability)?;
+        out.try_float(candidate.probability)?;
         key!(out, "urgency_priority");
-        integer(&mut out, candidate.priority);
+        out.int(candidate.priority);
         out.out.push(b'}');
     }
     out.out.extend_from_slice(b"],\"candidate_count\":");
-    integer(&mut out, row.outcome.candidates.len() as i64);
+    out.int(outcome.candidates.len() as i64);
     out.out.extend_from_slice(b",\"candidates_truncated\":false,\"next_decision_at\":");
-    integer(&mut out, next_decision_at);
+    out.int(recording.next_decision_at);
     out.out.extend_from_slice(
         b",\"status\":\"selected_proposal\",\"execution_evidence\":\
           \"consult event history; selection is not proof of completion\"}",
@@ -523,225 +319,154 @@ fn decision_bytes(
 
 // ---- The record of a trace ---------------------------------------------------------------------
 
+fn text(value: &str) -> V {
+    V::Str(Arc::from(value))
+}
+
 /// `_decision_document` of `inspection/traces.py`, without the observed state its writer adds last.
-fn decision_document<'py>(
-    py: Python<'py>,
-    row: &ProposalRow,
-    target_id: Option<&str>,
-    next_decision_at: i64,
-    full: bool,
-) -> PyResult<Bound<'py, PyDict>> {
-    let rust = row.view.get();
-    let data = rust.data();
-    let agent = &data.agents[row.index];
-    let id = rust.key(py, row.index);
-    let action = row.outcome.action.value();
-    let version = row.common.policy_version.bind(py);
-    let version_text = exact_str(version)?;
-    let document = PyDict::new(py);
-    document.set_item("minute_index", data.minute_index)?;
-    document.set_item("agent_id", id)?;
-    document.set_item("action", action)?;
-    document.set_item("target_id", target_id)?;
-    document.set_item("observed_state_hash", row.common.state_hash.bind(py))?;
-    document.set_item("trigger", TRIGGER)?;
-    document.set_item("selected_action", action)?;
-    document.set_item("selected_probability", row.outcome.selection_probability)?;
-    document.set_item("choice_value", row.outcome.choice_value)?;
-    let key = PyList::empty(py);
-    key.append(crate::core::rng::label::BEHAVIOR)?;
-    key.append(&*agent.rng_key)?;
-    key.append(id)?;
-    key.append("minute")?;
-    key.append(data.minute_index)?;
-    key.append("policy")?;
-    key.append(row.common.scorer_version.bind(py))?;
-    key.append("choice")?;
-    if row.outcome.tie_broken {
-        key.append("priority-tie-break")?;
-    }
-    document.set_item("rng_key", key)?;
-    document.set_item("next_decision_at", next_decision_at)?;
-    document.set_item("policy_version", version)?;
-    document.set_item("source_type", "assumption")?;
-    document.set_item(
-        "source_id",
-        if version_text.starts_with("priority-rule-") {
-            "ASM-PRIORITY-RULE-BEHAVIOR-V1"
-        } else if version_text.starts_with("sleep-aware-utility-softmax-v2") {
-            "ASM-SLEEP-AWARE-BEHAVIOR-V2"
-        } else {
-            "ASM-UTILITY-BEHAVIOR-V1"
-        },
-    )?;
+pub fn decision_document(recording: &Recording<'_>, full: bool) -> Result<V> {
+    let data = recording.data;
+    let proposal = recording.proposal;
+    let outcome = &proposal.outcome;
+    let action = outcome.action.value();
+    let version = &proposal.common.policy_version;
+    let key = proposal
+        .rng_key(data)
+        .into_iter()
+        .map(|part| match part {
+            Ok(part) => text(part),
+            Err(number) => V::Int(number),
+        })
+        .collect();
+    let source_id = if version.starts_with("priority-rule-") {
+        "ASM-PRIORITY-RULE-BEHAVIOR-V1"
+    } else if version.starts_with("sleep-aware-utility-softmax-v2") {
+        "ASM-SLEEP-AWARE-BEHAVIOR-V2"
+    } else {
+        "ASM-UTILITY-BEHAVIOR-V1"
+    };
+    let mut document: Vec<(&str, V)> = vec![
+        ("minute_index", V::Int(data.minute_index)),
+        ("agent_id", text(recording.agent_id())),
+        ("action", text(action)),
+        ("target_id", recording.target_id.map_or(V::Null, text)),
+        ("observed_state_hash", V::Str(proposal.common.state_hash.clone())),
+        ("trigger", text(TRIGGER)),
+        ("selected_action", text(action)),
+        ("selected_probability", V::Float(outcome.selection_probability)),
+        ("choice_value", V::Float(outcome.choice_value)),
+        ("rng_key", V::List(key)),
+        ("next_decision_at", V::Int(recording.next_decision_at)),
+        ("policy_version", V::Str(version.clone())),
+        ("source_type", text("assumption")),
+        ("source_id", text(source_id)),
+    ];
     if full {
-        let modifiers = &data.zone_of(agent).demand_modifiers;
-        let candidates = PyList::empty(py);
-        for candidate in &row.outcome.candidates {
-            let item = PyDict::new(py);
-            item.set_item("action", candidate.action.value())?;
-            item.set_item("eligible", candidate.eligible)?;
-            item.set_item("trigger", row.common.triggers.of(py, candidate.action, demand_of(modifiers, candidate.action))?)?;
-            item.set_item("utility", candidate.utility)?;
-            item.set_item("urgency_priority", candidate.priority)?;
-            item.set_item("probability", candidate.probability)?;
-            candidates.append(item)?;
+        let mut candidates = Vec::with_capacity(outcome.candidates.len());
+        for candidate in &outcome.candidates {
+            candidates.push(V::Map(
+                [
+                    ("action", text(candidate.action.value())),
+                    ("eligible", V::Bool(candidate.eligible)),
+                    ("trigger", text(&proposal.trigger_of(data, candidate)?)),
+                    ("utility", V::Float(candidate.utility)),
+                    ("urgency_priority", V::Int(candidate.priority)),
+                    ("probability", V::Float(candidate.probability)),
+                ]
+                .into_iter()
+                .map(|(name, value)| (Arc::from(name), value))
+                .collect(),
+            ));
         }
-        document.set_item("candidates", candidates)?;
+        document.push(("candidates", V::List(candidates)));
     }
-    Ok(document)
+    Ok(V::Map(document.into_iter().map(|(name, value)| (Arc::from(name), value)).collect()))
 }
 
 // ---- The step ----------------------------------------------------------------------------------
 
-/// `_record_outcome`.
-#[pyfunction]
-#[pyo3(signature = (controller, proposal, *, target_id, next_decision_at, committed, observed_state))]
-pub(crate) fn record_outcome<'py>(
-    controller: &Bound<'py, PyAny>,
-    proposal: &Bound<'py, PyAny>,
-    target_id: &Bound<'py, PyAny>,
-    next_decision_at: &Bound<'py, PyAny>,
-    committed: &Bound<'py, PyAny>,
-    observed_state: &Bound<'py, PyAny>,
-) -> PyResult<()> {
-    let py = controller.py();
-    let through_python = || record_through_python(controller, proposal, target_id, next_decision_at, committed, observed_state);
-    let Ok(row) = proposal.downcast_exact::<ProposalRow>() else {
-        return through_python();
-    };
-    let row = row.get();
-    let Ok(committed_flag) = committed.downcast_exact::<PyBool>() else {
-        return through_python();
-    };
-    let committed_flag = committed_flag.is_true();
-    let data = row.view.get().data();
-    // `with_outcome` refuses a next decision that is not after the minute, with its own text.
-    let next = match next_decision_at.downcast_exact::<PyInt>().map(|next| next.extract::<i64>()) {
-        Ok(Ok(next)) if next > data.minute_index => next,
-        _ => return through_python(),
-    };
-    let target = if target_id.is_none() { None } else { Some(exact_str(target_id)?) };
-    let world = attribute(controller, intern!(py, "world"))?;
-    let active = attribute(controller, intern!(py, "active_actions"))?;
-    let Ok(active) = active.downcast::<ActiveActions>() else {
-        return through_python();
-    };
-    let table = attribute(&world, intern!(py, "model_state"))?;
-    let remembers = raw_dict_get(exact_dict(&table)?.as_any(), intern!(py, AGENT_DYNAMICS).as_any())?.is_some();
-
-    // The decision's record. All of this reads before its one write, so what the kernel does not
-    // write itself goes to the sink's own `record_decision`, as for a sink that declares nothing.
-    match sink_of(controller)? {
-        Sink::Python => return through_python(),
-        Sink::Silent => {}
-        Sink::Traced(sink, full) => {
-            let document = decision_document(py, row, target, next, full)?;
-            sink.call_method1(intern!(py, "record_decision_document"), (document, observed_state))?;
-        }
-        Sink::Indexed(sink) => {
-            let written = match observed_state.downcast_exact::<ObservedRow>() {
-                Ok(observed) if attribute(&sink, intern!(py, "world"))?.is(&world) => {
-                    let observations = attribute(&sink, intern!(py, "observations"))?;
-                    exact_list(&observations)?;
-                    match decision_bytes(py, &sink, &world, row, target, next, observed.get()) {
-                        Ok(raw) => Some((observations, raw)),
-                        Err(error) if error.is_instance_of::<Unsupported>(py) => None,
-                        Err(error) => return Err(error),
-                    }
-                }
-                _ => None,
+/// The decision's record, as the Run's sink takes it. Nothing of the world is borrowed while the host
+/// runs (rule R6).
+pub fn record<C: WorldCell, H: Host>(cell: &C, host: &mut H, recording: &Recording<'_>) -> std::result::Result<Sunk, H::Error> {
+    match host.decision_sink()? {
+        DecisionSink::Python => Ok(Sunk::Python),
+        DecisionSink::Silent => Ok(Sunk::Recorded),
+        DecisionSink::Artifacts => {
+            let observed = match recording.observed {
+                Observed::Row { data, index } => observed_value(data, *index),
+                Observed::Value(value) => value.clone(),
+                Observed::Other => return Ok(Sunk::Python),
             };
-            let Some((observations, raw)) = written else {
-                return through_python();
+            let full = host.trace_level()? == TraceLevel::Full;
+            let document = decision_document(recording, full)?;
+            host.decision(Decision::Document { document, observed })?;
+            Ok(Sunk::Recorded)
+        }
+        DecisionSink::Indexed => {
+            let Observed::Row { data, index } = recording.observed else {
+                return Ok(Sunk::Python);
             };
-            raw_list_append(&observations, PyBytes::new(py, &raw).as_any())?;
+            let Some(source) = host.decision_source(&recording.proposal.common.policy_version)? else {
+                return Ok(Sunk::Python);
+            };
+            let written = cell
+                .with(|world| decision_record(world, recording, source).and_then(|record| decision_bytes(&record, data, *index)))
+                .and_then(|written| written);
+            let raw = match written {
+                Ok(raw) => raw,
+                Err(Error::Unsupported(_)) => return Ok(Sunk::Python),
+                Err(error) => return Err(error.into()),
+            };
+            host.decision(Decision::Indexed(raw))?;
+            Ok(Sunk::Recorded)
         }
     }
-
-    let action = row.outcome.action.value();
-    if committed_flag {
-        let lifecycle = Proposal { agent_id: row.view.get().key(py, row.index).to_str()?, action, target_id: target, minute: data.minute_index, trigger: TRIGGER };
-        if let Err(error) = commit_action(&world, active, &lifecycle) {
-            if !error.is_instance_of::<Unsupported>(py) {
-                return Err(error);
-            }
-            let options = PyDict::new(py);
-            options.set_item(intern!(py, "target_id"), target_id)?;
-            options.set_item(intern!(py, "committed"), true)?;
-            options.set_item(intern!(py, "active_actions"), active)?;
-            domain_rule(py, LIFECYCLE_MODULE, "record_action_proposal")?
-                .call((&world, row.recorded(py, target_id, next_decision_at)?), Some(&options))?;
-        }
-    }
-    if remembers {
-        let decision = Decision {
-            agent_id: row.view.get().key(py, row.index).to_str()?,
-            action,
-            target_id: target,
-            minute: data.minute_index,
-            next_decision_at: next,
-            trigger: Some(TRIGGER),
-        };
-        if let Err(error) = remember_decision(&world, &decision) {
-            if !error.is_instance_of::<Unsupported>(py) {
-                return Err(error);
-            }
-            let options = PyDict::new(py);
-            options.set_item(intern!(py, "target_id"), target_id)?;
-            domain_rule(py, DYNAMICS_MODULE, "record_proposal")?
-                .call((&world, row.recorded(py, target_id, next_decision_at)?), Some(&options))?;
-        }
-    }
-    Ok(())
 }
 
-/// The step as the phase wrote it, for what the rows above do not take: a proposal Python made, a
-/// sink without `decision_sink` (or a trace's writer before its start or after its end), a long
-/// observed state, which the sink measures, values `with_outcome` or the rules raise on. The sink's
-/// `record_decision` and the rules it calls are the same ones, each with its own checks and texts.
-fn record_through_python<'py>(
-    controller: &Bound<'py, PyAny>,
-    proposal: &Bound<'py, PyAny>,
-    target_id: &Bound<'py, PyAny>,
-    next_decision_at: &Bound<'py, PyAny>,
-    committed: &Bound<'py, PyAny>,
-    observed_state: &Bound<'py, PyAny>,
-) -> PyResult<()> {
-    let py = controller.py();
-    let recorded = proposal.call_method1(intern!(py, "with_outcome"), (target_id, next_decision_at))?;
-    let options = PyDict::new(py);
-    options.set_item(intern!(py, "observed_state"), observed_state)?;
-    controller
-        .getattr(intern!(py, "artifacts"))?
-        .call_method(intern!(py, "record_decision"), (&recorded,), Some(&options))?;
-    let world = controller.getattr(intern!(py, "world"))?;
-    let options = PyDict::new(py);
-    options.set_item(intern!(py, "target_id"), target_id)?;
-    options.set_item(intern!(py, "committed"), committed)?;
-    options.set_item(intern!(py, "active_actions"), controller.getattr(intern!(py, "active_actions"))?)?;
-    domain_rule(py, LIFECYCLE_MODULE, "record_action_proposal")?.call((&world, &recorded), Some(&options))?;
-    if world.getattr(intern!(py, "model_state"))?.contains(intern!(py, AGENT_DYNAMICS))? {
-        let options = PyDict::new(py);
-        options.set_item(intern!(py, "target_id"), target_id)?;
-        domain_rule(py, DYNAMICS_MODULE, "record_proposal")?.call((&world, &recorded), Some(&options))?;
+/// The action's lifecycle of a committed decision (`record_action_proposal`).
+pub fn commit(world: &World, active: &mut ActiveActions, recording: &Recording<'_>) -> Result<()> {
+    if !recording.committed {
+        return Ok(());
     }
-    Ok(())
+    let proposal = action_lifecycle::Proposal {
+        agent_id: recording.agent_id(),
+        action: recording.proposal.outcome.action.value(),
+        target_id: recording.target_id,
+        minute: recording.minute(),
+        trigger: TRIGGER,
+    };
+    action_lifecycle::commit_action(world, active, &proposal)
 }
 
-const LIFECYCLE_MODULE: &str = "sheltersim.domain.action_lifecycle";
-const DYNAMICS_MODULE: &str = "sheltersim.domain.agent_dynamics";
-
-/// A rule as its domain module has it, for what the kernels leave to it.
-fn domain_rule<'py>(py: Python<'py>, module: &str, name: &str) -> PyResult<Bound<'py, PyAny>> {
-    py.import(module)?.getattr(name)
+/// The person's memory of the decision (`record_proposal`), when the world keeps one.
+pub fn remember(world: &World, recording: &Recording<'_>) -> Result<()> {
+    if !recording.remembers {
+        return Ok(());
+    }
+    let decision = Memory {
+        agent_id: recording.agent_id(),
+        action: recording.proposal.outcome.action.value(),
+        target_id: recording.target_id,
+        minute: recording.minute(),
+        next_decision_at: recording.next_decision_at,
+        trigger: Some(TRIGGER),
+    };
+    agent_dynamics::remember_decision(world, &decision)
 }
 
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<ProposalRow>()?;
-    m.add_class::<ObservedRow>()?;
-    m.add_function(wrap_pyfunction!(propose_rows, m)?)?;
-    m.add_function(wrap_pyfunction!(observed_row, m)?)?;
-    m.add_function(wrap_pyfunction!(record_outcome, m)?)?;
-    Ok(())
+/// `_record_outcome`: the record, the lifecycle and the memory. `Sunk::Python` has done nothing.
+pub fn record_outcome<C: WorldCell, H: Host>(
+    cell: &C,
+    host: &mut H,
+    active: &mut ActiveActions,
+    recording: &Recording<'_>,
+) -> std::result::Result<Sunk, H::Error> {
+    if record(cell, host, recording)? == Sunk::Python {
+        return Ok(Sunk::Python);
+    }
+    cell.with(|world| commit(world, active, recording))
+        .and_then(|done| done)
+        .map_err(|error| Error::refused(LIFECYCLE, error))?;
+    cell.with(|world| remember(world, recording)).and_then(|done| done).map_err(|error| Error::refused(MEMORY, error))?;
+    Ok(Sunk::Recorded)
 }

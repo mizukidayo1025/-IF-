@@ -11,7 +11,9 @@ pub mod metrics;
 // ---- P8a: people rules -------------------------------------------------------------------------
 pub mod action_lifecycle;
 pub mod agent_dynamics;
+pub mod behavior;
 pub mod body_state;
+pub mod decisions;
 pub mod person_context;
 pub mod psychology;
 pub mod social_dialogue;

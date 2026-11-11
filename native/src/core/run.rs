@@ -135,7 +135,7 @@ fn held_of(value: &Bound<'_, PyAny>, spec: Option<&'static Spec>) -> Held {
 
 /// `VPy::from_py` without its refusal, which the census would count: None for a value that is not
 /// a plain JSON value.
-fn plain_of(value: &Bound<'_, PyAny>, depth: usize) -> Option<V> {
+pub(crate) fn plain_of(value: &Bound<'_, PyAny>, depth: usize) -> Option<V> {
     if depth > crate::MAX_DEPTH {
         return None;
     }

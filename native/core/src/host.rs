@@ -259,6 +259,12 @@ pub trait Host {
     fn decision_sink(&self) -> Result<DecisionSink, Self::Error>;
     /// A decision's record.
     fn decision(&mut self, decision: Decision) -> Result<(), Self::Error>;
+    /// The `source_id` an indexed sink writes for a policy version (`policy_sources.get(version)`,
+    /// None for None), or None when the sink takes this record only through its own
+    /// `record_decision`: its `world` is another, or what it keeps for the version is not a str.
+    fn decision_source(&mut self, _policy_version: &str) -> Result<Option<Option<Arc<str>>>, Self::Error> {
+        Ok(Some(None))
+    }
     /// The trace's level (read once per Run).
     fn trace_level(&self) -> Result<TraceLevel, Self::Error>;
     /// A trace document.
