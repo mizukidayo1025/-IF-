@@ -1502,25 +1502,6 @@ pub(crate) fn detached_staff_operations<'py>(world: &Bound<'py, PyAny>) -> PyRes
     Ok(Some(state.into_any()))
 }
 
-/// A write to the row at this path, as a forwarded write from Python applies it, for a rule that
-/// writes through the tree when the namespace is detached and has no tree: it writes the row this
-/// way instead of making the tree again. A row checks a write before it changes anything, so a
-/// write that does not fit changes nothing here and is Unsupported: a detached row is all there is
-/// of its namespace, and must not be dropped.
-pub(crate) fn apply_to_row(mirror: &Bound<'_, NamespaceMirror>, path: &[Part<'_>], write: &Write<'_, '_>) -> PyResult<()> {
-    let this = mirror.get();
-    let ops = this.ops();
-    this.with_slot_mut(mirror.py(), |slot| {
-        let Some(row) = slot.row.as_deref_mut() else {
-            return Err(Unsupported::new_err("the namespace has no row"));
-        };
-        ops.py_mut(row)?.apply(path, write).map_err(|misfit| Unsupported::new_err(misfit.0))?;
-        slot.counts.forwards += 1;
-        slot.touch();
-        Ok(())
-    })?
-}
-
 /// `model_state.get(name)` through the C API, but a detached namespace comes back as its tree,
 /// which Python rebuilds from the row (`_DetachingTable.__getitem__`): for a kernel that writes
 /// through the tree, or reads it at an event. Unsupported for a `model_state` kernels don't read.
