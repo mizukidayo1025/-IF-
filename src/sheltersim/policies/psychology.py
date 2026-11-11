@@ -1,8 +1,9 @@
 """The psychology models of each person's minute: their settings and the values they give.
 
-The rules are native/src/rules/psychology.rs, which knows each model here and BoundedStressPolicy
-of policies/alternatives.py by its exact class (experiments/phases/update.py runs it). The trace
-documents are native/src/rules/trace.rs. A model holds its settings and its `policy_version`.
+The rules are native/core/src/rules/psychology.rs, which knows each model here and
+BoundedStressPolicy of policies/alternatives.py by its exact class (experiments/phases/update.py
+runs it). The trace documents are native/core/src/rules/trace.rs. A model holds its settings and
+its `policy_version`.
 """
 
 from __future__ import annotations
@@ -84,7 +85,7 @@ class AgentStateDelta:
 class PsychologyUpdateResult:
     """A minute's deltas, in ID order, and the kernel's rows of each person's contributions.
 
-    `traces` is () when the Run keeps no trace; otherwise native/src/rules/trace.rs makes the
+    `traces` is () when the Run keeps no trace; otherwise native/core/src/rules/trace.rs makes the
     trace document of its rows (`_record_psychology_trace` of the update phase), whose
     `policy_version` is the model's. Without a trace `policy_version` keeps its default.
     """

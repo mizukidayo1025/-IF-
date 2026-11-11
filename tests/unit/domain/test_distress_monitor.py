@@ -1,8 +1,8 @@
 """Boundary and censoring semantics for online high-distress episode counts.
 
 The monitor is updated by the update phase's `_update_long_term_psychology`, whose rule is
-native/src/rules/psychology.rs (the Python record_distress_monitor_tick was deleted in lane L10):
-each test runs that step on a small world, one minute after another, and reads the summary.
+native/core/src/rules/psychology.rs (the Python record_distress_monitor_tick was deleted in lane
+L10): each test runs that step on a small world, one minute after another, and reads the summary.
 """
 
 from __future__ import annotations

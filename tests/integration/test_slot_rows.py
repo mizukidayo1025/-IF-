@@ -62,6 +62,27 @@ def test_a_metric_the_core_counts_reaches_the_same_tree() -> None:
     assert _row(world, "metric_state")["probe_count"] == 7.0
 
 
+def test_a_map_of_floats_writes_only_what_changed_or_else_is_patched_whole() -> None:
+    """`metric_state` takes the changed values and the new keys at its end without the whole row
+    made in Python (lane P8 a3); a tree whose keys are not the row's in order is patched whole."""
+    world = _world()
+    tree = world.metric_state
+    tree["probe_a"] = 1.0
+    tree["probe_b"] = 2.0
+    # A value only the tree has, of another type: the row's float comes back.
+    dict.__setitem__(tree, "probe_a", 5)
+    _ops(world, ("metric", "probe_c"))
+    assert world.metric_state is tree
+    assert type(tree["probe_a"]) is float and tree["probe_a"] == 1.0
+    assert list(tree)[-3:] == ["probe_a", "probe_b", "probe_c"]
+    assert _mirror(world, "metric_state").verify() and _mirror(world, "metric_state").verify_order()
+    # A key only the tree moved to its end: the general patch puts it back in the row's order.
+    dict.__setitem__(tree, "probe_a", dict.pop(tree, "probe_a"))
+    _ops(world, ("metric", "probe_c"))
+    assert list(tree)[-3:] == ["probe_a", "probe_b", "probe_c"] and tree["probe_c"] == 2.0
+    assert _mirror(world, "metric_state").verify() and _mirror(world, "metric_state").verify_order()
+
+
 def test_event_sequences_the_core_allocates_reach_id_counters() -> None:
     world = _world()
     counters = world.id_counters

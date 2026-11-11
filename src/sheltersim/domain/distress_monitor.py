@@ -1,10 +1,10 @@
 """Compact online duration indicators for mean-reverting psychology runs.
 
-The update phase's `_update_long_term_psychology` (native/src/rules/psychology.rs) keeps five values
-per Agent in checkpointed metric state, under `acute_distress_monitor:<agent_id>:`: the current
-and the longest high-distress run, the episodes, and the total and the count of the runs that
-ended. A run is the minutes with distress at or above the threshold; one ends when distress was
-or is below it, including a fall while events were handled before the update (#159). It keeps no
+The update phase's `_update_long_term_psychology` (native/core/src/rules/psychology.rs) keeps five
+values per Agent in checkpointed metric state, under `acute_distress_monitor:<agent_id>:`: the
+current and the longest high-distress run, the episodes, and the total and the count of the runs
+that ended. A run is the minutes with distress at or above the threshold; one ends when distress
+was or is below it, including a fall while events were handled before the update (#159). It keeps no
 tick-by-tick history and does not affect model state.
 """
 

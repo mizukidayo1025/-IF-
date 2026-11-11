@@ -40,7 +40,8 @@ class UpdatePhase:
         """
 
     def _psychology_update(self, view: WorldView, minute: int) -> PsychologyUpdateResult:
-        """Each person's values of the next minute, which native/src/rules/psychology.rs computes.
+        """Each person's values of the next minute, which native/core/src/rules/psychology.rs
+        computes.
 
         The model is `psychology` (the five models of policies/psychology.py and
         BoundedStressPolicy of policies/alternatives.py, by their exact class). The result holds
@@ -76,7 +77,7 @@ class UpdatePhase:
     def _record_psychology_trace(
         self, psychology_result: PsychologyUpdateResult, final_deltas: Any, minute: int
     ) -> None:
-        """The psychology trace of the minute, which native/src/rules/trace.rs writes.
+        """The psychology trace of the minute, which native/core/src/rules/trace.rs writes.
 
         Nothing when the Run keeps no trace. Otherwise `artifacts.record_psychology_trace` gets
         the minute's document and `agent_contributions`, one per person: each person's stress
@@ -92,8 +93,8 @@ class UpdatePhase:
     def _update_long_term_psychology(
         self, world: WorldState, view: WorldView, final_deltas: Any, minute: int
     ) -> None:
-        """The distress monitor and the day-scale distress, which native/src/rules/psychology.rs
-        updates for the models with long-term state.
+        """The distress monitor and the day-scale distress, which
+        native/core/src/rules/psychology.rs updates for the models with long-term state.
 
         Nothing for a model other than mean-reverting-distress-v1 and
         mean-reverting-life-state-v1. For those, with each person's stress before (the rows the
@@ -114,7 +115,7 @@ class UpdatePhase:
         """
 
     def _apply_state_deltas(self, world: WorldState, final_deltas: Any) -> None:
-        """Write the final deltas, which native/src/rules/psychology.rs does.
+        """Write the final deltas, which native/core/src/rules/psychology.rs does.
 
         Each person's needs, stress and trust take the delta's values, and the body values a
         delta has go to its record of `body_state_v1`. Every delta is checked before anything

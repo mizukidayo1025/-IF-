@@ -18,7 +18,7 @@ A_{t+1}=\operatorname{clip}_{[0,1]}\left[A_0+(A_t-A_0)e^{-\kappa\Delta t}
 \qquad \Delta t=1\text{ minute}.
 \]
 
-`native/src/rules/psychology.rs` の `mean_reverting_terms` は指数項と定係数外力の積分係数を解析的に計算する。既定の `κ=0.01/min` は時定数100分、半減期約69.3分に相当する。一定外力のclip前平衡は `A*=A0+F/κ` であり、`A0=0` なら `F=0.007/min` で0.7、`F=0.01/min` で1.0に達する。
+`native/core/src/rules/psychology.rs` の `mean_reverting_terms` は指数項と定係数外力の積分係数を解析的に計算する。既定の `κ=0.01/min` は時定数100分、半減期約69.3分に相当する。一定外力のclip前平衡は `A*=A0+F/κ` であり、`A0=0` なら `F=0.007/min` で0.7、`F=0.01/min` で1.0に達する。
 
 このScenarioでは `F` は一定でない。少なくとも `need pressure`、施設queue、support待ち、sleep-debt/uncertainty/discontent/hygiene/sanitation等のfeedbackを含み、身体・行動状態とstressに依存する。したがって上式の一定外力平衡は単純化した閾値比較にだけ使い、実際の固定点と同一視しない。
 
