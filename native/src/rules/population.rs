@@ -29,7 +29,7 @@ use sheltersim_core::value::V as CoreV;
 use crate::core::configs;
 use crate::core::errors::{self, to_py_err, OrPy};
 use crate::core::row::{attribute, exact_int, exact_str, unsupported};
-use crate::core::value::{V, VPy};
+use crate::core::value::VPy;
 use crate::core::world_core::{namespace_held, state_value, with_world, PyWorldCell};
 use crate::host::PyHost;
 use crate::rules::movement_geometry::{approach_routes, Geo, GeoPy};
