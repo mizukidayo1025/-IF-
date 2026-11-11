@@ -188,6 +188,16 @@ pub(crate) fn kept_value<T>(
     }
 }
 
+/// `kept_value` without its raise: the value, or the fault for a kernel of the core to raise where
+/// its rule reads the section (`sheltersim_core::rules::kit::Kept`).
+pub(crate) fn kept_section<T>(
+    world: &Bound<'_, PyAny>,
+    section: fn(&Configs) -> &Lazy<T>,
+    parse: fn(&V) -> Read<T>,
+) -> PyResult<Result<Arc<T>, Fault>> {
+    kept(world, section, || parsed_value(world, parse))
+}
+
 /// A section that a Python expression of the configs gives (`parse`, on the world), evaluated at
 /// the first read after the stamp changed and kept: its value, or what it raised, raised here again
 /// by a second evaluation, with Python's own class and text (policy E14).

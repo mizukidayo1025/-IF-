@@ -3,7 +3,9 @@
 (docs/rust-port/lanes/m3-body-state.md). The Python rule is gone (lane L10, `kernel_only`): each
 case of small worlds and values no scenario reaches was run with it once (2d8fb46), and the tree it
 left is pinned in PYTHON_GAVE, per test and in call order, as a digest compared on every OS, as the
-gate's hashes are.
+gate's hashes are. Since lane P8 a2 the tree follows the row, whose history items are their
+canonical JSON: the digests sort each item's keys, and were pinned again from the build before that
+lane, whose trees give the same digests so.
 """
 
 from __future__ import annotations
@@ -29,24 +31,25 @@ from sheltersim.domain.body_state import (
     create_body_state,
     validate_body_state,
 )
-from sheltersim.domain.models import ordered_pair_key
+from sheltersim.domain.information import create_information_runtime_state
+from sheltersim.domain.models import AgentInformationState, ordered_pair_key
 from sheltersim.events.models import EventKind, ScheduledEvent
 
 # ---- What the Python rule gave ----------------------------------------------------------------
 
 PYTHON_GAVE: dict[str, list[str]] = {
-    "test_a_correction_is_python_s_bit_for_bit[0]": ["876c4ce9ccc9fd2f"],
-    "test_a_correction_is_python_s_bit_for_bit[1]": ["968e4d2e6fcf4cd2"],
-    "test_a_positions_distance_reaches_trust_and_the_deltas": ["28ecb4263629ff1b"],
-    "test_each_event_is_python_s_bit_for_bit[0-0]": ["c51eef00ba2cc7dd"],
-    "test_each_event_is_python_s_bit_for_bit[0-1]": ["f5aa42380b7376c2"],
-    "test_each_event_is_python_s_bit_for_bit[1-0]": ["03cda07438d9409d"],
-    "test_each_event_is_python_s_bit_for_bit[1-1]": ["5df2c4b1ffce8352"],
-    "test_many_random_events_are_python_s_bit_for_bit": ["b1cf07cd92943c6f"],
-    "test_observe_event_copies_the_trust_this_kernel_wrote[0]": ["3a0aafbc756ec977"],
-    "test_observe_event_copies_the_trust_this_kernel_wrote[1]": ["5c45e878dfbf60cc"],
-    "test_observe_event_copies_the_trust_this_kernel_wrote[2]": ["27884b7f3cc351af"],
-    "test_observe_event_copies_the_trust_this_kernel_wrote[3]": ["106e5c8028c609c5"],
+    "test_a_correction_is_python_s_bit_for_bit[0]": ["34db09179e3303c2"],
+    "test_a_correction_is_python_s_bit_for_bit[1]": ["42dcc7a70bd10934"],
+    "test_a_positions_distance_reaches_trust_and_the_deltas": ["f734bed8be073263"],
+    "test_each_event_is_python_s_bit_for_bit[0-0]": ["005dcea969a92e5b"],
+    "test_each_event_is_python_s_bit_for_bit[0-1]": ["fdb7e9d9e11c0aad"],
+    "test_each_event_is_python_s_bit_for_bit[1-0]": ["8f1caed430a305f8"],
+    "test_each_event_is_python_s_bit_for_bit[1-1]": ["681c8392395a1d95"],
+    "test_many_random_events_are_python_s_bit_for_bit": ["3a1ec129bd6d269a"],
+    "test_observe_event_copies_the_trust_this_kernel_wrote[0]": ["53b1fd25f6b14c3c"],
+    "test_observe_event_copies_the_trust_this_kernel_wrote[1]": ["53b2eddd2e54f2af"],
+    "test_observe_event_copies_the_trust_this_kernel_wrote[2]": ["7c9c53d7223555b6"],
+    "test_observe_event_copies_the_trust_this_kernel_wrote[3]": ["618f054e67e24524"],
 }
 _SCOPE: list[Any] = ["", 0]
 
@@ -68,9 +71,23 @@ def _pinned_scope(request: Any) -> None:
     _SCOPE[:] = [name, 0]
 
 
+def _with_canonical_history(value: Any) -> Any:
+    """The value with the keys of each history item sorted, as the row holds an item (its
+    canonical JSON) and the tree follows the row (lane P8-0c)."""
+    if not isinstance(value, dict):
+        return value
+    return {
+        key: [json.loads(json.dumps(item, sort_keys=True)) for item in item]
+        if key == "history" and isinstance(item, list)
+        else item
+        for key, item in value.items()
+    }
+
+
 def _digest(*values: Any) -> str:
-    # Not sorted: the keys are in the order the rule wrote them.
-    text = "\n".join(json.dumps(value, default=repr) for value in values)
+    # Not sorted: the keys are in the order the rule wrote them, but in a history item, whose keys
+    # are in the row's order.
+    text = "\n".join(json.dumps(_with_canonical_history(value), default=repr) for value in values)
     return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
@@ -416,12 +433,21 @@ def test_a_correction_is_python_s_bit_for_bit(
         record["uncertainty"] = 0.5
     people = sorted(id_ for id_, agent in world.agents.items() if agent.zone_id == zone)
     event = _event("information_correction", {"zone_id": zone, "message_id": "M"})
-    # Python reads the beliefs through the same dict: the first took it, the second did not.
-    beliefs = {
-        people[0]: {"M": {"last_event_id": event.event_id, "last_correction_accepted": True}},
-        people[-1]: {"M": {"last_event_id": "other", "last_correction_accepted": True}},
-    }
-    dict.__setitem__(world.model_state, "information_spread_v1", {"beliefs": beliefs})
+    # The kernel reads the beliefs' row (lane P8 a2): the first took it, the second did not.
+    information = create_information_runtime_state(set(world.agents))
+    for person, last_event_id in ((people[0], event.event_id), (people[-1], "other")):
+        information["beliefs"][person]["M"] = AgentInformationState(
+            message_id="M",
+            belief="verified",
+            source="S",
+            last_contact=0,
+            last_event_id=last_event_id,
+            correction_exposed=True,
+            correction_accepted=True,
+            last_correction_accepted=True,
+        ).to_dict()
+    world.model_state["information_spread_v1"] = information
+    assert world._core.mirror("information_spread_v1").has_row
     _both(world, event)
     _the_python_rule_s_tree(world)
     items = world.model_state[BODY_STATE_KEY]["history"]
@@ -553,12 +579,9 @@ def test_observe_event_copies_the_trust_this_kernel_wrote(
     assert social[key]["trust"].hex() == body[key]["trust"].hex()
 
 
-def test_observe_event_sees_a_tainted_body_tree_too(generated_scenario: Any) -> None:
-    """A body namespace without a row still has the tree that observe_event reads.
-
-    No rule writes a tainted row: record_social_event refuses it and writes nothing, and
-    observe_event copies the trust the tree holds.
-    """
+def test_observe_event_refuses_a_tainted_body_state(generated_scenario: Any) -> None:
+    """The kernels read the body namespace's row alone (lane P8 a2): without its row, both refuse,
+    and observe_event writes nothing."""
     from sheltersim.domain.social_network import SOCIAL_NETWORK_STATE_KEY
 
     world = _with_social(generated_scenario)
@@ -572,12 +595,10 @@ def test_observe_event_sees_a_tainted_body_tree_too(generated_scenario: Any) -> 
     assert world._core.mirror(BODY_STATE_KEY).tainted is not None
     with pytest.raises(KernelRefusal):
         body_state.record_social_event(world, event, 11)
-    native.rules("social_network").observe_event(world, event, 11)
-    key = ordered_pair_key(second, first)
-    assert (
-        world.model_state[SOCIAL_NETWORK_STATE_KEY]["relationships"][key]["trust"]
-        == world.model_state[BODY_STATE_KEY]["relationships"][key]["trust"]
-    )
+    before = world._core.mirror(SOCIAL_NETWORK_STATE_KEY).row_json()
+    with pytest.raises(native.Unsupported, match="the namespace has no row"):
+        native.rules("social_network").observe_event(world, event, 11)
+    assert world._core.mirror(SOCIAL_NETWORK_STATE_KEY).row_json() == before
 
 
 # ---- What the kernel refuses: no applied event or valid state holds it ----------------------

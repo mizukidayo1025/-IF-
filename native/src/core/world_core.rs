@@ -536,17 +536,6 @@ impl<'py> Tree<'py> {
             None => Ok(()),
         }
     }
-
-    /// del items[0] on a non-empty list of scalars, which leaves the table of nodes as it is.
-    pub(crate) fn list_remove_first(&self) -> PyResult<()> {
-        if let Some(node) = &self.node {
-            // SAFETY: node is a live list; the slice's item is an atom, released here.
-            if unsafe { ffi::PyList_SetSlice(node.as_ptr(), 0, 1, null_mut()) } != 0 {
-                return Err(PyErr::fetch(self.py));
-            }
-        }
-        Ok(())
-    }
 }
 
 /// The setters of the core's rows write the tree here: a field's key is interned, as `intern!`

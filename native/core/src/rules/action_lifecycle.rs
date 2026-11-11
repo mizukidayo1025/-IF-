@@ -1,43 +1,37 @@
-//! `domain/action_lifecycle.py`: lifecycle receipts of autonomous actions. The Python rules stay as
-//! the comparison base and for every value these kernels do not decide, which is also how a bad
-//! value gets its error text (docs/rust-port/lanes/f-action-lifecycle.md).
+//! `domain/action_lifecycle.py`: lifecycle receipts of autonomous actions (docs/rust-port/lanes/
+//! f-action-lifecycle.md). Its rules are these kernels alone (`kernel_only`). Moved to the core in
+//! lane P8 a2.
 //!
 //! `ActiveActions` holds the open action of each agent as rows. The controller keeps it, and it is
 //! not saved: a restored Run makes it again from the event log (`active_action_index`).
 //!
 //! Every kernel plans first: it reads the rows and what it was given and builds each receipt as an
-//! `EventRow`, with the sequence it will get. Anything the Python rule would hand to the receipt's
-//! model, or refuse, is Unsupported with nothing changed. Then `commit` allocates the sequences and
-//! appends the records through `EventWriter`. No Python runs in the rule, and no Python object is
-//! made: a record's object is made when Python first reads it.
-//!
-//! A Rust caller (lane J) uses `commit_action` with a `Proposal`.
+//! `EventRow`, with the sequence it will get. A receipt the receipts' model would refuse, or decide
+//! with its own text, is Unsupported with nothing changed. Then `commit` allocates the sequences and
+//! appends the records to the world's log (`kit::Events`).
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, LazyLock};
 
 use indexmap::IndexMap;
-use pyo3::exceptions::PyTypeError;
-use pyo3::intern;
-use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDict, PyString};
 
-use crate::core::row::{attribute, exact_dict, exact_int, exact_str, state_row, unsupported, PyField, IdMap};
-use crate::core::value::V;
-use crate::core::world_core::{held_state, raw_dict_get, with_state_value, Held, NamespaceMirror};
-use crate::state::body_state::BodyRow;
-use crate::eventlog::AppliedOutcome;
-use crate::state::entities::{entities_of, Activity, EntityStore};
-use crate::state::events::{is_stable_id, EventKind, EventRef, EventRow, EventRowPy, EventStatus, EventWriter};
-use crate::Unsupported;
+use crate::error::{Error, Result};
+use crate::events::writer::WriteError;
+use crate::events::{is_stable_id, EventKind, EventRow, EventStatus};
+use crate::row::IdMap;
+use crate::rules::kit::{self, Events};
+use crate::state::body_state::{BodyRow, NAME as BODY_STATE};
+use crate::state_row;
+use crate::value::V;
+use crate::world::World;
 
 const SOURCE_ID: &str = "ASM-ACTION-LIFECYCLE-V1";
 const POLICY_VERSION: &str = "applied-action-lifecycle-v2";
 const EVENT_TYPE: &str = "agent_action_lifecycle";
 const MAX_REASON_CHARS: usize = 120;
 const MAX_ACTIVITY_CHARS: usize = 80;
-/// Above this an int does not always fit a float, and `float(int)` rounds it.
-const FLOAT_EXACT_INT: u64 = 1 << 53;
+const POPULATION_LIFECYCLE: &str = "population_lifecycle_v1";
+const POPULATION_DYNAMICS: &str = "population_dynamics_v1";
 
 /// The strings every receipt holds, so that a receipt allocates none of them.
 struct Words {
@@ -101,7 +95,7 @@ const SLEEP_DEBT: usize = 4;
 
 state_row! {
     /// One open action, as `active_actions[agent_id]` holds it.
-    pub(crate) struct ActiveAction {
+    pub struct ActiveAction {
         action_id: Arc<str>,
         agent_id: Arc<str>,
         action: Arc<str>,
@@ -116,88 +110,32 @@ state_row! {
     }
 }
 
-/// The open actions of a controller. Rows while they fit; a Python rule that runs on them gets a
-/// plain dict (`as_plain`), which then is what holds them, until a kernel can read it into rows.
-/// So a value that does not fit keeps the store in Python, and the Python rules run on it.
-#[pyclass(module = "sheltersim_native.rules.action_lifecycle")]
+/// The open actions of a controller, by agent, in the order a dict of them would have: a closed
+/// action leaves, and a new one is the last key.
+#[derive(Clone, Default)]
 pub struct ActiveActions {
-    rows: IdMap<ActiveAction>,
-    plain: Option<Py<PyDict>>,
+    pub rows: IdMap<ActiveAction>,
 }
 
 impl ActiveActions {
-    /// Read the plain dict into rows if there is one; Unsupported, keeping it, if it does not fit.
-    fn into_rows(&mut self, py: Python<'_>) -> PyResult<()> {
-        let Some(plain) = &self.plain else {
-            return Ok(());
-        };
-        let rows = IdMap::<ActiveAction>::from_py(plain.bind(py))
-            .map_err(|_| Unsupported::new_err("an active action does not fit its row"))?;
+    /// The rows of `active_action_index`, each under its own agent's key; Unsupported otherwise.
+    pub fn from_rows(rows: IdMap<ActiveAction>) -> Result<Self> {
         if rows.iter().any(|(key, action)| *key != action.agent_id) {
-            return unsupported("an active action is under another agent's key");
+            return Err(Error::unsupported("an active action is under another agent's key"));
         }
-        self.rows = rows;
-        self.plain = None;
-        Ok(())
+        Ok(Self { rows })
     }
 
-    fn rows_as_dict<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let plain = PyField::to_py(&self.rows, py)?;
-        Ok(plain.downcast_into::<PyDict>()?)
-    }
-}
-
-#[pymethods]
-impl ActiveActions {
-    /// What `active_action_index` gives, with each `start_needs` a dict.
-    #[new]
-    fn new(py: Python<'_>, records: Bound<'_, PyDict>) -> Self {
-        let mut this = Self { rows: IdMap::default(), plain: Some(records.unbind()) };
-        // A store that doesn't fit stays plain, for the Python rules.
-        let _ = this.into_rows(py);
-        this
+    pub fn len(&self) -> usize {
+        self.rows.len()
     }
 
-    /// The dict a Python rule works on. It holds the actions from now on, so what the rule does to
-    /// it stays, even if the rule raises.
-    fn as_plain<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        if let Some(plain) = &self.plain {
-            return Ok(plain.bind(py).clone());
-        }
-        let plain = self.rows_as_dict(py)?;
-        self.plain = Some(plain.clone().unbind());
-        self.rows = IdMap::default();
-        Ok(plain)
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
     }
 
-    /// A detached copy, changing nothing: for tests and benchmarks/rule_shadow.
-    fn snapshot<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        match &self.plain {
-            Some(plain) => plain.bind(py).copy(),
-            None => self.rows_as_dict(py),
-        }
-    }
-
-    /// Whether the actions are in rows, for tests.
-    fn in_rows(&self) -> bool {
-        self.plain.is_none()
-    }
-
-    fn __contains__(&self, py: Python<'_>, agent_id: &Bound<'_, PyAny>) -> PyResult<bool> {
-        if let Some(plain) = &self.plain {
-            return plain.bind(py).contains(agent_id);
-        }
-        let Ok(text) = agent_id.downcast::<PyString>() else {
-            return Ok(false);
-        };
-        Ok(self.rows.contains_key(text.to_str()?))
-    }
-
-    fn __len__(&self, py: Python<'_>) -> usize {
-        match &self.plain {
-            Some(plain) => plain.bind(py).len(),
-            None => self.rows.len(),
-        }
+    pub fn contains(&self, agent_id: &str) -> bool {
+        self.rows.contains_key(agent_id)
     }
 }
 
@@ -206,46 +144,13 @@ impl ActiveActions {
 /// `_need_snapshot`, in `NEED_NAMES` order.
 type Needs = [f64; 6];
 
-/// `float(body.get(name, 0.0))` of a value the conversion leaves exact.
-fn body_value(record: &Bound<'_, PyAny>, name: &Bound<'_, PyString>) -> PyResult<f64> {
-    let Some(value) = raw_dict_get(record, name.as_any())? else {
-        return Ok(0.0);
-    };
-    if let Ok(number) = value.downcast_exact::<pyo3::types::PyFloat>() {
-        return Ok(number.value());
-    }
-    let whole = exact_int(&value)?;
-    if whole.unsigned_abs() > FLOAT_EXACT_INT {
-        return unsupported("a body value does not fit a float");
-    }
-    Ok(whole as f64)
-}
-
-/// `sleep_debt_minutes` and `hygiene_need` of `body_state_v1.agents[id]`: from the row, or from
-/// the dict Python holds past it.
-fn body_needs(world: &Bound<'_, PyAny>, id: &str) -> PyResult<(f64, f64)> {
-    let py = world.py();
-    exact_dict(&attribute(world, intern!(py, "model_state"))?)?;
-    let state = match held_state(world, "body_state_v1")? {
-        None => return Ok((0.0, 0.0)),
-        Some(Held::Row(mirror)) => {
-            return NamespaceMirror::with_row::<BodyRow, _>(&mirror, |row| {
-                Ok(row.agents.get(id).map_or((0.0, 0.0), |record| (record.sleep_debt_minutes, record.hygiene_need)))
-            });
-        }
-        Some(Held::Value(state)) => state,
-    };
-    let Some(agents) = exact_dict(&state)?.get_item(intern!(py, "agents"))? else {
+/// `sleep_debt_minutes` and `hygiene_need` of `body_state_v1.agents[id]`, 0.0 without them.
+fn body_needs(world: &World, id: &str) -> Result<(f64, f64)> {
+    if kit::namespace_absent(world, BODY_STATE)? {
         return Ok((0.0, 0.0));
-    };
-    let Some(record) = exact_dict(&agents)?.get_item(id)? else {
-        return Ok((0.0, 0.0));
-    };
-    exact_dict(&record)?;
-    Ok((
-        body_value(&record, intern!(py, "sleep_debt_minutes"))?,
-        body_value(&record, intern!(py, "hygiene_need"))?,
-    ))
+    }
+    let row = world.row::<BodyRow>(BODY_STATE)?;
+    Ok(row.agents.get(id).map_or((0.0, 0.0), |record| (record.sleep_debt_minutes, record.hygiene_need)))
 }
 
 /// What the rule reads of an agent who is in the world.
@@ -254,37 +159,25 @@ struct Agent {
     needs: Needs,
 }
 
-fn agent_of(world: &Bound<'_, PyAny>, store: &Bound<'_, EntityStore>, id: &str) -> PyResult<Option<Agent>> {
-    let found = EntityStore::with_rows(store, |rows| {
+fn agent_of(world: &World, id: &str) -> Result<Option<Agent>> {
+    let found = {
+        let rows = world.rows()?;
         let Some(agent) = rows.agents.get(id) else {
             return Ok(None);
         };
         let needs = &agent.needs;
-        Ok(Some((
-            agent.activity,
-            [needs.toilet_urgency, needs.hunger, needs.hydration_need, needs.fatigue],
-            agent.profile.id.clone(),
-        )))
-    })?;
-    let Some((activity, [toilet, hunger, hydration, fatigue], profile)) = found else {
-        return Ok(None);
+        (agent.activity, [needs.toilet_urgency, needs.hunger, needs.hydration_need, needs.fatigue], agent.profile.id.clone())
     };
+    let (activity, [toilet, hunger, hydration, fatigue], profile) = found;
     let (debt, hygiene) = body_needs(world, &profile)?;
-    Ok(Some(Agent {
-        activity: Activity::text(activity),
-        needs: [toilet, hunger, hydration, fatigue, debt, hygiene],
-    }))
+    Ok(Some(Agent { activity: activity.text(), needs: [toilet, hunger, hydration, fatigue, debt, hygiene] }))
 }
 
 /// `_completion_status`, whose cause is always None.
-fn completion_status(
-    world: &Bound<'_, PyAny>,
-    action: &ActiveAction,
-    needs: &Needs,
-) -> PyResult<&'static str> {
+fn completion_status(world: &World, action: &ActiveAction, needs: &Needs) -> Result<&'static str> {
     Ok(match &*action.action {
         "wait" => {
-            let now = exact_int(&attribute(world, intern!(world.py(), "minute_index"))?)?;
+            let now = world.minute_index().map_err(|_| Error::unsupported("a value is not an int"))?;
             if now > action.start_minute {
                 "completed"
             } else {
@@ -331,10 +224,10 @@ fn fits_chars(value: Option<&str>, limit: usize) -> bool {
 }
 
 /// What the event of `_append_transition` is; Unsupported where `_is_plain_receipt` is false, or
-/// where the event or the log would refuse it. So the Python rule then decides, and raises.
+/// where the event or the log would refuse it.
 #[allow(clippy::too_many_arguments)]
 fn receipt(
-    writer: &EventWriter<'_>,
+    events: &Events<'_>,
     action: &ActiveAction,
     transition: &str,
     minute: i64,
@@ -343,7 +236,7 @@ fn receipt(
     causation_id: Option<&str>,
     sequence: i64,
     current: Option<&Needs>,
-) -> PyResult<Receipt> {
+) -> Result<Receipt> {
     let plain = 0 <= action.start_minute
         && action.start_minute <= minute
         && !reason_code.is_empty()
@@ -359,7 +252,7 @@ fn receipt(
         && action.start_needs.values().all(|value| value.is_finite())
         && current.is_none_or(|needs| needs.iter().all(|value| value.is_finite()));
     if !plain {
-        return unsupported("a receipt the model has to decide");
+        return Err(Error::unsupported("a receipt the model has to decide"));
     }
     let words = &*WORDS;
     let start_needs = action.start_needs.iter().map(|(name, value)| (name.clone(), V::Float(*value))).collect();
@@ -377,10 +270,7 @@ fn receipt(
     payload.insert(words.activity.clone(), activity.map_or(V::Null, |text| V::Str(Arc::from(text))));
     payload.insert(words.start_activity.clone(), optional_text(action.start_activity.as_ref()));
     payload.insert(words.start_needs.clone(), V::Map(start_needs));
-    payload.insert(
-        words.current_needs.clone(),
-        current.map_or_else(|| V::Map(IndexMap::new()), needs_value),
-    );
+    payload.insert(words.current_needs.clone(), current.map_or_else(|| V::Map(IndexMap::new()), needs_value));
     payload.insert(words.model_id.clone(), V::Str(action.model_id.clone()));
     payload.insert(words.model_source_id.clone(), V::Str(action.model_source_id.clone()));
     let mut provenance = IndexMap::with_capacity(3);
@@ -388,8 +278,8 @@ fn receipt(
     provenance.insert(words.source_id.clone(), V::Str(words.model_source.clone()));
     provenance.insert(words.policy_version.clone(), V::Str(words.model.clone()));
     let event_id: Arc<str> = Arc::from(format!("action-lifecycle-{sequence}"));
-    if writer.is_realized(&event_id, Some(sequence))? {
-        return unsupported("the log already has this receipt's identity");
+    if events.is_realized(&event_id, Some(sequence))? {
+        return Err(Error::unsupported("the log already has this receipt's identity"));
     }
     let row = EventRow::new(
         event_id,
@@ -404,23 +294,32 @@ fn receipt(
         provenance,
     );
     let Some(row) = row else {
-        return unsupported("an event the Python class refuses");
+        return Err(Error::unsupported("an event the Python class refuses"));
     };
     Ok(Receipt { row, minute, detail: format!("autonomous action {transition}") })
+}
+
+/// A write error of the log, as a core error: `receipt` refused every repeat, so a duplicate here
+/// is a bug.
+fn written(result: std::result::Result<(), WriteError>) -> Result<()> {
+    match result {
+        Ok(()) => Ok(()),
+        Err(WriteError::Error(error)) => Err(error),
+        Err(WriteError::Duplicate(text)) => Err(Error::Runtime(text)),
+    }
 }
 
 /// Allocate each receipt's sequence and append it: `allocate_event_sequence` and `EventLog.append`.
 ///
 /// Nothing a world holds can fail here, so receipts are never half written because of data: `receipt`
 /// has refused a repeated ID or sequence, a minute out of range and a value that is not finite, and
-/// `EventWriter::of` a counter a rule could overflow. What is left is running out of memory, and a
-/// bug. Either raises with the earlier receipts of this call appended and the open actions as they
-/// were, and that stops the Run, as any exception in a tick does.
-fn commit(writer: &EventWriter<'_>, receipts: Vec<Receipt>) -> PyResult<()> {
+/// `Events::of` a counter a rule could overflow. What is left is a bug, which raises with the earlier
+/// receipts of this call appended and the open actions as they were, and that stops the Run.
+fn commit(events: &Events<'_>, receipts: Vec<Receipt>) -> Result<()> {
     for receipt in receipts {
-        let sequence = writer.allocate_sequence()?;
+        let sequence = events.allocate_sequence()?;
         debug_assert_eq!(sequence, receipt.row.sequence);
-        writer.record(&receipt.row, receipt.minute, EventStatus::Applied, Some(&receipt.detail))?;
+        written(events.record(&receipt.row, receipt.minute, EventStatus::Applied, Some(&receipt.detail)))?;
     }
     Ok(())
 }
@@ -428,58 +327,40 @@ fn commit(writer: &EventWriter<'_>, receipts: Vec<Receipt>) -> PyResult<()> {
 // ---- record_action_proposal --------------------------------------------------------------------------
 
 /// What `record_action_proposal` reads of an applied proposal.
-pub(crate) struct Proposal<'a> {
-    pub(crate) agent_id: &'a str,
-    pub(crate) action: &'a str,
-    pub(crate) target_id: Option<&'a str>,
-    pub(crate) minute: i64,
-    pub(crate) trigger: &'a str,
+pub struct Proposal<'a> {
+    pub agent_id: &'a str,
+    pub action: &'a str,
+    pub target_id: Option<&'a str>,
+    pub minute: i64,
+    pub trigger: &'a str,
 }
 
-/// `record_action_proposal` of a committed proposal, for a Rust caller too. Unsupported, with
-/// nothing changed, for the Python rule on `active.as_plain()`.
-pub(crate) fn commit_action(
-    world: &Bound<'_, PyAny>,
-    active: &Bound<'_, ActiveActions>,
-    proposal: &Proposal<'_>,
-) -> PyResult<()> {
-    let py = world.py();
-    let store = entities_of(world)?;
-    let Some(agent) = agent_of(world, &store, proposal.agent_id)? else {
+/// `record_action_proposal` of a committed proposal. Unsupported, with nothing changed, for what
+/// the receipts' model would decide.
+pub fn commit_action(world: &World, active: &mut ActiveActions, proposal: &Proposal<'_>) -> Result<()> {
+    let Some(agent) = agent_of(world, proposal.agent_id)? else {
         return Ok(());
     };
-    let writer = EventWriter::of(world)?;
-    let mut this = active.try_borrow_mut()?;
-    this.into_rows(py)?;
+    let events = Events::of(world)?;
     let (minute, activity) = (proposal.minute, Some(agent.activity));
-    let first = writer.next_sequence()?;
+    let first = events.next_sequence()?;
     let mut receipts = Vec::with_capacity(2);
-    if let Some(current) = this.rows.get(proposal.agent_id) {
+    if let Some(current) = active.rows.get(proposal.agent_id) {
         let same_target = current.target_id.as_deref() == proposal.target_id;
         if &*current.action == proposal.action && same_target {
             if current.continued {
                 return Ok(());
             }
-            receipts.push(receipt(
-                &writer,
-                current,
-                "continued",
-                minute,
-                proposal.trigger,
-                activity,
-                None,
-                first,
-                Some(&agent.needs),
-            )?);
-            commit(&writer, receipts)?;
-            if let Some(current) = this.rows.get_mut(proposal.agent_id) {
+            receipts.push(receipt(&events, current, "continued", minute, proposal.trigger, activity, None, first, Some(&agent.needs))?);
+            commit(&events, receipts)?;
+            if let Some(current) = active.rows.get_mut(proposal.agent_id) {
                 current.continued = true;
             }
             return Ok(());
         }
         let status = completion_status(world, current, &agent.needs)?;
         receipts.push(receipt(
-            &writer,
+            &events,
             current,
             status,
             minute,
@@ -508,60 +389,12 @@ pub(crate) fn commit_action(
         model_source_id: WORDS.model_source.clone(),
         continued: false,
     };
-    receipts.push(receipt(
-        &writer,
-        &started,
-        "started",
-        minute,
-        proposal.trigger,
-        activity,
-        None,
-        sequence,
-        Some(&agent.needs),
-    )?);
-    commit(&writer, receipts)?;
+    receipts.push(receipt(&events, &started, "started", minute, proposal.trigger, activity, None, sequence, Some(&agent.needs))?);
+    commit(&events, receipts)?;
     // The old action goes and the new one is the dict's last key, as pop and insert leave it.
-    this.rows.shift_remove(proposal.agent_id);
-    this.rows.insert(started.agent_id.clone(), started);
+    active.rows.shift_remove(proposal.agent_id);
+    active.rows.insert(started.agent_id.clone(), started);
     Ok(())
-}
-
-/// `record_action_proposal`.
-#[pyfunction]
-#[pyo3(signature = (world, proposal, *, target_id, committed, active_actions))]
-fn record_action_proposal(
-    world: &Bound<'_, PyAny>,
-    proposal: &Bound<'_, PyAny>,
-    target_id: &Bound<'_, PyAny>,
-    committed: &Bound<'_, PyAny>,
-    active_actions: &Bound<'_, PyAny>,
-) -> PyResult<()> {
-    let py = world.py();
-    let Ok(committed) = committed.downcast_exact::<PyBool>() else {
-        return unsupported("committed is not a bool");
-    };
-    if !committed.is_true() {
-        return Ok(());
-    }
-    let active = store_of(active_actions)?;
-    let agent_id = attribute(proposal, intern!(py, "agent_id"))?;
-    let action = attribute(&attribute(proposal, intern!(py, "action"))?, intern!(py, "value"))?;
-    let trigger = attribute(proposal, intern!(py, "trigger"))?;
-    commit_action(
-        world,
-        active,
-        &Proposal {
-            agent_id: exact_str(&agent_id)?,
-            action: exact_str(&action)?,
-            target_id: if target_id.is_none() { None } else { Some(exact_str(target_id)?) },
-            minute: exact_int(&attribute(proposal, intern!(py, "minute_index"))?)?,
-            trigger: exact_str(&trigger)?,
-        },
-    )
-}
-
-fn store_of<'a, 'py>(value: &'a Bound<'py, PyAny>) -> PyResult<&'a Bound<'py, ActiveActions>> {
-    value.downcast::<ActiveActions>().map_err(|_| PyTypeError::new_err("active_actions is not the store"))
 }
 
 // ---- The applied events ------------------------------------------------------------------------------
@@ -581,7 +414,8 @@ fn event_ends(event_type: &str, action: &str) -> Option<&'static str> {
     }
 }
 
-pub(crate) fn ends_any_action(event_type: &str) -> bool {
+/// Whether an event of this type can end an action: nothing else changes anything here.
+pub fn ends_any_action(event_type: &str) -> bool {
     matches!(
         event_type,
         "toilet_service_complete"
@@ -594,141 +428,82 @@ pub(crate) fn ends_any_action(event_type: &str) -> bool {
     )
 }
 
-/// Whether the log holds this event applied, as the Python rules ask. The event must be the object
-/// the record holds, or one whose row is what the record's bytes say: a value a row cannot tell
-/// from another (`1` and `1.0`) is the Python rule's to compare.
-fn is_applied(writer: &EventWriter<'_>, event_id: &str, event: &Bound<'_, PyAny>) -> PyResult<bool> {
-    match writer.log().borrow().applied_outcome(event_id, event)? {
-        AppliedOutcome::No => Ok(false),
-        AppliedOutcome::ThisEvent => Ok(true),
-        AppliedOutcome::AnotherObject => unsupported("the record holds another object of the event"),
-        AppliedOutcome::SavedRow(saved) => match EventRow::from_event(event)? {
-            Some(row) if row == saved => Ok(true),
-            _ => unsupported("the record is of another row of the event"),
-        },
+/// `payload.get(key)` when it is a str.
+fn text<'a>(event: &'a EventRow, key: &str) -> Option<&'a Arc<str>> {
+    match kit::payload(event, key) {
+        Some(V::Str(value)) => Some(value),
+        _ => None,
     }
-}
-
-/// `record_applied_action_completion`.
-#[pyfunction]
-#[pyo3(signature = (world, event, minute, *, active_actions))]
-fn record_applied_action_completion(
-    world: &Bound<'_, PyAny>,
-    event: &Bound<'_, PyAny>,
-    minute: &Bound<'_, PyAny>,
-    active_actions: &Bound<'_, PyAny>,
-) -> PyResult<()> {
-    let py = world.py();
-    let event_type = attribute(event, intern!(py, "event_type"))?;
-    // Nothing below changes anything for another type of event.
-    if !ends_any_action(exact_str(&event_type)?) {
-        return Ok(());
-    }
-    store_of(active_actions)?;
-    let event_id = attribute(event, intern!(py, "event_id"))?;
-    let writer = EventWriter::of(world)?;
-    if !is_applied(&writer, exact_str(&event_id)?, event)? {
-        return Ok(());
-    }
-    complete_for_event(world, &writer, active_actions, EventRef::Object(event), exact_int(minute)?)
 }
 
 /// `record_applied_action_completion` of an event the caller knows the log holds applied. Says
 /// Unsupported before any change.
-pub(crate) fn complete_for_event(
-    world: &Bound<'_, PyAny>,
-    writer: &EventWriter<'_>,
-    active_actions: &Bound<'_, PyAny>,
-    event: EventRef<'_, '_>,
-    minute: i64,
-) -> PyResult<()> {
-    let py = world.py();
-    let event_type = event.event_type()?;
-    let event_type = &*event_type;
+pub fn complete_for_event(world: &World, active: &mut ActiveActions, event: &EventRow, minute: i64) -> Result<()> {
+    let event_type = &*event.event_type;
     if !ends_any_action(event_type) {
         return Ok(());
     }
-    // A plain dict of open actions is the Python rule's.
-    let Ok(active) = active_actions.downcast::<ActiveActions>() else {
-        return unsupported("active_actions is not the store");
-    };
-    let Some(agent_id) = (match event.text("agent_id")? {
-        Some(id) => Some(id),
-        None => event.text("sender_agent_id")?,
-    }) else {
+    let Some(agent_id) = text(event, "agent_id").or_else(|| text(event, "sender_agent_id")).cloned() else {
         return Ok(());
     };
-    let mut this = active.try_borrow_mut()?;
-    this.into_rows(py)?;
-    let Some(current) = this.rows.get(&*agent_id) else {
+    let Some(current) = active.rows.get(&*agent_id) else {
         return Ok(());
     };
     let support = matches!(event_type, "staff_support_complete" | "support_request_timeout");
-    let keys: &[&str] = if support {
-        &["request_id", "staff_id"]
-    } else {
-        &["facility_id", "participant_agent_id", "staff_id", "request_id"]
-    };
-    let mut observed = None;
-    for key in keys {
-        observed = event.text(key)?;
-        if observed.is_some() {
-            break;
-        }
-    }
+    let keys: &[&str] =
+        if support { &["request_id", "staff_id"] } else { &["facility_id", "participant_agent_id", "staff_id", "request_id"] };
+    let observed = keys.iter().find_map(|key| text(event, key));
     if let (Some(expected), Some(observed)) = (&current.target_id, observed) {
-        if **expected != *observed {
+        if expected != observed {
             return Ok(());
         }
     }
-    if event.due_minute()? < current.start_minute {
+    if event.due_minute < current.start_minute {
         return Ok(());
     }
-    let event_id = event.event_id()?;
-    let event_id = &*event_id;
     let Some(status) = event_ends(event_type, &current.action) else {
         return Ok(());
     };
-    let store = entities_of(world)?;
-    let agent = agent_of(world, &store, &agent_id)?;
-    let sequence = writer.next_sequence()?;
+    let events = Events::of(world)?;
+    let agent = agent_of(world, &agent_id)?;
+    let sequence = events.next_sequence()?;
     let planned = receipt(
-        &writer,
+        &events,
         current,
         status,
         minute,
         event_type,
         agent.as_ref().map(|agent| agent.activity),
-        Some(event_id),
+        Some(&event.event_id),
         sequence,
         agent.as_ref().map(|agent| &agent.needs),
     )?;
-    commit(writer, vec![planned])?;
-    this.rows.shift_remove(&*agent_id);
+    commit(&events, vec![planned])?;
+    active.rows.shift_remove(&*agent_id);
     Ok(())
 }
 
-/// `state.get(field, ())` of a namespace when `isinstance(state, dict)`, for a list.
-/// The namespace is read as a `V`, a detached one from its row; f gets each row.
-fn rows_of(world: &Bound<'_, PyAny>, name: &str, field: &str, mut f: impl FnMut(&V)) -> PyResult<()> {
-    with_state_value(world, name, |state| {
-        let Some(V::Map(state)) = state else {
-            return Ok(());
-        };
-        match state.get(field) {
-            Some(V::List(rows)) => {
-                rows.iter().for_each(&mut f);
-                Ok(())
-            }
-            Some(_) => unsupported("a value is not a plain list"),
-            None => Ok(()),
+/// `state.get(field, ())` of a namespace held as a value, for a list: f gets each item.
+fn items_of(world: &World, name: &str, field: &str, mut f: impl FnMut(&V)) -> Result<()> {
+    let Some(state) = world.slots.try_value(name)? else {
+        return Ok(());
+    };
+    let V::Map(state) = &*state else {
+        return Ok(());
+    };
+    match state.get(field) {
+        Some(V::List(rows)) => {
+            rows.iter().for_each(&mut f);
+            Ok(())
         }
-    })
+        Some(_) => Err(Error::unsupported("a value is not a plain list")),
+        None => Ok(()),
+    }
 }
 
 /// The agents an applied population event took away, and why: the middle of
-/// `record_applied_population_exit`. `population_*` is not Rust's yet.
-fn population_causes(world: &Bound<'_, PyAny>, event_id: &str) -> PyResult<BTreeMap<String, &'static str>> {
+/// `record_applied_population_exit`.
+fn population_causes(world: &World, event_id: &str) -> Result<BTreeMap<String, &'static str>> {
     let mut causes = BTreeMap::new();
     let matching = |row: &V| -> Option<String> {
         let V::Map(row) = row else {
@@ -742,7 +517,7 @@ fn population_causes(world: &Bound<'_, PyAny>, event_id: &str) -> PyResult<BTree
             _ => None,
         }
     };
-    rows_of(world, "population_lifecycle_v1", "history", |row| {
+    items_of(world, POPULATION_LIFECYCLE, "history", |row| {
         let Some(agent_id) = matching(row) else {
             return;
         };
@@ -759,7 +534,7 @@ fn population_causes(world: &Bound<'_, PyAny>, event_id: &str) -> PyResult<BTree
             _ => {}
         }
     })?;
-    rows_of(world, "population_dynamics_v1", "departures", |row| {
+    items_of(world, POPULATION_DYNAMICS, "departures", |row| {
         if let Some(agent_id) = matching(row) {
             causes.insert(agent_id, "population_departure");
         }
@@ -767,113 +542,67 @@ fn population_causes(world: &Bound<'_, PyAny>, event_id: &str) -> PyResult<BTree
     Ok(causes)
 }
 
-/// `record_applied_population_exit`.
-#[pyfunction]
-#[pyo3(signature = (world, event, minute, *, active_actions))]
-fn record_applied_population_exit(
-    world: &Bound<'_, PyAny>,
-    event: &Bound<'_, PyAny>,
-    minute: &Bound<'_, PyAny>,
-    active_actions: &Bound<'_, PyAny>,
-) -> PyResult<()> {
-    let py = world.py();
-    let event_type = attribute(event, intern!(py, "event_type"))?;
-    if exact_str(&event_type)? != "effect_program_population" {
-        return Ok(());
-    }
-    let active = store_of(active_actions)?;
-    let event_id = attribute(event, intern!(py, "event_id"))?;
-    let event_id = exact_str(&event_id)?;
-    let writer = EventWriter::of(world)?;
-    if !is_applied(&writer, event_id, event)? {
-        return Ok(());
-    }
-    let minute = exact_int(minute)?;
+/// `record_applied_population_exit` of an applied `effect_program_population` event: the open
+/// actions of the residents it took away close "interrupted", in agent ID order.
+pub fn population_exit(world: &World, active: &mut ActiveActions, event_id: &str, minute: i64) -> Result<()> {
     let causes = population_causes(world, event_id)?;
-    let mut this = active.try_borrow_mut()?;
-    this.into_rows(py)?;
-    let store = entities_of(world)?;
-    let mut sequence = writer.next_sequence()?;
+    let events = Events::of(world)?;
+    let mut sequence = events.next_sequence()?;
     let mut receipts = Vec::new();
     let mut closed = Vec::new();
-    {
-        for (agent_id, reason) in &causes {
-            let Some(current) = this.rows.get(agent_id.as_str()) else {
-                continue;
-            };
-            let agent = agent_of(world, &store, agent_id)?;
-            receipts.push(receipt(
-                &writer,
-                current,
-                "interrupted",
-                minute,
-                reason,
-                None,
-                Some(event_id),
-                sequence,
-                agent.as_ref().map(|agent| &agent.needs),
-            )?);
-            closed.push(agent_id);
-            sequence += 1;
-        }
+    for (agent_id, reason) in &causes {
+        let Some(current) = active.rows.get(agent_id.as_str()) else {
+            continue;
+        };
+        let agent = agent_of(world, agent_id)?;
+        receipts.push(receipt(
+            &events,
+            current,
+            "interrupted",
+            minute,
+            reason,
+            None,
+            Some(event_id),
+            sequence,
+            agent.as_ref().map(|agent| &agent.needs),
+        )?);
+        closed.push(agent_id);
+        sequence += 1;
     }
-    commit(&writer, receipts)?;
+    commit(&events, receipts)?;
     for agent_id in closed {
-        this.rows.shift_remove(agent_id.as_str());
+        active.rows.shift_remove(agent_id.as_str());
     }
     Ok(())
 }
 
-/// `finalize_active_actions`.
-#[pyfunction]
-#[pyo3(signature = (world, minute, *, active_actions))]
-fn finalize_active_actions(
-    world: &Bound<'_, PyAny>,
-    minute: &Bound<'_, PyAny>,
-    active_actions: &Bound<'_, PyAny>,
-) -> PyResult<()> {
-    let py = world.py();
-    let active = store_of(active_actions)?;
-    let writer = EventWriter::of(world)?;
-    let minute = exact_int(minute)?;
-    let store = entities_of(world)?;
-    let mut this = active.try_borrow_mut()?;
-    this.into_rows(py)?;
-    let mut ordered: Vec<&ActiveAction> = this.rows.values().collect();
+/// `finalize_active_actions`: every action still open closes, in agent ID order.
+pub fn finalize(world: &World, active: &mut ActiveActions, minute: i64) -> Result<()> {
+    let events = Events::of(world)?;
+    let mut ordered: Vec<&ActiveAction> = active.rows.values().collect();
     ordered.sort_unstable_by(|first, second| first.agent_id.cmp(&second.agent_id));
-    let first = writer.next_sequence()?;
+    let first = events.next_sequence()?;
     let mut receipts = Vec::with_capacity(ordered.len());
-    {
-        for (index, current) in ordered.into_iter().enumerate() {
-            let agent = agent_of(world, &store, &current.agent_id)?;
-            let status = match &agent {
-                None => "censored",
-                Some(agent) if completion_status(world, current, &agent.needs)? == "completed" => "completed",
-                Some(_) => "censored",
-            };
-            receipts.push(receipt(
-                &writer,
-                current,
-                status,
-                minute,
-                "simulation_end_right_censor",
-                agent.as_ref().map(|agent| agent.activity),
-                None,
-                first + index as i64,
-                agent.as_ref().map(|agent| &agent.needs),
-            )?);
-        }
+    for (index, current) in ordered.into_iter().enumerate() {
+        let agent = agent_of(world, &current.agent_id)?;
+        let status = match &agent {
+            None => "censored",
+            Some(agent) if completion_status(world, current, &agent.needs)? == "completed" => "completed",
+            Some(_) => "censored",
+        };
+        receipts.push(receipt(
+            &events,
+            current,
+            status,
+            minute,
+            "simulation_end_right_censor",
+            agent.as_ref().map(|agent| agent.activity),
+            None,
+            first + index as i64,
+            agent.as_ref().map(|agent| &agent.needs),
+        )?);
     }
-    commit(&writer, receipts)?;
-    this.rows.clear();
-    Ok(())
-}
-
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<ActiveActions>()?;
-    m.add_function(wrap_pyfunction!(record_action_proposal, m)?)?;
-    m.add_function(wrap_pyfunction!(record_applied_action_completion, m)?)?;
-    m.add_function(wrap_pyfunction!(record_applied_population_exit, m)?)?;
-    m.add_function(wrap_pyfunction!(finalize_active_actions, m)?)?;
+    commit(&events, receipts)?;
+    active.rows.clear();
     Ok(())
 }

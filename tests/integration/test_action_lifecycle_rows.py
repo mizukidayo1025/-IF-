@@ -105,9 +105,6 @@ PYTHON_DIGESTS = {
     "applied.1.agent_travel_complete.rest.T1": "609e15dd62e42f5b",
     "gone": "b775ac3301d454ed",
     "population": "220f4152957a9cd0",
-    'body.{"sleep_debt_minutes": 3, "hygiene_need": 0.25}': "04ef1c3190d28c0f",
-    "body.{}": "d42b92163d7a135c",
-    'body.{"sleep_debt_minutes": 1.5}': "4d54bbbbcadc1210",
 }
 
 
@@ -779,22 +776,12 @@ def test_a_population_exit_gives_the_python_rules_receipts(world) -> None:
     "body",
     [{"sleep_debt_minutes": 3, "hygiene_need": 0.25}, {}, {"sleep_debt_minutes": 1.5}],
 )
-def test_the_body_record_is_read_as_the_python_rule_reads_it(world, body: dict[str, Any]) -> None:
+def test_a_body_record_that_does_not_fit_its_row_is_refused(world, body: dict[str, Any]) -> None:
+    """The kernels read the body state's row alone (lane P8 a2): a record of other types or fields
+    leaves the namespace without a row, and the rule refuses with nothing changed."""
     agent_id = _agent_id(world)
     world.model_state["body_state_v1"]["agents"][agent_id] = body
-    store = _store(world)
-    receipts = _receipts(
-        f"body.{_text(body)}",
-        world,
-        record_action_proposal,
-        store,
-        _proposal(agent_id, ActionKind.SLEEP, 0),
-        target_id=None,
-        committed=True,
-    )
-    assert receipts[0]["event"]["payload"]["start_needs"]["sleep_debt_minutes"] == float(
-        body.get("sleep_debt_minutes", 0.0)
-    )
+    _refused(world, _store(world), _proposal(agent_id, ActionKind.SLEEP, 0))
 
 
 # ---- What the kernels refuse, with nothing changed ----
@@ -934,22 +921,22 @@ def test_a_counter_a_rule_could_overflow_is_refused(world) -> None:
     _refused(world, store, _proposal(agent_id, ActionKind.REST, 1))
 
 
-def test_a_record_taken_past_the_tree_is_refused_by_the_writers_with_the_row_as_it_was(
-    world,
-) -> None:
+def test_the_writers_write_the_row_and_a_tree_taken_past_it_follows(world) -> None:
+    """The row is the truth (lane P8-0c): a record taken from the tree alone is written in the row,
+    and the tree has it again, with the row's values, when the kernel gives the world back."""
     agent_id = _agent_id(world)
     facility = sorted(world.facilities)[0]
     mirror = world._core.mirror(KEY)
     agents = world.model_state[KEY]["agents"]
     agents[agent_id]["known_facility_ids"] = []
     dict.pop(agents, agent_id)
-    before = mirror.row_json()
     rules = native.rules("agent_dynamics")
-    with pytest.raises(native.Unsupported):
-        rules.record_proposal(world, _proposal(agent_id, ActionKind.WAIT, 1), target_id=None)
-    with pytest.raises(native.Unsupported):
-        rules.learn_facility(world, agent_id, facility)
-    assert mirror.row_json() == before
+    rules.record_proposal(world, _proposal(agent_id, ActionKind.WAIT, 1), target_id=None)
+    rules.learn_facility(world, agent_id, facility)
+    record = world.model_state[KEY]["agents"][agent_id]
+    assert record["last_action"] == "wait" and facility in record["known_facility_ids"]
+    assert json.loads(mirror.row_json())["agents"][agent_id] == record
+    assert mirror.verify()
 
 
 # ---- A Run: the kernels really run, and saved identities are kept ----
