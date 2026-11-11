@@ -428,40 +428,68 @@ pub fn ends_any_action(event_type: &str) -> bool {
     )
 }
 
+/// What `record_applied_action_completion` reads of an applied event: its row's fields, or those of
+/// an object Python made.
+pub struct Ending<'a> {
+    pub event_id: &'a str,
+    pub event_type: &'a str,
+    pub due_minute: i64,
+    /// A mapping (`V::Map`) with at least the keys of `ENDING_KEYS` the event has.
+    pub payload: &'a V,
+}
+
+/// The payload's keys the rule reads.
+pub const ENDING_KEYS: [&str; 6] = ["agent_id", "sender_agent_id", "facility_id", "participant_agent_id", "staff_id", "request_id"];
+
+impl<'a> Ending<'a> {
+    pub fn of(row: &'a EventRow) -> Self {
+        Self { event_id: &row.event_id, event_type: &row.event_type, due_minute: row.due_minute, payload: &row.payload }
+    }
+}
+
 /// `payload.get(key)` when it is a str.
-fn text<'a>(event: &'a EventRow, key: &str) -> Option<&'a Arc<str>> {
-    match kit::payload(event, key) {
-        Some(V::Str(value)) => Some(value),
+fn text<'a>(event: &Ending<'a>, key: &str) -> Option<&'a Arc<str>> {
+    match event.payload {
+        V::Map(map) => match map.get(key) {
+            Some(V::Str(value)) => Some(value),
+            _ => None,
+        },
         _ => None,
     }
 }
 
-/// `record_applied_action_completion` of an event the caller knows the log holds applied. Says
-/// Unsupported before any change.
-pub fn complete_for_event(world: &World, active: &mut ActiveActions, event: &EventRow, minute: i64) -> Result<()> {
-    let event_type = &*event.event_type;
+/// The agent whose open action the event ends, and how: None where the event ends none. It reads
+/// only the open actions, so a caller asks it before it borrows the world.
+pub fn closes(active: &ActiveActions, event: &Ending<'_>) -> Option<(Arc<str>, &'static str)> {
+    let event_type = event.event_type;
     if !ends_any_action(event_type) {
-        return Ok(());
+        return None;
     }
-    let Some(agent_id) = text(event, "agent_id").or_else(|| text(event, "sender_agent_id")).cloned() else {
-        return Ok(());
-    };
-    let Some(current) = active.rows.get(&*agent_id) else {
-        return Ok(());
-    };
+    let agent_id = text(event, "agent_id").or_else(|| text(event, "sender_agent_id"))?;
+    let current = active.rows.get(&**agent_id)?;
     let support = matches!(event_type, "staff_support_complete" | "support_request_timeout");
     let keys: &[&str] =
         if support { &["request_id", "staff_id"] } else { &["facility_id", "participant_agent_id", "staff_id", "request_id"] };
     let observed = keys.iter().find_map(|key| text(event, key));
     if let (Some(expected), Some(observed)) = (&current.target_id, observed) {
         if expected != observed {
-            return Ok(());
+            return None;
         }
     }
     if event.due_minute < current.start_minute {
-        return Ok(());
+        return None;
     }
-    let Some(status) = event_ends(event_type, &current.action) else {
+    Some((agent_id.clone(), event_ends(event_type, &current.action)?))
+}
+
+/// `record_applied_action_completion` of an event the caller knows the log holds applied. Says
+/// Unsupported before any change.
+pub fn complete_for_event(world: &World, active: &mut ActiveActions, event: &Ending<'_>, minute: i64) -> Result<()> {
+    let Some((agent_id, status)) = closes(active, event) else {
+        return Ok(());
+    };
+    let event_type = event.event_type;
+    let Some(current) = active.rows.get(&*agent_id) else {
         return Ok(());
     };
     let events = Events::of(world)?;
@@ -474,7 +502,7 @@ pub fn complete_for_event(world: &World, active: &mut ActiveActions, event: &Eve
         minute,
         event_type,
         agent.as_ref().map(|agent| agent.activity),
-        Some(&event.event_id),
+        Some(event.event_id),
         sequence,
         agent.as_ref().map(|agent| &agent.needs),
     )?;

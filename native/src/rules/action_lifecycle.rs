@@ -25,6 +25,9 @@ use crate::state::events::{EventRef, EventRow, EventRowPy, EventWriter};
 use crate::Unsupported;
 
 pub(crate) use sheltersim_core::rules::action_lifecycle::{ends_any_action, Proposal};
+use sheltersim_core::rules::action_lifecycle::{Ending, ENDING_KEYS};
+
+use crate::rules::social_dialogue::payload_fields;
 
 py_row! {
     ActiveAction {
@@ -245,27 +248,40 @@ pub(crate) fn complete_for_event(
     minute: i64,
 ) -> PyResult<()> {
     match event {
-        EventRef::Row(row) => complete_row(world, active_actions, row, minute),
+        EventRef::Row(row) => complete(world, active_actions, &Ending::of(row), minute),
         EventRef::Object(object) => {
-            if !ends_any_action(&EventRef::Object(object).event_type()?) {
+            let event_type = event.event_type()?;
+            if !ends_any_action(&event_type) {
                 return Ok(());
             }
-            complete_row(world, active_actions, &row_of(object)?, minute)
+            // Only the fields the rule reads, as the row would hold them.
+            let py = world.py();
+            let payload = payload_fields(&attribute(object, intern!(py, "payload"))?, &ENDING_KEYS)?;
+            let event_id = event.event_id()?;
+            let ending = Ending { event_id: &event_id, event_type: &event_type, due_minute: event.due_minute()?, payload: &payload };
+            complete(world, active_actions, &ending, minute)
         }
     }
 }
 
 fn complete_row(world: &Bound<'_, PyAny>, active_actions: &Bound<'_, PyAny>, row: &EventRow, minute: i64) -> PyResult<()> {
-    if !ends_any_action(&row.event_type) {
+    complete(world, active_actions, &Ending::of(row), minute)
+}
+
+fn complete(world: &Bound<'_, PyAny>, active_actions: &Bound<'_, PyAny>, event: &Ending<'_>, minute: i64) -> PyResult<()> {
+    if !ends_any_action(event.event_type) {
         return Ok(());
     }
     // A plain dict of open actions is the Python rule's.
     let Ok(active) = active_actions.downcast::<ActiveActions>() else {
         return unsupported("active_actions is not the store");
     };
-    active
-        .try_borrow_mut()?
-        .with_rows(world.py(), |rows| with_world(world, |cell| rules::complete_for_event(cell, rows, row, minute))?.or_py())
+    let mut this = active.try_borrow_mut()?;
+    // Most applied events end no open action: the world is not borrowed for them.
+    if this.with_rows(world.py(), |rows| Ok(rules::closes(rows, event).is_none()))? {
+        return Ok(());
+    }
+    this.with_rows(world.py(), |rows| with_world(world, |cell| rules::complete_for_event(cell, rows, event, minute))?.or_py())
 }
 
 /// `record_applied_population_exit`.

@@ -16,7 +16,7 @@ use sheltersim_core::events::log::EventLog;
 use sheltersim_core::events::queue::Queue;
 use sheltersim_core::events::{EventKind, EventRow};
 use sheltersim_core::row::{IdMap, Row, ValueRow};
-use sheltersim_core::rules::action_lifecycle::{self as lifecycle, ActiveActions, Proposal};
+use sheltersim_core::rules::action_lifecycle::{self as lifecycle, ActiveActions, Ending, Proposal};
 use sheltersim_core::rules::agent_dynamics::{self as dynamics, Decision};
 use sheltersim_core::rules::body_state::{self as body, SocialEvent};
 use sheltersim_core::rules::kit::Kept;
@@ -334,14 +334,14 @@ fn an_applied_event_ends_the_action_it_serves_and_no_other() {
     lifecycle::commit_action(&world, &mut active, &proposal("a1", "request_toilet", Some("f1"), 10)).unwrap();
     // Another target, an event before the start, a type that ends nothing: nothing.
     let other = ending_event("toilet_service_complete", "a1", &[("facility_id", string("f9"))], 11);
-    lifecycle::complete_for_event(&world, &mut active, &other, 11).unwrap();
+    lifecycle::complete_for_event(&world, &mut active, &Ending::of(&other), 11).unwrap();
     let early = ending_event("toilet_service_complete", "a1", &[("facility_id", string("f1"))], 9);
-    lifecycle::complete_for_event(&world, &mut active, &early, 11).unwrap();
+    lifecycle::complete_for_event(&world, &mut active, &Ending::of(&early), 11).unwrap();
     let travel = ending_event("agent_travel_complete", "a1", &[], 11);
-    lifecycle::complete_for_event(&world, &mut active, &travel, 11).unwrap();
+    lifecycle::complete_for_event(&world, &mut active, &Ending::of(&travel), 11).unwrap();
     assert_eq!(records(&world).len(), 1);
     let done = ending_event("toilet_service_complete", "a1", &[("facility_id", string("f1"))], 11);
-    lifecycle::complete_for_event(&world, &mut active, &done, 12).unwrap();
+    lifecycle::complete_for_event(&world, &mut active, &Ending::of(&done), 12).unwrap();
     let receipt = &records(&world)[1];
     assert_eq!(payload_of(receipt)["transition"], json!("completed"));
     assert_eq!(payload_of(receipt)["reason_code"], json!("toilet_service_complete"));
