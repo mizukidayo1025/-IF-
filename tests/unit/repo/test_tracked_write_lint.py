@@ -378,8 +378,10 @@ def test_the_lint_accepts_writing_before_the_insert_and_local_containers() -> No
 
 def test_only_the_classes_that_own_a_setattr_write_past_it() -> None:
     # domain/models.py is where entities forward; the others build their own frozen records.
+    # core/txn_checks.py changes the class of objects a transaction took out (a debug check).
     allowed = {
         "domain/models.py",
+        "core/txn_checks.py",
         "events/models.py",
         "core/checkpoint.py",
         "policies/world_view.py",

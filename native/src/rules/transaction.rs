@@ -14,6 +14,12 @@
 //! core). For it the rule takes today's path: `RuleTxn::world` is the copy (`copy_of`,
 //! `effect_copy_of`), a commit swaps it in and a rollback drops it.
 //!
+//! A rule called inside another rule's open transaction (the delivery delays of a supply route's
+//! interruption) validates the world as a start does and writes it as it is; the outer rule's
+//! commit or rollback covers it. Its copy used to put the world in canonical order once more, so
+//! the order of what the outer rule wrote before it is the one difference (no hash reads it; the
+//! next transaction or Checkpoint puts it in canonical order).
+//!
 //! The debug checks of `core/txn_checks.py` reach the copy too: at the copy, every
 //! object of the world that the copy replaces gets a class that raises on any use, and gets its
 //! own class back if the copy is dropped.
@@ -27,12 +33,14 @@ use pyo3::types::PyDict;
 use sheltersim_core::txn::TxnKind;
 
 use crate::core::txn as core_txn;
+use crate::core::world_core::core_of;
 use crate::Unsupported;
 
 // ---- Counts, for the gate -------------------------------------------------------------------------
 
 static IN_PLACE: AtomicU64 = AtomicU64::new(0);
 static ON_COPY: AtomicU64 = AtomicU64::new(0);
+static NESTED: AtomicU64 = AtomicU64::new(0);
 static COMMITTED: AtomicU64 = AtomicU64::new(0);
 static ROLLED_BACK: AtomicU64 = AtomicU64::new(0);
 /// Nanoseconds in the start of a transaction in place, and in the copy of the other path.
@@ -69,6 +77,15 @@ fn swap(world: &Bound<'_, PyAny>, candidate: &Bound<'_, PyAny>) -> PyResult<()> 
     Ok(())
 }
 
+fn state_mirror(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
+    py.import(intern!(py, "sheltersim.core.state_mirror"))
+}
+
+/// Whether a transaction is open on the world's core.
+fn in_transaction(world: &Bound<'_, PyAny>) -> bool {
+    core_of(world).is_ok_and(|core| core.try_borrow().is_ok_and(|core| core.txn.is_some()))
+}
+
 fn txn_checks(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
     py.import(intern!(py, "sheltersim.core.txn_checks"))
 }
@@ -78,6 +95,9 @@ fn txn_checks(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
 enum Path<'py> {
     /// A transaction of the world's core is open.
     InPlace,
+    /// Inside another rule's open transaction (`delivery_delay_on` in `interrupt_route`): the rule
+    /// writes the world as it is, and the outer transaction commits or rolls back.
+    Nested,
     /// The copy the rule changes, and what `txn_checks.poison_copied` poisoned (None when it is off).
     Copy { copy: Bound<'py, PyAny>, poisoned: Bound<'py, PyAny> },
 }
@@ -94,6 +114,15 @@ impl<'py> RuleTxn<'py> {
     /// `from_dict` wraps it; with either, the world is as it was.
     pub(crate) fn begin(world: &Bound<'py, PyAny>, kind: TxnKind) -> PyResult<Self> {
         let py = world.py();
+        if in_transaction(world) {
+            // The validations of a start, with the same errors; the world isn't put in canonical
+            // order again (what the outer rule wrote stays in the order it wrote it).
+            let validate = state_mirror(py)?.getattr(intern!(py, "_txn_validate"))?;
+            validate.call1((world, false))?;
+            validate.call1((world, true))?;
+            NESTED.fetch_add(1, Ordering::Relaxed);
+            return Ok(Self { world: world.clone(), path: Some(Path::Nested) });
+        }
         let started = Instant::now();
         match core_txn::begin(world, kind) {
             Ok(()) => {
@@ -129,7 +158,7 @@ impl<'py> RuleTxn<'py> {
         match self.path.take() {
             Some(Path::InPlace) => core_txn::end(&self.world, true),
             Some(Path::Copy { copy, .. }) => swap(&self.world, &copy),
-            None => Ok(()),
+            Some(Path::Nested) | None => Ok(()),
         }
     }
 
@@ -147,7 +176,9 @@ impl<'py> RuleTxn<'py> {
                 txn_checks(py)?.getattr(intern!(py, "unpoison"))?.call1((poisoned,))?;
                 Ok(())
             }
-            None => Ok(()),
+            // What it wrote goes with the outer transaction's rollback, as the error that ends
+            // this one passes on through the outer rule.
+            Some(Path::Nested) | None => Ok(()),
         }
     }
 
@@ -190,7 +221,8 @@ impl Drop for RuleTxn<'_> {
     }
 }
 
-/// What the rule transactions did in this process: how many ran in place and on a copy, how many
+/// What the rule transactions did in this process: how many ran in place, on a copy and inside
+/// another, how many
 /// committed and rolled back, and the nanoseconds of their starts in place and of the copies.
 #[pyfunction]
 fn counts(py: Python<'_>) -> PyResult<Bound<'_, PyDict>> {
@@ -198,6 +230,7 @@ fn counts(py: Python<'_>) -> PyResult<Bound<'_, PyDict>> {
     for (name, counter) in [
         ("in_place", &IN_PLACE),
         ("copy", &ON_COPY),
+        ("nested", &NESTED),
         ("committed", &COMMITTED),
         ("rolled_back", &ROLLED_BACK),
         ("begin_ns", &BEGIN_NS),

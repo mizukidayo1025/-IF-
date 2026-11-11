@@ -437,8 +437,15 @@ def test_a_run_with_the_rows_alone_is_the_run_with_the_trees(
     }
     assert present == expected[case]
     assert _all_detached(world)
-    # The ticks' kernels read and wrote the rows: none of these trees was built.
-    assert {name: built[name] for name in present} == dict.fromkeys(present, 0)
+    # The ticks' kernels read and wrote the rows: none of these trees was built, but for the
+    # program's: its handler's transaction validates the whole world, and the Python check of
+    # effect_program_v1 reads its tree. The copy the transaction stands for did the same, on a
+    # core the swap then dropped with its counts (lane 6-3).
+    expected = dict.fromkeys(present, 0)
+    if case == "program":
+        assert built[EFFECT_PROGRAM_STATE_KEY] > 0
+        expected[EFFECT_PROGRAM_STATE_KEY] = built[EFFECT_PROGRAM_STATE_KEY]
+    assert {name: built[name] for name in present} == expected
 
 
 def test_the_queues_written_in_the_row_are_those_of_the_tree(

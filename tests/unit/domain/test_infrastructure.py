@@ -11,6 +11,8 @@ from support.paths import SMALL_REPLAY
 from support.psychology import psychology_step
 from support.world import view_of
 
+from sheltersim import native
+from sheltersim.core import txn_checks
 from sheltersim.core.checkpoint import Checkpoint
 from sheltersim.core.engine import TraceLevel
 from sheltersim.core.world import StateInvariantError, WorldState
@@ -459,7 +461,8 @@ def test_supply_route_interruption_delays_only_named_shipments_and_restores_rout
     assert world.resources["water_ml"] == 1500
 
 
-def test_compound_supply_outage_and_heat_chain_survives_checkpoint_restore() -> None:
+def _compound_chain() -> tuple[WorldState, EventDispatcher]:
+    """A route interruption with a delayed shipment, a power outage and a heat wave."""
     events = [
         _event(
             "water-arrival",
@@ -522,7 +525,11 @@ def test_compound_supply_outage_and_heat_chain_survives_checkpoint_restore() -> 
             "resource_delivery": ResourceLedgerHandler("delivery"),
         }
     )
+    return world, dispatcher
 
+
+def test_compound_supply_outage_and_heat_chain_survives_checkpoint_restore() -> None:
+    world, dispatcher = _compound_chain()
     _set_minute(world, 1)
     dispatcher.dispatch_due(world, 1)
     assert world.facilities["toilet_1"].working_units == 0
@@ -557,6 +564,43 @@ def test_compound_supply_outage_and_heat_chain_survives_checkpoint_restore() -> 
         for record in resumed.event_log.records
         if record.event.event_id in {"route-down", "power-down", "heat-wave", "water-arrival"}
     )
+
+
+def test_a_route_interruption_leaves_what_its_copy_left() -> None:
+    """The delivery delay runs inside the interruption's transaction (rules/transaction.rs); with
+    transactions refused, both copy the world as the rules did before. Either way the states, the
+    EventLog's canonical JSON, and the pending events and the operational state in their order
+    are the same."""
+
+    def run(refuse: bool) -> list[Any]:
+        txn_checks.refuse_transactions(refuse)
+        try:
+            world, dispatcher = _compound_chain()
+            seen = []
+            for minute in range(1, 7):
+                _set_minute(world, minute)
+                dispatcher.dispatch_due(world, minute)
+                seen.append(
+                    (
+                        world.canonical_json(),
+                        json.dumps([event.to_dict() for event in world.event_queue.pending()]),
+                        # The records keep their objects (PR 6-2): canonical JSON is the same.
+                        json.dumps(
+                            [record.to_dict() for record in world.event_log.records],
+                            sort_keys=True,
+                        ),
+                        json.dumps(world.model_state["operational_events_v1"]),
+                    )
+                )
+            return seen
+        finally:
+            txn_checks.refuse_transactions(False)
+
+    counts = native.rules("transaction").counts
+    before = counts()["nested"]
+    in_place = run(False)
+    assert counts()["nested"] > before
+    assert in_place == run(True)
 
 
 def test_infrastructure_config_is_strict_and_legacy_scenario_hash_is_unchanged() -> None:

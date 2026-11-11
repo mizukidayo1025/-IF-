@@ -101,8 +101,7 @@ def _poison_used(cls: type, name: str) -> None:
 
 
 def _poisoned_class(cls: type) -> type:
-    poisoned = _TxnDebug.classes.get(cls)
-    if poisoned is None:
+    if cls not in _TxnDebug.classes:
 
         def refusing(name: str) -> Callable[..., Any]:
             def refuse(self: Any, *args: Any, **kwargs: Any) -> Any:
@@ -116,9 +115,8 @@ def _poisoned_class(cls: type) -> type:
         namespace: dict[str, Any] = {name: refusing(name) for name in _POISONED_METHODS}
         namespace["__slots__"] = ()
         namespace["__module__"] = __name__
-        poisoned = type(f"Poisoned{cls.__name__}", (cls,), namespace)
-        _TxnDebug.classes[cls] = poisoned
-    return poisoned
+        _TxnDebug.classes[cls] = type(f"Poisoned{cls.__name__}", (cls,), namespace)
+    return _TxnDebug.classes[cls]
 
 
 _ATOMS = (str, int, float, bool, bytes, type(None), type)
