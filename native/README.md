@@ -62,7 +62,11 @@ Checkpoint document) and times them.
   `queues.rs` (the two bundled queue policies), `overlay.rs`, `service.rs` and `population.rs`
   those of lane 7-5a), `geometry.rs` (the floor plan
   `Geo`, its `Layout` and `Constraints`, the geometry of `domain/movement.py`, and `GeoCache`, the
-  plans one `Configs` keeps by the overlay's stamp, then by the bytes of its moves and partitions).
+  plans one `Configs` keeps by the overlay's stamp, then by the bytes of its moves and partitions),
+  `routes.rs` (`Router`, a zone graph's open edges with `ShortestTravelTimePolicy.route` and the
+  edges a plan closes, and `Routes`, a Run's people's and staff's routers by epoch) and `run.rs`
+  (`Run`, what one controller keeps beside its World: `RunConfig`, read when the controller
+  starts, with `route_capacities`, and `Routes`).
   The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,
@@ -145,6 +149,11 @@ Checkpoint document) and times them.
   `model_configs` tree in place inside a tick phase (`config_writes_in_tick()`); the all-path gate
   turns it on and reports any. While it counts, a geometry plan found by the overlay's stamp is
   also checked against the overlay held now (`stale_geometry_hits()`, also reported by the gate).
+- `src/core/run.rs`: `RunCore`, the core's `Run` of one controller (a Run, its continuation or a
+  Branch), in `controller._run_core`. The controller makes it in `__init__` from
+  `route_capacities` and each `_refresh_space` calls `refresh_routes`, which starts a new epoch.
+  `rules/travel.rs` builds the people's (`space`) and the staff's (`staff_space`) router from the
+  graphs `_refresh_space` made when it first asks in an epoch, holding nothing while it reads them.
 - `src/state/population.rs`: the `V` row of `population_presence_v1`, `population_lifecycle_v1`,
   `population_dynamics_v1`, `temporary_spaces_v1`, `geometry_overlay_v1` and `model_configs`
   (`docs/rust-port/lanes/m6-population.md`).
@@ -450,9 +459,9 @@ are correctly rounded everywhere, and not `**` with a float.
   own events.
 - `rules.travel`: `route(controller, origin_zone_id, destination_zone_id, agent_id)` and
   `schedule_travel(controller, *, ...)`: `_route` and `_schedule_travel` (`src/rules/travel.rs`).
-  Edge capacities and another route policy give `Unsupported`. The graph as rows stays on the
-  controller as `_route_rows` while `space.graph` is the same object. See
-  `docs/rust-port/lanes/m4-service.md`.
+  Another route policy gives `Unsupported`. The graph is the core's `Router` of the controller's
+  Run (`src/core/run.rs`), built once per refresh of the space. See
+  `docs/rust-port/lanes/m4-service.md` and step5-plan.md, PR 7-3.
 
 - `state.body_state.ROW`: Rust owns `body_state_v1` (`src/state/body_state.rs`): the records and
   relationships typed, the history as the canonical bytes of each item. `rules.body_state.

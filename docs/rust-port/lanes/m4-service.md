@@ -43,7 +43,7 @@ M4 の資源と列のレーンが残したものを移しました。`resource_s
 - **`resource_service_v1`：** `state_row!` の型付きの行です。設計の文書は履歴を正準 bytes としていますが、規則が読むのは新しい数件で、件数も 7日分で 8,034 + 1,415 件なので、まず型付きの `Vec` にしました。bytes にするのは手順3の後半の課題です。`_HASHED_BY_PARTS` に入れたので、保存は今までどおり木から履歴の bytes を作ります。
 - **保存の前の検証：** `world.validate()` の完全検証は Python で履歴を読みます（`core/world.py` の条件に `validate_event_history` を足しました）。kernel が答えるのは tick の検証だけです。
 - **イベントの行：** 社会の行動、旅、提供の完了は `EventRow` で予定します。Python が `pending()` などで読むときに初めてオブジェクトを作ります（レーン E の `to_py`）。`_schedule_travel` は `pending()` を読まなくなりました。
-- **経路のグラフ：** `self.space.graph` が同じオブジェクトの間、行（`RouteRows`）を `controller._route_rows` に持ちます。閉じた辺は `Geo` の同一性とmobility ごとに覚えます。
+- **経路のグラフ：** `self.space.graph` が同じオブジェクトの間、行（`RouteRows`）を `controller._route_rows` に持ちます。閉じた辺は `Geo` の同一性とmobility ごとに覚えます。（#152 の PR 7-3 で、行は中核の `Router` になり、`controller._run_core` の `Run` が `_refresh_space` ごとの epoch で持ちます。`_route_rows` はなくなりました。step5-plan.md）
 
 ## 断るもの（`Unsupported`、何も書く前）
 
@@ -173,7 +173,7 @@ M4 の資源と列のレーンが残したものを移しました。`resource_s
 - **`shortest` の順序：** `Arc<str>` の比較（バイト順）で Python の tuple の比較（コードポイント順）を置き換えています。UTF-8 では同じ順です。ASCII でない ID はテストしていません。
 - **`_physically_closed_edges`：** Rust は実効の間取りの `routes` を見ます。Python は生の設定の `routes` を見ます。ID が同じ前提で、`effective_geometry` は `routes` を変えません。`test_every_route_is_python_s_for_every_mobility` と影の範囲で確かめています。
 - **`policy_version` ではなく `ShortestTravelTimePolicy` の型名で判断します。** 同じ名前の別のクラスには気づきません。
-- **`controller._route_rows` の属性：** グラフのオブジェクトが同じ間は読み直しません。`ZoneGraph` は frozen です。`edges` の中の値を書き換えるコードは `src/` にありません。
+- **`controller._route_rows` の属性：** グラフのオブジェクトが同じ間は読み直しません。`ZoneGraph` は frozen です。`edges` の中の値を書き換えるコードは `src/` にありません。（PR 7-3 で `_route_rows` はなくなり、`_refresh_space` が epoch を変えるまで読み直しません。）
 - **別名：** `world.model_state["resource_service_v1"]` は置き換えられなくなりました。`src/` で持ち続ける形は調べた範囲でありません。
 
 ## レーンとの重なり
