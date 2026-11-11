@@ -1539,20 +1539,24 @@ impl NamespaceMirror {
     }
 
     /// A new tree from the row, as the tree a copy through canonical JSON builds from the row's
-    /// document (`transaction` in `core/state_mirror.py`): the row is not read again and the stamp
-    /// stays. Call `take_root` first. Unsupported without a row.
+    /// document (`transaction` in `core/state_mirror.py`), or a copy of the world (`deepcopy_world`)
+    /// builds from the row: the row is not read again and the stamp stays. Call `take_root` first.
+    /// The slot is written only if it was detached, so a fork's slot is not copied (lane 6-6).
+    /// Unsupported without a row.
     fn root_from_row(slf: &Bound<'_, Self>) -> PyResult<Py<PyAny>> {
         let py = slf.py();
         let this = slf.get();
         let ops = this.ops();
-        let plain = this.with_slot(py, |slot| match slot.row.as_deref() {
-            Some(row) => ops.py(row)?.to_py(py),
+        let (plain, detached) = this.with_slot(py, |slot| match slot.row.as_deref() {
+            Some(row) => Ok((ops.py(row)?.to_py(py)?, slot.detached)),
             None => Err(Unsupported::new_err("the namespace has no row")),
         })??;
         let root = Self::adopt_value(slf, NO_PARENT, NodeKey::Root, &plain, 0)?;
         let old = this.tree_mut()?.root.replace(root.clone().unbind());
         drop(old);
-        this.with_slot_mut(py, |slot| slot.detached = false)?;
+        if detached {
+            this.with_slot_mut(py, |slot| slot.detached = false)?;
+        }
         Ok(root.unbind())
     }
 
@@ -1936,6 +1940,53 @@ impl WorldCore {
     #[getter]
     fn in_transaction(&self) -> bool {
         self.txn.is_some()
+    }
+
+    /// The core of a copy of `world`, whose core this is (`state_mirror.deepcopy_world`, lane 6-6,
+    /// design-p5-p6.md §7): a new core whose state shares every part with this one until either
+    /// writes it (`World::fork`), a mirror of each slot with no tree yet, and an entity store
+    /// whose objects are new, made from the rows in the order of the keys
+    /// (`EntityStore::fork_objects`). Returns the new core and its bound maps by the world's field
+    /// name. None, with nothing made, while a transaction is open or when the objects are not all
+    /// what the rows say (`EntityStore::fork_rows`): the world is then copied as before.
+    fn fork<'py>(
+        slf: &Bound<'py, Self>,
+        world: &Bound<'py, PyAny>,
+    ) -> PyResult<Option<(Py<WorldCore>, Bound<'py, PyDict>)>> {
+        let py = slf.py();
+        let store = {
+            let this = slf.try_borrow()?;
+            match (&this.txn, &this.store) {
+                (None, Some(store)) => store.clone_ref(py),
+                _ => return Ok(None),
+            }
+        };
+        let Some(rows) = EntityStore::fork_rows(store.bind(py), world)? else {
+            return Ok(None);
+        };
+        let (state, mirrors) = {
+            let this = slf.try_borrow()?;
+            let state = this.world.fork().or_py()?;
+            let mirrors: Vec<(Arc<str>, usize, Py<RowType>)> = this
+                .mirrors
+                .iter()
+                .map(|(name, mirror)| {
+                    let mirror = mirror.get();
+                    (name.clone(), mirror.index, mirror.row_type.clone_ref(py))
+                })
+                .collect();
+            (state, mirrors)
+        };
+        let core = Py::new(py, WorldCore { world: state, mirrors: IndexMap::new(), store: None, txn: None })?;
+        let mut made = IndexMap::with_capacity(mirrors.len());
+        for (name, index, row_type) in mirrors {
+            let mirror = NamespaceMirror { core: core.clone_ref(py), index, name: name.clone(), row_type, tree: Shard::default() };
+            made.insert(name, Py::new(py, mirror)?);
+        }
+        core.bind(py).try_borrow_mut()?.mirrors = made;
+        let store = WorldCore::entities(core.bind(py))?;
+        let maps = EntityStore::fork_objects(store.bind(py), rows)?;
+        Ok(Some((core, maps)))
     }
 
     fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
