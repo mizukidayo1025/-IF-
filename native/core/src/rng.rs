@@ -168,3 +168,58 @@ impl Key {
         value
     }
 }
+
+/// `CounterRNG(seed)` of a Run: its keyed draws, from the seed `CounterRNG` takes (any int from 0,
+/// past 64 bits too, keyed by `str(seed)`). A kernel of the core draws through this; the PyO3 crate
+/// reads the seed of the Run's `CounterRNG` and makes one.
+pub struct Draws {
+    keyed: KeyedDraws,
+}
+
+impl Draws {
+    /// The draws of a seed's decimal text (`str(int)`). Unsupported for a negative seed, which
+    /// `CounterRNG` refuses, and for text that is not an int's.
+    #[track_caller]
+    pub fn of_seed(seed: &str) -> crate::error::Result<Self> {
+        let Some(parsed) = crate::world::Seed::from_text(seed) else {
+            return Err(crate::error::Error::unsupported("a seed is not an int"));
+        };
+        if parsed.text.starts_with('-') {
+            return Err(crate::error::Error::unsupported("a negative seed"));
+        }
+        Ok(Self { keyed: KeyedDraws::new(seed) })
+    }
+
+    /// The draws of the world's seed, which a Run's `CounterRNG(world.seed)` has.
+    #[track_caller]
+    pub fn of_world(world: &crate::world::World) -> crate::error::Result<Self> {
+        Self::of_seed(&world.seed_text()?)
+    }
+
+    /// The draws keyed as `KeyedDraws` keys them, for the rules that build their keys in a loop.
+    pub fn keyed(&self) -> &KeyedDraws {
+        &self.keyed
+    }
+
+    /// The draw of a key the caller built (`Key::labelled` and its parts).
+    pub fn draw(&self, key: &mut Key) -> f64 {
+        key.draw(&self.keyed)
+    }
+
+    /// `rng.random(label, minute, *ids)`: the most common key, of a rule's label, the minute and
+    /// stable IDs.
+    pub fn random(&self, label: &str, minute: i64, ids: &[&str]) -> f64 {
+        let mut key = Key::labelled(label);
+        key.int(minute);
+        for id in ids {
+            key.text(id);
+        }
+        key.draw(&self.keyed)
+    }
+}
+
+impl Default for Key {
+    fn default() -> Self {
+        Self::new()
+    }
+}
