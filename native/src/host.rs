@@ -30,12 +30,13 @@ use sheltersim_core::value::V;
 use sheltersim_core::world::Snapshot;
 
 use crate::core::census;
-use crate::core::errors::to_py_err;
+use crate::core::errors::{self, to_py_err};
 use crate::core::row::{attribute, exact_list};
 use crate::core::run::run_of;
 use crate::core::value::VPy;
-use crate::core::world_core::{core_of, raw_dict_get, raw_list_append};
+use crate::core::world_core::{attached_state, core_of, mirror_of, raw_dict_get, raw_list_append};
 use crate::eventlog::EventStore;
+use crate::state::information::{NAME as INFORMATION, SCHEMA_VERSION as INFORMATION_VERSION};
 use crate::state::events::QueueStore;
 use crate::Unsupported;
 
@@ -447,6 +448,35 @@ impl<'py> Host for PyHost<'py> {
     fn space_refreshed(&mut self) -> Result<(), HostError> {
         let py = self.py();
         self.controller()?.call_method0(intern!(py, "_refresh_space"))?;
+        Ok(())
+    }
+
+    /// `upgrade_information_runtime_state(state)` of an information state whose schema is not 2, as
+    /// the information events did it first: its `ValueError` is the event's failure. Then the row is
+    /// read again from the tree if the tree no longer fit it (`refit`).
+    fn upgrade_information_state(&mut self) -> Result<(), HostError> {
+        let py = self.py();
+        let table = attribute(&self.world, intern!(py, "model_state"))?;
+        let Some(state) = attached_state(&table, INFORMATION)? else {
+            return Err(HostError(Unsupported::new_err("the namespace is absent")));
+        };
+        if state.call_method1(intern!(py, "get"), (intern!(py, "schema_version"),))?.ne(INFORMATION_VERSION)? {
+            let upgrade = py.import(intern!(py, "sheltersim.domain.information"))?.getattr(intern!(py, "upgrade_information_runtime_state"))?;
+            match upgrade.call1((&state,)) {
+                Ok(_) => {}
+                Err(error) if error.is_instance_of::<PyValueError>(py) => {
+                    return errors::failed(py, format!("invalid information-spread state: {}", error.value(py).str()?)).map_err(HostError);
+                }
+                Err(error) => return Err(HostError(error)),
+            }
+        }
+        let mirror = mirror_of(&self.world, INFORMATION)?;
+        if !mirror.try_borrow().map_err(PyErr::from)?.root_is(&state) {
+            return Err(HostError(Unsupported::new_err("the world holds another document than the row's")));
+        }
+        if !mirror.getattr(intern!(py, "has_row"))?.is_truthy()? {
+            mirror.call_method0(intern!(py, "refit"))?;
+        }
         Ok(())
     }
 
