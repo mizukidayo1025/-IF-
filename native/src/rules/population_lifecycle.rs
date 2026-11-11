@@ -29,9 +29,8 @@ use crate::rules::population::{
     sha_hex, sorted_keys, sorted_set, strings, text, v_map, write_presence, write_room_admission, writing, Person, Places, Transition, AGENT_DYNAMICS,
     BODY, INFORMATION, MOVEMENT, PRESENCE, SOCIAL_NETWORK, SOCIAL_RUNTIME,
 };
-use crate::rules::service::active_task_class;
 use crate::rules::travel::{route_class, world_route};
-use crate::state::entities::{entities_of, Activity, EntityStore, Member};
+use crate::state::entities::{entities_of, insert_entity, Activity, EntityStore, Member, TaskRow};
 use crate::state::events::{EventKind, EventRow, EventWriter, QueueStore};
 use crate::Unsupported;
 
@@ -1039,15 +1038,16 @@ fn write_action<'py>(candidate: &Bound<'py, PyAny>, row: &EventRow, event: &Even
             let writer = EventWriter::of(candidate)?;
             writer.allocate_sequence()?;
             let event_id = route.event.event_id.clone();
-            let task = PyDict::new(py);
-            task.set_item("id", &*route.task_id)?;
-            task.set_item("kind", "travel_return")?;
-            task.set_item("agent_id", &*agent_id)?;
-            task.set_item("resource_id", py.None())?;
-            task.set_item("start_minute", minute)?;
-            task.set_item("due_minute", route.due)?;
-            let task = active_task_class(py)?.call((), Some(&task))?;
-            attribute(candidate, intern!(py, "active_tasks"))?.set_item(&*route.task_id, task)?;
+            let task_id: Arc<str> = Arc::from(&*route.task_id);
+            insert_entity(candidate, &task_id, TaskRow {
+                id: task_id.clone(),
+                kind: Arc::from("travel_return"),
+                agent_id: Some(Arc::from(&*agent_id)),
+                resource_id: None,
+                start_minute: minute,
+                due_minute: route.due,
+                staff_id: None,
+            })?;
             let agent = attribute(candidate, intern!(py, "agents"))?.get_item(&*agent_id)?;
             agent.setattr(intern!(py, "activity"), py.import("sheltersim.domain.models")?.getattr("Activity")?.getattr("MOVING")?)?;
             agent.setattr(intern!(py, "target_id"), &*destination)?;

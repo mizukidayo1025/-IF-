@@ -38,8 +38,10 @@ use crate::rules::movement::{
 };
 use crate::rules::movement_geometry::{distance, polyline_length, usable, Geo, GeoPy, Pt};
 use crate::rules::population::writing;
-use crate::rules::service::{active_task_class, add_one, metrics_of, set_agent};
-use crate::state::entities::{entities_of, raw_setattr, Activity, Entities, EntityStore, FacilityRow, Member, NeedRow};
+use crate::rules::service::{add_one, metrics_of, set_agent};
+use crate::state::entities::{
+    entities_of, insert_entity, remove_entity, Activity, Entities, EntityStore, FacilityRow, NeedRow, TaskRow,
+};
 use crate::state::events::{EventKind, EventRow, EventStatus, EventWriter};
 use crate::state::facility_queues::QueueRequest;
 use crate::state::metric_state::MetricRow;
@@ -813,8 +815,7 @@ fn write_all_leaving(call: &LeaveCall<'_, '_>, leaving: &[Leaving]) -> PyResult<
             write_finish(world, request)?;
             write_transition(&writer, row, minute)?;
         }
-        let tasks = attribute(world, intern!(py, "active_tasks"))?;
-        tasks.del_item(&*person.task_id)?;
+        remove_entity::<TaskRow>(world, &person.task_id)?;
         let next = minute + call.retry;
         EntityStore::with_rows(&store, |rows| {
             let Some(row) = rows.agents.get_mut(&person.agent_id) else {
@@ -823,18 +824,19 @@ fn write_all_leaving(call: &LeaveCall<'_, '_>, leaving: &[Leaving]) -> PyResult<
             row.next_decision_at = next;
             Ok(())
         })?;
-        let agents = attribute(world, intern!(py, "agents"))?;
-        let Some(agent) = raw_dict_get(&agents, agent_text.as_any())? else {
-            return unsupported("a row has no object");
-        };
-        raw_setattr(&agent, intern!(py, "next_decision_at"), next.into_pyobject(py)?.as_ptr())?;
         writer.record(&plan.abandon, minute, EventStatus::Applied, Some(ABANDON_DETAIL))?;
         match plan.walk {
             Some(LeaveWalk { task_id, destination, due, event, changes }) => {
                 writer.allocate_sequence()?;
-                let task_text = PyString::new(py, &task_id);
-                let task = active_task_class(py)?.call1((&task_text, "travel_return", &agent_text, py.None(), minute, due))?;
-                tasks.set_item(&task_text, task)?;
+                insert_entity(world, &task_id, TaskRow {
+                    id: task_id.clone(),
+                    kind: Arc::from("travel_return"),
+                    agent_id: Some(person.agent_id.clone()),
+                    resource_id: None,
+                    start_minute: minute,
+                    due_minute: due,
+                    staff_id: None,
+                })?;
                 set_agent(world, &store, agent_text.as_any(), Activity::Moving, Some(PyString::new(py, &destination).as_any()))?;
                 writer.schedule(event)?;
                 let mirror = mirror_held(world)?;
@@ -1030,7 +1032,6 @@ pub(crate) fn write_plan<'py>(
     facility_id: &Bound<'py, PyAny>,
     plan: Plan,
 ) -> PyResult<()> {
-    let py = world.py();
     let trip = match plan {
         Plan::Nothing => return Ok(()),
         Plan::Blocked => return add_blocked(world),
@@ -1038,31 +1039,18 @@ pub(crate) fn write_plan<'py>(
     };
     let facility_name = exact_str(facility_id)?;
     let Trip { agent_id, event, changes } = *trip;
-    let (activity_changed, target_changed) = EntityStore::with_rows(store, |rows| {
+    EntityStore::with_rows(store, |rows| {
         let Some(agent) = rows.agents.get(&agent_id) else {
             return unsupported("no such agent");
         };
-        let changed = (agent.activity != Activity::Queued, agent.target_id.as_deref() != Some(facility_name));
-        if changed.0 || changed.1 {
+        if agent.activity != Activity::Queued || agent.target_id.as_deref() != Some(facility_name) {
             if let Some(agent) = rows.agents.get_mut(&agent_id) {
                 agent.activity = Activity::Queued;
                 agent.target_id = Some(Arc::from(facility_name));
             }
         }
-        Ok(changed)
+        Ok(())
     })?;
-    if activity_changed || target_changed {
-        let agents = attribute(world, intern!(py, "agents"))?;
-        let Some(agent) = raw_dict_get(&agents, PyString::new(py, &agent_id).as_any())? else {
-            return Err(pyo3::exceptions::PyRuntimeError::new_err("a row has no object"));
-        };
-        if activity_changed {
-            raw_setattr(&agent, intern!(py, "activity"), Activity::Queued.member(py)?.as_ptr())?;
-        }
-        if target_changed {
-            raw_setattr(&agent, intern!(py, "target_id"), facility_id.as_ptr())?;
-        }
-    }
     writer.allocate_sequence()?;
     writer.schedule(event)?;
     let writes = NamespaceMirror::with_row_tree::<MovementRow, _>(mirror, |row, tree| changes.apply(row, tree))?;

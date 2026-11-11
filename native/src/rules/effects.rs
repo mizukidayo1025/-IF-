@@ -44,7 +44,7 @@ use crate::rules::staff_dynamics::{is_available, staff_status};
 use crate::rules::staff_order::{order_operation, Order};
 use crate::state::effect_program::{EffectProgramRow, Program, NAME};
 use crate::rules::overlay;
-use crate::state::entities::{entities_of, EntityStore};
+use crate::state::entities::{entities_of, insert_entity, EntityStore, FacilityRow, Skills, StaffRow};
 use crate::state::events::{is_stable_id, EventRef, EventRow, EventRowPy, EventWriter};
 use crate::state::resource_ledger::{held_mirror, resource_index, LedgerRow};
 use crate::Unsupported;
@@ -1911,12 +1911,15 @@ fn set_staff_role(world: &Bound<'_, PyAny>, row: &EventRow, event: &Bound<'_, Py
 /// `add_staff` of `domain/staff_dynamics.py` and `add_staff_operations_agent`, on the copy.
 fn add_one_staff(py: Python<'_>, candidate: &Bound<'_, PyAny>, staff_id: &str, zone_id: &str) -> PyResult<()> {
     let table = model_state(candidate)?;
-    let keywords = PyDict::new(py);
-    keywords.set_item("id", staff_id)?;
-    keywords.set_item("zone_id", zone_id)?;
-    keywords.set_item("skills", PyTuple::new(py, ["support"])?)?;
-    let member = py.import(intern!(py, "sheltersim.domain.models"))?.getattr(intern!(py, "StaffState"))?.call((), Some(&keywords))?;
-    attribute(candidate, intern!(py, "staff"))?.set_item(staff_id, member)?;
+    let key: Arc<str> = Arc::from(staff_id);
+    insert_entity(candidate, &key, StaffRow {
+        id: key.clone(),
+        zone_id: Arc::from(zone_id),
+        skills: Skills(vec![Arc::from("support")]),
+        work_queue: Vec::new(),
+        busy_until: 0,
+        active_task_id: None,
+    })?;
     if let Some(operational) = get_or_none(&table, "operational_events_v1")? {
         let status = PyDict::new(py);
         status.set_item("available", true)?;
@@ -1942,14 +1945,18 @@ fn add_one_staff(py: Python<'_>, candidate: &Bound<'_, PyAny>, staff_id: &str, z
 }
 
 fn add_one_toilet(py: Python<'_>, candidate: &Bound<'_, PyAny>, facility_id: &str, zone_id: &str, row: &EventRow) -> PyResult<()> {
-    let keywords = PyDict::new(py);
-    keywords.set_item("id", facility_id)?;
-    keywords.set_item("kind", "toilet")?;
-    keywords.set_item("zone_id", zone_id)?;
-    keywords.set_item("capacity", 1)?;
-    keywords.set_item("working_units", 1)?;
-    let toilet = py.import(intern!(py, "sheltersim.domain.models"))?.getattr(intern!(py, "FacilityState"))?.call((), Some(&keywords))?;
-    attribute(candidate, intern!(py, "facilities"))?.set_item(facility_id, toilet)?;
+    let key: Arc<str> = Arc::from(facility_id);
+    insert_entity(candidate, &key, FacilityRow {
+        id: key.clone(),
+        kind: Arc::from("toilet"),
+        zone_id: Arc::from(zone_id),
+        capacity: 1,
+        working_units: 1,
+        active_agent_ids: Vec::new(),
+        queue_agent_ids: Vec::new(),
+        resource_active_agent_ids: Vec::new(),
+        resource_queue_agent_ids: Vec::new(),
+    })?;
     if overlay::placement_enabled(candidate)? {
         // By name, as the Python rule calls it (its kernel first), for the text of its ValueError.
         let sources = match row.source_id.as_deref().filter(|source| !source.is_empty()) {

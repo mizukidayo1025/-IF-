@@ -35,7 +35,7 @@ use crate::rules::information_events::information_spread;
 use crate::rules::social_dialogue::{context_is_valid, context_verdict, is_other_json_value, is_plain_mapping};
 use crate::rules::social_network::{action_relief, body_state_of, mapping_get};
 use crate::rules::support::household_of;
-use crate::state::entities::{entities_of, raw_setattr, AgentRow, EntityStore};
+use crate::state::entities::{entities_of, AgentRow, EntityStore};
 use crate::state::information::{InformationRow, NAME as INFORMATION, SCHEMA_VERSION as INFORMATION_VERSION};
 use crate::Unsupported;
 
@@ -362,25 +362,10 @@ pub(crate) fn apply_event<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyA
         }
         Ok(Some((stress, trust, fatigue, actor_trust)))
     })?;
-    let Some(values) = values else {
+    if values.is_none() {
         return suppression(errors::noted(Outcome::Suppressed, NOT_HIGHER_NEED));
-    };
-
-    // The objects of the rows.
-    let agents = world.getattr(intern!(py, "agents"))?;
-    let object_of = |key: &Bound<'py, PyString>| -> PyResult<Bound<'py, PyAny>> {
-        raw_dict_get(&agents, key.as_any())?
-            .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("a row has no object"))
-    };
-    let participant = object_of(participant_key)?;
-    raw_setattr(&participant, intern!(py, "stress"), PyFloat::new(py, values.0).as_ptr())?;
-    raw_setattr(&participant, intern!(py, "trust"), PyFloat::new(py, values.1).as_ptr())?;
-    if helps {
-        let actor = object_of(actor_key)?;
-        let needs = actor.getattr(intern!(py, "needs"))?;
-        raw_setattr(&needs, intern!(py, "fatigue"), PyFloat::new(py, values.2).as_ptr())?;
-        raw_setattr(&actor, intern!(py, "trust"), PyFloat::new(py, values.3).as_ptr())?;
     }
+    // The objects followed the rows when the borrow ended.
     Ok(None)
 }
 

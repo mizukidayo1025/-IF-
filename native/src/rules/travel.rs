@@ -28,8 +28,8 @@ use crate::rules::movement::{
     EXACT_INT, KEY,
 };
 use crate::rules::movement_geometry::{Geo, GeoPy, Pt};
-use crate::rules::service::{active_task_class, set_agent};
-use crate::state::entities::{entities_of, Activity, Entities, EntityStore, FacilityRow};
+use crate::rules::service::set_agent;
+use crate::state::entities::{entities_of, insert_entity, Activity, Entities, EntityStore, FacilityRow, TaskRow};
 use crate::state::events::{EventKind, EventRef, EventRow, EventWriter, PendingEvent, PendingSource};
 use crate::state::movement::{Journey, MovementRow, Point};
 use crate::state::staff_operations::{Phase, StaffOperationsRow, NAME as STAFF_OPERATIONS};
@@ -964,10 +964,16 @@ pub(crate) fn write_travel(world: &Bound<'_, PyAny>, writer: &EventWriter<'_>, t
     let store = entities_of(world)?;
     let PlannedTrip { agent_id, task_id, task_kind, target_id, minute, due, event, changes } = trip;
     writer.allocate_sequence()?;
-    let task_text = PyString::new(py, &task_id);
     let agent_text = PyString::new(py, &agent_id);
-    let task = active_task_class(py)?.call1((&task_text, task_kind, &agent_text, py.None(), minute, due))?;
-    attribute(world, intern!(py, "active_tasks"))?.set_item(&task_text, task)?;
+    insert_entity(world, &task_id, TaskRow {
+        id: task_id.clone(),
+        kind: Arc::from(task_kind),
+        agent_id: Some(agent_id.clone()),
+        resource_id: None,
+        start_minute: minute,
+        due_minute: due,
+        staff_id: None,
+    })?;
     set_agent(world, &store, agent_text.as_any(), Activity::Moving, Some(PyString::new(py, &target_id).as_any()))?;
     writer.schedule(event)?;
     if let Some(changes) = changes {

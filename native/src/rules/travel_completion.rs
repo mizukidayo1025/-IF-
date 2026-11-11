@@ -26,7 +26,7 @@ use crate::core::row::{attribute, exact_dict, exact_int, exact_str, str_value, u
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::{V, VPy};
 use crate::core::world_core::{raw_dict_get, with_state_value};
-use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, Member, RequestStatus};
+use crate::state::entities::{entities_of, Activity, EntityStore, RequestStatus};
 use crate::rules::movement::{at_queue_slot, at_service_point, at_trip_destination};
 use crate::rules::travel::{approach_route, plan_room_approach, write_travel};
 use crate::rules::{service, toilet};
@@ -810,13 +810,6 @@ pub(crate) fn apply_event<'py>(
     })?;
     let tasks = attribute(world, intern!(py, "active_tasks"))?;
     tasks.del_item(&**task_id)?;
-    let agents = attribute(world, intern!(py, "agents"))?;
-    let person = raw_dict_get(&agents, PyString::new(py, agent_id).as_any())?
-        .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("a row has no object"))?;
-    let destination_key = PyString::new(py, destination);
-    raw_setattr(&person, intern!(py, "zone_id"), destination_key.as_ptr())?;
-    raw_setattr(&person, intern!(py, "activity"), activity.member(py)?.as_ptr())?;
-    raw_setattr(&person, intern!(py, "target_id"), py.None().as_ptr())?;
 
     if &**purpose == "presence_relocation" {
         crate::rules::population::writing(crate::rules::population_lifecycle::complete_presence_relocation(world, &object()?))?;

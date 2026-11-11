@@ -36,7 +36,7 @@ use crate::rules::social_dialogue::context_value;
 use crate::rules::care_receipts::append_applied;
 use crate::rules::support::{PlannedRequest, add_rejected, household_of, plan_request, support_kind_of, write_closed_request, write_request};
 use crate::rules::travel::{CapacityWait, PlannedTrip, Route, Selected, Trip, approach_route, plan_travel, rows_of, select_resource, select_toilet, write_capacity_wait, write_travel};
-use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, Member};
+use crate::state::entities::{entities_of, Activity, EntityStore};
 use crate::state::events::{EventKind, EventRow, EventWriter};
 use crate::state::resource_service::{held_mirror as service_mirror, RequestRecord};
 use sheltersim_core::config::body::social_interaction_minutes;
@@ -414,7 +414,7 @@ fn apply_seek<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound<'py, PyAny>,
     let table_object = attribute(&world, intern!(py, "model_state"))?;
     let table = exact_dict(&table_object)?;
     let agents = attribute(&world, intern!(py, "agents"))?;
-    let Some(agent) = raw_dict_get(&agents, &agent_object)? else {
+    let Some(_) = raw_dict_get(&agents, &agent_object)? else {
         return unsupported("no such agent");
     };
     let service_object = attribute(controller, intern!(py, "staff_service"))?;
@@ -470,7 +470,6 @@ fn apply_seek<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound<'py, PyAny>,
         row.next_decision_at = next;
         Ok(())
     })?;
-    raw_setattr(&agent, intern!(py, "next_decision_at"), next.into_pyobject(py)?.as_ptr())?;
     let (request_id, is_open) = match planned {
         PlannedRequest::Rejected => {
             add_rejected(&metrics)?;
@@ -595,10 +594,10 @@ pub(crate) fn apply_effect<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound
     let table_object = attribute(&world, intern!(py, "model_state"))?;
     exact_dict(&table_object)?;
     let agents = attribute(&world, intern!(py, "agents"))?;
-    let Some(agent) = raw_dict_get(&agents, &agent_object)? else {
+    let Some(_) = raw_dict_get(&agents, &agent_object)? else {
         return unsupported("no such agent");
     };
-    let (zone_id, own_id, prior_activity, prior_target_set) = EntityStore::with_rows(&store, |rows| {
+    let (zone_id, own_id, _, _) = EntityStore::with_rows(&store, |rows| {
         let Some(agent) = rows.agents.get(agent_id) else {
             return unsupported("the rows have no such agent");
         };
@@ -752,15 +751,6 @@ pub(crate) fn apply_effect<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound
         }
         Ok(())
     })?;
-    raw_setattr(&agent, intern!(py, "next_decision_at"), next.into_pyobject(py)?.as_ptr())?;
-    if let Some(activity) = still {
-        if activity != prior_activity {
-            raw_setattr(&agent, intern!(py, "activity"), activity.member(py)?.as_ptr())?;
-        }
-        if prior_target_set {
-            raw_setattr(&agent, intern!(py, "target_id"), py.None().as_ptr())?;
-        }
-    }
     let mut target = match social {
         Some((event, writer, participant_id, _)) => {
             writer.allocate_sequence()?;

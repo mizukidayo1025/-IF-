@@ -26,13 +26,12 @@ use crate::rules::effects::{active_outage, has_active_modifier};
 use crate::rules::handlers::{assumption, get, get_is, log_record, new_event, NewEvent};
 use crate::rules::movement::{mobility_text, movement_minutes};
 use crate::rules::movement_geometry::{Geo, GeoPy};
-use crate::rules::service::active_task_class;
 use crate::rules::staff_operation_events::relief_skills;
 use crate::rules::staff_dynamics::{is_available, on_shift, staff_status};
 use crate::rules::travel::{active_edge_loads, passage_edge_loads, staff_router_rows, world_graph, EdgeLoads, Route, StaffRouter};
 use sheltersim_core::routes::Router;
 use crate::state::body_state::{BodyRow, NAME as BODY_STATE};
-use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, Member, RequestStatus};
+use crate::state::entities::{entities_of, insert_entity, Activity, EntityStore, Member, RequestStatus, TaskRow};
 use crate::state::metric_state::MetricRow;
 use crate::state::staff_dynamics::{StaffDynamicsRow, NAME as STAFF_DYNAMICS};
 use crate::state::staff_operations::{Phase, StaffOperationsRow, NAME};
@@ -467,15 +466,16 @@ fn assign_work<'py>(service: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>, val
                 continue;
             }
         }
-        let task_kwargs = PyDict::new(py);
-        task_kwargs.set_item("id", &task_id)?;
-        task_kwargs.set_item("kind", "staff_support")?;
-        task_kwargs.set_item("agent_id", &open.agent_id)?;
-        task_kwargs.set_item("resource_id", py.None())?;
-        task_kwargs.set_item("start_minute", at + travel_minutes)?;
-        task_kwargs.set_item("due_minute", due)?;
-        task_kwargs.set_item("staff_id", &staff_id)?;
-        let task = crate::rules::service::active_task_class(py)?.call((), Some(&task_kwargs))?;
+        let task_key: Arc<str> = Arc::from(&*task_id);
+        let task = TaskRow {
+            id: task_key.clone(),
+            kind: Arc::from("staff_support"),
+            agent_id: Some(Arc::from(exact_str(&open.agent_id)?)),
+            resource_id: None,
+            start_minute: at + travel_minutes,
+            due_minute: due,
+            staff_id: Some(Arc::from(exact_str(&staff_id)?)),
+        };
         let promoted = open.priority == 0 && at - open.requested >= fairness;
         let payload = PyDict::new(py);
         payload.set_item("request_id", &open.id)?;
@@ -501,7 +501,7 @@ fn assign_work<'py>(service: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>, val
                 provenance: provenance.into_any(),
             },
         )?;
-        attribute(&world, intern!(py, "active_tasks"))?.set_item(&task_id, task)?;
+        insert_entity(&world, &task_key, task)?;
         staff.setattr(intern!(py, "active_task_id"), &task_id)?;
         attribute(staff, intern!(py, "work_queue"))?.set_item(pyo3::types::PySlice::full(py), PyList::new(py, [&task_id])?)?;
         staff.setattr(intern!(py, "busy_until"), due)?;
@@ -802,17 +802,6 @@ fn assign_none<'py>(
         }
         Ok(())
     })?;
-    let attempt_name = intern!(py, "last_assignment_attempt_minute");
-    let reason_name = intern!(py, "last_assignment_wait_reason_code");
-    let reason = intern!(py, WAIT_REASON);
-    for request in &requests {
-        if !request.same_minute {
-            raw_setattr(&request.object, attempt_name, minute.as_ptr())?;
-        }
-        if !request.same_reason {
-            raw_setattr(&request.object, reason_name, reason.as_ptr())?;
-        }
-    }
     if record_metrics {
         NamespaceMirror::with_row_tree::<MetricRow, _>(&metrics, |row, tree| {
             for (metric, count) in [(BUSY_METRIC, busy), (OFF_SHIFT_METRIC, off_shift)] {
@@ -1827,7 +1816,6 @@ fn write_operations<'py>(
     let table = table_of(world)?;
     let records = get(&get(&table, NAME)?, "staff")?;
     let staff_map = attribute(world, intern!(py, "staff"))?;
-    let tasks = attribute(world, intern!(py, "active_tasks"))?;
     let mut assigned = Vec::with_capacity(plan.starts.len());
     for start in &plan.starts {
         let worker = &workers[start.worker];
@@ -1854,15 +1842,16 @@ fn write_operations<'py>(
         record.set_item("travel_minutes", travel)?;
         record.set_item("causation_event_ids", PyList::empty(py))?;
         records.set_item(&*worker.id, record)?;
-        let kwargs = PyDict::new(py);
-        kwargs.set_item("id", &task_id)?;
-        kwargs.set_item("kind", "staff_operation")?;
-        kwargs.set_item("agent_id", py.None())?;
-        kwargs.set_item("resource_id", py.None())?;
-        kwargs.set_item("start_minute", minute)?;
-        kwargs.set_item("due_minute", start.due)?;
-        kwargs.set_item("staff_id", &*worker.id)?;
-        tasks.set_item(&task_id, active_task_class(py)?.call((), Some(&kwargs))?)?;
+        let task_key: Arc<str> = Arc::from(&*task_id);
+        insert_entity(world, &task_key, TaskRow {
+            id: task_key.clone(),
+            kind: Arc::from("staff_operation"),
+            agent_id: None,
+            resource_id: None,
+            start_minute: at,
+            due_minute: start.due,
+            staff_id: Some(worker.id.clone()),
+        })?;
         let staff = staff_map.get_item(&*worker.id)?;
         staff.setattr(intern!(py, "active_task_id"), &task_id)?;
         attribute(&staff, intern!(py, "work_queue"))?.set_item(PySlice::full(py), PyList::new(py, [&task_id])?)?;

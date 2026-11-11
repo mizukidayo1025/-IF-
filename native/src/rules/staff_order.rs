@@ -22,12 +22,11 @@ use crate::core::world_core::{with_state_value, NamespaceMirror};
 use crate::rules::effects::{active_outage, has_active_modifier};
 use crate::rules::handlers::{assumption, get, new_event, NewEvent};
 use crate::rules::movement_geometry::{Geo, GeoPy};
-use crate::rules::service::active_task_class;
 use crate::rules::staff::{formula_of, mirror_held};
 use crate::rules::staff_dynamics::{is_available, is_available_now, staff_status};
 use crate::rules::staff_operation_events::relief_skills;
 use crate::rules::travel::{passage_edge_loads, world_graph, Route};
-use crate::state::entities::{entities_of, EntityStore};
+use crate::state::entities::{entities_of, insert_entity, EntityStore, TaskRow};
 use crate::state::staff_operations::{Phase, StaffOperationsRow, NAME};
 
 const SHARED_OPERATIONS: &str = "shared_operations_v1";
@@ -258,15 +257,16 @@ pub(crate) fn order_operation(world: &Bound<'_, PyAny>, order: &Order<'_>) -> Py
     record.set_item("travel_minutes", travel)?;
     record.set_item("causation_event_ids", PyList::new(py, [order.causation_event_id])?)?;
     records.set_item(order.staff_id, record)?;
-    let task = PyDict::new(py);
-    task.set_item("id", &task_id)?;
-    task.set_item("kind", "staff_operation")?;
-    task.set_item("agent_id", py.None())?;
-    task.set_item("resource_id", py.None())?;
-    task.set_item("start_minute", minute)?;
-    task.set_item("due_minute", due)?;
-    task.set_item("staff_id", order.staff_id)?;
-    attribute(world, intern!(py, "active_tasks"))?.set_item(&task_id, active_task_class(py)?.call((), Some(&task))?)?;
+    let task_key: Arc<str> = Arc::from(&*task_id);
+    insert_entity(world, &task_key, TaskRow {
+        id: task_key.clone(),
+        kind: Arc::from("staff_operation"),
+        agent_id: None,
+        resource_id: None,
+        start_minute: minute,
+        due_minute: due,
+        staff_id: Some(Arc::from(order.staff_id)),
+    })?;
     let staff = attribute(world, intern!(py, "staff"))?.get_item(order.staff_id)?;
     staff.setattr(intern!(py, "active_task_id"), &task_id)?;
     attribute(&staff, intern!(py, "work_queue"))?.set_item(PySlice::full(py), PyList::new(py, [&task_id])?)?;
