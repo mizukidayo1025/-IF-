@@ -39,11 +39,7 @@ pub(crate) fn current(world: &Bound<'_, PyAny>) -> PyResult<Arc<Configs>> {
 
 fn current_of(world: &Bound<'_, PyAny>, raw: &Bound<'_, PyAny>) -> PyResult<Arc<Configs>> {
     match field_stamp(world, MODEL_CONFIGS, raw)? {
-        Some((core, stamp)) => {
-            let core = core.try_borrow()?;
-            let mut derived = core.world().derived.try_borrow_mut().or_py()?;
-            Ok(derived.configs(stamp))
-        }
+        Some((core, stamp)) => core.try_borrow()?.world().configs(stamp).or_py(),
         None => Ok(Arc::new(Configs::new(None))),
     }
 }

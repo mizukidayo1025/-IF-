@@ -34,9 +34,10 @@ use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 use pyo3::PyTraverseError;
-use sheltersim_core::cell::{Shard, ShardMut};
+use sheltersim_core::cell::{Shard, ShardMut, BORROWED};
 use sheltersim_core::stamp::Stamp;
-use sheltersim_core::world::{Place, Slot, World};
+use sheltersim_core::error::Error as CoreError;
+use sheltersim_core::world::{Place, Slot, World, WorldCell};
 use smallvec::SmallVec;
 
 use super::row::{atom_to_py, Atom, PyField, PyItems, Scalar, TreeSink};
@@ -1888,6 +1889,39 @@ pub(crate) fn core_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, Wor
         .getattr(intern!(world.py(), "_core"))
         .map_err(|_| Unsupported::new_err("the world has no core"))?;
     Ok(core.downcast::<WorldCore>()?.clone())
+}
+
+/// A world's core as the core's `WorldCell`: `with` looks up `world.__dict__["_core"]` now (rule R1
+/// of design-p5-p6.md: a callback may have moved the world to another core) and holds the
+/// `WorldCore` exclusively while f runs (R2). A world without a core is Unsupported; a core
+/// borrowed already (a shim of this crate is reading a part of it) is `RuntimeError`, the text of a
+/// part borrowed twice.
+pub(crate) struct PyWorldCell<'a, 'py>(pub(crate) &'a Bound<'py, PyAny>);
+
+impl WorldCell for PyWorldCell<'_, '_> {
+    fn with<R>(&self, f: impl FnOnce(&mut World) -> R) -> sheltersim_core::error::Result<R> {
+        let core = core_of(self.0).map_err(|_| CoreError::unsupported("the world has no core"))?;
+        let mut core = core.try_borrow_mut().map_err(|_| CoreError::Runtime(BORROWED.to_owned()))?;
+        Ok(f(&mut core.world))
+    }
+}
+
+/// Run f on the whole world, borrowed exclusively (rule R2): f must not call Python, and neither may
+/// the core functions it calls. A kernel gathers what Python holds before, and makes the Python
+/// values of what f returns after (docs/rust-port/step5-plan.md, PR 5-4).
+#[inline]
+pub(crate) fn with_world<R>(world: &Bound<'_, PyAny>, f: impl FnOnce(&mut World) -> R) -> PyResult<R> {
+    PyWorldCell(world).with(f).or_py()
+}
+
+/// Whether `world.<name>` is the tree of the field's slot now, which a field assigned whole is not
+/// (`field_mirror_of`). True for a name that is not owned or a world without a core: the core
+/// function says what is wrong then, at the point the kernel said it before.
+pub(crate) fn field_held(world: &Bound<'_, PyAny>, name: &Bound<'_, PyString>) -> PyResult<bool> {
+    let Ok(mirror) = mirror_of(world, name.to_str()?) else {
+        return Ok(true);
+    };
+    Ok(mirror.get().root_is(&world.getattr(name)?))
 }
 
 /// The stamp of the owned world field `name` while it holds `held`, the mirror's tree, and the core
