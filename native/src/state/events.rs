@@ -43,7 +43,7 @@ use crate::state::world_fields;
 use crate::Unsupported;
 
 // As `checkpoint::MAX_SAME_DEPTH`: deeper values are left to the Python paths.
-const MAX_ROW_DEPTH: usize = 64;
+pub(crate) const MAX_ROW_DEPTH: usize = 64;
 
 /// The classes a row becomes, read once.
 struct Models {
@@ -144,7 +144,7 @@ impl EventRowPy for EventRow {
 }
 
 /// What `_freeze_json` makes of a value read from Python, read back: Ok(None) for anything else.
-fn read_frozen(value: &Bound<'_, PyAny>, depth: usize) -> PyResult<Option<V>> {
+pub(crate) fn read_frozen(value: &Bound<'_, PyAny>, depth: usize) -> PyResult<Option<V>> {
     if depth == 0 {
         return Ok(None);
     }
