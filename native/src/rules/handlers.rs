@@ -11,15 +11,15 @@
 //! (policy E6), looks up the EventLog's records and gives the contracts (policy E15). The population
 //! primitives' rules are the population lanes' glue, called in the transaction as before.
 //!
-//! The helpers at the start (`counted`, `get`, `new_event`, `log_record`, ...) are for the kernels
-//! still in this crate.
+//! The helpers at the start (`counted`, `get`, `get_is`, `status_member`) are for the kernels still in
+//! this crate.
 
 use std::sync::Arc;
 
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyFloat, PyString, PyTuple};
+use pyo3::types::{PyDict, PyString, PyTuple};
 
 use sheltersim_core::config::environment::Infrastructure;
 use sheltersim_core::config::proximity::Proximity;
@@ -77,9 +77,7 @@ fn stats<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyDict>, Bound<'py, PyDic
 
 // ---- Reading and making Python's values, for the kernels still in this crate ----------------------
 //
-// A kernel in the core uses the row versions in `sheltersim_core::rules::kit`: `get`, `kind_is`,
-// `status_member`, `new_event` (an `EventRow`), `log_record` and `Events` (the world's queue, log and
-// counter), `assumption`, `add_metric`.
+// A kernel in the core uses the row versions in `sheltersim_core::rules::kit`.
 
 /// `map.get(key)`, which is None when absent.
 pub(crate) fn get<'py>(map: &Bound<'py, PyAny>, key: &str) -> PyResult<Bound<'py, PyAny>> {
@@ -90,78 +88,12 @@ pub(crate) fn get_is(map: &Bound<'_, PyAny>, key: &str, wanted: &str) -> PyResul
     Ok(str_value(&get(map, key)?) == Some(wanted))
 }
 
-/// An exact float, or an exact int that fits one: the same f64 in an expression with a float.
-pub(crate) fn number(value: &Bound<'_, PyAny>) -> PyResult<f64> {
-    if let Ok(float) = value.downcast_exact::<PyFloat>() {
-        return Ok(float.value());
-    }
-    let int = exact_int(value)?;
-    if !(-(1 << 53)..=1 << 53).contains(&int) {
-        return crate::core::row::unsupported("a number does not fit a float");
-    }
-    Ok(int as f64)
-}
-
 fn models(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
     py.import(intern!(py, "sheltersim.events.models"))
 }
 
 pub(crate) fn status_member<'py>(py: Python<'py>, member: &str) -> PyResult<Bound<'py, PyAny>> {
     models(py)?.getattr(intern!(py, "EventStatus"))?.getattr(member)
-}
-
-/// The arguments of a new `ScheduledEvent`.
-pub(crate) struct NewEvent<'py, 'a> {
-    pub(crate) event_id: &'a str,
-    pub(crate) kind: &'a str,
-    pub(crate) due_minute: i64,
-    pub(crate) priority: i64,
-    pub(crate) sequence: i64,
-    pub(crate) event_type: &'a str,
-    pub(crate) payload: Bound<'py, PyAny>,
-    pub(crate) source_id: Option<Bound<'py, PyAny>>,
-    pub(crate) causation_id: Option<Bound<'py, PyAny>>,
-    pub(crate) provenance: Bound<'py, PyAny>,
-}
-
-pub(crate) fn new_event<'py>(py: Python<'py>, event: NewEvent<'py, '_>) -> PyResult<Bound<'py, PyAny>> {
-    let module = models(py)?;
-    let kwargs = PyDict::new(py);
-    kwargs.set_item(intern!(py, "event_id"), event.event_id)?;
-    kwargs.set_item(intern!(py, "kind"), module.getattr(intern!(py, "EventKind"))?.getattr(event.kind)?)?;
-    kwargs.set_item(intern!(py, "due_minute"), event.due_minute)?;
-    kwargs.set_item(intern!(py, "priority"), event.priority)?;
-    kwargs.set_item(intern!(py, "sequence"), event.sequence)?;
-    kwargs.set_item(intern!(py, "event_type"), event.event_type)?;
-    kwargs.set_item(intern!(py, "payload"), event.payload)?;
-    kwargs.set_item(intern!(py, "source_id"), event.source_id)?;
-    kwargs.set_item(intern!(py, "causation_id"), event.causation_id)?;
-    kwargs.set_item(intern!(py, "provenance"), event.provenance)?;
-    module.getattr(intern!(py, "ScheduledEvent"))?.call((), Some(&kwargs))
-}
-
-pub(crate) fn log_record<'py>(
-    py: Python<'py>,
-    event: &Bound<'py, PyAny>,
-    minute: &Bound<'py, PyAny>,
-    status: &str,
-    detail: Option<&str>,
-) -> PyResult<Bound<'py, PyAny>> {
-    let kwargs = PyDict::new(py);
-    kwargs.set_item(intern!(py, "event"), event)?;
-    kwargs.set_item(intern!(py, "realized_minute"), minute)?;
-    kwargs.set_item(intern!(py, "status"), status_member(py, status)?)?;
-    kwargs.set_item(intern!(py, "detail"), detail)?;
-    models(py)?.getattr(intern!(py, "EventLogRecord"))?.call((), Some(&kwargs))
-}
-
-/// `{"source_type": "assumption", "source_id": source, "policy_version": policy}`.
-pub(crate) fn assumption<'py>(py: Python<'py>, source: &Bound<'py, PyAny>, policy: &str) -> PyResult<Bound<'py, PyDict>> {
-    let provenance = PyDict::new(py);
-    provenance.set_item(intern!(py, "source_type"), "assumption")?;
-    provenance.set_item(intern!(py, "source_id"), source)?;
-    provenance.set_item(intern!(py, "policy_version"), policy)?;
-    Ok(provenance)
 }
 
 // ---- The sections of the configs, kept by stamp ----------------------------------------------------
