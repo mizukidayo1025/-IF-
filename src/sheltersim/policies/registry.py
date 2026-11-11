@@ -44,7 +44,7 @@ _INSTALLED_FACTORIES: dict[tuple[str, str], Callable[..., Any]] = {}
 class BodyDynamicsFormula:
     """One installed stress-feedback equation for the body-state policy.
 
-    native/src/rules/psychology.rs computes it, by `model_id`. The feedback of a minute is the
+    native/core/src/rules/psychology.rs computes it, by `model_id`. The feedback of a minute is the
     sleep debt over a day times `sleep_debt_stress_rate`; body-feedback-sleep-debt-v1 stops there.
     The others add uncertainty, discontent, hygiene need and the zone's lack of sanitation, and
     the family separation pressure, less reassurance and positive affect. The per-person rates

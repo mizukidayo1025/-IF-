@@ -94,8 +94,12 @@ Checkpoint document) and times them.
   written to the row of `information_spread_v1`; a state of another schema is upgraded through
   `Host::upgrade_information_state`) and `social_interaction.rs` (`SocialInteractionHandler`),
   which take the event's row;
+  `psychology.rs` (each person's minute from the view, the rows and the model the `Run`'s
+  `Policies` read, as `Delta`s and the trace's rows; the distress monitor and the long-term
+  distress; writing the final deltas) and `trace.rs` (the trace documents as `V`, the psychology
+  document going out through `Host::trace`) (lane P8 a3);
   the file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4, P8-0a, c1,
-  P8b-1, P8 a2, P8 a1 and P8 d1),
+  P8b-1, P8 a2, P8 a1, P8 d1 and P8 a3),
   `text.rs` (`casefold`, CPython 3.12's full fold from a generated table, `text/casefold.rs`
   by `tools/casefold_table.py`, tested at every code point against `tests/data/casefold.txt`;
   `g_text`, `format(value, "g")`),
@@ -257,8 +261,8 @@ Checkpoint document) and times them.
   of forwarded writes), and any `PyField` is a `PyRow`, which the slot of a `NamespaceMirror` holds. This
   crate's `state_row!` is both, for a row of this crate only. `src/state/psychological_distress.rs`,
   `src/state/metric_state.rs` and
-  `src/rules/psychology.rs` are the production template: Rust owns those two, and its rule writes
-  them value by value. Start a namespace from `docs/rust-port/lanes/p5-template-namespace.md`.
+  `core/src/rules/psychology.rs` are the production template: Rust owns those two, and its rule
+  writes their rows, which the trees follow. Start a namespace from `docs/rust-port/lanes/p5-template-namespace.md`.
   `row.rs` also has `Maybe<T>` (a key a record may not have), `str_enum!`, `set_all`,
   `namespace_is_absent` and the `exact_*` readers of a kernel's inputs. A rule other modules call as
   a function uses `core/kernels.py`'s `kernel_only`; `src/state/staff_dynamics.rs` and
@@ -333,20 +337,24 @@ are correctly rounded everywhere, and not `**` with a float.
   `core/checkpoint_cache.py` uses `canonical_json` for what a Checkpoint save encodes;
   elsewhere replacing `json` alone saved about 1% (see below).
 
-- `rules/trace.rs`: the trace documents with their shape unchanged (decision D1 of
-  `docs/rust-port/step4-plan.md`): `TraceRows`, `AgentPsychologyTrace.to_dict`, `trace_document` and
-  `record_psychology_trace` (`_record_psychology_trace`), the social contacts' document, and
-  `TraceSink`, which hands each finished Python dict to the sink's own `record_*` method. The writer
-  and its `_sanitize` stay in Python.
+- `rules/trace.rs`: the glue of the core's trace documents (`core/src/rules/trace.rs`, lane P8 a3):
+  `TraceRows` (the core's rows as `PsychologyUpdateResult.traces`), `record_psychology_trace`
+  (`_record_psychology_trace`, which reads the rows and the final deltas and calls the core, whose
+  document goes to `artifacts.record_psychology_trace` through `Host::trace`), and `TraceSink`, which
+  hands the social contacts' document (made in the core) and the information document to the sink's
+  own `record_*` method until those kernels move. The writer and its `_sanitize` stay in Python.
 
-- `rules/psychology.rs`: each person's minute (`update_psychology`, all the built-in psychology
-  models, with `TraceRows` if the Run keeps a trace), the distress monitor and long-term distress
-  (`update_long_term`) and writing the new values (`apply_deltas`). They replace steps of the
-  update phase (`experiments/phases/segments.py`), read the entity rows, and read the zone's
-  conditions, the body record, the group and what a person heard from `rules/world_view.rs`. Every float operation keeps the Python order; `max`/`min`
-  return the first argument on a tie and `sum` is CPython 3.12's compensated sum, so the results
-  are the same floats. A value `AgentStateDelta`'s checks might refuse raises `Unsupported` before
-  anything changes, so the Python step runs and raises its own text.
+- `rules/psychology.rs`: the glue of the core's psychology (`core/src/rules/psychology.rs`, lane P8
+  a3): each person's minute (`update_psychology`, all the built-in psychology models, with
+  `TraceRows` if the Run keeps a trace), the distress monitor and long-term distress
+  (`update_long_term`) and writing the final deltas (`apply_deltas`). They replace steps of the
+  update phase (`experiments/phases/segments.py`). The model is what the controller's `Policies`
+  read (`run::policies_of`); the core reads the entity rows, the view's `ViewData` and the slot rows,
+  and writes the rows alone. The `AgentStateDelta`s are made here at the edge, for the social step
+  and the Python phase path, and read back by `apply_deltas`. Every float operation keeps the Python
+  order; `max`/`min` return the first argument on a tie and `sum` is CPython 3.12's compensated sum,
+  so the results are the same floats. A value `AgentStateDelta`'s checks might refuse raises
+  `Unsupported` before anything changes.
 
 - `rules/overlay.rs`: `domain/temporary_spaces.py` and the rules of `domain/geometry_overlay.py`:
   capacity, beds and room intake, placing an installed facility, checking and applying a floor-plan
@@ -446,7 +454,7 @@ are correctly rounded everywhere, and not `**` with a float.
   (`src/state/social_propagation.rs`) and reads agents from the entity rows. Each tick refills the
   contacts in the order of Python's new dict, reusing the nodes of the records
   (`NamespaceMirror::refill_record_map`). `CounterRNG` draws, `math.fsum`, `sum`, `max`/`min` ties
-  and float order are those of Python. A trace's document comes from `rules/trace.rs`. Another RNG, a
+  and float order are those of Python. A trace's document comes from `core/src/rules/trace.rs`. Another RNG, a
   policy's subclass, and what the
   Python rule turns down give `Unsupported`, and the Python step runs. `core::rng` can keep each
   draw of a thread for the tests' comparisons (`start_draw_log`, `take_draw_log`).

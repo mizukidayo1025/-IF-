@@ -47,7 +47,8 @@ def _two_agent_world(count: int = 2) -> WorldState:
 
 
 def _base_deltas(world: WorldState, view: WorldView, minute: int) -> tuple[AgentStateDelta, ...]:
-    """The deltas of `_psychology_update` (native/src/rules/psychology.rs), before this step."""
+    """The deltas of `_psychology_update` (native/core/src/rules/psychology.rs), before this
+    step."""
     if view.minute_index != minute:
         view = replace(view, minute_index=minute)
     controller = SimpleNamespace(

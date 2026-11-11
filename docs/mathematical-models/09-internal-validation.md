@@ -6,7 +6,7 @@
 
 | 領域 | 期待性質 | 確認方法 |
 |---|---|---|
-| 急性心理 | 無刺激で基準へ平均回帰、回復速度差、定刻みで同じ解析解、持続負荷平衡、値域/有限値 | `MeanRevertingDistressPolicy` の単体テスト（解析解は`native/src/rules/psychology.rs`の`mean_reverting_terms`） |
+| 急性心理 | 無刺激で基準へ平均回帰、回復速度差、定刻みで同じ解析解、持続負荷平衡、値域/有限値 | `MeanRevertingDistressPolicy` の単体テスト（解析解は`native/core/src/rules/psychology.rs`の`mean_reverting_terms`） |
 | 中長期心理 | post-social値を1回だけ日内集計、1440分で更新、状態復元 | 日次状態単体・checkpointテスト |
 | 感情伝播 | 双方向、無接触ならゼロ、同値ならゼロ、上限、入力順序不変 | Bosse構造policyテスト |
 | 情報 | 曝露/信念/共有/訂正を分離、信頼度付き非決定的受容、忘却・共有停止、同seed再現 | evidence-aware scenarioテスト |

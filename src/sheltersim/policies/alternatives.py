@@ -15,7 +15,7 @@ class BoundedStressPolicy(SimplePsychologyPolicy):
 
     The contributions are SimplePsychologyPolicy's. Their sum p adds `(1 - S)(1 - exp(-p))` to
     stress S, shared among them in proportion, and the recovery r removes `S(1 - exp(-r))`; the
-    result is clipped to 0..1. Its step is native/src/rules/psychology.rs.
+    result is clipped to 0..1. Its step is native/core/src/rules/psychology.rs.
     """
 
     policy_version = "bounded-stress-v1"

@@ -1,6 +1,6 @@
 """One minute of each person's psychology, as the update phase runs it.
 
-The steps are native/src/rules/psychology.rs and rules/trace.rs alone: the Python rules of
+The steps are native/core/src/rules/psychology.rs and rules/trace.rs alone: the Python rules of
 policies/psychology.py are gone (lane L10). `psychology_step` runs the kernel of
 `_psychology_update` on a world, with the view a tick makes, and with a trace, the kernel of
 `_record_psychology_trace`; the test reads the deltas and the document the Run's sink is given.

@@ -1,4 +1,4 @@
-"""Each person's minute in Rust: native/src/rules/psychology.rs, the only rules of the models.
+"""Each person's minute in Rust: native/core/src/rules/psychology.rs, the only rules of the models.
 
 The Python rules of policies/psychology.py and policies/alternatives.py are gone (lane L10). What
 they answered, on worlds whose values no scenario reaches and on whole ticks, was recorded once as

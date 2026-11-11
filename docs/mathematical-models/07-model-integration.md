@@ -72,7 +72,7 @@ Scenario profiles、容量、route、施設、予定event、policy versions、se
 
 ## 自然回復・休息・支援の重複防止
 
-急性stressの唯一の保存先は `AgentState.stress`、適用責任は更新の段階の `_apply_state_deltas`（`native/src/rules/psychology.rs`）です。選択した心理policyだけが自然回復を持ちます。Bosse-inspired同調版に自然回復はありません。旧社会policyと平均回帰policyを組み合わせる場合もsocial側の自然回復率を0にします。
+急性stressの唯一の保存先は `AgentState.stress`、適用責任は更新の段階の `_apply_state_deltas`（`native/core/src/rules/psychology.rs`）です。選択した心理policyだけが自然回復を持ちます。Bosse-inspired同調版に自然回復はありません。旧社会policyと平均回帰policyを組み合わせる場合もsocial側の自然回復率を0にします。
 
 統合版は旧life-state直接sleep/rest stress recoveryを0にします。睡眠・休息は睡眠負債/疲労、安心・positive affectなどの状態を変える経路で残し、それらから心理feedbackを作ります。受容済み訂正はevent時にbody uncertainty/reassuranceを一度変えます。以後、残存する信念のpressureは持続状態として不確実性への分単位入力となり、訂正を受け入れるとfalse-belief pressureが消えます。event pulseを毎tick再生していません。社会同調はさらに別のsnapshot差分です。
 
