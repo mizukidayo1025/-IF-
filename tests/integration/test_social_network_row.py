@@ -56,9 +56,7 @@ PYTHON_GAVE: dict[str, list[str]] = {
         "c266c955239cf005",
         "5a9c239b8a353685",
         "5a9c239b8a353685",
-        "7569efedc6b36531",
     ],
-    "test_capture_takes_affect_values_of_other_number_types_as_floats": ["77b35baf3c717821"],
     "test_observe_event_computes_trust_when_the_body_has_no_record": [
         "5223d144e68eb137",
         "6e056b1a622fdf84",
@@ -556,21 +554,24 @@ def test_capture_gives_what_the_python_rule_gives(world: Any) -> None:
     kernel = native.rules("social_dialogue").capture_context
     for ids in ((first, second), [second, first], (first,), (first, first)):
         _python_gave(json.dumps(kernel(world, ids)))
-    del world.model_state["body_state_v1"]["agents"][first]["hygiene_need"]
-    _python_gave(json.dumps(kernel(world, (first, second))))
-    assert kernel(world, (first, second))["participants"][first]["affect"] is None
 
 
-def test_capture_takes_affect_values_of_other_number_types_as_floats(world: Any) -> None:
-    """`float()` of an int or a bool, as the Python rule read them."""
+@pytest.mark.parametrize(
+    "edit",
+    [
+        lambda record: record.pop("hygiene_need"),
+        lambda record: record.update(reassurance=1, discontent=False),
+    ],
+)
+def test_capture_refuses_a_body_state_without_its_row(world: Any, edit: Any) -> None:
+    """The kernel reads the body state's row alone (lane P8 a2): a record without a field, or with
+    an int or a bool, leaves the namespace without a row, and the capture refuses."""
     first, second = _people(world)
-    record = world.model_state["body_state_v1"]["agents"][first]
-    record["reassurance"], record["discontent"] = 1, False
-    context = native.rules("social_dialogue").capture_context(world, (first, second))
-    affect = context["participants"][first]["affect"]
-    assert (affect["reassurance"], affect["discontent"]) == (1.0, 0.0)
-    assert type(affect["reassurance"]) is float
-    _python_gave(json.dumps(context))
+    edit(world.model_state["body_state_v1"]["agents"][first])
+    with pytest.raises(native.Unsupported, match="the namespace has no row"):
+        native.rules("social_dialogue").capture_context(world, (first, second))
+    with pytest.raises(KernelRefusal):
+        social_dialogue.capture_social_state_context(world, (first, second))
 
 
 @pytest.mark.parametrize(

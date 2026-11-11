@@ -25,6 +25,7 @@ use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyString, PyType};
 use indexmap::IndexMap;
 use sheltersim_core::routes::{Router, Which};
 use sheltersim_core::run::held::{Class, Held, Obj, Spec};
+use sheltersim_core::rules::action_lifecycle::ActiveActions;
 use sheltersim_core::run::policies::CONTROLLER;
 use sheltersim_core::run::{Capacity, Policies, RouteCapacities, Run, RunConfig};
 use sheltersim_core::value::V;
@@ -209,6 +210,12 @@ fn read_policies(controller: &Bound<'_, PyAny>) -> Policies {
 impl RunCore {
     fn lock(&self) -> PyResult<MutexGuard<'_, Run>> {
         self.run.lock().map_err(|_| Unsupported::new_err("the run is poisoned"))
+    }
+
+    /// Run f on the open actions of the Run (lane P8 a2), with the Run locked: f must not reach
+    /// this Run again.
+    pub(crate) fn with_actions<R>(&self, f: impl FnOnce(&mut ActiveActions) -> R) -> PyResult<R> {
+        Ok(f(&mut self.lock()?.actions))
     }
 
     /// The controller's policies, shared: a host answers from them without the lock.

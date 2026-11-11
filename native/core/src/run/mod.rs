@@ -5,7 +5,8 @@
 //! route graph (`Routes`) is built from the world's tables at each of the controller's
 //! `_refresh_space`. `Policies` (lane P8-0b) is what the rules read of the controller's policies and
 //! managers, read once when the controller starts (`policies.rs`); `Scratch` holds what one tick's
-//! phases hand on (`scratch.rs`). None of them is state: nothing saves, hashes or compares them,
+//! phases hand on (`scratch.rs`); `actions` the open action of each agent (lane P8 a2), which the
+//! controller keeps from tick to tick. None of them is state: nothing saves, hashes or compares them,
 //! and a new controller over the same world builds them again.
 //!
 //! Each part of `Policies` has its own file here, so that lanes add theirs without touching
@@ -31,6 +32,7 @@ use std::sync::Arc;
 
 use crate::error::{Error, Result};
 use crate::routes::Routes;
+use crate::rules::action_lifecycle::ActiveActions;
 
 /// One value of `max_agents_in_transit_by_edge`, as a rule reads it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -87,6 +89,9 @@ pub struct Run {
     pub policies: Arc<Policies>,
     /// Not state: the values of the tick under way.
     pub scratch: Scratch,
+    /// The open action of each agent (lane P8 a2). Not saved: a restored Run makes it again from
+    /// the event log (`active_action_index`), and the PyO3 crate's `ActiveActions` loads it.
+    pub actions: ActiveActions,
 }
 
 impl Run {
@@ -96,6 +101,12 @@ impl Run {
     }
 
     pub fn with_policies(config: RunConfig, policies: Policies) -> Self {
-        Self { config, routes: Routes::default(), policies: Arc::new(policies), scratch: Scratch::default() }
+        Self {
+            config,
+            routes: Routes::default(),
+            policies: Arc::new(policies),
+            scratch: Scratch::default(),
+            actions: ActiveActions::default(),
+        }
     }
 }

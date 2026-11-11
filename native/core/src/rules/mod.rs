@@ -9,6 +9,11 @@ pub mod kit;
 pub mod metrics;
 
 // ---- P8a: people rules -------------------------------------------------------------------------
+pub mod action_lifecycle;
+pub mod agent_dynamics;
+pub mod body_state;
+pub mod social_dialogue;
+pub mod social_network;
 
 // ---- P8b: operations ---------------------------------------------------------------------------
 pub mod care_receipts;

@@ -1,63 +1,45 @@
-//! `domain/agent_dynamics.py`: decision memory and facility awareness. Its rules are these kernels
-//! alone (lane L10, `kernel_only`), and what they refuse is a KernelRefusal there
-//! (docs/rust-port/lanes/f-action-lifecycle.md).
-//!
-//! Each kernel reads the rows and what it was given, computes, and writes the row and its tree. No
-//! Python runs in between. `remember_decision` is what a Rust caller uses (lane J).
-
-use std::collections::BTreeSet;
-use std::sync::Arc;
+//! `domain/agent_dynamics.py`: the glue of the kernels of `sheltersim_core::rules::agent_dynamics`
+//! (lane P8 a2). Each entry reads what Python holds (the arguments, the config sections it reads
+//! through `core/configs.rs`), runs the core's kernel on the world (`with_world`), and makes the
+//! Python value of what it returns.
 
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyList, PyString};
+use pyo3::types::{PyDict, PyString};
+
+use sheltersim_core::config::agent_dynamics::{awareness, knowledge_is_limited, Awareness};
+use sheltersim_core::rules::agent_dynamics as rules;
+use sheltersim_core::rules::kit::Kept;
 
 use crate::core::configs;
-use crate::core::row::{
-    attribute, exact_int, exact_str, namespace_is_absent, unsupported, PyField, IdMap,
-};
-use crate::core::world_core::{mirror_of, NamespaceMirror};
-use crate::state::agent_dynamics::{
-    canonical_policy_or_text, policy_of, AgentDynamicsRow, AgentMemory, NAME, ORIENTATION_SOURCE, POLICY_V1, POLICY_V3,
-};
-use crate::state::entities::{entities_of, AgentRow, Entities, EntityStore};
-use crate::Unsupported;
-use sheltersim_core::config::agent_dynamics::{awareness, knowledge_is_limited, Awareness};
+use crate::core::errors::OrPy;
+use crate::core::row::{attribute, exact_int, exact_str, str_value, PyField};
+use crate::core::world_core::with_world;
+use crate::state::agent_dynamics::{canonical_policy_or_text, policy_of, ORIENTATION_SOURCE, POLICY_V1};
+use sheltersim_core::config::agent_dynamics::policy as config_policy;
 
-/// `ORIENTATION_FACILITY_KINDS`.
-const ORIENTATION_KINDS: [&str; 6] =
-    ["intake", "meal_distribution", "medical_support", "quiet_space", "toilet", "water_station"];
+pub(crate) use sheltersim_core::rules::agent_dynamics::Decision;
 
-/// What `record_proposal` stores of an applied decision.
-pub(crate) struct Decision<'a> {
-    pub(crate) agent_id: &'a str,
-    pub(crate) action: &'a str,
-    pub(crate) target_id: Option<&'a str>,
-    pub(crate) minute: i64,
-    pub(crate) next_decision_at: i64,
-    pub(crate) trigger: Option<&'a str>,
+/// The policy `world.model_configs` selects, or its fault, for the kernel to raise where it reads it.
+fn policy_kept(world: &Bound<'_, PyAny>) -> PyResult<Kept<&'static str>> {
+    configs::kept_section(world, |configs| &configs.agent_dynamics_policy, config_policy)
 }
 
-/// `record_proposal`, with the namespace present: Unsupported without it, for the Python rule to
-/// create it. For a Rust caller after `action_lifecycle::commit_action`, as `_apply_proposal` does.
+/// `model_validate` of `model_configs["facility_awareness"]`, or None where it is absent or None,
+/// kept for the configs' stamp (`core/configs.rs`). Refused for what the model refuses or coerces.
+pub(crate) fn awareness_of(world: &Bound<'_, PyAny>) -> PyResult<std::sync::Arc<Option<Awareness>>> {
+    configs::kept_value(world, |configs| &configs.facility_awareness, awareness)
+}
+
+/// `model_configs["facility_awareness"]`, or its fault.
+fn awareness_kept(world: &Bound<'_, PyAny>) -> PyResult<Kept<Option<Awareness>>> {
+    configs::kept_section(world, |configs| &configs.facility_awareness, awareness)
+}
+
+/// `record_proposal`, for a Rust caller after `action_lifecycle::commit_action`, as
+/// `_apply_proposal` does.
 pub(crate) fn remember_decision(world: &Bound<'_, PyAny>, decision: &Decision<'_>) -> PyResult<()> {
-    let py = world.py();
-    let mirror = mirror_of(world, NAME)?;
-    NamespaceMirror::with_row_tree::<AgentDynamicsRow, _>(&mirror, |row, tree| {
-        let Some(record) = row.agents.get_mut(decision.agent_id) else {
-            return Ok(());
-        };
-        // Before any write: a row that has a record its tree lacks was written past the tree.
-        let node = tree
-            .child(intern!(py, "agents"))
-            .and_then(|agents| agents.child_str(decision.agent_id))
-            .map_err(|_| Unsupported::new_err("the tree does not have the row's record"))?;
-        record.set_last_action(&node, Some(Arc::from(decision.action)))?;
-        record.set_last_target_id(&node, decision.target_id.map(Arc::from))?;
-        record.set_last_decision_minute(&node, Some(decision.minute))?;
-        record.set_decision_due_minute(&node, decision.next_decision_at)?;
-        record.set_decision_reason(&node, decision.trigger.map(Arc::from))
-    })
+    with_world(world, |cell| rules::remember_decision(cell, decision))?.or_py()
 }
 
 /// A None or an exact str.
@@ -72,11 +54,7 @@ fn optional_str<'a>(value: &'a Bound<'_, PyAny>) -> PyResult<Option<&'a str>> {
 /// `record_proposal`.
 #[pyfunction]
 #[pyo3(signature = (world, proposal, *, target_id))]
-fn record_proposal(
-    world: &Bound<'_, PyAny>,
-    proposal: &Bound<'_, PyAny>,
-    target_id: &Bound<'_, PyAny>,
-) -> PyResult<()> {
+fn record_proposal(world: &Bound<'_, PyAny>, proposal: &Bound<'_, PyAny>, target_id: &Bound<'_, PyAny>) -> PyResult<()> {
     let py = world.py();
     let agent_id = attribute(proposal, intern!(py, "agent_id"))?;
     let action = attribute(&attribute(proposal, intern!(py, "action"))?, intern!(py, "value"))?;
@@ -101,238 +79,58 @@ pub(crate) fn agent_knows_facility(
     agent_id: &Bound<'_, PyAny>,
     facility_id: &Bound<'_, PyAny>,
 ) -> PyResult<bool> {
-    let py = world.py();
-    if !*configs::kept_value(world, |configs| &configs.knowledge_is_limited, knowledge_is_limited)? {
-        return Ok(true);
-    }
-    if namespace_is_absent(world, intern!(py, NAME))? {
-        return Ok(false);
-    }
-    let (agent_id, facility_id) = (exact_str(agent_id)?, exact_str(facility_id)?);
-    let mirror = mirror_of(world, NAME)?;
-    NamespaceMirror::with_row::<AgentDynamicsRow, _>(&mirror, |row| {
-        Ok(row
-            .agents
-            .get(agent_id)
-            .is_some_and(|record| record.known_facility_ids.iter().any(|id| &**id == facility_id)))
-    })
+    let limited = configs::kept_section(world, |configs| &configs.knowledge_is_limited, knowledge_is_limited)?;
+    let (agent_id, facility_id) = (str_value(agent_id), str_value(facility_id));
+    with_world(world, |cell| rules::knows_facility(cell, &limited, agent_id, facility_id))?.or_py()
 }
 
 // ---- What a new agent knows ---------------------------------------------------------------------
-
-/// `model_validate` of `model_configs["facility_awareness"]`, or None where it is absent or None,
-/// kept for the configs' stamp (`core/configs.rs`). Refused for what the model refuses or coerces.
-pub(crate) fn awareness_of(world: &Bound<'_, PyAny>) -> PyResult<Arc<Option<Awareness>>> {
-    configs::kept_value(world, |configs| &configs.facility_awareness, awareness)
-}
-
-/// `_new_agent_dynamics_record`.
-fn new_memory(rows: &Entities, agent: &AgentRow, oriented: bool, awareness: Option<&Awareness>) -> AgentMemory {
-    let mut known: BTreeSet<Arc<str>> = rows
-        .facilities
-        .iter()
-        .filter(|(_, facility)| {
-            facility.zone_id == agent.zone_id || (oriented && ORIENTATION_KINDS.contains(&&*facility.kind))
-        })
-        .map(|(id, _)| id.clone())
-        .collect();
-    if let Some(awareness) = awareness {
-        known.extend(awareness.initial.iter().cloned());
-    }
-    AgentMemory {
-        known_facility_ids: known.into_iter().collect(),
-        last_action: None,
-        last_target_id: None,
-        last_decision_minute: None,
-        decision_due_minute: agent.next_decision_at,
-        decision_reason: None,
-    }
-}
 
 /// `create_agent_dynamics_state`.
 #[pyfunction]
 pub(crate) fn create_state<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     let policy = policy_of(world)?;
     let awareness = awareness_of(world)?;
-    let store = entities_of(world)?;
-    let row = EntityStore::with_rows(&store, |rows| {
-        let mut ids: Vec<Arc<str>> = rows.agents.iter().map(|(id, _)| id.clone()).collect();
-        ids.sort_unstable();
-        let mut agents = IdMap::default();
-        for id in ids {
-            let Some(agent) = rows.agents.get(&id) else {
-                return unsupported("an agent has no row");
-            };
-            agents.insert(id, new_memory(rows, agent, policy != POLICY_V1, awareness.as_ref().as_ref()));
-        }
-        Ok(AgentDynamicsRow { schema_version: 1, policy_version: Arc::from(policy), agents })
-    })?;
+    let row = with_world(world, |cell| rules::create_state(cell, policy, awareness.as_ref().as_ref()))?.or_py()?;
     PyField::to_py(&row, world.py())
 }
 
 /// What `add_agent` refuses for a person about to be added, for a plan that adds one.
 pub(crate) fn check_add_agent(world: &Bound<'_, PyAny>) -> PyResult<()> {
-    policy_of(world)?;
-    awareness_of(world)?;
-    let mirror = mirror_of(world, NAME)?;
-    NamespaceMirror::with_row::<AgentDynamicsRow, _>(&mirror, |_| Ok(()))
+    let (policy, awareness) = (policy_kept(world)?, awareness_kept(world)?);
+    with_world(world, |cell| rules::check_add_agent(cell, &policy, &awareness))?.or_py()
 }
 
-/// `add_agent`: one record, forwarded neither way.
+/// `add_agent`: one record.
 #[pyfunction]
 pub(crate) fn add_agent(world: &Bound<'_, PyAny>, agent_id: &Bound<'_, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    if namespace_is_absent(world, intern!(py, NAME))? {
-        return Ok(());
-    }
-    let id = exact_str(agent_id)?;
-    let store = entities_of(world)?;
-    // Python asks these only once the agent is there, so a bad config with no agent is no error.
-    let known_agent = EntityStore::with_rows(&store, |rows| Ok(rows.agents.get(id).is_some()))?;
-    if !known_agent {
-        return Ok(());
-    }
-    let policy = policy_of(world)?;
-    let awareness = awareness_of(world)?;
-    let mirror = mirror_of(world, NAME)?;
-    let record = EntityStore::with_rows(&store, |rows| {
-        let Some(agent) = rows.agents.get(id) else {
-            return unsupported("an agent has no row");
-        };
-        Ok(new_memory(rows, agent, policy != POLICY_V1, awareness.as_ref().as_ref()))
-    })?;
-    let value = PyField::to_py(&record, py)?;
-    NamespaceMirror::write_through(&mirror, &["agents"], id, &value)?;
-    NamespaceMirror::with_row::<AgentDynamicsRow, _>(&mirror, |row| {
-        match row.agents.get_mut(id) {
-            Some(slot) => *slot = record,
-            None => {
-                row.agents.insert(Arc::from(id), record);
-            }
-        }
-        Ok(())
-    })
+    let (policy, awareness) = (policy_kept(world)?, awareness_kept(world)?);
+    let agent_id = str_value(agent_id);
+    with_world(world, |cell| rules::add_agent(cell, agent_id, &policy, &awareness))?.or_py()
 }
 
 // ---- What an agent learns -------------------------------------------------------------------------
 
-/// Store one record's new list, in the tree and then in the row: a tree that lacks the record, written
-/// past its containers, says Unsupported with the row as it was. `known` is new, so nothing else holds
-/// it.
-fn write_known(
-    mirror: &Bound<'_, NamespaceMirror>,
-    agent_id: &str,
-    known: Vec<Arc<str>>,
-) -> PyResult<()> {
-    let py = mirror.py();
-    let value = PyList::new(py, known.iter().map(|id| &**id))?;
-    NamespaceMirror::write_through(mirror, &["agents", agent_id], "known_facility_ids", value.as_any())?;
-    NamespaceMirror::with_row::<AgentDynamicsRow, _>(mirror, |row| {
-        match row.agents.get_mut(agent_id) {
-            Some(record) => record.known_facility_ids = known,
-            None => return unsupported("the row changed under the plan"),
-        }
-        Ok(())
-    })
-}
-
-/// `learn_facility`. A list that would come out the same is not written.
+/// `learn_facility`.
 #[pyfunction]
-fn learn_facility(
-    world: &Bound<'_, PyAny>,
-    agent_id: &Bound<'_, PyAny>,
-    facility_id: &Bound<'_, PyAny>,
-) -> PyResult<()> {
-    let py = world.py();
-    if namespace_is_absent(world, intern!(py, NAME))? {
-        return Ok(());
-    }
-    learn_facility_of(world, exact_str(agent_id)?, exact_str(facility_id)?)
+fn learn_facility(world: &Bound<'_, PyAny>, agent_id: &Bound<'_, PyAny>, facility_id: &Bound<'_, PyAny>) -> PyResult<()> {
+    let awareness = awareness_kept(world)?;
+    let (agent_id, facility_id) = (str_value(agent_id), str_value(facility_id));
+    with_world(world, |cell| rules::learn_facility(cell, agent_id, facility_id, &awareness))?.or_py()
 }
 
 /// The rule, for IDs a row holds.
 pub(crate) fn learn_facility_of(world: &Bound<'_, PyAny>, agent_id: &str, facility_id: &str) -> PyResult<()> {
-    let py = world.py();
-    if namespace_is_absent(world, intern!(py, NAME))? {
-        return Ok(());
-    }
-    let store = entities_of(world)?;
-    let zone = EntityStore::with_rows(&store, |rows| {
-        Ok(rows.facilities.get(facility_id).map(|facility| facility.zone_id.clone()))
-    })?;
-    let Some(zone) = zone else {
-        return Ok(());
-    };
-    let mirror = mirror_of(world, NAME)?;
-    let has_record =
-        NamespaceMirror::with_row::<AgentDynamicsRow, _>(&mirror, |row| Ok(row.agents.get(agent_id).is_some()))?;
-    if !has_record {
-        return Ok(());
-    }
-    // Asked after the record, as the Python rule does, so a bad config with no record is no error.
-    let discover = awareness_of(world)?.as_ref().as_ref().is_some_and(|awareness| awareness.discover);
-    let mut discovered: Vec<Arc<str>> = vec![Arc::from(facility_id)];
-    if discover {
-        EntityStore::with_rows(&store, |rows| {
-            discovered.extend(
-                rows.facilities
-                    .iter()
-                    .filter(|(_, facility)| facility.zone_id == zone)
-                    .map(|(id, _)| id.clone()),
-            );
-            Ok(())
-        })?;
-    }
-    let next = NamespaceMirror::with_row::<AgentDynamicsRow, _>(&mirror, |row| {
-        let Some(record) = row.agents.get(agent_id) else {
-            return unsupported("the row changed under the plan");
-        };
-        let mut next: Vec<Arc<str>> =
-            record.known_facility_ids.iter().chain(&discovered).cloned().collect();
-        next.sort_unstable();
-        next.dedup();
-        Ok((next != record.known_facility_ids).then_some(next))
-    })?;
-    match next {
-        Some(next) => write_known(&mirror, agent_id, next),
-        None => Ok(()),
-    }
+    let awareness = awareness_kept(world)?;
+    with_world(world, |cell| rules::learn_facility(cell, Some(agent_id), Some(facility_id), &awareness))?.or_py()
 }
 
 /// `announce_installed_facility`.
 #[pyfunction]
 fn announce_installed_facility(world: &Bound<'_, PyAny>, facility_id: &Bound<'_, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    if namespace_is_absent(world, intern!(py, NAME))? {
-        return Ok(());
-    }
-    let facility_id = exact_str(facility_id)?;
-    let store = entities_of(world)?;
-    let shared = EntityStore::with_rows(&store, |rows| {
-        Ok(rows.facilities.get(facility_id).is_some_and(|facility| ORIENTATION_KINDS.contains(&&*facility.kind)))
-    })?;
-    if !shared || policy_of(world)? != POLICY_V3 {
-        return Ok(());
-    }
-    let mirror = mirror_of(world, NAME)?;
-    let announced: Arc<str> = Arc::from(facility_id);
-    let changes = NamespaceMirror::with_row::<AgentDynamicsRow, _>(&mirror, |row| {
-        Ok(row
-            .agents
-            .iter()
-            .filter(|(_, record)| !record.known_facility_ids.contains(&announced))
-            .map(|(id, record)| {
-                let mut next = record.known_facility_ids.clone();
-                next.push(announced.clone());
-                next.sort_unstable();
-                (id.clone(), next)
-            })
-            .collect::<Vec<_>>())
-    })?;
-    for (agent_id, next) in changes {
-        write_known(&mirror, &agent_id, next)?;
-    }
-    Ok(())
+    let policy = policy_kept(world)?;
+    let facility_id = str_value(facility_id);
+    with_world(world, |cell| rules::announce_installed_facility(cell, facility_id, &policy))?.or_py()
 }
 
 /// `canonical_agent_dynamics_config`: a new dict, or its ValueError in its words.

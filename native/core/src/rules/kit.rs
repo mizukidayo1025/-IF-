@@ -193,6 +193,37 @@ pub fn status_member(member: &str) -> Option<EventStatus> {
     }
 }
 
+// ---- Namespaces and configs (lane P8 a2) ----------------------------------------------------------
+
+/// `model_state.get(name) is None` as a kernel asks it, of the world's slots: true for a name no
+/// slot owns, and for a slot that has neither a row nor a taint (the key is not in `model_state`).
+/// A tainted namespace is present: its readers refuse it.
+pub fn namespace_absent(world: &World, name: &str) -> Result<bool> {
+    match world.slots.get(name) {
+        None => Ok(true),
+        Some(slot) => {
+            let slot = slot.try_borrow()?;
+            Ok(slot.row.is_none() && slot.taint.is_none())
+        }
+    }
+}
+
+/// A section of the configs as the PyO3 crate read it for a kernel, before the kernel borrowed the
+/// world: its value, or the fault the kernel raises where the rule reads the section, so that a
+/// bad config raises at the same point as before, and not at all where the rule never reads it.
+pub type Kept<T> = std::result::Result<Arc<T>, crate::config::Fault>;
+
+/// The value of a `Kept` section, or its error: a refusal its own `Unsupported`, any other fault a
+/// corrupt `model_configs` (the PyO3 crate's `configs::read`).
+#[track_caller]
+pub fn kept<T>(section: &Kept<T>) -> Result<&T> {
+    match section {
+        Ok(value) => Ok(value),
+        Err(fault) if fault.is_refusal() => Err(Error::unsupported(fault.text.to_string())),
+        Err(_) => Err(Error::corrupt(crate::world::MODEL_CONFIGS, "a value of a section holds an error")),
+    }
+}
+
 // ---- Making events and writing them ---------------------------------------------------------------
 
 /// The arguments of a new `ScheduledEvent`.
