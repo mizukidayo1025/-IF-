@@ -23,7 +23,7 @@ use crate::state::shared_operations::SharedOperationsRow;
 use crate::rules::effects::{active_outage, has_active_modifier};
 use crate::rules::handlers::{assumption, get, get_is, log_record, new_event, NewEvent};
 use crate::rules::movement::{mobility_text, movement_minutes};
-use crate::rules::movement_geometry::Geo;
+use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::rules::service::active_task_class;
 use crate::rules::staff_operation_events::relief_skills;
 use crate::rules::staff_dynamics::{is_available, on_shift, staff_status};

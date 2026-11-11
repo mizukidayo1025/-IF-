@@ -24,7 +24,7 @@ use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_list
 use crate::core::value::V;
 use crate::core::world_core::{mirror_of, with_state_value, NamespaceMirror, Tree};
 use crate::rules::movement_geometry::{
-    distance, point_along_polyline, point_in_polygon, point_in_value, point_walkable, polyline_length, usable, Geo, Pt,
+    distance, point_along_polyline, point_in_polygon, point_in_value, point_walkable, polyline_length, usable, Geo, GeoPy, Pt,
 };
 use crate::state::entities::{entities_of, Activity, AgentRow, Entities, EntityStore};
 use crate::rules::queues::{plan_trip, slot_route, write_plan, Fifo, Plan, Route as QueueRoute, BLOCKED_METRIC};

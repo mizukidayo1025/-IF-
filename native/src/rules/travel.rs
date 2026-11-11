@@ -23,7 +23,7 @@ use crate::rules::movement::{
     approach, mirror_held, mobility_text, movement_minutes, no_positions, optional_str, plan_start, route_points_of, str_tuple, write_tree, Changes, Scene,
     EXACT_INT, KEY,
 };
-use crate::rules::movement_geometry::{Geo, Pt};
+use crate::rules::movement_geometry::{Geo, GeoPy, Pt};
 use crate::rules::service::{active_task_class, set_agent};
 use crate::state::entities::{entities_of, Activity, Entities, EntityStore, FacilityRow};
 use crate::state::events::{EventKind, EventRef, EventRow, EventWriter, PendingEvent, PendingSource};

@@ -29,7 +29,7 @@ use crate::core::world_core::{attached_state, mirror_of, raw_dict_get, state_val
 use crate::rules::movement::{mirror_held, mobility_text, point_object, room_minutes, KEY as MOVEMENT_KEY};
 use crate::rules::movement_geometry::{
     is_identifier, point_in_polygon, point_in_value, point_segment_distance, point_walkable, points_in_value, polyline_length,
-    segment_clear_of_polygon, segment_inside_polygon, usable, Constraints, Geo, Layout, Pt,
+    segment_clear_of_polygon, segment_inside_polygon, usable, Constraints, Geo, GeoPy, Layout, Pt,
 };
 use crate::state::entities::{entities_of, EntityStore};
 use crate::state::events::{EventRow, EventRowPy};

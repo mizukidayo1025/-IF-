@@ -20,7 +20,7 @@ use crate::rules::effects::{active_outage, has_active_modifier};
 use crate::rules::handlers::{
     assumption, counted, fields_are, get, get_is, kind_is, log_record, new_event, number, pending_of, text_is, NewEvent,
 };
-use crate::rules::movement_geometry::Geo;
+use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::rules::staff_dynamics::{is_available, staff_status};
 
 const NAME: &str = "staff_operations_v1";

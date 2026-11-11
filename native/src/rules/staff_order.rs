@@ -21,7 +21,7 @@ use crate::core::value::V;
 use crate::core::world_core::{with_state_value, NamespaceMirror};
 use crate::rules::effects::{active_outage, has_active_modifier};
 use crate::rules::handlers::{assumption, get, new_event, NewEvent};
-use crate::rules::movement_geometry::Geo;
+use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::rules::service::active_task_class;
 use crate::rules::staff::{formula_of, mirror_held};
 use crate::rules::staff_dynamics::{is_available, is_available_now, staff_status};

@@ -13,6 +13,7 @@ pub mod contacts;
 pub mod entities;
 pub mod error;
 pub mod events;
+pub mod geometry;
 pub mod interner;
 pub mod json;
 pub mod mathx;

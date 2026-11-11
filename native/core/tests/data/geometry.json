@@ -1,0 +1,902 @@
+{
+ "geometry": {
+  "width_m": 30.0,
+  "height_m": 20.0,
+  "source_kind": "synthetic",
+  "zones": [
+   {
+    "zone_id": "room",
+    "polygon": [
+     {
+      "x": 1.0,
+      "y": 1.0
+     },
+     {
+      "x": 15.0,
+      "y": 1.0
+     },
+     {
+      "x": 15.0,
+      "y": 8.0
+     },
+     {
+      "x": 8.0,
+      "y": 8.0
+     },
+     {
+      "x": 8.0,
+      "y": 15.0
+     },
+     {
+      "x": 1.0,
+      "y": 15.0
+     }
+    ],
+    "usable_area_m2": 140.0
+   },
+   {
+    "zone_id": "hall",
+    "polygon": [
+     {
+      "x": 16.0,
+      "y": 1.0
+     },
+     {
+      "x": 29.0,
+      "y": 1.0
+     },
+     {
+      "x": 29.0,
+      "y": 15.0
+     },
+     {
+      "x": 26.0,
+      "y": 15.0
+     },
+     {
+      "x": 26.0,
+      "y": 4.0
+     },
+     {
+      "x": 19.0,
+      "y": 4.0
+     },
+     {
+      "x": 19.0,
+      "y": 15.0
+     },
+     {
+      "x": 16.0,
+      "y": 15.0
+     }
+    ],
+    "usable_area_m2": 100.0
+   },
+   {
+    "zone_id": "sliver",
+    "polygon": [
+     {
+      "x": 2.0,
+      "y": 17.0
+     },
+     {
+      "x": 12.0,
+      "y": 17.0
+     },
+     {
+      "x": 7.0,
+      "y": 19.0
+     }
+    ],
+    "usable_area_m2": 5.0
+   }
+  ],
+  "routes": [
+   {
+    "edge_id": "e1",
+    "points": [
+     {
+      "x": 5.0,
+      "y": 5.0
+     },
+     {
+      "x": 17.5,
+      "y": 2.5
+     }
+    ],
+    "width_m": 1.2
+   },
+   {
+    "edge_id": "e2",
+    "points": [
+     {
+      "x": 10.0,
+      "y": 4.0
+     },
+     {
+      "x": 17.5,
+      "y": 10.0
+     }
+    ],
+    "width_m": 0.85,
+    "accessible": false
+   },
+   {
+    "edge_id": "e3",
+    "points": [
+     {
+      "x": 3.0,
+      "y": 3.0
+     },
+     {
+      "x": 3.0,
+      "y": 13.0
+     }
+    ],
+    "width_m": 0.6
+   },
+   {
+    "edge_id": "e4",
+    "points": [
+     {
+      "x": 12.0,
+      "y": 2.0
+     },
+     {
+      "x": 12.0,
+      "y": 7.0
+     }
+    ],
+    "width_m": 1.0
+   }
+  ],
+  "facility_points": {
+   "water": {
+    "x": 3.0,
+    "y": 12.0
+   },
+   "toilet": {
+    "x": 27.5,
+    "y": 10.0
+   }
+  },
+  "service_points": [
+   {
+    "id": "sp-water",
+    "facility_id": "water",
+    "point_m": {
+     "x": 3.5,
+     "y": 12.0
+    },
+    "service_capacity": 2,
+    "queue_id": "water"
+   },
+   {
+    "id": "sp-toilet",
+    "facility_id": "toilet",
+    "point_m": {
+     "x": 27.5,
+     "y": 9.0
+    },
+    "service_capacity": 1,
+    "queue_id": "toilet"
+   }
+  ]
+ },
+ "spatial": {
+  "walls": [
+   {
+    "id": "w1",
+    "start": {
+     "x": 15.5,
+     "y": 0.5
+    },
+    "end": {
+     "x": 15.5,
+     "y": 15.5
+    }
+   }
+  ],
+  "openings": [
+   {
+    "id": "o1",
+    "wall_id": "w1",
+    "center": {
+     "x": 15.5,
+     "y": 2.5
+    },
+    "width_m": 1.4,
+    "edge_ids": [
+     "e1"
+    ]
+   },
+   {
+    "id": "o2",
+    "wall_id": "w1",
+    "center": {
+     "x": 15.5,
+     "y": 8.25
+    },
+    "width_m": 1.0,
+    "edge_ids": [
+     "e2"
+    ],
+    "accessible": false
+   }
+  ],
+  "obstacles": [
+   {
+    "id": "ob1",
+    "polygon": [
+     {
+      "x": 4.0,
+      "y": 6.0
+     },
+     {
+      "x": 6.0,
+      "y": 6.0
+     },
+     {
+      "x": 6.0,
+      "y": 9.0
+     },
+     {
+      "x": 4.0,
+      "y": 9.0
+     }
+    ]
+   }
+  ],
+  "equipment_footprints": [
+   {
+    "facility_id": "water",
+    "polygon": [
+     {
+      "x": 2.5,
+      "y": 11.5
+     },
+     {
+      "x": 3.5,
+      "y": 11.5
+     },
+     {
+      "x": 3.5,
+      "y": 12.5
+     },
+     {
+      "x": 2.5,
+      "y": 12.5
+     }
+    ],
+    "area_m2": 1.0
+   }
+  ]
+ },
+ "overlays": {
+  "none": null,
+  "empty": {
+   "facility_points": {},
+   "partitions": {}
+  },
+  "moved": {
+   "facility_points": {
+    "water": {
+     "point_m": {
+      "x": 5.0,
+      "y": 13.0
+     }
+    },
+    "stove": {
+     "point_m": {
+      "x": 10.0,
+      "y": 3.0
+     }
+    }
+   },
+   "partitions": {
+    "pb": {
+     "polygon_m": [
+      {
+       "x": 10.0,
+       "y": 2.0
+      },
+      {
+       "x": 11.0,
+       "y": 2.0
+      },
+      {
+       "x": 11.0,
+       "y": 6.0
+      }
+     ],
+     "source_ids": [
+      "ASM-TEST"
+     ]
+    },
+    "pa": {
+     "polygon_m": [
+      {
+       "x": 2.0,
+       "y": 2.0
+      },
+      {
+       "x": 3.0,
+       "y": 2.0
+      },
+      {
+       "x": 3.0,
+       "y": 4.0
+      },
+      {
+       "x": 2.0,
+       "y": 4.0
+      }
+     ],
+     "source_ids": [
+      "ASM-TEST"
+     ]
+    }
+   }
+  }
+ },
+ "centers": {
+  "room": [
+   6.833333333333333,
+   6.833333333333333
+  ],
+  "hall": [
+   22.5,
+   1.0000014
+  ],
+  "sliver": [
+   7.0,
+   17.666666666666668
+  ]
+ },
+ "route_cases": [
+  [
+   "room",
+   {
+    "x": 2.0,
+    "y": 2.0
+   },
+   {
+    "x": 14.0,
+    "y": 7.0
+   },
+   "independent"
+  ],
+  [
+   "room",
+   {
+    "x": 2.0,
+    "y": 2.0
+   },
+   {
+    "x": 7.0,
+    "y": 14.0
+   },
+   "wheelchair"
+  ],
+  [
+   "room",
+   null,
+   {
+    "x": 7.0,
+    "y": 14.0
+   },
+   "assisted"
+  ],
+  [
+   "room",
+   {
+    "x": 2.0,
+    "y": 14.0
+   },
+   {
+    "x": 14.0,
+    "y": 2.0
+   },
+   "independent"
+  ],
+  [
+   "room",
+   {
+    "x": 5.0,
+    "y": 7.0
+   },
+   {
+    "x": 14.0,
+    "y": 7.0
+   },
+   "independent"
+  ],
+  [
+   "hall",
+   {
+    "x": 17.0,
+    "y": 14.0
+   },
+   {
+    "x": 28.0,
+    "y": 14.0
+   },
+   "independent"
+  ],
+  [
+   "hall",
+   null,
+   {
+    "x": 28.0,
+    "y": 14.0
+   },
+   "wheelchair"
+  ],
+  [
+   "room",
+   {
+    "x": 2.0,
+    "y": 2.0
+   },
+   {
+    "x": 2.0,
+    "y": 2.0
+   },
+   "independent"
+  ]
+ ],
+ "plans": {
+  "none": {
+   "clear": {
+    "e1/independent": true,
+    "e1/assisted": false,
+    "e1/wheelchair": false,
+    "e1/other": false,
+    "e2/independent": true,
+    "e2/assisted": false,
+    "e2/wheelchair": false,
+    "e2/other": false,
+    "e3/independent": false,
+    "e3/assisted": false,
+    "e3/wheelchair": false,
+    "e3/other": false,
+    "e4/independent": true,
+    "e4/assisted": true,
+    "e4/wheelchair": true,
+    "e4/other": false,
+    "nope/independent": false,
+    "nope/assisted": false,
+    "nope/wheelchair": false,
+    "nope/other": false
+   },
+   "routes": [
+    [
+     [
+      2.0,
+      2.0
+     ],
+     [
+      14.0,
+      7.0
+     ]
+    ],
+    [
+     [
+      2.0,
+      2.0
+     ],
+     [
+      3.5,
+      9.5
+     ],
+     [
+      7.0,
+      14.0
+     ]
+    ],
+    [
+     [
+      6.833333333333333,
+      6.833333333333333
+     ],
+     [
+      7.0,
+      14.0
+     ]
+    ],
+    [
+     [
+      2.0,
+      14.0
+     ],
+     [
+      3.8,
+      12.8
+     ],
+     [
+      6.3,
+      9.3
+     ],
+     [
+      14.0,
+      2.0
+     ]
+    ],
+    null,
+    null,
+    null,
+    [
+     [
+      2.0,
+      2.0
+     ]
+    ]
+   ]
+  },
+  "empty": {
+   "clear": {
+    "e1/independent": true,
+    "e1/assisted": false,
+    "e1/wheelchair": false,
+    "e1/other": false,
+    "e2/independent": true,
+    "e2/assisted": false,
+    "e2/wheelchair": false,
+    "e2/other": false,
+    "e3/independent": false,
+    "e3/assisted": false,
+    "e3/wheelchair": false,
+    "e3/other": false,
+    "e4/independent": true,
+    "e4/assisted": true,
+    "e4/wheelchair": true,
+    "e4/other": false,
+    "nope/independent": false,
+    "nope/assisted": false,
+    "nope/wheelchair": false,
+    "nope/other": false
+   },
+   "routes": [
+    [
+     [
+      2.0,
+      2.0
+     ],
+     [
+      14.0,
+      7.0
+     ]
+    ],
+    [
+     [
+      2.0,
+      2.0
+     ],
+     [
+      3.5,
+      9.5
+     ],
+     [
+      7.0,
+      14.0
+     ]
+    ],
+    [
+     [
+      6.833333333333333,
+      6.833333333333333
+     ],
+     [
+      7.0,
+      14.0
+     ]
+    ],
+    [
+     [
+      2.0,
+      14.0
+     ],
+     [
+      3.8,
+      12.8
+     ],
+     [
+      6.3,
+      9.3
+     ],
+     [
+      14.0,
+      2.0
+     ]
+    ],
+    null,
+    null,
+    null,
+    [
+     [
+      2.0,
+      2.0
+     ]
+    ]
+   ]
+  },
+  "moved": {
+   "clear": {
+    "e1/independent": false,
+    "e1/assisted": false,
+    "e1/wheelchair": false,
+    "e1/other": false,
+    "e2/independent": false,
+    "e2/assisted": false,
+    "e2/wheelchair": false,
+    "e2/other": false,
+    "e3/independent": false,
+    "e3/assisted": false,
+    "e3/wheelchair": false,
+    "e3/other": false,
+    "e4/independent": true,
+    "e4/assisted": true,
+    "e4/wheelchair": true,
+    "e4/other": false,
+    "nope/independent": false,
+    "nope/assisted": false,
+    "nope/wheelchair": false,
+    "nope/other": false
+   },
+   "routes": [
+    null,
+    null,
+    [
+     [
+      6.833333333333333,
+      6.833333333333333
+     ],
+     [
+      7.0,
+      14.0
+     ]
+    ],
+    [
+     [
+      2.0,
+      14.0
+     ],
+     [
+      6.3,
+      9.3
+     ],
+     [
+      9.615767078078676,
+      1.7
+     ],
+     [
+      11.3,
+      1.7
+     ],
+     [
+      14.0,
+      2.0
+     ]
+    ],
+    null,
+    null,
+    null,
+    null
+   ]
+  }
+ },
+ "in_polygon": [
+  [
+   0.5,
+   0.5,
+   false
+  ],
+  [
+   1,
+   1,
+   true
+  ],
+  [
+   8,
+   8,
+   true
+  ],
+  [
+   7.9,
+   7.9,
+   true
+  ],
+  [
+   8.1,
+   8.1,
+   false
+  ],
+  [
+   15,
+   4,
+   true
+  ],
+  [
+   15.0000000001,
+   4,
+   true
+  ],
+  [
+   4,
+   15,
+   true
+  ],
+  [
+   1,
+   8,
+   true
+  ]
+ ],
+ "segments": [
+  {
+   "start": [
+    2,
+    2
+   ],
+   "end": [
+    14,
+    7
+   ],
+   "inside": true,
+   "clear_025": true,
+   "clear_2": true,
+   "distance_to_corner": 3.230769230769231,
+   "crossing": null
+  },
+  {
+   "start": [
+    2,
+    2
+   ],
+   "end": [
+    12,
+    12
+   ],
+   "inside": false,
+   "clear_025": false,
+   "clear_2": false,
+   "distance_to_corner": 0.0,
+   "crossing": [
+    8.0,
+    8.0
+   ]
+  },
+  {
+   "start": [
+    1,
+    1
+   ],
+   "end": [
+    15,
+    1
+   ],
+   "inside": true,
+   "clear_025": true,
+   "clear_2": true,
+   "distance_to_corner": 7.0,
+   "crossing": null
+  },
+  {
+   "start": [
+    9,
+    9
+   ],
+   "end": [
+    9,
+    14
+   ],
+   "inside": false,
+   "clear_025": true,
+   "clear_2": true,
+   "distance_to_corner": 1.4142135623730951,
+   "crossing": null
+  },
+  {
+   "start": [
+    0,
+    0
+   ],
+   "end": [
+    20,
+    20
+   ],
+   "inside": false,
+   "clear_025": false,
+   "clear_2": false,
+   "distance_to_corner": 0.0,
+   "crossing": [
+    8.0,
+    8.0
+   ]
+  },
+  {
+   "start": [
+    3,
+    5
+   ],
+   "end": [
+    7,
+    5
+   ],
+   "inside": true,
+   "clear_025": true,
+   "clear_2": false,
+   "distance_to_corner": 3.1622776601683795,
+   "crossing": null
+  },
+  {
+   "start": [
+    3,
+    7
+   ],
+   "end": [
+    7,
+    7
+   ],
+   "inside": true,
+   "clear_025": false,
+   "clear_2": false,
+   "distance_to_corner": 1.4142135623730951,
+   "crossing": null
+  },
+  {
+   "start": [
+    10,
+    5
+   ],
+   "end": [
+    10,
+    10
+   ],
+   "inside": false,
+   "clear_025": true,
+   "clear_2": true,
+   "distance_to_corner": 2.0,
+   "crossing": [
+    10.0,
+    8.0
+   ]
+  },
+  {
+   "start": [
+    7,
+    4.2
+   ],
+   "end": [
+    3.3,
+    5.1
+   ],
+   "inside": true,
+   "clear_025": true,
+   "clear_2": false,
+   "distance_to_corner": 3.9293765408777,
+   "crossing": null
+  }
+ ],
+ "polyline": {
+  "points": [
+   [
+    0.0,
+    0.0
+   ],
+   [
+    3.0,
+    4.0
+   ],
+   [
+    3.0,
+    4.0
+   ],
+   [
+    6.1,
+    0.3
+   ]
+  ],
+  "length": 9.827007354458868
+ }
+}

@@ -8,7 +8,7 @@
 //! `transition_row` calls it where the Python rule did.
 
 use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use indexmap::IndexMap;
 use pyo3::intern;
@@ -17,11 +17,10 @@ use pyo3::types::{PyDict, PyList, PySet, PyTuple};
 
 use crate::core::errors;
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, unsupported};
-use crate::core::tracked::as_readable_dict;
 use crate::core::value::{V, VPy};
 use crate::core::world_core::NamespaceMirror;
 use crate::rules::movement::mobility_text;
-use crate::rules::movement_geometry::{Geo, ServicePoint};
+use crate::rules::movement_geometry::{self, Geo, GeoPy, ServicePoint};
 use crate::state::entities::{entities_of, Activity, EntityStore};
 use crate::state::events::{EventKind, EventRow, EventStatus, EventWriter};
 use crate::state::facility_queues::{held_mirror, QueueRequest, QueueRow, QueuesRow};
@@ -408,55 +407,18 @@ pub(crate) fn write_transition(writer: &EventWriter<'_>, row: &EventRow, minute:
 
 // ---- The kernels ---------------------------------------------------------------------------------
 
-static LAST_PARSE: Mutex<Option<(Py<PyAny>, bool)>> = Mutex::new(None);
-
-/// `independent_queues_required`. One parsed config gives one answer. A config the parse turns
-/// down raises the parse's own error, as the Python rule did.
+/// `independent_queues_required` of a configs dict, for Python. A world's own configs are read
+/// through their section (`movement_geometry::independent_queues`).
 #[pyfunction]
 fn independent_queues_required(configs: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let py = configs.py();
-    let Some(raw) = exact_dict(configs)?.get_item(intern!(py, "facility_geometry"))? else {
-        return Ok(false);
-    };
-    if as_readable_dict(&raw).is_none() {
-        return Ok(false);
-    }
-    let parsed = py
-        .import(intern!(py, "sheltersim.domain.geometry_overlay"))?
-        .getattr(intern!(py, "parsed_facility_geometry"))?
-        .call1((&raw,))
-        .map_err(|error| errors::relayed(py, error))?;
-    if let Ok(last) = LAST_PARSE.lock() {
-        if let Some((known, answer)) = &*last {
-            if known.as_ptr() == parsed.as_ptr() {
-                return Ok(*answer);
-            }
-        }
-    }
-    let points = attribute(&parsed, intern!(py, "service_points"))?;
-    let points = points.downcast_exact::<PyTuple>().map_err(|_| Unsupported::new_err("not a tuple"))?;
-    let mut facilities = HashSet::with_capacity(points.len());
-    let mut required = false;
-    for point in points.iter() {
-        let facility = attribute(&point, intern!(py, "facility_id"))?;
-        let facility = exact_str(&facility)?;
-        let queue = attribute(&point, intern!(py, "queue_id"))?;
-        if exact_str(&queue)? != facility || !facilities.insert(facility.to_owned()) {
-            required = true;
-            break;
-        }
-    }
-    let old = LAST_PARSE.lock().ok().and_then(|mut last| last.replace((parsed.unbind(), required)));
-    drop(old);
-    Ok(required)
+    movement_geometry::independent_queues_of_configs(configs)
 }
 
 /// `is_legacy_queue_checkpoint`.
 #[pyfunction]
 fn is_legacy_queue_checkpoint(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    if !independent_queues_required(&configs)? {
+    if !movement_geometry::independent_queues(world)? {
         return Ok(false);
     }
     let table = attribute(world, intern!(py, "model_state"))?;
@@ -484,8 +446,7 @@ fn facility_has_independent_queues(world: &Bound<'_, PyAny>, facility_id: &Bound
 #[pyfunction]
 fn create_facility_queue_state<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>> {
     let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    if !independent_queues_required(&configs)? {
+    if !movement_geometry::independent_queues(world)? {
         return Err(errors::value_error("facility_queues_v1 requires independent explicit service points"));
     }
     let geo = Geo::of(world)?;
@@ -791,8 +752,7 @@ pub(crate) fn position_in(queue: &QueueRow, request_id: &str) -> Option<i64> {
 #[pyfunction]
 fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let required = independent_queues_required(&configs)?;
+    let required = movement_geometry::independent_queues(world)?;
     let table = attribute(world, intern!(py, "model_state"))?;
     let table_dict = exact_dict(&table)?;
     let Some(mirror) = held_mirror(world)? else {

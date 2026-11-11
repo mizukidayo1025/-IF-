@@ -31,7 +31,7 @@ use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_int_
 use crate::core::value::{V, VPy};
 use crate::core::world_core::{attached_state, state_value, with_state_value};
 use crate::rules::movement::{mirror_held, Scene};
-use crate::rules::movement_geometry::Pt;
+use crate::rules::movement_geometry::{self, approach_routes, Pt};
 use crate::state::entities::{entities_of, Activity, EntityStore};
 use crate::state::events::{EventKind, EventRow, EventRowPy, EventStatus, EventWriter};
 use crate::state::movement::MovementRow;
@@ -1118,27 +1118,15 @@ struct ApproachRoute {
     distance: f64,
 }
 
-/// `parsed_facility_geometry(...).arrival_approach_routes`, the Scenario's parsed contract.
-pub(crate) fn approach_routes<'py>(world: &Bound<'py, PyAny>) -> PyResult<Vec<Bound<'py, PyAny>>> {
-    let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let raw = get_map(&configs, "facility_geometry")?;
-    let parse = py.import("sheltersim.domain.geometry_overlay")?.getattr("parsed_facility_geometry")?;
-    attribute(&parse.call1((raw,))?, intern!(py, "arrival_approach_routes"))?.try_iter()?.collect()
-}
-
-fn read_route(route: &Bound<'_, PyAny>) -> PyResult<ApproachRoute> {
-    let py = route.py();
-    let mut source_ids = Vec::new();
-    for source in attribute(route, intern!(py, "source_ids"))?.try_iter()? {
-        source_ids.push(text(&source?)?);
-    }
+/// The parts of an approach route a pending arrival keeps; `travel_minutes` is Unsupported where
+/// reading it raised.
+fn read_route(route: &movement_geometry::ApproachRoute) -> PyResult<ApproachRoute> {
     Ok(ApproachRoute {
-        route_id: text(&attribute(route, intern!(py, "route_id"))?)?,
-        travel_minutes: exact_int(&attribute(route, intern!(py, "travel_minutes"))?)?,
-        source_ids,
-        walking_speed: exact_float(&attribute(route, intern!(py, "walking_speed_m_per_min"))?)?,
-        distance: exact_float(&attribute(route, intern!(py, "distance_m"))?)?,
+        route_id: route.route_id.clone(),
+        travel_minutes: movement_geometry::travel_minutes(route)?,
+        source_ids: route.source_ids.clone(),
+        walking_speed: route.walking_speed,
+        distance: route.distance,
     })
 }
 
@@ -1425,10 +1413,10 @@ fn plan_arrivals<'py>(
             // `next(...)` in the rule's `try`: what the contract or the comparison raises, and no route.
             let found = caught_as(
                 py,
-                (|| -> PyResult<Option<Bound<'py, PyAny>>> {
-                    for route in approach_routes(world)? {
-                        if attribute(&route, intern!(py, "route_id"))?.eq(route_id)? {
-                            return Ok(Some(route));
+                (|| -> PyResult<Option<movement_geometry::ApproachRoute>> {
+                    for route in approach_routes(world)?.iter() {
+                        if PyString::new(py, &route.route_id).as_any().eq(route_id)? {
+                            return Ok(Some(route.clone()));
                         }
                     }
                     Ok(None)
@@ -1438,7 +1426,7 @@ fn plan_arrivals<'py>(
             let Some(found) = found else {
                 return errors::failed(py, "population arrival approach route is invalid");
             };
-            if attribute(&found, intern!(py, "destination_zone_id"))?.ne(zone_id)? {
+            if PyString::new(py, &found.destination_zone_id).as_any().ne(zone_id)? {
                 return errors::failed(py, "population arrival approach route targets a different zone");
             }
             Some(read_route(&found)?)
@@ -1982,28 +1970,23 @@ pub(crate) fn apply_arrival_approach_completion(world: &Bound<'_, PyAny>, event:
         {
             return mismatch();
         }
-        let mut route = None;
-        for candidate in approach_routes(world)? {
-            if attribute(&candidate, intern!(py, "route_id"))?.eq(&**route_id)? {
-                route = Some(candidate);
-                break;
-            }
-        }
+        let routes = approach_routes(world)?;
+        let route = routes.iter().find(|candidate| candidate.route_id == *route_id);
         let provenance_differs = || errors::failed(py, "arrival approach route provenance does not match");
         let Some(route) = route else {
             return provenance_differs();
         };
-        if attribute(&route, intern!(py, "destination_zone_id"))?.ne(&**zone_id)? {
+        if *route.destination_zone_id != **zone_id {
             return provenance_differs();
         }
         let source_listed = match &row.source_id {
             None => false,
-            Some(source) => attribute(&route, intern!(py, "source_ids"))?.contains(&**source)?,
+            Some(source) => route.source_ids.iter().any(|id| **id == **source),
         };
         if !source_listed {
             return provenance_differs();
         }
-        let route = read_route(&route)?;
+        let route = read_route(route)?;
         // `_record_approach_completed`, which raises after the two writes to the pending arrival.
         let presence = namespace(world, PRESENCE)?.filter(is_dict);
         let mut record = None;
@@ -3000,8 +2983,8 @@ fn check_pending_items(world: &Bound<'_, PyAny>, pending: &[V], contexts: &Index
             let route_value = fields.get("approach_route_id").ok_or_else(|| Unsupported::new_err("no route"))?;
             let mut found = None;
             if let V::Str(route_id) = route_value {
-                for route in routes.iter().flatten() {
-                    if attribute(route, intern!(py, "route_id"))?.eq(&**route_id)? {
+                for route in routes.iter().flat_map(|routes| routes.iter()) {
+                    if route.route_id == *route_id {
                         found = Some(route);
                     }
                 }
@@ -3025,7 +3008,7 @@ fn check_pending_items(world: &Bound<'_, PyAny>, pending: &[V], contexts: &Index
                 V::Str(zone) => zone,
                 _ => return unsupported("a zone ID is not a str"),
             };
-            if !attribute(route, intern!(py, "destination_zone_id"))?.eq(&**zone)? || *due != started + exact_int(&attribute(route, intern!(py, "travel_minutes"))?)? {
+            if *route.destination_zone_id != **zone || *due != started + movement_geometry::travel_minutes(route)? {
                 return invalid("pending arrival approach disagrees with its route contract");
             }
             let finished = match fields.get("approach_completed_minute") {

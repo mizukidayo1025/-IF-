@@ -98,7 +98,9 @@ def run_one(name: str, output: Path, chosen: Any = None) -> None:
     if people_per_helper:
         sheltersim_native.set_people_per_helper(int(people_per_helper))
     # The kernels see an edit of model_configs at the next read, the Python scopes of a tick phase
-    # at the next minute (decision U1, native/src/core/configs.rs). Nothing should make one.
+    # at the next minute (decision U1, native/src/core/configs.rs). Nothing should make one. While
+    # it counts, a geometry plan kept by the overlay's stamp is also checked against the overlay
+    # (native/src/rules/movement_geometry.rs): every write must give the overlay a new stamp.
     watch_config_writes = getattr(sheltersim_native, "watch_config_writes", None)
     if watch_config_writes is not None:
         watch_config_writes(True)
@@ -129,6 +131,9 @@ def run_one(name: str, output: Path, chosen: Any = None) -> None:
                     if watch_config_writes is None
                     else sheltersim_native.config_writes_in_tick()
                 ),
+                "stale_geometry_hits": getattr(
+                    sheltersim_native, "stale_geometry_hits", lambda: None
+                )(),
             },
             ensure_ascii=False,
             indent=2,
@@ -209,6 +214,11 @@ def _problems_within(results: dict[str, dict[str, Any]]) -> list[str]:
             problems.append(
                 f"{name}: model_configs was written in place inside a tick phase "
                 f"{result['config_writes_in_tick']} times"
+            )
+        if result.get("stale_geometry_hits"):
+            problems.append(
+                f"{name}: a geometry plan was kept for an overlay stamp after the overlay changed "
+                f"{result['stale_geometry_hits']} times"
             )
     return problems
 

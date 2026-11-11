@@ -6,7 +6,9 @@
 //! called on the same tree, at the first read of a section after the stamp changed. A parse never
 //! raises here: what it raised is kept as a `Fault`, and the read site turns it into its own error
 //! at the line it raises it today. A refusal keeps its reason there; an error the rule relays as it
-//! is comes from a second parse (`reraise`), so its class and text are Python's own.
+//! is comes from a second parse (`reraise`), so its class and text are Python's own. The sections
+//! of the geometry (`facility_geometry`, `spatial_constraints`) are filled by
+//! `rules/movement_geometry.rs`, beside the readers of their parsed models.
 //!
 //! The stamp changes with every write to the configs, so an edit of `model_configs` in place is
 //! seen at the next read. Inside a tick phase the Python scopes (`selected_models_scope`,
@@ -37,7 +39,8 @@ pub(crate) fn current(world: &Bound<'_, PyAny>) -> PyResult<Arc<Configs>> {
     current_of(world, &raw)
 }
 
-fn current_of(world: &Bound<'_, PyAny>, raw: &Bound<'_, PyAny>) -> PyResult<Arc<Configs>> {
+/// `current`, for a caller that has read `world.model_configs` already.
+pub(crate) fn current_of(world: &Bound<'_, PyAny>, raw: &Bound<'_, PyAny>) -> PyResult<Arc<Configs>> {
     match field_stamp(world, MODEL_CONFIGS, raw)? {
         Some((core, stamp)) => core.try_borrow()?.world().configs(stamp).or_py(),
         None => Ok(Arc::new(Configs::new(None))),
@@ -179,7 +182,15 @@ static WRITES_IN_TICK: AtomicU64 = AtomicU64::new(0);
 #[pyfunction]
 pub(crate) fn watch_config_writes(on: bool) {
     WRITES_IN_TICK.store(0, Ordering::Relaxed);
+    crate::rules::movement_geometry::reset_stale_geometry_hits();
     WATCHING.store(on, Ordering::Relaxed);
+}
+
+/// Whether a debug run counts (`watch_config_writes`): the geometry plans then also check that a
+/// stamp hit was built from the overlay held now (`rules/movement_geometry.rs`).
+#[inline]
+pub(crate) fn watching() -> bool {
+    WATCHING.load(Ordering::Relaxed)
 }
 
 /// The writes counted since `watch_config_writes(True)`.

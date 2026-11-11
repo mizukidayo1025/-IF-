@@ -20,7 +20,7 @@ use crate::core::row::{attribute, exact_dict, exact_int, exact_str, unsupported}
 use crate::core::world_core::{state_value, with_state_value};
 use crate::core::value::{V, VPy};
 use crate::rules::movement::{mobility_text, start_movement};
-use crate::rules::movement_geometry::{Geo, Pt};
+use crate::rules::movement_geometry::{Geo, GeoPy, Pt};
 use crate::rules::population::{
     schedule_population_retry, cancel_agent_events, check_admission_paths, check_information, check_queue_rows, check_relationship_keys, drop_support_requests, event_row,
     filter_support_requests, get, get_map, has_namespace, identifier, is_dict, namespace, optional_identifier, optional_text, pair_of,
