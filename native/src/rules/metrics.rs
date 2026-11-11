@@ -14,7 +14,7 @@ use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 
-use sheltersim_core::rules::metrics::{self, Inputs, OpenWait};
+use sheltersim_core::rules::metrics::{self, Inputs, MetricSample, OpenWait};
 
 use crate::core::errors::{self, OrPy};
 use crate::core::mathx::py_sum;
@@ -39,6 +39,11 @@ fn snapshot_fields<'py>(
     unsettled: &Bound<'py, PyList>,
     sample_minute: &Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyTuple>> {
+    fields_of(sample_minute, &sample_of(world, unsettled, sample_minute)?)
+}
+
+/// The core's sample of the minute (`snapshot_fields` without the Python tuple).
+pub(crate) fn sample_of(world: &Bound<'_, PyAny>, unsettled: &Bound<'_, PyList>, sample_minute: &Bound<'_, PyAny>) -> PyResult<MetricSample> {
     let py = world.py();
     let sample = exact_int(sample_minute)?;
     let open = open_waits(world, unsettled, sample, true)?;
@@ -59,7 +64,12 @@ fn snapshot_fields<'py>(
     EventWriter::of(world)?;
     let metric_state_held = field_held(world, intern!(py, "metric_state"))?;
     let inputs = Inputs { sample, waits: &waits, metric_state_held };
-    let taken = with_world(world, |world| metrics::sample(world, &inputs))?.or_py()?;
+    with_world(world, |world| metrics::sample(world, &inputs))?.or_py()
+}
+
+/// The fields of `MetricSnapshot` of a sample, in the order of the dataclass.
+pub(crate) fn fields_of<'py>(sample_minute: &Bound<'py, PyAny>, taken: &MetricSample) -> PyResult<Bound<'py, PyTuple>> {
+    let py = sample_minute.py();
     let fields: [Bound<'py, PyAny>; 20] = [
         sample_minute.clone(),
         taken.toilet_queue_length.into_pyobject(py)?.into_any(),
@@ -196,17 +206,21 @@ struct SnapshotClass {
 
 static SNAPSHOT: GILOnceCell<SnapshotClass> = GILOnceCell::new();
 
+fn snapshot_class(py: Python<'_>) -> PyResult<&SnapshotClass> {
+    SNAPSHOT.get_or_try_init(py, || -> PyResult<SnapshotClass> {
+        let class = py.import("sheltersim.experiments.metrics")?.getattr("MetricSnapshot")?;
+        let fields = class.getattr("__dataclass_fields__")?.downcast_into::<PyDict>()?;
+        let fields = fields.keys().iter().map(|name| Ok(name.downcast_into::<PyString>()?.unbind())).collect::<PyResult<Vec<_>>>()?;
+        Ok(SnapshotClass { class: class.unbind(), new: py.import("builtins")?.getattr("object")?.getattr("__new__")?.unbind(), fields })
+    })
+}
+
 /// `MetricsRecorder.capture` of the minute that is the world's, for the driver's `_MetricSink`: all
 /// of it, or Unsupported with nothing changed and the Python rule then raises or does what's left.
 #[pyfunction]
 pub(crate) fn capture<'py>(world: &Bound<'py, PyAny>, recorder: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<()> {
     let py = world.py();
-    let class = SNAPSHOT.get_or_try_init(py, || -> PyResult<SnapshotClass> {
-        let class = py.import("sheltersim.experiments.metrics")?.getattr("MetricSnapshot")?;
-        let fields = class.getattr("__dataclass_fields__")?.downcast_into::<PyDict>()?;
-        let fields = fields.keys().iter().map(|name| Ok(name.downcast_into::<PyString>()?.unbind())).collect::<PyResult<Vec<_>>>()?;
-        Ok(SnapshotClass { class: class.unbind(), new: py.import("builtins")?.getattr("object")?.getattr("__new__")?.unbind(), fields })
-    })?;
+    let class = snapshot_class(py)?;
     let sample = exact_int(minute)?;
     if exact_int(&attribute(world, intern!(py, "minute_index"))?)? != sample {
         return unsupported("the metric minute is not the world's");
@@ -217,6 +231,25 @@ pub(crate) fn capture<'py>(world: &Bound<'py, PyAny>, recorder: &Bound<'py, PyAn
         Err(_) => PyList::new(py, unsettled.try_iter()?.collect::<PyResult<Vec<_>>>()?)?,
     };
     let values = snapshot_fields(world, &unsettled, minute)?;
+    append(world, recorder, minute, class, &values)
+}
+
+/// A snapshot of a sample the core took (`Host::capture_metric` of the native host), appended as
+/// `capture` appends one.
+pub(crate) fn record<'py>(world: &Bound<'py, PyAny>, recorder: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>, sample: &MetricSample) -> PyResult<()> {
+    let class = snapshot_class(world.py())?;
+    append(world, recorder, minute, class, &fields_of(minute, sample)?)
+}
+
+fn append<'py>(
+    world: &Bound<'py, PyAny>,
+    recorder: &Bound<'py, PyAny>,
+    minute: &Bound<'py, PyAny>,
+    class: &SnapshotClass,
+    values: &Bound<'py, PyTuple>,
+) -> PyResult<()> {
+    let py = world.py();
+    let sample = exact_int(minute)?;
     if values.len() != class.fields.len() {
         return unsupported("the snapshot has other fields");
     }

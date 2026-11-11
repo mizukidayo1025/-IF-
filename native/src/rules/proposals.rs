@@ -19,6 +19,8 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyString, PyTuple};
 
+use crate::host::PyHost;
+use sheltersim_core::host::Host;
 use crate::core::configs;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, namespace_is_absent, str_value, unsupported};
 use crate::core::tracked::as_readable_dict;
@@ -519,10 +521,8 @@ fn apply_seek<'py>(controller: &Bound<'py, PyAny>, proposal: &Bound<'py, PyAny>,
         }
         let social = attribute(controller, intern!(py, "social_policy"))?;
         if !social.is_none() {
-            let kwargs = PyDict::new(py);
-            kwargs.set_item(intern!(py, "agent_id"), &agent_object)?;
-            kwargs.set_item(intern!(py, "request_id"), &request_text)?;
-            social.call_method(intern!(py, "consider_support_request"), (&world,), Some(&kwargs))?;
+            // `social_policy.consider_support_request(world, agent_id=, request_id=)`.
+            PyHost::of_controller(controller)?.consider_support_request(agent_id, &request_id).map_err(|error| error.0)?;
         }
         Ok(())
     })();

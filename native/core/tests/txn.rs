@@ -27,6 +27,8 @@ use sheltersim_core::state::effect_program::{EffectProgramRow, FacilityModifiers
 use sheltersim_core::state::shared_operations::{CareHead, CareStatus, Heads};
 use sheltersim_core::state::social_network::{Relationship, Relationships};
 use sheltersim_core::state::staff_dynamics::{ConfigRow, LastActivity, Shift, StaffDynamicsRow, StaffRecord};
+use sheltersim_core::host::{Contract, Decision, DecisionSink, Llm, Phase, Trace, TraceLevel};
+use sheltersim_core::rules::metrics::MetricSample;
 use sheltersim_core::txn::{Host, Stage, Txn, TxnEnd, TxnKind, NESTED};
 use sheltersim_core::value::V;
 use sheltersim_core::world::{Fit, Place, Snapshot, World, WorldCell};
@@ -723,7 +725,59 @@ impl Host for Recorder {
     fn committed(&mut self, _kind: TxnKind) -> Result<(), Error> {
         self.call("committed".to_owned())
     }
+
+    // A transaction asks for nothing else of its host.
+    fn validate_world(&mut self) -> Result<(), Error> {
+        Err(NOT_ASKED.clone())
+    }
+    fn validate_extensions(&mut self) -> Result<(), Error> {
+        Err(NOT_ASKED.clone())
+    }
+    fn contract(&mut self, _which: &Contract, _input: &V) -> Result<V, Error> {
+        Err(NOT_ASKED.clone())
+    }
+    fn llm(&self) -> Result<Llm, Error> {
+        Err(NOT_ASKED.clone())
+    }
+    fn prioritize_support_request(&mut self, _request: &str, _agent: &str, _hash: &str) -> Result<(), Error> {
+        Err(NOT_ASKED.clone())
+    }
+    fn consider_support_request(&mut self, _agent: &str, _request: &str) -> Result<(), Error> {
+        Err(NOT_ASKED.clone())
+    }
+    fn consider_complaint_response(&mut self, _agent: &str, _request: &str) -> Result<(), Error> {
+        Err(NOT_ASKED.clone())
+    }
+    fn consider_cooperation(&mut self, _initiator: &str, _participant: &str, _trigger: &str) -> Result<(), Error> {
+        Err(NOT_ASKED.clone())
+    }
+    fn consider_information_reaction(&mut self, _agent: &str, _participant: &str, _message: &str, _trigger: &str) -> Result<(), Error> {
+        Err(NOT_ASKED.clone())
+    }
+    fn capture_metric(&mut self, _sample: &MetricSample, _minute: i64) -> Result<(), Error> {
+        Err(NOT_ASKED.clone())
+    }
+    fn decision_sink(&self) -> Result<DecisionSink, Error> {
+        Err(NOT_ASKED.clone())
+    }
+    fn decision(&mut self, _decision: Decision) -> Result<(), Error> {
+        Err(NOT_ASKED.clone())
+    }
+    fn trace_level(&self) -> Result<TraceLevel, Error> {
+        Err(NOT_ASKED.clone())
+    }
+    fn trace(&mut self, _document: Trace) -> Result<(), Error> {
+        Err(NOT_ASKED.clone())
+    }
+    fn phase(&mut self, _phase: Phase, _before: bool) -> Result<(), Error> {
+        Err(NOT_ASKED.clone())
+    }
+    fn space_refreshed(&mut self) -> Result<(), Error> {
+        Err(NOT_ASKED.clone())
+    }
 }
+
+const NOT_ASKED: Error = Error::Runtime(String::new());
 
 fn order_in(cell: &Shard<World>) -> Vec<String> {
     cell.with(agent_order).unwrap()

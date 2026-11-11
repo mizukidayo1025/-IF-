@@ -261,7 +261,8 @@ class OfflineSimulationController(
         )
         route_config = world.model_configs.get("layout_routing", {})
         self.route_capacities = route_config.get("max_agents_in_transit_by_edge", {})
-        self._run_core = run_core(self.route_capacities)
+        # Also reads the policies and managers above, which the kernels read (core/run.rs).
+        self._run_core = run_core(self.route_capacities, self)
         self._refresh_space()
         infrastructure_handler = InfrastructureEventHandler()
         self.event_dispatcher = EventDispatcher(

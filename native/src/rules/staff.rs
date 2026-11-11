@@ -35,7 +35,9 @@ use crate::state::entities::{entities_of, insert_entity, Activity, EntityStore, 
 use crate::state::metric_state::MetricRow;
 use crate::state::staff_dynamics::{StaffDynamicsRow, NAME as STAFF_DYNAMICS};
 use crate::state::staff_operations::{Phase, StaffOperationsRow, NAME};
+use crate::host::PyHost;
 use crate::Unsupported;
+use sheltersim_core::host::Host;
 use sheltersim_core::config::staff::{known_staff_operations, support_task_minutes, StaffOperations};
 
 const SHARED_OPERATIONS: &str = "shared_operations_v1";
@@ -650,18 +652,20 @@ pub(crate) fn consider_due_complaints<'py>(controller: &Bound<'py, PyAny>, minut
             Ok((row.status == RequestStatus::Pending && row.requested_minute + threshold == at).then(|| row.agent_id.clone()))
         })
     };
-    let mut due: Vec<(String, Bound<'py, PyAny>)> = Vec::new();
+    let mut due: Vec<String> = Vec::new();
     let id_name = intern!(py, "id");
     for request in open.try_iter()? {
         let request = request?;
         let id = attribute(&request, id_name)?;
         let text = exact_str(&id)?;
         if due_of(text)?.is_some() {
-            due.push((text.to_owned(), id));
+            due.push(text.to_owned());
         }
     }
-    due.sort_unstable_by(|first, second| first.0.cmp(&second.0));
-    for (text, id) in due {
+    due.sort_unstable();
+    // The policy's decision, through the host (`social_policy.consider_complaint_response`).
+    let mut host = PyHost::of_controller(controller)?;
+    for text in due {
         // A decision before this one may have settled the request.
         let Some(agent_id) = due_of(&text).map_err(|error| {
             if error.is_instance_of::<Unsupported>(py) {
@@ -673,10 +677,7 @@ pub(crate) fn consider_due_complaints<'py>(controller: &Bound<'py, PyAny>, minut
         else {
             continue;
         };
-        let kwargs = PyDict::new(py);
-        kwargs.set_item("agent_id", &*agent_id)?;
-        kwargs.set_item("request_id", id)?;
-        policy.call_method(intern!(py, "consider_complaint_response"), (&world,), Some(&kwargs))?;
+        host.consider_complaint_response(&agent_id, &text).map_err(|error| error.0)?;
     }
     Ok(())
 }

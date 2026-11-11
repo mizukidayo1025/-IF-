@@ -8,12 +8,14 @@
 //! writes the world; `commit` drops the snapshot, `rollback` gives it back. Transactions don't nest
 //! (rule R8 of the design).
 //!
-//! The `Host` is the world's outside: the PyO3 crate's views (the Python containers, and the Python
-//! objects of the pending events and of the records, which follow the canonical order and come
-//! back on a rollback) and the validation of the whole world, which stays in Python in Issue #152
-//! (policy E6). No borrow of the world is held while the host runs (rule R6).
+//! The `Host` is the world's outside (`host.rs`, which took in this file's trait in lane P8-0b):
+//! here, the PyO3 crate's views (the Python containers, and the Python objects of the pending events
+//! and of the records, which follow the canonical order and come back on a rollback) and the
+//! validation of the whole world, which stays in Python in Issue #152 (policy E6). No borrow of the
+//! world is held while the host runs (rule R6).
 
 use crate::error::Error;
+pub use crate::host::Host;
 use crate::world::{Snapshot, WorldCell};
 
 /// The text of a transaction begun inside another (`Error::Runtime`, a `RuntimeError` in Python).
@@ -44,27 +46,6 @@ pub enum Stage {
 pub enum TxnEnd<T> {
     Commit(T),
     Rollback(T),
-}
-
-/// The outside of the world for a transaction (policy E6). Each call runs with nothing borrowed.
-pub trait Host {
-    type Error: From<Error>;
-    /// Validate the whole world (`WorldState.validate` in the native host).
-    fn validate_candidate(&mut self, kind: TxnKind, stage: Stage) -> Result<(), Self::Error>;
-    /// The world was put in canonical order: the views follow it. `before` is the world as it was
-    /// (the queue's old serials, by which a host keeps its objects of the events). On an error the
-    /// transaction gives the snapshot back and calls `restored`.
-    fn canonicalized(&mut self, _kind: TxnKind, _before: &Snapshot) -> Result<(), Self::Error> {
-        Ok(())
-    }
-    /// The snapshot came back: the views follow it.
-    fn restored(&mut self, _kind: TxnKind) -> Result<(), Self::Error> {
-        Ok(())
-    }
-    /// The transaction kept its writes.
-    fn committed(&mut self, _kind: TxnKind) -> Result<(), Self::Error> {
-        Ok(())
-    }
 }
 
 /// An open transaction: its kind and the world's snapshot from its start.
