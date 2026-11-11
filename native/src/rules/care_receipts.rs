@@ -20,7 +20,7 @@ pub(crate) use sheltersim_core::rules::care_receipts::{PlannedTransition, Transi
 
 use crate::core::errors::{self, to_py_err, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, namespace_is_absent, unsupported};
-use crate::core::value::{VPy, V};
+use crate::core::value::VPy;
 use crate::core::world_core::{mirror_of, with_world};
 use crate::rules::common_operations::record;
 use crate::rules::handlers::status_member;
@@ -50,7 +50,7 @@ fn applied_record<'py>(py: Python<'py>, event: &EventRow, minute: i64, detail: &
     models.getattr(intern!(py, "EventLogRecord"))?.call((), Some(&kwargs))
 }
 
-fn made_record<'py>(py: Python<'py>, made: Made) -> PyResult<Bound<'py, PyAny>> {
+pub(crate) fn made_record<'py>(py: Python<'py>, made: Made) -> PyResult<Bound<'py, PyAny>> {
     applied_record(py, &made.event, made.minute, &made.detail)
 }
 
@@ -256,45 +256,6 @@ pub(crate) fn continuity_record<'py>(
 ) -> PyResult<Bound<'py, PyAny>> {
     let made = with_world(world, |world| core::continuity_record(world, request_id, agent_id, task_id, previous_staff, status, causation, cause_type))?.or_py()?;
     made_record(world.py(), made)
-}
-
-/// What a completed staff operation says, for `make_staff_operation_record`.
-pub(crate) struct OperationOutcome<'py, 'a> {
-    /// The record's document, which holds what the receipt copies.
-    pub(crate) operation: &'a Bound<'py, PyDict>,
-    /// Sorted, as `NumericStateChange` documents.
-    pub(crate) changes: Vec<Bound<'py, PyDict>>,
-    pub(crate) measured: bool,
-    pub(crate) causation: &'a str,
-}
-
-/// `make_staff_operation_record(...)[0]`, or None without the shared contract.
-pub(crate) fn staff_operation_record<'py>(world: &Bound<'py, PyAny>, outcome: OperationOutcome<'py, '_>) -> PyResult<Option<Bound<'py, PyAny>>> {
-    if shared_absent(world)? {
-        return Ok(None);
-    }
-    let OperationOutcome { operation, changes, measured, causation } = outcome;
-    let item = |name: &str| -> PyResult<V> {
-        let value = operation.get_item(name)?.ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(name.to_owned()))?;
-        <V as VPy>::from_py(&value)
-    };
-    let outcome = core::OperationOutcome {
-        task_id: item("task_id")?,
-        staff_id: item("staff_id")?,
-        task_kind: item("task_kind")?,
-        target_id: item("target_id")?,
-        target_zone_id: item("target_zone_id")?,
-        reason: item("reason")?,
-        status: item("status")?,
-        start_minute: item("start_minute")?,
-        arrival_minute: item("arrival_minute")?,
-        travel_minutes: item("travel_minutes")?,
-        changes: changes.iter().map(|change| <V as VPy>::from_py(change.as_any())).collect::<PyResult<_>>()?,
-        measured,
-        causation: Arc::from(causation),
-    };
-    let made = with_world(world, |world| core::staff_operation_record(world, outcome))?.or_py()?;
-    made_record(world.py(), made).map(Some)
 }
 
 // ---- ingest_applied_shared_operation_records ---------------------------------------------------------

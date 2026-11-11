@@ -29,6 +29,9 @@ pub mod care_receipts;
 pub mod common_operations;
 pub mod resources;
 pub mod staff_dynamics;
+// lane b2
+pub mod staff_operation_events;
+pub mod staff_order;
 
 // ---- P8c: population and movement --------------------------------------------------------------
 pub mod facility_queues;
