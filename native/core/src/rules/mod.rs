@@ -12,8 +12,11 @@ pub mod metrics;
 pub mod action_lifecycle;
 pub mod agent_dynamics;
 pub mod body_state;
+pub mod person_context;
 pub mod social_dialogue;
 pub mod social_network;
+pub mod world_view;
+pub mod zone_environment;
 
 // ---- P8b: operations ---------------------------------------------------------------------------
 pub mod care_receipts;

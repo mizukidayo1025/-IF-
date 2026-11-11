@@ -200,9 +200,7 @@ def view_of(world: Any, *, include_state_hash: bool = True) -> Any:
 
     from sheltersim import native
 
-    holder = SimpleNamespace(
-        _view_before_proposals=None, _rust_view_cache=None, _zone_environments={}
-    )
+    holder = SimpleNamespace(_view_before_proposals=None)
     rules = native.rules("world_view")
     if include_state_hash:
         return rules.view_for_proposals(holder, world, world.minute_index)
@@ -225,8 +223,6 @@ def decisions_of(world: Any, policy: Any = None, *, rng: Any = None) -> dict[str
     holder = SimpleNamespace(
         decisions=BehaviorDecisionRunner(policy),
         _view_before_proposals=None,
-        _rust_view_cache=None,
-        _zone_environments={},
     )
     view = native.rules("world_view").view_for_proposals(holder, world, world.minute_index)
     proposals = native.rules("behavior").propose_due(

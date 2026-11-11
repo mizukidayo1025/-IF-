@@ -245,7 +245,7 @@ def test_a_python_prior_of_a_proposal_view_is_a_kernel_refusal(generated_scenari
         ),
         (
             lambda world: world.model_state["body_state_v1"]["agents"].__setitem__("A001", 1),
-            "plain dict",
+            "not a dict",
         ),
         (lambda world: setattr(next(iter(world.agents.values())), "stress", 0), "tainted"),
         (
@@ -313,9 +313,8 @@ def test_a_changed_zone_modifier_or_a_new_cache_is_seen_at_the_next_view(
     _assert_same(made, view_of(world, include_state_hash=False))
     agent = next(a for a in made.agents.values() if a.zone_id == zone)
     assert agent.lighting_level == 0.25 and agent.condition_modifier_event_ids == ("e",)
-    # What the runner does when model_configs changed.
+    # model_configs changed in place: its stamp is new, and the zones are read again.
     world.model_configs["zone_environment"]["noise_rest_efficiency_loss"] = 0.25
-    controller._zone_environments = {}
     made = _rules().view_after_movement(controller, world)
     _assert_same(made, view_of(world, include_state_hash=False))
 

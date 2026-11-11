@@ -33,6 +33,7 @@ use std::sync::Arc;
 use crate::error::{Error, Result};
 use crate::routes::Routes;
 use crate::rules::action_lifecycle::ActiveActions;
+use crate::rules::world_view::ViewCache;
 
 /// One value of `max_agents_in_transit_by_edge`, as a rule reads it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -92,6 +93,9 @@ pub struct Run {
     /// The open action of each agent (lane P8 a2). Not saved: a restored Run makes it again from
     /// the event log (`active_action_index`), and the PyO3 crate's `ActiveActions` loads it.
     pub actions: ActiveActions,
+    /// Not state: what the view keeps from one view to the next (lane P8 a1), by the stamps of what
+    /// it was read from.
+    pub views: ViewCache,
 }
 
 impl Run {
@@ -107,6 +111,7 @@ impl Run {
             policies: Arc::new(policies),
             scratch: Scratch::default(),
             actions: ActiveActions::default(),
+            views: ViewCache::default(),
         }
     }
 }

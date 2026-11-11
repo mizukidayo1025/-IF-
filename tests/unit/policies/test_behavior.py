@@ -17,6 +17,7 @@ from sheltersim import native
 from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
+from sheltersim.domain.body_state import create_body_state
 from sheltersim.domain.models import Activity
 from sheltersim.domain.staff import StaffService
 from sheltersim.experiments.metrics import MetricsRecorder
@@ -160,8 +161,8 @@ def test_sleep_aware_behavior_normalizes_debt_by_daily_sleep_need() -> None:
     agent = world.agents["A001"]
     agent.activity = Activity.IDLE
     agent.needs.fatigue = 0.8
-    body = world.model_state.setdefault("body_state_v1", {"agents": {}})
-    body.setdefault("agents", {})[agent.id] = {"sleep_debt_minutes": 0.0}
+    body = world.model_state.setdefault("body_state_v1", create_body_state(world))
+    body["agents"][agent.id]["sleep_debt_minutes"] = 0.0
     policy = create_behavior_policy(
         "sleep-aware-utility-softmax-v2",
     )
@@ -269,19 +270,15 @@ def test_a_recorded_outcome_equals_replace_and_keeps_the_timing_check() -> None:
 
 
 def test_a_kept_zone_environment_follows_the_configs_and_modifiers(generated_scenario) -> None:
-    """The view kernel keeps a zone's conditions in the controller's `_zone_environments` while the
-    configs are the same object and the modifiers the same values (rules/world_view.rs)."""
-    from types import SimpleNamespace
-
+    """The view kernel keeps a zone's conditions in the controller's Run while the stamps of the
+    configs and of the modifiers stay the same (rules/world_view.rs)."""
     from sheltersim.domain.environment import ZONE_ENVIRONMENT_STATE_KEY, zone_environment_view
 
     world = WorldState.from_scenario(generated_scenario)
     world.model_state.setdefault(ZONE_ENVIRONMENT_STATE_KEY, {"schema_version": 1, "modifiers": {}})
     agent = next(iter(world.agents.values()))
     zone_id = agent.zone_id
-    controller = SimpleNamespace(
-        _view_before_proposals=None, _rust_view_cache=None, _zone_environments={}
-    )
+    controller = OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
     rules = native.rules("world_view")
 
     def lighting() -> float:
