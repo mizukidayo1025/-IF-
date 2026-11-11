@@ -41,11 +41,6 @@ use crate::Unsupported;
 
 pub(crate) const KEY: &str = "movement_v1";
 
-/// A journey to a place of a facility's queue or service (`kit::movement`).
-pub(crate) fn is_queue_trip(purpose: &str) -> bool {
-    walking::is_queue_trip(purpose)
-}
-
 pub(crate) fn refused(reason: &'static str) -> PyErr {
     Unsupported::new_err(reason)
 }
@@ -322,11 +317,6 @@ pub(crate) fn route_points_of(value: Option<&Bound<'_, PyAny>>) -> PyResult<Vec<
 }
 
 // ---- The kit's rules, for the kernels not yet in the core ---------------------------------------
-
-/// `in_room_travel_minutes` of a path of this length, for a person standing in `agent_zone`.
-pub(crate) fn room_minutes(model: &Read<MovementModel>, geo: &Geo, rows: &Entities, agent_zone: &str, mobility: &str, length: f64) -> PyResult<i64> {
-    walking::room_minutes(model, geo, rows, agent_zone, mobility, length).or_py()
-}
 
 /// `facility_approach_route` in a placed world (`kit::movement::approach_point`).
 pub(crate) fn approach_point(

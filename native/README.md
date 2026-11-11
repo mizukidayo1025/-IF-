@@ -108,9 +108,12 @@ Checkpoint document) and times them.
   behavior policies the `Run`'s `Policies` read, the trigger texts with `format(x, "g")`, and the
   observed state as a `V`) and `decisions.rs` (a decision's record: the indexed sink's JSON bytes,
   the trace's document, through `Host::decision`; then the lifecycle and the memory, called
-  directly) (lane P8 a5);
+  directly) (lane P8 a5); `overlay.rs` (the temporary spaces, capacity, beds and room intake,
+  installed facilities, and the floor-plan changes with their checks, on the rows of
+  `temporary_spaces_v1` and `geometry_overlay_v1`, a facility's `zone_id` and an edge's `closed`;
+  the parameters' contracts through `Host::contract`, policy E15) (lane P8 c4);
   the file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4, P8-0a, c1,
-  P8b-1, P8 a2, P8 a1, P8 d1, P8 a3, P8 c3 and P8 a5),
+  P8b-1, P8 a2, P8 a1, P8 d1, P8 a3, P8 c3, P8 a5 and P8 c4),
   `text.rs` (`casefold`, CPython 3.12's full fold from a generated table, `text/casefold.rs`
   by `tools/casefold_table.py`, tested at every code point against `tests/data/casefold.txt`;
   `g_text`, `format(value, "g")`; `py_repr`, `repr` of a str, from the table of what
@@ -370,9 +373,11 @@ are correctly rounded everywhere, and not `**` with a float.
   so the results are the same floats. A value `AgentStateDelta`'s checks might refuse raises
   `Unsupported` before anything changes.
 
-- `rules/overlay.rs`: `domain/temporary_spaces.py` and the rules of `domain/geometry_overlay.py`:
-  capacity, beds and room intake, placing an installed facility, checking and applying a floor-plan
-  change, and the checks of both states. `rules/effects.rs` and `rules/proposals.rs` call it directly.
+- `rules/overlay.rs`: `domain/temporary_spaces.py` and the rules of `domain/geometry_overlay.py`,
+  the glue of `core/src/rules/overlay.rs`: capacity, beds and room intake, placing an installed
+  facility, checking and applying a floor-plan change, and the checks of both states.
+  `rules/effects.rs`, `rules/proposals.rs`, `rules/replan.rs`, `rules/population.rs` and
+  `rules/after_tick.rs` call it directly.
 - `rules/facility_queues.rs`: `domain/facility_queues.py`, the glue of
   `core/src/rules/facility_queues.rs`.
 - `rules/effects.rs`: the rules of an EffectProgram's events: the guard, the five handlers of
