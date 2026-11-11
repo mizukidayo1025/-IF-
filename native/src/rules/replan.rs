@@ -106,7 +106,7 @@ impl<'py> Replan<'_, 'py> {
             })?;
         }
         set_agent(self.world, self.store, agent_text.as_any(), Activity::Idle, None)?;
-        stop_journey(self.mirror, agent_id)
+        stop_journey(self.world, agent_id)
     }
 
     fn zone_of(&self, agent_id: &str) -> PyResult<Arc<str>> {
@@ -219,7 +219,7 @@ impl<'py> Replan<'_, 'py> {
                     write_travel(self.world, self.writer, trip)?;
                 }
             }
-            Some((_, points)) => place_in_room(self.mirror, agent_id, zone, points[points.len() - 1])?,
+            Some((_, points)) => place_in_room(self.world, agent_id, zone, points[points.len() - 1])?,
             None => add_one(self.metrics, BLOCKED)?,
         }
         add_one(self.metrics, REPLAN)

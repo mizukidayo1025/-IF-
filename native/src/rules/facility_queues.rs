@@ -17,7 +17,7 @@ use sheltersim_core::rules::kit::Held;
 
 pub(crate) use sheltersim_core::rules::facility_queues::{point_of, position_in, request_of_task};
 pub(crate) use crate::state::facility_queues::{
-    detached_queue_facility, detached_records, has_independent, independent_heads, with_queues,
+    detached_records, has_independent, independent_heads, with_queues,
 };
 
 use crate::core::configs;

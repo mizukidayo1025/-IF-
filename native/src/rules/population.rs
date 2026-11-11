@@ -34,7 +34,7 @@ use crate::core::mathx::py_min;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_int_text, exact_str, unsupported};
 use crate::core::value::{V, VPy};
 use crate::core::world_core::{attached_state, state_value, with_state_value};
-use crate::rules::movement::{mirror_held, Scene};
+use crate::rules::movement::mirror_held;
 use crate::rules::movement_geometry::{self, approach_routes, Pt};
 use crate::state::entities::{entities_of, Activity, EntityStore};
 use crate::state::events::{EventKind, EventRow, EventRowPy, EventStatus, EventWriter};
@@ -834,10 +834,7 @@ pub(crate) fn check_admission_paths(world: &Bound<'_, PyAny>, zones: &[&str]) ->
     if has_namespace(world, MOVEMENT)? {
         let mirror = mirror_held(world)?;
         crate::core::world_core::NamespaceMirror::with_row::<MovementRow, _>(&mirror, |_| Ok(()))?;
-        let scene = Scene::of(world)?;
-        for zone in zones {
-            scene.check_idle_point(zone)?;
-        }
+        crate::rules::movement::check_idle_points(world, zones)?;
     }
     Ok(())
 }

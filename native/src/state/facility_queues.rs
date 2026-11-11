@@ -77,16 +77,6 @@ pub(crate) fn independent_heads(world: &Bound<'_, PyAny>, facility_id: &str) -> 
     Ok(with_queues(world, |row| rules(row, facility_id).or_py())?.flatten())
 }
 
-/// The FIFO of a queue, read now: None for a world without the namespace.
-pub(crate) fn read_fifo(
-    world: &Bound<'_, PyAny>,
-    geo: &sheltersim_core::geometry::Geo,
-    queue_id: &str,
-) -> PyResult<Option<sheltersim_core::rules::queues::Fifo>> {
-    use crate::core::errors::OrPy;
-    with_queues(world, |row| sheltersim_core::rules::queues::Fifo::of(row, geo, queue_id).or_py())
-}
-
 /// The mirror of the namespace while the world holds it detached, its row alone holding it. None
 /// while it has a tree.
 fn detached_mirror<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, NamespaceMirror>>> {
@@ -114,15 +104,6 @@ pub(crate) fn request_node<'py>(world: &Bound<'py, PyAny>, request_id: &str) -> 
         return unsupported("the queues have no requests");
     };
     exact_dict(&requests)?.get_item(request_id)
-}
-
-/// The facility of a queue, read from a detached namespace's row: None while the namespace has a
-/// tree (the caller reads it), Some(None) without the queue.
-pub(crate) fn detached_queue_facility(world: &Bound<'_, PyAny>, queue_id: &str) -> PyResult<Option<Option<std::sync::Arc<str>>>> {
-    let Some(mirror) = detached_mirror(world)? else {
-        return Ok(None);
-    };
-    NamespaceMirror::with_row::<QueuesRow, _>(&mirror, |row| Ok(Some(row.queues.get(queue_id).map(|queue| queue.facility_id.clone()))))
 }
 
 /// `{"requests": {request_id: ...}, "queues": {queue_id: ...}}` of a detached namespace's row, with

@@ -16,7 +16,6 @@ use sheltersim_core::config::FaultClass;
 use sheltersim_core::rules::kit::Held;
 use sheltersim_core::rules::queues::{self as core, LeaveInputs, Prepare, Prepared, TreeStall, Walk};
 
-pub(crate) use sheltersim_core::rules::queues::{plan_trip, slot_route, trip_id, Fifo, Plan, Route, BLOCKED_METRIC};
 
 use crate::core::configs;
 use crate::core::errors::{self, OrPy};
@@ -373,12 +372,6 @@ pub(crate) fn head_to_service<'py>(
         return Ok(false);
     };
     walk(world, &movement, exact_str(facility_id)?, resource, minute, queue_id, core::head_to_service)
-}
-
-/// The plan's writes, for the walk of `advance_movement`.
-pub(crate) fn write_plan(world: &Bound<'_, PyAny>, facility_id: &str, plan: Plan) -> PyResult<()> {
-    let written = with_world(world, |world| core::write_plan(world, facility_id, plan))?;
-    write_result(world.py(), written)
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

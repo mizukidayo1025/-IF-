@@ -593,6 +593,38 @@ pub struct OverlayKey {
     pub partitions: Vec<u8>,
 }
 
+impl OverlayKey {
+    /// The key of the overlay `model_state` holds now (`overlay`, its value; None where it has
+    /// none), with its slot's stamp: the canonical bytes of each part a plan reads, empty for no
+    /// entries, so most ticks encode nothing. Unsupported for an overlay or a part that is not a
+    /// dict.
+    pub fn of(overlay: Option<&V>, stamp: Option<Stamp>) -> Result<Self> {
+        let Some(overlay) = overlay else {
+            return Ok(Self { present: false, stamp: None, moves: Vec::new(), partitions: Vec::new() });
+        };
+        let V::Map(overlay) = overlay else {
+            return Err(Error::unsupported("a value is not a plain dict"));
+        };
+        let bytes = |name: &str| match overlay.get(name) {
+            None => Ok(Vec::new()),
+            Some(V::Map(items)) if items.is_empty() => Ok(Vec::new()),
+            Some(part @ V::Map(_)) => part.to_json(),
+            Some(_) => Err(Error::unsupported("a value is not a plain dict")),
+        };
+        Ok(Self { present: true, stamp, moves: bytes("facility_points")?, partitions: bytes("partitions")? })
+    }
+
+    /// The overlay's facility moves and partitions a plan of this key is built with: only the parts
+    /// with entries, as the key's bytes say.
+    pub fn parts(&self, overlay: Option<&V>) -> (Option<V>, Option<V>) {
+        let part = |name: &str, bytes: &[u8]| match (overlay, bytes.is_empty()) {
+            (Some(V::Map(overlay)), false) => overlay.get(name).cloned(),
+            _ => None,
+        };
+        (part("facility_points", &self.moves), part("partitions", &self.partitions))
+    }
+}
+
 /// The plans of one `Configs` (so of one stamp of `model_configs`), by the overlay they were
 /// built with, the latest first. A stamp hit needs no read of the overlay. When the overlay's stamp
 /// changed (a reservation, a history row), the bytes of its two parts are compared, as before
