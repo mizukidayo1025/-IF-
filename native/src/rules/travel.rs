@@ -30,7 +30,7 @@ use sheltersim_core::rules::overlay::PLAN_UNREAD;
 use sheltersim_core::rules::travel::{self as core, Graph, Routing, Walking};
 use sheltersim_core::world::World;
 
-pub(crate) use sheltersim_core::rules::travel::{CapacityWait, EdgeLoads, PlannedTrip, Route, Selected, Trip};
+pub(crate) use sheltersim_core::rules::travel::{CapacityWait, PlannedTrip, Route, Selected, Trip};
 
 use crate::core::configs;
 use crate::core::errors::{self, OrPy};
@@ -39,7 +39,7 @@ use crate::core::run::{run_of, RunCore};
 use crate::core::world_core::{core_of, field_held, namespace_held, with_world};
 use crate::rules::movement::{optional_str, route_points_of, str_tuple, KEY as MOVEMENT};
 use crate::rules::movement_geometry::{Geo, GeoPy, Pt};
-use crate::state::events::{write_result, EventRef, EventRow, EventRowPy, EventWriter, PendingEvent, PendingSource};
+use crate::state::events::{write_result, EventRef, EventRow, EventRowPy, EventWriter};
 use crate::state::staff_operations::NAME as STAFF_OPERATIONS;
 use crate::Unsupported;
 
@@ -244,42 +244,6 @@ pub(crate) fn staff_router_rows(source: StaffRouter<'_, '_>) -> PyResult<Arc<Rou
             Ok(Arc::new(read_graph(&attribute(router, intern!(py, "graph"))?)?))
         }
     }
-}
-
-/// `ZoneGraph.from_states(world.zones, world.zone_edges, edge_capacities=capacities)` as a router,
-/// from the world's tables.
-pub(crate) fn world_graph(world: &Bound<'_, PyAny>) -> PyResult<Router> {
-    with_world(world, |cell| core::world_graph(cell))?.or_py()
-}
-
-// ---- Who is on an edge --------------------------------------------------------------------------
-
-/// `event.payload.get("task_id")` of a `staff_operation_relief` in the queue, for `staff.rs`.
-pub(crate) fn relief_task_of(event: &PendingEvent<'_>) -> PyResult<Option<Arc<str>>> {
-    match &event.source {
-        PendingSource::Row(row) => Ok(if &*row.event_type == "staff_operation_relief" { EventRef::Row(row).text("task_id")? } else { None }),
-        PendingSource::Object(object) => {
-            if exact_str(&attribute(object, intern!(object.py(), "event_type"))?)? == "staff_operation_relief" {
-                EventRef::Object(object).text("task_id")
-            } else {
-                Ok(None)
-            }
-        }
-    }
-}
-
-/// `_active_route_edge_loads` and the loads of `_support_route_wait_reasons`.
-pub(crate) fn active_edge_loads(world: &Bound<'_, PyAny>, minute: i64) -> PyResult<EdgeLoads> {
-    read_queue_rows(world)?;
-    let staff = staff_held(world)?;
-    with_world(world, |cell| core::active_edge_loads(cell, &staff, minute))?.or_py()
-}
-
-/// `shared_passage_edge_loads`: who is on which edge at this minute.
-pub(crate) fn passage_edge_loads(world: &Bound<'_, PyAny>, minute: i64) -> PyResult<EdgeLoads> {
-    read_queue_rows(world)?;
-    let (movement, staff) = (movement_held(world)?, staff_held(world)?);
-    with_world(world, |cell| core::passage_edge_loads(cell, &movement, &staff, minute))?.or_py()
 }
 
 // ---- _route ---------------------------------------------------------------------------------------

@@ -264,31 +264,27 @@ pub fn on_shift_now(world: &World, staff_id: &str, minute: i64) -> Result<bool> 
 }
 
 /// `operation is None or operation.get("phase") == "idle"` of `staff_operations_v1`: a record of
-/// the row always has a phase. None while the namespace is tainted: its tree, which the rules of a
-/// task still write (`staff_operation_events`), holds the answer, and the PyO3 crate reads it.
-pub fn operation_is_idle(world: &World, staff_id: &str) -> Result<Option<bool>> {
-    Ok(match held_row::<StaffOperationsRow>(world, OPERATIONS)? {
-        Held::Absent => Some(true),
-        Held::Row(row) => Some(row.staff.get(staff_id).is_none_or(|record| record.phase == Phase::Idle)),
-        Held::Tainted => None,
+/// the row always has a phase. Every rule writes the namespace as its row (lanes b2 and b3), so a
+/// namespace whose row a write that did not fit dropped (tainted) is refused. `absent` says the
+/// caller read None under the key (no state), which no row holds.
+pub fn operation_is_idle(world: &World, staff_id: &str, absent: bool) -> Result<bool> {
+    if absent {
+        return Ok(true);
+    }
+    Ok(match namespace::<StaffOperationsRow>(world, OPERATIONS)? {
+        None => true,
+        Some(row) => row.staff.get(staff_id).is_none_or(|record| record.phase == Phase::Idle),
     })
 }
 
 /// `staff_dynamics_is_available` of a world that has the namespace: the operation is read first,
-/// as the Python rule reads it, and the status last. `idle` is the answer of the operation, when
-/// the caller read it from the tree (`operation_is_idle` said None): without it, None asks for it.
-pub fn is_available_now(world: &World, staff_id: &str, minute: i64, idle: Option<bool>) -> Result<Option<bool>> {
-    let idle = match idle {
-        Some(idle) => idle,
-        None => match operation_is_idle(world, staff_id)? {
-            Some(idle) => idle,
-            None => return Ok(None),
-        },
-    };
+/// as the Python rule reads it, and the status last. `operations_absent` as `operation_is_idle`.
+pub fn is_available_now(world: &World, staff_id: &str, minute: i64, operations_absent: bool) -> Result<bool> {
+    let idle = operation_is_idle(world, staff_id, operations_absent)?;
     if !on_shift_now(world, staff_id, minute)? {
-        return Ok(Some(false));
+        return Ok(false);
     }
-    Ok(Some(with_staff_status(world, |status| is_available(status, staff_id))? && idle))
+    Ok(with_staff_status(world, |status| is_available(status, staff_id))? && idle)
 }
 
 // ---- add_staff ----------------------------------------------------------------------------------

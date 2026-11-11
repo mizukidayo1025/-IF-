@@ -339,7 +339,7 @@ impl<'py> Tick<'_, 'py> {
         // `_assign_staff_support`.
         let service = controller.getattr(intern!(py, "staff_service"))?;
         let assigned = if service.get_type().is(self.table.staff.bind(py)) {
-            only(py, "staff.assign_pending", staff::assign_pending(&service, minute, false).map(Bound::into_any))?
+            only(py, "staff.assign_pending", staff::assign_pending_of_run(controller, world, minute).map(Bound::into_any))?
         } else {
             let options = PyDict::new(py);
             options.set_item(intern!(py, "validate_state"), false)?;

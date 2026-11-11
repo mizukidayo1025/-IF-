@@ -34,7 +34,6 @@ use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::rules::queues::Walking;
 use crate::rules::resources::{raised, replace_resources};
 use crate::rules::social_network::mapping_get;
-use crate::rules::staff_dynamics::tree_operation_is_idle;
 use crate::state::entities::{Activity, EntityStore};
 use crate::state::events::{write_error, EventRef, EventRow, EventRowPy, EventWriter};
 use crate::state::metric_state::MetricRow;
@@ -265,29 +264,21 @@ fn serve_one<'py>(
     let pending = pending_reserves(world)?;
     let walking = Walking::read(world, queue_id.is_some())?;
     let walk = walking.as_ref().map(Walking::walk);
-    let mut idle = Vec::new();
-    loop {
-        let serve = Serve {
-            facility_id: facility,
-            resource_id: resource,
-            minute,
-            queue_id,
-            walk: walk.as_ref(),
-            placement: walking.as_ref().map(|walking| &*walking.geo),
-            idle: &idle,
-        };
-        match with_world(world, |world| core::serve(world, &inputs.manager(), &serve, &pending))? {
-            Ok(Served::Started(event_id, balance)) => {
-                applied(world, Some(balance))?;
-                return Ok((Some(PyString::new(py, &event_id)), None));
-            }
-            Ok(Served::Stopped(stall)) => return Ok((None, stall)),
-            Ok(Served::NeedsIdle(staff_id)) => {
-                let answer = tree_operation_is_idle(world, &PyString::new(py, &staff_id))?;
-                idle.push((staff_id, answer));
-            }
-            Err(failure) => return Err(failed(py, failure)),
+    let serve = Serve {
+        facility_id: facility,
+        resource_id: resource,
+        minute,
+        queue_id,
+        walk: walk.as_ref(),
+        placement: walking.as_ref().map(|walking| &*walking.geo),
+    };
+    match with_world(world, |world| core::serve(world, &inputs.manager(), &serve, &pending))? {
+        Ok(Served::Started(event_id, balance)) => {
+            applied(world, Some(balance))?;
+            Ok((Some(PyString::new(py, &event_id)), None))
         }
+        Ok(Served::Stopped(stall)) => Ok((None, stall)),
+        Err(failure) => Err(failed(py, failure)),
     }
 }
 

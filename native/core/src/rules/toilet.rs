@@ -281,8 +281,6 @@ pub struct Start<'a> {
     pub walk: Option<&'a Walk<'a>>,
     /// Whether `world.metric_state` is its slot's tree.
     pub metric_state_held: bool,
-    /// The answers of a tainted `staff_operations_v1` read so far.
-    pub idle: &'a [(Arc<str>, bool)],
 }
 
 /// What a pass did.
@@ -292,8 +290,6 @@ pub enum Started {
     Event(Arc<str>),
     /// Nothing started: the queue waits (what stopped an independent queue is marked on it).
     Stopped,
-    /// Nothing written: the answer of a tainted `staff_operations_v1` for this member is needed.
-    NeedsIdle(Arc<str>),
 }
 
 /// What a pass asks before it draws.
@@ -488,13 +484,12 @@ fn pass(world: &World, start: &Start<'_>, drawn: Option<f64>) -> WriteResult<Pas
                 .map(|(_, person)| person.id.clone())
                 .collect()
         };
-        match first_available(world, candidates, minute, start.idle)? {
-            Ok(Some(chosen)) => staff_id = Some(chosen),
-            Ok(None) => {
+        match first_available(world, candidates, minute)? {
+            Some(chosen) => staff_id = Some(chosen),
+            None => {
                 fifo::write_stall(world, &head.queue_id, &head.request.request_id, "staff")?;
                 return Ok(Pass::Done(Started::Stopped));
             }
-            Err(asked) => return Ok(Pass::Done(Started::NeedsIdle(asked))),
         }
     }
     let sequence = events.next_sequence()?;

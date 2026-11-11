@@ -24,8 +24,6 @@ use sheltersim_core::rules::kit::Held;
 use sheltersim_core::rules::overlay::PLAN_UNREAD;
 use sheltersim_core::rules::staff_operation_events::{self as core, CompletePlan, Inputs, Planned, Stopping, Work, FORMULA_UNREAD, SNAPSHOTS, SNAPSHOT_PLAN_UNREAD};
 
-pub(crate) use sheltersim_core::rules::staff_operation_events::relief_skills;
-
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_int, exact_str};
 use crate::core::tracked::as_readable_dict;

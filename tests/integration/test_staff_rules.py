@@ -601,9 +601,17 @@ def test_each_kind_asks_for_the_skills_of_the_table(kind: str) -> None:
             _busy(world, staff_id)
         request = _request(world, 1, sorted(world.agents)[0])
         if kind != "emotional_support":
-            # A kind no contract takes reads the same; only the row of the head would refuse it.
+            # A head of the row's shape: the kind is read from the row (lane P8 b3), and a kind
+            # no contract takes reads the same.
             world.model_state[SHARED]["support_requests"][request.id] = {
+                "request_id": request.id,
+                "agent_id": request.agent_id,
+                "household_id": None,
                 "support_kind": kind,
+                "status": "requested",
+                "created_minute": 0,
+                "updated_minute": 0,
+                "latest_event_id": "event-1",
             }
         answer = json.loads(_both_snapshots(world, 0))
         assert (answer[1] == []) == (skill in required)

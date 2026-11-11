@@ -114,10 +114,7 @@ pub fn dynamics_available(world: &World, id: &str, minute: i64) -> Result<bool> 
     if kit::namespace_absent(world, STAFF_DYNAMICS)? {
         return Ok(true);
     }
-    match staff_dynamics::is_available_now(world, id, minute, None)? {
-        Some(answer) => Ok(answer),
-        None => Err(Error::unsupported("the namespace has no row")),
-    }
+    staff_dynamics::is_available_now(world, id, minute, false)
 }
 
 /// `staff_dynamics_on_shift`, as its Python entry answers: true without the namespace.

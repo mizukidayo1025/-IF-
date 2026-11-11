@@ -77,7 +77,32 @@ pub struct StaffOperations {
     pub selected_source: Option<Arc<str>>,
 }
 
+/// The source of each built-in formula (`MODEL_DEFINITIONS[model_id]["assumption_source_id"]`).
+const URGENCY_FIRST_SOURCE: &str = "ASM-STAFF-URGENCY-FIRST-V1";
+const TRAVEL_FIRST_SOURCE: &str = "ASM-STAFF-TRAVEL-FIRST-V1";
+
 impl StaffOperations {
+    /// `create_staff_operations_formula(configs)` of the built-in formulas, for a build without
+    /// Python (the PyO3 crate fills the section from the Python factory, which may know a formula
+    /// registered later): the formula `policy_registry` selects, urgency first by default; its
+    /// source where the registry names one. Another formula is refused.
+    pub fn parse(configs: &V) -> Read<Self> {
+        let selected = match map(configs)?.get("policy_registry") {
+            Some(registry) => map(registry)?.get("staff_operations"),
+            None => None,
+        };
+        let model_id = match selected {
+            Some(selected) => text(selected)?.clone(),
+            None => Arc::from(URGENCY_FIRST),
+        };
+        let source = match &*model_id {
+            URGENCY_FIRST => URGENCY_FIRST_SOURCE,
+            TRAVEL_FIRST => TRAVEL_FIRST_SOURCE,
+            _ => return Err(Fault::refused("another staff operations formula")),
+        };
+        Ok(Self { model_id, selected_source: selected.map(|_| Arc::from(source)) })
+    }
+
     /// The travel-first ranking.
     pub fn travel_first(&self) -> bool {
         &*self.model_id == TRAVEL_FIRST

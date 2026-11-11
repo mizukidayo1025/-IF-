@@ -5,8 +5,7 @@
 //!
 //! Kept here: `canonical_staff_dynamics_config` and the state of a world built from a Scenario
 //! (decision 4: building a world stays out of the core), and `staff_status`/`is_available` on the
-//! Python objects for the kernels of the PyO3 crate that still read them (service, toilet, staff,
-//! staff_order, staff_operation_events, effects) until their lanes move them
+//! Python objects for `effects.rs`, which reads them until its lane (P8 d3) moves it
 //! (docs/rust-port/lanes/s-staff-dynamics.md).
 
 use std::sync::Arc;
@@ -21,7 +20,7 @@ use crate::core::configs;
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_list, exact_str, namespace_is_absent, unsupported, PyField};
 use crate::core::world_core::with_world;
-use crate::state::staff_dynamics::{shifts_are_valid, ConfigRow, Shift, StaffRecord, MAX_REST_MINUTES, MAX_SHIFTS, MINUTES_PER_DAY, MINUTES_PER_WEEK, NAME, POLICY_V1, POLICY_V2};
+use crate::state::staff_dynamics::{shifts_are_valid, Shift, StaffRecord, MAX_REST_MINUTES, MAX_SHIFTS, MINUTES_PER_DAY, MINUTES_PER_WEEK, NAME, POLICY_V1, POLICY_V2};
 
 const SOURCE_V1: &str = "ASM-STAFF-DYNAMICS-V1";
 const SOURCE_V2: &str = "ASM-STAFF-DYNAMICS-V2";
@@ -77,11 +76,6 @@ pub(crate) fn is_available(status: Option<&Bound<'_, PyAny>>, id: &Bound<'_, PyS
     }
 }
 
-/// `_on_shift`, for a kernel of this crate that holds the row.
-pub(crate) fn on_shift(config: &ConfigRow, id: &str, minute: i64) -> PyResult<bool> {
-    core::on_shift(config, id, minute).or_py()
-}
-
 /// `create_staff_fatigue_formula`, for the formulas the core knows, kept for the configs' stamp
 /// (`core/configs.rs`). A later registered one, or anything but plain documents, is refused.
 pub(crate) fn fatigue_formula(world: &Bound<'_, PyAny>) -> PyResult<Arc<StaffFatigue>> {
@@ -112,51 +106,19 @@ fn on_shift_now(world: &Bound<'_, PyAny>, staff_id: &Bound<'_, PyAny>, minute: &
     with_world(world, |world| core::on_shift_now(world, id, minute))?.or_py()
 }
 
-/// `operation.get("phase") == "idle"` of a tainted `staff_operations_v1`, whose tree holds it (the
-/// core's `operation_is_idle` reads the row otherwise): what the rules of a task still write as a
-/// tree, until their lane writes the row.
-pub(crate) fn tree_operation_is_idle(world: &Bound<'_, PyAny>, id: &Bound<'_, PyString>) -> PyResult<bool> {
-    let py = world.py();
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let Some(operations) = exact_dict(&table)?.get_item(intern!(py, "staff_operations_v1"))? else {
-        return Ok(true);
-    };
-    if operations.is_none() {
-        return Ok(true);
-    }
-    let Some(staff) = exact_dict(&operations)?.get_item(intern!(py, "staff"))? else {
-        return Ok(true);
-    };
-    let Some(operation) = exact_dict(&staff)?.get_item(id)? else {
-        return Ok(true);
-    };
-    if operation.is_none() {
-        return Ok(true);
-    }
-    match exact_dict(&operation)?.get_item(intern!(py, "phase"))? {
-        Some(phase) if !phase.is_none() => Ok(exact_str(&phase)? == "idle"),
-        _ => Ok(false),
-    }
-}
-
 /// `staff_dynamics_is_available`.
 #[pyfunction(name = "is_available")]
 pub(crate) fn is_available_now(world: &Bound<'_, PyAny>, staff_id: &Bound<'_, PyAny>, minute: &Bound<'_, PyAny>) -> PyResult<bool> {
     if namespace_is_absent(world, intern!(world.py(), NAME))? {
         return Ok(true);
     }
-    let Ok(text) = staff_id.downcast_exact::<PyString>() else {
+    if staff_id.downcast_exact::<PyString>().is_err() {
         return unsupported("the id is not a str");
-    };
+    }
     let id = exact_str(staff_id)?;
     let minute = exact_int(minute)?;
-    if let Some(answer) = with_world(world, |world| core::is_available_now(world, id, minute, None))?.or_py()? {
-        return Ok(answer);
-    }
-    let idle = tree_operation_is_idle(world, text)?;
-    with_world(world, |world| core::is_available_now(world, id, minute, Some(idle)))?
-        .or_py()?
-        .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("the operation's answer was asked again"))
+    let absent = namespace_is_absent(world, intern!(world.py(), "staff_operations_v1"))?;
+    with_world(world, |world| core::is_available_now(world, id, minute, absent))?.or_py()
 }
 
 /// `add_staff`: one record.

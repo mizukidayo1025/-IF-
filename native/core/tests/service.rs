@@ -217,7 +217,7 @@ fn request<'a>(agent_id: &'a str, needs: &'a Kept<AccessibilityNeeds>) -> Reques
 }
 
 fn serve_at(minute: i64) -> Serve<'static> {
-    Serve { facility_id: WATER, resource_id: "water_ml", minute, queue_id: None, walk: None, placement: None, idle: &[] }
+    Serve { facility_id: WATER, resource_id: "water_ml", minute, queue_id: None, walk: None, placement: None }
 }
 
 fn metric(world: &World, name: &str) -> f64 {
@@ -471,7 +471,6 @@ fn start<'a>(rng: &'a Rng, geo: &'a Geo) -> Start<'a> {
         geo,
         walk: None,
         metric_state_held: true,
-        idle: &[],
     }
 }
 

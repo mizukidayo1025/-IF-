@@ -53,7 +53,7 @@ pub(crate) fn sample_of(world: &Bound<'_, PyAny>, unsettled: &Bound<'_, PyList>,
         .map(|request| {
             Ok(OpenWait {
                 agent: &request.agent,
-                request_id: exact_str(&request.id)?,
+                request_id: exact_str(open.id_of(request))?,
                 waited: request.waited,
                 reasons: open.reasons_of(request),
                 without_qualified_staff: open.has_no_qualified_staff(request),

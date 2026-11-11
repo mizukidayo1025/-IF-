@@ -16,7 +16,7 @@ use sheltersim_core::geometry::{zone_center, Geo, OverlayKey, Pt, Route, Zone};
 use sheltersim_core::row::{IdMap, ValueRow};
 use sheltersim_core::rules::kit::movement::POLICY_VERSION;
 use sheltersim_core::rules::kit::Held;
-use sheltersim_core::rules::movement::{self as movement, Advanced, InOrder, StaffOp, StaffOps, StaffTravel, Start, Tick, Validated, Where};
+use sheltersim_core::rules::movement::{self as movement, Advanced, InOrder, StaffOps, Start, Tick, Validated, Where};
 use sheltersim_core::state::metric_state::MetricRow;
 use sheltersim_core::state::movement::{Journey, MovementRow, Point, Position};
 use sheltersim_core::state::staff_operations::{OperationRecord, Phase, StaffOperationsRow};
@@ -414,22 +414,6 @@ fn a_travelling_staff_member_is_on_their_route() {
 fn a_travel_record_the_kernel_does_not_read_is_refused() {
     let world = staff_world(None);
     assert_eq!(movement::staff_position_snapshots(&world, &geo(), &StaffOps::Row, 2).err(), Some(unsupported("a value is not an int")));
-    // The tree's records, where the row does not answer: an edge ID that is not a str is refused
-    // only where the walk reaches it.
-    let travel = |edges: Vec<Option<Arc<str>>>| {
-        let mut records = IdMap::default();
-        records.insert(text("s1"), StaffOp::Travel(StaffTravel { travel_minutes: 4, started_minute: 0, route_edge_ids: edges, route_zone_ids: vec![Some(text("z0"))] }));
-        StaffOps::Tree(records)
-    };
-    let world = staff_world(Some(0));
-    let found = movement::staff_position_snapshots(&world, &geo(), &travel(vec![Some(text("e1")), None]), 2).unwrap();
-    assert_eq!(xy(&found[0].1), Some((10.0, 5.0)));
-    let refused = movement::staff_position_snapshots(&world, &geo(), &travel(vec![None]), 2);
-    assert_eq!(refused.err(), Some(unsupported("a value is not a str")));
-    let mut records = IdMap::default();
-    records.insert(text("s1"), StaffOp::Refused("a staff operation is not a plain dict"));
-    let refused = movement::staff_position_snapshots(&world, &geo(), &StaffOps::Tree(records), 2);
-    assert_eq!(refused.err(), Some(unsupported("a staff operation is not a plain dict")));
 }
 
 // ---- start_movement, finish_movement and the places --------------------------------------------
