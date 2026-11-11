@@ -140,6 +140,13 @@ impl HostFailure for Fault {
             Fault::Duplicate(_) => ErrorClass::Value,
         }
     }
+
+    fn text(&self) -> String {
+        match self {
+            Fault::Core(error) => error.text(),
+            Fault::Duplicate(text) => text.clone(),
+        }
+    }
 }
 
 /// `TestHost`, with the records `find_record` finds, which writes down the in-flight validations

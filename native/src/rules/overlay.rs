@@ -28,7 +28,6 @@ pub(crate) use sheltersim_core::rules::overlay::{Bed, Capacity};
 use crate::core::configs;
 use crate::core::errors::OrPy;
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, str_value, unsupported};
-use crate::core::tracked::{as_readable_dict, is_detached};
 use crate::core::value::{V, VPy};
 use crate::core::world_core::{core_of, namespace_held, raw_dict_get, state_value, with_world, PyWorldCell};
 use crate::host::PyHost;
@@ -79,11 +78,11 @@ fn stats<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyDict>, Bound<'py, PyDic
 
 // ---- What Python holds ----------------------------------------------------------------------------
 
-fn spaces_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
+pub(crate) fn spaces_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
     namespace_held(world, intern!(world.py(), SPACES_KEY), "the world holds another temporary spaces state")
 }
 
-fn overlay_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
+pub(crate) fn overlay_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
     namespace_held(world, intern!(world.py(), OVERLAY_KEY), "the world holds another overlay state")
 }
 
@@ -129,6 +128,14 @@ impl Plan {
         }
     }
 
+    /// What `Geo::of` raised, if the plan was read and could not be.
+    fn error(&self, py: Python<'_>) -> Option<PyErr> {
+        match self {
+            Plan::Read(Err(read)) => Some(read.clone_ref(py)),
+            _ => None,
+        }
+    }
+
     /// The kernel's result, with what `Geo::of` raised where the kernel read the plan.
     fn finish<T>(&self, py: Python<'_>, result: PyResult<T>) -> PyResult<T> {
         match (result, self) {
@@ -156,12 +163,6 @@ fn register_temporary_space(world: &Bound<'_, PyAny>, record: &Bound<'_, PyAny>,
     counted(world.py(), "register_temporary_space", result)
 }
 
-/// `expire_temporary_space`, for a rule in another file.
-pub(crate) fn expire_space(world: &Bound<'_, PyAny>, space_id: &str, event_id: &str, causation_id: Option<&str>) -> PyResult<bool> {
-    let held = spaces_held(world)?;
-    with_world(world, |world| core::expire_space(world, &held, space_id, event_id, causation_id))?.or_py()
-}
-
 #[pyfunction]
 #[pyo3(signature = (world, space_id, *, event_id, causation_id))]
 fn expire_temporary_space(
@@ -172,7 +173,9 @@ fn expire_temporary_space(
 ) -> PyResult<bool> {
     let result = (|| {
         let cause = if causation_id.is_none() { None } else { Some(exact_str(causation_id)?) };
-        expire_space(world, exact_str(space_id)?, exact_str(event_id)?, cause)
+        let (space_id, event_id) = (exact_str(space_id)?, exact_str(event_id)?);
+        let held = spaces_held(world)?;
+        with_world(world, |world| core::expire_space(world, &held, space_id, event_id, cause))?.or_py()
     })();
     counted(world.py(), "expire_temporary_space", result)
 }
@@ -506,19 +509,14 @@ fn reserve_sleep_bed<'py>(world: &Bound<'py, PyAny>, agent_id: &Bound<'py, PyAny
 
 // ---- Facilities installed during a Run ----------------------------------------------------------
 
-/// `installed_facility_placement_enabled`: `model_state` holds the overlay as a dict (a detached
-/// overlay is one).
-pub(crate) fn placement_enabled(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let schema = schema_of(world)?;
-    let table = attribute(world, intern!(world.py(), "model_state"))?;
-    let held = exact_dict(&table)?.get_item(OVERLAY_KEY)?;
-    let is_dict = held.is_some_and(|state| is_detached(&state) || as_readable_dict(&state).is_some());
-    core::placement_enabled(&schema, is_dict).or_py()
-}
-
+/// `installed_facility_placement_enabled`.
 #[pyfunction]
 fn installed_facility_placement_enabled(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    counted(world.py(), "installed_facility_placement_enabled", placement_enabled(world))
+    let result = (|| {
+        let (schema, overlay) = (schema_of(world)?, overlay_held(world)?);
+        core::placement_enabled(&schema, &overlay).or_py()
+    })();
+    counted(world.py(), "installed_facility_placement_enabled", result)
 }
 
 #[pyfunction]
@@ -562,7 +560,7 @@ fn place_installed_facility<'py>(
 // ---- Approved changes of the floor plan -----------------------------------------------------------
 
 /// What a geometry change reads of the Python world.
-struct ChangeIn {
+pub(crate) struct ChangeIn {
     overlay: Held,
     movement: Held,
     staff_operations: Held,
@@ -572,7 +570,7 @@ struct ChangeIn {
 }
 
 impl ChangeIn {
-    fn of(world: &Bound<'_, PyAny>) -> PyResult<Self> {
+    pub(crate) fn of(world: &Bound<'_, PyAny>) -> PyResult<Self> {
         let py = world.py();
         let overlay = overlay_held(world)?;
         let plan = Plan::with(world, &overlay);
@@ -586,7 +584,12 @@ impl ChangeIn {
         })
     }
 
-    fn change(&self) -> Change<'_> {
+    /// What `Geo::of` raised, where the change read the plan and could not (`PLAN_UNREAD`).
+    pub(crate) fn plan_error(&self, py: Python<'_>) -> Option<PyErr> {
+        self.plan.error(py)
+    }
+
+    pub(crate) fn change(&self) -> Change<'_> {
         Change {
             overlay: &self.overlay,
             movement: &self.movement,

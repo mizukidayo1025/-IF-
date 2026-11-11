@@ -21,7 +21,7 @@ use sheltersim_core::config::agent_dynamics::policy as config_policy;
 pub(crate) use sheltersim_core::rules::agent_dynamics::Decision;
 
 /// The policy `world.model_configs` selects, or its fault, for the kernel to raise where it reads it.
-fn policy_kept(world: &Bound<'_, PyAny>) -> PyResult<Kept<&'static str>> {
+pub(crate) fn policy_kept(world: &Bound<'_, PyAny>) -> PyResult<Kept<&'static str>> {
     configs::kept_section(world, |configs| &configs.agent_dynamics_policy, config_policy)
 }
 

@@ -595,7 +595,7 @@ impl<'py> Phase<'_, 'py> {
         if registered.is_none_or(|handler| handler.is_none()) {
             return self.dispatch_in_python(&object()?, outcomes);
         }
-        match effects::guard_or_suppress(self.world, reference, object) {
+        match effects::guard_or_suppress(self.world, reference) {
             Ok(()) => count(&COUNTS.guard_passed),
             Err(error) if errors::made_here(py, &error) => {
                 let done = self.expected_outcome(error)?;

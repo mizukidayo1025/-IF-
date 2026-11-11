@@ -60,5 +60,7 @@ pub mod social_interaction;
 pub mod tick_validation;
 // lane d2
 pub mod handlers;
+// lane d3
+pub mod effects;
 
 // ---- P8e: proposals ----------------------------------------------------------------------------

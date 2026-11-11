@@ -4,9 +4,7 @@
 //! what it returns. What the core refuses is a KernelRefusal at the Python entry.
 //!
 //! Kept here: `canonical_staff_dynamics_config` and the state of a world built from a Scenario
-//! (decision 4: building a world stays out of the core), and `staff_status`/`is_available` on the
-//! Python objects for `effects.rs`, which reads them until its lane (P8 d3) moves it
-//! (docs/rust-port/lanes/s-staff-dynamics.md).
+//! (decision 4: building a world stays out of the core) (docs/rust-port/lanes/s-staff-dynamics.md).
 
 use std::sync::Arc;
 
@@ -34,47 +32,6 @@ const CONFIG_FIELDS: [&str; 8] = [
     "shift_windows_by_staff",
     "off_shift_fatigue_recovery_per_minute",
 ];
-
-// ---- For the kernels of this crate that read the Python objects ------------------------------------
-
-/// `state["staff_status"]` of `operational_events_v1`, or None without that namespace: the input
-/// of `staff_is_available` in `domain/operational.py` (the core's is `with_staff_status`).
-pub(crate) fn staff_status<'py>(world: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
-    let py = world.py();
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let Some(state) = exact_dict(&table)?.get_item(intern!(py, "operational_events_v1"))? else {
-        return Ok(None);
-    };
-    if state.is_none() {
-        return Ok(None);
-    }
-    match exact_dict(&state)?.get_item(intern!(py, "staff_status"))? {
-        Some(status) => {
-            exact_dict(&status)?;
-            Ok(Some(status))
-        }
-        None => unsupported("operational_events_v1 has no staff_status"),
-    }
-}
-
-/// `staff_is_available` (the core's is `is_available`).
-pub(crate) fn is_available(status: Option<&Bound<'_, PyAny>>, id: &Bound<'_, PyString>) -> PyResult<bool> {
-    let Some(status) = status else {
-        return Ok(true);
-    };
-    let py = id.py();
-    match exact_dict(status)?.get_item(id)? {
-        None => Ok(true),
-        Some(record) if record.is_none() => Ok(true),
-        Some(record) => match exact_dict(&record)?.get_item(intern!(py, "available"))? {
-            Some(available) => match available.downcast_exact::<PyBool>() {
-                Ok(available) => Ok(available.is_true()),
-                Err(_) => unsupported("available is not a bool"),
-            },
-            None => unsupported("a staff status has no available"),
-        },
-    }
-}
 
 /// `create_staff_fatigue_formula`, for the formulas the core knows, kept for the configs' stamp
 /// (`core/configs.rs`). A later registered one, or anything but plain documents, is refused.

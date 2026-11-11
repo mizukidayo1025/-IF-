@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import math
 
+import pytest
+
 from sheltersim.contracts.extensions import point_in_polygon
 from sheltersim.core.world import WorldState
 from sheltersim.domain.agent_dynamics import (
@@ -22,8 +24,12 @@ from sheltersim.domain.geometry_overlay import (
     effective_geometry,
 )
 from sheltersim.domain.simulator_state import initialize_simulator_extensions
-from sheltersim.events.effects import EffectProgram
-from sheltersim.events.models import EventStatus
+from sheltersim.events.effects import (
+    EffectProgram,
+    EffectProgramStructureHandler,
+    schedule_effect_program,
+)
+from sheltersim.events.models import EventApplicationError, EventStatus, ScheduledEvent
 from sheltersim.experiments.branch import BranchRuntime
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import TimelineStore
@@ -133,31 +139,24 @@ def test_v2_histories_keep_installed_facilities_unknown(
 
 
 def test_runtime_placement_failure_fails_the_event_without_changes(
-    tmp_path, monkeypatch, generated_scenario, add_toilets_program, saved_timeline
+    generated_scenario, add_toilets_program
 ) -> None:
-    timeline = _timeline(saved_timeline, tmp_path, generated_scenario)
-    program = add_toilets_program(start_minute=_FORK_MINUTE)
-    timeline.fork(
-        "main",
-        _FORK_MINUTE,
-        "child",
-        program=program,
-        approved_program_hash=digest(program.model_dump(mode="json")),
-    )
-    # Something placed later (a partition, a room) can take the free point. The kernel then raises
-    # this text (tests/integration/test_overlay_rules.py). The handler calls the rule by name.
-    import sheltersim.domain.geometry_overlay as overlay
-
-    def no_free_point(world, facility_id, *, event_id, source_ids):
-        raise ValueError(f"no free floor-plan point for installed facility {facility_id!r}")
-
-    monkeypatch.setattr(overlay, "place_installed_facility", no_free_point)
-    world = timeline.advance("child", _FORK_MINUTE + 1).world
-    assert not _added_toilets(world)
-    failed = [
-        record
-        for record in world.event_log.records
-        if record.event.event_type == "effect_program_structure"
+    # Something placed later (a partition, a room) can take the free point: here, more toilets than
+    # the zone has points for. The handler calls the placement directly (#152 P8 d3), whose
+    # ValueError fails the event, and the transaction leaves the world as it was.
+    world = _world(generated_scenario)
+    schedule_effect_program(world, add_toilets_program(start_minute=0))
+    [event] = [
+        item
+        for item in world.event_queue.pending()
+        if item.event_type == "effect_program_structure"
     ]
-    assert [record.status for record in failed] == [EventStatus.FAILED]
-    assert failed[0].detail.startswith("no free floor-plan point for installed facility ")
+    document = event.to_dict()
+    document["payload"]["count"] = 200 - len(world.facilities)
+    many = ScheduledEvent(**document)
+    before = world.to_dict()
+    with pytest.raises(EventApplicationError) as failed:
+        EffectProgramStructureHandler().apply(world, many)
+    assert str(failed.value).startswith("no free floor-plan point for installed facility ")
+    assert not _added_toilets(world)
+    assert world.to_dict() == before

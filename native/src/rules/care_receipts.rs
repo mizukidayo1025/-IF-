@@ -61,12 +61,6 @@ fn shared_held(world: &Bound<'_, PyAny>) -> PyResult<()> {
     }
 }
 
-/// `SHARED_OPERATIONS_KEY not in world.model_state`.
-fn shared_absent(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let py = world.py();
-    Ok(!attribute(world, intern!(py, "model_state"))?.contains(intern!(py, NAME))?)
-}
-
 // ---- A care transition ------------------------------------------------------------------------------
 
 /// `make_care_transition_record` and the checks of `record_shared_operation`, with `sequence` for
@@ -177,50 +171,6 @@ fn append_transition<'py>(
 /// `care_source_ids_for_agent`.
 pub(crate) fn source_ids_of(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Vec<Arc<str>>> {
     with_world(world, |world| core::source_ids_of(world, agent_id))?.or_py()
-}
-
-// ---- The other receipts: applied records the dispatcher appends ----------------------------------------
-
-fn arcs(items: Vec<String>) -> Vec<Arc<str>> {
-    items.into_iter().map(Arc::from).collect()
-}
-
-/// `make_facility_recovery_record(...)[0]`, or None without the shared contract.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn facility_recovery_record<'py>(
-    world: &Bound<'py, PyAny>,
-    facility_id: &str,
-    component_id: &str,
-    status: &str,
-    previous: i64,
-    units: i64,
-    causation: &str,
-    source_ids: Vec<String>,
-) -> PyResult<Option<Bound<'py, PyAny>>> {
-    if shared_absent(world)? {
-        return Ok(None);
-    }
-    let sources = arcs(source_ids);
-    let made = with_world(world, |world| core::facility_recovery_record(world, facility_id, component_id, status, previous, units, causation, sources))?.or_py()?;
-    made_record(world.py(), made).map(Some)
-}
-
-/// `make_staff_handoff_record(...)[0]`, or None without the shared contract.
-pub(crate) fn handoff_record<'py>(
-    world: &Bound<'py, PyAny>,
-    task_id: &str,
-    previous_staff: &str,
-    replacement: &str,
-    reason_code: &str,
-    causation: &str,
-    source_ids: Vec<String>,
-) -> PyResult<Option<Bound<'py, PyAny>>> {
-    if shared_absent(world)? {
-        return Ok(None);
-    }
-    let sources = arcs(source_ids);
-    let made = with_world(world, |world| core::handoff_record(world, task_id, previous_staff, replacement, reason_code, causation, sources))?.or_py()?;
-    made_record(world.py(), made).map(Some)
 }
 
 // ---- ingest_applied_shared_operation_records ---------------------------------------------------------

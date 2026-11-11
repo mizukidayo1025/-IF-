@@ -21,6 +21,7 @@ use std::sync::Arc;
 
 use crate::error::Error;
 use crate::events::EventRow;
+use crate::geometry::Geo;
 use crate::mathx::MathError;
 use crate::rules::common_operations::Logged;
 use crate::rules::metrics::MetricSample;
@@ -45,6 +46,14 @@ pub enum ErrorClass {
 /// What a host's error says of itself.
 pub trait HostFailure {
     fn class(&self) -> ErrorClass;
+    /// `str(exc)`, for a rule that wraps the error's text in its own (`except ValueError as exc:
+    /// raise EventApplicationError(f"...{exc}")`, lane P8 d3).
+    fn text(&self) -> String;
+    /// Whether it is an `EventSuppressed` or an `EventApplicationError`, which a rule lets through
+    /// before it wraps a ValueError (`except (EventApplicationError, EventSuppressed): raise`).
+    fn is_outcome(&self) -> bool {
+        false
+    }
 }
 
 /// The core's errors by the Python class each becomes: every `EventSuppressed`,
@@ -66,6 +75,16 @@ impl HostFailure for Error {
             Error::Type(_) => ErrorClass::Type,
             Error::Runtime(_) | Error::Math(_) => ErrorClass::Other,
         }
+    }
+
+    /// The text of the Python error it becomes. A `KeyError`'s `str` quotes its text; this gives it
+    /// bare, as `Display` does.
+    fn text(&self) -> String {
+        self.to_string()
+    }
+
+    fn is_outcome(&self) -> bool {
+        matches!(self, Error::Outcome(..))
     }
 }
 
@@ -197,6 +216,8 @@ pub enum Part {
 pub const NO_DRAW: &str = "not a CounterRNG";
 /// The text of a host that cannot look up the EventLog's records (`Host::find_record`).
 pub const NO_RECORDS: &str = "the host has no records";
+/// The text of a host that cannot read the floor plan (`Host::floor_plan`).
+pub const NO_PLAN: &str = "the host has no floor plan";
 
 /// The outside of the world. Each call runs with nothing of the world borrowed (rule R6).
 pub trait Host {
@@ -247,6 +268,16 @@ pub trait Host {
     /// request's head) asks the host. A host without the records refuses.
     fn find_record(&mut self, _event_id: &str) -> Result<Option<Logged>, Self::Error> {
         Err(Error::unsupported(NO_RECORDS).into())
+    }
+
+    // ---- The floor plan (lane P8 d3) ----------------------------------------------------------------
+
+    /// The floor plan of the world now (`Geo::of`), for a rule that read it, changed what it is
+    /// built from (the overlay's facility points) and reads it again: each toilet an EffectProgram
+    /// adds is placed on the plan the toilets before it left. A host without the configs' sections
+    /// refuses.
+    fn floor_plan(&mut self) -> Result<Arc<Geo>, Self::Error> {
+        Err(Error::unsupported(NO_PLAN).into())
     }
 
     // ---- Input contracts (policy E15) ------------------------------------------------------------

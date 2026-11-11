@@ -307,8 +307,10 @@ fn an_installed_facility_without_a_point_raises_the_rule_text() {
         overlay::place_facility(&world, &Held::Held, Some(&geo), "f9", "ev1", &[]),
         Err(value_error("no free floor-plan point for installed facility 'f9'"))
     );
-    assert_eq!(overlay::placement_enabled(&schema(4), true), Ok(true));
-    assert_eq!(overlay::placement_enabled(&schema(3), true), Ok(false));
+    assert_eq!(overlay::placement_enabled(&schema(4), &Held::Held), Ok(true));
+    assert_eq!(overlay::placement_enabled(&schema(4), &Held::Absent), Ok(false));
+    assert_eq!(overlay::placement_enabled(&schema(3), &Held::Held), Ok(false));
+    assert!(overlay::placement_enabled(&schema(4), &Held::Other("another overlay")).is_err());
 }
 
 // ---- geometry changes -------------------------------------------------------------------------------
