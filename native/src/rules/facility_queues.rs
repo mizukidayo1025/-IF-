@@ -4,9 +4,8 @@
 //! (`with_world`), and makes the Python values of what it returns. The core writes the row alone;
 //! an attached namespace's tree follows it when the borrow ends (lane P8-0c).
 //!
-//! The writes the service rules call (`write_*`, `transition_row`, `write_transition`) keep their
-//! names and arguments; the readers they call while they hold other borrows read the row through its
-//! mirror (`state/facility_queues.rs`).
+//! The readers the rules still in this crate call while they hold other borrows read the row
+//! through its mirror (`state/facility_queues.rs`).
 
 use pyo3::intern;
 use pyo3::prelude::*;
@@ -15,7 +14,7 @@ use sheltersim_core::config::population::AccessibilityNeeds;
 use sheltersim_core::rules::facility_queues as core;
 use sheltersim_core::rules::kit::Held;
 
-pub(crate) use sheltersim_core::rules::facility_queues::{point_of, position_in, request_of_task};
+pub(crate) use sheltersim_core::rules::facility_queues::{point_of, request_of_task};
 pub(crate) use crate::state::facility_queues::{
     detached_records, has_independent, independent_heads, with_queues,
 };
@@ -24,8 +23,8 @@ use crate::core::configs;
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, PyField};
 use crate::core::world_core::{namespace_held, with_world};
-use crate::rules::movement_geometry::{self, Geo, GeoPy, ServicePoint};
-use crate::state::events::{write_result, EventRow, EventStatus, EventWriter};
+use crate::rules::movement_geometry::{self, Geo, GeoPy};
+use crate::state::events::{write_result, EventWriter};
 use crate::state::facility_queues::{held, held_mirror, request_node, QueueRequest};
 use crate::Unsupported;
 
@@ -34,69 +33,6 @@ pub(crate) const STATE_KEY: &str = core::STATE_KEY;
 /// Whether the world holds `movement_v1`, as `movement::mirror_held` answers.
 fn movement_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
     namespace_held(world, intern!(world.py(), "movement_v1"), "the world holds another movement state")
-}
-
-// ---- Writing, for the service rules ------------------------------------------------------------------
-
-/// `enqueue`, after its check.
-pub(crate) fn write_enqueue(
-    world: &Bound<'_, PyAny>,
-    point: &ServicePoint,
-    request_id: &str,
-    task_id: &str,
-    agent_id: &str,
-    service_kind: &str,
-    requested_minute: i64,
-) -> PyResult<()> {
-    with_world(world, |world| core::write_enqueue(world, point, request_id, task_id, agent_id, service_kind, requested_minute))?.or_py()
-}
-
-/// `start_service`'s writes, the request being one the queue holds as queued.
-pub(crate) fn write_start(world: &Bound<'_, PyAny>, request_id: &str, queue_id: &str, active_task_id: &str) -> PyResult<()> {
-    with_world(world, |world| core::write_start(world, request_id, queue_id, active_task_id))?.or_py()
-}
-
-/// `finish_service`'s writes, for the request `request_of_task` found.
-pub(crate) fn write_finish(world: &Bound<'_, PyAny>, request: &QueueRequest) -> PyResult<()> {
-    with_world(world, |world| core::write_finish(world, request))?.or_py()
-}
-
-/// `queued.remove(request_id)` and `queued.insert(0, request_id)` of a request just queued: it
-/// goes back to the head of its queue.
-pub(crate) fn write_to_head(world: &Bound<'_, PyAny>, queue_id: &str, request_id: &str) -> PyResult<()> {
-    with_world(world, |world| core::write_to_head(world, queue_id, request_id))?.or_py()
-}
-
-/// `mark_stall`.
-pub(crate) fn write_stall(world: &Bound<'_, PyAny>, queue_id: &str, request_id: &str, reason: &str) -> PyResult<()> {
-    with_world(world, |world| core::write_stall(world, queue_id, request_id, reason))?.or_py()
-}
-
-/// The record of `record_queue_transition`, changing nothing: `sequence` is the one it will take.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn transition_row(
-    writer: &EventWriter<'_>,
-    request: &QueueRequest,
-    transition: &str,
-    task_id: &str,
-    wait_minutes: Option<i64>,
-    causation_id: Option<&str>,
-    queue_position: Option<i64>,
-    capacity: Option<i64>,
-    sequence: i64,
-    minute: i64,
-) -> PyResult<EventRow> {
-    let taken = writer.is_realized(&core::transition_id(sequence), Some(sequence))?;
-    let payload =
-        core::transition_payload(taken, request, transition, task_id, wait_minutes, causation_id, queue_position, capacity, sequence, minute)
-            .or_py()?;
-    core::transition_event(payload, causation_id, sequence, minute).or_py()
-}
-
-/// The record `transition_row` made, in the log.
-pub(crate) fn write_transition(writer: &EventWriter<'_>, row: &EventRow, minute: i64) -> PyResult<()> {
-    writer.allocate_sequence()?;
-    writer.record(row, minute, EventStatus::Applied, None)
 }
 
 // ---- The kernels ---------------------------------------------------------------------------------
@@ -258,7 +194,7 @@ fn finish_service<'py>(world: &Bound<'py, PyAny>, task_id: &Bound<'py, PyAny>, s
     let copy = PyDict::new(py);
     copy.call_method1(intern!(py, "update"), (&node,))?;
     copy.set_item(intern!(py, "status"), status)?;
-    write_finish(world, &request)?;
+    with_world(world, |world| core::write_finish(world, &request))?.or_py()?;
     Ok(Some(copy.into_any()))
 }
 

@@ -1,59 +1,48 @@
 //! `ToiletServiceManager` of `domain/facilities.py` and `ToiletServiceCompletionHandler` of
-//! `events/handlers.py`. Each kernel is one call that plans with nothing changed and then writes.
-//! What goes to Python, before anything is written: the world's whole validation, and anything not
-//! plainly what the Python rule accepts, which is also how a bad value gets its error text
-//! (docs/rust-port/lanes/m6-handlers.md, m6-overlay.md).
+//! `events/handlers.py` (lane c3 of Issue #152): a person queues (`queue_up`, `request`), the head
+//! starts a service of a drawn length (`start`), and a completion lets the person go (`complete`).
+//! Each kernel plans with nothing changed and then writes, on the world's rows alone; an attached
+//! tree follows its row when the borrow ends (lane P8-0c).
+//!
+//! The PyO3 crate's file of the same name reads first what only Python holds (the manager's
+//! durations and policy, the random source's seed, whether the world holds each namespace, the
+//! floor plan, an answer of a tainted `staff_operations_v1`), and makes the Python values of what a
+//! kernel returns. The world's whole validation (`validate_state`) and the draw of a random source
+//! that is not a `CounterRNG` (a test's) go through the `Host`. A completion's walk home
+//! (`after_complete`) stays the PyO3 crate's until lane c6: `complete` says the walk is due.
 
 use std::sync::Arc;
 
 use indexmap::IndexMap;
-use pyo3::intern;
-use pyo3::prelude::*;
-use pyo3::sync::GILOnceCell;
-use pyo3::types::{PyBool, PyFloat, PyList, PySlice, PyString, PyTuple};
 use sha2::{Digest, Sha256};
 
-use crate::core::errors;
-use crate::core::mathx::py_max;
-use crate::core::rng::{label, Key, KeyedDraws};
-use crate::core::row::{attribute, exact_dict, exact_int, exact_int_text, exact_str, map_set, namespace_is_absent, unsupported};
-use crate::core::value::V;
-use crate::core::world_core::{mirror_of, raw_dict_get, NamespaceMirror};
-use crate::rules::facility_queues::{
-    choose_queue_id, has_independent, point_of, position_in, request_of_task, transition_row, with_queues, write_enqueue, write_finish, write_stall,
-    write_start, write_transition,
-};
-use crate::rules::movement_geometry::{Geo, GeoPy};
-use crate::rules::queues::head_to_service;
-use crate::rules::service::{add_one, metrics_of, service_capacity, set_agent};
-use crate::rules::staff_dynamics::{is_available, is_available_now, staff_status};
+use crate::config::population::AccessibilityNeeds;
+use crate::entities::{Activity, TaskRow};
+use crate::error::{Error, Result};
+use crate::events::writer::WriteResult;
+use crate::events::{EventKind, EventRow};
+use crate::geometry::Geo;
+use crate::host::{Host, Part};
+use crate::mathx::py_max;
+use crate::rng::{label, Key, KeyedDraws};
+use crate::rules::facility_queues::{self as fifo, point_of};
+use crate::rules::kit::{add_metric, check_metric_state, held_row, is_toilet, set_agent, Events, Held, Kept};
+use crate::rules::queues::{self as queues, Walk};
+use crate::rules::service::{choose_queue, finishing_request, first_available, payload_text, plain, record_wait, release_staff, remove_from, remove_task, service_capacity, transition_row};
 use crate::state::body_state::{BodyRow, NAME as BODY_STATE};
-use crate::state::entities::{entities_of, insert_entity, remove_entity, Activity, EntityStore, TaskRow};
-use crate::state::events::{EventKind, EventRef, EventRow, EventWriter};
 use crate::state::facility_queues::QueueRequest;
-use crate::state::metric_state::MetricRow;
-use crate::Unsupported;
+use crate::text::py_repr;
+use crate::value::V;
+use crate::world::{World, WorldCell};
 
 /// `ToiletServiceCompletionHandler`: what a completed visit takes off the hygiene need.
-const HYGIENE_RELIEF: f64 = 0.2;
+pub const HYGIENE_RELIEF: f64 = 0.2;
 const COMPLETED_METRIC: &str = "toilet_service_completed_count";
 const DURATION_SOURCE: &str = "ASM-TOILET-SERVICE-DURATION-V1";
-static COUNTER_RNG: GILOnceCell<Py<PyAny>> = GILOnceCell::new();
-
-/// `"toilet" in kind.casefold()`, with the core's fold (`sheltersim_core::rules::kit::is_toilet`).
-pub(crate) fn is_toilet(kind: &str) -> PyResult<bool> {
-    Ok(sheltersim_core::rules::kit::is_toilet(kind))
-}
-
-fn receipt_class(py: Python<'_>) -> PyResult<&Bound<'_, PyAny>> {
-    static CLASS: GILOnceCell<Py<PyAny>> = GILOnceCell::new();
-    Ok(CLASS
-        .get_or_try_init(py, || -> PyResult<Py<PyAny>> { Ok(py.import("sheltersim.domain.facilities")?.getattr("ToiletRequestReceipt")?.unbind()) })?
-        .bind(py))
-}
+const NO_QUEUE: &str = "no accessible independent toilet service queue is available";
 
 /// `sha256(f"{facility}\0{agent}\0{minute}")`, its first 24 hex digits.
-fn queue_task_id(facility_id: &str, agent_id: &str, minute: i64) -> Arc<str> {
+pub fn queue_task_id(facility_id: &str, agent_id: &str, minute: i64) -> Arc<str> {
     let mut hash = Sha256::new();
     hash.update(facility_id.as_bytes());
     hash.update([0]);
@@ -70,108 +59,103 @@ fn queue_task_id(facility_id: &str, agent_id: &str, minute: i64) -> Arc<str> {
     Arc::from(text)
 }
 
-/// `request`: the task's ID and the place in the queue.
-pub(crate) fn queue_up<'py>(
-    world: &Bound<'py, PyAny>,
-    agent_id: &Bound<'py, PyAny>,
-    facility_id: &Bound<'py, PyAny>,
-    queue_id: Option<&str>,
-) -> PyResult<(Arc<str>, i64, i64)> {
-    let py = world.py();
-    let (agent_name, facility_name) = (exact_str(agent_id)?, exact_str(facility_id)?);
-    let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
-    let store = entities_of(world)?;
+// ---- request -------------------------------------------------------------------------------------
+
+/// What `request` takes besides the world.
+pub struct Request<'a> {
+    pub agent_id: &'a str,
+    pub facility_id: &'a str,
+    /// The given `queue_id`, unless None.
+    pub queue_id: Option<&'a str>,
+    /// Whether the world holds `facility_queues_v1`.
+    pub queues: &'a Held,
+    /// The floor plan (`Geo::of`).
+    pub geo: &'a Geo,
+    /// The population's accessibility needs (`choose_queue_id`'s), as the PyO3 crate read them.
+    pub needs: &'a Kept<AccessibilityNeeds>,
+}
+
+/// `ToiletRequestReceipt`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Receipt {
+    pub agent_id: Arc<str>,
+    pub facility_id: Arc<str>,
+    pub requested_at: i64,
+    pub queue_task_id: Arc<str>,
+    pub queue_position: i64,
+}
+
+/// `request` without the world's validation: the receipt. A refused request at the end of a walk is
+/// saved as the event's detail (`_after_arrival`), so the checks are the Python rule's, in its order
+/// and with its texts.
+pub fn queue_up(world: &World, request: &Request<'_>) -> WriteResult<Receipt> {
+    let (agent_name, facility_name) = (request.agent_id, request.facility_id);
+    let minute = world.minute_index()?;
     let task_id = queue_task_id(facility_name, agent_name, minute);
-    // The Python rule's checks, in its order and with its texts: a refused request at the end of a
-    // walk is saved as the event's detail (`_after_arrival`).
-    let refused = EntityStore::with_rows(&store, |rows| {
+    {
+        let rows = world.rows()?;
         let Some(agent) = rows.agents.get(agent_name) else {
-            return Ok(Some(format!("unknown Agent {}", errors::repr_str(py, agent_name)?)));
+            return Err(Error::value_error(format!("unknown Agent {}", py_repr(agent_name))).into());
         };
-        let is_a_toilet = match rows.facilities.get(facility_name) {
-            Some(facility) => is_toilet(&facility.kind)?,
-            None => false,
-        };
-        if !is_a_toilet {
-            return Ok(Some(format!("{} is not a toilet Facility", errors::repr_str(py, facility_name)?)));
+        if !rows.facilities.get(facility_name).is_some_and(|facility| is_toilet(&facility.kind)) {
+            return Err(Error::value_error(format!("{} is not a toilet Facility", py_repr(facility_name))).into());
         }
         if !matches!(agent.activity, Activity::Idle | Activity::Resting | Activity::Sleeping) {
-            return Ok(Some(format!("Agent {} cannot request a toilet while active", errors::repr_str(py, agent_name)?)));
+            return Err(Error::value_error(format!("Agent {} cannot request a toilet while active", py_repr(agent_name))).into());
         }
         for (_, other) in rows.facilities.iter() {
             if other.queue_agent_ids.iter().chain(&other.active_agent_ids).any(|id| &**id == agent_name) {
-                return Ok(Some(format!("Agent {} already has an active toilet request", errors::repr_str(py, agent_name)?)));
+                return Err(Error::value_error(format!("Agent {} already has an active toilet request", py_repr(agent_name))).into());
             }
         }
-        if rows.active_tasks.get(&*task_id).is_some() {
-            return Err(errors::invariant(format!("duplicate toilet queue task ID {}", errors::repr_str(py, &task_id)?)));
+        if rows.active_tasks.get(&task_id).is_some() {
+            return Err(Error::invariant(format!("duplicate toilet queue task ID {}", py_repr(&task_id))).into());
         }
-        Ok(None)
-    })?;
-    if let Some(text) = refused {
-        return Err(errors::value_error(text));
     }
-    let independent = has_independent(world, facility_name)?;
-    if queue_id.is_some() && !independent {
-        return unsupported("a queue ID of a facility without independent queues");
+    let independent = fifo::queues(world, request.queues)?.is_some_and(|row| fifo::has_independent(&row, facility_name));
+    if request.queue_id.is_some() && !independent {
+        return Err(Error::unsupported("a queue ID of a facility without independent queues").into());
     }
-    const NO_QUEUE: &str = "no accessible independent toilet service queue is available";
-    let chosen_queue = match (independent, queue_id) {
+    let chosen_queue: Option<Arc<str>> = match (independent, request.queue_id) {
         (false, _) => None,
-        (true, Some(queue)) if !queue.is_empty() => Some(queue.to_owned()),
-        (true, _) => choose_queue_id(world, facility_id, agent_id)?,
+        (true, Some(queue)) if !queue.is_empty() => Some(Arc::from(queue)),
+        (true, _) => choose_queue(world, request.queues, request.geo, facility_name, agent_name, request.needs)?,
     };
     if independent && chosen_queue.is_none() {
-        return Err(errors::value_error(NO_QUEUE));
+        return Err(Error::value_error(NO_QUEUE).into());
     }
-    let geo = Geo::of(world)?;
     let point = match &chosen_queue {
-        Some(queue) => match point_of(&geo, queue) {
+        Some(queue) => match point_of(request.geo, queue) {
             Some(point) if &*point.facility_id == facility_name => Some(point),
-            _ => return Err(errors::value_error(NO_QUEUE)),
+            _ => return Err(Error::value_error(NO_QUEUE).into()),
         },
         None => None,
     };
     let queue_tail = match &chosen_queue {
-        Some(queue) => with_queues(world, |row| match row.queues.get(&**queue) {
-            Some(queue) => Ok(queue.queued_request_ids.len() as i64 + 1),
-            None => unsupported("no such queue"),
-        })?,
+        Some(queue) => match fifo::queues(world, request.queues)? {
+            Some(row) => match row.queues.get(&**queue) {
+                Some(queue) => Some(queue.queued_request_ids.len() as i64 + 1),
+                None => return Err(Error::unsupported("no such queue").into()),
+            },
+            None => None,
+        },
         None => None,
     };
-    let position = EntityStore::with_rows(&store, |rows| {
-        let (Some(agent), Some(facility)) = (rows.agents.get(agent_name), rows.facilities.get(facility_name)) else {
-            return unsupported("no such agent or facility");
+    let position = {
+        let rows = world.rows()?;
+        let Some(facility) = rows.facilities.get(facility_name) else {
+            return Err(Error::unsupported("no such agent or facility").into());
         };
-        if !is_toilet(&facility.kind)? {
-            return unsupported("not a toilet");
-        }
-        if !matches!(agent.activity, Activity::Idle | Activity::Resting | Activity::Sleeping) {
-            return unsupported("the person cannot queue now");
-        }
-        for (_, other) in rows.facilities.iter() {
-            if other.queue_agent_ids.iter().chain(&other.active_agent_ids).any(|id| &**id == agent_name) {
-                return unsupported("the person has a toilet request");
-            }
-        }
-        if rows.active_tasks.get(&*task_id).is_some() {
-            return unsupported("the queue task's ID is taken");
-        }
-        Ok(queue_tail.unwrap_or(facility.queue_agent_ids.len() as i64 + 1))
-    })?;
-    let facilities = attribute(world, intern!(py, "facilities"))?;
-    let Some(facility) = raw_dict_get(&facilities, facility_id)? else {
-        return unsupported("a row has no object");
+        queue_tail.unwrap_or(facility.queue_agent_ids.len() as i64 + 1)
     };
-    let queue = attribute(&facility, intern!(py, "queue_agent_ids"))?;
-    let writer = EventWriter::of(world)?;
+    let events = Events::of(world)?;
     let transition = match point {
         Some(point) => {
-            let known = with_queues(world, |row| Ok(row.requests.contains_key(&*task_id)))?;
+            let known = fifo::queues(world, request.queues)?.map(|row| row.requests.contains_key(&*task_id));
             if known != Some(false) {
-                return unsupported("the request's ID is in use");
+                return Err(Error::unsupported("the request's ID is in use").into());
             }
-            let request = QueueRequest {
+            let queued = QueueRequest {
                 request_id: task_id.clone(),
                 queue_id: point.queue_id.clone(),
                 service_point_id: point.id.clone(),
@@ -183,151 +167,140 @@ pub(crate) fn queue_up<'py>(
                 queue_task_id: task_id.clone(),
                 active_task_id: task_id.clone(),
             };
-            let sequence = writer.next_sequence()?;
-            Some(transition_row(&writer, &request, "queued", &task_id, None, None, Some(position), Some(point.service_capacity), sequence, minute)?)
+            let sequence = events.next_sequence()?;
+            Some(transition_row(&events, &queued, "queued", &task_id, None, None, Some(position), Some(point.service_capacity), sequence, minute)?)
         }
         None => None,
     };
 
     // Write.
-    queue.call_method1(intern!(py, "append"), (agent_id,))?;
-    if let Some(point) = point {
-        write_enqueue(world, point, &task_id, &task_id, agent_name, "toilet", minute)?;
-    }
-    insert_entity(world, &task_id, TaskRow {
-        id: task_id.clone(),
-        kind: Arc::from("toilet_queue"),
-        agent_id: Some(Arc::from(agent_name)),
-        resource_id: Some(Arc::from(facility_name)),
-        start_minute: minute,
-        due_minute: minute,
-        staff_id: None,
-    })?;
-    set_agent(world, &store, agent_id, Activity::Queued, Some(facility_id))?;
-    if let Some(transition) = &transition {
-        write_transition(&writer, transition, minute)?;
-    }
-    Ok((task_id, minute, position))
-}
-
-/// `ToiletServiceManager.request`.
-#[pyfunction]
-#[pyo3(signature = (manager, agent_id, facility_id, *, minute=None, validate_state=None, queue_id=None))]
-fn request<'py>(
-    manager: &Bound<'py, PyAny>,
-    agent_id: &Bound<'py, PyAny>,
-    facility_id: &Bound<'py, PyAny>,
-    minute: Option<&Bound<'py, PyAny>>,
-    validate_state: Option<&Bound<'py, PyAny>>,
-    queue_id: Option<&Bound<'py, PyAny>>,
-) -> PyResult<Bound<'py, PyAny>> {
-    let py = manager.py();
-    let validates = !validate_state.is_some_and(|validate| validate.downcast_exact::<PyBool>().is_ok_and(|validate| !validate.is_true()));
-    let queue_name = queue_id.filter(|queue| !queue.is_none()).map(exact_str).transpose()?;
-    let world = attribute(manager, intern!(py, "world"))?;
-    if let Some(minute) = minute.filter(|minute| !minute.is_none()) {
-        let now = exact_int(&attribute(&world, intern!(py, "minute_index"))?)?;
-        let Some(minute) = errors::int_not_bool(minute)? else {
-            return Err(errors::value_error("toilet request minute must be an integer"));
+    let agent_arc: Arc<str> = Arc::from(agent_name);
+    let facility_arc: Arc<str> = Arc::from(facility_name);
+    {
+        let mut rows = world.rows_mut()?;
+        let Some(facility) = rows.facilities.get_mut(facility_name) else {
+            return Err(Error::unsupported("no such facility").into());
         };
-        if minute != now {
-            return Err(errors::value_error("toilet request minute must match WorldState"));
-        }
+        facility.queue_agent_ids.push(agent_arc.clone());
     }
-    // `world.validate()` stays Python's (D3). What it raises, it raises here too.
-    if validates {
-        world.call_method0(intern!(py, "validate"))?;
+    if let Some(point) = point {
+        fifo::write_enqueue(world, point, &task_id, &task_id, agent_name, "toilet", minute)?;
     }
-    let (task_id, requested_at, position) = queue_up(&world, agent_id, facility_id, queue_name)?;
-    if validates {
-        world.call_method0(intern!(py, "validate"))?;
+    {
+        let mut rows = world.rows_mut()?;
+        rows.active_tasks.insert(
+            task_id.clone(),
+            TaskRow {
+                id: task_id.clone(),
+                kind: Arc::from("toilet_queue"),
+                agent_id: Some(agent_arc.clone()),
+                resource_id: Some(facility_arc.clone()),
+                start_minute: minute,
+                due_minute: minute,
+                staff_id: None,
+            },
+        );
+        set_agent(&mut rows, agent_name, Activity::Queued, Some(facility_name))?;
     }
-    receipt_class(py)?.call1((agent_id, facility_id, requested_at, &*task_id, position))
+    if let Some(transition) = &transition {
+        fifo::write_transition(&events, transition, minute)?;
+    }
+    Ok(Receipt { agent_id: agent_arc, facility_id: facility_arc, requested_at: minute, queue_task_id: task_id, queue_position: position })
 }
 
-/// `arbitrate`'s facilities with anyone queued, in ID order. Those with none do nothing there.
-#[pyfunction]
-pub(crate) fn facilities_to_serve<'py>(manager: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyList>> {
-    let py = manager.py();
-    let world = attribute(manager, intern!(py, "world"))?;
-    // An independent queue of a facility whose list says nothing has its say in the Python rule.
-    let waiting = with_queues(&world, |row| {
-        Ok(row.queues.values().filter(|queue| !queue.queued_request_ids.is_empty()).map(|queue| queue.facility_id.clone()).collect::<Vec<_>>())
-    })?
-    .unwrap_or_default();
-    let mut due: Vec<Arc<str>> = Vec::new();
-    EntityStore::with_rows(&entities_of(&world)?, |rows| {
-        for (id, facility) in rows.facilities.iter() {
-            if is_toilet(&facility.kind)? && (!facility.queue_agent_ids.is_empty() || waiting.contains(id)) {
-                due.push(id.clone());
-            }
-        }
-        Ok(())
-    })?;
-    due.sort_unstable();
-    let result = PyList::empty(py);
-    if !due.is_empty() {
-        let facilities = attribute(&world, intern!(py, "facilities"))?;
-        for id in due {
-            let Some(facility) = raw_dict_get(&facilities, PyString::new(py, &id).as_any())? else {
-                return unsupported("a row has no object");
-            };
-            result.append(facility)?;
-        }
+/// `ToiletServiceManager.request`: the world's validation before and after (`validates`), through
+/// the host, with the world let go of around each call.
+pub fn request<C: WorldCell, H: Host>(cell: &C, host: &mut H, request: &Request<'_>, validates: bool) -> std::result::Result<Receipt, H::Error> {
+    if validates {
+        host.validate_world()?;
     }
-    Ok(result)
+    let receipt = cell.with(|world| queue_up(world, request))?.map_err(plain)?;
+    if validates {
+        host.validate_world()?;
+    }
+    Ok(receipt)
+}
+
+// ---- arbitrate -----------------------------------------------------------------------------------
+
+/// `arbitrate`'s facilities with anyone queued, in ID order: those whose folded kind has "toilet",
+/// with someone in their own list or in one of their independent queues.
+pub fn facilities_to_serve(world: &World, queues: &Held) -> Result<Vec<Arc<str>>> {
+    let waiting: Vec<Arc<str>> = match fifo::queues(world, queues)? {
+        Some(row) => row.queues.values().filter(|queue| !queue.queued_request_ids.is_empty()).map(|queue| queue.facility_id.clone()).collect(),
+        None => Vec::new(),
+    };
+    let rows = world.rows()?;
+    let mut due: Vec<Arc<str>> = rows
+        .facilities
+        .iter()
+        .filter(|(id, facility)| is_toilet(&facility.kind) && (!facility.queue_agent_ids.is_empty() || waiting.contains(id)))
+        .map(|(id, _)| id.clone())
+        .collect();
+    due.sort_unstable();
+    Ok(due)
 }
 
 /// `arbitrate`'s condition of a shared queue: someone in it and a free place.
-#[pyfunction]
-pub(crate) fn has_room<'py>(manager: &Bound<'py, PyAny>, facility_id: &Bound<'py, PyAny>) -> PyResult<bool> {
-    let py = manager.py();
-    let world = attribute(manager, intern!(py, "world"))?;
-    let table = attribute(&world, intern!(py, "model_state"))?;
-    exact_dict(&table)?;
-    let name = exact_str(facility_id)?;
-    if has_independent(&world, name)? {
-        return unsupported("a facility with independent queues");
+pub fn has_room(world: &World, queues: &Held, placement: Option<&Geo>, facility_id: &str) -> Result<bool> {
+    if fifo::queues(world, queues)?.is_some_and(|row| fifo::has_independent(&row, facility_id)) {
+        return Err(Error::unsupported("a facility with independent queues"));
     }
-    let found = EntityStore::with_rows(&entities_of(&world)?, |rows| {
-        let Some(facility) = rows.facilities.get(name) else {
-            return unsupported("no such facility");
-        };
-        Ok(if facility.queue_agent_ids.is_empty() { None } else { Some((facility.active_agent_ids.len() as i64, facility.working_units)) })
-    })?;
-    let Some((active, working_units)) = found else {
-        return Ok(false);
+    let rows = world.rows()?;
+    let Some(facility) = rows.facilities.get(facility_id) else {
+        return Err(Error::unsupported("no such facility"));
     };
-    Ok(active < service_capacity(&world, &table, name, working_units)?)
-}
-
-/// The rest of a pass of `arbitrate`'s loop: the head starts its service, and this says the started
-/// event's ID, or None when the service could not finish before the Run ends.
-#[pyfunction]
-pub(crate) fn start_head<'py>(
-    manager: &Bound<'py, PyAny>,
-    facility_id: &Bound<'py, PyAny>,
-    minute: &Bound<'py, PyAny>,
-    rng: &Bound<'py, PyAny>,
-) -> PyResult<Option<Bound<'py, PyString>>> {
-    let world = attribute(manager, intern!(manager.py(), "world"))?;
-    if has_independent(&world, exact_str(facility_id)?)? {
-        return unsupported("a facility with independent queues");
+    if facility.queue_agent_ids.is_empty() {
+        return Ok(false);
     }
-    start_one(manager, facility_id, minute, rng, None)
+    Ok((facility.active_agent_ids.len() as i64) < service_capacity(placement, facility_id, facility.working_units))
 }
 
-/// A pass of `_arbitrate_independent_facility`'s loop after the positions: the started event's ID,
-/// or None to stop the queue, with what stopped it marked on the queue.
-#[pyfunction]
-pub(crate) fn serve_independent_head<'py>(
-    manager: &Bound<'py, PyAny>,
-    facility_id: &Bound<'py, PyAny>,
-    queue_id: &Bound<'py, PyAny>,
-    minute: &Bound<'py, PyAny>,
-    rng: &Bound<'py, PyAny>,
-) -> PyResult<Option<Bound<'py, PyString>>> {
-    start_one(manager, facility_id, minute, rng, Some(exact_str(queue_id)?))
+/// The random source of the tick: a `CounterRNG` of this seed (`str(seed)`), drawn here, or another
+/// (a test's), which the host draws.
+pub enum Rng {
+    Seed(String),
+    Host,
+}
+
+/// What a pass of `arbitrate` takes besides the world.
+pub struct Start<'a> {
+    pub facility_id: &'a str,
+    pub minute: i64,
+    /// The independent queue of the pass, or None for the facility's shared queue.
+    pub queue_id: Option<&'a str>,
+    /// `min_service_minutes`, `max_service_minutes` and `policy_version` of the manager.
+    pub lowest: i64,
+    pub highest: i64,
+    pub policy: Arc<str>,
+    pub rng: &'a Rng,
+    /// Whether the world holds `facility_queues_v1`.
+    pub queues: &'a Held,
+    pub geo: &'a Geo,
+    /// The walk of `progress_physical_queue_head_to_service`, where the world is placed.
+    pub walk: Option<&'a Walk<'a>>,
+    /// Whether `world.metric_state` is its slot's tree.
+    pub metric_state_held: bool,
+    /// The answers of a tainted `staff_operations_v1` read so far.
+    pub idle: &'a [(Arc<str>, bool)],
+}
+
+/// What a pass did.
+#[derive(Debug, PartialEq)]
+pub enum Started {
+    /// The head's service started: the completion's ID.
+    Event(Arc<str>),
+    /// Nothing started: the queue waits (what stopped an independent queue is marked on it).
+    Stopped,
+    /// Nothing written: the answer of a tainted `staff_operations_v1` for this member is needed.
+    NeedsIdle(Arc<str>),
+}
+
+/// What a pass asks before it draws.
+enum Pass {
+    Done(Started),
+    /// The parts of the draw's key, for a random source the host draws.
+    Draw(Vec<Part>),
 }
 
 /// The head of an independent queue, read when a pass starts.
@@ -339,236 +312,224 @@ struct IndependentHead {
     required_skills: Vec<Arc<str>>,
 }
 
-fn start_one<'py>(
-    manager: &Bound<'py, PyAny>,
-    facility_id: &Bound<'py, PyAny>,
-    minute: &Bound<'py, PyAny>,
-    rng: &Bound<'py, PyAny>,
-    queue_id: Option<&str>,
-) -> PyResult<Option<Bound<'py, PyString>>> {
-    let py = manager.py();
-    let world = attribute(manager, intern!(py, "world"))?;
-    let facility_name = exact_str(facility_id)?;
-    let minute_value = exact_int(minute)?;
-    if minute_value != exact_int(&attribute(&world, intern!(py, "minute_index"))?)? {
-        return unsupported("another minute");
-    }
-    let counter_rng = COUNTER_RNG
-        .get_or_try_init(py, || -> PyResult<Py<PyAny>> { Ok(py.import("sheltersim.core.rng")?.getattr("CounterRNG")?.unbind()) })?
-        .bind(py);
-    // The world's CounterRNG draws here, keyed by `str(seed)` of a seed of any size; another
-    // KeyedRandom (a test's) is asked as the rule asks it.
-    let seed = if rng.get_type().is(counter_rng) { Some(exact_int_text(&attribute(rng, intern!(py, "seed"))?)?) } else { None };
-    let lowest = exact_int(&attribute(manager, intern!(py, "min_service_minutes"))?)?;
-    let highest = exact_int(&attribute(manager, intern!(py, "max_service_minutes"))?)?;
-    let policy_object = attribute(manager, intern!(py, "policy_version"))?;
-    let policy: Arc<str> = Arc::from(exact_str(&policy_object)?);
-    let store = entities_of(&world)?;
-    let geo = Geo::of(&world)?;
-    let head = match queue_id {
-        Some(queue_name) => {
-            let Some(point) = point_of(&geo, queue_name) else {
-                return unsupported("a queue with no signed point");
-            };
-            let read = with_queues(&world, |row| {
-                let Some(queue) = row.queues.get(queue_name) else {
-                    return unsupported("no such queue");
-                };
-                let Some(first) = queue.queued_request_ids.first() else {
-                    return unsupported("the queue is empty");
-                };
-                let Some(request) = row.requests.get(&**first) else {
-                    return unsupported("a queue lists an unknown request");
-                };
-                Ok(IndependentHead {
-                    queue_id: Arc::from(queue_name),
-                    request: request.clone(),
-                    active_count: queue.active_request_ids.len() as i64,
-                    point_capacity: if &*point.facility_id == facility_name { point.service_capacity } else { -1 },
-                    required_skills: point.required_staff_skills.clone(),
-                })
-            })?;
-            let Some(read) = read else {
-                return unsupported("no queue state");
-            };
-            if read.point_capacity < 0 {
-                return unsupported("a queue's point is another facility's");
+/// `_start_head` and `_serve_independent_head`: the host draws for a random source that is not a
+/// `CounterRNG`, with the world let go of, and the pass then plans again from the start.
+pub fn start<C: WorldCell, H: Host>(cell: &C, host: &mut H, start: &Start<'_>) -> std::result::Result<Started, H::Error> {
+    match cell.with(|world| pass(world, start, None))?.map_err(plain)? {
+        Pass::Done(started) => Ok(started),
+        Pass::Draw(parts) => {
+            let draw = host.draw(&parts)?;
+            match cell.with(|world| pass(world, start, Some(draw)))?.map_err(plain)? {
+                Pass::Done(started) => Ok(started),
+                Pass::Draw(_) => Err(Error::Runtime("the pass asked for its draw again".to_owned()).into()),
             }
-            Some(read)
+        }
+    }
+}
+
+/// One pass, with the draw the host made, if any.
+fn pass(world: &World, start: &Start<'_>, drawn: Option<f64>) -> WriteResult<Pass> {
+    let facility_name = start.facility_id;
+    let minute = start.minute;
+    if start.queue_id.is_none() && fifo::queues(world, start.queues)?.is_some_and(|row| fifo::has_independent(&row, facility_name)) {
+        return Err(Error::unsupported("a facility with independent queues").into());
+    }
+    if minute != world.minute_index()? {
+        return Err(Error::unsupported("another minute").into());
+    }
+    let head = match start.queue_id {
+        Some(queue_name) => {
+            let Some(point) = point_of(start.geo, queue_name) else {
+                return Err(Error::unsupported("a queue with no signed point").into());
+            };
+            let Some(row) = fifo::queues(world, start.queues)? else {
+                return Err(Error::unsupported("no queue state").into());
+            };
+            let Some(queue) = row.queues.get(queue_name) else {
+                return Err(Error::unsupported("no such queue").into());
+            };
+            let Some(first) = queue.queued_request_ids.first() else {
+                return Err(Error::unsupported("the queue is empty").into());
+            };
+            let Some(request) = row.requests.get(&**first) else {
+                return Err(Error::unsupported("a queue lists an unknown request").into());
+            };
+            if &*point.facility_id != facility_name {
+                return Err(Error::unsupported("a queue's point is another facility's").into());
+            }
+            Some(IndependentHead {
+                queue_id: Arc::from(queue_name),
+                request: request.clone(),
+                active_count: queue.active_request_ids.len() as i64,
+                point_capacity: point.service_capacity,
+                required_skills: point.required_staff_skills.clone(),
+            })
         }
         None => None,
     };
     if let Some(head) = &head {
-        let (active, limit) = EntityStore::with_rows(&store, |rows| {
+        let (active, limit) = {
+            let rows = world.rows()?;
             let Some(facility) = rows.facilities.get(facility_name) else {
-                return unsupported("no such facility");
+                return Err(Error::unsupported("no such facility").into());
             };
-            Ok((facility.active_agent_ids.len() as i64, facility.capacity.min(facility.working_units)))
-        })?;
+            (facility.active_agent_ids.len() as i64, facility.capacity.min(facility.working_units))
+        };
         if head.active_count >= head.point_capacity || active >= limit {
-            write_stall(&world, &head.queue_id, &head.request.request_id, "capacity")?;
-            return Ok(None);
+            fifo::write_stall(world, &head.queue_id, &head.request.request_id, "capacity")?;
+            return Ok(Pass::Done(Started::Stopped));
         }
         // Writes only what ends this pass.
-        if head_to_service(&world, facility_id, false, minute_value, Some(&head.queue_id))? {
-            return Ok(None);
+        if let Some(walk) = start.walk {
+            if queues::head_to_service(world, walk, facility_name, false, minute, Some(&head.queue_id))? {
+                return Ok(Pass::Done(Started::Stopped));
+            }
         }
     }
-    let (agent_id, queue_task_id, queue_start) = EntityStore::with_rows(&store, |rows| {
+    let (agent_id, queue_task_id, queue_start) = {
+        let rows = world.rows()?;
         let Some(facility) = rows.facilities.get(facility_name) else {
-            return unsupported("no such facility");
+            return Err(Error::unsupported("no such facility").into());
         };
-        if let Some(head) = &head {
-            let Some(task) = rows.active_tasks.get(&*head.request.queue_task_id).filter(|task| &*task.kind == "toilet_queue") else {
-                return unsupported("a queue's request lost its task");
-            };
-            if !facility.queue_agent_ids.contains(&head.request.agent_id) {
-                return unsupported("a request is missing from the facility's list");
-            }
-            return Ok((head.request.agent_id.clone(), task.id.clone(), task.start_minute));
-        }
-        let Some(agent_id) = facility.queue_agent_ids.first() else {
-            return unsupported("the queue is empty");
-        };
-        // `_queue_task`.
-        let mut found = None;
-        for (_, task) in rows.active_tasks.iter() {
-            if &*task.kind == "toilet_queue" && task.agent_id.as_deref() == Some(&**agent_id) && task.resource_id.as_deref() == Some(facility_name) {
-                if found.is_some() {
-                    return unsupported("a person with two queue tasks");
+        match &head {
+            Some(head) => {
+                let Some(task) = rows.active_tasks.get(&head.request.queue_task_id).filter(|task| &*task.kind == "toilet_queue") else {
+                    return Err(Error::unsupported("a queue's request lost its task").into());
+                };
+                if !facility.queue_agent_ids.contains(&head.request.agent_id) {
+                    return Err(Error::unsupported("a request is missing from the facility's list").into());
                 }
-                found = Some((task.id.clone(), task.start_minute));
+                (head.request.agent_id.clone(), task.id.clone(), task.start_minute)
+            }
+            None => {
+                let Some(agent_id) = facility.queue_agent_ids.first() else {
+                    return Err(Error::unsupported("the queue is empty").into());
+                };
+                // `_queue_task`.
+                let mut found = None;
+                for (_, task) in rows.active_tasks.iter() {
+                    if &*task.kind == "toilet_queue" && task.agent_id.as_deref() == Some(&**agent_id) && task.resource_id.as_deref() == Some(facility_name) {
+                        if found.is_some() {
+                            return Err(Error::unsupported("a person with two queue tasks").into());
+                        }
+                        found = Some((task.id.clone(), task.start_minute));
+                    }
+                }
+                let Some((task_id, start)) = found else {
+                    return Err(Error::unsupported("a person with no queue task").into());
+                };
+                (agent_id.clone(), task_id, start)
             }
         }
-        let Some((task_id, start)) = found else {
-            return unsupported("a person with no queue task");
-        };
-        Ok((agent_id.clone(), task_id, start))
-    })?;
-    let wait = minute_value.checked_sub(queue_start).ok_or_else(|| Unsupported::new_err("a start out of range"))?;
+    };
+    let wait = minute.checked_sub(queue_start).ok_or_else(|| Error::unsupported("a start out of range"))?;
     if !(0..1 << 53).contains(&wait) {
-        return unsupported("a wait for the Python rule to judge");
+        return Err(Error::unsupported("a wait for the Python rule to judge").into());
     }
     // The draw and its key, as `rng_key` holds them.
-    let draw = match seed {
-        Some(seed) => {
-            let draws = KeyedDraws::new(&seed);
+    let draw = match (start.rng, drawn) {
+        (Rng::Seed(seed), _) => {
+            let draws = KeyedDraws::new(seed);
             let mut key = Key::labelled(label::TOILET_SERVICE);
-            key.text(facility_name).text(&agent_id).text("minute").int(minute_value).text(&policy).text("duration");
+            key.text(facility_name).text(&agent_id).text("minute").int(minute).text(&start.policy).text("duration");
             if let Some(head) = &head {
                 key.text(&head.queue_id);
             }
             key.draw(&draws)
         }
-        None => {
-            let mut parts: Vec<Bound<'py, PyAny>> = vec![
-                PyString::new(py, label::TOILET_SERVICE).into_any(),
-                facility_id.clone(),
-                PyString::new(py, &agent_id).into_any(),
-                PyString::new(py, "minute").into_any(),
-                minute.clone(),
-                policy_object.clone(),
-                PyString::new(py, "duration").into_any(),
+        (Rng::Host, None) => {
+            let mut parts = vec![
+                Part::Text(Arc::from(label::TOILET_SERVICE)),
+                Part::Text(Arc::from(facility_name)),
+                Part::Text(agent_id.clone()),
+                Part::Text(Arc::from("minute")),
+                Part::Int(minute),
+                Part::Text(start.policy.clone()),
+                Part::Text(Arc::from("duration")),
             ];
             if let Some(head) = &head {
-                parts.push(PyString::new(py, &head.queue_id).into_any());
+                parts.push(Part::Text(head.queue_id.clone()));
             }
-            let drawn = rng.call_method1(intern!(py, "random"), PyTuple::new(py, parts)?)?;
-            let Ok(drawn) = drawn.downcast_exact::<PyFloat>() else {
-                return unsupported("a draw that is not a float");
-            };
-            let draw = drawn.value();
+            return Ok(Pass::Draw(parts));
+        }
+        (Rng::Host, Some(draw)) => {
             if !(0.0..1.0).contains(&draw) {
-                return Err(errors::value_error("keyed RNG draw must be between zero and one"));
+                return Err(Error::value_error("keyed RNG draw must be between zero and one").into());
             }
             draw
         }
     };
+    let (lowest, highest) = (start.lowest, start.highest);
     let span = highest - lowest + 1;
     let service_minutes = (lowest + (draw * span as f64) as i64).min(highest);
-    let Some(due) = minute_value.checked_add(service_minutes) else {
-        return unsupported("a due minute out of range");
+    let Some(due) = minute.checked_add(service_minutes) else {
+        return Err(Error::unsupported("a due minute out of range").into());
     };
-    let writer = EventWriter::of(&world)?;
-    if due >= writer.duration() {
+    let events = Events::of(world)?;
+    if due >= events.duration() {
         if let Some(head) = &head {
-            write_stall(&world, &head.queue_id, &head.request.request_id, "run_end")?;
+            fifo::write_stall(world, &head.queue_id, &head.request.request_id, "run_end")?;
         }
-        return Ok(None);
+        return Ok(Pass::Done(Started::Stopped));
     }
     // The first free skilled person in ID order, where the point asks for skills.
     let mut staff_id: Option<Arc<str>> = None;
     if let Some(head) = head.as_ref().filter(|head| !head.required_skills.is_empty()) {
-        let mut candidates: Vec<Arc<str>> = EntityStore::with_rows(&store, |rows| {
+        let candidates: Vec<Arc<str>> = {
+            let rows = world.rows()?;
             let Some(facility) = rows.facilities.get(facility_name) else {
-                return unsupported("no such facility");
+                return Err(Error::unsupported("no such facility").into());
             };
-            Ok(rows
-                .staff
+            rows.staff
                 .iter()
                 .filter(|(_, person)| {
-                    head.required_skills.iter().all(|wanted| person.skills.0.contains(wanted))
-                        && person.zone_id == facility.zone_id
-                        && person.active_task_id.is_none()
+                    head.required_skills.iter().all(|wanted| person.skills.0.contains(wanted)) && person.zone_id == facility.zone_id && person.active_task_id.is_none()
                 })
                 .map(|(_, person)| person.id.clone())
-                .collect())
-        })?;
-        candidates.sort_unstable_by(|first, second| first.as_bytes().cmp(second.as_bytes()));
-        let status = staff_status(&world)?;
-        for candidate in candidates {
-            let id = PyString::new(py, &candidate);
-            if is_available(status.as_ref(), &id)? && is_available_now(&world, id.as_any(), minute)? {
-                staff_id = Some(candidate);
-                break;
+                .collect()
+        };
+        match first_available(world, candidates, minute, start.idle)? {
+            Ok(Some(chosen)) => staff_id = Some(chosen),
+            Ok(None) => {
+                fifo::write_stall(world, &head.queue_id, &head.request.request_id, "staff")?;
+                return Ok(Pass::Done(Started::Stopped));
             }
-        }
-        if staff_id.is_none() {
-            write_stall(&world, &head.queue_id, &head.request.request_id, "staff")?;
-            return Ok(None);
+            Err(asked) => return Ok(Pass::Done(Started::NeedsIdle(asked))),
         }
     }
-    let sequence = writer.next_sequence()?;
+    let sequence = events.next_sequence()?;
     let event_id: Arc<str> = Arc::from(format!("toilet-complete-{sequence}"));
     let task_id: Arc<str> = Arc::from(format!("toilet-service-{sequence}"));
     {
-        let task_is_taken = EntityStore::with_rows(&store, |rows| Ok(rows.active_tasks.get(&*task_id).is_some()))?;
-        if writer.is_taken(&event_id, None)? || task_is_taken {
-            return unsupported("the service's identity is taken");
+        let task_is_taken = world.rows()?.active_tasks.get(&task_id).is_some();
+        if events.is_taken(&event_id, None)? || task_is_taken {
+            return Err(Error::unsupported("the service's identity is taken").into());
         }
-        if writer.with_log(|log| log.has_sequence(sequence))? {
-            return unsupported("the service's sequence is taken");
+        if events.with_log(|log| log.has_sequence(sequence))? {
+            return Err(Error::unsupported("the service's sequence is taken").into());
         }
     }
     let facility_arc: Arc<str> = Arc::from(facility_name);
     let text = |value: &str| V::Str(Arc::from(value));
-    let mut payload = IndexMap::with_capacity(3);
+    let mut payload = IndexMap::with_capacity(4);
     payload.insert(Arc::from("facility_id"), V::Str(facility_arc.clone()));
     payload.insert(Arc::from("agent_id"), V::Str(agent_id.clone()));
     payload.insert(Arc::from("task_id"), V::Str(task_id.clone()));
     if head.is_some() {
         payload.insert(Arc::from("staff_id"), staff_id.as_ref().map_or(V::Null, |id| V::Str(id.clone())));
     }
-    let mut provenance = IndexMap::with_capacity(12);
+    let mut provenance = IndexMap::with_capacity(13);
     provenance.insert(Arc::from("source_type"), text("assumption"));
     provenance.insert(Arc::from("source_id"), text(DURATION_SOURCE));
-    provenance.insert(Arc::from("policy_version"), V::Str(policy.clone()));
+    provenance.insert(Arc::from("policy_version"), V::Str(start.policy.clone()));
     provenance.insert(Arc::from("duration_distribution"), text("discrete_uniform_inclusive"));
     provenance.insert(Arc::from("minimum_minutes"), V::Int(lowest));
     provenance.insert(Arc::from("maximum_minutes"), V::Int(highest));
     provenance.insert(Arc::from("service_minutes"), V::Int(service_minutes));
     provenance.insert(Arc::from("queue_wait_minutes"), V::Int(wait));
     provenance.insert(Arc::from("requested_at"), V::Int(queue_start));
-    provenance.insert(Arc::from("service_started_at"), V::Int(minute_value));
-    let mut rng_key = vec![
-        text(label::TOILET_SERVICE),
-        V::Str(facility_arc.clone()),
-        V::Str(agent_id.clone()),
-        text("minute"),
-        V::Int(minute_value),
-        V::Str(policy),
-        text("duration"),
-    ];
+    provenance.insert(Arc::from("service_started_at"), V::Int(minute));
+    let mut rng_key = vec![text(label::TOILET_SERVICE), V::Str(facility_arc.clone()), V::Str(agent_id.clone()), text("minute"), V::Int(minute), V::Str(start.policy.clone()), text("duration")];
     if let Some(head) = &head {
         rng_key.push(V::Str(head.queue_id.clone()));
     }
@@ -589,274 +550,175 @@ fn start_one<'py>(
         Some(queue_task_id.clone()),
         provenance,
     ) else {
-        return unsupported("the event's values are not what an event takes");
+        return Err(Error::unsupported("the event's values are not what an event takes").into());
     };
-    let metrics = metrics_of(&world)?;
-    let facilities = attribute(&world, intern!(py, "facilities"))?;
-    let Some(facility) = raw_dict_get(&facilities, facility_id)? else {
-        return unsupported("a row has no object");
-    };
+    check_metric_state(world, start.metric_state_held)?;
     let transition = match &head {
-        Some(head) => {
-            let capacity = Some(head.point_capacity);
-            Some(transition_row(&writer, &head.request, "service_started", &task_id, Some(wait), Some(&event_id), None, capacity, sequence + 1, minute_value)?)
-        }
-        None => None,
-    };
-    let staff_object = match &staff_id {
-        Some(id) => match raw_dict_get(&attribute(&world, intern!(py, "staff"))?, PyString::new(py, id).as_any())? {
-            Some(staff) => Some(staff),
-            None => return unsupported("a row has no object"),
-        },
+        Some(head) => Some(transition_row(&events, &head.request, "service_started", &task_id, Some(wait), Some(&event_id), None, Some(head.point_capacity), sequence + 1, minute)?),
         None => None,
     };
 
     // Write.
-    writer.allocate_sequence()?;
-    let agent_text = PyString::new(py, &agent_id);
-    let task_text = PyString::new(py, &task_id);
-    let waiting_list = attribute(&facility, intern!(py, "queue_agent_ids"))?;
-    if head.is_some() {
-        waiting_list.call_method1(intern!(py, "remove"), (&agent_text,))?;
-    } else {
-        waiting_list.call_method1(intern!(py, "pop"), (0,))?;
+    events.allocate_sequence()?;
+    {
+        let mut rows = world.rows_mut()?;
+        let Some(facility) = rows.facilities.get_mut(facility_name) else {
+            return Err(Error::unsupported("no such facility").into());
+        };
+        if head.is_some() {
+            remove_from(&mut facility.queue_agent_ids, &agent_id)?;
+        } else {
+            facility.queue_agent_ids.remove(0);
+        }
+        facility.active_agent_ids.push(agent_id.clone());
     }
-    attribute(&facility, intern!(py, "active_agent_ids"))?.call_method1(intern!(py, "append"), (&agent_text,))?;
-    remove_entity::<TaskRow>(&world, &queue_task_id)?;
-    insert_entity(&world, &task_id, TaskRow {
-        id: task_id.clone(),
-        kind: Arc::from("toilet_service"),
-        agent_id: Some(agent_id.clone()),
-        resource_id: Some(facility_arc.clone()),
-        start_minute: minute_value,
-        due_minute: due,
-        staff_id: staff_id.clone(),
-    })?;
-    if let (Some(staff_id), Some(staff)) = (&staff_id, &staff_object) {
-        EntityStore::with_rows(&store, |rows| {
+    remove_task(world, &queue_task_id)?;
+    {
+        let mut rows = world.rows_mut()?;
+        rows.active_tasks.insert(
+            task_id.clone(),
+            TaskRow {
+                id: task_id.clone(),
+                kind: Arc::from("toilet_service"),
+                agent_id: Some(agent_id.clone()),
+                resource_id: Some(facility_arc.clone()),
+                start_minute: minute,
+                due_minute: due,
+                staff_id: staff_id.clone(),
+            },
+        );
+        if let Some(staff_id) = &staff_id {
             let Some(row) = rows.staff.get_mut(staff_id) else {
-                return unsupported("no such staff");
+                return Err(Error::unsupported("no such staff").into());
             };
             row.active_task_id = Some(task_id.clone());
             row.busy_until = due;
-            Ok(())
-        })?;
-        attribute(staff, intern!(py, "work_queue"))?.set_item(PySlice::full(py), PyList::new(py, [&task_text])?)?;
+            row.work_queue = vec![task_id.clone()];
+        }
+        set_agent(&mut rows, &agent_id, Activity::InService, Some(facility_name))?;
     }
-    set_agent(&world, &store, agent_text.as_any(), Activity::InService, Some(facility_id))?;
-    writer.schedule(event)?;
+    events.schedule(event)?;
     if let (Some(head), Some(transition)) = (&head, &transition) {
-        write_start(&world, &head.request.request_id, &head.queue_id, &task_id)?;
-        write_transition(&writer, transition, minute_value)?;
+        fifo::write_start(world, &head.request.request_id, &head.queue_id, &task_id)?;
+        fifo::write_transition(&events, transition, minute)?;
     }
-    // `_record_queue_wait`.
-    NamespaceMirror::with_row_tree::<MetricRow, _>(&metrics, |row, tree| {
-        let value = row.get("toilet_wait_count").copied().unwrap_or(0.0) + 1.0;
-        map_set(row, tree, "toilet_wait_count", value)?;
-        let value = row.get("toilet_wait_total_minutes").copied().unwrap_or(0.0) + wait as f64;
-        map_set(row, tree, "toilet_wait_total_minutes", value)?;
-        let value = py_max(row.get("toilet_wait_max_minutes").copied().unwrap_or(0.0), wait as f64);
-        map_set(row, tree, "toilet_wait_max_minutes", value)
-    })?;
-    Ok(Some(PyString::new(py, &event_id)))
+    record_wait(world, "toilet_wait", wait)?;
+    Ok(Pass::Done(Started::Event(event_id)))
 }
 
+// ---- complete ------------------------------------------------------------------------------------
+
+/// What a completion asks of the PyO3 crate once it is written: the walk home of the handler's
+/// `after_complete` (`schedule_return`), which lane c6 makes a call of the core.
+#[must_use]
+#[derive(Debug, PartialEq, Eq)]
+pub struct ScheduleReturn;
+
 /// `ToiletServiceCompletionHandler.apply` up to `after_complete`, with `complete_toilet_service`.
-pub(crate) fn complete_event<'py>(world: &Bound<'py, PyAny>, event: EventRef<'_, 'py>) -> PyResult<()> {
-    let py = world.py();
-    let ids = (event.text("facility_id")?, event.text("agent_id")?, event.text("task_id")?);
+/// `body` says whether the world holds `body_state_v1`.
+pub fn complete(world: &World, event: &EventRow, queues: &Held, geo: &Geo, body: &Held, metric_state_held: bool) -> WriteResult<ScheduleReturn> {
+    let ids = (payload_text(event, "facility_id"), payload_text(event, "agent_id"), payload_text(event, "task_id"));
     let (Some(facility_id), Some(agent_id), Some(task_id)) = ids else {
-        return errors::failed(py, "toilet completion requires facility_id, agent_id, and task_id");
+        return Err(Error::failed("toilet completion requires facility_id, agent_id, and task_id").into());
     };
     if facility_id.is_empty() || agent_id.is_empty() || task_id.is_empty() {
-        return errors::failed(py, "toilet completion requires facility_id, agent_id, and task_id");
+        return Err(Error::failed("toilet completion requires facility_id, agent_id, and task_id").into());
     }
-    let due = event.due_minute()?;
-    let store = entities_of(world)?;
-    let due_task = EntityStore::with_rows(&store, |rows| Ok(rows.active_tasks.get(&*task_id).is_some_and(|task| task.due_minute == due)))?;
-    if !due_task {
-        return errors::failed(py, "toilet completion does not match an active due task");
+    let due = event.due_minute;
+    if !world.rows()?.active_tasks.get(&task_id).is_some_and(|task| task.due_minute == due) {
+        return Err(Error::failed("toilet completion does not match an active due task").into());
     }
     // `complete_toilet_service`'s checks, in its order: the handler raises its `ValueError`'s text.
-    enum Turned {
-        NotAToilet,
-        NoAgent,
-        NotActive,
-        Mismatch,
-        NotUsing,
-        NotOneSlot,
-    }
-    let checked = EntityStore::with_rows(&store, |rows| {
-        let Some(facility) = rows.facilities.get(&*facility_id) else {
-            return Ok(Err(Turned::NotAToilet));
+    let (staff_id, task_start) = {
+        let rows = world.rows()?;
+        let (agent, facility) = (py_repr(&agent_id), py_repr(&facility_id));
+        let failed = |text: String| -> crate::events::writer::WriteError { Error::failed(text).into() };
+        let Some(facility_row) = rows.facilities.get(&facility_id).filter(|row| is_toilet(&row.kind)) else {
+            return Err(failed(format!("{facility} is not a toilet Facility")));
         };
-        if !is_toilet(&facility.kind)? {
-            return Ok(Err(Turned::NotAToilet));
-        }
-        let Some(agent) = rows.agents.get(&*agent_id) else {
-            return Ok(Err(Turned::NoAgent));
+        let Some(agent_row) = rows.agents.get(&agent_id) else {
+            return Err(failed(format!("Agent {agent} does not exist")));
         };
-        let Some(task) = rows.active_tasks.get(&*task_id).filter(|task| &*task.kind == "toilet_service") else {
-            return Ok(Err(Turned::NotActive));
+        let Some(task) = rows.active_tasks.get(&task_id).filter(|task| &*task.kind == "toilet_service") else {
+            return Err(failed(format!("toilet service task {} is not active", py_repr(&task_id))));
         };
         if task.agent_id.as_deref() != Some(&*agent_id) || task.resource_id.as_deref() != Some(&*facility_id) {
-            return Ok(Err(Turned::Mismatch));
+            return Err(failed("toilet completion payload does not match its active task".to_owned()));
         }
-        if agent.activity != Activity::InService || agent.target_id.as_deref() != Some(&*facility_id) {
-            return Ok(Err(Turned::NotUsing));
+        if agent_row.activity != Activity::InService || agent_row.target_id.as_deref() != Some(&*facility_id) {
+            return Err(failed(format!("Agent {agent} is not using Facility {facility}")));
         }
-        if facility.active_agent_ids.iter().filter(|id| ***id == *agent_id).count() != 1 {
-            return Ok(Err(Turned::NotOneSlot));
+        if facility_row.active_agent_ids.iter().filter(|id| ***id == *agent_id).count() != 1 {
+            return Err(failed(format!("Agent {agent} must occupy exactly one toilet service slot")));
         }
         // The check of a reserved person, which the Python rule makes after it has written.
         if let Some(staff_id) = &task.staff_id {
-            let Some(staff) = rows.staff.get(&**staff_id) else {
-                return unsupported("the staff reservation is inconsistent");
-            };
-            if staff.active_task_id.as_deref() != Some(&*task.id)
-                || staff.work_queue.len() != 1
-                || staff.work_queue[0] != task.id
-                || staff.busy_until != task.due_minute
-            {
-                return unsupported("the staff reservation is inconsistent");
+            let consistent = rows.staff.get(staff_id).is_some_and(|staff| {
+                staff.active_task_id.as_deref() == Some(&*task.id) && staff.work_queue.len() == 1 && staff.work_queue[0] == task.id && staff.busy_until == task.due_minute
+            });
+            if !consistent {
+                return Err(Error::unsupported("the staff reservation is inconsistent").into());
             }
         }
-        Ok(Ok((task.staff_id.clone(), task.start_minute)))
-    })?;
-    let (staff_id, task_start) = match checked {
-        Ok(found) => found,
-        Err(turned) => {
-            let (agent, facility) = (errors::repr_str(py, &agent_id)?, errors::repr_str(py, &facility_id)?);
-            return errors::failed(
-                py,
-                match turned {
-                    Turned::NotAToilet => format!("{facility} is not a toilet Facility"),
-                    Turned::NoAgent => format!("Agent {agent} does not exist"),
-                    Turned::NotActive => format!("toilet service task {} is not active", errors::repr_str(py, &task_id)?),
-                    Turned::Mismatch => "toilet completion payload does not match its active task".to_owned(),
-                    Turned::NotUsing => format!("Agent {agent} is not using Facility {facility}"),
-                    Turned::NotOneSlot => format!("Agent {agent} must occupy exactly one toilet service slot"),
-                },
-            );
-        }
+        (task.staff_id.clone(), task.start_minute)
     };
-    let metrics = metrics_of(world)?;
+    check_metric_state(world, metric_state_held)?;
     // `finish_service` and `record_queue_transition`.
-    let finishing = with_queues(world, |row| {
-        let Some(request) = request_of_task(row, &task_id).cloned() else {
-            return Ok(None);
-        };
-        let Some(queue) = row.queues.get(&*request.queue_id) else {
-            return unsupported("no such queue");
-        };
-        // In the list it isn't removed from, the record gives its place.
-        let position = if &*request.status == "queued" { None } else { position_in(queue, &request.request_id) };
-        Ok(Some((request, position)))
-    })?
-    .flatten();
-    let writer = EventWriter::of(world)?;
-    let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
-    let finished = match finishing {
+    let events = Events::of(world)?;
+    let minute = world.minute_index()?;
+    let finished = match finishing_request(world, queues, &task_id)? {
         Some((request, position)) => {
-            let wait = task_start.checked_sub(request.requested_minute).ok_or_else(|| Unsupported::new_err("a wait out of range"))?;
-            let capacity = point_of(&*Geo::of(world)?, &request.queue_id).map(|point| point.service_capacity);
-            let sequence = writer.next_sequence()?;
-            let row = transition_row(&writer, &request, "completed", &task_id, Some(wait), Some(&task_id), position, capacity, sequence, minute)?;
+            let wait = task_start.checked_sub(request.requested_minute).ok_or_else(|| Error::unsupported("a wait out of range"))?;
+            let capacity = point_of(geo, &request.queue_id).map(|point| point.service_capacity);
+            let sequence = events.next_sequence()?;
+            let row = transition_row(&events, &request, "completed", &task_id, Some(wait), Some(&task_id), position, capacity, sequence, minute)?;
             Some((request, row))
         }
         None => None,
     };
-    let staff_object = match &staff_id {
-        Some(id) => match raw_dict_get(&attribute(world, intern!(py, "staff"))?, PyString::new(py, id).as_any())? {
-            Some(staff) => Some(staff),
-            None => return unsupported("a row has no object"),
-        },
-        None => None,
-    };
     // `world.model_state.get("body_state_v1", {}).get("agents", {})`.
-    let body = if namespace_is_absent(world, intern!(py, BODY_STATE))? {
-        let table = attribute(world, intern!(py, "model_state"))?;
-        if exact_dict(&table)?.contains(intern!(py, BODY_STATE))? {
-            return unsupported("the body state is None");
+    let hygiene = match held_row::<BodyRow>(world, BODY_STATE, body)? {
+        None => None,
+        Some(row) => {
+            let need = row.agents.get(&*agent_id).map(|record| record.hygiene_need);
+            if need.is_some_and(|need| !need.is_finite()) {
+                return Err(Error::unsupported("a need is not finite").into());
+            }
+            need.map(|need| py_max(0.0, need - HYGIENE_RELIEF))
         }
-        None
-    } else {
-        let mirror = mirror_of(world, BODY_STATE)?;
-        let need = NamespaceMirror::with_row::<BodyRow, _>(&mirror, |row| Ok(row.agents.get(&*agent_id).map(|record| record.hygiene_need)))?;
-        if need.is_some_and(|need| !need.is_finite()) {
-            return unsupported("a need is not finite");
-        }
-        need.map(|need| (mirror, py_max(0.0, need - HYGIENE_RELIEF)))
     };
-    let facilities = attribute(world, intern!(py, "facilities"))?;
-    let agents = attribute(world, intern!(py, "agents"))?;
-    let agent_text = PyString::new(py, &agent_id);
-    let (Some(facility), Some(_)) = (
-        raw_dict_get(&facilities, PyString::new(py, &facility_id).as_any())?,
-        raw_dict_get(&agents, agent_text.as_any())?,
-    ) else {
-        return unsupported("a row has no object");
-    };
-    let tasks = attribute(world, intern!(py, "active_tasks"))?;
 
     // Write.
     if let Some((request, row)) = &finished {
-        write_finish(world, request)?;
-        write_transition(&writer, row, minute)?;
+        fifo::write_finish(world, request)?;
+        fifo::write_transition(&events, row, minute)?;
     }
-    attribute(&facility, intern!(py, "active_agent_ids"))?.call_method1(intern!(py, "remove"), (&agent_text,))?;
-    if let (Some(staff_id), Some(staff)) = (&staff_id, &staff_object) {
-        EntityStore::with_rows(&store, |rows| {
-            let Some(row) = rows.staff.get_mut(staff_id) else {
-                return unsupported("no such staff");
-            };
-            row.active_task_id = None;
-            row.busy_until = 0;
-            Ok(())
-        })?;
-        attribute(staff, intern!(py, "work_queue"))?.call_method0(intern!(py, "clear"))?;
+    {
+        let mut rows = world.rows_mut()?;
+        let Some(facility) = rows.facilities.get_mut(&facility_id) else {
+            return Err(Error::unsupported("no such facility").into());
+        };
+        remove_from(&mut facility.active_agent_ids, &agent_id)?;
     }
-    tasks.del_item(&*task_id)?;
-    set_agent(world, &store, agent_text.as_any(), Activity::Idle, None)?;
-    EntityStore::with_rows(&store, |rows| {
-        let Some(row) = rows.agents.get_mut(&*agent_id) else {
-            return unsupported("no such agent");
+    if let Some(staff_id) = &staff_id {
+        release_staff(world, staff_id)?;
+    }
+    remove_task(world, &task_id)?;
+    {
+        let mut rows = world.rows_mut()?;
+        set_agent(&mut rows, &agent_id, Activity::Idle, None)?;
+        let Some(row) = rows.agents.get_mut(&agent_id) else {
+            return Err(Error::unsupported("no such agent").into());
         };
         row.needs.toilet_urgency = 0.0;
-        Ok(())
-    })?;
-    add_one(&metrics, COMPLETED_METRIC)?;
-    if let Some((mirror, need)) = body {
-        NamespaceMirror::with_row_tree::<BodyRow, _>(&mirror, |row, tree| {
-            let record = row
-                .agents
-                .get_mut(&*agent_id)
-                .ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("a planned record left the row"))?;
-            let records = tree.child(intern!(py, "agents"))?;
-            record.set_hygiene_need(&records.child_str(&agent_id)?, need)
-        })?;
     }
-    Ok(())
-}
-
-/// `ToiletServiceCompletionHandler.apply`, called from Python: then its `after_complete`.
-#[pyfunction]
-fn complete<'py>(handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>) -> PyResult<()> {
-    let py = handler.py();
-    complete_event(world, EventRef::Object(event))?;
-    let after = attribute(handler, intern!(py, "after_complete"))?;
-    if !after.is_none() {
-        after.call1((world, event))?;
+    add_metric(world, COMPLETED_METRIC)?;
+    if let Some(need) = hygiene {
+        let mut row = world.row_mut::<BodyRow>(BODY_STATE)?;
+        let Some(record) = row.agents.get_mut(&*agent_id) else {
+            return Err(Error::Runtime("a planned record left the row".to_owned()).into());
+        };
+        record.hygiene_need = need;
     }
-    Ok(())
-}
-
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(request, m)?)?;
-    m.add_function(wrap_pyfunction!(facilities_to_serve, m)?)?;
-    m.add_function(wrap_pyfunction!(has_room, m)?)?;
-    m.add_function(wrap_pyfunction!(start_head, m)?)?;
-    m.add_function(wrap_pyfunction!(serve_independent_head, m)?)?;
-    m.add_function(wrap_pyfunction!(complete, m)?)?;
-    Ok(())
+    Ok(ScheduleReturn)
 }

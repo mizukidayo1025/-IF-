@@ -930,61 +930,6 @@ impl NamespaceMirror {
         Self::store(slf, &node, key.as_any(), value)
     }
 
-    /// `del node[key]` at this path of the tree from Rust, after the row dropped it, if the tree
-    /// has it: no override runs and nothing is forwarded.
-    pub(crate) fn remove_through<'py>(slf: &Bound<'py, Self>, path: &[&str], key: &str) -> PyResult<()> {
-        let py = slf.py();
-        slf.get().touch(py)?;
-        let Some(mut node) = slf.get().root(py)? else {
-            return Ok(());
-        };
-        for part in path {
-            let part = PyString::new(py, part);
-            node = raw_dict_get(&node, part.as_any())?
-                .ok_or_else(|| PyRuntimeError::new_err("the tree does not have the row's key"))?;
-        }
-        let key = PyString::new(py, key);
-        let Some(old) = raw_dict_get(&node, key.as_any())? else {
-            return Ok(());
-        };
-        // SAFETY: both are live objects, and the type is a dict subclass whose override this call
-        // means not to run.
-        if unsafe { ffi::PyDict_DelItem(node.as_ptr(), key.as_ptr()) } != 0 {
-            return Err(PyErr::fetch(py));
-        }
-        Self::release_value(slf, &old, py.None().bind(py))
-    }
-
-    /// The list at this path of the tree, from the root through dicts, or None for a detached
-    /// namespace. `path` leads to a list.
-    fn list_at<'py>(slf: &Bound<'py, Self>, path: &[&str]) -> PyResult<Option<Bound<'py, PyAny>>> {
-        let py = slf.py();
-        let Some(mut node) = slf.get().root(py)? else {
-            return Ok(None);
-        };
-        for part in path {
-            let part = PyString::new(py, part);
-            node = raw_dict_get(&node, part.as_any())?
-                .ok_or_else(|| Unsupported::new_err("the tree has no such path"))?;
-        }
-        Ok(Some(node))
-    }
-
-    /// items.append(value) in the tree from Rust, after the row took it. See `write_through`.
-    pub(crate) fn append_through<'py>(
-        slf: &Bound<'py, Self>,
-        path: &[&str],
-        value: &Bound<'py, PyAny>,
-    ) -> PyResult<()> {
-        slf.get().touch(slf.py())?;
-        let Some(list) = Self::list_at(slf, path)? else {
-            return Ok(());
-        };
-        let id: u32 = list.getattr(intern!(slf.py(), "_node"))?.extract()?;
-        let stored = Self::adopt_value(slf, id, NodeKey::ListItem, value, 0)?;
-        raw_list_append(&list, &stored)
-    }
-
     /// d[key] = value in the tree, keeping the table right, without touching the row.
     fn store<'py>(
         slf: &Bound<'py, Self>,

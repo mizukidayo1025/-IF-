@@ -369,8 +369,7 @@ fn arrive<'py>(
     };
     let action = if service::resource_of(&kind) == Some("water_ml") { "fetch_water" } else { "collect_meal" };
     service::append_outcome(
-        py,
-        &rows.0,
+        world,
         RequestRecord {
             minute: exact_int(&minute)?,
             agent_id: Arc::from(agent_id),
@@ -405,10 +404,9 @@ fn reject_room<'py>(
             Ok((rows.facilities.get(facility_id).map(|facility| facility.kind.clone()), agent.zone_id.clone()))
         })?;
         let action = if kind.as_deref().and_then(service::resource_of) == Some("water_ml") { "fetch_water" } else { "collect_meal" };
-        let mirror = crate::state::resource_service::held_mirror(world)?;
+        crate::state::resource_service::held_mirror(world)?;
         service::append_outcome(
-            py,
-            &mirror,
+            world,
             RequestRecord {
                 minute: exact_int(&attribute(world, intern!(py, "minute_index"))?)?,
                 agent_id: Arc::from(agent_id),

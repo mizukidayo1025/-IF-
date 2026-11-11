@@ -1,11 +1,12 @@
-//! Python's text operations the rules use, with CPython's results: `str.casefold` and
-//! `format(value, "g")` (Issue #152, P8-0a).
+//! Python's text operations the rules use, with CPython's results: `str.casefold`,
+//! `format(value, "g")` (Issue #152, P8-0a) and `repr` of a str (P8 c3).
 
 use std::borrow::Cow;
 
 use crate::error::{Error, Result};
 
 mod casefold;
+mod printable;
 
 /// What `str.casefold` gives one character: its full case folding, or None for itself. The table
 /// (`text/casefold.rs`) is generated from CPython 3.12, Unicode 15.0.0, whose fold maps each
@@ -70,4 +71,59 @@ pub fn g_text(value: f64) -> Result<String> {
     }
     let sign = if exponent < 0 { '-' } else { '+' };
     Ok(format!("{}e{sign}{:02}", trimmed(mantissa), exponent.abs()))
+}
+
+/// Whether `repr` escapes a code point past ASCII: `str.isprintable` says no to it. The table
+/// (`text/printable.rs`) is generated from CPython 3.12, Unicode 15.0.0
+/// (`native/core/tools/repr_table.py`).
+fn escapes(point: u32) -> bool {
+    printable::ESCAPED
+        .binary_search_by(|(first, last)| {
+            if *last < point {
+                std::cmp::Ordering::Less
+            } else if *first > point {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        })
+        .is_ok()
+}
+
+/// `repr(text)` of a str, as CPython writes it: in single quotes, or double quotes when the text
+/// has a single quote and no double one; the quote, the backslash, `\t`, `\n`, `\r` and the
+/// characters `str.isprintable` says no to escaped. The `{x!r}` of a Python rule's f-string.
+pub fn py_repr(text: &str) -> String {
+    use std::fmt::Write;
+    let quote = if text.contains('\'') && !text.contains('"') { '"' } else { '\'' };
+    let mut out = String::with_capacity(text.len() + 2);
+    out.push(quote);
+    for char in text.chars() {
+        let point = char as u32;
+        match char {
+            '\\' => out.push_str("\\\\"),
+            '\t' => out.push_str("\\t"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            _ if char == quote => {
+                out.push('\\');
+                out.push(char);
+            }
+            _ if point < 0x20 || point == 0x7f => {
+                let _ = write!(out, "\\x{point:02x}");
+            }
+            _ if point < 0x7f || !escapes(point) => out.push(char),
+            _ if point <= 0xff => {
+                let _ = write!(out, "\\x{point:02x}");
+            }
+            _ if point <= 0xffff => {
+                let _ = write!(out, "\\u{point:04x}");
+            }
+            _ => {
+                let _ = write!(out, "\\U{point:08x}");
+            }
+        }
+    }
+    out.push(quote);
+    out
 }

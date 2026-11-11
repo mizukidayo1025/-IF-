@@ -2014,15 +2014,17 @@ def _resource_queues(world: WorldState) -> tuple[str, str] | None:
 # made of each case, recorded from them: the results and worlds, by sha256 (on every OS, as the
 # gate's hashes).
 # Recorded again in #152 P8b-1, where the ledger's audit records appended to its tree took the
-# row's key order (the tree follows the row); nothing else changed.
+# row's key order (the tree follows the row); nothing else changed. Recorded again in #152 P8 c3,
+# where the service's rules write the row of `resource_service_v1` and its tree takes the row's
+# key order: with sorted keys, each case is the same as before.
 RESOURCE_FIFO = {
-    "serves": "12ee531de9f4a9d9",
-    "interrupted": "0c2f18efc96b1f29",
-    "cancelled-operator_cancelled": "3099156a68b1e887",
-    "cancelled-facility_stopped": "3099156a68b1e887",
-    "cancelled-staff_unavailable": "80e6c1450c8741b2",
-    "cancelled-place": "272f389bc92cfc29",
-    "completed": "66d5b4df331e7441",
+    "serves": "55c19613d7506346",
+    "interrupted": "ac8f36a0687bd7e1",
+    "cancelled-operator_cancelled": "4b945a95e866d703",
+    "cancelled-facility_stopped": "4b945a95e866d703",
+    "cancelled-staff_unavailable": "204b6edeaad9429f",
+    "cancelled-place": "b4995ef04bb778fd",
+    "completed": "989cad4a9fe17255",
 }
 
 

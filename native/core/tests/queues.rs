@@ -371,8 +371,6 @@ fn prepare(policy: QueuePolicy, minute: i64, movement: Held) -> Prepare<'static>
         movement,
         queues: Held::Absent,
         service: Held::Absent,
-        tree_stall: None,
-        tree_stall_removed: Default::default(),
         kind_repr: None,
     }
 }

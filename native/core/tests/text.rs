@@ -1,13 +1,14 @@
 //! The core's text operations against CPython's (P8-0a): `str.casefold` over every code point,
 //! against a fixture written by CPython 3.12 (`native/core/tools/casefold_table.py`), and
-//! `format(value, "g")`.
+//! `format(value, "g")`; and `repr` of a str over every code point, against a fixture written by
+//! CPython 3.12 (`native/core/tools/repr_table.py`, P8 c3).
 
 use std::borrow::Cow;
 use std::collections::HashMap;
 
 use sha2::{Digest, Sha256};
 use sheltersim_core::error::Error;
-use sheltersim_core::text::{casefold, fold_char, g_text};
+use sheltersim_core::text::{casefold, fold_char, g_text, py_repr};
 
 const FIXTURE: &str = include_str!("data/casefold.txt");
 
@@ -131,4 +132,43 @@ fn g_text_is_format_g() {
     for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         assert_eq!(g_text(value), Err(Error::Unsupported("a threshold is not finite".into())));
     }
+}
+
+const REPR_FIXTURE: &str = include_str!("data/repr.txt");
+
+fn repr_fixture(name: &str) -> String {
+    let prefix = format!("{name} ");
+    REPR_FIXTURE.lines().find_map(|line| line.strip_prefix(&prefix)).unwrap().to_owned()
+}
+
+fn hex(digest: Sha256) -> String {
+    digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+#[test]
+fn repr_is_cpython_s_at_every_code_point() {
+    let mut digest = Sha256::new();
+    let mut buffer = [0u8; 4];
+    for point in (0..=0x10FFFFu32).filter(|point| !(0xD800..0xE000).contains(point)) {
+        let text: &str = char::from_u32(point).unwrap().encode_utf8(&mut buffer);
+        digest.update(py_repr(text).as_bytes());
+        digest.update([0u8]);
+    }
+    assert_eq!(hex(digest), repr_fixture("sha256"), "the reprs of all code points");
+}
+
+#[test]
+fn repr_of_text() {
+    // The texts of `native/core/tools/repr_table.py`, in its order.
+    let texts = ["", "a'b", "a\"b", "a'\"b", "\\", "tab\there\nnew\rline", "\x00\x7f\u{80}\u{ff}", "避難所", "\u{2028}\u{1f600}"];
+    let mut digest = Sha256::new();
+    for text in texts {
+        digest.update(py_repr(text).as_bytes());
+        digest.update([0u8]);
+    }
+    assert_eq!(hex(digest), repr_fixture("texts"));
+    assert_eq!(py_repr("agent-1"), "'agent-1'");
+    assert_eq!(py_repr("it's"), "\"it's\"");
+    assert_eq!(py_repr("a'\"b"), "'a\\'\"b'");
+    assert_eq!(py_repr("避難所\u{a0}"), "'避難所\\xa0'");
 }

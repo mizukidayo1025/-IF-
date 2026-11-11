@@ -30,6 +30,8 @@ pub mod staff_dynamics;
 pub mod facility_queues;
 pub mod movement;
 pub mod queues;
+pub mod service;
+pub mod toilet;
 
 // ---- P8d: events and checks --------------------------------------------------------------------
 pub mod information_events;

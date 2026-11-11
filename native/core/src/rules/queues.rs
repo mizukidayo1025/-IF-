@@ -253,23 +253,8 @@ pub struct Prepare<'a> {
     pub queues: Held,
     /// Whether the world holds `resource_service_v1`, read for a resource queue's stall.
     pub service: Held,
-    /// The facility's stall as the tree of a tainted `resource_service_v1` holds it, which then
-    /// answers for the row (its Tree mode, until lane c3 deletes it).
-    pub tree_stall: Option<TreeStall>,
-    /// Set when the stall of `tree_stall` is to go: the PyO3 crate deletes it from the tree once
-    /// the call returns, and the call reads it as gone from then on.
-    pub tree_stall_removed: std::cell::Cell<bool>,
     /// `repr(kind)` of the facility's kind where `service_of` turns it down.
     pub kind_repr: Option<&'a str>,
-}
-
-/// A facility's stall read from the tree of `resource_service_v1`: the person it names, none, or
-/// the refusal its read says (a record that is not a plain dict, or names no person).
-#[derive(Clone, Debug, PartialEq)]
-pub enum TreeStall {
-    None,
-    Agent(Arc<str>),
-    Refused(&'static str),
 }
 
 /// What those who give up need, read only when someone does.
@@ -384,7 +369,7 @@ pub fn prepare(world: &World, facility_id: &str, prepare: &Prepare<'_>, leave: O
         *members_mut(facility, resource) = new_order;
     }
     if stale {
-        remove_stall(world, prepare, facility_id)?;
+        remove_stall(world, facility_id)?;
     }
     writing(write_all_leaving(world, &call, &leaving))?;
     Ok(Prepared::Done)
@@ -484,19 +469,13 @@ pub fn prepare_independent(
 
 /// `_drop_stale_resource_stall` once the queue is in its new order: whether to delete the record.
 fn stale_stall(world: &World, prepare: &Prepare<'_>, facility_id: &str, new_order: &[Arc<str>]) -> Result<bool> {
-    let agent = match &prepare.tree_stall {
-        Some(_) if prepare.tree_stall_removed.get() => return Ok(false),
-        Some(TreeStall::None) => return Ok(false),
-        Some(TreeStall::Refused(reason)) => return Err(Error::unsupported(*reason)),
-        Some(TreeStall::Agent(agent)) => agent.clone(),
-        None => {
-            let Some(row) = held_row::<ServiceRow>(world, SERVICE_KEY, &prepare.service)? else {
-                return Ok(false);
-            };
-            match row.stall_state.get(facility_id) {
-                Some(stall) => stall.agent_id.clone(),
-                None => return Ok(false),
-            }
+    let agent = {
+        let Some(row) = held_row::<ServiceRow>(world, SERVICE_KEY, &prepare.service)? else {
+            return Ok(false);
+        };
+        match row.stall_state.get(facility_id) {
+            Some(stall) => stall.agent_id.clone(),
+            None => return Ok(false),
         }
     };
     let is_head = match fifo::heads_in(world, &prepare.queues, facility_id)? {
@@ -506,12 +485,8 @@ fn stale_stall(world: &World, prepare: &Prepare<'_>, facility_id: &str, new_orde
     Ok(!is_head)
 }
 
-/// `del stall_state[facility_id]`: on the row, or marked for the tree's own `del`.
-fn remove_stall(world: &World, prepare: &Prepare<'_>, facility_id: &str) -> Result<()> {
-    if prepare.tree_stall.is_some() {
-        prepare.tree_stall_removed.set(true);
-        return Ok(());
-    }
+/// `del stall_state[facility_id]`, on the row.
+fn remove_stall(world: &World, facility_id: &str) -> Result<()> {
     world.row_mut::<ServiceRow>(SERVICE_KEY)?.stall_state.shift_remove(facility_id);
     Ok(())
 }
@@ -790,7 +765,7 @@ fn write_all_leaving(world: &World, call: &LeaveCall<'_>, leaving: &[Leaving]) -
             list.clone()
         };
         if call.resource && stale_stall(world, call.prepare, call.facility_id, &remaining)? {
-            remove_stall(world, call.prepare, call.facility_id)?;
+            remove_stall(world, call.facility_id)?;
         }
         if let Some((request, row)) = &plan.transition {
             fifo::write_finish(world, request)?;

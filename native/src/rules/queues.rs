@@ -14,14 +14,13 @@ use sheltersim_core::config::movement::Movement;
 use sheltersim_core::config::queues::{QueueConfig, QueuePolicy as Policy};
 use sheltersim_core::config::FaultClass;
 use sheltersim_core::rules::kit::Held;
-use sheltersim_core::rules::queues::{self as core, LeaveInputs, Prepare, Prepared, TreeStall, Walk};
+use sheltersim_core::rules::queues::{self as core, LeaveInputs, Prepare, Prepared, Walk};
 
 
 use crate::core::configs;
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, unsupported};
-use crate::core::tracked::{as_readable_dict, is_detached};
-use crate::core::world_core::{field_held, mirror_of, namespace_held, with_world, NamespaceMirror};
+use crate::core::world_core::{field_held, namespace_held, with_world};
 use crate::rules::movement::{movement_of, EXACT_INT, KEY};
 use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::state::events::write_result;
@@ -99,60 +98,6 @@ fn service_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
     held_of(world, "resource_service_v1", "the world holds another service state")
 }
 
-const SERVICE_KEY: &str = "resource_service_v1";
-
-/// The stall of a facility as the tree of `resource_service_v1` holds it, where the tree answers
-/// for the row: attached, and its slot has no row (tainted) or holds another tree. None where the
-/// row answers. The Tree mode of the namespace, which lane c3 deletes.
-fn tree_stall(world: &Bound<'_, PyAny>, facility_id: &str) -> PyResult<Option<TreeStall>> {
-    let py = world.py();
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let Some(state) = exact_dict(&table)?.get_item(SERVICE_KEY)? else {
-        return Ok(None);
-    };
-    if is_detached(&state) {
-        return Ok(None);
-    }
-    if let Ok(mirror) = mirror_of(world, SERVICE_KEY) {
-        let row_answers = mirror.try_borrow().is_ok_and(|mirror| mirror.holds_state(&state))
-            && NamespaceMirror::with_row::<crate::state::resource_service::ServiceRow, _>(&mirror, |_| Ok(())).is_ok();
-        if row_answers {
-            return Ok(None);
-        }
-    }
-    let Some(state) = as_readable_dict(&state) else {
-        return Ok(Some(TreeStall::Refused("the service state is not a plain dict")));
-    };
-    let Some(stalls) = state.get_item(intern!(py, "stall_state"))? else {
-        return Ok(Some(TreeStall::Refused("no stall_state")));
-    };
-    let Some(map) = as_readable_dict(&stalls) else {
-        return Ok(Some(TreeStall::Refused("the stall_state is not a dict")));
-    };
-    let record = match map.get_item(facility_id)? {
-        Some(record) if !record.is_none() => record,
-        _ => return Ok(Some(TreeStall::None)),
-    };
-    let Some(record) = as_readable_dict(&record) else {
-        return Ok(Some(TreeStall::Refused("a stall record is not a dict")));
-    };
-    let Some(agent_id) = record.get_item(intern!(py, "agent_id"))? else {
-        return Ok(Some(TreeStall::Refused("a stall record has no agent")));
-    };
-    Ok(Some(match exact_str(&agent_id) {
-        Ok(agent_id) => TreeStall::Agent(Arc::from(agent_id)),
-        Err(_) => TreeStall::Refused("a value is not a str"),
-    }))
-}
-
-/// `del stall_state[facility_id]` of the tree `tree_stall` read, through the map's own method.
-fn remove_tree_stall(world: &Bound<'_, PyAny>, facility_id: &Bound<'_, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let state = exact_dict(&table)?.get_item(SERVICE_KEY)?.ok_or_else(|| crate::Unsupported::new_err("no service state"))?;
-    state.get_item(intern!(py, "stall_state"))?.del_item(facility_id)
-}
-
 /// `repr(kind)`, where the rule turns the kind down and its error names it.
 fn kind_repr(py: Python<'_>, kind: &str) -> PyResult<Option<String>> {
     match core::service_of(kind) {
@@ -207,9 +152,9 @@ pub(crate) fn prepare_facility_queue<'py>(
     let policy = policy_of(world)?;
     let movement = movement_held(world)?;
     let repr = kind_repr(py, &kind)?;
-    let (queues, service, tree) = match resource {
-        true => (queues_held(world)?, service_held(world)?, tree_stall(world, facility)?),
-        false => (Held::Absent, Held::Absent, None),
+    let (queues, service) = match resource {
+        true => (queues_held(world)?, service_held(world)?),
+        false => (Held::Absent, Held::Absent),
     };
     let prepare = Prepare {
         resource,
@@ -218,17 +163,12 @@ pub(crate) fn prepare_facility_queue<'py>(
         movement,
         queues,
         service,
-        tree_stall: tree,
-        tree_stall_removed: Default::default(),
         kind_repr: repr.as_deref(),
     };
     let mut result = with_world(world, |world| core::prepare(world, facility, &prepare, None))?;
     if matches!(result, Ok(Prepared::NeedsLeaveInputs)) {
         let leave = Leave::read(world, &prepare.movement, false)?;
         result = with_world(world, |world| core::prepare(world, facility, &prepare, Some(&leave.inputs())))?;
-    }
-    if prepare.tree_stall_removed.get() {
-        remove_tree_stall(world, facility_id)?;
     }
     write_result(py, result).map(|_| ())
 }
@@ -265,8 +205,6 @@ pub(crate) fn prepare_independent_facility_queue<'py>(
         movement,
         queues,
         service: Held::Absent,
-        tree_stall: None,
-        tree_stall_removed: Default::default(),
         kind_repr: repr.as_deref(),
     };
     let first = with_world(world, |world| core::prepare_independent(world, queue, &facility, &prepare, None))?;
@@ -276,13 +214,9 @@ pub(crate) fn prepare_independent_facility_queue<'py>(
     // Someone gives up: a resource queue's stall is read once each has left.
     if resource {
         prepare.service = service_held(world)?;
-        prepare.tree_stall = tree_stall(world, &facility)?;
     }
     let leave = Leave::read(world, &prepare.movement, true)?;
     let done = with_world(world, |world| core::prepare_independent(world, queue, &facility, &prepare, Some(&leave.inputs())))?;
-    if prepare.tree_stall_removed.get() {
-        remove_tree_stall(world, PyString::new(py, &facility).as_any())?;
-    }
     write_result(py, done).map(|_| ())
 }
 
@@ -297,28 +231,59 @@ fn placed(world: &Bound<'_, PyAny>) -> PyResult<Option<Arc<Movement>>> {
     Ok(movement.has_geometry.then_some(movement))
 }
 
+/// The floor plan of a placed world, which `physical_service_capacity` reads, or None.
+pub(crate) fn placement(world: &Bound<'_, PyAny>) -> PyResult<Option<Arc<Geo>>> {
+    match placed(world)? {
+        Some(_) => Geo::of(world).map(Some),
+        None => Ok(None),
+    }
+}
+
+/// What the walking kernels read of a placed world, as they read it: the movement section, the floor
+/// plan, whether the world holds `movement_v1` (and `facility_queues_v1` for an independent queue),
+/// and whether `world.metric_state` is its slot's tree. The service rules read it before they borrow
+/// the world, for the head's walk to its service point.
+pub(crate) struct Walking {
+    movement: Arc<Movement>,
+    pub(crate) geo: Arc<Geo>,
+    moving: Held,
+    queues: Held,
+    metric_state_held: bool,
+}
+
+impl Walking {
+    /// None where the world is not placed: the walking kernels do nothing then.
+    pub(crate) fn read(world: &Bound<'_, PyAny>, independent: bool) -> PyResult<Option<Self>> {
+        let Some(movement) = placed(world)? else {
+            return Ok(None);
+        };
+        Self::of(world, movement, independent).map(Some)
+    }
+
+    fn of(world: &Bound<'_, PyAny>, movement: Arc<Movement>, independent: bool) -> PyResult<Self> {
+        let geo = Geo::of(world)?;
+        let queues = if independent { queues_held(world)? } else { Held::Absent };
+        Ok(Self { movement, geo, moving: movement_held(world)?, queues, metric_state_held: field_held(world, intern!(world.py(), "metric_state"))? })
+    }
+
+    pub(crate) fn walk(&self) -> Walk<'_> {
+        Walk { geo: &self.geo, model: &self.movement.model, movement: self.moving.clone(), queues: self.queues.clone(), metric_state_held: self.metric_state_held }
+    }
+}
+
 /// A walking kernel, once the world is placed.
 fn walk(
     world: &Bound<'_, PyAny>,
-    movement: &Movement,
+    movement: Arc<Movement>,
     facility_id: &str,
     resource: bool,
     minute: i64,
     queue_id: Option<&str>,
     kernel: fn(&sheltersim_core::world::World, &Walk<'_>, &str, bool, i64, Option<&str>) -> sheltersim_core::events::writer::WriteResult<bool>,
 ) -> PyResult<bool> {
-    let py = world.py();
-    let geo = Geo::of(world)?;
-    let queues = if queue_id.is_some() { queues_held(world)? } else { Held::Absent };
-    let walk = Walk {
-        geo: &geo,
-        model: &movement.model,
-        movement: movement_held(world)?,
-        queues,
-        metric_state_held: field_held(world, intern!(py, "metric_state"))?,
-    };
-    let result = with_world(world, |world| kernel(world, &walk, facility_id, resource, minute, queue_id))?;
-    write_result(py, result)
+    let walking = Walking::of(world, movement, queue_id.is_some())?;
+    let result = with_world(world, |world| kernel(world, &walking.walk(), facility_id, resource, minute, queue_id))?;
+    write_result(world.py(), result)
 }
 
 /// `progress_physical_queue_positions`.
@@ -340,7 +305,7 @@ pub(crate) fn progress_physical_queue_positions<'py>(
         Some(queue) if !queue.is_none() => Some(exact_str(queue)?),
         _ => None,
     };
-    walk(world, &movement, facility, resource, minute, queue, core::positions)
+    walk(world, movement, facility, resource, minute, queue, core::positions)
 }
 
 /// `progress_physical_queue_head_to_service`.
@@ -361,7 +326,7 @@ pub(crate) fn progress_physical_queue_head_to_service<'py>(
 }
 
 /// That rule: false has written nothing, and Unsupported changes nothing.
-pub(crate) fn head_to_service<'py>(
+fn head_to_service<'py>(
     world: &Bound<'py, PyAny>,
     facility_id: &Bound<'py, PyAny>,
     resource: bool,
@@ -371,7 +336,7 @@ pub(crate) fn head_to_service<'py>(
     let Some(movement) = placed(world)? else {
         return Ok(false);
     };
-    walk(world, &movement, exact_str(facility_id)?, resource, minute, queue_id, core::head_to_service)
+    walk(world, movement, exact_str(facility_id)?, resource, minute, queue_id, core::head_to_service)
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
