@@ -178,8 +178,9 @@ pub struct TickMemo {
     /// The stamp of `model_configs` the last plan was read for; the plan is kept with the configs
     /// of that stamp (`Configs.tick_plan`).
     configs: Option<ConfigsStamp>,
-    /// `geometry_overlay._CONFIG_SCOPE` across ticks while the configs are unchanged: the parsed
-    /// geometry configs (`_parsed_config`, `rules/movement_geometry.rs`).
+    /// `geometry_overlay._CONFIG_SCOPE` across ticks while the configs are unchanged: the geometry
+    /// configs the Python rules of the check parsed (`_parsed_config`). The kernels read the
+    /// configs' section `geometry` instead (`rules/movement_geometry.rs`).
     #[pyo3(get)]
     geometry_scope: Py<PyDict>,
     agent_ids: Option<FxHashSet<String>>,

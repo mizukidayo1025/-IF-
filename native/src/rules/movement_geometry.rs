@@ -1,336 +1,48 @@
-//! The floor plan as data for `rules/movement.rs`, and the geometry of `domain/movement.py` and
-//! `contracts/extensions.py`. Every function here is the Python one with its order of operations,
-//! its tolerances and its float results (docs/rust-port/lanes/m4-movement.md).
+//! The floor plan of a world for the movement rules: the core's geometry
+//! (`sheltersim_core::geometry`), and what reads it from Python (Issue #152, lane 7-2).
 //!
-//! `Geo::of` reads what `_geometry` and `_spatial_constraints` give a Python rule. The models come
-//! from Python, parsed and validated there, so a bad config or overlay keeps its error text: any
-//! failure is Unsupported, and the Python rule then raises it. A plan stays in the cache while the
-//! parsed configs are the same objects and the overlay's moves and partitions the same bytes.
+//! `Geo::of` gives what `_geometry` and `_spatial_constraints` give a Python rule. The configs'
+//! section `geometry` (`config::geometry`) holds `facility_geometry` and `spatial_constraints`
+//! parsed by their Python contracts and read into the core's values, once for a stamp of
+//! `model_configs`. The plans built from them with the overlay's facility moves and partitions are
+//! kept in those configs, by the overlay's stamp (`GeoCache`); where the overlay has no stamp or a
+//! new one, by the canonical bytes of the two parts a plan reads, as before #152. A bad config or
+//! overlay is Unsupported, and the Python rule then raises its error.
 
-use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
-use pyo3::types::{PyDict, PyString, PyTuple};
-use rustc_hash::FxBuildHasher;
+use pyo3::types::{PyBool, PyString, PyTuple};
+pub(crate) use sheltersim_core::config::ApproachRoute;
+use sheltersim_core::config::{Configs, Fault, FacilityGeometry, FacilityPlan, Section, SpatialConstraints};
+use sheltersim_core::geometry::{OverlayKey, Opening, Route, Wall, Zone};
 
-use crate::core::mathx::{hypot, py_fsum, py_max, py_min, py_round, py_sum};
-use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, unsupported, IdMap};
+pub(crate) use sheltersim_core::geometry::*;
+
+use crate::core::configs::{self, fault_of};
 use crate::core::errors::OrPy;
+use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, unsupported, IdMap};
+use crate::core::tracked::as_readable_dict;
 use crate::core::value::V;
-use crate::core::world_core::with_state_value;
-use crate::{Encoder, Unsupported};
-use indexmap::IndexMap;
+use crate::core::world_core::{field_stamp, with_state_value};
+use crate::Unsupported;
 
-/// Past this a product could overflow where Python's `Point2D` would raise. Nothing real is here.
-const COORDINATE_LIMIT: f64 = 1e100;
 const OVERLAY_KEY: &str = "geometry_overlay_v1";
-const CACHED_PLANS: usize = 8;
-/// `MAX_REMEMBERED_ROOM_ROUTES`.
-const REMEMBERED_ROUTES: usize = 4096;
 
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct Pt {
-    pub(crate) x: f64,
-    pub(crate) y: f64,
+/// `point_in_value` of the core, for a rule.
+pub(crate) fn point_in_value(value: &V) -> PyResult<Pt> {
+    sheltersim_core::geometry::point_in_value(value).or_py()
 }
 
-/// `Identifier`: `^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$`. `$` also takes a final newline, which is no
-/// ID a rule writes; it says false here and the Python rule decides.
-pub(crate) fn is_identifier(value: &str) -> bool {
-    let bytes = value.as_bytes();
-    !bytes.is_empty()
-        && bytes.len() <= 64
-        && bytes[0].is_ascii_alphanumeric()
-        && bytes[1..].iter().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b':' | b'-'))
+/// `points_in_value` of the core, for a rule.
+pub(crate) fn points_in_value(value: &V) -> PyResult<Vec<Pt>> {
+    sheltersim_core::geometry::points_in_value(value).or_py()
 }
 
-/// A coordinate pair a kernel can compute with: what `Point2D` accepts, and not so large as to overflow.
-pub(crate) fn usable(x: f64, y: f64) -> bool {
-    x.abs() <= COORDINATE_LIMIT && y.abs() <= COORDINATE_LIMIT
-}
-
-pub(crate) fn distance(first: Pt, second: Pt) -> f64 {
-    hypot(&[second.x - first.x, second.y - first.y])
-}
-
-/// `point_in_polygon`.
-pub(crate) fn point_in_polygon(point: Pt, polygon: &[Pt]) -> bool {
-    let mut inside = false;
-    let mut previous = polygon[polygon.len() - 1];
-    for &current in polygon {
-        let cross = (point.x - previous.x) * (current.y - previous.y) - (point.y - previous.y) * (current.x - previous.x);
-        if cross.abs() < 1e-9
-            && py_min(previous.x, current.x) - 1e-9 <= point.x
-            && point.x <= py_max(previous.x, current.x) + 1e-9
-            && py_min(previous.y, current.y) - 1e-9 <= point.y
-            && point.y <= py_max(previous.y, current.y) + 1e-9
-        {
-            return true;
-        }
-        if (current.y > point.y) != (previous.y > point.y) {
-            let crossing = (previous.x - current.x) * (point.y - current.y) / (previous.y - current.y) + current.x;
-            if point.x < crossing {
-                inside = !inside;
-            }
-        }
-        previous = current;
-    }
-    inside
-}
-
-fn segment_intersection_parameter(start: Pt, end: Pt, first: Pt, second: Pt) -> Option<f64> {
-    let (dx, dy) = (end.x - start.x, end.y - start.y);
-    let (ex, ey) = (second.x - first.x, second.y - first.y);
-    let denominator = dx * ey - dy * ex;
-    if denominator.abs() <= 1e-10 {
-        return None;
-    }
-    let (ax, ay) = (first.x - start.x, first.y - start.y);
-    let t = (ax * ey - ay * ex) / denominator;
-    let u = (ax * dy - ay * dx) / denominator;
-    (-1e-9 <= t && t <= 1.0 + 1e-9 && -1e-9 <= u && u <= 1.0 + 1e-9).then_some(t)
-}
-
-/// `_segment_intersection`.
-pub(crate) fn segment_intersection(start: Pt, end: Pt, first: Pt, second: Pt) -> Option<Pt> {
-    if let Some(t) = segment_intersection_parameter(start, end, first, second) {
-        return Some(Pt { x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t });
-    }
-    let (dx, dy) = (end.x - start.x, end.y - start.y);
-    let denominator = dx * dx + dy * dy;
-    if denominator <= 1e-18 || (dx * (first.y - start.y) - dy * (first.x - start.x)).abs() > 1e-9 {
-        return None;
-    }
-    let first_t = ((first.x - start.x) * dx + (first.y - start.y) * dy) / denominator;
-    let second_t = ((second.x - start.x) * dx + (second.y - start.y) * dy) / denominator;
-    let overlap_start = py_max(0.0, py_min(first_t, second_t));
-    let overlap_end = py_min(1.0, py_max(first_t, second_t));
-    if overlap_start > overlap_end + 1e-9 {
-        return None;
-    }
-    let midpoint = (overlap_start + overlap_end) / 2.0;
-    Some(Pt { x: start.x + dx * midpoint, y: start.y + dy * midpoint })
-}
-
-/// `zip(polygon, (*polygon[1:], polygon[0]))`.
-fn sides(polygon: &[Pt]) -> impl Iterator<Item = (Pt, Pt)> + '_ {
-    polygon.iter().copied().zip(polygon.iter().copied().skip(1).chain(polygon.first().copied()))
-}
-
-/// `_segment_inside_polygon`.
-pub(crate) fn segment_inside_polygon(start: Pt, end: Pt, polygon: &[Pt]) -> bool {
-    let mut cuts = vec![0.0, 1.0];
-    cuts.extend(sides(polygon).filter_map(|(first, second)| segment_intersection_parameter(start, end, first, second)));
-    // sorted(set(cuts)): 0.0 is first in the list, so a -0.0 goes as a set would drop it.
-    cuts.sort_by(|first, second| first.partial_cmp(second).unwrap_or(std::cmp::Ordering::Equal));
-    cuts.dedup_by(|later, kept| *later == *kept);
-    cuts.windows(2).all(|pair| {
-        let middle = (pair[0] + pair[1]) / 2.0;
-        point_in_polygon(Pt { x: start.x + (end.x - start.x) * middle, y: start.y + (end.y - start.y) * middle }, polygon)
-    })
-}
-
-fn segment_hits_polygon(start: Pt, end: Pt, polygon: &[Pt]) -> bool {
-    if point_in_polygon(start, polygon) || point_in_polygon(end, polygon) {
-        return true;
-    }
-    if sides(polygon).any(|(first, second)| segment_intersection(start, end, first, second).is_some()) {
-        return true;
-    }
-    point_in_polygon(Pt { x: (start.x + end.x) / 2.0, y: (start.y + end.y) / 2.0 }, polygon)
-}
-
-pub(crate) fn point_segment_distance(point: Pt, start: Pt, end: Pt) -> f64 {
-    let (dx, dy) = (end.x - start.x, end.y - start.y);
-    let denominator = dx * dx + dy * dy;
-    if denominator <= 1e-18 {
-        return distance(point, start);
-    }
-    let fraction = py_min(1.0, py_max(0.0, ((point.x - start.x) * dx + (point.y - start.y) * dy) / denominator));
-    distance(point, Pt { x: start.x + fraction * dx, y: start.y + fraction * dy })
-}
-
-/// `_segment_clear_of_polygon`.
-pub(crate) fn segment_clear_of_polygon(start: Pt, end: Pt, polygon: &[Pt], clearance: f64) -> bool {
-    if segment_hits_polygon(start, end, polygon) {
-        return false;
-    }
-    sides(polygon).all(|(first, second)| {
-        let nearest = py_min(
-            py_min(
-                py_min(point_segment_distance(start, first, second), point_segment_distance(end, first, second)),
-                point_segment_distance(first, start, end),
-            ),
-            point_segment_distance(second, start, end),
-        );
-        nearest + 1e-9 >= clearance
-    })
-}
-
-/// The clearance of `route_is_physically_clear` and `_room_segment_clear`, by the mobility's value.
-pub(crate) fn walking_clearance(mobility: &str) -> Option<f64> {
-    match mobility {
-        "independent" => Some(0.25),
-        "assisted" => Some(0.4),
-        "wheelchair" => Some(0.45),
-        _ => None,
-    }
-}
-
-/// `_point_along_polyline`, for points that are not empty. None when `math.fsum` would not be the plain case.
-pub(crate) fn point_along_polyline(points: &[Pt], progress: f64) -> Option<Pt> {
-    let lengths: Vec<f64> = points.windows(2).map(|pair| distance(pair[0], pair[1])).collect();
-    let total = py_fsum(&lengths)?;
-    let last = points[points.len() - 1];
-    if total <= 1e-12 {
-        return Some(last);
-    }
-    let mut remaining = total * py_min(1.0, py_max(0.0, progress));
-    for (pair, &length) in points.windows(2).zip(&lengths) {
-        if remaining <= length {
-            let ratio = if length <= 1e-12 { 0.0 } else { remaining / length };
-            let (first, second) = (pair[0], pair[1]);
-            return Some(Pt { x: first.x + (second.x - first.x) * ratio, y: first.y + (second.y - first.y) * ratio });
-        }
-        remaining -= length;
-    }
-    Some(last)
-}
-
-// ---- The plan ----------------------------------------------------------------------------------
-
-pub(crate) struct Zone {
-    pub(crate) polygon: Vec<Pt>,
-    pub(crate) usable_area: f64,
-    /// `_zone_center`. Err for a centre `Point2D` would refuse.
-    pub(crate) center: Result<Option<Pt>, ()>,
-}
-
-pub(crate) struct Route {
-    pub(crate) points: Vec<Pt>,
-    pub(crate) width: f64,
-    pub(crate) accessible: bool,
-}
-
-/// A `FacilityServicePoint`, as a rule reads it.
-#[derive(Clone)]
-pub(crate) struct ServicePoint {
-    pub(crate) id: Arc<str>,
-    pub(crate) facility_id: Arc<str>,
-    pub(crate) point: Pt,
-    pub(crate) service_capacity: i64,
-    pub(crate) queue_id: Arc<str>,
-    pub(crate) accessibility: Arc<str>,
-    pub(crate) required_access_tags: Vec<Arc<str>>,
-    pub(crate) required_staff_skills: Vec<Arc<str>>,
-}
-
-pub(crate) struct Layout {
-    pub(crate) zones: IdMap<Zone>,
-    pub(crate) routes: IdMap<Route>,
-    pub(crate) facility_points: IdMap<Pt>,
-    /// With the overlay's moves. `signed_service_points` are the Scenario's own.
-    pub(crate) service_points: Vec<ServicePoint>,
-    pub(crate) signed_service_points: Vec<ServicePoint>,
-}
-
-pub(crate) struct Wall {
-    pub(crate) id: Arc<str>,
-    pub(crate) start: Pt,
-    pub(crate) end: Pt,
-}
-
-pub(crate) struct Opening {
-    pub(crate) wall_id: Arc<str>,
-    pub(crate) center: Pt,
-    pub(crate) width: f64,
-    pub(crate) accessible: bool,
-    pub(crate) edge_ids: Vec<Arc<str>>,
-}
-
-pub(crate) struct Constraints {
-    pub(crate) walls: Vec<Wall>,
-    pub(crate) openings: Vec<Opening>,
-    /// Obstacles, then equipment footprints.
-    pub(crate) blocked: Vec<Vec<Pt>>,
-    /// The equipment footprints, by facility.
-    pub(crate) footprints: Vec<(Arc<str>, Vec<Pt>)>,
-    /// How many of `blocked` are obstacles, the rest being the footprints.
-    pub(crate) obstacle_count: usize,
-}
-
-/// What a route found in a room depends on, beside the plan it is kept in.
-#[derive(Eq, Hash, PartialEq)]
-struct RouteKey {
-    zone_id: Arc<str>,
-    mobility: &'static str,
-    start: Option<(u64, u64)>,
-    destination: (u64, u64),
-}
-
-/// What `_geometry(world)` and `_spatial_constraints(world)` return.
-#[derive(Default)]
-pub(crate) struct Geo {
-    pub(crate) layout: Option<Layout>,
-    pub(crate) constraints: Option<Constraints>,
-    /// `plan_in_room_route`'s memo. A route is a pure function of this plan and its key.
-    routes: Mutex<HashMap<RouteKey, Option<Arc<[Pt]>>, FxBuildHasher>>,
-}
-
-/// `_zone_center` of one polygon.
-fn zone_center(polygon: &[Pt]) -> Result<Option<Pt>, ()> {
-    let crosses: Vec<f64> = sides(polygon).map(|(a, b)| a.x * b.y - b.x * a.y).collect();
-    let twice_area = py_sum(&crosses);
-    let count = polygon.len() as f64;
-    let candidate = if twice_area.abs() < 1e-12 {
-        let xs: Vec<f64> = polygon.iter().map(|point| point.x).collect();
-        let ys: Vec<f64> = polygon.iter().map(|point| point.y).collect();
-        Pt { x: py_sum(&xs) / count, y: py_sum(&ys) / count }
-    } else {
-        let xs: Vec<f64> = sides(polygon).map(|(a, b)| (a.x + b.x) * (a.x * b.y - b.x * a.y)).collect();
-        let ys: Vec<f64> = sides(polygon).map(|(a, b)| (a.y + b.y) * (a.x * b.y - b.x * a.y)).collect();
-        Pt { x: py_sum(&xs) / (3.0 * twice_area), y: py_sum(&ys) / (3.0 * twice_area) }
-    };
-    if !candidate.x.is_finite() || !candidate.y.is_finite() {
-        return Err(());
-    }
-    if point_in_polygon(candidate, polygon) {
-        return Ok(Some(candidate));
-    }
-    // The area centroid of a concave room may lie outside its walls.
-    let orientation = if twice_area > 0.0 { 1.0 } else { -1.0 };
-    let extent = |value: fn(&Pt) -> f64| {
-        let values = polygon.iter().map(value);
-        let highest = values.clone().fold(f64::NEG_INFINITY, py_max);
-        highest - values.fold(f64::INFINITY, py_min)
-    };
-    let scale = py_max(py_max(extent(|point| point.x), extent(|point| point.y)), 1.0);
-    for (first, second) in sides(polygon) {
-        let (dx, dy) = (second.x - first.x, second.y - first.y);
-        let length = hypot(&[dx, dy]);
-        if length <= 1e-12 {
-            continue;
-        }
-        for fraction in [1e-7, 1e-5, 1e-3, 1e-2] {
-            let offset = scale * fraction;
-            let candidate = Pt {
-                x: (first.x + second.x) / 2.0 - orientation * dy / length * offset,
-                y: (first.y + second.y) / 2.0 + orientation * dx / length * offset,
-            };
-            if !candidate.x.is_finite() || !candidate.y.is_finite() {
-                return Err(());
-            }
-            if point_in_polygon(candidate, polygon) {
-                return Ok(Some(candidate));
-            }
-        }
-    }
-    Ok(None)
-}
+// ---- The section `geometry`: the parsed models, read ---------------------------------------------
 
 fn point_of(model: &Bound<'_, PyAny>) -> PyResult<Pt> {
     let py = model.py();
@@ -356,7 +68,7 @@ fn id_of(model: &Bound<'_, PyAny>, name: &Bound<'_, PyString>) -> PyResult<Arc<s
 
 fn flag_of(model: &Bound<'_, PyAny>, name: &Bound<'_, PyString>) -> PyResult<bool> {
     attribute(model, name)?
-        .downcast_exact::<pyo3::types::PyBool>()
+        .downcast_exact::<PyBool>()
         .map(|flag| flag.is_true())
         .map_err(|_| Unsupported::new_err("not a bool"))
 }
@@ -380,45 +92,14 @@ fn service_point_of(model: &Bound<'_, PyAny>) -> PyResult<ServicePoint> {
     })
 }
 
-/// A `Point2D` of the overlay, for what `Point2D.model_validate` takes as it is.
-pub(crate) fn point_in_value(value: &V) -> PyResult<Pt> {
-    let V::Map(fields) = value else {
-        return unsupported("a point is not a dict");
-    };
-    let (Some(V::Float(x)), Some(V::Float(y)), 2) = (fields.get("x"), fields.get("y"), fields.len()) else {
-        return unsupported("a point is not two floats");
-    };
-    if !usable(*x, *y) {
-        return unsupported("a point is not a usable point");
-    }
-    Ok(Pt { x: *x, y: *y })
-}
-
-pub(crate) fn points_in_value(value: &V) -> PyResult<Vec<Pt>> {
-    let V::List(points) = value else {
-        return unsupported("points are not a list");
-    };
-    points.iter().map(point_in_value).collect()
-}
-
-/// A point the arithmetic of a rule gave: `Point2D` takes what is finite, and `usable` is less.
-fn moved(point: Pt, new: Pt, old: Pt) -> PyResult<Pt> {
-    let moved = Pt { x: point.x + new.x - old.x, y: point.y + new.y - old.y };
-    if !usable(moved.x, moved.y) {
-        return unsupported("a moved point is not a usable point");
-    }
-    Ok(moved)
-}
-
-/// `effective_geometry`: the Scenario's plan with the overlay's moved facilities.
-fn layout_of(model: &Bound<'_, PyAny>, moves: Option<&V>) -> PyResult<Layout> {
+/// The Scenario's plan of a parsed `FacilityGeometry`.
+fn plan_of(model: &Bound<'_, PyAny>) -> PyResult<FacilityPlan> {
     let py = model.py();
-    let mut layout = Layout {
+    let mut plan = FacilityPlan {
         zones: IdMap::default(),
         routes: IdMap::default(),
         facility_points: IdMap::default(),
         service_points: Vec::new(),
-        signed_service_points: Vec::new(),
     };
     for zone in tuple_of(model, intern!(py, "zones"))?.iter() {
         let polygon = points_of(&zone, intern!(py, "polygon"))?;
@@ -428,7 +109,7 @@ fn layout_of(model: &Bound<'_, PyAny>, moves: Option<&V>) -> PyResult<Layout> {
         let usable_area = exact_float(&attribute(&zone, intern!(py, "usable_area_m2"))?)?;
         let center = zone_center(&polygon);
         // The first of a repeated ID, as `next(...)` finds; the model refuses a repeat anyway.
-        layout.zones.entry(id_of(&zone, intern!(py, "zone_id"))?).or_insert(Zone { polygon, usable_area, center });
+        plan.zones.entry(id_of(&zone, intern!(py, "zone_id"))?).or_insert(Zone { polygon, usable_area, center });
     }
     for route in tuple_of(model, intern!(py, "routes"))?.iter() {
         let points = points_of(&route, intern!(py, "points"))?;
@@ -437,134 +118,164 @@ fn layout_of(model: &Bound<'_, PyAny>, moves: Option<&V>) -> PyResult<Layout> {
         }
         let width = exact_float(&attribute(&route, intern!(py, "width_m"))?)?;
         let accessible = flag_of(&route, intern!(py, "accessible"))?;
-        layout.routes.entry(id_of(&route, intern!(py, "edge_id"))?).or_insert(Route { points, width, accessible });
+        plan.routes.entry(id_of(&route, intern!(py, "edge_id"))?).or_insert(Route { points, width, accessible });
     }
     let points = attribute(model, intern!(py, "facility_points"))?;
     for (id, point) in exact_dict(&points)?.iter() {
-        layout.facility_points.insert(Arc::from(exact_str(&id)?), point_of(&point)?);
+        plan.facility_points.insert(Arc::from(exact_str(&id)?), point_of(&point)?);
     }
     for point in tuple_of(model, intern!(py, "service_points"))?.iter() {
-        layout.signed_service_points.push(service_point_of(&point)?);
+        plan.service_points.push(service_point_of(&point)?);
     }
-    layout.service_points = layout.signed_service_points.clone();
-    let Some(moves) = moves else {
-        return Ok(layout);
-    };
-    let V::Map(moves) = moves else {
-        return unsupported("the overlay's moves are not a dict");
-    };
-    if moves.is_empty() {
-        return Ok(layout);
-    }
-    let mut new_points = IdMap::default();
-    for (id, row) in moves {
-        let V::Map(row) = row else {
-            return unsupported("a move is not a dict");
-        };
-        let point = point_in_value(row.get("point_m").unwrap_or(&V::Null))?;
-        new_points.insert(id.clone(), point);
-    }
-    for point in &mut layout.service_points {
-        let Some(&new) = new_points.get(&*point.facility_id) else {
-            continue;
-        };
-        let Some(&old) = layout.facility_points.get(&*point.facility_id) else {
-            return unsupported("a moved service point has no point of its facility");
-        };
-        point.point = moved(point.point, new, old)?;
-    }
-    for (id, point) in new_points {
-        layout.facility_points.insert(id, point);
-    }
-    Ok(layout)
+    Ok(plan)
 }
 
-/// `effective_spatial_constraints`: the Scenario's with the partitions as obstacles, in ID order,
-/// and the footprints of moved facilities moved with them.
-fn constraints_of(
-    model: &Bound<'_, PyAny>,
-    partitions: Option<&V>,
-    moves: Option<&V>,
-    signed: Option<&Bound<'_, PyAny>>,
-) -> PyResult<Constraints> {
+/// An `ArrivalApproachRoute`. `travel_minutes` is a property that may raise; it is kept as read.
+fn approach_route_of(route: &Bound<'_, PyAny>) -> PyResult<ApproachRoute> {
+    let py = route.py();
+    let mut source_ids = Vec::new();
+    for source in attribute(route, intern!(py, "source_ids"))?.try_iter()? {
+        source_ids.push(Arc::from(exact_str(&source?)?));
+    }
+    let travel_minutes = attribute(route, intern!(py, "travel_minutes")).and_then(|minutes| exact_int(&minutes));
+    Ok(ApproachRoute {
+        route_id: id_of(route, intern!(py, "route_id"))?,
+        destination_zone_id: id_of(route, intern!(py, "destination_zone_id"))?,
+        source_ids,
+        walking_speed: exact_float(&attribute(route, intern!(py, "walking_speed_m_per_min"))?)?,
+        distance: exact_float(&attribute(route, intern!(py, "distance_m"))?)?,
+        travel_minutes: travel_minutes.map_err(|error| fault_of(py, &error)),
+    })
+}
+
+/// `independent_queues_required` of a parsed `FacilityGeometry`: it stops at the first point that
+/// decides, as the rule did.
+fn independent_of(model: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = model.py();
-    let mut blocked = Vec::new();
+    let points = tuple_of(model, intern!(py, "service_points"))?;
+    let mut facilities = std::collections::HashSet::with_capacity(points.len());
+    for point in points.iter() {
+        let facility = attribute(&point, intern!(py, "facility_id"))?;
+        let facility = exact_str(&facility)?;
+        let queue = attribute(&point, intern!(py, "queue_id"))?;
+        if exact_str(&queue)? != facility || !facilities.insert(facility.to_owned()) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// What reading a part of a parsed model gave: the value, or the fault of what it raised.
+fn part<T>(py: Python<'_>, read: PyResult<T>) -> Result<T, Fault> {
+    read.map_err(|error| fault_of(py, &error))
+}
+
+struct Contracts {
+    facility: Py<PyAny>,
+    spatial: Py<PyAny>,
+}
+
+static CONTRACTS: GILOnceCell<Contracts> = GILOnceCell::new();
+
+fn contracts(py: Python<'_>) -> PyResult<&Contracts> {
+    CONTRACTS.get_or_try_init(py, || {
+        Ok(Contracts {
+            facility: py.import("sheltersim.contracts.extensions")?.getattr("FacilityGeometry")?.unbind(),
+            spatial: py.import("sheltersim.contracts.spatial")?.getattr("SpatialConstraints")?.unbind(),
+        })
+    })
+}
+
+/// `model_configs.get(name)`: the configs a world holds are a plain dict, and anything else is
+/// read through its `get`.
+fn config_entry<'py>(raw_configs: &Bound<'py, PyAny>, name: &Bound<'py, PyString>) -> PyResult<Option<Bound<'py, PyAny>>> {
+    match as_readable_dict(raw_configs) {
+        Some(dict) => dict.get_item(name),
+        None => {
+            let value = raw_configs.call_method1(intern!(raw_configs.py(), "get"), (name,))?;
+            Ok((!value.is_none()).then_some(value))
+        }
+    }
+}
+
+/// `FacilityGeometry.model_validate(raw)`: the parse every read site of the section relays.
+fn parse_facility<'py>(raw: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    contracts(raw.py())?.facility.bind(raw.py()).call_method1(intern!(raw.py(), "model_validate"), (raw,))
+}
+
+/// The section `facility_geometry` of these configs, parsed at its first read. Absent where the
+/// key is missing or None; a fault for what the parse raised. Reading the parts never raises here.
+pub(crate) fn facility_geometry<'c>(configs: &'c Configs, raw_configs: &Bound<'_, PyAny>) -> &'c Section<FacilityGeometry> {
+    let py = raw_configs.py();
+    configs.facility_geometry.get_or_parse(|| {
+        let raw = match config_entry(raw_configs, intern!(py, "facility_geometry")) {
+            Ok(Some(raw)) if !raw.is_none() => raw,
+            Ok(_) => return Section::Absent,
+            Err(error) => return Section::Fault(fault_of(py, &error)),
+        };
+        match parse_facility(&raw) {
+            Ok(model) => Section::Ok(Arc::new(FacilityGeometry {
+                plan: part(py, plan_of(&model).map(Arc::new)),
+                approach_routes: part(
+                    py,
+                    tuple_of(&model, intern!(py, "arrival_approach_routes"))
+                        .and_then(|routes| routes.iter().map(|route| approach_route_of(&route)).collect::<PyResult<Vec<_>>>())
+                        .map(Arc::from),
+                ),
+                independent_queues: part(py, independent_of(&model)),
+            })),
+            Err(error) => Section::Fault(fault_of(py, &error)),
+        }
+    })
+}
+
+/// The section `spatial_constraints` of these configs: `model_configs.get("spatial_constraints",
+/// {})`, parsed at its first read.
+fn spatial_constraints<'c>(configs: &'c Configs, raw_configs: &Bound<'_, PyAny>) -> &'c Section<SpatialConstraints> {
+    let py = raw_configs.py();
+    configs.spatial_constraints.get_or_parse(|| {
+        let read = || -> PyResult<SpatialConstraints> {
+            let raw = match config_entry(raw_configs, intern!(py, "spatial_constraints"))? {
+                Some(raw) => raw,
+                None => pyo3::types::PyDict::new(py).into_any(),
+            };
+            let model = contracts(py)?.spatial.bind(py).call_method1(intern!(py, "model_validate"), (&raw,))?;
+            spatial_of(&model)
+        };
+        match read() {
+            Ok(spatial) => Section::Ok(Arc::new(spatial)),
+            Err(error) => Section::Fault(fault_of(py, &error)),
+        }
+    })
+}
+
+fn spatial_of(model: &Bound<'_, PyAny>) -> PyResult<SpatialConstraints> {
+    let py = model.py();
+    let mut spatial = SpatialConstraints::default();
     for item in tuple_of(model, intern!(py, "obstacles"))?.iter() {
         let polygon = points_of(&item, intern!(py, "polygon"))?;
         if polygon.is_empty() {
             return unsupported("an obstacle has no polygon");
         }
-        blocked.push(polygon);
+        spatial.obstacles.push(polygon);
     }
-    if let Some(partitions) = partitions {
-        let V::Map(partitions) = partitions else {
-            return unsupported("the partitions are not a dict");
-        };
-        let mut sorted: Vec<(&Arc<str>, &V)> = partitions.iter().collect();
-        sorted.sort_by(|first, second| first.0.as_bytes().cmp(second.0.as_bytes()));
-        for (_, row) in sorted {
-            let V::Map(row) = row else {
-                return unsupported("a partition is not a dict");
-            };
-            // SpatialObstacle(id=key, ...) takes 3 to 128 corners, and its ID and sources the
-            // overlay's own validation reads: anything it could refuse goes to the Python rule.
-            let polygon = points_in_value(row.get("polygon_m").unwrap_or(&V::Null))?;
-            if !(3..=128).contains(&polygon.len()) {
-                return unsupported("a partition has another number of corners");
-            }
-            if !matches!(row.get("source_ids"), Some(V::List(sources)) if sources.iter().all(|id| matches!(id, V::Str(id) if is_identifier(id)))) {
-                return unsupported("a partition's source is not an identifier");
-            }
-            blocked.push(polygon);
-        }
-        if partitions.keys().any(|id| !is_identifier(id)) {
-            return unsupported("a partition's ID is not an identifier");
-        }
-    }
-    let obstacle_count = blocked.len();
-    let moves = match moves {
-        Some(V::Map(moves)) => Some(moves),
-        Some(_) => return unsupported("the overlay's moves are not a dict"),
-        None => None,
-    };
-    let mut footprints = Vec::new();
     for item in tuple_of(model, intern!(py, "equipment_footprints"))?.iter() {
-        let mut polygon = points_of(&item, intern!(py, "polygon"))?;
+        let polygon = points_of(&item, intern!(py, "polygon"))?;
         if polygon.is_empty() {
             return unsupported("a footprint has no polygon");
         }
-        let id = id_of(&item, intern!(py, "facility_id"))?;
-        if let Some(V::Map(row)) = moves.and_then(|moves| moves.get(&*id)) {
-            let Some(signed) = signed else {
-                return unsupported("a moved footprint without the Scenario's plan");
-            };
-            let points = attribute(signed, intern!(py, "facility_points"))?;
-            let Some(old) = exact_dict(&points)?.get_item(&*id)? else {
-                return unsupported("a moved footprint has no point of its facility");
-            };
-            let old = point_of(&old)?;
-            let new = point_in_value(row.get("point_m").unwrap_or(&V::Null))?;
-            for point in &mut polygon {
-                *point = moved(*point, new, old)?;
-            }
-        } else if moves.is_some_and(|moves| moves.contains_key(&*id)) {
-            return unsupported("a move is not a dict");
-        }
-        blocked.push(polygon.clone());
-        footprints.push((id, polygon));
+        spatial.footprints.push((id_of(&item, intern!(py, "facility_id"))?, polygon));
     }
-    let mut walls = Vec::new();
     for wall in tuple_of(model, intern!(py, "walls"))?.iter() {
-        walls.push(Wall {
+        spatial.walls.push(Wall {
             id: id_of(&wall, intern!(py, "id"))?,
             start: point_of(&attribute(&wall, intern!(py, "start"))?)?,
             end: point_of(&attribute(&wall, intern!(py, "end"))?)?,
         });
     }
-    let mut openings = Vec::new();
     for opening in tuple_of(model, intern!(py, "openings"))?.iter() {
         let edge_ids = tuple_of(&opening, intern!(py, "edge_ids"))?;
-        openings.push(Opening {
+        spatial.openings.push(Opening {
             wall_id: id_of(&opening, intern!(py, "wall_id"))?,
             center: point_of(&attribute(&opening, intern!(py, "center"))?)?,
             width: exact_float(&attribute(&opening, intern!(py, "width_m"))?)?,
@@ -572,485 +283,263 @@ fn constraints_of(
             edge_ids: edge_ids.iter().map(|id| Ok(Arc::from(exact_str(&id)?))).collect::<PyResult<_>>()?,
         });
     }
-    Ok(Constraints { walls, openings, blocked, footprints, obstacle_count })
+    Ok(spatial)
 }
 
-// ---- Which plan a world has now --------------------------------------------------------------
-
-struct PythonParts {
-    parsed_config: Py<PyAny>,
-    geometry_model: Py<PyAny>,
-    constraints_model: Py<PyAny>,
-    empty_constraints: Py<PyAny>,
-    config_scope: Py<PyAny>,
-}
-
-static PYTHON: GILOnceCell<PythonParts> = GILOnceCell::new();
-
-fn python(py: Python<'_>) -> PyResult<&'static PythonParts> {
-    PYTHON.get_or_try_init(py, || {
-        let overlay = py.import("sheltersim.domain.geometry_overlay")?;
-        let extensions = py.import("sheltersim.contracts.extensions")?;
-        let spatial = py.import("sheltersim.contracts.spatial")?;
-        Ok(PythonParts {
-            parsed_config: overlay.getattr("_parsed_config")?.unbind(),
-            geometry_model: extensions.getattr("FacilityGeometry")?.unbind(),
-            constraints_model: spatial.getattr("SpatialConstraints")?.unbind(),
-            empty_constraints: overlay.getattr("_EMPTY_SPATIAL_CONSTRAINTS")?.unbind(),
-            config_scope: overlay.getattr("_CONFIG_SCOPE")?.unbind(),
-        })
-    })
-}
-
-/// What a plan is made of. Parsed configs are compared by identity, as `_parsed_config` keeps
-/// them: in a scope one object for as long as the raw config stands, and outside a scope a new one
-/// at each call, which reads a config edited in place as a Python rule would.
-struct Plan {
-    geometry: Option<Py<PyAny>>,
-    constraints: Option<Py<PyAny>>,
-    moves: Vec<u8>,
-    partitions: Vec<u8>,
-    geo: Arc<Geo>,
-}
-
-/// Kept across ticks and worlds; the handles are here so an object's address cannot be reused.
-static PLANS: Mutex<Vec<Plan>> = Mutex::new(Vec::new());
-
-fn same_object(kept: &Option<Py<PyAny>>, now: &Option<Bound<'_, PyAny>>) -> bool {
-    match (kept, now) {
-        (None, None) => true,
-        (Some(kept), Some(now)) => kept.as_ptr() == now.as_ptr(),
-        _ => false,
+/// A fault as the plan's reader meets it: Unsupported, with the reader's own reason, or, for what
+/// the parse raised, the reason the Python rule raises it itself.
+fn refusal(fault: &Fault) -> PyErr {
+    if fault.is_refusal() {
+        Unsupported::new_err(fault.text.to_string())
+    } else {
+        Unsupported::new_err("the Python rule's parse raises")
     }
 }
 
+// ---- The read sites ------------------------------------------------------------------------------
+
+/// `parsed_facility_geometry(model_configs.get("facility_geometry", {})).arrival_approach_routes`.
+/// What the parse raised is raised again by a second parse (E14); a route the reader refused is
+/// Unsupported, as reading its attributes was.
+pub(crate) fn approach_routes(world: &Bound<'_, PyAny>) -> PyResult<Arc<[ApproachRoute]>> {
+    let py = world.py();
+    let raw_configs = attribute(world, intern!(py, "model_configs"))?;
+    let configs = configs::current_of(world, &raw_configs)?;
+    let relay = || {
+        configs::reraise(|| {
+            let raw = raw_configs.call_method1(intern!(py, "get"), ("facility_geometry", pyo3::types::PyDict::new(py)))?;
+            parse_facility(&raw)
+        })
+    };
+    match facility_geometry(&configs, &raw_configs) {
+        Section::Ok(geometry) => geometry.approach_routes.clone().map_err(|fault| refusal(&fault)),
+        // A missing or None config: the parse of `{}` or None raises.
+        Section::Absent | Section::Fault(_) => Err(relay()),
+    }
+}
+
+/// `travel_minutes` of a route, Unsupported as reading it was where it raised.
+pub(crate) fn travel_minutes(route: &ApproachRoute) -> PyResult<i64> {
+    route.travel_minutes.clone().map_err(|fault| Unsupported::new_err(fault.text.to_string()))
+}
+
+/// `independent_queues_required(world.model_configs)`. False without a config dict; a config the
+/// parse turns down raises the parse's own error, as the Python rule did.
+pub(crate) fn independent_queues(world: &Bound<'_, PyAny>) -> PyResult<bool> {
+    let py = world.py();
+    let raw_configs = attribute(world, intern!(py, "model_configs"))?;
+    let Some(raw) = exact_dict(&raw_configs)?.get_item(intern!(py, "facility_geometry"))? else {
+        return Ok(false);
+    };
+    if as_readable_dict(&raw).is_none() {
+        return Ok(false);
+    }
+    let configs = configs::current_of(world, &raw_configs)?;
+    match facility_geometry(&configs, &raw_configs) {
+        Section::Ok(geometry) => geometry.independent_queues.clone().map_err(|fault| refusal(&fault)),
+        Section::Fault(_) => Err(crate::core::errors::relayed(py, configs::reraise(|| parse_facility(&raw)))),
+        Section::Absent => unsupported("no facility geometry"),
+    }
+}
+
+/// `independent_queues_required(configs)` of a configs dict no world holds: parsed each time.
+pub(crate) fn independent_queues_of_configs(raw_configs: &Bound<'_, PyAny>) -> PyResult<bool> {
+    let py = raw_configs.py();
+    let Some(raw) = exact_dict(raw_configs)?.get_item(intern!(py, "facility_geometry"))? else {
+        return Ok(false);
+    };
+    if as_readable_dict(&raw).is_none() {
+        return Ok(false);
+    }
+    // `parsed_facility_geometry` shares the parse of a Python config scope.
+    let model = py
+        .import(intern!(py, "sheltersim.domain.geometry_overlay"))?
+        .getattr(intern!(py, "parsed_facility_geometry"))?
+        .call1((&raw,))
+        .map_err(|error| crate::core::errors::relayed(py, error))?;
+    independent_of(&model)
+}
+
+// ---- Which plan a world has now ------------------------------------------------------------------
+
+/// Stamp hits whose overlay parts were not what the plan was built from, counted while
+/// `configs::watch_config_writes` is on: a write to the overlay that gave it no new stamp.
+static STALE_HITS: AtomicU64 = AtomicU64::new(0);
+
+/// The stale plans found since `watch_config_writes(True)` (`STALE_HITS`).
+#[pyfunction]
+pub(crate) fn stale_geometry_hits() -> u64 {
+    STALE_HITS.load(Ordering::Relaxed)
+}
+
+pub(crate) fn reset_stale_geometry_hits() {
+    STALE_HITS.store(0, Ordering::Relaxed);
+}
+
 /// The bytes of a part of the overlay: empty for no entries, so most ticks encode nothing.
-fn overlay_bytes(overlay: &IndexMap<Arc<str>, V>, name: &str) -> PyResult<Vec<u8>> {
+fn overlay_bytes(overlay: &indexmap::IndexMap<Arc<str>, V>, name: &str) -> PyResult<Vec<u8>> {
     match overlay.get(name) {
         None => Ok(Vec::new()),
         Some(V::Map(items)) if items.is_empty() => Ok(Vec::new()),
-        Some(part @ V::Map(_)) => {
-            let mut encoder = Encoder { out: Vec::with_capacity(256) };
-            part.write_json(&mut encoder).or_py()?;
-            Ok(encoder.out)
-        }
+        Some(part @ V::Map(_)) => part.to_json().or_py(),
         Some(_) => unsupported("a value is not a plain dict"),
     }
 }
 
-/// `_parsed_config`, whose error the Python rule raises itself.
-fn parsed<'py>(
-    functions: &PythonParts,
-    name: &Bound<'py, PyString>,
-    raw: &Bound<'py, PyAny>,
-    model: &Py<PyAny>,
-) -> PyResult<Bound<'py, PyAny>> {
-    let py = name.py();
-    // What `_parsed_config` finds in its scope, where a tick is. Anything else is its own to do.
-    let scope = functions.config_scope.bind(py).call_method0(intern!(py, "get"))?;
-    if let Ok(scope) = scope.downcast_exact::<PyDict>() {
-        if let Some(entry) = scope.get_item((name, raw.as_ptr() as usize))? {
-            if let Ok(entry) = entry.downcast_exact::<PyTuple>() {
-                if entry.get_item(0)?.is(raw) {
-                    return entry.get_item(1);
-                }
-            }
-        }
+/// The key of the overlay a world holds now, by bytes, with its stamp.
+fn overlay_key(world: &Bound<'_, PyAny>, present: bool, stamp: Option<sheltersim_core::stamp::Stamp>) -> PyResult<OverlayKey> {
+    if !present {
+        return Ok(OverlayKey { present, stamp: None, moves: Vec::new(), partitions: Vec::new() });
     }
-    functions
-        .parsed_config
-        .bind(py)
-        .call1((name, raw, model.bind(py)))
-        .map_err(|_| Unsupported::new_err("the Python rule's parse raises"))
+    // The overlay is read as a `V`: a detached one from its row.
+    let (moves, partitions) = with_state_value(world, OVERLAY_KEY, |overlay| {
+        let Some(V::Map(overlay)) = overlay else {
+            return unsupported("a value is not a plain dict");
+        };
+        Ok((overlay_bytes(overlay, "facility_points")?, overlay_bytes(overlay, "partitions")?))
+    })?;
+    Ok(OverlayKey { present, stamp, moves, partitions })
 }
 
-impl Geo {
+/// Whether `model_state` holds the overlay, and the stamp of its slot where one follows it.
+fn overlay_held(world: &Bound<'_, PyAny>) -> PyResult<(bool, Option<sheltersim_core::stamp::Stamp>)> {
+    let py = world.py();
+    let table = world
+        .getattr(intern!(py, "model_state"))
+        .map_err(|_| Unsupported::new_err("an input has no such attribute"))?;
+    let dict = as_readable_dict(&table).ok_or_else(|| Unsupported::new_err("model_state is not a plain dict"))?;
+    let Some(held) = dict.get_item(OVERLAY_KEY)? else {
+        return Ok((false, None));
+    };
+    Ok((true, field_stamp(world, OVERLAY_KEY, &held)?.map(|(_, stamp)| stamp)))
+}
+
+/// `Geo::of` and the PyResult face of the core's `Geo`.
+pub(crate) trait GeoPy {
     /// The plan of this world now. Unsupported for what the Python functions raise on.
-    pub(crate) fn of(world: &Bound<'_, PyAny>) -> PyResult<Arc<Geo>> {
+    fn of(world: &Bound<'_, PyAny>) -> PyResult<Arc<Geo>>;
+    /// `_zone_center`. Unsupported when Python would raise.
+    fn zone_center(&self, zone_id: &str) -> PyResult<Option<Pt>>;
+}
+
+impl GeoPy for Geo {
+    fn of(world: &Bound<'_, PyAny>) -> PyResult<Arc<Geo>> {
         let py = world.py();
-        let functions = python(py)?;
-        let configs = attribute(world, intern!(py, "model_configs"))?;
-        let configs = exact_dict(&configs)?;
-        // The overlay is read as a `V`: a detached one from its row.
-        let (has_overlay, moves, partitions) = with_state_value(world, OVERLAY_KEY, |overlay| {
-            let Some(overlay) = overlay else {
-                return Ok((false, Vec::new(), Vec::new()));
-            };
-            let V::Map(overlay) = overlay else {
-                return unsupported("a value is not a plain dict");
-            };
-            Ok((true, overlay_bytes(overlay, "facility_points")?, overlay_bytes(overlay, "partitions")?))
-        })?;
-        let geometry = match configs.get_item(intern!(py, "facility_geometry"))? {
-            Some(raw) if !raw.is_none() => Some(parsed(functions, intern!(py, "facility_geometry"), &raw, &functions.geometry_model)?),
-            _ => None,
-        };
-        let raw_constraints = configs.get_item(intern!(py, "spatial_constraints"))?;
-        let constraints = if raw_constraints.is_some() || has_overlay {
-            let raw = raw_constraints.unwrap_or_else(|| functions.empty_constraints.bind(py).clone());
-            Some(parsed(functions, intern!(py, "spatial_constraints"), &raw, &functions.constraints_model)?)
-        } else {
-            None
-        };
-        {
-            let mut plans = PLANS.lock().map_err(|_| Unsupported::new_err("the plans are poisoned"))?;
-            let found = plans.iter().position(|plan| {
-                same_object(&plan.geometry, &geometry)
-                    && same_object(&plan.constraints, &constraints)
-                    && plan.moves == moves
-                    && plan.partitions == partitions
-            });
-            if let Some(found) = found {
-                let geo = plans[found].geo.clone();
-                if found != 0 {
-                    let plan = plans.remove(found);
-                    plans.insert(0, plan);
+        let raw_configs = attribute(world, intern!(py, "model_configs"))?;
+        let configs = configs::current_of(world, &raw_configs)?;
+        let (present, stamp) = overlay_held(world)?;
+        if let Some(stamp) = stamp {
+            let found = configs.geo.lock().ok().and_then(|mut cache| cache.by_stamp(stamp));
+            if let Some(geo) = found {
+                if configs::watching() {
+                    let key = overlay_key(world, present, Some(stamp))?;
+                    if !configs.geo.lock().is_ok_and(|cache| cache.holds(&key)) {
+                        STALE_HITS.fetch_add(1, Ordering::Relaxed);
+                    }
                 }
                 return Ok(geo);
             }
         }
-        // The overlay's parts are read only when they have entries, as `moves` and `partitions` say.
-        let (moved_points, walls_up) = with_state_value(world, OVERLAY_KEY, |overlay| {
+        let key = overlay_key(world, present, stamp)?;
+        if let Some(geo) = configs.geo.lock().ok().and_then(|mut cache| cache.by_bytes(&key)) {
+            return Ok(geo);
+        }
+        let facility = match facility_geometry(&configs, &raw_configs) {
+            Section::Absent => None,
+            Section::Ok(geometry) => Some(geometry.plan.clone().map_err(|fault| refusal(&fault))?),
+            Section::Fault(fault) => return Err(refusal(fault)),
+        };
+        let has_constraints = config_entry(&raw_configs, intern!(py, "spatial_constraints"))?.is_some() || present;
+        let spatial = if has_constraints {
+            match spatial_constraints(&configs, &raw_configs) {
+                Section::Ok(spatial) => Some(spatial.clone()),
+                Section::Absent => None,
+                Section::Fault(fault) => return Err(refusal(fault)),
+            }
+        } else {
+            None
+        };
+        // The overlay's parts are read only when they have entries, as the key's bytes say.
+        let (moves, partitions) = with_state_value(world, OVERLAY_KEY, |overlay| {
             let part = |name: &str, bytes: &[u8]| match (overlay, bytes.is_empty()) {
                 (Some(V::Map(overlay)), false) => overlay.get(name).cloned(),
                 _ => None,
             };
-            Ok((part("facility_points", &moves), part("partitions", &partitions)))
+            Ok((part("facility_points", &key.moves), part("partitions", &key.partitions)))
         })?;
-        let layout = match &geometry {
-            Some(model) => Some(layout_of(model, moved_points.as_ref())?),
-            None => None,
-        };
-        let built = match &constraints {
-            Some(model) => Some(constraints_of(model, walls_up.as_ref(), moved_points.as_ref(), geometry.as_ref())?),
-            None => None,
-        };
-        let geo = Arc::new(Geo { layout, constraints: built, routes: Mutex::default() });
-        let mut plans = PLANS.lock().map_err(|_| Unsupported::new_err("the plans are poisoned"))?;
-        plans.insert(
-            0,
-            Plan {
-                geometry: geometry.map(Bound::unbind),
-                constraints: constraints.map(Bound::unbind),
-                moves,
-                partitions,
-                geo: geo.clone(),
-            },
-        );
-        // Dropped past the lock, since a release can run Python.
-        let keep = plans.len().min(CACHED_PLANS);
-        let old = plans.split_off(keep);
-        drop(plans);
-        drop(old);
+        let geo = Arc::new(Geo::new(facility.as_deref(), spatial.as_deref(), moves.as_ref(), partitions.as_ref()).or_py()?);
+        if let Ok(mut cache) = configs.geo.lock() {
+            cache.insert(key, geo.clone());
+        }
         Ok(geo)
     }
 
-    /// `_zone_center`. Unsupported when Python would raise.
-    pub(crate) fn zone_center(&self, zone_id: &str) -> PyResult<Option<Pt>> {
-        let Some(zone) = self.layout.as_ref().and_then(|layout| layout.zones.get(zone_id)) else {
-            return Ok(None);
-        };
-        zone.center.map_err(|()| Unsupported::new_err("the centre of a zone is not finite"))
-    }
-
-    /// `_room_segment_clear`, for a zone polygon.
-    pub(crate) fn room_segment_clear(constraints: &Constraints, start: Pt, end: Pt, polygon: &[Pt], mobility: &str) -> bool {
-        let Some(clearance) = walking_clearance(mobility) else {
-            return false;
-        };
-        if !segment_inside_polygon(start, end, polygon) {
-            return false;
-        }
-        if constraints.blocked.iter().any(|blocked| !segment_clear_of_polygon(start, end, blocked, clearance)) {
-            return false;
-        }
-        constraints.walls.iter().all(|wall| {
-            let Some(crossing) = segment_intersection(start, end, wall.start, wall.end) else {
-                return true;
-            };
-            constraints.openings.iter().any(|item| {
-                item.wall_id == wall.id
-                    && item.width + 1e-9 >= 2.0 * clearance
-                    && (item.accessible || mobility == "independent")
-                    && distance(crossing, item.center) <= item.width / 2.0 - clearance + 1e-8
-            })
-        })
-    }
-
-    /// `route_is_physically_clear`.
-    pub(crate) fn route_is_clear(&self, edge_id: &str, mobility: &str) -> bool {
-        let Some(layout) = &self.layout else {
-            return true;
-        };
-        let route = layout.routes.get(edge_id);
-        let clearance = walking_clearance(mobility);
-        let (Some(route), Some(clearance)) = (route, clearance) else {
-            return false;
-        };
-        if !route.accessible && (mobility == "wheelchair" || mobility == "assisted") {
-            return false;
-        }
-        if route.width + 1e-9 < 2.0 * clearance {
-            return false;
-        }
-        let Some(constraints) = &self.constraints else {
-            return true;
-        };
-        let openings: Vec<&Opening> =
-            constraints.openings.iter().filter(|item| item.edge_ids.iter().any(|id| &**id == edge_id)).collect();
-        for pair in route.points.windows(2) {
-            let (first, second) = (pair[0], pair[1]);
-            if constraints.blocked.iter().any(|polygon| !segment_clear_of_polygon(first, second, polygon, clearance)) {
-                return false;
-            }
-            for wall in &constraints.walls {
-                let Some(crossing) = segment_intersection(first, second, wall.start, wall.end) else {
-                    continue;
-                };
-                let allowed = openings.iter().any(|opening| {
-                    opening.wall_id == wall.id
-                        && (opening.accessible || mobility == "independent")
-                        && opening.width + 1e-9 >= 2.0 * clearance
-                        && distance(crossing, opening.center) <= opening.width / 2.0 - clearance + 1e-9
-                });
-                if !allowed {
-                    return false;
-                }
-            }
-        }
-        true
+    fn zone_center(&self, zone_id: &str) -> PyResult<Option<Pt>> {
+        self.center(zone_id).or_py()
     }
 }
 
-impl Geo {
-    /// `plan_in_room_route`. Err for what the Python function would raise or a kernel doesn't decide.
-    pub(crate) fn room_route(
-        &self,
-        zone_id: &str,
-        start: Option<Pt>,
-        destination: Pt,
-        mobility: &'static str,
-    ) -> Result<Option<Arc<[Pt]>>, &'static str> {
-        let key = RouteKey {
-            zone_id: Arc::from(zone_id),
-            mobility,
-            start: start.map(|point| (point.x.to_bits(), point.y.to_bits())),
-            destination: (destination.x.to_bits(), destination.y.to_bits()),
-        };
-        if let Ok(routes) = self.routes.lock() {
-            if let Some(route) = routes.get(&key) {
-                return Ok(route.clone());
+/// How many plans the configs of a world keep now, for tests (`tests/integration/test_geo_cache.py`).
+#[pyfunction]
+fn geo_plans_of(world: &Bound<'_, PyAny>) -> PyResult<usize> {
+    let raw_configs = attribute(world, intern!(world.py(), "model_configs"))?;
+    let configs = configs::current_of(world, &raw_configs)?;
+    let plans = configs.geo.lock().map(|cache| cache.len()).unwrap_or(0);
+    Ok(plans)
+}
+
+/// The plan of a world as plain values, for tests: the zone centres, the facility points in
+/// their order, the moved service points, the blocked polygons, and the routes clear to each
+/// mobility.
+#[pyfunction]
+fn geo_summary_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
+    let py = world.py();
+    let geo = Geo::of(world)?;
+    let summary = pyo3::types::PyDict::new(py);
+    if let Some(layout) = &geo.layout {
+        let centers = pyo3::types::PyDict::new(py);
+        for (id, zone) in &layout.zones {
+            centers.set_item(&**id, zone.center.ok().flatten().map(|point| (point.x, point.y)))?;
+        }
+        summary.set_item("zone_centers", centers)?;
+        let points: Vec<(&str, (f64, f64))> = layout.facility_points.iter().map(|(id, point)| (&**id, (point.x, point.y))).collect();
+        summary.set_item("facility_points", points)?;
+        let services: Vec<(&str, (f64, f64))> =
+            layout.service_points.iter().map(|point| (&*point.id, (point.point.x, point.point.y))).collect();
+        summary.set_item("service_points", services)?;
+        let mut clear = Vec::new();
+        for mobility in ["independent", "assisted", "wheelchair"] {
+            for id in layout.routes.keys() {
+                clear.push((mobility, &**id, geo.route_is_clear(id, mobility)));
             }
         }
-        let route = self.find_room_route(zone_id, start, destination, mobility)?;
-        let route: Option<Arc<[Pt]>> = route.map(Arc::from);
-        if let Ok(mut routes) = self.routes.lock() {
-            if routes.len() >= REMEMBERED_ROUTES {
-                routes.clear();
-            }
-            routes.insert(key, route.clone());
-        }
-        Ok(route)
+        summary.set_item("routes_clear", clear)?;
     }
-
-    /// `_plan_in_room_route`.
-    fn find_room_route(
-        &self,
-        zone_id: &str,
-        start: Option<Pt>,
-        destination: Pt,
-        mobility: &str,
-    ) -> Result<Option<Vec<Pt>>, &'static str> {
-        const REFUSED: &str = "the centre of a zone is not finite";
-        let Some(zone) = self.layout.as_ref().and_then(|layout| layout.zones.get(zone_id)) else {
-            return Ok(None);
-        };
-        let origin = match start {
-            Some(start) => Some(start),
-            None => zone.center.map_err(|()| REFUSED)?,
-        };
-        let Some(constraints) = &self.constraints else {
-            return Ok(origin.filter(|origin| segment_inside_polygon(*origin, destination, &zone.polygon)).map(|origin| vec![origin, destination]));
-        };
-        let Some(clearance) = walking_clearance(mobility) else {
-            return Ok(None);
-        };
-        let Some(origin) = origin else {
-            return Ok(None);
-        };
-        let walkable = |point: Pt| point_walkable(point, &zone.polygon, &constraints.blocked);
-        if !walkable(origin) || !walkable(destination) {
-            return Ok(None);
-        }
-        let mut nodes = vec![origin, destination];
-        let clearance = clearance + 0.05;
-        for polygon in &constraints.blocked {
-            let area = py_fsum(&sides(polygon).map(|(a, b)| a.x * b.y - b.x * a.y).collect::<Vec<f64>>())
-                .ok_or("an area is not a plain sum")?;
-            let orientation = if area > 0.0 { 1.0 } else { -1.0 };
-            let count = polygon.len();
-            for (index, &corner) in polygon.iter().enumerate() {
-                let previous = polygon[(index + count - 1) % count];
-                let following = polygon[(index + 1) % count];
-                let incoming = (corner.x - previous.x, corner.y - previous.y);
-                let outgoing = (following.x - corner.x, following.y - corner.y);
-                let turn = incoming.0 * outgoing.1 - incoming.1 * outgoing.0;
-                if turn * orientation <= 1e-10 {
-                    continue;
-                }
-                let first_length = hypot(&[incoming.0, incoming.1]);
-                let second_length = hypot(&[outgoing.0, outgoing.1]);
-                if first_length <= 1e-9 || second_length <= 1e-9 {
-                    continue;
-                }
-                let normal_first = (orientation * incoming.1 / first_length, -orientation * incoming.0 / first_length);
-                let normal_second = (orientation * outgoing.1 / second_length, -orientation * outgoing.0 / second_length);
-                let miter = (normal_first.0 + normal_second.0, normal_first.1 + normal_second.1);
-                let miter_length = hypot(&[miter.0, miter.1]);
-                if miter_length <= 1e-9 {
-                    continue;
-                }
-                let miter = (miter.0 / miter_length, miter.1 / miter_length);
-                let scale = clearance / (miter.0 * normal_first.0 + miter.1 * normal_first.1);
-                if !scale.is_finite() || scale <= 0.0 || scale > 20.0 {
-                    continue;
-                }
-                let candidate = Pt { x: corner.x + miter.0 * scale, y: corner.y + miter.1 * scale };
-                if walkable(candidate) {
-                    nodes.push(candidate);
-                }
-            }
-        }
-        for wall in &constraints.walls {
-            for opening in constraints.openings.iter().filter(|item| item.wall_id == wall.id) {
-                let (dx, dy) = (wall.end.x - wall.start.x, wall.end.y - wall.start.y);
-                let length = hypot(&[dx, dy]);
-                if length <= 1e-9 {
-                    continue;
-                }
-                let (nx, ny) = (-dy / length * clearance, dx / length * clearance);
-                for side in [-1.0, 1.0] {
-                    let candidate = Pt { x: opening.center.x + nx * side, y: opening.center.y + ny * side };
-                    if walkable(candidate) {
-                        nodes.push(candidate);
-                    }
-                }
-            }
-        }
-        let key_of = |point: Pt| -> Result<(f64, f64), &'static str> {
-            Ok((py_round(point.x, 8).ok_or("a round is not plain")?, py_round(point.y, 8).ok_or("a round is not plain")?))
-        };
-        // {key: point} of the Python rule: the later point takes a key's place, and -0.0 is 0.0.
-        let mut unique: Vec<((f64, f64), Pt)> = Vec::with_capacity(nodes.len());
-        let mut put = |key: (f64, f64), point: Pt| match unique.iter_mut().find(|(known, _)| *known == key) {
-            Some(slot) => slot.1 = point,
-            None => unique.push((key, point)),
-        };
-        for &point in &nodes {
-            put(key_of(point)?, point);
-        }
-        let (origin_key, destination_key) = (key_of(origin)?, key_of(destination)?);
-        put(destination_key, destination);
-        put(origin_key, origin);
-        unique.sort_by(|first, second| first.0.partial_cmp(&second.0).unwrap_or(Ordering::Equal));
-        let start_index = unique.iter().position(|(key, _)| *key == origin_key).ok_or("no origin")?;
-        let end_index = unique.iter().position(|(key, _)| *key == destination_key).ok_or("no destination")?;
-        let nodes: Vec<Pt> = unique.iter().map(|(_, point)| *point).collect();
-        let mut graph: Vec<Vec<(f64, u32)>> = vec![Vec::new(); nodes.len()];
-        for left in 0..nodes.len() {
-            for right in left + 1..nodes.len() {
-                if Self::room_segment_clear(constraints, nodes[left], nodes[right], &zone.polygon, mobility) {
-                    let length = distance(nodes[left], nodes[right]);
-                    graph[left].push((length, right as u32));
-                    graph[right].push((length, left as u32));
-                }
-            }
-        }
-        for adjacent in &mut graph {
-            adjacent.sort_by_key(|item| item.1);
-        }
-        let mut best: Vec<Option<(f64, Vec<u32>)>> = vec![None; nodes.len()];
-        best[start_index] = Some((0.0, vec![start_index as u32]));
-        let mut pending = BinaryHeap::new();
-        pending.push(Walk { distance: 0.0, path: vec![start_index as u32], current: start_index as u32 });
-        while let Some(Walk { distance: walked, path, current }) = pending.pop() {
-            let at = current as usize;
-            if best[at].as_ref().is_none_or(|(known, known_path)| *known != walked || *known_path != path) {
-                continue;
-            }
-            if at == end_index {
-                return Ok(Some(path.iter().map(|index| nodes[*index as usize]).collect()));
-            }
-            for &(weight, adjacent) in &graph[at] {
-                let next_distance = walked + weight;
-                let mut next_path = path.clone();
-                next_path.push(adjacent);
-                let better = match &best[adjacent as usize] {
-                    None => true,
-                    Some((known, known_path)) => {
-                        next_distance < *known || (next_distance == *known && next_path < *known_path)
-                    }
-                };
-                if better {
-                    best[adjacent as usize] = Some((next_distance, next_path.clone()));
-                    pending.push(Walk { distance: next_distance, path: next_path, current: adjacent });
-                }
-            }
-        }
-        Ok(None)
+    if let Some(constraints) = &geo.constraints {
+        let blocked: Vec<Vec<(f64, f64)>> =
+            constraints.blocked.iter().map(|polygon| polygon.iter().map(|point| (point.x, point.y)).collect()).collect();
+        summary.set_item("blocked", blocked)?;
+        summary.set_item("obstacle_count", constraints.obstacle_count)?;
     }
+    Ok(summary.into_any())
 }
 
-/// `_point_walkable`.
-pub(crate) fn point_walkable(point: Pt, zone: &[Pt], blocked: &[Vec<Pt>]) -> bool {
-    point_in_polygon(point, zone) && !blocked.iter().any(|polygon| point_in_polygon(point, polygon))
+/// The IDs and travel minutes of the arrival approach routes the kernels read, for tests.
+#[pyfunction]
+fn approach_routes_of(world: &Bound<'_, PyAny>) -> PyResult<Vec<(String, i64)>> {
+    approach_routes(world)?.iter().map(|route| Ok((route.route_id.to_string(), travel_minutes(route)?))).collect()
 }
 
-/// An entry of the Python rule's heap: the least `(distance, path, current)` comes first.
-struct Walk {
-    distance: f64,
-    path: Vec<u32>,
-    current: u32,
+/// `independent_queues_required(world.model_configs)` as the kernels read it, for tests.
+#[pyfunction]
+fn independent_queues_of(world: &Bound<'_, PyAny>) -> PyResult<bool> {
+    independent_queues(world)
 }
 
-impl Walk {
-    fn order(&self, other: &Self) -> Ordering {
-        self.distance
-            .partial_cmp(&other.distance)
-            .unwrap_or(Ordering::Equal)
-            .then_with(|| self.path.cmp(&other.path))
-            .then_with(|| self.current.cmp(&other.current))
-    }
-}
-
-impl PartialEq for Walk {
-    fn eq(&self, other: &Self) -> bool {
-        self.order(other) == Ordering::Equal
-    }
-}
-
-impl Eq for Walk {}
-
-impl PartialOrd for Walk {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Walk {
-    /// Reversed, since `BinaryHeap` pops the greatest.
-    fn cmp(&self, other: &Self) -> Ordering {
-        other.order(self)
-    }
-}
-
-/// `_polyline_length`. None when `math.fsum` is not the plain case.
-pub(crate) fn polyline_length(points: &[Pt]) -> Option<f64> {
-    let lengths: Vec<f64> = points.windows(2).map(|pair| distance(pair[0], pair[1])).collect();
-    py_fsum(&lengths)
-}
-
-/// Nothing to register: `rules/movement.rs` is what Python calls.
-pub fn register(_m: &Bound<'_, PyModule>) -> PyResult<()> {
+pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(geo_plans_of, m)?)?;
+    m.add_function(wrap_pyfunction!(approach_routes_of, m)?)?;
+    m.add_function(wrap_pyfunction!(independent_queues_of, m)?)?;
+    m.add_function(wrap_pyfunction!(geo_summary_of, m)?)?;
     Ok(())
 }

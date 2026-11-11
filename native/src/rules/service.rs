@@ -25,7 +25,7 @@ use crate::rules::facility_queues::{
     write_start, write_transition,
 };
 use crate::rules::movement::KEY as MOVEMENT_KEY;
-use crate::rules::movement_geometry::Geo;
+use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::rules::queues::head_to_service;
 use crate::rules::resources::{apply_planned, Operation};
 use crate::rules::social_network::mapping_get;

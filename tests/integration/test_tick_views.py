@@ -13,6 +13,7 @@ import struct
 
 from support.world import view_of
 
+from sheltersim import native
 from sheltersim.core.engine import TraceLevel
 from sheltersim.domain.information import INFORMATION_SPREAD_STATE_KEY
 from sheltersim.experiments.runner import run_scenario
@@ -139,8 +140,9 @@ def test_a_config_edited_between_ticks_is_seen_by_the_next_phases(generated_scen
     controller = OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
     engine = TickEngine(world, phase_handler=controller)
     engine.step()
+    # The kernels read the configs' section geometry, kept by the stamp of model_configs; the
+    # scope keeps what the Python rules parsed.
     parsed = dict(controller._parsed_configs)
-    assert parsed
     engine.step()
     assert controller._parsed_configs.keys() == parsed.keys()
     environments = controller._zone_environments
@@ -161,6 +163,8 @@ def test_a_config_edited_between_ticks_is_seen_by_the_next_phases(generated_scen
     controller._run_phase = run_phase
     engine.step()
     assert seen and all(value == moved_x for value in seen)
+    kernel_points = dict(native.rules("movement_geometry").geo_summary_of(world)["facility_points"])
+    assert kernel_points[facility_id][0] == moved_x
     assert controller._zone_environments is not environments
 
 

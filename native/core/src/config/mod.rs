@@ -9,15 +9,19 @@
 //!
 //! The PyO3 crate parses, with the Python contracts, at the first read of each section
 //! (`src/core/configs.rs`). Sections join lane by lane: P7-1 has the model selection and the plan
-//! of the end-of-tick check; geometry, movement, routing and the rest follow in 7-2 and 7-5.
+//! of the end-of-tick check, 7-2 the geometry and the plans built from it; movement, routing and
+//! the rest follow in 7-5.
 
+pub mod geometry;
 pub mod section;
 pub mod selection;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
+use crate::geometry::GeoCache;
 use crate::stamp::Stamp;
 
+pub use geometry::{ApproachRoute, FacilityGeometry, FacilityPlan, SpatialConstraints};
 pub use section::{Fault, FaultClass, Lazy, Opaque, Section};
 pub use selection::Selection;
 
@@ -32,6 +36,12 @@ pub struct Configs {
     /// The plan of the end-of-tick check (`core/tick_validation.py`'s `tick_plan`), a Python
     /// object of the PyO3 crate.
     pub tick_plan: Lazy<Opaque>,
+    /// `facility_geometry`, parsed. Absent where the key is missing or None.
+    pub facility_geometry: Lazy<FacilityGeometry>,
+    /// `spatial_constraints`, or `{}` where the key is missing, parsed.
+    pub spatial_constraints: Lazy<SpatialConstraints>,
+    /// The plans (`Geo`) built from these configs, by the overlay (`geometry_overlay_v1`).
+    pub geo: Mutex<GeoCache>,
 }
 
 impl Configs {

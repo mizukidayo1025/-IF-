@@ -27,7 +27,7 @@ use crate::core::census;
 use crate::core::errors;
 use crate::core::row::{attribute, exact_int, exact_str, unsupported};
 use crate::core::world_core::raw_dict_get;
-use crate::rules::movement_geometry::Geo;
+use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::rules::{decisions, dispatch, facility_queues, information, metrics, movement, proposals, proximity, psychology, queues, replan, service, social_propagation, staff, staff_dynamics, support, toilet, trace, world_view};
 use crate::Unsupported;
 

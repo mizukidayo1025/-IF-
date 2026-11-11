@@ -32,7 +32,7 @@ use crate::rules::movement::{
     approach_point, is_queue_trip, mirror_held, mobility_text, plan_start, position_point, queue_slot_in, refused, room_minutes,
     write_tree, Changes, Scene, EXACT_INT, KEY, MOVEMENT_SOURCE_ID, POLICY_VERSION,
 };
-use crate::rules::movement_geometry::{distance, polyline_length, usable, Geo, Pt};
+use crate::rules::movement_geometry::{distance, polyline_length, usable, Geo, GeoPy, Pt};
 use crate::rules::population::writing;
 use crate::rules::service::{active_task_class, add_one, metrics_of, set_agent};
 use crate::state::entities::{entities_of, raw_setattr, Activity, Entities, EntityStore, FacilityRow, Member, NeedRow};

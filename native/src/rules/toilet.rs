@@ -23,7 +23,7 @@ use crate::rules::facility_queues::{
     choose_queue_id, has_independent, point_of, position_in, request_of_task, transition_row, with_queues, write_enqueue, write_finish, write_stall,
     write_start, write_transition,
 };
-use crate::rules::movement_geometry::Geo;
+use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::rules::queues::head_to_service;
 use crate::rules::service::{active_task_class, add_one, metrics_of, service_capacity, set_agent};
 use crate::rules::staff_dynamics::{is_available, is_available_now, staff_status};

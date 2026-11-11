@@ -54,7 +54,11 @@ Checkpoint document) and times them.
   `Error::Runtime`, never a panic), `stamp.rs` (`Stamp`, process-unique numbers from one
   counter: a slot's generation is one) and `config/` (`Configs`, the sections the kernels read
   of one state of `model_configs`, each parsed at its first read as a value or a `Fault`, kept in
-  the world's `derived` part by the stamp of the `model_configs` slot). The files
+  the world's `derived` part by the stamp of the `model_configs` slot; `config/geometry.rs` is
+  the section of `facility_geometry` and `spatial_constraints`), `geometry.rs` (the floor plan
+  `Geo`, its `Layout` and `Constraints`, the geometry of `domain/movement.py`, and `GeoCache`, the
+  plans one `Configs` keeps by the overlay's stamp, then by the bytes of its moves and partitions).
+  The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,
   Python numbers and strings, `#[pyfunction]` entries): `src/core/errors.rs` maps an `Error` to
@@ -126,7 +130,8 @@ Checkpoint document) and times them.
   (policies E7 and E14 of `docs/rust-port/step5-plan.md`). Configs no mirror follows, and a patched
   `selected_models`, are parsed at every read. `watch_config_writes(True)` counts the writes to a
   `model_configs` tree in place inside a tick phase (`config_writes_in_tick()`); the all-path gate
-  turns it on and reports any.
+  turns it on and reports any. While it counts, a geometry plan found by the overlay's stamp is
+  also checked against the overlay held now (`stale_geometry_hits()`, also reported by the gate).
 - `src/state/population.rs`: the `V` row of `population_presence_v1`, `population_lifecycle_v1`,
   `population_dynamics_v1`, `temporary_spaces_v1`, `geometry_overlay_v1` and `model_configs`
   (`docs/rust-port/lanes/m6-population.md`).
@@ -336,8 +341,10 @@ are correctly rounded everywhere, and not `**` with a float.
   (`docs/rust-port/lanes/m3-social-network.md`, `m3-dispatch.md`).
 
 - `state.movement.ROW`: Rust owns `movement_v1` (`src/state/movement.rs`).
-- `rules.movement`: the movement rules of a tick (`src/rules/movement.rs`, with the floor plan and
-  its geometry in `src/rules/movement_geometry.rs`): `advance_movement(world, minute)`,
+- `rules.movement`: the movement rules of a tick (`src/rules/movement.rs`; the floor plan and its
+  geometry are the core's, and `src/rules/movement_geometry.rs` reads the section `geometry` from
+  the Python contracts and gives `Geo::of(world)`, the arrival approach routes and
+  `independent_queues_required` of a world's configs): `advance_movement(world, minute)`,
   `start_movement`, `finish_movement`, `route_with_movement_time`, `route_is_physically_clear`,
   `plan_in_room_route`, `queue_slot_position`, `facility_approach_route`,
   `staff_position_snapshots`, `agent_is_at_queue_slot`, `agent_is_at_queue_trip_destination`,
