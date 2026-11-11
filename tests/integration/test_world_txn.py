@@ -27,7 +27,7 @@ from support.world_order import (
 )
 
 from sheltersim import native
-from sheltersim.core import state_mirror
+from sheltersim.core import state_mirror, txn_checks
 from sheltersim.core.engine import TickEngine
 from sheltersim.core.world import StateInvariantError, WorldState
 from sheltersim.experiments.metrics import MetricsRecorder
@@ -229,3 +229,53 @@ def test_transactions_do_not_nest_and_unsupported_worlds_are_refused(
         with state_mirror.transaction(world, "full"):
             pass
     assert world.canonical_json() == text
+
+
+# ---- The rules of a tick in transactions (lane 6-3) ----------------------------------------------
+
+
+def _documents(world: WorldState) -> tuple[str, list[Any]]:
+    return world.canonical_json(), [record.to_dict() for record in world.event_log.records]
+
+
+def test_the_rules_of_a_tick_leave_what_their_copy_left(add_toilets_program: Any) -> None:
+    """The effect handlers, the operational transaction and population run in place; a world the
+    transaction refuses takes the copy, and both end where the copy-and-swap ended."""
+    counts = native.rules("transaction").counts
+    before = counts()
+    in_place = _runs(add_toilets_program)["generated-operations"].to(160)
+    between = counts()
+    assert between["in_place"] > before["in_place"]
+    assert between["copy"] == before["copy"]
+    txn_checks.refuse_transactions(True)
+    try:
+        on_copy = _runs(add_toilets_program)["generated-operations"].to(160)
+    finally:
+        txn_checks.refuse_transactions(False)
+    after = counts()
+    assert after["copy"] - between["copy"] == between["in_place"] - before["in_place"]
+    assert after["in_place"] == between["in_place"]
+    assert _documents(in_place) == _documents(on_copy)
+    _check_rows(in_place)
+
+
+def test_the_poison_finds_an_object_kept_across_a_transaction(add_toilets_program: Any) -> None:
+    world = _runs(add_toilets_program)["generated-operations"].to(30)
+    kept = world.agents
+    kept_type = type(kept)
+    txn_checks.poison_replaced(True)
+    try:
+        with pytest.raises(RuntimeError, match="taken out of the world was used: IdMap.__len__"):
+            with state_mirror.transaction(world, "effect"):
+                assert world.agents is not kept
+                len(kept)
+        uses = txn_checks.poison_uses()
+    finally:
+        txn_checks.poison_replaced(False)
+    assert uses["uses"] == 1
+    assert uses["poisoned"] > 0
+    assert "IdMap.__len__" in uses["first"]
+    # The rollback gave the map back with its class.
+    assert world.agents is kept
+    assert type(kept) is kept_type
+    _check_rows(world)

@@ -1,9 +1,10 @@
 //! The rules of `events/effects.py` that run in a tick: a guard, the five handlers of an effect's
 //! events, what other modules ask of the modifier stacks, and the check of `effect_program_v1`.
 //!
-//! A handler's Python rule makes a copy of the world, changes the copy, checks it and swaps it in.
-//! The rules here do the same through the same calls (`effect_copy_of`, `commit`). That transaction is the
-//! design's until `core.fork()`: docs/rust-port/step3-design.md.
+//! A handler's Python rule made a copy of the world, changed the copy, checked it and swapped it in.
+//! The rules here do that in a transaction of the world (`rules/transaction.rs`, lane 6-3): the
+//! world is put in the copy's order and checked as the copy was, the rule writes it and checks it,
+//! and a rule that stops rolls it back. A world the transaction refuses still takes the copy.
 //!
 //! A suppressed or failed effect raises the Python rule's text, in its order of checks, through
 //! `core/errors.rs`, with the world as it was (docs/rust-port/lanes/l8-texts-events.md). Where the
@@ -46,9 +47,11 @@ use crate::state::effect_program::{EffectProgramRow, Program, NAME};
 use crate::rules::overlay;
 use crate::state::entities::{entities_of, insert_entity, EntityStore, FacilityRow, Skills, StaffRow};
 use crate::state::events::{is_stable_id, EventRef, EventRow, EventRowPy, EventWriter};
+use crate::rules::transaction::RuleTxn;
 use crate::state::resource_ledger::{held_mirror, resource_index, LedgerRow};
 use crate::Unsupported;
 use sheltersim_core::config::environment::ZoneEnvironmentSpec;
+use sheltersim_core::txn::TxnKind;
 
 const MARKER: &str = "effect_program_v1";
 
@@ -259,41 +262,12 @@ fn get_or_empty<'py, K: IntoPyObject<'py>>(map: &Bound<'py, PyAny>, key: K) -> P
 
 // ---- The transaction -----------------------------------------------------------------------------
 
-/// `MutableWorldState.from_dict(world.to_dict())`.
-pub(crate) fn copy_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    let py = world.py();
-    let class = py.import(intern!(py, "sheltersim.core.world"))?.getattr(intern!(py, "WorldState"))?;
-    class.call_method1(intern!(py, "from_dict"), (world.call_method0(intern!(py, "to_dict"))?,))
-}
-
-/// `_effect_candidate(world)` of `events/effects.py`: the copy an effect changes, which holds the
-/// world's own EventLog instead of one made again from 270,000 documents at day 4 of a 7-day Run.
-pub(crate) fn effect_copy_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    let py = world.py();
-    py.import(intern!(py, "sheltersim.events.effects"))?.getattr(intern!(py, "_effect_candidate"))?.call1((world,))
-}
-
-/// `candidate.validate()`, whose error the rule raises as it is, with the world unchanged.
+/// `candidate.validate()`, whose error the rule raises as it is; the transaction then rolls back,
+/// so the world is as it was.
 fn validate(candidate: &Bound<'_, PyAny>) -> PyResult<()> {
     let py = candidate.py();
     candidate.call_method0(intern!(py, "validate")).map_err(|error| errors::passed_on(py, error))?;
     Ok(())
-}
-
-/// `world.__dict__.clear(); world.__dict__.update(candidate.__dict__)`.
-pub(crate) fn swap(world: &Bound<'_, PyAny>, candidate: &Bound<'_, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    let target = world.getattr(intern!(py, "__dict__"))?;
-    let source = candidate.getattr(intern!(py, "__dict__"))?;
-    target.call_method0(intern!(py, "clear"))?;
-    target.call_method1(intern!(py, "update"), (source,))?;
-    Ok(())
-}
-
-/// `validate` and `swap`. An error here leaves the world as it was.
-fn commit(world: &Bound<'_, PyAny>, candidate: &Bound<'_, PyAny>) -> PyResult<()> {
-    validate(candidate)?;
-    swap(world, candidate)
 }
 
 fn call_rule<'py>(
@@ -958,41 +932,45 @@ fn facility_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: boo
         Err((outcome, text)) => return Err(errors::error(py, outcome, text)),
     };
 
-    let candidate = effect_copy_of(world)?;
-    let records = model_state(&candidate)?
-        .get_item(intern!(py, "effect_program_v1"))?
-        .get_item(intern!(py, "active_facility_modifiers"))?;
-    let facility = attribute(&candidate, intern!(py, "facilities"))?.get_item(&**facility_id)?;
-    if expire {
-        // The items stay the nodes they are, as the Python rule's list comprehension keeps them.
-        if units_or_others > 0 {
-            let current = records.get_item(&**facility_id)?;
-            let remaining = PyList::empty(py);
-            for item in current.get_item(intern!(py, "modifiers"))?.try_iter()? {
-                let item = item?;
-                if !item.get_item(intern!(py, "modifier_id"))?.eq(&**modifier)? {
-                    remaining.append(item)?;
+    let txn = RuleTxn::begin(world, TxnKind::Effect)?;
+    let written = (|| {
+        let candidate = txn.world();
+        let records = model_state(candidate)?
+            .get_item(intern!(py, "effect_program_v1"))?
+            .get_item(intern!(py, "active_facility_modifiers"))?;
+        let facility = attribute(candidate, intern!(py, "facilities"))?.get_item(&**facility_id)?;
+        if expire {
+            // The items stay the nodes they are, as the Python rule's list comprehension keeps them.
+            if units_or_others > 0 {
+                let current = records.get_item(&**facility_id)?;
+                let remaining = PyList::empty(py);
+                for item in current.get_item(intern!(py, "modifiers"))?.try_iter()? {
+                    let item = item?;
+                    if !item.get_item(intern!(py, "modifier_id"))?.eq(&**modifier)? {
+                        remaining.append(item)?;
+                    }
                 }
+                facility.setattr(intern!(py, "working_units"), target)?;
+                current.set_item(intern!(py, "modifiers"), remaining)?;
+            } else {
+                facility.setattr(intern!(py, "working_units"), target)?;
+                records.call_method1(intern!(py, "pop"), (&**facility_id,))?;
             }
-            facility.setattr(intern!(py, "working_units"), target)?;
-            current.set_item(intern!(py, "modifiers"), remaining)?;
         } else {
+            if !has_stack {
+                let record = PyDict::new(py);
+                record.set_item("baseline_working_units", working)?;
+                record.set_item("modifiers", PyList::empty(py))?;
+                records.set_item(&**facility_id, record)?;
+            }
+            let current = records.get_item(&**facility_id)?;
+            let item = modifier_dict(py, modifier, program_id, effect_id, units_or_others, &row)?;
+            current.get_item(intern!(py, "modifiers"))?.call_method1(intern!(py, "append"), (item,))?;
             facility.setattr(intern!(py, "working_units"), target)?;
-            records.call_method1(intern!(py, "pop"), (&**facility_id,))?;
         }
-    } else {
-        if !has_stack {
-            let record = PyDict::new(py);
-            record.set_item("baseline_working_units", working)?;
-            record.set_item("modifiers", PyList::empty(py))?;
-            records.set_item(&**facility_id, record)?;
-        }
-        let current = records.get_item(&**facility_id)?;
-        let item = modifier_dict(py, modifier, program_id, effect_id, units_or_others, &row)?;
-        current.get_item(intern!(py, "modifiers"))?.call_method1(intern!(py, "append"), (item,))?;
-        facility.setattr(intern!(py, "working_units"), target)?;
-    }
-    commit(world, &candidate)
+        validate(candidate)
+    })();
+    txn.finish(written)
 }
 
 /// `EffectProgramFacilityHandler.apply`.
@@ -1040,10 +1018,9 @@ fn environment_invalid<T>(py: Python<'_>, result: PyResult<T>) -> PyResult<T> {
     }
 }
 
-/// `validate` and `swap`, with the handler's wrap of a ValueError of the check.
-fn environment_commit(world: &Bound<'_, PyAny>, candidate: &Bound<'_, PyAny>) -> PyResult<()> {
-    environment_invalid(world.py(), validate(candidate))?;
-    swap(world, candidate)
+/// `validate`, with the handler's wrap of a ValueError of the check.
+fn environment_validate(candidate: &Bound<'_, PyAny>) -> PyResult<()> {
+    environment_invalid(candidate.py(), validate(candidate))
 }
 
 /// `ScenarioZoneEnvironmentConfig.model_validate(model_configs["zone_environment"])`, kept for the
@@ -1118,12 +1095,15 @@ fn environment_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: 
         {
             return errors::failed(py, "zone environment expiry does not match its start");
         }
-        let candidate = effect_copy_of(world)?;
-        model_state(&candidate)?
-            .get_item(ENVIRONMENT_STATE)?
-            .get_item(intern!(py, "modifiers"))?
-            .call_method1(intern!(py, "pop"), (&**modifier,))?;
-        return environment_commit(world, &candidate);
+        let txn = RuleTxn::begin(world, TxnKind::Effect)?;
+        let written = (|| {
+            model_state(txn.world())?
+                .get_item(ENVIRONMENT_STATE)?
+                .get_item(intern!(py, "modifiers"))?
+                .call_method1(intern!(py, "pop"), (&**modifier,))?;
+            environment_validate(txn.world())
+        })();
+        return txn.finish(written);
     }
 
     let op = match payload.get("op") {
@@ -1213,12 +1193,15 @@ fn environment_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: 
     record.set_item("source_id", &*config.source_id)?;
     record.set_item("assumption_ids", PyList::new(py, assumptions)?)?;
 
-    let candidate = effect_copy_of(world)?;
-    model_state(&candidate)?
-        .get_item(ENVIRONMENT_STATE)?
-        .get_item(intern!(py, "modifiers"))?
-        .set_item(&**modifier, record)?;
-    environment_commit(world, &candidate)
+    let txn = RuleTxn::begin(world, TxnKind::Effect)?;
+    let written = (|| {
+        model_state(txn.world())?
+            .get_item(ENVIRONMENT_STATE)?
+            .get_item(intern!(py, "modifiers"))?
+            .set_item(&**modifier, record)?;
+        environment_validate(txn.world())
+    })();
+    txn.finish(written)
 }
 
 /// `EffectProgramEnvironmentHandler.apply`.
@@ -1299,12 +1282,15 @@ fn temporary_space_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expi
         if !matches {
             return errors::suppressed(py, "temporary-space effect did not start or does not match its expiry");
         }
-        let candidate = effect_copy_of(world)?;
-        // False only for a space that is gone or not active, which the checks above saw it is not.
-        if !overlay::expire_space(&candidate, modifier, &row.event_id, row.causation_id.as_deref())? {
-            return errors::suppressed(py, "temporary-space effect is already expired");
-        }
-        return commit(world, &candidate);
+        let txn = RuleTxn::begin(world, TxnKind::Effect)?;
+        let written = (|| {
+            // False only for a space that is gone or not active, which the checks above saw it is not.
+            if !overlay::expire_space(txn.world(), modifier, &row.event_id, row.causation_id.as_deref())? {
+                return errors::suppressed(py, "temporary-space effect is already expired");
+            }
+            validate(txn.world())
+        })();
+        return txn.finish(written);
     }
     if !has_exactly(payload, &ENVIRONMENT_APPLY_FIELDS) || !is_text(payload.get("op"), "add_temporary_space") {
         return errors::failed(py, "temporary-space event payload fields do not match");
@@ -1345,15 +1331,18 @@ fn temporary_space_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expi
     record.set_item("effect_id", &**effect_id)?;
     record.set_item("source_ids", PyList::new(py, sources)?)?;
     record.set_item("geometry_status", "zone_only_capacity")?;
-    let candidate = effect_copy_of(world)?;
-    // By name, as the Python rule calls it (its kernel first), for the text of its ValueError.
-    let keywords = PyDict::new(py);
-    keywords.set_item("event_id", &*row.event_id)?;
-    let registered = call_rule(py, "sheltersim.domain.temporary_spaces", "register_temporary_space", (&candidate, &record), Some(&keywords));
-    if let Err(error) = registered {
-        return errors::failed(py, caught(py, error, Catch::Value)?);
-    }
-    commit(world, &candidate)
+    let txn = RuleTxn::begin(world, TxnKind::Effect)?;
+    let written = (|| {
+        // By name, as the Python rule calls it (its kernel first), for the text of its ValueError.
+        let keywords = PyDict::new(py);
+        keywords.set_item("event_id", &*row.event_id)?;
+        let registered = call_rule(py, "sheltersim.domain.temporary_spaces", "register_temporary_space", (txn.world(), &record), Some(&keywords));
+        if let Err(error) = registered {
+            return errors::failed(py, caught(py, error, Catch::Value)?);
+        }
+        validate(txn.world())
+    })();
+    txn.finish(written)
 }
 
 /// `EffectProgramTemporarySpaceHandler.apply`.
@@ -1436,18 +1425,19 @@ fn geometry_rule(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, expire: boo
             return errors::suppressed(py, "geometry modifier was not applied or already expired");
         }
     }
-    let candidate = effect_copy_of(world)?;
+    let txn = RuleTxn::begin(world, TxnKind::Effect)?;
     // By name, as the Python rule calls it (its kernel first), for the text of what it raises.
     let applied = (|| {
         let keywords = PyDict::new(py);
         keywords.set_item("expire", expire)?;
-        call_rule(py, "sheltersim.domain.geometry_overlay", "apply_geometry_change", (&candidate, event), Some(&keywords))?;
-        validate(&candidate)
+        call_rule(py, "sheltersim.domain.geometry_overlay", "apply_geometry_change", (txn.world(), event), Some(&keywords))?;
+        validate(txn.world())
     })();
     if let Err(error) = applied {
+        txn.rollback()?;
         return errors::failed(py, caught(py, error, Catch::ValueKeyOrType)?);
     }
-    swap(world, &candidate)
+    txn.commit()
 }
 
 /// `EffectProgramGeometryHandler.apply`.
@@ -1493,10 +1483,10 @@ fn staff_task_order(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>, row: &Ev
         causation_event_id: &row.event_id,
         source_id: row.source_id.as_deref(),
     };
-    let candidate = effect_copy_of(world)?;
-    // Its checks raise the rule's text before any change, on the copy; the world stays as it was.
-    order_operation(&candidate, &order)?;
-    commit(world, &candidate)
+    let txn = RuleTxn::begin(world, TxnKind::Effect)?;
+    // Its checks raise the rule's text before any change; the transaction rolls back.
+    let written = order_operation(txn.world(), &order).and_then(|_| validate(txn.world()));
+    txn.finish(written)
 }
 
 /// `_staff_has_task_skill`.
@@ -1587,12 +1577,13 @@ fn references_program(world: &Bound<'_, PyAny>, row: &EventRow, payload: &Doc, o
         && matches!(payload.get(target), Some(V::Str(_))))
 }
 
-/// The checks and the copy of `staff_handoff`: everything but the receipt, which is after the swap.
-fn staff_handoff_on_copy<'py>(
+/// The checks and the writes of `staff_handoff`, in its open transaction: everything but the
+/// receipt, which is after the commit.
+fn staff_handoff_writes<'py>(
     world: &Bound<'py, PyAny>,
     event: &Bound<'py, PyAny>,
     row: &EventRow,
-) -> PyResult<(Bound<'py, PyAny>, String, String, String, String)> {
+) -> PyResult<(RuleTxn<'py>, String, String, String, String)> {
     let py = world.py();
     let payload = map_of(&row.payload)?;
     if !references_program(world, row, payload, "staff_handoff", "staff_id")? {
@@ -1623,132 +1614,137 @@ fn staff_handoff_on_copy<'py>(
     let replacement_id: String = replacement_id.extract()?;
     guard_passes(world, row, event)?;
 
-    let candidate = effect_copy_of(world)?;
-    let minute = exact_int(&attribute(&candidate, intern!(py, "minute_index"))?)?;
-    let table = model_state(&candidate)?;
-    let operations = get_or_none(&table, "staff_operations_v1")?.filter(is_dict);
-    let task = attribute(&candidate, intern!(py, "active_tasks"))?.get_item(&*task_id)?;
-    // `operations.get("staff", {}).get(id) if isinstance(operations, dict) else None`.
-    let record_of = |id: &str| -> PyResult<Option<Bound<'py, PyAny>>> {
-        match &operations {
-            Some(operations) => get_or_none(&get_or_empty(operations, "staff")?, id),
-            None => Ok(None),
-        }
-    };
-    let old_record = record_of(staff_id)?.filter(is_dict);
-    let replacement_record = record_of(&replacement_id)?.filter(is_dict);
-    let staff_map = attribute(&candidate, intern!(py, "staff"))?;
-    let old_staff = staff_map.get_item(&**staff_id)?;
-    let replacement = staff_map.get_item(&*replacement_id)?;
-    let get = |record: &Bound<'py, PyAny>, key: &str| record.call_method1(intern!(py, "get"), (key,));
-    let qualified = (|| -> PyResult<bool> {
-        if attribute(&task, intern!(py, "kind"))?.ne("staff_operation")?
-            || attribute(&task, intern!(py, "staff_id"))?.ne(&**staff_id)?
-            || attribute(&task, intern!(py, "due_minute"))?.le(minute)?
-        {
-            return Ok(false);
-        }
-        let Some(old_record) = &old_record else {
-            return Ok(false);
+    let txn = RuleTxn::begin(world, TxnKind::Effect)?;
+    let written = (|| {
+        let candidate = txn.world();
+        let minute = exact_int(&attribute(candidate, intern!(py, "minute_index"))?)?;
+        let table = model_state(candidate)?;
+        let operations = get_or_none(&table, "staff_operations_v1")?.filter(is_dict);
+        let task = attribute(candidate, intern!(py, "active_tasks"))?.get_item(&*task_id)?;
+        // `operations.get("staff", {}).get(id) if isinstance(operations, dict) else None`.
+        let record_of = |id: &str| -> PyResult<Option<Bound<'py, PyAny>>> {
+            match &operations {
+                Some(operations) => get_or_none(&get_or_empty(operations, "staff")?, id),
+                None => Ok(None),
+            }
         };
-        if get(old_record, "phase")?.ne("working")? || get(old_record, "task_id")?.ne(attribute(&task, intern!(py, "id"))?)? {
-            return Ok(false);
-        }
-        let Some(replacement_record) = &replacement_record else {
-            return Ok(false);
+        let old_record = record_of(staff_id)?.filter(is_dict);
+        let replacement_record = record_of(&replacement_id)?.filter(is_dict);
+        let staff_map = attribute(candidate, intern!(py, "staff"))?;
+        let old_staff = staff_map.get_item(&**staff_id)?;
+        let replacement = staff_map.get_item(&*replacement_id)?;
+        let get = |record: &Bound<'py, PyAny>, key: &str| record.call_method1(intern!(py, "get"), (key,));
+        let qualified = (|| -> PyResult<bool> {
+            if attribute(&task, intern!(py, "kind"))?.ne("staff_operation")?
+                || attribute(&task, intern!(py, "staff_id"))?.ne(&**staff_id)?
+                || attribute(&task, intern!(py, "due_minute"))?.le(minute)?
+            {
+                return Ok(false);
+            }
+            let Some(old_record) = &old_record else {
+                return Ok(false);
+            };
+            if get(old_record, "phase")?.ne("working")? || get(old_record, "task_id")?.ne(attribute(&task, intern!(py, "id"))?)? {
+                return Ok(false);
+            }
+            let Some(replacement_record) = &replacement_record else {
+                return Ok(false);
+            };
+            let target_zone = get(old_record, "target_zone_id")?;
+            if get(replacement_record, "phase")?.ne("idle")?
+                || !attribute(&replacement, intern!(py, "active_task_id"))?.is_none()
+                || attribute(&old_staff, intern!(py, "zone_id"))?.ne(&target_zone)?
+                || attribute(&replacement, intern!(py, "zone_id"))?.ne(&target_zone)?
+            {
+                return Ok(false);
+            }
+            has_task_skill(&attribute(&replacement, intern!(py, "skills"))?, &get(old_record, "task_kind")?)
+        })()?;
+        let Some(old_record) = old_record.filter(|_| qualified) else {
+            return errors::failed(py, "staff handoff requires a qualified idle replacement already at active work");
         };
-        let target_zone = get(old_record, "target_zone_id")?;
-        if get(replacement_record, "phase")?.ne("idle")?
-            || !attribute(&replacement, intern!(py, "active_task_id"))?.is_none()
-            || attribute(&old_staff, intern!(py, "zone_id"))?.ne(&target_zone)?
-            || attribute(&replacement, intern!(py, "zone_id"))?.ne(&target_zone)?
-        {
-            return Ok(false);
+        let task_due = exact_int(&attribute(&task, intern!(py, "due_minute"))?)?;
+        let replacement_text = PyString::new(py, &replacement_id);
+        let available = is_available(staff_status(candidate)?.as_ref(), &replacement_text)?
+            && call_rule(
+                py,
+                "sheltersim.domain.staff_dynamics",
+                "staff_dynamics_is_available",
+                (candidate, &replacement_text, minute),
+                None,
+            )?
+            .is_truthy()?;
+        if !available {
+            return errors::failed(py, "staff handoff replacement is unavailable");
         }
-        has_task_skill(&attribute(&replacement, intern!(py, "skills"))?, &get(old_record, "task_kind")?)
-    })()?;
-    let Some(old_record) = old_record.filter(|_| qualified) else {
-        return errors::failed(py, "staff handoff requires a qualified idle replacement already at active work");
-    };
-    let task_due = exact_int(&attribute(&task, intern!(py, "due_minute"))?)?;
-    let replacement_text = PyString::new(py, &replacement_id);
-    let available = is_available(staff_status(&candidate)?.as_ref(), &replacement_text)?
-        && call_rule(
-            py,
-            "sheltersim.domain.staff_dynamics",
-            "staff_dynamics_is_available",
-            (&candidate, &replacement_text, minute),
-            None,
-        )?
-        .is_truthy()?;
-    if !available {
-        return errors::failed(py, "staff handoff replacement is unavailable");
-    }
-    let task_key = attribute(&task, intern!(py, "id"))?;
-    let task_due_object = attribute(&task, intern!(py, "due_minute"))?;
-    let mut completions = Vec::new();
-    for pending in pending_of(&candidate)?.try_iter()? {
-        let pending = pending?;
-        if !attribute(&pending, intern!(py, "event_type"))?.eq("staff_operation_complete")? {
-            continue;
+        let task_key = attribute(&task, intern!(py, "id"))?;
+        let task_due_object = attribute(&task, intern!(py, "due_minute"))?;
+        let mut completions = Vec::new();
+        for pending in pending_of(candidate)?.try_iter()? {
+            let pending = pending?;
+            if !attribute(&pending, intern!(py, "event_type"))?.eq("staff_operation_complete")? {
+                continue;
+            }
+            let payload = attribute(&pending, intern!(py, "payload"))?;
+            if get(&payload, "task_id")?.eq(&task_key)?
+                && get(&payload, "staff_id")?.eq(&**staff_id)?
+                && attribute(&pending, intern!(py, "due_minute"))?.eq(&task_due_object)?
+            {
+                completions.push(pending);
+            }
         }
-        let payload = attribute(&pending, intern!(py, "payload"))?;
-        if get(&payload, "task_id")?.eq(&task_key)?
-            && get(&payload, "staff_id")?.eq(&**staff_id)?
-            && attribute(&pending, intern!(py, "due_minute"))?.eq(&task_due_object)?
-        {
-            completions.push(pending);
+        let [completion] = completions.as_slice() else {
+            return errors::failed(py, "staff handoff requires one matching pending completion");
+        };
+        // The records were found in `operations["staff"]`, a dict.
+        let Some(operations) = &operations else {
+            return unsupported("no staff_operations_v1");
+        };
+        let records = operations.get_item(intern!(py, "staff"))?;
+        let document = completion.call_method0(intern!(py, "to_dict"))?;
+        let new_payload = PyDict::new(py);
+        new_payload.call_method1(intern!(py, "update"), (document.get_item(intern!(py, "payload"))?,))?;
+        new_payload.set_item("staff_id", &*replacement_id)?;
+        let keywords = PyDict::new(py);
+        for name in ["event_id", "kind", "due_minute", "priority", "sequence", "event_type", "source_id", "causation_id"] {
+            keywords.set_item(name, completion.getattr(name)?)?;
         }
-    }
-    let [completion] = completions.as_slice() else {
-        return errors::failed(py, "staff handoff requires one matching pending completion");
-    };
-    // The records were found in `operations["staff"]`, a dict.
-    let Some(operations) = &operations else {
-        return unsupported("no staff_operations_v1");
-    };
-    let records = operations.get_item(intern!(py, "staff"))?;
-    let document = completion.call_method0(intern!(py, "to_dict"))?;
-    let new_payload = PyDict::new(py);
-    new_payload.call_method1(intern!(py, "update"), (document.get_item(intern!(py, "payload"))?,))?;
-    new_payload.set_item("staff_id", &*replacement_id)?;
-    let keywords = PyDict::new(py);
-    for name in ["event_id", "kind", "due_minute", "priority", "sequence", "event_type", "source_id", "causation_id"] {
-        keywords.set_item(name, completion.getattr(name)?)?;
-    }
-    keywords.set_item("payload", new_payload)?;
-    keywords.set_item("provenance", document.get_item(intern!(py, "provenance"))?)?;
-    let replaced = py
-        .import(intern!(py, "sheltersim.events.models"))?
-        .getattr(intern!(py, "ScheduledEvent"))?
-        .call((), Some(&keywords))?;
-    attribute(&candidate, intern!(py, "event_queue"))?.call_method1(
-        intern!(py, "replace"),
-        (attribute(completion, intern!(py, "event_id"))?, replaced),
-    )?;
+        keywords.set_item("payload", new_payload)?;
+        keywords.set_item("provenance", document.get_item(intern!(py, "provenance"))?)?;
+        let replaced = py
+            .import(intern!(py, "sheltersim.events.models"))?
+            .getattr(intern!(py, "ScheduledEvent"))?
+            .call((), Some(&keywords))?;
+        attribute(candidate, intern!(py, "event_queue"))?.call_method1(
+            intern!(py, "replace"),
+            (attribute(completion, intern!(py, "event_id"))?, replaced),
+        )?;
 
-    task.setattr(intern!(py, "staff_id"), &*replacement_id)?;
-    attribute(&old_staff, intern!(py, "work_queue"))?.call_method0(intern!(py, "clear"))?;
-    old_staff.setattr(intern!(py, "active_task_id"), py.None())?;
-    old_staff.setattr(intern!(py, "busy_until"), 0)?;
-    records.set_item(&**staff_id, idle_record(py)?)?;
-    replacement.setattr(intern!(py, "active_task_id"), &*task_id)?;
-    attribute(&replacement, intern!(py, "work_queue"))?
-        .set_item(PySlice::full(py), PyList::new(py, [&*task_id])?)?;
-    replacement.setattr(intern!(py, "busy_until"), task_due)?;
-    let handed_off = PyDict::new(py);
-    handed_off.call_method1(intern!(py, "update"), (&old_record,))?;
-    handed_off.set_item("reason", &*reason_code)?;
-    let mut causes: Vec<String> = Vec::new();
-    for cause in old_record.get_item(intern!(py, "causation_event_ids"))?.try_iter()? {
-        causes.push(exact_str(&cause?)?.to_owned());
-    }
-    causes.push(row.event_id.to_string());
-    causes.sort_unstable();
-    causes.dedup();
-    handed_off.set_item("causation_event_ids", PyList::new(py, causes)?)?;
-    records.set_item(&*replacement_id, handed_off)?;
-    Ok((candidate, staff_id.to_string(), replacement_id, task_id, reason_code))
+        task.setattr(intern!(py, "staff_id"), &*replacement_id)?;
+        attribute(&old_staff, intern!(py, "work_queue"))?.call_method0(intern!(py, "clear"))?;
+        old_staff.setattr(intern!(py, "active_task_id"), py.None())?;
+        old_staff.setattr(intern!(py, "busy_until"), 0)?;
+        records.set_item(&**staff_id, idle_record(py)?)?;
+        replacement.setattr(intern!(py, "active_task_id"), &*task_id)?;
+        attribute(&replacement, intern!(py, "work_queue"))?
+            .set_item(PySlice::full(py), PyList::new(py, [&*task_id])?)?;
+        replacement.setattr(intern!(py, "busy_until"), task_due)?;
+        let handed_off = PyDict::new(py);
+        handed_off.call_method1(intern!(py, "update"), (&old_record,))?;
+        handed_off.set_item("reason", &*reason_code)?;
+        let mut causes: Vec<String> = Vec::new();
+        for cause in old_record.get_item(intern!(py, "causation_event_ids"))?.try_iter()? {
+            causes.push(exact_str(&cause?)?.to_owned());
+        }
+        causes.push(row.event_id.to_string());
+        causes.sort_unstable();
+        causes.dedup();
+        handed_off.set_item("causation_event_ids", PyList::new(py, causes)?)?;
+        records.set_item(&*replacement_id, handed_off)?;
+        Ok(())
+    })();
+    let (txn, ()) = txn.keep(written)?;
+    Ok((txn, staff_id.to_string(), replacement_id, task_id, reason_code))
 }
 
 /// `(record,)` of a receipt, or None.
@@ -1765,18 +1761,17 @@ fn staff_handoff<'py>(
     row: &EventRow,
 ) -> PyResult<Bound<'py, PyAny>> {
     let py = world.py();
-    let (candidate, staff_id, replacement_id, task_id, reason_code, sources) = (|| {
-        let (candidate, staff_id, replacement_id, task_id, reason_code) = staff_handoff_on_copy(world, event, row)?;
-        validate(&candidate)?;
+    let (txn, staff_id, replacement_id, task_id, reason_code) = staff_handoff_writes(world, event, row)?;
+    let checked = (|| {
+        validate(txn.world())?;
         // The checks saw the marker is a mapping.
         let Some(V::Map(marker)) = map_of(&row.provenance)?.get(MARKER) else {
             return unsupported("no marker");
         };
-        let sources: Vec<String> = str_list(marker, "assumption_ids")?.iter().map(|item| item.to_string()).collect();
-        Ok((candidate, staff_id, replacement_id, task_id, reason_code, sources))
-    })()?;
+        Ok(str_list(marker, "assumption_ids")?.iter().map(|item| item.to_string()).collect::<Vec<String>>())
+    })();
+    let sources = txn.finish(checked)?;
     // Past here the world has changed, and what is raised goes on as the Python rule's does.
-    swap(world, &candidate)?;
     let record = handoff_record(world, &task_id, &staff_id, &replacement_id, &reason_code, &row.event_id, sources)?;
     receipt_tuple(py, record)
 }
@@ -1889,23 +1884,27 @@ fn set_staff_role(world: &Bound<'_, PyAny>, row: &EventRow, event: &Bound<'_, Py
             return errors::failed(py, format!("staff-role event skills are invalid: {text}"));
         }
     };
-    let candidate = effect_copy_of(world)?;
-    let staff = attribute(&candidate, intern!(py, "staff"))?.get_item(&**staff_id)?;
-    // `candidate.model_state.get("staff_operations_v1", {}).get("staff", {}).get(staff_id)`.
-    let operations = get_or_empty(&get_or_empty(&model_state(&candidate)?, "staff_operations_v1")?, "staff")?
-        .call_method1(intern!(py, "get"), (&**staff_id,))?;
-    if !attribute(&staff, intern!(py, "active_task_id"))?.is_none()
-        || (is_dict(&operations) && operations.call_method1(intern!(py, "get"), ("phase",))?.ne("idle")?)
-    {
-        return errors::failed(py, "staff role cannot change while work is active");
-    }
-    let mut skills: Vec<String> = Vec::new();
-    for skill in attribute(&role, intern!(py, "skills"))?.try_iter()? {
-        skills.push(exact_str(&skill?)?.to_owned());
-    }
-    skills.sort_unstable();
-    staff.setattr(intern!(py, "skills"), PyTuple::new(py, skills)?)?;
-    commit(world, &candidate)
+    let txn = RuleTxn::begin(world, TxnKind::Effect)?;
+    let written = (|| {
+        let candidate = txn.world();
+        let staff = attribute(candidate, intern!(py, "staff"))?.get_item(&**staff_id)?;
+        // `candidate.model_state.get("staff_operations_v1", {}).get("staff", {}).get(staff_id)`.
+        let operations = get_or_empty(&get_or_empty(&model_state(candidate)?, "staff_operations_v1")?, "staff")?
+            .call_method1(intern!(py, "get"), (&**staff_id,))?;
+        if !attribute(&staff, intern!(py, "active_task_id"))?.is_none()
+            || (is_dict(&operations) && operations.call_method1(intern!(py, "get"), ("phase",))?.ne("idle")?)
+        {
+            return errors::failed(py, "staff role cannot change while work is active");
+        }
+        let mut skills: Vec<String> = Vec::new();
+        for skill in attribute(&role, intern!(py, "skills"))?.try_iter()? {
+            skills.push(exact_str(&skill?)?.to_owned());
+        }
+        skills.sort_unstable();
+        staff.setattr(intern!(py, "skills"), PyTuple::new(py, skills)?)?;
+        validate(candidate)
+    })();
+    txn.finish(written)
 }
 
 /// `add_staff` of `domain/staff_dynamics.py` and `add_staff_operations_agent`, on the copy.
@@ -2007,38 +2006,42 @@ fn add_structure(world: &Bound<'_, PyAny>, row: &EventRow) -> PyResult<&'static 
     // `.removeprefix` of a value that is not a str raises, for the Python rule to raise.
     let modifier = required_str(payload, "modifier_id")?;
     let suffix = modifier.strip_prefix("modifier-").unwrap_or(modifier);
-    let candidate = effect_copy_of(world)?;
-    if &**op == "add_staff" {
-        let staff = attribute(&candidate, intern!(py, "staff"))?;
-        let room = 100 - staff.len()? as i64;
-        let Some(count) = count.filter(|count| *count <= room) else {
-            return errors::failed(py, "adding staff would exceed the 100-staff runtime bound");
-        };
-        for index in 1..=count {
-            let staff_id = format!("effect-staff-{suffix}-{index}");
-            if staff.contains(&*staff_id)? {
-                return errors::failed(py, "generated staff ID already exists");
+    let txn = RuleTxn::begin(world, TxnKind::Effect)?;
+    let written = (|| {
+        let candidate = txn.world();
+        if &**op == "add_staff" {
+            let staff = attribute(candidate, intern!(py, "staff"))?;
+            let room = 100 - staff.len()? as i64;
+            let Some(count) = count.filter(|count| *count <= room) else {
+                return errors::failed(py, "adding staff would exceed the 100-staff runtime bound");
+            };
+            for index in 1..=count {
+                let staff_id = format!("effect-staff-{suffix}-{index}");
+                if staff.contains(&*staff_id)? {
+                    return errors::failed(py, "generated staff ID already exists");
+                }
+                add_one_staff(py, candidate, &staff_id, zone_id)?;
             }
-            add_one_staff(py, &candidate, &staff_id, zone_id)?;
-        }
-        if model_state(&candidate)?.contains("movement_v1")? {
-            call_rule(py, "sheltersim.domain.movement", "staff_position_snapshots", (&candidate,), None)?;
-        }
-    } else {
-        let facilities = attribute(&candidate, intern!(py, "facilities"))?;
-        let room = 200 - facilities.len()? as i64;
-        let Some(count) = count.filter(|count| *count <= room) else {
-            return errors::failed(py, "adding toilets would exceed the 200-facility bound");
-        };
-        for index in 1..=count {
-            let facility_id = format!("effect-toilet-{suffix}-{index}");
-            if facilities.contains(&*facility_id)? {
-                return errors::failed(py, "generated toilet ID already exists");
+            if model_state(candidate)?.contains("movement_v1")? {
+                call_rule(py, "sheltersim.domain.movement", "staff_position_snapshots", (candidate,), None)?;
             }
-            add_one_toilet(py, &candidate, &facility_id, zone_id, row)?;
+        } else {
+            let facilities = attribute(candidate, intern!(py, "facilities"))?;
+            let room = 200 - facilities.len()? as i64;
+            let Some(count) = count.filter(|count| *count <= room) else {
+                return errors::failed(py, "adding toilets would exceed the 200-facility bound");
+            };
+            for index in 1..=count {
+                let facility_id = format!("effect-toilet-{suffix}-{index}");
+                if facilities.contains(&*facility_id)? {
+                    return errors::failed(py, "generated toilet ID already exists");
+                }
+                add_one_toilet(py, candidate, &facility_id, zone_id, row)?;
+            }
         }
-    }
-    commit(world, &candidate)?;
+        validate(candidate)
+    })();
+    txn.finish(written)?;
     Ok(if &**op == "add_staff" { "structure.add_staff" } else { "structure.add_toilet" })
 }
 

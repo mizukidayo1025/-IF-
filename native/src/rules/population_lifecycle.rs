@@ -3,8 +3,8 @@
 //! stages and whose way of writing these kernels share.
 //!
 //! `apply_population_presence_command` keeps its parsing of the command (the contract, a Python call)
-//! and its copy of the world in Python calls: `apply_presence_action` is the part of it between
-//! those two. The saved texts of these rules are raised here, before anything is written, as in
+//! in a Python call, and changes the world in a transaction (`rules/transaction.rs`) that stands for
+//! its copy through canonical JSON: `apply_presence_action` is the part of it between those two. The saved texts of these rules are raised here, before anything is written, as in
 //! `rules/population.rs`.
 
 use std::collections::HashSet;
@@ -29,10 +29,12 @@ use crate::rules::population::{
     sha_hex, sorted_keys, sorted_set, strings, text, v_map, write_presence, write_room_admission, writing, Person, Places, Transition, AGENT_DYNAMICS,
     BODY, INFORMATION, MOVEMENT, PRESENCE, SOCIAL_NETWORK, SOCIAL_RUNTIME,
 };
+use crate::rules::transaction::RuleTxn;
 use crate::rules::travel::{route_class, world_route};
 use crate::state::entities::{entities_of, insert_entity, Activity, EntityStore, Member, TaskRow};
 use crate::state::events::{EventKind, EventRow, EventWriter, QueueStore};
 use crate::Unsupported;
+use sheltersim_core::txn::TxnKind;
 
 const KEY: &str = "population_lifecycle_v1";
 const POLICY_VERSION: &str = "same-id-population-lifecycle-v1";
@@ -1111,15 +1113,30 @@ fn write_action<'py>(candidate: &Bound<'py, PyAny>, row: &EventRow, event: &Even
     Ok(receipt.into_any())
 }
 
-/// The part of `apply_population_presence_command` between its parse and its validation.
-#[pyfunction]
-fn apply_presence_action<'py>(
+/// What a command did: its receipt, or the reason it waits for the person (`_defer_while_busy`),
+/// whose retry the caller schedules on the world as it was before the command.
+enum Acted<'py> {
+    Done(Bound<'py, PyAny>),
+    Deferred(String),
+}
+
+/// The suppression of a deferred command, after its retry.
+fn deferred<T>(py: Python<'_>, reason: &str) -> PyResult<T> {
+    errors::suppressed(py, format!("population exit waits until the person is free: {reason}"))
+}
+
+/// The part of `apply_population_presence_command` between its parse and its validation: the plan
+/// reads `world` (the program's minutes of the person, whether they are busy) and `candidate`, and
+/// the writes go to `candidate`. The command's own transaction passes its world as both: the plan's
+/// reads of `world` don't depend on the order of the world's maps, which the transaction changes to
+/// the copy's (tests/unit/domain/test_population_rules.py).
+fn presence_action<'py>(
     world: &Bound<'py, PyAny>,
     candidate: &Bound<'py, PyAny>,
     event: &Bound<'py, PyAny>,
     typed: &Bound<'py, PyAny>,
     ids: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyAny>> {
+) -> PyResult<Acted<'py>> {
     let (row, command, state, ids_of_event, plan) = planning((|| {
         let row = event_row(event)?;
         let command = Command::of(typed, ids)?;
@@ -1132,20 +1149,39 @@ fn apply_presence_action<'py>(
     })())?;
     match plan {
         Plan::Suppress(text) => errors::suppressed(candidate.py(), text),
-        Plan::Defer(reason) => {
-            schedule_population_retry(world, event, "presence-retry", "population exit")?;
-            errors::suppressed(candidate.py(), format!("population exit waits until the person is free: {reason}"))
-        }
-        plan => writing(write_action(candidate, &row, &ids_of_event, &command, &state, plan)),
+        Plan::Defer(reason) => Ok(Acted::Deferred(reason)),
+        plan => writing(write_action(candidate, &row, &ids_of_event, &command, &state, plan)).map(Acted::Done),
     }
 }
 
-/// `apply_population_presence_command`. The command's contract and the copy's validation stay
-/// Python's, and what they refuse is the Python rule's, with its text.
+/// `_apply_presence_action`: `presence_action` on a copy of the world, whose deferral schedules the
+/// retry on `world` itself.
+#[pyfunction]
+fn apply_presence_action<'py>(
+    world: &Bound<'py, PyAny>,
+    candidate: &Bound<'py, PyAny>,
+    event: &Bound<'py, PyAny>,
+    typed: &Bound<'py, PyAny>,
+    ids: &Bound<'py, PyAny>,
+) -> PyResult<Bound<'py, PyAny>> {
+    match presence_action(world, candidate, event, typed, ids)? {
+        Acted::Done(receipt) => Ok(receipt),
+        Acted::Deferred(reason) => {
+            schedule_population_retry(world, event, "presence-retry", "population exit")?;
+            deferred(world.py(), &reason)
+        }
+    }
+}
+
+/// `apply_population_presence_command`. The command's contract and the validation of the changed
+/// world stay Python's, and what they refuse is the Python rule's, with its text. The command runs
+/// in a transaction that stands for the Python rule's copy (`from_dict(deepcopy(to_dict()))`, the
+/// EventLog included); anything but its receipt rolls it back. A deferral then schedules its retry
+/// on the world as it was, as the Python rule did on the world it had copied.
 #[pyfunction]
 pub(crate) fn apply_presence_command<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>, command: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
     let py = world.py();
-    let (typed, ids, candidate, dropped) = planning((|| {
+    let (typed, ids, txn, dropped) = planning((|| {
         let module = py.import("sheltersim.domain.population_lifecycle")?;
         let contract = module.getattr("PopulationPresenceCommand")?;
         // The contract's parse in the rule's `try`: its TypeError or ValueError is the rule's text.
@@ -1164,46 +1200,60 @@ pub(crate) fn apply_presence_command<'py>(world: &Bound<'py, PyAny>, event: &Bou
         if !has_namespace(world, KEY)? {
             return errors::failed(py, "population lifecycle contract is not installed");
         }
-        let document = py.import("copy")?.getattr("deepcopy")?.call1((world.call_method0(intern!(py, "to_dict"))?,))?;
-        let class = py.import(intern!(py, "sheltersim.core.world"))?.getattr(intern!(py, "WorldState"))?;
-        let candidate = class.call_method1(intern!(py, "from_dict"), (document,))?;
-        let row = event_row(event)?;
-        if row.due_minute != exact_int(&attribute(&candidate, intern!(py, "minute_index"))?)? {
-            return errors::failed(py, "population command minute must match the current event boundary");
-        }
-        let expected = attribute(&typed, intern!(py, "expected_return_minute"))?;
-        let mut dropped = false;
-        if !expected.is_none() && exact_int(&expected)? < row.due_minute {
-            if crate::rules::population::provenance(&row, "population_retry").is_none() {
-                return errors::failed(py, "expected return minute precedes the departure event");
+        let txn = RuleTxn::begin(world, TxnKind::Full)?;
+        let checked = (|| {
+            let row = event_row(event)?;
+            if row.due_minute != exact_int(&attribute(txn.world(), intern!(py, "minute_index"))?)? {
+                return errors::failed(py, "population command minute must match the current event boundary");
             }
-            dropped = true;
-        }
-        Ok((typed, ids, candidate, dropped))
+            let expected = attribute(&typed, intern!(py, "expected_return_minute"))?;
+            let mut dropped = false;
+            if !expected.is_none() && exact_int(&expected)? < row.due_minute {
+                if crate::rules::population::provenance(&row, "population_retry").is_none() {
+                    return errors::failed(py, "expected return minute precedes the departure event");
+                }
+                dropped = true;
+            }
+            Ok(dropped)
+        })();
+        let (txn, dropped) = txn.keep(checked)?;
+        Ok((typed, ids, txn, dropped))
     })())?;
     if dropped {
+        txn.rollback()?;
         return errors::suppressed(py, "temporary exit dropped: the person was not free before the expected return".to_owned());
     }
-    let receipt = apply_presence_action(world, &candidate, event, &typed, &ids)?;
+    let acted = presence_action(txn.world(), txn.world(), event, &typed, &ids);
+    let (txn, acted) = txn.keep(acted)?;
+    let receipt = match acted {
+        Acted::Done(receipt) => receipt,
+        Acted::Deferred(reason) => {
+            txn.rollback()?;
+            schedule_population_retry(world, event, "presence-retry", "population exit")?;
+            return deferred(py, &reason);
+        }
+    };
+    let candidate = txn.world();
     let checked = (|| -> PyResult<()> {
-        validate_population_lifecycle_state(&candidate).or_else(|error| {
+        validate_population_lifecycle_state(candidate).or_else(|error| {
             if error.is_instance_of::<Unsupported>(py) {
-                py.import("sheltersim.domain.population_lifecycle")?.getattr("validate_population_lifecycle_state")?.call1((&candidate,)).map(|_| ())
+                py.import("sheltersim.domain.population_lifecycle")?.getattr("validate_population_lifecycle_state")?.call1((candidate,)).map(|_| ())
             } else {
                 Err(error)
             }
         })?;
         candidate.call_method0(intern!(py, "validate"))?;
-        py.import("sheltersim.domain.simulator_state")?.getattr("validate_simulator_extensions")?.call1((&candidate,))?;
+        py.import("sheltersim.domain.simulator_state")?.getattr("validate_simulator_extensions")?.call1((candidate,))?;
         Ok(())
     })();
     if let Err(error) = checked {
+        txn.rollback()?;
         if error.is_instance_of::<PyTypeError>(py) || error.is_instance_of::<PyKeyError>(py) || error.is_instance_of::<PyValueError>(py) {
             return errors::failed(py, format!("population command failed validation: {}", error.value(py).str()?));
         }
         return Err(error);
     }
-    crate::rules::effects::swap(world, &candidate)?;
+    txn.commit()?;
     Ok(receipt)
 }
 

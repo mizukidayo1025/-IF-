@@ -25,13 +25,15 @@ use crate::core::errors::{self, Wide};
 use crate::core::row::{attribute, exact_int, exact_str, str_value, unsupported};
 use crate::core::value::{VPy, V};
 use crate::rules::care_receipts::{continuity_record, facility_recovery_record};
-use crate::rules::effects::{active_outage, copy_of, has_active_modifier, swap};
+use crate::rules::effects::{active_outage, has_active_modifier};
 use crate::rules::population as population_rules;
 use crate::rules::{population_lifecycle, service};
 use crate::rules::staff_operation_events::interrupt_operation;
+use crate::rules::transaction::RuleTxn;
 use crate::Unsupported;
 use sheltersim_core::config::environment::Infrastructure;
 use sheltersim_core::config::proximity::Proximity;
+use sheltersim_core::txn::TxnKind;
 
 const OPERATIONAL: &str = "operational_events_v1";
 const INFRASTRUCTURE: &str = "infrastructure_v1";
@@ -251,44 +253,55 @@ pub(crate) fn add_metric(world: &Bound<'_, PyAny>, name: &str) -> PyResult<()> {
 
 // ---- The transaction ------------------------------------------------------------------------------
 
-/// `_apply_operational_transaction`. `operation` works on the copy and gives the follow-up records.
+/// `_apply_operational_transaction`, in a transaction of the world (`rules/transaction.rs`) that
+/// stands for its copy through canonical JSON, the EventLog included: the APPLIED record and the
+/// follow-ups are appended to the world's log, and a rollback takes them out again. `operation`
+/// works on the transaction's world and gives the follow-up records.
 fn transaction<'py>(
     world: &Bound<'py, PyAny>,
     event: &Bound<'py, PyAny>,
     operation: impl FnOnce(&Bound<'py, PyAny>) -> PyResult<Vec<Bound<'py, PyAny>>>,
 ) -> PyResult<Vec<Bound<'py, PyAny>>> {
-    let py = world.py();
-    let candidate = copy_of(world)?;
-    let records = operation(&candidate)?;
+    let txn = RuleTxn::begin(world, TxnKind::Full)?;
+    let written = operational_writes(txn.world(), event, operation);
+    txn.finish(written)
+}
+
+fn operational_writes<'py>(
+    candidate: &Bound<'py, PyAny>,
+    event: &Bound<'py, PyAny>,
+    operation: impl FnOnce(&Bound<'py, PyAny>) -> PyResult<Vec<Bound<'py, PyAny>>>,
+) -> PyResult<Vec<Bound<'py, PyAny>>> {
+    let py = candidate.py();
+    let records = operation(candidate)?;
     if records.is_empty() {
         let kwargs = PyDict::new(py);
         kwargs.set_item(intern!(py, "_in_flight_event"), event)?;
         candidate.call_method(intern!(py, "validate"), (), Some(&kwargs))?;
     } else {
-        attribute(&candidate, intern!(py, "event_queue"))?
+        attribute(candidate, intern!(py, "event_queue"))?
             .call_method1(intern!(py, "remove"), (attribute(event, intern!(py, "event_id"))?,))?;
-        let log = attribute(&candidate, intern!(py, "event_log"))?;
+        let log = attribute(candidate, intern!(py, "event_log"))?;
         log.call_method1(
             intern!(py, "append"),
-            (log_record(py, event, &attribute(&candidate, intern!(py, "minute_index"))?, "APPLIED", None)?,),
+            (log_record(py, event, &attribute(candidate, intern!(py, "minute_index"))?, "APPLIED", None)?,),
         )?;
         for record in &records {
             log.call_method1(intern!(py, "append"), (record,))?;
         }
-        if attribute(&candidate, intern!(py, "model_configs"))?.contains(SHARED_CONFIG)? {
+        if attribute(candidate, intern!(py, "model_configs"))?.contains(SHARED_CONFIG)? {
             for record in &records {
                 let recorded = attribute(record, intern!(py, "event"))?;
                 if text_is(&attribute(&recorded, intern!(py, "event_type"))?, "staff_support_continuity") {
                     let contract = py.import("sheltersim.contracts.operations")?.getattr("StaffSupportContinuityReceipt")?;
                     let adapter = py.import("pydantic")?.getattr("TypeAdapter")?.call1((contract,))?;
                     let receipt = adapter.call_method1("validate_python", (attribute(&recorded, intern!(py, "payload"))?,))?;
-                    crate::rules::common_operations::record_shared_operation(&candidate, &receipt)?;
+                    crate::rules::common_operations::record_shared_operation(candidate, &receipt)?;
                 }
             }
         }
         candidate.call_method0(intern!(py, "validate"))?;
     }
-    swap(world, &candidate)?;
     Ok(records)
 }
 
@@ -1283,54 +1296,61 @@ fn population<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, even
         let kernel = population_lifecycle::apply_presence_command(world, event, &command).map(|_| ());
         return population_rule(py, kernel, "population_lifecycle.apply_presence_command");
     }
-    // A deferral: the copy with its retry takes the world's place, and the event is suppressed.
+    // A deferral: the transaction with its retry commits, and the event is suppressed.
     let changed = (|| -> PyResult<Option<PyErr>> {
-        let candidate = copy_of(world)?;
-        let (zone, count) = (payload.get_item("zone_id")?, payload.get_item("count")?);
-        let done = if op == "add_evacuees" {
-            let tuple = py.import("builtins")?.getattr("tuple")?;
-            let empty = PyTuple::empty(py);
-            // The call's arguments, in the order the rule's call evaluates them, in its `try`: what
-            // `tuple()` raises there is the rule's `EventApplicationError(str(exc))`.
-            let as_tuple = |key: &str| -> PyResult<Bound<'py, PyAny>> {
-                tuple.call1((payload.call_method1(intern!(py, "get"), (key, &empty))?,)).map_err(|error| wrapped(py, error))
-            };
-            let options = population_rules::ArrivalOptions {
-                household_size: Some(payload.get_item("household_size")?),
-                mobility: Some(payload.get_item("mobility")?),
-                language: Some(payload.get_item("language")?),
-                admission_zone_ids: Some(as_tuple("admission_zone_ids")?),
-                approach_route_id: Some(get(&payload, "approach_route_id")?),
-                person_context_overrides: Some(as_tuple("person_context_overrides")?),
-            };
-            let kernel = population_rules::arrivals(&candidate, event, &zone, &count, &options).map(|_| ());
-            population_rule(py, kernel, "population.queue_arrivals")
-        } else {
-            let include = payload.call_method1(intern!(py, "get"), ("include_initial", false))?;
-            let kernel = population_rules::departures(&candidate, event, &zone, &count, Some(&include)).map(|_| ());
-            population_rule(py, kernel, "population.queue_departures").and_then(|_| {
-                let minute = attribute(event, intern!(py, "due_minute"))?;
-                let kernel = population_lifecycle::admit_pending_returns(&candidate, &minute).map(|_| ());
-                population_rule(py, kernel, "population_lifecycle.admit_pending_returns")
-            })
-        };
-        // The rule's `try`: a deferral swaps its copy in and is the outcome; its own failures go on;
-        // `except (TypeError, ValueError) as exc: raise EventApplicationError(str(exc))`.
-        let deferred = match done {
-            Ok(()) => None,
-            Err(error) if error.is_instance(py, &models(py)?.getattr(intern!(py, "EventSuppressed"))?) => Some(error),
-            Err(error) => return Err(wrapped(py, error)),
-        };
-        candidate.call_method0(intern!(py, "validate"))?;
-        py.import("sheltersim.domain.simulator_state")?.getattr("validate_simulator_extensions")?.call1((&candidate,))?;
-        swap(world, &candidate)?;
-        Ok(deferred)
+        let txn = RuleTxn::begin(world, TxnKind::Full)?;
+        let written = population_writes(txn.world(), event, &payload, &op);
+        txn.finish(written)
     })();
     // Past the checks a call's exception is the Python rule's own: it made the same calls.
     match counted(py, "population.copy", changed)? {
         Some(deferred) => Err(deferred),
         None => Ok(()),
     }
+}
+
+/// The arrivals or departures of `population`, and the checks of the world they leave: a deferral
+/// (`EventSuppressed`) is kept and returned, to be raised after the commit.
+fn population_writes<'py>(candidate: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>, payload: &Bound<'py, PyAny>, op: &str) -> PyResult<Option<PyErr>> {
+    let py = candidate.py();
+    let (zone, count) = (payload.get_item("zone_id")?, payload.get_item("count")?);
+    let done = if op == "add_evacuees" {
+        let tuple = py.import("builtins")?.getattr("tuple")?;
+        let empty = PyTuple::empty(py);
+        // The call's arguments, in the order the rule's call evaluates them, in its `try`: what
+        // `tuple()` raises there is the rule's `EventApplicationError(str(exc))`.
+        let as_tuple = |key: &str| -> PyResult<Bound<'py, PyAny>> {
+            tuple.call1((payload.call_method1(intern!(py, "get"), (key, &empty))?,)).map_err(|error| wrapped(py, error))
+        };
+        let options = population_rules::ArrivalOptions {
+            household_size: Some(payload.get_item("household_size")?),
+            mobility: Some(payload.get_item("mobility")?),
+            language: Some(payload.get_item("language")?),
+            admission_zone_ids: Some(as_tuple("admission_zone_ids")?),
+            approach_route_id: Some(get(payload, "approach_route_id")?),
+            person_context_overrides: Some(as_tuple("person_context_overrides")?),
+        };
+        let kernel = population_rules::arrivals(candidate, event, &zone, &count, &options).map(|_| ());
+        population_rule(py, kernel, "population.queue_arrivals")
+    } else {
+        let include = payload.call_method1(intern!(py, "get"), ("include_initial", false))?;
+        let kernel = population_rules::departures(candidate, event, &zone, &count, Some(&include)).map(|_| ());
+        population_rule(py, kernel, "population.queue_departures").and_then(|_| {
+            let minute = attribute(event, intern!(py, "due_minute"))?;
+            let kernel = population_lifecycle::admit_pending_returns(candidate, &minute).map(|_| ());
+            population_rule(py, kernel, "population_lifecycle.admit_pending_returns")
+        })
+    };
+    // The rule's `try`: a deferral keeps what was written and is the outcome; its own failures go on;
+    // `except (TypeError, ValueError) as exc: raise EventApplicationError(str(exc))`.
+    let deferred = match done {
+        Ok(()) => None,
+        Err(error) if error.is_instance(py, &models(py)?.getattr(intern!(py, "EventSuppressed"))?) => Some(error),
+        Err(error) => return Err(wrapped(py, error)),
+    };
+    candidate.call_method0(intern!(py, "validate"))?;
+    py.import("sheltersim.domain.simulator_state")?.getattr("validate_simulator_extensions")?.call1((candidate,))?;
+    Ok(deferred)
 }
 
 // ---- InfrastructureEventHandler --------------------------------------------------------------------
