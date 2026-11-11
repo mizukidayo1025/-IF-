@@ -47,8 +47,9 @@ Checkpoint document) and times them.
   `ValueRow` slot, `Place::Value`, read by `Slots::value`; typed readers such as `minute_index`,
   `resources`, `id_counter`, `rows` (the entity rows, refused while tainted), `row::<T>(name)`,
   `metric_state`, `stamp_of` and `configs`, each a borrow of its part; `snapshot` and `restore`
-  (the parts' `Arc`s, copied on the next write) and `canonicalize` (the order a copy through
-  canonical JSON gives: entities by ID, every map's keys sorted, `Row::canonicalize`); and
+  (the parts' `Arc`s, copied on the next write), `canonicalize` (the order a copy through
+  canonical JSON gives: entities by ID, every map's keys sorted, `Row::canonicalize`) and `fork`
+  (a new `World` sharing every part, stamps included, until either writes it; lane 6-6); and
   `WorldCell`, what holds a world and lends it whole to a core function, `with(|world| ...)`),
   `txn.rs` (`Txn`: a transaction in place, begin (validate, snapshot, canonicalize, validate the
   candidate), commit and rollback, with a `Host` for the views and the validation; lane 6-2),
@@ -142,6 +143,10 @@ Checkpoint document) and times them.
   (`state_mirror.transaction` and its `_txn_*` functions): the open one is the `WorldCore`'s.
   `QueueStore`, `EventStore`, `EntityStore` and `NamespaceMirror` have the steps it takes
   (`txn_begin`, `txn_rollback`, `txn_commit`; `take_root`, `root_from_row`, `put_root`).
+  `WorldCore.fork(world)` is `deepcopy(world)` (`state_mirror.deepcopy_world`, lane 6-6): the core
+  of the copy, from `World::fork`, with a new mirror per slot and an `EntityStore` whose objects are
+  made from the rows in the keys' order (`EntityStore::fork_rows`, `fork_objects`); None for a
+  world whose maps are not what the rows say, a tainted store or an open transaction.
 - `src/core/configs.rs`: fills the core's `Configs` with the Python contracts
   (`selected_models`, `tick_plan`), called on the same tree at the first read of a section after
   the stamp of `model_configs` changed. A parse never raises there; the read site replays the
