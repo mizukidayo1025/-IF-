@@ -15,7 +15,8 @@ use sheltersim_core::error::Error;
 use sheltersim_core::events::log::EventLog;
 use sheltersim_core::events::{EventKind, EventRow, EventStatus};
 use sheltersim_core::row::IdMap;
-use sheltersim_core::rules::metrics::{self, Folds, Inputs, MetricSample, OpenWait, EXPOSURE_SEMANTICS};
+use sheltersim_core::rules::kit::is_toilet;
+use sheltersim_core::rules::metrics::{self, Inputs, MetricSample, OpenWait, EXPOSURE_SEMANTICS};
 use sheltersim_core::state::metric_state::MetricRow;
 use sheltersim_core::value::V;
 use sheltersim_core::world::{Place, World, WorldCell, METRIC_STATE};
@@ -168,9 +169,9 @@ fn waits() -> Vec<OpenWait<'static>> {
     ]
 }
 
-fn sample_of(world: &World, folds: &Folds, held: bool) -> Result<MetricSample, Error> {
+fn sample_of(world: &World, held: bool) -> Result<MetricSample, Error> {
     let waits = waits();
-    metrics::sample(world, &Inputs { sample: 30, waits: &waits, folds, metric_state_held: held })
+    metrics::sample(world, &Inputs { sample: 30, waits: &waits, metric_state_held: held })
 }
 
 fn unsupported(reason: &str) -> Error {
@@ -179,7 +180,7 @@ fn unsupported(reason: &str) -> Error {
 
 #[test]
 fn the_columns_are_those_of_the_python_rule() {
-    let taken = sample_of(&world(), &Folds::default(), true).unwrap();
+    let taken = sample_of(&world(), true).unwrap();
     let source_ids = format!(
         concat!(
             r#"{{"busy_staff":["s2"],"high_stress_agents":["a1","a2","a3"],"realized_events":["e-a","e-b"],"#,
@@ -227,14 +228,14 @@ fn an_empty_world_has_means_of_zero() {
     world.hold_log(Arc::new(EventLog::new()));
     let taken = metrics::sample(
         &world,
-        &Inputs { sample: 0, waits: &[], folds: &Folds::default(), metric_state_held: true },
+        &Inputs { sample: 0, waits: &[], metric_state_held: true },
     )
     .unwrap();
     assert_eq!((taken.stress_mean, taken.toilet_wait_mean_minutes, taken.staff_load_ratio), (0.0, 0.0, 0.0));
 }
 
 #[test]
-fn a_kind_that_is_not_ascii_is_folded_by_the_caller() {
+fn a_kind_that_is_not_ascii_is_folded_as_python_folds_it() {
     let mut world = world();
     {
         let rows = world.entities.get_mut();
@@ -242,55 +243,50 @@ fn a_kind_that_is_not_ascii_is_folded_by_the_caller() {
         put(&mut rows.facilities, "f5", facility("f5", "TOİLET", 8, &["a4"], &[]));
         put(&mut rows.facilities, "f6", facility("f6", "ﬆoilet", 16, &[], &[]));
     }
-    let mut folds = Folds::default();
-    assert_eq!(metrics::unfolded_kinds(&world, &folds).unwrap(), ids(&["ﬆoilet", "TOİLET"]));
-    assert_eq!(sample_of(&world, &folds, true).err(), Some(unsupported("a facility kind was not folded")));
-    // `str.casefold` gives "stoilet" and "toi̇let".
-    folds.insert(text("ﬆoilet"), true);
-    folds.insert(text("TOİLET"), false);
-    assert!(metrics::unfolded_kinds(&world, &folds).unwrap().is_empty());
-    assert_eq!(sample_of(&world, &folds, true).unwrap().toilet_working_units, 3 + 4 + 16);
-    assert!(metrics::is_toilet("A-TOILET-room", &Folds::default()).unwrap());
+    // `str.casefold` gives "stoilet" and "toi̇let" (P8-0a: the core's fold, Python's before).
+    assert_eq!(sample_of(&world, true).unwrap().toilet_working_units, 3 + 4 + 16);
+    assert!(is_toilet("A-TOILET-room"));
+    assert!(is_toilet("ﬆoilet"));
+    assert!(!is_toilet("TOİLET"));
 }
 
 #[test]
 fn what_the_kernel_refused_it_still_refuses_with_its_text() {
     let mut world = world();
     world.entities.get_mut().active_tasks = Table::default();
-    assert_eq!(sample_of(&world, &Folds::default(), true).err(), Some(unsupported("a staff queue names no task")));
+    assert_eq!(sample_of(&world, true).err(), Some(unsupported("a staff queue names no task")));
 
     let mut world = self::world();
     world.entities.get_mut().taint("a value does not fit".to_owned());
-    assert_eq!(sample_of(&world, &Folds::default(), true).err(), Some(unsupported("the entity store is tainted")));
-    assert!(metrics::unfolded_kinds(&world, &Folds::default()).unwrap().is_empty());
+    assert_eq!(sample_of(&world, true).err(), Some(unsupported("the entity store is tainted")));
 
     let mut world = self::world();
     put(&mut world.entities.get_mut().facilities, "f9", facility("f9", "toilet", i64::MAX, &[], &[]));
     assert_eq!(
-        sample_of(&world, &Folds::default(), true).err(),
+        sample_of(&world, true).err(),
         Some(unsupported("the working units do not fit an i64"))
     );
 
     let world = self::world();
-    assert_eq!(sample_of(&world, &Folds::default(), false).err(), Some(unsupported("the field holds another dict")));
+    assert_eq!(sample_of(&world, false).err(), Some(unsupported("the field holds another dict")));
     world.slots.get(METRIC_STATE).unwrap().try_borrow_mut().unwrap().misfit("an int".to_owned());
-    assert_eq!(sample_of(&world, &Folds::default(), true).err(), Some(unsupported("the namespace has no row")));
+    assert_eq!(sample_of(&world, true).err(), Some(unsupported("the namespace has no row")));
 
     let mut bare = World::default();
     *bare.entities.get_mut() = std::mem::take(self::world().entities.get_mut());
     bare.hold_log(Arc::new(log()));
-    assert_eq!(sample_of(&bare, &Folds::default(), false).err(), Some(unsupported("the namespace is not owned")));
+    assert_eq!(sample_of(&bare, false).err(), Some(unsupported("the namespace is not owned")));
 
     // A world whose EventLog is held elsewhere (lane 6-5).
     let mut world = self::world();
     assert!(world.release_log().is_some());
-    assert_eq!(sample_of(&world, &Folds::default(), true).err(), Some(unsupported("the event log is not in Rust")));
+    assert_eq!(sample_of(&world, true).err(), Some(unsupported("the event log is not in Rust")));
 }
 
 #[test]
 fn a_world_cell_lends_the_whole_world_once_at_a_time() {
     let cell = Shard::new(world());
-    let taken = cell.with(|world| sample_of(world, &Folds::default(), true)).unwrap().unwrap();
+    let taken = cell.with(|world| sample_of(world, true)).unwrap().unwrap();
     assert_eq!(taken.staff_busy_count, 1);
     let held = cell.try_borrow().unwrap();
     assert_eq!(cell.with(|_| ()).err(), Some(Error::Runtime(BORROWED.to_owned())));

@@ -21,6 +21,9 @@ use pyo3::types::{PyBool, PyDict, PyString, PyTuple, PyType};
 
 use sheltersim_core::config::movement::{Movement, MovementModel};
 use sheltersim_core::config::read::Read;
+use sheltersim_core::rules::kit::{self, Placed};
+pub(crate) use sheltersim_core::rules::kit::mobility_text;
+use sheltersim_core::rules::kit::same_position;
 
 use crate::core::configs;
 use crate::core::mathx::{py_fsum, py_max, py_min, py_sum};
@@ -71,19 +74,6 @@ pub(crate) fn is_queue_trip(purpose: &str) -> bool {
 
 fn point_row(point: Pt) -> Point {
     Point { x: point.x, y: point.y }
-}
-
-fn same_position(first: &Position, second: &Position) -> bool {
-    let same_point = match (&first.point, &second.point) {
-        (None, None) => true,
-        (Some(a), Some(b)) => a.x.to_bits() == b.x.to_bits() && a.y.to_bits() == b.y.to_bits(),
-        _ => false,
-    };
-    same_point
-        && first.progress.to_bits() == second.progress.to_bits()
-        && first.zone_id == second.zone_id
-        && first.edge_id == second.edge_id
-        && first.position_kind == second.position_kind
 }
 
 /// `_position_record`, with its kind.
@@ -424,12 +414,17 @@ pub(crate) fn place_at_point(world: &Bound<'_, PyAny>, agent_id: &str, zone_id: 
         return Ok(None);
     }
     let mirror = mirror_held(world)?;
-    let Some(agent_id) = NamespaceMirror::with_row::<MovementRow, _>(&mirror, |row| Ok(row.positions.get_key_value(agent_id).map(|(id, _)| id.clone())))? else {
+    if !NamespaceMirror::with_row::<MovementRow, _>(&mirror, |row| Ok(row.positions.contains_key(agent_id)))? {
         return Ok(Some(false));
-    };
-    let mut changes = Changes::default();
-    changes.positions.push((agent_id, record(zone_id.clone(), Some(point), KINDS.physical.clone(), None, 1.0)));
-    let writes = NamespaceMirror::with_row_tree::<MovementRow, _>(&mirror, |row, tree| changes.apply(row, tree))?;
+    }
+    let py = world.py();
+    let writes = NamespaceMirror::with_row_tree::<MovementRow, _>(&mirror, |row, _| match kit::place_in_bed(row, agent_id, zone_id, point) {
+        Placed::Changed(id) => {
+            let value = PyField::to_py(&row.positions[&*id], py)?;
+            Ok(vec![TreeWrite::Set("positions", id, value)])
+        }
+        Placed::Absent | Placed::Same => Ok(Vec::new()),
+    })?;
     write_tree(&mirror, writes)?;
     Ok(Some(true))
 }
@@ -1254,14 +1249,6 @@ fn plan_journey(
     })
 }
 
-pub(crate) fn mobility_text(agent: &AgentRow) -> &'static str {
-    use crate::state::entities::Mobility;
-    match agent.profile.mobility {
-        Mobility::Independent => "independent",
-        Mobility::Assisted => "assisted",
-        Mobility::Wheelchair => "wheelchair",
-    }
-}
 
 /// `staff_position_snapshots`' record of one staff member.
 fn plan_staff(scene: &Scene<'_>, operations: Option<&Bound<'_, PyDict>>, staff_id: &str, zone_id: &Arc<str>, boundary: i64) -> PyResult<Position> {

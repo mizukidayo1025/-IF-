@@ -26,6 +26,7 @@ use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PySlice, PyString, PyTuple};
 use sha2::{Digest, Sha256};
 
 use sheltersim_core::config::overlay::OverlayRooms;
+use sheltersim_core::rules::kit;
 
 use crate::core::configs;
 use crate::core::errors::{self, OrPy};
@@ -40,8 +41,7 @@ use crate::state::events::{EventKind, EventRow, EventRowPy, EventStatus, EventWr
 use crate::state::movement::MovementRow;
 use crate::{Encoder, Unsupported};
 
-pub(crate) const PRESENCE: &str = "population_presence_v1";
-pub(crate) const DYNAMICS: &str = "population_dynamics_v1";
+pub(crate) use sheltersim_core::rules::kit::{DYNAMICS, PRESENCE};
 pub(crate) const MOVEMENT: &str = "movement_v1";
 pub(crate) const INFORMATION: &str = "information_spread_v1";
 pub(crate) const BODY: &str = "body_state_v1";
@@ -50,7 +50,7 @@ pub(crate) const SOCIAL_NETWORK: &str = "social_network_v1";
 pub(crate) const SOCIAL_RUNTIME: &str = "social_propagation_v1";
 pub(crate) const OVERLAY: &str = "geometry_overlay_v1";
 const POLICY_VERSION: &str = "capacity-aware-arrivals-departures-v1";
-pub(crate) const SOURCE_ID: &str = "ASM-POPULATION-DYNAMICS-V1";
+pub(crate) const SOURCE_ID: &str = kit::POPULATION_SOURCE_ID;
 const ROOM_INTAKE_SOURCE: &str = "ASM-TEMPORARY-ROOM-INTAKE-V1";
 const MAX_ARRIVALS_PER_EVENT: i64 = 1000;
 const MAX_PENDING_ARRIVALS: i64 = 10_000;
@@ -92,8 +92,9 @@ pub(crate) fn caught_as<T>(py: Python<'_>, result: PyResult<T>, text: &'static s
 
 /// A write stage's result: the Python rule must not run after a write, so a refusal here is a bug
 /// to see. Every other error is what the same operation raises in the Python rule.
+/// The core's kernels use `sheltersim_core::rules::kit::writing`, which writes the same text.
 pub(crate) fn writing<T>(result: PyResult<T>) -> PyResult<T> {
-    result.map_err(|error| Python::with_gil(|py| if error.is_instance_of::<Unsupported>(py) { PyRuntimeError::new_err(format!("a kernel refused after it began writing: {error}")) } else { error }))
+    result.map_err(|error| Python::with_gil(|py| if error.is_instance_of::<Unsupported>(py) { PyRuntimeError::new_err(format!("{}: {error}", kit::WRITING_REFUSED)) } else { error }))
 }
 
 // ---- Reads through the object protocol -----------------------------------------------------------
@@ -168,19 +169,7 @@ pub(crate) fn event_row(event: &Bound<'_, PyAny>) -> PyResult<EventRow> {
     EventRow::from_event(event)?.ok_or_else(|| Unsupported::new_err("the event has no row"))
 }
 
-pub(crate) fn payload<'a>(row: &'a EventRow, key: &str) -> Option<&'a V> {
-    let V::Map(map) = &row.payload else {
-        return None;
-    };
-    map.get(key)
-}
-
-pub(crate) fn provenance<'a>(row: &'a EventRow, key: &str) -> Option<&'a V> {
-    let V::Map(map) = &row.provenance else {
-        return None;
-    };
-    map.get(key)
-}
+pub(crate) use sheltersim_core::rules::kit::{payload, provenance};
 
 // ---- Hashes and identifiers --------------------------------------------------------------------
 
@@ -2640,56 +2629,53 @@ pub(crate) fn departures<'py>(
 }
 
 /// What `admit_inner` asks of the waiting, whoever gets a place. A rule that writes and then admits
-/// asks this first: which of them get a place depends on the writes, and it can't refuse then.
+/// asks this first: which of them get a place depends on the writes, and it can't refuse then. The
+/// checks of the waiting are the core's (`sheltersim_core::rules::kit::check_waiting_for_admission`);
+/// the rooms, paths and ledgers it asks of are these rules' (`AdmissionChecks`).
 pub(crate) fn check_waiting_for_admission(world: &Bound<'_, PyAny>) -> PyResult<()> {
-    let py = world.py();
     if nothing_in(world, DYNAMICS, "pending_arrivals")? {
         return Ok(());
     }
-    let Some(state) = namespace(world, DYNAMICS)? else {
-        return Ok(());
-    };
-    let pending = state.get_item("pending_arrivals")?;
-    if !pending.is_truthy()? {
-        return Ok(());
+    let state = state_value(world, DYNAMICS)?;
+    kit::check_waiting_for_admission(state.as_ref(), &mut AdmissionChecks { world, places: None })
+}
+
+/// What `check_waiting_for_admission` asks of the rules that are still here.
+struct AdmissionChecks<'a, 'py> {
+    world: &'a Bound<'py, PyAny>,
+    places: Option<Places<'py>>,
+}
+
+impl kit::Admission for AdmissionChecks<'_, '_> {
+    type Error = PyErr;
+
+    fn error(error: sheltersim_core::error::Error) -> PyErr {
+        errors::to_py_err(error)
     }
-    let mut places = Places::of(world)?;
-    let mut zones: Vec<Arc<str>> = Vec::new();
-    for item in pending.try_iter()? {
-        let item = item?;
-        exact_int(&item.get_item("created_minute")?)?;
-        text(&item.get_item("event_id")?)?;
-        text(&item.get_item("profile")?.get_item("id")?)?;
-        if item.contains("approach_route_id")? {
-            exact_str(&item.get_item("approach_route_id")?)?;
-        }
-        let mut targets = vec![text(&item.get_item("zone_id")?)?];
-        for zone in item.call_method1(intern!(py, "get"), ("admission_zone_ids", PyTuple::empty(py)))?.try_iter()? {
-            targets.push(text(&zone?)?);
-        }
-        for zone in targets {
-            check_item_for_admission(&item, &zone)?;
-            places.has_room(&zone)?;
-            places.available_room(&zone)?;
-            zones.push(zone);
-        }
+
+    fn begin(&mut self) -> PyResult<()> {
+        self.places = Some(Places::of(self.world)?);
+        Ok(())
     }
-    let zones: Vec<&str> = zones.iter().map(|zone| &**zone).collect();
-    check_admission_paths(world, &zones)?;
-    presence_state(world)?;
-    if let Some(overlay) = namespace(world, OVERLAY)? {
-        if !is_dict(&get(&overlay, "room_admissions")?) && overlay.contains("temporary_rooms")? {
-            return unsupported("a room admission has no admissions to join");
-        }
+
+    fn room(&mut self, zone: &str) -> PyResult<()> {
+        let places = self.places.as_mut().ok_or_else(|| PyRuntimeError::new_err("the admission check did not begin"))?;
+        places.has_room(zone)?;
+        places.available_room(zone)?;
+        Ok(())
     }
-    for record in state.get_item("arrivals")?.try_iter()? {
-        let record = record?;
-        if record.contains("requested_count")? {
-            exact_int(&record.get_item("requested_count")?)?;
-            text(&record.get_item("event_id")?)?;
+
+    fn paths(&mut self, zones: &[&str]) -> PyResult<()> {
+        let world = self.world;
+        check_admission_paths(world, zones)?;
+        presence_state(world)?;
+        if let Some(overlay) = namespace(world, OVERLAY)? {
+            if !is_dict(&get(&overlay, "room_admissions")?) && overlay.contains("temporary_rooms")? {
+                return unsupported("a room admission has no admissions to join");
+            }
         }
+        Ok(())
     }
-    Ok(())
 }
 
 // ---- Read-only rules -----------------------------------------------------------------------------

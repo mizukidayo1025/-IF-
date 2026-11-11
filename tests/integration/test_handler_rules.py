@@ -454,7 +454,7 @@ def test_a_toilet_completion_is_python_s(generated_scenario: Any, hygiene: float
 def test_a_facility_kind_beyond_ascii_is_folded_as_python_folds_it(
     generated_scenario: Any, kind: str, is_toilet: bool
 ) -> None:
-    """A Scenario's facility kind is any str: `"toilet" in kind.casefold()`, Python's own fold."""
+    """A Scenario's facility kind is any str: `"toilet" in kind.casefold()`, Python's fold."""
     world, _ = _run(generated_scenario, 5)
     event = _in_service(world, world.minute_index)
     facility_id, agent_id = event.payload["facility_id"], event.payload["agent_id"]

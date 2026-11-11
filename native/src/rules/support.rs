@@ -14,7 +14,7 @@ use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 use sha2::{Digest, Sha256};
 
 use crate::core::configs;
-use crate::core::errors::{self, Outcome};
+use crate::core::errors::{self, OrPy, Outcome};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, namespace_is_absent, unsupported};
 use crate::core::tracked::as_readable_dict;
 use crate::core::value::{VPy, V};
@@ -31,12 +31,12 @@ use crate::state::events::{EventKind, EventRef, EventRow, EventWriter};
 use crate::Unsupported;
 use crate::state::shared_operations::{SharedOperationsRow, NAME as SHARED};
 use sheltersim_core::config::body::CareOutcome;
+use sheltersim_core::rules::kit::{self, PRESENCE};
 
 const STAFF_SUPPORT_SOURCE: &str = "ASM-STAFF-SUPPORT-LIFECYCLE-V1";
 const UNRESOLVED_METRIC: &str = "support_unresolved_count";
 const RESOLVED_METRIC: &str = "support_resolved_count";
 const BODY_SOURCE: &str = "ASM-LIFE-STATE-FEEDBACK-V1";
-const PRESENCE: &str = "population_presence_v1";
 const EMOTIONAL_SUPPORT: &str = "emotional_support";
 /// What the handler says of a request that has left `pending`.
 pub(crate) const NO_LONGER_PENDING: &str = "support request is no longer pending";
@@ -1074,36 +1074,13 @@ pub(crate) fn support_kind_of(world: &Bound<'_, PyAny>, writer: &EventWriter<'_>
     Ok(default())
 }
 
-/// `current_household_id`.
+/// `current_household_id` (`sheltersim_core::rules::kit::household_of`): the presence state read
+/// as a `V`, a detached one from its row, then the profile's group from the rows.
 pub(crate) fn household_of(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<Option<Arc<str>>> {
-    // The presence state is read as a `V`, a detached one from its row. Outer None: it is not a
-    // dict, and the profile's group answers.
-    let found = with_state_value(world, PRESENCE, |presence| {
-        let Some(V::Map(presence)) = presence else {
-            return Ok(None);
-        };
-        let Some(people) = presence.get("people") else {
-            return Ok(Some(None));
-        };
-        let V::Map(people) = people else {
-            return unsupported("the presence state's people are for the Python rule");
-        };
-        let Some(person) = people.get(agent_id) else {
-            return Ok(Some(None));
-        };
-        let V::Map(person) = person else {
-            return unsupported("a presence record is for the Python rule");
-        };
-        match person.get("household_id") {
-            None | Some(V::Null) => Ok(Some(None)),
-            Some(V::Str(household)) => Ok(Some(Some(household.clone()))),
-            Some(_) => unsupported("a value is not a str"),
-        }
-    })?;
-    if let Some(found) = found {
+    if let Some(found) = with_state_value(world, PRESENCE, |presence| kit::presence_household(presence, agent_id).or_py())? {
         return Ok(found);
     }
-    EntityStore::with_rows(&entities_of(world)?, |rows| Ok(rows.agents.get(agent_id).and_then(|agent| agent.profile.group_id.clone())))
+    EntityStore::with_rows(&entities_of(world)?, |rows| Ok(kit::group_of(rows, agent_id)))
 }
 
 /// The metric of a request the service turned down.

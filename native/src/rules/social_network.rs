@@ -39,7 +39,8 @@ const UNSET_TRUST: f64 = 0.5;
 const PARTICIPANT_RELIEF_SHARE: f64 = 0.5;
 const ACTOR_RELIEF_SHARE: f64 = 0.25;
 
-/// `mapping[key]`, or None for a key it does not have.
+/// `mapping[key]`, or None for a key it does not have, of a Python mapping (the core's, of a `V`,
+/// is `sheltersim_core::rules::kit::mapping_get`).
 pub(crate) fn mapping_get<'py>(
     mapping: &Bound<'py, PyAny>,
     key: &Bound<'py, PyString>,

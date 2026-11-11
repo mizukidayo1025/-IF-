@@ -16,9 +16,10 @@ use pyo3::types::{PyBool, PyList, PySlice, PyString, PyTuple};
 
 use sheltersim_core::config::read;
 use sheltersim_core::config::service::ResourceService;
+use sheltersim_core::rules::kit;
 
 use crate::core::configs;
-use crate::core::errors;
+use crate::core::errors::{self, OrPy};
 use crate::core::mathx::py_max;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, map_set, unsupported, PyField};
 use crate::core::value::{V, VPy};
@@ -211,12 +212,10 @@ enum Field<'py, 'a> {
     Kept(&'a V),
 }
 
-/// `metric_state[name] = metric_state.get(name, 0.0) + 1.0`.
+/// `metric_state[name] = metric_state.get(name, 0.0) + 1.0`, on the row and the tree
+/// (`sheltersim_core::rules::kit::add_one`).
 pub(crate) fn add_one(metrics: &Bound<'_, NamespaceMirror>, name: &str) -> PyResult<()> {
-    NamespaceMirror::with_row_tree::<MetricRow, _>(metrics, |row, tree| {
-        let count = row.get(name).copied().unwrap_or(0.0) + 1.0;
-        map_set(row, tree, name, count)
-    })
+    NamespaceMirror::with_row_tree::<MetricRow, _>(metrics, |row, tree| kit::add_one(row, tree, name))
 }
 
 pub(crate) fn metrics_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, NamespaceMirror>> {
@@ -499,7 +498,8 @@ fn operation_payload(warehouse_id: &Arc<str>, resource_id: &Arc<str>, reservatio
     payload
 }
 
-/// A person's activity and target, on the row: the object follows when the borrow ends.
+/// A person's activity and target, on the row: the object follows when the borrow ends
+/// (`sheltersim_core::rules::kit::set_agent`).
 pub(crate) fn set_agent<'py>(
     _world: &Bound<'py, PyAny>,
     store: &Bound<'py, EntityStore>,
@@ -509,14 +509,7 @@ pub(crate) fn set_agent<'py>(
 ) -> PyResult<()> {
     let id = exact_str(agent_id)?;
     let target_text = target.map(exact_str).transpose()?;
-    EntityStore::with_rows(store, |rows| {
-        let Some(row) = rows.agents.get_mut(id) else {
-            return unsupported("no such agent");
-        };
-        row.activity = activity;
-        row.target_id = target_text.map(Arc::from);
-        Ok(())
-    })
+    EntityStore::with_rows(store, |rows| kit::set_agent(rows, id, activity, target_text).or_py())
 }
 
 // ---- arbitrate ----------------------------------------------------------------------------------

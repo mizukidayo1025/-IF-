@@ -32,7 +32,7 @@ Checkpoint document) and times them.
   and runs `cargo test -p sheltersim_core`. It holds what moved so far: `json.rs` (JSON strings
   and floats as Python writes them, and `Encoder`, which writes plain values), `value.rs` (`V`),
   `error.rs` (`Error`, one variant per Python class with its text, and `Misfit`), `mathx.rs`,
-  `rng.rs`, `census.rs`, `parallel.rs`, `interner.rs`, `contacts.rs`, `checkpoint.rs` (the
+  `rng.rs` (`KeyedDraws`, and `Draws`, the `CounterRNG` of a seed), `census.rs`, `parallel.rs`, `interner.rs`, `contacts.rs`, `checkpoint.rs` (the
   Checkpoint kernels over bytes), `events/` (`EventRow`, the queue's `Queue`, the `EventLog`
   with its indexes and the saved-record checks, and `writer`, which schedules and records rows
   with the Python errors), `row.rs` (`Field`, `Row`, `Items`, `state_row!`, `str_enum!`),
@@ -58,8 +58,15 @@ Checkpoint document) and times them.
   `txn.rs` (`Txn`: a transaction in place, begin (validate, snapshot, canonicalize, validate the
   candidate), commit and rollback, with a `Host` for the views and the validation; lane 6-2),
   `rules/` (the kernels moved
-  to the core, pure functions over `&World`: `metrics.rs`, the columns of `MetricSnapshot`; the
-  file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4),
+  to the core, pure functions over `&World`, listed in `rules/mod.rs` by lane block:
+  `metrics.rs`, the columns of `MetricSnapshot`, and `kit.rs`, the helpers the rules share —
+  events as rows written through `Events` to the world's queue, log and event counter, metric
+  counts, a person's activity, the readers of payloads and of a few namespaces, `place_in_bed`,
+  `check_waiting_for_admission` with the rules it still asks through `Admission`, and `Counts`;
+  the file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4 and P8-0a),
+  `text.rs` (`casefold`, CPython 3.12's full fold from a generated table, `text/casefold.rs`
+  by `tools/casefold_table.py`, tested at every code point against `tests/data/casefold.txt`;
+  `g_text`, `format(value, "g")`),
   `cell.rs` (`Shard`, a part borrowed on its own; a second borrow of a part is an
   `Error::Runtime`, never a panic; `CowShard`, the same over an `Arc`, copied on write while a
   snapshot shares it), `stamp.rs` (`Stamp`, process-unique numbers from one

@@ -14,9 +14,7 @@ use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 
-use std::sync::Arc;
-
-use sheltersim_core::rules::metrics::{self, Folds, Inputs, OpenWait};
+use sheltersim_core::rules::metrics::{self, Inputs, OpenWait};
 
 use crate::core::errors::{self, OrPy};
 use crate::core::mathx::py_sum;
@@ -28,24 +26,13 @@ use crate::state::events::EventWriter;
 use crate::state::metric_state::MetricRow;
 use crate::state::resource_ledger::{held_mirror, LedgerRow};
 
-/// `"toilet" in kind.casefold()` of each facility kind that isn't ASCII, by Python's own fold, which
-/// Rust doesn't have: the folds the core's `sample` reads.
-fn folds_of(py: Python<'_>, kinds: Vec<Arc<str>>, folds: &mut Folds) -> PyResult<()> {
-    for kind in kinds {
-        let folded = PyString::new(py, &kind).call_method0(intern!(py, "casefold"))?;
-        let toilet = exact_str(&folded)?.contains("toilet");
-        folds.insert(kind, toilet);
-    }
-    Ok(())
-}
-
 /// `MetricSnapshot.from_world`: the fields of the dataclass in their order, for a sample minute
 /// that is the world's. `unsettled` is `world.unsettled_support_requests()` as a list.
 ///
 /// The pilot of a kernel split into a core function and its glue (step5-plan.md, PR 5-4): this
-/// gathers what Python holds (the open requests' waits, the event log, the folds of kinds that
-/// aren't ASCII, whether `metric_state` is its slot's tree), runs `sheltersim_core::rules::metrics::
-/// sample` on the world borrowed whole, and makes the Python tuple of what it returns.
+/// gathers what Python holds (the open requests' waits, whether `metric_state` is its slot's tree),
+/// runs `sheltersim_core::rules::metrics::sample` on the world borrowed whole, and makes the Python
+/// tuple of what it returns. The facility kinds are folded in the core (`text::casefold`).
 #[pyfunction]
 fn snapshot_fields<'py>(
     world: &Bound<'py, PyAny>,
@@ -71,25 +58,8 @@ fn snapshot_fields<'py>(
     // The refusals of a world whose events are not Rust's, as before; the log is the world's.
     EventWriter::of(world)?;
     let metric_state_held = field_held(world, intern!(py, "metric_state"))?;
-    let mut folds = Folds::default();
-    // Once, or twice when a kind isn't ASCII: no borrow is held while Python folds it.
-    let taken = loop {
-        let taken = {
-            let inputs = Inputs { sample, waits: &waits, folds: &folds, metric_state_held };
-            with_world(world, |world| -> sheltersim_core::error::Result<_> {
-                let unfolded = metrics::unfolded_kinds(world, inputs.folds)?;
-                if !unfolded.is_empty() {
-                    return Ok(Err(unfolded));
-                }
-                metrics::sample(world, &inputs).map(Ok)
-            })?
-            .or_py()?
-        };
-        match taken {
-            Ok(taken) => break taken,
-            Err(unfolded) => folds_of(py, unfolded, &mut folds)?,
-        }
-    };
+    let inputs = Inputs { sample, waits: &waits, metric_state_held };
+    let taken = with_world(world, |world| metrics::sample(world, &inputs))?.or_py()?;
     let fields: [Bound<'py, PyAny>; 20] = [
         sample_minute.clone(),
         taken.toilet_queue_length.into_pyobject(py)?.into_any(),

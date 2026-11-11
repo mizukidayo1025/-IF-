@@ -367,7 +367,9 @@ fn plan_sleep<'py>(
     }))
 }
 
-/// `position.update(...)` of a person already at their bed: through the tree, which tells the row.
+/// `position.update(...)` of a person already at their bed: on the row of a detached namespace
+/// (`movement::place_at_point`, over `sheltersim_core::rules::kit::place_in_bed`), else through the
+/// tree, which tells the row.
 pub(crate) fn place_in_bed(world: &Bound<'_, PyAny>, agent_object: &Bound<'_, PyAny>, bed: &overlay::Bed, zone_id: &Arc<str>) -> PyResult<()> {
     let py = world.py();
     // A detached namespace's row takes the place, as the tree's record would.
