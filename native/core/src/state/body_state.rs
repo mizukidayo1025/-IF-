@@ -27,7 +27,7 @@ const MAX_TOPICS: usize = 32;
 const MAX_TOPIC_CHARS: usize = 64;
 
 state_row! {
-    #[derive(Clone, Copy)]
+    #[derive(Copy)]
     pub struct BodyRecord {
         sleep_debt_minutes: f64 => set_sleep_debt_minutes,
         uncertainty: f64 => set_uncertainty,
@@ -40,7 +40,6 @@ state_row! {
 }
 
 state_row! {
-    #[derive(Clone)]
     pub struct Relationship {
         contact_count: i64 => set_contact_count,
         trust: Option<f64> => set_trust,
@@ -53,7 +52,7 @@ state_row! {
 
 /// The relationships, and which were written since `rows_valid` last accepted them, whoever wrote
 /// them: a tick writes a few of the thousands, and the rules of a record read only it and its key.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Relationships {
     pub map: IdMap<Relationship>,
     pub written: Vec<Arc<str>>,
@@ -73,6 +72,12 @@ impl Field for Relationships {
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         self.map.write_json(encoder)
     }
+
+    /// The keys sorted. What was checked stays checked: `people` is in the order of the body
+    /// records, and a check that finds another order reads every relationship again.
+    fn canonicalize(&mut self) {
+        self.map.canonicalize();
+    }
 }
 
 /// The social history: the canonical JSON of each item. Nothing reads an item here, only its
@@ -80,7 +85,7 @@ impl Field for Relationships {
 ///
 /// A deque because at its limit each new item drops the oldest, which in a `Vec` would move all
 /// 20,000 at each of the ~13 appends of a tick.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct History {
     pub items: VecDeque<Box<[u8]>>,
 }
@@ -99,6 +104,9 @@ impl Field for History {
     fn items(&self) -> Option<&dyn Items> {
         Some(self)
     }
+
+    /// Each item is its canonical JSON already, and a list keeps its order.
+    fn canonicalize(&mut self) {}
 
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         encoder.out.push(b'[');

@@ -16,7 +16,6 @@ pub const NAME: &str = "resource_service_v1";
 pub const SCHEMA_VERSION: i64 = 1;
 
 state_row! {
-    #[derive(Clone)]
     pub struct RequestRecord {
         minute: i64,
         agent_id: Arc<str>,
@@ -30,7 +29,6 @@ state_row! {
 }
 
 state_row! {
-    #[derive(Clone)]
     pub struct StallRecord {
         minute: i64,
         facility_id: Arc<str>,
@@ -40,7 +38,6 @@ state_row! {
 }
 
 state_row! {
-    #[derive(Clone)]
     pub struct Stall {
         agent_id: Arc<str>,
         reason: Arc<str>,

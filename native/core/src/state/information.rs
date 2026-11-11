@@ -48,7 +48,7 @@ state_row! {
 }
 
 state_row! {
-    #[derive(Clone, Copy)]
+    #[derive(Copy)]
     pub struct ContactRow {
         last_seen_minute: i64,
         consecutive_minutes: i64,

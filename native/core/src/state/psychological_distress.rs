@@ -11,7 +11,7 @@ const SCHEMA_VERSION: i64 = 1;
 const MAX_AGENTS: usize = 100_000;
 
 state_row! {
-    #[derive(Clone, Copy)]
+    #[derive(Copy)]
     pub struct AgentRecord {
         baseline_distress: f64,
         long_term_distress: f64 => set_long_term_distress,

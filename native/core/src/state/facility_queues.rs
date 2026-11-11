@@ -11,7 +11,6 @@ use crate::state_row;
 pub const NAME: &str = "facility_queues_v1";
 
 state_row! {
-    #[derive(Clone)]
     pub struct QueueStall {
         minute: i64,
         request_id: Arc<str>,
@@ -20,7 +19,6 @@ state_row! {
 }
 
 state_row! {
-    #[derive(Clone)]
     pub struct QueueRow {
         facility_id: Arc<str>,
         service_point_id: Arc<str>,
@@ -31,7 +29,6 @@ state_row! {
 }
 
 state_row! {
-    #[derive(Clone)]
     pub struct QueueRequest {
         request_id: Arc<str>,
         queue_id: Arc<str>,

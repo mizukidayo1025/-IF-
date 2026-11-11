@@ -108,7 +108,7 @@ impl CareHead {
 }
 
 /// The heads, and whether a forwarded write reached them since they last passed.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Heads {
     pub map: IdMap<CareHead>,
     unchecked: bool,
@@ -141,9 +141,15 @@ impl Field for Heads {
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         self.map.write_json(encoder)
     }
+
+    /// The keys sorted; heads that passed stay passed.
+    fn canonicalize(&mut self) {
+        self.map.canonicalize();
+    }
 }
 
 /// One receipt of the history.
+#[derive(Clone)]
 pub struct Receipt {
     pub minute: Option<i64>,
     pub event_id: Option<Arc<str>>,
@@ -156,7 +162,7 @@ pub struct Receipt {
 
 /// A deque because at its limit each new receipt drops the oldest. A write into a receipt doesn't
 /// fit, and taints the namespace.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Receipts {
     pub items: VecDeque<Receipt>,
 }
@@ -228,6 +234,9 @@ impl Field for Receipts {
     fn items(&self) -> Option<&dyn Items> {
         Some(self)
     }
+
+    /// Each receipt is its canonical JSON already, and a list keeps its order.
+    fn canonicalize(&mut self) {}
 
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         encoder.out.push(b'[');

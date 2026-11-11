@@ -16,7 +16,7 @@ use crate::row::{Field, IdMap};
 use crate::state_row;
 
 state_row! {
-    #[derive(Clone, Copy)]
+    #[derive(Copy)]
     pub struct Point {
         x: f64,
         y: f64,
@@ -24,7 +24,6 @@ state_row! {
 }
 
 state_row! {
-    #[derive(Clone)]
     pub struct Position {
         zone_id: Arc<str>,
         point: Option<Point>,
@@ -67,6 +66,9 @@ impl Journey {
 }
 
 impl Field for Journey {
+    /// No map inside: the route lists keep their order.
+    fn canonicalize(&mut self) {}
+
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         fn field<T: Field>(encoder: &mut Encoder, name: &str, value: &T) -> Result<()> {
             write_json_string(&mut encoder.out, name);

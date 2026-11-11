@@ -80,6 +80,7 @@ pub fn pair_key_is_good(key: &str) -> bool {
 }
 
 /// The records and which of them no check has read yet.
+#[derive(Clone)]
 pub struct Relationships {
     pub map: IdMap<Relationship>,
     unchecked_keys: Vec<Arc<str>>,
@@ -133,6 +134,11 @@ impl Relationships {
 impl Field for Relationships {
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         Field::write_json(&self.map, encoder)
+    }
+
+    /// The keys sorted. The unchecked keys are a set, whose order no check reads.
+    fn canonicalize(&mut self) {
+        self.map.canonicalize();
     }
 }
 
