@@ -89,22 +89,6 @@ pub(crate) fn row_position<'py>(world: &Bound<'py, PyAny>, agent_id: &str) -> Py
     })
 }
 
-/// `held["journeys"].get(agent_id)`, where `held` is what `model_state` holds under the
-/// namespace: the tree's record, or a new document of the row's while the namespace is detached
-/// (read it, never write). None without the record; Unsupported where the tree is not a dict.
-pub(crate) fn journey_of<'py>(world: &Bound<'py, PyAny>, held: &Bound<'py, PyAny>, agent_id: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
-    let py = world.py();
-    if crate::core::tracked::is_detached(held) {
-        return NamespaceMirror::with_row::<MovementRow, _>(&mirror_held(world)?, |row| {
-            row.journeys.get(agent_id).map(|journey| journey.to_py(py)).transpose()
-        });
-    }
-    match exact_dict(held)?.get_item(intern!(py, "journeys"))? {
-        None => Ok(None),
-        Some(journeys) => exact_dict(&journeys)?.get_item(agent_id),
-    }
-}
-
 /// The staff's operations as `staff_position_snapshots` reads them: the row of
 /// `staff_operations_v1` where it answers for the namespace (held, and not tainted), else what the
 /// world holds under the key, read as the kernel read the tree: no operations unless it is a dict,
@@ -324,12 +308,6 @@ pub(crate) fn movement_of(world: &Bound<'_, PyAny>) -> PyResult<Arc<Movement>> {
 
 // ---- Writes of the kernels not yet in the core (admission) -------------------------------------
 
-/// What `stationary` would refuse for a person idle in each of these zones (admission's plan).
-pub(crate) fn check_idle_points(world: &Bound<'_, PyAny>, zones: &[&str]) -> PyResult<()> {
-    let geo = Geo::of(world)?;
-    with_world(world, |world| core::check_idle_points(world, &geo, zones))?.or_py()
-}
-
 /// `state["positions"][agent_id].update(zone_id=..., point=point, edge_id=None, progress=1.0,
 /// position_kind="physical")` on the row of a detached namespace, which has no tree to update:
 /// None, having written nothing, where the namespace is not held detached; Some(false) where the
@@ -381,12 +359,6 @@ pub(crate) fn at_service_point(world: &Bound<'_, PyAny>, agent_id: &str, facilit
     let movement = movement_of(world)?;
     let at = where_of(world, &geo, None)?;
     with_world(world, |world| core::at_service_point(world, &at, &movement.model, agent_id, facility_id, service_point))?.or_py()
-}
-
-/// `agent_is_at_queue_trip_destination`, of the person's own journey in the row.
-pub(crate) fn at_trip_destination(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<bool> {
-    let movement = movement_held(world)?;
-    with_world(world, |world| core::at_trip_destination(world, &movement, agent_id))?.or_py()
 }
 
 /// `plan_in_room_route`.

@@ -105,29 +105,3 @@ pub(crate) fn request_node<'py>(world: &Bound<'py, PyAny>, request_id: &str) -> 
     };
     exact_dict(&requests)?.get_item(request_id)
 }
-
-/// `{"requests": {request_id: ...}, "queues": {queue_id: ...}}` of a detached namespace's row, with
-/// only these records, as new documents: for a rule that reads them with `get`. None while the
-/// namespace has a tree.
-pub(crate) fn detached_records<'py>(world: &Bound<'py, PyAny>, request_id: Option<&str>, queue_id: Option<&str>) -> PyResult<Option<Bound<'py, PyAny>>> {
-    use crate::core::row::PyField;
-    use pyo3::types::PyDict;
-    let Some(mirror) = detached_mirror(world)? else {
-        return Ok(None);
-    };
-    let py = world.py();
-    NamespaceMirror::with_row::<QueuesRow, _>(&mirror, |row| {
-        let requests = PyDict::new(py);
-        if let Some((id, request)) = request_id.and_then(|id| row.requests.get_key_value(id)) {
-            requests.set_item(&**id, PyField::to_py(request, py)?)?;
-        }
-        let queues = PyDict::new(py);
-        if let Some((id, queue)) = queue_id.and_then(|id| row.queues.get_key_value(id)) {
-            queues.set_item(&**id, PyField::to_py(queue, py)?)?;
-        }
-        let state = PyDict::new(py);
-        state.set_item("requests", requests)?;
-        state.set_item("queues", queues)?;
-        Ok(Some(state.into_any()))
-    })
-}

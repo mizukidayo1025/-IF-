@@ -83,27 +83,27 @@ pub const NO_ROW: &str = "a pending event has no row";
 
 const WAITING_HAS_RECORD: &str = "waiting arrival already has a presence record";
 
-type Doc = IndexMap<Arc<str>, V>;
+pub(crate) type Doc = IndexMap<Arc<str>, V>;
 
 // ---- Reading values ------------------------------------------------------------------------------
 
 #[track_caller]
-fn refuse<T>(reason: &'static str) -> Result<T> {
+pub(crate) fn refuse<T>(reason: &'static str) -> Result<T> {
     Err(Error::unsupported(reason))
 }
 
 /// `raise EventApplicationError(text)`.
-fn failed<T>(text: impl Into<String>) -> Result<T> {
+pub(crate) fn failed<T>(text: impl Into<String>) -> Result<T> {
     Err(Error::failed(text))
 }
 
 /// `raise ValueError(text)` of the validation, marked as made here.
-fn invalid<T>(text: &str) -> Result<T> {
+pub(crate) fn invalid<T>(text: &str) -> Result<T> {
     Err(Error::MarkedValue(text.to_owned()))
 }
 
 #[track_caller]
-fn map_of(value: &V) -> Result<&Doc> {
+pub(crate) fn map_of(value: &V) -> Result<&Doc> {
     match value {
         V::Map(map) => Ok(map),
         _ => refuse("a value is not a plain dict"),
@@ -111,7 +111,7 @@ fn map_of(value: &V) -> Result<&Doc> {
 }
 
 #[track_caller]
-fn map_mut(value: &mut V) -> Result<&mut Doc> {
+pub(crate) fn map_mut(value: &mut V) -> Result<&mut Doc> {
     match value {
         V::Map(map) => Ok(map),
         _ => refuse("a value is not a plain dict"),
@@ -119,7 +119,7 @@ fn map_mut(value: &mut V) -> Result<&mut Doc> {
 }
 
 #[track_caller]
-fn list_of(value: &V) -> Result<&Vec<V>> {
+pub(crate) fn list_of(value: &V) -> Result<&Vec<V>> {
     match value {
         V::List(items) => Ok(items),
         _ => refuse("a value is not a plain list"),
@@ -127,7 +127,7 @@ fn list_of(value: &V) -> Result<&Vec<V>> {
 }
 
 #[track_caller]
-fn list_mut(value: &mut V) -> Result<&mut Vec<V>> {
+pub(crate) fn list_mut(value: &mut V) -> Result<&mut Vec<V>> {
     match value {
         V::List(items) => Ok(items),
         _ => refuse("a value is not a plain list"),
@@ -136,12 +136,12 @@ fn list_mut(value: &mut V) -> Result<&mut Vec<V>> {
 
 /// `value[key]` of a plain dict: Unsupported for a key it doesn't have, which no valid state lacks.
 #[track_caller]
-fn field<'a>(value: &'a V, key: &str) -> Result<&'a V> {
+pub(crate) fn field<'a>(value: &'a V, key: &str) -> Result<&'a V> {
     map_of(value)?.get(key).ok_or_else(|| Error::unsupported("a field is missing"))
 }
 
 #[track_caller]
-fn field_mut<'a>(value: &'a mut V, key: &str) -> Result<&'a mut V> {
+pub(crate) fn field_mut<'a>(value: &'a mut V, key: &str) -> Result<&'a mut V> {
     map_mut(value)?.get_mut(key).ok_or_else(|| Error::unsupported("a field is missing"))
 }
 
@@ -151,11 +151,11 @@ fn has(value: &V, key: &str) -> Result<bool> {
 }
 
 #[track_caller]
-fn text(value: &V) -> Result<Arc<str>> {
+pub(crate) fn text(value: &V) -> Result<Arc<str>> {
     kit::exact_str(value).cloned()
 }
 
-fn v_str(value: &str) -> V {
+pub(crate) fn v_str(value: &str) -> V {
     V::Str(Arc::from(value))
 }
 
@@ -168,7 +168,7 @@ pub fn strings(items: &[Arc<str>]) -> V {
 }
 
 /// A dict of these pairs, in this order.
-fn doc<const N: usize>(pairs: [(&str, V); N]) -> Doc {
+pub(crate) fn doc<const N: usize>(pairs: [(&str, V); N]) -> Doc {
     let mut map = IndexMap::with_capacity(N);
     for (key, value) in pairs {
         map.insert(Arc::from(key), value);
@@ -207,12 +207,12 @@ pub fn identifier(text: &str) -> Result<()> {
 }
 
 #[track_caller]
-fn optional_identifier(text: Option<&str>) -> Result<()> {
+pub(crate) fn optional_identifier(text: Option<&str>) -> Result<()> {
     text.map_or(Ok(()), identifier)
 }
 
 /// `value == number` in Python, of a value of a plain document.
-fn equals_int(value: &V, number: i64) -> bool {
+pub(crate) fn equals_int(value: &V, number: i64) -> bool {
     match value {
         V::Int(value) => *value == number,
         V::Bool(flag) => i64::from(*flag) == number,
@@ -223,7 +223,7 @@ fn equals_int(value: &V, number: i64) -> bool {
 }
 
 /// `value == text` in Python, of a value of a plain document.
-fn equals_text(value: &V, text: &str) -> bool {
+pub(crate) fn equals_text(value: &V, text: &str) -> bool {
     matches!(value, V::Str(value) if &**value == text)
 }
 
@@ -305,27 +305,27 @@ impl Inputs {
     }
 }
 
-fn is_held(held: &Held) -> bool {
+pub(crate) fn is_held(held: &Held) -> bool {
     !matches!(held, Held::Absent)
 }
 
 /// A `ValueRow` namespace the world holds, as `model_state.get(name)`: None for an absent key
 /// and for a None, the refusal of a key holding another value.
-fn value_of<'w>(world: &'w World, name: &str, held: &Held) -> Result<Option<ShardRef<'w, ValueRow>>> {
+pub(crate) fn value_of<'w>(world: &'w World, name: &str, held: &Held) -> Result<Option<ShardRef<'w, ValueRow>>> {
     Ok(kit::held_row::<ValueRow>(world, name, held)?.filter(|row| !matches!(row.0, V::Null)))
 }
 
 /// Whether a `ValueRow` namespace is there as a dict (`namespace(...).filter(is_dict)`).
-fn is_dict_namespace(world: &World, name: &str, held: &Held) -> Result<bool> {
+pub(crate) fn is_dict_namespace(world: &World, name: &str, held: &Held) -> Result<bool> {
     Ok(value_of(world, name, held)?.is_some_and(|row| matches!(row.0, V::Map(_))))
 }
 
 /// A typed namespace the world holds, or None.
-fn typed_of<'w, T: Row>(world: &'w World, name: &str, held: &Held) -> Result<Option<ShardRef<'w, T>>> {
+pub(crate) fn typed_of<'w, T: Row>(world: &'w World, name: &str, held: &Held) -> Result<Option<ShardRef<'w, T>>> {
     kit::held_row::<T>(world, name, held)
 }
 
-fn zone_rows(world: &World) -> Result<ShardRef<'_, Entities>> {
+pub(crate) fn zone_rows(world: &World) -> Result<ShardRef<'_, Entities>> {
     let rows = world.entities.try_borrow()?;
     if rows.zones_tainted().is_some() {
         return refuse("the zones are tainted");
@@ -333,7 +333,7 @@ fn zone_rows(world: &World) -> Result<ShardRef<'_, Entities>> {
     Ok(rows)
 }
 
-fn zone_known(world: &World, zone_id: &str) -> Result<bool> {
+pub(crate) fn zone_known(world: &World, zone_id: &str) -> Result<bool> {
     Ok(zone_rows(world)?.zones.contains_key(zone_id))
 }
 
@@ -628,7 +628,7 @@ pub fn presence_is_plain(raw: &V) -> Result<()> {
 }
 
 /// `_presence_state`: whether the world holds the ledger as a dict, checked.
-fn presence_state(world: &World, held: &Held) -> Result<bool> {
+pub(crate) fn presence_state(world: &World, held: &Held) -> Result<bool> {
     match value_of(world, PRESENCE, held)? {
         Some(row) if matches!(row.0, V::Map(_)) => {
             presence_is_plain(&row.0)?;
@@ -639,7 +639,7 @@ fn presence_state(world: &World, held: &Held) -> Result<bool> {
 }
 
 /// The record of a person in the ledger, if any.
-fn person_in(presence: &V, agent_id: &str) -> Result<Option<Person>> {
+pub(crate) fn person_in(presence: &V, agent_id: &str) -> Result<Option<Person>> {
     match kit::get(field(presence, "people")?, agent_id)? {
         V::Null => Ok(None),
         found => Person::parse(found).map(Some),
@@ -2097,7 +2097,7 @@ fn write_waiting_presence(world: &World, inputs: &Inputs, prepared: &Prepared, p
 }
 
 /// A duplicate event as the `RuntimeError` it never is where the plan took a new sequence.
-fn plain(error: WriteError) -> Error {
+pub(crate) fn plain(error: WriteError) -> Error {
     match error {
         WriteError::Error(error) => error,
         WriteError::Duplicate(text) => Error::Runtime(text),
@@ -2429,7 +2429,7 @@ fn arrival_minute(state: &V, agent_id: &str) -> Result<i64> {
 }
 
 /// What `_remove_information_state` and `_archive_person` ask of the information state.
-fn check_information(world: &World, inputs: &Inputs) -> Result<()> {
+pub(crate) fn check_information(world: &World, inputs: &Inputs) -> Result<()> {
     if let Some(info) = typed_of::<InformationRow>(world, INFORMATION, &inputs.namespaces.information)? {
         for key in info.contacts.keys() {
             pair_of(key)?;
@@ -2438,7 +2438,7 @@ fn check_information(world: &World, inputs: &Inputs) -> Result<()> {
     Ok(())
 }
 
-fn check_relationship_keys(world: &World, inputs: &Inputs) -> Result<()> {
+pub(crate) fn check_relationship_keys(world: &World, inputs: &Inputs) -> Result<()> {
     if let Some(network) = typed_of::<SocialNetworkRow>(world, SOCIAL_NETWORK, &inputs.namespaces.social_network)? {
         for key in network.relationships.map.keys() {
             pair_of(key)?;
@@ -2458,7 +2458,7 @@ fn check_relationship_keys(world: &World, inputs: &Inputs) -> Result<()> {
 }
 
 /// Each pending event has a row: the cancellations read rows.
-fn check_queue_rows(world: &World) -> Result<()> {
+pub(crate) fn check_queue_rows(world: &World) -> Result<()> {
     let queue = world.queue()?;
     for (_, serial) in queue.ordered() {
         if queue.slot(*serial).row.is_none() {
@@ -2536,9 +2536,9 @@ fn plan_departures_in(world: &World, inputs: &Inputs, row: &EventRow, new_state:
 }
 
 /// An event to settle as SUPPRESSED, with its detail.
-type Cancel = (Arc<EventRow>, String);
+pub(crate) type Cancel = (Arc<EventRow>, String);
 
-fn event_names_agent(row: &EventRow, agent_id: &str) -> bool {
+pub(crate) fn event_names_agent(row: &EventRow, agent_id: &str) -> bool {
     ["agent_id", "sender_agent_id", "recipient_agent_id", "participant_agent_id"]
         .iter()
         .any(|key| matches!(kit::payload(row, key), Some(V::Str(value)) if &**value == agent_id))
@@ -2546,7 +2546,7 @@ fn event_names_agent(row: &EventRow, agent_id: &str) -> bool {
 
 /// `_cancel_agent_events`, planned on the queue as it is: the events each person's departure
 /// suppresses, which no one before took.
-fn cancels_of(pending: &[Arc<EventRow>], taken: &mut HashSet<Arc<str>>, agent_id: &str, withdrawn: &HashSet<Arc<str>>, cancels: &mut Vec<Cancel>) {
+pub(crate) fn cancels_of(pending: &[Arc<EventRow>], taken: &mut HashSet<Arc<str>>, agent_id: &str, withdrawn: &HashSet<Arc<str>>, cancels: &mut Vec<Cancel>) {
     let detail = format!("Agent {agent_id} departed before the event was due");
     for row in pending {
         if !taken.contains(&row.event_id) && event_names_agent(row, agent_id) {
@@ -2569,7 +2569,7 @@ fn cancels_of(pending: &[Arc<EventRow>], taken: &mut HashSet<Arc<str>>, agent_id
 }
 
 /// A tie of `social_network_v1` as its tree holds it.
-fn relationship_value(record: &Relationship) -> V {
+pub(crate) fn relationship_value(record: &Relationship) -> V {
     V::Map(doc([
         ("contact_count", V::Int(record.contact_count)),
         ("conversation_count", V::Int(record.conversation_count)),
@@ -2582,7 +2582,7 @@ fn relationship_value(record: &Relationship) -> V {
 }
 
 /// The keys of a map of pairs that name this person, sorted.
-fn pairs_naming<'a, T: 'a>(keys: impl Iterator<Item = (&'a Arc<str>, &'a T)>, agent_id: &str) -> Result<Vec<Arc<str>>> {
+pub(crate) fn pairs_naming<'a, T: 'a>(keys: impl Iterator<Item = (&'a Arc<str>, &'a T)>, agent_id: &str) -> Result<Vec<Arc<str>>> {
     let mut found = Vec::new();
     for (key, _) in keys {
         if names_person(key, agent_id)? {
@@ -2649,7 +2649,7 @@ fn remove_information_state(world: &World, inputs: &Inputs, agent_id: &str) -> R
 }
 
 /// The departure record's profile: `_profile_record`.
-fn profile_record(agent: &AgentRow) -> V {
+pub(crate) fn profile_record(agent: &AgentRow) -> V {
     let profile = &agent.profile;
     let initial = &profile.initial_needs;
     V::Map(doc([
@@ -2665,7 +2665,7 @@ fn profile_record(agent: &AgentRow) -> V {
     ]))
 }
 
-fn needs_value(needs: &NeedRow) -> V {
+pub(crate) fn needs_value(needs: &NeedRow) -> V {
     V::Map(doc([
         ("toilet_urgency", V::Float(needs.toilet_urgency)),
         ("hunger", V::Float(needs.hunger)),

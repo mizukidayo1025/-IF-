@@ -246,12 +246,6 @@ pub(crate) fn staff_router_rows(source: StaffRouter<'_, '_>) -> PyResult<Arc<Rou
     }
 }
 
-/// `SpaceRouter(ZoneGraph.from_states(zones, edges)).route(...)` with nothing closed, for a rule
-/// that has no controller, from the world's tables.
-pub(crate) fn world_route(world: &Bound<'_, PyAny>, origin: &Arc<str>, destination: &Arc<str>) -> PyResult<Option<Route>> {
-    with_world(world, |cell| core::world_route(cell, origin, destination))?.or_py()
-}
-
 /// `ZoneGraph.from_states(world.zones, world.zone_edges, edge_capacities=capacities)` as a router,
 /// from the world's tables.
 pub(crate) fn world_graph(world: &Bound<'_, PyAny>) -> PyResult<Router> {
@@ -347,27 +341,6 @@ pub(crate) fn plan_travel(world: &Bound<'_, PyAny>, writer: &EventWriter<'_>, tr
     let inputs = Inputs::of(world)?;
     let reserved = writer.reserved();
     let planned = with_world(world, |cell| events_of(cell, reserved).and_then(|events| core::plan_travel(cell, &events, inputs.walking(), trip)))?;
-    inputs.finish(world.py(), planned.or_py())
-}
-
-/// `_schedule_room_approach` of `events/handlers.py`, changing nothing. None is its False.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn plan_room_approach(
-    world: &Bound<'_, PyAny>,
-    writer: &EventWriter<'_>,
-    agent_id: &Arc<str>,
-    facility_id: &Arc<str>,
-    purpose: &str,
-    route: Route,
-    points: &[Pt],
-    minute: i64,
-    origin_zone_id: &Arc<str>,
-) -> PyResult<Option<PlannedTrip>> {
-    let inputs = Inputs::of(world)?;
-    let reserved = writer.reserved();
-    let planned = with_world(world, |cell| {
-        events_of(cell, reserved).and_then(|events| core::plan_room_approach(cell, &events, inputs.walking(), agent_id, facility_id, purpose, route, points, minute, origin_zone_id))
-    })?;
     inputs.finish(world.py(), planned.or_py())
 }
 

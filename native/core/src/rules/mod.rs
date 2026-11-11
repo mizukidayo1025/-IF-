@@ -45,6 +45,9 @@ pub mod toilet;
 pub mod proximity;
 pub mod replan;
 pub mod travel;
+// lane c7
+pub mod population_lifecycle;
+pub mod travel_completion;
 
 // ---- P8d: events and checks --------------------------------------------------------------------
 pub mod after_tick;

@@ -23,7 +23,6 @@ use sheltersim_core::rules::kit::{self, Held, Kept};
 use sheltersim_core::rules::resources::Applied;
 use sheltersim_core::rules::service::{self as core, Failure, Manager, Minute, Pending, Request, Requested, Serve, Served};
 
-pub(crate) use sheltersim_core::rules::service::resource_of;
 
 use crate::core::configs;
 use crate::core::errors::{self, to_py_err, OrPy};

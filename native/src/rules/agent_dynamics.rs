@@ -95,12 +95,6 @@ pub(crate) fn create_state<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py
     PyField::to_py(&row, world.py())
 }
 
-/// What `add_agent` refuses for a person about to be added, for a plan that adds one.
-pub(crate) fn check_add_agent(world: &Bound<'_, PyAny>) -> PyResult<()> {
-    let (policy, awareness) = (policy_kept(world)?, awareness_kept(world)?);
-    with_world(world, |cell| rules::check_add_agent(cell, &policy, &awareness))?.or_py()
-}
-
 /// `add_agent`: one record.
 #[pyfunction]
 pub(crate) fn add_agent(world: &Bound<'_, PyAny>, agent_id: &Bound<'_, PyAny>) -> PyResult<()> {
