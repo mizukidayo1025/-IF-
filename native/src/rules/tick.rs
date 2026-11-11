@@ -349,8 +349,8 @@ impl<'py> Tick<'_, 'py> {
             // The kernel's receipts, as the step's kernel (`segments.py`) writes them.
             only(py, "support.assign_staff_support", support::record_assigned(world, &assigned))?;
         }
-        let router = controller.getattr(intern!(py, "staff_space"))?;
-        only(py, "staff.assign_operations", staff::assign_operations(world, minute, &router).map(|_| ()))?;
+        let router = crate::rules::travel::StaffRouter::Run(controller);
+        only(py, "staff.assign_operations", staff::assign_operations_with(world, minute, router).map(|_| ()))?;
         // Its decision is the policy's, called through `consider_complaint_response`.
         only(py, "staff.consider_due_complaints", staff::consider_due_complaints(controller, minute))?;
         only(py, "staff.relief", staff::relief(world, minute).map(|_| ()))

@@ -41,6 +41,12 @@ def world_core() -> Any:
     return _native.WorldCore()
 
 
+def run_core(route_capacities: Any) -> Any:
+    """A new sheltersim_native.RunCore: what a controller keeps beside its world, its configs and
+    route graphs (core/run.rs)."""
+    return _native.RunCore(route_capacities)
+
+
 def install_tracked_types(*classes: type) -> None:
     """Tell the kernels which dict and list subclasses read as plain ones (core/tracked.rs)."""
     _native.install_tracked_types(*classes)

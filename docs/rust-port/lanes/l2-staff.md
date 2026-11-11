@@ -139,7 +139,7 @@ driver の `kernels_refused` はゲート 6,280 → **2,734**、7日分 720 → 
 - **ゲートと7日分で届かない枝があります：** 交代の予定、辺の容量の待ちの記録、計画の中の待ち、割り込み。**テストの小さな世界でだけ Python と比べています。** 実の Run の形では比べていません。
 - **`passage_edge_loads` は `movement_v1` の旅、キューの旅、職員の旅の順に数えます。** 数えるだけなので順序は結果に出ません。`route_edge_ids` がリストでない値は断ります（Python は `_active_route_edge_loads` で読み飛ばします）。
 - **`EventWriter::reserve` は計画の途中の連番の予約です。** ほかのレーンが `select_*` の後で同じ `writer` に別のイベントの連番を計画すると、順が崩れます。`test_a_trip_chosen_past_a_full_edge_takes_its_sequence_after_the_wait` が見るのはトイレの経路だけです。資源の経路はテストがありません。
-- **`RouteRows` を `SpaceRouter` の属性に置きました（`_route_rows`）。** controller と同じ置き方です。router を deepcopy するコードがあると失敗しますが、今はありません。
+- **`RouteRows` を `SpaceRouter` の属性に置きました（`_route_rows`）。** controller と同じ置き方です。router を deepcopy するコードがあると失敗しますが、今はありません。（#152 の PR 7-3 で、controller の `staff_space` のグラフは `controller._run_core` の `Run` が持ち、Python から渡された router は呼ぶたびに読みます。`_route_rows` はなくなりました。）
 - **断ったときに `_consider_due_complaints` の Python の規則へ戻る枝は、ゲートと7日分で0回です。**
 - 行の網羅は測っていません。Rust の行の網羅も測っていません。
 - メモリは測っていません。

@@ -15,7 +15,7 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PySlice, PyString};
 
-use crate::core::errors;
+use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, namespace_is_absent, unsupported};
 use crate::core::value::V;
 use crate::core::world_core::{with_state_value, NamespaceMirror};
@@ -190,7 +190,7 @@ fn validate(world: &Bound<'_, PyAny>, order: &Order<'_>, minute: i64) -> PyResul
         HashSet::new()
     };
     passage_edge_loads(world, minute)?;
-    let Some(route) = graph.shortest(&closed, None, &zone, &Arc::from(order.target_zone_id))? else {
+    let Some(route) = graph.shortest(&closed, None, &zone, &Arc::from(order.target_zone_id)).or_py()? else {
         return failed("staff task order has no reachable route");
     };
     let duration = NamespaceMirror::with_row::<StaffOperationsRow, _>(&mirror, |row| {

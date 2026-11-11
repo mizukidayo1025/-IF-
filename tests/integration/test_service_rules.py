@@ -520,6 +520,8 @@ def test_an_equal_time_goes_to_the_lower_edge_id(generated_scenario: Any) -> Non
             ),
         )
     )
+    # The kernel's graph follows the Run's refresh of the space (native/src/core/run.rs).
+    controller._run_core.refresh_routes()
     route = kernel(controller, zones[0], zones[3], agent_id)
     assert route.edge_ids == ("a-c", "n-d")
     # As the Python rule found it.
@@ -533,9 +535,10 @@ def test_an_edge_capacity_is_counted_and_another_policy_goes_to_python(
     kernel = native.rules("travel").route
     agent_id = _idle_people(world, 1)[0]
     zone = world.agents[agent_id].zone_id
-    controller.route_capacities = {"any": 1}
+    # The Run reads its capacities when its controller starts (native/src/core/run.rs).
+    controller._run_core = native.run_core({"any": 1})
     assert kernel(controller, zone, zone, agent_id).edge_ids == ()
-    controller.route_capacities = {}
+    controller._run_core = native.run_core({})
     from sheltersim.policies.space import SpaceRouter
 
     class Other:
@@ -543,6 +546,7 @@ def test_an_edge_capacity_is_counted_and_another_policy_goes_to_python(
             return None
 
     controller.space = SpaceRouter(controller.space.graph, Other())
+    controller._run_core.refresh_routes()
     with pytest.raises(native.Unsupported, match="policy"):
         kernel(controller, zone, zone, agent_id)
 

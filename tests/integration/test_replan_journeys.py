@@ -648,6 +648,7 @@ def test_a_refusal_after_a_stop_is_an_error(generated_scenario: Any) -> None:
             return None
 
     controller.space = SpaceRouter(controller.space.graph, Other())
+    controller._run_core.refresh_routes()
     with pytest.raises(RuntimeError, match="after a replan was written: another route policy"):
         controller._replan_journeys(world.model_state[KEY], ("A001",), 1)
     assert "A001" not in world.model_state[KEY]["journeys"]

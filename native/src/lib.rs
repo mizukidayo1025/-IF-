@@ -222,6 +222,7 @@ fn sheltersim_native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<core::world_core::WorldCore>()?;
     module.add_class::<core::world_core::NamespaceMirror>()?;
     module.add_class::<core::world_core::RowType>()?;
+    module.add_class::<core::run::RunCore>()?;
     register_lanes(module)?;
     module.add_function(wrap_pyfunction!(canonical_json, module)?)?;
     module.add_function(wrap_pyfunction!(canonical_sha256, module)?)?;

@@ -594,7 +594,7 @@ _PHASE_STEPS = {
         "update_staff_operations": "staff::update_operations(",
         "_arbitrate_services": "// `_arbitrate_services`.",
         "_assign_staff_support": "// `_assign_staff_support`.",
-        "assign_staff_operations": "staff::assign_operations(",
+        "assign_staff_operations": "staff::assign_operations_with(",
         "_consider_due_complaints": "staff::consider_due_complaints(",
         "schedule_staff_operation_relief": "staff::relief(",
     },

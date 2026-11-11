@@ -21,7 +21,6 @@ use pyo3::types::{PyBool, PyDict, PyString, PyTuple, PyType};
 
 use sheltersim_core::config::movement::{Movement, MovementModel};
 use sheltersim_core::config::read::Read;
-use sheltersim_core::config::Fault;
 
 use crate::core::configs;
 use crate::core::mathx::{py_fsum, py_max, py_min, py_sum};
@@ -958,21 +957,9 @@ pub(crate) fn room_minutes(
     Ok((minutes.ceil() as i64).max(1))
 }
 
-/// `facility_approach_route` in a placed world, for a facility's own point: the route's minutes and
-/// its path, or None for no route. Says Unsupported without a floor plan. `raw_model` is the
-/// `movement_model` of the tree, read at each call (`travel.rs`, until lane 7-3 reads the section).
-pub(crate) fn approach(
-    geo: &Geo,
-    row: &MovementRow,
-    rows: &Entities,
-    raw_model: Option<Bound<'_, PyAny>>,
-    agent_id: &str,
-    facility_id: &str,
-) -> PyResult<Option<(i64, Arc<[Pt]>)>> {
-    approach_point(geo, row, rows, &model_of_tree(raw_model), agent_id, facility_id, None)
-}
-
-/// The same, to a surveyed service point when one is given: then no point beside a footprint.
+/// `facility_approach_route` in a placed world, to a facility's own point, or to a surveyed service
+/// point when one is given: then no point beside a footprint. The route's minutes and its path, or
+/// None for no route. Says Unsupported without a floor plan.
 pub(crate) fn approach_point(
     geo: &Geo,
     row: &MovementRow,
@@ -1905,18 +1892,6 @@ pub(crate) fn finish_movement<'py>(world: &Bound<'py, PyAny>, agent_id: &Bound<'
 #[track_caller]
 pub(crate) fn movement_of(world: &Bound<'_, PyAny>) -> PyResult<Arc<Movement>> {
     configs::kept_value(world, |configs| &configs.movement, Movement::parse)
-}
-
-/// The model of a `movement_model` value read from the tree, at each call: the tree is the slot's
-/// row as Python values, so it reads as the row does. One that is not JSON is refused for that.
-fn model_of_tree(raw: Option<Bound<'_, PyAny>>) -> Read<MovementModel> {
-    match raw {
-        None => MovementModel::parse(None),
-        Some(raw) => match <V as crate::core::value::VPy>::from_py(&raw) {
-            Ok(value) => MovementModel::parse(Some(&value)),
-            Err(error) => Err(Fault::refused(error.value(raw.py()).to_string())),
-        },
-    }
 }
 
 /// `route_with_movement_time`.

@@ -15,6 +15,7 @@ use pyo3::types::{PyBool, PyDict, PyInt, PyList, PySlice, PyString, PyTuple};
 use rustc_hash::FxHashMap;
 
 use crate::core::configs;
+use crate::core::errors::OrPy;
 use crate::core::mathx::{py_fsum, py_max, py_round_int};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, map_set, namespace_is_absent, unsupported};
 use crate::core::value::V;
@@ -28,7 +29,8 @@ use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::rules::service::active_task_class;
 use crate::rules::staff_operation_events::relief_skills;
 use crate::rules::staff_dynamics::{is_available, on_shift, staff_status};
-use crate::rules::travel::{active_edge_loads, passage_edge_loads, staff_router_rows, world_graph, EdgeLoads, Route, RouteRows};
+use crate::rules::travel::{active_edge_loads, passage_edge_loads, staff_router_rows, world_graph, EdgeLoads, Route, StaffRouter};
+use sheltersim_core::routes::Router;
 use crate::state::body_state::{BodyRow, NAME as BODY_STATE};
 use crate::state::entities::{entities_of, raw_setattr, Activity, EntityStore, Member, RequestStatus};
 use crate::state::metric_state::MetricRow;
@@ -886,7 +888,7 @@ fn kind_wait(workers: &[Worker], kind: &str, sample: i64) -> KindWait {
 /// What `_support_route_wait_reasons` reads once for all the requests of a snapshot. Rebuilt for each
 /// snapshot where one has a route to look at, as the Python rule builds it for each request.
 struct RouteReads {
-    graph: RouteRows,
+    graph: Router,
     loads: EdgeLoads,
     has_plan: bool,
     /// `model_configs["staff"].get("support_task_minutes", 10)`.
@@ -944,8 +946,8 @@ fn route_wait_reasons(
     let mut reasons = BTreeSet::new();
     let mut feasible = false;
     for destination in destinations {
-        let Some(route) = reads.graph.shortest(&closed, Some(&reads.loads), &zone, destination)? else {
-            let free = reads.graph.shortest(&closed, None, &zone, destination)?;
+        let Some(route) = reads.graph.shortest(&closed, Some(&reads.loads), &zone, destination).or_py()? else {
+            let free = reads.graph.shortest(&closed, None, &zone, destination).or_py()?;
             reasons.insert(if free.is_some() { "route_capacity_full" } else { "no_route_to_qualified_staff" });
             continue;
         };
@@ -1420,6 +1422,15 @@ pub(crate) fn assign_operations<'py>(
     minute: &Bound<'py, PyAny>,
     router: &Bound<'py, PyAny>,
 ) -> PyResult<Bound<'py, PyTuple>> {
+    assign_operations_with(world, minute, StaffRouter::Given(router))
+}
+
+/// `assign_staff_operations` with the graph of a Run's `staff_space` or of a router a caller gave.
+pub(crate) fn assign_operations_with<'py>(
+    world: &Bound<'py, PyAny>,
+    minute: &Bound<'py, PyAny>,
+    router: StaffRouter<'_, 'py>,
+) -> PyResult<Bound<'py, PyTuple>> {
     let py = world.py();
     let done = PyTuple::empty(py);
     if namespace_is_absent(world, intern!(py, NAME))? {
@@ -1724,7 +1735,7 @@ fn ranks_above(first: (f64, f64, &OpenTask), second: (f64, f64, &OpenTask)) -> b
 }
 
 /// `assign_staff_operations`, changing nothing: who starts what, and on which route.
-fn plan_operations<'py>(world: &Bound<'py, PyAny>, at: i64, router: &Bound<'py, PyAny>, workers: &[Worker]) -> PyResult<PlannedOperations<'py>> {
+fn plan_operations<'py>(world: &Bound<'py, PyAny>, at: i64, router: StaffRouter<'_, 'py>, workers: &[Worker]) -> PyResult<PlannedOperations<'py>> {
     let py = world.py();
     let (travel_first, source, policy, event_source) = formula_of(world)?;
     let graph = staff_router_rows(router)?;
@@ -1764,7 +1775,7 @@ fn plan_operations<'py>(world: &Bound<'py, PyAny>, at: i64, router: &Bound<'py, 
             if !has_skill(worker, task.skills) || reserved.contains(&(Arc::from(task.kind), task.zone.clone(), task.target.clone())) {
                 continue;
             }
-            let Some(route) = graph.get().shortest(&nothing_closed, Some(&loads), &worker.zone, &task.zone)? else {
+            let Some(route) = graph.shortest(&nothing_closed, Some(&loads), &worker.zone, &task.zone).or_py()? else {
                 continue;
             };
             if route.minutes >= FLOAT_EXACT_INT {
