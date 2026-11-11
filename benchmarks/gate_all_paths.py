@@ -4,8 +4,9 @@ Each scenario runs in its own process and writes the world, events and KPI hashe
 world it ended with, plus timing. Hashes are compared with --expect; --determinism also
 runs every scenario under other process settings and compares them with the first run. A write
 to model_configs in place inside a tick phase is a problem too (native/src/core/configs.rs).
-With --verify-rows, each tick's end also checks that every entity object holds what its row holds
-(core/state_mirror.py, watch_entity_rows); a tick where they differ is a problem.
+With --verify-rows, each tick's end also checks that every entity object holds what its row holds,
+and that every attached tree of a slot holds what its row holds (core/state_mirror.py,
+watch_entity_rows); a tick where they differ is a problem.
 With --poison, every object a rule's transaction (or the copy it stands for) takes out of the world
 gets a class that raises on any use (core/txn_checks.py); a use is a problem.
 With --refuse-transactions, the rules take the copy they made before transactions in place
@@ -164,6 +165,7 @@ def run_one(name: str, output: Path, chosen: Any = None) -> None:
                     sheltersim_native, "stale_geometry_hits", lambda: None
                 )(),
                 "entity_rows": _entity_rows() if verify_rows else None,
+                "slot_rows": _slot_rows() if verify_rows else None,
                 "poison": _poison_uses() if poison else None,
                 "dispatch": dict(sheltersim_native.rules.dispatch.stats()[0]),
                 "transactions": _transactions(sheltersim_native),
@@ -180,6 +182,12 @@ def _entity_rows() -> dict[str, Any]:
     from sheltersim.core.state_mirror import entity_row_mismatches
 
     return entity_row_mismatches()
+
+
+def _slot_rows() -> dict[str, Any]:
+    from sheltersim.core.state_mirror import slot_row_mismatches
+
+    return slot_row_mismatches()
 
 
 def _poison_uses() -> dict[str, Any]:
@@ -276,6 +284,12 @@ def _problems_within(results: dict[str, dict[str, Any]]) -> list[str]:
             problems.append(
                 f"{name}: the entity objects differed from their rows at {rows['mismatches']} of "
                 f"{rows['checked']} tick ends; first {rows['first']}"
+            )
+        slots = result.get("slot_rows")
+        if slots and slots["mismatches"]:
+            problems.append(
+                f"{name}: a tree of a slot differed from its row at {slots['mismatches']} of "
+                f"{slots['checked']} tick ends; first {slots['first']}"
             )
         poisoned = result.get("poison")
         if poisoned and poisoned["uses"]:
@@ -380,7 +394,7 @@ def main() -> int:
     parser.add_argument(
         "--verify-rows",
         action="store_true",
-        help="check the entity objects against their rows at the end of every tick",
+        help="check the entity objects and the slot trees against their rows at every tick's end",
     )
     parser.add_argument(
         "--poison",
@@ -425,6 +439,7 @@ def main() -> int:
                 "refused": result.get("refused"),
                 "crashed": bool(result.get("crashed")),
                 "entity_rows": result.get("entity_rows"),
+                "slot_rows": result.get("slot_rows"),
                 "poison": result.get("poison"),
                 "dispatch": result.get("dispatch"),
                 "transactions": result.get("transactions"),
@@ -479,6 +494,12 @@ def main() -> int:
         checked = sum(row.get("checked", 0) for row in rows)
         differed = sum(row.get("mismatches", 0) for row in rows)
         print(f"entity rows checked at {checked} tick ends; {differed} differed")
+        slots = [result.get("slot_rows") or {} for result in results.values()]
+        print(
+            f"slot trees checked at {sum(row.get('checked', 0) for row in slots)} tick ends "
+            f"({sum(row.get('trees', 0) for row in slots)} trees); "
+            f"{sum(row.get('mismatches', 0) for row in slots)} differed"
+        )
     if args.poison:
         poisoned = [result.get("poison") or {} for result in results.values()]
         print(

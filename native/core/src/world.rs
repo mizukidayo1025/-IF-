@@ -25,11 +25,18 @@
 //! `metric_state`, `configs`, the scalars), each a shared borrow of its part. Who holds the world
 //! hands it over as `&mut World` (`WorldCell::with`, the PyO3 crate's `with_world`), lane 5-4.
 //!
+//! The rows of the slots are the truth (lane P8-0c, as 6-1 made the entity rows): a kernel of the
+//! core writes a row alone (`row_mut`, `Slots::row_mut`, `Slots::try_row_mut`), which marks its
+//! slot (`Slot::written`) and gives it a new stamp. When the PyO3 crate's borrow of the world ends,
+//! before any Python runs, it takes the marks (`Slots::take_written`) and patches each attached
+//! tree from its row; a detached slot has no tree, and its row is all there is.
+//!
 //! The parts of the state (the scalars, the entities, each slot) are `CowShard`s (lane 6-2): a
 //! `Snapshot` keeps their `Arc`s, a write copies a part a snapshot shares, and `restore` gives the
 //! snapshot back. A transaction (`txn.rs`) takes one, then puts the world in the order a copy
 //! through canonical JSON gives it (`canonicalize`).
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use indexmap::IndexMap;
@@ -334,7 +341,7 @@ impl World {
         Ok(World {
             scalars: CowShard::from_shared(self.scalars.share()?),
             entities: CowShard::from_shared(self.entities.share()?),
-            slots: Slots { by_name },
+            slots: Slots { by_name, any_written: AtomicBool::new(false) },
             derived: Shard::default(),
             queue: CowShard::from_shared(self.queue.share()?),
             log: CowShard::from_shared(self.log.share()?),
@@ -548,6 +555,9 @@ pub struct Slot {
     /// tree stand, the state is what it was (`generation_of`). A process-unique stamp, never `+= 1`.
     pub generation: Stamp,
     pub counts: SlotCounts,
+    /// A kernel of the core wrote the row since the PyO3 crate last took the marks
+    /// (`Slots::take_written`): its tree, if it has one, does not follow the row yet. Not state.
+    pub written: bool,
 }
 
 /// A copy of the row too (`Row::clone_row`), for a snapshot's copy on write.
@@ -560,13 +570,33 @@ impl Clone for Slot {
             detached: self.detached,
             generation: self.generation,
             counts: self.counts,
+            written: self.written,
         }
     }
 }
 
 impl Slot {
     pub fn new(place: Place) -> Self {
-        Self { place, row: None, taint: None, detached: false, generation: Stamp::next(), counts: SlotCounts::default() }
+        Self {
+            place,
+            row: None,
+            taint: None,
+            detached: false,
+            generation: Stamp::next(),
+            counts: SlotCounts::default(),
+            written: false,
+        }
+    }
+
+    /// The row as its type, to write from a kernel of the core: the slot gets a new stamp and its
+    /// mark (`written`), so its tree follows the row when the world is given back. Unsupported as
+    /// `row_mut`, with nothing marked.
+    #[track_caller]
+    pub fn row_written<T: Row>(&mut self) -> Result<&mut T> {
+        self.row::<T>()?;
+        self.touch();
+        self.written = true;
+        self.row_mut::<T>()
     }
 
     /// Something was written: a new generation.
@@ -601,6 +631,9 @@ impl Slot {
 #[derive(Default)]
 pub struct Slots {
     by_name: IndexMap<Arc<str>, CowShard<Slot>, FxBuildHasher>,
+    /// Some slot may be marked (`Slot::written`): `take_written` looks at the slots only then. An
+    /// atomic, so that kernels writing different slots at once mark them without a shared borrow.
+    any_written: AtomicBool,
 }
 
 impl Slots {
@@ -645,18 +678,54 @@ impl Slots {
         self.by_name.get(name).ok_or_else(|| Error::unsupported("the namespace is not owned"))
     }
 
-    /// The row of a slot as its type, for a kernel that holds the whole world.
+    /// The row of a slot as its type, for a kernel that holds the whole world. The slot is marked
+    /// written (`Slot::row_written`), so its tree follows the row when the world is given back.
     #[track_caller]
     pub fn row_mut<T: Row>(&mut self, name: &str) -> Result<&mut T> {
         let slot = self.by_name.get_mut(name).ok_or_else(|| Error::unsupported("the namespace is not owned"))?;
-        slot.get_mut().row_mut::<T>()
+        let row = slot.get_mut().row_written::<T>()?;
+        *self.any_written.get_mut() = true;
+        Ok(row)
     }
 
-    /// The row of a slot as its type, borrowed on its own, for a shim that holds the world shared.
+    /// The row of a slot as its type, borrowed on its own, for a kernel or a shim that holds the
+    /// world shared. The slot is marked written, as by `row_mut`.
     #[track_caller]
     pub fn try_row_mut<T: Row>(&self, name: &str) -> Result<ShardMut<'_, T>> {
         let slot = self.owned(name)?.try_borrow_mut()?;
-        ShardMut::try_map(slot, |slot| slot.row_mut::<T>())
+        let row = ShardMut::try_map(slot, |slot| slot.row_written::<T>())?;
+        self.any_written.store(true, Ordering::Relaxed);
+        Ok(row)
+    }
+
+    /// The indexes of the slots a kernel of the core wrote since the last call, in index order,
+    /// and their marks cleared: the PyO3 crate patches their trees from the rows (lane P8-0c). A
+    /// slot no kernel wrote is not copied (`CowShard`) to read its mark.
+    pub fn take_written(&mut self) -> Vec<usize> {
+        if !std::mem::replace(self.any_written.get_mut(), false) {
+            return Vec::new();
+        }
+        let mut written = Vec::new();
+        for (index, slot) in self.by_name.values_mut().enumerate() {
+            if slot.try_borrow().is_ok_and(|slot| slot.written) {
+                slot.get_mut().written = false;
+                written.push(index);
+            }
+        }
+        written
+    }
+
+    /// The names of the slots marked written now, the marks kept: for a check that every borrow
+    /// was followed by its patch (`--verify-rows`).
+    pub fn written_names(&self) -> Vec<Arc<str>> {
+        if !self.any_written.load(Ordering::Relaxed) {
+            return Vec::new();
+        }
+        self.by_name
+            .iter()
+            .filter(|(_, slot)| slot.try_borrow().is_ok_and(|slot| slot.written))
+            .map(|(name, _)| name.clone())
+            .collect()
     }
 
     /// `try_row_mut`, shared.

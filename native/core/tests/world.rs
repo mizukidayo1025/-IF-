@@ -1,6 +1,7 @@
 //! The core `World` of lanes 5-1 and 5-3: `Shard`'s borrow rules, `Slots`, value slots and stamps;
 //! of lane 5-2: the scalars (`Fit`, `Seed`) and the rows of `resources` and `id_counters`; and of
-//! lane 5-4: the typed accessors of `World`.
+//! lane 5-4: the typed accessors of `World`; of lane P8-0c: the marks of the slots a kernel of the
+//! core writes.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -355,4 +356,91 @@ fn the_typed_accessors_borrow_their_part_and_say_what_is_wrong() {
     world.entities.get_mut().taint("why".to_owned());
     assert_eq!(world.rows().err(), Some(unsupported("the entity store is tainted")));
     assert_eq!(world.rows_mut().err(), Some(unsupported("the entity store is tainted")));
+}
+
+// ---- The marks of written slots (lane P8-0c) ------------------------------------------------------
+
+fn value_world(names: &[&str]) -> World {
+    let mut world = World::default();
+    for name in names {
+        let index = world.slots.add(Arc::from(*name), Place::Value).unwrap();
+        world.slots.at(index).unwrap().try_borrow_mut().unwrap().row = Some(Box::new(ValueRow(V::Int(0))));
+    }
+    world
+}
+
+fn marked(world: &World) -> Vec<String> {
+    world.slots.written_names().iter().map(|name| name.to_string()).collect()
+}
+
+#[test]
+fn a_write_from_the_core_marks_its_slot_once_with_a_new_stamp() {
+    let mut world = value_world(&["a", "b", "c"]);
+    assert_eq!(world.slots.take_written(), Vec::<usize>::new());
+    let before = world.stamp_of("c").unwrap().unwrap();
+    // Reads mark nothing.
+    assert_eq!(world.row::<ValueRow>("c").unwrap().0, V::Int(0));
+    assert_eq!(world.slots.try_value("b").unwrap().as_deref(), Some(&V::Int(0)));
+    assert_eq!(world.slots.value("a"), Ok(Some(&V::Int(0))));
+    assert!(marked(&world).is_empty());
+    // A write through a shared borrow, twice, and one through the whole world.
+    world.row_mut::<ValueRow>("c").unwrap().0 = V::Int(1);
+    world.slots.try_row_mut::<ValueRow>("c").unwrap().0 = V::Int(2);
+    world.slots.row_mut::<ValueRow>("a").unwrap().0 = V::Int(3);
+    assert_ne!(world.stamp_of("c").unwrap().unwrap(), before);
+    assert_eq!(marked(&world), ["a", "c"]);
+    // In index order, each once; then no more.
+    assert_eq!(world.slots.take_written(), [0, 2]);
+    assert!(marked(&world).is_empty());
+    assert_eq!(world.slots.take_written(), Vec::<usize>::new());
+    assert_eq!(world.row::<ValueRow>("c").unwrap().0, V::Int(2));
+}
+
+#[test]
+fn a_refused_write_marks_nothing() {
+    let mut world = value_world(&["a"]);
+    let stamp = world.stamp_of("a").unwrap().unwrap();
+    assert_eq!(world.row_mut::<IdMap<f64>>("a").err(), Some(unsupported("the namespace has another row")));
+    assert_eq!(world.slots.row_mut::<IdMap<f64>>("a").err(), Some(unsupported("the namespace has another row")));
+    assert_eq!(world.row_mut::<ValueRow>("absent").err(), Some(unsupported("the namespace is not owned")));
+    world.slots.at(0).unwrap().try_borrow_mut().unwrap().misfit("why".to_owned());
+    assert_eq!(world.row_mut::<ValueRow>("a").err(), Some(unsupported("the namespace has no row")));
+    let held = world.slots.at(0).unwrap().try_borrow().unwrap();
+    assert_eq!(world.row_mut::<ValueRow>("a").err(), Some(borrowed()));
+    drop(held);
+    assert_eq!(world.stamp_of("a").unwrap(), Some(stamp));
+    assert_eq!(world.slots.take_written(), Vec::<usize>::new());
+}
+
+#[test]
+fn canonical_order_restore_and_fork_mark_nothing_and_a_snapshot_keeps_its_slot_unmarked() {
+    let mut world = value_world(&["a", "b"]);
+    let snapshot = world.snapshot();
+    world.row_mut::<ValueRow>("a").unwrap().0 = V::Int(5);
+    // The write copied the slot the snapshot shares: the snapshot's is neither changed nor marked.
+    assert!(!snapshot.slot(0).unwrap().written);
+    assert_eq!(snapshot.slot(0).unwrap().row::<ValueRow>().unwrap().0, V::Int(0));
+    assert_eq!(world.slots.take_written(), [0]);
+    world.canonicalize();
+    assert!(marked(&world).is_empty());
+    let fork = world.fork().unwrap();
+    assert!(marked(&fork).is_empty());
+    world.restore(snapshot);
+    assert!(marked(&world).is_empty());
+    assert_eq!(world.row::<ValueRow>("a").unwrap().0, V::Int(0));
+    assert_eq!(fork.row::<ValueRow>("a").unwrap().0, V::Int(5));
+}
+
+#[test]
+fn kernels_on_threads_mark_the_slots_they_write() {
+    let names: Vec<String> = (0..8).map(|index| format!("s{index}")).collect();
+    let refs: Vec<&str> = names.iter().map(String::as_str).collect();
+    let mut world = value_world(&refs);
+    std::thread::scope(|scope| {
+        for name in names.iter().skip(1).step_by(2) {
+            let world = &world;
+            scope.spawn(move || world.row_mut::<ValueRow>(name).unwrap().0 = V::Bool(true));
+        }
+    });
+    assert_eq!(world.slots.take_written(), [1, 3, 5, 7]);
 }

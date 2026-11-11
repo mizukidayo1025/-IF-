@@ -1021,24 +1021,36 @@ EVENT_FIELDS = ("event_queue", "event_log")
 
 
 class _RowWatch:
-    """A debug run's check of the entity rows against their objects at the end of each tick."""
+    """A debug run's check of the rows against their views at the end of each tick: the entity
+    objects, and the attached trees of the slots."""
 
     on = False
     checked = 0
     mismatches = 0
     first: str | None = None
+    slot_ticks = 0
+    slot_trees = 0
+    slot_mismatches = 0
+    slot_first: str | None = None
 
 
 def watch_entity_rows(on: bool) -> None:
-    """Check at the end of every tick that each object holds what its row holds (debug runs).
+    """Check at the end of every tick that each object holds what its row holds (debug runs), and
+    that each attached tree of a slot holds what its row holds.
 
-    The rows are the truth and the objects follow them when a kernel's borrow ends
-    (native/src/state/entities.rs). The all-path gate turns this on with --verify-rows.
+    The rows are the truth: the objects follow them when a kernel's borrow ends
+    (native/src/state/entities.rs), and so do the trees a kernel of the core wrote the rows of
+    (NamespaceMirror::follow_row in native/src/core/world_core.rs, Issue #152 P8-0c). The all-path
+    gate turns this on with --verify-rows.
     """
     _RowWatch.on = on
     _RowWatch.checked = 0
     _RowWatch.mismatches = 0
     _RowWatch.first = None
+    _RowWatch.slot_ticks = 0
+    _RowWatch.slot_trees = 0
+    _RowWatch.slot_mismatches = 0
+    _RowWatch.slot_first = None
 
 
 def entity_rows_watched() -> bool:
@@ -1065,6 +1077,33 @@ def check_entity_rows(world: Any, where: str) -> None:
         _RowWatch.mismatches += 1
         if _RowWatch.first is None:
             _RowWatch.first = f"{where}: {found}"
+
+
+def slot_row_mismatches() -> dict[str, Any]:
+    """How many tick ends and trees check_slot_rows checked, at how many ends a tree differed from
+    its row (or a written row was not followed), and the first."""
+    return {
+        "checked": _RowWatch.slot_ticks,
+        "trees": _RowWatch.slot_trees,
+        "mismatches": _RowWatch.slot_mismatches,
+        "first": _RowWatch.slot_first,
+    }
+
+
+def check_slot_rows(world: Any, where: str) -> None:
+    """Count a tick end where an attached tree differs from its row (WorldCore.verify_slots, the
+    canonical JSON of each), or a row a kernel of the core wrote was not followed. Never raises
+    for that."""
+    core = world.__dict__.get("_core")
+    if core is None:
+        return
+    _RowWatch.slot_ticks += 1
+    checked, differing = core.verify_slots(world)
+    _RowWatch.slot_trees += checked
+    if differing:
+        _RowWatch.slot_mismatches += 1
+        if _RowWatch.slot_first is None:
+            _RowWatch.slot_first = f"{where}: {', '.join(differing)}"
 
 
 def _attach_entities(world: Any, core: Any) -> None:
