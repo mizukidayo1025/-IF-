@@ -11,14 +11,16 @@ use indexmap::IndexMap;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyList, PyString, PyTuple};
+use sheltersim_core::entities::{EdgeRow, Table, ZoneRow};
 use sheltersim_core::routes::{Edge, Router, Which};
 use sheltersim_core::run::RouteCapacities;
 
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, unsupported};
-use crate::core::run::run_of;
+use crate::core::run::{run_of, RunCore};
+use crate::core::tracked::id_map_type;
 use crate::core::value::V;
-use crate::core::world_core::{raw_dict_get, NamespaceMirror};
+use crate::core::world_core::{core_of, raw_dict_get, NamespaceMirror, WorldCore};
 use crate::rules::agent_dynamics::agent_knows_facility;
 use crate::rules::handlers::{log_record, new_event, NewEvent};
 use crate::rules::movement::{
@@ -46,7 +48,8 @@ pub(crate) struct RunGraph {
     capacities: Arc<RouteCapacities>,
 }
 
-/// The open edges of a `ZoneGraph`, as a router.
+/// The open edges of a `ZoneGraph`, as a router: the graphs of a Python caller, and of a controller
+/// whose tables could not be read.
 fn read_graph(graph: &Bound<'_, PyAny>) -> PyResult<Router> {
     let py = graph.py();
     let zones_object = attribute(graph, intern!(py, "zones"))?;
@@ -89,8 +92,68 @@ fn read_router(router: &Bound<'_, PyAny>) -> PyResult<Router> {
     read_graph(&attribute(router, intern!(py, "graph"))?)
 }
 
-/// The people's graph of this controller (`controller.space`), built once per refresh of its
-/// Run's routes, or Unsupported for another policy.
+/// Run f on the world's zone and zone-edge rows, where they are those of its maps: `world.zones` and
+/// `world.zone_edges` of its `__dict__` are its store's `IdMap`s with as many entries, and no value
+/// that does not fit dropped the rows (`Entities::zones_tainted`). None otherwise (a world without a
+/// core, a value that does not fit a row, ...): the callers read the Python objects then, as before
+/// lane 7-4. f runs no Python.
+fn with_zone_rows<R>(world: &Bound<'_, PyAny>, f: impl FnOnce(&Table<ZoneRow>, &Table<EdgeRow>) -> R) -> PyResult<Option<R>> {
+    let py = world.py();
+    let Ok(core) = core_of(world) else {
+        return Ok(None);
+    };
+    let store = WorldCore::entities(&core)?;
+    let Ok(state) = world.getattr(intern!(py, "__dict__"))?.downcast_into::<PyDict>() else {
+        return Ok(None);
+    };
+    let mut lengths = [0; 2];
+    for (length, name) in lengths.iter_mut().zip([intern!(py, "zones"), intern!(py, "zone_edges")]) {
+        let Some(map) = raw_dict_get(state.as_any(), name.as_any())? else {
+            return Ok(None);
+        };
+        if map.get_type().as_ptr() != id_map_type().cast() || !map.getattr(intern!(py, "_store"))?.is(store.bind(py)) {
+            return Ok(None);
+        }
+        *length = map.len()?;
+    }
+    let core = core.try_borrow()?;
+    let rows = core.world().entities.try_borrow().or_py()?;
+    if rows.zones_tainted().is_some() || rows.zones.len() != lengths[0] || rows.zone_edges.len() != lengths[1] {
+        return Ok(None);
+    }
+    Ok(Some(f(&rows.zones, &rows.zone_edges)))
+}
+
+/// `_refresh_space` for the kernels: the people's and the staff's routers of a new epoch, from the
+/// world's tables now, so an edge closed later is not seen until the next refresh. What
+/// `ZoneGraph.from_states(world.zones, world.zone_edges, edge_capacities=controller.route_capacities)`
+/// turns down raises its ValueError. With a floor plan, the staff's graph keeps the edges the core
+/// `Geo` finds clear for an independent walker, as `route_is_physically_clear` did for each edge
+/// (its refusal is that kernel's KernelRefusal). Where the capacities or the tables cannot be read,
+/// nothing is built: the kernels read the controller's graphs when they ask, as before.
+pub(crate) fn build_routes(run: &RunCore, epoch: u64, world: &Bound<'_, PyAny>) -> PyResult<()> {
+    let py = world.py();
+    let Ok(capacities) = run.capacities() else {
+        return Ok(());
+    };
+    let built = with_zone_rows(world, |zones, edges| Router::of_tables(zones, edges, &capacities).map(|router| (router, edges.len())))?;
+    let Some(built) = built else {
+        return Ok(());
+    };
+    let (people, edges) = built.or_py()?;
+    let people = run.keep(Which::People, epoch, Arc::new(people))?;
+    let staff = if edges > 0 && attribute(world, intern!(py, "model_configs"))?.contains(intern!(py, "facility_geometry"))? {
+        let geo = Geo::of(world).map_err(|error| errors::kernel_refusal(py, "movement.route_is_physically_clear", error))?;
+        Arc::new(people.keeping(|edge| geo.route_is_clear(&edge.id, "independent")))
+    } else {
+        people
+    };
+    run.keep(Which::Staff, epoch, staff)?;
+    Ok(())
+}
+
+/// The people's graph of this controller, built at its last `_refresh_space` (or, where the tables
+/// could not be read, from `controller.space` once per refresh, Unsupported for another policy).
 pub(crate) fn rows_of(controller: &Bound<'_, PyAny>) -> PyResult<RunGraph> {
     let run = run_of(controller)?;
     let run = run.get();
@@ -101,7 +164,7 @@ pub(crate) fn rows_of(controller: &Bound<'_, PyAny>) -> PyResult<RunGraph> {
 
 /// Where `assign_staff_operations` finds its graph.
 pub(crate) enum StaffRouter<'a, 'py> {
-    /// A controller's `staff_space`, built once per refresh of its Run's routes.
+    /// A controller's staff graph, built at its last refresh (or from its `staff_space`).
     Run(&'a Bound<'py, PyAny>),
     /// A `SpaceRouter` a Python caller gave, read at each call.
     Given(&'a Bound<'py, PyAny>),
@@ -119,36 +182,66 @@ pub(crate) fn staff_router_rows(source: StaffRouter<'_, '_>) -> PyResult<Arc<Rou
 }
 
 /// `SpaceRouter(ZoneGraph.from_states(zones, edges)).route(...)` with nothing closed, for a rule
-/// that has no controller: `edge_capacities` are refused, which read every trip under way.
+/// that has no controller, from the world's tables: what `ZoneGraph` turns down raises its
+/// ValueError. `edge_capacities` are refused, which read every trip under way.
 pub(crate) fn world_route(world: &Bound<'_, PyAny>, origin: &Arc<str>, destination: &Arc<str>) -> PyResult<Option<Route>> {
-    let py = world.py();
-    let graph = py.import("sheltersim.domain.zones")?.getattr("ZoneGraph")?.call_method1(
-        intern!(py, "from_states"),
-        (attribute(world, intern!(py, "zones"))?, attribute(world, intern!(py, "zone_edges"))?),
-    )?;
-    read_graph(&graph)?.shortest(&HashSet::new(), None, origin, destination).or_py()
+    let graph = match with_zone_rows(world, |zones, edges| Router::of_tables(zones, edges, &RouteCapacities::default()))? {
+        Some(graph) => graph.or_py()?,
+        None => {
+            let py = world.py();
+            let graph = py.import("sheltersim.domain.zones")?.getattr("ZoneGraph")?.call_method1(
+                intern!(py, "from_states"),
+                (attribute(world, intern!(py, "zones"))?, attribute(world, intern!(py, "zone_edges"))?),
+            )?;
+            read_graph(&graph)?
+        }
+    };
+    graph.shortest(&HashSet::new(), None, origin, destination).or_py()
 }
 
-/// `ZoneGraph.from_states(world.zones, world.zone_edges, edge_capacities=capacities)` as a router,
-/// for the routes `_support_route_wait_reasons` reads. What the constructor would turn down is
-/// refused.
-pub(crate) fn world_graph(world: &Bound<'_, PyAny>) -> PyResult<Router> {
+/// `layout_routing.max_agents_in_transit_by_edge` of `model_configs`, each checked as `ZoneGraph`
+/// checks it: an int from 1 to 100 of an edge `has_edge` finds by its key.
+fn world_capacities(world: &Bound<'_, PyAny>, has_edge: impl Fn(&Bound<'_, PyAny>) -> PyResult<bool>) -> PyResult<HashMap<Arc<str>, i64>> {
     let py = world.py();
     let configs = attribute(world, intern!(py, "model_configs"))?;
-    let edges = attribute(world, intern!(py, "zone_edges"))?;
-    let edges = exact_dict(&edges)?;
-    let mut capacities: HashMap<String, i64> = HashMap::new();
+    let mut capacities = HashMap::new();
     if let Some(routing) = exact_dict(&configs)?.get_item(intern!(py, "layout_routing"))? {
         if let Some(table) = exact_dict(&routing)?.get_item(intern!(py, "max_agents_in_transit_by_edge"))? {
             for (edge, capacity) in exact_dict(&table)?.iter() {
                 let capacity = exact_int(&capacity)?;
-                if !edges.contains(&edge)? || !(1..=100).contains(&capacity) {
+                if !has_edge(&edge)? || !(1..=100).contains(&capacity) {
                     return unsupported("a capacity the zone graph turns down");
                 }
-                capacities.insert(exact_str(&edge)?.to_owned(), capacity);
+                capacities.insert(Arc::from(exact_str(&edge)?), capacity);
             }
         }
     }
+    Ok(capacities)
+}
+
+/// `ZoneGraph.from_states(world.zones, world.zone_edges, edge_capacities=capacities)` as a router,
+/// for the routes `_support_route_wait_reasons` reads, from the world's tables. What the constructor
+/// would turn down for a capacity or an edge is refused.
+pub(crate) fn world_graph(world: &Bound<'_, PyAny>) -> PyResult<Router> {
+    let Some(keys) = with_zone_rows(world, |_, edges| edges.iter().map(|(key, _)| key.clone()).collect::<HashSet<Arc<str>>>())? else {
+        return world_graph_of_objects(world);
+    };
+    // `key in world.zone_edges`: a key that is no str is no edge's.
+    let capacities = world_capacities(world, |edge| {
+        Ok(edge.downcast::<PyString>().ok().and_then(|edge| edge.to_str().ok()).is_some_and(|edge| keys.contains(edge)))
+    })?;
+    match with_zone_rows(world, |zones, edges| Router::of_world_tables(zones, edges, &capacities))? {
+        Some(graph) => graph.or_py(),
+        None => world_graph_of_objects(world),
+    }
+}
+
+/// `world_graph` from the Python objects, where the tables cannot be read.
+fn world_graph_of_objects(world: &Bound<'_, PyAny>) -> PyResult<Router> {
+    let py = world.py();
+    let edges = attribute(world, intern!(py, "zone_edges"))?;
+    let edges = exact_dict(&edges)?;
+    let capacities = world_capacities(world, |edge| edges.contains(edge))?;
     let zones_object = attribute(world, intern!(py, "zones"))?;
     let mut zones = HashSet::new();
     for key in exact_dict(&zones_object)?.keys() {

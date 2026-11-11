@@ -520,7 +520,7 @@ def test_an_equal_time_goes_to_the_lower_edge_id(generated_scenario: Any) -> Non
             ),
         )
     )
-    # The kernel's graph follows the Run's refresh of the space (native/src/core/run.rs).
+    # Without a world the refresh leaves the kernel to read `space` (native/src/core/run.rs).
     controller._run_core.refresh_routes()
     route = kernel(controller, zones[0], zones[3], agent_id)
     assert route.edge_ids == ("a-c", "n-d")

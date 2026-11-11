@@ -262,7 +262,8 @@ class ProposePhase:
     ) -> ZoneRoute | None:
         """The shortest route for this person, or None: native/src/rules/travel.rs.
 
-        Over `space`'s graph without the edges a floor plan closes to the person's mobility.
+        Over the graph the last `_refresh_space` built from the world's zone and edge tables (the
+        same as `space`'s) without the edges a floor plan closes to the person's mobility.
         With `route_capacities`, an edge whose trips under way (pending `agent_travel_complete`
         events not yet due, staff operation trips) reach its capacity is avoided; when that
         leaves no route but a free graph has one, the first full edge of it is recorded as a
@@ -272,7 +273,8 @@ class ProposePhase:
 
         The kernel alone runs this step (segments.py, KERNEL_ONLY_SEGMENTS); what it turns down
         raises KernelRefusal: an unknown person or zone, a route policy other than
-        ShortestTravelTimePolicy.
+        ShortestTravelTimePolicy (read only where the kernel reads `space`: zone rows that do not
+        follow the world, or a refresh of the Run's routes without a world).
         """
 
     def _facility_approach(
