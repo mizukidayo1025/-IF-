@@ -789,7 +789,7 @@ pub(crate) fn plan_record(
     let (event_id, request_id, minute) = (&record.event_id, &record.request_id, record.minute);
     state_holds(world, mirror, minute)?;
     let first_request = if record.status == CareStatus::Requested {
-        writer.log().borrow().first_care_request_event_of(request_id).map(Arc::<str>::from)
+        writer.log().get().first_care_request_event_of(world.py(), request_id)?.map(Arc::<str>::from)
     } else {
         None
     };

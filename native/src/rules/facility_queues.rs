@@ -353,8 +353,7 @@ pub(crate) fn transition_row(
 ) -> PyResult<EventRow> {
     let event_id: Arc<str> = Arc::from(format!("facility-queue-transition-{sequence}"));
     {
-        let past = writer.log().borrow();
-        if past.has_event_id(&event_id) || past.has_sequence(sequence) {
+        if writer.is_realized(&event_id, Some(sequence))? {
             return unsupported("the record's identity is taken");
         }
     }

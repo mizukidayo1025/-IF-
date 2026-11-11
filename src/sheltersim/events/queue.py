@@ -118,7 +118,9 @@ class _PythonEventQueue:
 
 class _NativeEventQueue:
     """The EventQueue held in Rust (native/src/state/events.rs); the same methods and errors as
-    _PythonEventQueue. A Rust rule's event has no object until one of these reads it.
+    _PythonEventQueue. A Rust rule's event has no object until one of these reads it. While it is
+    a world's, its events are a part of the world's core (World.queue); it moves there when the
+    world is made or the queue is assigned to it, and moves out again when the world lets it go.
 
     An order outside i64, which no Scenario can reach, makes this queue _LargeOrderEventQueue.
     """
@@ -133,6 +135,8 @@ class _NativeEventQueue:
             self._leave_rust(events)
 
     def _leave_rust(self, events: list[ScheduledEvent]) -> None:
+        # A world whose core held this queue holds none now: its rules say Unsupported.
+        self._store.release()
         self._store = None
         self.__class__ = _LargeOrderEventQueue  # type: ignore[assignment]
         self._python = _PythonEventQueue(events)  # type: ignore[attr-defined]
@@ -287,7 +291,9 @@ class _NativeEventLog:
     indexes held in Rust (sheltersim_native.EventStore, docs/rust-port.md stage B1).
 
     Records are the frozen EventLogRecord objects appended; they are only appended,
-    so IDs and sequences stay unique and the audit checks realization times.
+    so IDs and sequences stay unique and the audit checks realization times. While the
+    log is a world's, its records are a part of the world's core (World.log), as the
+    queue's events are.
     """
 
     __hash__ = None  # type: ignore[assignment]

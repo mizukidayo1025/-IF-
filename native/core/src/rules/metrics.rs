@@ -6,10 +6,12 @@
 //! Handed in, because Python holds it or computes it:
 //! - the open support requests and their wait reasons (`OpenWait`), which `rules/staff.rs` reads
 //!   from the Python objects of the unsettled requests and the routes;
-//! - the event log (`EventLog`), held by the Python `EventStore` until lane 6-5;
 //! - `str.casefold` of a facility kind that isn't ASCII (`Folds`): Python's fold, which Rust has no
 //!   table of. An ASCII kind is folded here, as ASCII lower case is what `casefold` gives it;
 //! - whether `world.metric_state` holds its slot's tree (a field assigned whole doesn't).
+//!
+//! The realized events of the minute come from the world's log (`World::log`, lane 6-5), which is
+//! Unsupported while the world's EventLog is not held there.
 //!
 //! The sums go over `world.agents` in insertion order with `py_sum`, so every float has the bits of
 //! the Python rule. The ID lists and the JSON are written by byte order, which is the code point
@@ -20,7 +22,6 @@
 use std::sync::Arc;
 
 use crate::error::{Error, Result};
-use crate::events::log::EventLog;
 use crate::json::write_json_string;
 use crate::mathx::py_sum;
 use crate::world::World;
@@ -98,7 +99,6 @@ pub struct Inputs<'a> {
     /// The minute sampled, the world's.
     pub sample: i64,
     pub waits: &'a [OpenWait<'a>],
-    pub log: &'a EventLog,
     pub folds: &'a Folds,
     /// Whether `world.metric_state` is its slot's tree. Not owned: either.
     pub metric_state_held: bool,
@@ -228,7 +228,8 @@ pub fn sample(world: &World, inputs: &Inputs<'_>) -> Result<MetricSample> {
     let mut no_qualified: Vec<&str> =
         inputs.waits.iter().filter(|wait| wait.without_qualified_staff).map(|wait| wait.agent).collect();
     no_qualified.sort_unstable();
-    let mut events: Vec<&str> = inputs.log.event_ids_at(sample).collect();
+    let log = world.log()?;
+    let mut events: Vec<&str> = log.event_ids_at(sample).collect();
     events.sort_unstable();
 
     // Keys by their bytes, as canonical_json writes them.

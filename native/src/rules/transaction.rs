@@ -67,13 +67,16 @@ fn effect_copy_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>>
     py.import(intern!(py, "sheltersim.events.effects"))?.getattr(intern!(py, "_effect_candidate"))?.call1((world,))
 }
 
-/// `world.__dict__.clear(); world.__dict__.update(candidate.__dict__)`.
+/// `world.__dict__.clear(); world.__dict__.update(candidate.__dict__)`, and the copy's core is the
+/// world's then (`state_mirror.owned_again`, lane 6-5).
 fn swap(world: &Bound<'_, PyAny>, candidate: &Bound<'_, PyAny>) -> PyResult<()> {
     let py = world.py();
     let target = world.getattr(intern!(py, "__dict__"))?;
     let source = candidate.getattr(intern!(py, "__dict__"))?;
+    let old_core = target.call_method1(intern!(py, "get"), (intern!(py, "_core"),))?;
     target.call_method0(intern!(py, "clear"))?;
     target.call_method1(intern!(py, "update"), (source,))?;
+    state_mirror(py)?.getattr(intern!(py, "owned_again"))?.call1((world, old_core))?;
     Ok(())
 }
 

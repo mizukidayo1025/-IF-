@@ -125,6 +125,7 @@ fn world() -> World {
     counters.insert(text("toilet_wait_max_minutes"), 4.0);
     counters.insert(text("support_wait_staff_busy_request_minutes"), 2.5);
     world.slots.at(index).unwrap().try_borrow_mut().unwrap().row = Some(Box::new(counters));
+    world.hold_log(Arc::new(log()));
     world
 }
 
@@ -168,9 +169,8 @@ fn waits() -> Vec<OpenWait<'static>> {
 }
 
 fn sample_of(world: &World, folds: &Folds, held: bool) -> Result<MetricSample, Error> {
-    let log = log();
     let waits = waits();
-    metrics::sample(world, &Inputs { sample: 30, waits: &waits, log: &log, folds, metric_state_held: held })
+    metrics::sample(world, &Inputs { sample: 30, waits: &waits, folds, metric_state_held: held })
 }
 
 fn unsupported(reason: &str) -> Error {
@@ -224,10 +224,10 @@ fn an_empty_world_has_means_of_zero() {
     let mut world = World::default();
     let index = world.slots.add(text(METRIC_STATE), Place::Field).unwrap();
     world.slots.at(index).unwrap().try_borrow_mut().unwrap().row = Some(Box::new(MetricRow::default()));
-    let log = EventLog::new();
+    world.hold_log(Arc::new(EventLog::new()));
     let taken = metrics::sample(
         &world,
-        &Inputs { sample: 0, waits: &[], log: &log, folds: &Folds::default(), metric_state_held: true },
+        &Inputs { sample: 0, waits: &[], folds: &Folds::default(), metric_state_held: true },
     )
     .unwrap();
     assert_eq!((taken.stress_mean, taken.toilet_wait_mean_minutes, taken.staff_load_ratio), (0.0, 0.0, 0.0));
@@ -278,7 +278,13 @@ fn what_the_kernel_refused_it_still_refuses_with_its_text() {
 
     let mut bare = World::default();
     *bare.entities.get_mut() = std::mem::take(self::world().entities.get_mut());
+    bare.hold_log(Arc::new(log()));
     assert_eq!(sample_of(&bare, &Folds::default(), false).err(), Some(unsupported("the namespace is not owned")));
+
+    // A world whose EventLog is held elsewhere (lane 6-5).
+    let mut world = self::world();
+    assert!(world.release_log().is_some());
+    assert_eq!(sample_of(&world, &Folds::default(), true).err(), Some(unsupported("the event log is not in Rust")));
 }
 
 #[test]

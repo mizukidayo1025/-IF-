@@ -129,8 +129,7 @@ pub(crate) fn plan_transition(
     let sources = sorted_unique(sources);
     let event_id: Arc<str> = Arc::from(format!("care-support-transition-{sequence}"));
     {
-        let log = writer.log().borrow();
-        if log.has_event_id(&event_id) || log.has_sequence(sequence) {
+        if writer.is_realized(&event_id, Some(sequence))? {
             return unsupported("the event's identity is taken");
         }
     }

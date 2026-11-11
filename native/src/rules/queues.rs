@@ -610,9 +610,8 @@ fn return_path(geo: &Geo, movement: &MovementRow, rows: &Entities, model: &Read<
     Ok(Some(Some((minutes, path))))
 }
 
-fn identity_is_free(writer: &EventWriter<'_>, event_id: &str, sequence: i64) -> bool {
-    let past = writer.log().borrow();
-    !(past.has_event_id(event_id) || past.has_sequence(sequence) || writer.queue().borrow().has_event(event_id))
+fn identity_is_free(writer: &EventWriter<'_>, event_id: &str, sequence: i64) -> PyResult<bool> {
+    Ok(!writer.is_taken(event_id, Some(sequence))?)
 }
 
 /// `_abandon_and_retry` of one person, changing nothing. None when the rule returns at once and the
@@ -645,7 +644,7 @@ fn plan_leave(call: &LeaveCall<'_, '_>, person: &Leaving, sequence: i64) -> PyRe
     }
     let retry_at = minute.checked_add(call.retry).ok_or_else(|| Unsupported::new_err("a minute out of range"))?;
     let abandon_id: Arc<str> = Arc::from(format!("facility-queue-abandon-{sequence}"));
-    if !identity_is_free(&writer, &abandon_id, sequence) {
+    if !identity_is_free(&writer, &abandon_id, sequence)? {
         return unsupported("the event's identity is taken");
     }
     let mut payload = IndexMap::with_capacity(8);
@@ -697,7 +696,7 @@ fn plan_leave(call: &LeaveCall<'_, '_>, person: &Leaving, sequence: i64) -> PyRe
         Some(points) => {
             let task_id: Arc<str> = Arc::from(format!("queue-abandon-travel-{next}"));
             let event_id: Arc<str> = Arc::from(format!("queue-abandon-arrival-{next}"));
-            if !identity_is_free(&writer, &event_id, next) {
+            if !identity_is_free(&writer, &event_id, next)? {
                 return unsupported("the event's identity is taken");
             }
             if points.iter().any(|point| !usable(point.x, point.y)) {
@@ -990,11 +989,9 @@ pub(crate) fn plan_trip(
     ) else {
         return unsupported("the event's values are not what an event takes");
     };
-    let writes_past = writer.log().borrow();
-    if writes_past.has_event_id(&event_id) || writes_past.has_sequence(sequence) || writer.queue().borrow().has_event(&event_id) {
+    if writer.is_taken(&event_id, Some(sequence))? {
         return unsupported("the event's identity is taken");
     }
-    drop(writes_past);
     let journey = Journey {
         event_id,
         task_id: task.id.clone(),

@@ -2219,7 +2219,7 @@ fn pending_has_marker(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = world.py();
     let writer = EventWriter::of(world)?;
     // A marker that is no mapping passes, and the Python rule knows which it is.
-    let found = writer.queue().borrow().any_pending_has_provenance(py, intern!(py, MARKER))?;
+    let found = writer.queue().get().any_pending_has_provenance(py, intern!(py, MARKER))?;
     found.map_or_else(|| unsupported("a pending event is not a plain ScheduledEvent"), Ok)
 }
 

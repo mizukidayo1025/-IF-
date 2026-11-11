@@ -3,9 +3,13 @@
 //! The host's work is in `core/state_mirror.py`: validating the world as the copy through canonical
 //! JSON was validated (`_txn_validate`, policy E6), making the Python containers again in canonical
 //! order (`_txn_canonicalized`), giving them back on a rollback (`_txn_restored`) and dropping what
-//! was kept on a commit (`_txn_committed`). Python opens one with `state_mirror.transaction(world,
-//! kind)`; the world's `WorldCore` holds it while it is open, so transactions don't nest (rule R8).
-//! No borrow of the core is held while the host runs (rule R4).
+//! was kept on a commit (`_txn_committed`). The world's queue and log are parts of the core's
+//! `World` (lane 6-5), which the snapshot gives back; here their stores' Python objects follow:
+//! the objects of the pending events move to the serials of the canonical queue and come back with
+//! the old ones (`QueueStore::txn_remap`, `txn_rollback`), and the records a rollback took out of
+//! the log take their objects with them (`EventStore::cut_to_log`). Python opens one with
+//! `state_mirror.transaction(world, kind)`; the world's `WorldCore` holds it while it is open, so
+//! transactions don't nest (rule R8). No borrow of the core is held while the host runs (rule R4).
 
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::intern;
@@ -13,9 +17,12 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use sheltersim_core::error::Error as CoreError;
 use sheltersim_core::txn::{Host, Stage, Txn, TxnKind, NESTED};
+use sheltersim_core::world::Snapshot;
 
 use super::errors::to_py_err;
 use super::world_core::{core_of, PyWorldCell};
+use crate::eventlog::EventStore;
+use crate::state::events::QueueStore;
 
 /// An open transaction, held by the world's `WorldCore`: the core's `Txn` and what the host kept
 /// of the Python containers (`_txn_canonicalized`).
@@ -40,6 +47,13 @@ pub(crate) struct PyHost<'a, 'py> {
 }
 
 impl PyHost<'_, '_> {
+    /// The stores of the world's queue and log, which its core holds while a transaction is open.
+    fn stores(&self) -> Result<(Option<Py<QueueStore>>, Option<Py<EventStore>>), HostError> {
+        let core = core_of(self.world).map_err(HostError)?;
+        let stores = core.try_borrow().map_err(|error| HostError(error.into()))?.event_stores(self.world.py());
+        Ok(stores)
+    }
+
     fn call(&self, name: &str, argument: Option<bool>) -> Result<(), HostError> {
         let py = self.world.py();
         let module = py.import(intern!(py, "sheltersim.core.state_mirror")).map_err(HostError)?;
@@ -60,15 +74,34 @@ impl Host for PyHost<'_, '_> {
         self.call("_txn_validate", Some(stage == Stage::Candidate))
     }
 
-    fn canonicalized(&mut self, _kind: TxnKind) -> Result<(), HostError> {
+    fn canonicalized(&mut self, _kind: TxnKind, before: &Snapshot) -> Result<(), HostError> {
+        let py = self.world.py();
+        if let (Some(queue), _) = self.stores()? {
+            // The queue's order is the same before and after, under new serials.
+            let moved = queue.get().with_queue(py, |now| {
+                before.queue().ordered().iter().zip(now.ordered()).map(|((_, old), (_, new))| (*old, *new)).collect::<Vec<_>>()
+            });
+            queue.get().txn_remap(py, &moved.map_err(HostError)?).map_err(HostError)?;
+        }
         self.call("_txn_canonicalized", None)
     }
 
     fn restored(&mut self, _kind: TxnKind) -> Result<(), HostError> {
+        let py = self.world.py();
+        let (queue, log) = self.stores()?;
+        if let Some(queue) = queue {
+            queue.get().txn_rollback().map_err(HostError)?;
+        }
+        if let Some(log) = log {
+            log.get().cut_to_log(py).map_err(HostError)?;
+        }
         self.call("_txn_restored", None)
     }
 
     fn committed(&mut self, _kind: TxnKind) -> Result<(), HostError> {
+        if let (Some(queue), _) = self.stores()? {
+            queue.get().txn_commit().map_err(HostError)?;
+        }
         self.call("_txn_committed", None)
     }
 }

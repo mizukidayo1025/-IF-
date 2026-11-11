@@ -20,20 +20,27 @@
 //! anything that may run Python code: each borrow below covers the tree side or the slot only. A
 //! world can move to another core between two calls (`world.__dict__.update` in a copy-and-swap),
 //! so a kernel asks `core_of(world)` again after every Python callback.
+//!
+//! A core is one world's (lane 6-5): it holds a weak reference to its world (`adopt`), which
+//! `with_world` checks, and the stores of the world's event queue and EventLog, whose events and
+//! records are parts of its `World`. When the world dies, the core lets its objects go: the entity
+//! objects and their maps work on as plain objects with their values, and the queue and the log
+//! move back into their stores (`owner_died`).
 
 use std::marker::PhantomData;
 use std::ptr::null_mut;
 use std::sync::{Arc, OnceLock};
 
 use indexmap::IndexMap;
-use pyo3::exceptions::PyRuntimeError;
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::ffi;
 use pyo3::gc::PyVisit;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
-use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
-use pyo3::PyTraverseError;
+use pyo3::pyclass::boolean_struct::True;
+use pyo3::types::{PyBytes, PyCFunction, PyDict, PyList, PyString, PyTuple, PyWeakrefMethods, PyWeakrefReference};
+use pyo3::{PyClass, PyTraverseError};
 use sheltersim_core::cell::{CowShard, Shard, ShardMut, BORROWED};
 use sheltersim_core::stamp::Stamp;
 use sheltersim_core::error::Error as CoreError;
@@ -44,7 +51,9 @@ use super::row::{atom_to_py, Atom, PyField, PyItems, Scalar, TreeSink};
 use super::tracked::{as_readable_dict, is_detached, tracked_dict_type, tracked_list_type};
 use super::errors::OrPy;
 use super::value::{V, VPy};
+use crate::eventlog::{EventLog, EventStore};
 use crate::state::entities::EntityStore;
+use crate::state::events::{EventPart, Home, Queue, QueueStore};
 use crate::{encode, Encoder, Unsupported, MAX_DEPTH};
 
 const NO_PARENT: u32 = u32::MAX;
@@ -1822,11 +1831,12 @@ impl NamespaceMirror {
 }
 
 /// A world's Rust state: `world.__dict__["_core"]`. It holds the core's `World` and the handles
-/// that are its Python views: the mirror of each slot and the entity store. Each handle holds the
-/// core, so they make cycles, which `__traverse__` and `__clear__` let the collector break. It
-/// holds no reference to the world, so `world.__dict__.clear()/update()` moves it with the state
-/// it belongs to.
-#[pyclass(module = "sheltersim_native")]
+/// that are its Python views: the mirror of each slot, the entity store, and the stores of the
+/// event queue and the EventLog (lane 6-5). Each handle holds the core, so they make cycles, which
+/// `__traverse__` and `__clear__` let the collector break. It holds the world weakly (`owner`), so
+/// `world.__dict__.clear()/update()` moves it with the state it belongs to, and the copy-and-swap
+/// that does that gives it to the world again (`adopt`).
+#[pyclass(weakref, module = "sheltersim_native")]
 pub struct WorldCore {
     world: World,
     /// The mirror of each slot, in the slots' order: `mirrors[i]` is the view of slot i.
@@ -1834,6 +1844,149 @@ pub struct WorldCore {
     store: Option<Py<EntityStore>>,
     /// The open transaction, if any (`core/txn.rs`, lane 6-2).
     pub(crate) txn: Option<super::txn::OpenTxn>,
+    /// The store whose queue is `World::queue` (while `World::queue_held`), and the one whose log is
+    /// `World::log` (lane 6-5).
+    queue: Option<Py<QueueStore>>,
+    log: Option<Py<EventStore>>,
+    /// The world this core is, by a weak reference whose callback lets the objects go when the
+    /// world dies (`adopt`, `owner_died`). None before `adopt` and after `disown`.
+    owner: Option<Py<PyWeakrefReference>>,
+}
+
+/// The text of `with_world` on a world whose core is another world's, or no world's (lane 6-5).
+pub(crate) const NOT_OWNER: &str = "the world's core is not this world's";
+
+/// A store whose part a world's core can hold: the queue's or the log's (lane 6-5).
+pub(crate) trait EventHandle: PyClass<Frozen = True> + Sync {
+    type Part: EventPart;
+    fn home(&self) -> &Shard<Home<Self::Part>>;
+    /// The core's place for the store.
+    fn held(core: &mut WorldCore) -> &mut Option<Py<Self>>;
+    fn held_ref(core: &WorldCore) -> &Option<Py<Self>>;
+    /// `World::hold_queue` or `hold_log`.
+    fn hold(world: &mut World, part: Arc<Self::Part>);
+    /// `World::release_queue` or `release_log`.
+    fn let_go(world: &mut World) -> Option<Arc<Self::Part>>;
+}
+
+impl EventHandle for QueueStore {
+    type Part = Queue;
+
+    fn home(&self) -> &Shard<Home<Queue>> {
+        QueueStore::home(self)
+    }
+
+    fn held(core: &mut WorldCore) -> &mut Option<Py<Self>> {
+        &mut core.queue
+    }
+
+    fn held_ref(core: &WorldCore) -> &Option<Py<Self>> {
+        &core.queue
+    }
+
+    fn hold(world: &mut World, part: Arc<Queue>) {
+        drop(world.hold_queue(part));
+    }
+
+    fn let_go(world: &mut World) -> Option<Arc<Queue>> {
+        world.release_queue()
+    }
+}
+
+impl EventHandle for EventStore {
+    type Part = EventLog;
+
+    fn home(&self) -> &Shard<Home<EventLog>> {
+        EventStore::home(self)
+    }
+
+    fn held(core: &mut WorldCore) -> &mut Option<Py<Self>> {
+        &mut core.log
+    }
+
+    fn held_ref(core: &WorldCore) -> &Option<Py<Self>> {
+        &core.log
+    }
+
+    fn hold(world: &mut World, part: Arc<EventLog>) {
+        drop(world.hold_log(part));
+    }
+
+    fn let_go(world: &mut World) -> Option<Arc<EventLog>> {
+        world.release_log()
+    }
+}
+
+/// The store of the core's part goes back to holding its own (nothing copied); the world holds
+/// none. Nothing to do when the core holds no store of it.
+fn release<H: EventHandle>(core: &Bound<'_, WorldCore>) -> PyResult<()> {
+    let py = core.py();
+    let Some(store) = H::held_ref(&*core.try_borrow()?).as_ref().map(|store| store.clone_ref(py)) else {
+        return Ok(());
+    };
+    let store = store.into_bound(py);
+    let mut home = store.get().home().try_borrow_mut().or_py()?;
+    let part = {
+        let mut this = core.try_borrow_mut()?;
+        let held = H::held(&mut this).take();
+        let part = H::let_go(&mut this.world);
+        drop(this);
+        drop(held);
+        part
+    };
+    let old = std::mem::replace(&mut *home, Home::Own(CowShard::from_shared(part.unwrap_or_default())));
+    drop(home);
+    drop(old);
+    Ok(())
+}
+
+/// What `world.<name> = value` stores in the core, for the world's event queue or EventLog: a
+/// Rust store's part moves in (from the store, or from the core it is attached to unless that core
+/// is another live world's), and the store the core held before goes back to holding its own. A
+/// store attached to another live world's core stays there, and so does anything else (a queue or
+/// a log held in Python): the world then holds none, and its rules reach the store through the
+/// world's attribute (`EventWriter::of`).
+fn attach<H: EventHandle>(
+    core: &Bound<'_, WorldCore>,
+    world: &Bound<'_, PyAny>,
+    value: Option<&Bound<'_, PyAny>>,
+) -> PyResult<()> {
+    let py = core.py();
+    let store = match value {
+        Some(value) if !value.is_none() => match value.getattr(intern!(py, "_store")) {
+            Ok(store) => store.downcast_into::<H>().ok(),
+            Err(_) => None,
+        },
+        _ => None,
+    };
+    let current = H::held_ref(&*core.try_borrow()?).as_ref().map(|current| current.clone_ref(py));
+    if let (Some(current), Some(store)) = (&current, &store) {
+        if current.is(store) {
+            return Ok(());
+        }
+    }
+    release::<H>(core)?;
+    let Some(store) = store else {
+        return Ok(());
+    };
+    let other = store.get().home().try_borrow().or_py()?.core(py);
+    if let Some(other) = other {
+        if other.bind(py).try_borrow()?.belongs_to_another(world) {
+            return Ok(());
+        }
+        release::<H>(other.bind(py))?;
+    }
+    let mut this = core.try_borrow_mut()?;
+    let mut home = store.get().home().try_borrow_mut().or_py()?;
+    if !matches!(&*home, Home::Own(_)) {
+        return Err(PyRuntimeError::new_err("a store let go of is still in a core"));
+    }
+    let Home::Own(own) = std::mem::replace(&mut *home, Home::Core(core.clone().unbind())) else {
+        unreachable!("checked above");
+    };
+    H::hold(&mut this.world, own.into_shared());
+    *H::held(&mut this) = Some(store.clone().unbind());
+    Ok(())
 }
 
 impl WorldCore {
@@ -1867,7 +2020,71 @@ impl WorldCore {
 impl WorldCore {
     #[new]
     fn new() -> Self {
-        Self { world: World::default(), mirrors: IndexMap::new(), store: None, txn: None }
+        Self { world: World::default(), mirrors: IndexMap::new(), store: None, txn: None, queue: None, log: None, owner: None }
+    }
+
+    /// Make this core `world`'s (`state_mirror.start_core`, and `owned_again` after a copy took a
+    /// world's place): it holds the world weakly, and when the world dies its objects go
+    /// (`owner_died`). The world's event queue and EventLog move in (`attach_events`), from a core
+    /// the world had before too.
+    fn adopt(slf: &Bound<'_, Self>, world: &Bound<'_, PyAny>) -> PyResult<()> {
+        let py = slf.py();
+        let core = PyWeakrefReference::new(slf.as_any())?.unbind();
+        let callback = PyCFunction::new_closure(py, None, None, move |args, _| -> PyResult<()> {
+            let py = args.py();
+            if let Some(core) = core.bind(py).upgrade_as::<WorldCore>()? {
+                WorldCore::owner_died(&core, &args.get_item(0)?);
+            }
+            Ok(())
+        })?;
+        let owner = PyWeakrefReference::new_with(world, callback)?.unbind();
+        let old = slf.try_borrow_mut()?.owner.replace(owner);
+        drop(old);
+        let state = world.getattr(intern!(py, "__dict__"))?;
+        let state = state.downcast::<PyDict>()?;
+        attach::<QueueStore>(slf, world, state.get_item(intern!(py, "event_queue"))?.as_ref())?;
+        attach::<EventStore>(slf, world, state.get_item(intern!(py, "event_log"))?.as_ref())
+    }
+
+    /// This core is no world's any more: a copy's core took the world's place (`owned_again`).
+    fn disown(&mut self) {
+        let old = self.owner.take();
+        drop(old);
+    }
+
+    /// `world.event_queue = value` or `world.event_log = value` of a world whose core this is
+    /// (`WorldState.__setattr__`): see `attach`.
+    fn attach_events(slf: &Bound<'_, Self>, world: &Bound<'_, PyAny>, name: &str, value: &Bound<'_, PyAny>) -> PyResult<()> {
+        match name {
+            "event_queue" => attach::<QueueStore>(slf, world, Some(value)),
+            "event_log" => attach::<EventStore>(slf, world, Some(value)),
+            _ => Err(PyValueError::new_err(format!("{name} is not an event field"))),
+        }
+    }
+
+    /// Whether the core holds the world's event queue and its EventLog (the stores its
+    /// `event_queue` and `event_log` hold now), which a transaction needs (`_txn_check`).
+    fn holds_events(&self, world: &Bound<'_, PyAny>) -> PyResult<(bool, bool)> {
+        let py = world.py();
+        let state = world.getattr(intern!(py, "__dict__"))?;
+        let state = state.downcast::<PyDict>()?;
+        let holds = |name: &Bound<'_, PyString>, held: Option<&Py<PyAny>>| -> PyResult<bool> {
+            let (Some(value), Some(held)) = (state.get_item(name)?, held) else {
+                return Ok(false);
+            };
+            Ok(value.getattr(intern!(py, "_store")).is_ok_and(|store| store.is(held)))
+        };
+        let queue = self.queue.as_ref().map(|store| store.clone_ref(py).into_any());
+        let log = self.log.as_ref().map(|store| store.clone_ref(py).into_any());
+        Ok((
+            self.world.queue_held && holds(intern!(py, "event_queue"), queue.as_ref())?,
+            self.world.log_held && holds(intern!(py, "event_log"), log.as_ref())?,
+        ))
+    }
+
+    /// Whether this core is `world`'s (`adopt`).
+    fn is_owned_by(&self, world: &Bound<'_, PyAny>) -> bool {
+        self.owned_by(world)
     }
 
     /// The handle of the world's entity rows (state/entities.rs).
@@ -1946,7 +2163,8 @@ impl WorldCore {
     /// design-p5-p6.md §7): a new core whose state shares every part with this one until either
     /// writes it (`World::fork`), a mirror of each slot with no tree yet, and an entity store
     /// whose objects are new, made from the rows in the order of the keys
-    /// (`EntityStore::fork_objects`). Returns the new core and its bound maps by the world's field
+    /// (`EntityStore::fork_objects`). Its queue and log come with the copies of the world's stores,
+    /// which `adopt` attaches. Returns the new core and its bound maps by the world's field
     /// name. None, with nothing made, while a transaction is open or when the objects are not all
     /// what the rows say (`EntityStore::fork_rows`): the world is then copied as before.
     fn fork<'py>(
@@ -1966,7 +2184,10 @@ impl WorldCore {
         };
         let (state, mirrors) = {
             let this = slf.try_borrow()?;
-            let state = this.world.fork().or_py()?;
+            let mut state = this.world.fork().or_py()?;
+            // The copy's queue and log come in with its stores (`adopt`): copies of the world's,
+            // which share the same parts.
+            drop((state.release_queue(), state.release_log()));
             let mirrors: Vec<(Arc<str>, usize, Py<RowType>)> = this
                 .mirrors
                 .iter()
@@ -1977,7 +2198,10 @@ impl WorldCore {
                 .collect();
             (state, mirrors)
         };
-        let core = Py::new(py, WorldCore { world: state, mirrors: IndexMap::new(), store: None, txn: None })?;
+        let core = Py::new(
+            py,
+            WorldCore { world: state, mirrors: IndexMap::new(), store: None, txn: None, queue: None, log: None, owner: None },
+        )?;
         let mut made = IndexMap::with_capacity(mirrors.len());
         for (name, index, row_type) in mirrors {
             let mirror = NamespaceMirror { core: core.clone_ref(py), index, name: name.clone(), row_type, tree: Shard::default() };
@@ -1997,6 +2221,9 @@ impl WorldCore {
         if let Some(open) = &self.txn {
             visit.call(&open.kept)?;
         }
+        visit.call(&self.queue)?;
+        visit.call(&self.log)?;
+        visit.call(&self.owner)?;
         Ok(())
     }
 
@@ -2004,7 +2231,72 @@ impl WorldCore {
         let mirrors = std::mem::take(&mut self.mirrors);
         let store = self.store.take();
         let txn = self.txn.take();
-        drop((mirrors, store, txn));
+        let events = (self.queue.take(), self.log.take(), self.owner.take());
+        drop((mirrors, store, txn, events));
+    }
+}
+
+/// What a world's core does that is not for Python (lane 6-5).
+impl WorldCore {
+    /// The stores of the world's queue and log, while this core holds them.
+    pub(crate) fn event_stores(&self, py: Python<'_>) -> (Option<Py<QueueStore>>, Option<Py<EventStore>>) {
+        (self.queue.as_ref().map(|store| store.clone_ref(py)), self.log.as_ref().map(|store| store.clone_ref(py)))
+    }
+
+    /// Whether this core is `world`'s: its weak reference is to `world`, which is alive.
+    pub(crate) fn owned_by(&self, world: &Bound<'_, PyAny>) -> bool {
+        self.owner.as_ref().and_then(|owner| owner.bind(world.py()).upgrade()).is_some_and(|owner| owner.is(world))
+    }
+
+    /// Whether this core is another world's, alive: a store attached here stays here when a world
+    /// other than `world` is given it (`attach`).
+    fn belongs_to_another(&self, world: &Bound<'_, PyAny>) -> bool {
+        self.owner
+            .as_ref()
+            .and_then(|owner| owner.bind(world.py()).upgrade())
+            .is_some_and(|owner| !owner.is(world))
+    }
+
+    /// The store of the world's queue goes back to holding its own queue, and the world holds none
+    /// (`_NativeEventQueue._leave_rust`).
+    pub(crate) fn release_queue(slf: &Bound<'_, Self>) -> PyResult<()> {
+        release::<QueueStore>(slf)
+    }
+
+    /// The world this core is died (the callback of `adopt`'s weak reference, `reference`): its
+    /// objects go. Each entity object and each map works on as a plain object with the values it
+    /// has, which are its row's (they follow the rows at every return to Python, rule R5), and the
+    /// stores of the queue and the log hold their own again, so a Python object of the world kept
+    /// by someone stays right and holds nothing of the core. A core a copy-and-swap gave to
+    /// another world since holds another reference, and nothing happens. While the core is
+    /// borrowed (a store or a mirror of it is in use), nothing happens either: the objects then
+    /// stay attached to a core that works as before.
+    fn owner_died(slf: &Bound<'_, Self>, reference: &Bound<'_, PyAny>) {
+        let py = slf.py();
+        let store = {
+            let Ok(mut this) = slf.try_borrow_mut() else {
+                return;
+            };
+            if !this.owner.as_ref().is_some_and(|owner| owner.is(reference)) {
+                return;
+            }
+            let owner = this.owner.take();
+            let txn = this.txn.take();
+            let store = this.store.as_ref().map(|store| store.clone_ref(py));
+            drop(this);
+            drop((owner, txn));
+            store
+        };
+        let released = (|| -> PyResult<()> {
+            if let Some(store) = store {
+                EntityStore::detach_all(store.bind(py))?;
+            }
+            release::<QueueStore>(slf)?;
+            release::<EventStore>(slf)
+        })();
+        if let Err(error) = released {
+            error.write_unraisable(py, Some(slf.as_any()));
+        }
     }
 }
 
@@ -2021,7 +2313,8 @@ pub(crate) fn core_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, Wor
 /// of design-p5-p6.md: a callback may have moved the world to another core) and holds the
 /// `WorldCore` exclusively while f runs (R2). A world without a core is Unsupported; a core
 /// borrowed already (a shim of this crate is reading a part of it) is `RuntimeError`, the text of a
-/// part borrowed twice.
+/// part borrowed twice; a core that is not the world's (`WorldCore::adopt`: a world whose
+/// `__dict__` was copied from another's, lane 6-5) is `RuntimeError(NOT_OWNER)`.
 pub(crate) struct PyWorldCell<'a, 'py>(pub(crate) &'a Bound<'py, PyAny>);
 
 impl WorldCell for PyWorldCell<'_, '_> {
@@ -2029,6 +2322,9 @@ impl WorldCell for PyWorldCell<'_, '_> {
         let core = core_of(self.0).map_err(|_| CoreError::unsupported("the world has no core"))?;
         let (result, flush) = {
             let mut held = core.try_borrow_mut().map_err(|_| CoreError::Runtime(BORROWED.to_owned()))?;
+            if !held.owned_by(self.0) {
+                return Err(CoreError::Runtime(NOT_OWNER.to_owned()));
+            }
             let result = f(&mut held.world);
             let flush = crate::state::entities::plan_flush(core.py(), held.world.entities.get_mut());
             let store = held.store.as_ref().map(|store| store.clone_ref(core.py()));

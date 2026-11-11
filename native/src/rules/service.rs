@@ -465,8 +465,7 @@ fn audit_row(
     let mut sequence = first;
     let event_id: Arc<str> = loop {
         let event_id: Arc<str> = Arc::from(format!("resource-{operation}-{sequence}"));
-        let past = writer.log().borrow();
-        if !(past.has_event_id(&event_id) || past.has_sequence(sequence) || writer.queue().borrow().has_event(&event_id)) {
+        if !writer.is_taken(&event_id, Some(sequence))? {
             break event_id;
         }
         sequence = sequence.checked_add(1).ok_or_else(|| Unsupported::new_err("a sequence past 64 bits"))?;
@@ -891,10 +890,7 @@ fn serve_one<'py>(
         return Err(id_is_taken()?);
     }
     // `_ensure_event_identity_free`.
-    let identity_taken = {
-        let past = writer.log().borrow();
-        past.has_event_id(&completion_id) || past.has_sequence(completion_sequence) || writer.queue().borrow().has_event(&completion_id)
-    };
+    let identity_taken = writer.is_taken(&completion_id, Some(completion_sequence))?;
     if identity_taken {
         let event = errors::repr_str(py, &completion_id)?;
         return Err(errors::invariant(format!("resource event identity {event} is not unique")));
@@ -2059,8 +2055,7 @@ fn interrupt_with<'py>(manager: &Manager<'py>, staff_id: &Bound<'py, PyAny>, cau
     let sequence = writer.next_sequence()?;
     let cancel_id: Arc<str> = Arc::from(format!("resource-service-cancel-{sequence}"));
     {
-        let past = writer.log().borrow();
-        if past.has_event_id(&cancel_id) || past.has_sequence(sequence) || writer.queue().borrow().has_event(&cancel_id) {
+        if writer.is_taken(&cancel_id, Some(sequence))? {
             return unsupported("the event's identity is taken");
         }
     }

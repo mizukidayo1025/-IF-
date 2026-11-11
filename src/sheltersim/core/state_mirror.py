@@ -1015,6 +1015,10 @@ ENTITY_FIELDS = {
 # from WorldState.__setattr__; one written past it (world.__dict__[name] = ...) is not seen.
 SCALAR_FIELDS = ("scenario_id", "seed", "duration_minutes", "minute_index", "schema_version")
 
+# The world's event queue and EventLog, whose events and records its core holds (lane 6-5 of Issue
+# #152): WorldCore.attach_events moves a Rust store's part into the core when one is assigned.
+EVENT_FIELDS = ("event_queue", "event_log")
+
 
 class _RowWatch:
     """A debug run's check of the entity rows against their objects at the end of each tick."""
@@ -1346,7 +1350,11 @@ def owned_row_bytes(
 
 
 def start_core(world: Any) -> None:
-    """Give a new world its core, and own what is listed. Only with the kernels on."""
+    """Give a new world its core, and own what is listed. Only with the kernels on.
+
+    The core is the world's alone (WorldCore.adopt): it holds a weak reference to the world, takes
+    in the world's event queue and EventLog, and lets the world's objects go when the world dies.
+    """
     core = native.world_core()
     state = world.__dict__
     state["_core"] = core
@@ -1356,6 +1364,18 @@ def start_core(world: Any) -> None:
     if OWNED_NAMESPACES:
         _attach_owned(world, core)
     _attach_fields(world, core)
+    core.adopt(world)
+
+
+def owned_again(world: Any, old_core: Any) -> None:
+    """After a copy took the world's place (its __dict__ swapped in), the copy's core is the
+    world's: it holds a weak reference to the world and the world's event queue and EventLog. The
+    core the world had before (old_core) belongs to no world any more."""
+    core = world.__dict__.get("_core")
+    if core is not None:
+        core.adopt(world)
+    if old_core is not None and old_core is not core:
+        old_core.disown()
 
 
 def model_state_assigned(world: Any, value: Any) -> Any:
@@ -1394,7 +1414,8 @@ def deepcopy_world(world: Any, memo: dict[int, Any]) -> Any:
     namespace its row alone holds stays so, with no tree. What no row holds (a tainted value, a
     value stored past the tree, a namespace of DETACHED_NAMESPACES that has its tree now) is
     copied as plain containers and owned again, as before, and so is every other attribute (the
-    event queue and the EventLog share their frozen events and records). A world its core does
+    event queue and the EventLog share their frozen events and records, and their parts until
+    either writes them; the copy's core holds them, WorldCore.adopt). A world its core does
     not all hold (a tainted entity store, a map stored past IdMap, an open transaction), or whose
     parts the memo holds already, is copied the old way: every attribute as plain containers,
     owned again by a new core. Both ways give the same state, order and types; a support request
@@ -1433,6 +1454,8 @@ def deepcopy_world(world: Any, memo: dict[int, Any]) -> Any:
     for name in SCALAR_FIELDS:
         new_core.set_scalar(name, copied.get(name))
     copied["_core"] = new_core
+    # The copy's core is the copy's, and holds the copies of the event queue and the EventLog.
+    new_core.adopt(result)
     return result
 
 
@@ -1634,8 +1657,10 @@ def transaction_or_copy(world: Any, kind: str, make_copy: Callable[[Any], Any]) 
         if target is not world:
             # The only copy-and-swap of a WorldState left in src/
             # (tests/unit/repo/test_world_swap_lint.py).
+            old_core = world.__dict__.get("_core")
             world.__dict__.clear()
             world.__dict__.update(target.__dict__)
+            owned_again(world, old_core)
 
 
 def _txn_check(world: Any) -> None:
@@ -1649,9 +1674,10 @@ def _txn_check(world: Any) -> None:
         raise native.Unsupported("model_state is not the table of the world's core")
     if any(type(key) is not str for key in dict.keys(table)):
         raise native.Unsupported("a key of model_state is not a str")
-    if not isinstance(getattr(state.get("event_queue"), "_store", None), _QueueStore):
+    queue_held, log_held = core.holds_events(world)
+    if not queue_held:
         raise native.Unsupported("the event queue is not held in Rust")
-    if not hasattr(getattr(state.get("event_log"), "_store", None), "txn_begin"):
+    if not log_held:
         raise native.Unsupported("the EventLog is not held in Rust")
     store = core.entities()
     if store.tainted is not None or store.zones_tainted is not None:
@@ -1717,17 +1743,16 @@ def _txn_canonicalized(world: Any, kept: dict[str, Any]) -> None:
         mirror = table._mirrors.get(key)
         if mirror is None or not mirror.has_row or not mirror.holds(held):
             plain[key] = _canonical_copy(held)
+    # The core put the queue in canonical order with the world, and its store follows (the objects
+    # by their new serials; native/src/core/txn.rs): an event with only an object gets the one read
+    # back from its canonical JSON. The EventLog is not reordered; the core's snapshot marks it.
     queue = state["event_queue"]._store
-    log = state["event_log"]._store
     events = [_canonical_event(event) for event in queue.object_only_events()]
 
     kept["state"] = dict(state)
     core.entities().txn_begin(world)
     kept["entities"] = True
     queue.txn_begin(events)
-    kept["queue"] = queue
-    log.txn_begin()
-    kept["log"] = log
     state["rng_state"] = rng_state
     roots: dict[str, Any] = {}
     kept["roots"] = roots
@@ -1776,10 +1801,6 @@ def _txn_restored(world: Any, kept: dict[str, Any]) -> None:
     txn_checks.unpoison(kept.pop("poisoned", None))
     state = world.__dict__
     core = state["_core"]
-    if "log" in kept:
-        kept["log"].txn_rollback()
-    if "queue" in kept:
-        kept["queue"].txn_rollback()
     if "entities" in kept:
         core.entities().txn_rollback(world)
     if "table" in kept:
@@ -1804,14 +1825,10 @@ def _txn_restored(world: Any, kept: dict[str, Any]) -> None:
 def _txn_committed(world: Any, kept: dict[str, Any]) -> None:
     """The transaction's writes stay: what it kept goes, and so does the tick's memo, as a world
     swapped in had none."""
-    kept["log"].txn_commit()
-    kept["queue"].txn_commit()
     world.__dict__["_core"].entities().txn_commit()
     world.__dict__.pop("_tick_memo", None)
     kept.clear()
 
-
-_QueueStore = native.state("events").QueueStore
 
 native.install_tracked_types(TrackedDict, TrackedList, NamespaceTable)
 native.install_id_map_type(IdMap)

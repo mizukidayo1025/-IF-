@@ -1161,7 +1161,7 @@ fn plan_journey(
     let task_active = rows.active_tasks.get(&journey.task_id).is_some();
     let queued = agent.activity == Activity::Queued;
     let trip_active = queued && queue_trip && task_active;
-    let pending = queue.has_event(&journey.event_id);
+    let pending = queue.has_event(py, &journey.event_id)?;
     if trip_active && !pending {
         return Ok(Step::Finish);
     }
@@ -1666,13 +1666,13 @@ pub(crate) fn advance_movement<'py>(world: &Bound<'py, PyAny>, minute: &Bound<'p
     let mut in_order_tools = None;
     let (replans, writes, queue_replans) = NamespaceMirror::with_row_tree::<MovementRow, _>(&mirror, |row, tree| {
         let plan = {
-            let held = queue.try_borrow()?;
+            let held = queue.get();
             EntityStore::with_rows(&store, |rows| {
-                if let Some(plan) = plan_walk(&scene, &held, row, rows, minute, staff_records, None)? {
+                if let Some(plan) = plan_walk(&scene, held, row, rows, minute, staff_records, None)? {
                     return Ok(plan);
                 }
                 let tools = (EventWriter::of(world)?, movement_of(world)?);
-                match plan_walk(&scene, &held, row, rows, minute, staff_records, Some(&tools))? {
+                match plan_walk(&scene, held, row, rows, minute, staff_records, Some(&tools))? {
                     Some(plan) => {
                         in_order_tools = Some((tools.0, metrics_of(world)?));
                         Ok(plan)
@@ -1686,7 +1686,7 @@ pub(crate) fn advance_movement<'py>(world: &Bound<'py, PyAny>, minute: &Bound<'p
         let mut old_events = Vec::with_capacity(queue_replans.len());
         if let Some((writer, _)) = &in_order_tools {
             for replan in &queue_replans {
-                match writer.queue().borrow_mut().row(py, &replan.event_id)? {
+                match writer.queue().get().row(py, &replan.event_id)? {
                     Some(row) => old_events.push(row),
                     None => return unsupported("the trip's event has no row"),
                 }
