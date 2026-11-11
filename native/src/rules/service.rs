@@ -14,6 +14,10 @@ use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBool, PyList, PySlice, PyString, PyTuple};
 
+use sheltersim_core::config::read;
+use sheltersim_core::config::service::ResourceService;
+
+use crate::core::configs;
 use crate::core::errors;
 use crate::core::mathx::py_max;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, map_set, unsupported, PyField};
@@ -24,7 +28,7 @@ use crate::rules::facility_queues::{
     choose_queue_id, has_independent, point_of, position_in, request_of_task, transition_row, with_queues, write_enqueue, write_finish, write_stall,
     write_start, write_transition,
 };
-use crate::rules::movement::KEY as MOVEMENT_KEY;
+use crate::rules::movement::{movement_of, KEY as MOVEMENT_KEY};
 use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::rules::queues::head_to_service;
 use crate::rules::resources::{apply_planned, Operation};
@@ -106,8 +110,22 @@ pub(crate) fn resource_of(kind: &str) -> Option<&'static str> {
 
 struct Manager<'py> {
     world: Bound<'py, PyAny>,
-    config: Bound<'py, PyAny>,
+    config: ServiceConfig<'py>,
     table: Bound<'py, PyAny>,
+}
+
+/// The manager's config: the Python manager's dict, or the copy of `model_configs["resource_service"]`
+/// that `ResourceServiceManager(world)` makes, from the section kept for the stamp.
+enum ServiceConfig<'py> {
+    Tree(Bound<'py, PyAny>),
+    Kept(Arc<IndexMap<Arc<str>, V>>),
+}
+
+/// The section `resource_service` of the world's configs (`config::service`), kept for the stamp
+/// of `model_configs`; a configs that is not a dict is refused here.
+#[track_caller]
+pub(crate) fn resource_service_of(world: &Bound<'_, PyAny>) -> PyResult<Arc<ResourceService>> {
+    configs::kept_value(world, |configs| &configs.resource_service, ResourceService::parse)
 }
 
 impl<'py> Manager<'py> {
@@ -119,44 +137,62 @@ impl<'py> Manager<'py> {
         exact_dict(&config)?;
         let table = attribute(&world, intern!(py, "model_state"))?;
         exact_dict(&table)?;
-        Ok(Self { world, config, table })
+        Ok(Self { world, config: ServiceConfig::Tree(config), table })
     }
 
     /// `ResourceServiceManager(world)`, which holds nothing else.
     fn of_world(world: &Bound<'py, PyAny>) -> PyResult<Self> {
         let py = world.py();
-        let configs = attribute(world, intern!(py, "model_configs"))?;
+        let service = resource_service_of(world)?;
         let table = attribute(world, intern!(py, "model_state"))?;
-        let Some(raw) = exact_dict(&configs)?.get_item(intern!(py, "resource_service"))? else {
+        if !service.present {
             return unsupported("no resource service");
-        };
+        }
         if exact_int(&attribute(world, intern!(py, "schema_version"))?)? != 6 || !exact_dict(&table)?.contains(intern!(py, "resource_service_v1"))? || !exact_dict(&table)?.contains(intern!(py, "resource_ledger_v1"))? {
             return unsupported("not an opted-in world");
         }
-        let config = pyo3::types::PyDict::new(py);
-        config.call_method1(intern!(py, "update"), (raw,))?;
-        Ok(Self { world: world.clone(), config: config.into_any(), table })
+        let config = match &service.config {
+            Some(config) => ServiceConfig::Kept(config.clone()),
+            // Not a dict: `dict(raw)` of the Python value, as before.
+            None => {
+                let configs = attribute(world, intern!(py, "model_configs"))?;
+                let raw = exact_dict(&configs)?.get_item(intern!(py, "resource_service"))?.ok_or_else(|| Unsupported::new_err("no resource service"))?;
+                let config = pyo3::types::PyDict::new(py);
+                config.call_method1(intern!(py, "update"), (raw,))?;
+                ServiceConfig::Tree(config.into_any())
+            }
+        };
+        Ok(Self { world: world.clone(), config, table })
+    }
+
+    /// A field of the config: the Python value, or the kept one.
+    fn field(&self, name: &Bound<'py, PyString>) -> PyResult<Field<'py, '_>> {
+        let found = match &self.config {
+            ServiceConfig::Tree(config) => exact_dict(config)?.get_item(name)?.map(Field::Tree),
+            ServiceConfig::Kept(config) => config.get(name.to_str()?).map(Field::Kept),
+        };
+        found.ok_or_else(|| Unsupported::new_err("the config lacks a field"))
     }
 
     fn text(&self, name: &Bound<'py, PyString>) -> PyResult<Arc<str>> {
-        let Some(value) = exact_dict(&self.config)?.get_item(name)? else {
-            return unsupported("the config lacks a field");
-        };
-        Ok(Arc::from(exact_str(&value)?))
+        match self.field(name)? {
+            Field::Tree(value) => Ok(Arc::from(exact_str(&value)?)),
+            Field::Kept(value) => configs::read(read::text(value).cloned()),
+        }
     }
 
     fn integer(&self, name: &Bound<'py, PyString>) -> PyResult<i64> {
-        let Some(value) = exact_dict(&self.config)?.get_item(name)? else {
-            return unsupported("the config lacks a field");
-        };
-        exact_int(&value)
+        match self.field(name)? {
+            Field::Tree(value) => exact_int(&value),
+            Field::Kept(value) => configs::read(read::int(value)),
+        }
     }
 
     fn float(&self, name: &Bound<'py, PyString>) -> PyResult<f64> {
-        let Some(value) = exact_dict(&self.config)?.get_item(name)? else {
-            return unsupported("the config lacks a field");
-        };
-        exact_float(&value)
+        match self.field(name)? {
+            Field::Tree(value) => exact_float(&value),
+            Field::Kept(value) => configs::read(read::float(value)),
+        }
     }
 
     /// `config["water_ml_per_service"]` or the meal's.
@@ -168,6 +204,11 @@ impl<'py> Manager<'py> {
     fn minute(&self) -> PyResult<i64> {
         exact_int(&attribute(&self.world, intern!(self.world.py(), "minute_index"))?)
     }
+}
+
+enum Field<'py, 'a> {
+    Tree(Bound<'py, PyAny>),
+    Kept(&'a V),
 }
 
 /// `metric_state[name] = metric_state.get(name, 0.0) + 1.0`.
@@ -360,9 +401,7 @@ fn water_is_blocked(table: &Bound<'_, PyAny>, facility_id: &str, zone_id: &str) 
 
 /// `physical_service_capacity`, for a facility's own queue.
 pub(crate) fn service_capacity(world: &Bound<'_, PyAny>, table: &Bound<'_, PyAny>, facility_id: &str, configured: i64) -> PyResult<i64> {
-    let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    if !exact_dict(table)?.contains(MOVEMENT_KEY)? || !exact_dict(&configs)?.contains(intern!(py, "facility_geometry"))? {
+    if !exact_dict(table)?.contains(MOVEMENT_KEY)? || !movement_of(world)?.has_geometry {
         return Ok(configured);
     }
     let geo = Geo::of(world)?;

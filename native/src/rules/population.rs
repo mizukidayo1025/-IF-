@@ -25,6 +25,9 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PySlice, PyString, PyTuple};
 use sha2::{Digest, Sha256};
 
+use sheltersim_core::config::overlay::OverlayRooms;
+
+use crate::core::configs;
 use crate::core::errors::{self, OrPy};
 use crate::core::mathx::py_min;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_int_text, exact_str, unsupported};
@@ -1330,6 +1333,33 @@ fn room_schema(config: &Bound<'_, PyAny>) -> PyResult<bool> {
     pyo3::types::PySet::new(py, [3, 4])?.contains(get(config, "schema_version")?)
 }
 
+/// `room_schema` of the overlay's config, as the section holds it: what it raised is raised again.
+fn rooms_schema(world: &Bound<'_, PyAny>, rooms: &OverlayRooms) -> PyResult<bool> {
+    match &rooms.room_schema {
+        Ok(schema) => Ok(*schema),
+        Err(fault) => Err(configs::raise(fault, || {
+            room_schema(&get_map(&attribute(world, intern!(world.py(), "model_configs"))?, "geometry_overlay")?)
+        })),
+    }
+}
+
+/// The section `overlay_rooms` as the arrivals read it, for the tests: whether the config is a
+/// dict, and its room schema for a dict.
+pub(crate) fn overlay_rooms_of(world: &Bound<'_, PyAny>) -> PyResult<(bool, bool)> {
+    let rooms = configs::kept_python(world, |configs| &configs.overlay_rooms, overlay_rooms)?;
+    Ok((rooms.is_dict, rooms.is_dict && rooms_schema(world, &rooms)?))
+}
+
+/// `model_configs.get("geometry_overlay", {})` as the arrivals read it: whether it is a dict, and
+/// for a dict `room_schema` of it or what that raised. The section `overlay_rooms`.
+fn overlay_rooms(world: &Bound<'_, PyAny>) -> PyResult<OverlayRooms> {
+    let py = world.py();
+    let config = get_map(&attribute(world, intern!(py, "model_configs"))?, "geometry_overlay")?;
+    let is_dict = is_dict(&config);
+    let room_schema = if is_dict { room_schema(&config).map_err(|error| configs::fault_of(py, &error)) } else { Ok(false) };
+    Ok(OverlayRooms { is_dict, room_schema })
+}
+
 /// The alternate zones of `queue_arrivals`, checked as the rule checks them.
 fn alternate_zones(zones: &Bound<'_, PyAny>, zone: &str, given: Option<&Bound<'_, PyAny>>) -> PyResult<Vec<Arc<str>>> {
     let py = zones.py();
@@ -1432,9 +1462,8 @@ fn plan_arrivals<'py>(
             Some(read_route(&found)?)
         }
     };
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let overlay_config = get_map(&configs, "geometry_overlay")?;
-    if !alternates.is_empty() && (!is_dict(&overlay_config) || !room_schema(&overlay_config)?) {
+    let rooms = configs::kept_python(world, |configs| &configs.overlay_rooms, overlay_rooms)?;
+    if !alternates.is_empty() && (!rooms.is_dict || !rooms_schema(world, &rooms)?) {
         return errors::failed(py, "alternate room admission requires geometry_overlay schema_version=3 or 4");
     }
     let count = match errors::int_not_bool(count)? {

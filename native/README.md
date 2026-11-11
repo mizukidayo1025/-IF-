@@ -58,7 +58,9 @@ Checkpoint document) and times them.
   the section of `facility_geometry` and `spatial_constraints`; `config/read.rs` reads a section
   from the configs as a `V` with the kernels' refusal texts, and `staff.rs`, `body.rs`,
   `information.rs`, `agent_dynamics.rs`, `environment.rs` and `proximity.rs` hold the sections of
-  lane 7-5b and their parses), `geometry.rs` (the floor plan
+  lane 7-5b and their parses; `movement.rs` (the movement model and the route capacities),
+  `queues.rs` (the two bundled queue policies), `overlay.rs`, `service.rs` and `population.rs`
+  those of lane 7-5a), `geometry.rs` (the floor plan
   `Geo`, its `Layout` and `Constraints`, the geometry of `domain/movement.py`, and `GeoCache`, the
   plans one `Configs` keeps by the overlay's stamp, then by the bytes of its moves and partitions).
   The files
@@ -136,8 +138,10 @@ Checkpoint document) and times them.
   `parse_configs(&World, parse)`); a section a
   Python contract parses (`create_*_formula`, `InformationSpreadConfig.from_mapping`,
   `canonical_proximity_contact_config`, the pydantic zone environment and infrastructure specs)
-  keeps the typed values the core defines. `config_section(world, name)` reads a section through
-  its read site's accessor, for the tests. `watch_config_writes(True)` counts the writes to a
+  keeps the typed values the core defines; a section a Python expression of the configs gives
+  (`.get` chains, a truth value, `in {3, 4}`) is kept with `kept_python`, which raises what the
+  expression raised by evaluating it again. `config_section(world, name, key=None)` reads a section
+  through its read site's accessor, and `config_parses()` counts the parses, for the tests. `watch_config_writes(True)` counts the writes to a
   `model_configs` tree in place inside a tick phase (`config_writes_in_tick()`); the all-path gate
   turns it on and reports any. While it counts, a geometry plan found by the overlay's stamp is
   also checked against the overlay held now (`stale_geometry_hits()`, also reported by the gate).

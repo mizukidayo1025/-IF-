@@ -15,6 +15,7 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 
+use crate::core::configs;
 use crate::core::errors;
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, unsupported};
 use crate::core::world_core::{state_value, with_state_value};
@@ -755,11 +756,20 @@ enum Plan {
     Reunite { zone: Arc<str> },
 }
 
+/// Whether `model_configs.get("layout_routing", {}).get("max_agents_in_transit_by_edge", {})` is
+/// truthy: the section `transit_capacities`, kept for the stamp of `model_configs`.
+pub(crate) fn transit_capacities_of(world: &Bound<'_, PyAny>) -> PyResult<bool> {
+    Ok(*configs::kept_python(world, |configs| &configs.transit_capacities, transit_capacities)?)
+}
+
+fn transit_capacities(world: &Bound<'_, PyAny>) -> PyResult<bool> {
+    let configs = attribute(world, intern!(world.py(), "model_configs"))?;
+    get_map(&get_map(&configs, "layout_routing")?, "max_agents_in_transit_by_edge")?.is_truthy()
+}
+
 fn plan_relocation(candidate: &Bound<'_, PyAny>, row: &EventRow, agent_id: &Arc<str>, from_zone: &Arc<str>, destination: &Arc<str>) -> PyResult<Box<PlannedRoute>> {
     let py = candidate.py();
-    let configs = attribute(candidate, intern!(py, "model_configs"))?;
-    let capacities = get_map(&get_map(&configs, "layout_routing")?, "max_agents_in_transit_by_edge")?;
-    if capacities.is_truthy()? {
+    if transit_capacities_of(candidate)? {
         return unsupported("passage capacities read every trip under way");
     }
     const NO_ROUTE: &str = "no accessible, physically clear relocation route is available";

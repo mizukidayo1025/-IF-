@@ -100,6 +100,7 @@ pub(crate) fn kept<T>(
     let configs = current(world)?;
     let lazy = section(&configs);
     if lazy.get().is_none() {
+        PARSES.fetch_add(1, Ordering::Relaxed);
         // A parse that fails to run at all (no configs, a borrow) raises here, as it did.
         let parsed = parse()?;
         let _ = lazy.get_or_parse(|| parsed);
@@ -109,6 +110,15 @@ pub(crate) fn kept<T>(
         Some(Section::Fault(fault)) => Err(fault.clone()),
         Some(Section::Absent) | None => Err(Fault::refused("the configs have no such section")),
     })
+}
+
+static PARSES: AtomicU64 = AtomicU64::new(0);
+
+/// How many sections `kept` has parsed in this process, for the tests: a read that finds its
+/// section kept for the stamp adds nothing.
+#[pyfunction]
+pub(crate) fn config_parses() -> u64 {
+    PARSES.load(Ordering::Relaxed)
 }
 
 /// `kept` for a section parsed from the model selection too (`selection`): while a test has patched
@@ -175,6 +185,22 @@ pub(crate) fn kept_value<T>(
     match kept(world, section, || parsed_value(world, parse))? {
         Ok(value) => Ok(value),
         Err(fault) => read(Err(fault)),
+    }
+}
+
+/// A section that a Python expression of the configs gives (`parse`, on the world), evaluated at
+/// the first read after the stamp changed and kept: its value, or what it raised, raised here again
+/// by a second evaluation, with Python's own class and text (policy E14).
+#[track_caller]
+pub(crate) fn kept_python<T>(
+    world: &Bound<'_, PyAny>,
+    section: fn(&Configs) -> &Lazy<T>,
+    parse: impl Fn(&Bound<'_, PyAny>) -> PyResult<T>,
+) -> PyResult<Arc<T>> {
+    let py = world.py();
+    match kept(world, section, || Ok(parsed(py, parse(world))))? {
+        Ok(value) => Ok(value),
+        Err(fault) => Err(raise(&fault, || parse(world))),
     }
 }
 
@@ -268,6 +294,41 @@ pub(crate) fn config_section<'py>(
             Some(config) => (&*config.policy_version, read(config.max_distance_m.clone())?).into_bound_py_any(py),
             None => Ok(py.None().into_bound(py)),
         },
+        // ---- Lane 7-5a: `key` names a person or a policy where a section has several.
+        "movement" => {
+            let movement = crate::rules::movement::movement_of(world)?;
+            let model = read(movement.model.clone())?;
+            let speeds = (model.independent, model.assisted, model.wheelchair, model.density_slowdown, model.maximum_slowdown);
+            (movement.has_model, movement.has_geometry, speeds).into_bound_py_any(py)
+        }
+        "route_capacities" => {
+            match &*kept_value(world, |configs| &configs.route_capacities, sheltersim_core::config::movement::RouteCapacities::parse)? {
+                Some(routing) => {
+                    let mut capacities = Vec::with_capacity(routing.capacities.len());
+                    for (edge, capacity) in &routing.capacities {
+                        capacities.push((&**edge, read(capacity.clone())?));
+                    }
+                    capacities.into_bound_py_any(py)
+                }
+                None => Ok(py.None().into_bound(py)),
+            }
+        }
+        "transit_capacities" => crate::rules::population_lifecycle::transit_capacities_of(world)?.into_bound_py_any(py),
+        "facility_queues" => crate::rules::queues::policy_text(world)?.into_bound_py_any(py),
+        "overlay_schema" => crate::rules::overlay::overlay_schema(world)?.into_bound_py_any(py),
+        "overlay_rooms" => crate::rules::population::overlay_rooms_of(world)?.into_bound_py_any(py),
+        "resource_service" => {
+            let service = crate::rules::service::resource_service_of(world)?;
+            let skills = read(service.skills.clone())?;
+            let keys: Option<Vec<&str>> = service.config.as_ref().map(|config| config.keys().map(|key| &**key).collect());
+            (service.present, keys, skills.water.as_deref(), skills.meal.as_deref()).into_bound_py_any(py)
+        }
+        "accessibility_needs" => {
+            let needs = kept_value(world, |configs| &configs.accessibility_needs, sheltersim_core::config::population::AccessibilityNeeds::parse)?;
+            let needs: Vec<&str> = read(needs.of(key.unwrap_or_default()))?.iter().map(|need| &**need).collect();
+            needs.into_bound_py_any(py)
+        }
+        "extensions_enabled" => crate::rules::world_view::extensions_enabled_of(world)?.into_bound_py_any(py),
         _ => Err(pyo3::exceptions::PyKeyError::new_err(name.to_owned())),
     }
 }
