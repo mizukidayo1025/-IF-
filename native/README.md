@@ -66,7 +66,14 @@ Checkpoint document) and times them.
   `metrics.rs`, the columns of `MetricSnapshot`, and `kit.rs`, the helpers the rules share —
   events as rows written through `Events` to the world's queue, log and event counter, metric
   counts, a person's activity, the readers of payloads and of a few namespaces, `place_in_bed`,
-  `check_waiting_for_admission` with the rules it still asks through `Admission`, and `Counts`;
+  `check_waiting_for_admission` with the rules it still asks through `Admission`, `Counts`, `Held`
+  (whether the Python world holds a namespace, which the PyO3 crate reads and a kernel says
+  where it reads the namespace) and `kit/movement.rs` (what the queues ask of the movement rules:
+  the queue slots, the walk to a facility, the minutes of a walk in a room, `Changes` of the row
+  of `movement_v1` and `plan_start`; lane c1); `facility_queues.rs`, the independent FIFO of each
+  service point on the row of `facility_queues_v1`, and `queues.rs`, a facility's physical queue
+  (`prepare_facility_queue`, the walks to the queue's places and to service, those who give up),
+  which write the rows alone (lane c1);
   the file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4 and P8-0a),
   `text.rs` (`casefold`, CPython 3.12's full fold from a generated table, `text/casefold.rs`
   by `tools/casefold_table.py`, tested at every code point against `tests/data/casefold.txt`;
@@ -212,8 +219,10 @@ Checkpoint document) and times them.
 - `src/state/population.rs`: the `V` row of `population_presence_v1`, `population_lifecycle_v1`,
   `population_dynamics_v1`, `temporary_spaces_v1`, `geometry_overlay_v1` and `model_configs`
   (`docs/rust-port/lanes/m6-population.md`).
-- `src/state/facility_queues.rs`: the typed row of `facility_queues_v1`. The rules read it and write
-  through the tree (`docs/rust-port/lanes/m6-overlay.md`).
+- `src/state/facility_queues.rs`: the Python side of the row of `facility_queues_v1` (the row and its
+  rules are the core's): whether the world holds it, and the readers the service, movement and tick
+  rules call while they hold other borrows (`with_queues`, `read_fifo`, the records as Python
+  documents). The core's kernels write the row alone, and an attached tree follows it (lane P8-0c).
 - `src/rules/population.rs`, `src/rules/population_lifecycle.rs`: the rules of `domain/population.py`
   and `domain/population_lifecycle.py`, each `kernel_only`. A kernel plans, refuses before
   its first write what the Python rule raised on, then writes with the rule's operations on the
@@ -320,8 +329,9 @@ are correctly rounded everywhere, and not `**` with a float.
 - `rules/overlay.rs`: `domain/temporary_spaces.py` and the rules of `domain/geometry_overlay.py`:
   capacity, beds and room intake, placing an installed facility, checking and applying a floor-plan
   change, and the checks of both states. `rules/effects.rs` and `rules/proposals.rs` call it directly.
-- `rules/facility_queues.rs`: `domain/facility_queues.py`. `rules/queues.rs` and `rules/service.rs`
-  serve an independent FIFO through it.
+- `rules/facility_queues.rs`: `domain/facility_queues.py`, the glue of
+  `core/src/rules/facility_queues.rs`. `rules/queues.rs` and `rules/service.rs` serve an
+  independent FIFO through it.
 - `rules/effects.rs`: the rules of an EffectProgram's events: the guard, the five handlers of
   `events/effects.py`, the two reads of modifier stacks and `validate_effect_program_state`. A
   handler changes the world in a rule transaction (`rules/transaction.rs`). `model_validate` and
@@ -446,7 +456,8 @@ are correctly rounded everywhere, and not `**` with a float.
   `_replan_staff_support_trip` (`src/rules/replan.rs`). It writes each person's stop before it plans
   their new route, so `Unsupported` comes only before the first person's stop (lane L10: the step
   has no Python body, so any refusal is `KernelRefusal`).
-- `rules.queues`: a facility's physical queue (`src/rules/queues.rs`):
+- `rules.queues`: a facility's physical queue (`src/rules/queues.rs`, the glue of
+  `core/src/rules/queues.rs`):
   `prepare_facility_queue(world, facility_id, *, resource, minute)`,
   `progress_physical_queue_positions` and `progress_physical_queue_head_to_service` (same
   arguments, optional `queue_id`). `domain/queueing.py` and `domain/movement.py` call them through
