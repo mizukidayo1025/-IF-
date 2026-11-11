@@ -6,7 +6,7 @@
 //! the entity store makes from it, and the attached trees follow their rows when the world is
 //! given back. The contracts of the inputs go through the native host (`Host::contract`, policy
 //! E15). What stays here: putting a new `population_dynamics_v1` into `model_state` (a new slot),
-//! and settling the pending events a departure cancels (the queue keeps their Python objects).
+//! and letting go the Python objects of the events a departure settled (`QueueStore::forget`).
 //!
 //! The helpers past the glue are what `rules/population_lifecycle.rs` still reads through Python
 //! (lane c7 moves them with that file).
@@ -158,12 +158,7 @@ impl PopulationIn {
 /// Makes a row of each pending event the queue holds as a Python object, for a rule that reads
 /// the pending events as rows: an object that is no row stays as it is, and the rule refuses.
 fn fill_rows(world: &Bound<'_, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    let writer = EventWriter::of(world)?;
-    for id in writer.queue().get().pending_ids(py, None)? {
-        let _ = writer.queue().get().row(py, &id);
-    }
-    Ok(())
+    crate::rules::travel::read_queue_rows(world)
 }
 
 /// A kernel that reads the pending events as rows: where it finds an event that has none, the
@@ -489,16 +484,10 @@ pub(crate) fn departures<'py>(
             selected
         }
     };
-    let cancels = writing(read.run(world, |cell, inputs| core::write_departures(cell, inputs, &row, &selected)))?;
-    writing((|| {
-        // `_cancel_agent_events`: the queue keeps the Python objects, so the settling is here.
-        let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
-        let writer = EventWriter::of(world)?;
-        for (event, detail) in &cancels {
-            writer.settle(event, minute, EventStatus::Suppressed, Some(detail))?;
-        }
-        Ok(())
-    })())?;
+    let queue = EventWriter::of(world)?.queue().clone();
+    let taken = writing(read.run(world, |cell, inputs| core::write_departures(cell, inputs, &row, &selected)))?;
+    // The objects of the events the departures settled on the world's queue.
+    writing(queue.get().forget(&taken))?;
     let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
     // Written, so nothing can fall back from here: the plan checked the waiting.
     writing(admit_inner(world, minute))?;

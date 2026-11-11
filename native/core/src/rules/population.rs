@@ -21,9 +21,7 @@
 //! routes of the facility geometry. The pydantic contracts of the inputs (`PersonTraits`,
 //! `DynamicArrivalPersonContext`, `PopulationSpec`; policy E15) go through `Host::contract`. A new
 //! `population_dynamics_v1` is made here and put into `model_state` by the PyO3 crate before the
-//! first write (a namespace a Run doesn't have yet has no slot). The pending events a departure
-//! cancels are settled by the PyO3 crate (`Departed::cancels`), which keeps the Python objects of
-//! the queue.
+//! first write (a namespace a Run doesn't have yet has no slot).
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -37,7 +35,7 @@ use crate::config::geometry::ApproachRoute;
 use crate::entities::{Activity, AgentRow, Entities, Mobility, NeedRow, ProfileRow};
 use crate::error::{Error, Result};
 use crate::events::writer::WriteError;
-use crate::events::{is_stable_id, EventKind, EventRow};
+use crate::events::{is_stable_id, EventKind, EventRow, EventStatus};
 use crate::geometry::{Geo, Pt};
 use crate::host::{Contract, ErrorClass, Host, HostFailure};
 use crate::json::Encoder;
@@ -2538,7 +2536,7 @@ fn plan_departures_in(world: &World, inputs: &Inputs, row: &EventRow, new_state:
 }
 
 /// An event to settle as SUPPRESSED, with its detail.
-pub type Cancel = (Arc<EventRow>, String);
+type Cancel = (Arc<EventRow>, String);
 
 fn event_names_agent(row: &EventRow, agent_id: &str) -> bool {
     ["agent_id", "sender_agent_id", "recipient_agent_id", "participant_agent_id"]
@@ -2676,14 +2674,16 @@ fn needs_value(needs: &NeedRow) -> V {
     ]))
 }
 
-/// Where the cancellations of a departure are gathered.
+/// The pending events as the departures found them, those already settled, and the serials of the
+/// queue's slots taken out, whose Python objects the PyO3 crate lets go (`QueueStore::forget`).
 struct Cancels<'a> {
     pending: &'a [Arc<EventRow>],
     taken: HashSet<Arc<str>>,
-    found: Vec<Cancel>,
+    serials: Vec<u64>,
 }
 
-/// `_depart_agent`: the person's events to cancel are gathered.
+/// `_depart_agent`, with `_cancel_agent_events` settling the person's events on the world's queue
+/// and log (SUPPRESSED, with its detail).
 fn write_departure(world: &World, inputs: &Inputs, agent_id: &Arc<str>, row: &EventRow, cancels: &mut Cancels<'_>) -> Result<()> {
     let agent = world.rows()?.agents.get(agent_id).cloned().ok_or_else(|| Error::Key(agent_id.to_string()))?;
     overlay::release(world, &inputs.namespaces.overlay, "bed_reservations", Some(agent_id))?;
@@ -2708,7 +2708,16 @@ fn write_departure(world: &World, inputs: &Inputs, agent_id: &Arc<str>, row: &Ev
         list_mut(field_mut(&mut state.0, "departures")?)?.push(departure);
     }
     let withdrawn = remove_information_state(world, inputs, agent_id)?;
-    cancels_of(cancels.pending, &mut cancels.taken, agent_id, &withdrawn, &mut cancels.found);
+    let mut found = Vec::new();
+    cancels_of(cancels.pending, &mut cancels.taken, agent_id, &withdrawn, &mut found);
+    if !found.is_empty() {
+        let events = Events::of(world)?;
+        let minute = world.minute_index()?;
+        for (event, detail) in &found {
+            let settled = events.settle(event, minute, EventStatus::Suppressed, Some(detail)).map_err(plain)?;
+            cancels.serials.extend(settled.taken);
+        }
+    }
     if typed_of::<ServiceRow>(world, RESOURCE_SERVICE, &inputs.namespaces.resource_service)?.is_some() {
         let mut service = world.row_mut::<ServiceRow>(RESOURCE_SERVICE)?;
         service.request_history.retain(|item| item.agent_id != *agent_id);
@@ -2749,14 +2758,14 @@ fn write_departure(world: &World, inputs: &Inputs, agent_id: &Arc<str>, row: &Ev
 }
 
 /// The writes of `queue_departures`, once the PyO3 crate has put a new state in: the people leave,
-/// and the counts. What follows is the PyO3 crate's: it settles the cancelled events, in this
-/// order, and then `admit_pending` runs.
-pub fn write_departures(world: &World, inputs: &Inputs, row: &EventRow, selected: &[Arc<str>]) -> Result<Vec<Cancel>> {
+/// their pending events are settled, and the counts. Gives the serials of the queue's slots taken
+/// out; `admit_pending` follows.
+pub fn write_departures(world: &World, inputs: &Inputs, row: &EventRow, selected: &[Arc<str>]) -> Result<Vec<u64>> {
     let pending: Vec<Arc<EventRow>> = {
         let queue = world.queue()?;
         queue.ordered().iter().filter_map(|(_, serial)| queue.slot(*serial).row.clone()).collect()
     };
-    let mut cancels = Cancels { pending: &pending, taken: HashSet::new(), found: Vec::new() };
+    let mut cancels = Cancels { pending: &pending, taken: HashSet::new(), serials: Vec::new() };
     for agent_id in selected {
         write_departure(world, inputs, agent_id, row, &mut cancels)?;
     }
@@ -2766,7 +2775,7 @@ pub fn write_departures(world: &World, inputs: &Inputs, row: &EventRow, selected
         list_of(field(&state.0, "pending_arrivals")?)?.len()
     };
     set_metric(world, "population_waiting_count", waiting as f64)?;
-    Ok(cancels.found)
+    Ok(cancels.serials)
 }
 
 // ---- `validate_population_dynamics_state` --------------------------------------------------------

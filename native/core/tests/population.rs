@@ -530,7 +530,7 @@ fn departure_args(count: i64, include_initial: bool) -> DepartureArgs {
 }
 
 #[test]
-fn departures_take_the_initial_people_and_cancel_their_events() {
+fn departures_take_the_initial_people_and_settle_their_events() {
     let cell = Shard::new(world());
     let inputs = inputs();
     let mut host = TestHost::default();
@@ -562,11 +562,11 @@ fn departures_take_the_initial_people_and_cancel_their_events() {
     for (id, agent) in [("for-a1", "a1"), ("for-a2", "a2")] {
         assert!(events.schedule(named(id, agent)).is_ok());
     }
-    let cancels = population::write_departures(&world, &inputs, &event, &selected).unwrap();
-    assert_eq!(cancels.iter().map(|(row, detail)| (row.event_id.to_string(), detail.clone())).collect::<Vec<_>>(), [(
-        "for-a1".to_owned(),
-        "Agent a1 departed before the event was due".to_owned()
-    )]);
+    let taken = population::write_departures(&world, &inputs, &event, &selected).unwrap();
+    // The event that names a1 leaves the queue and is recorded SUPPRESSED; the other stays.
+    assert_eq!(taken.len(), 1);
+    assert_eq!(world.queue().unwrap().pending_ids(None), [text("for-a2")]);
+    assert!(world.log().unwrap().has_event_id("for-a1"));
     assert_eq!(agent_ids(&world), ["a2"]);
     let dynamics = state(&world, DYNAMICS);
     let V::List(departures) = get(&dynamics, &["departures"]) else { panic!("a list") };
