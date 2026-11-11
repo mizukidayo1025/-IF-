@@ -83,9 +83,11 @@ Checkpoint document) and times them.
   (lane P8 a2): `agent_dynamics.rs`, `action_lifecycle.rs` (with `ActiveActions`, a controller's
   open actions as rows, kept in its `Run`), `body_state.rs`, `social_network.rs` and
   `social_dialogue.rs`, which read and write the slot rows alone and take an event as its fields
-  and the payload's fields they read, as a `V`;
+  and the payload's fields they read, as a `V`; `world_view.rs`, the phases' view (`ViewData`, its
+  audit hash, misinformation, stressors, the facilities' event context) from the rows, with
+  `person_context.rs` and `zone_environment.rs`, and the `ViewCache` the `Run` keeps (lane P8 a1);
   the file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4, P8-0a, c1,
-  P8b-1 and P8 a2),
+  P8b-1, P8 a2 and P8 a1),
   `text.rs` (`casefold`, CPython 3.12's full fold from a generated table, `text/casefold.rs`
   by `tools/casefold_table.py`, tested at every code point against `tests/data/casefold.txt`;
   `g_text`, `format(value, "g")`),
@@ -410,16 +412,22 @@ are correctly rounded everywhere, and not `**` with a float.
   `movement_v1` row, or of its tree when the row is tainted. `sample_of` gives the pairs alone.
 - `rules/world_view.rs`: `view_after_movement(controller, world)` and
   `view_for_proposals(controller, world, minute)` are the two steps of the phases that make a
-  `WorldView`, which have no Python body (`KERNEL_ONLY_SEGMENTS`). A snapshot of plain Rust values (`ViewData`) is built from the entity rows, the rows of
-  `information_spread_v1` and `psychological_distress_v1`, and a read of the namespaces Python still
-  owns. It is what the Python rule `WorldView.from_world` provided before it went (lane L10), with
-  the same audit hash
-  (`state_hash`, which writes the canonical document from the snapshot). The returned `WorldView`
+  `WorldView`, which have no Python body (`KERNEL_ONLY_SEGMENTS`). They are glue (lane P8 a1): the
+  core's `rules/world_view.rs` builds a snapshot of plain Rust values (`ViewData`) from the entity
+  rows and the slot rows (`information_spread_v1`, `psychological_distress_v1`, `body_state_v1`,
+  `staff_operations_v1` typed; `operational_events_v1`, `infrastructure_v1`,
+  `population_context_v1`, `population_dynamics_v1`, `population_presence_v1`,
+  `zone_environment_v1` and `model_configs` as `V`), and writes the audit hash (`state_hash`) as the
+  Python rule `WorldView.from_world` did before it went (lane L10). The glue gathers what only Python
+  has: `selected_models`, the configs while `world.model_configs` was assigned whole, and
+  `simulator_extensions.enabled`. The returned `WorldView`
   makes `agents`, `facilities`, `zone_members` and `group_members` when a Python reader first asks
   (`RustView.python_fields`, through `WorldView.__getattr__`). A person's context comes from
-  `rules/person_context.rs` (`PersonContext`) and a zone's conditions from
-  `rules/zone_environment.rs` (`zone_environment_view` and its 8 formulas), each kept while its
-  document stays equal. `selected_models` stays the Python contract. A value a typed field can't hold, or anything Python would raise on, says
+  the core's `rules/person_context.rs` (`PersonContext`) and a zone's conditions from
+  `rules/zone_environment.rs` (`zone_environment_view` and its 8 formulas), kept in the controller's
+  `Run` (`Run::views`) while the stamps of the slots they were read from stay the same; the
+  people's IDs as Python strings are kept on `RunCore`. A holder without `_run_core` keeps nothing.
+  A tainted namespace, a value a typed field can't hold, or anything Python would raise on, says
   `Unsupported`, and the step raises KernelRefusal. `view_of(view)` gives a kernel the snapshot; for a view Python
   made it reads the fields the update kernels read and sets `partial`. Nothing refuses a partial
   view for a rule: a rule that reads other fields must check `partial` and say `Unsupported`.
