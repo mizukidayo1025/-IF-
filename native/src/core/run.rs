@@ -113,14 +113,40 @@ fn resolves(kind: &Bound<'_, PyType>, module: &str, qualname: &str) -> PyResult<
     Ok(found.is(kind))
 }
 
-/// A value as a `Held`: an object its spec reads, a plain JSON value, a str subclass's text, or an
-/// opaque value.
-fn held_of(value: &Bound<'_, PyAny>, spec: Option<&'static Spec>) -> Held {
+/// The steps of the controller a method bound to it may be (`Held::Method`): the service's route
+/// and trip (lane b3).
+const STEPS: [&str; 2] = ["_route", "_schedule_staff_support_travel"];
+
+/// The name of the controller's step this function is, as the driver installed it on
+/// `OfflineSimulationController` (`segments.py`, at the import of `experiments/runner.py`): None
+/// for any other function. No module is imported here.
+pub(crate) fn installed_step(function: &Bound<'_, PyAny>) -> Option<&'static str> {
+    let py = function.py();
+    let modules = py.import(intern!(py, "sys")).ok()?.getattr(intern!(py, "modules")).ok()?;
+    let runner = modules.downcast::<PyDict>().ok()?.get_item("sheltersim.experiments.runner").ok()??;
+    let class = runner.getattr(intern!(py, "OfflineSimulationController")).ok()?;
+    let own = class.getattr(intern!(py, "__dict__")).ok()?;
+    STEPS.into_iter().find(|step| own.get_item(*step).is_ok_and(|installed| installed.is(function)))
+}
+
+/// `value.__self__ is root` and the name of the installed step its `__func__` is.
+fn method_of(value: &Bound<'_, PyAny>, root: &Bound<'_, PyAny>) -> Option<&'static str> {
+    let py = value.py();
+    let owner = value.getattr(intern!(py, "__self__")).ok()?;
+    if !owner.is(root) {
+        return None;
+    }
+    installed_step(&value.getattr(intern!(py, "__func__")).ok()?)
+}
+
+/// A value as a `Held`: an object its spec reads, a plain JSON value, a str subclass's text, a
+/// method of `root` that is its installed step, or an opaque value.
+fn held_of(value: &Bound<'_, PyAny>, spec: Option<&'static Spec>, root: &Bound<'_, PyAny>) -> Held {
     if value.is_none() {
         return Held::Value(V::Null);
     }
     if let Some(spec) = spec {
-        return Held::Object(Arc::new(read_object(value, spec)));
+        return Held::Object(Arc::new(read_object(value, spec, root)));
     }
     if let Some(plain) = plain_of(value, 0) {
         return Held::Value(plain);
@@ -129,6 +155,9 @@ fn held_of(value: &Bound<'_, PyAny>, spec: Option<&'static Spec>) -> Held {
         if let Ok(text) = text.to_str() {
             return Held::Text(Arc::from(text));
         }
+    }
+    if let Some(step) = method_of(value, root) {
+        return Held::Method(Arc::from(step));
     }
     Held::Opaque { callable: value.is_callable() }
 }
@@ -175,13 +204,14 @@ pub(crate) fn plain_of(value: &Bound<'_, PyAny>, depth: usize) -> Option<V> {
     None
 }
 
-/// What a spec reads of an object; what a read raised is kept as its fault.
-fn read_object(object: &Bound<'_, PyAny>, spec: &'static Spec) -> Obj {
+/// What a spec reads of an object; what a read raised is kept as its fault. `root` is the object
+/// the Run read, whose methods a value may be (`Held::Method`).
+pub(crate) fn read_object(object: &Bound<'_, PyAny>, spec: &'static Spec, root: &Bound<'_, PyAny>) -> Obj {
     let py = object.py();
     let mut found = Obj::new(class_of(object));
     let mut attrs = IndexMap::with_capacity(spec.attrs.len());
     for attr in spec.attrs {
-        let read = object.getattr(attr.name).map(|value| held_of(&value, attr.spec)).map_err(|error| fault_of(py, &error));
+        let read = object.getattr(attr.name).map(|value| held_of(&value, attr.spec, root)).map_err(|error| fault_of(py, &error));
         attrs.insert(Arc::from(attr.name), read);
     }
     if spec.fields {
@@ -191,7 +221,7 @@ fn read_object(object: &Bound<'_, PyAny>, spec: &'static Spec) -> Obj {
                     continue;
                 };
                 if !attrs.contains_key(key.as_str()) {
-                    attrs.insert(Arc::from(key.as_str()), Ok(held_of(&value, None)));
+                    attrs.insert(Arc::from(key.as_str()), Ok(held_of(&value, None, root)));
                 }
             }
         }
@@ -201,7 +231,7 @@ fn read_object(object: &Bound<'_, PyAny>, spec: &'static Spec) -> Obj {
         if let Ok(own) = object.get_type().getattr(intern!(py, "__dict__")) {
             for name in spec.class_own {
                 if let Ok(value) = own.get_item(*name) {
-                    found.class_own.insert(Arc::from(*name), held_of(&value, None));
+                    found.class_own.insert(Arc::from(*name), held_of(&value, None, root));
                 }
             }
         }
@@ -211,7 +241,7 @@ fn read_object(object: &Bound<'_, PyAny>, spec: &'static Spec) -> Obj {
 
 /// The policies of a controller, read now.
 fn read_policies(controller: &Bound<'_, PyAny>) -> Policies {
-    Policies::of(Arc::new(read_object(controller, &CONTROLLER)))
+    Policies::of(Arc::new(read_object(controller, &CONTROLLER, controller)))
 }
 
 impl RunCore {

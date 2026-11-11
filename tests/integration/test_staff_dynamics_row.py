@@ -42,6 +42,7 @@ from sheltersim.domain.staff_dynamics import (
     update_staff_dynamics,
     validate_staff_dynamics_state,
 )
+from sheltersim.domain.staff_operations import _idle_record
 from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
@@ -447,18 +448,38 @@ def test_a_world_of_another_class_without_the_namespace_is_answered() -> None:
 # ---- The readers ----
 
 
+def _operation(phase: str) -> dict[str, Any]:
+    """A record of `staff_operations_v1` in this phase ("work" is the working phase)."""
+    return {**_idle_record(), "phase": "working" if phase == "work" else phase}
+
+
+def _operations(staff: dict[str, Any]) -> dict[str, Any]:
+    """A `staff_operations_v1` document of the row's shape with these records."""
+    return {
+        "schema_version": 1,
+        "policy_version": "autonomous-routed-staff-v1",
+        "source_id": "ASM-STAFF-OPERATIONS-V1",
+        "config": {},
+        "zones": {},
+        "staff": staff,
+        "history": [],
+    }
+
+
 def _reader_answers(seed: int) -> list[str]:
     """The answers of the two readers to 300 random questions on a random world."""
     rng = random.Random(seed)
     world = _random_world(rng)
     if rng.random() < 0.7:
-        world.model_state["staff_operations_v1"] = {
-            "staff": {
-                staff_id: {"phase": rng.choice(("idle", "travel", "work"))}
+        # The same draws as when these records were the phase alone ("work" was a phase that is
+        # not idle): the rules write whole records of the row now (lane P8 b3).
+        world.model_state["staff_operations_v1"] = _operations(
+            {
+                staff_id: _operation(rng.choice(("idle", "travel", "work")))
                 for staff_id in IDS
                 if rng.random() < 0.7
             }
-        }
+        )
     answers = []
     for _ in range(300):
         staff_id = rng.choice((*IDS, "unknown"))
@@ -526,12 +547,10 @@ def test_the_readers_answer_what_the_python_rules_answered(seed: int) -> None:
     ("operations", "available"),
     [
         # `operation is None or operation.get("phase") == "idle"`.
-        ({"staff": {"S01": {}}}, False),
-        ({"staff": {"S01": {"phase": "idle"}}}, True),
-        ({"staff": {"S01": {"phase": "travel"}}}, False),
-        ({"staff": {"S01": None}}, True),
-        ({"staff": {}}, True),
-        ({}, True),
+        (_operations({"S01": _operation("idle")}), True),
+        (_operations({"S01": _operation("travel")}), False),
+        (_operations({"S01": _operation("working")}), False),
+        (_operations({}), True),
         (None, True),
     ],
 )
@@ -541,6 +560,19 @@ def test_the_availability_reader_takes_each_shape_of_the_operations_state(
     world = _world()
     world.model_state["staff_operations_v1"] = operations
     assert staff_dynamics_is_available(world, "S01", 0) is available
+
+
+@pytest.mark.parametrize(
+    "operations",
+    [{"staff": {"S01": {}}}, {"staff": {"S01": {"phase": "idle"}}}, {"staff": {}}, {}],
+)
+def test_an_operations_state_the_row_does_not_take_is_refused(operations: Any) -> None:
+    """Every rule writes `staff_operations_v1` as its row (lanes P8 b2 and b3): a document that
+    taints it is refused where the reader reads it, as the other rules refuse it."""
+    world = _world()
+    world.model_state["staff_operations_v1"] = operations
+    with pytest.raises(KernelRefusal, match="the namespace has no row"):
+        staff_dynamics_is_available(world, "S01", 0)
 
 
 def test_a_config_without_windows_is_refused_by_the_readers() -> None:

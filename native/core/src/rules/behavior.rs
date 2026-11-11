@@ -167,7 +167,7 @@ fn truthy(value: &Held) -> Result<bool> {
         Held::Value(V::Str(text)) | Held::Text(text) => !text.is_empty(),
         Held::Value(V::List(items)) => !items.is_empty(),
         Held::Value(V::Map(items)) => !items.is_empty(),
-        Held::Object(_) | Held::Opaque { .. } => return Err(Error::unsupported("a flag is not a plain value")),
+        Held::Object(_) | Held::Opaque { .. } | Held::Method(_) => return Err(Error::unsupported("a flag is not a plain value")),
     })
 }
 

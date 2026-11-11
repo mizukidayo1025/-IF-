@@ -114,6 +114,10 @@ pub enum Held {
     Object(Arc<Obj>),
     /// Anything else, which a rule may only call or compare.
     Opaque { callable: bool },
+    /// A method bound to the controller the Run read, whose function is the controller's step of
+    /// this name as the driver installed it (`segments.py`): `staff_service.route_resolver` is
+    /// `controller._route` (lane b3).
+    Method(Arc<str>),
 }
 
 impl Held {

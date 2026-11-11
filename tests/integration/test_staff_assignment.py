@@ -860,3 +860,44 @@ def test_an_urgent_request_preempts_a_routed_task_in_a_run(tmp_path: Path) -> No
     phases = run("phases", phases=True)
     assert json.dumps(driven) == json.dumps(phases)
     assert any("staff_operation_preempted" in record for record in driven["records"])
+
+
+# What `assign_pending` left with the controller's own `_route` and `_schedule_staff_support_travel`
+# as the service's route and trip, through Python, by label: `_state` taken before the kernel called
+# them directly (lane P8 b3).
+OWN_STEP_DIGESTS = {
+    "full": "d7277550d063eaba",
+    "late": "5cb01dc39695c9aa",
+    "trip": "60c1b30ab87e9513",
+}
+
+
+@pytest.mark.parametrize(
+    ("label", "reason"),
+    [
+        ("full", "route_unavailable_at_assignment"),
+        ("late", "insufficient_run_time"),
+        ("trip", None),
+    ],
+)
+def test_the_controller_s_own_route_and_trip_decide_an_assignment(
+    tmp_path: Path, label: str, reason: str | None
+) -> None:
+    """A full edge leaves no route (and records its wait), a task past the Run's end is not
+    started, and a route with room schedules the person's trip before the task's event."""
+    controller = _capacity_controller(tmp_path, label)
+    world = controller.world
+    people = sorted(world.agents)
+    for agent in world.agents.values():
+        agent.zone_id = "sleeping"
+    if label == "full":
+        for edge in world.zone_edges:
+            world.schedule_event(_trip(world, edge))
+    if label == "late":
+        controller.staff_service.task_duration_minutes = world.duration_minutes
+    request = _pending(world, 1, people[0])
+    assigned = controller.staff_service.assign_pending(0, validate_state=False)
+    assert assigned == (() if reason else (request.id,))
+    assert request.last_assignment_wait_reason_code == reason
+    text = json.dumps(_state(world))
+    assert hashlib.sha256(text.encode()).hexdigest()[:16] == OWN_STEP_DIGESTS[label]

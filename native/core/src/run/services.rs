@@ -31,7 +31,8 @@ pub const RESOURCE: Attr = Attr::object("resource_service", &RESOURCE_SPEC);
 const RESOURCE_SPEC: Spec = Spec::of(&[Attr::value("policy_version"), Attr::value("config")]);
 
 pub const STAFF: Attr = Attr::object("staff_service", &STAFF_SPEC);
-const STAFF_SPEC: Spec = Spec::of(&[
+/// What `assign_pending` reads of `StaffService` (lane b3 reads it in the core: `staff_service`).
+pub const STAFF_SPEC: Spec = Spec::of(&[
     Attr::value("policy_version"),
     Attr::value("task_duration_minutes"),
     Attr::value("unresolved_after_minutes"),
@@ -87,4 +88,30 @@ impl Services {
             staff: Manager::of(controller, "staff_service", STAFF_CLASS),
         }
     }
+}
+
+/// What `assign_pending` takes of a `StaffService` as read (`STAFF_SPEC`): `policy_version` an
+/// exact str, `task_duration_minutes` and `fairness_after_minutes` ints, and its route resolver and
+/// travel scheduler None, the controller's own steps (`Held::Method`), or another callable. A read
+/// that raised is its fault (policy E14).
+pub fn staff_service(service: &Obj) -> Read<crate::rules::staff::Service> {
+    use crate::rules::staff::{Service, Step};
+    use crate::value::V;
+    use super::held::Held;
+    let policy = match service.get("policy_version")? {
+        Held::Value(V::Str(text)) => text.clone(),
+        _ => return Err(Fault::refused("a value is not a str")),
+    };
+    let task_minutes = service.int("task_duration_minutes")?;
+    let fairness_after = service.int("fairness_after_minutes")?;
+    let step = |name: &str, own: &str| -> Read<Step> {
+        Ok(match service.get(name)? {
+            Held::Value(V::Null) => Step::None,
+            Held::Method(step) if &**step == own => Step::Own,
+            _ => Step::Other,
+        })
+    };
+    let resolver = step("route_resolver", "_route")?;
+    let scheduler = step("travel_scheduler", "_schedule_staff_support_travel")?;
+    Ok(Service { policy, task_minutes, fairness_after, resolver, scheduler })
 }

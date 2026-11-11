@@ -30,6 +30,7 @@ from support.world import kernel_says_python_s_text
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine
+from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.domain.information import upgrade_information_runtime_state
@@ -641,31 +642,18 @@ def test_a_care_delta_1_percent_off_shows(generated_scenario: Any) -> None:
 # ---- The assignment of a request -----------------------------------------------------------------
 
 
-def _route(minutes: int) -> Any:
-    return SimpleNamespace(travel_minutes=minutes)
-
-
 # The world after `StaffService.assign_pending`'s Python rule, by test: a digest taken before the
 # rule went (lane L10, `kernel_only`).
 ASSIGNED_DIGESTS = {
     "free_worker": "b2e57bbfee3b75ed",
     "promoted": "d00be4ea83ec3799",
-    "route.None.True": "7c41fe3c5d8b72fb",
-    "route.1000000.True": "c814b2051a10d9ca",
-    "route.3.False": "d0f21eb6a7cee0ad",
-    "route.3.True": "4cc8d4c48df97a4d",
 }
 
 
-def _assign(
-    label: str, world: WorldState, *, resolver: Any = None, scheduler: Any = None, **options: Any
-) -> Any:
-    """`assign_work`, the kernel that assigns, and the world it leaves against the Python rule's."""
-    actual = native.rules("staff").assign_work(
-        StaffService(world, route_resolver=resolver, travel_scheduler=scheduler, **options),
-        world.minute_index,
-        validate_state=False,
-    )
+def _assign(label: str, world: WorldState, **options: Any) -> Any:
+    """`assign_pending` of a service without a route, and the world it leaves against the Python
+    rule's."""
+    actual = StaffService(world, **options).assign_pending(world.minute_index, validate_state=False)
     _is_the_python_rules_run(world, ASSIGNED_DIGESTS[label])
     return actual
 
@@ -721,28 +709,24 @@ def test_an_old_request_is_promoted_as_in_python() -> None:
     assert world.metric_state["support_fairness_promoted_assignment_count"] >= 1.0
 
 
-@pytest.mark.parametrize(
-    ("minutes", "scheduled", "reason"),
-    [
-        (None, True, "route_unavailable_at_assignment"),
-        (10**6, True, "insufficient_run_time"),
-        (3, False, "resident_travel_schedule_rejected"),
-        (3, True, None),
-    ],
-)
-def test_a_route_decides_as_in_python(
-    minutes: int | None, scheduled: bool, reason: str | None
-) -> None:
+def test_another_route_resolver_than_the_controller_s_is_refused() -> None:
+    """The service's route and trip are the controller's own steps, which the kernel calls
+    directly (lane P8 b3); another callable is refused before anything is written. The decisions
+    of a route are tested with the controller's own (test_staff_assignment.py)."""
+    world = _staffed_world()
+    _open_request(world)
+    before = _bytes(world)
+    service = StaffService(world, route_resolver=lambda *_: None, travel_scheduler=lambda *_: True)
+    with pytest.raises(KernelRefusal, match="another route resolver"):
+        service.assign_pending(world.minute_index, validate_state=False)
+    assert _bytes(world) == before
+
+
+def test_a_travel_scheduler_without_a_route_resolver_is_never_asked() -> None:
+    """Without a route the request is served where it stands, as the Python rule served it."""
     world = _staffed_world()
     request_id = _open_request(world)
-    route = None if minutes is None else _route(minutes)
-    _assign(
-        f"route.{minutes}.{scheduled}",
-        world,
-        resolver=lambda *_: route,
-        scheduler=lambda *_: scheduled,
-    )
-    assert world.support_requests[request_id].last_assignment_wait_reason_code == reason
+    assert _assign("free_worker", world, travel_scheduler=lambda *_: False) == (request_id,)
 
 
 def test_nobody_free_leaves_the_plain_kernel_running() -> None:

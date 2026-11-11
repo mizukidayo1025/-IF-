@@ -667,8 +667,9 @@ def test_rules_over_real_ticks_keep_every_row_equal_to_its_object(generated_scen
         engine.step()
         _in_step(world)
         forwards = max(forwards, _store(world).stats()["forwards"])
-    # The service and toilet rules write the rows in the core since lane c3 of #152: fewer forwards.
-    assert forwards > 50
+    # The service and toilet rules (lane c3 of #152) and the staff's rules (lane P8 b3) write the
+    # rows in the core: few forwards are left (12 in the 40 ticks of P8 b3).
+    assert forwards > 5
     assert world.same_state(WorldState.from_dict(world.to_dict()))
 
 

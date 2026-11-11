@@ -524,6 +524,8 @@ def _stressed_run(scenario: Any, router: LLMRouter) -> tuple[WorldState, dict[st
     controller.social_policy.limits = SocialRuntimeLimits(
         cooldown_minutes=5, per_agent_per_day=40, global_per_day=120, complaint_wait_minutes=5
     )
+    # The complaints' threshold is the Run's (`Policies`, lane P8 b3): read it again.
+    controller._run_core.refresh_policies(controller)
     TickEngine(world, phase_handler=controller).run(steps=scenario.duration_minutes)
     return world, runtime.metrics.to_dict()
 

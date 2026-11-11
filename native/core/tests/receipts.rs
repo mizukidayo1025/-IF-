@@ -224,19 +224,20 @@ fn availability_reads_the_operations_and_the_status() {
     let mut world = world();
     slot(&mut world, DYNAMICS, Place::Namespace, Box::new(dynamics(0.0)));
     // No operations and no status: on shift is available, off shift is not.
-    assert_eq!(staff_dynamics::is_available_now(&world, "s2", 10, None), Ok(Some(true)));
-    assert_eq!(staff_dynamics::is_available_now(&world, "s2", 70, None), Ok(Some(false)));
+    assert_eq!(staff_dynamics::is_available_now(&world, "s2", 10, false), Ok(true));
+    assert_eq!(staff_dynamics::is_available_now(&world, "s2", 70, false), Ok(false));
     assert_eq!(staff_dynamics::on_shift_now(&world, "s9", 10), Ok(false));
     // The operational status says who is unavailable.
     let status = map(&[("staff_status", map(&[("s2", map(&[("available", V::Bool(false))]))]))]);
     slot(&mut world, staff_dynamics::OPERATIONAL, Place::Value, Box::new(ValueRow(status)));
-    assert_eq!(staff_dynamics::is_available_now(&world, "s2", 10, None), Ok(Some(false)));
-    // A tainted staff_operations_v1 holds its answer in the tree, which the caller reads.
+    assert_eq!(staff_dynamics::is_available_now(&world, "s2", 10, false), Ok(false));
+    // A tainted staff_operations_v1 is refused: every rule writes its row (lanes b2 and b3).
     let index = world.slots.add(text(OPERATIONS), Place::Namespace).unwrap();
     world.slots.at(index).unwrap().try_borrow_mut().unwrap().taint = Some("a misfit".to_owned());
-    assert_eq!(staff_dynamics::operation_is_idle(&world, "s2"), Ok(None));
-    assert_eq!(staff_dynamics::is_available_now(&world, "s1", 10, None), Ok(None));
-    assert_eq!(staff_dynamics::is_available_now(&world, "s1", 10, Some(true)), Ok(Some(true)));
+    assert_eq!(staff_dynamics::operation_is_idle(&world, "s2", false), Err(unsupported("the namespace has no row")));
+    assert_eq!(staff_dynamics::is_available_now(&world, "s1", 10, false), Err(unsupported("the namespace has no row")));
+    // None under the key, which the caller read, is no state.
+    assert_eq!(staff_dynamics::is_available_now(&world, "s1", 10, true), Ok(true));
 }
 
 #[test]

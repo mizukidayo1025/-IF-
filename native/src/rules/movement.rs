@@ -20,15 +20,14 @@ use pyo3::types::{PyDict, PyString, PyTuple, PyType};
 
 use sheltersim_core::config::movement::Movement;
 use sheltersim_core::rules::kit::Held;
-use sheltersim_core::rules::movement::{self as core, Advanced, InOrder, StaffOp, StaffOps, StaffTravel, Start, Tick, Validated, Where};
+use sheltersim_core::rules::movement::{self as core, Advanced, InOrder, StaffOps, Start, Tick, Validated, Where};
 
 pub(crate) use sheltersim_core::config::movement::EXACT_INT;
-pub(crate) use sheltersim_core::rules::kit::mobility_text;
 
 use crate::core::configs;
 use crate::core::errors::OrPy;
-use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_list, exact_str, unsupported, IdMap, PyField};
-use crate::core::world_core::{field_held, mirror_of, namespace_held, with_world, NamespaceMirror};
+use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_list, exact_str, unsupported, PyField};
+use crate::core::world_core::{field_held, mirror_of, namespace_held, raw_dict_get, with_world, NamespaceMirror};
 use crate::rules::movement_geometry::{usable, Geo, GeoPy, Pt};
 use crate::state::events::{write_result, EventWriter};
 use crate::state::movement::{Journey, MovementRow, Point};
@@ -90,95 +89,26 @@ pub(crate) fn row_position<'py>(world: &Bound<'py, PyAny>, agent_id: &str) -> Py
 }
 
 /// The staff's operations as `staff_position_snapshots` reads them: the row of
-/// `staff_operations_v1` where it answers for the namespace (held, and not tainted), else what the
-/// world holds under the key, read as the kernel read the tree: no operations unless it is a dict,
-/// its `staff` an exact dict, and each record a dict or None.
+/// `staff_operations_v1` where the world holds the namespace (a tainted one is refused where the
+/// row is read: every rule writes the row, lanes b2 and b3), none where it holds something that
+/// is not a dict, and another dict is refused.
 fn staff_ops(world: &Bound<'_, PyAny>) -> PyResult<StaffOps> {
     let py = world.py();
-    let held = namespace_held(world, intern!(py, STAFF_OPERATIONS), "the world holds another staff state")?;
-    match held {
-        Held::Absent => return Ok(StaffOps::None),
-        Held::Held => {
-            let mirror = mirror_of(world, STAFF_OPERATIONS)?;
-            let answers = NamespaceMirror::with_row::<crate::state::staff_operations::StaffOperationsRow, _>(&mirror, |_| Ok(())).is_ok();
-            if answers {
-                return Ok(StaffOps::Row);
+    match namespace_held(world, intern!(py, STAFF_OPERATIONS), "the world holds another staff state")? {
+        Held::Absent => Ok(StaffOps::None),
+        Held::Held => Ok(StaffOps::Row),
+        Held::Other(reason) => {
+            let table = attribute(world, intern!(py, "model_state"))?;
+            let held = crate::core::tracked::as_readable_dict(&table)
+                .map(|table| raw_dict_get(&table, PyString::new(py, STAFF_OPERATIONS).as_any()))
+                .transpose()?
+                .flatten();
+            match held {
+                Some(value) if value.is_instance_of::<pyo3::types::PyDict>() => unsupported(reason),
+                _ => Ok(StaffOps::None),
             }
         }
-        Held::Other(_) => {}
     }
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let Some(operations) = exact_dict(&table)?.get_item(STAFF_OPERATIONS)? else {
-        return Ok(StaffOps::None);
-    };
-    let Some(operations) = crate::core::tracked::as_readable_dict(&operations) else {
-        return Ok(StaffOps::None);
-    };
-    let Some(records) = operations.get_item(intern!(py, "staff"))? else {
-        return Ok(StaffOps::None);
-    };
-    let records = exact_dict(&records)?;
-    let mut ops = IdMap::default();
-    for (staff_id, record) in records.iter() {
-        let Ok(staff_id) = staff_id.downcast_exact::<PyString>() else {
-            continue;
-        };
-        let op = staff_op(&record)?;
-        ops.insert(Arc::from(staff_id.to_str()?), op);
-    }
-    Ok(StaffOps::Tree(ops))
-}
-
-/// One record of a staff operations tree, as the kernel reads it: travelling only with the str
-/// `"travel"` as its phase; the fields of a travelling one, or the refusal of the first that is not
-/// what the kernel reads.
-fn staff_op(record: &Bound<'_, PyAny>) -> PyResult<StaffOp> {
-    let py = record.py();
-    let Some(operation) = crate::core::tracked::as_readable_dict(record) else {
-        return Ok(if record.is_none() { StaffOp::NotTravelling } else { StaffOp::Refused("a staff operation is not a plain dict") });
-    };
-    let travelling = match operation.get_item(intern!(py, "phase"))? {
-        Some(phase) => phase.downcast_exact::<PyString>().is_ok_and(|phase| phase.to_str().is_ok_and(|text| text == "travel")),
-        None => false,
-    };
-    if !travelling {
-        return Ok(StaffOp::NotTravelling);
-    }
-    let read = || -> PyResult<StaffTravel> {
-        let required = |name| -> PyResult<Bound<'_, PyAny>> {
-            operation.get_item(name)?.ok_or_else(|| Unsupported::new_err("a staff operation lacks a field"))
-        };
-        let travel_minutes = exact_int(&required(intern!(py, "travel_minutes"))?)?;
-        let started_minute = exact_int(&required(intern!(py, "started_minute"))?)?;
-        let edges = required(intern!(py, "route_edge_ids"))?;
-        let zones = required(intern!(py, "route_zone_ids"))?;
-        let ids = |list: &Bound<'_, PyAny>| -> PyResult<Vec<Option<Arc<str>>>> {
-            Ok(exact_list(list)?.iter().map(|id| exact_str(&id).ok().map(Arc::from)).collect())
-        };
-        let route_edge_ids = ids(&edges)?;
-        Ok(StaffTravel { travel_minutes, started_minute, route_edge_ids, route_zone_ids: ids(&zones)? })
-    };
-    match read() {
-        Ok(travel) => Ok(StaffOp::Travel(travel)),
-        Err(error) if error.is_instance_of::<Unsupported>(py) => {
-            let reason = error.value(py).str()?.to_string();
-            Ok(StaffOp::Refused(refusal_text(&reason)))
-        }
-        Err(error) => Err(error),
-    }
-}
-
-/// The static text of a refusal of the reads in `staff_op`.
-fn refusal_text(reason: &str) -> &'static str {
-    const TEXTS: [&str; 6] = [
-        "a staff operation lacks a field",
-        "a value is not an int",
-        "an int is too large",
-        "a value is not a plain list",
-        "a value is not a str",
-        "a str is not UTF-8",
-    ];
-    TEXTS.into_iter().find(|text| *text == reason).unwrap_or("a staff operation is not what the kernel reads")
 }
 
 // ---- Python values ---------------------------------------------------------------------------

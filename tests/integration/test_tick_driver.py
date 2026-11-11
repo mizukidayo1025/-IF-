@@ -361,6 +361,8 @@ def _stressed(controller: OfflineSimulationController, world: WorldState) -> Non
     controller.social_policy.limits = SocialRuntimeLimits(
         cooldown_minutes=5, per_agent_per_day=40, global_per_day=120, complaint_wait_minutes=5
     )
+    # The complaints' threshold is the Run's (`Policies`, lane P8 b3): read it again.
+    controller._run_core.refresh_policies(controller)
 
 
 def test_a_router_that_can_call_a_provider_runs_on_the_driver_as_through_the_phases(

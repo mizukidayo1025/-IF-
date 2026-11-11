@@ -301,8 +301,15 @@ def test_support_wait_reasons_distinguish_unattempted_and_rejected_assignment(
         status="requested",
         source_ids=care_source_ids_for_agent(world, "A001"),
     )
-    controller.staff_service.travel_scheduler = lambda *_args: False
+    # The controller's own trip turns it down while the staff's zone has no room left; the wait
+    # then keeps the reason of that attempt (lane P8 b3: another travel scheduler than the
+    # controller's is refused).
+    capacity = world.zones[WORKER_ZONE].capacity
+    world.zones[WORKER_ZONE].capacity = sum(
+        agent.zone_id == WORKER_ZONE for agent in world.agents.values()
+    )
     assert controller.staff_service.assign_pending(0, validate_state=False) == ()
+    world.zones[WORKER_ZONE].capacity = capacity
     assert support_wait_reason_codes(world, request.request_id) == (
         "resident_travel_schedule_rejected",
     )

@@ -367,21 +367,19 @@ pub struct StaffTravel {
     pub route_zone_ids: Vec<Option<Arc<str>>>,
 }
 
-/// Where the staff's operations are read: none (no namespace, or not a dict), the row of
-/// `staff_operations_v1`, or the records of its tree, as the PyO3 crate read them where the row
-/// does not answer for it (tainted, or `model_state` holds another value).
+/// Where the staff's operations are read: none (no namespace, or not a dict), or the row of
+/// `staff_operations_v1`. Every rule writes the namespace as its row (lanes b2 and b3): a tainted
+/// one is refused where the row is read.
 #[derive(Clone, Debug, PartialEq)]
 pub enum StaffOps {
     None,
     Row,
-    Tree(IdMap<StaffOp>),
 }
 
 /// The operations of the staff, borrowed for a plan.
 enum StaffRecords<'a> {
     None,
     Row(crate::cell::ShardRef<'a, StaffOperationsRow>),
-    Tree(&'a IdMap<StaffOp>),
 }
 
 impl<'a> StaffRecords<'a> {
@@ -389,14 +387,12 @@ impl<'a> StaffRecords<'a> {
         Ok(match ops {
             StaffOps::None => Self::None,
             StaffOps::Row => Self::Row(world.row::<StaffOperationsRow>(STAFF_OPERATIONS)?),
-            StaffOps::Tree(records) => Self::Tree(records),
         })
     }
 
     fn op(&self, staff_id: &str) -> StaffOp {
         match self {
             Self::None => StaffOp::NotTravelling,
-            Self::Tree(records) => records.get(staff_id).cloned().unwrap_or(StaffOp::NotTravelling),
             Self::Row(row) => match row.staff.get(staff_id) {
                 Some(record) if record.phase == Phase::Travel => match record.started_minute {
                     // The tree's None, which `exact_int` turns down.

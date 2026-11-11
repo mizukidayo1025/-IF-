@@ -173,7 +173,10 @@ class StaffService:
         first idle, available, on-shift member (in ID order) with a skill of its care kind, or for
         an urgent one the first such member on a routed background task, whose task is interrupted
         (a `staff_operation_preempted` record). Without one the minute's exposure counts it (a
-        qualified member busy, or one off shift or away). With a route resolver, no route is
+        qualified member busy, or one off shift or away). The route resolver and the travel
+        scheduler are None or the controller's own `_route` and `_schedule_staff_support_travel`,
+        which the kernel calls directly; another callable raises KernelRefusal before anything
+        changes (where a request may be assigned). With a route resolver, no route is
         "route_unavailable_at_assignment"; a task that would end at or past the Run's end is
         "insufficient_run_time"; a trip the travel scheduler rejects (or can't make) is
         "resident_travel_schedule_rejected". An assigned request gets its `staff-support-{sequence}`

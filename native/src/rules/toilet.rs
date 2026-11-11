@@ -27,7 +27,6 @@ use crate::core::world_core::{field_held, namespace_held, with_world, PyWorldCel
 use crate::host::PyHost;
 use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::rules::queues::{placement, Walking};
-use crate::rules::staff_dynamics::tree_operation_is_idle;
 use crate::state::events::{write_result, EventRef, EventRow, EventRowPy};
 use crate::Unsupported;
 
@@ -191,30 +190,22 @@ fn start_one<'py>(
     let walk = walking.as_ref().map(Walking::walk);
     let metric_state_held = field_held(&world, intern!(py, "metric_state"))?;
     let mut host = PyHost::of_world(&world, PyDict::new(py)).with_rng(rng);
-    let mut idle = Vec::new();
-    loop {
-        let start = Start {
-            facility_id: facility,
-            minute,
-            queue_id,
-            lowest,
-            highest,
-            policy: policy.clone(),
-            rng: &random,
-            queues: &queues,
-            geo: &geo,
-            walk: walk.as_ref(),
-            metric_state_held,
-            idle: &idle,
-        };
-        match core::start(&PyWorldCell(&world), &mut host, &start).map_err(|error| error.0)? {
-            Started::Event(event_id) => return Ok(Some(PyString::new(py, &event_id))),
-            Started::Stopped => return Ok(None),
-            Started::NeedsIdle(staff_id) => {
-                let answer = tree_operation_is_idle(&world, &PyString::new(py, &staff_id))?;
-                idle.push((staff_id, answer));
-            }
-        }
+    let start = Start {
+        facility_id: facility,
+        minute,
+        queue_id,
+        lowest,
+        highest,
+        policy,
+        rng: &random,
+        queues: &queues,
+        geo: &geo,
+        walk: walk.as_ref(),
+        metric_state_held,
+    };
+    match core::start(&PyWorldCell(&world), &mut host, &start).map_err(|error| error.0)? {
+        Started::Event(event_id) => Ok(Some(PyString::new(py, &event_id))),
+        Started::Stopped => Ok(None),
     }
 }
 

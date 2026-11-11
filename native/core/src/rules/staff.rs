@@ -1,62 +1,90 @@
-//! `domain/staff.py` and `domain/staff_operations.py`. A tick where no staff member starts anything
-//! is nearly every tick, and takes no call to Python. A tick that starts something plans from the
-//! rows and then writes on the Python containers, one value or record at a time
-//! (docs/rust-port/lanes/m4-staff.md, l2-staff.md).
+//! `domain/staff.py` and `domain/staff_operations.py` on the rows of a `World` (moved to the core
+//! in P8 b3): the support requests' assignment (`StaffService.assign_pending`), the complaints that
+//! come due (`_consider_due_complaints`), what the metrics read of each open request
+//! (`_support_wait_snapshot`), the sanitation of the zones (`update_staff_operations`), the routed
+//! tasks (`assign_staff_operations`) and their relief at a shift's boundary
+//! (`schedule_staff_operation_relief`). The PyO3 crate's file of the same name reads what Python
+//! holds (whether `model_state` holds each namespace, the floor plan, the sections of the configs,
+//! the service's parameters, the router a caller gave) and calls these.
 //!
-//! The Python rules stay as the comparison base and for what these kernels do not decide, which is
-//! also how a bad value gets its error text.
+//! Each plans with nothing changed and then writes: the entities, `staff_operations_v1`,
+//! `metric_state`, the event counter, the queue and the log are written as their rows (the objects
+//! and an attached tree follow them when the world is given back, lanes 6-1 and P8-0c).
+//!
+//! The service's route and trip are the controller's own `_route` and
+//! `_schedule_staff_support_travel`, which are the core's `travel::route` and
+//! `travel::schedule_travel`: they are called directly, in the order the Python rule called them
+//! (a route records its capacity waits, a trip schedules its event), and their refusal is the
+//! `KernelRefusal` their steps raised (`ROUTE`, `SCHEDULE`). Another route resolver or travel
+//! scheduler than the controller's own is refused before anything is written. The decision on a
+//! complaint is the policy's, through `Host::consider_complaint_response`, with the world given
+//! back during the call (rule R6).
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::sync::Arc;
 
-use pyo3::intern;
-use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDict, PyInt, PyList, PySlice, PyString, PyTuple};
+use indexmap::IndexMap;
 use rustc_hash::FxHashMap;
 
-use crate::core::configs;
-use crate::core::errors::OrPy;
-use crate::core::mathx::{py_fsum, py_max, py_round_int};
-use crate::core::row::{attribute, exact_dict, exact_int, exact_str, map_set, namespace_is_absent, unsupported};
-use crate::core::value::V;
-use crate::core::tracked::is_detached;
-use crate::core::world_core::{field_mirror_of, mirror_of, raw_dict_get, NamespaceMirror};
-use crate::state::shared_operations::SharedOperationsRow;
-use crate::rules::effects::{active_outage, has_active_modifier};
-use crate::rules::handlers::{assumption, get, get_is, log_record, new_event, NewEvent};
-use crate::rules::movement::{mobility_text, movement_minutes};
-use crate::rules::movement_geometry::{Geo, GeoPy};
-use crate::rules::staff_operation_events::relief_skills;
-use crate::rules::staff_dynamics::{is_available, on_shift, staff_status};
-use crate::rules::travel::{active_edge_loads, passage_edge_loads, staff_router_rows, world_graph, EdgeLoads, Route, StaffRouter};
-use sheltersim_core::routes::Router;
+use crate::cell::ShardRef;
+use crate::config::movement::Movement;
+use crate::config::staff::StaffOperations;
+use crate::entities::{Activity, RequestStatus, TaskRow};
+use crate::error::{Error, Result};
+use crate::events::writer::{WriteError, WriteResult};
+use crate::events::{EventKind, EventStatus};
+use crate::geometry::Geo;
+use crate::host::Host;
+use crate::mathx::{py_fsum, py_max, py_round_int};
+use crate::row::{map_set, ValueRow};
+use crate::routes::{EdgeLoads, Route, Router};
+use crate::rules::kit::{self, Events, Held, Kept, NewEvent, NoTree};
+use crate::rules::movement;
+use crate::rules::staff_dynamics::{self, on_shift};
+use crate::rules::staff_operation_events::{self as operations, relief_skills, Stopping, FORMULA_UNREAD};
+use crate::rules::travel::{self, Routing, Trip, Walking, ZONES_TAINTED};
 use crate::state::body_state::{BodyRow, NAME as BODY_STATE};
-use crate::state::entities::{entities_of, insert_entity, Activity, EntityStore, Member, RequestStatus, TaskRow};
-use crate::state::metric_state::MetricRow;
+use crate::state::effect_program::{EffectProgramRow, NAME as PROGRAM};
+use crate::state::shared_operations::{SharedOperationsRow, NAME as SHARED_OPERATIONS};
 use crate::state::staff_dynamics::{StaffDynamicsRow, NAME as STAFF_DYNAMICS};
-use crate::state::staff_operations::{Phase, StaffOperationsRow, NAME};
-use crate::host::PyHost;
-use crate::Unsupported;
-use sheltersim_core::host::Host;
-use sheltersim_core::config::staff::{known_staff_operations, support_task_minutes, StaffOperations};
+use crate::state::staff_operations::{OperationRecord, Phase, StaffOperationsRow, NAME};
+use crate::text::g_text;
+use crate::value::V;
+use crate::world::{World, WorldCell, MODEL_CONFIGS};
 
-const SHARED_OPERATIONS: &str = "shared_operations_v1";
 const SUPPORT_SOURCE: &str = "ASM-STAFF-SUPPORT-LIFECYCLE-V1";
 const PREEMPTION_SOURCE: &str = "ASM-URGENT-STAFF-SUPPORT-PREEMPTION-V1";
+const PREEMPTION_POLICY: &str = "urgent-staff-support-preemption-v1";
+const PREEMPTION_EVENT_SOURCE: &str = "urgent-resident-support-preemption-v1";
+const PREEMPTION_DETAIL: &str = "A priority-1 support request preempted a routed background staff task.";
 const RELIEF_SOURCE: &str = "ASM-STAFF-RELIEF-V1";
 const RELIEF_POLICY: &str = "same-site-staff-relief-v1";
-const MOVEMENT: &str = "movement_v1";
+const INFRASTRUCTURE: &str = "infrastructure_v1";
 const DEFAULT_KIND: &str = "emotional_support";
 const WAIT_REASON: &str = "no_available_qualified_staff";
 const NO_QUALIFIED_METRIC: &str = "support_no_qualified_worker_request_minutes";
 const ATTEMPT_METRIC: &str = "support_assignment_metrics_minute";
 const BUSY_METRIC: &str = "support_wait_staff_busy_request_minutes";
 const OFF_SHIFT_METRIC: &str = "support_wait_staff_off_shift_request_minutes";
+const PROMOTED_METRIC: &str = "support_fairness_promoted_assignment_count";
 const CLEANING_BELOW: f64 = 0.85;
 const OUTREACH_AT_LEAST: f64 = 0.45;
 const PATROL_AT_LEAST: f64 = 0.6;
 /// Above this an int does not always fit a float.
 const FLOAT_EXACT_INT: i64 = 1 << 53;
+/// The kinds of routed task, in the order `assign_staff_operations` reads their durations.
+const TASK_KINDS: [&str; 5] = ["cleaning", "maintenance", "information_outreach", "intake", "patrol"];
+
+/// The label of the `KernelRefusal` of the controller's `_route`.
+pub const ROUTE: &str = "travel.route";
+/// The label of the `KernelRefusal` of the controller's `_schedule_staff_support_travel`.
+pub const SCHEDULE: &str = "travel.schedule_support_travel";
+/// The label of the `KernelRefusal` of `interrupt_staff_operation`.
+pub const INTERRUPT: &str = "staff_operation_events.interrupt";
+/// The refusal of a route resolver that is not the controller's own `_route`.
+pub const OTHER_RESOLVER: &str = "another route resolver";
+/// The refusal of a travel scheduler that is not the controller's own `_schedule_staff_support_travel`.
+pub const OTHER_SCHEDULER: &str = "another travel scheduler";
 
 /// `_CARE_SKILL_ALTERNATIVES.get(kind, {"support"})`.
 fn required_skills(kind: &str) -> &'static [&'static str] {
@@ -74,26 +102,54 @@ fn required_skills(kind: &str) -> &'static [&'static str] {
     }
 }
 
-/// `world.minute_index` and `world.model_state`.
-fn table_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    let table = attribute(world, intern!(world.py(), "model_state"))?;
-    exact_dict(&table)?;
-    Ok(table)
+// ---- What the rules read of the Python world -----------------------------------------------------
+
+/// What the staff rules read of the Python world, read by the PyO3 crate before it borrows the
+/// world. Each namespace is `Absent` where `model_state` has no such key or None there, and `Other`
+/// where it holds another document than the row's, which a rule refuses where it reads it.
+pub struct Inputs<'a> {
+    /// `staff_operations_v1`.
+    pub operations: &'a Held,
+    /// `staff_dynamics_v1`.
+    pub dynamics: &'a Held,
+    /// `body_state_v1`.
+    pub body: &'a Held,
+    /// `shared_operations_v1`, whose heads say each request's kind of care.
+    pub shared: &'a Held,
+    /// Whether `world.metric_state` is still its slot's tree.
+    pub metric_state_held: bool,
+    /// What the rules of a task read (`staff_operation_events`): the interruption of a preempted
+    /// task, the staff positions after a start, the facilities' modifiers, the routed formula. None
+    /// where the entry reads none of them.
+    pub tasks: Option<&'a operations::Inputs<'a>>,
 }
 
-fn minute_of(world: &Bound<'_, PyAny>) -> PyResult<i64> {
-    exact_int(&attribute(world, intern!(world.py(), "minute_index"))?)
-}
-
-/// The mirror of a namespace, unless the world holds something else there (a store past
-/// `NamespaceTable`), which only the Python rules read as it is.
-pub(crate) fn mirror_held<'py>(world: &Bound<'py, PyAny>, name: &str) -> PyResult<Bound<'py, NamespaceMirror>> {
-    let table = table_of(world)?;
-    let mirror = mirror_of(world, name)?;
-    match exact_dict(&table)?.get_item(name)? {
-        Some(state) if mirror.try_borrow()?.holds_state(&state) => Ok(mirror),
-        _ => unsupported("the world holds another document than the row's"),
+impl Inputs<'_> {
+    fn operations_row<'w>(&self, world: &'w World) -> Result<Option<ShardRef<'w, StaffOperationsRow>>> {
+        kit::held_row::<StaffOperationsRow>(world, NAME, self.operations)
     }
+
+    /// The row of `staff_operations_v1` of a rule that read the namespace's presence first.
+    fn operations_held<'w>(&self, world: &'w World) -> Result<ShardRef<'w, StaffOperationsRow>> {
+        self.operations_row(world)?.ok_or_else(|| Error::Runtime("staff_operations_v1 left under the rule".to_owned()))
+    }
+
+    fn tasks(&self) -> Result<&operations::Inputs<'_>> {
+        self.tasks.ok_or_else(|| Error::Runtime("the inputs of the tasks were not given".to_owned()))
+    }
+
+    fn dynamics_row<'w>(&self, world: &'w World) -> Result<Option<ShardRef<'w, StaffDynamicsRow>>> {
+        kit::held_row::<StaffDynamicsRow>(world, STAFF_DYNAMICS, self.dynamics)
+    }
+}
+
+/// The IDs of `world.zones`, in its order.
+fn world_zones(world: &World) -> Result<Vec<Arc<str>>> {
+    let rows = world.entities.try_borrow()?;
+    if rows.zones_tainted().is_some() {
+        return Err(Error::unsupported(ZONES_TAINTED));
+    }
+    Ok(rows.zones.iter().map(|(id, _)| id.clone()).collect())
 }
 
 // ---- What the rules read about the staff ---------------------------------------------------------
@@ -118,40 +174,30 @@ struct Worker {
 }
 
 /// Every staff member in the order of `world.staff`.
-fn workers_at(world: &Bound<'_, PyAny>, minute: i64) -> PyResult<Vec<Worker>> {
-    let py = world.py();
-    let status = staff_status(world)?;
-    let dynamics =
-        if namespace_is_absent(world, intern!(py, STAFF_DYNAMICS))? { None } else { Some(mirror_held(world, STAFF_DYNAMICS)?) };
-    let operations = if namespace_is_absent(world, intern!(py, NAME))? { None } else { Some(mirror_held(world, NAME)?) };
-    let store = entities_of(world)?;
-    let mut workers = EntityStore::with_rows(&store, |rows| {
-        Ok(rows
-            .staff
-            .iter()
-            .map(|(id, row)| Worker {
-                id: id.clone(),
-                zone: row.zone_id.clone(),
-                skills: row.skills.0.clone(),
-                has_task: row.active_task_id.is_some(),
-                available: true,
-                on_shift: true,
-                can_start: true,
-                rest_until: None,
-                on_operation: false,
-            })
-            .collect::<Vec<_>>())
-    })?;
-    if let Some(operations) = &operations {
-        NamespaceMirror::with_row::<StaffOperationsRow, _>(operations, |row| {
-            for worker in &mut workers {
-                worker.on_operation = row.staff.get(&worker.id).is_some_and(|record| record.phase != Phase::Idle);
-            }
-            Ok(())
-        })?;
+fn workers_at(world: &World, inputs: &Inputs<'_>, minute: i64) -> Result<Vec<Worker>> {
+    let mut workers: Vec<Worker> = world
+        .rows()?
+        .staff
+        .iter()
+        .map(|(id, row)| Worker {
+            id: id.clone(),
+            zone: row.zone_id.clone(),
+            skills: row.skills.0.clone(),
+            has_task: row.active_task_id.is_some(),
+            available: true,
+            on_shift: true,
+            can_start: true,
+            rest_until: None,
+            on_operation: false,
+        })
+        .collect();
+    if let Some(row) = inputs.operations_row(world)? {
+        for worker in &mut workers {
+            worker.on_operation = row.staff.get(&worker.id).is_some_and(|record| record.phase != Phase::Idle);
+        }
     }
-    if let Some(dynamics) = &dynamics {
-        NamespaceMirror::with_row::<StaffDynamicsRow, _>(dynamics, |row| {
+    let has_dynamics = match inputs.dynamics_row(world)? {
+        Some(row) => {
             for worker in &mut workers {
                 let record = row.staff.get(&worker.id);
                 worker.rest_until = record.map(|record| record.rest_until_minute);
@@ -160,119 +206,75 @@ fn workers_at(world: &Bound<'_, PyAny>, minute: i64) -> PyResult<Vec<Worker>> {
                     None => false,
                 };
             }
-            Ok(())
-        })?;
-    }
-    for worker in &mut workers {
-        let id = PyString::new(py, &worker.id);
-        worker.available = is_available(status.as_ref(), &id)?;
-        worker.can_start = dynamics.is_none() || (worker.on_shift && worker.available && !worker.on_operation);
-    }
+            true
+        }
+        None => false,
+    };
+    staff_dynamics::with_staff_status(world, |status| {
+        for worker in &mut workers {
+            worker.available = staff_dynamics::is_available(status, &worker.id)?;
+            worker.can_start = !has_dynamics || (worker.on_shift && worker.available && !worker.on_operation);
+        }
+        Ok(())
+    })?;
     Ok(workers)
 }
 
-/// The kind of each request as `_support_kind` reads it, from `shared_operations_v1`.
-struct CareKinds<'py> {
-    requests: Option<Bound<'py, PyDict>>,
-    /// The kind of each head of a detached namespace's row, which has no tree to read.
-    row: Option<FxHashMap<Arc<str>, Arc<str>>>,
-}
+/// The kind of each request as `_support_kind` reads it, from the heads of `shared_operations_v1`:
+/// `emotional_support` for a request without a head.
+struct CareKinds(Option<FxHashMap<Arc<str>, Arc<str>>>);
 
-impl<'py> CareKinds<'py> {
-    fn of(world: &Bound<'py, PyAny>, table: &Bound<'py, PyAny>) -> PyResult<Self> {
-        let py = table.py();
-        let none = Self { requests: None, row: None };
-        let Some(state) = exact_dict(table)?.get_item(intern!(py, SHARED_OPERATIONS))? else {
-            return Ok(none);
+impl CareKinds {
+    fn of(world: &World, inputs: &Inputs<'_>) -> Result<Self> {
+        let Some(row) = kit::held_row::<SharedOperationsRow>(world, SHARED_OPERATIONS, inputs.shared)? else {
+            return Ok(Self(None));
         };
-        if is_detached(&state) {
-            let mirror = mirror_of(world, SHARED_OPERATIONS)?;
-            let kinds = NamespaceMirror::with_row::<SharedOperationsRow, _>(&mirror, |row| {
-                Ok(row.support_requests.map.iter().map(|(id, head)| (id.clone(), head.support_kind.clone())).collect())
-            })?;
-            return Ok(Self { requests: None, row: Some(kinds) });
-        }
-        if state.is_none() {
-            return Ok(none);
-        }
-        let Some(requests) = exact_dict(&state)?.get_item(intern!(py, "support_requests"))? else {
-            return Ok(none);
-        };
-        if requests.is_none() {
-            return Ok(none);
-        }
-        Ok(Self { requests: Some(exact_dict(&requests)?.clone()), row: None })
+        Ok(Self(Some(row.support_requests.map.iter().map(|(id, head)| (id.clone(), head.support_kind.clone())).collect())))
     }
 
-    /// `_support_kind`. A kind that is not a str could raise there.
-    fn kind_of(&self, id: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
-        if let Some(kinds) = &self.row {
-            let Ok(id) = id.downcast_exact::<PyString>() else {
-                return Ok(None);
-            };
-            return Ok(kinds.get(id.to_str()?).map(|kind| PyString::new(id.py(), kind).into_any()));
+    fn kind_of(&self, id: &str) -> Arc<str> {
+        match self.0.as_ref().and_then(|kinds| kinds.get(id)) {
+            Some(kind) => kind.clone(),
+            None => Arc::from(DEFAULT_KIND),
         }
-        let Some(requests) = &self.requests else {
-            return Ok(None);
-        };
-        let Some(record) = requests.get_item(id)? else {
-            return Ok(None);
-        };
-        if record.is_none() {
-            return Ok(None);
-        }
-        let Ok(record) = exact_dict(&record) else {
-            return unsupported("a care record is not a plain dict");
-        };
-        let kind = record.get_item(intern!(id.py(), "support_kind"))?;
-        if let Some(kind) = &kind {
-            exact_str(kind)?;
-        }
-        Ok(kind)
     }
 }
 
-/// `_support_priority(world, id) > 0` for any of these requests would be asked: None when nothing
-/// could say so.
-fn priorities_of<'py>(table: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyDict>>> {
-    let py = table.py();
-    let Some(state) = exact_dict(table)?.get_item(intern!(py, "llm"))? else {
+/// `model_state["llm"]["support_priorities"]`, where it is a non-empty dict: what
+/// `_support_priority(world, id)` reads.
+fn priorities_of(world: &World) -> Result<Option<IndexMap<Arc<str>, V>>> {
+    let Some(state) = world.slots.try_value("llm")? else {
         return Ok(None);
     };
-    let Ok(state) = exact_dict(&state) else {
-        return if state.is_instance_of::<PyDict>() { unsupported("llm is another dict") } else { Ok(None) };
-    };
-    let Some(priorities) = state.get_item(intern!(py, "support_priorities"))? else {
+    let V::Map(state) = &*state else {
         return Ok(None);
     };
-    let Ok(priorities) = exact_dict(&priorities) else {
-        return if priorities.is_instance_of::<PyDict>() { unsupported("priorities are another dict") } else { Ok(None) };
+    let Some(V::Map(priorities)) = state.get("support_priorities") else {
+        return Ok(None);
     };
     Ok((!priorities.is_empty()).then(|| priorities.clone()))
 }
 
-fn is_urgent(priorities: Option<&Bound<'_, PyDict>>, id: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let Some(priorities) = priorities else {
-        return Ok(false);
-    };
-    let Some(value) = priorities.get_item(id)? else {
-        return Ok(false);
-    };
-    if value.is_instance_of::<PyBool>() || !value.is_instance_of::<PyInt>() {
-        return Ok(false);
+/// `_support_priority`: an int above 0 is urgent; a bool or another value is 0.
+fn priority_of(priorities: Option<&IndexMap<Arc<str>, V>>, id: &str) -> Result<i64> {
+    match priorities.and_then(|priorities| priorities.get(id)) {
+        Some(V::Int(value)) => Ok(*value),
+        Some(V::Big(_)) => Err(Error::unsupported("an int is too large")),
+        _ => Ok(0),
     }
-    Ok(exact_int(&value)? > 0)
 }
 
-// ---- StaffService.assign_pending ------------------------------------------------------------------
-
-/// Of the qualified staff of a kind: none at all, one has a task, one is not working now.
-/// None if one could take the request.
-fn kind_exposure(workers: &[Worker], kind: &str) -> Option<(bool, bool, bool)> {
+fn qualifies(worker: &Worker, kind: &str) -> bool {
     let required = required_skills(kind);
+    worker.skills.iter().any(|skill| required.contains(&&**skill))
+}
+
+/// Of the qualified staff of a kind: none at all, one has a task, one is not working now. None if
+/// one could take the request.
+fn kind_exposure(workers: &[Worker], kind: &str) -> Option<(bool, bool, bool)> {
     let (mut any, mut busy, mut off_shift) = (false, false, false);
     for worker in workers {
-        if worker.skills.iter().any(|skill| required.contains(&&**skill)) {
+        if qualifies(worker, kind) {
             if !worker.has_task && worker.available && worker.can_start {
                 return None;
             }
@@ -284,150 +286,312 @@ fn kind_exposure(workers: &[Worker], kind: &str) -> Option<(bool, bool, bool)> {
     Some((!any, busy, off_shift))
 }
 
-/// `StaffService.assign_pending`: the plain case without a call to Python, and the rest.
-#[pyfunction]
-#[pyo3(signature = (service, minute, *, validate_state=true))]
-pub(crate) fn assign_pending<'py>(
-    service: &Bound<'py, PyAny>,
-    minute: &Bound<'py, PyAny>,
-    validate_state: bool,
-) -> PyResult<Bound<'py, PyTuple>> {
-    let py = service.py();
-    let rules = service_rules(py)?;
-    let plain = rules.call_method(intern!(py, "assign_none"), (service, minute), Some(&validate_option(py, validate_state)?))?;
-    if plain.is_none() {
-        return rules.call_method(intern!(py, "assign_work"), (service, minute), Some(&validate_option(py, validate_state)?))?.downcast_into::<PyTuple>().map_err(PyErr::from);
-    }
-    plain.downcast_into::<PyTuple>().map_err(PyErr::from)
+/// `metric_state[name] = metric_state.get(name, 0.0) + count`, of the row.
+fn add_to_metric(world: &World, name: &str, count: f64) -> Result<()> {
+    let mut metrics = kit::metric_entries_of(world, &[name])?;
+    let sum = metrics.get(name).copied().unwrap_or(0.0) + count;
+    let Ok(()) = map_set(&mut metrics, &NoTree, name, sum);
+    Ok(())
 }
 
-/// The module of these kernels: a shadow replaces what it finds there.
-fn service_rules(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
-    py.import(intern!(py, "sheltersim.native"))?.getattr(intern!(py, "rules"))?.call1(("staff",))
+/// `metric_state[name] = value`, of the row.
+fn set_metric(world: &World, name: &str, value: f64) -> Result<()> {
+    let mut metrics = kit::metric_entries_of(world, &[name])?;
+    let Ok(()) = map_set(&mut metrics, &NoTree, name, value);
+    Ok(())
 }
 
-fn validate_option(py: Python<'_>, validate_state: bool) -> PyResult<Bound<'_, PyDict>> {
-    let kwargs = PyDict::new(py);
-    kwargs.set_item(intern!(py, "validate_state"), validate_state)?;
-    Ok(kwargs)
+// ---- StaffService.assign_pending -----------------------------------------------------------------
+
+/// What a route resolver or a travel scheduler of the service is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Step {
+    /// None: no route is asked (the request is served where it stands), and no trip made.
+    None,
+    /// The controller's own step, which is the core's.
+    Own,
+    /// Another callable, which the core does not run.
+    Other,
 }
 
-fn priority_of(priorities: Option<&Bound<'_, PyDict>>, id: &Bound<'_, PyAny>) -> PyResult<i64> {
-    let Some(priorities) = priorities else {
-        return Ok(0);
-    };
-    let Some(value) = priorities.get_item(id)? else {
-        return Ok(0);
-    };
-    if value.is_instance_of::<PyBool>() || !value.is_instance_of::<PyInt>() {
-        return Ok(0);
-    }
-    exact_int(&value)
+/// What `StaffService` gives `assign_pending`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Service {
+    /// `policy_version`, the provenance of the support events.
+    pub policy: Arc<str>,
+    pub task_minutes: i64,
+    pub fairness_after: i64,
+    pub resolver: Step,
+    pub scheduler: Step,
 }
 
-/// `StaffService.assign_pending` when a request can be taken, on the objects of the world. Its route and
-/// its trip are the callbacks the service was given, called in the same order as the Python rule. What
-/// it reads first refuses with nothing changed; past that what is raised is what the Python rule raises.
-#[pyfunction]
-#[pyo3(signature = (service, minute, *, validate_state=true))]
-fn assign_work<'py>(service: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>, validate_state: bool) -> PyResult<Bound<'py, PyTuple>> {
-    let py = service.py();
-    struct Open<'py> {
-        object: Bound<'py, PyAny>,
-        id: Bound<'py, PyAny>,
-        agent_id: Bound<'py, PyAny>,
-        requested: i64,
-        kind: String,
-        priority: i64,
-    }
-    let plan = (|| -> PyResult<_> {
-        let world = attribute(service, intern!(py, "world"))?;
-        let at = exact_int(minute)?;
-        if at != minute_of(&world)? {
-            // The rule's first check, before any change; marked, so that the step's catch lets it by.
-            return Err(crate::core::errors::marked_value_error(py, "staff assignment minute must match WorldState"));
+/// What the controller's own route and trip read beside the world.
+#[derive(Clone, Copy)]
+pub struct Travel<'a> {
+    pub routing: Routing<'a>,
+    pub walking: Walking<'a>,
+}
+
+/// One pending request, in the assignment's order.
+struct Open {
+    id: Arc<str>,
+    agent_id: Arc<str>,
+    requested: i64,
+    kind: Arc<str>,
+    priority: i64,
+    same_reason: bool,
+    same_minute: bool,
+}
+
+/// The minute's exposure of the plain case, summed as the Python rule sums it.
+struct Exposure {
+    no_qualified: f64,
+    busy: f64,
+    off_shift: f64,
+}
+
+/// What `assign_pending` read before it writes.
+struct PendingPlan {
+    minute: i64,
+    ordered: Vec<Open>,
+    workers: Vec<Worker>,
+    record_metrics: bool,
+    /// The plain case: every request stays pending, with the minute's exposure.
+    plain: Option<Exposure>,
+}
+
+/// What `assign_pending` led to.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Assigned {
+    /// The IDs of the requests assigned, in order.
+    Done(Vec<Arc<str>>),
+    /// A request may be assigned: nothing is written, and the call again with what a request's
+    /// assignment reads (`Full`) assigns.
+    NeedsAll,
+}
+
+/// What the assignment of a request reads beside the plain case: the queue's rows and the floor
+/// plan in the inputs of the tasks (`Inputs::tasks`, for an interrupted task), and the travel's
+/// inputs where the service's route is the controller's.
+#[derive(Clone, Copy)]
+pub struct Full<'a> {
+    pub travel: Option<Travel<'a>>,
+}
+
+/// The pending requests of the world (in the assignment's order with `fairness`), and whether
+/// every one of them stays pending.
+fn plan_pending(world: &World, inputs: &Inputs<'_>, fairness: Option<i64>, minute: i64) -> Result<PendingPlan> {
+    let kinds = CareKinds::of(world, inputs)?;
+    let priorities = priorities_of(world)?;
+    let mut ordered = Vec::new();
+    for (id, row) in world.rows()?.support_requests.iter() {
+        if row.status != RequestStatus::Pending {
+            continue;
         }
-        let table = table_of(&world)?;
-        let kinds = CareKinds::of(&world, &table)?;
-        let priorities = priorities_of(&table)?;
-        let fairness = exact_int(&attribute(service, intern!(py, "fairness_after_minutes"))?)?;
-        let mut pending: Vec<Open<'py>> = Vec::new();
-        for request in world.call_method0(intern!(py, "unsettled_support_requests"))?.try_iter()? {
-            let object = request?;
-            if !exact_str(&attribute(&attribute(&object, intern!(py, "status"))?, intern!(py, "value"))?).is_ok_and(|status| status == "pending") {
+        ordered.push(Open {
+            id: id.clone(),
+            agent_id: row.agent_id.clone(),
+            requested: row.requested_minute,
+            kind: kinds.kind_of(id),
+            priority: priority_of(priorities.as_ref(), id)?,
+            same_reason: row.last_assignment_wait_reason_code.as_deref() == Some(WAIT_REASON),
+            same_minute: row.last_assignment_attempt_minute == Some(minute),
+        });
+    }
+    let workers = workers_at(world, inputs, minute)?;
+    kit::check_metric_state(world, inputs.metric_state_held)?;
+    let record_metrics = world.metric_state()?.get(ATTEMPT_METRIC).copied().unwrap_or(-1.0) != minute as f64;
+    // The plain case: no request has a qualified free worker or a priority.
+    let mut plain = Some(Exposure { no_qualified: 0.0, busy: 0.0, off_shift: 0.0 });
+    let mut exposures: Vec<(Arc<str>, Option<(bool, bool, bool)>)> = Vec::new();
+    for open in &ordered {
+        let exposure = match exposures.iter().find(|(kind, _)| *kind == open.kind) {
+            Some((_, exposure)) => *exposure,
+            None => {
+                let exposure = kind_exposure(&workers, &open.kind);
+                exposures.push((open.kind.clone(), exposure));
+                exposure
+            }
+        };
+        let (Some(exposure), Some(sums), false) = (exposure, plain.as_mut(), open.priority > 0) else {
+            plain = None;
+            break;
+        };
+        sums.no_qualified += f64::from(u8::from(exposure.0));
+        sums.busy += f64::from(u8::from(exposure.1));
+        sums.off_shift += f64::from(u8::from(exposure.2));
+    }
+    if plain.is_some() && minute.abs() >= FLOAT_EXACT_INT {
+        return Err(Error::unsupported("the minute does not fit a float"));
+    }
+    // `_support_assignment_order`: urgent or aged past fairness first, then by minute and ID.
+    if let Some(fairness) = fairness {
+        let key = |open: &Open| (-i64::from(open.priority > 0 || minute - open.requested >= fairness), open.requested);
+        ordered.sort_by(|first, second| key(first).cmp(&key(second)).then_with(|| first.id.cmp(&second.id)));
+    }
+    Ok(PendingPlan { minute, ordered, workers, record_metrics, plain })
+}
+
+/// The writes of the plain case: each request records this attempt and its reason, and the
+/// minute's exposure is counted once per minute.
+fn write_plain(world: &World, plan: &PendingPlan, exposure: &Exposure) -> Result<()> {
+    if plan.record_metrics {
+        add_to_metric(world, NO_QUALIFIED_METRIC, exposure.no_qualified)?;
+    }
+    if plan.ordered.iter().any(|open| !(open.same_minute && open.same_reason)) {
+        let mut rows = world.rows_mut()?;
+        let reason: Arc<str> = Arc::from(WAIT_REASON);
+        for open in &plan.ordered {
+            if open.same_minute && open.same_reason {
                 continue;
             }
-            let id = attribute(&object, intern!(py, "id"))?;
-            exact_str(&id)?;
-            let kind = kinds.kind_of(&id)?;
-            let kind = match &kind {
-                Some(kind) => exact_str(kind)?.to_owned(),
-                None => DEFAULT_KIND.to_owned(),
+            let Some(row) = rows.support_requests.get_mut(&open.id) else {
+                return Err(Error::unsupported("a request has no row"));
             };
-            pending.push(Open {
-                agent_id: attribute(&object, intern!(py, "agent_id"))?,
-                requested: exact_int(&attribute(&object, intern!(py, "requested_minute"))?)?,
-                priority: priority_of(priorities.as_ref(), &id)?,
-                object,
-                id,
-                kind,
-            });
+            row.last_assignment_attempt_minute = Some(plan.minute);
+            if !open.same_reason {
+                row.last_assignment_wait_reason_code = Some(reason.clone());
+            }
         }
-        // `_support_assignment_order`.
-        let mut ordered: Vec<((i64, i64, String), Open<'py>)> = pending
-            .into_iter()
-            .map(|open| {
-                let effective = i64::from(open.priority > 0 || at - open.requested >= fairness);
-                ((-effective, open.requested, exact_str(&open.id).map(str::to_owned).unwrap_or_default()), open)
-            })
-            .collect();
-        ordered.sort_by(|first, second| first.0.cmp(&second.0));
-        let workers = workers_at(&world, at)?;
-        let staff_map = attribute(&world, intern!(py, "staff"))?;
-        let mut objects = Vec::with_capacity(workers.len());
-        for worker in &workers {
-            objects.push(staff_map.get_item(&*worker.id)?);
+    }
+    if plan.record_metrics {
+        for (metric, count) in [(BUSY_METRIC, exposure.busy), (OFF_SHIFT_METRIC, exposure.off_shift)] {
+            if count != 0.0 {
+                add_to_metric(world, metric, count)?;
+            }
         }
-        let metrics = attribute(&world, intern!(py, "metric_state"))?;
-        let attempt = number_at(&metrics, ATTEMPT_METRIC, -1.0)?;
-        let no_qualified = ordered.iter().filter(|(_, open)| !workers.iter().any(|worker| qualifies(worker, &open.kind))).count();
-        let current_no_qualified = number_at(&metrics, NO_QUALIFIED_METRIC, 0.0)?;
-        Ok((world, at, ordered, workers, objects, metrics, attempt, no_qualified, current_no_qualified, fairness))
-    })();
-    let (world, at, ordered, workers, objects, metrics, attempt, no_qualified, current_no_qualified, fairness) = plan?;
+        set_metric(world, ATTEMPT_METRIC, plan.minute as f64)?;
+    }
+    Ok(())
+}
 
+#[track_caller]
+fn left(what: &str) -> Error {
+    Error::Runtime(format!("{what} left its row under the plan"))
+}
+
+/// `request.last_assignment_wait_reason_code = reason`.
+fn set_reason(world: &World, request_id: &str, reason: &str) -> Result<()> {
+    let mut rows = world.rows_mut()?;
+    let row = rows.support_requests.get_mut(request_id).ok_or_else(|| left("a request"))?;
+    row.last_assignment_wait_reason_code = Some(Arc::from(reason));
+    Ok(())
+}
+
+/// The zones of a person and of a staff member now.
+fn zones_of(world: &World, agent_id: &Arc<str>, staff_id: &str) -> Result<(Arc<str>, Arc<str>)> {
+    let rows = world.rows()?;
+    let Some(agent) = rows.agents.get(agent_id) else {
+        // `world.agents[agent_id]`.
+        return Err(Error::Key(agent_id.to_string()));
+    };
+    let staff = rows.staff.get(staff_id).ok_or_else(|| left("a staff member"))?;
+    Ok((agent.zone_id.clone(), staff.zone_id.clone()))
+}
+
+/// A refusal of the controller's step as its `KernelRefusal`; any other error as it is.
+fn step_error(label: &'static str, error: WriteError) -> WriteError {
+    match error {
+        WriteError::Error(error) => WriteError::Error(Error::refused(label, error)),
+        duplicate => duplicate,
+    }
+}
+
+/// `route_resolver(origin, destination, agent_id)`, which is the controller's `_route`.
+fn resolve(world: &World, travel: Option<&Travel<'_>>, origin: &Arc<str>, destination: &Arc<str>, agent_id: &str) -> WriteResult<Option<Route>> {
+    let travel = travel.ok_or_else(|| Error::Runtime("the route's inputs were not given".to_owned()))?;
+    travel::route(world, &travel.routing, origin, destination, agent_id).map_err(|error| step_error(ROUTE, error))
+}
+
+/// `StaffService.assign_pending(minute, validate_state=False)`: the IDs of the requests assigned.
+/// A minute other than the world's raises the rule's marked ValueError first. A world whose every
+/// pending request stays pending records the attempt and the minute's exposure; otherwise, without
+/// `full`, nothing is written and `NeedsAll` asks for it. Another route resolver or travel
+/// scheduler is refused there, before anything is written.
+pub fn assign_pending(world: &World, inputs: &Inputs<'_>, service: &Service, minute: i64, full: Option<&Full<'_>>, taken: &mut Vec<u64>) -> WriteResult<Assigned> {
+    if minute != world.minute_index()? {
+        // The rule's first check, before any change; marked, so that the step's catch lets it by.
+        return Err(Error::MarkedValue("staff assignment minute must match WorldState".to_owned()).into());
+    }
+    let plan = plan_pending(world, inputs, Some(service.fairness_after), minute)?;
+    if let Some(exposure) = &plan.plain {
+        write_plain(world, &plan, exposure)?;
+        return Ok(Assigned::Done(Vec::new()));
+    }
+    match (service.resolver, service.scheduler) {
+        (Step::Other, _) => return Err(Error::unsupported(OTHER_RESOLVER).into()),
+        (Step::Own, Step::Other) => return Err(Error::unsupported(OTHER_SCHEDULER).into()),
+        _ => {}
+    }
+    let Some(full) = full else {
+        return Ok(Assigned::NeedsAll);
+    };
+    let travel = match (service.resolver, &full.travel) {
+        (Step::Own, None) => return Err(Error::Runtime("the travel's inputs were not given".to_owned()).into()),
+        (_, travel) => travel.as_ref(),
+    };
+    let events = Events::of(world)?;
+    assign_work(world, inputs, service, travel, &events, plan, taken).map(Assigned::Done)
+}
+
+/// The plain case of `assign_pending` alone: where every pending request stays pending at this
+/// minute, its writes (each attempt and the minute's exposure), and true; else false with nothing
+/// written. A minute other than the world's is not the plain case.
+pub fn assign_plain(world: &World, inputs: &Inputs<'_>, minute: i64) -> Result<bool> {
+    if minute != world.minute_index()? {
+        return Ok(false);
+    }
+    let plan = plan_pending(world, inputs, None, minute)?;
+    let Some(exposure) = &plan.plain else {
+        return Ok(false);
+    };
+    write_plain(world, &plan, exposure)?;
+    Ok(true)
+}
+
+/// `assign_pending` where a request may be taken.
+fn assign_work(
+    world: &World,
+    inputs: &Inputs<'_>,
+    service: &Service,
+    travel: Option<&Travel<'_>>,
+    events: &Events<'_>,
+    plan: PendingPlan,
+    taken: &mut Vec<u64>,
+) -> WriteResult<Vec<Arc<str>>> {
+    let PendingPlan { minute: at, ordered, workers, record_metrics, .. } = plan;
     // Sorted by ID: the workers free to start.
     let mut free: Vec<usize> = (0..workers.len()).filter(|index| !workers[*index].has_task && workers[*index].available && workers[*index].can_start).collect();
     free.sort_by(|first, second| workers[*first].id.cmp(&workers[*second].id));
-    let record_metrics = attempt != at as f64;
     if record_metrics {
-        metrics.set_item(NO_QUALIFIED_METRIC, current_no_qualified + no_qualified as f64)?;
+        let no_qualified = ordered.iter().filter(|open| !workers.iter().any(|worker| qualifies(worker, &open.kind))).count();
+        add_to_metric(world, NO_QUALIFIED_METRIC, no_qualified as f64)?;
     }
     let (mut busy, mut off_shift) = (0_i64, 0_i64);
-    let duration = attribute(&world, intern!(py, "duration_minutes"))?.extract::<i64>()?;
-    let task_minutes = attribute(service, intern!(py, "task_duration_minutes"))?.extract::<i64>()?;
-    let resolver = attribute(service, intern!(py, "route_resolver"))?;
-    let scheduler = attribute(service, intern!(py, "travel_scheduler"))?;
-    let policy = attribute(service, intern!(py, "policy_version"))?;
-    let agents = attribute(&world, intern!(py, "agents"))?;
-    let mut assigned: Vec<Bound<'py, PyAny>> = Vec::new();
-    for (_, open) in ordered {
-        open.object.setattr(intern!(py, "last_assignment_attempt_minute"), at)?;
-        open.object.setattr(intern!(py, "last_assignment_wait_reason_code"), WAIT_REASON)?;
+    let duration = world.duration_minutes()?;
+    let task_minutes = service.task_minutes;
+    let mut assigned: Vec<Arc<str>> = Vec::new();
+    for open in ordered {
+        {
+            let mut rows = world.rows_mut()?;
+            let row = rows.support_requests.get_mut(&open.id).ok_or_else(|| left("a request"))?;
+            row.last_assignment_attempt_minute = Some(at);
+            row.last_assignment_wait_reason_code = Some(Arc::from(WAIT_REASON));
+        }
         let mut person = free.iter().copied().find(|index| qualifies(&workers[*index], &open.kind));
         if person.is_none() && open.priority > 0 {
-            person = preempt_worker(&world, &workers, &objects, &open.kind, at, &open.id, &open.agent_id, &resolver, task_minutes, duration)?;
+            person = preempt_worker(world, inputs, service, travel, events, &workers, &open, at, duration, taken)?;
             if let Some(index) = person {
                 free.push(index);
             }
         }
         let Some(person) = person else {
             if record_metrics {
-                let mut any_busy = false;
-                let mut any_away = false;
-                for (index, worker) in workers.iter().enumerate() {
+                let rows = world.rows()?;
+                let (mut any_busy, mut any_away) = (false, false);
+                for worker in &workers {
                     if qualifies(worker, &open.kind) {
-                        any_busy |= !attribute(&objects[index], intern!(py, "active_task_id"))?.is_none();
+                        any_busy |= rows.staff.get(&worker.id).is_some_and(|staff| staff.active_task_id.is_some());
                         any_away |= !worker.on_shift || !worker.available;
                     }
                 }
@@ -436,85 +600,99 @@ fn assign_work<'py>(service: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>, val
             }
             continue;
         };
-        let agent = agents.get_item(&open.agent_id)?;
-        let staff = &objects[person];
-        let staff_id = attribute(staff, intern!(py, "id"))?;
-        let mut route = py.None().into_bound(py);
+        let staff_id = workers[person].id.clone();
+        let mut route = None;
         let mut travel_minutes = 0_i64;
-        if !resolver.is_none() {
-            route = resolver.call1((attribute(&agent, intern!(py, "zone_id"))?, attribute(staff, intern!(py, "zone_id"))?, attribute(&agent, intern!(py, "id"))?))?;
-            if route.is_none() {
-                open.object.setattr(intern!(py, "last_assignment_wait_reason_code"), "route_unavailable_at_assignment")?;
+        if service.resolver != Step::None {
+            let (agent_zone, staff_zone) = zones_of(world, &open.agent_id, &staff_id)?;
+            route = resolve(world, travel, &agent_zone, &staff_zone, &open.agent_id)?;
+            let Some(found) = &route else {
+                set_reason(world, &open.id, "route_unavailable_at_assignment")?;
                 continue;
-            }
-            travel_minutes = attribute(&route, intern!(py, "travel_minutes"))?.extract()?;
+            };
+            travel_minutes = found.minutes;
+        } else if !world.rows()?.agents.contains_key(&open.agent_id) {
+            return Err(Error::Key(open.agent_id.to_string()).into());
         }
         let due = at + travel_minutes + task_minutes;
         if due >= duration {
-            open.object.setattr(intern!(py, "last_assignment_wait_reason_code"), "insufficient_run_time")?;
+            set_reason(world, &open.id, "insufficient_run_time")?;
             continue;
         }
-        let sequence: i64 = world.call_method0(intern!(py, "allocate_event_sequence"))?.extract()?;
-        let task_id = format!("staff-support-{sequence}");
-        let event_id = format!("staff-support-complete-{sequence}");
+        let sequence = events.allocate_sequence()?;
         if travel_minutes > 0 {
-            let scheduled = if scheduler.is_none() || route.is_none() {
-                false
-            } else {
-                scheduler.call1((attribute(&agent, intern!(py, "id"))?, &route, &open.id, &staff_id, at))?.is_truthy()?
+            let scheduled = match (service.scheduler, route, travel) {
+                (Step::Own, Some(route), Some(travel)) => {
+                    let trip = Trip {
+                        agent_id: open.agent_id.clone(),
+                        route,
+                        points: Vec::new(),
+                        purpose: "staff_support_travel",
+                        facility_id: None,
+                        minute: at,
+                        causation_id: Some(open.id.clone()),
+                        support_request_id: Some(open.id.clone()),
+                        support_staff_id: Some(staff_id.clone()),
+                    };
+                    travel::schedule_travel(world, travel.walking, trip).map_err(|error| step_error(SCHEDULE, error))?
+                }
+                _ => false,
             };
             if !scheduled {
-                open.object.setattr(intern!(py, "last_assignment_wait_reason_code"), "resident_travel_schedule_rejected")?;
+                set_reason(world, &open.id, "resident_travel_schedule_rejected")?;
                 continue;
             }
         }
-        let task_key: Arc<str> = Arc::from(&*task_id);
-        let task = TaskRow {
-            id: task_key.clone(),
-            kind: Arc::from("staff_support"),
-            agent_id: Some(Arc::from(exact_str(&open.agent_id)?)),
-            resource_id: None,
-            start_minute: at + travel_minutes,
+        let task_id: Arc<str> = Arc::from(format!("staff-support-{sequence}"));
+        let promoted = open.priority == 0 && at - open.requested >= service.fairness_after;
+        let mut payload = IndexMap::with_capacity(5);
+        payload.insert(Arc::from("request_id"), V::Str(open.id.clone()));
+        payload.insert(Arc::from("agent_id"), V::Str(open.agent_id.clone()));
+        payload.insert(Arc::from("staff_id"), V::Str(staff_id.clone()));
+        payload.insert(Arc::from("task_id"), V::Str(task_id.clone()));
+        payload.insert(Arc::from("support_duration_minutes"), V::Int(task_minutes));
+        let mut provenance = kit::assumption(V::Str(Arc::from(SUPPORT_SOURCE)), &service.policy);
+        provenance.insert(Arc::from("assignment_wait_minutes"), V::Int(at - open.requested));
+        provenance.insert(Arc::from("fairness_promoted"), V::Bool(promoted));
+        let event = kit::new_event(NewEvent {
+            event_id: Arc::from(format!("staff-support-complete-{sequence}")),
+            kind: EventKind::Completion,
             due_minute: due,
-            staff_id: Some(Arc::from(exact_str(&staff_id)?)),
-        };
-        let promoted = open.priority == 0 && at - open.requested >= fairness;
-        let payload = PyDict::new(py);
-        payload.set_item("request_id", &open.id)?;
-        payload.set_item("agent_id", &open.agent_id)?;
-        payload.set_item("staff_id", &staff_id)?;
-        payload.set_item("task_id", &task_id)?;
-        payload.set_item("support_duration_minutes", task_minutes)?;
-        let provenance = assumption(py, PyString::new(py, SUPPORT_SOURCE).as_any(), exact_str(&policy)?)?;
-        provenance.set_item("assignment_wait_minutes", at - open.requested)?;
-        provenance.set_item("fairness_promoted", promoted)?;
-        let event = new_event(
-            py,
-            NewEvent {
-                event_id: &event_id,
-                kind: "COMPLETION",
-                due_minute: due,
-                priority: 0,
-                sequence,
-                event_type: "staff_support_complete",
-                payload: payload.into_any(),
-                source_id: Some(PyString::new(py, &task_id).into_any()),
-                causation_id: Some(open.id.clone()),
-                provenance: provenance.into_any(),
-            },
-        )?;
-        insert_entity(&world, &task_key, task)?;
-        staff.setattr(intern!(py, "active_task_id"), &task_id)?;
-        attribute(staff, intern!(py, "work_queue"))?.set_item(pyo3::types::PySlice::full(py), PyList::new(py, [&task_id])?)?;
-        staff.setattr(intern!(py, "busy_until"), due)?;
-        open.object.setattr(intern!(py, "status"), RequestStatus::Assigned.member(py)?)?;
-        open.object.setattr(intern!(py, "assigned_staff_id"), &staff_id)?;
-        open.object.setattr(intern!(py, "task_id"), &task_id)?;
-        open.object.setattr(intern!(py, "last_assignment_wait_reason_code"), py.None())?;
-        world.call_method1(intern!(py, "schedule_event"), (event,))?;
+            priority: 0,
+            sequence,
+            event_type: Arc::from("staff_support_complete"),
+            payload,
+            source_id: Some(task_id.clone()),
+            causation_id: Some(open.id.clone()),
+            provenance,
+        })?;
+        {
+            let mut rows = world.rows_mut()?;
+            rows.active_tasks.insert(
+                task_id.clone(),
+                TaskRow {
+                    id: task_id.clone(),
+                    kind: Arc::from("staff_support"),
+                    agent_id: Some(open.agent_id.clone()),
+                    resource_id: None,
+                    start_minute: at + travel_minutes,
+                    due_minute: due,
+                    staff_id: Some(staff_id.clone()),
+                },
+            );
+            let staff = rows.staff.get_mut(&staff_id).ok_or_else(|| left("a staff member"))?;
+            staff.active_task_id = Some(task_id.clone());
+            staff.work_queue = vec![task_id.clone()];
+            staff.busy_until = due;
+            let request = rows.support_requests.get_mut(&open.id).ok_or_else(|| left("a request"))?;
+            request.status = RequestStatus::Assigned;
+            request.assigned_staff_id = Some(staff_id.clone());
+            request.task_id = Some(task_id.clone());
+            request.last_assignment_wait_reason_code = None;
+        }
+        events.schedule(event)?;
         if promoted {
-            let count = number_at(&metrics, "support_fairness_promoted_assignment_count", 0.0)?;
-            metrics.set_item("support_fairness_promoted_assignment_count", count + 1.0)?;
+            add_to_metric(world, PROMOTED_METRIC, 1.0)?;
         }
         assigned.push(open.id.clone());
         free.retain(|index| *index != person);
@@ -522,66 +700,47 @@ fn assign_work<'py>(service: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>, val
     if record_metrics {
         for (metric, count) in [(BUSY_METRIC, busy), (OFF_SHIFT_METRIC, off_shift)] {
             if count != 0 {
-                let value = number_at(&metrics, metric, 0.0)?;
-                metrics.set_item(metric, value + count as f64)?;
+                add_to_metric(world, metric, count as f64)?;
             }
         }
-        metrics.set_item(ATTEMPT_METRIC, at as f64)?;
+        set_metric(world, ATTEMPT_METRIC, at as f64)?;
     }
-    if validate_state {
-        world.call_method0(intern!(py, "validate"))?;
-    }
-    PyTuple::new(py, assigned)
-}
-
-fn number_at(metrics: &Bound<'_, PyAny>, name: &str, default: f64) -> PyResult<f64> {
-    crate::rules::handlers::number(&metrics.call_method1(intern!(metrics.py(), "get"), (name, default))?)
-}
-
-fn qualifies(worker: &Worker, kind: &str) -> bool {
-    let required = required_skills(kind);
-    worker.skills.iter().any(|skill| required.contains(&&**skill))
+    Ok(assigned)
 }
 
 /// `_preempt_background_staff`: frees one qualified routed worker for an urgent request.
 #[allow(clippy::too_many_arguments)]
-fn preempt_worker<'py>(
-    world: &Bound<'py, PyAny>,
+fn preempt_worker(
+    world: &World,
+    inputs: &Inputs<'_>,
+    service: &Service,
+    travel: Option<&Travel<'_>>,
+    events: &Events<'_>,
     workers: &[Worker],
-    objects: &[Bound<'py, PyAny>],
-    kind: &str,
+    open: &Open,
     at: i64,
-    request_id: &Bound<'py, PyAny>,
-    agent_id: &Bound<'py, PyAny>,
-    resolver: &Bound<'py, PyAny>,
-    task_minutes: i64,
     duration: i64,
-) -> PyResult<Option<usize>> {
-    let py = world.py();
-    let state = get(&table_of(world)?, NAME)?;
-    if !state.is_instance_of::<PyDict>() {
+    taken: &mut Vec<u64>,
+) -> WriteResult<Option<usize>> {
+    // `model_state.get(NAME)`: no preemption without the namespace.
+    let Some(phases) = inputs.operations_row(world)?.map(|row| row.staff.iter().map(|(id, record)| (id.clone(), record.phase)).collect::<FxHashMap<_, _>>()) else {
         return Ok(None);
-    }
-    let empty = PyDict::new(py);
-    let records = state.call_method1(intern!(py, "get"), ("staff", &empty))?;
+    };
     let mut order: Vec<usize> = (0..workers.len()).collect();
     order.sort_by(|first, second| workers[*first].id.cmp(&workers[*second].id));
-    let agents = attribute(world, intern!(py, "agents"))?;
     let mut candidates = Vec::new();
     for index in order {
-        let (worker, staff) = (&workers[index], &objects[index]);
-        if !qualifies(worker, kind)
-            || attribute(staff, intern!(py, "active_task_id"))?.is_none()
-            || get_is(&records.call_method1(intern!(py, "get"), (&*worker.id, &empty))?, "phase", "idle")?
-            || !worker.available
-            || !worker.on_shift
-        {
+        let worker = &workers[index];
+        let has_task = world.rows()?.staff.get(&worker.id).is_some_and(|staff| staff.active_task_id.is_some());
+        // `records.get(staff_id, {}).get("phase") == "idle"`.
+        let idle = phases.get(&worker.id) == Some(&Phase::Idle);
+        if !qualifies(worker, &open.kind) || !has_task || idle || !worker.available || !worker.on_shift {
             continue;
         }
-        if !resolver.is_none() {
-            let zone = attribute(&agents.get_item(agent_id)?, intern!(py, "zone_id"))?;
-            let route = resolver.call1((zone, attribute(staff, intern!(py, "zone_id"))?, agent_id))?;
-            if route.is_none() || at + attribute(&route, intern!(py, "travel_minutes"))?.extract::<i64>()? + task_minutes >= duration {
+        if service.resolver != Step::None {
+            let (zone, staff_zone) = zones_of(world, &open.agent_id, &worker.id)?;
+            let route = resolve(world, travel, &zone, &staff_zone, &open.agent_id)?;
+            if route.is_none_or(|route| at + route.minutes + service.task_minutes >= duration) {
                 continue;
             }
         }
@@ -591,233 +750,84 @@ fn preempt_worker<'py>(
         return Ok(None);
     };
     let worker = &workers[chosen];
-    let record = records.get_item(&*worker.id)?;
-    let sequence: i64 = world.call_method0(intern!(py, "allocate_event_sequence"))?.extract()?;
-    let payload = PyDict::new(py);
-    payload.set_item("staff_id", &*worker.id)?;
-    payload.set_item("task_id", record.get_item("task_id")?)?;
-    payload.set_item("request_id", request_id)?;
-    payload.set_item("reason_code", "urgent_resident_support")?;
-    let event = new_event(
-        py,
-        NewEvent {
-            event_id: &format!("staff-operation-preempted-{sequence}"),
-            kind: "ENDOGENOUS",
-            due_minute: at,
-            priority: -10,
-            sequence,
-            event_type: "staff_operation_preempted",
-            payload: payload.into_any(),
-            source_id: Some(PyString::new(py, "urgent-resident-support-preemption-v1").into_any()),
-            causation_id: Some(request_id.clone()),
-            provenance: assumption(py, PyString::new(py, PREEMPTION_SOURCE).as_any(), "urgent-staff-support-preemption-v1")?.into_any(),
-        },
-    )?;
-    attribute(world, intern!(py, "event_log"))?.call_method1(
-        intern!(py, "append"),
-        (log_record(py, &event, at.into_pyobject(py)?.as_any(), "APPLIED", Some("A priority-1 support request preempted a routed background staff task."))?,),
-    )?;
-    // Its reads refuse first, with nothing changed; its entry (`kernel_only`) then raises that
-    // refusal as KernelRefusal, past the event above.
-    let interrupted = match crate::rules::staff_operation_events::interrupt_operation(world, &worker.id, &event, None) {
-        Err(error) if error.is_instance_of::<Unsupported>(py) => {
-            py.import("sheltersim.domain.staff_operations")?.getattr("interrupt_staff_operation")?.call1((world, &*worker.id, &event))?.is_truthy()?
-        }
-        other => other?,
+    // `records[staff_id]["task_id"]`.
+    let task_id = {
+        let row = inputs.operations_held(world)?;
+        let Some(record) = row.staff.get(&worker.id) else {
+            return Err(Error::Key(worker.id.to_string()).into());
+        };
+        record.task_id.clone()
     };
+    let sequence = events.allocate_sequence()?;
+    let mut payload = IndexMap::with_capacity(4);
+    payload.insert(Arc::from("staff_id"), V::Str(worker.id.clone()));
+    payload.insert(Arc::from("task_id"), task_id.map_or(V::Null, V::Str));
+    payload.insert(Arc::from("request_id"), V::Str(open.id.clone()));
+    payload.insert(Arc::from("reason_code"), V::Str(Arc::from("urgent_resident_support")));
+    let event = kit::new_event(NewEvent {
+        event_id: Arc::from(format!("staff-operation-preempted-{sequence}")),
+        kind: EventKind::Endogenous,
+        due_minute: at,
+        priority: -10,
+        sequence,
+        event_type: Arc::from("staff_operation_preempted"),
+        payload,
+        source_id: Some(Arc::from(PREEMPTION_EVENT_SOURCE)),
+        causation_id: Some(open.id.clone()),
+        provenance: kit::assumption(V::Str(Arc::from(PREEMPTION_SOURCE)), PREEMPTION_POLICY),
+    })?;
+    events.record(&event, at, EventStatus::Applied, Some(PREEMPTION_DETAIL))?;
+    // Its refusal is the `KernelRefusal` of `interrupt_staff_operation`, past the record above.
+    let stopping = Stopping { event_id: &event.event_id, due_minute: event.due_minute };
+    let interrupted = operations::interrupt(world, inputs.tasks()?, &worker.id, &stopping, None, taken).map_err(|error| step_error(INTERRUPT, error))?;
     if !interrupted {
-        return Err(pyo3::exceptions::PyValueError::new_err("urgent support preemption lost its active staff operation"));
+        return Err(Error::Value("urgent support preemption lost its active staff operation".to_owned()).into());
     }
     Ok(Some(chosen))
 }
 
-/// `_consider_due_complaints`, whose decision stays the policy's: its provider boundary is Python's.
-#[pyfunction]
-pub(crate) fn consider_due_complaints<'py>(controller: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<()> {
-    let py = controller.py();
-    let policy = attribute(controller, intern!(py, "social_policy"))?;
-    if policy.is_none() {
+// ---- _consider_due_complaints --------------------------------------------------------------------
+
+/// `_consider_due_complaints`: each pending request that has waited exactly `threshold` minutes, in
+/// ID order, goes to the policy (`Host::consider_complaint_response`), with the world given back
+/// during the call. A decision before one may have settled it: each is read again first. None for
+/// the threshold is a Run without a social policy, which does nothing.
+pub fn consider_due_complaints<C: WorldCell, H: Host>(cell: &C, host: &mut H, threshold: Option<i64>, minute: i64) -> std::result::Result<(), H::Error> {
+    let Some(threshold) = threshold else {
         return Ok(());
-    }
-    let threshold = exact_int(&attribute(&attribute(&policy, intern!(py, "limits"))?, intern!(py, "complaint_wait_minutes"))?)?;
-    let at = exact_int(minute)?;
-    let world = attribute(controller, intern!(py, "world"))?;
-    let store = entities_of(&world)?;
-    let open = world.call_method0(intern!(py, "unsettled_support_requests"))?;
-    let due_of = |id: &str| -> PyResult<Option<Arc<str>>> {
-        EntityStore::with_rows(&store, |rows| {
-            let Some(row) = rows.support_requests.get(id) else {
-                return unsupported("a request has no row");
-            };
-            Ok((row.status == RequestStatus::Pending && row.requested_minute + threshold == at).then(|| row.agent_id.clone()))
-        })
     };
-    let mut due: Vec<String> = Vec::new();
-    let id_name = intern!(py, "id");
-    for request in open.try_iter()? {
-        let request = request?;
-        let id = attribute(&request, id_name)?;
-        let text = exact_str(&id)?;
-        if due_of(text)?.is_some() {
-            due.push(text.to_owned());
-        }
-    }
+    let is_due = |requested: i64| requested.checked_add(threshold) == Some(minute);
+    let mut due: Vec<Arc<str>> = cell.with(|world| -> Result<Vec<Arc<str>>> {
+        Ok(world
+            .rows()?
+            .support_requests
+            .iter()
+            .filter(|(_, row)| row.status == RequestStatus::Pending && is_due(row.requested_minute))
+            .map(|(id, _)| id.clone())
+            .collect())
+    })??;
     due.sort_unstable();
-    // The policy's decision, through the host (`social_policy.consider_complaint_response`).
-    let mut host = PyHost::of_controller(controller)?;
-    for text in due {
-        // A decision before this one may have settled the request.
-        let Some(agent_id) = due_of(&text).map_err(|error| {
-            if error.is_instance_of::<Unsupported>(py) {
-                pyo3::exceptions::PyRuntimeError::new_err("a request left its row in a complaint's decision")
-            } else {
-                error
-            }
-        })?
-        else {
+    for request_id in due {
+        let agent_id = cell.with(|world| -> Result<Option<Arc<str>>> {
+            let rows = world.rows()?;
+            let Some(row) = rows.support_requests.get(&request_id) else {
+                return Err(Error::Runtime("a request left its row in a complaint's decision".to_owned()));
+            };
+            Ok((row.status == RequestStatus::Pending && is_due(row.requested_minute)).then(|| row.agent_id.clone()))
+        })??;
+        let Some(agent_id) = agent_id else {
             continue;
         };
-        host.consider_complaint_response(&agent_id, &text).map_err(|error| error.0)?;
+        host.consider_complaint_response(&agent_id, &request_id)?;
     }
     Ok(())
 }
 
-/// `StaffService.assign_pending` when every pending request stays pending: it records the attempt
-/// and the wait's reason on each, and the minute's exposure. None, with nothing changed, as soon as
-/// `assign_work` is what the step needs: a request has a qualified free worker or a priority, its
-/// writes are reported, or the step validates.
-#[pyfunction]
-#[pyo3(signature = (service, minute, *, validate_state=true))]
-fn assign_none<'py>(
-    service: &Bound<'py, PyAny>,
-    minute: &Bound<'py, PyAny>,
-    validate_state: bool,
-) -> PyResult<Option<Bound<'py, PyTuple>>> {
-    let py = service.py();
-    if validate_state {
-        return Ok(None);
-    }
-    let world = attribute(service, intern!(py, "world"))?;
-    let at = exact_int(minute)?;
-    if at != minute_of(&world)? {
-        return Ok(None);
-    }
-    let table = table_of(&world)?;
-    let open = world.call_method0(intern!(py, "unsettled_support_requests"))?;
-    let kinds = CareKinds::of(&world, &table)?;
-    let priorities = priorities_of(&table)?;
-    let workers = workers_at(&world, at)?;
-    let store = entities_of(&world)?;
-    let map = world.getattr(intern!(py, "support_requests"))?;
-
-    // The plan: which requests are pending, what each may be served by.
-    struct Pending<'py> {
-        object: Bound<'py, PyAny>,
-        id: Bound<'py, PyAny>,
-        is_pending: bool,
-        same_reason: bool,
-        same_minute: bool,
-    }
-    let id_name = intern!(py, "id");
-    let mut requests: Vec<Pending<'py>> = Vec::new();
-    for request in open.try_iter()? {
-        let object = request?;
-        let id = attribute(&object, id_name)?;
-        exact_str(&id)?;
-        requests.push(Pending { object, id, is_pending: false, same_reason: false, same_minute: false });
-    }
-    EntityStore::with_rows(&store, |rows| {
-        for request in &mut requests {
-            let Some(row) = rows.support_requests.get(exact_str(&request.id)?) else {
-                return unsupported("a request has no row");
-            };
-            request.is_pending = row.status == RequestStatus::Pending;
-            request.same_reason = row.last_assignment_wait_reason_code.as_deref() == Some(WAIT_REASON);
-            request.same_minute = row.last_assignment_attempt_minute == Some(at);
-        }
-        Ok(())
-    })?;
-    requests.retain(|request| request.is_pending);
-    let mut exposures: Vec<(String, (bool, bool, bool))> = Vec::new();
-    let mut no_qualified = 0.0;
-    let mut busy = 0.0;
-    let mut off_shift = 0.0;
-    for request in &requests {
-        if !raw_dict_get(&map, &request.id)?.is_some_and(|object| object.is(&request.object)) {
-            return Ok(None);
-        }
-        let kind = kinds.kind_of(&request.id)?;
-        let kind = match &kind {
-            Some(kind) => exact_str(kind)?,
-            None => DEFAULT_KIND,
-        };
-        let exposure = match exposures.iter().find(|(known, _)| known == kind) {
-            Some((_, exposure)) => *exposure,
-            None => {
-                let Some(exposure) = kind_exposure(&workers, kind) else {
-                    return Ok(None);
-                };
-                exposures.push((kind.to_owned(), exposure));
-                exposure
-            }
-        };
-        if is_urgent(priorities.as_ref(), &request.id)? {
-            return Ok(None);
-        }
-        no_qualified += f64::from(u8::from(exposure.0));
-        busy += f64::from(u8::from(exposure.1));
-        off_shift += f64::from(u8::from(exposure.2));
-    }
-    let metrics = field_mirror_of(&world, intern!(py, "metric_state"))?;
-    let record_metrics = NamespaceMirror::with_row::<MetricRow, _>(&metrics, |row| {
-        Ok(row.get(ATTEMPT_METRIC).copied().unwrap_or(-1.0) != at as f64)
-    })?;
-    if at.abs() >= FLOAT_EXACT_INT {
-        return unsupported("the minute does not fit a float");
-    }
-
-    // The writes.
-    if record_metrics {
-        NamespaceMirror::with_row_tree::<MetricRow, _>(&metrics, |row, tree| {
-            let sum = row.get(NO_QUALIFIED_METRIC).copied().unwrap_or(0.0) + no_qualified;
-            map_set(row, tree, NO_QUALIFIED_METRIC, sum)
-        })?;
-    }
-    EntityStore::with_rows(&store, |rows| {
-        let reason: Arc<str> = Arc::from(WAIT_REASON);
-        for request in &requests {
-            if request.same_minute && request.same_reason {
-                continue;
-            }
-            let Some(row) = rows.support_requests.get_mut(exact_str(&request.id)?) else {
-                return unsupported("a request has no row");
-            };
-            row.last_assignment_attempt_minute = Some(at);
-            if !request.same_reason {
-                row.last_assignment_wait_reason_code = Some(reason.clone());
-            }
-        }
-        Ok(())
-    })?;
-    if record_metrics {
-        NamespaceMirror::with_row_tree::<MetricRow, _>(&metrics, |row, tree| {
-            for (metric, count) in [(BUSY_METRIC, busy), (OFF_SHIFT_METRIC, off_shift)] {
-                if count != 0.0 {
-                    let sum = row.get(metric).copied().unwrap_or(0.0) + count;
-                    map_set(row, tree, metric, sum)?;
-                }
-            }
-            map_set(row, tree, ATTEMPT_METRIC, at as f64)
-        })?;
-    }
-    Ok(Some(PyTuple::empty(py)))
-}
-
-// ---- What the metrics read of each open request ---------------------------------------------------
+// ---- What the metrics read of each open request --------------------------------------------------
 
 /// What `_support_wait_snapshot` needs of the qualified staff of one kind.
 struct KindWait {
-    kind: String,
+    kind: Arc<str>,
     qualified: bool,
     /// The sorted blockers of `support_wait_reason_codes` that come from the staff.
     blockers: Vec<&'static str>,
@@ -825,8 +835,7 @@ struct KindWait {
     destinations: Vec<Arc<str>>,
 }
 
-fn kind_wait(workers: &[Worker], kind: &str, sample: i64) -> KindWait {
-    let required = required_skills(kind);
+fn kind_wait(workers: &[Worker], kind: &Arc<str>, sample: i64) -> KindWait {
     let mut qualified = false;
     let mut unavailable = false;
     let mut staff_busy = false;
@@ -835,7 +844,7 @@ fn kind_wait(workers: &[Worker], kind: &str, sample: i64) -> KindWait {
     let mut off_shift = false;
     let mut destinations = BTreeSet::new();
     for worker in workers {
-        if !worker.skills.iter().any(|skill| required.contains(&&**skill)) {
+        if !qualifies(worker, kind) {
             continue;
         }
         qualified = true;
@@ -853,110 +862,127 @@ fn kind_wait(workers: &[Worker], kind: &str, sample: i64) -> KindWait {
     }
     // Sorted, as `tuple(sorted(blockers))`.
     let mut blockers = Vec::with_capacity(5);
-    if staff_busy {
-        blockers.push("staff_busy");
+    for (blocked, name) in [
+        (staff_busy, "staff_busy"),
+        (off_shift, "staff_off_shift"),
+        (other_operation, "staff_on_other_operation"),
+        (resting, "staff_resting"),
+        (unavailable, "staff_unavailable"),
+    ] {
+        if blocked {
+            blockers.push(name);
+        }
     }
-    if off_shift {
-        blockers.push("staff_off_shift");
-    }
-    if other_operation {
-        blockers.push("staff_on_other_operation");
-    }
-    if resting {
-        blockers.push("staff_resting");
-    }
-    if unavailable {
-        blockers.push("staff_unavailable");
-    }
-    KindWait { kind: kind.to_owned(), qualified, blockers, destinations: destinations.into_iter().collect() }
+    KindWait { kind: kind.clone(), qualified, blockers, destinations: destinations.into_iter().collect() }
 }
 
-/// What `_support_route_wait_reasons` reads once for all the requests of a snapshot. Rebuilt for each
-/// snapshot where one has a route to look at, as the Python rule builds it for each request.
+/// What the routes of a wait read beside the world, read by the PyO3 crate only where a request's
+/// kind has free staff (`open_waits` returns None without them).
+#[derive(Clone, Copy)]
+pub struct WaitRoutes<'a> {
+    /// `staff_operations_v1` as the edge loads read it (`travel::active_edge_loads`); the queue's
+    /// rows are read before.
+    pub loads_staff: &'a Held,
+    /// The floor plan; None where the PyO3 crate could not read it.
+    pub geo: Option<&'a Arc<Geo>>,
+    /// The movement section of the configs (`config::movement`).
+    pub movement: &'a Kept<Movement>,
+    /// `model_configs["staff"].get("support_task_minutes", 10)`.
+    pub support_minutes: &'a Kept<i64>,
+}
+
+/// What `_support_route_wait_reasons` reads once for all the requests of a snapshot.
 struct RouteReads {
     graph: Router,
     loads: EdgeLoads,
     has_plan: bool,
-    /// `model_configs["staff"].get("support_task_minutes", 10)`.
     service_minutes: i64,
     duration: i64,
     closed: Vec<(&'static str, Arc<HashSet<Arc<str>>>)>,
 }
 
 impl RouteReads {
-    fn of(world: &Bound<'_, PyAny>, minute: i64) -> PyResult<Self> {
-        let py = world.py();
-        let service_minutes = *configs::kept_value(world, |configs| &configs.support_task_minutes, support_task_minutes)?;
-        let configs = attribute(world, intern!(py, "model_configs"))?;
-        let configs = exact_dict(&configs)?;
+    fn of(world: &World, inputs: &WaitRoutes<'_>, minute: i64) -> Result<Self> {
+        let service_minutes = *kit::kept(inputs.support_minutes)?;
+        let has_plan = match &world.row::<ValueRow>(MODEL_CONFIGS)?.0 {
+            V::Map(configs) => configs.contains_key("facility_geometry"),
+            _ => return Err(Error::unsupported("a value is not a plain dict")),
+        };
         Ok(Self {
-            graph: world_graph(world)?,
-            loads: active_edge_loads(world, minute)?,
-            has_plan: configs.contains(intern!(py, "facility_geometry"))?,
+            graph: travel::world_graph(world)?,
+            loads: travel::active_edge_loads(world, inputs.loads_staff, minute)?,
+            has_plan,
             service_minutes,
-            duration: exact_int(&attribute(world, intern!(py, "duration_minutes"))?)?,
+            duration: world.duration_minutes()?,
             closed: Vec::new(),
         })
     }
 
-    fn closed_to(&mut self, world: &Bound<'_, PyAny>, mobility: &'static str) -> PyResult<Arc<HashSet<Arc<str>>>> {
+    fn closed_to(&mut self, geo: Option<&Arc<Geo>>, mobility: &'static str) -> Result<Arc<HashSet<Arc<str>>>> {
         if let Some((_, closed)) = self.closed.iter().find(|(name, _)| *name == mobility) {
             return Ok(closed.clone());
         }
-        let closed = if self.has_plan { self.graph.edges_closed_by(&*Geo::of(world)?, mobility) } else { HashSet::new() };
+        let closed = if self.has_plan { self.graph.edges_closed_by(travel::plan(geo)?, mobility) } else { HashSet::new() };
         let closed = Arc::new(closed);
         self.closed.push((mobility, closed.clone()));
         Ok(closed)
     }
 }
 
+/// `route_with_movement_time` of a route's minutes.
+fn movement_minutes(world: &World, inputs: &WaitRoutes<'_>, agent_id: &str, route: &Route) -> Result<i64> {
+    let section = kit::kept(inputs.movement)?;
+    if !section.times_routes() {
+        return Ok(route.minutes);
+    }
+    let model = kit::movement::config_read(section.model.clone())?;
+    if route.minutes.abs() >= FLOAT_EXACT_INT {
+        return Err(Error::unsupported("the route's minutes are too large"));
+    }
+    let geo = travel::plan(inputs.geo)?;
+    let zones: Vec<&str> = route.zone_ids.iter().map(|id| &**id).collect();
+    let edges: Vec<&str> = route.edge_ids.iter().map(|id| &**id).collect();
+    movement::movement_minutes(world, geo, &model, agent_id, &zones, &edges, route.minutes)
+}
+
 /// `_support_route_wait_reasons`, of a person with candidates: the reasons, and whether a route is
 /// feasible.
-fn route_wait_reasons(
-    world: &Bound<'_, PyAny>,
-    reads: &mut RouteReads,
-    agent_id: &str,
-    destinations: &[Arc<str>],
-    minute: i64,
-) -> PyResult<(BTreeSet<&'static str>, bool)> {
-    let py = world.py();
-    let store = entities_of(world)?;
-    let (zone, mobility) = EntityStore::with_rows(&store, |rows| {
+fn route_wait_reasons(world: &World, inputs: &WaitRoutes<'_>, reads: &mut RouteReads, agent_id: &str, destinations: &[Arc<str>], minute: i64) -> Result<(BTreeSet<&'static str>, bool)> {
+    let (zone, mobility) = {
+        let rows = world.rows()?;
         let Some(agent) = rows.agents.get(agent_id) else {
-            return unsupported("no such agent");
+            return Err(Error::unsupported("no such agent"));
         };
-        Ok((agent.zone_id.clone(), mobility_text(agent)))
-    })?;
-    let closed = reads.closed_to(world, mobility)?;
-    let zones = attribute(world, intern!(py, "zones"))?;
+        (agent.zone_id.clone(), kit::mobility_text(agent))
+    };
+    let closed = reads.closed_to(inputs.geo, mobility)?;
     let mut reasons = BTreeSet::new();
     let mut feasible = false;
     for destination in destinations {
-        let Some(route) = reads.graph.shortest(&closed, Some(&reads.loads), &zone, destination).or_py()? else {
-            let free = reads.graph.shortest(&closed, None, &zone, destination).or_py()?;
+        let Some(route) = reads.graph.shortest(&closed, Some(&reads.loads), &zone, destination)? else {
+            let free = reads.graph.shortest(&closed, None, &zone, destination)?;
             reasons.insert(if free.is_some() { "route_capacity_full" } else { "no_route_to_qualified_staff" });
             continue;
         };
-        let zone_ids: Vec<&str> = route.zone_ids.iter().map(|id| &**id).collect();
-        let edge_ids: Vec<&str> = route.edge_ids.iter().map(|id| &**id).collect();
-        let minutes = movement_minutes(world, agent_id, &zone_ids, &edge_ids, route.minutes)?;
-        let Some(place) = raw_dict_get(&zones, PyString::new(py, destination).as_any())? else {
-            return unsupported("no such zone");
+        let minutes = movement_minutes(world, inputs, agent_id, &route)?;
+        let rows = world.rows()?;
+        if rows.zones_tainted().is_some() {
+            return Err(Error::unsupported(ZONES_TAINTED));
+        }
+        let Some(place) = rows.zones.get(destination) else {
+            return Err(Error::unsupported("no such zone"));
         };
-        let capacity = attribute(&place, intern!(py, "capacity"))?;
-        if *destination != zone && !capacity.is_none() {
-            let capacity = exact_int(&capacity)?;
-            let (occupied, incoming) = EntityStore::with_rows(&store, |rows| {
+        if *destination != zone {
+            if let Some(capacity) = place.capacity {
                 let (mut occupied, mut incoming) = (0_i64, 0_i64);
                 for (_, person) in rows.agents.iter() {
                     occupied += i64::from(person.zone_id == *destination);
                     incoming += i64::from(person.activity == Activity::Moving && person.target_id.as_ref() == Some(destination));
                 }
-                Ok((occupied, incoming))
-            })?;
-            if occupied + incoming >= capacity {
-                reasons.insert("staff_destination_full");
-                continue;
+                if occupied + incoming >= capacity {
+                    reasons.insert("staff_destination_full");
+                    continue;
+                }
             }
         }
         if minute.saturating_add(minutes).saturating_add(reads.service_minutes) >= reads.duration {
@@ -977,22 +1003,24 @@ enum WaitReason {
     Routed(Vec<Arc<str>>),
 }
 
-/// What the metrics read of one open request.
-pub(crate) struct OpenWait<'py> {
-    pub(crate) agent: Arc<str>,
-    pub(crate) id: Bound<'py, PyAny>,
-    pub(crate) waited: i64,
+/// What the metrics read of one open request, by its place in the list given.
+pub struct OpenWait {
+    /// The request's place in the list given.
+    pub index: usize,
+    pub agent: Arc<str>,
+    pub waited: i64,
     reason: WaitReason,
 }
 
 /// The requests of `_support_wait_snapshot`, in the order given.
-pub(crate) struct OpenWaits<'py> {
-    pub(crate) requests: Vec<OpenWait<'py>>,
+pub struct OpenWaits {
+    pub requests: Vec<OpenWait>,
     waits: Vec<KindWait>,
 }
 
-impl OpenWaits<'_> {
-    pub(crate) fn reasons_of<'a>(&'a self, request: &'a OpenWait<'_>) -> Vec<&'a str> {
+impl OpenWaits {
+    /// `support_wait_reason_codes` of a request.
+    pub fn reasons_of<'a>(&'a self, request: &'a OpenWait) -> Vec<&'a str> {
         match &request.reason {
             WaitReason::OfKind(kind) => {
                 let wait = &self.waits[*kind];
@@ -1009,15 +1037,19 @@ impl OpenWaits<'_> {
         }
     }
 
-    pub(crate) fn has_no_qualified_staff(&self, request: &OpenWait<'_>) -> bool {
+    /// Whether no staff member is qualified for its kind.
+    pub fn has_no_qualified_staff(&self, request: &OpenWait) -> bool {
         matches!(request.reason, WaitReason::OfKind(kind) if !self.waits[kind].qualified)
     }
 }
 
-/// `support_wait_reason_codes` of a pending request whose kind has free staff, past its routes.
+/// `support_wait_reason_codes` of a pending request whose kind has free staff, past its routes:
+/// None where its routes are to be read and `routes` is None.
 #[allow(clippy::too_many_arguments)]
 fn routed_reasons(
-    world: &Bound<'_, PyAny>,
+    world: &World,
+    staff: &Inputs<'_>,
+    routes: Option<&WaitRoutes<'_>>,
     reads: &mut Option<RouteReads>,
     wait: &KindWait,
     agent_exists: bool,
@@ -1025,61 +1057,54 @@ fn routed_reasons(
     last_attempt: Option<i64>,
     last_reason: Option<&Arc<str>>,
     sample: i64,
-) -> PyResult<Vec<Arc<str>>> {
+) -> Result<Option<Vec<Arc<str>>>> {
     let (route_reasons, feasible) = if agent_exists {
+        let Some(routes) = routes else {
+            return Ok(None);
+        };
         if reads.is_none() {
-            *reads = Some(RouteReads::of(world, sample)?);
+            *reads = Some(RouteReads::of(world, routes, sample)?);
         }
         let Some(known) = reads.as_mut() else {
-            return unsupported("the routes were not read");
+            return Err(Error::unsupported("the routes were not read"));
         };
-        route_wait_reasons(world, known, agent_id, &wait.destinations, sample)?
+        route_wait_reasons(world, routes, known, agent_id, &wait.destinations, sample)?
     } else {
         (BTreeSet::new(), false)
     };
     let mut blockers: BTreeSet<&str> = wait.blockers.iter().copied().collect();
     blockers.extend(route_reasons);
     if !blockers.is_empty() {
-        return Ok(blockers.into_iter().map(Arc::from).collect());
+        return Ok(Some(blockers.into_iter().map(Arc::from).collect()));
     }
     if !feasible {
-        return Ok(vec![Arc::from("no_route_to_qualified_staff")]);
+        return Ok(Some(vec![Arc::from("no_route_to_qualified_staff")]));
     }
     if last_attempt == Some(sample) {
-        return Ok(vec![match last_reason {
+        return Ok(Some(vec![match last_reason {
             Some(reason) if !reason.is_empty() => reason.clone(),
             _ => Arc::from("assignment_failure_reason_not_recorded"),
-        }]);
+        }]));
     }
-    let py = world.py();
-    let metrics = field_mirror_of(world, intern!(py, "metric_state"))?;
-    let attempted = NamespaceMirror::with_row::<MetricRow, _>(&metrics, |row| Ok(row.get(ATTEMPT_METRIC).copied().unwrap_or(-1.0) == sample as f64))?;
-    Ok(vec![Arc::from(if attempted { "assignment_failure_reason_not_recorded" } else { "assignment_not_attempted_at_sampled_minute" })])
+    kit::check_metric_state(world, staff.metric_state_held)?;
+    let attempted = world.metric_state()?.get(ATTEMPT_METRIC).copied().unwrap_or(-1.0) == sample as f64;
+    Ok(Some(vec![Arc::from(if attempted { "assignment_failure_reason_not_recorded" } else { "assignment_not_attempted_at_sampled_minute" })]))
 }
 
-/// `support_waited_minutes` and `support_wait_reason_codes` of each request, or with `only_open`
-/// of each one that is pending or assigned.
-pub(crate) fn open_waits<'py>(
-    world: &Bound<'py, PyAny>,
-    list: &Bound<'py, PyList>,
-    sample: i64,
-    only_open: bool,
-) -> PyResult<OpenWaits<'py>> {
-    let py = world.py();
-    let table = table_of(world)?;
-    let kinds = CareKinds::of(&world, &table)?;
-    let store = entities_of(world)?;
+/// `support_waited_minutes` and `support_wait_reason_codes` of each request of these IDs, or with
+/// `only_open` of each one that is pending or assigned. None, where a request's routes are to be
+/// read and `routes` is None: the call again with them answers. Nothing is written.
+pub fn open_waits(world: &World, staff: &Inputs<'_>, routes: Option<&WaitRoutes<'_>>, ids: &[Arc<str>], sample: i64, only_open: bool) -> Result<Option<OpenWaits>> {
+    let kinds = CareKinds::of(world, staff)?;
     let mut waits: Vec<KindWait> = Vec::new();
     let mut workers: Option<Vec<Worker>> = None;
     let mut reads: Option<RouteReads> = None;
-    let mut requests: Vec<OpenWait<'py>> = Vec::with_capacity(list.len());
-    let id_name = intern!(py, "id");
-    for request in list.iter() {
-        let id_object = attribute(&request, id_name)?;
-        let id = exact_str(&id_object)?;
-        let read = EntityStore::with_rows(&store, |rows| {
+    let mut requests: Vec<OpenWait> = Vec::with_capacity(ids.len());
+    for (index, id) in ids.iter().enumerate() {
+        let (agent, status, moving, waited, agent_exists, last_attempt, last_reason) = {
+            let rows = world.rows()?;
             let Some(request) = rows.support_requests.get(id) else {
-                return unsupported("a request has no row");
+                return Err(Error::unsupported("a request has no row"));
             };
             let agent = rows.agents.get(&request.agent_id);
             let moving = agent.is_some_and(|agent| agent.activity == Activity::Moving);
@@ -1091,9 +1116,9 @@ pub(crate) fn open_waits<'py>(
                 }
             }
             let Some(waited) = endpoint.checked_sub(request.requested_minute) else {
-                return unsupported("the wait does not fit an i64");
+                return Err(Error::unsupported("the wait does not fit an i64"));
             };
-            Ok((
+            (
                 request.agent_id.clone(),
                 request.status,
                 moving,
@@ -1101,218 +1126,154 @@ pub(crate) fn open_waits<'py>(
                 agent.is_some(),
                 request.last_assignment_attempt_minute,
                 request.last_assignment_wait_reason_code.clone(),
-            ))
-        })?;
-        let (agent, status, moving, waited, agent_exists, last_attempt, last_reason) = read;
+            )
+        };
         if only_open && !matches!(status, RequestStatus::Pending | RequestStatus::Assigned) {
             continue;
         }
         let reason = match status {
             RequestStatus::Assigned => WaitReason::One(if moving { "resident_travel" } else { "support_in_progress" }),
             RequestStatus::Pending => {
-                let kind = kinds.kind_of(&id_object)?;
-                let kind = match &kind {
-                    Some(kind) => exact_str(kind)?,
-                    None => DEFAULT_KIND,
-                };
+                let kind = kinds.kind_of(id);
                 let index = match waits.iter().position(|wait| wait.kind == kind) {
                     Some(index) => index,
                     None => {
                         if workers.is_none() {
-                            workers = Some(workers_at(world, sample)?);
+                            workers = Some(workers_at(world, staff, sample)?);
                         }
-                        waits.push(kind_wait(workers.as_deref().unwrap_or(&[]), kind, sample));
+                        waits.push(kind_wait(workers.as_deref().unwrap_or(&[]), &kind, sample));
                         waits.len() - 1
                     }
                 };
                 if waits[index].destinations.is_empty() {
                     WaitReason::OfKind(index)
                 } else {
-                    WaitReason::Routed(routed_reasons(world, &mut reads, &waits[index], agent_exists, &agent, last_attempt, last_reason.as_ref(), sample)?)
+                    match routed_reasons(world, staff, routes, &mut reads, &waits[index], agent_exists, &agent, last_attempt, last_reason.as_ref(), sample)? {
+                        Some(reasons) => WaitReason::Routed(reasons),
+                        None => return Ok(None),
+                    }
                 }
             }
             _ => WaitReason::One("request_closed"),
         };
-        requests.push(OpenWait { agent, id: id_object, waited, reason });
+        requests.push(OpenWait { index, agent, waited, reason });
     }
-    Ok(OpenWaits { requests, waits })
+    Ok(Some(OpenWaits { requests, waits }))
 }
 
-/// `_support_wait_snapshot` in `experiments/metrics.py`, for the snapshots `rules/metrics.rs`
-/// leaves to the Python rule.
-#[pyfunction]
-fn wait_snapshot<'py>(
-    world: &Bound<'py, PyAny>,
-    active_support: &Bound<'py, PyAny>,
-    sample_minute: &Bound<'py, PyAny>,
-) -> PyResult<(Bound<'py, PyDict>, Bound<'py, PyList>)> {
-    let py = world.py();
-    let sample = exact_int(sample_minute)?;
-    let list = active_support.downcast_exact::<PyList>().map_err(|_| Unsupported::new_err("the requests are not a list"))?;
-    let open = open_waits(world, list, sample, false)?;
-    let output = &open.requests;
-    // `sorted(active_support, key=agent_id)`, stable.
-    let mut order: Vec<usize> = (0..output.len()).collect();
-    order.sort_by(|first, second| output[*first].agent.as_bytes().cmp(output[*second].agent.as_bytes()));
-    let details = PyDict::new(py);
-    for index in &order {
-        let row = &output[*index];
-        let detail = PyDict::new(py);
-        detail.set_item(intern!(py, "request_id"), &row.id)?;
-        detail.set_item(intern!(py, "waited_minutes"), row.waited)?;
-        detail.set_item(intern!(py, "reason_codes"), PyList::new(py, open.reasons_of(row))?)?;
-        details.set_item(&*row.agent, detail)?;
-    }
-    let mut no_qualified: Vec<&str> = output
-        .iter()
-        .filter(|row| open.has_no_qualified_staff(row))
-        .map(|row| &*row.agent)
-        .collect();
-    no_qualified.sort_unstable();
-    Ok((details, PyList::new(py, no_qualified)?))
-}
-
-// ---- domain/staff_operations.py --------------------------------------------------------------------
+// ---- update_staff_operations ---------------------------------------------------------------------
 
 /// The value under `name` of a config document.
-fn config_item<'a>(config: &'a V, name: &str) -> PyResult<&'a V> {
+fn config_item<'a>(config: &'a V, name: &str) -> Result<&'a V> {
     match config {
-        V::Map(config) => match config.get(name) {
-            Some(value) => Ok(value),
-            None => unsupported("the config lacks a key"),
-        },
-        _ => unsupported("the config is not a map"),
+        V::Map(config) => config.get(name).ok_or_else(|| Error::unsupported("the config lacks a key")),
+        _ => Err(Error::unsupported("the config is not a map")),
     }
 }
 
 /// `config[table].get(zone, {}).get(name)`. A table that is `required` is read as `config[table]`.
-fn zone_override<'a>(config: &'a V, table: &str, zone: &str, name: &str, required: bool) -> PyResult<Option<&'a V>> {
+fn zone_override<'a>(config: &'a V, table: &str, zone: &str, name: &str, required: bool) -> Result<Option<&'a V>> {
     let V::Map(document) = config else {
-        return unsupported("the config is not a map");
+        return Err(Error::unsupported("the config is not a map"));
     };
     let Some(table) = document.get(table) else {
-        return if required { unsupported("the config lacks a table") } else { Ok(None) };
+        return if required { Err(Error::unsupported("the config lacks a table")) } else { Ok(None) };
     };
     let V::Map(table) = table else {
-        return unsupported("a table of the config is not a map");
+        return Err(Error::unsupported("a table of the config is not a map"));
     };
     match table.get(zone) {
         None => Ok(None),
         Some(V::Map(entry)) => Ok(entry.get(name)),
-        Some(_) => unsupported("an entry of the config is not a map"),
+        Some(_) => Err(Error::unsupported("an entry of the config is not a map")),
     }
 }
 
 /// `load * rate * elapsed` of `update_staff_operations`, from the left, as the float Python takes
 /// off the sanitation. `canonical_staff_operations_config` takes an int rate too (0 or 1 in its
 /// range): its product is an int, exact, which the float subtraction then reads as its float.
-fn used_sanitation(rate: &V, load: i64, elapsed: i64) -> PyResult<f64> {
+fn used_sanitation(rate: &V, load: i64, elapsed: i64) -> Result<f64> {
     match rate {
         V::Float(rate) => Ok(load as f64 * rate * elapsed as f64),
         V::Int(rate) => {
             let used = i128::from(load) * i128::from(*rate) * i128::from(elapsed);
             if used.unsigned_abs() > FLOAT_EXACT_INT as u128 {
-                return unsupported("the sanitation used does not fit a float");
+                return Err(Error::unsupported("the sanitation used does not fit a float"));
             }
             Ok(used as f64)
         }
-        _ => unsupported("a rate is not a number"),
+        _ => Err(Error::unsupported("a rate is not a number")),
     }
 }
 
 /// A threshold a comparison with a float reads: both types compare as their value does.
-fn threshold(value: Option<&V>, default: f64) -> PyResult<f64> {
+fn threshold(value: Option<&V>, default: f64) -> Result<f64> {
     match value {
         None => Ok(default),
         Some(V::Float(number)) => Ok(*number),
         Some(V::Int(number)) if number.abs() < FLOAT_EXACT_INT => Ok(*number as f64),
-        Some(_) => unsupported("a threshold is not a number"),
+        Some(_) => Err(Error::unsupported("a threshold is not a number")),
     }
 }
 
-/// The IDs of `world.zones`.
-fn world_zones(world: &Bound<'_, PyAny>) -> PyResult<Vec<Arc<str>>> {
-    let zones = attribute(world, intern!(world.py(), "zones"))?;
-    exact_dict(&zones)?.keys().iter().map(|key| Ok(Arc::from(exact_str(&key)?))).collect()
-}
-
-/// `update_staff_operations`: each zone's sanitation falls with who is in it.
-#[pyfunction]
-pub(crate) fn update_operations(world: &Bound<'_, PyAny>, minute: &Bound<'_, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    if namespace_is_absent(world, intern!(py, NAME))? {
+/// `update_staff_operations`: each zone's sanitation falls with who is in it. Nothing without the
+/// namespace; a zone whose record does not change is not written.
+pub fn update_operations(world: &World, inputs: &Inputs<'_>, minute: i64) -> Result<()> {
+    if matches!(inputs.operations, Held::Absent) {
         return Ok(());
     }
-    let at = exact_int(minute)?;
     let zones = world_zones(world)?;
-    let mirror = mirror_held(world, NAME)?;
-    let loads = EntityStore::with_rows(&entities_of(world)?, |rows| {
+    let loads: Vec<i64> = {
+        let rows = world.rows()?;
         let mut loads: FxHashMap<&str, i64> = FxHashMap::default();
         for (_, agent) in rows.agents.iter() {
             *loads.entry(&agent.zone_id).or_insert(0) += 1;
         }
-        Ok(zones.iter().map(|zone| loads.get(&**zone).copied().unwrap_or(0)).collect::<Vec<i64>>())
-    })?;
-    let plan = NamespaceMirror::with_row::<StaffOperationsRow, _>(&mirror, |row| {
+        zones.iter().map(|zone| loads.get(&**zone).copied().unwrap_or(0)).collect()
+    };
+    let plan = {
+        let row = inputs.operations_held(world)?;
         let mut plan = Vec::with_capacity(zones.len());
         let global = config_item(&row.config, "sanitation_use_per_person_minute")?;
         for (zone_id, load) in zones.iter().zip(&loads) {
             let Some((index, _, record)) = row.zones.get_full(zone_id) else {
-                return unsupported("a zone has no record");
+                return Err(Error::unsupported("a zone has no record"));
             };
-            let Some(elapsed) = at.checked_sub(record.updated_minute) else {
-                return unsupported("the time since the update does not fit an i64");
+            let Some(elapsed) = minute.checked_sub(record.updated_minute) else {
+                return Err(Error::unsupported("the time since the update does not fit an i64"));
             };
             let elapsed = elapsed.max(0);
             if elapsed >= FLOAT_EXACT_INT {
-                return unsupported("the time since the update does not fit a float");
+                return Err(Error::unsupported("the time since the update does not fit a float"));
             }
-            let rate = zone_override(&row.config, "effects_by_zone", zone_id, "sanitation_use_per_person_minute", true)?
-                .unwrap_or(global);
-            let used = used_sanitation(rate, *load, elapsed)?;
-            plan.push((index, py_max(0.0, record.sanitation - used)));
-        }
-        Ok(plan)
-    })?;
-    NamespaceMirror::with_row_tree::<StaffOperationsRow, _>(&mirror, |row, tree| {
-        let zones_tree = tree.child(intern!(py, "zones"))?;
-        for (index, sanitation) in plan {
-            let Some((id, record)) = row.zones.get_index_mut(index) else {
-                return unsupported("a zone has no record");
-            };
-            if record.sanitation.to_bits() != sanitation.to_bits() || record.updated_minute != at {
-                let node = zones_tree.child_str(id)?;
-                record.set_sanitation(&node, sanitation)?;
-                record.set_updated_minute(&node, at)?;
+            let rate = zone_override(&row.config, "effects_by_zone", zone_id, "sanitation_use_per_person_minute", true)?.unwrap_or(global);
+            let sanitation = py_max(0.0, record.sanitation - used_sanitation(rate, *load, elapsed)?);
+            if record.sanitation.to_bits() != sanitation.to_bits() || record.updated_minute != minute {
+                plan.push((index, sanitation));
             }
         }
-        Ok(())
-    })
-}
-
-/// Both rules of the staff's tasks round each member's fatigue on their way, which raises for this.
-fn every_fatigue_is_finite(world: &Bound<'_, PyAny>) -> PyResult<()> {
-    if namespace_is_absent(world, intern!(world.py(), STAFF_DYNAMICS))? {
+        plan
+    };
+    if plan.is_empty() {
         return Ok(());
     }
-    NamespaceMirror::with_row::<StaffDynamicsRow, _>(&mirror_held(world, STAFF_DYNAMICS)?, |row| {
-        if row.staff.values().all(|record| record.fatigue.is_finite()) {
-            Ok(())
-        } else {
-            unsupported("a fatigue is not finite")
-        }
-    })
+    let mut row = world.row_mut::<StaffOperationsRow>(NAME)?;
+    for (index, sanitation) in plan {
+        let (_, record) = row.zones.get_index_mut(index).ok_or_else(|| Error::unsupported("a zone has no record"))?;
+        record.sanitation = sanitation;
+        record.updated_minute = minute;
+    }
+    Ok(())
 }
 
-/// `format(value, "g")` of a float, or of an int as a float (`sheltersim_core::text::g_text`).
-fn g_text(value: f64) -> PyResult<String> {
-    sheltersim_core::text::g_text(value).or_py()
-}
+// ---- assign_staff_operations ---------------------------------------------------------------------
 
-/// `format(value, "g")`, to compare with Python's in the tests.
-#[pyfunction]
-fn format_g(value: f64) -> PyResult<String> {
-    g_text(value)
+/// Both rules of the staff's tasks round each member's fatigue on their way, which raises for this.
+fn every_fatigue_is_finite(world: &World, inputs: &Inputs<'_>) -> Result<()> {
+    match inputs.dynamics_row(world)? {
+        Some(row) if !row.staff.values().all(|record| record.fatigue.is_finite()) => Err(Error::unsupported("a fatigue is not finite")),
+        _ => Ok(()),
+    }
 }
 
 /// The people of a zone: their stress, and the uncertainty of those with a body record.
@@ -1323,43 +1284,28 @@ struct ZonePeople {
 }
 
 /// Who is in each zone, in the order of the zones' IDs.
-fn zone_people(world: &Bound<'_, PyAny>) -> PyResult<BTreeMap<Arc<str>, ZonePeople>> {
-    let py = world.py();
-    let store = entities_of(world)?;
-    let body = if namespace_is_absent(world, intern!(py, BODY_STATE))? { None } else { Some(mirror_held(world, BODY_STATE)?) };
+fn zone_people(world: &World, inputs: &Inputs<'_>) -> Result<BTreeMap<Arc<str>, ZonePeople>> {
+    let body = kit::held_row::<BodyRow>(world, BODY_STATE, inputs.body)?;
+    let rows = world.rows()?;
     let mut people: BTreeMap<Arc<str>, ZonePeople> = BTreeMap::new();
-    EntityStore::with_rows(&store, |rows| {
-        let mut read = |body: Option<&BodyRow>| {
-            for (id, agent) in rows.agents.iter() {
-                let zone = match people.get_mut(&agent.zone_id) {
-                    Some(zone) => zone,
-                    None => people.entry(agent.zone_id.clone()).or_default(),
-                };
-                zone.stress.push(agent.stress);
-                if let Some(record) = body.and_then(|body| body.agents.get(id)) {
-                    zone.uncertainty.push(record.uncertainty);
-                }
-            }
+    for (id, agent) in rows.agents.iter() {
+        let zone = match people.get_mut(&agent.zone_id) {
+            Some(zone) => zone,
+            None => people.entry(agent.zone_id.clone()).or_default(),
         };
-        match &body {
-            Some(body) => NamespaceMirror::with_row::<BodyRow, _>(body, |body| {
-                read(Some(&*body));
-                Ok(())
-            }),
-            None => {
-                read(None);
-                Ok(())
-            }
+        zone.stress.push(agent.stress);
+        if let Some(record) = body.as_ref().and_then(|body| body.agents.get(id)) {
+            zone.uncertainty.push(record.uncertainty);
         }
-    })?;
+    }
     Ok(people)
 }
 
 /// `math.fsum(values) / len(values)`, of at least one value.
-fn mean_of(values: &[f64], refusal: &'static str) -> PyResult<f64> {
+fn mean_of(values: &[f64], refusal: &'static str) -> Result<f64> {
     match py_fsum(values) {
         Some(sum) => Ok(sum / values.len() as f64),
-        None => unsupported(refusal),
+        None => Err(Error::unsupported(refusal)),
     }
 }
 
@@ -1376,114 +1322,60 @@ const MAINTENANCE_SKILLS: [&str; 2] = ["maintenance", "repair"];
 const OUTREACH_SKILLS: [&str; 2] = ["support", "information"];
 const PATROL_SKILLS: [&str; 2] = ["support", "patrol"];
 
-/// `assign_staff_operations`: the plain tick where no free worker has a task to take, which changes
-/// nothing and reads no route, and the rest.
-#[pyfunction]
-pub(crate) fn assign_operations<'py>(
-    world: &Bound<'py, PyAny>,
-    minute: &Bound<'py, PyAny>,
-    router: &Bound<'py, PyAny>,
-) -> PyResult<Bound<'py, PyTuple>> {
-    assign_operations_with(world, minute, StaffRouter::Given(router))
-}
-
-/// `assign_staff_operations` with the graph of a Run's `staff_space` or of a router a caller gave.
-pub(crate) fn assign_operations_with<'py>(
-    world: &Bound<'py, PyAny>,
-    minute: &Bound<'py, PyAny>,
-    router: StaffRouter<'_, 'py>,
-) -> PyResult<Bound<'py, PyTuple>> {
-    let py = world.py();
-    let done = PyTuple::empty(py);
-    if namespace_is_absent(world, intern!(py, NAME))? {
-        return Ok(done);
-    }
-    let at = exact_int(minute)?;
-    configs::kept_value(world, |configs| &configs.staff_operations_known, known_staff_operations)?;
-    let workers = workers_at(world, at)?;
-    let store = entities_of(world)?;
+/// Whether a free worker has a task to take: what the tick reads before it routes anything.
+fn a_task_is_open(world: &World, inputs: &Inputs<'_>, row: &StaffOperationsRow, workers: &[Worker]) -> Result<bool> {
     let free: Vec<&Worker> = workers.iter().filter(|worker| is_free_for_a_task(worker)).collect();
     let has = |skills: &[&str]| free.iter().any(|worker| has_skill(worker, skills));
-    let cleaners = has(&CLEANING_SKILLS);
-    let repairers = has(&MAINTENANCE_SKILLS);
-    let outreach = has(&OUTREACH_SKILLS);
-    let patrol = has(&PATROL_SKILLS);
-    let mirror = mirror_held(world, NAME)?;
-    every_fatigue_is_finite(world)?;
-    let a_task_is_open = NamespaceMirror::with_row::<StaffOperationsRow, _>(&mirror, |row| {
-        // `state["staff"][staff_id]` raises for one without a record.
-        if workers.iter().any(|worker| !worker.has_task && !row.staff.contains_key(&worker.id)) {
-            return unsupported("a staff member has no record");
-        }
-        let reserved = |kind: &str, zone: &str| {
-            row.staff.values().any(|record| {
-                record.phase != Phase::Idle
-                    && record.task_kind.as_deref() == Some(kind)
-                    && record.target_zone_id.as_deref() == Some(zone)
-                    && record.target_id.is_none()
-            })
-        };
-        if cleaners {
-            for (zone, record) in &row.zones {
-                let below = threshold(
-                    zone_override(&row.config, "thresholds_by_zone", zone, "cleaning_sanitation_below", false)?,
-                    CLEANING_BELOW,
-                )?;
-                if record.sanitation < below && !reserved("cleaning", zone) {
-                    return Ok(true);
-                }
-            }
-        }
-        if repairers {
-            let any_deficit = EntityStore::with_rows(&store, |rows| {
-                Ok(rows.facilities.iter().any(|(_, facility)| facility.capacity > facility.working_units))
-            })?;
-            if any_deficit {
+    let (cleaners, repairers, outreach, patrol) = (has(&CLEANING_SKILLS), has(&MAINTENANCE_SKILLS), has(&OUTREACH_SKILLS), has(&PATROL_SKILLS));
+    // `state["staff"][staff_id]` raises for one without a record.
+    if workers.iter().any(|worker| !worker.has_task && !row.staff.contains_key(&worker.id)) {
+        return Err(Error::unsupported("a staff member has no record"));
+    }
+    let reserved = |kind: &str, zone: &str| {
+        row.staff.values().any(|record| {
+            record.phase != Phase::Idle && record.task_kind.as_deref() == Some(kind) && record.target_zone_id.as_deref() == Some(zone) && record.target_id.is_none()
+        })
+    };
+    if cleaners {
+        for (zone, record) in &row.zones {
+            let below = threshold(zone_override(&row.config, "thresholds_by_zone", zone, "cleaning_sanitation_below", false)?, CLEANING_BELOW)?;
+            if record.sanitation < below && !reserved("cleaning", zone) {
                 return Ok(true);
             }
         }
-        if !outreach && !patrol {
-            return Ok(false);
-        }
-        let people = zone_people(world)?;
-        if outreach {
-            for (zone, group) in &people {
-                if group.uncertainty.is_empty() {
-                    continue;
-                }
-                let mean = mean_of(&group.uncertainty, "an uncertainty is not finite")?;
-                let at_least = threshold(
-                    zone_override(&row.config, "thresholds_by_zone", zone, "outreach_uncertainty_at_least", false)?,
-                    OUTREACH_AT_LEAST,
-                )?;
-                if mean >= at_least && !reserved("information_outreach", zone) {
-                    return Ok(true);
-                }
-            }
-        }
-        if patrol {
-            for zone in world_zones(world)? {
-                let Some(group) = people.get(&zone) else {
-                    continue;
-                };
-                let mean = mean_of(&group.stress, "a stress is not finite")?;
-                let at_least = threshold(
-                    zone_override(&row.config, "thresholds_by_zone", &zone, "patrol_stress_at_least", false)?,
-                    PATROL_AT_LEAST,
-                )?;
-                if mean >= at_least && !reserved("patrol", &zone) {
-                    return Ok(true);
-                }
-            }
-        }
-        Ok(false)
-    })?;
-    if !a_task_is_open {
-        return Ok(done);
     }
-    let plan = plan_operations(world, at, router, &workers);
-    let plan = plan?;
-    write_operations(world, minute, at, &plan, &workers)
+    if repairers && world.rows()?.facilities.iter().any(|(_, facility)| facility.capacity > facility.working_units) {
+        return Ok(true);
+    }
+    if !outreach && !patrol {
+        return Ok(false);
+    }
+    let people = zone_people(world, inputs)?;
+    if outreach {
+        for (zone, group) in &people {
+            if group.uncertainty.is_empty() {
+                continue;
+            }
+            let mean = mean_of(&group.uncertainty, "an uncertainty is not finite")?;
+            let at_least = threshold(zone_override(&row.config, "thresholds_by_zone", zone, "outreach_uncertainty_at_least", false)?, OUTREACH_AT_LEAST)?;
+            if mean >= at_least && !reserved("information_outreach", zone) {
+                return Ok(true);
+            }
+        }
+    }
+    if patrol {
+        for zone in world_zones(world)? {
+            let Some(group) = people.get(&zone) else {
+                continue;
+            };
+            let mean = mean_of(&group.stress, "a stress is not finite")?;
+            let at_least = threshold(zone_override(&row.config, "thresholds_by_zone", &zone, "patrol_stress_at_least", false)?, PATROL_AT_LEAST)?;
+            if mean >= at_least && !reserved("patrol", &zone) {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
 }
 
 /// A task a worker could take, with what `_TASK_SKILLS` asks of them.
@@ -1507,15 +1399,8 @@ struct PlannedOperation {
     due: i64,
 }
 
-struct PlannedOperations<'py> {
-    starts: Vec<PlannedOperation>,
-    source: Bound<'py, PyAny>,
-    policy: Bound<'py, PyAny>,
-    event_source: Bound<'py, PyAny>,
-}
-
 /// `(recent, total, round(1000 * fatigue))` of each member by ID: how both rules rotate the staff.
-fn workload_of(world: &Bound<'_, PyAny>, row: &StaffOperationsRow, workers: &[Worker], at: i64) -> PyResult<Vec<(i64, i64, i64)>> {
+fn workload_of(world: &World, inputs: &Inputs<'_>, row: &StaffOperationsRow, workers: &[Worker], at: i64) -> Result<Vec<(i64, i64, i64)>> {
     let cutoff = 0.max(at - 240);
     let mut counts: FxHashMap<&str, (i64, i64)> = FxHashMap::default();
     for item in &row.history {
@@ -1523,71 +1408,22 @@ fn workload_of(world: &Bound<'_, PyAny>, row: &StaffOperationsRow, workers: &[Wo
         entry.0 += i64::from(item.complete_minute >= cutoff);
         entry.1 += 1;
     }
-    let py = world.py();
-    let dynamics = if namespace_is_absent(world, intern!(py, STAFF_DYNAMICS))? { None } else { Some(mirror_held(world, STAFF_DYNAMICS)?) };
-    let mut rounds = Vec::with_capacity(workers.len());
-    let round_of = |fatigue: f64| match py_round_int(1000.0 * fatigue) {
-        Some(rounded) => Ok(rounded),
-        None => unsupported("a fatigue does not round"),
-    };
-    match &dynamics {
-        Some(dynamics) => NamespaceMirror::with_row::<StaffDynamicsRow, _>(dynamics, |dynamics| {
-            for worker in workers {
-                rounds.push(match dynamics.staff.get(&worker.id) {
-                    Some(record) => round_of(record.fatigue)?,
-                    None => 0,
-                });
-            }
-            Ok(())
-        })?,
-        None => rounds.resize(workers.len(), 0),
-    }
-    Ok(workers
-        .iter()
-        .zip(rounds)
-        .map(|(worker, rounded)| {
-            let (recent, total) = counts.get(&*worker.id).copied().unwrap_or((0, 0));
-            (recent, total, rounded)
-        })
-        .collect())
-}
-
-/// `create_staff_operations_formula(model_configs)` and whether `policy_registry` selects it, kept
-/// for the configs' stamp (`core/configs.rs`). What the factory raises is relayed as it is.
-pub(crate) fn staff_operations(world: &Bound<'_, PyAny>) -> PyResult<Arc<StaffOperations>> {
-    let py = world.py();
-    let parse = || -> PyResult<StaffOperations> {
-        let configs = attribute(world, intern!(py, "model_configs"))?;
-        let formula = py.import("sheltersim.policies.registry")?.getattr("create_staff_operations_formula")?.call1((&configs,))?;
-        let selected = get(&configs, "policy_registry")?;
-        let selected = !selected.is_none() && selected.contains("staff_operations")?;
-        let model_id = Arc::from(exact_str(&attribute(&formula, intern!(py, "model_id"))?)?);
-        let selected_source = match selected {
-            true => Some(Arc::from(exact_str(&attribute(&formula, intern!(py, "source_id"))?)?)),
-            false => None,
+    let dynamics = inputs.dynamics_row(world)?;
+    let mut workload = Vec::with_capacity(workers.len());
+    for worker in workers {
+        let rounded = match dynamics.as_ref().and_then(|dynamics| dynamics.staff.get(&worker.id)) {
+            Some(record) => py_round_int(1000.0 * record.fatigue).ok_or_else(|| Error::unsupported("a fatigue does not round"))?,
+            None => 0,
         };
-        Ok(StaffOperations { model_id, selected_source })
-    };
-    match configs::kept(world, |configs| &configs.staff_operations, || Ok(configs::parsed(py, parse())))? {
-        Ok(formula) => Ok(formula),
-        Err(fault) => Err(configs::raise(&fault, parse)),
+        let (recent, total) = counts.get(&*worker.id).copied().unwrap_or((0, 0));
+        workload.push((recent, total, rounded));
     }
+    Ok(workload)
 }
 
-/// What `assign_staff_operations` takes from `create_staff_operations_formula`: its ranking, the
-/// source and policy of the events' provenance, and their `source_id`.
-pub(crate) fn formula_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<(bool, Bound<'py, PyAny>, Bound<'py, PyAny>, Bound<'py, PyAny>)> {
-    let py = world.py();
-    let formula = staff_operations(world)?;
-    let (source, policy, event_source) = formula.provenance();
-    let text = |value: &str| PyString::new(py, value).into_any();
-    Ok((formula.travel_first(), text(source), text(policy), text(event_source)))
-}
-
-/// The tasks `assign_staff_operations` would list for someone with every skill, in its order, without
-/// the ones `reserved_operations` takes.
-fn open_tasks(world: &Bound<'_, PyAny>, row: &StaffOperationsRow, workers: &[Worker]) -> PyResult<Vec<OpenTask>> {
-    let py = world.py();
+/// The tasks `assign_staff_operations` would list for someone with every skill, in its order,
+/// without the ones `reserved_operations` takes.
+fn open_tasks(world: &World, inputs: &Inputs<'_>, row: &StaffOperationsRow, workers: &[Worker]) -> Result<Vec<OpenTask>> {
     let eligible = |skills: &[&str]| workers.iter().any(|worker| is_free_for_a_task(worker) && has_skill(worker, skills));
     let mut tasks = Vec::new();
     if eligible(&CLEANING_SKILLS) {
@@ -1610,21 +1446,20 @@ fn open_tasks(world: &Bound<'_, PyAny>, row: &StaffOperationsRow, workers: &[Wor
     }
     if eligible(&MAINTENANCE_SKILLS) {
         // `sorted(world.facilities.values(), key=id)`.
-        let mut short = EntityStore::with_rows(&entities_of(world)?, |rows| {
-            Ok(rows
-                .facilities
-                .iter()
-                .filter(|(_, facility)| facility.capacity > facility.working_units)
-                .map(|(id, facility)| (id.clone(), facility.zone_id.clone(), facility.capacity - facility.working_units))
-                .collect::<Vec<_>>())
-        })?;
+        let mut short: Vec<(Arc<str>, Arc<str>, i64)> = world
+            .rows()?
+            .facilities
+            .iter()
+            .filter(|(_, facility)| facility.capacity > facility.working_units)
+            .map(|(id, facility)| (id.clone(), facility.zone_id.clone(), facility.capacity - facility.working_units))
+            .collect();
         short.sort_by(|first, second| first.0.cmp(&second.0));
         for (id, zone, deficit) in short {
             if deficit >= FLOAT_EXACT_INT {
-                return unsupported("a deficit does not fit a float");
+                return Err(Error::unsupported("a deficit does not fit a float"));
             }
-            let key = PyString::new(py, &id);
-            if !active_outage(world, &id)? && !has_active_modifier(world, key.as_any())? {
+            let outage = kit::active_outage(world.slots.try_value(INFRASTRUCTURE)?.as_deref(), &id)?;
+            if !outage && !kit::has_active_modifier(kit::held_row::<EffectProgramRow>(world, PROGRAM, inputs.tasks()?.program)?.as_deref(), &id) {
                 tasks.push(OpenTask {
                     urgency: deficit as f64,
                     kind: "maintenance",
@@ -1639,7 +1474,7 @@ fn open_tasks(world: &Bound<'_, PyAny>, row: &StaffOperationsRow, workers: &[Wor
     let outreach = eligible(&OUTREACH_SKILLS);
     let patrol = eligible(&PATROL_SKILLS);
     if outreach || patrol {
-        let people = zone_people(world)?;
+        let people = zone_people(world, inputs)?;
         if outreach {
             for (zone, group) in &people {
                 if group.uncertainty.is_empty() {
@@ -1696,22 +1531,64 @@ fn ranks_above(first: (f64, f64, &OpenTask), second: (f64, f64, &OpenTask)) -> b
     text(first.2) > text(second.2)
 }
 
+/// What `assign_staff_operations` reads only where a free worker has a task to take.
+#[derive(Clone, Copy)]
+pub struct Routed<'a> {
+    /// The staff's router: the Run's, or the graph of the `SpaceRouter` a Python caller gave.
+    pub router: &'a Router,
+    /// Whether the world holds `movement_v1` and `staff_operations_v1`, as the passages' loads read
+    /// them (`travel::passage_edge_loads`).
+    pub movement: &'a Held,
+    pub loads_staff: &'a Held,
+}
+
+/// What `assign_staff_operations` led to.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Operations {
+    /// The new task IDs.
+    Done(Vec<Arc<str>>),
+    /// A free worker has a task to take: nothing is written, and the call again with `Routed`
+    /// (and the formula in the inputs) routes and starts them.
+    NeedsRoutes,
+}
+
+/// `assign_staff_operations`: nothing without the namespace; the plain tick where no free worker has
+/// a task to take changes nothing and reads no route.
+pub fn assign_operations(world: &World, inputs: &Inputs<'_>, known: &Kept<()>, minute: i64, routed: Option<&Routed<'_>>) -> WriteResult<Operations> {
+    if matches!(inputs.operations, Held::Absent) {
+        return Ok(Operations::Done(Vec::new()));
+    }
+    kit::kept(known)?;
+    let workers = workers_at(world, inputs, minute)?;
+    {
+        let row = inputs.operations_held(world)?;
+        every_fatigue_is_finite(world, inputs)?;
+        if !a_task_is_open(world, inputs, &row, &workers)? {
+            return Ok(Operations::Done(Vec::new()));
+        }
+    }
+    let Some(routed) = routed else {
+        return Ok(Operations::NeedsRoutes);
+    };
+    let starts = plan_operations(world, inputs, minute, routed, &workers)?;
+    write_operations(world, inputs, minute, starts, &workers)
+}
+
 /// `assign_staff_operations`, changing nothing: who starts what, and on which route.
-fn plan_operations<'py>(world: &Bound<'py, PyAny>, at: i64, router: StaffRouter<'_, 'py>, workers: &[Worker]) -> PyResult<PlannedOperations<'py>> {
-    let py = world.py();
-    let (travel_first, source, policy, event_source) = formula_of(world)?;
-    let graph = staff_router_rows(router)?;
-    let mut loads = passage_edge_loads(world, at)?;
-    let duration = exact_int(&attribute(world, intern!(py, "duration_minutes"))?)?;
-    let mirror = mirror_held(world, NAME)?;
-    let (tasks, workload, durations, mut reserved) = NamespaceMirror::with_row::<StaffOperationsRow, _>(&mirror, |row| {
-        let mut durations = Vec::new();
-        for kind in ["cleaning", "maintenance", "information_outreach", "intake", "patrol"] {
+fn plan_operations(world: &World, inputs: &Inputs<'_>, at: i64, routed: &Routed<'_>, workers: &[Worker]) -> Result<Vec<PlannedOperation>> {
+    let formula: &StaffOperations = inputs.tasks()?.formula.ok_or_else(|| Error::unsupported(FORMULA_UNREAD))?;
+    let travel_first = formula.travel_first();
+    let mut loads = travel::passage_edge_loads(world, routed.movement, routed.loads_staff, at)?;
+    let duration = world.duration_minutes()?;
+    let (tasks, workload, durations, mut reserved) = {
+        let row = inputs.operations_held(world)?;
+        let mut durations = Vec::with_capacity(TASK_KINDS.len());
+        for kind in TASK_KINDS {
             let V::Map(table) = config_item(&row.config, "task_duration_minutes")? else {
-                return unsupported("the task durations are not a map");
+                return Err(Error::unsupported("the task durations are not a map"));
             };
             let Some(V::Int(minutes)) = table.get(kind) else {
-                return unsupported("a task duration is not an int");
+                return Err(Error::unsupported("a task duration is not an int"));
             };
             durations.push((kind, *minutes));
         }
@@ -1721,8 +1598,8 @@ fn plan_operations<'py>(world: &Bound<'py, PyAny>, at: i64, router: StaffRouter<
             .filter(|record| record.phase != Phase::Idle)
             .filter_map(|record| Some((record.task_kind.clone()?, record.target_zone_id.clone()?, record.target_id.clone())))
             .collect();
-        Ok((open_tasks(world, row, workers)?, workload_of(world, row, workers, at)?, durations, reserved))
-    })?;
+        (open_tasks(world, inputs, &row, workers)?, workload_of(world, inputs, &row, workers, at)?, durations, reserved)
+    };
     let mut order: Vec<usize> = (0..workers.len()).collect();
     order.sort_by(|first, second| (workload[*first], &workers[*first].id).cmp(&(workload[*second], &workers[*second].id)));
     let nothing_closed = HashSet::new();
@@ -1737,11 +1614,11 @@ fn plan_operations<'py>(world: &Bound<'py, PyAny>, at: i64, router: StaffRouter<
             if !has_skill(worker, task.skills) || reserved.contains(&(Arc::from(task.kind), task.zone.clone(), task.target.clone())) {
                 continue;
             }
-            let Some(route) = graph.shortest(&nothing_closed, Some(&loads), &worker.zone, &task.zone).or_py()? else {
+            let Some(route) = routed.router.shortest(&nothing_closed, Some(&loads), &worker.zone, &task.zone)? else {
                 continue;
             };
             if route.minutes >= FLOAT_EXACT_INT {
-                return unsupported("a route's minutes do not fit a float");
+                return Err(Error::unsupported("a route's minutes do not fit a float"));
             }
             let (first, second) = if travel_first { (-route.minutes as f64, task.urgency) } else { (task.urgency, -route.minutes as f64) };
             // `max` keeps the first of equal keys.
@@ -1753,10 +1630,10 @@ fn plan_operations<'py>(world: &Bound<'py, PyAny>, at: i64, router: StaffRouter<
             continue;
         };
         let Some((_, work)) = durations.iter().find(|(kind, _)| *kind == task.kind) else {
-            return unsupported("a task without a duration");
+            return Err(Error::unsupported("a task without a duration"));
         };
         let Some(due) = at.checked_add(route.minutes).and_then(|arrival| arrival.checked_add(*work)) else {
-            return unsupported("a due minute out of range");
+            return Err(Error::unsupported("a due minute out of range"));
         };
         if due >= duration {
             continue;
@@ -1767,124 +1644,111 @@ fn plan_operations<'py>(world: &Bound<'py, PyAny>, at: i64, router: StaffRouter<
         reserved.insert((Arc::from(task.kind), task.zone.clone(), task.target.clone()));
         starts.push(PlannedOperation { worker: index, kind: task.kind, zone: task.zone.clone(), target: task.target.clone(), reason: task.reason.clone(), route, due });
     }
-    Ok(PlannedOperations { starts, source, policy, event_source })
+    Ok(starts)
 }
 
-fn optional_text<'py>(py: Python<'py>, text: Option<&Arc<str>>) -> Bound<'py, PyAny> {
-    match text {
-        Some(text) => PyString::new(py, text).into_any(),
-        None => py.None().into_bound(py),
-    }
+fn text_or_none(text: Option<&Arc<str>>) -> V {
+    text.map_or(V::Null, |text| V::Str(text.clone()))
 }
 
-/// What `assign_staff_operations` writes, in its order: one record at a time on the forwarded writes.
-fn write_operations<'py>(
-    world: &Bound<'py, PyAny>,
-    minute: &Bound<'py, PyAny>,
-    at: i64,
-    plan: &PlannedOperations<'py>,
-    workers: &[Worker],
-) -> PyResult<Bound<'py, PyTuple>> {
-    let py = world.py();
-    let table = table_of(world)?;
-    let records = get(&get(&table, NAME)?, "staff")?;
-    let staff_map = attribute(world, intern!(py, "staff"))?;
-    let mut assigned = Vec::with_capacity(plan.starts.len());
-    for start in &plan.starts {
+/// What `assign_staff_operations` writes, in its order.
+fn write_operations(world: &World, inputs: &Inputs<'_>, at: i64, starts: Vec<PlannedOperation>, workers: &[Worker]) -> WriteResult<Operations> {
+    let formula: &StaffOperations = inputs.tasks()?.formula.ok_or_else(|| Error::unsupported(FORMULA_UNREAD))?;
+    let (source, policy, event_source) = formula.provenance();
+    let events = Events::of(world)?;
+    let mut assigned = Vec::with_capacity(starts.len());
+    for start in starts {
         let worker = &workers[start.worker];
         let travel = start.route.minutes;
         let arrival = at + travel;
-        let sequence: i64 = world.call_method0(intern!(py, "allocate_event_sequence"))?.extract()?;
-        let task_id = format!("staff-operation-{sequence}");
-        let target_zone = PyString::new(py, &start.zone);
-        let target = optional_text(py, start.target.as_ref());
-        let record = PyDict::new(py);
-        record.set_item("phase", if travel != 0 { "travel" } else { "working" })?;
-        record.set_item("task_id", &task_id)?;
-        record.set_item("task_kind", start.kind)?;
-        record.set_item("target_id", &target)?;
-        record.set_item("target_zone_id", &target_zone)?;
-        record.set_item("reason", &start.reason)?;
-        record.set_item("started_minute", minute)?;
-        record.set_item("travel_due_minute", if travel != 0 { Some(arrival) } else { None })?;
-        record.set_item("arrival_minute", if travel != 0 { None } else { Some(arrival) })?;
-        record.set_item("due_minute", start.due)?;
-        let (zones, edges): (&[Arc<str>], &[Arc<str>]) = if travel != 0 { (&start.route.zone_ids, &start.route.edge_ids) } else { (&[], &[]) };
-        record.set_item("route_zone_ids", PyList::new(py, zones.iter().map(|id| &**id))?)?;
-        record.set_item("route_edge_ids", PyList::new(py, edges.iter().map(|id| &**id))?)?;
-        record.set_item("travel_minutes", travel)?;
-        record.set_item("causation_event_ids", PyList::empty(py))?;
-        records.set_item(&*worker.id, record)?;
-        let task_key: Arc<str> = Arc::from(&*task_id);
-        insert_entity(world, &task_key, TaskRow {
-            id: task_key.clone(),
-            kind: Arc::from("staff_operation"),
-            agent_id: None,
-            resource_id: None,
-            start_minute: at,
-            due_minute: start.due,
-            staff_id: Some(worker.id.clone()),
-        })?;
-        let staff = staff_map.get_item(&*worker.id)?;
-        staff.setattr(intern!(py, "active_task_id"), &task_id)?;
-        attribute(&staff, intern!(py, "work_queue"))?.set_item(PySlice::full(py), PyList::new(py, [&task_id])?)?;
-        staff.setattr(intern!(py, "busy_until"), start.due)?;
-        if travel != 0 {
-            let payload = PyDict::new(py);
-            payload.set_item("staff_id", &*worker.id)?;
-            payload.set_item("task_id", &task_id)?;
-            payload.set_item("target_zone_id", &target_zone)?;
-            let event = new_event(
-                py,
-                NewEvent {
-                    event_id: &format!("staff-operation-arrive-{sequence}"),
-                    kind: "COMPLETION",
-                    due_minute: arrival,
-                    priority: 5,
-                    sequence,
-                    event_type: "staff_operation_arrive",
-                    payload: payload.into_any(),
-                    source_id: Some(plan.event_source.clone()),
-                    causation_id: None,
-                    provenance: assumption(py, &plan.source, exact_str(&plan.policy)?)?.into_any(),
+        let sequence = events.allocate_sequence()?;
+        let task_id: Arc<str> = Arc::from(format!("staff-operation-{sequence}"));
+        let (zones, edges) = if travel != 0 { (start.route.zone_ids.clone(), start.route.edge_ids.clone()) } else { (Vec::new(), Vec::new()) };
+        let record = OperationRecord {
+            phase: if travel != 0 { Phase::Travel } else { Phase::Working },
+            task_id: Some(task_id.clone()),
+            task_kind: Some(Arc::from(start.kind)),
+            target_id: start.target.clone(),
+            target_zone_id: Some(start.zone.clone()),
+            reason: Some(Arc::from(start.reason.as_str())),
+            started_minute: Some(at),
+            travel_due_minute: (travel != 0).then_some(arrival),
+            arrival_minute: (travel == 0).then_some(arrival),
+            due_minute: Some(start.due),
+            route_zone_ids: zones,
+            route_edge_ids: edges,
+            travel_minutes: travel,
+            causation_event_ids: Vec::new(),
+        };
+        world.row_mut::<StaffOperationsRow>(NAME)?.staff.insert(worker.id.clone(), record);
+        {
+            let mut rows = world.rows_mut()?;
+            rows.active_tasks.insert(
+                task_id.clone(),
+                TaskRow {
+                    id: task_id.clone(),
+                    kind: Arc::from("staff_operation"),
+                    agent_id: None,
+                    resource_id: None,
+                    start_minute: at,
+                    due_minute: start.due,
+                    staff_id: Some(worker.id.clone()),
                 },
-            )?;
-            world.call_method1(intern!(py, "schedule_event"), (event,))?;
+            );
+            let staff = rows.staff.get_mut(&worker.id).ok_or_else(|| left("a staff member"))?;
+            staff.active_task_id = Some(task_id.clone());
+            staff.work_queue = vec![task_id.clone()];
+            staff.busy_until = start.due;
         }
-        let completion: i64 = world.call_method0(intern!(py, "allocate_event_sequence"))?.extract()?;
-        let payload = PyDict::new(py);
-        payload.set_item("staff_id", &*worker.id)?;
-        payload.set_item("task_id", &task_id)?;
-        payload.set_item("task_kind", start.kind)?;
-        payload.set_item("target_id", &target)?;
-        payload.set_item("target_zone_id", &target_zone)?;
-        let provenance = assumption(py, &plan.source, exact_str(&plan.policy)?)?;
-        provenance.set_item("reason", &start.reason)?;
-        let event = new_event(
-            py,
-            NewEvent {
-                event_id: &format!("staff-operation-complete-{completion}"),
-                kind: "COMPLETION",
-                due_minute: start.due,
+        if travel != 0 {
+            let mut payload = IndexMap::with_capacity(3);
+            payload.insert(Arc::from("staff_id"), V::Str(worker.id.clone()));
+            payload.insert(Arc::from("task_id"), V::Str(task_id.clone()));
+            payload.insert(Arc::from("target_zone_id"), V::Str(start.zone.clone()));
+            events.schedule(kit::new_event(NewEvent {
+                event_id: Arc::from(format!("staff-operation-arrive-{sequence}")),
+                kind: EventKind::Completion,
+                due_minute: arrival,
                 priority: 5,
-                sequence: completion,
-                event_type: "staff_operation_complete",
-                payload: payload.into_any(),
-                source_id: Some(plan.event_source.clone()),
+                sequence,
+                event_type: Arc::from("staff_operation_arrive"),
+                payload,
+                source_id: Some(Arc::from(event_source)),
                 causation_id: None,
-                provenance: provenance.into_any(),
-            },
-        )?;
-        world.call_method1(intern!(py, "schedule_event"), (event,))?;
+                provenance: kit::assumption(V::Str(Arc::from(source)), policy),
+            })?)?;
+        }
+        let completion = events.allocate_sequence()?;
+        let mut payload = IndexMap::with_capacity(5);
+        payload.insert(Arc::from("staff_id"), V::Str(worker.id.clone()));
+        payload.insert(Arc::from("task_id"), V::Str(task_id.clone()));
+        payload.insert(Arc::from("task_kind"), V::Str(Arc::from(start.kind)));
+        payload.insert(Arc::from("target_id"), text_or_none(start.target.as_ref()));
+        payload.insert(Arc::from("target_zone_id"), V::Str(start.zone.clone()));
+        let mut provenance = kit::assumption(V::Str(Arc::from(source)), policy);
+        provenance.insert(Arc::from("reason"), V::Str(Arc::from(start.reason.as_str())));
+        events.schedule(kit::new_event(NewEvent {
+            event_id: Arc::from(format!("staff-operation-complete-{completion}")),
+            kind: EventKind::Completion,
+            due_minute: start.due,
+            priority: 5,
+            sequence: completion,
+            event_type: Arc::from("staff_operation_complete"),
+            payload,
+            source_id: Some(Arc::from(event_source)),
+            causation_id: None,
+            provenance,
+        })?)?;
         assigned.push(task_id);
     }
-    if !assigned.is_empty() && exact_dict(&table)?.contains(MOVEMENT)? {
-        let kwargs = PyDict::new(py);
-        kwargs.set_item("boundary_minute", at + 1)?;
-        py.import("sheltersim.domain.movement")?.getattr("staff_position_snapshots")?.call((world,), Some(&kwargs))?;
+    let tasks = inputs.tasks()?;
+    if !assigned.is_empty() && !matches!(tasks.movement, Held::Absent) {
+        operations::snapshots(world, tasks, at + 1)?;
     }
-    PyTuple::new(py, assigned)
+    Ok(Operations::Done(assigned))
 }
+
+// ---- schedule_staff_operation_relief -------------------------------------------------------------
 
 /// One handoff of `schedule_staff_operation_relief`, nothing changed yet.
 struct PlannedRelief {
@@ -1893,160 +1757,142 @@ struct PlannedRelief {
     replacement: Arc<str>,
 }
 
-/// `schedule_staff_operation_relief`, changing nothing.
-fn plan_relief(world: &Bound<'_, PyAny>, at: i64, next: i64, duration: i64) -> PyResult<Vec<PlannedRelief>> {
-    let py = world.py();
-    let writer = crate::state::events::EventWriter::of(world)?;
-    let pending = writer.queue().get().pending_events(py)?;
-    let Some(pending) = pending else {
-        return unsupported("an event in the queue is not a plain one");
-    };
-    let mut handed: HashSet<Arc<str>> = HashSet::new();
-    for event in &pending {
-        if let Some(task) = crate::rules::travel::relief_task_of(event)? {
-            handed.insert(task);
+/// `event.payload.get("task_id")` of each `staff_operation_relief` in the queue: the tasks already
+/// handed. The PyO3 crate reads the rows of the events Python scheduled before it calls.
+fn handed_tasks(world: &World) -> Result<HashSet<Arc<str>>> {
+    let queue = world.queue()?;
+    let mut handed = HashSet::new();
+    for (_, serial) in queue.ordered() {
+        let Some(row) = &queue.slot(*serial).row else {
+            return Err(Error::unsupported("an event in the queue is not a plain one"));
+        };
+        if &*row.event_type != "staff_operation_relief" {
+            continue;
+        }
+        if let Some(V::Str(task)) = kit::payload(row, "task_id") {
+            handed.insert(task.clone());
         }
     }
-    let workers = workers_at(world, next)?;
-    let store = entities_of(world)?;
-    NamespaceMirror::with_row::<StaffOperationsRow, _>(&mirror_held(world, NAME)?, |row| {
-        let workload = workload_of(world, row, &workers, at)?;
-        let mut operations: Vec<(&Arc<str>, &crate::state::staff_operations::OperationRecord)> = row.staff.iter().collect();
-        operations.sort_by(|first, second| first.0.cmp(second.0));
-        let mut plans = Vec::new();
-        for (staff_id, operation) in operations {
-            if operation.phase == Phase::Idle {
+    Ok(handed)
+}
+
+/// `schedule_staff_operation_relief`, changing nothing.
+fn plan_relief(world: &World, inputs: &Inputs<'_>, at: i64, next: i64, duration: i64) -> Result<Vec<PlannedRelief>> {
+    let handed = handed_tasks(world)?;
+    let workers = workers_at(world, inputs, next)?;
+    let row = inputs.operations_held(world)?;
+    let workload = workload_of(world, inputs, &row, &workers, at)?;
+    let mut operations: Vec<(&Arc<str>, &OperationRecord)> = row.staff.iter().collect();
+    operations.sort_by(|first, second| first.0.cmp(second.0));
+    let mut plans = Vec::new();
+    for (staff_id, operation) in operations {
+        if operation.phase == Phase::Idle {
+            continue;
+        }
+        let Some(task_id) = &operation.task_id else {
+            return Err(Error::unsupported("a staff member's task has no ID"));
+        };
+        if handed.contains(task_id) {
+            continue;
+        }
+        let Some(worker) = workers.iter().find(|worker| worker.id == *staff_id) else {
+            return Err(Error::unsupported("a record of no staff member"));
+        };
+        if worker.available && worker.on_shift {
+            continue;
+        }
+        let holds = world.rows()?.active_tasks.get(&**task_id).is_some_and(|task| task.staff_id.as_ref() == Some(staff_id));
+        if !holds {
+            continue;
+        }
+        let Some(due) = operation.due_minute else {
+            return Err(Error::unsupported("a staff member's task has no due minute"));
+        };
+        if due <= next {
+            continue;
+        }
+        let (Some(target), Some(kind)) = (&operation.target_zone_id, &operation.task_kind) else {
+            return Err(Error::unsupported("a staff member's task has no target"));
+        };
+        let V::Map(durations) = config_item(&row.config, "task_duration_minutes")? else {
+            return Err(Error::unsupported("the task durations are not a map"));
+        };
+        let Some(V::Int(work)) = durations.get(&**kind) else {
+            return Err(Error::unsupported("a task duration is not an int"));
+        };
+        let Some(after) = next.checked_add(*work) else {
+            return Err(Error::unsupported("a due minute out of range"));
+        };
+        if after >= duration {
+            continue;
+        }
+        let Some(required) = relief_skills(kind) else {
+            return Err(Error::unsupported("an unknown kind of task"));
+        };
+        let mut replacement: Option<usize> = None;
+        for (index, candidate) in workers.iter().enumerate() {
+            if candidate.id == *staff_id || candidate.zone != *target || !has_skill(candidate, &required) || candidate.has_task {
                 continue;
             }
-            let Some(task_id) = &operation.task_id else {
-                return unsupported("a staff member's task has no ID");
+            let Some(record) = row.staff.get(&candidate.id) else {
+                return Err(Error::unsupported("a staff member has no record"));
             };
-            if handed.contains(task_id) {
+            if record.phase != Phase::Idle || !candidate.available || !candidate.can_start {
                 continue;
             }
-            let Some(worker) = workers.iter().find(|worker| worker.id == *staff_id) else {
-                return unsupported("a record of no staff member");
-            };
-            if worker.available && worker.on_shift {
-                continue;
-            }
-            let holds = EntityStore::with_rows(&store, |rows| Ok(rows.active_tasks.get(&**task_id).is_some_and(|task| task.staff_id.as_ref() == Some(staff_id))))?;
-            if !holds {
-                continue;
-            }
-            let Some(due) = operation.due_minute else {
-                return unsupported("a staff member's task has no due minute");
-            };
-            if due <= next {
-                continue;
-            }
-            let (Some(target), Some(kind)) = (&operation.target_zone_id, &operation.task_kind) else {
-                return unsupported("a staff member's task has no target");
-            };
-            let V::Map(durations) = config_item(&row.config, "task_duration_minutes")? else {
-                return unsupported("the task durations are not a map");
-            };
-            let Some(V::Int(work)) = durations.get(&**kind) else {
-                return unsupported("a task duration is not an int");
-            };
-            let Some(after) = next.checked_add(*work) else {
-                return unsupported("a due minute out of range");
-            };
-            if after >= duration {
-                continue;
-            }
-            let Some(required) = relief_skills(kind) else {
-                return unsupported("an unknown kind of task");
-            };
-            let mut replacement: Option<usize> = None;
-            for (index, candidate) in workers.iter().enumerate() {
-                if candidate.id == *staff_id || candidate.zone != *target || !has_skill(candidate, &required) || candidate.has_task {
-                    continue;
-                }
-                let Some(record) = row.staff.get(&candidate.id) else {
-                    return unsupported("a staff member has no record");
-                };
-                if record.phase != Phase::Idle || !candidate.available || !candidate.can_start {
-                    continue;
-                }
-                let better = replacement.is_none_or(|known| (workload[index], &candidate.id) < (workload[known], &workers[known].id));
-                if better {
-                    replacement = Some(index);
-                }
-            }
-            if let Some(index) = replacement {
-                plans.push(PlannedRelief { task_id: task_id.clone(), previous: staff_id.clone(), replacement: workers[index].id.clone() });
+            if replacement.is_none_or(|known| (workload[index], &candidate.id) < (workload[known], &workers[known].id)) {
+                replacement = Some(index);
             }
         }
-        Ok(plans)
-    })
+        if let Some(index) = replacement {
+            plans.push(PlannedRelief { task_id: task_id.clone(), previous: staff_id.clone(), replacement: workers[index].id.clone() });
+        }
+    }
+    Ok(plans)
 }
 
 /// `schedule_staff_operation_relief`: a replacement already at the task takes it over at the shift's
-/// boundary. With no staff member on a task there is nothing to relieve.
-#[pyfunction]
-pub(crate) fn relief<'py>(world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyTuple>> {
-    let py = world.py();
-    let done = PyTuple::empty(py);
-    if namespace_is_absent(world, intern!(py, NAME))? {
-        return Ok(done);
+/// boundary. With no staff member on a task there is nothing to relieve. The IDs of the events.
+pub fn relief(world: &World, inputs: &Inputs<'_>, minute: i64) -> WriteResult<Vec<Arc<str>>> {
+    if matches!(inputs.operations, Held::Absent) {
+        return Ok(Vec::new());
     }
-    let at = exact_int(minute)?;
-    let duration = exact_int(&attribute(world, intern!(py, "duration_minutes"))?)?;
-    let Some(next) = at.checked_add(1) else {
-        return unsupported("the minute does not fit an i64");
+    let duration = world.duration_minutes()?;
+    let Some(next) = minute.checked_add(1) else {
+        return Err(Error::unsupported("the minute does not fit an i64").into());
     };
     if next >= duration {
-        return Ok(done);
+        return Ok(Vec::new());
     }
-    let any_task = NamespaceMirror::with_row::<StaffOperationsRow, _>(&mirror_held(world, NAME)?, |row| {
-        Ok(row.staff.values().any(|record| record.phase != Phase::Idle))
-    })?;
-    every_fatigue_is_finite(world)?;
+    let any_task = inputs.operations_held(world)?.staff.values().any(|record| record.phase != Phase::Idle);
+    every_fatigue_is_finite(world, inputs)?;
     if !any_task {
-        return Ok(done);
+        return Ok(Vec::new());
     }
-    let plans = plan_relief(world, at, next, duration);
-    let plans = plans?;
+    let plans = plan_relief(world, inputs, minute, next, duration)?;
+    let events = Events::of(world)?;
     let mut handoffs = Vec::with_capacity(plans.len());
     for plan in plans {
-        let sequence: i64 = world.call_method0(intern!(py, "allocate_event_sequence"))?.extract()?;
-        let event_id = format!("staff-operation-relief-{sequence}");
-        let payload = PyDict::new(py);
-        payload.set_item("task_id", &*plan.task_id)?;
-        payload.set_item("previous_staff_id", &*plan.previous)?;
-        payload.set_item("replacement_staff_id", &*plan.replacement)?;
-        payload.set_item("reason_code", "shift_or_availability_boundary")?;
-        let event = new_event(
-            py,
-            NewEvent {
-                event_id: &event_id,
-                kind: "ENDOGENOUS",
-                due_minute: next,
-                priority: -5,
-                sequence,
-                event_type: "staff_operation_relief",
-                payload: payload.into_any(),
-                source_id: Some(PyString::new(py, RELIEF_POLICY).into_any()),
-                causation_id: None,
-                provenance: assumption(py, PyString::new(py, RELIEF_SOURCE).as_any(), RELIEF_POLICY)?.into_any(),
-            },
-        )?;
-        world.call_method1(intern!(py, "schedule_event"), (event,))?;
+        let sequence = events.allocate_sequence()?;
+        let event_id: Arc<str> = Arc::from(format!("staff-operation-relief-{sequence}"));
+        let mut payload = IndexMap::with_capacity(4);
+        payload.insert(Arc::from("task_id"), V::Str(plan.task_id));
+        payload.insert(Arc::from("previous_staff_id"), V::Str(plan.previous));
+        payload.insert(Arc::from("replacement_staff_id"), V::Str(plan.replacement));
+        payload.insert(Arc::from("reason_code"), V::Str(Arc::from("shift_or_availability_boundary")));
+        events.schedule(kit::new_event(NewEvent {
+            event_id: event_id.clone(),
+            kind: EventKind::Endogenous,
+            due_minute: next,
+            priority: -5,
+            sequence,
+            event_type: Arc::from("staff_operation_relief"),
+            payload,
+            source_id: Some(Arc::from(RELIEF_POLICY)),
+            causation_id: None,
+            provenance: kit::assumption(V::Str(Arc::from(RELIEF_SOURCE)), RELIEF_POLICY),
+        })?)?;
         handoffs.push(event_id);
     }
-    PyTuple::new(py, handoffs)
-}
-
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(assign_pending, m)?)?;
-    m.add_function(wrap_pyfunction!(consider_due_complaints, m)?)?;
-    m.add_function(wrap_pyfunction!(assign_none, m)?)?;
-    m.add_function(wrap_pyfunction!(assign_work, m)?)?;
-    m.add_function(wrap_pyfunction!(wait_snapshot, m)?)?;
-    m.add_function(wrap_pyfunction!(update_operations, m)?)?;
-    m.add_function(wrap_pyfunction!(assign_operations, m)?)?;
-    m.add_function(wrap_pyfunction!(relief, m)?)?;
-    m.add_function(wrap_pyfunction!(format_g, m)?)?;
-    Ok(())
+    Ok(handoffs)
 }

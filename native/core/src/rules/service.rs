@@ -494,20 +494,17 @@ pub fn service_capacity(placement: Option<&Geo>, facility_id: &str, configured: 
     }
 }
 
-/// `staff_dynamics_is_available` of one member: `idle` holds the answers the PyO3 crate read of a
-/// tainted `staff_operations_v1`. None asks for the member's.
-fn available_now(world: &World, staff_id: &str, minute: i64, idle: &[(Arc<str>, bool)]) -> Result<Option<bool>> {
+/// `staff_dynamics_is_available` of one member.
+fn available_now(world: &World, staff_id: &str, minute: i64) -> Result<bool> {
     if namespace_absent(world, crate::state::staff_dynamics::NAME)? {
-        return Ok(Some(true));
+        return Ok(true);
     }
-    let given = idle.iter().find(|(id, _)| &**id == staff_id).map(|(_, idle)| *idle);
-    staff_dynamics::is_available_now(world, staff_id, minute, given)
+    staff_dynamics::is_available_now(world, staff_id, minute, false)
 }
 
 /// The first free member in ID order who is available now, as `staff_is_available` and
-/// `staff_dynamics_is_available` say: `Err(id)` asks for the answer of a tainted
-/// `staff_operations_v1` for that member.
-pub(crate) fn first_available(world: &World, mut candidates: Vec<Arc<str>>, minute: i64, idle: &[(Arc<str>, bool)]) -> Result<std::result::Result<Option<Arc<str>>, Arc<str>>> {
+/// `staff_dynamics_is_available` say.
+pub(crate) fn first_available(world: &World, mut candidates: Vec<Arc<str>>, minute: i64) -> Result<Option<Arc<str>>> {
     candidates.sort_unstable_by(|first, second| first.as_bytes().cmp(second.as_bytes()));
     // `staff_status(world)`, read once before the members, as the rule reads it.
     staff_dynamics::with_staff_status(world, |_| Ok(()))?;
@@ -515,13 +512,11 @@ pub(crate) fn first_available(world: &World, mut candidates: Vec<Arc<str>>, minu
         if !staff_dynamics::with_staff_status(world, |status| staff_dynamics::is_available(status, &candidate))? {
             continue;
         }
-        match available_now(world, &candidate, minute, idle)? {
-            Some(true) => return Ok(Ok(Some(candidate))),
-            Some(false) => {}
-            None => return Ok(Err(candidate)),
+        if available_now(world, &candidate, minute)? {
+            return Ok(Some(candidate));
         }
     }
-    Ok(Ok(None))
+    Ok(None)
 }
 
 // ---- arbitrate -----------------------------------------------------------------------------------
@@ -555,8 +550,6 @@ pub struct Serve<'a> {
     pub walk: Option<&'a Walk<'a>>,
     /// The plan `physical_service_capacity` reads, where the world is placed.
     pub placement: Option<&'a Geo>,
-    /// The answers of a tainted `staff_operations_v1` read so far.
-    pub idle: &'a [(Arc<str>, bool)],
 }
 
 /// What a pass did.
@@ -567,8 +560,6 @@ pub enum Served {
     /// Nothing more this pass: the head waits (an independent queue's head says why), or it still
     /// walks to the service point.
     Stopped(Option<(Arc<str>, &'static str)>),
-    /// Nothing written: the answer of a tainted `staff_operations_v1` for this member is needed.
-    NeedsIdle(Arc<str>),
 }
 
 /// The head of an independent queue, read when a pass starts.
@@ -773,10 +764,8 @@ fn plan_serve(world: &World, manager: &Manager<'_>, serve: &Serve<'_>, pending: 
         })
         .map(|(_, person)| person.id.clone())
         .collect();
-    let staff_id = match first_available(world, candidates, minute, serve.idle)? {
-        Ok(Some(staff_id)) => staff_id,
-        Ok(None) => return stop("staff"),
-        Err(asked) => return Ok(Err(Served::NeedsIdle(asked))),
+    let Some(staff_id) = first_available(world, candidates, minute)? else {
+        return stop("staff");
     };
     if !is_stable_id(&staff_id) {
         return Err(Error::unsupported("an ID is for the Python rule to judge"));
