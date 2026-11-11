@@ -33,7 +33,7 @@ use crate::rules::care_receipts::{record_transition, PlannedTransition};
 use crate::rules::movement::finish_movement;
 use crate::rules::population::admit_pending_arrivals;
 use crate::rules::population_lifecycle::admit_pending_returns;
-use crate::rules::social_interaction::apply_event;
+use crate::rules::social_interaction::apply_ref;
 use crate::rules::social_network::observe_event;
 use crate::rules::travel::schedule_return;
 use crate::rules::{effects, service, support, toilet, travel_completion};
@@ -243,10 +243,10 @@ impl<'py> Phase<'_, 'py> {
         Ok(Some(handler))
     }
 
-    fn social(&self, handler: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>) -> PyResult<Handled> {
+    fn social(&self, handler: &Bound<'py, PyAny>, reference: EventRef<'_, 'py>, event: &Bound<'py, PyAny>) -> PyResult<Handled> {
         let py = self.py();
         let world = self.world;
-        let done = match apply_event(world, event) {
+        let done = match apply_ref(world, reference) {
             Ok(text) => {
                 count(&COUNTS.social_ran);
                 match text {
@@ -754,7 +754,7 @@ impl<'py> Phase<'_, 'py> {
                 Some(Err(done)) => Some(done),
                 None => None,
             },
-            SOCIAL_INTERACTION => self.social(&handler, &object()?)?,
+            SOCIAL_INTERACTION => self.social(&handler, reference, &object()?)?,
             TOILET_COMPLETE => self.toilet(&handler, reference, &object)?,
             RESOURCE_COMPLETE => self.resource(&handler, reference, &object)?,
             SUPPORT_TIMEOUT => self.timeout(&handler, reference, &object)?,

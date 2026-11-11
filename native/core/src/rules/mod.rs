@@ -30,5 +30,7 @@ pub mod movement;
 pub mod queues;
 
 // ---- P8d: events and checks --------------------------------------------------------------------
+pub mod information_events;
+pub mod social_interaction;
 
 // ---- P8e: proposals ----------------------------------------------------------------------------

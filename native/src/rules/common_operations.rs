@@ -39,7 +39,7 @@ pub(crate) fn held(world: &Bound<'_, PyAny>) -> PyResult<()> {
 }
 
 /// `event_log.find(event_id)` of each ID, as the core reads a record.
-fn found_records(world: &Bound<'_, PyAny>, ids: Vec<std::sync::Arc<str>>) -> PyResult<Found> {
+pub(crate) fn found_records(world: &Bound<'_, PyAny>, ids: Vec<std::sync::Arc<str>>) -> PyResult<Found> {
     let py = world.py();
     let log = attribute(world, intern!(py, "event_log"))?;
     let mut found = Vec::with_capacity(ids.len());

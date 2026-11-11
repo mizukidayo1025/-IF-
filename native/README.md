@@ -90,8 +90,12 @@ Checkpoint document) and times them.
   and the payload's fields they read, as a `V`; `world_view.rs`, the phases' view (`ViewData`, its
   audit hash, misinformation, stressors, the facilities' event context) from the rows, with
   `person_context.rs` and `zone_environment.rs`, and the `ViewCache` the `Run` keeps (lane P8 a1);
+  the event handlers of lane P8 d1: `information_events.rs` (a rumor, a correction and a contact,
+  written to the row of `information_spread_v1`; a state of another schema is upgraded through
+  `Host::upgrade_information_state`) and `social_interaction.rs` (`SocialInteractionHandler`),
+  which take the event's row;
   the file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4, P8-0a, c1,
-  P8b-1, P8 a2 and P8 a1),
+  P8b-1, P8 a2, P8 a1 and P8 d1),
   `text.rs` (`casefold`, CPython 3.12's full fold from a generated table, `text/casefold.rs`
   by `tools/casefold_table.py`, tested at every code point against `tests/data/casefold.txt`;
   `g_text`, `format(value, "g")`),
@@ -459,10 +463,17 @@ are correctly rounded everywhere, and not `**` with a float.
   before any change. The rules are the core's (`core/src/rules/`, lane P8 a2): they read
   `body_state_v1` from its row alone, so a tainted body namespace is refused.
 
-- `rules.social_interaction.apply(handler, world, event)`: `SocialInteractionHandler.apply` for a
-  social action, which raises the rule's `EventSuppressed` text for one that no longer applies. A
-  failed event and the other types of interaction give `Unsupported`, and the Python rule runs
-  (`docs/rust-port/lanes/m3-social-network.md`, `m3-dispatch.md`).
+- `rules.social_interaction.apply(handler, world, event)`: `SocialInteractionHandler.apply`, which
+  raises the rule's `EventSuppressed` or `EventApplicationError` text for an event that does not
+  apply (`docs/rust-port/lanes/m3-social-network.md`, `m3-dispatch.md`). The dispatch loop hands the
+  queue's row of the event. `rules.information_events.rumor`, `correction`, `contact`: the
+  `apply` of the three information handlers. The rules of both are the core's
+  (`core/src/rules/information_events.rs`, `social_interaction.rs`, lane P8 d1): they read the
+  event's row, the entity rows and the namespaces' rows, and write the rows alone
+  (`information_spread_v1` too). The glue reads the configs, the model selection, whether
+  `model_state` holds the information namespace, and the EventLog's record of the contact a
+  cooperation or an information reaction answers. A state of schema 1 is upgraded by the host
+  (`Host::upgrade_information_state`) where the Python rule upgraded it.
 
 - `state.movement.ROW`: Rust owns `movement_v1` (`src/state/movement.rs`).
 - `rules.movement`: the movement rules of a tick (`src/rules/movement.rs`, the glue of

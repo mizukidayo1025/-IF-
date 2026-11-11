@@ -1,7 +1,6 @@
 //! `domain/social_dialogue.py`: the glue of `sheltersim_core::rules::social_dialogue` (lane P8 a2).
 //! A context is read into a `V` here, from an event's frozen payload or the caller's mapping; a
-//! value of no JSON type is Unsupported, a `KernelRefusal` in Python, as before. The type checks
-//! `is_plain_mapping` and `is_other_json_value` stay for `rules/social_interaction.rs`.
+//! value of no JSON type is Unsupported, a `KernelRefusal` in Python, as before.
 //!
 //! `virtual_dialogue_example` stays in Python: it runs when a history is read, not in a tick.
 
@@ -23,31 +22,11 @@ use crate::core::world_core::with_world;
 
 static MAPPING_PROXY: GILOnceCell<Py<PyType>> = GILOnceCell::new();
 
-/// A dict or the frozen form of an event's payload: reading either runs no Python code.
-pub(crate) fn is_plain_mapping(value: &Bound<'_, PyAny>) -> PyResult<bool> {
-    if as_readable_dict(value).is_some() {
-        return Ok(true);
-    }
-    Ok(value.get_type().is(mapping_proxy(value.py())?))
-}
-
 pub(crate) fn mapping_proxy(py: Python<'_>) -> PyResult<&Bound<'_, PyType>> {
     let proxy = MAPPING_PROXY.get_or_try_init(py, || {
         Ok::<_, PyErr>(py.import("types")?.getattr("MappingProxyType")?.downcast_into::<PyType>()?.unbind())
     })?;
     Ok(proxy.bind(py))
-}
-
-/// None, a bool, an int, a float, a str, a tuple or a list, each of its exact type: the JSON values of
-/// an event's payload that are not a mapping.
-pub(crate) fn is_other_json_value(value: &Bound<'_, PyAny>) -> bool {
-    value.is_none()
-        || value.is_exact_instance_of::<PyBool>()
-        || value.is_exact_instance_of::<PyInt>()
-        || value.is_exact_instance_of::<PyFloat>()
-        || value.is_exact_instance_of::<PyString>()
-        || value.is_exact_instance_of::<PyTuple>()
-        || value.is_exact_instance_of::<PyList>()
 }
 
 /// The fields of a payload a rule reads, as a map of those it has (`key in payload`), each value
@@ -117,19 +96,6 @@ fn context_of(value: &Bound<'_, PyAny>, depth: usize) -> PyResult<V> {
         map.insert(key, context_of(&item, depth + 1)?);
     }
     Ok(V::Map(map))
-}
-
-/// `validate_social_state_context` accepts these. `ids` have no repeats.
-pub(crate) fn context_is_valid(context: &Bound<'_, PyAny>, ids: &[&Bound<'_, PyString>], due_minute: i64) -> PyResult<bool> {
-    context_verdict(context, ids, due_minute)
-}
-
-/// `validate_social_state_context(context, ids, due_minute)` returns (true) or raises its ValueError
-/// (false). `ids` have no repeats.
-pub(crate) fn context_verdict(context: &Bound<'_, PyAny>, ids: &[&Bound<'_, PyString>], due_minute: i64) -> PyResult<bool> {
-    let context = context_of(context, 0)?;
-    let ids = ids.iter().map(|id| id.to_str()).collect::<PyResult<Vec<&str>>>()?;
-    rules::context_verdict(&context, &ids, due_minute).or_py()
 }
 
 /// The IDs of `set(participant_ids)`, exact strs in a tuple or a list, in their order.

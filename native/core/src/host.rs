@@ -268,6 +268,17 @@ pub trait Host {
     /// The space changed (a geometry or structure event applied): the Python views of it follow.
     fn space_refreshed(&mut self) -> Result<(), Self::Error>;
 
+    // ---- An older state (policy E11) ---------------------------------------------------------------
+
+    /// `upgrade_information_runtime_state(model_state["information_spread_v1"])` of a state whose
+    /// schema is not 2, and the namespace's row read again from the tree: what an information event
+    /// does first, after the model's checks, to a state its row does not hold as schema 2. Only a
+    /// test writes such a state in memory; a save of it is view-only (`LEGACY_SHAPES_TICKABLE`).
+    /// Its `ValueError` is the event's failure. A host without the Python rule refuses.
+    fn upgrade_information_state(&mut self) -> Result<(), Self::Error> {
+        Err(Error::unsupported(crate::rules::information_events::OLDER_STATE).into())
+    }
+
     // ---- A test's hook ---------------------------------------------------------------------------
 
     /// `rng.random(*parts)` of a random source that is not a `CounterRNG`: only a test's.

@@ -293,6 +293,32 @@ def test_an_information_event_upgrades_a_state_of_schema_1_first() -> None:
     assert _bytes(worlds[0]) == _bytes(worlds[1])
 
 
+def test_an_information_state_the_upgrade_turns_down_fails_the_event_before_its_checks() -> None:
+    """The host's upgrade (policy E11) runs where the Python rule ran it: after the model's checks
+    and before the event's, so a payload that does not fit fails with the upgrade's text, and a
+    state of an unknown schema is changed by nothing."""
+    gate = _gate()
+    world = WorldState.from_scenario(gate.with_rumors(gate.generated(evacuees=20, minutes=120)))
+    world.model_state["information_spread_v1"]["schema_version"] = 99
+    before = _bytes(world)
+    event = ScheduledEvent(
+        event_id="rumor-test",
+        kind=EventKind.EXOGENOUS,
+        due_minute=world.minute_index,
+        priority=0,
+        sequence=900_001,
+        event_type="information_contact_update",
+        payload={},
+        source_id="SRC-TEST",
+    )
+    said = _outcome(lambda: InformationContactHandler().apply(world, event))
+    assert said == (
+        "failed",
+        "invalid information-spread state: unsupported information-spread runtime state schema",
+    )
+    assert _bytes(world) == before
+
+
 @pytest.mark.parametrize(
     ("name", "digest"),
     [

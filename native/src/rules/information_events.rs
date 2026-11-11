@@ -1,36 +1,37 @@
-//! The events of `information_spread_v1` in `events/handlers.py`: a rumor, a correction and a contact,
-//! each of which plans from the row and then writes single items to the tree, which reach the row as
-//! forwarded writes. Anything but a success says Unsupported before the first write: a suppressed
-//! contact, a failed one, a value not of the row's types. The Python rule then says it in its own words
-//! (docs/rust-port/lanes/m6-handlers-rest.md).
+//! The events of `information_spread_v1` in `events/handlers.py`: the glue of
+//! `sheltersim_core::rules::information_events` (lane P8 d1). It reads what Python holds (the config
+//! and the model selection, kept for the configs' stamp, and whether `model_state` holds the
+//! namespace), makes the event's row, and calls the core with the world (`PyWorldCell`) and the
+//! native host, which upgrades a state of schema 1 where the Python rule did (policy E11).
 //!
-//! `InformationSpreadConfig.from_mapping` and `selected_models` stay Python's: they read the Scenario's
-//! contract, and neither changes anything. What they give is kept for the configs' stamp
-//! (`core/configs.rs`).
+//! `InformationSpreadConfig.from_mapping` and `selected_models` stay Python's: they read the
+//! Scenario's contract, and neither changes anything. The config's error is raised here, before the
+//! event is read, which is where the Python rule raises it.
 
 use std::sync::Arc;
 
+use pyo3::exceptions::PyValueError;
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::exceptions::{PyKeyError, PyValueError};
-use pyo3::types::{PyDict, PyInt, PyString};
+use pyo3::types::{PyDict, PyString};
+
+use sheltersim_core::config::information::InformationSpread;
+use sheltersim_core::config::Selection;
+use sheltersim_core::error::Error as CoreError;
+use sheltersim_core::rules::information_events::{self as rules, Applied, Inputs, SELECTION_RAISED};
+use sheltersim_core::rules::kit::{Held, Kept};
+use sheltersim_core::world::MODEL_CONFIGS;
 
 use crate::core::configs;
-use crate::core::errors;
-use crate::core::mathx::{py_max, py_min};
-use crate::core::rng::{label, Key, KeyedDraws};
-use crate::core::row::{attribute, exact_float, exact_int, exact_str, unsupported};
+use crate::core::errors::{self, OrPy};
+use crate::core::row::{attribute, unsupported};
+use crate::core::tracked::as_readable_dict;
 use crate::core::value::{VPy, V};
-use crate::core::world_core::{mirror_of, NamespaceMirror};
-use sheltersim_core::config::information::InformationSpread;
-use sheltersim_core::config::Fault;
-use crate::rules::handlers::{counted, fields_are, get, kind_is, text_is};
-use crate::rules::support::household_of;
-use crate::state::information::{belief_rank, is_stable_id, BeliefRow, InformationRow, NAME, SCHEMA_VERSION};
-
-const EVIDENCE_AWARE: &str = "evidence-aware-rumor-v1";
-const CONTACT_SOURCE: &str = "ASM-INFORMATION-SPREAD-V1";
-const MAX_MESSAGES: usize = 1024;
+use crate::core::world_core::{namespace_held, raw_dict_get, with_world, PyWorldCell};
+use crate::host::PyHost;
+use crate::rules::handlers::{counted, get};
+use crate::state::events::{EventRow, EventRowPy};
+use crate::state::information::NAME;
 
 /// `InformationSpreadConfig.from_mapping(model_configs.get("information_spread"))`, as the rules
 /// read it.
@@ -55,701 +56,116 @@ fn spread_of(config: &Bound<'_, PyAny>, present: bool) -> PyResult<InformationSp
 }
 
 /// The config, kept for the configs' stamp (`core/configs.rs`), or what its parse raised.
-pub(crate) fn information_spread(world: &Bound<'_, PyAny>) -> PyResult<Result<Arc<InformationSpread>, Fault>> {
+pub(crate) fn information_spread(world: &Bound<'_, PyAny>) -> PyResult<Kept<InformationSpread>> {
     configs::kept(world, |configs| &configs.information_spread, || Ok(configs::parsed(world.py(), parse_spread(world))))
 }
 
-/// The config, and the namespace's tree whose row is Rust's.
-pub(crate) fn runtime_state<'py>(world: &Bound<'py, PyAny>) -> PyResult<(Arc<InformationSpread>, Bound<'py, PyAny>, Bound<'py, NamespaceMirror>)> {
+/// The config as the events take it: what its parse raised is raised again (policy E14), a
+/// `ValueError` as the event's failure.
+fn runtime_config(world: &Bound<'_, PyAny>) -> PyResult<Arc<InformationSpread>> {
     let py = world.py();
-    let config = match information_spread(world)? {
-        Ok(config) => config,
+    match information_spread(world)? {
+        Ok(config) => Ok(config),
         Err(fault) => {
-            // What the parse raised, again (policy E14).
             let error = configs::raise(&fault, || parse_spread(world));
             if error.is_instance_of::<PyValueError>(py) {
                 return errors::failed(py, format!("invalid information_spread config: {}", error.value(py).str()?));
             }
-            return Err(error);
-        }
-    };
-    let state = get(&attribute(world, intern!(py, "model_state"))?, NAME)?;
-    if !config.enabled || !state.is_instance_of::<PyDict>() {
-        return errors::failed(py, "information spread is not enabled for this run");
-    }
-    // `upgrade_information_runtime_state(state)`: a save of schema 1, which a Run may still continue
-    // (core/model_version.py `LEGACY_SHAPES_TICKABLE`), becomes schema 2 in place, here as in the
-    // Python rule, before any check of the event. Its records may not have fit the row, which then
-    // reads the upgraded tree again.
-    if get(&state, "schema_version")?.ne(SCHEMA_VERSION)? {
-        let upgrade = py.import("sheltersim.domain.information")?.getattr("upgrade_information_runtime_state")?;
-        match upgrade.call1((&state,)) {
-            Ok(_) => {}
-            Err(error) if error.is_instance_of::<PyValueError>(py) => {
-                return errors::failed(py, format!("invalid information-spread state: {}", error.value(py).str()?));
-            }
-            Err(error) => return Err(error),
+            Err(error)
         }
     }
-    let mirror = mirror_of(world, NAME)?;
-    if !mirror.try_borrow()?.root_is(&state) {
-        return unsupported("the world holds another document than the row's");
-    }
-    if !mirror.getattr(intern!(py, "has_row"))?.is_truthy()? {
-        mirror.call_method0(intern!(py, "refit"))?;
-    }
-    let version = NamespaceMirror::with_row::<InformationRow, _>(&mirror, |row| Ok(row.schema_version))?;
-    if version != SCHEMA_VERSION {
-        return unsupported("an older state is upgraded in Python");
-    }
-    Ok((config, state, mirror))
 }
 
-fn evidence_aware(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    Ok(&*selected_information(world)? == EVIDENCE_AWARE)
-}
-
-/// What a contact's rule reads of `selected_models(...)["information"]`.
-fn information_model<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    Ok(PyString::new(world.py(), &selected_information(world)?).into_any())
-}
-
-/// `selected_models(world.model_configs)["information"]`, kept for the configs' stamp
-/// (`core/configs.rs`). What `selected_models` raises, and the KeyError of a selection without the
-/// key, are the rule's, as they are.
-fn selected_information(world: &Bound<'_, PyAny>) -> PyResult<Arc<str>> {
-    let selection = match configs::selection(world)? {
-        Ok(selection) => selection,
-        Err(fault) if fault.is_refusal() => return unsupported("not a selection"),
-        Err(_) => return Err(configs::reraise_selection(world)),
-    };
-    selection.get("information").cloned().ok_or_else(|| PyKeyError::new_err("information"))
-}
-
-/// `CounterRNG(world.seed)`, whose key is `str(seed)`: a Scenario's seed is any int from 0, past 64
-/// bits too.
-fn seed_of(world: &Bound<'_, PyAny>) -> PyResult<KeyedDraws> {
-    let seed = attribute(world, intern!(world.py(), "seed"))?;
-    let Ok(seed) = seed.downcast_exact::<PyInt>() else {
-        return unsupported("a seed is not an int");
-    };
-    if seed.lt(0)? {
-        return unsupported("a negative seed");
-    }
-    Ok(KeyedDraws::new(seed.str()?.to_str()?))
-}
-
-/// `CounterRNG(world.seed).random(label, minute, *ids)`. The IDs are the people's, the source's
-/// and the message's, which do not depend on the order events are made in; the event's own ID
-/// does (model version 2).
-fn draw(draws: &KeyedDraws, label: &str, minute: i64, ids: &[&str]) -> f64 {
-    let mut key = Key::labelled(label);
-    key.int(minute);
-    for id in ids {
-        key.text(id);
-    }
-    key.draw(draws)
-}
-
-fn trust_of(world: &Bound<'_, PyAny>, agent_id: &str) -> PyResult<f64> {
+/// Whether `model_state` holds the namespace, as the rules take it: a value that is not a dict is
+/// no state (`Absent`), another dict is refused where the rule reads the state.
+pub(crate) fn state_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
     let py = world.py();
-    exact_float(&attribute(&attribute(world, intern!(py, "agents"))?.get_item(agent_id)?, intern!(py, "trust"))?)
-}
-
-/// `config.correction_source_reliability_by_id.get(source_id, config.default_source_reliability)`.
-fn reliability_of(config: &InformationSpread, source_id: &str) -> PyResult<f64> {
-    configs::read(config.reliability(source_id))
-}
-
-/// `_sample_claim_belief_strength`: the draw is keyed by the minute, the person and the message.
-fn sample_strength(world: &Bound<'_, PyAny>, config: &InformationSpread, agent_id: &str, source_id: &str, minute: i64, message_id: &str) -> PyResult<f64> {
-    let reliability = reliability_of(config, source_id)?;
-    let trust = trust_of(world, agent_id)?;
-    let probability = py_min(
-        1.0,
-        py_max(
-            0.0,
-            configs::read(config.rumor_belief_probability.clone())?
-                + 2.0 * configs::read(config.rumor_trust_sensitivity.clone())? * (trust - 0.5)
-                + 2.0 * configs::read(config.rumor_source_sensitivity.clone())? * (reliability - 0.5),
-        ),
-    );
-    let drawn = draw(&seed_of(world)?, label::RUMOR_BELIEF, minute, &[agent_id, message_id]);
-    Ok(if drawn < probability { 1.0 } else { 0.0 })
-}
-
-/// `_claim_is_misbelieved`.
-fn misbelieved(truth: &str, strength: f64) -> bool {
-    (truth == "true" && strength < 0.5) || (truth == "false" && strength > 0.5)
-}
-
-/// The fields of a belief as `AgentInformationState.to_dict` lists them.
-struct Belief {
-    message_id: Arc<str>,
-    belief: Arc<str>,
-    source: Arc<str>,
-    last_contact: i64,
-    last_event_id: Arc<str>,
-    belief_strength: f64,
-    share_propensity: f64,
-    correction_exposed: bool,
-    correction_accepted: bool,
-    ever_misbelieved: bool,
-    ever_forgotten: bool,
-    last_correction_accepted: bool,
-}
-
-impl Belief {
-    /// What `AgentInformationState.__post_init__` would turn down, beyond what the row guarantees.
-    fn is_valid(&self) -> bool {
-        is_stable_id(&self.message_id)
-            && is_stable_id(&self.source)
-            && is_stable_id(&self.last_event_id)
-            && self.last_contact >= 0
-            && (!self.correction_accepted || self.correction_exposed)
-            && (!self.last_correction_accepted || self.correction_exposed)
-            && (0.0..=1.0).contains(&self.belief_strength)
-            && (0.0..=1.0).contains(&self.share_propensity)
-            && (&*self.belief != "unknown" || self.share_propensity == 0.0)
+    let held = namespace_held(world, intern!(py, NAME), "the world holds another document than the row's")?;
+    if let Held::Other(_) = held {
+        let table = attribute(world, intern!(py, "model_state"))?;
+        if as_readable_dict(&table).is_some() {
+            let value = raw_dict_get(&table, PyString::new(py, NAME).as_any())?;
+            if !value.is_some_and(|value| value.is_instance_of::<PyDict>()) {
+                return Ok(Held::Absent);
+            }
+        }
     }
+    Ok(held)
+}
 
-    fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-        let record = PyDict::new(py);
-        record.set_item("message_id", &*self.message_id)?;
-        record.set_item("belief", &*self.belief)?;
-        record.set_item("source", &*self.source)?;
-        record.set_item("last_contact", self.last_contact)?;
-        record.set_item("last_event_id", &*self.last_event_id)?;
-        record.set_item("exposed", true)?;
-        record.set_item("belief_strength", self.belief_strength)?;
-        record.set_item("share_propensity", self.share_propensity)?;
-        record.set_item("correction_exposed", self.correction_exposed)?;
-        record.set_item("correction_accepted", self.correction_accepted)?;
-        record.set_item("ever_misbelieved", self.ever_misbelieved)?;
-        record.set_item("ever_forgotten", self.ever_forgotten)?;
-        record.set_item("last_correction_accepted", self.last_correction_accepted)?;
-        Ok(record)
+/// The row of a `ScheduledEvent`; Unsupported for one a row cannot hold.
+pub(crate) fn event_row(event: &Bound<'_, PyAny>) -> PyResult<EventRow> {
+    match EventRow::from_event(event)? {
+        Some(row) => Ok(row),
+        None => unsupported("an event a row cannot hold"),
     }
 }
 
-/// What a rule keeps of a belief that was there.
-#[derive(Clone)]
-struct Prior {
-    belief: Arc<str>,
-    belief_strength: f64,
-    share_propensity: f64,
-    correction_exposed: bool,
-    correction_accepted: bool,
-    ever_misbelieved: bool,
-    ever_forgotten: bool,
-    last_correction_accepted: bool,
-}
-
-fn prior_of(record: &BeliefRow) -> PyResult<Prior> {
-    if !record.parses() {
-        return unsupported("a belief is for the Python rule to read");
+/// What a core call raised: the corrupt `model_configs` of a selection that raised is what
+/// `selected_models` raises (policy E14).
+fn relayed<T>(world: &Bound<'_, PyAny>, selection: &Kept<Selection>, result: PyResult<T>) -> PyResult<T> {
+    let py = world.py();
+    match result {
+        Err(error) if matches!(selection, Err(fault) if !fault.is_refusal()) && error.value(py).to_string() == selection_raised() => {
+            Err(configs::reraise_selection(world))
+        }
+        other => other,
     }
-    Ok(Prior {
-        belief: record.belief.clone(),
-        belief_strength: record.belief_strength,
-        share_propensity: record.share_propensity,
-        correction_exposed: record.correction_exposed,
-        correction_accepted: record.correction_accepted,
-        ever_misbelieved: record.ever_misbelieved,
-        ever_forgotten: record.ever_forgotten,
-        last_correction_accepted: record.last_correction_accepted,
-    })
 }
 
-fn add_counter(state: &Bound<'_, PyAny>, name: &str) -> PyResult<()> {
-    let counters = state.get_item("counters")?;
-    let value = exact_int(&counters.get_item(name)?)?;
-    counters.set_item(name, value + 1)
+fn selection_raised() -> String {
+    CoreError::corrupt(MODEL_CONFIGS, SELECTION_RAISED).to_string()
 }
 
-// ---- InformationRumorHandler ------------------------------------------------------------------------
+/// Run an event's core function with what it reads of Python.
+fn run_event<'py, T>(
+    world: &Bound<'py, PyAny>,
+    event: &Bound<'py, PyAny>,
+    rule: impl FnOnce(&PyWorldCell<'_, 'py>, &mut PyHost<'py>, &Inputs<'_>, &EventRow) -> Result<T, crate::host::HostError>,
+) -> PyResult<T> {
+    let py = world.py();
+    let config = runtime_config(world)?;
+    let held = state_held(world)?;
+    let selection: Kept<Selection> = configs::selection(world)?;
+    let row = event_row(event)?;
+    let inputs = Inputs { config: &config, held: &held, selection: &selection };
+    let mut host = PyHost::of_world(world, PyDict::new(py));
+    let result = rule(&PyWorldCell(world), &mut host, &inputs, &row).map_err(|error| error.0);
+    relayed(world, &selection, result)
+}
 
 #[pyfunction]
 fn rumor<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    let plan = (|| -> PyResult<_> {
-        let (config, state, mirror) = runtime_state(world)?;
-        let payload = attribute(event, intern!(py, "payload"))?;
-        if !fields_are(&payload, &["message_id", "truth_status", "origin_agent_id"])? {
-            return errors::failed(py, "information_rumor payload fields do not match");
-        }
-        let source_value = attribute(event, intern!(py, "source_id"))?;
-        if source_value.is_none() {
-            return errors::failed(py, "information_rumor requires a source_id");
-        }
-        let message_value = payload.get_item("message_id")?;
-        let origin_value = payload.get_item("origin_agent_id")?;
-        let (Some(message_id), Some(origin)) = (errors::str_of(&message_value)?, errors::str_of(&origin_value)?) else {
-            return errors::failed(py, "information_rumor requires stable message and Agent IDs");
-        };
-        let (message_id, origin): (Arc<str>, Arc<str>) = (Arc::from(message_id), Arc::from(origin));
-        let truth_value = payload.get_item("truth_status")?;
-        let Some(truth) = errors::member_of(&truth_value, &["unknown", "true", "false"])? else {
-            return errors::failed(py, "information_rumor truth_status is invalid");
-        };
-        let truth = truth.to_owned();
-        let source: Arc<str> = Arc::from(exact_str(&source_value)?);
-        let (taken, messages, has_agent, pressure) = NamespaceMirror::with_row::<InformationRow, _>(&mirror, |row| {
-            Ok((
-                row.messages.contains_key(&*message_id),
-                row.messages.len(),
-                row.beliefs.contains_key(&*origin),
-                row.query_pressure.get(&*origin).copied(),
-            ))
-        })?;
-        let agent = get(&attribute(world, intern!(py, "agents"))?, &origin)?;
-        if taken {
-            return errors::failed(py, "information message ID already exists");
-        }
-        if messages >= MAX_MESSAGES {
-            return errors::failed(py, "information-spread message limit was reached");
-        }
-        if agent.is_none() {
-            return errors::failed(py, "information_rumor references an unknown Agent");
-        }
-        let Some(pressure) = pressure.filter(|_| has_agent) else {
-            return unsupported("the person has no record");
-        };
-        let zone = attribute(&agent, intern!(py, "zone_id"))?;
-        let zone_text = exact_str(&zone)?;
-        let event_id_value = attribute(event, intern!(py, "event_id"))?;
-        let event_id: Arc<str> = Arc::from(exact_str(&event_id_value)?);
-        let due = exact_int(&attribute(event, intern!(py, "due_minute"))?)?;
-        if due < 0 || ![&*message_id, &*source, zone_text, &*event_id, &*origin].iter().all(|id| is_stable_id(id)) {
-            return unsupported("an ID for the Python rule to judge");
-        }
-        let message = PyDict::new(py);
-        message.set_item("id", &*message_id)?;
-        message.set_item("truth_status", &truth)?;
-        message.set_item("source_id", &*source)?;
-        message.set_item("zone_id", zone_text)?;
-        message.set_item("time", due)?;
-        message.set_item("origin_event_id", &*event_id)?;
-        message.set_item("origin_agent_id", &*origin)?;
-        let strength = if evidence_aware(world)? {
-            sample_strength(world, &config, &origin, &source, due, &message_id)?
-        } else {
-            0.5
-        };
-        let belief = Belief {
-            message_id: message_id.clone(),
-            belief: Arc::from("heard"),
-            source: origin.clone(),
-            last_contact: due,
-            last_event_id: event_id,
-            belief_strength: strength,
-            share_propensity: 0.5,
-            correction_exposed: false,
-            correction_accepted: false,
-            ever_misbelieved: misbelieved(&truth, strength),
-            ever_forgotten: false,
-            last_correction_accepted: false,
-        };
-        let next = py_min(1.0, pressure + configs::read(config.query_pressure_per_claim.clone())?);
-        Ok((state, message_id, origin, message, belief, next))
-    })();
-    let (state, message_id, origin, message, belief, next) = counted(py, "rumor", plan)?;
-    state.get_item("messages")?.set_item(&*message_id, message)?;
-    state.get_item("beliefs")?.get_item(&*origin)?.set_item(&*message_id, belief.to_py(py)?)?;
-    state.get_item("query_pressure")?.set_item(&*origin, next)?;
-    Ok(())
-}
-
-// ---- InformationCorrectionHandler --------------------------------------------------------------------
-
-/// `min(0.95, max(0.0, acceptance + 2.0 * trust_sensitivity * (trust - 0.5) + 2.0 * source_sensitivity * (reliability - 0.5)))`.
-fn acceptance_probability(config: &InformationSpread, trust: f64, reliability: f64) -> PyResult<f64> {
-    Ok(py_min(
-        0.95,
-        py_max(
-            0.0,
-            configs::read(config.correction_acceptance_probability.clone())?
-                + 2.0 * configs::read(config.correction_trust_sensitivity.clone())? * (trust - 0.5)
-                + 2.0 * configs::read(config.correction_source_sensitivity.clone())? * (reliability - 0.5),
-        ),
-    ))
+    counted(world.py(), "rumor", run_event(world, event, |cell, host, inputs, row| rules::rumor(cell, host, inputs, row)))
 }
 
 #[pyfunction]
 fn correction<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    struct Change {
-        agent_id: String,
-        record: Belief,
-        pressure: Option<f64>,
-    }
-    let plan = (|| -> PyResult<_> {
-        let (config, state, mirror) = runtime_state(world)?;
-        let payload = attribute(event, intern!(py, "payload"))?;
-        if !fields_are(&payload, &["message_id", "zone_id", "belief"])? {
-            return errors::failed(py, "information_correction payload fields do not match");
-        }
-        let source_value = attribute(event, intern!(py, "source_id"))?;
-        if source_value.is_none() {
-            return errors::failed(py, "information_correction requires a source_id");
-        }
-        let message_value = payload.get_item("message_id")?;
-        let zone_value = payload.get_item("zone_id")?;
-        let (Some(message_id), Some(_)) = (errors::str_of(&message_value)?, errors::str_of(&zone_value)?) else {
-            return errors::failed(py, "information_correction requires stable message and Zone IDs");
-        };
-        let message_id: Arc<str> = Arc::from(message_id);
-        let belief_value = payload.get_item("belief")?;
-        let Some(belief_text) = errors::member_of(&belief_value, &["unknown", "heard", "verified", "rejected"])? else {
-            return errors::failed(py, "information_correction belief is invalid");
-        };
-        if !matches!(belief_text, "verified" | "rejected") {
-            return errors::failed(py, "information_correction must verify or reject a claim");
-        }
-        if !attribute(world, intern!(py, "zones"))?.contains(&zone_value)? {
-            return errors::failed(py, "information_correction references an unknown Zone");
-        }
-        let source: Arc<str> = Arc::from(exact_str(&source_value)?);
-        let found = NamespaceMirror::with_row::<InformationRow, _>(&mirror, |row| {
-            let Some(message) = row.messages.get(&*message_id) else {
-                return Ok(None);
-            };
-            if !message.parses() {
-                return unsupported("a message is for the Python rule to read");
-            }
-            Ok(Some((message.truth_status.clone(), message.origin_event_id.clone())))
-        })?;
-        let Some((truth, origin_event)) = found else {
-            return errors::failed(py, "information_correction references an unknown message");
-        };
-        if attribute(event, intern!(py, "causation_id"))?.ne(&*origin_event)? {
-            return errors::failed(py, "information_correction must reference its rumor event");
-        }
-        match &*truth {
-            "true" if belief_text != "verified" => return errors::failed(py, "information correction conflicts with message truth"),
-            "false" if belief_text != "rejected" => return errors::failed(py, "information correction conflicts with message truth"),
-            _ => {}
-        }
-        let aware = evidence_aware(world)?;
-        let reliability = reliability_of(&config, &source)?;
-        let mut targets = Vec::new();
-        for agent in attribute(world, intern!(py, "agents"))?.call_method0(intern!(py, "values"))?.try_iter()? {
-            let agent = agent?;
-            if attribute(&agent, intern!(py, "zone_id"))?.eq(&zone_value)? {
-                targets.push((exact_str(&attribute(&agent, intern!(py, "id"))?)?.to_owned(), agent));
-            }
-        }
-        targets.sort_unstable_by(|first, second| first.0.cmp(&second.0));
-        let event_id_value = attribute(event, intern!(py, "event_id"))?;
-        let event_id: Arc<str> = Arc::from(exact_str(&event_id_value)?);
-        let due = exact_int(&attribute(event, intern!(py, "due_minute"))?)?;
-        let draws = seed_of(world)?;
-        let relief = configs::read(config.query_pressure_relief_per_correction.clone())?;
-        let verified = belief_text == "verified";
-        let belief: Arc<str> = Arc::from(belief_text);
-        let mut changes = Vec::new();
-        for (agent_id, agent) in &targets {
-            let (previous, pressure) = NamespaceMirror::with_row::<InformationRow, _>(&mirror, |row| {
-                let Some(beliefs) = row.beliefs.get(&**agent_id) else {
-                    return unsupported("the person has no beliefs");
-                };
-                let previous = beliefs.get(&*message_id).map(prior_of).transpose()?;
-                Ok((previous, row.query_pressure.get(&**agent_id).copied()))
-            })?;
-            let accepted = if aware {
-                let trust = exact_float(&attribute(agent, intern!(py, "trust"))?)?;
-                let probability = acceptance_probability(&config, trust, reliability)?;
-                draw(&draws, label::CORRECTION_ACCEPTANCE, due, &[&source, agent_id, &message_id]) < probability
-            } else {
-                true
-            };
-            if let Some(previous) = &previous {
-                if matches!(&*previous.belief, "verified" | "rejected") {
-                    if previous.belief != belief {
-                        return errors::failed(py, "conflicting verified information state");
-                    }
-                    if !aware {
-                        continue;
-                    }
-                }
-            }
-            let prior_strength = previous.as_ref().map_or(0.5, |prior| prior.belief_strength);
-            let record = Belief {
-                message_id: message_id.clone(),
-                belief: if accepted {
-                    belief.clone()
-                } else {
-                    previous.as_ref().map_or_else(|| Arc::from("heard"), |prior| prior.belief.clone())
-                },
-                source: source.clone(),
-                last_contact: due,
-                last_event_id: event_id.clone(),
-                belief_strength: if accepted {
-                    if verified { 1.0 } else { 0.0 }
-                } else {
-                    prior_strength
-                },
-                share_propensity: previous.as_ref().map_or(0.5, |prior| prior.share_propensity),
-                correction_exposed: true,
-                correction_accepted: accepted || previous.as_ref().is_some_and(|prior| prior.correction_accepted),
-                last_correction_accepted: accepted,
-                ever_misbelieved: previous.as_ref().is_some_and(|prior| prior.ever_misbelieved) || (!accepted && misbelieved(&truth, prior_strength)),
-                ever_forgotten: previous.as_ref().is_some_and(|prior| prior.ever_forgotten),
-            };
-            if !record.is_valid() {
-                return unsupported("a belief for the Python rule to judge");
-            }
-            let pressure = if accepted {
-                let Some(pressure) = pressure else {
-                    return unsupported("the person has no record");
-                };
-                Some(py_max(0.0, pressure - relief))
-            } else {
-                None
-            };
-            changes.push(Change { agent_id: agent_id.clone(), record, pressure });
-        }
-        let new_truth = (&*truth == "unknown").then(|| if verified { "true" } else { "false" });
-        Ok((state, message_id, new_truth, changes))
-    })();
-    let (state, message_id, new_truth, changes) = counted(py, "correction", plan)?;
-    if let Some(truth) = new_truth {
-        // `replace(message, truth_status=...).to_dict()`: the same fields in the same order.
-        let messages = state.get_item("messages")?;
-        let record = messages.get_item(&*message_id)?;
-        let next = PyDict::new(py);
-        for name in ["id", "truth_status", "source_id", "zone_id", "time", "origin_event_id", "origin_agent_id"] {
-            next.set_item(name, record.get_item(name)?)?;
-        }
-        next.set_item("truth_status", truth)?;
-        messages.set_item(&*message_id, next)?;
-    }
-    let beliefs = state.get_item("beliefs")?;
-    let pressures = state.get_item("query_pressure")?;
-    for change in changes {
-        beliefs.get_item(&change.agent_id)?.set_item(&*message_id, change.record.to_py(py)?)?;
-        if let Some(pressure) = change.pressure {
-            pressures.set_item(&change.agent_id, pressure)?;
-            add_counter(&state, "correction_deliveries")?;
-        }
-    }
-    Ok(())
-}
-
-// ---- InformationContactHandler ------------------------------------------------------------------------
-
-/// `_current_information_contact_basis`, or None.
-fn contact_basis(world: &Bound<'_, PyAny>, sender: &str, recipient: &str) -> PyResult<Option<&'static str>> {
-    let py = world.py();
-    let agents = attribute(world, intern!(py, "agents"))?;
-    let sender_zone = attribute(&agents.get_item(sender)?, intern!(py, "zone_id"))?;
-    let recipient_zone = attribute(&agents.get_item(recipient)?, intern!(py, "zone_id"))?;
-    let (first, second) = (exact_str(&sender_zone)?, exact_str(&recipient_zone)?);
-    let same_zone = first == second;
-    let mut adjacent = false;
-    for edge in attribute(world, intern!(py, "zone_edges"))?.call_method0(intern!(py, "values"))?.try_iter()? {
-        let edge = edge?;
-        if attribute(&edge, intern!(py, "closed"))?.is_truthy()? {
-            continue;
-        }
-        let (from, to) = (attribute(&edge, intern!(py, "from_zone_id"))?, attribute(&edge, intern!(py, "to_zone_id"))?);
-        let (from, to) = (exact_str(&from)?, exact_str(&to)?);
-        // `{from, to} == {first, second}`.
-        if (from == first && to == second) || (from == second && to == first) {
-            adjacent = true;
-            break;
-        }
-    }
-    if !same_zone && !adjacent {
-        return Ok(None);
-    }
-    let home = household_of(world, sender)?;
-    if home.is_some() && home == household_of(world, recipient)? {
-        return Ok(Some("family"));
-    }
-    Ok(Some(if same_zone { "same_zone" } else { "adjacent_zone" }))
+    counted(world.py(), "correction", run_event(world, event, |cell, host, inputs, row| rules::correction(cell, host, inputs, row)))
 }
 
 #[pyfunction]
 fn contact<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    let plan = (|| -> PyResult<_> {
-        let (config, state, mirror) = runtime_state(world)?;
-        let payload = attribute(event, intern!(py, "payload"))?;
-        if !fields_are(&payload, &["message_id", "sender_agent_id", "recipient_agent_id", "belief", "contact_basis", "contact_minutes"])? {
-            return errors::failed(py, "information_contact_update payload fields do not match");
-        }
-        if !kind_is(event, "ENDOGENOUS")? {
-            return errors::failed(py, "information contact updates must be endogenous");
-        }
-        let due_value = attribute(event, intern!(py, "due_minute"))?;
-        if due_value.ne(attribute(world, intern!(py, "minute_index"))?)? {
-            return errors::failed(py, "information contact update must run at its due minute");
-        }
-        let due = exact_int(&due_value)?;
-        let provenance = attribute(event, intern!(py, "provenance"))?;
-        let model = information_model(world)?;
-        let aware = text_is(&model, EVIDENCE_AWARE);
-        if get(&provenance, "source_type")?.ne("assumption")?
-            || get(&provenance, "source_id")?.ne(CONTACT_SOURCE)?
-            || get(&provenance, "policy_version")?.ne(&model)?
-        {
-            return errors::failed(py, "information contact provenance is missing its assumption ID");
-        }
-        let message_value = payload.get_item("message_id")?;
-        let sender_value = payload.get_item("sender_agent_id")?;
-        let recipient_value = payload.get_item("recipient_agent_id")?;
-        let (Some(message_id), Some(sender_id), Some(recipient_id)) =
-            (errors::str_of(&message_value)?, errors::str_of(&sender_value)?, errors::str_of(&recipient_value)?)
-        else {
-            return errors::failed(py, "information contact requires stable claim and Agent IDs");
-        };
-        let (message_id, sender_id, recipient_id): (Arc<str>, Arc<str>, Arc<str>) = (Arc::from(message_id), Arc::from(sender_id), Arc::from(recipient_id));
-        if sender_id == recipient_id {
-            return errors::failed(py, "information contact requires two different Agents");
-        }
-        let agents = attribute(world, intern!(py, "agents"))?;
-        let known_message = NamespaceMirror::with_row::<InformationRow, _>(&mirror, |row| Ok(row.messages.contains_key(&*message_id)))?;
-        if !agents.contains(&*sender_id)? || !agents.contains(&*recipient_id)? || !known_message {
-            return errors::failed(py, "information contact references unknown state");
-        }
-        // The sender's belief and the recipient's, the claim, and the signal.
-        let belief_value = payload.get_item("belief")?;
-        let found = NamespaceMirror::with_row::<InformationRow, _>(&mirror, |row| {
-            let Some(message) = row.messages.get(&*message_id) else {
-                return unsupported("an unknown message");
-            };
-            if !message.parses() {
-                return unsupported("a message is for the Python rule to read");
-            }
-            let Some(sender) = row.beliefs.get(&*sender_id) else {
-                return unsupported("a person has no beliefs");
-            };
-            let Some(known) = sender.get(&*message_id) else {
-                return Ok(None);
-            };
-            if !known.parses() {
-                return unsupported("a belief is for the Python rule to read");
-            }
-            Ok(Some((message.truth_status.clone(), message.source_id.clone(), known.belief.clone(), known.source.clone(), known.last_event_id.clone())))
-        })?;
-        // What no longer applies is suppressed, with the rule's text.
-        let Some((truth, claim_source, sender_belief, sender_source, sender_event)) = found else {
-            return Ok(Err("contact sender no longer knows the message"));
-        };
-        let Some(belief_text) = errors::member_of(&belief_value, &["unknown", "heard", "verified", "rejected"])? else {
-            return errors::failed(py, "information contact belief is invalid");
-        };
-        let wanted_rank = belief_rank(belief_text).expect("a member has a rank");
-        if &*sender_belief != belief_text {
-            return Ok(Err("contact sender belief changed before transmission"));
-        }
-        let Some(basis) = contact_basis(world, &sender_id, &recipient_id)? else {
-            return Ok(Err("Agents are no longer in a modeled contact zone"));
-        };
-        if get(&payload, "contact_basis")?.ne(basis)? {
-            return Ok(Err("sampled contact basis is no longer current"));
-        }
-        let minimum = configs::read(config.minimum_contact_minutes.clone())?;
-        if !errors::int_not_bool(&payload.get_item("contact_minutes")?)?.is_some_and(|minutes| minutes >= minimum) {
-            return errors::failed(py, "information contact duration is below its configured minimum");
-        }
-        if !errors::real_number(&get(&provenance, "transmission_probability")?)?.is_some_and(|probability| 0.0 < probability && probability <= 1.0) {
-            return errors::failed(py, "information contact probability is invalid");
-        }
-        if attribute(event, intern!(py, "source_id"))?.ne(&*claim_source)? || attribute(event, intern!(py, "causation_id"))?.ne(&*sender_event)? {
-            return errors::failed(py, "information contact provenance does not match sender state");
-        }
-        let correcting = matches!(belief_text, "verified" | "rejected");
-        if correcting && !matches!((&*truth, belief_text), ("true", "verified") | ("false", "rejected")) {
-            return errors::failed(py, "transmitted correction conflicts with message truth");
-        }
-        let (previous, pressure) = NamespaceMirror::with_row::<InformationRow, _>(&mirror, |row| {
-            let Some(recipient) = row.beliefs.get(&*recipient_id) else {
-                return unsupported("a person has no beliefs");
-            };
-            let previous = recipient.get(&*message_id).map(prior_of).transpose()?;
-            Ok((previous, row.query_pressure.get(&*recipient_id).copied()))
-        })?;
-        if let Some(prior) = &previous {
-            let Some(rank) = belief_rank(&prior.belief) else {
-                return unsupported("a belief is for the Python rule to read");
-            };
-            if rank >= wanted_rank && !(aware && correcting) {
-                return Ok(Err("recipient already has an equally strong belief"));
-            }
-        }
-        let event_id_value = attribute(event, intern!(py, "event_id"))?;
-        let event_id: Arc<str> = Arc::from(exact_str(&event_id_value)?);
-        let mut accepted = true;
-        if aware && correcting {
-            let reliability = reliability_of(&config, &sender_source)?;
-            let trust = trust_of(world, &recipient_id)?;
-            let chance = acceptance_probability(&config, trust, reliability)?;
-            accepted = draw(&seed_of(world)?, label::CONTACT_CORRECTION_ACCEPTANCE, due, &[&sender_id, &recipient_id, &message_id]) < chance;
-        }
-        let strength = if aware && belief_text == "heard" {
-            sample_strength(world, &config, &recipient_id, &claim_source, due, &message_id)?
-        } else {
-            previous.as_ref().map_or(0.5, |prior| prior.belief_strength)
-        };
-        let record = Belief {
-            message_id: message_id.clone(),
-            belief: if accepted {
-                Arc::from(belief_text)
-            } else {
-                previous.as_ref().map_or_else(|| Arc::from("heard"), |prior| prior.belief.clone())
-            },
-            source: sender_id.clone(),
-            last_contact: due,
-            last_event_id: event_id,
-            belief_strength: if accepted && correcting {
-                if belief_text == "verified" { 1.0 } else { 0.0 }
-            } else {
-                strength
-            },
-            share_propensity: previous.as_ref().map_or(0.5, |prior| prior.share_propensity),
-            correction_exposed: correcting || previous.as_ref().is_some_and(|prior| prior.correction_exposed),
-            correction_accepted: (accepted && correcting) || previous.as_ref().is_some_and(|prior| prior.correction_accepted),
-            last_correction_accepted: if correcting { accepted } else { previous.as_ref().is_some_and(|prior| prior.last_correction_accepted) },
-            ever_misbelieved: previous.as_ref().is_some_and(|prior| prior.ever_misbelieved) || misbelieved(&truth, strength),
-            ever_forgotten: previous.as_ref().is_some_and(|prior| prior.ever_forgotten),
-        };
-        if !record.is_valid() {
-            return unsupported("a belief for the Python rule to judge");
-        }
-        let Some(pressure) = pressure else {
-            return unsupported("the person has no record");
-        };
-        // `heard` adds, an accepted correction relieves and counts, and every contact counts.
-        let heard = belief_text == "heard";
-        let next = if heard {
-            Some(py_min(1.0, pressure + configs::read(config.query_pressure_per_claim.clone())?))
-        } else if accepted {
-            Some(py_max(0.0, pressure - configs::read(config.query_pressure_relief_per_correction.clone())?))
-        } else {
-            None
-        };
-        Ok(Ok((state, message_id, recipient_id, record, next, !heard && accepted)))
-    })();
-    let (state, message_id, recipient_id, record, next, delivered) = match counted(py, "contact", plan)? {
-        Ok(planned) => planned,
-        Err(text) => return errors::suppressed(py, text),
-    };
-    state.get_item("beliefs")?.get_item(&*recipient_id)?.set_item(&*message_id, record.to_py(py)?)?;
-    if let Some(next) = next {
-        state.get_item("query_pressure")?.set_item(&*recipient_id, next)?;
+    match counted(world.py(), "contact", run_event(world, event, |cell, host, inputs, row| rules::contact(cell, host, inputs, row)))? {
+        Applied::Applied => Ok(()),
+        Applied::Suppressed(text) => errors::suppressed(world.py(), text),
     }
-    if delivered {
-        add_counter(&state, "correction_deliveries")?;
-    }
-    add_counter(&state, "contact_deliveries")
+}
+
+/// The config of the events, with the model's and the state's checks, for the configs' tests
+/// (`core/configs.rs`).
+pub(crate) fn checked_config(world: &Bound<'_, PyAny>) -> PyResult<Arc<InformationSpread>> {
+    let config = runtime_config(world)?;
+    let held = state_held(world)?;
+    with_world(world, |world| rules::check_state(world, &config, &held))?.or_py()?;
+    Ok(config)
 }
 
 /// `_sample_claim_belief_strength`, for the tests: a draw hides a small change in its probability.
 #[pyfunction]
 fn claim_strength_of(world: &Bound<'_, PyAny>, config: &Bound<'_, PyAny>, agent_id: &str, source_id: &str, minute: i64, message_id: &str) -> PyResult<f64> {
-    sample_strength(world, &spread_of(config, true)?, agent_id, source_id, minute, message_id)
+    let config = spread_of(config, true)?;
+    with_world(world, |world| rules::sample_strength(world, &config, agent_id, source_id, minute, message_id))?.or_py()
 }
 
 /// A correction's acceptance as the rules draw it, for the tests: `ids` are the key's parts after
@@ -758,15 +174,16 @@ fn claim_strength_of(world: &Bound<'_, PyAny>, config: &Bound<'_, PyAny>, agent_
 #[allow(clippy::too_many_arguments)]
 fn acceptance_of(world: &Bound<'_, PyAny>, config: &Bound<'_, PyAny>, label: &str, trust: f64, source_id: &str, minute: i64, ids: Vec<String>) -> PyResult<bool> {
     let config = spread_of(config, true)?;
-    let chance = acceptance_probability(&config, trust, reliability_of(&config, source_id)?)?;
     let ids: Vec<&str> = ids.iter().map(String::as_str).collect();
-    Ok(draw(&seed_of(world)?, label, minute, &ids) < chance)
+    with_world(world, |world| rules::accepts(world, &config, label, trust, source_id, minute, &ids))?.or_py()
 }
 
 /// `selected_models(world.model_configs)["information"]` as the rules read it, for the tests.
 #[pyfunction]
 fn selected_information_of(world: &Bound<'_, PyAny>) -> PyResult<String> {
-    Ok(selected_information(world)?.to_string())
+    let selection = configs::selection(world)?;
+    let information = rules::selected_information(&selection).or_py();
+    Ok(relayed(world, &selection, information)?.to_string())
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

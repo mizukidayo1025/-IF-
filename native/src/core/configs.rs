@@ -270,7 +270,7 @@ pub(crate) fn config_section<'py>(
         }
         "support_cooldown_minutes" => handlers::support_cooldown_minutes(world)?.into_bound_py_any(py),
         "information_spread" => {
-            let (config, _, _) = information_events::runtime_state(world)?;
+            let config = information_events::checked_config(world)?;
             read(config.query_pressure_per_claim.clone())?.into_bound_py_any(py)
         }
         "information_pressure_gain" => social_interaction::pressure_gain(world)?.into_bound_py_any(py),
