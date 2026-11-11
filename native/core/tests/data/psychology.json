@@ -1,0 +1,761 @@
+{
+ "body_config": {
+  "schema_version": 1,
+  "policy_version": "life-state-feedback-v1",
+  "source_id": "ASM-LIFE-STATE-FEEDBACK-V1",
+  "awake_sleep_debt_minutes_per_minute": 1.0,
+  "rest_sleep_debt_recovery_per_minute": 0.25,
+  "sleep_sleep_debt_recovery_per_minute": 1.0,
+  "sleep_debt_stress_rate": 0.001,
+  "uncertainty_drift_per_minute": 2e-05,
+  "uncertainty_decay_per_minute": 5e-05,
+  "discontent_stress_rate": 1,
+  "discontent_queue_rate": 0.0005,
+  "discontent_relief_per_minute": 0.0002,
+  "reassurance_decay_per_minute": 0.0003,
+  "positive_affect_decay_per_minute": 0.0001,
+  "negative_affect_stress_rate": 0.001,
+  "hygiene_growth_per_minute": 5e-05,
+  "sanitation_hygiene_growth_per_minute": 0.0001,
+  "sanitation_stress_rate": 0.002,
+  "affect_transfer_rate": 0.05,
+  "relationship_trust_gain": 0.0005,
+  "relationship_trust_decay_per_day": 0.002,
+  "relationship_repeat_contact_bonus": 0.05,
+  "cooperation_positive_gain": 0.03,
+  "cooperation_negative_reduction": 0.02,
+  "cooperation_reassurance_gain": 0.03,
+  "cooperation_discontent_reduction": 0.01,
+  "social_action_affect_transfer": 0.02,
+  "complaint_reassurance_gain": 0.02,
+  "complaint_discontent_reduction": 0.01,
+  "hygiene_support_relief": 0.15,
+  "caregiver_assistance_stress_relief": 0.03,
+  "caregiver_assistance_reassurance_gain": 0.02,
+  "privacy_accommodation_discontent_relief": 0.02,
+  "mobility_assistance_stress_relief": 0.03,
+  "language_access_uncertainty_relief": 0.05,
+  "medical_assessment_uncertainty_relief": 0.02,
+  "medication_support_uncertainty_relief": 0.01,
+  "dependent_assistance_stress_relief": 0.04,
+  "dependent_assistance_reassurance_gain": 0.03,
+  "correction_uncertainty_reduction": 0.05,
+  "correction_reassurance_gain": 0.01,
+  "social_interaction_minutes": 5,
+  "affect_policy": "linear-positive-negative-v1",
+  "relationship_distance_scale_m": 2.0,
+  "sleep_debt_stress_rate_by_agent": {
+   "A2": 0.5
+  }
+ },
+ "body_config_default": {
+  "schema_version": 1,
+  "policy_version": "life-state-feedback-v1",
+  "source_id": "ASM-LIFE-STATE-FEEDBACK-V1",
+  "awake_sleep_debt_minutes_per_minute": 1.0,
+  "rest_sleep_debt_recovery_per_minute": 0.25,
+  "sleep_sleep_debt_recovery_per_minute": 1.0,
+  "sleep_debt_stress_rate": 0.001,
+  "uncertainty_drift_per_minute": 2e-05,
+  "uncertainty_decay_per_minute": 5e-05,
+  "discontent_stress_rate": 0.001,
+  "discontent_queue_rate": 0.0005,
+  "discontent_relief_per_minute": 0.0002,
+  "reassurance_decay_per_minute": 0.0003,
+  "positive_affect_decay_per_minute": 0.0001,
+  "negative_affect_stress_rate": 0.001,
+  "hygiene_growth_per_minute": 5e-05,
+  "sanitation_hygiene_growth_per_minute": 0.0001,
+  "sanitation_stress_rate": 0.002,
+  "affect_transfer_rate": 0.05,
+  "relationship_trust_gain": 0.0005,
+  "relationship_trust_decay_per_day": 0.002,
+  "relationship_repeat_contact_bonus": 0.05,
+  "cooperation_positive_gain": 0.03,
+  "cooperation_negative_reduction": 0.02,
+  "cooperation_reassurance_gain": 0.03,
+  "cooperation_discontent_reduction": 0.01,
+  "social_action_affect_transfer": 0.02,
+  "complaint_reassurance_gain": 0.02,
+  "complaint_discontent_reduction": 0.01,
+  "hygiene_support_relief": 0.15,
+  "caregiver_assistance_stress_relief": 0.03,
+  "caregiver_assistance_reassurance_gain": 0.02,
+  "privacy_accommodation_discontent_relief": 0.02,
+  "mobility_assistance_stress_relief": 0.03,
+  "language_access_uncertainty_relief": 0.05,
+  "medical_assessment_uncertainty_relief": 0.02,
+  "medication_support_uncertainty_relief": 0.01,
+  "dependent_assistance_stress_relief": 0.04,
+  "dependent_assistance_reassurance_gain": 0.03,
+  "correction_uncertainty_reduction": 0.05,
+  "correction_reassurance_gain": 0.01,
+  "social_interaction_minutes": 5,
+  "affect_policy": "linear-positive-negative-v1",
+  "relationship_distance_scale_m": 2.0
+ },
+ "params": {
+  "toilet_growth": 0.001,
+  "hunger_growth": 0.0005,
+  "awake_fatigue_growth": 0.0008,
+  "resting_fatigue_recovery": 0.004,
+  "sleeping_fatigue_recovery": 0.01,
+  "stress_pressure": 0.012,
+  "queued_stress": 0.002,
+  "resting_stress_recovery": 0.003,
+  "sleeping_stress_recovery": 0.006,
+  "need_pressure_threshold": 0.35,
+  "hydration_growth": 0.003,
+  "support_wait_stress": 0.001,
+  "toilet_growth_by_agent": {
+   "A1": 0.002
+  },
+  "hunger_growth_by_agent": {},
+  "awake_fatigue_growth_by_agent": {},
+  "natural_recovery_rate_per_minute": 0.01,
+  "natural_recovery_rate_by_agent": {
+   "A2": 0
+  },
+  "baseline_distress_by_agent": {
+   "A1": 1,
+   "A2": 0.25
+  },
+  "chronic_retention": 0.9,
+  "chronic_acute_weight": 0.08,
+  "chronic_high_distress_weight": 0.02,
+  "high_distress_threshold": 0.7
+ },
+ "simple": {
+  "class": [
+   "sheltersim.policies.psychology",
+   "SimplePsychologyPolicy"
+  ],
+  "source_id": "ASM-H04-CAUSAL-STRESS-V1",
+  "direct_rest": true,
+  "tick_start": null,
+  "has_long_term_method": false,
+  "policy_version": "causal-stress-v1",
+  "deltas": [
+   [
+    "A1",
+    "0x1.0624dd2f1a9fcp-9",
+    "0x1.004189374bc6ap-1",
+    "0x1.0000000000000p+0",
+    "0x1.89374bc6a7efap-9",
+    "0x1.c0ebedfa43fe6p-7",
+    "0x1.0000000000000p-1",
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "A2",
+    "0x1.9db22d0e56042p-4",
+    "0x1.9a9fbe76c8b44p-3",
+    "0x1.3404ea4a8c155p-2",
+    "0x1.9cac083126e98p-2",
+    "0x1.ea71de69ad42dp-1",
+    "0x1.0000000000000p-1",
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ]
+  ],
+  "document": "1d817b76d408f7a817621dba09987796631b53c36ef112c95bcb38e6b3188144",
+  "document_order": "3a1026c1316ea9231c08e4952d27cbee90ec4322028a41060bd80f6c627047e9",
+  "contributions": "966ca51487e7a1363e116c5f48528c8900c333353e7ca2c0b56251121d4c1a53",
+  "contributions_order": "f56cd81afea879eddda3e60b11fd5fe88c6a0c6453a386de255ca240ee26416d",
+  "agents": {
+   "A1": [
+    "0x1.8000000000000p-1",
+    "0x1.0000000000000p-1",
+    "0x1.0624dd2f1a9fcp-9",
+    "0x1.004189374bc6ap-1",
+    "0x1.0000000000000p+0",
+    "0x1.89374bc6a7efap-9"
+   ],
+   "A2": [
+    "0x1.ea71de69ad42dp-1",
+    "0x1.0000000000000p-1",
+    "0x1.9db22d0e56042p-4",
+    "0x1.9a9fbe76c8b44p-3",
+    "0x1.3404ea4a8c155p-2",
+    "0x1.9cac083126e98p-2"
+   ]
+  },
+  "body": {
+   "A1": [
+    "0x1.e000000000000p+6",
+    "0x1.0000000000000p-2",
+    "0x1.0000000000000p-3",
+    "0x1.0000000000000p-1",
+    "0x1.8000000000000p-2",
+    "0x1.0000000000000p-2",
+    "0x1.0000000000000p-1"
+   ],
+   "A2": [
+    "0x1.e800000000000p+4",
+    "0x1.8000000000000p-1",
+    "0x0.0p+0",
+    "0x1.0000000000000p-3",
+    "0x1.4000000000000p-1",
+    "0x1.0000000000000p-1",
+    "0x1.0000000000000p-4"
+   ]
+  },
+  "distress_last": 1438,
+  "distress": {
+   "A2": [
+    "0x1.0000000000000p-3",
+    "0x1.0000000000000p-2",
+    "0x1.4000000000000p+1",
+    2,
+    5,
+    3
+   ]
+  },
+  "monitor": [
+   [
+    "acute_distress_monitor:A2:current_run",
+    "0x1.8000000000000p+1"
+   ],
+   [
+    "acute_distress_monitor:A2:longest_run",
+    "0x1.0000000000000p+2"
+   ],
+   [
+    "acute_distress_monitor:A2:episodes",
+    "0x1.0000000000000p+0"
+   ]
+  ]
+ },
+ "bounded": {
+  "class": [
+   "sheltersim.policies.alternatives",
+   "BoundedStressPolicy"
+  ],
+  "source_id": "ASM-H04-CAUSAL-STRESS-V1",
+  "direct_rest": true,
+  "tick_start": null,
+  "has_long_term_method": false,
+  "policy_version": "bounded-stress-v1",
+  "deltas": [
+   [
+    "A1",
+    "0x1.0624dd2f1a9fcp-9",
+    "0x1.004189374bc6ap-1",
+    "0x1.0000000000000p+0",
+    "0x1.89374bc6a7efap-9",
+    "0x1.bddc488de3608p-7",
+    "0x1.0000000000000p-1",
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "A2",
+    "0x1.9db22d0e56042p-4",
+    "0x1.9a9fbe76c8b44p-3",
+    "0x1.3404ea4a8c155p-2",
+    "0x1.9cac083126e98p-2",
+    "0x1.5e0d3911dd89bp-1",
+    "0x1.0000000000000p-1",
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ]
+  ],
+  "document": "63ea591fabbd1971f82ce76d4f9ea282907779246dc182ddf7195a39dd09ad33",
+  "document_order": "3a1026c1316ea9231c08e4952d27cbee90ec4322028a41060bd80f6c627047e9",
+  "contributions": "59ca6ce0a8237ef314c8974d62aed7f136622ed7cc81c16797df7a779075de29",
+  "contributions_order": "f56cd81afea879eddda3e60b11fd5fe88c6a0c6453a386de255ca240ee26416d",
+  "agents": {
+   "A1": [
+    "0x1.8000000000000p-1",
+    "0x1.0000000000000p-1",
+    "0x1.0624dd2f1a9fcp-9",
+    "0x1.004189374bc6ap-1",
+    "0x1.0000000000000p+0",
+    "0x1.89374bc6a7efap-9"
+   ],
+   "A2": [
+    "0x1.5e0d3911dd89bp-1",
+    "0x1.0000000000000p-1",
+    "0x1.9db22d0e56042p-4",
+    "0x1.9a9fbe76c8b44p-3",
+    "0x1.3404ea4a8c155p-2",
+    "0x1.9cac083126e98p-2"
+   ]
+  },
+  "body": {
+   "A1": [
+    "0x1.e000000000000p+6",
+    "0x1.0000000000000p-2",
+    "0x1.0000000000000p-3",
+    "0x1.0000000000000p-1",
+    "0x1.8000000000000p-2",
+    "0x1.0000000000000p-2",
+    "0x1.0000000000000p-1"
+   ],
+   "A2": [
+    "0x1.e800000000000p+4",
+    "0x1.8000000000000p-1",
+    "0x0.0p+0",
+    "0x1.0000000000000p-3",
+    "0x1.4000000000000p-1",
+    "0x1.0000000000000p-1",
+    "0x1.0000000000000p-4"
+   ]
+  },
+  "distress_last": 1438,
+  "distress": {
+   "A2": [
+    "0x1.0000000000000p-3",
+    "0x1.0000000000000p-2",
+    "0x1.4000000000000p+1",
+    2,
+    5,
+    3
+   ]
+  },
+  "monitor": [
+   [
+    "acute_distress_monitor:A2:current_run",
+    "0x1.8000000000000p+1"
+   ],
+   [
+    "acute_distress_monitor:A2:longest_run",
+    "0x1.0000000000000p+2"
+   ],
+   [
+    "acute_distress_monitor:A2:episodes",
+    "0x1.0000000000000p+0"
+   ]
+  ]
+ },
+ "mean": {
+  "class": [
+   "sheltersim.policies.psychology",
+   "MeanRevertingDistressPolicy"
+  ],
+  "source_id": "ASM-MEAN-REVERTING-ACUTE-DISTRESS-V1",
+  "direct_rest": true,
+  "tick_start": null,
+  "has_long_term_method": false,
+  "policy_version": "mean-reverting-distress-v1",
+  "deltas": [
+   [
+    "A1",
+    "0x1.0624dd2f1a9fcp-9",
+    "0x1.004189374bc6ap-1",
+    "0x1.0000000000000p+0",
+    "0x1.89374bc6a7efap-9",
+    "0x1.825da1e479246p-6",
+    "0x1.0000000000000p-1",
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ],
+   [
+    "A2",
+    "0x1.9db22d0e56042p-4",
+    "0x1.9a9fbe76c8b44p-3",
+    "0x1.3404ea4a8c155p-2",
+    "0x1.9cac083126e98p-2",
+    "0x1.ea71de69ad42dp-1",
+    "0x1.0000000000000p-1",
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+   ]
+  ],
+  "document": "ae23a9f2792e22ae57c6ec20c2e1aa59069d2d417bcf49979fcf4417692dbb42",
+  "document_order": "c4828e6316aa0e18584a0dc086f3cf3998969358e616c1d8e790ba5068cadd09",
+  "contributions": "c7b8c582f95668403b9427c9989c9ad64ebb99a45f41df5588eb4266cf8d1826",
+  "contributions_order": "c7c298daf15a382e46e2d69b29a95c80f431fd1918d44a73b338a781b7ab5c23",
+  "agents": {
+   "A1": [
+    "0x1.8000000000000p-1",
+    "0x1.0000000000000p-1",
+    "0x1.0624dd2f1a9fcp-9",
+    "0x1.004189374bc6ap-1",
+    "0x1.0000000000000p+0",
+    "0x1.89374bc6a7efap-9"
+   ],
+   "A2": [
+    "0x1.ea71de69ad42dp-1",
+    "0x1.0000000000000p-1",
+    "0x1.9db22d0e56042p-4",
+    "0x1.9a9fbe76c8b44p-3",
+    "0x1.3404ea4a8c155p-2",
+    "0x1.9cac083126e98p-2"
+   ]
+  },
+  "body": {
+   "A1": [
+    "0x1.e000000000000p+6",
+    "0x1.0000000000000p-2",
+    "0x1.0000000000000p-3",
+    "0x1.0000000000000p-1",
+    "0x1.8000000000000p-2",
+    "0x1.0000000000000p-2",
+    "0x1.0000000000000p-1"
+   ],
+   "A2": [
+    "0x1.e800000000000p+4",
+    "0x1.8000000000000p-1",
+    "0x0.0p+0",
+    "0x1.0000000000000p-3",
+    "0x1.4000000000000p-1",
+    "0x1.0000000000000p-1",
+    "0x1.0000000000000p-4"
+   ]
+  },
+  "distress_last": 1439,
+  "distress": {
+   "A2": [
+    "0x1.0000000000000p-3",
+    "0x1.22696fbe8d275p-2",
+    "0x0.0p+0",
+    0,
+    0,
+    4
+   ],
+   "A1": [
+    "0x1.0000000000000p+0",
+    "0x1.0000000000000p+0",
+    "0x0.0p+0",
+    0,
+    0,
+    1
+   ]
+  },
+  "monitor": [
+   [
+    "acute_distress_monitor:A2:current_run",
+    "0x1.0000000000000p+0"
+   ],
+   [
+    "acute_distress_monitor:A2:longest_run",
+    "0x1.0000000000000p+2"
+   ],
+   [
+    "acute_distress_monitor:A2:episodes",
+    "0x1.0000000000000p+1"
+   ],
+   [
+    "acute_distress_monitor:A1:current_run",
+    "0x1.0000000000000p+0"
+   ],
+   [
+    "acute_distress_monitor:A1:longest_run",
+    "0x1.0000000000000p+0"
+   ],
+   [
+    "acute_distress_monitor:A1:episodes",
+    "0x1.0000000000000p+0"
+   ],
+   [
+    "acute_distress_monitor:A1:recovered_run_total",
+    "0x0.0p+0"
+   ],
+   [
+    "acute_distress_monitor:A1:recovered_run_count",
+    "0x0.0p+0"
+   ],
+   [
+    "acute_distress_monitor:A2:recovered_run_total",
+    "0x1.8000000000000p+1"
+   ],
+   [
+    "acute_distress_monitor:A2:recovered_run_count",
+    "0x1.0000000000000p+0"
+   ]
+  ]
+ },
+ "life": {
+  "class": [
+   "sheltersim.policies.psychology",
+   "LifeStatePsychologyPolicy"
+  ],
+  "source_id": "ASM-LIFE-STATE-FEEDBACK-V1",
+  "direct_rest": true,
+  "tick_start": false,
+  "has_long_term_method": false,
+  "policy_version": "life-state-feedback-v1",
+  "deltas": [
+   [
+    "A1",
+    "0x1.0624dd2f1a9fcp-9",
+    "0x1.004189374bc6ap-1",
+    "0x1.0000000000000p+0",
+    "0x1.89374bc6a7efap-9",
+    "0x1.0000000000000p+0",
+    "0x1.0000000000000p-1",
+    "0x1.e400000000000p+6",
+    "0x1.ffe3d3cf7573bp-3",
+    "0x1.fec56d5cfaacep-4",
+    "0x1.0000000000000p+0",
+    "0x1.800346dc5d638p-2",
+    "0x1.ffc5cdd50a88fp-3",
+    "0x1.000a7c5ac471bp-1"
+   ],
+   [
+    "A2",
+    "0x1.9db22d0e56042p-4",
+    "0x1.9a9fbe76c8b44p-3",
+    "0x1.3404ea4a8c155p-2",
+    "0x1.9cac083126e98p-2",
+    "0x1.0000000000000p+0",
+    "0x1.0000000000000p-1",
+    "0x1.f800000000000p+4",
+    "0x1.7ffc115df6556p-1",
+    "0x0.0p+0",
+    "0x1.0000000000000p+0",
+    "0x1.3ffe5c91d14e4p-1",
+    "0x1.007d8dca587e4p-1",
+    "0x1.0053e2d6238dap-4"
+   ]
+  ],
+  "document": "7d65db14a120452a623099f85a24c7be42600bcafec769edd365597b63e4fc76",
+  "document_order": "5d73f3e2aa1f57addec9a558638bbe9922d2f8b0fc0632ad105a35cca08e45fc",
+  "contributions": "5353c74eaba5101e2309b64c708393a2bb8a9a162e28aadb52d9b3785e921696",
+  "contributions_order": "3492fc23499fccae63f58aa8b7da9229fa22878560ac27553962747a8347255b",
+  "agents": {
+   "A1": [
+    "0x1.8000000000000p-1",
+    "0x1.0000000000000p-1",
+    "0x1.0624dd2f1a9fcp-9",
+    "0x1.004189374bc6ap-1",
+    "0x1.0000000000000p+0",
+    "0x1.89374bc6a7efap-9"
+   ],
+   "A2": [
+    "0x1.0000000000000p+0",
+    "0x1.0000000000000p-1",
+    "0x1.9db22d0e56042p-4",
+    "0x1.9a9fbe76c8b44p-3",
+    "0x1.3404ea4a8c155p-2",
+    "0x1.9cac083126e98p-2"
+   ]
+  },
+  "body": {
+   "A1": [
+    "0x1.e400000000000p+6",
+    "0x1.ffe3d3cf7573bp-3",
+    "0x1.fec56d5cfaacep-4",
+    "0x1.0000000000000p+0",
+    "0x1.800346dc5d638p-2",
+    "0x1.ffc5cdd50a88fp-3",
+    "0x1.000a7c5ac471bp-1"
+   ],
+   "A2": [
+    "0x1.f800000000000p+4",
+    "0x1.7ffc115df6556p-1",
+    "0x0.0p+0",
+    "0x1.0000000000000p+0",
+    "0x1.3ffe5c91d14e4p-1",
+    "0x1.007d8dca587e4p-1",
+    "0x1.0053e2d6238dap-4"
+   ]
+  },
+  "distress_last": 1438,
+  "distress": {
+   "A2": [
+    "0x1.0000000000000p-3",
+    "0x1.0000000000000p-2",
+    "0x1.4000000000000p+1",
+    2,
+    5,
+    3
+   ]
+  },
+  "monitor": [
+   [
+    "acute_distress_monitor:A2:current_run",
+    "0x1.8000000000000p+1"
+   ],
+   [
+    "acute_distress_monitor:A2:longest_run",
+    "0x1.0000000000000p+2"
+   ],
+   [
+    "acute_distress_monitor:A2:episodes",
+    "0x1.0000000000000p+0"
+   ]
+  ]
+ },
+ "integrated": {
+  "class": [
+   "sheltersim.policies.psychology",
+   "IntegratedDistressLifeStatePolicy"
+  ],
+  "source_id": "ASM-MEAN-REVERTING-LIFE-STATE-V1",
+  "direct_rest": false,
+  "tick_start": true,
+  "has_long_term_method": false,
+  "policy_version": "mean-reverting-life-state-v1",
+  "deltas": [
+   [
+    "A1",
+    "0x1.0624dd2f1a9fcp-9",
+    "0x1.004189374bc6ap-1",
+    "0x1.0000000000000p+0",
+    "0x1.89374bc6a7efap-9",
+    "0x1.9d06d78851d8bp-6",
+    "0x1.0000000000000p-1",
+    "0x1.e400000000000p+6",
+    "0x1.ffe3d3cf7573bp-3",
+    "0x1.fec56d5cfaacep-4",
+    "0x1.007fcd959f8efp-1",
+    "0x1.800346dc5d638p-2",
+    "0x1.ffbe9f0ca0217p-3",
+    "0x1.000a7c5ac471bp-1"
+   ],
+   [
+    "A2",
+    "0x1.9db22d0e56042p-4",
+    "0x1.9a9fbe76c8b44p-3",
+    "0x1.3404ea4a8c155p-2",
+    "0x1.9cac083126e98p-2",
+    "0x1.eae781c465cb2p-1",
+    "0x1.0000000000000p-1",
+    "0x1.f800000000000p+4",
+    "0x1.7ffc115df6556p-1",
+    "0x0.0p+0",
+    "0x1.010624dd2f1aap-3",
+    "0x1.3ffe5c91d14e4p-1",
+    "0x1.004189374bc6ap-1",
+    "0x1.0053e2d6238dap-4"
+   ]
+  ],
+  "document": "f3493acc3f56e8a4db0e5b7f9b8d05da6b1583d11f13eecab50d3b946c9cafef",
+  "document_order": "91817e75c44922ab1ff6d0105d56235baca0cc4d7faa3788c896fc79841e96c0",
+  "contributions": "ab241b5921d549294ba8e61f4a24f049ec16464ac33c21986520ba6d0e2051bb",
+  "contributions_order": "1aeb11cc24aada02a405e39c89fb2dfca1ea0e4949589743cdf50265fe6d597a",
+  "agents": {
+   "A1": [
+    "0x1.8000000000000p-1",
+    "0x1.0000000000000p-1",
+    "0x1.0624dd2f1a9fcp-9",
+    "0x1.004189374bc6ap-1",
+    "0x1.0000000000000p+0",
+    "0x1.89374bc6a7efap-9"
+   ],
+   "A2": [
+    "0x1.eae781c465cb2p-1",
+    "0x1.0000000000000p-1",
+    "0x1.9db22d0e56042p-4",
+    "0x1.9a9fbe76c8b44p-3",
+    "0x1.3404ea4a8c155p-2",
+    "0x1.9cac083126e98p-2"
+   ]
+  },
+  "body": {
+   "A1": [
+    "0x1.e400000000000p+6",
+    "0x1.ffe3d3cf7573bp-3",
+    "0x1.fec56d5cfaacep-4",
+    "0x1.007fcd959f8efp-1",
+    "0x1.800346dc5d638p-2",
+    "0x1.ffbe9f0ca0217p-3",
+    "0x1.000a7c5ac471bp-1"
+   ],
+   "A2": [
+    "0x1.f800000000000p+4",
+    "0x1.7ffc115df6556p-1",
+    "0x0.0p+0",
+    "0x1.010624dd2f1aap-3",
+    "0x1.3ffe5c91d14e4p-1",
+    "0x1.004189374bc6ap-1",
+    "0x1.0053e2d6238dap-4"
+   ]
+  },
+  "distress_last": 1439,
+  "distress": {
+   "A2": [
+    "0x1.0000000000000p-3",
+    "0x1.226c92d2098a8p-2",
+    "0x0.0p+0",
+    0,
+    0,
+    4
+   ],
+   "A1": [
+    "0x1.0000000000000p+0",
+    "0x1.0000000000000p+0",
+    "0x0.0p+0",
+    0,
+    0,
+    1
+   ]
+  },
+  "monitor": [
+   [
+    "acute_distress_monitor:A2:current_run",
+    "0x1.0000000000000p+0"
+   ],
+   [
+    "acute_distress_monitor:A2:longest_run",
+    "0x1.0000000000000p+2"
+   ],
+   [
+    "acute_distress_monitor:A2:episodes",
+    "0x1.0000000000000p+1"
+   ],
+   [
+    "acute_distress_monitor:A1:current_run",
+    "0x1.0000000000000p+0"
+   ],
+   [
+    "acute_distress_monitor:A1:longest_run",
+    "0x1.0000000000000p+0"
+   ],
+   [
+    "acute_distress_monitor:A1:episodes",
+    "0x1.0000000000000p+0"
+   ],
+   [
+    "acute_distress_monitor:A1:recovered_run_total",
+    "0x0.0p+0"
+   ],
+   [
+    "acute_distress_monitor:A1:recovered_run_count",
+    "0x0.0p+0"
+   ],
+   [
+    "acute_distress_monitor:A2:recovered_run_total",
+    "0x1.8000000000000p+1"
+   ],
+   [
+    "acute_distress_monitor:A2:recovered_run_count",
+    "0x1.0000000000000p+0"
+   ]
+  ],
+  "document_text": "{\"agent_count\":2,\"agents\":[{\"agent_id\":\"A1\",\"direct_causes\":[{\"excess_above_threshold\":0.65,\"kind\":\"unmet_need_pressure\",\"need\":\"fatigue\",\"threshold\":0.35,\"value\":1.0},{\"capacity_event_context_ids\":[\"e-o1\"],\"facility_capacity\":2,\"facility_id\":\"f-toilet\",\"facility_working_units\":2,\"kind\":\"facility_queue_wait\",\"queue_kind\":\"toilet_queue\",\"queue_task_id\":\"t1\",\"source_id\":\"ASM-TOILET-SERVICE-DURATION-V1\",\"wait_minutes\":1414}],\"environment_conditions\":{\"assumption_ids\":[\"ASM-H19-ZONE-ENVIRONMENT-V2\",\"ASM-ZONE-REST-LIMITING-V1\",\"src-z\"],\"lighting_level\":0.25,\"modifier_event_ids\":[\"e-z1\"],\"privacy_level\":0.5,\"source_type\":\"assumption\",\"temperature_c\":20.0,\"ventilation_effectiveness\":0.7},\"life_state\":{\"discontent\":{\"after\":0.5009750599999999,\"before\":0.5,\"delta\":0.0009750599999999165},\"family_separation_pressure\":{\"after\":0.0,\"before\":0.0,\"delta\":0.0},\"hygiene_need\":{\"after\":0.50008,\"before\":0.5,\"delta\":7.999999999996898e-05},\"information_belief_pressure\":{\"after\":0.0,\"before\":0.0,\"delta\":0.0},\"negative_affect\":{\"after\":0.2498753,\"before\":0.25,\"delta\":-0.00012470000000000536},\"positive_affect\":{\"after\":0.37501249999999997,\"before\":0.375,\"delta\":1.2499999999970868e-05},\"reassurance\":{\"after\":0.1247,\"before\":0.125,\"delta\":-0.0002999999999999947},\"sleep_debt_minutes\":{\"after\":121.0,\"before\":120.0,\"delta\":1.0},\"uncertainty\":{\"after\":0.24994626500000003,\"before\":0.25,\"delta\":-5.3734999999971444e-05}},\"needs\":{\"fatigue\":{\"after\":1.0,\"before\":1.0,\"delta\":0.0},\"hunger\":{\"after\":0.5005,\"before\":0.5,\"delta\":0.0004999999999999449},\"hydration_need\":{\"after\":0.003,\"before\":0.0,\"delta\":0.003},\"toilet_urgency\":{\"after\":0.002,\"before\":0.0,\"delta\":0.002}},\"source_references\":{\"facility_event_context_ids\":[\"e-o1\"],\"psychology_assumption_id\":\"ASM-MEAN-REVERTING-LIFE-STATE-V1\",\"queue_source_id\":\"ASM-TOILET-SERVICE-DURATION-V1\",\"queue_task_id\":\"t1\",\"support_request_id\":null,\"support_source_id\":null},\"stress\":{\"after\":0.75,\"applied_delta\":0.75,\"before\":0.0,\"candidate_before_clip\":0.025209150773006377,\"clip_delta\":0.0,\"components\":{\"experimental_environmental_stress\":0.0,\"facility_queue_wait\":0.0019900332501663893,\"information_belief_via_uncertainty\":0.0,\"life_state_feedback\":0.0016354066027777778,\"natural_recovery\":0.009950166250831893,\"staff_support_wait\":0.0,\"unmet_need_pressure\":0.011641694513473378},\"psychology_clipped_delta\":0.025209150773006377,\"raw_delta\":0.025209150773006377,\"social_delta\":0.7247908492269937}},{\"agent_id\":\"A2\",\"direct_causes\":[{\"excess_above_threshold\":0.050000000000000044,\"kind\":\"unmet_need_pressure\",\"need\":\"hydration_need\",\"threshold\":0.35,\"value\":0.4},{\"assigned_staff_id\":null,\"kind\":\"staff_support_wait\",\"status\":\"pending\",\"support_request_id\":\"r1\",\"wait_minutes\":1419},{\"assumption_source_id\":\"ASM-H19-ZONE-ENVIRONMENT-V2\",\"kind\":\"experimental_environmental_stress\",\"stress_per_minute\":0.45600000000000007,\"stressor_event_ids\":[\"e-s1\",\"e-s2\"]},{\"belief_event_ids\":[\"e-b1\"],\"kind\":\"active_false_claim_belief\",\"message_ids\":[\"m1\"],\"origin_event_ids\":[\"e-m1\"],\"pressure\":0.5,\"source_ids\":[\"rumor\"]}],\"environment_conditions\":{\"assumption_ids\":[\"ASM-H19-ZONE-ENVIRONMENT-V2\",\"ASM-ZONE-REST-LIMITING-V1\"],\"lighting_level\":0.5,\"modifier_event_ids\":[],\"privacy_level\":0.5,\"source_type\":\"assumption\",\"temperature_c\":30.0,\"ventilation_effectiveness\":0.7},\"information_belief_effect\":{\"active_false_claim_pressure\":0.5,\"effect_kind\":\"persistent_belief_state_input\",\"source_records\":[{\"belief_event_id\":\"e-b1\",\"message_id\":\"m1\",\"origin_event_id\":\"e-m1\",\"origin_minute\":3,\"source_id\":\"rumor\"}]},\"life_state\":{\"discontent\":{\"after\":0.1255,\"before\":0.125,\"delta\":0.0005000000000000004},\"family_separation_pressure\":{\"after\":0.0,\"before\":0.0,\"delta\":0.0},\"hygiene_need\":{\"after\":0.06258,\"before\":0.0625,\"delta\":7.999999999999674e-05},\"information_belief_pressure\":{\"after\":0.5,\"before\":0.5,\"delta\":0.0},\"negative_affect\":{\"after\":0.5005,\"before\":0.5,\"delta\":0.0004999999999999449},\"positive_affect\":{\"after\":0.6249875,\"before\":0.625,\"delta\":-1.2499999999970868e-05},\"reassurance\":{\"after\":0.0,\"before\":0.0,\"delta\":0.0},\"sleep_debt_minutes\":{\"after\":31.5,\"before\":30.5,\"delta\":1.0},\"uncertainty\":{\"after\":0.74997,\"before\":0.75,\"delta\":-2.999999999997449e-05}},\"needs\":{\"fatigue\":{\"after\":0.3008,\"before\":0.3,\"delta\":0.0008000000000000229},\"hunger\":{\"after\":0.2005,\"before\":0.2,\"delta\":0.0005000000000000004},\"hydration_need\":{\"after\":0.403,\"before\":0.4,\"delta\":0.0030000000000000027},\"toilet_urgency\":{\"after\":0.101,\"before\":0.1,\"delta\":0.0010000000000000009}},\"source_references\":{\"environmental_assumption_id\":\"ASM-H19-ZONE-ENVIRONMENT-V2\",\"environmental_stressor_event_ids\":[\"e-s1\",\"e-s2\"],\"facility_event_context_ids\":[],\"psychology_assumption_id\":\"ASM-MEAN-REVERTING-LIFE-STATE-V1\",\"queue_source_id\":null,\"queue_task_id\":null,\"support_request_id\":\"r1\",\"support_source_id\":\"ASM-STAFF-SUPPORT-LIFECYCLE-V1\"},\"stress\":{\"after\":0.9587975075000001,\"applied_delta\":0.45879750750000015,\"before\":0.5,\"candidate_before_clip\":0.9587975075000001,\"clip_delta\":5.551115123125783e-17,\"components\":{\"experimental_environmental_stress\":0.45600000000000007,\"facility_queue_wait\":0.0,\"information_belief_via_uncertainty\":1.0000000000157452e-08,\"life_state_feedback\":0.0008974975,\"natural_recovery\":-0.0,\"staff_support_wait\":0.001,\"unmet_need_pressure\":0.0009000000000000008},\"psychology_clipped_delta\":0.45879750750000015,\"raw_delta\":0.4587975075000001,\"social_delta\":0.0}}],\"assumption_id\":\"ASM-MEAN-REVERTING-LIFE-STATE-V1\",\"component_totals\":{\"applied_stress_delta\":1.2087975075000001,\"experimental_environmental_stress\":0.45600000000000007,\"facility_queue_wait\":0.002,\"life_state_feedback\":0.002532904102777778,\"natural_recovery\":0.009950166250831893,\"recovery\":0.0,\"staff_support_wait\":0.001,\"unmet_need_pressure\":0.012600000000000002},\"minute_index\":1439,\"policy_version\":\"mean-reverting-life-state-v1\",\"social_propagation_is_separate\":true,\"truncated_agent_count\":0}"
+ }
+}

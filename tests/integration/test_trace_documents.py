@@ -366,6 +366,8 @@ def test_the_document_of_each_model_is_the_deleted_rule_s(
     for policy in _policies(draws, sorted(world.agents)):
         controller.psychology = policy
         controller.artifacts = _Keeping(level)
+        # The kernels read the policies the Run read (lane P8 a3).
+        controller._run_core.refresh_policies(controller)
         # What the social step does between the two.
         documents.append(
             _documents(
@@ -422,6 +424,8 @@ def test_int_values_of_a_scenario_give_the_deleted_rule_s_document(
     for policy in _int_policies(sorted(world.agents)):
         controller.psychology = policy
         controller.artifacts = _Keeping(level)
+        # The kernels read the policies the Run read (lane P8 a3).
+        controller._run_core.refresh_policies(controller)
         document = _documents(controller, view, lambda deltas: deltas)
         documents.append(document)
         separated += document.count(
@@ -461,6 +465,7 @@ def test_a_person_with_no_final_delta_is_refused(generated_scenario: Any, tmp_pa
     view = controller._view_after_movement(world)
     controller.psychology = SimplePsychologyPolicy()
     controller.artifacts = _Keeping(TraceLevel.FULL)
+    controller._run_core.refresh_policies(controller)
     result = native.rules("psychology").update_psychology(controller, view, 0)
     with pytest.raises(KernelRefusal, match="no final delta"):
         OfflineSimulationController._record_psychology_trace(

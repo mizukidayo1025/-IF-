@@ -21,7 +21,9 @@ use sheltersim_core::rules::psychology::{self as core, Applied, Bad, Delta};
 use sheltersim_core::state::body_state::NAME as BODY_STATE;
 
 use crate::core::errors::{to_py_err, OrPy};
+use crate::core::row::attribute;
 use crate::core::run::{policies_of, run_of};
+use crate::core::tracked::as_readable_dict;
 use crate::core::world_core::{field_held, namespace_held, raw_dict_get, raw_dict_set, with_world};
 use crate::host::PyHost;
 use crate::rules::trace::TraceRows;
@@ -256,6 +258,9 @@ pub(crate) fn update_psychology<'py>(
 /// Whether `model_state` holds `body_state_v1`; anything else it holds there is refused.
 fn body_state_of(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = world.py();
+    if as_readable_dict(&attribute(world, intern!(py, "model_state"))?).is_none() {
+        return unsupported("model_state is not readable");
+    }
     match namespace_held(world, intern!(py, BODY_STATE), "body_state_v1 is not the tree of its row")? {
         Held::Absent => Ok(false),
         Held::Held => Ok(true),
