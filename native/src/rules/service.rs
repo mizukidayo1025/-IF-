@@ -36,6 +36,7 @@ use crate::state::facility_queues::QueueRequest;
 use crate::state::metric_state::MetricRow;
 use crate::state::resource_ledger::{held_mirror as ledger_mirror, resource_index, LedgerRow};
 use crate::state::resource_service::{held_mirror, RequestRecord, ServiceRow, Stall, StallRecord};
+use crate::state::world_fields;
 use crate::Unsupported;
 
 const OPERATIONAL_KEY: &str = "operational_events_v1";
@@ -1525,7 +1526,7 @@ fn request_with<'py>(
         if !refusals {
             return unsupported("no accessible independent queue");
         }
-        counters.set_item(intern!(py, "resource_task"), counter)?;
+        world_fields::set_id_counter(world, counters, intern!(py, "resource_task"), counter)?;
         return Ok(Err("no accessible independent resource service queue is available".to_owned()));
     }
     let queue_position = match &chosen_queue {
@@ -1571,7 +1572,7 @@ fn request_with<'py>(
     };
 
     // Write.
-    counters.set_item(intern!(py, "resource_task"), counter)?;
+    world_fields::set_id_counter(world, counters, intern!(py, "resource_task"), counter)?;
     queue.call_method1(intern!(py, "append"), (agent_id,))?;
     if let Some(point) = point {
         write_enqueue(world, point, &task_id, &task_id, agent_name, service_kind, world_minute)?;
@@ -2097,7 +2098,7 @@ fn interrupt_with<'py>(manager: &Manager<'py>, staff_id: &Bound<'py, PyAny>, cau
     set_agent(world, &store, agent_text.as_any(), Activity::Queued, Some(facility_text.as_any()))?;
     let queue_text = PyString::new(py, &queue_task_id);
     let task = active_task_class(py)?.call1((&queue_text, "resource_service_queue", &agent_text, &facility_text, queued_at, queued_at))?;
-    counters.set_item(intern!(py, "resource_task"), counter)?;
+    world_fields::set_id_counter(world, counters, intern!(py, "resource_task"), counter)?;
     attribute(world, intern!(py, "active_tasks"))?.set_item(&queue_text, task)?;
     let facilities = attribute(world, intern!(py, "facilities"))?;
     let Some(facility) = raw_dict_get(&facilities, facility_text.as_any())? else {

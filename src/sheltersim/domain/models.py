@@ -580,6 +580,10 @@ class AgentState:
 class ZoneState:
     """Simulation-owned attributes for a zone."""
 
+    # Not fields: see _install_rows. __dict__ holds exactly the fields, as without them.
+    __slots__ = _ROW_SLOTS
+    _kind: ClassVar[int] = 6
+
     id: str
     name: str
     capacity: int | None
@@ -593,6 +597,10 @@ class ZoneState:
 @dataclass
 class ZoneEdgeState:
     """Traversable connection between two zones."""
+
+    # Not fields: see _install_rows. __dict__ holds exactly the fields, as without them.
+    __slots__ = _ROW_SLOTS
+    _kind: ClassVar[int] = 7
 
     id: str
     from_zone_id: str
@@ -704,7 +712,16 @@ class ActiveTask:
 
 # ---- The Rust rows of the entities (native/src/state/entities.rs) -----------------------------
 
-_ROW_CLASSES = (AgentState, NeedState, FacilityState, StaffState, SupportRequestState, ActiveTask)
+_ROW_CLASSES = (
+    AgentState,
+    NeedState,
+    FacilityState,
+    StaffState,
+    SupportRequestState,
+    ActiveTask,
+    ZoneState,
+    ZoneEdgeState,
+)
 
 
 def _forward_write(self: Any, name: str, value: Any) -> None:
@@ -730,7 +747,7 @@ def _forward_delete(self: Any, name: str) -> None:
     object.__delattr__(self, name)
     store = self._store
     if store is not None:
-        store.taint_now(f"{type(self).__name__}.{name} was deleted")
+        store.taint_now(f"{type(self).__name__}.{name} was deleted", self._kind)
 
 
 def _new_detached(cls: Any, *_arguments: Any, **_keywords: Any) -> Any:
@@ -759,6 +776,8 @@ def _install_rows() -> None:
         StaffState,
         SupportRequestState,
         ActiveTask,
+        ZoneState,
+        ZoneEdgeState,
         list(Activity),
         list(Mobility),
         list(SupportRequestStatus),

@@ -1439,7 +1439,7 @@ impl NamespaceMirror {
 
     /// Own value as the namespace's new tree and return that tree: at attach, and for a write of
     /// the whole namespace. A tree that does not fit is stored and the namespace is tainted.
-    fn replace_root(slf: &Bound<'_, Self>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    pub(crate) fn replace_root(slf: &Bound<'_, Self>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
         Self::drop_root(slf)?;
         let root = Self::set_root(slf, value)?;
         slf.get().with_slot_mut(slf.py(), |slot| slot.counts.whole_writes += 1)?;
@@ -1853,6 +1853,17 @@ impl WorldCore {
 
     fn owned_names(&self) -> Vec<String> {
         self.world.slots.names().map(|name| name.to_string()).collect()
+    }
+
+    /// `world.<name> = value` of a scalar (`SCALAR_FIELDS`), from `WorldState.__setattr__`.
+    fn set_scalar(&self, name: &str, value: &Bound<'_, PyAny>) -> PyResult<()> {
+        let mut scalars = self.world.scalars.try_borrow_mut().or_py()?;
+        crate::state::world_fields::set_scalar(&mut scalars, name, value)
+    }
+
+    /// The scalars as the core holds them, a misfit as None (`state/world_fields.rs`).
+    fn scalars<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        crate::state::world_fields::scalars_to_py(py, &*self.world.scalars.try_borrow().or_py()?)
     }
 
     fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {

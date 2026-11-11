@@ -24,7 +24,7 @@ use crate::core::row::{attribute, exact_int, exact_str, namespace_is_absent, uns
 use crate::core::tracked::as_readable_dict;
 use crate::core::world_core::{raw_dict_get, NamespaceMirror};
 use crate::rules::social_network::mapping_get;
-use crate::state::entities::raw_setattr;
+use crate::state::world_fields;
 use crate::state::resource_ledger::{
     held_mirror, is_valid_id, resource_index, world_inputs, Account, AuditRecord, LedgerChecks, LedgerRow, Reservation,
     AUDIT_SCHEMA_VERSION, RESOURCE_IDS,
@@ -382,13 +382,14 @@ pub(crate) fn apply_planned<'py>(
     }
     NamespaceMirror::append_through(mirror, &["audit"], &PyField::to_py(&record, py)?)?;
 
-    // A new dict, like the Python rule: whoever holds the old one keeps the old values.
+    // A new dict, like the Python rule: whoever holds the old one keeps the old values. It is the
+    // field's new tree, and its row is read from it.
     let next_resources = as_readable_dict(&resources).map_or_else(
         || unsupported("the resources are not a dict"),
         |resources| Ok(resources.copy()?),
     )?;
     next_resources.set_item(RESOURCE_IDS[index], record.remaining)?;
-    raw_setattr(world, intern!(py, "resources"), next_resources.as_ptr())
+    world_fields::replace_resources(world, &next_resources)
 }
 
 const COLUMNS: [[&str; 6]; 2] = [

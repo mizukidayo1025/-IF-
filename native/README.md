@@ -36,13 +36,16 @@ Checkpoint document) and times them.
   Checkpoint kernels over bytes), `events/` (`EventRow`, the queue's `Queue`, the `EventLog`
   with its indexes and the saved-record checks, and `writer`, which schedules and records rows
   with the Python errors), `row.rs` (`Field`, `Row`, `Items`, `state_row!`, `str_enum!`),
-  `entities.rs` (the entity rows `AgentRow`…`TaskRow` with their `EntityField`, whose
-  `write_json` takes the WorldState version, `Table` and `Entities`, which also holds the taint),
+  `entities.rs` (the entity rows `AgentRow`…`TaskRow`, `ZoneRow` and `EdgeRow` with their
+  `EntityField`, whose `write_json` takes the WorldState version, `Table` and `Entities`, which
+  also holds the taints: one for the people's five tables, one for the zones and zone edges),
   `state/` (the rows of the namespaces, with their checks that read the row alone or the entity
-  rows), `world.rs` (`World`: one world's state, as `Shard` parts: `entities`, and `slots`, one
-  `Slot` per owned field or namespace with its row, taint, detach flag, generation and counters;
-  every other str key of `model_state` has a `ValueRow` slot, `Place::Value`, read by
-  `Slots::value`),
+  rows), `world.rs` (`World`: one world's state, as `Shard` parts: `scalars` (`Scalars`: each
+  value a `Fit`, a misfit when Python holds another type; the seed is a `Seed`, decimal text of
+  an int of any size), `entities`, and `slots`, one `Slot` per owned field or namespace with its
+  row, taint, detach flag, generation and counters; every other str key of `model_state` has a
+  `ValueRow` slot, `Place::Value`, read by `Slots::value`; typed readers such as `minute_index`,
+  `resources` and `id_counter`),
   `cell.rs` (`Shard`, a part borrowed on its own; a second borrow of a part is an
   `Error::Runtime`, never a panic), `stamp.rs` (`Stamp`, process-unique numbers from one
   counter: a slot's generation is one) and `config/` (`Configs`, the sections the kernels read
@@ -143,7 +146,8 @@ Checkpoint document) and times them.
   `src/rules/staff_dynamics.rs` are the example of a whole module
   (`docs/rust-port/lanes/s-staff-dynamics.md`).
 - `src/state/entities.rs`: `EntityStore`, the handle of the typed rows of a world's agents,
-  facilities, staff, support requests and active tasks, from `WorldCore::entities`. The rows,
+  facilities, staff, support requests, active tasks, zones and zone edges (kinds 6 and 7, with a
+  taint of their own: `zones_tainted`), from `WorldCore::entities`. The rows,
   `Table` and `Entities` are the core's (`core/src/entities.rs`), held in the core `World`; here
   are the counters, reading a row from an object and making a
   dict of it (`PyEntityField`, `py_entity_row!`), the enum members (`install`, `Member`), the
@@ -151,6 +155,11 @@ Checkpoint document) and times them.
   of `domain/models.py`, each mirroring its row; `IdMap`, `__setattr__` and `TrackedList` forward
   every write. A rule reads with `with_rows` (a tainted store says `Unsupported`) and writes with
   `write_field` (`docs/rust-port/lanes/p6-entity-windows.md`).
+- `src/state/world_fields.rs`: the scalars as `WorldState.__setattr__` writes them
+  (`WorldCore.set_scalar`), and the row types of `world.resources` (`IdMap<i64>`) and
+  `world.id_counters` (`ValueRow`). A rule writes a counter with `set_id_counter` (the row, then
+  the tree) and a new `resources` dict with `replace_resources`; `EventWriter` reads and writes
+  the event counter through the row.
 - `src/core/tracked.rs`: the only dict and list subclasses a kernel may read through the C API.
   Use `as_readable_dict` and `as_readable_list`, not `downcast` or `downcast_exact`, to accept
   state: a mirrored namespace and a world's `IdMap` are made of those classes, and any other

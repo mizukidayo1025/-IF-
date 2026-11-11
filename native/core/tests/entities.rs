@@ -4,14 +4,16 @@
 //!
 //! The expected bytes are those `EntityStore.rows_json(version)` of the `main` build (`174e229`)
 //! wrote for the same Python objects; `tests/integration/test_capture_rows.py` checks that those
-//! are the bytes `canonical_json` writes for `WorldState._canonical_data`.
+//! are the bytes `canonical_json` writes for `WorldState._canonical_data`. Those of the zones and
+//! zone edges (PR 5-2) are `WorldState._canonical_text(zone.to_dict())` of CPython 3.12.
 
 use std::sync::Arc;
 
 use indexmap::IndexMap;
 use sheltersim_core::entities::{
-    Activity, AgentRow, AnyTable, EntityField, EntityRow, FacilityRow, Mobility, NeedRow, ProfileRow, RequestRow,
-    RequestStatus, Skills, StaffRow, Table, TaskRow, ACTIVITIES, MOBILITIES, STATUSES,
+    is_zone_kind, Activity, AgentRow, AnyTable, EdgeRow, Entities, EntityField, EntityRow, FacilityRow, Mobility,
+    NeedRow, ProfileRow, RequestRow, RequestStatus, Skills, StaffRow, Table, TaskRow, ZoneRow, ACTIVITIES, AGENT,
+    EDGE, MOBILITIES, NEEDS, STATUSES, TASK, ZONE,
 };
 use sheltersim_core::json::Encoder;
 use sheltersim_core::row::{IdMap, StrEnum};
@@ -325,4 +327,110 @@ fn a_write_marks_the_row_changed_until_its_bytes_are_kept() {
     assert!(!table.changed(slot));
     table.get_mut("r1").expect("r1").cooldown_until = 5;
     assert!(table.changed(slot));
+}
+
+// ---- Zones and zone edges (PR 5-2) ---------------------------------------------------------
+
+#[test]
+fn zones_and_edges_write_the_bytes_of_to_dict_in_both_versions() {
+    let corridor = ZoneRow {
+        id: text("z1"),
+        name: text("共用通路"),
+        capacity: None,
+        display_x: Some(100.0),
+        display_y: Some(260.5),
+    };
+    let sleeping = ZoneRow {
+        id: text("sleeping"),
+        name: text("Sleeping \"A\""),
+        capacity: Some(30),
+        display_x: None,
+        display_y: Some(1e-05),
+    };
+    let open = EdgeRow {
+        id: text("e1"),
+        from_zone_id: text("a"),
+        to_zone_id: text("b"),
+        travel_minutes: 3,
+        closed: false,
+    };
+    let closed = EdgeRow { id: text("e2"), from_zone_id: text("b"), to_zone_id: text("a"), travel_minutes: 0, closed: true };
+    for version in [5, 6] {
+        assert_eq!(
+            json(&corridor, version),
+            r#"{"capacity":null,"display_x":100.0,"display_y":260.5,"id":"z1","name":"共用通路"}"#
+        );
+        assert_eq!(
+            json(&sleeping, version),
+            r#"{"capacity":30,"display_x":null,"display_y":1e-05,"id":"sleeping","name":"Sleeping \"A\""}"#
+        );
+        assert_eq!(
+            json(&open, version),
+            r#"{"closed":false,"from_zone_id":"a","id":"e1","to_zone_id":"b","travel_minutes":3}"#
+        );
+        assert_eq!(
+            json(&closed, version),
+            r#"{"closed":true,"from_zone_id":"b","id":"e2","to_zone_id":"a","travel_minutes":0}"#
+        );
+    }
+    assert_eq!(corridor.id(), "z1");
+    assert_eq!(closed.id(), "e2");
+    assert_eq!(ZoneRow::NAMES, ["id", "name", "capacity", "display_x", "display_y"]);
+    assert_eq!(EdgeRow::NAMES, ["id", "from_zone_id", "to_zone_id", "travel_minutes", "closed"]);
+    let mut nan = corridor.clone();
+    nan.display_x = Some(f64::NAN);
+    let mut encoder = Encoder { out: Vec::new() };
+    assert!(nan.write_json(&mut encoder, 6).is_err());
+}
+
+fn zone(id: &str) -> ZoneRow {
+    ZoneRow { id: text(id), name: text(id), capacity: None, display_x: None, display_y: None }
+}
+
+fn with_rows() -> Entities {
+    let mut rows = Entities::default();
+    for id in ["b", "a"] {
+        let slot = rows.zones.reserve_slot();
+        rows.zones.fill_slot(slot, zone(id));
+        rows.zones.bind(text(id), slot);
+    }
+    let slot = rows.active_tasks.reserve_slot();
+    rows.active_tasks.fill_slot(slot, task());
+    rows.active_tasks.bind(text("t1"), slot);
+    rows
+}
+
+#[test]
+fn the_zones_have_kinds_and_tables_of_their_own() {
+    assert!(is_zone_kind(ZONE) && is_zone_kind(EDGE));
+    assert!(![AGENT, NEEDS, TASK].into_iter().any(is_zone_kind));
+    let rows = with_rows();
+    assert_eq!(rows.table(ZONE).len(), 2);
+    assert_eq!(rows.table(EDGE).len(), 0);
+    assert_eq!(rows.table(TASK).len(), 1);
+    assert_eq!(keys(&rows.zones), ["b", "a"]);
+    assert_eq!(rows.zones.document_slots(), [1, 0]);
+}
+
+#[test]
+fn a_taint_of_the_zones_leaves_the_people_and_the_other_way_round() {
+    let mut rows = with_rows();
+    rows.taint_for(ZONE, "a zone does not fit".to_owned());
+    assert_eq!(rows.zones_tainted(), Some("a zone does not fit"));
+    assert_eq!(rows.tainted_for(EDGE), Some("a zone does not fit"));
+    assert_eq!(rows.tainted(), None);
+    assert!(rows.zones.is_empty() && rows.zone_edges.is_empty());
+    assert_eq!(rows.active_tasks.len(), 1);
+    rows.taint_for(EDGE, "later".to_owned());
+    assert_eq!(rows.zones_tainted(), Some("a zone does not fit"));
+
+    let mut rows = with_rows();
+    rows.taint("a task does not fit".to_owned());
+    assert_eq!(rows.tainted_for(TASK), Some("a task does not fit"));
+    assert_eq!(rows.zones_tainted(), None);
+    assert!(rows.active_tasks.is_empty());
+    assert_eq!(keys(&rows.zones), ["b", "a"]);
+    rows.clear();
+    assert_eq!((rows.tainted(), rows.zones_tainted()), (None, None));
+    assert!(rows.zones.is_empty());
 }
