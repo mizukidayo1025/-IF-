@@ -34,7 +34,7 @@ use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBytes, PyDict, PyList, PyString, PyTuple};
 use pyo3::PyTraverseError;
-use sheltersim_core::cell::{Shard, ShardMut, BORROWED};
+use sheltersim_core::cell::{CowShard, Shard, ShardMut, BORROWED};
 use sheltersim_core::stamp::Stamp;
 use sheltersim_core::error::Error as CoreError;
 use sheltersim_core::world::{Place, Slot, World, WorldCell};
@@ -1526,6 +1526,50 @@ impl NamespaceMirror {
         Ok(root.unbind())
     }
 
+    /// Take the tree out, for a transaction (lane 6-2): its nodes become free containers that
+    /// forward nothing, so `put_root` can take them back as themselves. The row, the stamp and
+    /// whether the namespace is detached stay. The old tree, or None.
+    fn take_root(slf: &Bound<'_, Self>) -> PyResult<Option<Py<PyAny>>> {
+        let py = slf.py();
+        let old = slf.get().tree_mut()?.root.take();
+        if let Some(old) = &old {
+            Self::release_value(slf, old.bind(py), py.None().bind(py))?;
+        }
+        Ok(old)
+    }
+
+    /// A new tree from the row, as the tree a copy through canonical JSON builds from the row's
+    /// document (`transaction` in `core/state_mirror.py`): the row is not read again and the stamp
+    /// stays. Call `take_root` first. Unsupported without a row.
+    fn root_from_row(slf: &Bound<'_, Self>) -> PyResult<Py<PyAny>> {
+        let py = slf.py();
+        let this = slf.get();
+        let ops = this.ops();
+        let plain = this.with_slot(py, |slot| match slot.row.as_deref() {
+            Some(row) => ops.py(row)?.to_py(py),
+            None => Err(Unsupported::new_err("the namespace has no row")),
+        })??;
+        let root = Self::adopt_value(slf, NO_PARENT, NodeKey::Root, &plain, 0)?;
+        let old = this.tree_mut()?.root.replace(root.clone().unbind());
+        drop(old);
+        this.with_slot_mut(py, |slot| slot.detached = false)?;
+        Ok(root.unbind())
+    }
+
+    /// Give the tree a transaction took out back (`take_root`), after the core's snapshot gave
+    /// the row back: its nodes, free since, are the tree again as themselves. The tree there now
+    /// leaves; None leaves no tree. The row and the stamp are not touched.
+    #[pyo3(signature = (root))]
+    fn put_root(slf: &Bound<'_, Self>, root: Option<&Bound<'_, PyAny>>) -> PyResult<()> {
+        Self::take_root(slf)?;
+        if let Some(root) = root {
+            let stored = Self::adopt_value(slf, NO_PARENT, NodeKey::Root, root, 0)?;
+            let old = slf.get().tree_mut()?.root.replace(stored.unbind());
+            drop(old);
+        }
+        Ok(())
+    }
+
     /// The row as plain dicts and lists, which nothing follows: for a reader of a detached
     /// namespace that must not rebuild its tree (`state_mirror.read_only_state`). None without a row.
     fn document<'py>(&self, py: Python<'py>) -> PyResult<Option<Bound<'py, PyAny>>> {
@@ -1784,6 +1828,8 @@ pub struct WorldCore {
     /// The mirror of each slot, in the slots' order: `mirrors[i]` is the view of slot i.
     mirrors: IndexMap<Arc<str>, Py<NamespaceMirror>>,
     store: Option<Py<EntityStore>>,
+    /// The open transaction, if any (`core/txn.rs`, lane 6-2).
+    pub(crate) txn: Option<super::txn::OpenTxn>,
 }
 
 impl WorldCore {
@@ -1794,7 +1840,7 @@ impl WorldCore {
     }
 
     #[inline]
-    fn slot(&self, index: usize) -> PyResult<&Shard<Slot>> {
+    fn slot(&self, index: usize) -> PyResult<&CowShard<Slot>> {
         self.world.slots.at(index).ok_or_else(|| PyRuntimeError::new_err("a mirror's slot is not in its core"))
     }
 
@@ -1817,7 +1863,7 @@ impl WorldCore {
 impl WorldCore {
     #[new]
     fn new() -> Self {
-        Self { world: World::default(), mirrors: IndexMap::new(), store: None }
+        Self { world: World::default(), mirrors: IndexMap::new(), store: None, txn: None }
     }
 
     /// The handle of the world's entity rows (state/entities.rs).
@@ -1867,18 +1913,47 @@ impl WorldCore {
         crate::state::world_fields::scalars_to_py(py, &*self.world.scalars.try_borrow().or_py()?)
     }
 
+    /// Open a transaction on `world`, whose core this is (`state_mirror.transaction`): "full" or
+    /// "effect" (`core/txn.rs`).
+    fn begin_transaction(slf: &Bound<'_, Self>, world: &Bound<'_, PyAny>, kind: &str) -> PyResult<()> {
+        let _ = slf;
+        super::txn::begin(world, super::txn::kind_of(kind)?)
+    }
+
+    /// Keep what the open transaction wrote.
+    fn commit_transaction(slf: &Bound<'_, Self>, world: &Bound<'_, PyAny>) -> PyResult<()> {
+        let _ = slf;
+        super::txn::end(world, true)
+    }
+
+    /// Give the world back as the open transaction found it.
+    fn rollback_transaction(slf: &Bound<'_, Self>, world: &Bound<'_, PyAny>) -> PyResult<()> {
+        let _ = slf;
+        super::txn::end(world, false)
+    }
+
+    /// Whether a transaction is open.
+    #[getter]
+    fn in_transaction(&self) -> bool {
+        self.txn.is_some()
+    }
+
     fn __traverse__(&self, visit: PyVisit<'_>) -> Result<(), PyTraverseError> {
         for mirror in self.mirrors.values() {
             visit.call(mirror)?;
         }
         visit.call(&self.store)?;
+        if let Some(open) = &self.txn {
+            visit.call(&open.kept)?;
+        }
         Ok(())
     }
 
     fn __clear__(&mut self) {
         let mirrors = std::mem::take(&mut self.mirrors);
         let store = self.store.take();
-        drop((mirrors, store));
+        let txn = self.txn.take();
+        drop((mirrors, store, txn));
     }
 }
 

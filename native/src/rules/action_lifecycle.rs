@@ -101,7 +101,6 @@ const SLEEP_DEBT: usize = 4;
 
 state_row! {
     /// One open action, as `active_actions[agent_id]` holds it.
-    #[derive(Clone)]
     pub(crate) struct ActiveAction {
         action_id: Arc<str>,
         agent_id: Arc<str>,

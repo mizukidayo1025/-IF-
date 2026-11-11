@@ -82,6 +82,39 @@ impl V {
         Ok(())
     }
 
+    /// Sort the keys of every map by their bytes, as a copy through canonical JSON does
+    /// (`row::sort_keys`); lists keep their order.
+    pub fn canonicalize(&mut self) {
+        match self {
+            V::List(items) => {
+                for item in items {
+                    item.canonicalize();
+                }
+            }
+            V::Map(map) => {
+                crate::row::sort_keys(map);
+                for item in map.values_mut() {
+                    item.canonicalize();
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// `==`, and every map in the same order (`==` of a map ignores its order).
+    pub fn same_in_order(&self, other: &V) -> bool {
+        match (self, other) {
+            (V::List(mine), V::List(theirs)) => {
+                mine.len() == theirs.len() && mine.iter().zip(theirs).all(|(a, b)| a.same_in_order(b))
+            }
+            (V::Map(mine), V::Map(theirs)) => {
+                mine.len() == theirs.len()
+                    && mine.iter().zip(theirs).all(|((key, a), (other, b))| key == other && a.same_in_order(b))
+            }
+            _ => self == other,
+        }
+    }
+
     /// The canonical JSON bytes of the value.
     pub fn to_json(&self) -> Result<Vec<u8>> {
         let mut encoder = Encoder::with_capacity(256);

@@ -29,6 +29,7 @@ pub mod rules {
 }
 pub mod run;
 pub mod stamp;
+pub mod txn;
 
 /// The rows of the namespaces of `model_state` and of the owned world fields. The PyO3 crate's
 /// `state/<name>.rs` of the same name reads each from Python and holds its validators.

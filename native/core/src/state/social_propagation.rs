@@ -9,7 +9,7 @@ pub const NAME: &str = "social_propagation_v1";
 pub const SCHEMA_VERSION: i64 = 1;
 
 state_row! {
-    #[derive(Clone, Copy)]
+    #[derive(Copy)]
     pub struct ContactRecord {
         last_seen_minute: i64,
         consecutive_minutes: i64,

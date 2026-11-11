@@ -27,6 +27,12 @@
 //! Also here, for what most namespaces need beside the fields: `Maybe<T>` for a key the tree may
 //! not have (not the same as `Option<T>`, a key holding None), and `str_enum!` for a closed set of
 //! strings.
+//!
+//! `canonicalize` puts a row in the order `WorldState.from_dict(world.to_dict())` gives its tree
+//! (lane 6-2, design-p5-p6.md §1.3 F1): the keys of every map sorted by their bytes, as
+//! `json.dumps(sort_keys=True)` sorts str by code point; lists and the fields of a record keep
+//! their order. A transaction does it at its start (`World::canonicalize`), so the kernels that
+//! iterate a map go in the order they went after a copy through canonical JSON.
 
 use std::any::Any;
 use std::sync::Arc;
@@ -48,10 +54,13 @@ pub enum Part<'a> {
     Index(usize),
 }
 
-/// A value that can be part of a row.
-pub trait Field: Sized + Send + Sync + 'static {
+/// A value that can be part of a row. `Clone` is for a snapshot's copy on write (lane 6-2).
+pub trait Field: Sized + Clone + Send + Sync + 'static {
     /// The bytes of `canonical_json`.
     fn write_json(&self, encoder: &mut Encoder) -> Result<()>;
+    /// Sort the keys of every map inside by their bytes, as a copy through canonical JSON does;
+    /// lists keep their order. A value with no map inside does nothing.
+    fn canonicalize(&mut self);
     /// The value of a field whose key the record does not have, if that is allowed: `Maybe` only.
     fn when_missing() -> Option<Self> {
         None
@@ -89,11 +98,23 @@ pub trait Row: Send + Sync + 'static {
     /// The row as its own type, for a reader that knows it (`Slot::row`).
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
+    /// A copy, for a snapshot's copy on write (`Slot`'s `Clone`).
+    fn clone_row(&self) -> Box<dyn Row>;
+    /// `Field::canonicalize`: the order a copy through canonical JSON gives.
+    fn canonicalize(&mut self);
 }
 
 impl<T: Field> Row for T {
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         Field::write_json(self, encoder)
+    }
+
+    fn clone_row(&self) -> Box<dyn Row> {
+        Box::new(self.clone())
+    }
+
+    fn canonicalize(&mut self) {
+        Field::canonicalize(self);
     }
 
     fn part_items(&self, key: &str) -> Option<&dyn Items> {
@@ -110,11 +131,20 @@ impl<T: Field> Row for T {
 }
 
 /// A row that is a `V`, for a namespace without typed fields: any JSON fits.
+#[derive(Clone)]
 pub struct ValueRow(pub V);
 
 impl Row for ValueRow {
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         self.0.write_json(encoder)
+    }
+
+    fn clone_row(&self) -> Box<dyn Row> {
+        Box::new(self.clone())
+    }
+
+    fn canonicalize(&mut self) {
+        self.0.canonicalize();
     }
 
     fn part_items(&self, key: &str) -> Option<&dyn Items> {
@@ -182,6 +212,8 @@ impl Field for f64 {
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         encoder.try_float(*self)
     }
+
+    fn canonicalize(&mut self) {}
 }
 
 impl Scalar for f64 {
@@ -199,6 +231,8 @@ impl Field for i64 {
         encoder.int(*self);
         Ok(())
     }
+
+    fn canonicalize(&mut self) {}
 }
 
 impl Scalar for i64 {
@@ -216,6 +250,8 @@ impl Field for bool {
         encoder.bool(*self);
         Ok(())
     }
+
+    fn canonicalize(&mut self) {}
 }
 
 impl Scalar for bool {
@@ -233,6 +269,8 @@ impl Field for Arc<str> {
         write_json_string(&mut encoder.out, self);
         Ok(())
     }
+
+    fn canonicalize(&mut self) {}
 }
 
 impl Scalar for Arc<str> {
@@ -259,6 +297,12 @@ impl<T: Field> Field for Option<T> {
     fn items(&self) -> Option<&dyn Items> {
         self.as_ref().and_then(Field::items)
     }
+
+    fn canonicalize(&mut self) {
+        if let Some(value) = self {
+            value.canonicalize();
+        }
+    }
 }
 
 impl<T: Scalar> Scalar for Option<T> {
@@ -284,6 +328,10 @@ impl Field for V {
         V::write_json(self, encoder)
     }
 
+    fn canonicalize(&mut self) {
+        V::canonicalize(self);
+    }
+
     fn items(&self) -> Option<&dyn Items> {
         match self {
             V::List(items) => Some(items as &dyn Items),
@@ -304,6 +352,7 @@ pub const ABSENT_KEY: &str = "an absent key has no value";
 
 /// A key the record may not have: `{"a": 1}` and `{}`, where `Option` is `{"a": 1}` and
 /// `{"a": None}`. A record's key that holds None is a misfit here unless T takes None.
+#[derive(Clone)]
 pub struct Maybe<T>(pub Option<T>);
 
 impl<T: Field> Field for Maybe<T> {
@@ -325,6 +374,12 @@ impl<T: Field> Field for Maybe<T> {
     fn is_absent(&self) -> bool {
         self.0.is_none()
     }
+
+    fn canonicalize(&mut self) {
+        if let Some(value) = &mut self.0 {
+            value.canonicalize();
+        }
+    }
 }
 
 impl<T: Field> Field for IdMap<T> {
@@ -343,6 +398,21 @@ impl<T: Field> Field for IdMap<T> {
         }
         encoder.out.push(b'}');
         Ok(())
+    }
+
+    fn canonicalize(&mut self) {
+        sort_keys(self);
+        for value in self.values_mut() {
+            value.canonicalize();
+        }
+    }
+}
+
+/// Sort a map's keys by their bytes: the order of `json.dumps(sort_keys=True)`, which compares str
+/// by code point, the same as UTF-8 bytes. The keys are distinct, so no two compare equal.
+pub fn sort_keys<K: AsRef<str>, T, S>(map: &mut IndexMap<K, T, S>) {
+    if !map.keys().is_sorted_by(|first, second| first.as_ref().as_bytes() <= second.as_ref().as_bytes()) {
+        map.sort_unstable_by(|first, _, second, _| first.as_ref().as_bytes().cmp(second.as_ref().as_bytes()));
     }
 }
 
@@ -373,6 +443,12 @@ impl<T: Field> Field for Vec<T> {
 
     fn items(&self) -> Option<&dyn Items> {
         Some(self)
+    }
+
+    fn canonicalize(&mut self) {
+        for item in self.iter_mut() {
+            item.canonicalize();
+        }
     }
 }
 
@@ -474,6 +550,7 @@ macro_rules! state_row {
         }
     ) => {
         $(#[$meta])*
+        #[derive(Clone)]
         $vis struct $name {
             $( pub $field: $kind, )*
         }
@@ -549,6 +626,10 @@ macro_rules! state_row {
                 )*
                 None
             }
+
+            fn canonicalize(&mut self) {
+                $( $crate::row::Field::canonicalize(&mut self.$field); )*
+            }
         }
     };
 }
@@ -593,6 +674,8 @@ macro_rules! str_enum {
                 $crate::json::write_json_string(&mut encoder.out, self.text());
                 Ok(())
             }
+
+            fn canonicalize(&mut self) {}
         }
 
         impl $crate::row::Scalar for $name {

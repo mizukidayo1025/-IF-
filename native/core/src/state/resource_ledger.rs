@@ -25,7 +25,6 @@ const SCHEMA_VERSION: i64 = 1;
 pub const AUDIT_SCHEMA_VERSION: i64 = 1;
 
 state_row! {
-    #[derive(Clone)]
     pub struct Reservation {
         reservation_id: Arc<str>,
         resource_id: Arc<str>,
@@ -73,7 +72,6 @@ impl Accounts {
 }
 
 state_row! {
-    #[derive(Clone)]
     pub struct AuditRecord {
         schema_version: i64,
         minute: i64,
@@ -131,6 +129,7 @@ impl AuditRecord {
 }
 
 /// The audit trail: the bytes of each record, and what the checks of a tick read.
+#[derive(Clone)]
 pub struct Audit {
     items: Vec<Box<[u8]>>,
     newest: [Option<AuditRecord>; 2],
@@ -199,6 +198,9 @@ impl Field for Audit {
         Some(self)
     }
 
+    /// Each record is its canonical JSON already, and has no map inside.
+    fn canonicalize(&mut self) {}
+
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         encoder.out.push(b'[');
         for (index, item) in self.items.iter().enumerate() {
@@ -213,6 +215,7 @@ impl Field for Audit {
 }
 
 /// `used_reservation_ids`, with a set: a rule asks whether an ID was used, four times per service.
+#[derive(Clone)]
 pub struct UsedIds {
     ids: Vec<Arc<str>>,
     set: FxHashSet<Arc<str>>,
@@ -259,6 +262,9 @@ impl Field for UsedIds {
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         Field::write_json(&self.ids, encoder)
     }
+
+    /// A list keeps its order.
+    fn canonicalize(&mut self) {}
 }
 
 state_row! {

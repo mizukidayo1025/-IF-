@@ -18,6 +18,9 @@
 //!
 //! Adding checks duplicate IDs and sequences and returns a code; the Python EventLog raises the
 //! same DuplicateEventError as before.
+//!
+//! A transaction marks the log at its start (`mark`) and, if it rolls back, takes out the records
+//! appended since with everything they added to the indexes (`rollback`), last first (lane 6-2).
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
@@ -27,9 +30,11 @@ use crate::error::Result;
 use crate::value::V;
 
 /// What the indexes and a Rust rule read of one record.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct Entry {
     event_id: Arc<str>,
+    /// For `rollback`, which takes it out of `sequences`.
+    sequence: i64,
     /// The bytes until Python asks for them (`take_written`).
     written: Option<Box<[u8]>>,
     event_type: u32,
@@ -68,7 +73,7 @@ enum LifecycleStep {
 
 pub const ACTION_LIFECYCLE_EVENT_TYPE: &str = "agent_action_lifecycle";
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct EventLog {
     entries: Vec<Entry>,
     // Records with bytes only the Python encoder can make.
@@ -214,6 +219,7 @@ impl EventLog {
         let event_id: Arc<str> = Arc::from(fields.event_id);
         self.entries.push(Entry {
             event_id: event_id.clone(),
+            sequence: fields.sequence,
             written,
             event_type: type_id,
             applied: fields.applied,
@@ -466,9 +472,126 @@ impl EventLog {
         0
     }
 
+    /// Where the log is now, for a `rollback` to come back to (a transaction's start).
+    pub fn mark(&self) -> LogMark {
+        LogMark {
+            len: self.entries.len(),
+            unencoded: self.unencoded,
+            type_count: self.type_names.len(),
+            max_sequence: self.max_sequence,
+            lifecycle_len: self.lifecycle.len(),
+            lifecycle_agent_count: self.lifecycle_agents.len(),
+            completed_support_kinds: self.completed_support_kinds.clone(),
+            applied_facility_events: self.applied_facility_events.clone(),
+            audited: self.audited,
+            audit_bounds: self.audit_bounds,
+            scanned_types: self.scanned_types.clone(),
+        }
+    }
+
+    /// Take out the records appended since the mark, last first, with what each added to the
+    /// indexes: the log is then what it was at the mark. The bytes of an earlier record that
+    /// Python asked for since stay with Python's bytes object (`take_written`), as they would.
+    pub fn rollback(&mut self, mark: LogMark) {
+        let len = mark.len.min(self.entries.len());
+        let mut removed: HashSet<Arc<str>> = HashSet::with_capacity(self.entries.len() - len);
+        for index in (len..self.entries.len()).rev() {
+            let entry = &self.entries[index];
+            self.by_id.remove(&entry.event_id);
+            self.sequences.remove(&entry.sequence);
+            self.by_minute.pop_position(entry.minute, index);
+            self.by_type.pop_position(entry.event_type, index);
+            removed.insert(entry.event_id.clone());
+        }
+        self.entries.truncate(len);
+        if !removed.is_empty() {
+            // The appended records' keys, which point at them: an earlier record's key points at
+            // an earlier record, and `or_insert` kept it.
+            self.first_care_request.retain(|_, event_id| !removed.contains(event_id.as_str()));
+            self.by_provenance.retain(|_, positions| {
+                positions.truncate(positions.partition_point(|index| *index < len));
+                !positions.is_empty()
+            });
+        }
+        for name in self.type_names.drain(mark.type_count..) {
+            self.type_ids.remove(&name);
+        }
+        self.lifecycle.truncate(mark.lifecycle_len);
+        for agent in self.lifecycle_agents.drain(mark.lifecycle_agent_count..) {
+            self.lifecycle_agent_ids.remove(&agent);
+        }
+        self.unencoded = mark.unencoded;
+        self.max_sequence = mark.max_sequence;
+        self.completed_support_kinds = mark.completed_support_kinds;
+        self.applied_facility_events = mark.applied_facility_events;
+        self.audited = mark.audited;
+        self.audit_bounds = mark.audit_bounds;
+        self.scanned_types = mark.scanned_types;
+    }
+
     /// The sizes of the record list and of the ID and sequence indexes.
     pub fn index_sizes(&self) -> (usize, usize, usize) {
         (self.entries.len(), self.by_id.len(), self.sequences.len())
+    }
+}
+
+/// Where an `EventLog` was (`EventLog::mark`): its counts, and the small indexes a record may add
+/// to without leaving a trace of which record did (the support kinds of a person, the facility
+/// events), whole. The scanned types are a reader's: a rollback forgets the reads since.
+#[derive(Clone, Debug)]
+pub struct LogMark {
+    len: usize,
+    unencoded: usize,
+    type_count: usize,
+    max_sequence: i64,
+    lifecycle_len: usize,
+    lifecycle_agent_count: usize,
+    completed_support_kinds: HashMap<String, Vec<String>>,
+    applied_facility_events: HashMap<String, Vec<String>>,
+    audited: usize,
+    audit_bounds: (Option<i64>, Option<i64>),
+    scanned_types: HashSet<String>,
+}
+
+impl LogMark {
+    /// How many records the log had.
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+}
+
+/// An index of positions by key, for `rollback`.
+trait PositionIndex<K> {
+    /// Take `position`, the last one pushed under `key`, out; a key left with no position leaves
+    /// the index, as it was before its first record.
+    fn pop_position(&mut self, key: K, position: usize);
+}
+
+impl PositionIndex<i64> for BTreeMap<i64, Vec<usize>> {
+    fn pop_position(&mut self, key: i64, position: usize) {
+        if let Some(positions) = self.get_mut(&key) {
+            debug_assert_eq!(positions.last(), Some(&position));
+            positions.pop();
+            if positions.is_empty() {
+                self.remove(&key);
+            }
+        }
+    }
+}
+
+impl PositionIndex<u32> for HashMap<u32, Vec<usize>> {
+    fn pop_position(&mut self, key: u32, position: usize) {
+        if let Some(positions) = self.get_mut(&key) {
+            debug_assert_eq!(positions.last(), Some(&position));
+            positions.pop();
+            if positions.is_empty() {
+                self.remove(&key);
+            }
+        }
     }
 }
 

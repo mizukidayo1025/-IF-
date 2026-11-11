@@ -49,6 +49,8 @@ pub trait EntityField: Sized {
     fn same(&self, other: &Self) -> bool;
     /// The bytes `canonical_json` writes for this value in a WorldState document of this version.
     fn write_json(&self, encoder: &mut Encoder, version: i64) -> Result<()>;
+    /// Sort the keys of every map inside, as a copy through canonical JSON does (`row::Field`).
+    fn canonicalize(&mut self) {}
 }
 
 /// The fields of a row one by one, as bits in the order of the row's `NAMES`: what a view of the
@@ -168,6 +170,9 @@ impl EntityField for V {
     fn write_json(&self, encoder: &mut Encoder, _version: i64) -> Result<()> {
         V::write_json(self, encoder)
     }
+    fn canonicalize(&mut self) {
+        V::canonicalize(self);
+    }
 }
 
 /// An enum field: a member of the Python enum, as its number in the order the enum lists them.
@@ -280,6 +285,9 @@ macro_rules! entity_row {
         impl EntityField for $name {
             fn same(&self, other: &Self) -> bool {
                 true $(&& self.$field.same(&other.$field))*
+            }
+            fn canonicalize(&mut self) {
+                $(EntityField::canonicalize(&mut self.$field);)*
             }
             fn write_json(&self, encoder: &mut Encoder, version: i64) -> Result<()> {
                 const ORDER: [usize; $name::NAMES.len()] = crate::row::sorted_order($name::NAMES);
@@ -428,6 +436,7 @@ own_id!(FacilityRow, StaffRow, RequestRow, TaskRow, ZoneRow, EdgeRow);
 /// The view's owner takes both when the writing borrow ends (`take_touched`, `take_journal`), and
 /// writes each field whose row and view differ (`diff`) into the view: the dirty mask of a slot is
 /// computed then, so no write can forget its bit.
+#[derive(Clone)]
 pub struct Table<R> {
     rows: Vec<Option<R>>,
     free: Vec<u32>,
@@ -443,6 +452,7 @@ pub struct Table<R> {
 }
 
 /// A key the core put into a table or took out of it, for the view's owner to follow.
+#[derive(Clone)]
 pub enum Change<R> {
     /// A row put under the key, in the slot. Its view is to be made from the row, and goes to the
     /// key's place: the end of the order for a new key, its old place for a key replaced.
@@ -491,6 +501,8 @@ pub trait AnyTable {
     }
     /// The keys in their order, for checks.
     fn key_order(&self) -> Vec<Arc<str>>;
+    /// The keys and their slots in their order.
+    fn key_slots(&self) -> Vec<(Arc<str>, u32)>;
     /// Whether anything was touched or journaled since it was last taken.
     fn has_changes(&self) -> bool;
 }
@@ -551,6 +563,10 @@ impl<R> AnyTable for Table<R> {
 
     fn key_order(&self) -> Vec<Arc<str>> {
         self.ids.keys().cloned().collect()
+    }
+
+    fn key_slots(&self) -> Vec<(Arc<str>, u32)> {
+        self.ids.iter().map(|(key, slot)| (key.clone(), *slot)).collect()
     }
 
     fn has_changes(&self) -> bool {
@@ -661,6 +677,12 @@ impl<R> Table<R> {
     pub fn take_journal(&mut self) -> Vec<Change<R>> {
         std::mem::take(&mut self.journal)
     }
+
+    /// Every row may differ from the bytes last written of it: after a snapshot came back, when
+    /// the bytes the view's owner keeps may be of rows written since (`World::restore`).
+    pub fn mark_all_changed(&mut self) {
+        self.changed.fill(true);
+    }
 }
 
 impl<R: Clone> Table<R> {
@@ -724,10 +746,46 @@ impl<R: EntityRow> Table<R> {
         order.sort_by(|first, second| first.0.as_bytes().cmp(second.0.as_bytes()));
         order.into_iter().map(|(_, slot)| slot).collect()
     }
+
+    /// The order `WorldState.from_dict(world.to_dict())` gives the dict (lane 6-2): the keys by
+    /// the entity's own ID, stably from the dict's order (`document_slots`), and the keys of the
+    /// maps inside each row sorted. The rows stay in their slots and nothing is touched: the views
+    /// hold the same values, and a dict compares equal in any order (`EntityField::same`).
+    pub fn canonicalize(&mut self) {
+        let sorted = self.ids.values().zip(self.ids.values().skip(1)).all(|(first, second)| {
+            match (self.rows[*first as usize].as_ref(), self.rows[*second as usize].as_ref()) {
+                (Some(first), Some(second)) => first.id().as_bytes() <= second.id().as_bytes(),
+                _ => false,
+            }
+        });
+        if !sorted {
+            let slots = self.document_slots();
+            let mut ids = IdMap::with_capacity_and_hasher(self.ids.len(), Default::default());
+            let mut keys: Vec<Option<Arc<str>>> = vec![None; self.rows.len()];
+            for (key, slot) in &self.ids {
+                keys[*slot as usize] = Some(key.clone());
+            }
+            for slot in slots {
+                if let Some(key) = keys[slot as usize].take() {
+                    ids.insert(key, slot);
+                }
+            }
+            // A key without a row (none in a store that follows its objects) keeps its place last.
+            for (key, slot) in &self.ids {
+                if !ids.contains_key(key) {
+                    ids.insert(key.clone(), *slot);
+                }
+            }
+            self.ids = ids;
+        }
+        for row in self.rows.iter_mut().flatten() {
+            row.canonicalize();
+        }
+    }
 }
 
-/// All the rows of a world.
-#[derive(Default)]
+/// All the rows of a world. `Clone` is for a snapshot's copy on write (lane 6-2).
+#[derive(Clone, Default)]
 pub struct Entities {
     pub agents: Table<AgentRow>,
     pub facilities: Table<FacilityRow>,
@@ -801,6 +859,29 @@ impl Entities {
             || self.active_tasks.has_changes()
             || self.zones.has_changes()
             || self.zone_edges.has_changes()
+    }
+
+    /// The order a copy through canonical JSON gives (`Table::canonicalize`), for each table that
+    /// has rows; a tainted table has none.
+    pub fn canonicalize(&mut self) {
+        self.agents.canonicalize();
+        self.facilities.canonicalize();
+        self.staff.canonicalize();
+        self.support_requests.canonicalize();
+        self.active_tasks.canonicalize();
+        self.zones.canonicalize();
+        self.zone_edges.canonicalize();
+    }
+
+    /// `Table::mark_all_changed` of every table.
+    pub fn mark_all_changed(&mut self) {
+        self.agents.mark_all_changed();
+        self.facilities.mark_all_changed();
+        self.staff.mark_all_changed();
+        self.support_requests.mark_all_changed();
+        self.active_tasks.mark_all_changed();
+        self.zones.mark_all_changed();
+        self.zone_edges.mark_all_changed();
     }
 
     /// No rows and no taint, as before the first attach.

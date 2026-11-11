@@ -21,7 +21,7 @@ str_enum! {
 }
 
 state_row! {
-    #[derive(Clone, Copy)]
+    #[derive(Copy)]
     pub struct StaffRecord {
         consecutive_work_minutes: i64 => set_consecutive_work_minutes,
         total_work_minutes: i64 => set_total_work_minutes,
@@ -33,7 +33,7 @@ state_row! {
 }
 
 state_row! {
-    #[derive(Clone, Copy)]
+    #[derive(Copy)]
     pub struct Shift {
         start_minute: i64,
         end_minute: i64,
@@ -67,6 +67,8 @@ impl Recovery {
 }
 
 impl Field for Recovery {
+    fn canonicalize(&mut self) {}
+
     fn write_json(&self, encoder: &mut Encoder) -> Result<()> {
         if self.int {
             encoder.int(self.value as i64);

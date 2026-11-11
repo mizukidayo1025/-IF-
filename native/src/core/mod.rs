@@ -11,5 +11,6 @@ pub(crate) mod rng;
 pub(crate) mod row;
 pub(crate) mod run;
 pub(crate) mod tracked;
+pub(crate) mod txn;
 pub(crate) mod value;
 pub(crate) mod world_core;

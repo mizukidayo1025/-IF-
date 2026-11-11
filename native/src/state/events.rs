@@ -425,6 +425,8 @@ pub struct QueueStore {
     objects: HashMap<u64, Py<PyAny>>,
     /// The tuple of `pending()`, while the queue's generation is the one it was made at.
     pending: Option<(u64, Py<PyTuple>)>,
+    /// The queue as an open transaction found it (`txn_begin`, lane 6-2).
+    kept: Option<Box<QueueStore>>,
 }
 
 /// The identity and order of an event object; None for an int outside i64.
@@ -446,7 +448,7 @@ fn read_key(event: &Bound<'_, PyAny>) -> PyResult<Option<(Arc<str>, Key)>> {
 
 impl QueueStore {
     fn empty() -> Self {
-        Self { queue: Queue::new(), objects: HashMap::new(), pending: None }
+        Self { queue: Queue::new(), objects: HashMap::new(), pending: None, kept: None }
     }
 
     fn object(&mut self, py: Python<'_>, serial: u64) -> PyResult<Py<PyAny>> {
@@ -760,7 +762,56 @@ impl QueueStore {
             queue: self.queue.clone(),
             objects: self.objects.iter().map(|(serial, object)| (*serial, object.clone_ref(py))).collect(),
             pending: self.pending.as_ref().map(|(made, pending)| (*made, pending.clone_ref(py))),
+            kept: None,
         }
+    }
+
+    /// The events with only an object, in queue order: what `txn_begin` takes new objects of.
+    fn object_only_events(&self, py: Python<'_>) -> Vec<Py<PyAny>> {
+        self.queue
+            .ordered()
+            .iter()
+            .filter(|(_, serial)| self.queue.slot(*serial).row.is_none())
+            .map(|(_, serial)| self.objects[serial].clone_ref(py))
+            .collect()
+    }
+
+    /// Start a transaction: keep the queue, and make it again as `EventQueue([...pending...])` of
+    /// `WorldState.from_dict(world.to_dict())` does (`Queue::canonicalize`): new serials in queue
+    /// order, rows with their keys sorted and no objects, and for an event with only an object the
+    /// object `made` holds for it (`object_only_events`, in the same order: an event read back
+    /// from its canonical JSON).
+    fn txn_begin(&mut self, py: Python<'_>, made: Vec<Py<PyAny>>) -> PyResult<()> {
+        let kept = Box::new(self.copy(py));
+        let moved = self.queue.canonicalize();
+        let mut made = made.into_iter();
+        let mut objects = HashMap::with_capacity(moved.len());
+        for (_, serial) in moved {
+            if self.queue.slot(serial).row.is_none() {
+                let object = made.next().ok_or_else(|| PyValueError::new_err("an event with only an object has no new one"))?;
+                objects.insert(serial, object);
+            }
+        }
+        if made.next().is_some() {
+            return Err(PyValueError::new_err("more new events than events with only an object"));
+        }
+        self.objects = objects;
+        self.pending = None;
+        self.kept = Some(kept);
+        Ok(())
+    }
+
+    /// The transaction rolled back: the queue, its serials and its objects as `txn_begin` found
+    /// them.
+    fn txn_rollback(&mut self) {
+        if let Some(kept) = self.kept.take() {
+            *self = *kept;
+        }
+    }
+
+    /// The transaction kept its writes.
+    fn txn_commit(&mut self) {
+        self.kept = None;
     }
 }
 

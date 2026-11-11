@@ -40,18 +40,24 @@ Checkpoint document) and times them.
   `EntityField`, whose `write_json` takes the WorldState version, `Table` and `Entities`, which
   also holds the taints: one for the people's five tables, one for the zones and zone edges),
   `state/` (the rows of the namespaces, with their checks that read the row alone or the entity
-  rows), `world.rs` (`World`: one world's state, as `Shard` parts: `scalars` (`Scalars`: each
+  rows), `world.rs` (`World`: one world's state, as `CowShard` parts: `scalars` (`Scalars`: each
   value a `Fit`, a misfit when Python holds another type; the seed is a `Seed`, decimal text of
   an int of any size), `entities`, and `slots`, one `Slot` per owned field or namespace with its
   row, taint, detach flag, generation and counters; every other str key of `model_state` has a
   `ValueRow` slot, `Place::Value`, read by `Slots::value`; typed readers such as `minute_index`,
   `resources`, `id_counter`, `rows` (the entity rows, refused while tainted), `row::<T>(name)`,
-  `metric_state`, `stamp_of` and `configs`, each a borrow of its part; and `WorldCell`, what holds
-  a world and lends it whole to a core function, `with(|world| ...)`), `rules/` (the kernels moved
+  `metric_state`, `stamp_of` and `configs`, each a borrow of its part; `snapshot` and `restore`
+  (the parts' `Arc`s, copied on the next write) and `canonicalize` (the order a copy through
+  canonical JSON gives: entities by ID, every map's keys sorted, `Row::canonicalize`); and
+  `WorldCell`, what holds a world and lends it whole to a core function, `with(|world| ...)`),
+  `txn.rs` (`Txn`: a transaction in place, begin (validate, snapshot, canonicalize, validate the
+  candidate), commit and rollback, with a `Host` for the views and the validation; lane 6-2),
+  `rules/` (the kernels moved
   to the core, pure functions over `&World`: `metrics.rs`, the columns of `MetricSnapshot`; the
   file of the same name in `src/rules/` is their glue, see step5-plan.md, PR 5-4),
   `cell.rs` (`Shard`, a part borrowed on its own; a second borrow of a part is an
-  `Error::Runtime`, never a panic), `stamp.rs` (`Stamp`, process-unique numbers from one
+  `Error::Runtime`, never a panic; `CowShard`, the same over an `Arc`, copied on write while a
+  snapshot shares it), `stamp.rs` (`Stamp`, process-unique numbers from one
   counter: a slot's generation is one) and `config/` (`Configs`, the sections the kernels read
   of one state of `model_configs`, each parsed at its first read as a value or a `Fault`, kept in
   the world's `derived` part by the stamp of the `model_configs` slot; `config/geometry.rs` is
@@ -132,6 +138,10 @@ Checkpoint document) and times them.
   reads a field's row. `NamespaceMirror.generation_of(tree)` changes with every write that reaches a tree, from
   Python or from Rust (it is a new stamp each time), so a check that read a namespace need not read
   it again (`state_mirror.namespace_stamp`, `field_stamp`; `src/rules/after_tick.rs`).
+- `src/core/txn.rs`: a transaction on a Python world, the core's `Txn` with the native host
+  (`state_mirror.transaction` and its `_txn_*` functions): the open one is the `WorldCore`'s.
+  `QueueStore`, `EventStore`, `EntityStore` and `NamespaceMirror` have the steps it takes
+  (`txn_begin`, `txn_rollback`, `txn_commit`; `take_root`, `root_from_row`, `put_root`).
 - `src/core/configs.rs`: fills the core's `Configs` with the Python contracts
   (`selected_models`, `tick_plan`), called on the same tree at the first read of a section after
   the stamp of `model_configs` changed. A parse never raises there; the read site replays the

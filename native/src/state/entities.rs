@@ -745,6 +745,8 @@ pub struct EntityStore {
     core: Py<WorldCore>,
     row_json: Shard<RowJson>,
     views: Shard<Views>,
+    /// What an open transaction keeps to give the objects back (`txn_begin`, lane 6-2).
+    txn: Shard<Option<EntityTxn>>,
     forwards: AtomicU64,
     attaches: AtomicU64,
     detaches: AtomicU64,
@@ -787,6 +789,47 @@ impl Views {
     }
 }
 
+/// What a transaction keeps of the objects (lane 6-2): the bound maps and the objects by slot as
+/// they were at its start, and the objects each entity held as its profile, needs and ID lists, so
+/// a rollback gives back those very objects.
+struct EntityTxn {
+    maps: [Option<Py<PyAny>>; 8],
+    objects: [Vec<Option<Py<PyAny>>>; 8],
+    children: Vec<(u8, u32, Vec<(Py<PyString>, Py<PyAny>)>)>,
+}
+
+/// The attributes of an entity that hold objects of their own.
+fn child_names(kind: u8) -> &'static [&'static str] {
+    match kind {
+        AGENT => &["profile", "needs"],
+        FACILITY => &["active_agent_ids", "queue_agent_ids", "resource_active_agent_ids", "resource_queue_agent_ids"],
+        STAFF => &["work_queue"],
+        _ => &[],
+    }
+}
+
+/// The values of the restored row of a slot into its object, which holds what the transaction's
+/// body left (lane 6-2): the fields that differ, into the objects it holds (needs, ID lists), or
+/// every field for an object a row can't read.
+fn restore_object<R: KeyedRow>(slf: &Bound<'_, EntityStore>, slot: u32, object: &Bound<'_, PyAny>) -> PyResult<()> {
+    let py = slf.py();
+    let row = slf.get().rows_mut(py, |rows| R::table(rows).row_at(slot).cloned())?;
+    let row = row.ok_or_else(|| PyRuntimeError::new_err("a restored object has no row"))?;
+    match R::from_py(object) {
+        Ok(current) => {
+            let mut cells = Vec::new();
+            row.cells(py, &current, row.diff(&current), &mut cells);
+            write_cells(object, cells)
+        }
+        Err(_) => {
+            for (name, value) in row.view_fields(py)?.iter() {
+                raw_setattr(object, name.downcast::<PyString>()?, value.as_ptr())?;
+            }
+            Ok(())
+        }
+    }
+}
+
 #[inline]
 fn count(counter: &AtomicU64) {
     counter.fetch_add(1, Ordering::Relaxed);
@@ -798,6 +841,7 @@ impl EntityStore {
             core,
             row_json: Shard::default(),
             views: Shard::default(),
+            txn: Shard::default(),
             forwards: AtomicU64::new(0),
             attaches: AtomicU64::new(0),
             detaches: AtomicU64::new(0),
@@ -1589,12 +1633,215 @@ impl EntityStore {
                 visit.call(map)?;
             }
         }
+        if let Ok(txn) = self.txn.try_borrow() {
+            if let Some(txn) = &*txn {
+                for object in txn.objects.iter().flatten().flatten().chain(txn.maps.iter().flatten()) {
+                    visit.call(object)?;
+                }
+                for (_, _, children) in &txn.children {
+                    for (_, child) in children {
+                        visit.call(child)?;
+                    }
+                }
+            }
+        }
         Ok(())
     }
 
     fn __clear__(&self) {
         let taken = self.views.try_borrow_mut().map(|mut views| std::mem::take(&mut *views));
         drop(taken);
+        let taken = self.txn.try_borrow_mut().map(|mut txn| txn.take());
+        drop(taken);
+    }
+
+    // ---- A transaction (lane 6-2, `transaction` in core/state_mirror.py) ---------------------
+
+    /// Start a transaction, after the core put each table in the order of the entities' IDs
+    /// (`World::canonicalize`): each map of the world becomes a new bound `IdMap` of the same
+    /// objects in that order, as `WorldState.from_dict(world.to_dict())` makes new dicts; the old
+    /// one is a plain dict now. Keeps the old maps and the objects, for `txn_rollback`.
+    /// Unsupported for a tainted store, or a world whose maps are not the bound ones.
+    fn txn_begin(slf: &Bound<'_, Self>, world: &Bound<'_, PyAny>) -> PyResult<()> {
+        let py = slf.py();
+        let this = slf.get();
+        let state = world.getattr(intern!(py, "__dict__"))?;
+        let orders = this.rows_ref(py, |rows| {
+            if rows.tainted().is_some() || rows.zones_tainted().is_some() {
+                return None;
+            }
+            Some(FIELDS.map(|(_, kind)| rows.table(kind).key_slots()))
+        })?;
+        let orders = orders.ok_or_else(|| Unsupported::new_err("the entity store is tainted"))?;
+        let (maps, objects) = {
+            let views = this.views.try_borrow().or_py()?;
+            (
+                views.maps.each_ref().map(|map| map.as_ref().map(|map| map.clone_ref(py))),
+                views.objects.each_ref().map(|objects| objects.iter().map(|object| object.as_ref().map(|object| object.clone_ref(py))).collect::<Vec<_>>()),
+            )
+        };
+        for (name, kind) in FIELDS {
+            let held = raw_dict_get(&state, PyString::intern(py, name).as_any())?;
+            let bound = maps[kind as usize].as_ref().is_some_and(|map| held.is_some_and(|held| held.is(map.bind(py))));
+            if !bound {
+                return Err(Unsupported::new_err("a map of entities is not the rows' map"));
+            }
+        }
+        let mut new_maps = Vec::with_capacity(FIELDS.len());
+        for ((_, kind), order) in FIELDS.iter().zip(&orders) {
+            let map = new_id_map(py)?;
+            for (key, slot) in order {
+                let object = objects[*kind as usize]
+                    .get(*slot as usize)
+                    .and_then(Option::as_ref)
+                    .ok_or_else(|| Unsupported::new_err("a row has no object"))?;
+                raw_dict_set(&map, PyString::new(py, key).as_any(), object.bind(py))?;
+            }
+            new_maps.push(map);
+        }
+        // A profile whose provenance holds its keys in another order than the row, sorted now (an
+        // object holds the order Python gave it): a new profile from the row, as from_dict makes.
+        let unsorted: Vec<(u32, ProfileRow)> = this.rows_ref(py, |rows| {
+            let agents = &rows.agents;
+            orders[0]
+                .iter()
+                .filter_map(|(_, slot)| {
+                    let (row, view) = (agents.row_at(*slot)?, agents.view_at(*slot)?);
+                    let sorted = row.profile.provenance.same_in_order(&view.profile.provenance);
+                    (!sorted).then(|| (*slot, row.profile.clone()))
+                })
+                .collect()
+        })?;
+        if !unsorted.is_empty() {
+            this.rows_mut(py, |rows| {
+                for (slot, profile) in &unsorted {
+                    if let Some((_, view)) = rows.agents.row_and_view(*slot) {
+                        view.profile = profile.clone();
+                    }
+                }
+            })?;
+        }
+        let mut children = Vec::new();
+        for (_, kind) in FIELDS {
+            let names = child_names(kind);
+            if names.is_empty() {
+                continue;
+            }
+            for (slot, object) in objects[kind as usize].iter().enumerate() {
+                if let Some(object) = object {
+                    let mut held = Vec::with_capacity(names.len());
+                    for name in names {
+                        let name = PyString::intern(py, name);
+                        held.push((name.clone().unbind(), object.bind(py).getattr(&name)?.unbind()));
+                    }
+                    children.push((kind, slot as u32, held));
+                }
+            }
+        }
+        for (slot, profile) in unsorted {
+            if let Some(object) = objects[AGENT as usize].get(slot as usize).and_then(Option::as_ref) {
+                raw_setattr(object.bind(py), intern!(py, "profile"), profile.to_view(py)?.as_ptr())?;
+            }
+        }
+        for ((name, kind), map) in FIELDS.iter().zip(&new_maps) {
+            map.setattr(intern!(py, "_store"), slf)?;
+            map.setattr(intern!(py, "_table"), *kind)?;
+            if let Some(old) = &maps[*kind as usize] {
+                old.bind(py).setattr(intern!(py, "_store"), py.None())?;
+            }
+            state.set_item(PyString::intern(py, name), map)?;
+        }
+        {
+            let mut views = this.views.try_borrow_mut().or_py()?;
+            for ((_, kind), map) in FIELDS.iter().zip(&new_maps) {
+                views.maps[*kind as usize] = Some(map.clone().unbind());
+            }
+        }
+        *this.txn.try_borrow_mut().or_py()? = Some(EntityTxn { maps, objects, children });
+        Ok(())
+    }
+
+    /// The transaction rolled back, after the core gave its rows back (`World::restore`): the
+    /// objects the body made leave, those it took out come back to their slots, every object holds
+    /// its row's values again in the objects it held (profile, needs, ID lists), and the world's
+    /// maps are the old ones, bound again.
+    fn txn_rollback(slf: &Bound<'_, Self>, world: &Bound<'_, PyAny>) -> PyResult<()> {
+        let py = slf.py();
+        let this = slf.get();
+        let Some(kept) = this.txn.try_borrow_mut().or_py()?.take() else {
+            return Ok(());
+        };
+        let (current, current_maps) = {
+            let mut views = this.views.try_borrow_mut().or_py()?;
+            let current = std::mem::take(&mut views.objects);
+            let maps = std::mem::take(&mut views.maps);
+            views.objects = kept.objects.each_ref().map(|objects| objects.iter().map(|object| object.as_ref().map(|object| object.clone_ref(py))).collect());
+            views.maps = kept.maps.each_ref().map(|map| map.as_ref().map(|map| map.clone_ref(py)));
+            (current, maps)
+        };
+        for (_, kind) in FIELDS {
+            let old: FxHashSet<usize> =
+                kept.objects[kind as usize].iter().flatten().map(|object| object.as_ptr() as usize).collect();
+            for object in current[kind as usize].iter().flatten() {
+                let object = object.bind(py);
+                if !old.contains(&(object.as_ptr() as usize)) && Self::attached_here(slf, object)?.is_some() {
+                    Self::unlink_children(slf, kind, object)?;
+                    Self::mark_detached(object)?;
+                }
+            }
+        }
+        let mut children = kept.children.iter().peekable();
+        for (_, kind) in FIELDS {
+            for (slot, object) in kept.objects[kind as usize].iter().enumerate() {
+                let Some(object) = object else {
+                    continue;
+                };
+                let object = object.bind(py);
+                let slot = slot as u32;
+                if Self::attached_here(slf, object)?.is_some() {
+                    Self::unlink_children(slf, kind, object)?;
+                }
+                if let Some((_, _, held)) = children.next_if(|(owner, at, _)| *owner == kind && *at == slot) {
+                    for (name, child) in held {
+                        if !object.getattr(name.bind(py))?.is(child.bind(py)) {
+                            raw_setattr(object, name.bind(py), child.as_ptr())?;
+                        }
+                    }
+                }
+                match kind {
+                    AGENT => restore_object::<AgentRow>(slf, slot, object)?,
+                    FACILITY => restore_object::<FacilityRow>(slf, slot, object)?,
+                    STAFF => restore_object::<StaffRow>(slf, slot, object)?,
+                    REQUEST => restore_object::<RequestRow>(slf, slot, object)?,
+                    ZONE => restore_object::<ZoneRow>(slf, slot, object)?,
+                    EDGE => restore_object::<EdgeRow>(slf, slot, object)?,
+                    _ => restore_object::<TaskRow>(slf, slot, object)?,
+                }
+                Self::link_children(slf, kind, object, slot).map_err(misfit_error)?;
+                Self::mark_attached(slf, object, slot)?;
+            }
+        }
+        let state = world.getattr(intern!(py, "__dict__"))?;
+        for (name, kind) in FIELDS {
+            if let Some(map) = &current_maps[kind as usize] {
+                map.bind(py).setattr(intern!(py, "_store"), py.None())?;
+            }
+            if let Some(map) = &kept.maps[kind as usize] {
+                let map = map.bind(py);
+                map.setattr(intern!(py, "_store"), slf)?;
+                map.setattr(intern!(py, "_table"), kind)?;
+                state.set_item(PyString::intern(py, name), map)?;
+            }
+        }
+        drop(current);
+        Ok(())
+    }
+
+    /// The transaction kept its writes: what it kept goes.
+    fn txn_commit(&self) -> PyResult<()> {
+        let kept = self.txn.try_borrow_mut().or_py()?.take();
+        drop(kept);
+        Ok(())
     }
 
     // ---- The sink of a `TrackedList`, which is an ID list of an entity ----------------------
