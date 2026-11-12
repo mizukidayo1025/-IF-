@@ -9,12 +9,12 @@ pytest files of the same names built. This module builds those worlds and export
 - `resource_service_texts.json`: `serving`, h00_small_replay with the water station and the meal
   point, A001 being served water at minute 0; `visiting`, the gate's generated Scenario at the
   first minute someone is served at a toilet; each with the Run's policies (the resource
-  manager's config, the dispatch table).
+  manager's config, the dispatch table); and the variants of lane M7 (`core_fixtures_kernels.py`).
 - `generated_texts.json`: `generated`, the generated Scenario the Project screen makes at minute 0
   with the Run's policies (`load::loaded` reads them, and `load::following_host` the world), and
   its variants: the EffectPrograms the tests schedule (built and validated with pydantic, as
   `schedule_effect_program` writes them into the world) and the floor plan with an arrival
-  approach route.
+  approach route; and the variants of lane M7 (`core_fixtures_kernels.py`).
 - `handoff_texts.json`: the world where a patrol is under way and its handoff is scheduled.
 
 A variant is stored as the changes from its base world, as `core_texts.py` stores its worlds
@@ -96,6 +96,8 @@ def _first(world: Any, kind: str) -> str:
 
 def resource_service_texts_fixture() -> dict[str, Any]:
     """`resource_service_texts.json`."""
+    from support.core_fixtures_kernels import gate_variants
+
     world, completion = _serving()
     serving = export_world(world, _controller(world))
     serving["completion_id"] = completion.event_id
@@ -104,7 +106,9 @@ def resource_service_texts_fixture() -> dict[str, Any]:
     visiting = export_world(world, controller)
     visiting["task_id"] = task_id
     visiting["water"] = _first(world, "water_station")
-    return {"worlds": {"serving": serving, "visiting": visiting}}
+    worlds = {"serving": serving, "visiting": visiting}
+    worlds.update(gate_variants(visiting))
+    return {"worlds": worlds}
 
 
 # ---- generated_texts.json ----------------------------------------------------------------------
@@ -543,13 +547,16 @@ def _arrival_contracts() -> list[dict[str, Any]]:
 
 def generated_texts_fixture() -> dict[str, Any]:
     """`generated_texts.json`: the generated world, and the variants of the effect and population
-    tests."""
+    tests, and of lane M7's (`core_fixtures_kernels.py`)."""
+    from support.core_fixtures_kernels import generated_variants
+
     base = _generated_world()
     generated = export_world(base, _controller(base))
     generated["population"] = _population_inputs(base)
     worlds: dict[str, Any] = {"generated": generated}
     for name, world in {**_effect_worlds(base), **_population_worlds(base)}.items():
         worlds[name] = variant("generated", generated, export_world(world, _controller(world)))
+    worlds.update(generated_variants(base, generated))
     return {"worlds": worlds}
 
 
