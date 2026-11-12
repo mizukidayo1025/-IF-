@@ -26,7 +26,7 @@ use sheltersim_core::rules::service::{self as core, Failure, Manager, Minute, Pe
 
 use crate::core::configs;
 use crate::core::errors::{self, to_py_err, OrPy};
-use crate::core::row::{attribute, exact_dict, exact_int, exact_str, str_value, unsupported, PyField};
+use crate::core::row::{attribute, exact_dict, exact_int, exact_str, str_value, unsupported};
 use crate::core::value::{VPy, V};
 use crate::core::world_core::{field_held, namespace_held, raw_dict_get, with_world, PyWorldCell};
 use crate::host::PyHost;
@@ -251,17 +251,6 @@ fn serve_one<'py>(
     }
 }
 
-/// `world.model_state["resource_service_v1"]["stall_state"].get(id)`, for the stall a pass of an
-/// independent facility starts from: a new record from the row.
-pub(crate) fn previous_stall<'py>(world: &Bound<'py, PyAny>, _table: &Bound<'py, PyAny>, id: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyAny>> {
-    let py = world.py();
-    let key = exact_str(id)?;
-    let service = namespace_held(world, intern!(py, SERVICE_KEY), "the world holds another service state")?;
-    match with_world(world, |world| core::previous_stall(world, &service, key))?.or_py()? {
-        Some(stall) => PyField::to_py(&stall, py),
-        None => Ok(py.None().into_bound(py)),
-    }
-}
 
 /// `_record_independent_queue_stall`.
 #[pyfunction]

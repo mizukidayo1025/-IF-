@@ -1903,3 +1903,231 @@ pub fn interrupt(world: &mut World, manager: &Manager<'_>, pending: &[Pending], 
     )?;
     Ok(applied)
 }
+
+// ---- arbitrate (lane P9-2a: the tick driver's loop, moved from the PyO3 crate) ---------------------
+
+/// `ResourceServiceManager.arbitrate` of the tick: each facility with anything to do, in ID order;
+/// one with independent queues serves each of them and records the facility's stall
+/// (`_arbitrate_independent_facility`), any other its shared queue while it has people. The manager
+/// is the controller's, of the class the driver was installed with.
+pub fn arbitrate<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(tick: &mut crate::rules::tick::Tick<'_, C, H, R>) -> crate::rules::tick::Step<(), H::Error> {
+    use crate::rules::tick::Labelled;
+    let due = facilities_of(tick).at("service.facilities_to_serve")?;
+    for (id, resource) in due {
+        if let Some(queues) = tick.independent_queues(&id)? {
+            arbitrate_independent(tick, &id, resource, &queues)?;
+            continue;
+        }
+        tick.prepare_queue(&id, true)?;
+        while has_queue(tick, &id).bare()? {
+            if tick.progress(&id, true, false, None)? {
+                break;
+            }
+            if serve_of(tick, &id, resource, None).at("service.serve_head")?.0.is_none() {
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// `facility.resource_queue_agent_ids` is not empty.
+fn has_queue<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(tick: &mut crate::rules::tick::Tick<'_, C, H, R>, id: &str) -> std::result::Result<bool, H::Error> {
+    tick.cell
+        .with(|world| -> Result<bool> {
+            let rows = world.rows()?;
+            let Some(facility) = rows.facilities.get(id) else {
+                return Err(Error::unsupported("a row has no object"));
+            };
+            Ok(!facility.resource_queue_agent_ids.is_empty())
+        })
+        .and_then(|has| has)
+        .map_err(H::Error::from)
+}
+
+/// `_arbitrate_independent_facility`: each queue, with the check of its signed point, then the
+/// facility's stall of the pass.
+fn arbitrate_independent<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(
+    tick: &mut crate::rules::tick::Tick<'_, C, H, R>,
+    id: &str,
+    resource: &'static str,
+    queues: &[Arc<str>],
+) -> crate::rules::tick::Step<(), H::Error> {
+    use crate::rules::tick::Labelled;
+    let mut stalls: Vec<(Arc<str>, Arc<str>)> = Vec::new();
+    let previous = previous_of(tick, id).bare()?;
+    for queue in queues {
+        tick.prepare_independent(queue, true)?;
+        tick.check_signed_point(queue, "resource")?;
+        while tick.queue_has_people(queue)? {
+            if tick.progress(id, true, false, Some(queue))? {
+                break;
+            }
+            let (started, stall) = serve_of(tick, id, resource, Some(queue)).at("service.serve_independent_head")?;
+            if let Some((agent, reason)) = stall {
+                stalls.push((agent, Arc::from(reason)));
+            }
+            if started.is_none() {
+                break;
+            }
+        }
+    }
+    record_stall_of(tick, id, &stalls, previous.as_ref()).at("service.record_independent_stall")
+}
+
+/// What a kernel takes of the manager (`Inputs::of` of the service's glue): its config as the Run
+/// read it, and what the world holds.
+struct ManagerIn {
+    config: IndexMap<Arc<str>, V>,
+    service: Held,
+    ledger: Held,
+    queues: Held,
+    geo: Arc<Geo>,
+    metric_state_held: bool,
+}
+
+impl ManagerIn {
+    fn manager(&self) -> Manager<'_> {
+        Manager {
+            config: &self.config,
+            service: self.service.clone(),
+            ledger: self.ledger.clone(),
+            queues: self.queues.clone(),
+            geo: &self.geo,
+            metric_state_held: self.metric_state_held,
+        }
+    }
+}
+
+fn manager_of<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(tick: &mut crate::rules::tick::Tick<'_, C, H, R>) -> std::result::Result<ManagerIn, H::Error> {
+    use crate::run::held::Held as Read;
+    let policies = tick.policies.clone();
+    let manager = match policies.services.resource.object() {
+        Ok(manager) => manager,
+        Err(fault) => return Err(tick.policy_error(&["resource_service"], &fault)),
+    };
+    let config = match manager.get("config") {
+        Ok(Read::Value(V::Map(config))) => config.clone(),
+        Ok(_) => return Err(Error::unsupported("a value is not a plain dict").into()),
+        Err(fault) => return Err(tick.policy_error(&["resource_service", "config"], &fault)),
+    };
+    let holding = tick.holding()?;
+    if !holding.table {
+        return Err(Error::unsupported("a value is not a plain dict").into());
+    }
+    Ok(ManagerIn {
+        config,
+        service: holding.held(KEY, "the world holds another service state"),
+        ledger: holding.held(LEDGER_KEY, "the world holds another ledger"),
+        queues: holding.held("facility_queues_v1", "the world holds another queue state"),
+        geo: tick.host.floor_plan()?,
+        metric_state_held: holding.field(crate::world::METRIC_STATE),
+    })
+}
+
+/// `facilities_to_serve` of the manager's world, as `(facility, resource_id)`.
+fn facilities_of<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(tick: &mut crate::rules::tick::Tick<'_, C, H, R>) -> std::result::Result<Vec<(Arc<str>, &'static str)>, H::Error> {
+    use crate::run::held::Held as Read;
+    let policies = tick.policies.clone();
+    if let Ok(manager) = policies.services.resource.object() {
+        if !matches!(manager.get("config"), Ok(Read::Value(V::Map(_)))) {
+            return Err(Error::unsupported("a value is not a plain dict").into());
+        }
+    }
+    let holding = tick.holding()?;
+    if !holding.table {
+        return Err(Error::unsupported("a value is not a plain dict").into());
+    }
+    let queues = holding.held("facility_queues_v1", "the world holds another queue state");
+    tick.cell.with(|world| facilities_to_serve(world, &queues)).and_then(|due| due).map_err(H::Error::from)
+}
+
+/// The `reservation_id` of each pending `resource_reserve` event, in the queue's order, from the
+/// rows of the queue (the rows of the events Python scheduled are read first).
+fn reserves_of(world: &World) -> Result<Vec<Pending>> {
+    let queue = world.queue()?;
+    let mut found = Vec::new();
+    for (_, serial) in queue.ordered() {
+        let Some(row) = &queue.slot(*serial).row else {
+            return Err(Error::unsupported("an event in the queue is not a plain one"));
+        };
+        if &*row.event_type != "resource_reserve" {
+            continue;
+        }
+        found.push(match payload(row, "reservation_id") {
+            Some(V::Str(id)) => Pending::Id(id.clone()),
+            Some(_) => Pending::Other,
+            None => Pending::Missing,
+        });
+    }
+    Ok(found)
+}
+
+/// Python's `repr` of a value a ledger's text names.
+fn repr_of(value: &V) -> String {
+    match value {
+        V::Null => "None".to_owned(),
+        V::Bool(true) => "True".to_owned(),
+        V::Bool(false) => "False".to_owned(),
+        V::Int(number) => number.to_string(),
+        V::Str(text) => py_repr(text),
+        other => format!("{other:?}"),
+    }
+}
+
+/// A kernel's failure as the host's error: the ledger's text inside its rule's error, or what the
+/// world or a write said (`failed` of the service's glue).
+fn failure_of<H: Host>(host: &H, failure: Failure) -> H::Error {
+    match failure {
+        Failure::Write(error) => host.write_error(error),
+        Failure::Ledger(fault, wrap) => wrap.error(&fault.text(repr_of)).into(),
+    }
+}
+
+/// One pass of the loop after the positions (`serve_one`): the started event's ID or None to stop,
+/// and the head's wait.
+#[allow(clippy::type_complexity)]
+fn serve_of<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(
+    tick: &mut crate::rules::tick::Tick<'_, C, H, R>,
+    facility_id: &str,
+    resource_id: &str,
+    queue_id: Option<&str>,
+) -> std::result::Result<(Option<Arc<str>>, Option<(Arc<str>, &'static str)>), H::Error> {
+    let inputs = manager_of(tick)?;
+    let minute = tick.minute;
+    tick.host.read_queue_rows()?;
+    let pending = tick.cell.with(|world| reserves_of(world)).and_then(|found| found).map_err(H::Error::from)?;
+    let walking = tick.walking(queue_id.is_some())?;
+    let walk = walking.as_ref().map(|walking| walking.walk());
+    let serve_pass = Serve { facility_id, resource_id, minute, queue_id, walk: walk.as_ref(), placement: walking.as_ref().map(|walking| &*walking.geo) };
+    let served = tick.cell.with(|world| serve(world, &inputs.manager(), &serve_pass, &pending)).map_err(H::Error::from)?;
+    match served {
+        Ok(Served::Started(event_id, balance)) => {
+            tick.host.resources_changed(balance.index, balance.remaining)?;
+            Ok((Some(event_id), None))
+        }
+        Ok(Served::Stopped(stall)) => Ok((None, stall)),
+        Err(failure) => Err(failure_of(tick.host, failure)),
+    }
+}
+
+/// The stall a pass of an independent facility starts from.
+fn previous_of<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(tick: &mut crate::rules::tick::Tick<'_, C, H, R>, id: &str) -> std::result::Result<Option<Stall>, H::Error> {
+    let holding = tick.holding()?;
+    let service = holding.held(KEY, "the world holds another service state");
+    tick.cell.with(|world| previous_stall(world, &service, id)).and_then(|stall| stall).map_err(H::Error::from)
+}
+
+/// `_record_independent_queue_stall`.
+fn record_stall_of<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(
+    tick: &mut crate::rules::tick::Tick<'_, C, H, R>,
+    id: &str,
+    stalls: &[(Arc<str>, Arc<str>)],
+    previous: Option<&Stall>,
+) -> std::result::Result<(), H::Error> {
+    let inputs = manager_of(tick)?;
+    if stalls.is_empty() {
+        return Ok(());
+    }
+    tick.cell.with(|world| record_independent_stall(world, &inputs.manager(), id, stalls, previous)).and_then(|done| done).map_err(H::Error::from)
+}

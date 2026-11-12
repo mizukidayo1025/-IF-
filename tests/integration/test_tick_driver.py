@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import ast
 import contextlib
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -576,35 +577,38 @@ def test_a_world_with_another_controller_is_refused_with_nothing_changed(
     assert world.state_digest() == state
 
 
-# What each phase's steps are called in rules/tick.rs, in the order of the phase's method.
+# What each phase's steps are called in the core's phases (native/core/src/rules/tick/), in the
+# order of the phase's method.
 _PHASE_STEPS = {
-    ("update", "UpdatePhase", "_run_update_phase", "fn update(&self)"): {
-        "_update_movement": "movement::advance_movement(",
-        "_view_after_movement": "world_view::view_after_movement(",
-        "_psychology_update": "psychology::update_psychology(",
-        "_social_propagation": "social_propagation::update_social_propagation(",
-        "_record_psychology_trace": "trace::record_psychology_trace(",
-        "_update_long_term_psychology": "psychology::update_long_term(",
-        "_apply_state_deltas": "psychology::apply_deltas(",
+    ("update", "UpdatePhase", "_run_update_phase", "pub fn update<"): {
+        "_update_movement": "movement(tick.host)",
+        "_view_after_movement": "view_after_movement(tick)",
+        "_psychology_update": "update_psychology(tick,",
+        "_social_propagation": "update_social(tick,",
+        "_record_psychology_trace": "record_trace(tick,",
+        "_update_long_term_psychology": "update_long_term(tick,",
+        "_apply_state_deltas": "apply_deltas(tick,",
     },
-    ("propose", "ProposePhase", "_run_propose_phase", "fn propose(&self)"): {
-        "_view_for_proposals": "world_view::view_for_proposals(",
-        "_apply_due_proposals": "decisions::propose_rows(",
+    ("propose", "ProposePhase", "_run_propose_phase", "pub fn propose<"): {
+        "_view_for_proposals": "view_for_proposals(tick)",
+        "_apply_due_proposals": "due(tick,",
     },
-    ("arbitrate", "ArbitratePhase", "_run_arbitrate_phase", "fn arbitrate(&self)"): {
-        "update_staff_dynamics": "staff_dynamics::update(",
-        "update_staff_operations": "staff::update_operations(",
-        "_arbitrate_services": "// `_arbitrate_services`.",
+    ("arbitrate", "ArbitratePhase", "_run_arbitrate_phase", "pub fn arbitrate<"): {
+        "update_staff_dynamics": "staff_dynamics(tick)",
+        "update_staff_operations": "update_operations(tick)",
+        "_arbitrate_services": "// `_arbitrate_services`",
         "_assign_staff_support": "// `_assign_staff_support`.",
-        "assign_staff_operations": "staff::assign_operations_with(",
-        "_consider_due_complaints": "staff::consider_due_complaints(",
-        "schedule_staff_operation_relief": "staff::relief(",
+        "assign_staff_operations": "assign_operations(tick)",
+        "_consider_due_complaints": "consider_due_complaints(tick)",
+        "schedule_staff_operation_relief": "relief(tick)",
     },
-    ("sample", "SamplePhase", "_run_sample_phase", "fn sample(&self)"): {
-        "_sample_information_contacts": "information::sample_contacts(",
-        "_sample_proximity_contacts": "proximity::sample_contacts(",
+    ("sample", "SamplePhase", "_run_sample_phase", "pub fn sample<"): {
+        "_sample_information_contacts": "sample_information(tick)",
+        "_sample_proximity_contacts": "sample_proximity(tick)",
     },
 }
+
+CORE_TICK = ROOT / "native/core/src/rules/tick"
 
 
 def _called_names(method: ast.FunctionDef) -> list[str]:
@@ -637,24 +641,87 @@ def test_the_driver_takes_a_phase_s_steps_in_the_order_of_its_python_method(
     steps = _PHASE_STEPS[(module, owner, method, rust_function)]
     in_python = [name for name in _called_names(body) if name in steps]
     assert in_python == list(steps)
-    rust = (ROOT / "native/src/rules/tick.rs").read_text("utf-8")
+    rust = (CORE_TICK / f"{module}.rs").read_text("utf-8")
     start = rust.index(rust_function)
-    end = rust.index("\n    }\n", start)
+    end = rust.index("\n}\n", start)
     places = [rust.index(steps[name], start, end) for name in in_python]
     assert places == sorted(places)
 
 
 def test_the_driver_takes_the_phases_in_the_engine_s_order() -> None:
-    rust = (ROOT / "native/src/rules/tick.rs").read_text("utf-8")
-    start = rust.index("fn phase(&self, index: usize)")
+    """The PyO3 driver runs the dispatch phase, then the core's phases in `Phase::ORDER`, which
+    names `TICK_PHASE_ORDER`'s members in their order."""
+    driver = (ROOT / "native/src/rules/tick.rs").read_text("utf-8")
+    run = driver.index("fn run(&self, observer")
+    assert driver.index("self.dispatch()?", run) < driver.index("self.core_phases(observer)", run)
+    host = (ROOT / "native/core/src/host.rs").read_text("utf-8")
+    order = host.index("pub const ORDER: [Phase; 7] = [")
+    names = host.index("pub fn name(self)", order)
+    for phase in TICK_PHASE_ORDER:
+        assert f'=> "{phase.value}"' in host[names:]
+    places = [host.index(f"Phase::{_camel(phase.value)},", order) for phase in TICK_PHASE_ORDER]
+    assert places == sorted(places)
+    phases = (CORE_TICK / "mod.rs").read_text("utf-8")
+    start = phases.index("pub fn phases<")
     bodies = {
-        TickPhase.DISPATCH_DUE_EVENTS: "0 => self.dispatch()",
-        TickPhase.COMPLETE_SCHEDULED_TASKS: "1 => Ok(())",
-        TickPhase.UPDATE_AGENT_STATE: "2 => self.update()",
-        TickPhase.PROPOSE_ACTIONS: "3 => self.propose()",
-        TickPhase.ARBITRATE_ACTIONS: "4 => self.arbitrate()",
-        TickPhase.SAMPLE_ENDOGENOUS_EVENTS: "5 => self.sample()",
-        TickPhase.COLLECT_METRICS: "6 => self.metrics()",
+        TickPhase.COMPLETE_SCHEDULED_TASKS: "Phase::CompleteScheduledTasks => {}",
+        TickPhase.UPDATE_AGENT_STATE: "Phase::UpdateAgentState => update::update(",
+        TickPhase.PROPOSE_ACTIONS: "Phase::ProposeActions => propose::propose(",
+        TickPhase.ARBITRATE_ACTIONS: "Phase::ArbitrateActions => arbitrate::arbitrate(",
+        TickPhase.SAMPLE_ENDOGENOUS_EVENTS: "Phase::SampleEndogenousEvents => sample::sample(",
+        TickPhase.COLLECT_METRICS: "Phase::CollectMetrics => metrics::metrics(",
     }
-    assert all(rust.find(bodies[phase], start) > 0 for phase in TICK_PHASE_ORDER)
-    assert list(bodies) == list(TICK_PHASE_ORDER)
+    assert all(phases.find(body, start) > 0 for body in bodies.values())
+    assert list(bodies) == list(TICK_PHASE_ORDER)[1:]
+
+
+def _camel(value: str) -> str:
+    return "".join(part.title() for part in value.split("_"))
+
+
+# The digest of `test_the_arbitrate_loops_give_the_world_of_the_driver_s_loops`, taken from the
+# build before the arbitrate loops moved to the core (main 60806a37, Issue #152 lane P9-2a).
+ARBITRATE_DIGEST = "43a43ae49ba318b0"
+
+
+def test_the_arbitrate_loops_give_the_world_of_the_driver_s_loops(
+    generated_scenario_with_split_queues: Any,
+) -> None:
+    """The toilets' and the resource service's loops (native/core/src/rules/toilet.rs and
+    service.rs `arbitrate`), with independent queues and their stall records: the world after
+    each arbitrate phase of 240 minutes, against the digest the PyO3 driver's loops gave."""
+    import hashlib
+
+    from support.world import world_digest
+
+    from sheltersim.experiments.metrics import MetricsRecorder
+    from sheltersim.experiments.timeline import _MetricSink
+
+    document = generated_scenario_with_split_queues.model_dump(mode="json")
+    document["duration_minutes"] = 240
+    world = WorldState.from_scenario(
+        type(generated_scenario_with_split_queues).model_validate(document)
+    )
+    controller = OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
+    engine = TickEngine(world, phase_handler=controller)
+    digests: list[str] = []
+    queued: set[str] = set()
+
+    def watch(phase: TickPhase, before: bool) -> None:
+        if phase is TickPhase.ARBITRATE_ACTIONS and not before:
+            requests = world.model_state["facility_queues_v1"]["requests"].values()
+            queued.update(request["facility_id"] for request in requests)
+            service = world.model_state["resource_service_v1"]
+            stalls = [
+                json.dumps(record, sort_keys=True) for record in service["queue_stall_history"]
+            ]
+            digests.append(f"{world_digest(world)} {len(world.event_log)} {stalls}")
+
+    engine.phase_observer = watch
+    before = _ticks()
+    engine.run(240)
+    assert _ticks() - before == 240
+    assert {"toilet_01", "meal_distribution_main"} <= queued
+    assert world.model_state["resource_service_v1"]["queue_stall_history"], "no stall recorded"
+    digest = hashlib.sha256("\n".join(digests).encode("utf-8")).hexdigest()[:16]
+    assert digest == ARBITRATE_DIGEST

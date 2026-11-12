@@ -29,6 +29,7 @@ use sheltersim_core::rules::common_operations::Logged;
 use sheltersim_core::rules::decisions::Observed;
 use sheltersim_core::rules::world_view::ViewData;
 use sheltersim_core::host::{
+    Again, MetricSink,
     Contract, Decision, DecisionSink, ErrorClass, Foreign, ForeignRecord, Holding, Host, HostFailure, Llm, Part, Phase, Stage, Trace,
     TraceLevel, TxnKind,
 };
@@ -220,7 +221,7 @@ impl<'py> PyHost<'py> {
 
     /// A call of this host is about to run Python that may write the world: what it read of the
     /// holding is read again at the next ask (rule R6).
-    fn ran_python(&mut self) {
+    pub(crate) fn ran_python(&mut self) {
         self.holding = None;
     }
 
@@ -298,6 +299,25 @@ impl<'py> PyHost<'py> {
         self.social_policy()?.call_method(name, (&self.world,), Some(&kwargs))?;
         Ok(())
     }
+}
+
+/// The `MetricsRecorder` a sink holds whose `capture_metric` is the recorder's own
+/// (`_MetricSink.capture_metric` as defined, not set on the sink), or None: any other sink samples
+/// on its own.
+fn recorder_of<'py>(artifacts: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyAny>>> {
+    let py = artifacts.py();
+    let sink = artifacts.get_type();
+    let recorder = sink.getattr(intern!(py, "capture_metric_as_defined")).ok().filter(|defined| {
+        sink.getattr(intern!(py, "capture_metric")).is_ok_and(|now| now.is(defined))
+    });
+    let own = artifacts.getattr(intern!(py, "__dict__"))?;
+    Ok(match recorder {
+        Some(_) if raw_dict_get(&own, intern!(py, "capture_metric").as_any())?.is_none() => {
+            let class = py.import(intern!(py, "sheltersim.experiments.metrics"))?.getattr(intern!(py, "MetricsRecorder"))?;
+            raw_dict_get(&own, intern!(py, "metrics").as_any())?.filter(|recorder| recorder.get_type().is(&class))
+        }
+        _ => None,
+    })
 }
 
 /// `TraceLevel` of the Run's trace, read again for its error (`Level::of` of `rules/trace.rs`).
@@ -498,18 +518,7 @@ impl<'py> Host for PyHost<'py> {
         self.ran_python();
         let artifacts = self.artifacts()?;
         let Ok(minute) = minute.into_pyobject(py).map(|minute| minute.into_any());
-        let sink = artifacts.get_type();
-        let recorder = sink.getattr(intern!(py, "capture_metric_as_defined")).ok().filter(|defined| {
-            sink.getattr(intern!(py, "capture_metric")).is_ok_and(|now| now.is(defined))
-        });
-        let own = artifacts.getattr(intern!(py, "__dict__"))?;
-        let recorder = match recorder {
-            Some(_) if raw_dict_get(&own, intern!(py, "capture_metric").as_any())?.is_none() => {
-                let class = py.import(intern!(py, "sheltersim.experiments.metrics"))?.getattr(intern!(py, "MetricsRecorder"))?;
-                raw_dict_get(&own, intern!(py, "metrics").as_any())?.filter(|recorder| recorder.get_type().is(&class))
-            }
-            _ => None,
-        };
+        let recorder = recorder_of(&artifacts)?;
         let by_sink = || -> PyResult<()> {
             let options = PyDict::new(py);
             options.set_item(intern!(py, "minute"), &minute)?;
@@ -854,6 +863,85 @@ impl<'py> Host for PyHost<'py> {
         if !mirror.getattr(intern!(py, "has_row"))?.is_truthy()? {
             mirror.call_method0(intern!(py, "refit"))?;
         }
+        Ok(())
+    }
+
+    // ---- A tick's phases 2-6 in the core (lane P9-2a) ----------------------------------------------
+
+    /// The rows of the pending events Python scheduled (`QueueStore::read_rows`, H6).
+    fn read_queue_rows(&mut self) -> Result<(), HostError> {
+        crate::rules::travel::read_queue_rows(&self.world)?;
+        Ok(())
+    }
+
+    /// A write's error as the PyO3 crate's `EventWriter` raises it (`DuplicateEventError`).
+    fn write_error(&self, error: sheltersim_core::events::writer::WriteError) -> HostError {
+        HostError(write_error(self.py(), error))
+    }
+
+    /// `world.model_configs` as a value (the view reads it past the slot that does not hold it), or
+    /// None for configs that are not a plain dict, which the view refuses.
+    fn configs_given(&mut self) -> Result<Option<V>, HostError> {
+        let raw = attribute(&self.world, intern!(self.py(), "model_configs"))?;
+        if crate::core::tracked::as_readable_dict(&raw).is_none() {
+            return Ok(None);
+        }
+        Ok(Some(V::from_py(&raw)?))
+    }
+
+    /// The read again of a section's parse or of the controller's attributes, for its error.
+    fn read_again(&mut self, again: Again<'_>) -> Result<(), HostError> {
+        let py = self.py();
+        match again {
+            Again::Section(SectionId::ExtensionsEnabled) => {
+                crate::rules::world_view::extensions_enabled(&self.world)?;
+            }
+            Again::Section(SectionId::Selection) => return Err(HostError(errors::relayed(py, configs::reraise_selection(&self.world)))),
+            Again::Section(SectionId::StaffOperations) => {
+                crate::rules::staff::staff_operations(&self.world)?;
+            }
+            Again::Section(_) => {}
+            Again::Policy(path) => {
+                let mut found = self.controller()?.clone();
+                for name in path {
+                    found = found.getattr(*name)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// `world.resources = {**world.resources, resource: remaining}`, a new dict.
+    fn resources_changed(&mut self, index: usize, remaining: i64) -> Result<(), HostError> {
+        crate::rules::resources::replace_resources(&self.world, sheltersim_core::rules::resources::Applied { index, remaining })?;
+        Ok(())
+    }
+
+    /// `model_state[name] = value`.
+    fn start_namespace(&mut self, name: &str, value: &V) -> Result<(), HostError> {
+        let py = self.py();
+        self.ran_python();
+        attribute(&self.world, intern!(py, "model_state"))?.set_item(name, value.to_py(py)?)?;
+        Ok(())
+    }
+
+    /// The recorder a sink holds takes the core's sample; any other sink samples on its own.
+    fn metric_sink(&mut self) -> Result<MetricSink, HostError> {
+        let artifacts = self.artifacts()?;
+        Ok(match recorder_of(&artifacts)? {
+            Some(_) => MetricSink::Recorder,
+            None => MetricSink::Sink,
+        })
+    }
+
+    /// `artifacts.capture_metric(world, minute=)`.
+    fn capture_by_sink(&mut self, minute: i64) -> Result<(), HostError> {
+        let py = self.py();
+        self.ran_python();
+        let artifacts = self.artifacts()?;
+        let options = PyDict::new(py);
+        options.set_item(intern!(py, "minute"), minute)?;
+        artifacts.call_method(intern!(py, "capture_metric"), (&self.world,), Some(&options))?;
         Ok(())
     }
 

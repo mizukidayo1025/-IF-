@@ -14,7 +14,7 @@ use sheltersim_core::config::population::AccessibilityNeeds;
 use sheltersim_core::rules::facility_queues as core;
 use sheltersim_core::rules::kit::Held;
 
-pub(crate) use sheltersim_core::rules::facility_queues::{point_of, request_of_task};
+pub(crate) use sheltersim_core::rules::facility_queues::request_of_task;
 pub(crate) use crate::state::facility_queues::{
     has_independent, independent_heads, with_queues,
 };

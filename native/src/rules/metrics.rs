@@ -20,15 +20,14 @@ use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 
-use sheltersim_core::rules::metrics::{self, Captured, Inputs, MetricSample, Requests};
+use sheltersim_core::rules::metrics::{self, Inputs, MetricSample, Requests};
 
 use crate::core::errors;
 use crate::core::mathx::py_sum;
 use crate::core::row::{attribute, exact_dict, exact_int, exact_list, exact_str, namespace_is_absent, unsupported};
-use crate::core::world_core::{field_mirror_of, raw_dict_get, NamespaceMirror, PyWorldCell};
-use crate::host::PyHost;
+use crate::core::world_core::{field_mirror_of, raw_dict_get, NamespaceMirror};
 use crate::rules::after_tick::TickMemo;
-use crate::rules::staff::{with_wait_inputs, with_wait_routes};
+use crate::rules::staff::with_wait_routes;
 use crate::state::entities::{entities_of, EntityStore};
 use crate::state::metric_state::MetricRow;
 use crate::state::resource_ledger::{held_mirror, LedgerRow};
@@ -66,28 +65,6 @@ pub(crate) fn unsettled_sample(world: &Bound<'_, PyAny>, sample: i64) -> PyResul
     sample_of(world, Requests::Unsettled(memo.as_deref().map(TickMemo::memo)), sample)
 }
 
-/// The metrics phase of a tick whose sink keeps a `MetricsRecorder`: the core's sample, given to
-/// the sink through the host (`Host::capture_metric`), which makes the snapshot. Unsupported, with
-/// nothing changed, where the core refuses the sample: the driver then leaves it to the sink.
-pub(crate) fn capture_of_run<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    let sample = exact_int(minute)?;
-    if exact_int(&attribute(world, intern!(py, "minute_index"))?)? != sample {
-        return unsupported("the metric minute is not the world's");
-    }
-    let mut host = PyHost::of_controller(controller)?;
-    let memo = memo_of(world)?;
-    let memo = memo.as_ref().map(|memo| memo.try_borrow()).transpose()?;
-    let requests = Requests::Unsettled(memo.as_deref().map(TickMemo::memo));
-    with_wait_inputs(world, |staff, routes| {
-        // The core borrows the world, and gives it back before the host runs (R6).
-        let inputs = Inputs { sample, requests, staff, routes };
-        match metrics::capture(&PyWorldCell(world), &mut host, &inputs).map_err(|error| error.0)? {
-            Captured::Taken => Ok(Some(())),
-            Captured::NeedsRoutes => Ok(None),
-        }
-    })
-}
 
 /// The fields of `MetricSnapshot` of a sample, in the order of the dataclass.
 pub(crate) fn fields_of<'py>(sample_minute: &Bound<'py, PyAny>, taken: &MetricSample) -> PyResult<Bound<'py, PyTuple>> {
