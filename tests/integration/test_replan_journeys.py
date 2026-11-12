@@ -674,25 +674,22 @@ def test_edge_capacities_are_counted_on_the_new_route(generated_scenario: Any) -
 
 
 def test_a_tick_with_a_closed_edge_replans_through_the_driver(generated_scenario: Any) -> None:
-    """The driver's path against the phases' path, over ticks that really replan."""
+    """The driver over ticks that really replan, against the world the phases' Python steps left
+    in the same ticks: its digest, recorded when both paths still gave it (#221)."""
     from sheltersim.core.engine import TickEngine
 
-    def run(driver: bool) -> tuple[str, float]:
-        world = _world(generated_scenario)
-        world.minute_index = 0
-        _with_alternate_route(world)
-        controller = _controller(world)
-        if not driver:
-            controller.run_tick = lambda *_arguments: False  # type: ignore[method-assign]
-        engine = TickEngine(world, phase_handler=controller)
+    world = _world(generated_scenario)
+    world.minute_index = 0
+    _with_alternate_route(world)
+    controller = _controller(world)
+    engine = TickEngine(world, phase_handler=controller)
+    ticks = native.rules("tick").stats()[0]["ticks"]
+    engine.step()
+    _walk_to_the_toilet(world, sorted(world.agents)[-1])
+    world.zone_edges[FIRST_LEG].closed = True
+    controller._refresh_space()
+    for _ in range(10):
         engine.step()
-        _walk_to_the_toilet(world, sorted(world.agents)[-1])
-        world.zone_edges[FIRST_LEG].closed = True
-        controller._refresh_space()
-        for _ in range(10):
-            engine.step()
-        return _bytes(world), world.metric_state.get("movement_replan_count", 0.0)
-
-    with_driver, without = run(True), run(False)
-    assert with_driver[1] >= 1.0
-    assert with_driver == without
+    assert native.rules("tick").stats()[0]["ticks"] - ticks == 11
+    assert world.metric_state.get("movement_replan_count", 0.0) >= 1.0
+    assert hashlib.sha256(_bytes(world).encode("utf-8")).hexdigest()[:16] == "9cd678a4de3f16ca"

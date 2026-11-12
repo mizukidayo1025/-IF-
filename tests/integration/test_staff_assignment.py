@@ -11,7 +11,6 @@ the phases.
 
 from __future__ import annotations
 
-import contextlib
 import hashlib
 import json
 import random
@@ -20,7 +19,7 @@ from typing import Any
 
 import pytest
 from support.paths import SCENARIO_100_AGENTS
-from support.world import on_the_phases
+from support.world import driven_ticks
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine, TraceLevel
@@ -728,6 +727,12 @@ def _is_what_python_left(world: WorldState, digest: str) -> None:
     assert hashlib.sha256(text.encode()).hexdigest()[:16] == digest
 
 
+def _is_what_the_phases_left(world: WorldState, digest: str) -> None:
+    """The world, its records and events, as the phases' Python steps left them in the same Run:
+    `digest`, recorded when they and the driver still ran it to the same state (#221)."""
+    _is_what_python_left(world, digest)
+
+
 def test_a_route_with_a_full_edge_records_its_wait_as_the_python_rule_does(tmp_path: Path) -> None:
     controller = _capacity_controller(tmp_path, "first")
     people = sorted(controller.world.agents)
@@ -765,28 +770,23 @@ def test_a_full_edge_in_a_request_records_the_wait_before_the_trip_s_sequence(
 ) -> None:
     """`_select_toilet` goes through `_route`, in the plan of `apply_effect`."""
 
-    def run(name: str, *, phases: bool) -> dict[str, Any]:
-        controller = _capacity_controller(tmp_path, name)
-        world = controller.world
-        for agent in world.agents.values():
-            agent.zone_id = "sleeping"
-        for edge in world.zone_edges:
-            world.schedule_event(_trip(world, edge))
-        with on_the_phases() if phases else contextlib.nullcontext():
-            engine = TickEngine(world, phase_handler=controller)
-            engine.run(30)
-        return _state(world)
-
-    driven = run("driven", phases=False)
-    phases = run("phases", phases=True)
-    assert json.dumps(driven) == json.dumps(phases)
-    assert any("zone_edge_capacity_wait" in record for record in driven["records"])
+    controller = _capacity_controller(tmp_path, "driven")
+    world = controller.world
+    for agent in world.agents.values():
+        agent.zone_id = "sleeping"
+    for edge in world.zone_edges:
+        world.schedule_event(_trip(world, edge))
+    ticks = driven_ticks()
+    TickEngine(world, phase_handler=controller).run(30)
+    assert driven_ticks() - ticks == 30
+    assert any("zone_edge_capacity_wait" in record for record in _state(world)["records"])
+    _is_what_the_phases_left(world, "bd964e07cd68fee2")
 
 
 def test_a_trip_chosen_past_a_full_edge_takes_its_sequence_after_the_wait(tmp_path: Path) -> None:
     """One toilet behind the full edge, the others open: both happen in one proposal's plan."""
 
-    def run(name: str, *, phases: bool) -> dict[str, Any]:
+    def run(name: str) -> WorldState:
         document = _document(staff=[_member("S01", "toilet", "support")])
         for facility in document["facilities"][1:]:
             facility["zone_id"] = "information_desk"
@@ -799,14 +799,16 @@ def test_a_trip_chosen_past_a_full_edge_takes_its_sequence_after_the_wait(tmp_pa
         for agent in world.agents.values():
             agent.zone_id = "sleeping"
         world.schedule_event(_trip(world, "corridor_toilet"))
-        with on_the_phases() if phases else contextlib.nullcontext():
-            TickEngine(world, phase_handler=controller).run(40)
-        return _state(world)
+        TickEngine(world, phase_handler=controller).run(40)
+        return world
 
-    driven = run("driven", phases=False)
-    assert json.dumps(driven) == json.dumps(run("phases", phases=True))
+    ticks = driven_ticks()
+    world = run("driven")
+    assert driven_ticks() - ticks == 40
+    driven = _state(world)
     assert any("zone_edge_capacity_wait" in record for record in driven["records"])
     assert any("agent_travel_complete" in str(event) for event in driven["pending"][1:])
+    _is_what_the_phases_left(world, "b52928d26554d73f")
 
 
 # ---- A Run with a preemption ----
@@ -815,7 +817,7 @@ def test_a_trip_chosen_past_a_full_edge_takes_its_sequence_after_the_wait(tmp_pa
 def test_an_urgent_request_preempts_a_routed_task_in_a_run(tmp_path: Path) -> None:
     """The Run no Scenario of the gate has: a priority comes from the Provider's boundary only."""
 
-    def run(name: str, *, phases: bool) -> dict[str, Any]:
+    def run(name: str) -> WorldState:
         document = _document(
             duration=120,
             staff=[
@@ -843,23 +845,20 @@ def test_an_urgent_request_preempts_a_routed_task_in_a_run(tmp_path: Path) -> No
         artifacts.write_initial(world, execution_mode="offline")
         controller = OfflineSimulationController(world, artifacts)
         engine = TickEngine(world, phase_handler=controller)
-        with on_the_phases() if phases else contextlib.nullcontext():
-            for _ in range(60):
-                priorities = world.model_state.setdefault("llm", {}).setdefault(
-                    "support_priorities", {}
-                )
-                for request in world.unsettled_support_requests():
-                    priorities[request.id] = 1
-                engine.step()
-        return _state(world)
+        for _ in range(60):
+            priorities = world.model_state.setdefault("llm", {}).setdefault(
+                "support_priorities", {}
+            )
+            for request in world.unsettled_support_requests():
+                priorities[request.id] = 1
+            engine.step()
+        return world
 
-    counts = native.rules("tick").stats()[0]
-    ticks = counts["ticks"]
-    driven = run("driven", phases=False)
-    assert native.rules("tick").stats()[0]["ticks"] == ticks + 60
-    phases = run("phases", phases=True)
-    assert json.dumps(driven) == json.dumps(phases)
-    assert any("staff_operation_preempted" in record for record in driven["records"])
+    ticks = driven_ticks()
+    world = run("driven")
+    assert driven_ticks() - ticks == 60
+    assert any("staff_operation_preempted" in record for record in _state(world)["records"])
+    _is_what_the_phases_left(world, "62b58a7463d941d4")
 
 
 # What `assign_pending` left with the controller's own `_route` and `_schedule_staff_support_travel`
