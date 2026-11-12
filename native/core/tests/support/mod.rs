@@ -13,6 +13,7 @@
 
 #![allow(dead_code)]
 
+pub mod answers;
 pub mod canonical;
 pub mod cases;
 pub mod dumps;
