@@ -41,6 +41,8 @@ FIXTURES: dict[str, str] = {
     "tick_core": "support.core_tick:tick_core_fixture",
     "sections": "support.core_fixtures:sections_fixture",
     "typed_rows": "support.core_typed_rows:typed_rows_document",
+    "queue_rules": "support.core_fixtures_queues:queue_rules_fixture",
+    "overlay_rules": "support.core_fixtures_overlay:overlay_rules_fixture",
     "event_texts": "support.core_texts:event_texts_fixture",
     "rumor_texts": "support.core_texts:rumor_texts_fixture",
     "travel_texts": "support.core_texts:travel_texts_fixture",

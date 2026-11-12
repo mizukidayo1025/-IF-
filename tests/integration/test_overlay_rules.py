@@ -3,6 +3,12 @@
 The 7-day Run reaches almost none of these, so what is compared here and by the shadow over the
 gate is all that is compared (docs/rust-port/lanes/m6-overlay.md). Values next to a limit or a
 coefficient are chosen so a change of 1% shows.
+
+The rules of temporary spaces, rooms, beds, installed facilities and changes of the floor plan are
+checked without Python in `native/core/tests/overlay_rules.rs`, on the same world
+(`support/core_fixtures_overlay.py`, #225). Here each of their Python entries keeps a test that it
+still reaches the kernel and gives its answer, beside the checks against the Python validators
+(decision D3) and the refusals of the boundary.
 """
 
 from __future__ import annotations
@@ -13,6 +19,12 @@ from copy import deepcopy
 from typing import Any
 
 import pytest
+from support.core_fixtures_overlay import (
+    ROOM_FIELDS,
+    change_cases,
+    room_record,
+    space,
+)
 from support.world import world_digest
 
 from sheltersim import native
@@ -121,12 +133,6 @@ def _plain(value: Any) -> Any:
 # same worlds with the namespace still attached (whose old digests passed) and from the detached
 # ones, and were the same.
 RECORDED = {
-    "bed": "b440c65f6d9298df3e2fce977042b27f157b5f63c9c5158f71cdfbdbdef112b9",
-    "bed again": "bb5a2af0d667ae832e0c38f384480b82a31f3c1cb59cb955da9c2063f26d29dc",
-    "bed beside 0.7500001": "991c0f10289e5c54bf9d805b5f601a8250ac52769b46b78ba0c20397d588b75a",
-    "bed beside 1.2": "1c3bde66032b641be28d36ae4e4483ec0ebe620c74a15a1f3ef2d353b56b09fc",
-    "bed passed by": "be2a03926e1dfd151da266455b8f1164f5db1775de0bc27ef316ff5ffbfe5b83",
-    "bed routes 255": "af665afe748029472ed589fac67e451bba2dfbfa812a1adc6b17a4840bd33ac7",
     "walk toilet_01-left-fifo": "723961dac125c409eaa43b22c60ded783d384b6f2257dc5e7f68c840dc7fc7b8",
     "walk toilet_01-right-fifo": "a39a0e59ab284d406c24446027b37d51bc0d29584aadb83fa31fc9954e45fb0c",
     "toilet request queue": "c4f5d6d8b263779c3486b488bae35b72b18871808dbb01e9765ad8950ab2b526",
@@ -215,24 +221,6 @@ def queued(generated_scenario_with_split_queues: Any) -> WorldState:
 # ---- Temporary spaces ----------------------------------------------------------------------------
 
 
-def _space(space_id: str, zone_id: str, *, active: bool = True, people: int = 5) -> dict[str, Any]:
-    return {
-        "space_id": space_id,
-        "zone_id": zone_id,
-        "people_capacity": people,
-        "sleeping_capacity": 2,
-        "start_minute": 0,
-        "end_minute": 100,
-        "active": active,
-        "start_event_id": "start",
-        "end_event_id": None if active else "end",
-        "program_id": "program",
-        "effect_id": "effect",
-        "source_ids": ["ASM-A"],
-        "geometry_status": "zone_only_capacity",
-    }
-
-
 @pytest.fixture
 def spaces(world: WorldState) -> WorldState:
     world.model_state[temporary_spaces.TEMPORARY_SPACES_STATE_KEY] = create_temporary_spaces_state()
@@ -254,8 +242,8 @@ def test_a_space_registers_and_expires(spaces: WorldState) -> None:
     zone = next(iter(spaces.zones))
     state = spaces.model_state[temporary_spaces.TEMPORARY_SPACES_STATE_KEY]
     spaces.minute_index = 4
-    temporary_spaces.register_temporary_space(spaces, _space("a", zone), event_id="e1")
-    assert state["spaces"]["a"] == _space("a", zone)
+    temporary_spaces.register_temporary_space(spaces, space("a", zone), event_id="e1")
+    assert state["spaces"]["a"] == space("a", zone)
     assert state["history"] == [_history_row("e1", "a", zone, "activated", minute=4)]
     before = _bytes(spaces)
     assert not temporary_spaces.expire_temporary_space(
@@ -279,57 +267,6 @@ def test_a_space_registers_and_expires(spaces: WorldState) -> None:
         assert mirror is None or (mirror.tainted is None and mirror.verify())
 
 
-def test_the_limits_of_spaces_say_the_python_rule_s_text(spaces: WorldState) -> None:
-    zone = next(iter(spaces.zones))
-    state = spaces.model_state[temporary_spaces.TEMPORARY_SPACES_STATE_KEY]
-    for index in range(temporary_spaces.MAX_TEMPORARY_SPACES - 1):
-        state["spaces"][f"s{index}"] = _space(f"s{index}", zone)
-    full = _copy(spaces)
-    temporary_spaces.register_temporary_space(full, _space("x", zone), event_id="e")
-    assert len(full.model_state[temporary_spaces.TEMPORARY_SPACES_STATE_KEY]["spaces"]) == (
-        temporary_spaces.MAX_TEMPORARY_SPACES
-    )
-    state["spaces"]["full"] = _space("full", zone)
-    before = _bytes(spaces)
-    # The ID is checked before the limit, as the Python rule did.
-    for space_id, text in (
-        ("x", "temporary space runtime limit reached"),
-        ("s0", "temporary space ID already exists"),
-    ):
-        with pytest.raises(ValueError) as said:
-            temporary_spaces.register_temporary_space(spaces, _space(space_id, zone), event_id="e")
-        assert type(said.value) is ValueError
-        assert str(said.value) == text
-        assert _bytes(spaces) == before
-
-
-def test_spaces_not_installed_say_the_python_rule_s_text(world: WorldState) -> None:
-    world.model_state.pop(temporary_spaces.TEMPORARY_SPACES_STATE_KEY, None)
-    zone = next(iter(world.zones))
-    for call in (
-        lambda: temporary_spaces.register_temporary_space(world, _space("a", zone), event_id="e"),
-        lambda: temporary_spaces.expire_temporary_space(
-            world, "a", event_id="e", causation_id=None
-        ),
-    ):
-        with pytest.raises(ValueError) as said:
-            call()
-        assert type(said.value) is ValueError
-        assert str(said.value) == "temporary_spaces_v1 is not installed"
-
-
-def test_a_full_history_drops_its_oldest_record(spaces: WorldState) -> None:
-    zone = next(iter(spaces.zones))
-    state = spaces.model_state[temporary_spaces.TEMPORARY_SPACES_STATE_KEY]
-    old = [
-        _history_row(f"old{index}", "gone", zone, "activated")
-        for index in range(temporary_spaces.MAX_TEMPORARY_SPACE_HISTORY)
-    ]
-    state["history"].extend(deepcopy(old))
-    temporary_spaces.register_temporary_space(spaces, _space("a", zone), event_id="e")
-    assert state["history"] == [*old[1:], _history_row("e", "a", zone, "activated")]
-
-
 def test_an_input_outside_the_contract_is_a_kernel_refusal(spaces: WorldState) -> None:
     with pytest.raises(KernelRefusal, match="overlay.capacity_metrics refused") as refused:
         temporary_spaces.capacity_metrics(spaces, "no-such-zone")
@@ -345,9 +282,9 @@ def test_capacity_adds_active_spaces_and_keeps_expired_ones_while_people_need_th
 ) -> None:
     zone = next(zone for zone in spaces.zones if zone != "corridor")
     state = spaces.model_state[temporary_spaces.TEMPORARY_SPACES_STATE_KEY]
-    state["spaces"]["active"] = _space("active", zone)
-    state["spaces"]["old"] = _space("old", zone, active=False, people=7)
-    state["spaces"]["other"] = _space("other", "corridor", people=9)
+    state["spaces"]["active"] = space("active", zone)
+    state["spaces"]["old"] = space("old", zone, active=False, people=7)
+    state["spaces"]["other"] = space("other", "corridor", people=9)
     spaces.zones[zone].capacity = 2
     current = (
         sum(agent.zone_id == zone for agent in spaces.agents.values())
@@ -385,46 +322,6 @@ def test_capacity_adds_active_spaces_and_keeps_expired_ones_while_people_need_th
         "retained_expired_room_admissions": 0,
         "effective_total_capacity": None,
     }
-
-
-def test_capacity_counts_signed_rooms_and_the_people_an_expired_room_admitted(
-    world: WorldState,
-) -> None:
-    room = _room_world(world, people=3)
-    state = world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]
-    state["room_admissions"]["A001"] = {
-        "agent_id": "A001",
-        "room_id": room,
-        "admitted_minute": 0,
-        "event_id": "e",
-        "source_ids": [],
-    }
-    world.zones[ROOM_ZONE].capacity = 2
-    world.model_state.pop(temporary_spaces.TEMPORARY_SPACES_STATE_KEY, None)
-
-    def metrics(rooms: int, admitted: int, retained: int) -> dict[str, int]:
-        return {
-            "nominal_capacity": 2,
-            "effective_capacity": 2,
-            "temporary_people_capacity": 0,
-            "retained_expired_capacity": 0,
-            "temporary_sleeping_capacity": 0,
-            "physical_room_capacity": rooms,
-            "active_room_admissions": admitted,
-            "retained_expired_room_admissions": retained,
-            "effective_total_capacity": 2 + rooms + retained,
-        }
-
-    assert world.model_configs["geometry_overlay"]["schema_version"] in {3, 4}
-    assert temporary_spaces.capacity_metrics(world, ROOM_ZONE, occupancy=9) == metrics(3, 1, 0)
-    state["temporary_rooms"][room]["active"] = False
-    state["temporary_rooms"][room]["end_event_id"] = "end"
-    assert temporary_spaces.capacity_metrics(world, ROOM_ZONE, occupancy=9) == metrics(0, 0, 1)
-    # Before schema 3 a room adds no capacity, though its admissions are counted.
-    world.model_configs["geometry_overlay"]["schema_version"] = 2
-    state["temporary_rooms"][room]["active"] = True
-    state["temporary_rooms"][room]["end_event_id"] = None
-    assert temporary_spaces.capacity_metrics(world, ROOM_ZONE, occupancy=9) == metrics(0, 1, 0)
 
 
 def test_incoming_travelers_are_the_people_walking_to_the_zone_or_its_facilities(
@@ -471,7 +368,7 @@ def test_the_check_of_spaces_takes_nothing_the_python_rule_refuses(
 ) -> None:
     zone = next(iter(spaces.zones))
     state = spaces.model_state[temporary_spaces.TEMPORARY_SPACES_STATE_KEY]
-    state["spaces"]["a"] = _space("a", zone)
+    state["spaces"]["a"] = space("a", zone)
     assert _rules().validate_spaces(spaces) is True
     temporary_spaces.validate_temporary_spaces_state(spaces)
     state["spaces"]["a"][field] = value
@@ -484,142 +381,14 @@ def test_the_check_of_spaces_takes_nothing_the_python_rule_refuses(
 # ---- Rooms and beds ------------------------------------------------------------------------------
 
 
-def _room_record(
-    world: WorldState, room_id: str, *, people: int = 2, beds: int = 1
-) -> dict[str, Any]:
-    geometry = world.model_configs["facility_geometry"]
-    sleeping = next(zone for zone in geometry["zones"] if zone["zone_id"] == ROOM_ZONE)
-    left = min(point["x"] for point in sleeping["polygon"])
-    bottom = max(point["y"] for point in sleeping["polygon"])
-    return {
-        "schema_version": 1,
-        "room_id": room_id,
-        "zone_id": ROOM_ZONE,
-        "polygon_m": [
-            {"x": left + 0.5, "y": bottom - 4.4},
-            {"x": left + 2.5, "y": bottom - 4.4},
-            {"x": left + 2.5, "y": bottom - 0.4},
-            {"x": left + 0.5, "y": bottom - 0.4},
-        ],
-        "people_capacity": people,
-        "sleeping_capacity": beds,
-        "bed_points_m": [
-            {"x": left + 1.5, "y": bottom - 2.4 + 0.8 * index} for index in range(beds)
-        ],
-        "route_edge_ids": ["route_corridor_sleeping", "route_sleeping_corridor"],
-        "source_ids": ["ASM-TEMP-ROOM-TEST-V1"],
-        "start_minute": 0,
-        "end_minute": world.duration_minutes,
-        "active": True,
-        "start_event_id": "start",
-        "end_event_id": None,
-        "program_id": "program",
-        "effect_id": "effect",
-    }
-
-
 def _room_world(world: WorldState, *, people: int = 2, beds: int = 1, room_id: str = "room") -> str:
     state = world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]
-    state["temporary_rooms"][room_id] = _room_record(world, room_id, people=people, beds=beds)
+    state["temporary_rooms"][room_id] = room_record(world, room_id, people=people, beds=beds)
     return room_id
 
 
 def _person_in_room_zone(world: WorldState) -> str:
     return next(key for key, agent in world.agents.items() if agent.zone_id == ROOM_ZONE)
-
-
-def _bed(world: WorldState, agent_id: str, name: str | None) -> Any:
-    """The kernel's bed for the person, on a copy: None (nothing written but the empty map of
-    reservations) or the reservation it writes, the deleted rule's (RECORDED[name])."""
-    held = world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["bed_reservations"].get(
-        agent_id
-    )
-    result, after = _answer(world, _rules().reserve_sleep_bed, agent_id)
-    reservations = after.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["bed_reservations"]
-    if name is None:
-        assert result is None
-        _same_world(after, _copy(world))
-        return None
-    room_id, bed_index = result["room_id"], result["bed_index"]
-    target = geometry_overlay._bed_target_id(room_id, bed_index)
-    reservation = held or {
-        "agent_id": agent_id,
-        "room_id": room_id,
-        "bed_index": bed_index,
-        "target_id": target,
-        "reserved_minute": world.minute_index,
-    }
-    assert reservations[agent_id] == reservation
-    assert result["target_id"] == target
-    assert result["reserved_minute"] == reservation["reserved_minute"]
-    assert result["route_points"][-1] == result["point"]
-    _recorded(name, result, after)
-    return result
-
-
-def test_a_bed_is_reserved_in_the_person_s_zone(world: WorldState) -> None:
-    _room_world(world, people=4, beds=3)
-    agent_id = _person_in_room_zone(world)
-    result = _bed(world, agent_id, "bed")
-    assert result["room_id"] == "room"
-    # Who holds a bed keeps it, with the minute it was reserved.
-    geometry_overlay.reserve_sleep_bed(world, agent_id)
-    world.minute_index = 3
-    again = _bed(world, agent_id, "bed again")
-    assert (again["bed_index"], again["reserved_minute"]) == (result["bed_index"], 0)
-
-
-def test_a_state_saved_before_beds_were_reserved_gets_an_empty_map_first(world: WorldState) -> None:
-    """The rule's `state.setdefault("bed_reservations", {})` comes before the floor plan's check:
-    a state saved without the map gets it even when no bed follows."""
-    state = world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]
-    del state["bed_reservations"]
-    agent_id = _person_in_room_zone(world)
-    del world.model_configs["facility_geometry"]
-    assert geometry_overlay.reserve_sleep_bed(world, agent_id) is None
-    assert world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["bed_reservations"] == {}
-
-
-def test_no_bed_is_none(world: WorldState) -> None:
-    agent_id = _person_in_room_zone(world)
-    # No room, no room in the person's zone, an overlay before schema_version 2.
-    _bed(world, agent_id, None)
-    _room_world(world, people=2, beds=1)
-    other = next(key for key, agent in world.agents.items() if key != agent_id)
-    world.agents[other].zone_id = "corridor"
-    world.model_state["movement_v1"]["positions"][other]["zone_id"] = "corridor"
-    _bed(world, other, None)
-    world.model_configs["geometry_overlay"]["schema_version"] = 1
-    _bed(world, agent_id, None)
-
-
-@pytest.mark.parametrize(
-    ("offset", "taken"), [(0.0, True), (0.7499, True), (0.7500001, False), (1.2, False)]
-)
-def test_someone_at_a_bed_is_using_it_within_its_radius(
-    world: WorldState, offset: float, taken: bool
-) -> None:
-    room = _room_record(world, "room")
-    world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["temporary_rooms"]["room"] = room
-    bed = room["bed_points_m"][0]
-    people = [key for key, agent in world.agents.items() if agent.zone_id == ROOM_ZONE]
-    first, second = people[:2]
-    world.model_state["movement_v1"]["positions"][second]["point"] = {
-        "x": bed["x"] + offset,
-        "y": bed["y"],
-    }
-    result = _bed(world, first, None if taken else f"bed beside {offset}")
-    assert (result is None) is taken
-
-
-def test_a_reservation_taken_by_another_is_passed_by(world: WorldState) -> None:
-    _room_world(world, people=4, beds=2)
-    state = world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]
-    people = [key for key, agent in world.agents.items() if agent.zone_id == ROOM_ZONE]
-    geometry_overlay.reserve_sleep_bed(world, people[0])
-    held = state["bed_reservations"][people[0]]["bed_index"]
-    result = _bed(world, people[1], "bed passed by")
-    assert result["bed_index"] != held
 
 
 def _writes(world: WorldState, call: Any, change: Any) -> Any:
@@ -732,45 +501,17 @@ def test_a_room_takes_people_at_free_points_up_to_its_capacity(world: WorldState
     _raises_text(world, admit(third), "temporary room admission is no longer available")
 
 
-def test_an_admission_says_the_python_rule_s_text_whatever_is_missing(world: WorldState) -> None:
-    room = _room_world(world, people=1, beds=1)
-    agent_id = _person_in_room_zone(world)
-    text = "temporary room admission is no longer available"
-
-    def admit(**changes: Any) -> Any:
-        options = {"agent_id": agent_id, "room_id": room, "minute": 0, "event_id": "e"}
-        options.update(changes)
-        return lambda ours: geometry_overlay.admit_to_temporary_room(ours, **options)
-
-    for changes in ({"room_id": "no-such-room"}, {"agent_id": "nobody"}, {"minute": -1}):
-        _raises_text(world, admit(**changes), text)
-    without_admissions = _copy(world)
-    del without_admissions.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["room_admissions"]
-    _raises_text(without_admissions, admit(), text)
-    without_overlay = _copy(world)
-    del without_overlay.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]
-    _raises_text(without_overlay, admit(), text)
-
-    def admitted(expected: WorldState) -> None:
-        admissions = expected.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["room_admissions"]
-        admissions[agent_id] = _admission(agent_id, room, 0, "e")
-
-    assert _writes(world, admit(), admitted) is not None
-
-
-def test_a_large_room_gives_its_grid_point_nearest_the_middle(world: WorldState) -> None:
-    from sheltersim.contracts.extensions import Point2D
-
-    room = _room_world(world, people=2, beds=0)
-    geometry = world.model_configs["facility_geometry"]
-    sleeping = next(zone for zone in geometry["zones"] if zone["zone_id"] == ROOM_ZONE)
-    state = world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]
-    state["temporary_rooms"][room]["polygon_m"] = deepcopy(sleeping["polygon"])
-    # The Python rule's point for the generated sleeping zone (lane L10).
-    assert geometry_overlay.room_admission_point(world, room) == Point2D(x=4.125, y=7.425)
-
-
 # ---- A facility placed during a Run --------------------------------------------------------------
+
+
+def _new_toilet(world: WorldState, facility_id: str = "extra") -> str:
+    from sheltersim.domain.models import FacilityState
+
+    world.facilities[facility_id] = FacilityState(
+        id=facility_id, kind="toilet", zone_id="toilet", capacity=1, working_units=1
+    )
+    return facility_id
+
 
 # Where the Python rule placed four toilets in the generated toilet zone, in turn (lane L10). The
 # zone has no room for a fifth.
@@ -835,27 +576,6 @@ def test_a_placement_takes_the_next_free_slot_and_records_it(world: WorldState) 
     assert geometry_overlay.installed_facility_placement_enabled(world) is False
 
 
-def test_no_free_point_says_the_python_rule_s_text(world: WorldState) -> None:
-    from sheltersim.contracts.extensions import Point2D
-
-    # 16 grids more than fit: the search gives up where the Python rule did.
-    for index, (x, y) in enumerate(_PLACED):
-        facility_id = _new_toilet(world, f"extra_{index}")
-        point = geometry_overlay.place_installed_facility(
-            world, facility_id, event_id=f"e{index}", source_ids=()
-        )
-        assert point == Point2D(x=x, y=y)
-    facility_id = _new_toilet(world, "extra_4")
-    assert geometry_overlay.installed_facility_point(world, facility_id) is None
-    _raises_text(
-        world,
-        lambda ours: geometry_overlay.place_installed_facility(
-            ours, facility_id, event_id="e", source_ids=()
-        ),
-        "no free floor-plan point for installed facility 'extra_4'",
-    )
-
-
 # ---- Changes of the floor plan -------------------------------------------------------------------
 
 
@@ -887,70 +607,6 @@ def _event(
         causation_id="cause",
         provenance={"effect_program_v1": {"assumption_ids": ["ASM-ASSUME", "ASM-SOURCE", ""]}},
     )
-
-
-def _corner(world: WorldState, zone_id: str, *, x: float = 1.0, y: float = 1.0) -> list[dict]:
-    geometry = world.model_configs["facility_geometry"]
-    zone = next(item for item in geometry["zones"] if item["zone_id"] == zone_id)
-    left = min(point["x"] for point in zone["polygon"]) + x
-    top = min(point["y"] for point in zone["polygon"]) + y
-    return [
-        {"x": left, "y": top},
-        {"x": left + 0.4, "y": top},
-        {"x": left + 0.4, "y": top + 0.4},
-        {"x": left, "y": top + 0.4},
-    ]
-
-
-def _change_cases(world: WorldState) -> list[tuple[str, str, Any, int | None]]:
-    toilet = next(key for key, item in world.facilities.items() if item.kind == "toilet")
-    geometry = world.model_configs["facility_geometry"]
-    point = geometry["facility_points"][toilet]
-    room = {
-        key: value
-        for key, value in _room_record(world, "new-room").items()
-        if key
-        in {
-            "schema_version",
-            "room_id",
-            "zone_id",
-            "polygon_m",
-            "people_capacity",
-            "sleeping_capacity",
-            "bed_points_m",
-            "route_edge_ids",
-            "source_ids",
-        }
-    }
-    return [
-        ("set_route_access", "route_corridor_sleeping", {"accessible": False}, 50),
-        ("set_route_access", "route_corridor_sleeping", {"accessible": True}, 50),
-        ("set_route_access", "route_corridor_sleeping", {"accessible": False}, None),
-        ("set_route_access", "no_route", {"accessible": False}, 50),
-        ("move_facility", toilet, {"point_m": {"x": point["x"] + 0.1, "y": point["y"]}}, None),
-        ("move_facility", toilet, {"point_m": {"x": point["x"] + 0.1, "y": point["y"]}}, 50),
-        ("move_facility", toilet, {"point_m": {"x": -1.0, "y": point["y"]}}, None),
-        ("move_facility", "no_facility", {"point_m": {"x": 1.0, "y": 1.0}}, None),
-        ("set_partition", ROOM_ZONE, {"polygon_m": _corner(world, ROOM_ZONE)}, 50),
-        ("set_partition", ROOM_ZONE, {"polygon_m": _corner(world, ROOM_ZONE)}, None),
-        ("set_partition", "no_zone", {"polygon_m": _corner(world, ROOM_ZONE)}, 50),
-        ("temporary_room_geometry", ROOM_ZONE, room, 50),
-        ("temporary_room_geometry", ROOM_ZONE, room, None),
-        ("temporary_room_geometry", "corridor", room, 50),
-        (
-            "transfer_equipment",
-            toilet,
-            {
-                "schema_version": 1,
-                "equipment_id": toilet,
-                "from_zone_id": world.facilities[toilet].zone_id,
-                "to_zone_id": "sleeping",
-                "point_m": {"x": 5.0, "y": 9.0},
-            },
-            None,
-        ),
-        ("no_such_operator", ROOM_ZONE, {}, 50),
-    ]
 
 
 def _applied(world: WorldState, event: Any, *, expire: bool = False) -> None:
@@ -1060,7 +716,7 @@ _CHANGE_TEXTS = (
 def test_each_change_is_checked_and_applied_as_the_python_rule_did(world: WorldState) -> None:
     validate = geometry_overlay.validate_geometry_change
     apply = geometry_overlay.apply_geometry_change
-    cases = _change_cases(world)
+    cases = change_cases(world)
     for (op, target, parameters, end), text in zip(cases, _CHANGE_TEXTS, strict=True):
         event = _event(world, op, target, parameters, end)
         if text is not None:
@@ -1070,23 +726,6 @@ def test_each_change_is_checked_and_applied_as_the_python_rule_did(world: WorldS
             continue
         assert validate(world, op, target, parameters, end) is None
         _writes(world, lambda ours: apply(ours, event), lambda expected: _applied(expected, event))
-
-
-def test_a_change_without_the_overlay_says_the_python_rule_s_text(world: WorldState) -> None:
-    del world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]
-    op, target, parameters, end = _change_cases(world)[0]
-    event = _event(world, op, target, parameters, end)
-    _raises_text(
-        world,
-        lambda ours: geometry_overlay.apply_geometry_change(ours, event),
-        "geometry_overlay_required",
-    )
-    _raises_text(
-        world,
-        lambda ours: geometry_overlay.validate_geometry_change(ours, op, target, parameters, end),
-        "geometry_overlay_required: declare the versioned geometry overlay before approving "
-        "effects",
-    )
 
 
 def _square(x: float, y: float, size: float) -> list[dict[str, float]]:
@@ -1112,12 +751,12 @@ def _sweep_cases(world: WorldState) -> list[tuple[str, str, Any, int | None]]:
                 x, y = left + (right - left) * fx, top + (bottom - top) * fy
                 for size in (0.4, 1.5, 30.0):
                     cases.append(("set_partition", zone_id, {"polygon_m": _square(x, y, size)}, 50))
-                room = _room_record(world, "sweep-room")
+                room = room_record(world, "sweep-room")
                 room["zone_id"] = zone_id
                 room["polygon_m"] = _square(x, y, 1.2)
                 room["bed_points_m"] = [{"x": x + 0.6, "y": y + 0.6}]
                 room["route_edge_ids"] = [f"route_corridor_{zone_id}", f"route_{zone_id}_corridor"]
-                plain = {key: room[key] for key in _ROOM_FIELDS}
+                plain = {key: room[key] for key in ROOM_FIELDS}
                 cases.append(("temporary_room_geometry", zone_id, plain, 50))
                 for facility_id in points:
                     move = {"point_m": {"x": x, "y": y}}
@@ -1135,7 +774,7 @@ def _sweep_cases(world: WorldState) -> list[tuple[str, str, Any, int | None]]:
         zone_id = world.facilities[facility_id].zone_id
         around = _square(point["x"] - 0.2, point["y"] - 0.2, 0.4)
         cases.append(("set_partition", zone_id, {"polygon_m": around}, 50))
-        room = {key: _room_record(world, "sweep-room")[key] for key in _ROOM_FIELDS}
+        room = {key: room_record(world, "sweep-room")[key] for key in ROOM_FIELDS}
         room.update(zone_id=zone_id, polygon_m=_square(point["x"] - 0.6, point["y"] - 0.6, 1.2))
         room["bed_points_m"] = [{"x": point["x"] + 0.3, "y": point["y"] + 0.3}]
         room["route_edge_ids"] = [f"route_corridor_{zone_id}", f"route_{zone_id}_corridor"]
@@ -1149,7 +788,7 @@ def _sweep_cases(world: WorldState) -> list[tuple[str, str, Any, int | None]]:
             "point_m": point,
         }
         cases.append(("transfer_equipment", facility_id, transfer, None))
-    room = {key: _room_record(world, "sweep-room")[key] for key in _ROOM_FIELDS}
+    room = {key: room_record(world, "sweep-room")[key] for key in ROOM_FIELDS}
     cases.append(("temporary_room_geometry", ROOM_ZONE, {**room, "room_id": "room"}, 50))
     for routes in ([], ["route_corridor_sleeping"], ["route_food_corridor"], ["no_route"]):
         cases.append(("temporary_room_geometry", ROOM_ZONE, {**room, "route_edge_ids": routes}, 50))
@@ -1179,19 +818,6 @@ def _sweep_cases(world: WorldState) -> list[tuple[str, str, Any, int | None]]:
     cases.append(("set_route_access", "route_corridor_food", {"accessible": "yes"}, 50))
     cases.append(("no_such_operator", ROOM_ZONE, {}, 50))
     return cases
-
-
-_ROOM_FIELDS = (
-    "schema_version",
-    "room_id",
-    "zone_id",
-    "polygon_m",
-    "people_capacity",
-    "sleeping_capacity",
-    "bed_points_m",
-    "route_edge_ids",
-    "source_ids",
-)
 
 
 def _sweep_worlds(world: WorldState) -> list[WorldState]:
@@ -1355,56 +981,6 @@ def test_every_refusal_of_a_change_is_the_python_rule_s_error(world: WorldState)
     assert hashlib.sha256(json.dumps(outcomes).encode()).hexdigest() == _SWEEP_DIGEST
 
 
-@pytest.mark.parametrize("op", ["set_partition", "set_route_access", "temporary_room_geometry"])
-def test_a_change_expires_as_the_python_rule_did(world: WorldState, op: str) -> None:
-    case = next(item for item in _change_cases(world) if item[0] == op and item[3] == 50)
-    _, target, parameters, end = case
-    event = _event(world, op, target, parameters, end)
-    geometry_overlay.apply_geometry_change(world, event)
-    world.validate()
-    ending = _event(world, op, target, parameters, end, event_id="change-2")
-    _writes(
-        world,
-        lambda ours: geometry_overlay.apply_geometry_change(ours, ending, expire=True),
-        lambda expected: _applied(expected, ending, expire=True),
-    )
-
-
-MOVED_TOILET_WALK = (
-    "(ZoneRoute(origin_zone_id='toilet', destination_zone_id='toilet', zone_ids=('toilet', "
-    "'toilet'), edge_ids=(), travel_minutes=1), (Point2D(x=14.074175621006717, "
-    "y=7.091391873668907), Point2D(x=13.87417562100671, y=10.477882672817003)))"
-)
-
-
-def test_a_moved_facility_keeps_its_plan_in_rust(world: WorldState) -> None:
-    """A move changes the plan, its service points and footprints, for the rules that read them."""
-    toilet = next(key for key, item in world.facilities.items() if item.kind == "toilet")
-    point = world.model_configs["facility_geometry"]["facility_points"][toilet]
-    event = _event(
-        world,
-        "move_facility",
-        toilet,
-        {"point_m": {"x": point["x"] + 0.1, "y": point["y"]}},
-        None,
-    )
-    _rules().apply_geometry_change(world, event)
-    agent_id = next(iter(world.agents))
-    rule = geometry_overlay.effective_geometry(world)
-    assert rule.facility_points[toilet].x == pytest.approx(point["x"] + 0.1)
-    zone_id = world.facilities[toilet].zone_id
-    world.agents[agent_id].zone_id = zone_id
-    center = movement._zone_center(rule, zone_id)
-    world.model_state["movement_v1"]["positions"][agent_id]["point"] = {
-        "x": center.x,
-        "y": center.y,
-    }
-    found = movement.facility_approach_route(world, agent_id, toilet)
-    # The deleted Python rule's walk to the moved toilet, recorded from it.
-    assert found is not None
-    assert repr(found) == MOVED_TOILET_WALK
-
-
 @pytest.mark.parametrize(
     "corrupt",
     [
@@ -1483,7 +1059,7 @@ def _sleep_proposal(world: WorldState, agent_id: str) -> Any:
 def test_sleep_in_a_room_is_the_python_step_s(world: WorldState, at_bed: bool, digest: str) -> None:
     """The result and the world (`world_digest`) of the Python step, recorded from it on 45a9bc9
     before it went (lane L10), pinned on every OS."""
-    room = _room_record(world, "room")
+    room = room_record(world, "room")
     world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["temporary_rooms"]["room"] = room
     agent_id = _person_in_room_zone(world)
     if at_bed:
@@ -2359,256 +1935,3 @@ def test_a_toilet_fifo_is_the_python_rule_s(queued: WorldState) -> None:
     assert person not in ours.facilities["toilet_01"].active_agent_ids
     assert ours.agents[person].activity is Activity.IDLE
     assert ours.agents[person].needs.toilet_urgency == 0.0
-
-
-# ---- Next to a coefficient or a limit ------------------------------------------------------------
-
-
-def _new_toilet(world: WorldState, facility_id: str = "extra") -> str:
-    from sheltersim.domain.models import FacilityState
-
-    world.facilities[facility_id] = FacilityState(
-        id=facility_id, kind="toilet", zone_id="toilet", capacity=1, working_units=1
-    )
-    return facility_id
-
-
-@pytest.mark.parametrize("distance", [0.5999, 0.6, 0.6001, 0.603])
-def test_a_placed_facility_keeps_its_separation_from_the_others(
-    world: WorldState, distance: float
-) -> None:
-    from sheltersim.contracts.extensions import Point2D
-    from sheltersim.region.facility import facility_grid_point
-
-    facility_id = _new_toilet(world)
-    geometry = world.model_configs["facility_geometry"]
-    zone = next(item for item in geometry["zones"] if item["zone_id"] == "toilet")
-    polygon = tuple(Point2D.model_validate(point) for point in zone["polygon"])
-    others = [
-        key
-        for key, item in world.facilities.items()
-        if key != facility_id and item.zone_id == "toilet" and key in geometry["facility_points"]
-    ]
-    slot = facility_grid_point(polygon, 0, len(others) + 1)
-    # Everyone else this far from the first slot, on the side away from the zone's middle.
-    for key in others:
-        geometry["facility_points"][key] = {"x": slot.x, "y": slot.y + distance}
-    point = geometry_overlay.installed_facility_point(world, facility_id)
-    assert point is not None
-    # 0.6 itself is what the floats make of it: there the Python rule passed the slot by.
-    assert (point == slot) is (distance > 0.6)
-
-
-def test_the_search_of_a_grid_ends_after_sixteen_grids(world: WorldState) -> None:
-    from sheltersim.contracts.extensions import Point2D
-    from sheltersim.region.facility import facility_grid_point
-
-    facility_id = _new_toilet(world)
-    geometry = world.model_configs["facility_geometry"]
-    zone = next(item for item in geometry["zones"] if item["zone_id"] == "toilet")
-    polygon = tuple(Point2D.model_validate(point) for point in zone["polygon"])
-    others = sum(
-        key != facility_id and item.zone_id == "toilet" and key in geometry["facility_points"]
-        for key, item in world.facilities.items()
-    )
-    xs = [point.x for point in polygon]
-    ys = [point.y for point in polygon]
-    state = world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]
-    # Free only near a slot of the given grid: each room blocks one side of it.
-    for count, found in ((others + 16, True), (others + 17, False)):
-        slot = facility_grid_point(polygon, count - 1, count)
-        gap = 0.001
-        sides = (
-            (min(xs) - 1, min(ys) - 1, slot.x - gap, max(ys) + 1),
-            (slot.x + gap, min(ys) - 1, max(xs) + 1, max(ys) + 1),
-            (slot.x - gap, min(ys) - 1, slot.x + gap, slot.y - gap),
-            (slot.x - gap, slot.y + gap, slot.x + gap, max(ys) + 1),
-        )
-        state["temporary_rooms"].clear()
-        for index, (left, top, right, bottom) in enumerate(sides):
-            state["temporary_rooms"][f"block{index}"] = {
-                "active": True,
-                "polygon_m": [
-                    {"x": left, "y": top},
-                    {"x": right, "y": top},
-                    {"x": right, "y": bottom},
-                    {"x": left, "y": bottom},
-                ],
-            }
-        point = geometry_overlay.installed_facility_point(world, facility_id)
-        assert point == (slot if found else None)
-
-
-def test_a_moved_facility_keeps_half_a_metre_from_walls(world: WorldState) -> None:
-    from sheltersim.contracts.extensions import Point2D, point_in_polygon
-    from sheltersim.contracts.spatial import SpatialConstraints
-
-    toilet = next(key for key, item in world.facilities.items() if item.kind == "toilet")
-    zone_id = world.facilities[toilet].zone_id
-    geometry = world.model_configs["facility_geometry"]
-    zone = next(item for item in geometry["zones"] if item["zone_id"] == zone_id)
-    polygon = tuple(Point2D.model_validate(point) for point in zone["polygon"])
-    raw = world.model_configs["spatial_constraints"]
-    walls = SpatialConstraints.model_validate(raw).walls
-    validate = geometry_overlay.validate_geometry_change
-    said: dict[tuple[float, str | None], int] = {}
-    for wall in walls:
-        dx, dy = wall.end.x - wall.start.x, wall.end.y - wall.start.y
-        length = (dx * dx + dy * dy) ** 0.5
-        if length == 0:
-            continue
-        nx, ny = -dy / length, dx / length
-        for fraction in (0.25, 0.5, 0.75):
-            for side in (1, -1):
-                for clearance in (0.499, 0.503):
-                    point = {
-                        "x": wall.start.x + dx * fraction + nx * side * clearance,
-                        "y": wall.start.y + dy * fraction + ny * side * clearance,
-                    }
-                    if not point_in_polygon(Point2D.model_validate(point), polygon):
-                        expected: str | None = (
-                            "area_invalid: cross-zone facility moves are unsupported"
-                        )
-                    elif clearance < 0.5:
-                        expected = (
-                            "clear_width_insufficient: moved service point requires half a "
-                            "metre from walls"
-                        )
-                    else:
-                        expected = None
-                    parameters = {"point_m": point}
-                    if expected is None:
-                        assert validate(world, "move_facility", toilet, parameters, None) is None
-                    else:
-                        _raises_text(
-                            world,
-                            lambda ours, parameters=parameters: validate(
-                                ours, "move_facility", toilet, parameters, None
-                            ),
-                            expected,
-                        )
-                    said[clearance, expected] = said.get((clearance, expected), 0) + 1
-    # What the Python rule said of these points of the generated plan (lane L10).
-    assert said == {
-        (0.499, "area_invalid: cross-zone facility moves are unsupported"): 58,
-        (
-            0.499,
-            "clear_width_insufficient: moved service point requires half a metre from walls",
-        ): 8,
-        (0.503, "area_invalid: cross-zone facility moves are unsupported"): 58,
-        (0.503, None): 8,
-    }
-
-
-def test_a_full_overlay_history_drops_its_oldest_record(world: WorldState) -> None:
-    state = world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]
-    state["history"].extend(
-        {
-            "transition_id": f"old{index}",
-            "op": "set_partition",
-            "target_id": ROOM_ZONE,
-            "status": "applied",
-            "causation_id": None,
-            "event_id": f"old{index}",
-            "source_ids": [],
-            "minute": 0,
-        }
-        for index in range(20_000)
-    )
-    event = _event(world, "set_partition", ROOM_ZONE, {"polygon_m": _corner(world, ROOM_ZONE)}, 50)
-    _writes(
-        world,
-        lambda ours: geometry_overlay.apply_geometry_change(ours, event),
-        lambda expected: _applied(expected, event),
-    )
-    ours = _copy(world)
-    geometry_overlay.apply_geometry_change(ours, event)
-    history = ours.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["history"]
-    assert len(history) == 20_000
-    assert history[0]["transition_id"] == "old1"
-    assert history[-1]["transition_id"] == event.event_id
-
-
-@pytest.mark.parametrize(("blocked", "found"), [(255, True), (256, False)])
-def test_a_bed_s_routes_end_where_the_python_rule_s_do(
-    world: WorldState, blocked: int, found: bool
-) -> None:
-    room = _room_record(world, "room", people=400, beds=1)
-    free = room["bed_points_m"][0]
-    corner = dict(room["polygon_m"][0])
-    corner = {"x": corner["x"] + 0.2, "y": corner["y"] + 0.2}
-    # Beds no route reaches, each one try, ahead of the bed that has a route.
-    room["bed_points_m"] = [corner] * blocked + [free]
-    room["sleeping_capacity"] = len(room["bed_points_m"])
-    world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["temporary_rooms"]["room"] = room
-    world.model_configs["spatial_constraints"].setdefault("obstacles", []).append(
-        {
-            "id": "around-the-corner",
-            "polygon": [
-                {"x": corner["x"] - 0.05, "y": corner["y"] - 0.05},
-                {"x": corner["x"] + 0.05, "y": corner["y"] - 0.05},
-                {"x": corner["x"] + 0.05, "y": corner["y"] + 0.05},
-                {"x": corner["x"] - 0.05, "y": corner["y"] + 0.05},
-            ],
-            "source_ids": [],
-        }
-    )
-    agent_id = _person_in_room_zone(world)
-    # The rule routes at most 256 beds: the free bed after 256 others is never tried.
-    result = _bed(world, agent_id, f"bed routes {blocked}" if found else None)
-    if found:
-        assert result["bed_index"] == blocked
-
-
-@pytest.mark.parametrize(("free", "found"), [(250, True), (256, False)])
-def test_a_room_inspects_256_points_of_its_grid(world: WorldState, free: int, found: bool) -> None:
-    """Only the `free`-th point of the grid and later ones can be walked to."""
-    from sheltersim.contracts.extensions import Point2D
-
-    room_id = _room_world(world, people=2, beds=0)
-    geometry = world.model_configs["facility_geometry"]
-    zone = next(item for item in geometry["zones"] if item["zone_id"] == ROOM_ZONE)
-    # A hall wider than a generated zone, whose grid has more points than the rule looks at.
-    x0, side = geometry["width_m"], 20.0
-    geometry["width_m"] = x0 + side
-    y0, geometry["height_m"] = 0.0, max(geometry["height_m"], side)
-    zone["polygon"] = [
-        {"x": x0, "y": y0},
-        {"x": x0 + side, "y": y0},
-        {"x": x0 + side, "y": y0 + side},
-        {"x": x0, "y": y0 + side},
-    ]
-    state = world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]
-    state["temporary_rooms"][room_id]["polygon_m"] = deepcopy(zone["polygon"])
-    rows = 0
-    y = y0 + 0.375
-    while y < y0 + side:
-        rows += 1
-        y += 0.75
-    columns, partial = divmod(free, rows)
-    # An L around the first columns and the top of the next one.
-    left, top, bottom = x0 - 1, y0 - 1, y0 + side + 1
-    wall_x = x0 + 0.75 * columns
-    step_y = y0 + 0.75 * partial
-    corners = [(left, top), (wall_x + 0.75, top), (wall_x + 0.75, step_y), (wall_x, step_y)]
-    corners += [(wall_x, bottom), (left, bottom)]
-    world.model_configs["spatial_constraints"].setdefault("obstacles", []).append(
-        {
-            "id": "all-but-the-last",
-            "polygon": [{"x": x, "y": y} for x, y in corners],
-            "source_ids": [],
-        }
-    )
-    point = geometry_overlay.room_admission_point(world, room_id)
-    if not found:
-        assert point is None
-        return
-    # The last point inspected is the free one nearest the middle, as the grid steps it.
-    column, row = divmod(geometry_overlay.MAX_ROOM_ADMISSION_POINTS - 1, rows)
-    x = x0 + 0.375
-    for _ in range(column):
-        x += 0.75
-    y = y0 + 0.375
-    for _ in range(row):
-        y += 0.75
-    assert point == Point2D(x=x, y=y)
