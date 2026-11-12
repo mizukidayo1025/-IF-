@@ -50,6 +50,7 @@ FIXTURES: dict[str, str] = {
     "generated_texts": "support.core_fixtures_texts:generated_texts_fixture",
     "handoff_texts": "support.core_fixtures_texts:handoff_texts_fixture",
     "service_rules": "support.core_fixtures_service:service_rules_fixture",
+    "staff_assignment": "support.core_fixtures_service:staff_assignment_fixture",
 }
 
 # The attributes of `InformationSpreadConfig` the PyO3 crate reads (`InformationSpread::FIELDS` of

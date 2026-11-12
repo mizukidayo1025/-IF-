@@ -4,28 +4,27 @@ one test of each Python entry of their rules.
 The rules' texts, case by case, are tested in the core without Python
 (native/core/tests/resource_service_texts.rs, Issue #225). These tests keep each entry of the PyO3
 crate reaching the kernel and saying the Python rule's text: `ResourceServiceManager.complete`,
-`ResourceServiceCancellationHandler.apply`, `interrupt_for_staff`, `request`, the toilet
-completion's and the ledger handler's wraps, and the propose step's request at once (whose inputs
-the core reads inside its tick). The kernel must raise the class and text the Python rule raised
-there itself (not a refusal) and leave the world as it was, or, for a request, write what the
-Python rule wrote (docs/rust-port/lanes/l8-texts-events.md). These rules have no Python rule left
-(lane L10, `kernel_only`): the texts below were the Python rules'.
+`ResourceServiceCancellationHandler.apply`, `interrupt_for_staff`, `request`, and the toilet
+completion's and the ledger handler's wraps. The kernel must raise the class and text the Python
+rule raised there itself (not a refusal) and leave the world as it was, or, for a request, write
+what the Python rule wrote (docs/rust-port/lanes/l8-texts-events.md). These rules have no Python
+rule left (lane L10, `kernel_only`): the texts below were the Python rules'. The propose step's
+request at once the queue turns down is tested in native/core/tests/requests_at_once.rs.
 """
 
 from __future__ import annotations
 
 import copy
 import sys
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from support.world import NATIVE_OUTCOME, world_digest
+from support.core_fixtures_service import place_at, restrict_water
+from support.world import NATIVE_OUTCOME
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine
 from sheltersim.core.world import WorldState
-from sheltersim.domain.models import Activity
 from sheltersim.domain.resource_service import ResourceServiceManager
 from sheltersim.events.handlers import (
     ResourceLedgerHandler,
@@ -41,7 +40,6 @@ from sheltersim.events.models import (
 from sheltersim.experiments.metrics import MetricsRecorder
 from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.timeline import _MetricSink
-from sheltersim.policies.behavior import ActionKind
 
 SERVICE = "resource_service_v1"
 LEDGER = "resource_ledger_v1"
@@ -218,34 +216,15 @@ def _took_a_task_id(state: WorldState) -> None:
 def _restricted(scenario: Any) -> WorldState:
     """The split water station's two points need a tag nobody has."""
     document = scenario.model_dump(mode="json")
-    for point in document["model_configs"]["facility_geometry"]["service_points"]:
-        if point["facility_id"] == "water_station_main":
-            point["access"] = {
-                **point["access"],
-                "accessibility": "restricted",
-                "required_access_tags": ["staff_key"],
-            }
+    restrict_water(document)
     return WorldState.from_scenario(type(scenario).model_validate(document))
-
-
-def _place_at(world: WorldState, agent_id: str, facility_id: str) -> None:
-    from sheltersim.domain.agent_dynamics import learn_facility
-    from sheltersim.domain.movement import MOVEMENT_STATE_KEY
-
-    facility = world.facilities[facility_id]
-    world.agents[agent_id].zone_id = facility.zone_id
-    state = world.model_state.get(MOVEMENT_STATE_KEY)
-    if state is not None:
-        state["positions"][agent_id]["zone_id"] = facility.zone_id
-    if "agent_dynamics_v1" in world.model_state:
-        learn_facility(world, agent_id, facility_id)
 
 
 def test_no_open_independent_queue_is_python_s_refusal(
     generated_scenario_with_split_queues: Any,
 ) -> None:
     world = _restricted(generated_scenario_with_split_queues)
-    _place_at(world, "A001", "water_station_main")
+    place_at(world, "A001", "water_station_main")
     assert not world.active_tasks
     _request_says(
         world,
@@ -259,50 +238,6 @@ def test_no_open_independent_queue_is_python_s_refusal(
 
 def _controller(world: WorldState) -> OfflineSimulationController:
     return OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
-
-
-@pytest.mark.parametrize(
-    ("why", "digest"),
-    [
-        ("queue", "3a9569d6ad20ffc0"),
-        ("active", "4a025222d590125b"),
-        ("exclusive", "8074303070235945"),
-    ],
-)
-def test_a_request_at_once_the_queue_turns_down_keeps_python_s_text(
-    generated_scenario_with_split_queues: Any, why: str, digest: str
-) -> None:
-    """The propose step records `str(exc)` as the request's detail, and counts the rejection: the
-    world of the Python step (`world_digest`, recorded from it on 45a9bc9 before it went)."""
-    world = _restricted(generated_scenario_with_split_queues)
-    _place_at(world, "A001", "water_station_main")
-    texts = {
-        "queue": "no accessible independent resource service queue is available",
-        "active": "Agent 'A001' cannot request resource service while active",
-        "exclusive": "Agent 'A001' already has an exclusive task",
-    }
-    if why == "active":
-        world = WorldState.from_scenario(generated_scenario_with_split_queues)
-        _place_at(world, "A001", "water_station_main")
-        world.agents["A001"].activity = Activity.SEEKING_HELP
-    elif why == "exclusive":
-        world = WorldState.from_scenario(generated_scenario_with_split_queues)
-        _place_at(world, "A001", "water_station_main")
-        world.facilities["toilet_01"].queue_agent_ids.append("A001")
-    proposal = SimpleNamespace(
-        action=ActionKind.FETCH_WATER,
-        agent_id="A001",
-        next_decision_at=world.minute_index + 7,
-        target_id=None,
-    )
-    result = native.rules("proposals").apply_effect(_controller(world), proposal)
-    assert list(result) == [None, 7, False]
-    history = world.model_state[SERVICE]["request_history"]
-    assert history[-1]["outcome"] == "rejected"
-    assert history[-1]["reason"] == "request_rejected"
-    assert history[-1]["detail"] == texts[why]
-    assert world.metric_state["resource_service_request_rejected_count"] == 1.0
-    assert world_digest(world) == digest
 
 
 # ---- The wraps: a toilet visit's completion, and the ledger --------------------------------------

@@ -1,6 +1,6 @@
 //! A world of a fixture file, its Run and its host, for the tests that call one step of a phase on
-//! it (Issue #225, lane M6): the service, travel and staff steps and `_apply_effect`
-//! (`propose::apply_alone`).
+//! it (Issue #225, lane M6): the service, travel and staff steps, `_route` (`route`) and
+//! `_apply_effect` (`apply`, through `propose::apply_alone`).
 //!
 //! `Case::of` loads a world of a file (`cases::entry`, which makes a variant again) with its Run
 //! (`load::loaded`) and a host that follows the world (`load::following_host`: the floor plan of the
@@ -13,8 +13,16 @@
 
 use std::rc::Rc;
 
+use std::sync::Arc;
+
 use serde_json::Value;
-use sheltersim_core::rules::tick::Tick;
+use sheltersim_core::config::movement::Movement;
+use sheltersim_core::config::SectionId;
+use sheltersim_core::error::Error;
+use sheltersim_core::routes::Route;
+use sheltersim_core::rules::proposals::{Action, Applied, Proposal};
+use sheltersim_core::rules::tick::{propose, Tick};
+use sheltersim_core::rules::travel::{self, Routing};
 use sheltersim_core::world::WorldCell;
 
 use super::load::{self, Loaded};
@@ -52,6 +60,35 @@ impl Case {
             neighbors: loaded.neighbors.clone(),
         };
         f(&mut tick)
+    }
+
+    /// The world's minute.
+    pub fn minute(&self) -> i64 {
+        self.loaded.cell.with(|world| world.minute_index().unwrap()).unwrap()
+    }
+
+    /// `_apply_effect` of a proposal as the pytest files made it (`SimpleNamespace`, no observed
+    /// state hash): the next decision 7 minutes on (`propose::apply_alone`).
+    pub fn apply(&mut self, action: Action, agent: &str, target: Option<&str>) -> Result<Applied, Error> {
+        let proposal = Proposal { action, agent_id: Arc::from(agent), next_decision_at: self.minute() + 7, target_id: target.map(Arc::from), observed_state_hash: None };
+        self.tick(|tick| propose::apply_alone(tick, proposal))
+    }
+
+    /// The controller's `_route`, on the Run's people's graph (its capacities, and the floor plan
+    /// and movement section of the world now).
+    pub fn route(&mut self, origin: &str, destination: &str, agent: &str) -> Option<Route> {
+        self.tick(|tick| {
+            let graph = propose::graph(tick).unwrap();
+            let holding = tick.holding().unwrap();
+            let section = tick.value_section(&holding, SectionId::Movement, |configs| &configs.movement, Movement::parse).unwrap();
+            let staff = holding.held("staff_operations_v1", "the world holds another document than the row's");
+            let plan = tick.plan();
+            let routing = Routing { graph: &graph, geo: plan.get(), movement: &section, staff: &staff };
+            match tick.cell.with(|world| travel::route(world, &routing, &Arc::from(origin), &Arc::from(destination), agent)).unwrap() {
+                Ok(route) => route,
+                Err(error) => panic!("{error:?}"),
+            }
+        })
     }
 
     /// `WorldState.canonical_json()` of the world now.
@@ -112,6 +149,16 @@ pub fn row_mut<'a>(doc: &'a mut Value, table: &str, id: &str) -> &'a mut Value {
 /// The inputs a fixture file's builder wrote down for a test (`inputs[name]`).
 pub fn inputs(file: &str, name: &str) -> Value {
     load::data(file)["inputs"].get(name).unwrap_or_else(|| panic!("{file} has no inputs {name}")).clone()
+}
+
+/// `(target_id, next_decision_at, committed)` of `_apply_effect`.
+pub fn applied(target: Option<&str>, next_decision_at: i64, committed: bool) -> Applied {
+    Applied { target: target.map(Arc::from), next_decision_at, committed }
+}
+
+/// The digests of a test's steps, a line each, as one digest.
+pub fn chained(lines: &[String]) -> String {
+    super::texts::sha(&lines.join("\n"))[..16].to_owned()
 }
 
 /// A str of a JSON value.

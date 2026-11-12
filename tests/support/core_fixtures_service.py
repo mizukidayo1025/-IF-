@@ -29,6 +29,8 @@ from __future__ import annotations
 import copy
 import json
 import random
+import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -418,7 +420,9 @@ def _service_worlds(made: _Worlds) -> None:
         facility, agent_id = _at_service(world, kind)
         _free_all_staff(world, facility)
         made.inputs[f"at_{kind}"] = {
-            "world": made.add(f"at_{kind}", world, edit=lambda entry, w=world: _manager_config(entry, w)),
+            "world": made.add(
+                f"at_{kind}", world, edit=lambda entry, w=world: _manager_config(entry, w)
+            ),
             "agent": agent_id,
             "facility": facility.id,
         }
@@ -446,7 +450,9 @@ def _service_worlds(made: _Worlds) -> None:
                 "target_kind": "facility",
                 "target_id": facility.id,
             }
-        name = made.add(f"waits_{reason}", world, edit=lambda entry, w=world: _manager_config(entry, w))
+        name = made.add(
+            f"waits_{reason}", world, edit=lambda entry, w=world: _manager_config(entry, w)
+        )
         waits[reason] = {"world": name, "agent": agent_id, "facility": facility.id}
     made.inputs["each_wait"] = waits
 
@@ -454,7 +460,9 @@ def _service_worlds(made: _Worlds) -> None:
     facility, agent_id = _at_service(world)
     world.model_state["resource_ledger_v1"]["used_reservation_ids"].append(f"queue-task-{agent_id}")
     made.inputs["taken_reservation_id"] = {
-        "world": made.add("reservation_taken", world, edit=lambda entry: _manager_config(entry, world)),
+        "world": made.add(
+            "reservation_taken", world, edit=lambda entry: _manager_config(entry, world)
+        ),
         "agent": agent_id,
         "facility": facility.id,
     }
@@ -519,8 +527,12 @@ def _service_worlds(made: _Worlds) -> None:
                 continue
         else:
             world.agents[agent_id].activity = Activity.MOVING
-        name = made.add(f"request_{change}", world, edit=lambda entry, w=world: _manager_config(entry, w))
-        refused.append({"world": name, "agent": agent_id, "facility": facility.id, "change": change})
+        name = made.add(
+            f"request_{change}", world, edit=lambda entry, w=world: _manager_config(entry, w)
+        )
+        refused.append(
+            {"world": name, "agent": agent_id, "facility": facility.id, "change": change}
+        )
     made.inputs["request_refused"] = refused
 
 
@@ -530,4 +542,750 @@ def service_rules_fixture() -> dict[str, Any]:
     _effect_worlds(made)
     _travel_worlds(made)
     _service_worlds(made)
+    return made.document()
+
+
+# ---- The requests at once (generated_texts.json and staff_assignment.json) ----------------------
+
+
+def place_at(world: Any, agent_id: str, facility_id: str) -> None:
+    """In the facility's zone, and knowing it, as the pytest files of the requests at once place
+    people."""
+    from sheltersim.domain.agent_dynamics import learn_facility
+    from sheltersim.domain.movement import MOVEMENT_STATE_KEY
+
+    facility = world.facilities[facility_id]
+    world.agents[agent_id].zone_id = facility.zone_id
+    state = world.model_state.get(MOVEMENT_STATE_KEY)
+    if state is not None:
+        state["positions"][agent_id]["zone_id"] = facility.zone_id
+    if "agent_dynamics_v1" in world.model_state:
+        learn_facility(world, agent_id, facility_id)
+
+
+def facility_of(world: Any, word: str) -> str:
+    return next(key for key, item in world.facilities.items() if word in item.kind.casefold())
+
+
+def _scenario_world(change: Any = None) -> Any:
+    """The generated Scenario at minute 0, its document changed by `change`."""
+    from sheltersim.core.world import WorldState
+    from sheltersim.experiments.scenario import ScenarioSpec
+    from support.core_fixtures_texts import _generated_scenario
+
+    scenario = _generated_scenario()
+    if change is None:
+        return WorldState.from_scenario(scenario)
+    document = scenario.model_dump(mode="json")
+    change(document)
+    return WorldState.from_scenario(ScenarioSpec.model_validate(document))
+
+
+def _split(document: dict[str, Any]) -> None:
+    from support.core_typed_rows import _split_queues
+
+    _split_queues(document)
+
+
+def _own_queues(document: dict[str, Any]) -> None:
+    document["model_configs"].pop("facility_queues", None)
+    document["model_configs"]["facility_geometry"]["service_points"] = []
+
+
+def restrict_water(document: dict[str, Any]) -> None:
+    """The split water station's two points need a tag nobody has (`_restricted` of
+    test_resource_service_texts.py)."""
+    for point in document["model_configs"]["facility_geometry"]["service_points"]:
+        if point["facility_id"] == "water_station_main":
+            point["access"] = {
+                **point["access"],
+                "accessibility": "restricted",
+                "required_access_tags": ["staff_key"],
+            }
+
+
+def at_once_worlds(generated: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The worlds of the requests at once on the generated Scenario at minute 0, as variants of
+    `generated` (the entry of `generated_texts.json`), and their inputs. Each world is exported
+    with a controller made after the test's edits, as the pytest made it."""
+    from sheltersim.domain.models import Activity
+
+    fixture = Fixture()
+    fixture.add("generated", generated, full=True)
+    inputs: dict[str, Any] = {}
+
+    def add(name: str, world: Any, edit: Any = None) -> str:
+        entry = export_world(world, _controller(world), validate=False)
+        return fixture.add(name, edit(entry) if edit else entry)
+
+    world = _scenario_world(_split)
+    place_at(world, "A001", "toilet_01")
+    inputs["toilet_at_an_independent_queue"] = {"world": add("split_at_toilet", world)}
+
+    water = []
+    for why in ("plain", "moving"):
+        world = _scenario_world(_split)
+        facility_id = facility_of(world, "water")
+        place_at(world, "A001", facility_id)
+        if why == "moving":
+            world.agents["A001"].activity = Activity.MOVING
+        water.append(add(f"split_at_water_{why}", world))
+    inputs["service_at_an_independent_queue"] = {"world": water[0], "facility": facility_id}
+    inputs["service_turns_down"] = {"world": water[1]}
+
+    at_point = {}
+    for word in ("toilet", "water", "meal"):
+        world = _scenario_world(_own_queues)
+        facility_id = facility_of(world, word)
+        place_at(world, "A001", facility_id)
+        point = world.model_configs["facility_geometry"]["facility_points"][facility_id]
+        world.model_state["movement_v1"]["positions"]["A001"]["point"] = dict(point)
+        at_point[word] = {"world": add(f"own_queues_at_{word}", world), "facility": facility_id}
+    inputs["at_the_point_asks_at_once"] = at_point
+
+    world = _scenario_world()
+
+    def no_service(entry: dict[str, Any]) -> dict[str, Any]:
+        return _service_attr(entry, "resource_service", "", None)
+
+    inputs["no_service"] = {"world": add("no_resource_service", world, no_service)}
+
+    world = _scenario_world()
+    world.minute_index = world.duration_minutes - 1
+    last = add("last_minute", world)
+    world.agents["A001"].support_cooldown_until = world.duration_minutes + 5
+    inputs["last_minute"] = {"world": last, "cooldown": add("last_minute_cooldown", world)}
+
+    # The request at once the queue turns down (test_resource_service_texts.py).
+    turned = {}
+    world = _scenario_world(lambda document: (_split(document), restrict_water(document)))
+    place_at(world, "A001", "water_station_main")
+    turned["queue"] = add("restricted_at_water", world)
+    world = _scenario_world(_split)
+    place_at(world, "A001", "water_station_main")
+    world.agents["A001"].activity = Activity.SEEKING_HELP
+    turned["active"] = add("split_at_water_seeking", world)
+    world = _scenario_world(_split)
+    place_at(world, "A001", "water_station_main")
+    world.facilities["toilet_01"].queue_agent_ids.append("A001")
+    turned["exclusive"] = add("split_at_water_queued", world)
+    inputs["queue_turns_down"] = turned
+
+    # Having arrived: three people asked the toilet's queue, and someone at an independent queue.
+    world = _scenario_world(_own_queues)
+    controller = _controller(world)
+    people = ["A001", "A002", "A003"]
+    for agent_id in people:
+        place_at(world, agent_id, "toilet_01")
+        controller.toilet_service.request(agent_id, "toilet_01", validate_state=False)
+    point = world.model_configs["facility_geometry"]["facility_points"]["toilet_01"]
+    inputs["arrived_at_a_slot"] = {
+        "world": fixture.add("own_queues_asked", export_world(world, controller, validate=False)),
+        "people": people,
+        "point": dict(point),
+    }
+    world = _scenario_world(_split)
+    controller = _controller(world)
+    place_at(world, "A001", "toilet_01")
+    queues = world.model_state["facility_queues_v1"]["queues"]
+    queue_id = min(key for key, row in queues.items() if row["facility_id"] == "toilet_01")
+    controller.toilet_service.request("A001", "toilet_01", queue_id=queue_id, validate_state=False)
+    inputs["arrived_with_an_independent_queue"] = {
+        "world": fixture.add("split_asked", export_world(world, controller, validate=False)),
+        "queue": queue_id,
+        "point": queues[queue_id]["service_point_id"],
+    }
+    worlds = {name: item for name, item in fixture.worlds.items() if name != "generated"}
+    return worlds, json.loads(json.dumps(inputs))
+
+
+# ---- staff_assignment.json ----------------------------------------------------------------------
+#
+# The worlds of test_staff_assignment.py, which imports these builders.
+
+
+def staff_document(
+    *,
+    staff: list[dict[str, Any]] | None = None,
+    duration: int = 200,
+    configs: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """`scenario_100_agents.json` with no scheduled events, the staff and the configs given."""
+    from sheltersim.experiments.scenario import ScenarioSpec
+    from support.paths import SCENARIO_100_AGENTS
+
+    document = ScenarioSpec.load(SCENARIO_100_AGENTS).model_dump(mode="json")
+    document["duration_minutes"] = duration
+    document["scheduled_events"] = []
+    if staff is not None:
+        document["staff"] = staff
+    document["model_configs"]["staff_operations"] = {}
+    document["model_configs"]["staff_dynamics"] = {}
+    document["model_configs"]["shared_operations"] = {
+        "schema_version": 1,
+        "policy_version": "shared-operations-v1",
+    }
+    document["model_configs"].update(configs or {})
+    return document
+
+
+def staff_world(**options: Any) -> Any:
+    """The world of `staff_document`, with the simulator's extensions."""
+    from sheltersim.core.world import WorldState
+    from sheltersim.domain.simulator_state import initialize_simulator_extensions
+    from sheltersim.experiments.scenario import ScenarioSpec
+
+    world = WorldState.from_scenario(ScenarioSpec.model_validate(staff_document(**options)))
+    initialize_simulator_extensions(world)
+    return world
+
+
+def routing(capacities: dict[str, int]) -> dict[str, Any]:
+    """A `layout_routing` config of these edge capacities."""
+    return {
+        "schema_version": 1,
+        "source_type": "assumption",
+        "source_id": "ASM-A05-ROUTE-EDIT-V1",
+        "max_agents_in_transit_by_edge": capacities,
+    }
+
+
+def member(name: str, zone: str, *skills: str) -> dict[str, Any]:
+    return {"id": name, "zone_id": zone, "skills": list(skills)}
+
+
+def router_of(world: Any, capacities: dict[str, int] | None = None) -> Any:
+    """The `SpaceRouter` of the world's tables a test gives `assign_staff_operations`."""
+    from sheltersim.domain.zones import ZoneGraph
+    from sheltersim.policies.space import SpaceRouter
+
+    if capacities is None:
+        return SpaceRouter(ZoneGraph.from_states(world.zones, world.zone_edges))
+    graph = ZoneGraph.from_states(world.zones, world.zone_edges, edge_capacities=capacities)
+    return SpaceRouter(graph)
+
+
+def spread(world: Any, zone: str, stress: float) -> None:
+    for agent in world.agents.values():
+        agent.zone_id = zone
+        agent.stress = stress
+
+
+def pending_request(world: Any, number: int, agent_id: str, minute: int = 0) -> Any:
+    from sheltersim.domain.models import SupportRequestState
+
+    request = SupportRequestState(
+        id=f"support-{number}",
+        agent_id=agent_id,
+        requested_minute=minute,
+        timeout_minute=minute + 90,
+    )
+    world.support_requests[request.id] = request
+    return request
+
+
+def trip_event(world: Any, edge_id: str) -> Any:
+    """A trip of nobody under way on the edge until the run's last minute."""
+    from sheltersim.events.models import EventKind, ScheduledEvent
+
+    sequence = world.allocate_event_sequence()
+    return ScheduledEvent(
+        event_id=f"agent-travel-complete-{sequence}",
+        kind=EventKind.COMPLETION,
+        due_minute=world.duration_minutes - 1,
+        priority=0,
+        sequence=sequence,
+        event_type="agent_travel_complete",
+        payload={"agent_id": "nobody", "task_id": "none", "route_edge_ids": [edge_id]},
+        source_id="test",
+        provenance={"source_type": "assumption", "source_id": "test"},
+    )
+
+
+def capacity_controller(root: Any, name: str, capacity: int = 1) -> Any:
+    """A controller writing a Run's artifacts, whose Run has this capacity on every edge."""
+    from sheltersim.core.engine import TraceLevel
+    from sheltersim.core.world import WorldState
+    from sheltersim.experiments.runner import OfflineSimulationController
+    from sheltersim.experiments.scenario import ScenarioSpec
+    from sheltersim.inspection.traces import RunArtifactWriter
+
+    document = staff_document(staff=[member("S01", "toilet", "support")])
+    edges = [edge["id"] for edge in document["zone_edges"]]
+    document["model_configs"]["layout_routing"] = routing({edge: capacity for edge in edges})
+    scenario = ScenarioSpec.model_validate(document)
+    world = WorldState.from_scenario(scenario)
+    artifacts = RunArtifactWriter(scenario, Path(root) / name, trace_level=TraceLevel.OFF)
+    artifacts.write_initial(world, execution_mode="offline")
+    return OfflineSimulationController(world, artifacts)
+
+
+def on_a_task() -> Any:
+    """Four on staff, S01 at a cleaning task its shift ends during."""
+    from sheltersim.domain.staff_operations import assign_staff_operations
+
+    world = staff_world(
+        duration=40,
+        staff=[
+            member("S01", "toilet", "cleaning"),
+            member("S02", "toilet", "sanitation"),
+            member("S03", "toilet", "sanitation"),
+            member("S04", "sleeping", "cleaning"),
+        ],
+        configs={
+            "staff_dynamics": {
+                "shift_windows_by_staff": {
+                    "S01": [{"start_minute": 0, "end_minute": 2}],
+                    "S02": [{"start_minute": 2, "end_minute": 40}],
+                    "S03": [{"start_minute": 2, "end_minute": 40}],
+                    "S04": [{"start_minute": 2, "end_minute": 40}],
+                }
+            },
+            "staff_operations": {
+                "task_duration_minutes": {
+                    "cleaning": 8,
+                    "maintenance": 8,
+                    "information_outreach": 8,
+                    "intake": 8,
+                    "patrol": 8,
+                }
+            },
+        },
+    )
+    world.model_state["staff_operations_v1"]["zones"]["toilet"]["sanitation"] = 0.5
+    assert assign_staff_operations(world, 0, router_of(world))
+    return world
+
+
+def _graph_of(router: Any) -> dict[str, Any]:
+    """The graph of a `SpaceRouter` as the PyO3 entry reads it (`read_graph`)."""
+    graph = router.graph
+    return {
+        "zones": list(graph.zones),
+        "edges": [
+            {
+                "id": edge.id,
+                "from": edge.from_zone_id,
+                "to": edge.to_zone_id,
+                "minutes": edge.travel_minutes,
+                "closed": edge.closed,
+                "capacity": edge.max_agents_in_transit,
+            }
+            for edge in graph.edges
+        ],
+    }
+
+
+class _StaffWorlds:
+    """The worlds of `staff_assignment.json`. A world the pytest made without a controller has the
+    Run of the first world's controller (`load::loaded` reads a Run; the steps called on such a
+    world, `assign_operations`, `relief` and the wait snapshot, read none of it)."""
+
+    def __init__(self) -> None:
+        self.fixture = Fixture()
+        self.inputs: dict[str, Any] = {}
+        world = staff_world()
+        self.run = export_world(world, _controller(world))["run"]
+
+    def add(self, name: str, world: Any, controller: Any = None, edit: Any = None) -> str:
+        entry = export_world(world, controller, validate=False)
+        if controller is None:
+            entry["run"] = copy.deepcopy(self.run)
+        if edit is not None:
+            entry = edit(entry)
+        return self.fixture.add(name, entry, full=not self.fixture.entries)
+
+    def assigned(self, name: str, world: Any, minute: int, router: Any = None) -> dict[str, Any]:
+        """A world `assign_staff_operations` is given, with its minute and router."""
+        return {
+            "world": self.add(name, world),
+            "minute": minute,
+            "router": _graph_of(router or router_of(world)),
+        }
+
+    def document(self) -> dict[str, Any]:
+        return {"worlds": self.fixture.worlds, "inputs": json.loads(json.dumps(self.inputs))}
+
+
+def _assign_worlds(made: _StaffWorlds) -> None:
+    """`assign_staff_operations`'s worlds, by the label of the pytest's call."""
+    key = "staff_operations_v1"
+    calls: dict[str, Any] = {}
+    for policy in (None, "staff-urgency-first-v1", "staff-travel-first-v1"):
+        configs: dict[str, Any] = {}
+        if policy is not None:
+            configs["policy_registry"] = {"schema_version": 2, "staff_operations": policy}
+        world = staff_world(
+            staff=[
+                member("S01", "toilet", "cleaning", "patrol", "maintenance"),
+                member("S02", "sleeping", "cleaning", "support"),
+                member("S03", "toilet", "repair"),
+            ],
+            configs=configs,
+        )
+        for zone, record in world.model_state[key]["zones"].items():
+            record["sanitation"] = 0.5 if zone == "toilet" else 0.7
+        spread(world, "sleeping", 0.8)
+        facility = sorted(world.facilities)[0]
+        world.facilities[facility].working_units = world.facilities[facility].capacity - 1
+        calls[f"ranks.{policy}"] = made.assigned(f"ranks.{policy}", world, 0)
+
+    world = staff_world(
+        staff=[member("S01", "toilet", "cleaning")],
+        configs={
+            "staff_operations": {"thresholds_by_zone": {"toilet": {"cleaning_sanitation_below": 1}}}
+        },
+    )
+    world.model_state[key]["zones"]["toilet"]["sanitation"] = 0.99
+    calls["zone_threshold"] = made.assigned("zone_threshold", world, 0)
+
+    for fatigue in (0.0005, 0.0015, 0.0025, 0.001):
+        world = staff_world(staff=[member(f"S{n}", "toilet", "patrol") for n in range(3)])
+        spread(world, "toilet", 0.9)
+        state = world.model_state["staff_dynamics_v1"]["staff"]
+        state["S0"]["fatigue"] = fatigue
+        state["S1"]["fatigue"] = 0.0005
+        calls[f"rotation.{fatigue}"] = made.assigned(f"rotation.{fatigue}", world, 0)
+
+    for sanitation in (0.598, 0.602):
+        world = staff_world(staff=[member("S01", "toilet", "cleaning", "patrol")])
+        spread(world, "toilet", 0.8)
+        for zone, record in world.model_state[key]["zones"].items():
+            record["sanitation"] = sanitation if zone == "toilet" else 1.0
+        calls[f"patrol_urgency.{sanitation}"] = made.assigned(
+            f"patrol_urgency.{sanitation}", world, 0
+        )
+
+    world = staff_world(staff=[member(f"S{n}", "toilet", "patrol") for n in range(2)], duration=400)
+    spread(world, "toilet", 0.9)
+    world.minute_index = 300
+    entry = {
+        "task_id": "old",
+        "task_kind": "patrol",
+        "target_id": None,
+        "target_zone_id": "toilet",
+        "reason": "r",
+        "status": "completed",
+        "start_minute": 0,
+        "arrival_minute": 0,
+        "travel_minutes": 0,
+        "causation_event_ids": [],
+    }
+    history = world.model_state[key]["history"]
+    history.append({**entry, "staff_id": "S0", "complete_minute": 60})
+    history.append({**entry, "staff_id": "S1", "complete_minute": 59})
+    calls["recent_work"] = made.assigned("recent_work", world, 300)
+
+    world = staff_world(staff=[member(f"S{n}", "toilet", "patrol") for n in range(2)])
+    spread(world, "toilet", 0.9)
+    state = world.model_state["staff_dynamics_v1"]["staff"]
+    state["S0"]["fatigue"] = 0.0504
+    state["S1"]["fatigue"] = 0.0498
+    calls["fatigue_rounds"] = made.assigned("fatigue_rounds", world, 0)
+
+    for label, policy in (
+        ("travel_first", "staff-travel-first-v1"),
+        ("urgency_first", "staff-urgency-first-v1"),
+    ):
+        world = staff_world(
+            staff=[member("S01", "toilet", "cleaning")],
+            configs={"policy_registry": {"schema_version": 2, "staff_operations": policy}},
+        )
+        for zone, record in world.model_state[key]["zones"].items():
+            record["sanitation"] = 0.8 if zone == "toilet" else 0.2
+        calls[label] = made.assigned(label, world, 0)
+
+    world = staff_world(staff=[member("S01", "toilet", "cleaning", "patrol")])
+    spread(world, "toilet", 0.8)
+    for zone, record in world.model_state[key]["zones"].items():
+        record["sanitation"] = 0.6 if zone == "toilet" else 1.0
+    calls["equal_ranks"] = made.assigned("equal_ranks", world, 0)
+
+    world = staff_world(
+        staff=[member("S01", "toilet", "cleaning")],
+        configs={
+            "staff_operations": {
+                "thresholds_by_zone": {"toilet": {"cleaning_sanitation_below": 0.00001}}
+            }
+        },
+    )
+    for zone, record in world.model_state[key]["zones"].items():
+        record["sanitation"] = 0.0 if zone == "toilet" else 1.0
+    calls["small_threshold"] = made.assigned("small_threshold", world, 0)
+
+    world = staff_world(
+        staff=[member("S01", "toilet", "patrol"), member("S02", "toilet", "patrol")],
+        configs={"layout_routing": routing({})},
+    )
+    spread(world, "sleeping", 0.9)
+    router = router_of(world, {edge: 1 for edge in world.zone_edges})
+    calls["full_passage"] = made.assigned("full_passage", world, 0, router)
+
+    world = staff_world(staff=[member(f"S{n}", "toilet", "patrol") for n in range(3)])
+    spread(world, "sleeping", 0.9)
+    calls["passage_loads"] = made.assigned("passage_loads", world, 0)
+
+    world = staff_world(
+        duration=3000,
+        staff=[member("S01", "corridor", "patrol"), member("S09", "sleeping", "cleaning")],
+    )
+    spread(world, "toilet", 0.9)
+    for edge in ("sleeping_corridor", "corridor_toilet"):
+        world.zone_edges[edge].travel_minutes = 500
+    world.minute_index = 496
+    world.staff["S09"].active_task_id = "walking"
+    state = world.model_state[key]["staff"]
+    state["S09"] = {
+        **state["S09"],
+        "phase": "travel",
+        "task_id": "walking",
+        "task_kind": "cleaning",
+        "target_zone_id": "toilet",
+        "reason": "r",
+        "started_minute": 0,
+        "travel_due_minute": 1000,
+        "due_minute": 1010,
+        "route_zone_ids": ["sleeping", "corridor", "toilet"],
+        "route_edge_ids": ["sleeping_corridor", "corridor_toilet"],
+        "travel_minutes": 1000,
+    }
+    router = router_of(world, {"corridor_toilet": 1})
+    calls["trip_under_way"] = made.assigned("trip_under_way", world, 496, router)
+    made.inputs["assign_operations"] = calls
+
+    world = on_a_task()
+    made.inputs["on_a_task"] = {"world": made.add("on_a_task", world)}
+    world.minute_index = 1
+    made.inputs["relief"] = {"world": made.add("on_a_task_at_1", world)}
+    world.model_state["staff_dynamics_v1"]["staff"]["S02"]["fatigue"] = 0.5
+    made.inputs["relief_least_work"] = {"world": made.add("on_a_task_s02_tired", world)}
+    world = on_a_task()
+    world.model_state[key]["staff"]["S01"]["due_minute"] = 2
+    world.minute_index = 1
+    made.inputs["no_relief_near_the_end"] = {"world": made.add("on_a_task_due_2", world)}
+
+
+def _support(world: Any, zone: str = "sleeping") -> list[str]:
+    """Everyone in the zone; the first person's pending request."""
+    people = sorted(world.agents)
+    for agent in world.agents.values():
+        agent.zone_id = zone
+    pending_request(world, 1, people[0])
+    return people
+
+
+def _wait_worlds(made: _StaffWorlds) -> None:
+    """The worlds of `_support_wait_snapshot`, by test, each with the reasons the pytest checks."""
+    from sheltersim.domain.models import Activity
+
+    support = [member("S01", "toilet", "support")]
+    waits: dict[str, Any] = {}
+    world = staff_world(staff=support, duration=200)
+    _support(world)
+    steps = [made.add("waits_not_attempted", world)]
+    world.metric_state["support_assignment_metrics_minute"] = 0.0
+    steps.append(made.add("waits_not_recorded", world))
+    request = world.support_requests["support-1"]
+    request.last_assignment_attempt_minute = 0
+    steps.append(made.add("waits_attempted", world))
+    request.last_assignment_wait_reason_code = "route_unavailable_at_assignment"
+    steps.append(made.add("waits_recorded", world))
+    waits["free_worker"] = steps
+
+    world = staff_world(staff=support, duration=3)
+    _support(world)
+    waits["past_the_end"] = made.add("waits_short_run", world)
+
+    route = router_of(staff_world(staff=support)).route("sleeping", "toilet")
+    last = route.travel_minutes + 10
+    ends = []
+    for duration, too_late in ((last, True), (last + 1, False)):
+        world = staff_world(staff=support, duration=duration)
+        _support(world)
+        ends.append([made.add(f"waits_run_of_{duration}", world), too_late])
+    waits["ends_exactly"] = ends
+
+    world = staff_world(staff=support)
+    people = sorted(world.agents)
+    for agent in world.agents.values():
+        agent.zone_id = "sleeping"
+    world.agents[people[1]].zone_id = "toilet"
+    world.agents[people[2]].activity = Activity.MOVING
+    world.agents[people[2]].target_id = "toilet"
+    pending_request(world, 1, people[0])
+    full = []
+    for capacity in (2, 3):
+        world.zones["toilet"].capacity = capacity
+        full.append(made.add(f"waits_toilet_holds_{capacity}", world))
+    waits["full_destination"] = full
+
+    world = staff_world(staff=support)
+    _support(world)
+    world.zones["toilet"].capacity = 0
+    steps = [made.add("waits_toilet_full", world)]
+    world.zones["toilet"].capacity = None
+    world.model_configs["layout_routing"] = routing({edge: 1 for edge in world.zone_edges})
+    for edge in world.zone_edges.values():
+        world.schedule_event(trip_event(world, edge.id))
+    steps.append(made.add("waits_passages_full", world))
+    for edge in world.zone_edges.values():
+        edge.closed = True
+    steps.append(made.add("waits_passages_closed", world))
+    waits["full_passage"] = steps
+    made.inputs["waits"] = waits
+    made.inputs["many_worlds"] = _many_worlds(made)
+
+
+def _many_worlds(made: _StaffWorlds) -> dict[str, Any]:
+    """`test_many_worlds_read_the_same_reasons_with_free_and_busy_workers`: the draws of its
+    `random.Random(2615)`. A world is its base (the staff's zones and the run's length: the
+    worlds the extensions start from) and what the test set after: the people's zones (`t` for
+    the toilet, `s` for sleeping, in ID order), the busy staff, the requests' rows, the metric and
+    a zone's capacity. The builder checks that these make the world the test made."""
+    generator = random.Random(2615)
+    worlds = []
+    for _ in range(120):
+        staff = [
+            member("S01", generator.choice(["toilet", "sleeping"]), "support"),
+            member("S02", generator.choice(["toilet", "sleeping"]), "medical"),
+            member("S03", generator.choice(["toilet", "sleeping"]), "support", "nursing"),
+        ]
+        duration = generator.choice([3, 5, 200])
+        world = staff_world(staff=staff, duration=duration)
+        base_name = "many_" + "".join(item["zone_id"][0] for item in staff) + f"_{duration}"
+        base = made.add(base_name, world)
+        before = json.loads(world._canonical_text(world._canonical_data()))
+        for agent in world.agents.values():
+            agent.zone_id = generator.choice(["toilet", "sleeping"])
+        for person in world.staff.values():
+            if generator.random() < 0.4:
+                person.active_task_id = "busy"
+        people = sorted(world.agents)
+        for number in range(4):
+            request = pending_request(world, number, people[number])
+            if generator.random() < 0.3:
+                request.last_assignment_attempt_minute = 0
+                request.last_assignment_wait_reason_code = generator.choice(
+                    [None, "", "insufficient_run_time"]
+                )
+        metric = generator.random() < 0.5
+        if metric:
+            world.metric_state["support_assignment_metrics_minute"] = 0.0
+        capacity = None
+        if generator.random() < 0.3:
+            capacity = [generator.choice(sorted(world.zones)), generator.choice([0, 1, 300])]
+            world.zones[capacity[0]].capacity = capacity[1]
+        after = json.loads(world._canonical_text(world._canonical_data()))
+        drawn = {
+            "base": base,
+            "zones": "".join(after_agent["zone_id"][0] for after_agent in after["agents"]),
+            "busy": [row["id"] for row in after["staff"] if row["active_task_id"] == "busy"],
+            "requests": after["support_requests"],
+            "metric": metric,
+            "capacity": capacity,
+        }
+        assert _drawn_world(before, drawn) == after
+        worlds.append(drawn)
+    return {"worlds": worlds}
+
+
+def _drawn_world(document: dict[str, Any], drawn: dict[str, Any]) -> dict[str, Any]:
+    """A canonical document with the draws of `_many_worlds` set, as the Rust test sets them."""
+    document = copy.deepcopy(document)
+    zones = {"t": "toilet", "s": "sleeping"}
+    for agent, zone in zip(document["agents"], drawn["zones"], strict=True):
+        agent["zone_id"] = zones[zone]
+    for row in document["staff"]:
+        if row["id"] in drawn["busy"]:
+            row["active_task_id"] = "busy"
+    document["support_requests"] = drawn["requests"]
+    if drawn["metric"]:
+        document["metric_state"]["support_assignment_metrics_minute"] = 0.0
+        document["metric_state"] = dict(sorted(document["metric_state"].items()))
+    if drawn["capacity"] is not None:
+        zone, capacity = drawn["capacity"]
+        next(row for row in document["zones"] if row["id"] == zone)["capacity"] = capacity
+    return document
+
+
+def _route_worlds(made: _StaffWorlds, root: str) -> None:
+    """The worlds of a controller whose Run has route capacities, and its staff service's own
+    route and trip."""
+    controller = capacity_controller(root, "full")
+    world = controller.world
+    for agent in world.agents.values():
+        agent.zone_id = "sleeping"
+    for edge in world.zone_edges:
+        world.schedule_event(trip_event(world, edge))
+    made.inputs["route_full_edge"] = {"world": made.add("edges_full", world, controller)}
+
+    controller = capacity_controller(root, "room", capacity=2)
+    world = controller.world
+    for edge in world.zone_edges:
+        world.schedule_event(trip_event(world, edge))
+    made.inputs["route_room"] = {"world": made.add("edges_with_room", world, controller)}
+
+    own = {}
+    for label in ("full", "late", "trip"):
+        controller = capacity_controller(root, f"own-{label}")
+        world = controller.world
+        people = sorted(world.agents)
+        for agent in world.agents.values():
+            agent.zone_id = "sleeping"
+        if label == "full":
+            for edge in world.zone_edges:
+                world.schedule_event(trip_event(world, edge))
+        pending_request(world, 1, people[0])
+
+        def late(entry: dict[str, Any], world: Any = world) -> dict[str, Any]:
+            return _service_attr(
+                entry, "staff_service", "task_duration_minutes", world.duration_minutes
+            )
+
+        name = made.add(f"own_step_{label}", world, controller, late if label == "late" else None)
+        own[label] = {"world": name}
+    made.inputs["own_route_and_trip"] = own
+
+
+def _plain_worlds(made: _StaffWorlds) -> None:
+    """The requests at once of `scenario_100_agents.json`, which has no floor plan."""
+    from sheltersim.core.world import WorldState
+    from sheltersim.experiments.scenario import ScenarioSpec
+    from support.paths import SCENARIO_100_AGENTS
+
+    def plain() -> Any:
+        scenario = ScenarioSpec.model_validate_json(SCENARIO_100_AGENTS.read_text(encoding="utf-8"))
+        return WorldState.from_scenario(scenario)
+
+    world = plain()
+    agent_id = sorted(world.agents)[0]
+    facility_id = facility_of(world, "toilet")
+    place_at(world, agent_id, facility_id)
+    made.inputs["plain_at_toilet"] = {
+        "world": made.add("plain_at_toilet", world, _controller(world)),
+        "agent": agent_id,
+        "facility": facility_id,
+    }
+
+    world = plain()
+    world.model_configs["layout_routing"] = {
+        "max_agents_in_transit_by_edge": {"toilet_corridor": 1}
+    }
+    world.facilities["toilet_4"].zone_id = "sleeping"
+    for agent_id in ("A001", "A002", "A003", "A004", "A005"):
+        world.agents[agent_id].zone_id = "toilet"
+    made.inputs["capacity_wait"] = {
+        "world": made.add("plain_toilet_passage", world, _controller(world))
+    }
+
+
+def staff_assignment_fixture() -> dict[str, Any]:
+    """`staff_assignment.json`."""
+    made = _StaffWorlds()
+    made.add("staff_base", staff_world())
+    _assign_worlds(made)
+    _wait_worlds(made)
+    with tempfile.TemporaryDirectory(prefix="core-fixture-staff-") as root:
+        _route_worlds(made, root)
+    _plain_worlds(made)
     return made.document()

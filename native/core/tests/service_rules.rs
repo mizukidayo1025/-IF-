@@ -21,25 +21,22 @@ mod support;
 use std::sync::Arc;
 
 use serde_json::{json, Value};
-use sheltersim_core::config::movement::Movement;
 use sheltersim_core::config::population::AccessibilityNeeds;
 use sheltersim_core::config::SectionId;
 use sheltersim_core::error::{Error, Outcome};
 use sheltersim_core::events::writer::WriteError;
 use sheltersim_core::host::Host;
 use sheltersim_core::routes::Route;
-use sheltersim_core::rules::proposals::{Action, Applied, Proposal};
+use sheltersim_core::rules::proposals::Action;
 use sheltersim_core::rules::service::{self, Minute, Request, Requested, Serve, Served};
-use sheltersim_core::rules::tick::propose;
-use sheltersim_core::rules::travel::{self, Routing, Trip, Walking};
+use sheltersim_core::rules::travel::{self, Trip, Walking};
 use sheltersim_core::state::resource_service::RequestRecord;
 use sheltersim_core::world::WorldCell;
 
-use support::steps::{self, row, row_mut, s, Case};
+use support::steps::{self, applied, chained, row, row_mut, s, Case};
 use support::TestHost;
 
 const FILE: &str = "service_rules";
-const STAFF_OTHER: &str = "the world holds another document than the row's";
 
 fn text(value: &str) -> Arc<str> {
     Arc::from(value)
@@ -49,37 +46,7 @@ fn inputs(name: &str) -> Value {
     steps::inputs(FILE, name)
 }
 
-fn minute(case: &Case) -> i64 {
-    case.loaded.cell.with(|world| world.minute_index().unwrap()).unwrap()
-}
-
 // ---- The steps ------------------------------------------------------------------------------------
-
-/// `_apply_effect` of a proposal made as the pytest made it: the next decision 7 minutes on.
-fn apply(case: &mut Case, action: Action, agent: &str, target: Option<&str>) -> Result<Applied, Error> {
-    let proposal = Proposal { action, agent_id: text(agent), next_decision_at: minute(case) + 7, target_id: target.map(text), observed_state_hash: None };
-    case.tick(|tick| propose::apply_alone(tick, proposal))
-}
-
-fn applied(target: Option<&str>, next_decision_at: i64, committed: bool) -> Applied {
-    Applied { target: target.map(text), next_decision_at, committed }
-}
-
-/// The controller's `_route`, on the Run's people's graph.
-fn route(case: &mut Case, origin: &str, destination: &str, agent: &str) -> Option<Route> {
-    case.tick(|tick| {
-        let graph = propose::graph(tick).unwrap();
-        let holding = tick.holding().unwrap();
-        let section = tick.value_section(&holding, SectionId::Movement, |configs| &configs.movement, Movement::parse).unwrap();
-        let staff = holding.held("staff_operations_v1", STAFF_OTHER);
-        let plan = tick.plan();
-        let routing = Routing { graph: &graph, geo: plan.get(), movement: &section, staff: &staff };
-        match tick.cell.with(|world| travel::route(world, &routing, &text(origin), &text(destination), agent)).unwrap() {
-            Ok(route) => route,
-            Err(error) => panic!("{error:?}"),
-        }
-    })
-}
 
 /// `_schedule_travel` of a trip home, without the world's validation.
 fn schedule(case: &mut Case, agent: &str, route: &Route, purpose: &str) -> Result<bool, Error> {
@@ -89,7 +56,7 @@ fn schedule(case: &mut Case, agent: &str, route: &Route, purpose: &str) -> Resul
         points: Vec::new(),
         purpose,
         facility_id: None,
-        minute: minute(case),
+        minute: case.minute(),
         causation_id: None,
         support_request_id: None,
         support_staff_id: None,
@@ -168,11 +135,6 @@ fn pending_count(doc: &Value) -> usize {
     doc["event_queue"].as_array().unwrap().len()
 }
 
-/// The digests of a test's steps, a line each, as one digest.
-fn chained(lines: &[String]) -> String {
-    support::texts::sha(&lines.join("\n"))[..16].to_owned()
-}
-
 // ---- _apply_effect --------------------------------------------------------------------------------
 
 /// `test_a_still_action_is_python_s` (pytest digests `1fecc84b22ca7b75`, `8dba68cbcb659dc2`,
@@ -182,7 +144,7 @@ fn a_still_action_gives_up_the_target_and_waits() {
     let given = inputs("still_action");
     for (action, digest) in [(Action::Wait, "0be94bc83cc6e479"), (Action::Rest, "3ac2f1a446076bcd"), (Action::Sleep, "7b8bc81ba8da2bcf")] {
         let mut case = Case::of(FILE, s(&given["world"]));
-        assert_eq!(apply(&mut case, action, s(&given["agent"]), None).unwrap(), applied(None, 12, true), "{action:?}");
+        assert_eq!(case.apply(action, s(&given["agent"]), None).unwrap(), applied(None, 12, true), "{action:?}");
         assert_eq!(case.digest(), digest, "{action:?}");
     }
 }
@@ -195,7 +157,7 @@ fn a_social_action_schedules_its_event() {
     for (action, digest) in [(Action::Socialize, "50a49d86a19143b2"), (Action::CareFamily, "f856f5147a71a969"), (Action::HelpOthers, "fa5a6ecdfe69df94")] {
         let mut case = Case::of(FILE, "minute_5");
         let pending = pending_count(&case.doc());
-        assert_eq!(apply(&mut case, action, s(&pair[0]), Some(s(&pair[1]))).unwrap(), applied(Some(s(&pair[1])), 10, true), "{action:?}");
+        assert_eq!(case.apply(action, s(&pair[0]), Some(s(&pair[1]))).unwrap(), applied(Some(s(&pair[1])), 10, true), "{action:?}");
         assert_eq!(pending_count(&case.doc()), pending + 1);
         assert_eq!(case.digest(), digest, "{action:?}");
     }
@@ -208,11 +170,11 @@ fn the_config_s_minutes_and_their_end_of_the_run() {
     let given = inputs("config_s_minutes");
     let pairs = &given["pairs"];
     let mut case = Case::of(FILE, s(&given["world"]));
-    assert_eq!(apply(&mut case, Action::Socialize, s(&pairs[0][0]), Some(s(&pairs[0][1]))).unwrap(), applied(Some(s(&pairs[0][1])), 16, true));
+    assert_eq!(case.apply(Action::Socialize, s(&pairs[0][0]), Some(s(&pairs[0][1]))).unwrap(), applied(Some(s(&pairs[0][1])), 16, true));
     assert_eq!(case.digest(), "d35a5ea7795919d4");
     // Past the last minute there is no event, and the planned decision stands.
     case.edit(|doc| doc["model_configs"]["body_dynamics"]["social_interaction_minutes"] = doc["duration_minutes"].clone());
-    assert_eq!(apply(&mut case, Action::Socialize, s(&pairs[1][0]), Some(s(&pairs[1][1]))).unwrap(), applied(None, 12, false));
+    assert_eq!(case.apply(Action::Socialize, s(&pairs[1][0]), Some(s(&pairs[1][1]))).unwrap(), applied(None, 12, false));
     assert_eq!(case.digest(), "55124a984f06b0af");
 }
 
@@ -221,7 +183,7 @@ fn the_config_s_minutes_and_their_end_of_the_run() {
 fn without_a_config_the_default_minutes() {
     let pair = &inputs("social_action")["pair"];
     let mut case = Case::of(FILE, s(&inputs("default_minutes")["world"]));
-    assert_eq!(apply(&mut case, Action::Socialize, s(&pair[0]), Some(s(&pair[1]))).unwrap(), applied(Some(s(&pair[1])), 10, true));
+    assert_eq!(case.apply(Action::Socialize, s(&pair[0]), Some(s(&pair[1]))).unwrap(), applied(Some(s(&pair[1])), 10, true));
     assert_eq!(case.digest(), "b77a301f9e574d89");
 }
 
@@ -232,7 +194,7 @@ fn a_social_action_needs_someone_else_in_the_zone() {
     let given = inputs("needs_someone_else");
     let mut case = Case::of(FILE, "minute_5");
     for target in given["targets"].as_array().unwrap() {
-        assert_eq!(apply(&mut case, Action::HelpOthers, s(&given["agent"]), target.as_str()).unwrap(), applied(None, 12, false), "{target}");
+        assert_eq!(case.apply(Action::HelpOthers, s(&given["agent"]), target.as_str()).unwrap(), applied(None, 12, false), "{target}");
         assert_eq!(case.digest(), "4686d507aa38a03a");
     }
 }
@@ -243,8 +205,8 @@ fn a_held_bed_is_given_up_and_sleep_keeps_it() {
     let given = inputs("held_bed");
     let pair = &given["pair"];
     let mut case = Case::of(FILE, s(&given["world"]));
-    apply(&mut case, Action::Wait, s(&pair[0]), None).unwrap();
-    apply(&mut case, Action::Sleep, s(&pair[1]), None).unwrap();
+    case.apply(Action::Wait, s(&pair[0]), None).unwrap();
+    case.apply(Action::Sleep, s(&pair[1]), None).unwrap();
     let reservations = &case.doc()["model_state"]["geometry_overlay_v1"]["bed_reservations"];
     assert_eq!(reservations.as_object().unwrap().keys().collect::<Vec<_>>(), vec![s(&pair[1])]);
 }
@@ -264,7 +226,7 @@ fn each_trip_action_from_each_zone() {
                 row_mut(doc, "agents", agent)["zone_id"] = json!(zone);
                 doc["model_state"]["movement_v1"]["positions"][agent]["zone_id"] = json!(zone);
             });
-            assert_eq!(apply(&mut case, action, agent, None).unwrap(), applied(Some(target), 12, true), "{step}");
+            assert_eq!(case.apply(action, agent, None).unwrap(), applied(Some(target), 12, true), "{step}");
             lines.push(case.digest());
         }
         assert_eq!(lines.len(), 8);
@@ -281,7 +243,7 @@ fn a_trip_past_the_end_of_the_run_is_refused() {
     let mut lines = Vec::new();
     for step in given["steps"].as_array().unwrap() {
         let action = Action::parse(s(&step[0])).unwrap();
-        assert_eq!(apply(&mut case, action, s(&step[1]), None).unwrap(), applied(None, 12, false), "{step}");
+        assert_eq!(case.apply(action, s(&step[1]), None).unwrap(), applied(None, 12, false), "{step}");
         lines.push(case.digest());
     }
     assert_eq!(lines[0], lines[1]);
@@ -297,7 +259,7 @@ fn no_known_facility_is_recorded() {
     let mut case = Case::of(FILE, s(&given["world"]));
     let mut lines = Vec::new();
     for action in [Action::FetchWater, Action::CollectMeal, Action::RequestToilet] {
-        assert_eq!(apply(&mut case, action, agent, None).unwrap(), applied(None, 12, false), "{action:?}");
+        assert_eq!(case.apply(action, agent, None).unwrap(), applied(None, 12, false), "{action:?}");
         lines.push(case.digest());
     }
     assert_eq!(lines[1], lines[2]);
@@ -315,7 +277,7 @@ fn no_known_facility_is_recorded() {
 fn the_lower_load_goes_before_the_shorter_walk() {
     let given = inputs("lower_load");
     let mut case = Case::of(FILE, s(&given["world"]));
-    let done = apply(&mut case, Action::RequestToilet, s(&given["agent"]), None).unwrap();
+    let done = case.apply(Action::RequestToilet, s(&given["agent"]), None).unwrap();
     assert_eq!(done.target.as_deref(), Some(s(&given["far"])));
 }
 
@@ -326,7 +288,7 @@ fn the_lower_load_goes_before_the_shorter_walk() {
 fn a_toilet_kind_beyond_ascii_is_folded_as_python_folds_it() {
     let given = inputs("toilet_kind_beyond_ascii");
     let mut case = Case::of(FILE, s(&given["world"]));
-    assert_eq!(apply(&mut case, Action::RequestToilet, s(&given["agent"]), None).unwrap(), applied(Some("toilet_01"), 12, true));
+    assert_eq!(case.apply(Action::RequestToilet, s(&given["agent"]), None).unwrap(), applied(Some("toilet_01"), 12, true));
     assert_eq!(case.digest(), "3470b3fa1e87508e");
 }
 
@@ -338,7 +300,7 @@ fn a_request_of_the_run_s_last_minute_is_closed_at_once() {
     for (action, digest) in [(Action::SeekHelp, "7a316da76d11aba2"), (Action::SeekInformation, "e865309dcc2977f1")] {
         let mut case = Case::of(FILE, s(&given["world"]));
         let request = "support-5d7322b2c209034dac8ce21e";
-        assert_eq!(apply(&mut case, action, s(&given["agent"]), None).unwrap(), applied(Some(request), 12, false), "{action:?}");
+        assert_eq!(case.apply(action, s(&given["agent"]), None).unwrap(), applied(Some(request), 12, false), "{action:?}");
         assert_eq!(row(&case.doc(), "support_requests", request)["resolved_minute"], json!(5));
         assert_eq!(case.digest(), digest, "{action:?}");
     }
@@ -366,7 +328,7 @@ fn every_route_for_every_mobility() {
     for agent in &people {
         for origin in &zones {
             for destination in &zones {
-                let route = route(&mut case, origin, destination, agent).expect("a route");
+                let route = case.route(origin, destination, agent).expect("a route");
                 found.push(format!("{} {} {:?} {:?} {}", route.origin, route.destination, route.zone_ids, route.edge_ids, route.minutes));
             }
         }
@@ -382,7 +344,7 @@ fn an_equal_time_goes_to_the_lower_edge_id() {
     let given = inputs("equal_time");
     let zones: Vec<&str> = given["zones"].as_array().unwrap().iter().map(s).collect();
     let mut case = Case::of(FILE, s(&given["world"]));
-    let route = route(&mut case, zones[0], zones[3], s(&given["agent"])).unwrap();
+    let route = case.route(zones[0], zones[3], s(&given["agent"])).unwrap();
     assert_eq!(route.edge_ids, [text("a-c"), text("n-d")]);
     assert_eq!(route.zone_ids, [text(zones[0]), text(zones[2]), text(zones[3])]);
     assert_eq!(route.minutes, 4);
@@ -397,7 +359,7 @@ fn a_trip_and_each_limit() {
     let (agent, destination) = (s(&given["agent"]), s(&given["destination"]));
     let mut case = Case::of(FILE, "minute_5");
     let origin = s(&row(&case.doc(), "agents", agent)["zone_id"]).to_owned();
-    let route = route(&mut case, &origin, destination, agent).unwrap();
+    let route = case.route(&origin, destination, agent).unwrap();
     let capacity = row(&case.doc(), "zones", destination)["capacity"].clone();
     let mut lines = Vec::new();
     case.edit(|doc| row_mut(doc, "zones", destination)["capacity"] = json!(0));
@@ -426,7 +388,7 @@ fn a_trip_refused_writes_nothing() {
     let (agent, destination) = (s(&given["agent"]), s(&given["destination"]));
     let mut case = Case::of(FILE, "minute_5");
     let origin = s(&row(&case.doc(), "agents", agent)["zone_id"]).to_owned();
-    let route = route(&mut case, &origin, destination, agent).unwrap();
+    let route = case.route(&origin, destination, agent).unwrap();
     let before = case.bytes();
     match schedule(&mut case, agent, &route, "staff_support_travel") {
         Err(Error::Value(text)) => assert_eq!(text, "staff support travel requires request and staff IDs"),
