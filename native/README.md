@@ -275,7 +275,8 @@ split PR by PR; its last section sums up what is where.
   Python-parsed sections and the floor plan of an exported world (#225, #214); `dumps.rs`,
   the text of Python's `json.dumps` for the digests the pytest files took of it; `canonical.rs`,
   a World's `canonical_json()` bytes, part by part; and `cases.rs`, the files of events given to
-  one handler of an exported world (worlds stored as the changes from another world of the file)
+  one handler of an exported world (worlds stored as the changes from another world of the file,
+  or of another file)
   with the outcome or the world the Python rule left, checked through `dispatch::apply_alone`,
   the kernel a handler's PyO3 entry calls (#225); and `texts.rs`, for the tests that call a rule
   directly: the canonical text of a world in a cell, the outcome a rule raised, and events
@@ -326,6 +327,9 @@ split PR by PR; its last section sums up what is where.
   `_schedule_travel`, the water and meal service and the staff's assignment, relief and support
   waits on the worlds of the pytest files of the same names (`tests/data/service_rules.json`,
   `generated_texts.json`, `staff_assignment.json`).
+  `tests/population_rules.rs` checks the population rules' answers and the
+  worlds they leave against the digests of what the Python rules gave
+  (`tests/data/population_rules.json`).
   The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,
