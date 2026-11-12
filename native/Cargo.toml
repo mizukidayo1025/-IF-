@@ -36,3 +36,13 @@ workspace = true
 [profile.release]
 lto = true
 codegen-units = 1
+
+# The offline CI's test jobs build with this profile (Issue #217): the same optimization level
+# as release, but thin LTO and 16 codegen units, so the two crates of the workspace build much
+# sooner, and the tests take as long as with release. The bytes of a Run do not depend on it
+# (the hashes of every path are the same). The CI's gate job, the long regression, deploy/vm
+# and the build in docs/development.md keep --release.
+[profile.ci]
+inherits = "release"
+lto = "thin"
+codegen-units = 16

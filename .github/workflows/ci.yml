@@ -1,7 +1,8 @@
 # offline CI on Linux, Windows and macOS (#48), on every pull request to main and
 # by hand. Each OS builds and installs the Rust kernels (native/), runs the tests with
 # them and checks the hashes of every path against the same fixture: on Linux in a job
-# of its own beside the tests, on Windows and macOS as a step after them. Lint runs on
+# of its own beside the tests, on Windows and macOS as a step after them. The test jobs
+# build with the profile ci, the Linux gate job with release (#217). Lint runs on
 # Linux only.
 name: オフラインCI
 
@@ -42,13 +43,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: native
+      # The profile ci of native/Cargo.toml builds much sooner than release and gives the same
+      # bytes (#217). The gate job below keeps --release, so every PR still checks the hashes of
+      # the build that is shipped.
       - name: Rustのkernelを作って導入
         id: native
         shell: bash
         run: |
           rustup toolchain install stable --profile minimal
           python -m pip install "maturin>=1.7,<2"
-          maturin build --release -m native/Cargo.toml --out native-dist
+          maturin build --profile ci -m native/Cargo.toml --out native-dist
           python -m pip install --no-index --find-links native-dist sheltersim-native
           python -c "import sheltersim.native"
       - name: 短時間offline test

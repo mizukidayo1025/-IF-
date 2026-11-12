@@ -10,7 +10,9 @@ The extension is required: importing `sheltersim` without it raises ImportError
 caller runs its Python code, which stays until lane L10 of
 `docs/rust-port/step4-plan.md` removes it. `tests/integration/test_native_kernels.py`
 compares each kernel with that Python code at every tick. CI builds and installs the
-extension on Linux, Windows and macOS.
+extension on Linux, Windows and macOS. Its test jobs build with the profile `ci` of
+`native/Cargo.toml` (thin LTO, 16 codegen units; the same bytes, built sooner), and its gate
+job with `--release` (#217).
 
 ## Build and use without installing
 
