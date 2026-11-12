@@ -114,7 +114,7 @@ def run_one(name: str, output: Path, chosen: Any = None) -> None:
     # The kernels see an edit of model_configs at the next read, the Python scopes of a tick phase
     # at the next minute (decision U1, native/src/core/configs.rs). Nothing should make one. While
     # it counts, a geometry plan kept by the overlay's stamp is also checked against the overlay
-    # (native/src/rules/movement_geometry.rs): every write must give the overlay a new stamp.
+    # (native/src/core/geometry.rs): every write must give the overlay a new stamp.
     watch_config_writes = getattr(sheltersim_native, "watch_config_writes", None)
     if watch_config_writes is not None:
         watch_config_writes(True)

@@ -524,6 +524,16 @@ pub fn plan_arrive(world: &World, inputs: &Inputs<'_>, event: &EventRow) -> Resu
 }
 
 /// The writes of `arrive_staff_operation`: the member is at the task, which it works from now.
+/// `arrive_staff_operation`: the plan (`plan_arrive`), then its writes; the staff member who became
+/// unavailable before reaching the task, if any (lane P10-1c: one function for the PyO3 entry and the
+/// dispatch).
+pub fn arrive(world: &World, inputs: &Inputs<'_>, event: &EventRow) -> Result<Option<Arc<str>>> {
+    match plan_arrive(world, inputs, event)? {
+        Planned::Go(plan) => write_arrive(world, plan).map(|()| None),
+        Planned::Unavailable(id) => Ok(Some(id)),
+    }
+}
+
 pub fn write_arrive(world: &World, plan: ArrivePlan) -> Result<()> {
     if let Some(staff) = world.rows_mut()?.staff.get_mut(&plan.staff_id) {
         staff.zone_id = plan.zone;
@@ -732,6 +742,12 @@ pub fn plan_relief(world: &World, inputs: &Inputs<'_>, event: &EventRow) -> Resu
 
 /// The writes of `StaffOperationReliefHandler.apply`, and its handoff receipt, if the world holds
 /// `shared_operations_v1`.
+/// `StaffOperationReliefHandler.apply`: the plan (`plan_relief`), then its writes (lane P10-1c).
+pub fn relief(world: &World, inputs: &Inputs<'_>, event: &EventRow, taken: &mut Vec<u64>) -> WriteResult<Option<Made>> {
+    let plan = plan_relief(world, inputs, event)?;
+    write_relief(world, inputs, plan, taken)
+}
+
 pub fn write_relief(world: &World, inputs: &Inputs<'_>, plan: ReliefPlan, taken: &mut Vec<u64>) -> WriteResult<Option<Made>> {
     let events = Events::of(world)?;
     let now = plan.now;
@@ -1115,6 +1131,26 @@ pub fn plan_complete(world: &World, inputs: &Inputs<'_>, event: &EventRow) -> Re
 /// The writes of `complete_staff_operation` (an intake's admission is the caller's, before this),
 /// and the handler's receipts: the operation's, and a facility recovery when a repair changed its
 /// working units, where the world holds `shared_operations_v1`.
+/// What the plan of a completion led to (`complete_or_intake`).
+pub enum Completed {
+    /// Written: the receipts.
+    Done(Vec<Made>),
+    /// The staff member became unavailable before completing the task.
+    Unavailable(Arc<str>),
+    /// An intake, written once the admission ran (`write_complete`).
+    Intake(Box<CompletePlan>),
+}
+
+/// `complete_staff_operation`: the plan (`plan_complete`), then its writes, but for an intake, whose
+/// admission runs first (lane P10-1c).
+pub fn complete_or_intake(world: &World, inputs: &Inputs<'_>, event: &EventRow) -> Result<Completed> {
+    match plan_complete(world, inputs, event)? {
+        Planned::Unavailable(id) => Ok(Completed::Unavailable(id)),
+        Planned::Go(plan) if matches!(plan.work, Work::Intake) => Ok(Completed::Intake(Box::new(plan))),
+        Planned::Go(plan) => write_complete(world, inputs, plan).map(Completed::Done),
+    }
+}
+
 pub fn write_complete(world: &World, inputs: &Inputs<'_>, plan: CompletePlan) -> Result<Vec<Made>> {
     let CompletePlan { staff_id, task_id, mut entry, work, before, previous_units, event_id, event_source, kind, target, zone, payload_task } = plan;
     match work {

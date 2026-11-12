@@ -19,73 +19,43 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 use sheltersim_core::error::Error;
 use sheltersim_core::events::writer::{WriteError, WriteResult};
-use sheltersim_core::rules::kit::Held;
 use sheltersim_core::rules::overlay::PLAN_UNREAD;
 use sheltersim_core::rules::staff::{self as core, Assigned, Full, Inputs, Operations, Routed, Service, Step, Travel, WaitRoutes};
+use sheltersim_core::rules::tick::arbitrate::Staff;
+use sheltersim_core::config::SectionId;
+use sheltersim_core::world::{METRIC_STATE, MODEL_CONFIGS};
 use sheltersim_core::rules::staff_operation_events::SNAPSHOT_PLAN_UNREAD;
 use sheltersim_core::run::services::{staff_service, STAFF_SPEC};
 
 pub(crate) use sheltersim_core::rules::staff::OpenWait;
 
-use sheltersim_core::config::staff::{known_staff_operations, support_task_minutes, StaffOperations};
+use sheltersim_core::config::staff::{known_staff_operations, support_task_minutes};
 
-use crate::core::configs;
 use crate::core::errors::{self, OrPy};
-use crate::core::row::{attribute, exact_int, exact_str, namespace_is_absent, unsupported};
+use crate::core::row::{attribute, exact_int, exact_str, unsupported};
 use crate::core::run::{policies_of, read_object};
-use crate::core::world_core::{field_held, namespace_held, with_world, PyWorldCell};
-use crate::host::PyHost;
-use crate::rules::handlers::get;
-use crate::rules::movement_geometry::{Geo, GeoPy};
+use crate::core::world_core::{with_world, PyWorldCell};
+use crate::host::{absent, PyHost};
+use crate::core::geometry::{Geo, GeoPy};
 use crate::rules::staff_operation_events::Gathered;
 use crate::rules::travel::{self, read_queue_rows, rows_of, staff_router_rows, StaffRouter};
-use crate::state::events::{write_result, EventWriter};
+use crate::state::events::{forget_taken, write_result};
 use crate::Unsupported;
-
-const OTHER_DOCUMENT: &str = "the world holds another document than the row's";
 
 // ---- What the rules read of the Python world -----------------------------------------------------
 
-/// A namespace as the staff rules take it: absent where `model_state` has no such key or None
-/// there, and `Other` where it holds another document than the row's.
-fn held(world: &Bound<'_, PyAny>, name: &'static str, other: &'static str) -> PyResult<Held> {
-    let key = PyString::intern(world.py(), name);
-    if namespace_is_absent(world, &key)? {
-        return Ok(Held::Absent);
-    }
-    namespace_held(world, &key, other)
+/// What the staff rules read of the Python world, read once per entry before the core borrows it:
+/// the core's reader of the holding (`tick::arbitrate::Staff`), read now through the native host.
+fn staff_of(world: &Bound<'_, PyAny>) -> PyResult<Staff> {
+    Staff::of(&*holding_of_staff(&mut PyHost::of_entry(world))?).or_py()
 }
 
-/// What the staff rules read of the Python world, read once per entry before the core borrows it.
-struct Staff {
-    operations: Held,
-    dynamics: Held,
-    body: Held,
-    shared: Held,
-    metric_state_held: bool,
-}
+/// The namespaces and fields the staff rules read, of the holding read now: what `Staff::of`
+/// reads, `metric_state` and the configs.
+const STAFF_NAMES: [&str; 4] = ["staff_operations_v1", "staff_dynamics_v1", "body_state_v1", "shared_operations_v1"];
 
-impl Staff {
-    fn of(world: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self {
-            operations: held(world, "staff_operations_v1", OTHER_DOCUMENT)?,
-            dynamics: held(world, "staff_dynamics_v1", OTHER_DOCUMENT)?,
-            body: held(world, "body_state_v1", OTHER_DOCUMENT)?,
-            shared: held(world, "shared_operations_v1", "a value is not a plain dict")?,
-            metric_state_held: field_held(world, intern!(world.py(), "metric_state"))?,
-        })
-    }
-
-    fn inputs<'a>(&'a self, tasks: Option<&'a sheltersim_core::rules::staff_operation_events::Inputs<'a>>) -> Inputs<'a> {
-        Inputs {
-            operations: &self.operations,
-            dynamics: &self.dynamics,
-            body: &self.body,
-            shared: &self.shared,
-            metric_state_held: self.metric_state_held,
-            tasks,
-        }
-    }
+fn holding_of_staff(host: &mut PyHost<'_>) -> PyResult<std::sync::Arc<sheltersim_core::host::Holding>> {
+    host.holding_of(&STAFF_NAMES, &[METRIC_STATE, MODEL_CONFIGS])
 }
 
 /// The core's result as Python's: a step's refusal where the floor plan could not be read is what
@@ -105,14 +75,6 @@ fn finish<T>(world: &Bound<'_, PyAny>, result: WriteResult<T>, tasks: Option<&Ga
         Some(tasks) => tasks.finish(py, result),
         None => result,
     }
-}
-
-/// Let go the objects of the queue's slots the core took out (`QueueStore::forget`).
-fn forget(world: &Bound<'_, PyAny>, taken: &[u64]) -> PyResult<()> {
-    if taken.is_empty() {
-        return Ok(());
-    }
-    EventWriter::of(world)?.queue().get().forget(taken)
 }
 
 // ---- StaffService.assign_pending -----------------------------------------------------------------
@@ -141,8 +103,7 @@ fn unsupported_owned<T>(text: String) -> PyResult<T> {
 /// request may be assigned, the queue's rows, the floor plan and the controller's travel. With
 /// `validate`, `world.validate()` after (`Host::validate_world`).
 fn assign(world: &Bound<'_, PyAny>, controller: Option<&Bound<'_, PyAny>>, service: &Service, minute: i64, validate: bool) -> PyResult<Vec<Arc<str>>> {
-    let py = world.py();
-    let staff = Staff::of(world)?;
+    let staff = staff_of(world)?;
     let mut taken = Vec::new();
     let first = with_world(world, |cell| core::assign_pending(cell, &staff.inputs(None), service, minute, None, &mut taken))?;
     let assigned = match finish(world, first, None)? {
@@ -161,7 +122,7 @@ fn assign(world: &Bound<'_, PyAny>, controller: Option<&Bound<'_, PyAny>>, servi
             let travel = graph.as_ref().map(|graph| Travel { routing: routing.routing(graph), walking: routing.walking() });
             let full = Full { travel };
             let result = with_world(world, |cell| core::assign_pending(cell, &inputs, service, minute, Some(&full), &mut taken))?;
-            forget(world, &taken)?;
+            forget_taken(world, &taken)?;
             match finish(world, result, Some(&tasks))? {
                 Assigned::Done(assigned) => assigned,
                 Assigned::NeedsAll => return Err(pyo3::exceptions::PyRuntimeError::new_err("the assignment asked for its inputs again")),
@@ -170,7 +131,7 @@ fn assign(world: &Bound<'_, PyAny>, controller: Option<&Bound<'_, PyAny>>, servi
     };
     if validate {
         use sheltersim_core::host::Host;
-        PyHost::of_world(world, PyDict::new(py)).validate_world().map_err(|error| error.0)?;
+        PyHost::of_entry(world).validate_world().map_err(|error| error.0)?;
     }
     Ok(assigned)
 }
@@ -219,7 +180,7 @@ fn assign_none<'py>(service: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>, val
     }
     let world = attribute(service, intern!(py, "world"))?;
     let at = exact_int(minute)?;
-    let staff = Staff::of(&world)?;
+    let staff = staff_of(&world)?;
     let plain = with_world(&world, |cell| core::assign_plain(cell, &staff.inputs(None), at))?.or_py()?;
     Ok(plain.then(|| PyTuple::empty(py)))
 }
@@ -319,16 +280,18 @@ pub(crate) fn with_wait_inputs<R>(
     mut call: impl FnMut(&Inputs<'_>, Option<&WaitRoutes<'_>>) -> PyResult<Option<R>>,
 ) -> PyResult<R> {
     let py = world.py();
-    let staff = Staff::of(world)?;
+    let staff = staff_of(world)?;
     let inputs = staff.inputs(None);
     if let Some(found) = call(&inputs, None)? {
         return Ok(found);
     }
     read_queue_rows(world)?;
-    let loads_staff = travel::staff_held(world)?;
+    let mut host = PyHost::of_entry(world);
+    let holding = holding_of_staff(&mut host)?;
+    let loads_staff = travel::staff_held(&holding);
     let geo = Geo::of(world);
-    let movement = travel::movement_section(world)?;
-    let support_minutes = configs::kept_section(world, |configs| &configs.support_task_minutes, support_task_minutes)?;
+    let movement = travel::movement_section(&mut host, &holding)?;
+    let support_minutes = host.value_section(&holding, SectionId::SupportTaskMinutes, |configs| &configs.support_task_minutes, support_task_minutes)?;
     let routes = WaitRoutes { loads_staff: &loads_staff, geo: geo.as_ref().ok(), movement: &movement, support_minutes: &support_minutes };
     let found = match (call(&inputs, Some(&routes)), &geo) {
         (Err(error), Err(read)) if error.is_instance_of::<Unsupported>(py) && error.value(py).to_string() == PLAN_UNREAD => return Err(read.clone_ref(py)),
@@ -368,11 +331,12 @@ fn wait_snapshot<'py>(world: &Bound<'py, PyAny>, active_support: &Bound<'py, PyA
 /// `update_staff_operations`: each zone's sanitation falls with who is in it.
 #[pyfunction]
 pub(crate) fn update_operations(world: &Bound<'_, PyAny>, minute: &Bound<'_, PyAny>) -> PyResult<()> {
-    if namespace_is_absent(world, intern!(world.py(), "staff_operations_v1"))? {
+    let holding = holding_of_staff(&mut PyHost::of_entry(world))?;
+    if absent(&holding, "staff_operations_v1")? {
         return Ok(());
     }
     let at = exact_int(minute)?;
-    let staff = Staff::of(world)?;
+    let staff = Staff::of(&holding).or_py()?;
     with_world(world, |cell| core::update_operations(cell, &staff.inputs(None), at))?.or_py()
 }
 
@@ -380,35 +344,6 @@ pub(crate) fn update_operations(world: &Bound<'_, PyAny>, minute: &Bound<'_, PyA
 #[pyfunction]
 fn format_g(value: f64) -> PyResult<String> {
     sheltersim_core::text::g_text(value).or_py()
-}
-
-/// `create_staff_operations_formula(model_configs)` and whether `policy_registry` selects it, kept
-/// for the configs' stamp as their section (`core/configs.rs`). What the factory raises is relayed
-/// as it is. A build without Python takes the built-in formulas (`StaffOperations::parse`).
-pub(crate) fn staff_operations(world: &Bound<'_, PyAny>) -> PyResult<Arc<StaffOperations>> {
-    match staff_operations_section(world)? {
-        Ok(formula) => Ok(formula),
-        Err(fault) => Err(configs::raise(&fault, || parse_staff_operations(world))),
-    }
-}
-
-/// `staff_operations` without its raise (the host's `fill_section`, lane P9-0).
-pub(crate) fn staff_operations_section(world: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::rules::kit::Kept<StaffOperations>> {
-    configs::kept(world, |configs| &configs.staff_operations, || Ok(configs::parsed(world.py(), parse_staff_operations(world))))
-}
-
-fn parse_staff_operations(world: &Bound<'_, PyAny>) -> PyResult<StaffOperations> {
-    let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let formula = py.import("sheltersim.policies.registry")?.getattr("create_staff_operations_formula")?.call1((&configs,))?;
-    let selected = get(&configs, "policy_registry")?;
-    let selected = !selected.is_none() && selected.contains("staff_operations")?;
-    let model_id = Arc::from(exact_str(&attribute(&formula, intern!(py, "model_id"))?)?);
-    let selected_source = match selected {
-        true => Some(Arc::from(exact_str(&attribute(&formula, intern!(py, "source_id"))?)?)),
-        false => None,
-    };
-    Ok(StaffOperations { model_id, selected_source })
 }
 
 /// `assign_staff_operations`, called from Python with a `SpaceRouter`: that caller's input, whose
@@ -422,12 +357,14 @@ pub(crate) fn assign_operations<'py>(world: &Bound<'py, PyAny>, minute: &Bound<'
 /// plain tick, where no free worker has a task to take, reads neither the router nor the formula.
 pub(crate) fn assign_operations_with<'py>(world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>, router: StaffRouter<'_, 'py>) -> PyResult<Bound<'py, PyTuple>> {
     let py = world.py();
-    if namespace_is_absent(world, intern!(py, "staff_operations_v1"))? {
+    let mut host = PyHost::of_entry(world);
+    let holding = holding_of_staff(&mut host)?;
+    if absent(&holding, "staff_operations_v1")? {
         return Ok(PyTuple::empty(py));
     }
     let at = exact_int(minute)?;
-    let known = configs::kept_section(world, |configs| &configs.staff_operations_known, known_staff_operations)?;
-    let staff = Staff::of(world)?;
+    let known = host.value_section(&holding, SectionId::StaffOperationsKnown, |configs| &configs.staff_operations_known, known_staff_operations)?;
+    let staff = Staff::of(&holding).or_py()?;
     let first = with_world(world, |cell| core::assign_operations(cell, &staff.inputs(None), &known, at, None))?;
     let started = match finish(world, first, None)? {
         Operations::Done(started) => started,
@@ -435,7 +372,8 @@ pub(crate) fn assign_operations_with<'py>(world: &Bound<'py, PyAny>, minute: &Bo
             read_queue_rows(world)?;
             let tasks = Gathered::of(world, true, true)?;
             let graph = staff_router_rows(router)?;
-            let (movement, loads_staff) = (travel::movement_held(world)?, travel::staff_held(world)?);
+            let holding = host.holding_of(&["movement_v1", "staff_operations_v1"], &[])?;
+            let (movement, loads_staff) = (travel::movement_held(&holding), travel::staff_held(&holding));
             let routed = Routed { router: &graph, movement: &movement, loads_staff: &loads_staff };
             let task_inputs = tasks.inputs();
             let inputs = staff.inputs(Some(&task_inputs));
@@ -454,12 +392,13 @@ pub(crate) fn assign_operations_with<'py>(world: &Bound<'py, PyAny>, minute: &Bo
 #[pyfunction]
 pub(crate) fn relief<'py>(world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyTuple>> {
     let py = world.py();
-    if namespace_is_absent(world, intern!(py, "staff_operations_v1"))? {
+    let holding = holding_of_staff(&mut PyHost::of_entry(world))?;
+    if absent(&holding, "staff_operations_v1")? {
         return Ok(PyTuple::empty(py));
     }
     let at = exact_int(minute)?;
     read_queue_rows(world)?;
-    let staff = Staff::of(world)?;
+    let staff = Staff::of(&holding).or_py()?;
     let handoffs = with_world(world, |cell| core::relief(cell, &staff.inputs(None), at))?;
     let handoffs = write_result(py, handoffs)?;
     PyTuple::new(py, handoffs.iter().map(|id| &**id))

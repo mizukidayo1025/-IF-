@@ -7,14 +7,13 @@
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use sheltersim_core::rules::common_operations::{self as core, Found, Logged, Receipt};
+use sheltersim_core::rules::common_operations::{self as core, Receipt};
 
 use crate::core::errors::OrPy;
-use crate::core::row::{attribute, exact_int, exact_str, unsupported};
+use crate::core::row::unsupported;
 use crate::core::value::{VPy, V};
 use crate::core::world_core::PyWorldCell;
 use crate::host::PyHost;
-use crate::state::events::{EventRow, EventRowPy, EventStatus};
 
 /// The receipt classes of `contracts/operations.py` that `record_shared_operation` records.
 const RECEIPT_CLASSES: [&str; 5] = [
@@ -24,33 +23,6 @@ const RECEIPT_CLASSES: [&str; 5] = [
     "FacilityRecoveryReceipt",
     "StaffOperationReceipt",
 ];
-
-/// `event_log.find(event_id)` of each ID, as the core reads a record.
-pub(crate) fn found_records(world: &Bound<'_, PyAny>, ids: Vec<std::sync::Arc<str>>) -> PyResult<Found> {
-    let py = world.py();
-    let log = attribute(world, intern!(py, "event_log"))?;
-    let mut found = Vec::with_capacity(ids.len());
-    for id in ids {
-        let record = log.call_method1(intern!(py, "find"), (&*id,))?;
-        let logged = if record.is_none() { None } else { Some(logged_of(&record)?) };
-        found.push((id, logged));
-    }
-    Ok(Found(found))
-}
-
-/// An `EventLogRecord` as the core reads it: its status, minute and event's row.
-pub(crate) fn logged_of(record: &Bound<'_, PyAny>) -> PyResult<Logged> {
-    let py = record.py();
-    let status = attribute(record, intern!(py, "status"))?.getattr(intern!(py, "_value_"))?;
-    let Some(status) = EventStatus::parse(exact_str(&status)?) else {
-        return unsupported("a record of another status");
-    };
-    let realized_minute = exact_int(&attribute(record, intern!(py, "realized_minute"))?)?;
-    let Some(event) = EventRow::from_event(&attribute(record, intern!(py, "event"))?)? else {
-        return unsupported("the receipt's event has no row");
-    };
-    Ok(Logged { status, realized_minute, event })
-}
 
 /// `record_shared_operation(world, receipt)` of a receipt read as the core's: the core checks the
 /// namespace and looks up the EventLog's records through the native host (`record_through`, lane

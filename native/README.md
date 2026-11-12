@@ -316,16 +316,35 @@ CI's lint job runs these, after `cargo test -p sheltersim_core` with the feature
   Python contract parses (`create_*_formula`, `InformationSpreadConfig.from_mapping`,
   `canonical_proximity_contact_config`, the pydantic zone environment and infrastructure specs)
   keeps the typed values the core defines; a section a Python expression of the configs gives
-  (`.get` chains, a truth value, `in {3, 4}`) is kept with `kept_python`, which raises what the
-  expression raised by evaluating it again. `config_section(world, name, key=None)` reads a section
-  through its read site's accessor, and `config_parses()` counts the parses, for the tests. `watch_config_writes(True)` counts the writes to a
+  (`.get` chains, a truth value, `in {3, 4}`) keeps what the expression raised, which the read site
+  raises by evaluating it again (`read_again`). These parses of the sections (`Parser::Host`) are
+  all here since lane P10-1c, beside the readers of the sections' tests; `PyHost::fill_section` and
+  `read_again` call them, and the glue of `src/rules/` reads a section through the host
+  (`PyHost::value`, `host_value`, the core's `kit::section`), as the tick does.
+  `config_section(world, name, key=None)` reads a section through its read site's accessor, and
+  `config_parses()` counts the parses, for the tests. `watch_config_writes(True)` counts the writes to a
   `model_configs` tree in place inside a tick phase (`config_writes_in_tick()`); the all-path gate
   turns it on and reports any. While it counts, a geometry plan found by the overlay's stamp is
   also checked against the overlay held now (`stale_geometry_hits()`, also reported by the gate).
 - `src/host.rs`: `PyHost`, the core's `Host` over a Python world and its controller; each method
   calls the Python the kernels call today (a transaction's host has only the world and what the
   transaction keeps). `HostError` carries the Python error. `host_call(controller, method,
-  arguments)` calls one method by name, for the tests.
+  arguments)` calls one method by name, for the tests. A Python entry of `src/rules/` (the phase
+  path, a test, a Python caller) reads what the world holds and its configs' sections through the
+  core's readers with `PyHost::of_entry` (`holding_now`: `kit::holding`; `value`, `host_value`:
+  `kit::section`), as the tick reads them (lane P10-1c). A reader that runs at each frame or minute
+  (an inspection frame, a metric sink) reads the holding of the names it asks alone
+  (`holding_of`, with the same answers for them).
+- `src/core/geometry.rs`: the floor plan of a world (`Geo::of`): the sections `facility_geometry`
+  and `spatial_constraints` parsed by their Python contracts, the plans kept by the overlay's
+  stamp, the arrival approach routes and `independent_queues_required` (moved from
+  `src/rules/movement_geometry.rs` in lane P10-1c; that file keeps the tests' readers).
+- `src/core/actions.rs`: `ActiveActions`, the open actions of a controller (the Run's rows, or a
+  plain dict a Python rule asked for), lent to one core call at a time (`on_world`, `read`), and the
+  tick's check that they fit their rows (`fits_rows`).
+- `src/state/events.rs` also has what the rules' entries ask of the world's events (H6):
+  `writable`, `forget_taken`, `applied_row`; `src/eventlog.rs` reads the EventLog's Python records
+  as the core reads them (`found_records`, `logged_of`).
 - `src/core/run.rs`: `RunCore`, the core's `Run` of one controller (a Run, its continuation or a
   Branch), in `controller._run_core`. The controller makes it in `__init__` from
   `route_capacities` and itself (its `Policies` are read then by the core's `CONTROLLER` spec,
@@ -607,7 +626,7 @@ are correctly rounded everywhere, and not `**` with a float.
   `core/src/rules/movement.rs`: it reads the arguments, the floor plan, the movement section of
   the configs and the staff's operations where their row does not answer, and makes the
   `ZoneRoute`, `Point2D` and dict values; the floor plan and its
-  geometry are the core's, and `src/rules/movement_geometry.rs` reads the section `geometry` from
+  geometry are the core's, and `src/core/geometry.rs` reads the section `geometry` from
   the Python contracts and gives `Geo::of(world)`, the arrival approach routes and
   `independent_queues_required` of a world's configs): `advance_movement(world, minute)`,
   `start_movement`, `finish_movement`, `route_with_movement_time`, `route_is_physically_clear`,

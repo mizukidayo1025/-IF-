@@ -16,11 +16,10 @@ use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyTuple};
-use sheltersim_core::error::Result as CoreResult;
+use pyo3::types::PyTuple;
 use sheltersim_core::rules::care_receipts::Made;
 use sheltersim_core::rules::overlay::PLAN_UNREAD;
-use sheltersim_core::rules::staff_operation_events::{self as core, CompletePlan, Inputs, Planned, Stopping, Work, FORMULA_UNREAD, SNAPSHOTS, SNAPSHOT_PLAN_UNREAD};
+use sheltersim_core::rules::staff_operation_events::{self as core, Completed, Inputs, Stopping, FORMULA_UNREAD, SNAPSHOTS, SNAPSHOT_PLAN_UNREAD};
 
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_int, exact_str};
@@ -30,7 +29,7 @@ use crate::rules::care_receipts::made_record;
 use crate::rules::handlers::counted;
 use crate::rules::information_events::event_row;
 use crate::rules::travel::read_queue_rows;
-use crate::state::events::{write_result, EventRow, EventWriter};
+use crate::state::events::{forget_taken, write_result, EventRow};
 use crate::Unsupported;
 
 /// What the rules read of the Python world, read once per entry by the core through the native host
@@ -43,7 +42,7 @@ pub(crate) struct Gathered<'py> {
 impl<'py> Gathered<'py> {
     /// What the rules read, with the floor plan where `geo` and the formula where `formula`.
     pub(crate) fn of(world: &Bound<'py, PyAny>, geo: bool, formula: bool) -> PyResult<Self> {
-        let mut host = PyHost::of_world(world, PyDict::new(world.py()));
+        let mut host = PyHost::of_entry(world);
         let read = core::Gathered::read(&PyWorldCell(world), &mut host, geo, formula).map_err(|error| error.0)?;
         Ok(Self { world: world.clone(), read })
     }
@@ -67,21 +66,13 @@ impl<'py> Gathered<'py> {
             (PLAN_UNREAD, Some(read), _) => Err(read),
             (SNAPSHOT_PLAN_UNREAD, Some(read), _) => Err(errors::kernel_refusal(py, SNAPSHOTS, read)),
             // What reading the formula again raises (policy E14).
-            (FORMULA_UNREAD, _, Some(_)) => match crate::rules::staff::staff_operations(&self.world) {
+            (FORMULA_UNREAD, _, Some(_)) => match crate::core::configs::staff_operations(&self.world) {
                 Err(read) => Err(read),
                 Ok(_) => Err(error),
             },
             _ => Err(error),
         }
     }
-}
-
-/// Let go the objects of the queue's slots the core took out (`QueueStore::forget`).
-fn forget(world: &Bound<'_, PyAny>, taken: &[u64]) -> PyResult<()> {
-    if taken.is_empty() {
-        return Ok(());
-    }
-    EventWriter::of(world)?.queue().get().forget(taken)
 }
 
 /// The receipts as the handler returns them: a tuple of applied records, or None.
@@ -105,7 +96,7 @@ pub(crate) fn interrupt_operation<'py>(world: &Bound<'py, PyAny>, staff_id: &str
     let mut taken = Vec::new();
     let stopping = Stopping { event_id: &event_id, due_minute };
     let result = with_world(world, |cell| core::interrupt(cell, &gathered.inputs(), staff_id, &stopping, current_event_id, &mut taken))?;
-    forget(world, &taken)?;
+    forget_taken(world, &taken)?;
     gathered.finish(py, write_result(py, result))
 }
 
@@ -124,7 +115,7 @@ fn stop_and_suppress<T>(world: &Bound<'_, PyAny>, staff_id: &str, row: &EventRow
     let gathered = Gathered::of(world, true, false)?;
     let mut taken = Vec::new();
     let result = with_world(world, |cell| core::stop_and_suppress(cell, &gathered.inputs(), staff_id, row, text, &mut taken))?;
-    forget(world, &taken)?;
+    forget_taken(world, &taken)?;
     gathered.finish(py, write_result(py, result))?;
     Err(pyo3::exceptions::PyRuntimeError::new_err("a stop that did not suppress"))
 }
@@ -138,13 +129,7 @@ fn arrive<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &
     let step = (|| -> PyResult<Option<Arc<str>>> {
         let row = event_row(event)?;
         let gathered = Gathered::of(world, false, false)?;
-        with_world(world, |cell| -> CoreResult<Option<Arc<str>>> {
-            match core::plan_arrive(cell, &gathered.inputs(), &row)? {
-                Planned::Go(plan) => core::write_arrive(cell, plan).map(|()| None),
-                Planned::Unavailable(id) => Ok(Some(id)),
-            }
-        })?
-        .or_py()
+        with_world(world, |cell| core::arrive(cell, &gathered.inputs(), &row))?.or_py()
     })();
     match counted(py, "arrive", step)? {
         None => Ok(()),
@@ -162,24 +147,13 @@ fn relief<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &
     read_queue_rows(world)?;
     let gathered = Gathered::of(world, true, true)?;
     let mut taken = Vec::new();
-    let result = with_world(world, |cell| {
-        let inputs = gathered.inputs();
-        let plan = core::plan_relief(cell, &inputs, &row)?;
-        core::write_relief(cell, &inputs, plan, &mut taken)
-    })?;
-    forget(world, &taken)?;
+    let result = with_world(world, |cell| core::relief(cell, &gathered.inputs(), &row, &mut taken))?;
+    forget_taken(world, &taken)?;
     let made = counted(py, "relief", gathered.finish(py, write_result(py, result)))?;
     receipts(py, made.into_iter().collect())
 }
 
 // ---- Completion --------------------------------------------------------------------------------------
-
-/// What the plan of a completion led to.
-enum Step {
-    Done(Vec<Made>),
-    Unavailable(Arc<str>),
-    Intake(Box<CompletePlan>),
-}
 
 /// `StaffOperationCompletionHandler.apply`, with `complete_staff_operation` inside it.
 #[pyfunction]
@@ -187,22 +161,14 @@ fn complete<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event:
     let py = world.py();
     let row = event_row(event)?;
     let gathered = Gathered::of(world, false, false)?;
-    let step = with_world(world, |cell| -> CoreResult<Step> {
-        let inputs = gathered.inputs();
-        match core::plan_complete(cell, &inputs, &row)? {
-            Planned::Unavailable(id) => Ok(Step::Unavailable(id)),
-            Planned::Go(plan) if matches!(plan.work, Work::Intake) => Ok(Step::Intake(Box::new(plan))),
-            Planned::Go(plan) => core::write_complete(cell, &inputs, plan).map(Step::Done),
-        }
-    })?
-    .or_py();
+    let step = with_world(world, |cell| core::complete_or_intake(cell, &gathered.inputs(), &row))?.or_py();
     let made = match counted(py, "complete", step)? {
-        Step::Done(made) => made,
-        Step::Unavailable(id) => return stop_and_suppress(world, &id, &row, "staff became unavailable before completing the assigned task"),
-        Step::Intake(plan) => {
+        Completed::Done(made) => made,
+        Completed::Unavailable(id) => return stop_and_suppress(world, &id, &row, "staff became unavailable before completing the assigned task"),
+        Completed::Intake(plan) => {
             // What the admission will ask, while this can still refuse; then the admission, which
             // is the work of an intake (the core's, lane P9-3a).
-            let (cell, mut host) = (PyWorldCell(world), PyHost::of_world(world, pyo3::types::PyDict::new(py)));
+            let (cell, mut host) = (PyWorldCell(world), PyHost::of_entry(world));
             counted(py, "complete", sheltersim_core::rules::population::check_waiting(&cell, &mut host).map_err(|error| error.0))?;
             let now = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
             sheltersim_core::rules::population::admit_arrivals(&cell, &mut host, now).map_err(|error| error.0)?;
@@ -225,7 +191,7 @@ pub(crate) fn interrupt_trips<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py,
     let mut taken = Vec::new();
     let stopping = Stopping { event_id: &event_id, due_minute };
     let result = with_world(world, |cell| core::interrupt_trips(cell, &gathered.inputs(), &stopping, &mut taken))?;
-    forget(world, &taken)?;
+    forget_taken(world, &taken)?;
     let interrupted = gathered.finish(py, write_result(py, result))?;
     PyTuple::new(py, interrupted.iter().map(|id| &**id))
 }

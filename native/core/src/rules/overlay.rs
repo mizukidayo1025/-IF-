@@ -614,6 +614,15 @@ fn capacity_in<O: Value>(
     })
 }
 
+/// `nominal_capacity` of the zones' rows, or None where the zones are tainted: the Python objects are
+/// the truth then (lane P10-1c: `zone.capacity` of the PyO3 crate's `nominal_of`).
+pub fn nominal_of_rows(world: &World, zone_id: &str) -> Result<Option<Option<i64>>> {
+    if world.entities.try_borrow()?.zones_tainted().is_some() {
+        return Ok(None);
+    }
+    nominal_capacity(world, zone_id).map(Some)
+}
+
 /// `world.zones[zone_id].capacity`: Unsupported for a zone the world does not have.
 pub fn nominal_capacity(world: &World, zone_id: &str) -> Result<Option<i64>> {
     let rows = zone_rows(world)?;

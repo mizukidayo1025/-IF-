@@ -141,7 +141,7 @@ fn accept(table: &Table, controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>
     let Ok(active) = active.downcast::<crate::rules::action_lifecycle::ActiveActions>() else {
         return refuse("the open actions are not a store of the Run");
     };
-    if active.try_borrow_mut()?.with_rows(py, |_| Ok(())).is_err() {
+    if !active.try_borrow_mut()?.fits_rows(py) {
         return refuse("the open actions do not fit their rows");
     }
     marks(controller, run.get())

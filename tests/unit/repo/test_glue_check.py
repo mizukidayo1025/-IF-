@@ -29,8 +29,11 @@ def _glue_check():
 def test_the_tree_is_glue_or_says_why() -> None:
     check = _glue_check()
     assert check.run(ROOT) == []
-    assert all(reason.strip() for _, reason in check.EXEMPTIONS.values())
-    assert all(times > 0 for times, _ in check.EXEMPTIONS.values())
+    assert all(what.strip() for _, _, what in check.EXEMPTIONS.values())
+    assert all(times > 0 for times, _, _ in check.EXEMPTIONS.values())
+    for _, classes, _ in check.EXEMPTIONS.values():
+        assert classes and set(classes) <= set(check.CLASSES)
+    assert set(check.EXEMPT_FILES) <= check.ALLOWED_EXEMPT_FILES
 
 
 def test_a_finding_without_an_exemption_and_a_stale_exemption_fail() -> None:
@@ -57,16 +60,39 @@ def test_a_finding_without_an_exemption_and_a_stale_exemption_fail() -> None:
         ("probe.rs", check.CLOSURE): (7,),
     }
     exemptions = {
-        ("probe.rs", "namespace_held"): (1, "a reason"),
-        ("probe.rs", "py_fsum"): (2, "a reason"),
-        ("probe.rs", "python call"): (1, "a reason"),
-        ("gone.rs", "EventWriter"): (1, "a reason"),
+        ("probe.rs", "namespace_held"): (1, (check.ARGUMENT,), "a reason"),
+        ("probe.rs", "py_fsum"): (2, (check.ARGUMENT,), "a reason"),
+        ("probe.rs", "python call"): (1, (check.CONVERSION,), "a reason"),
+        ("gone.rs", "EventWriter"): (1, (check.HOOK,), "a reason"),
     }
     problems = check.judge(check.scan_rust(files), exemptions)
     assert len(problems) == 3
     assert any("py_fsum x1" in problem and "says 2" in problem for problem in problems)
     assert any(check.CLOSURE in problem and "not allowed" in problem for problem in problems)
     assert any(problem.startswith("gone.rs: EventWriter") for problem in problems)
+
+
+def test_an_exemption_of_a_class_not_allowed_and_an_exempt_file_not_allowed_fail() -> None:
+    check = _glue_check()
+    files = {
+        "probe.rs": "fn read(world: W) { class.call1((1,)); EventWriter::of(world); }\n",
+        "tick.rs": "fn accept(world: W) { EventWriter::of(world); }\n",
+    }
+    exemptions = {
+        ("probe.rs", "python call"): (1, (check.CONVERSION,), "a class for a Python caller"),
+        ("probe.rs", "EventWriter"): (1, (check.E10,), "E10 outside tick.rs and dispatch.rs"),
+        ("tick.rs", "EventWriter"): (1, (check.E10,), "the tick's check"),
+    }
+    problems = check.judge(check.scan_rust(files), exemptions)
+    assert problems == ["probe.rs: EventWriter is exempt as E10 outside ['dispatch.rs', 'tick.rs']"]
+    queue = {("probe.rs", "EventWriter"): (1, ("QUEUE",), "the queue's objects")}
+    problems = check.judge(check.scan_rust({"probe.rs": files["probe.rs"]}), queue)
+    assert "probe.rs: EventWriter is exempt as QUEUE, a class not allowed" in problems
+    assert check.judge_exempt_files(["parity.rs", "after_tick.rs"]) == []
+    assert check.judge_exempt_files(["movement_geometry.rs"]) == [
+        "movement_geometry.rs: exempt whole, which only"
+        " ['after_tick.rs', 'parity.rs', 'tick_validation.rs'] may be"
+    ]
 
 
 def test_a_deleted_python_rule_and_a_step_with_a_body_fail() -> None:

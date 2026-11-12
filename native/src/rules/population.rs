@@ -16,19 +16,17 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
 
-use sheltersim_core::config::overlay::OverlayRooms;
 use sheltersim_core::error::Error as CoreError;
 use sheltersim_core::rules::kit::Held;
 use sheltersim_core::rules::population::{self as core, Alternates, Built, DepartureGiven, Given, Language, Overrides, Read, RoutesFault};
 use sheltersim_core::value::V as CoreV;
 
-use crate::core::configs;
 use crate::core::errors::{self, to_py_err, OrPy};
 use crate::core::row::{attribute, exact_int, exact_str, unsupported};
 use crate::core::value::VPy;
-use crate::core::world_core::{namespace_held, state_value, with_world, PyWorldCell};
+use crate::core::world_core::{state_value, with_world, PyWorldCell};
 use crate::host::{HostError, PyHost};
-use crate::rules::movement_geometry::approach_routes;
+use crate::core::geometry::approach_routes;
 use crate::state::events::{read_frozen, EventRow, EventRowPy, MAX_ROW_DEPTH};
 use crate::Unsupported;
 
@@ -57,13 +55,9 @@ pub(crate) fn plan_read(py: Python<'_>, error: &PyErr) -> CoreError {
     }
 }
 
-pub(crate) fn held(world: &Bound<'_, PyAny>, name: &str, other: &'static str) -> PyResult<Held> {
-    namespace_held(world, &PyString::intern(world.py(), name), other)
-}
-
 /// The native host of an entry.
 pub(crate) fn host_of<'py>(world: &Bound<'py, PyAny>) -> PyHost<'py> {
-    PyHost::of_world(world, PyDict::new(world.py()))
+    PyHost::of_entry(world)
 }
 
 /// What the population rules read beside the rows, through the native host, and the host.
@@ -324,19 +318,14 @@ fn choose_admission_target<'py>(world: &Bound<'py, PyAny>, item: &Bound<'py, PyA
 /// table): those are read from their Python values, for the same core rule.
 #[pyfunction]
 pub(crate) fn validate_population_dynamics_state(world: &Bound<'_, PyAny>) -> PyResult<()> {
-    let dynamics = held(world, DYNAMICS, "the world holds another population dynamics state")?;
-    let presence = held(world, PRESENCE, "the world holds another presence state")?;
+    let holding = host_of(world).holding_of(&[DYNAMICS, PRESENCE], &[])?;
+    let dynamics = holding.held(DYNAMICS, "the world holds another population dynamics state");
+    let presence = holding.held(PRESENCE, "the world holds another presence state");
     let other = |held: &Held| matches!(held, Held::Other(_));
     let core_holds = !other(&dynamics)
         && !other(&presence)
         && crate::core::world_core::core_of(world).is_ok()
-        && with_world(world, |cell| {
-            let readable = |held: &Held, name: &str| matches!(held, Held::Absent) || cell.row::<sheltersim_core::row::ValueRow>(name).is_ok();
-            readable(&dynamics, DYNAMICS)
-                && readable(&presence, PRESENCE)
-                && cell.rows().is_ok()
-                && cell.entities.try_borrow().is_ok_and(|rows| rows.zones_tainted().is_none())
-        })?;
+        && with_world(world, |cell| core::holds_for_validation(cell, &dynamics, &presence))?;
     if !core_holds {
         return validate_values(world);
     }
@@ -446,20 +435,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 // ---- Readers of the glue ---------------------------------------------------------------------------
 
-/// `value.get(key)`.
-pub(crate) fn get<'py>(value: &Bound<'py, PyAny>, key: &str) -> PyResult<Bound<'py, PyAny>> {
-    value.call_method1(intern!(value.py(), "get"), (key,))
-}
-
-/// `value.get(key, {})`, for a read of a chain of mappings that may be absent.
-pub(crate) fn get_map<'py>(value: &Bound<'py, PyAny>, key: &str) -> PyResult<Bound<'py, PyAny>> {
-    value.call_method1(intern!(value.py(), "get"), (key, PyDict::new(value.py())))
-}
-
-pub(crate) fn is_dict(value: &Bound<'_, PyAny>) -> bool {
-    value.is_instance_of::<PyDict>()
-}
-
 pub(crate) fn text(value: &Bound<'_, PyAny>) -> PyResult<Arc<str>> {
     Ok(Arc::from(exact_str(value)?))
 }
@@ -480,49 +455,6 @@ pub(crate) fn event_row(event: &Bound<'_, PyAny>) -> PyResult<EventRow> {
 /// `Identifier` of contracts/extensions.py.
 pub(crate) fn is_identifier(text: &str) -> bool {
     sheltersim_core::events::is_stable_id(text)
-}
-
-/// `geometry_overlay.get("schema_version") not in {3, 4}`, as the set membership.
-fn room_schema(config: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let py = config.py();
-    pyo3::types::PySet::new(py, [3, 4])?.contains(get(config, "schema_version")?)
-}
-
-/// `room_schema` of the overlay's config, as the section holds it: what it raised is raised again.
-fn rooms_schema(world: &Bound<'_, PyAny>, rooms: &OverlayRooms) -> PyResult<bool> {
-    match &rooms.room_schema {
-        Ok(schema) => Ok(*schema),
-        Err(fault) => Err(configs::raise(fault, || {
-            room_schema(&get_map(&attribute(world, intern!(world.py(), "model_configs"))?, "geometry_overlay")?)
-        })),
-    }
-}
-
-/// What reading the section `overlay_rooms` raised, read again for its error (policy E14): the
-/// read of the config, then for a dict the room schema's.
-pub(crate) fn reraise_rooms(world: &Bound<'_, PyAny>) -> PyResult<()> {
-    let rooms = overlay_rooms(world)?;
-    if rooms.is_dict && rooms.room_schema.is_err() {
-        room_schema(&get_map(&attribute(world, intern!(world.py(), "model_configs"))?, "geometry_overlay")?)?;
-    }
-    Ok(())
-}
-
-/// The section `overlay_rooms` as the arrivals read it, for the tests: whether the config is a
-/// dict, and its room schema for a dict.
-pub(crate) fn overlay_rooms_of(world: &Bound<'_, PyAny>) -> PyResult<(bool, bool)> {
-    let rooms = configs::kept_python(world, |configs| &configs.overlay_rooms, overlay_rooms)?;
-    Ok((rooms.is_dict, rooms.is_dict && rooms_schema(world, &rooms)?))
-}
-
-/// `model_configs.get("geometry_overlay", {})` as the arrivals read it: whether it is a dict, and
-/// for a dict `room_schema` of it or what that raised. The section `overlay_rooms`.
-pub(crate) fn overlay_rooms(world: &Bound<'_, PyAny>) -> PyResult<OverlayRooms> {
-    let py = world.py();
-    let config = get_map(&attribute(world, intern!(py, "model_configs"))?, "geometry_overlay")?;
-    let is_dict = is_dict(&config);
-    let room_schema = if is_dict { room_schema(&config).map_err(|error| configs::fault_of(py, &error)) } else { Ok(false) };
-    Ok(OverlayRooms { is_dict, room_schema })
 }
 
 /// A validation as a validator of `state_mirror._RUST_VALIDATORS`, which says yes or Unsupported:

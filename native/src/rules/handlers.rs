@@ -14,25 +14,23 @@
 //! The helpers at the start (`counted`, `get`, `get_is`, `status_member`) are for the kernels still in
 //! this crate.
 
-use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyString, PyTuple};
+use pyo3::types::{PyDict, PyTuple};
 
-use sheltersim_core::config::environment::Infrastructure;
-use sheltersim_core::config::proximity::Proximity;
 use sheltersim_core::rules::handlers::{
     self as core, FacilityIn, Followed, Infra, LedgerIn, COOLDOWN_UNREAD, COUNTS, INFRASTRUCTURE, OPERATIONAL,
 };
+use sheltersim_core::config::SectionId;
+use sheltersim_core::host::Holding;
 use sheltersim_core::rules::kit::Held;
 use sheltersim_core::rules::staff_operation_events::FORMULA_UNREAD;
 
 use crate::core::configs;
 use crate::core::errors::{self, to_py_err, OrPy};
-use crate::core::row::{attribute, exact_int, exact_str};
-use crate::core::value::{VPy, V};
-use crate::core::world_core::{namespace_held, with_world, PyWorldCell};
+use crate::core::row::{attribute, exact_str};
+use crate::core::world_core::{with_world, PyWorldCell};
 use crate::host::PyHost;
 use crate::rules::care_receipts::made_record;
 use crate::rules::information_events::event_row;
@@ -89,97 +87,18 @@ pub(crate) fn status_member<'py>(py: Python<'py>, member: &str) -> PyResult<Boun
 
 // ---- The sections of the configs, kept by stamp ----------------------------------------------------
 
-/// `canonical_proximity_contact_config(model_configs.get("social_proximity"))`, kept for the
-/// configs' stamp (`core/configs.rs`); what it raises is relayed as it is.
-pub(crate) fn proximity_config(world: &Bound<'_, PyAny>) -> PyResult<Arc<Option<Proximity>>> {
-    match proximity_section(world)? {
-        Ok(config) => Ok(config),
-        Err(fault) => Err(configs::raise(&fault, || parse_proximity(world))),
-    }
-}
-
-/// `proximity_config` without its raise (the host's `fill_section`, lane P9-0).
-pub(crate) fn proximity_section(world: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::rules::kit::Kept<Option<Proximity>>> {
-    configs::kept(world, |configs| &configs.proximity, || Ok(configs::parsed(world.py(), parse_proximity(world))))
-}
-
-fn parse_proximity(world: &Bound<'_, PyAny>) -> PyResult<Option<Proximity>> {
-    let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let config = py
-        .import("sheltersim.domain.social_network")?
-        .getattr("canonical_proximity_contact_config")?
-        .call1((get(&configs, "social_proximity")?,))?;
-    configs::read(Proximity::from_v(&<V as VPy>::from_py(&config)?))
-}
-
-/// `model_configs.get("staff", {}).get("support_cooldown_minutes", 30)`, kept for the configs'
-/// stamp (`core/configs.rs`); what the reads raise is relayed as it is.
-pub(crate) fn support_cooldown_minutes(world: &Bound<'_, PyAny>) -> PyResult<Arc<i64>> {
-    match support_cooldown_section(world)? {
-        Ok(minutes) => Ok(minutes),
-        Err(fault) => Err(configs::raise(&fault, || parse_support_cooldown(world))),
-    }
-}
-
-/// `support_cooldown_minutes` without its raise (the host's `fill_section`, lane P9-0).
-pub(crate) fn support_cooldown_section(world: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::rules::kit::Kept<i64>> {
-    configs::kept(world, |configs| &configs.support_cooldown_minutes, || Ok(configs::parsed(world.py(), parse_support_cooldown(world))))
-}
-
-fn parse_support_cooldown(world: &Bound<'_, PyAny>) -> PyResult<i64> {
-    let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let cooldown = configs
-        .call_method1(intern!(py, "get"), ("staff", PyDict::new(py)))?
-        .call_method1(intern!(py, "get"), ("support_cooldown_minutes", 30))?;
-    exact_int(&cooldown)
-}
-
-/// `ScenarioInfrastructureSpec.model_validate(configs["infrastructure"])`, kept for the configs'
-/// stamp, for the sections' tests (`core/configs.rs`). The rules read it through the host
-/// (`Host::contract`, policy E15).
-pub(crate) fn infrastructure_config(world: &Bound<'_, PyAny>) -> PyResult<Arc<Infrastructure>> {
-    match infrastructure_section(world)? {
-        Ok(spec) => Ok(spec),
-        Err(fault) => Err(configs::raise(&fault, || parse_infrastructure(world))),
-    }
-}
-
-/// `infrastructure_config` without its raise (the host's `fill_section`, lane P9-0).
-pub(crate) fn infrastructure_section(world: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::rules::kit::Kept<Infrastructure>> {
-    configs::kept(world, |configs| &configs.infrastructure, || Ok(configs::parsed(world.py(), parse_infrastructure(world))))
-}
-
-fn parse_infrastructure(world: &Bound<'_, PyAny>) -> PyResult<Infrastructure> {
-    let py = world.py();
-    let raw = attribute(world, intern!(py, "model_configs"))?.get_item("infrastructure")?;
-    let spec = py
-        .import("sheltersim.domain.infrastructure")?
-        .getattr("ScenarioInfrastructureSpec")?
-        .call_method1("model_validate", (raw,))?;
-    let keywords = PyDict::new(py);
-    keywords.set_item("mode", "json")?;
-    let dumped = spec.call_method("model_dump", (), Some(&keywords))?;
-    configs::read(Infrastructure::from_v(&<V as VPy>::from_py(&dumped)?))
-}
-
 // ---- What the rules read of the Python world ----------------------------------------------------------
 
-fn held(world: &Bound<'_, PyAny>, name: &'static str, other: &'static str) -> PyResult<Held> {
-    namespace_held(world, &PyString::new(world.py(), name), other)
+fn operational_held(holding: &Holding) -> Held {
+    holding.held(OPERATIONAL, "the world holds another operational state")
 }
 
-fn operational_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    held(world, OPERATIONAL, "the world holds another operational state")
+fn infrastructure_held(holding: &Holding) -> Held {
+    holding.held(INFRASTRUCTURE, "the world holds another infrastructure state")
 }
 
-fn infrastructure_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    held(world, INFRASTRUCTURE, "the world holds another infrastructure state")
-}
-
-fn program_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    held(world, "effect_program_v1", "the world holds another effect_program_v1")
+fn program_held(holding: &Holding) -> Held {
+    holding.held("effect_program_v1", "the world holds another effect_program_v1")
 }
 
 /// `SHARED_OPERATIONS_KEY not in world.model_state`.
@@ -220,7 +139,7 @@ fn operational_handled<T>(
     run: impl FnOnce(&PyWorldCell<'_, '_>, &mut PyHost<'_>) -> Result<T, crate::host::HostError>,
 ) -> PyResult<T> {
     read_queue_rows(world)?;
-    let mut host = PyHost::of_world(world, PyDict::new(world.py())).with_in_flight(event);
+    let mut host = PyHost::of_entry(world).with_in_flight(event);
     run(&PyWorldCell(world), &mut host).map_err(|error| error.0)
 }
 
@@ -244,9 +163,11 @@ fn read_again<T>(py: Python<'_>, result: PyResult<T>, reason: &str, read: impl F
 fn proximity(_handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
     let py = world.py();
     let result = (|| {
-        let config = proximity_config(world)?;
+        let mut host = PyHost::of_entry(world);
+        let holding = host.holding_now()?;
+        let config = host.host_value(&holding, SectionId::Proximity, |configs| &configs.proximity)?;
         let row = event_row(event)?;
-        let movement = movement_held(world)?;
+        let movement = movement_held(&holding);
         with_world(world, |cell| core::proximity(cell, config.as_ref().as_ref(), &movement, &row))?.or_py()
     })();
     counted(py, "proximity", result)
@@ -262,9 +183,10 @@ fn resource_ledger(handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: 
         let operation = attribute(handler, intern!(py, "operation"))?;
         let operation = exact_str(&operation)?;
         let row = event_row(event)?;
-        let operational = operational_held(world)?;
-        let service = held(world, "resource_service_v1", "the world holds another service state")?;
-        let ledger = held(world, "resource_ledger_v1", "the world holds another ledger")?;
+        let holding = PyHost::of_entry(world).holding_now()?;
+        let operational = operational_held(&holding);
+        let service = holding.held("resource_service_v1", "the world holds another service state");
+        let ledger = holding.held("resource_ledger_v1", "the world holds another ledger");
         let inputs = LedgerIn { operational: &operational, service: &service, ledger: &ledger };
         match with_world(world, |cell| core::resource_ledger(cell, &inputs, &row, operation))? {
             Ok(applied) => replace_resources(world, applied),
@@ -287,8 +209,9 @@ fn resource_ledger(handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: 
 fn facility_units<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>, restores: bool) -> PyResult<Option<Bound<'py, PyTuple>>> {
     let py = world.py();
     let row = event_row(event)?;
-    let program = program_held(world)?;
-    let infrastructure = infrastructure_held(world)?;
+    let holding = PyHost::of_entry(world).holding_now()?;
+    let program = program_held(&holding);
+    let infrastructure = infrastructure_held(&holding);
     let inputs = FacilityIn { program: &program, infrastructure: &infrastructure, shared_absent: shared_absent(world)? };
     let made = with_world(world, |cell| core::facility_units(cell, &inputs, &row, restores))?.or_py()?;
     match made {
@@ -341,8 +264,8 @@ fn staff_unavailable<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny
     let result = (|| {
         let row = event_row(event)?;
         let result = operational_handled(world, event, |cell, host| core::staff_unavailable_event(cell, host, &row));
-        let result = read_again(py, result, COOLDOWN_UNREAD, || support_cooldown_minutes(world).map(drop));
-        read_again(py, result, FORMULA_UNREAD, || crate::rules::staff::staff_operations(world).map(drop))
+        let result = read_again(py, result, COOLDOWN_UNREAD, || configs::support_cooldown_minutes(world).map(drop));
+        read_again(py, result, FORMULA_UNREAD, || configs::staff_operations(world).map(drop))
     })();
     let records = counted(py, "staff_unavailable", result)?;
     PyTuple::new(py, records.into_iter().map(|made| made_record(py, made)).collect::<PyResult<Vec<_>>>()?)
@@ -381,7 +304,7 @@ fn interrupt_for_staff<'py>(manager: &Bound<'py, PyAny>, staff_id: &Bound<'py, P
 #[pyfunction]
 fn population<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>) -> PyResult<()> {
     let row = event_row(event)?;
-    let mut host = PyHost::of_world(world, PyDict::new(world.py()));
+    let mut host = PyHost::of_entry(world);
     core::population_event(&PyWorldCell(world), &mut host, &row).map_err(|error| error.0)
 }
 
@@ -399,7 +322,7 @@ fn infrastructure<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, 
     let applied = operational_handled(world, event, |cell, host| core::infrastructure_event(cell, host, &row, kind));
     let (previous, mut followed) = counted(py, label, applied)?;
     // The world has changed: what fails from here fails in Python too.
-    let mut host = PyHost::of_world(world, PyDict::new(py));
+    let mut host = PyHost::of_entry(world);
     let receipts = core::infrastructure_after(&PyWorldCell(world), &mut host, &previous, &row).map_err(|error| error.0)?;
     followed.extend(receipts.into_iter().map(Followed::from));
     records_tuple(py, &followed)

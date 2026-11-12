@@ -19,12 +19,11 @@ use sheltersim_core::config::Fault;
 use sheltersim_core::rules::kit::Held;
 use sheltersim_core::rules::psychology::{self as core, Applied, Bad, Delta};
 use sheltersim_core::state::body_state::NAME as BODY_STATE;
+use sheltersim_core::world::METRIC_STATE;
 
 use crate::core::errors::{to_py_err, OrPy};
-use crate::core::row::attribute;
 use crate::core::run::{policies_of, run_of};
-use crate::core::tracked::as_readable_dict;
-use crate::core::world_core::{field_held, namespace_held, raw_dict_get, raw_dict_set, with_world};
+use crate::core::world_core::{raw_dict_get, raw_dict_set, with_world};
 use crate::host::PyHost;
 use crate::rules::trace::TraceRows;
 use crate::rules::world_view::view_of;
@@ -118,7 +117,6 @@ pub(crate) fn update_long_term<'py>(
     final_deltas: &Bound<'py, PyAny>,
     minute: &Bound<'py, PyAny>,
 ) -> PyResult<()> {
-    let py = world.py();
     let policies = policies_of(controller)?;
     let psychology = &policies.psychology;
     if !core::keeps_long_term(psychology).map_err(|bad| bad_error(controller, bad))? {
@@ -131,7 +129,7 @@ pub(crate) fn update_long_term<'py>(
     for (id, stress) in &people {
         finals.push((id.to_str()?, *stress));
     }
-    let held = field_held(world, intern!(py, "metric_state"))?;
+    let held = PyHost::of_entry(world).holding_of(&[], &[METRIC_STATE])?.field(METRIC_STATE);
     with_world(world, |world| core::update_long_term(world, &long_term, &finals, minute, held))?.or_py()
 }
 
@@ -257,11 +255,11 @@ pub(crate) fn update_psychology<'py>(
 
 /// Whether `model_state` holds `body_state_v1`; anything else it holds there is refused.
 fn body_state_of(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let py = world.py();
-    if as_readable_dict(&attribute(world, intern!(py, "model_state"))?).is_none() {
+    let holding = PyHost::of_entry(world).holding_of(&[BODY_STATE], &[])?;
+    if !holding.table {
         return unsupported("model_state is not readable");
     }
-    match namespace_held(world, intern!(py, BODY_STATE), "body_state_v1 is not the tree of its row")? {
+    match holding.held(BODY_STATE, "body_state_v1 is not the tree of its row") {
         Held::Absent => Ok(false),
         Held::Held => Ok(true),
         Held::Other(reason) => unsupported(reason),

@@ -20,6 +20,7 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyFloat, PyString, PyTuple};
 
+use sheltersim_core::config::read::Read;
 use sheltersim_core::config::{Configs, Fault, Filled, Lazy, Section, SectionId};
 use sheltersim_core::error::Error as CoreError;
 use sheltersim_core::events::writer::WriteError;
@@ -33,6 +34,7 @@ use sheltersim_core::host::{
     Contract, Decision, DecisionSink, ErrorClass, Foreign, ForeignRecord, Holding, Host, HostFailure, Llm, Part, Phase, Stage, Trace,
     TraceLevel, TxnKind,
 };
+use sheltersim_core::rules::kit::Kept;
 use sheltersim_core::rules::metrics::MetricSample;
 use sheltersim_core::run::Policies;
 use sheltersim_core::value::V;
@@ -44,9 +46,9 @@ use crate::core::errors::{self, to_py_err, Outcome};
 use crate::core::row::{attribute, exact_dict, exact_list, exact_str};
 use crate::core::run::run_of;
 use crate::core::value::VPy;
-use crate::core::world_core::{attached_state, core_of, holding_of, mirror_of, raw_dict_get, raw_list_append};
+use crate::core::world_core::{attached_state, core_of, holding_of, mirror_of, raw_dict_get, raw_list_append, PyWorldCell};
 use crate::eventlog::EventStore;
-use crate::rules::movement_geometry::{Geo, GeoPy};
+use crate::core::geometry::{Geo, GeoPy};
 use crate::state::information::{NAME as INFORMATION, SCHEMA_VERSION as INFORMATION_VERSION};
 use crate::state::events::{frozen, write_error, EventRowPy, QueueStore};
 use crate::Unsupported;
@@ -506,7 +508,7 @@ impl<'py> Host for PyHost<'py> {
 
     /// `event_log.find(event_id)`, read as the core reads a record.
     fn find_record(&mut self, event_id: &str) -> Result<Option<Logged>, HostError> {
-        let found = crate::rules::common_operations::found_records(&self.world, vec![Arc::from(event_id)])?;
+        let found = crate::eventlog::found_records(&self.world, vec![Arc::from(event_id)])?;
         Ok(found.0.into_iter().next().and_then(|(_, logged)| logged))
     }
 
@@ -806,33 +808,33 @@ impl<'py> Host for PyHost<'py> {
                 Filled::Kept
             }
             SectionId::FacilityGeometry => {
-                rules::movement_geometry::facility_geometry(configs, &raw()?);
+                crate::core::geometry::facility_geometry(configs, &raw()?);
                 Filled::Kept
             }
             SectionId::SpatialConstraints => {
-                rules::movement_geometry::spatial_constraints(configs, &raw()?);
+                crate::core::geometry::spatial_constraints(configs, &raw()?);
                 Filled::Kept
             }
             SectionId::StaffFatigue => finish(configs, |c| &c.staff_fatigue, configs::kept_section(world, |c| &c.staff_fatigue, staff::StaffFatigue::parse)?),
-            SectionId::StaffOperations => finish(configs, |c| &c.staff_operations, rules::staff::staff_operations_section(world)?),
+            SectionId::StaffOperations => finish(configs, |c| &c.staff_operations, configs::staff_operations_section(world)?),
             SectionId::StaffOperationsKnown => {
                 finish(configs, |c| &c.staff_operations_known, configs::kept_section(world, |c| &c.staff_operations_known, staff::known_staff_operations)?)
             }
             SectionId::SupportTaskMinutes => {
                 finish(configs, |c| &c.support_task_minutes, configs::kept_section(world, |c| &c.support_task_minutes, staff::support_task_minutes)?)
             }
-            SectionId::SupportCooldownMinutes => finish(configs, |c| &c.support_cooldown_minutes, rules::handlers::support_cooldown_section(world)?),
-            SectionId::InformationSpread => finish(configs, |c| &c.information_spread, rules::information_events::information_spread(world)?),
+            SectionId::SupportCooldownMinutes => finish(configs, |c| &c.support_cooldown_minutes, configs::support_cooldown_section(world)?),
+            SectionId::InformationSpread => finish(configs, |c| &c.information_spread, configs::information_spread(world)?),
             SectionId::BodyModels => {
-                let selection = rules::body_state::selection_of(world)?;
-                finish(configs, |c| &c.body_models, rules::body_state::models_section(world, &selection)?)
+                let selection = configs::body_selection(world)?;
+                finish(configs, |c| &c.body_models, configs::body_models_section(world, &selection)?)
             }
             SectionId::SocialInteractionMinutes => finish(
                 configs,
                 |c| &c.social_interaction_minutes,
                 configs::kept_section(world, |c| &c.social_interaction_minutes, body::social_interaction_minutes)?,
             ),
-            SectionId::CareOutcome => finish(configs, |c| &c.care_outcome, rules::support::care_outcome_section(world)?),
+            SectionId::CareOutcome => finish(configs, |c| &c.care_outcome, configs::care_outcome_section(world)?),
             SectionId::AgentDynamicsPolicy => {
                 finish(configs, |c| &c.agent_dynamics_policy, configs::kept_section(world, |c| &c.agent_dynamics_policy, agent_dynamics::policy)?)
             }
@@ -844,9 +846,9 @@ impl<'py> Host for PyHost<'py> {
                 |c| &c.knowledge_is_limited,
                 configs::kept_section(world, |c| &c.knowledge_is_limited, agent_dynamics::knowledge_is_limited)?,
             ),
-            SectionId::ZoneEnvironment => finish(configs, |c| &c.zone_environment, rules::effects::zone_environment_section(world)?),
-            SectionId::Infrastructure => finish(configs, |c| &c.infrastructure, rules::handlers::infrastructure_section(world)?),
-            SectionId::Proximity => finish(configs, |c| &c.proximity, rules::handlers::proximity_section(world)?),
+            SectionId::ZoneEnvironment => finish(configs, |c| &c.zone_environment, configs::zone_environment_section(world)?),
+            SectionId::Infrastructure => finish(configs, |c| &c.infrastructure, configs::infrastructure_section(world)?),
+            SectionId::Proximity => finish(configs, |c| &c.proximity, configs::proximity_section(world)?),
             SectionId::Movement => finish(configs, |c| &c.movement, configs::kept_section(world, |c| &c.movement, movement::Movement::parse)?),
             SectionId::RouteCapacities => {
                 finish(configs, |c| &c.route_capacities, configs::kept_section(world, |c| &c.route_capacities, movement::RouteCapacities::parse)?)
@@ -854,7 +856,7 @@ impl<'py> Host for PyHost<'py> {
             SectionId::TransitCapacities => finish(
                 configs,
                 |c| &c.transit_capacities,
-                configs::kept(world, |c| &c.transit_capacities, || Ok(configs::parsed(py, rules::population_lifecycle::transit_capacities(world))))?,
+                configs::kept(world, |c| &c.transit_capacities, || Ok(configs::parsed(py, configs::transit_capacities(world))))?,
             ),
             SectionId::FacilityQueues => {
                 finish(configs, |c| &c.facility_queues, configs::kept_section(world, |c| &c.facility_queues, queues::QueueConfig::parse)?)
@@ -865,7 +867,7 @@ impl<'py> Host for PyHost<'py> {
             SectionId::OverlayRooms => finish(
                 configs,
                 |c| &c.overlay_rooms,
-                configs::kept(world, |c| &c.overlay_rooms, || Ok(configs::parsed(py, rules::population::overlay_rooms(world))))?,
+                configs::kept(world, |c| &c.overlay_rooms, || Ok(configs::parsed(py, configs::overlay_rooms(world))))?,
             ),
             SectionId::ResourceService => {
                 finish(configs, |c| &c.resource_service, configs::kept_section(world, |c| &c.resource_service, service::ResourceService::parse)?)
@@ -878,7 +880,7 @@ impl<'py> Host for PyHost<'py> {
             SectionId::ExtensionsEnabled => finish(
                 configs,
                 |c| &c.extensions_enabled,
-                configs::kept(world, |c| &c.extensions_enabled, || Ok(configs::parsed(py, rules::world_view::extensions_enabled(world))))?,
+                configs::kept(world, |c| &c.extensions_enabled, || Ok(configs::parsed(py, configs::extensions_enabled(world))))?,
             ),
         })
     }
@@ -913,7 +915,7 @@ impl<'py> Host for PyHost<'py> {
         if let Some(returned) = returned.filter(|returned| returned.is_truthy().unwrap_or(true)) {
             for record in returned.try_iter()? {
                 let record = record?;
-                let logged = crate::rules::common_operations::logged_of(&record)?;
+                let logged = crate::eventlog::logged_of(&record)?;
                 let detail = attribute(&record, intern!(py, "detail"))?;
                 let detail = if detail.is_none() { None } else { Some(exact_str(&detail)?.to_owned()) };
                 records.push(ForeignRecord { event: logged.event, realized_minute: logged.realized_minute, status: logged.status, detail });
@@ -1006,39 +1008,39 @@ impl<'py> Host for PyHost<'py> {
         let py = self.py();
         match again {
             Again::Section(SectionId::ExtensionsEnabled) => {
-                crate::rules::world_view::extensions_enabled(&self.world)?;
+                configs::extensions_enabled(&self.world)?;
             }
             Again::Section(SectionId::Selection) => return Err(HostError(errors::relayed(py, configs::reraise_selection(&self.world)))),
             Again::Section(SectionId::StaffOperations) => {
-                crate::rules::staff::staff_operations(&self.world)?;
+                configs::staff_operations(&self.world)?;
             }
             Again::Section(SectionId::InformationSpread) => {
-                crate::rules::information_events::parse_spread(&self.world)?;
+                configs::parse_spread(&self.world)?;
             }
             Again::Section(SectionId::BodyModels) => {
-                crate::rules::body_state::raise_models(&self.world)?;
+                configs::raise_body_models(&self.world)?;
             }
             Again::Section(SectionId::CareOutcome) => {
-                crate::rules::support::selected_care_formula(&self.world)?;
+                configs::selected_care_formula(&self.world)?;
             }
             Again::Section(SectionId::ZoneEnvironment) => {
-                crate::rules::effects::zone_environment_spec(&self.world)?;
+                configs::zone_environment_spec(&self.world)?;
             }
             Again::Section(SectionId::SupportCooldownMinutes) => {
-                crate::rules::handlers::support_cooldown_minutes(&self.world)?;
+                configs::support_cooldown_minutes(&self.world)?;
             }
             Again::Section(SectionId::Proximity) => {
-                crate::rules::handlers::proximity_config(&self.world)?;
+                configs::proximity_config(&self.world)?;
             }
             // The population rules' sections (lane P9-3a).
             Again::Section(SectionId::FacilityGeometry) => {
-                crate::rules::movement_geometry::reparse_facility(&self.world)?;
+                crate::core::geometry::reparse_facility(&self.world)?;
             }
             Again::Section(SectionId::TransitCapacities) => {
-                crate::rules::population_lifecycle::transit_capacities(&self.world)?;
+                configs::transit_capacities(&self.world)?;
             }
             Again::Section(SectionId::OverlayRooms) => {
-                crate::rules::population::reraise_rooms(&self.world)?;
+                configs::reraise_rooms(&self.world)?;
             }
             Again::Section(_) => {}
             Again::Policy(path) => {
@@ -1104,6 +1106,91 @@ impl<'py> Host for PyHost<'py> {
     }
 }
 
+// ---- What a Python entry reads of the world's outside (lane P10-1c) ------------------------------
+
+impl<'py> PyHost<'py> {
+    /// The host of a Python entry on `world` (the phase path, a test, a Python caller): no
+    /// controller, nothing a transaction keeps.
+    pub(crate) fn of_entry(world: &Bound<'py, PyAny>) -> Self {
+        Self::of_world(world, PyDict::new(world.py()))
+    }
+
+    /// What the world holds now (H1), through the core's reader (`kit::holding`), as the tick reads
+    /// it: read at every call, as an entry read each namespace and field at its own point.
+    pub(crate) fn holding_now(&mut self) -> PyResult<Arc<Holding>> {
+        self.ran_python();
+        let world = self.world.clone();
+        sheltersim_core::rules::kit::holding(&PyWorldCell(&world), self).map_err(|error| error.0)
+    }
+
+    /// The configs of a world without a core (a save's world being validated before its core): new
+    /// ones no slot follows, which the host fills at each read, as `configs::current` gave them.
+    fn coreless_configs(&self) -> Option<Arc<Configs>> {
+        core_of(&self.world).is_err().then(|| Arc::new(Configs::new(None)))
+    }
+
+    /// A section the core parses from the configs' value (H2, `kit::section_value`): the value, or
+    /// the fault for the core to raise where its rule reads the section.
+    pub(crate) fn value_section<T>(&mut self, holding: &Holding, which: SectionId, get: fn(&Configs) -> &Lazy<T>, parse: fn(&V) -> Read<T>) -> PyResult<Kept<T>> {
+        use sheltersim_core::rules::kit;
+        if let Some(configs) = self.coreless_configs() {
+            return Ok(kit::kept_of(kit::section_in(self, configs, which, get).map_err(|error| error.0)?));
+        }
+        let world = self.world.clone();
+        kit::kept_section_value(&PyWorldCell(&world), self, holding, which, get, parse).map_err(|error| error.0)
+    }
+
+    /// `value_section`, raised here: a refusal its `Unsupported`, any other fault a corrupt
+    /// `model_configs` (`configs::read`).
+    #[track_caller]
+    pub(crate) fn value<T>(&mut self, holding: &Holding, which: SectionId, get: fn(&Configs) -> &Lazy<T>, parse: fn(&V) -> Read<T>) -> PyResult<Arc<T>> {
+        configs::read(self.value_section(holding, which, get, parse)?)
+    }
+
+    /// A section Python's contract parses (H2, `kit::section`): the value, or its fault.
+    pub(crate) fn host_section<T>(&mut self, holding: &Holding, which: SectionId, get: fn(&Configs) -> &Lazy<T>) -> PyResult<Kept<T>> {
+        use sheltersim_core::rules::kit;
+        if let Some(configs) = self.coreless_configs() {
+            return Ok(kit::kept_of(kit::section_in(self, configs, which, get).map_err(|error| error.0)?));
+        }
+        let world = self.world.clone();
+        kit::kept_section(&PyWorldCell(&world), self, holding, which, get).map_err(|error| error.0)
+    }
+
+    /// `host_section`, raised here: a refusal its `Unsupported`, any other fault what the parse
+    /// raises again (policy E14, `kit::raise_section`).
+    pub(crate) fn host_value<T>(&mut self, holding: &Holding, which: SectionId, get: fn(&Configs) -> &Lazy<T>) -> PyResult<Arc<T>> {
+        match self.host_section(holding, which, get)? {
+            Ok(value) => Ok(value),
+            Err(fault) => Err(self.raise_section(which, &fault)),
+        }
+    }
+
+    /// What the world holds of these namespaces and owned fields now (H1): `holding_now` read for
+    /// them alone, with the same answers for each (`holding_of_names`); another name reads as absent
+    /// and another field as held, so a reader asks for every name it reads, and for `model_configs`
+    /// where it reads a section. For the readers outside the tick that run at each frame or minute.
+    pub(crate) fn holding_of(&mut self, names: &[&str], fields: &[&str]) -> PyResult<Arc<Holding>> {
+        Ok(Arc::new(crate::core::world_core::holding_of_names(&self.world, names, fields)?))
+    }
+
+    /// `namespace_is_absent` of the holding read now: the key is missing or None; the refusal of a
+    /// `model_state` that is not a plain dict.
+    pub(crate) fn absent_now(&mut self, name: &str) -> PyResult<bool> {
+        absent(&*self.holding_of(&[name], &[])?, name)
+    }
+
+    /// The error a read site raises for a fault of a section Python parses (`kit::raise_section`).
+    pub(crate) fn raise_section(&mut self, which: SectionId, fault: &Fault) -> PyErr {
+        sheltersim_core::rules::kit::raise_section(self, which, fault).0
+    }
+}
+
+/// `Holding::is_absent`, its refusal raised (`Unsupported`).
+pub(crate) fn absent(holding: &Holding, name: &str) -> PyResult<bool> {
+    holding.is_absent(name).map_err(Unsupported::new_err)
+}
+
 // ---- For tests ---------------------------------------------------------------------------------
 
 fn texts(arguments: &Bound<'_, PyTuple>) -> PyResult<Vec<String>> {
@@ -1142,30 +1229,39 @@ pub(crate) fn host_calls<'py>(controller: &Bound<'py, PyAny>, calls: Vec<(String
 
 /// What `Holding` answers and what the per-call reads answer, for each name: `{name: (holding,
 /// read now)}` of `held`/`namespace_held` (with the refusal "other"), `is_absent`/`namespace_is_absent`
-/// and, for `fields`, `field`/`field_held` (lane P9-0).
+/// and, for `fields`, `field`/`field_held` (lane P9-0). The holding read for these names alone
+/// (`holding_of_names`, lane P10-1c) must answer as the whole one; where it does not, its answer is
+/// given instead.
 #[pyfunction]
 pub(crate) fn holding_and_reads<'py>(world: &Bound<'py, PyAny>, names: Vec<String>, fields: Vec<String>) -> PyResult<Bound<'py, PyDict>> {
     use crate::core::row::namespace_is_absent;
-    use crate::core::world_core::{field_held, namespace_held};
+    use crate::core::world_core::{field_held, holding_of_names, namespace_held};
     let py = world.py();
     let holding = holding_of(world)?;
+    let asked: Vec<&str> = names.iter().map(String::as_str).collect();
+    let asked_fields: Vec<&str> = fields.iter().map(String::as_str).collect();
+    let partial = holding_of_names(world, &asked, &asked_fields)?;
     let out = PyDict::new(py);
     let said = |answer: PyResult<bool>| match answer {
         Ok(flag) => flag.to_string(),
         Err(error) => format!("raises {}", error.value(py)),
     };
+    let answers = |holding: &Holding, name: &str| {
+        (held_text(&holding.held(name, "other")), match holding.is_absent(name) {
+            Ok(flag) => flag.to_string(),
+            Err(reason) => format!("raises {reason}"),
+        })
+    };
     for name in &names {
         let key = PyString::new(py, name);
         let now = (held_text(&namespace_held(world, &key, "other")?), said(namespace_is_absent(world, &key)));
-        let kept = (held_text(&holding.held(name, "other")), match holding.is_absent(name) {
-            Ok(flag) => flag.to_string(),
-            Err(reason) => format!("raises {reason}"),
-        });
-        out.set_item(name, (kept, now))?;
+        let (kept, alone) = (answers(&holding, name), answers(&partial, name));
+        out.set_item(name, (if kept == alone { kept } else { alone }, now))?;
     }
     for name in &fields {
         let key = PyString::new(py, name);
-        out.set_item(name, (holding.field(name), field_held(world, &key)?))?;
+        let kept = if holding.field(name) == partial.field(name) { holding.field(name) } else { partial.field(name) };
+        out.set_item(name, (kept, field_held(world, &key)?))?;
     }
     Ok(out)
 }

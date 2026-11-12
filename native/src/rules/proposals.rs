@@ -23,17 +23,19 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyString, PyTuple};
 use sheltersim_core::config::movement::Movement;
 use sheltersim_core::config::population::AccessibilityNeeds;
+use sheltersim_core::config::SectionId;
+use sheltersim_core::host::Holding;
+use sheltersim_core::world::METRIC_STATE;
 use sheltersim_core::rules::kit::{Held, Kept};
 use sheltersim_core::rules::proposals::{
     self as core, Action, Applied, Asked, Information, Inputs, Proposal, Seek, Sleep, Trips, Walk, INFORMATION, MANAGER_UNREAD, THRESHOLD_UNREAD,
 };
 use sheltersim_core::rules::support::{RequestService, AFTER_UNREAD, COOLDOWN_UNREAD, NAMESPACE_IS_NONE, OTHER_DOCUMENT, POLICY_UNREAD};
 
-use crate::core::configs;
-use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, namespace_is_absent, unsupported};
+use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_str, unsupported};
 use crate::core::value::{VPy, V};
-use crate::core::world_core::{field_held, namespace_held, raw_dict_get, with_world, PyWorldCell};
-use crate::host::PyHost;
+use crate::core::world_core::{raw_dict_get, with_world, PyWorldCell};
+use crate::host::{absent, PyHost};
 use crate::rules::travel::{movement_held, movement_section, read_queue_rows, rows_of, staff_held, Plan, RunGraph};
 use crate::state::events::write_result;
 use crate::state::shared_operations::NAME as SHARED;
@@ -81,14 +83,11 @@ fn threshold_of(policy: &Bound<'_, PyAny>) -> PyResult<f64> {
 
 /// `shared_operations_v1` as the request takes it: absent from `model_state`, None there
 /// (`NAMESPACE_IS_NONE`), the slot's tree, or another document.
-fn shared_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    let py = world.py();
-    let key = PyString::intern(py, SHARED);
-    if namespace_is_absent(world, &key)? {
-        let table = attribute(world, intern!(py, "model_state"))?;
-        return Ok(if exact_dict(&table)?.contains(&key)? { Held::Other(NAMESPACE_IS_NONE) } else { Held::Absent });
+fn shared_held(holding: &Holding) -> PyResult<Held> {
+    if absent(holding, SHARED)? {
+        return Ok(if holding.contains(SHARED) { Held::Other(NAMESPACE_IS_NONE) } else { Held::Absent });
     }
-    namespace_held(world, &key, OTHER_DOCUMENT)
+    Ok(holding.held(SHARED, OTHER_DOCUMENT))
 }
 
 /// What the step reads of the Python world for a trip action, owned here and lent to the core.
@@ -128,21 +127,25 @@ struct Read {
 
 impl Read {
     fn of(controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, action: Action) -> PyResult<Self> {
-        let py = world.py();
-        let overlay = namespace_held(world, intern!(py, OVERLAY_KEY), "the world holds another overlay state")?;
-        let metric_state_held = field_held(world, intern!(py, "metric_state"))?;
+        let mut host = PyHost::of_entry(world);
+        let holding = host.holding_now()?;
+        let overlay = holding.held(OVERLAY_KEY, "the world holds another overlay state");
+        let metric_state_held = holding.field(METRIC_STATE);
         let social_minutes = if action.is_social() {
-            Some(*configs::kept_value(world, |configs| &configs.social_interaction_minutes, sheltersim_core::config::body::social_interaction_minutes)?)
+            Some(*host.value(&holding, SectionId::SocialInteractionMinutes, |configs| &configs.social_interaction_minutes, sheltersim_core::config::body::social_interaction_minutes)?)
         } else {
             None
         };
         let sleep = if action == Action::Sleep {
-            Some(SleepIn { plan: Plan::of(world), section: movement_section(world)?, movement: movement_held(world)?, schema: crate::rules::overlay::schema_of(world)? })
+            let plan = Plan::of(world);
+            let section = movement_section(&mut host, &holding)?;
+            let schema = crate::rules::overlay::schema_of(&mut host, &holding)?;
+            Some(SleepIn { plan, section, movement: movement_held(&holding), schema })
         } else {
             None
         };
-        let trips = if action.trips() { trips_of(controller, world, action)? } else { None };
-        let seek = if action.seeks() { Some(seek_of(controller, world)?) } else { None };
+        let trips = if action.trips() { trips_of(controller, world, &mut host, &holding, action)? } else { None };
+        let seek = if action.seeks() { Some(seek_of(controller, &holding)?) } else { None };
         Ok(Self { overlay, metric_state_held, social_minutes, sleep, trips, seek })
     }
 
@@ -183,7 +186,7 @@ impl Read {
 
 /// What `request_toilet`, `fetch_water` and `collect_meal` read: None for a resource action without
 /// a resource service, which reads nothing more.
-fn trips_of(controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, action: Action) -> PyResult<Option<TripsIn>> {
+fn trips_of(controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, host: &mut PyHost<'_>, holding: &Holding, action: Action) -> PyResult<Option<TripsIn>> {
     let py = world.py();
     let resource = action.resource().is_some();
     let manager = if resource {
@@ -196,33 +199,36 @@ fn trips_of(controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, action: Act
         attribute(controller, intern!(py, "toilet_service"))?
     };
     let graph = rows_of(controller)?;
-    let knows = configs::kept_section(world, |configs| &configs.knowledge_is_limited, sheltersim_core::config::agent_dynamics::knowledge_is_limited)?;
+    let knows = host.value_section(holding, SectionId::KnowledgeIsLimited, |configs| &configs.knowledge_is_limited, sheltersim_core::config::agent_dynamics::knowledge_is_limited)?;
     // The rows of the events Python scheduled, for the core's reads of the whole queue (the edge
     // loads, the pending reservations).
     if graph.capacities.any || resource {
         read_queue_rows(world)?;
     }
     let config = if resource { Some(manager_config(&manager, world)) } else { None };
+    let plan = Plan::of(world);
+    let section = movement_section(host, holding)?;
+    let needs = host.value_section(holding, SectionId::AccessibilityNeeds, |configs| &configs.accessibility_needs, AccessibilityNeeds::parse)?;
     Ok(Some(TripsIn {
-        plan: Plan::of(world),
-        section: movement_section(world)?,
-        movement: movement_held(world)?,
-        staff: staff_held(world)?,
+        plan,
+        section,
+        movement: movement_held(holding),
+        staff: staff_held(holding),
         graph,
         knows,
-        queues: crate::state::facility_queues::held(world)?,
-        needs: configs::kept_section(world, |configs| &configs.accessibility_needs, AccessibilityNeeds::parse)?,
+        queues: holding.held("facility_queues_v1", "the world holds another queue state"),
+        needs,
         patched: patched(&manager)?,
         config,
-        service: namespace_held(world, intern!(py, "resource_service_v1"), "the world holds another service state")?,
-        ledger: namespace_held(world, intern!(py, "resource_ledger_v1"), "the world holds another ledger")?,
+        service: holding.held("resource_service_v1", "the world holds another service state"),
+        ledger: holding.held("resource_ledger_v1", "the world holds another ledger"),
     }))
 }
 
 /// What `seek_help` and `seek_information` read. A value whose read raised is read again where the
 /// core says the rule reads it.
-fn seek_of(controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>) -> PyResult<Seek> {
-    let py = world.py();
+fn seek_of(controller: &Bound<'_, PyAny>, holding: &Holding) -> PyResult<Seek> {
+    let py = controller.py();
     let service = attribute(controller, intern!(py, "staff_service"))?;
     let policy = attribute(controller, intern!(py, "information_policy"))?;
     let information = if policy.is_none() {
@@ -230,7 +236,7 @@ fn seek_of(controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>) -> PyResult<
     } else {
         Some(Information {
             threshold: threshold_of(&policy).ok(),
-            held: namespace_held(world, intern!(py, INFORMATION), "the information state is for the Python rule")?,
+            held: holding.held(INFORMATION, "the information state is for the Python rule"),
         })
     };
     Ok(Seek {
@@ -239,7 +245,7 @@ fn seek_of(controller: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>) -> PyResult<
             cooldown_minutes: service_int(&service, intern!(py, "cooldown_minutes")).ok(),
             policy_version: service_policy(&service).ok(),
         },
-        shared: shared_held(world)?,
+        shared: shared_held(holding)?,
         information,
     })
 }

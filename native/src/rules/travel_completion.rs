@@ -31,7 +31,7 @@ use crate::core::row::{attribute, exact_str, str_value, unsupported};
 use crate::core::world_core::{raw_dict_get, PyWorldCell};
 use crate::host::{HostError, PyHost};
 use crate::rules::{service, toilet};
-use crate::state::events::{write_result, EventRow, EventRowPy, EventWriter};
+use crate::state::events::{writable, write_result, EventRow, EventRowPy};
 use crate::Unsupported;
 
 
@@ -128,7 +128,7 @@ fn arrive<'py>(
     let has_geometry = core::has_geometry(&PyWorldCell(world), &mut host_of(world)).map_err(|error| error.0)?;
     if has_geometry {
         // The approach writes through the world's event stores.
-        EventWriter::of(world)?;
+        writable(world)?;
     }
     let validates = is_toilet && attribute(handler, intern!(py, "validate_request_state"))?.is_truthy()?;
     let resource_service = !is_toilet && !attribute(handler, intern!(py, "resource_service"))?.is_none();

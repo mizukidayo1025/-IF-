@@ -18,20 +18,18 @@
 
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyString, PyTuple};
+use pyo3::types::{PyDict, PyTuple};
 
-use sheltersim_core::config::environment::ZoneEnvironmentSpec;
 use sheltersim_core::rules::care_receipts::Made;
 use sheltersim_core::rules::effects::{self as core, GuardIn, Structure, CONFIG_UNREAD, COUNTS, OPERATORS, PENDING_UNREAD};
 use sheltersim_core::rules::staff_operation_events::FORMULA_UNREAD;
+use sheltersim_core::host::Holding;
 use sheltersim_core::rules::kit::Held;
-use std::sync::Arc;
 
 use crate::core::configs;
 use crate::core::errors::OrPy;
 use crate::core::row::{attribute, exact_str};
-use crate::core::value::{VPy, V};
-use crate::core::world_core::{namespace_held, with_world, PyWorldCell};
+use crate::core::world_core::{with_world, PyWorldCell};
 use crate::host::PyHost;
 use crate::rules::care_receipts::made_record;
 use crate::rules::information_events::event_row;
@@ -68,12 +66,8 @@ fn stats<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyDict>, Bound<'py, PyDic
 
 // ---- What the rules read of the Python world ------------------------------------------------------
 
-fn held(world: &Bound<'_, PyAny>, name: &'static str, other: &'static str) -> PyResult<Held> {
-    namespace_held(world, &PyString::new(world.py(), name), other)
-}
-
-fn program_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    held(world, core::MARKER, "the world holds another effect_program_v1")
+fn program_held(holding: &Holding) -> Held {
+    holding.held(core::MARKER, "the world holds another effect_program_v1")
 }
 
 /// What a guard reads of the Python world.
@@ -83,8 +77,8 @@ struct Guarded {
 }
 
 impl Guarded {
-    fn of(world: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self { program: program_held(world)?, ledger: held(world, "resource_ledger_v1", "the world holds another ledger")? })
+    fn of(holding: &Holding) -> Self {
+        Self { program: program_held(holding), ledger: holding.held("resource_ledger_v1", "the world holds another ledger") }
     }
 
     fn ins(&self) -> GuardIn<'_> {
@@ -94,7 +88,7 @@ impl Guarded {
 
 /// The native host of a world, for its contracts and its validation.
 fn host_of<'py>(world: &Bound<'py, PyAny>) -> PyHost<'py> {
-    PyHost::of_world(world, PyDict::new(world.py()))
+    PyHost::of_entry(world)
 }
 
 /// The core's result, with the host's Python error.
@@ -119,8 +113,9 @@ fn should_apply_guard(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyR
             return Ok(true);
         }
         let row = event_row(event)?;
-        let guarded = Guarded::of(world)?;
-        raised(core::guard(&PyWorldCell(world), &mut host_of(world), &guarded.ins(), &row))
+        let mut host = host_of(world);
+        let guarded = Guarded::of(&*host.holding_of(&[core::MARKER, "resource_ledger_v1"], &[])?);
+        raised(core::guard(&PyWorldCell(world), &mut host, &guarded.ins(), &row))
     })();
     counted(py, "guard", result)
 }
@@ -133,7 +128,7 @@ fn has_active_modifier(world: &Bound<'_, PyAny>, facility_id: &Bound<'_, PyAny>)
     let py = world.py();
     let result = (|| {
         let id = exact_str(facility_id)?;
-        let program = program_held(world)?;
+        let program = program_held(&*host_of(world).holding_of(&[core::MARKER], &[])?);
         with_world(world, |world| core::has_active_modifier(world, &program, id))?.or_py()
     })();
     counted(py, "has_active_modifier", result)
@@ -186,33 +181,6 @@ fn facility(handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bound<
     counted(world.py(), "facility", result)
 }
 
-/// `ScenarioZoneEnvironmentConfig.model_validate(model_configs["zone_environment"])`, kept for the
-/// configs' stamp (`core/configs.rs`); what it raises is relayed as it is.
-pub(crate) fn zone_environment_spec(world: &Bound<'_, PyAny>) -> PyResult<Arc<ZoneEnvironmentSpec>> {
-    match zone_environment_section(world)? {
-        Ok(spec) => Ok(spec),
-        Err(fault) => Err(configs::raise(&fault, || parse_zone_environment(world))),
-    }
-}
-
-/// `zone_environment_spec` without its raise (the host's `fill_section`, lane P9-0).
-pub(crate) fn zone_environment_section(world: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::rules::kit::Kept<ZoneEnvironmentSpec>> {
-    configs::kept(world, |configs| &configs.zone_environment, || Ok(configs::parsed(world.py(), parse_zone_environment(world))))
-}
-
-fn parse_zone_environment(world: &Bound<'_, PyAny>) -> PyResult<ZoneEnvironmentSpec> {
-    let py = world.py();
-    let config_data = attribute(world, intern!(py, "model_configs"))?.get_item("zone_environment")?;
-    let config = py
-        .import(intern!(py, "sheltersim.domain.environment"))?
-        .getattr(intern!(py, "ScenarioZoneEnvironmentConfig"))?
-        .call_method1(intern!(py, "model_validate"), (config_data,))?;
-    let keywords = PyDict::new(py);
-    keywords.set_item("mode", "json")?;
-    let dumped = config.call_method(intern!(py, "model_dump"), (), Some(&keywords))?;
-    configs::read(ZoneEnvironmentSpec::from_v(&<V as VPy>::from_py(&dumped)?))
-}
-
 /// `EffectProgramEnvironmentHandler.apply`. A config whose read raised raises where the rule reads it.
 #[pyfunction]
 fn environment(handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
@@ -223,7 +191,7 @@ fn environment(handler: &Bound<'_, PyAny>, world: &Bound<'_, PyAny>, event: &Bou
         // The expiry events are read as rows of the queue.
         read_queue_rows(world)?;
         let result = handled(world, |cell, host| core::environment_event(cell, host, &row, expire));
-        read_again(py, result, CONFIG_UNREAD, || zone_environment_spec(world).map(drop))
+        read_again(py, result, CONFIG_UNREAD, || configs::zone_environment_spec(world).map(drop))
     })();
     counted(py, "environment", result)
 }
@@ -263,7 +231,7 @@ fn staff_task_order(world: &Bound<'_, PyAny>, row: &EventRow) -> PyResult<()> {
     let py = world.py();
     read_queue_rows(world)?;
     let result = handled(world, |cell, host| core::task_order_event(cell, host, row));
-    read_again(py, result, FORMULA_UNREAD, || crate::rules::staff::staff_operations(world).map(drop))
+    read_again(py, result, FORMULA_UNREAD, || configs::staff_operations(world).map(drop))
 }
 
 /// `EffectProgramStructureHandler.apply`. Its branches are told apart by the payload's fields, in
@@ -297,7 +265,7 @@ fn validate_state(world: &Bound<'_, PyAny>, validate_event_history: bool) -> PyR
     let py = world.py();
     let label = if validate_event_history { "validate_state.history" } else { "validate_state.tick" };
     let result = (|| {
-        let program = program_held(world)?;
+        let program = program_held(&*host_of(world).holding_of(&[core::MARKER], &[])?);
         let check = || raised(core::check_state(&PyWorldCell(world), &mut host_of(world), &program, validate_event_history));
         match check() {
             // The rows of the events Python scheduled, read only when a check needs them.

@@ -10,7 +10,6 @@ use std::sync::Arc;
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
-use sheltersim_core::config::body::CareOutcome;
 use sheltersim_core::rules::support::{
     self as core, Completion, Formula, Handler, Inputs, SupportEvent,
 };
@@ -18,12 +17,10 @@ use sheltersim_core::rules::support::{
 use crate::core::configs;
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_int, exact_str};
-use crate::core::value::{VPy, V};
 use crate::core::world_core::{with_world, PyWorldCell};
 use crate::host::PyHost;
 use crate::rules::care_receipts::{transition_record, PlannedTransition};
-use crate::state::events::{write_result, EventRef, EventWriter};
-use crate::Unsupported;
+use crate::state::events::{writable, write_result, EventRef};
 
 // ---- What the rules read of the Python world -----------------------------------------------------
 
@@ -108,13 +105,15 @@ fn record_started_step<'py>(_controller: &Bound<'py, PyAny>, world: &Bound<'py, 
     record_started(world, EventRef::Object(event))
 }
 
-/// `_assign_staff_support`: the service's assignment, then the receipts of what it assigned.
+/// `_assign_staff_support`: the service's assignment (`staff_service.assign_pending(minute,
+/// validate_state=False)`, whose `kernel_only` entry is `staff.assign_pending`, called here directly
+/// with its refusal as that entry's `KernelRefusal`), then the receipts of what it assigned.
 #[pyfunction]
 fn assign_staff_support<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<()> {
     let py = world.py();
-    let kwargs = PyDict::new(py);
-    kwargs.set_item("validate_state", false)?;
-    let assigned = attribute(controller, intern!(py, "staff_service"))?.call_method(intern!(py, "assign_pending"), (minute,), Some(&kwargs))?;
+    let service = attribute(controller, intern!(py, "staff_service"))?;
+    let assigned = crate::rules::staff::assign_pending(&service, minute, false).map_err(|error| errors::kernel_refusal(py, "staff.assign_pending", error))?;
+    let assigned = assigned.into_any();
     if assigned.is_empty().unwrap_or(false) {
         return Ok(());
     }
@@ -143,7 +142,6 @@ pub(crate) fn record_assigned<'py>(world: &Bound<'py, PyAny>, assigned: &Bound<'
 pub(crate) fn complete_support_event<'py>(
     handler: &Bound<'py, PyAny>,
     world: &Bound<'py, PyAny>,
-    writer: &EventWriter<'py>,
     event: EventRef<'_, 'py>,
 ) -> PyResult<Option<PlannedTransition>> {
     let py = world.py();
@@ -155,12 +153,13 @@ pub(crate) fn complete_support_event<'py>(
     let cell = PyWorldCell(world);
     let mut host = host_of(world);
     let inputs = Inputs::read(&cell, &mut host).map_err(|error| error.0)?;
-    let reserved = writer.reserved();
+    // A writer made for this event has no sequence reserved before what it plans.
+    let reserved = 0;
     let complete = |formula: Formula<'_>| with_world(world, |cell| core::complete_support(cell, &inputs, &event, handler, formula, reserved))?.or_py();
     match complete(Formula::Unread)? {
         Completion::Done(planned) => Ok(planned),
         Completion::NeedsFormula => {
-            let formula = care_formula(world, &cell, &mut host)?;
+            let formula = configs::care_formula(world, &mut host)?;
             match complete(Formula::Read(formula.as_deref()))? {
                 Completion::Done(planned) => Ok(planned),
                 Completion::NeedsFormula => Err(pyo3::exceptions::PyRuntimeError::new_err("the care asked for its formula again")),
@@ -174,47 +173,11 @@ pub(crate) fn complete_support_event<'py>(
 #[pyfunction]
 fn complete_support<'py>(handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyTuple>>> {
     let py = world.py();
-    let writer = EventWriter::of(world)?;
-    let Some(planned) = complete_support_event(handler, world, &writer, EventRef::Object(event))? else {
+    writable(world)?;
+    let Some(planned) = complete_support_event(handler, world, EventRef::Object(event))? else {
         return Ok(None);
     };
     Ok(Some(PyTuple::new(py, [transition_record(py, &planned)?])?))
-}
-
-/// `create_care_outcome_formula(configs)`, which the registry makes from a selected model, kept for
-/// the configs' stamp as their section `care_outcome`: read by the core through the native host
-/// (`care_formula`, lane P9-1a), its fault raised here as a second parse raises it (policy E14). A
-/// build without Python takes the built-in formulas (`CareOutcome::parse`).
-pub(crate) fn selected_care_formula(world: &Bound<'_, PyAny>) -> PyResult<Option<Arc<CareOutcome>>> {
-    care_formula(world, &PyWorldCell(world), &mut host_of(world))
-}
-
-fn care_formula<'py>(world: &Bound<'py, PyAny>, cell: &PyWorldCell<'_, 'py>, host: &mut PyHost<'py>) -> PyResult<Option<Arc<CareOutcome>>> {
-    match core::care_formula(cell, host).map_err(|error| error.0)? {
-        None => Ok(None),
-        Some(Ok(formula)) => Ok(Some(formula)),
-        Some(Err(fault)) => Err(configs::raise(&fault, || parse_care_outcome(world))),
-    }
-}
-
-/// The section `care_outcome`, parsed if the selection names no care model too (the host's
-/// `fill_section`, lane P9-0; a rule asks it only where the selection names one).
-pub(crate) fn care_outcome_section(world: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::rules::kit::Kept<CareOutcome>> {
-    configs::kept_with_selection(world, |configs| &configs.care_outcome, || Ok(configs::parsed(world.py(), parse_care_outcome(world))))
-}
-
-fn parse_care_outcome(world: &Bound<'_, PyAny>) -> PyResult<CareOutcome> {
-    let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let formula = py
-        .import("sheltersim.policies.registry")?
-        .getattr("create_care_outcome_formula")?
-        .call1((configs,))
-        .map_err(|_| Unsupported::new_err("the formula refuses"))?;
-    let text = |name| -> PyResult<Arc<str>> { Ok(Arc::from(exact_str(&attribute(&formula, name)?)?)) };
-    let (model_id, source_id) = (text(intern!(py, "model_id"))?, text(intern!(py, "source_id"))?);
-    let config = <V as VPy>::from_py(&attribute(&formula, intern!(py, "config"))?)?;
-    configs::read(CareOutcome::new(model_id, source_id, config))
 }
 
 // ---- A request, for `seek_help` and `seek_information` -----------------------------------------------

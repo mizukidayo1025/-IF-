@@ -654,3 +654,34 @@ pub fn split_json_array<'py>(py: Python<'py>, raw: &[u8]) -> PyResult<Vec<Bound<
     let items = sheltersim_core::checkpoint::split_json_array(raw).or_py()?;
     Ok(items.into_iter().map(|item| PyBytes::new(py, item)).collect())
 }
+
+// ---- The EventLog's Python records, as the core reads them (lane P10-1c) ------------------------------
+
+/// `event_log.find(event_id)` of each ID, as the core reads a record (`Host::find_record`).
+pub(crate) fn found_records(world: &Bound<'_, PyAny>, ids: Vec<std::sync::Arc<str>>) -> PyResult<sheltersim_core::rules::common_operations::Found> {
+    let py = world.py();
+    let log = crate::core::row::attribute(world, intern!(py, "event_log"))?;
+    let mut found = Vec::with_capacity(ids.len());
+    for id in ids {
+        let record = log.call_method1(intern!(py, "find"), (&*id,))?;
+        let logged = if record.is_none() { None } else { Some(logged_of(&record)?) };
+        found.push((id, logged));
+    }
+    Ok(sheltersim_core::rules::common_operations::Found(found))
+}
+
+/// An `EventLogRecord` as the core reads it: its status, minute and event's row.
+pub(crate) fn logged_of(record: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::rules::common_operations::Logged> {
+    use crate::core::row::{attribute, exact_int, exact_str};
+    use crate::state::events::EventRowPy;
+    let py = record.py();
+    let status = attribute(record, intern!(py, "status"))?.getattr(intern!(py, "_value_"))?;
+    let Some(status) = EventStatus::parse(exact_str(&status)?) else {
+        return Err(crate::Unsupported::new_err("a record of another status"));
+    };
+    let realized_minute = exact_int(&attribute(record, intern!(py, "realized_minute"))?)?;
+    let Some(event) = EventRow::from_event(&attribute(record, intern!(py, "event"))?)? else {
+        return Err(crate::Unsupported::new_err("the receipt's event has no row"));
+    };
+    Ok(sheltersim_core::rules::common_operations::Logged { status, realized_minute, event })
+}

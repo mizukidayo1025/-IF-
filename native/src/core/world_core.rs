@@ -2582,6 +2582,59 @@ pub(crate) fn holding_of(world: &Bound<'_, PyAny>) -> PyResult<sheltersim_core::
     Ok(holding)
 }
 
+/// `holding_of` read for these namespaces and owned fields alone (lane P10-1c): the same answers for
+/// each of them, in the order asked; another name reads as absent, and another field as held. For a
+/// reader outside the tick that asks for a few names at each call (an inspection frame, a metric
+/// sink, the end-of-tick checks), whose whole read of `model_state` would cost more than its rule.
+pub(crate) fn holding_of_names(world: &Bound<'_, PyAny>, names: &[&str], fields: &[&str]) -> PyResult<sheltersim_core::host::Holding> {
+    use sheltersim_core::host::{Hold, Holding, Key};
+    let py = world.py();
+    let table = super::row::attribute(world, intern!(py, "model_state"))?;
+    let mut holding = Holding::default();
+    let mut owned_fields: Vec<(Arc<str>, Py<NamespaceMirror>)> = Vec::new();
+    let core = core_of(world).ok();
+    {
+        let held = core.as_ref().map(|core| core.try_borrow()).transpose()?;
+        if let Some(core) = &held {
+            for name in fields {
+                let Some((owned, mirror)) = core.mirrors.get_key_value(*name) else {
+                    continue;
+                };
+                if core.world.slots.get(name).map(|slot| slot.try_borrow().map(|slot| slot.place == Place::Field)).transpose().or_py()? == Some(true) {
+                    owned_fields.push((owned.clone(), mirror.clone_ref(py)));
+                }
+            }
+        }
+        match as_readable_dict(&table) {
+            None => holding.table = false,
+            Some(table) => {
+                for name in names {
+                    let Some(value) = raw_dict_get(table, PyString::new(py, name).as_any())? else {
+                        continue;
+                    };
+                    let (none, dict) = (value.is_none(), value.is_instance_of::<pyo3::types::PyDict>());
+                    let owned = held.as_ref().and_then(|core| {
+                        let (owned, mirror) = core.mirrors.get_key_value(*name)?;
+                        core.world.slots.get(name)?;
+                        Some((owned, mirror))
+                    });
+                    let (key, hold): (Arc<str>, Hold) = match owned {
+                        None => (Arc::from(*name), Hold::NotOwned),
+                        Some((owned, mirror)) if mirror.get().holds_state(&value) => (owned.clone(), Hold::Held),
+                        Some((owned, _)) => (owned.clone(), Hold::Other),
+                    };
+                    holding.keys.insert(key, Key::with_dict(hold, none, dict));
+                }
+            }
+        }
+    }
+    for (name, mirror) in &owned_fields {
+        let held = mirror.get().root_is(&world.getattr(&**name)?);
+        holding.fields.insert(name.clone(), held);
+    }
+    Ok(holding)
+}
+
 /// The mirror of a namespace of a world, read now, or Unsupported if it is not owned.
 pub(crate) fn mirror_of<'py>(world: &Bound<'py, PyAny>, name: &str) -> PyResult<Bound<'py, NamespaceMirror>> {
     let core = core_of(world)?;

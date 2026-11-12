@@ -19,6 +19,8 @@ use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyDict, PyString, PyTuple, PyType};
 
 use sheltersim_core::config::movement::Movement;
+use sheltersim_core::config::SectionId;
+use sheltersim_core::host::{Holding, NOT_OWNED, TABLE_MAPPING};
 use sheltersim_core::rules::kit::{self, Held};
 use sheltersim_core::rules::movement::{self as core, StaffOps, Start, Validated, Where};
 
@@ -27,11 +29,10 @@ pub(crate) use sheltersim_core::config::movement::EXACT_INT;
 use crate::core::configs;
 use crate::core::errors::OrPy;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_list, exact_str, unsupported, PyField};
-use crate::core::world_core::{mirror_of, namespace_held, raw_dict_get, with_world, NamespaceMirror, PyWorldCell};
+use crate::core::world_core::{core_of, with_world, PyWorldCell};
 use crate::host::PyHost;
-use crate::rules::movement_geometry::{usable, Geo, GeoPy, Pt};
+use crate::core::geometry::{usable, Geo, GeoPy, Pt};
 use crate::state::movement::{Journey, Point};
-use crate::state::staff_operations::NAME as STAFF_OPERATIONS;
 use crate::Unsupported;
 
 pub(crate) const KEY: &str = "movement_v1";
@@ -42,25 +43,28 @@ pub(crate) fn refused(reason: &'static str) -> PyErr {
 
 // ---- What the world holds --------------------------------------------------------------------
 
-/// The mirror of a namespace the world really holds: Python stores past the table are not the row's.
-pub(crate) fn mirror_held<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, NamespaceMirror>> {
-    let py = world.py();
-    let mirror = mirror_of(world, KEY)?;
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let held = exact_dict(&table)?.get_item(KEY)?;
-    if !held.is_some_and(|state| mirror.borrow().holds_state(&state)) {
-        return unsupported("the world holds another movement state");
+/// That the world really holds `movement_v1` (Python stores past the table are not the row's), of
+/// the holding read now, with the refusals of the mirror's read: a world without a core, a table
+/// that is not a plain dict, another value or none.
+pub(crate) fn mirror_held(world: &Bound<'_, PyAny>, holding: &Holding) -> PyResult<()> {
+    core_of(world)?;
+    match holding.held(KEY, OTHER_MOVEMENT) {
+        Held::Held => Ok(()),
+        Held::Other(TABLE_MAPPING) => unsupported("a value is not a plain dict"),
+        Held::Other(NOT_OWNED) => unsupported(NOT_OWNED),
+        Held::Absent | Held::Other(_) => unsupported(OTHER_MOVEMENT),
     }
-    Ok(mirror)
 }
+
+const OTHER_MOVEMENT: &str = "the world holds another movement state";
 
 /// Whether the world holds `movement_v1`, as a kernel of the core takes it.
-fn movement_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    namespace_held(world, intern!(world.py(), KEY), "the world holds another movement state")
+fn movement_held(holding: &Holding) -> Held {
+    holding.held(KEY, OTHER_MOVEMENT)
 }
 
-fn queues_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    crate::state::facility_queues::held(world)
+fn queues_held(holding: &Holding) -> Held {
+    holding.held("facility_queues_v1", "the world holds another queue state")
 }
 
 /// Whether `model_state` has `movement_v1`.
@@ -69,27 +73,12 @@ fn has_movement(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     exact_dict(&table)?.contains(KEY)
 }
 
-/// The staff's operations as `staff_position_snapshots` reads them: the row of
-/// `staff_operations_v1` where the world holds the namespace (a tainted one is refused where the
-/// row is read: every rule writes the row, lanes b2 and b3), none where it holds something that
-/// is not a dict, and another dict is refused.
-pub(crate) fn staff_ops(world: &Bound<'_, PyAny>) -> PyResult<StaffOps> {
-    let py = world.py();
-    match namespace_held(world, intern!(py, STAFF_OPERATIONS), "the world holds another staff state")? {
-        Held::Absent => Ok(StaffOps::None),
-        Held::Held => Ok(StaffOps::Row),
-        Held::Other(reason) => {
-            let table = attribute(world, intern!(py, "model_state"))?;
-            let held = crate::core::tracked::as_readable_dict(&table)
-                .map(|table| raw_dict_get(&table, PyString::new(py, STAFF_OPERATIONS).as_any()))
-                .transpose()?
-                .flatten();
-            match held {
-                Some(value) if value.is_instance_of::<pyo3::types::PyDict>() => unsupported(reason),
-                _ => Ok(StaffOps::None),
-            }
-        }
-    }
+/// The staff's operations as `staff_position_snapshots` reads them (the core's `kit::staff_ops`):
+/// the row of `staff_operations_v1` where the world holds the namespace (a tainted one is refused
+/// where the row is read: every rule writes the row, lanes b2 and b3), none where it holds
+/// something that is not a dict, and another dict is refused.
+fn staff_ops(host: &mut PyHost<'_>, holding: &Holding) -> PyResult<StaffOps> {
+    kit::staff_ops(host, holding).map_err(|error| error.0)?.or_py()
 }
 
 // ---- Python values ---------------------------------------------------------------------------
@@ -210,44 +199,58 @@ pub(crate) fn route_points_of(value: Option<&Bound<'_, PyAny>>) -> PyResult<Vec<
 // ---- The movement section ----------------------------------------------------------------------
 
 /// The movement section of the world's configs (`config::movement`), kept for the stamp of
-/// `model_configs`. A configs that is not a dict is refused here, as `exact_dict` refused it; the
-/// model's own refusal is said where a walk is timed (`room_minutes`, `movement_minutes`).
+/// `model_configs` and read through the core's reader (`kit::section_value`). A configs that is not
+/// a dict is refused here, as `exact_dict` refused it; the model's own refusal is said where a walk
+/// is timed (`room_minutes`, `movement_minutes`).
 #[track_caller]
-pub(crate) fn movement_of(world: &Bound<'_, PyAny>) -> PyResult<Arc<Movement>> {
-    configs::kept_value(world, |configs| &configs.movement, Movement::parse)
+pub(crate) fn movement_of(host: &mut PyHost<'_>, holding: &Holding) -> PyResult<Arc<Movement>> {
+    host.value(holding, SectionId::Movement, |configs| &configs.movement, Movement::parse)
 }
 
-// ---- The end of a stopped journey (lane P9-1a) -------------------------------------------------
+/// `movement_of` through the native host of an entry, with the holding read now.
+pub(crate) fn movement_now(world: &Bound<'_, PyAny>) -> PyResult<Arc<Movement>> {
+    let mut host = host_of(world);
+    let holding = host.holding_now()?;
+    movement_of(&mut host, &holding)
+}
 
-/// The native host of an entry, and what the world holds as it reads it.
+/// The native host of an entry.
 fn host_of<'py>(world: &Bound<'py, PyAny>) -> PyHost<'py> {
-    PyHost::of_world(world, PyDict::new(world.py()))
+    PyHost::of_entry(world)
 }
 
 // ---- Where a person is -------------------------------------------------------------------------
 
-/// What the readers of a person's place take: `queues` only where a queue ID is given.
+/// What the readers of a person's place take, of the holding read now: `queues` only where a queue
+/// ID is given.
 fn where_of<'a>(world: &Bound<'_, PyAny>, geo: &'a Geo, queue_id: Option<&str>) -> PyResult<Where<'a>> {
-    let queues = if queue_id.is_some() { queues_held(world)? } else { Held::Absent };
-    Ok(Where { geo, movement: movement_held(world)?, queues })
+    let holding = host_of(world).holding_now()?;
+    Ok(where_in(&holding, geo, queue_id))
+}
+
+fn where_in<'a>(holding: &Holding, geo: &'a Geo, queue_id: Option<&str>) -> Where<'a> {
+    let queues = if queue_id.is_some() { queues_held(holding) } else { Held::Absent };
+    Where { geo, movement: movement_held(holding), queues }
 }
 
 /// `agent_is_at_queue_slot`.
-pub(crate) fn at_queue_slot(world: &Bound<'_, PyAny>, agent_id: &str, facility_id: &str, queue_id: Option<&str>) -> PyResult<bool> {
+fn at_queue_slot(world: &Bound<'_, PyAny>, agent_id: &str, facility_id: &str, queue_id: Option<&str>) -> PyResult<bool> {
     let geo = Geo::of(world)?;
     let at = where_of(world, &geo, queue_id)?;
     with_world(world, |world| core::at_queue_slot(world, &at, agent_id, facility_id, queue_id))?.or_py()
 }
 
 /// `agent_is_at_facility_service_point`.
-pub(crate) fn at_service_point(world: &Bound<'_, PyAny>, agent_id: &str, facility_id: &str, service_point: Option<&str>) -> PyResult<bool> {
+fn at_service_point(world: &Bound<'_, PyAny>, agent_id: &str, facility_id: &str, service_point: Option<&str>) -> PyResult<bool> {
     let geo = Geo::of(world)?;
     if geo.layout.is_none() {
         // The route of no floor plan: none of its minutes.
         return with_world(world, |world| core::agent_and_facility(world, agent_id, facility_id))?.or_py().map(|_| true);
     }
-    let movement = movement_of(world)?;
-    let at = where_of(world, &geo, None)?;
+    let mut host = host_of(world);
+    let holding = host.holding_now()?;
+    let movement = movement_of(&mut host, &holding)?;
+    let at = where_in(&holding, &geo, None);
     with_world(world, |world| core::at_service_point(world, &at, &movement.model, agent_id, facility_id, service_point))?.or_py()
 }
 
@@ -363,7 +366,7 @@ fn agent_is_at_queue_trip_destination(world: &Bound<'_, PyAny>, agent_id: &Bound
     }
     let destination = plain_point(&points.get_item(points.len() - 1)?)?;
     let agent_id = exact_str(agent_id)?;
-    let movement = movement_held(world)?;
+    let movement = movement_held(&*host_of(world).holding_of(&[KEY], &[])?);
     with_world(world, |world| core::near_point(world, &movement, agent_id, destination))?.or_py()
 }
 
@@ -383,14 +386,16 @@ fn facility_approach_route<'py>(
     };
     let (agent_id, facility_id) = (exact_str(agent_id)?, exact_str(facility_id)?);
     let geo = Geo::of(world)?;
-    let movement = movement_of(world)?;
+    let mut host = host_of(world);
+    let holding = host.holding_now()?;
+    let movement = movement_of(&mut host, &holding)?;
     let (agent_zone, facility_zone) = with_world(world, |world| core::agent_and_facility(world, agent_id, facility_id))?.or_py()?;
     let route_class = zone_route_class(py)?;
     if geo.layout.is_none() {
         let route = route_class.call1((&*agent_zone, &*facility_zone, (&*agent_zone,), PyTuple::empty(py), 0))?;
         return Ok((route, PyTuple::empty(py)).into_pyobject(py)?.into_any());
     }
-    let at = where_of(world, &geo, None)?;
+    let at = where_in(&holding, &geo, None);
     let found = with_world(world, |world| core::approach_route(world, &at, &movement.model, agent_id, facility_id, service_point))?.or_py()?;
     let Some((duration, path)) = found else {
         return Ok(py.None().into_bound(py));
@@ -414,9 +419,11 @@ fn staff_position_snapshots<'py>(world: &Bound<'py, PyAny>, boundary_minute: Opt
         Some(boundary) => exact_int(boundary)?,
         None => exact_int(&attribute(world, intern!(py, "minute_index"))?)?,
     };
-    mirror_held(world)?;
+    let mut host = host_of(world);
+    let holding = host.holding_now()?;
+    mirror_held(world, &holding)?;
     let geo = Geo::of(world)?;
-    let staff = staff_ops(world)?;
+    let staff = staff_ops(&mut host, &holding)?;
     let records = with_world(world, |world| core::staff_position_snapshots(world, &geo, &staff, boundary))?.or_py()?;
     for (id, position) in &records {
         result.set_item(&**id, PyField::to_py(position, py)?)?;
@@ -457,7 +464,7 @@ pub(crate) fn start_movement<'py>(
     support_staff_id: Option<&Bound<'py, PyAny>>,
 ) -> PyResult<()> {
     let py = world.py();
-    mirror_held(world)?;
+    mirror_held(world, &*host_of(world).holding_of(&[KEY], &[])?)?;
     let started = exact_int(started_minute)?;
     let due = exact_int(due_minute)?;
     let duration = due.checked_sub(started).filter(|duration| *duration > 0 && *duration < EXACT_INT);
@@ -520,7 +527,7 @@ pub(crate) fn route_with_movement_time<'py>(
     let class: Bound<'py, PyType> = route.get_type();
     let edge_ids = attribute(route, intern!(py, "edge_ids"))?;
     let zone_ids = attribute(route, intern!(py, "zone_ids"))?;
-    if !movement_of(world)?.times_routes() {
+    if !movement_now(world)?.times_routes() {
         return Ok(route.clone());
     }
     if class.name()?.to_str()? != "ZoneRoute" {
@@ -547,8 +554,8 @@ pub(crate) fn route_with_movement_time<'py>(
 }
 
 /// The minutes `route_with_movement_time` gives a route of these zones and edges.
-pub(crate) fn movement_minutes(world: &Bound<'_, PyAny>, agent_id: &str, zones: &[&str], edges: &[&str], declared: i64) -> PyResult<i64> {
-    let movement = movement_of(world)?;
+fn movement_minutes(world: &Bound<'_, PyAny>, agent_id: &str, zones: &[&str], edges: &[&str], declared: i64) -> PyResult<i64> {
+    let movement = movement_now(world)?;
     if !movement.times_routes() {
         return Ok(declared);
     }
@@ -573,8 +580,9 @@ fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     if held.is_none() {
         return Ok(true);
     }
-    mirror_held(world)?;
-    let queues = queues_held(world)?;
+    let holding = host_of(world).holding_of(&[KEY, "facility_queues_v1"], &[])?;
+    mirror_held(world, &holding)?;
+    let queues = queues_held(&holding);
     let mut found = with_world(world, |world| core::validate(world, &queues, None))?.or_py()?;
     if found == Validated::NeedsGeo {
         // Only journeys in rooms need the floor plan, whose read may run Python.

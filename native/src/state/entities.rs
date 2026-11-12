@@ -2149,6 +2149,20 @@ const PEOPLE: [(&str, u8); 5] =
 const _: () = assert!(!is_zone_kind(PEOPLE[4].1) && is_zone_kind(FIELDS[5].1) && is_zone_kind(FIELDS[6].1));
 
 /// The store of a world, read now: call this again after any Python callback.
+/// Whether the world's entity rows follow every map of its `__dict__`, the zones' and the edges'
+/// too (`EntityStore::follows_every_map`): false for a world without the store or whose `__dict__`
+/// is not a dict (lane P10-1c: the zones' capacities of `capacity_metrics`).
+pub(crate) fn rows_follow_maps(world: &Bound<'_, PyAny>) -> PyResult<bool> {
+    let Ok(store) = entities_of(world) else {
+        return Ok(false);
+    };
+    let state = crate::core::row::attribute(world, pyo3::intern!(world.py(), "__dict__"))?;
+    match state.downcast::<PyDict>() {
+        Ok(state) => EntityStore::follows_every_map(&store, state),
+        Err(_) => Ok(false),
+    }
+}
+
 pub(crate) fn entities_of<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, EntityStore>> {
     WorldCore::entities(&core_of(world)?).map(|store| store.into_bound(world.py()))
 }

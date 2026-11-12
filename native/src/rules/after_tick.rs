@@ -120,7 +120,7 @@ pub struct TickMemo {
     memo: Memo,
     /// `geometry_overlay._CONFIG_SCOPE` across ticks while the configs are unchanged: the geometry
     /// configs the Python rules of the check parsed (`_parsed_config`). The kernels read the
-    /// configs' section `geometry` instead (`rules/movement_geometry.rs`).
+    /// configs' section `geometry` instead (`core/geometry.rs`).
     #[pyo3(get)]
     geometry_scope: Py<PyDict>,
 }
@@ -366,7 +366,7 @@ fn check(table: &Table, world: &Bound<'_, PyAny>, memo: &Bound<'_, TickMemo>) ->
         memo.borrow().geometry_scope.bind(py).clear();
     }
     let route_capacities = configs::kept_section(world, |configs| &configs.route_capacities, RouteCapacities::parse)?;
-    let overlay_schema = crate::rules::overlay::schema_of(world)?;
+    let overlay_schema = configs::kept_section(world, |configs| &configs.overlay_schema, sheltersim_core::config::overlay::overlay_schema)?;
     let namespaces = held_namespaces(world, &plan)?;
     // The entity rules read the pending events as rows: those held only as objects get theirs.
     read_queue_rows(world)?;

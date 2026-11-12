@@ -12,6 +12,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PySet, PyTuple};
 use sheltersim_core::config::population::AccessibilityNeeds;
 use sheltersim_core::rules::facility_queues as core;
+use sheltersim_core::config::SectionId;
+use sheltersim_core::host::Holding;
 use sheltersim_core::rules::kit::Held;
 
 pub(crate) use sheltersim_core::rules::facility_queues::request_of_task;
@@ -20,35 +22,36 @@ pub(crate) use crate::state::facility_queues::{
 };
 
 use crate::core::configs;
+use crate::host::PyHost;
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, PyField};
-use crate::core::world_core::{namespace_held, with_world};
-use crate::rules::movement_geometry::{self, Geo, GeoPy};
-use crate::state::events::{write_result, EventWriter};
+use crate::core::world_core::with_world;
+use crate::core::geometry::{self, Geo, GeoPy};
+use crate::state::events::{writable, write_result};
 use crate::state::facility_queues::{held, held_mirror, request_node, QueueRequest};
 use crate::Unsupported;
 
 pub(crate) const STATE_KEY: &str = core::STATE_KEY;
 
 /// Whether the world holds `movement_v1`, as `movement::mirror_held` answers.
-fn movement_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    namespace_held(world, intern!(world.py(), "movement_v1"), "the world holds another movement state")
+fn movement_held(holding: &Holding) -> Held {
+    holding.held("movement_v1", "the world holds another movement state")
 }
 
 // ---- The kernels ---------------------------------------------------------------------------------
 
 /// `independent_queues_required` of a configs dict, for Python. A world's own configs are read
-/// through their section (`movement_geometry::independent_queues`).
+/// through their section (`geometry::independent_queues`).
 #[pyfunction]
 fn independent_queues_required(configs: &Bound<'_, PyAny>) -> PyResult<bool> {
-    movement_geometry::independent_queues_of_configs(configs)
+    geometry::independent_queues_of_configs(configs)
 }
 
 /// `is_legacy_queue_checkpoint`.
 #[pyfunction]
 fn is_legacy_queue_checkpoint(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = world.py();
-    if !movement_geometry::independent_queues(world)? {
+    if !geometry::independent_queues(world)? {
         return Ok(false);
     }
     let table = attribute(world, intern!(py, "model_state"))?;
@@ -75,7 +78,7 @@ fn facility_has_independent_queues(world: &Bound<'_, PyAny>, facility_id: &Bound
 /// `create_facility_queue_state`.
 #[pyfunction]
 fn create_facility_queue_state<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>> {
-    if !movement_geometry::independent_queues(world)? {
+    if !geometry::independent_queues(world)? {
         return Err(errors::value_error("facility_queues_v1 requires independent explicit service points"));
     }
     let state = core::create_state(&*Geo::of(world)?).or_py()?;
@@ -86,12 +89,14 @@ fn create_facility_queue_state<'py>(world: &Bound<'py, PyAny>) -> PyResult<Bound
 #[pyfunction]
 pub(crate) fn choose_queue_id(world: &Bound<'_, PyAny>, facility_id: &Bound<'_, PyAny>, agent_id: &Bound<'_, PyAny>) -> PyResult<Option<String>> {
     let (facility_id, agent_id) = (exact_str(facility_id)?, exact_str(agent_id)?);
-    let held = held(world)?;
+    let mut host = PyHost::of_entry(world);
+    let holding = host.holding_now()?;
+    let held = holding.held(STATE_KEY, "the world holds another queue state");
     if held == Held::Absent {
         return Ok(None);
     }
     // The population's needs (`config::population`), kept for the stamp of `model_configs`.
-    let needs = configs::kept_value(world, |configs| &configs.accessibility_needs, AccessibilityNeeds::parse)?;
+    let needs = host.value(&holding, SectionId::AccessibilityNeeds, |configs| &configs.accessibility_needs, AccessibilityNeeds::parse)?;
     let needs = configs::read(needs.of(agent_id))?;
     let geo = Geo::of(world)?;
     let chosen = with_world(world, |world| core::choose_queue(world, &held, &geo, facility_id, agent_id, needs))?.or_py()?;
@@ -219,7 +224,7 @@ fn record_queue_transition(
 ) -> PyResult<()> {
     let request: QueueRequest = PyField::from_py(request).map_err(|_| Unsupported::new_err("not a queue request"))?;
     // The refusals of a world whose events are not Rust's, as before.
-    EventWriter::of(world)?;
+    writable(world)?;
     exact_int(&attribute(world, intern!(world.py(), "minute_index"))?)?;
     let wait = match wait_minutes {
         Some(wait) if !wait.is_none() => Some(exact_int(wait)?),
@@ -232,10 +237,7 @@ fn record_queue_transition(
     let (transition, task_id) = (exact_str(transition)?, exact_str(task_id)?);
     let held = held(world)?;
     let geo = Geo::of(world)?;
-    let written = with_world(world, |world| {
-        let recording = core::plan_record(world, &held, &geo, &request, transition, task_id, wait, cause)?;
-        core::write_record(world, recording, cause)
-    })?;
+    let written = with_world(world, |world| core::record_transition(world, &held, &geo, &request, transition, task_id, wait, cause))?;
     write_result(world.py(), written)
 }
 
@@ -243,7 +245,7 @@ fn record_queue_transition(
 #[pyfunction]
 fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
     let py = world.py();
-    let required = movement_geometry::independent_queues(world)?;
+    let required = geometry::independent_queues(world)?;
     let table = attribute(world, intern!(py, "model_state"))?;
     let table_dict = exact_dict(&table)?;
     if held_mirror(world)?.is_none() {
@@ -253,7 +255,7 @@ fn validate(world: &Bound<'_, PyAny>) -> PyResult<bool> {
         return Ok(false);
     }
     let geo = Geo::of(world)?;
-    let movement = movement_held(world)?;
+    let movement = movement_held(&*PyHost::of_entry(world).holding_of(&["movement_v1"], &[])?);
     with_world(world, |world| core::validate(world, &Held::Held, &geo, &movement))?.or_py()
 }
 

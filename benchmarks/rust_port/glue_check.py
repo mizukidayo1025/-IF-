@@ -13,8 +13,12 @@ This script finds, in each rules file (but the exempt files):
 - the calls into Python (`call_method*`, `.call(`, `.call0(`, `.call1(`);
 - each `with_world(` closure that is not a single expression.
 
-Each finding must be named in `EXEMPTIONS` with the number of times it occurs in that file and the
-reason it stays; a finding not named, or a count that differs (an exemption that is stale), fails.
+Each finding must be named in `EXEMPTIONS` with the number of times it occurs in that file, the
+classes it stays as and what it is; a finding not named, or a count that differs (an exemption that
+is stale), fails. The classes are only those the definition of done allows (`CLASSES`: a conversion
+for a Python caller, a read of a Python argument, a Python hook a test or a caller set, and the E10
+checks in tick.rs and dispatch.rs), and only the files of `ALLOWED_EXEMPT_FILES` (the parity tests
+and the E6 validators) may be exempt whole (lane P10-1c).
 It also checks that the Python fallbacks deleted in #152 stay deleted (`PYTHON_GONE`), that the
 steps whose rules moved are body-less `kernel_only` entries (`BODYLESS`), and that the dispatcher's
 stats no longer name the Python paths (`STATS_GONE`).
@@ -35,13 +39,16 @@ ROOT = Path(__file__).resolve().parents[2]
 RULES = ROOT / "native" / "src" / "rules"
 PYTHON = ROOT / "src" / "sheltersim"
 
-# Files whose whole content is exempt, with the reason.
+# Files whose whole content is exempt, with the reason. Only `ALLOWED_EXEMPT_FILES` may be.
 EXEMPT_FILES: Mapping[str, str] = {
     "parity.rs": "the parity tests' entries, which compare the Python and Rust readers",
     "after_tick.rs": "E6: the end-of-tick validators read what Python holds (the d4 decision)",
     "tick_validation.rs": "E6: the validators' glue reads what Python holds (the d4 decision)",
-    "movement_geometry.rs": "H2: the floor plan's parse fillers, which the native host runs",
 }
+
+# The files the definition of done lets be exempt whole (design-p8.md 4.1-(1), design-p9.md
+# section 6): the parity tests and the E6 validators.
+ALLOWED_EXEMPT_FILES = frozenset({"parity.rs", "after_tick.rs", "tick_validation.rs"})
 
 # The deny list (design-p8.md 4.1-(1) and design-p9.md section 6), by name.
 DENY: Mapping[str, str] = {
@@ -77,150 +84,78 @@ DENY: Mapping[str, str] = {
 # A `with_world(` closure that is not a single expression.
 CLOSURE = "with_world block"
 
-# Why a finding stays (the categories of the exemptions below).
-ENTRY = (
-    "a Python entry (the phase path of policy E10, the tests, a Python caller) reads what the world"
-    " holds or a section per call; the tick's core reads the same through Host (H1, H2) since"
-    " P9-1a/P9-2a/P9-3a. Moving the entry onto the core's readers is P10 work"
-)
-SECTION = (
-    "H2/E15: the Python parse of a config section (its contract or factory), which"
-    " PyHost::fill_section and read_again run at the read site's first read"
-)
-CONVERSION = (
-    "conversion: the Python object a Python caller gets (a class made from the core's values)"
-)
-ARGUMENT = "reads a Python argument or a Python mapping it was given (the entry's input)"
-QUEUE = (
-    "H6: the Python objects of pending events (QueueStore), which a Python caller scheduled or"
-    " holds; the core reads rows (read_queue_rows) and lets objects go (slots_changed)"
-)
-ACTIONS = (
-    "the open actions' store (`ActiveActions`, a pyclass) lent as the Run's rows for one core call"
-)
-E10 = "E10: the checks before anything changes, which send a tick to the phase path"
-BLOCK = (
-    "a Python entry's closure that runs several core calls on one borrow (the entry's own order);"
-    " a single core function for it is P10 work"
-)
-KPI = (
-    "`operational_kpi_values` (inspection traces, not a tick step) still reads the rows in the"
-    " PyO3 crate; moving it to the core is P10 work"
-)
-HOOK = "a Python hook a test or a caller set (H4/H5): its own `after_complete`, `request`, sink"
+# Why a finding may stay: the classes the definition of done allows (design-p8.md 4.1-(1),
+# design-p9.md section 6; the orchestrator's decision for lane P10-1c). An exemption names its
+# classes; a class outside these fails the check.
+CONVERSION = "CONVERSION"
+ARGUMENT = "ARGUMENT"
+HOOK = "HOOK"
+E10 = "E10"
+CLASSES: Mapping[str, str] = {
+    CONVERSION: "the Python object a Python caller gets (a class made from the core's values)",
+    ARGUMENT: "reads a Python argument or a Python mapping it was given (the entry's input)",
+    HOOK: "a Python hook a test or a caller set (H4/H5): its own `after_complete`, `request`, sink",
+    E10: "the checks before anything changes, which send a tick to the phase path",
+}
 
-# Findings that stay, by (file, finding): (times, reason). Keep each reason true for its entry.
-EXEMPTIONS: Mapping[tuple[str, str], tuple[int, str]] = {
-    ("action_lifecycle.rs", "with_rows"): (6, ACTIONS),
-    ("action_lifecycle.rs", "EventWriter"): (3, QUEUE),
-    ("agent_dynamics.rs", "configs::kept"): (1, ENTRY),
-    ("behavior.rs", "raw_setattr"): (1, CONVERSION + " (`object.__new__` and its `__dict__`)"),
-    ("behavior.rs", "python call"): (2, CONVERSION + " (`ActionKind` members, `object.__new__`)"),
-    ("body_state.rs", "configs::kept"): (1, SECTION),
-    ("body_state.rs", "python call"): (1, SECTION),
-    ("care_receipts.rs", "python call"): (1, CONVERSION + " (`EventLogRecord`)"),
+# The files whose E10 detection may stay (design-p9.md section 6).
+E10_FILES = frozenset({"tick.rs", "dispatch.rs"})
+
+# Findings that stay, by (file, finding): (times, classes, what). Keep each entry true.
+EXEMPTIONS: Mapping[tuple[str, str], tuple[int, tuple[str, ...], str]] = {
+    ("behavior.rs", "raw_setattr"): (1, (CONVERSION,), "`object.__new__` and its `__dict__`"),
+    ("behavior.rs", "python call"): (2, (CONVERSION,), "`ActionKind` members, `object.__new__`"),
+    ("care_receipts.rs", "python call"): (1, (CONVERSION,), "`EventLogRecord`"),
     ("common_operations.rs", "python call"): (
-        2,
-        "the EventLog's Python records (`event_log.find`, PyHost::find_record) and a receipt's"
-        " contract dump (E15)",
+        1,
+        (ARGUMENT,),
+        "the receipt a Python caller gives, dumped by its contract (`model_dump`, E15)",
     ),
-    ("decisions.rs", "with_rows"): (1, ACTIONS),
-    ("decisions.rs", "python call"): (4, HOOK + ": a proposal Python made, and a Python sink (H5)"),
-    ("dispatch.rs", "with_rows"): (1, E10),
-    ("dispatch.rs", "EventWriter"): (1, E10),
-    ("effects.rs", "namespace_held"): (1, ENTRY),
-    ("effects.rs", "configs::kept"): (1, SECTION),
-    ("effects.rs", "python call"): (2, SECTION + " (`ScenarioZoneEnvironmentConfig`)"),
-    ("facility_queues.rs", "EventWriter"): (1, QUEUE),
-    ("facility_queues.rs", "namespace_held"): (1, ENTRY),
-    ("facility_queues.rs", "configs::kept"): (1, ENTRY),
-    ("facility_queues.rs", "python call"): (1, CONVERSION + " (a copy of the request's record)"),
-    ("facility_queues.rs", "with_world block"): (1, BLOCK),
-    ("handlers.rs", "namespace_held"): (1, ENTRY),
-    ("handlers.rs", "configs::kept"): (3, SECTION),
-    ("handlers.rs", "python call"): (7, SECTION + "; and `EventLogRecord` for a Python caller"),
-    ("information_events.rs", "configs::kept"): (1, SECTION),
-    ("information_events.rs", "python call"): (1, SECTION + " (`InformationSpreadConfig`)"),
-    ("metrics.rs", "with_rows"): (1, KPI),
-    ("metrics.rs", "entities_of"): (1, KPI),
-    ("metrics.rs", "EntityStore::"): (1, KPI),
-    ("metrics.rs", "field_mirror_of"): (1, KPI),
-    ("metrics.rs", "with_row"): (2, KPI),
-    ("metrics.rs", "py_sum"): (1, KPI),
-    ("metrics.rs", "namespace_is_absent"): (1, KPI),
-    ("metrics.rs", "python call"): (1, CONVERSION + " (`MetricSnapshot`)"),
-    ("movement.rs", "mirror_of"): (1, ENTRY),
-    ("movement.rs", "namespace_held"): (2, ENTRY),
-    ("movement.rs", "configs::kept"): (1, ENTRY),
-    ("movement.rs", "python call"): (4, CONVERSION + " (`Point2D`, `ZoneRoute`)"),
-    ("overlay.rs", "entities_of"): (1, ENTRY + " (whether the entities follow every map)"),
-    ("overlay.rs", "EntityStore::"): (1, ENTRY + " (whether the entities follow every map)"),
-    ("overlay.rs", "namespace_held"): (5, ENTRY),
-    ("overlay.rs", "configs::kept"): (4, ENTRY),
-    ("overlay.rs", "with_world block"): (1, BLOCK),
-    ("population.rs", "namespace_held"): (1, ENTRY),
-    ("population.rs", "configs::kept"): (1, SECTION),
-    ("population.rs", "python call"): (2, ARGUMENT),
-    ("population.rs", "with_world block"): (1, BLOCK + " (an E6 validator's read)"),
-    ("population_lifecycle.rs", "EventWriter"): (1, QUEUE),
-    ("population_lifecycle.rs", "configs::kept"): (1, SECTION),
+    ("decisions.rs", "python call"): (
+        4,
+        (CONVERSION, HOOK),
+        "the proposal and the observed state made for a Python reader (`ProposalRow`,"
+        " `ObservedRow`); `with_outcome` and `record_decision` of a Python sink (H5)",
+    ),
+    ("facility_queues.rs", "python call"): (1, (CONVERSION,), "a copy of the request's record"),
+    ("handlers.rs", "python call"): (
+        2,
+        (ARGUMENT, CONVERSION),
+        "`payload.get` of an event a Python caller gives; `EventLogRecord`",
+    ),
+    ("metrics.rs", "python call"): (1, (CONVERSION,), "`MetricSnapshot`"),
+    ("movement.rs", "python call"): (4, (CONVERSION,), "`Point2D`, `ZoneRoute`"),
     ("population_lifecycle.rs", "python call"): (
         2,
-        SECTION + " (`PopulationPresenceCommand`, E15)",
+        (ARGUMENT,),
+        "the command a Python caller gives, parsed and dumped by its contract"
+        " (`PopulationPresenceCommand`, E15)",
     ),
-    ("proposals.rs", "namespace_held"): (5, ENTRY),
-    ("proposals.rs", "field_held"): (1, ENTRY),
-    ("proposals.rs", "namespace_is_absent"): (1, ENTRY),
-    ("proposals.rs", "configs::kept"): (3, ENTRY),
-    ("psychology.rs", "namespace_held"): (1, ENTRY),
-    ("psychology.rs", "field_held"): (1, ENTRY),
-    ("psychology.rs", "python call"): (2, CONVERSION + " (`AgentStateDelta`, the result)"),
-    ("queues.rs", "namespace_held"): (1, ENTRY),
-    ("queues.rs", "field_held"): (2, ENTRY),
-    ("queues.rs", "configs::kept"): (1, ENTRY),
-    ("resources.rs", "namespace_is_absent"): (1, ENTRY),
-    ("service.rs", "EventWriter"): (1, QUEUE),
-    ("service.rs", "namespace_held"): (3, ENTRY),
-    ("service.rs", "field_held"): (1, ENTRY),
-    ("service.rs", "configs::kept"): (2, ENTRY),
-    ("service.rs", "python call"): (2, QUEUE + "; and `ResourceRequestReceipt` (conversion)"),
-    ("social_dialogue.rs", "python call"): (1, ARGUMENT),
-    ("social_propagation.rs", "python call"): (1, CONVERSION + " (`AgentStateDelta`)"),
-    ("staff.rs", "EventWriter"): (1, QUEUE),
-    ("staff.rs", "namespace_held"): (1, ENTRY),
-    ("staff.rs", "field_held"): (1, ENTRY),
-    ("staff.rs", "namespace_is_absent"): (4, ENTRY),
-    ("staff.rs", "configs::kept"): (3, ENTRY + "; and the staff operations' formula (H2)"),
-    ("staff.rs", "python call"): (1, SECTION + " (`create_staff_operations_formula`)"),
-    ("staff_dynamics.rs", "namespace_is_absent"): (5, ENTRY),
-    ("staff_dynamics.rs", "configs::kept"): (1, ENTRY),
-    ("staff_operation_events.rs", "EventWriter"): (1, QUEUE),
-    ("staff_operation_events.rs", "with_world block"): (3, BLOCK),
-    ("support.rs", "EventWriter"): (2, QUEUE),
-    ("support.rs", "configs::kept"): (1, SECTION),
-    ("support.rs", "python call"): (
+    ("psychology.rs", "python call"): (2, (CONVERSION,), "`AgentStateDelta`, the result"),
+    ("service.rs", "python call"): (1, (CONVERSION,), "`ResourceRequestReceipt`"),
+    ("social_dialogue.rs", "python call"): (1, (ARGUMENT,), "the items of a payload mapping"),
+    ("social_propagation.rs", "python call"): (1, (CONVERSION,), "`AgentStateDelta`"),
+    ("toilet.rs", "python call"): (
         2,
-        "the phase path's `staff_service.assign_pending` (E10, its manager's Python entry) and the"
-        " care formula's factory (H2)",
+        (CONVERSION, HOOK),
+        "`ToiletRequestReceipt`; the handler's own `after_complete` (H4)",
     ),
-    ("tick.rs", "with_rows"): (1, E10),
-    ("toilet.rs", "namespace_held"): (1, ENTRY),
-    ("toilet.rs", "field_held"): (2, ENTRY),
-    ("toilet.rs", "configs::kept"): (1, ENTRY),
-    ("toilet.rs", "python call"): (2, HOOK + "; and `ToiletRequestReceipt` (conversion)"),
-    ("toilet.rs", "with_world block"): (1, BLOCK),
-    ("travel.rs", "namespace_held"): (2, ENTRY),
-    ("travel.rs", "configs::kept"): (1, ENTRY),
-    ("travel.rs", "python call"): (1, CONVERSION + " (`ZoneRoute`)"),
-    ("travel_completion.rs", "EventWriter"): (1, QUEUE),
-    ("travel_completion.rs", "python call"): (2, HOOK + " (a manager's own `request`, H4)"),
-    ("world_view.rs", "raw_setattr"): (1, CONVERSION + " (`object.__new__` and its `__dict__`)"),
-    ("world_view.rs", "field_held"): (1, ENTRY),
-    ("world_view.rs", "configs::kept"): (1, SECTION),
-    ("world_view.rs", "python call"): (3, CONVERSION + "; a view Python made (argument); H2"),
+    ("travel.rs", "python call"): (1, (CONVERSION,), "`ZoneRoute`"),
+    ("travel_completion.rs", "python call"): (
+        2,
+        (HOOK,),
+        "a manager's own `request` and the controller's `_after_arrival` (H4)",
+    ),
+    ("world_view.rs", "raw_setattr"): (1, (CONVERSION,), "`object.__new__` and its `__dict__`"),
+    ("world_view.rs", "python call"): (
+        2,
+        (CONVERSION, ARGUMENT),
+        "`object.__new__`; the items of a view a Python caller made",
+    ),
     ("zone_environment.rs", "python call"): (
-        3,
-        CONVERSION + " (`ZoneEnvironmentView` of `model_state.get`, for a Python reader's entry)",
+        2,
+        (CONVERSION,),
+        "`ZoneDemandView`, `ZoneEnvironmentView` for a Python reader's entry",
     ),
 }
 
@@ -319,9 +254,11 @@ def scan_rust(files: Mapping[str, str]) -> list[Finding]:
 
 
 def judge(
-    findings: Iterable[Finding], exemptions: Mapping[tuple[str, str], tuple[int, str]]
+    findings: Iterable[Finding],
+    exemptions: Mapping[tuple[str, str], tuple[int, tuple[str, ...], str]],
 ) -> list[str]:
-    """What fails: a finding not exempt, a count unlike its exemption's, an exemption unused."""
+    """What fails: a finding not exempt, a count unlike its exemption's, an exemption unused, and an
+    exemption whose class the definition of done does not allow (or E10 outside its files)."""
     problems = []
     seen = set()
     for finding in findings:
@@ -339,7 +276,21 @@ def judge(
             )
     for key in sorted(set(exemptions) - seen):
         problems.append(f"{key[0]}: {key[1]} is exempt but no longer found: drop the exemption")
+    for (file, what), (_, classes, _) in sorted(exemptions.items()):
+        for name in classes or ("none",):
+            if name not in CLASSES:
+                problems.append(f"{file}: {what} is exempt as {name}, a class not allowed")
+            elif name == E10 and file not in E10_FILES:
+                problems.append(f"{file}: {what} is exempt as E10 outside {sorted(E10_FILES)}")
     return problems
+
+
+def judge_exempt_files(exempt_files: Iterable[str]) -> list[str]:
+    """An exempt file the definition of done does not allow."""
+    return [
+        f"{name}: exempt whole, which only {sorted(ALLOWED_EXEMPT_FILES)} may be"
+        for name in sorted(set(exempt_files) - ALLOWED_EXEMPT_FILES)
+    ]
 
 
 def _is_kernel_only(node: ast.FunctionDef) -> bool:
@@ -415,7 +366,8 @@ def run(root: Path = ROOT) -> list[str]:
     python = _read(sorted((root / "src" / "sheltersim").rglob("*.py")), root / "src" / "sheltersim")
     native = _read(sorted((root / "native").glob("*/**/*.rs")), root / "native")
     native = {name: text for name, text in native.items() if not name.startswith("target/")}
-    problems = judge(scan_rust(rust), EXEMPTIONS)
+    problems = judge_exempt_files(EXEMPT_FILES)
+    problems += judge(scan_rust(rust), EXEMPTIONS)
     problems += scan_python(python)
     problems += scan_stats(native)
     return problems
@@ -425,10 +377,12 @@ def main() -> int:
     problems = run()
     for problem in problems:
         print(problem)
-    exempt = sum(times for times, _ in EXEMPTIONS.values())
+    exempt = sum(times for times, _, _ in EXEMPTIONS.values())
+    classes = sorted({name for _, names, _ in EXEMPTIONS.values() for name in names})
     print(
         f"glue check: {len(problems)} problems; {len(EXEMPTIONS)} exemptions ({exempt} findings)"
-        f" in {len({file for file, _ in EXEMPTIONS})} files, {len(EXEMPT_FILES)} exempt files"
+        f" in {len({file for file, _ in EXEMPTIONS})} files, classes {', '.join(classes)};"
+        f" {len(EXEMPT_FILES)} exempt files ({', '.join(sorted(EXEMPT_FILES))})"
     )
     return 1 if problems else 0
 

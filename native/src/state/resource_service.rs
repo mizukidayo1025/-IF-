@@ -176,3 +176,37 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate, m)?)?;
     Ok(())
 }
+
+/// The `reservation_id` of each pending `resource_reserve` event, in the queue's order: read through
+/// the queue's tuple, the same objects the Python rule reads (H6: the Python objects of the pending
+/// events; lane P10-1c moved it here from the service's glue).
+pub(crate) fn pending_reserves(world: &Bound<'_, PyAny>) -> PyResult<Vec<sheltersim_core::rules::service::Pending>> {
+    use pyo3::exceptions::PyKeyError;
+    use pyo3::types::PyTuple;
+    use sheltersim_core::rules::service::Pending;
+    let writer = crate::state::events::EventWriter::of(world)?;
+    let py = world.py();
+    let pending = writer.queue().call_method0(intern!(py, "pending"))?;
+    let pending = pending.downcast_exact::<PyTuple>().map_err(|_| Unsupported::new_err("the pending events are not a tuple"))?;
+    let mut found = Vec::new();
+    for event in pending.iter() {
+        if crate::core::row::exact_str(&attribute(&event, intern!(py, "event_type"))?)? != "resource_reserve" {
+            continue;
+        }
+        let payload = attribute(&event, intern!(py, "payload"))?;
+        // `payload["reservation_id"]`: a KeyError is no ID; another error, a payload not read here.
+        let id = match payload.get_item(intern!(py, "reservation_id")) {
+            Ok(id) => Some(id),
+            Err(error) if error.is_instance_of::<PyKeyError>(py) => None,
+            Err(_) => return Err(Unsupported::new_err("a payload cannot be read")),
+        };
+        found.push(match id {
+            Some(id) => match crate::core::row::str_value(&id) {
+                Some(id) => Pending::Id(Arc::from(id)),
+                None => Pending::Other,
+            },
+            None => Pending::Missing,
+        });
+    }
+    Ok(found)
+}

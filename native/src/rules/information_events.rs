@@ -12,7 +12,6 @@
 use std::sync::Arc;
 
 use pyo3::exceptions::PyValueError;
-use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
@@ -26,39 +25,11 @@ use sheltersim_core::world::MODEL_CONFIGS;
 
 use crate::core::configs;
 use crate::core::errors::{self, OrPy};
-use crate::core::row::{attribute, unsupported};
-use crate::core::value::{VPy, V};
+use crate::core::row::unsupported;
 use crate::core::world_core::{with_world, PyWorldCell};
 use crate::host::PyHost;
-use crate::rules::handlers::{counted, get};
+use crate::rules::handlers::counted;
 use crate::state::events::{EventRow, EventRowPy};
-
-/// `InformationSpreadConfig.from_mapping(model_configs.get("information_spread"))`, as the rules
-/// read it.
-pub(crate) fn parse_spread(world: &Bound<'_, PyAny>) -> PyResult<InformationSpread> {
-    let py = world.py();
-    let configs = attribute(world, intern!(py, "model_configs"))?;
-    let config = py
-        .import("sheltersim.domain.models")?
-        .getattr("InformationSpreadConfig")?
-        .call_method1("from_mapping", (get(&configs, "information_spread")?,))?;
-    spread_of(&config, configs.contains("information_spread")?)
-}
-
-/// What the rules read of an `InformationSpreadConfig`.
-fn spread_of(config: &Bound<'_, PyAny>, present: bool) -> PyResult<InformationSpread> {
-    let mut fields = indexmap::IndexMap::with_capacity(InformationSpread::FIELDS.len());
-    for name in InformationSpread::FIELDS {
-        let value = if name == "present" { V::Bool(present) } else { <V as VPy>::from_py(&config.getattr(name)?)? };
-        fields.insert(Arc::from(name), value);
-    }
-    configs::read(InformationSpread::from_v(&V::Map(fields)))
-}
-
-/// The config, kept for the configs' stamp (`core/configs.rs`), or what its parse raised.
-pub(crate) fn information_spread(world: &Bound<'_, PyAny>) -> PyResult<Kept<InformationSpread>> {
-    configs::kept(world, |configs| &configs.information_spread, || Ok(configs::parsed(world.py(), parse_spread(world))))
-}
 
 /// The row of a `ScheduledEvent`; Unsupported for one a row cannot hold.
 pub(crate) fn event_row(event: &Bound<'_, PyAny>) -> PyResult<EventRow> {
@@ -88,7 +59,7 @@ fn selection_raised() -> String {
 /// raises again (policy E14), a `ValueError` as the event's failure.
 fn raise_config(world: &Bound<'_, PyAny>, fault: &Fault) -> PyErr {
     let py = world.py();
-    let error = configs::raise(fault, || parse_spread(world));
+    let error = configs::raise(fault, || configs::parse_spread(world));
     if error.is_instance_of::<PyValueError>(py) {
         return match error.value(py).str() {
             Ok(text) => errors::error(py, errors::Outcome::Failed, format!("invalid information_spread config: {text}")),
@@ -146,7 +117,7 @@ pub(crate) fn checked_config(world: &Bound<'_, PyAny>) -> PyResult<Arc<Informati
 /// `_sample_claim_belief_strength`, for the tests: a draw hides a small change in its probability.
 #[pyfunction]
 fn claim_strength_of(world: &Bound<'_, PyAny>, config: &Bound<'_, PyAny>, agent_id: &str, source_id: &str, minute: i64, message_id: &str) -> PyResult<f64> {
-    let config = spread_of(config, true)?;
+    let config = configs::spread_of(config, true)?;
     with_world(world, |world| rules::sample_strength(world, &config, agent_id, source_id, minute, message_id))?.or_py()
 }
 
@@ -155,7 +126,7 @@ fn claim_strength_of(world: &Bound<'_, PyAny>, config: &Bound<'_, PyAny>, agent_
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 fn acceptance_of(world: &Bound<'_, PyAny>, config: &Bound<'_, PyAny>, label: &str, trust: f64, source_id: &str, minute: i64, ids: Vec<String>) -> PyResult<bool> {
-    let config = spread_of(config, true)?;
+    let config = configs::spread_of(config, true)?;
     let ids: Vec<&str> = ids.iter().map(String::as_str).collect();
     with_world(world, |world| rules::accepts(world, &config, label, trust, source_id, minute, &ids))?.or_py()
 }

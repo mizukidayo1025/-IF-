@@ -7,7 +7,8 @@
 //! inputs (`staff::with_wait_routes`), the memo of the last end-of-tick check, and the
 //! `MetricSnapshot` made at the edge from the core's sample. The tick's metrics phase gives the
 //! sample to the sink through the host (`Host::capture_metric`, `capture_of_run`). `kpi_values`
-//! still reads here: it passes Python's own values of `world.resources` and of the snapshot through.
+//! reads the rows through the core (`metrics::kpi_rows`, lane P10-1c) and passes Python's own values
+//! of `world.resources` and of the snapshot through.
 //!
 //! The Python rules' errors are raised with their classes and texts. What only a state the checks of
 //! the Python rules never let through reaches is Unsupported, which the entries raise as
@@ -22,15 +23,14 @@ use pyo3::types::{PyDict, PyList, PyString, PyTuple};
 
 use sheltersim_core::rules::metrics::{self, Inputs, MetricSample, Requests};
 
-use crate::core::errors;
-use crate::core::mathx::py_sum;
-use crate::core::row::{attribute, exact_dict, exact_int, exact_list, exact_str, namespace_is_absent, unsupported};
-use crate::core::world_core::{field_mirror_of, raw_dict_get, NamespaceMirror};
+use sheltersim_core::world::METRIC_STATE;
+
+use crate::core::errors::{self, OrPy};
+use crate::core::row::{attribute, exact_dict, exact_int, exact_list, exact_str, unsupported};
+use crate::core::world_core::{raw_dict_get, with_world};
+use crate::host::{absent, PyHost};
 use crate::rules::after_tick::TickMemo;
 use crate::rules::staff::with_wait_routes;
-use crate::state::entities::{entities_of, EntityStore};
-use crate::state::metric_state::MetricRow;
-use crate::state::resource_ledger::{held_mirror, LedgerRow};
 
 /// `MetricSnapshot.from_world`: the fields of the dataclass in their order, for a sample minute
 /// that is the world's. `unsettled` is `world.unsettled_support_requests()` as a list.
@@ -94,71 +94,37 @@ pub(crate) fn fields_of<'py>(sample_minute: &Bound<'py, PyAny>, taken: &MetricSa
     PyTuple::new(py, fields)
 }
 
-/// `operational_kpi_values`: the columns in the order of the Python rule's dict.
+/// `operational_kpi_values`: the columns in the order of the Python rule's dict. The rows are read by
+/// the core (`metrics::kpi_rows`, lane P10-1c); `world.resources` and the snapshot's columns are
+/// Python's own values, passed through.
 #[pyfunction]
 fn kpi_values<'py>(world: &Bound<'py, PyAny>, snapshot: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyDict>> {
     let py = world.py();
-    if exact_int(&attribute(world, intern!(py, "schema_version"))?)? != 6
-        || namespace_is_absent(world, intern!(py, "resource_service_v1"))?
-    {
+    if exact_int(&attribute(world, intern!(py, "schema_version"))?)? != 6 {
+        return Err(errors::value_error("operational KPIs require resource-service WorldState v6"));
+    }
+    let holding = PyHost::of_entry(world).holding_of(&["resource_service_v1", sheltersim_core::state::resource_ledger::NAME], &[METRIC_STATE])?;
+    if absent(&holding, "resource_service_v1")? {
         return Err(errors::value_error("operational KPIs require resource-service WorldState v6"));
     }
     let minute = attribute(world, intern!(py, "minute_index"))?;
     if exact_int(&attribute(snapshot, intern!(py, "minute_index"))?)? != exact_int(&minute)? {
         return Err(errors::value_error("operational KPI minute must match WorldState"));
     }
-    let store = entities_of(world)?;
-    let (toilet, hunger, hydration, water_queue, meal_queue, water_active, meal_active) =
-        EntityStore::with_rows(&store, |rows| {
-            let count = rows.agents.len();
-            if count == 0 {
-                // The Python rule's mean of no one.
-                return Err(pyo3::exceptions::PyZeroDivisionError::new_err("division by zero"));
-            }
-            let mean = |need: fn(&crate::state::entities::NeedRow) -> f64| {
-                let values: Vec<f64> = rows.agents.iter().map(|(_, agent)| need(&agent.needs)).collect();
-                py_sum(&values) / count as f64
-            };
-            let means = (mean(|needs| needs.toilet_urgency), mean(|needs| needs.hunger), mean(|needs| needs.hydration_need));
-            let (mut water_queue, mut meal_queue, mut water_active, mut meal_active) = (0, 0, 0, 0);
-            for (_, facility) in rows.facilities.iter() {
-                match &*facility.kind {
-                    "water_station" => {
-                        water_queue += facility.resource_queue_agent_ids.len();
-                        water_active += facility.resource_active_agent_ids.len();
-                    }
-                    "meal_distribution" => {
-                        meal_queue += facility.resource_queue_agent_ids.len();
-                        meal_active += facility.resource_active_agent_ids.len();
-                    }
-                    _ => {}
-                }
-            }
-            Ok((means.0, means.1, means.2, water_queue, meal_queue, water_active, meal_active))
-        })?;
+    let ledger = holding.held(sheltersim_core::state::resource_ledger::NAME, "the world holds another ledger");
+    let rows = with_world(world, |world| metrics::kpi_rows(world, &ledger, holding.field(METRIC_STATE)))?.or_py()?;
+    // The Python rule's mean of no one.
+    let Some([toilet, hunger, hydration]) = rows.means else {
+        return Err(pyo3::exceptions::PyZeroDivisionError::new_err("division by zero"));
+    };
+    let [water_queue, meal_queue, water_active, meal_active] = rows.queues;
     let resources = attribute(world, intern!(py, "resources"))?;
     let resources = exact_dict(&resources)?;
     let stock = |name: &Bound<'py, PyString>| -> PyResult<Bound<'py, PyAny>> {
         resources.get_item(name)?.map_or_else(|| unsupported("a resource is missing"), Ok)
     };
-    let ledger = held_mirror(world)?;
-    let (water_reserved, food_reserved) = NamespaceMirror::with_row::<LedgerRow, _>(&ledger, |row| {
-        Ok((row.accounts.of(0).reserved, row.accounts.of(1).reserved))
-    })?;
-    let metrics = field_mirror_of(world, intern!(py, "metric_state"))?;
-    const WAITS: [(&str, &str, &str, &str); 2] = [
-        ("water_service_wait_count", "water_service_wait_total_minutes", "water_service_wait_mean_minutes", "water_service_wait_max_minutes"),
-        ("meal_service_wait_count", "meal_service_wait_total_minutes", "meal_service_wait_mean_minutes", "meal_service_wait_max_minutes"),
-    ];
-    let read = |row: &MetricRow, name: &str| row.get(name).copied().unwrap_or(0.0);
-    let (wait_values, outage, stock_stall) = NamespaceMirror::with_row::<MetricRow, _>(&metrics, |row| {
-        let wait = |names: &(&str, &str, &str, &str)| (read(row, names.0), read(row, names.1), read(row, names.3));
-        Ok((
-            [wait(&WAITS[0]), wait(&WAITS[1])],
-            read(row, "resource_service_wait_water_outage_count"),
-            read(row, "resource_service_wait_stock_count"),
-        ))
-    })?;
+    let [water_reserved, food_reserved] = rows.reserved.or_py()?;
+    let (wait_values, outage, stock_stall) = rows.metrics.or_py()?;
     let values = PyDict::new(py);
     values.set_item(intern!(py, "minute_index"), &minute)?;
     values.set_item(intern!(py, "toilet_urgency_mean"), toilet)?;
@@ -185,7 +151,7 @@ fn kpi_values<'py>(world: &Bound<'py, PyAny>, snapshot: &Bound<'py, PyAny>) -> P
     ] {
         values.set_item(name, attribute(snapshot, name)?)?;
     }
-    for (names, (count, total, longest)) in WAITS.iter().zip(wait_values) {
+    for (names, (count, total, longest)) in metrics::KPI_WAITS.iter().zip(wait_values) {
         values.set_item(names.0, count)?;
         values.set_item(names.1, total)?;
         values.set_item(names.2, if count != 0.0 { total / count } else { 0.0 })?;

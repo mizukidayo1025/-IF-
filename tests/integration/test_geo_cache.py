@@ -1,6 +1,6 @@
 """The kernels' floor plan is kept with the configs, by the overlay's stamp (Issue #152, lane 7-2).
 
-native/src/rules/movement_geometry.rs parses facility_geometry and spatial_constraints once for a
+native/src/core/geometry.rs parses facility_geometry and spatial_constraints once for a
 stamp of model_configs (the configs' section `geometry`) and keeps the plans (`Geo`) built from
 them with the overlay's facility moves and partitions, by the overlay's stamp, and, when that
 changed, by the canonical bytes of the two parts. A plan never follows the overlay's order but in

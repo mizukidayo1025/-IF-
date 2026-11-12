@@ -1,27 +1,15 @@
 //! `domain/social_network.py`: the glue of `sheltersim_core::rules::social_network` (lane P8 a2),
 //! and `mapping_get` of a Python payload, which the event handlers still in this crate share.
 
-use pyo3::exceptions::PyKeyError;
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::PyString;
 
 use sheltersim_core::rules::social_network::{self as rules, observes_event};
 
 use crate::core::errors::OrPy;
-use crate::core::row::{attribute, exact_int, exact_str, unsupported};
+use crate::core::row::{attribute, exact_int, exact_str};
 use crate::core::world_core::with_world;
 use crate::rules::social_dialogue::payload_fields;
-
-/// `mapping[key]`, or None for a key it does not have, of a Python mapping (the core's, of a `V`,
-/// is `sheltersim_core::rules::kit::mapping_get`).
-pub(crate) fn mapping_get<'py>(mapping: &Bound<'py, PyAny>, key: &Bound<'py, PyString>) -> PyResult<Option<Bound<'py, PyAny>>> {
-    match mapping.get_item(key) {
-        Ok(value) => Ok(Some(value)),
-        Err(error) if error.is_instance_of::<PyKeyError>(mapping.py()) => Ok(None),
-        Err(_) => unsupported("a payload cannot be read"),
-    }
-}
 
 /// `observe_event`: the event's contact or interaction, recorded, and the body's trust copied.
 #[pyfunction]

@@ -388,3 +388,56 @@ fn a_world_cell_lends_the_whole_world_once_at_a_time() {
     })
     .unwrap();
 }
+
+/// `operational_kpi_values`' reads of the rows (lane P10-1c): the needs' means over the people in
+/// their order, the water and meal queues, and each part's own refusal, in the rule's order.
+#[test]
+fn the_kpi_reads_are_those_of_the_python_rule() {
+    let mut world = world();
+    {
+        let rows = world.entities.get_mut();
+        for (index, id) in ["a3", "a1", "a4", "a2"].into_iter().enumerate() {
+            let needs = &mut rows.agents.get_mut(id).unwrap().needs;
+            needs.toilet_urgency = [1e16, 1.0, -1e16, 0.7][index];
+            needs.hunger = 0.25 * index as f64;
+            needs.hydration_need = 0.5;
+        }
+        let mut water = facility("w1", "water_station", 1, &[], &[]);
+        water.resource_queue_agent_ids = ids(&["a1", "a2"]);
+        water.resource_active_agent_ids = ids(&["a3"]);
+        let mut meal = facility("m1", "meal_distribution", 1, &[], &[]);
+        meal.resource_queue_agent_ids = ids(&["a4"]);
+        put(&mut rows.facilities, "w1", water);
+        put(&mut rows.facilities, "m1", meal);
+    }
+    {
+        let slot = world.slots.get(METRIC_STATE).unwrap();
+        let mut slot = slot.try_borrow_mut().unwrap();
+        let row = slot.row.as_deref_mut().unwrap().as_any_mut().downcast_mut::<MetricRow>().unwrap();
+        row.insert(text("water_service_wait_count"), 2.0);
+        row.insert(text("water_service_wait_total_minutes"), 9.0);
+        row.insert(text("water_service_wait_max_minutes"), 6.0);
+        row.insert(text("resource_service_wait_stock_count"), 1.0);
+    }
+    let read = metrics::kpi_rows(&world, &Held::Absent, true).unwrap();
+    // Python's compensated `sum`: 1e16 + 1.0 - 1e16 + 0.7 is 1.7, not 0.7.
+    assert_eq!(read.means, Some([1.7 / 4.0, 1.5 / 4.0, 0.5]));
+    assert_eq!(read.queues, [2, 1, 1, 0]);
+    assert_eq!(read.reserved, Err(unsupported("the world holds another ledger")));
+    assert_eq!(read.metrics, Ok(([(2.0, 9.0, 6.0), (0.0, 0.0, 0.0)], 0.0, 1.0)));
+
+    let read = metrics::kpi_rows(&world, &Held::Other("model_state is another kind of mapping"), false).unwrap();
+    assert_eq!(read.reserved, Err(unsupported("model_state is another kind of mapping")));
+    assert_eq!(read.metrics, Err(unsupported("the field holds another dict")));
+    // The world's ledger is not a namespace this world owns.
+    assert_eq!(metrics::kpi_rows(&world, &Held::Held, true).unwrap().reserved, Err(unsupported("the namespace is not owned")));
+
+    // No one: the Python rule's mean divides by zero, which the PyO3 crate raises.
+    let mut empty = self::world();
+    empty.entities.get_mut().agents = Table::default();
+    assert_eq!(metrics::kpi_rows(&empty, &Held::Absent, true).unwrap().means, None);
+
+    let mut tainted = self::world();
+    tainted.entities.get_mut().taint("a value does not fit".to_owned());
+    assert_eq!(metrics::kpi_rows(&tainted, &Held::Absent, true).err(), Some(unsupported("the entity store is tainted")));
+}

@@ -998,12 +998,7 @@ where
         HandlerKind::StaffOperationArrival => {
             let holding = tick.holding()?;
             let gathered = tick.gathered(&holding, false, false)?;
-            let planned = tick.world(|world| -> crate::error::Result<Option<Arc<str>>> {
-                match operations::plan_arrive(world, &gathered.inputs(), row)? {
-                    operations::Planned::Go(plan) => operations::write_arrive(world, plan).map(|()| None),
-                    operations::Planned::Unavailable(id) => Ok(Some(id)),
-                }
-            });
+            let planned = tick.world(|world| operations::arrive(world, &gathered.inputs(), row));
             match counted(&handlers::COUNTS, "arrive", planned)? {
                 None => Ok(Handled::applied()),
                 Some(id) => stop_and_suppress(tick, &id, row, "staff became unavailable before reaching the assigned task"),
@@ -1014,11 +1009,7 @@ where
             let holding = tick.holding()?;
             let gathered = tick.gathered(&holding, true, true)?;
             let mut taken = Vec::new();
-            let result = tick.cell.with(|world| {
-                let inputs = gathered.inputs();
-                let plan = operations::plan_relief(world, &inputs, row)?;
-                operations::write_relief(world, &inputs, plan, &mut taken)
-            });
+            let result = tick.cell.with(|world| operations::relief(world, &gathered.inputs(), row, &mut taken));
             tick.host.slots_changed(&taken)?;
             let result = result.map_err(core_err::<H::Error>).and_then(|written| tick.written(written));
             let made = counted(&handlers::COUNTS, "relief", gathered.finish(result))?;
@@ -1027,23 +1018,11 @@ where
         _ => {
             let holding = tick.holding()?;
             let gathered = tick.gathered(&holding, false, false)?;
-            enum Step {
-                Done(Vec<Made>),
-                Unavailable(Arc<str>),
-                Intake(Box<operations::CompletePlan>),
-            }
-            let step = tick.world(|world| -> crate::error::Result<Step> {
-                let inputs = gathered.inputs();
-                match operations::plan_complete(world, &inputs, row)? {
-                    operations::Planned::Unavailable(id) => Ok(Step::Unavailable(id)),
-                    operations::Planned::Go(plan) if matches!(plan.work, operations::Work::Intake) => Ok(Step::Intake(Box::new(plan))),
-                    operations::Planned::Go(plan) => operations::write_complete(world, &inputs, plan).map(Step::Done),
-                }
-            });
+            let step = tick.world(|world| operations::complete_or_intake(world, &gathered.inputs(), row));
             match counted(&handlers::COUNTS, "complete", step)? {
-                Step::Done(made) => Ok(Handled::records(made.into_iter().map(Record::from).collect())),
-                Step::Unavailable(id) => stop_and_suppress(tick, &id, row, "staff became unavailable before completing the assigned task"),
-                Step::Intake(plan) => {
+                operations::Completed::Done(made) => Ok(Handled::records(made.into_iter().map(Record::from).collect())),
+                operations::Completed::Unavailable(id) => stop_and_suppress(tick, &id, row, "staff became unavailable before completing the assigned task"),
+                operations::Completed::Intake(plan) => {
                     counted(&handlers::COUNTS, "complete", population::check_waiting(tick.cell, tick.host))?;
                     let minute = tick.world(|world| world.minute_index())?;
                     population::admit_arrivals(tick.cell, tick.host, minute)?;
