@@ -108,4 +108,3 @@ def test_helpers_give_the_bytes_of_the_calling_thread_alone(
         alone["events"],
         alone["files"],
     )
-

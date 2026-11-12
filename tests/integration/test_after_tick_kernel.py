@@ -9,6 +9,10 @@ The gate only reaches good states, so each rule the kernel holds is shown here b
 breaks it: dropping the rule makes its test fail. The same breaks run on WorldState v5, the world of
 a Scenario without resource_service (docs/rust-port/lanes/l7b-world-v5.md), so a rule gated on v6
 fails its v5 case.
+
+What the memo holds on a Run's worlds (the minute it moves on to, a new request, a reopened one) is
+checked in the core (`native/core/tests/after_tick_memo.rs`, #225); here stay the comparisons with
+the Python check.
 """
 
 from __future__ import annotations
@@ -787,20 +791,6 @@ def test_the_memo_follows_the_requests_as_they_change(documents) -> None:
         _step(world, memo)
 
 
-def test_a_new_request_is_read_and_held(documents) -> None:
-    world, memo = _primed(documents[0])
-    settled = next(item for item in world.support_requests.values() if _is_settled(item))
-    new = dataclasses.replace(settled, id="probe-request")
-    world.support_requests[new.id] = new
-    held = len(memo.facts()["requests"])
-    _kernel(world, memo)
-    assert len(memo.facts()["requests"]) == held + 1
-    assert _written(world) == []
-    new.requested_minute = -1
-    assert _written(world) == [new.id]
-    assert not _takes(world, memo)
-
-
 def test_a_request_written_by_a_rule_of_the_core_is_read_again(documents) -> None:
     """A rule of the core writes the row alone: its slot is marked, as a write from Python marks
     it, and the memo reads the request again (it replaced SupportRequestState._write_listener)."""
@@ -893,77 +883,11 @@ def test_the_body_config_s_past_residents_are_read_at_each_tick(documents) -> No
     assert not _takes(world, memo)
 
 
-def test_the_memo_moves_on_to_the_minute_it_checked(documents) -> None:
-    world, memo = _primed(documents[0])
-    world.minute_index += 1
-    _kernel(world, memo)
-    assert memo.minute == world.minute_index
-
-
 def test_a_copied_world_starts_a_memo_of_its_own(documents) -> None:
     world, memo = _primed(documents[0])
     twin = copy.deepcopy(world)
     assert twin.__dict__["_tick_memo"] is not memo
     assert twin.__dict__["_tick_memo"].facts()["minute"] == -1
-
-
-def _reopened(world: WorldState) -> Any:
-    """The first settled request of someone with no other, pending again as the rules want it."""
-    open_people = {
-        item.agent_id for item in world.support_requests.values() if not _is_settled(item)
-    }
-    # Before an open one in the dict, so the order of the dict shows.
-    last_open = max(
-        (
-            place
-            for place, item in enumerate(world.support_requests.values())
-            if not _is_settled(item)
-        ),
-        default=-1,
-    )
-    item = next(
-        (
-            item
-            for place, item in enumerate(world.support_requests.values())
-            if place < last_open
-            and _is_settled(item)
-            and item.agent_id not in open_people
-            and world.agents[item.agent_id].support_request_id is None
-            and world.agents[item.agent_id].activity is Activity.IDLE
-        ),
-        None,
-    )
-    if item is None:
-        return None
-    item.status = SupportRequestStatus.PENDING
-    item.resolved_minute = None
-    item.assigned_staff_id = None
-    item.task_id = None
-    world.agents[item.agent_id].support_request_id = item.id
-    # A request settled by its worker leaves its timeout in the queue.
-    kept = [
-        event
-        for event in world.event_queue.pending()
-        if event.event_type == "support_request_timeout"
-        and event.payload.get("request_id") == item.id
-    ]
-    item.timeout_minute = kept[0].due_minute if kept else world.duration_minutes
-    world.agents[item.agent_id].activity = Activity.SEEKING_HELP
-    return item
-
-
-def test_a_reopened_request_comes_back_in_the_order_of_the_dict(documents) -> None:
-    for document in documents:
-        world, memo = _primed(document)
-        item = _reopened(world)
-        if item is not None:
-            break
-    assert item is not None
-    assert item.id in _written(world)
-    wanted = [key for key, req in world.support_requests.items() if not _is_settled(req)]
-    assert _python_error(world) is None
-    _kernel(world, memo)
-    assert memo.facts()["open"] == wanted
 
 
 def test_random_writes_taken_by_the_kernel_pass_the_python_rules(runs) -> None:

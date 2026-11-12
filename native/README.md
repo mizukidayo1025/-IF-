@@ -309,6 +309,11 @@ split PR by PR; its last section sums up what is where.
   handlers and the guard (alone, and in the dispatch phase); `tests/world_view_reads.rs` and
   `tests/world_view_run.rs` the views; `tests/generated_run.rs` the metric snapshot and the entity
   rules on the worlds of a Run the core steps; `tests/event_log_indexes.rs` the log's indexes.
+  `tests/psychology_run.rs`, `tests/decisions_run.rs` and `tests/after_tick_memo.rs` check the
+  psychology step's deltas, the long-term distress, the decision records and the end-of-tick
+  check's memo on the worlds of a Run the core steps; `tests/staff_dynamics_rules.rs` and
+  `tests/staff_order_texts.rs` the staff dynamics and an operator's staff order through its
+  handler (`tests/data/staff_dynamics.json`, `staff_order_texts.json`).
   The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,
