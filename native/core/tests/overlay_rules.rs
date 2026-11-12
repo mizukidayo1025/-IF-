@@ -1,6 +1,13 @@
-//! The rules of temporary spaces, rooms, beds, installed facilities and changes of the floor plan on
-//! the generated Scenario's world (Issue #225, lane M3): the tests of
+//! The rules of temporary spaces, rooms, beds, installed facilities and changes of the floor plan,
+//! of the independent queues and the toilet's and the water and meal service's FIFOs, and a decision
+//! to sleep in a room, on the generated Scenario's world (Issue #225, lane M3): the tests of
 //! `tests/integration/test_overlay_rules.py` that check the core's rules, moved here.
+//!
+//! The queues' tests use the generated Scenario with two service points at two facilities, with its
+//! Run (`tests/data/overlay_queues.json`, `tests/support/core_fixtures_overlay_queues.py`): the
+//! driver's steps (`Tick::prepare_independent`, `Tick::progress`, `service::arbitrate`) run on it. A
+//! balance of the ledger the `TestHost` is told of (`Call::ResourcesChanged`) is written to
+//! `world.resources` as the PyO3 crate's host writes it.
 //!
 //! The world is the generated Scenario (the Project screen's, 20 people) at minute 0 with the
 //! simulator's extensions, read from `tests/data/overlay_rules.json`
@@ -22,12 +29,14 @@
 
 mod support;
 
+use std::cell::RefCell;
 use std::sync::{Arc, OnceLock};
 
 use serde_json::{json, Value};
 use sheltersim_core::cell::Shard;
 use sheltersim_core::checkpoint::sha256_hex;
 use sheltersim_core::config::movement::Movement;
+use sheltersim_core::config::population::AccessibilityNeeds;
 use sheltersim_core::config::overlay::overlay_schema;
 use sheltersim_core::config::service::ResourceService;
 use sheltersim_core::config::{Configs, Lazy, SectionId};
@@ -36,21 +45,27 @@ use sheltersim_core::error::Error;
 use sheltersim_core::events::{EventKind, EventRow};
 use sheltersim_core::geometry::{Geo, Pt};
 use sheltersim_core::host::{Contract, Holding};
-use sheltersim_core::row::ValueRow;
+use sheltersim_core::row::{StrEnum, ValueRow};
 use sheltersim_core::rules::kit::{self, Held, Kept};
+use sheltersim_core::rules::facility_queues as fifo;
+use sheltersim_core::rules::{queues, service, toilet};
+use sheltersim_core::state::facility_queues::{QueueStall, QueuesRow};
 use sheltersim_core::rules::overlay::{self, Bed, Beds, Capacity, Change, Intake, Places, OVERLAY_KEY, SPACES_KEY};
 use sheltersim_core::rules::tick::read::kept_of;
+use sheltersim_core::rules::tick::{Seed, Tick, ZoneNeighbors};
+use sheltersim_core::run::{Policies, Run};
 use sheltersim_core::state::movement::{MovementRow, Point};
 use sheltersim_core::value::V;
 use sheltersim_core::world::{Fit, Snapshot, World, WorldCell, MODEL_CONFIGS};
 
 use support::dumps::dumps;
-use support::load;
+use support::load::{self, Loaded};
 use support::sections;
 use support::world_bytes::{world_bytes, Answers};
-use support::TestHost;
+use support::{Call, TestHost};
 
 const FILE: &str = "overlay_rules";
+const QUEUES_FILE: &str = "overlay_queues";
 const ROOM_ZONE: &str = "sleeping";
 const MOVEMENT: &str = "movement_v1";
 const NO_ROOM: &str = "temporary room admission is no longer available";
@@ -64,6 +79,12 @@ fn text(value: &str) -> Arc<str> {
 fn entry() -> Value {
     static ENTRY: OnceLock<Value> = OnceLock::new();
     ENTRY.get_or_init(|| load::entry(FILE, "generated")).clone()
+}
+
+/// The world with two service points at two facilities (`overlay_queues.json`).
+fn queued_entry() -> Value {
+    static ENTRY: OnceLock<Value> = OnceLock::new();
+    ENTRY.get_or_init(|| load::entry(QUEUES_FILE, "split_queues")).clone()
 }
 
 /// A JSON value as the core's `V`.
@@ -140,9 +161,10 @@ fn pt(value: &V) -> Pt {
 /// The contracts as the PyO3 crate's host answers them, from the export: an input the export does
 /// not have is a test's mistake.
 fn contracts(entry: &Value) -> Box<dyn FnMut(&Contract, &V) -> Result<V, Error>> {
-    let table: Vec<(String, Value, V)> = entry["contracts"]
-        .as_array()
-        .unwrap()
+    let table: Vec<(String, Value, V)> = entry
+        .get("contracts")
+        .and_then(Value::as_array)
+        .map_or(&[][..], Vec::as_slice)
         .iter()
         .map(|row| (row[0].as_str().unwrap().to_owned(), row[1].clone(), ordered(&row[2])))
         .collect();
@@ -160,15 +182,49 @@ struct Case {
     entry: Value,
     cell: Shard<World>,
     host: TestHost,
+    /// The Run of a world exported with a controller, for the driver's steps (`tick`).
+    run: Option<RunParts>,
+}
+
+struct RunParts {
+    run: RefCell<Run>,
+    policies: Arc<Policies>,
+    neighbors: Arc<ZoneNeighbors>,
+    seed: Seed,
 }
 
 impl Case {
     fn new() -> Self {
-        let entry = entry();
-        let world = load::world(&entry["world"], &entry["slots"]);
+        Self::of(entry())
+    }
+
+    /// The world with two service points at two facilities, and its Run.
+    fn queued() -> Self {
+        Self::of(queued_entry())
+    }
+
+    fn of(entry: Value) -> Self {
         let mut host = load::host(&entry);
         host.contracts = Some(contracts(&entry));
-        Self { entry, cell: Shard::new(world), host }
+        if entry.get("run").is_some() {
+            let Loaded { cell, run, policies, neighbors, seed } = load::loaded(&entry);
+            return Self { entry, cell, host, run: Some(RunParts { run, policies, neighbors, seed }) };
+        }
+        let world = load::world(&entry["world"], &entry["slots"]);
+        Self { entry, cell: Shard::new(world), host, run: None }
+    }
+
+    fn tick(&mut self, minute: i64) -> Tick<'_, Shard<World>, TestHost, RefCell<Run>> {
+        let parts = self.run.as_ref().expect("a world with its Run");
+        Tick {
+            cell: &self.cell,
+            host: &mut self.host,
+            run: &parts.run,
+            policies: parts.policies.clone(),
+            minute,
+            seed: parts.seed.clone(),
+            neighbors: parts.neighbors.clone(),
+        }
     }
 
     fn with<T>(&self, f: impl FnOnce(&mut World) -> T) -> T {
@@ -1638,4 +1694,1057 @@ fn a_moved_facility_keeps_its_plan_in_rust() {
     let (minutes, path) = found.unwrap();
     assert_eq!(minutes, 1);
     assert_eq!(&*path, [Pt { x: 14.074175621006717, y: 7.091391873668907 }, Pt { x: 13.87417562100671, y: 10.477882672817003 }]);
+}
+
+// ---- The temporary-room branch of a decision -----------------------------------------------------
+
+impl Case {
+    /// The step of a decision to sleep (`apply_effect` of `rules/proposals.rs`), with what its PyO3
+    /// entry reads for it: the overlay and the movement held, the movement section, the plan and
+    /// the overlay's schema.
+    fn sleep(&mut self, agent: &str) -> sheltersim_core::rules::proposals::Applied {
+        use sheltersim_core::rules::proposals::{self, Action, Inputs, Proposal, Sleep, Walk};
+        let (overlay, movement, walking, schema) = (self.held(OVERLAY_KEY), self.held(MOVEMENT), self.walking(), self.schema());
+        let metric_state_held = self.holding().field(sheltersim_core::world::METRIC_STATE);
+        let plan = self.plan();
+        let inputs = Inputs {
+            overlay,
+            metric_state_held,
+            social_minutes: None,
+            sleep: Some(Sleep { walk: Walk { movement, section: &walking, geo: plan.as_ref() }, schema: &schema }),
+            trips: None,
+            seek: None,
+        };
+        let proposal = Proposal { action: Action::Sleep, agent_id: text(agent), next_decision_at: self.minute() + 5, target_id: None, observed_state_hash: None };
+        self.with(|world| proposals::apply(world, &inputs, &proposal)).unwrap()
+    }
+
+    fn reservations(&self) -> V {
+        at(&self.state(OVERLAY_KEY).unwrap(), &["bed_reservations"]).clone()
+    }
+}
+
+/// The result is the Python step's, and the world after it is recorded from the core in #225 lane
+/// M3; on the same kernel the pytest `test_overlay_rules.py::test_sleep_in_a_room_is_the_python_step_s`
+/// with its `world_digest`s `a4f07608e1e04866` (away from the bed) and `2732f2f9b97629f9` (at it)
+/// passed.
+#[test]
+fn sleep_in_a_room_is_the_python_step_s() {
+    for (at_bed, recorded) in [(false, "029184cecef3bae40b471b6a9dfde96af0aaac3f03440be636c706376dda95c8"), (true, "7518aa59d89e59b9979829d01c1a75d4675c79f9244841997a2dd1ca95bf7bf7")] {
+        let mut case = Case::new();
+        let record = room_record(&case, "room", 2, 1);
+        room_world(&case, 2, 1, "room");
+        let agent = case.person_in_room_zone();
+        if at_bed {
+            let bed = &record["bed_points_m"][0];
+            case.put_point(&agent, Some(Pt { x: bed["x"].as_f64().unwrap(), y: bed["y"].as_f64().unwrap() }));
+        }
+        let snapshot = case.copy();
+        let applied = case.sleep(&agent);
+        assert_eq!((applied.target.as_deref(), applied.next_decision_at, applied.committed), (Some("bed-ec7532def0b0c01715ae0abb"), 5, true));
+        assert_ne!(case.reservations(), v(json!({})));
+        let mut answers = Answers::default();
+        case.with(|world| answers.add(&format!("{applied:?}"), world));
+        case.give_back(snapshot);
+        assert_eq!(answers.hex(), recorded, "{at_bed}");
+    }
+}
+
+/// The walk would end after the Run: no trip, and what the person held is gone. Recorded from the
+/// core in #225 lane M3; on the same kernel the pytest
+/// `test_overlay_rules.py::test_sleep_past_the_run_s_end_releases_the_bed` with its `world_digest`
+/// `bf284ac247d7f46c` passed.
+#[test]
+fn sleep_past_the_run_s_end_releases_the_bed() {
+    let mut case = Case::new();
+    room_world(&case, 2, 1, "room");
+    let agent = case.person_in_room_zone();
+    case.reserve(&agent).unwrap();
+    case.set_minute(case.duration() - 1);
+    let snapshot = case.copy();
+    let applied = case.sleep(&agent);
+    assert_eq!((applied.target.as_deref(), applied.next_decision_at, applied.committed), (None, 364, true));
+    assert_eq!(case.reservations(), v(json!({})));
+    let mut answers = Answers::default();
+    case.with(|world| answers.add(&format!("{applied:?}"), world));
+    case.give_back(snapshot);
+    assert_eq!(answers.hex(), "cee5d84d30874865fab37fb994eb4e4e37de1922bfed13b5e50c21100e938735");
+}
+
+// ---- Independent queues --------------------------------------------------------------------------
+
+const QUEUES: &str = "facility_queues_v1";
+const LEFT: &str = "toilet_01-left-fifo";
+const RIGHT: &str = "toilet_01-right-fifo";
+
+impl Case {
+    fn needs(&mut self) -> Kept<AccessibilityNeeds> {
+        self.section(SectionId::AccessibilityNeeds, |configs| &configs.accessibility_needs, AccessibilityNeeds::parse)
+    }
+
+    fn facility_zone(&self, facility: &str) -> Arc<str> {
+        self.with(|world| world.rows().unwrap().facilities.get(facility).unwrap().zone_id.clone())
+    }
+
+    /// The person in this zone, and their position's zone too.
+    fn to_zone(&self, agent: &str, zone: &Arc<str>) {
+        self.with(|world| {
+            world.rows_mut().unwrap().agents.get_mut(agent).unwrap().zone_id = zone.clone();
+            if let Some(position) = world.row_mut::<MovementRow>(MOVEMENT).unwrap().positions.get_mut(agent) {
+                position.zone_id = zone.clone();
+            }
+        });
+    }
+
+    /// `ToiletServiceManager.request` without the world's validation.
+    fn toilet_request(&mut self, agent: &str, facility: &str, queue: Option<&str>) -> Result<toilet::Receipt, Error> {
+        let (queues, needs) = (self.held(QUEUES), self.needs());
+        let plan = self.plan().unwrap();
+        let request = toilet::Request { agent_id: agent, facility_id: facility, queue_id: queue, queues: &queues, geo: &plan, needs: &needs };
+        toilet::request(&self.cell, &mut self.host, &request, false)
+    }
+
+    /// `_line_up`: these people in this queue of the facility, its tasks' IDs.
+    fn line_up(&mut self, facility: &str, queue: &str, agents: &[&str]) -> Vec<String> {
+        let zone = self.facility_zone(facility);
+        agents
+            .iter()
+            .map(|agent| {
+                self.to_zone(agent, &zone);
+                self.toilet_request(agent, facility, Some(queue)).unwrap().queue_task_id.to_string()
+            })
+            .collect()
+    }
+
+    /// The state of the queues, as JSON.
+    fn queues_json(&self) -> Value {
+        self.with(|world| serde_json::from_str(&field_json(&*world.row::<QueuesRow>(QUEUES).unwrap())).unwrap())
+    }
+
+    fn edit_queues(&self, edit: impl FnOnce(&mut QueuesRow)) {
+        self.with(|world| edit(&mut world.row_mut::<QueuesRow>(QUEUES).unwrap()));
+    }
+
+    /// `finish_service`: a copy of the request with its last status, or None.
+    fn finish(&self, task: &str, status: &str) -> Option<Value> {
+        let held = self.held(QUEUES);
+        let found = self.with(|world| fifo::queues(world, &held).unwrap().and_then(|row| fifo::request_of_task(&row, task).cloned()));
+        let request = found?;
+        let mut copy: Value = serde_json::from_str(&field_json(&request)).unwrap();
+        copy["status"] = json!(status);
+        self.with(|world| fifo::write_finish(world, &request)).unwrap();
+        Some(copy)
+    }
+
+    fn records(&self) -> Vec<Value> {
+        self.with(|world| {
+            let log = world.log().unwrap();
+            (0..log.len()).map(|index| serde_json::from_slice(log.written(index).unwrap()).unwrap()).collect()
+        })
+    }
+
+    fn counter(&self) -> i64 {
+        self.with(|world| world.id_counter("event").unwrap().unwrap())
+    }
+
+    /// The walk of a queue's head or of the slots, where the world is placed.
+    fn queue_walk(&mut self) -> (Arc<Geo>, Kept<Movement>, Held, Held, bool) {
+        let walking = self.walking();
+        let metric_state_held = self.holding().field(sheltersim_core::world::METRIC_STATE);
+        (self.plan().unwrap(), walking, self.held(MOVEMENT), self.held(QUEUES), metric_state_held)
+    }
+}
+
+fn field_json<T: sheltersim_core::row::Field>(value: &T) -> String {
+    let mut encoder = sheltersim_core::json::Encoder::with_capacity(256);
+    value.write_json(&mut encoder).unwrap();
+    String::from_utf8(encoder.out).unwrap()
+}
+
+/// `_request`: a request queued at minute 0 at the toilet's point of this queue.
+fn request_json(request_id: &str, agent: &str, queue: &str) -> Value {
+    json!({
+        "request_id": request_id,
+        "queue_id": queue,
+        "service_point_id": queue.strip_suffix("-fifo").unwrap(),
+        "facility_id": "toilet_01",
+        "agent_id": agent,
+        "service_kind": "toilet",
+        "requested_minute": 0,
+        "status": "queued",
+        "queue_task_id": request_id,
+        "active_task_id": request_id,
+    })
+}
+
+#[test]
+fn reads_of_the_queues() {
+    let mut case = Case::queued();
+    let tasks = case.line_up("toilet_01", LEFT, &["A001", "A002"]);
+    case.line_up("toilet_01", RIGHT, &["A003"]);
+    let held = case.held(QUEUES);
+    let plan = case.plan().unwrap();
+    case.with(|world| {
+        let row = fifo::queues(world, &held).unwrap().unwrap();
+        let members = |queue: &str| fifo::members_of(&row, queue).unwrap().iter().map(|id| id.to_string()).collect::<Vec<_>>();
+        assert_eq!(members(LEFT), ["A001", "A002"]);
+        assert_eq!(members(RIGHT), ["A003"]);
+        assert!(members("none").is_empty());
+        // Every facility of this Scenario has a signed point, and so a queue.
+        for (facility, _) in world.rows().unwrap().facilities.iter() {
+            assert!(fifo::has_independent(&row, facility), "{facility}");
+        }
+        assert!(!fifo::has_independent(&row, "none"));
+        let request = fifo::request_of_task(&row, &tasks[0]).unwrap();
+        assert_eq!(serde_json::from_str::<Value>(&field_json(request)).unwrap(), request_json(&tasks[0], "A001", LEFT));
+        assert!(fifo::request_of_task(&row, "none").is_none());
+        assert_eq!(&*fifo::request_of(&row, "A002", None).unwrap().request_id, tasks[1]);
+        assert_eq!(&*fifo::request_of(&row, "A002", Some(LEFT)).unwrap().request_id, tasks[1]);
+        assert!(fifo::request_of(&row, "A002", Some(RIGHT)).is_none());
+        assert!(fifo::request_of(&row, "A004", None).is_none());
+    });
+    assert_eq!(fifo::queue_ids(&plan, "toilet_01"), [LEFT, RIGHT]);
+    assert_eq!(fifo::queue_ids(&plan, "medical_desk"), ["medical_desk"]);
+    assert!(fifo::queue_ids(&plan, "none").is_empty());
+    // A new state has each signed point's empty queue, in the order of the queues' IDs.
+    let created: Value = serde_json::from_str(&field_json(&fifo::create_state(&plan).unwrap())).unwrap();
+    let layout = plan.layout.as_ref().unwrap();
+    let mut queues = serde_json::Map::new();
+    for point in &layout.service_points {
+        queues.insert(
+            point.queue_id.to_string(),
+            json!({"facility_id": &*point.facility_id, "service_point_id": &*point.id, "queued_request_ids": [], "active_request_ids": [], "last_stall": null}),
+        );
+    }
+    let policy = case.queues_json()["policy_version"].clone();
+    assert_eq!(created, json!({"schema_version": 1, "policy_version": policy, "queues": queues, "requests": {}}));
+    let ids: Vec<&String> = created["queues"].as_object().unwrap().keys().collect();
+    assert!(ids.windows(2).all(|pair| pair[0] < pair[1]));
+    assert_eq!(created["queues"][LEFT]["service_point_id"], "toilet_01-left");
+}
+
+/// `choose_queue_id`, as its PyO3 entry reads its inputs.
+fn choose(case: &mut Case, facility: &str, agent: &str) -> Option<String> {
+    let held = case.held(QUEUES);
+    if held == Held::Absent {
+        return None;
+    }
+    let needs = case.needs();
+    let tags = needs.as_ref().unwrap().of(agent).unwrap().to_vec();
+    let plan = case.plan().unwrap();
+    case.with(|world| fifo::choose_queue(world, &held, &plan, facility, agent, &tags)).unwrap().map(|id| id.to_string())
+}
+
+/// The access of the left toilet queue's point, on the configs and their section.
+fn left_access(case: &mut Case, access: Value) {
+    case.edit_geometry(|geometry| {
+        for point in geometry["service_points"].as_array_mut().unwrap() {
+            if point["queue_id"] == LEFT {
+                point["access"] = access.clone();
+            }
+        }
+    });
+}
+
+#[test]
+fn the_shortest_accessible_queue() {
+    let mut case = Case::queued();
+    // A tie goes to the smaller queue ID.
+    assert_eq!(choose(&mut case, "toilet_01", "A005").as_deref(), Some(LEFT));
+    case.line_up("toilet_01", LEFT, &["A001"]);
+    assert_eq!(choose(&mut case, "toilet_01", "A005").as_deref(), Some(RIGHT));
+    case.line_up("toilet_01", RIGHT, &["A002", "A003"]);
+    assert_eq!(choose(&mut case, "toilet_01", "A005").as_deref(), Some(LEFT));
+    // Without the access its point asks for, a person doesn't count that queue.
+    left_access(&mut case, json!({"accessibility": "restricted", "required_access_tags": ["key_holder"], "required_staff_skills": []}));
+    assert_eq!(choose(&mut case, "toilet_01", "A005").as_deref(), Some(RIGHT));
+    // A person's needs and mobility are the tags a point may ask for.
+    assert_eq!(case.with(|world| world.rows().unwrap().agents.get("A005").unwrap().profile.mobility.as_text()), "assisted");
+    for (tags, chosen) in [(json!(["mobility_support", "assisted"]), LEFT), (json!(["assisted", "key_holder"]), RIGHT)] {
+        left_access(&mut case, json!({"accessibility": "restricted", "required_access_tags": tags, "required_staff_skills": []}));
+        assert_eq!(choose(&mut case, "toilet_01", "A005").as_deref(), Some(chosen));
+    }
+    assert_eq!(choose(&mut case, "water_station_main", "A005").as_deref(), Some("water_station_main-left-fifo"));
+    assert_eq!(choose(&mut case, "none", "A005"), None);
+    case.set_queues(None);
+    assert_eq!(choose(&mut case, "toilet_01", "A005"), None);
+}
+
+impl Case {
+    /// The queues' namespace gone (None), as `model_state.pop` leaves it.
+    fn set_queues(&self, row: Option<QueuesRow>) {
+        self.with(|world| {
+            let mut slot = world.slots.get(QUEUES).unwrap().try_borrow_mut().unwrap();
+            slot.touch();
+            slot.row = row.map(|row| Box::new(row) as Box<dyn sheltersim_core::row::Row>);
+        });
+    }
+
+    fn enqueue(&mut self, queue: &str, request_id: &str) -> Result<(), Error> {
+        let (held, plan) = (self.held(QUEUES), self.plan().unwrap());
+        self.with(|world| fifo::enqueue(world, &held, &plan, queue, request_id, "fresh-task", "A003", "toilet", 0))
+    }
+}
+
+/// `queued` with A001 and A002 in the left queue at minute 7: the tasks' IDs.
+fn writes_world() -> (Case, Vec<String>) {
+    let mut case = Case::queued();
+    let tasks = case.line_up("toilet_01", LEFT, &["A001", "A002"]);
+    case.set_minute(7);
+    (case, tasks)
+}
+
+fn stall(minute: i64, request_id: &str, reason: &str) -> Value {
+    json!({"minute": minute, "request_id": request_id, "reason": reason})
+}
+
+#[test]
+fn writes_of_the_queues() {
+    let (mut ours, tasks) = writes_world();
+    assert_eq!(ours.enqueue(LEFT, "fresh"), Ok(()));
+    let state = ours.queues_json();
+    let mut fresh = request_json("fresh", "A003", LEFT);
+    fresh["queue_task_id"] = json!("fresh-task");
+    fresh["active_task_id"] = json!("fresh-task");
+    assert_eq!(state["requests"]["fresh"], fresh);
+    assert_eq!(state["queues"][LEFT]["queued_request_ids"], json!([tasks[0], tasks[1], "fresh"]));
+    let taken = "service queue is not installed or request ID is already in use";
+    let (mut queued, _) = writes_world();
+    let first = tasks[0].clone();
+    queued.raises_text(move |world| world.enqueue(LEFT, &first), taken);
+    queued.raises_text(|world| world.enqueue("none", "fresh"), taken);
+    let (mut not_installed, _) = writes_world();
+    not_installed.set_queues(None);
+    not_installed.raises_text(|world| world.enqueue(LEFT, "fresh"), taken);
+
+    let (ours, _) = writes_world();
+    let held = ours.held(QUEUES);
+    ours.with(|world| fifo::mark_stall(world, &held, LEFT, &tasks[0], "staff")).unwrap();
+    assert_eq!(ours.queues_json()["queues"][LEFT]["last_stall"], stall(7, &tasks[0], "staff"));
+    for world in [&queued, &not_installed] {
+        let before = world.fingerprint();
+        let held = world.held(QUEUES);
+        world.with(|world| fifo::mark_stall(world, &held, "none", &tasks[0], "staff")).unwrap();
+        assert!(world.fingerprint() == before);
+    }
+
+    // Starting the head clears the stall.
+    let started = |ours: &Case| {
+        let held = ours.held(QUEUES);
+        ours.with(|world| fifo::start_service(world, &held, &tasks[0], "active")).unwrap();
+    };
+    started(&ours);
+    let state = ours.queues_json();
+    let mut active = request_json(&tasks[0], "A001", LEFT);
+    active["status"] = json!("active");
+    active["active_task_id"] = json!("active");
+    assert_eq!(state["requests"][&tasks[0]], active);
+    assert_eq!(state["queues"][LEFT]["queued_request_ids"], json!([tasks[1]]));
+    assert_eq!(state["queues"][LEFT]["active_request_ids"], json!([tasks[0]]));
+    assert_eq!(state["queues"][LEFT]["last_stall"], Value::Null);
+    assert_eq!(ours.with(|world| fifo::request_of_task(&world.row::<QueuesRow>(QUEUES).unwrap(), "active").map(|request| request.request_id.to_string())), Some(tasks[0].clone()));
+    let started_world = || {
+        let (case, _) = writes_world();
+        let held = case.held(QUEUES);
+        case.with(|world| fifo::mark_stall(world, &held, LEFT, &tasks[0], "staff")).unwrap();
+        started(&case);
+        case
+    };
+
+    for status in ["completed", "abandoned"] {
+        let world = started_world();
+        world.edit_queues(|row| {
+            row.queues.get_mut(LEFT).unwrap().last_stall = Some(QueueStall { minute: 7, request_id: text(&tasks[1]), reason: text("staff") });
+        });
+        let mut expected = request_json(&tasks[1], "A002", LEFT);
+        expected["status"] = json!(status);
+        assert_eq!(world.finish(&tasks[1], status), Some(expected));
+        let state = world.queues_json();
+        assert!(state["requests"].get(&tasks[1]).is_none());
+        assert_eq!(state["queues"][LEFT]["queued_request_ids"], json!([]));
+        assert_eq!(state["queues"][LEFT]["active_request_ids"], json!([tasks[0]]));
+        assert_eq!(state["queues"][LEFT]["last_stall"], Value::Null);
+    }
+    // An active request ends by its active task's ID.
+    let world = started_world();
+    let mut expected = request_json(&tasks[0], "A001", LEFT);
+    expected["status"] = json!("completed");
+    expected["active_task_id"] = json!("active");
+    assert_eq!(world.finish("active", "completed"), Some(expected));
+    assert_eq!(world.queues_json()["queues"][LEFT]["active_request_ids"], json!([]));
+    for world in [&started_world(), &not_installed] {
+        let before = world.fingerprint();
+        assert_eq!(world.finish("none", "x"), None);
+        assert!(world.fingerprint() == before);
+    }
+}
+
+#[test]
+fn a_queue_transition_is_an_applied_record_of_the_log() {
+    for (transition, wait, cause, position) in [("queued", None, None, Some(2)), ("service_started", Some(0), Some("cause"), Some(2)), ("completed", Some(3), Some("c"), None)] {
+        let mut case = Case::queued();
+        let tasks = case.line_up("toilet_01", LEFT, &["A001", "A002"]);
+        case.set_minute(4);
+        let held = case.held(QUEUES);
+        let mut request = case.with(|world| world.row::<QueuesRow>(QUEUES).unwrap().requests[tasks[1].as_str()].clone());
+        if position.is_none() {
+            request.request_id = text("gone");
+        }
+        let sequence = case.counter();
+        let logged = case.records().len();
+        let plan = case.plan().unwrap();
+        case.with(|world| fifo::record_transition(world, &held, &plan, &request, transition, &tasks[1], wait, cause)).unwrap();
+        assert_eq!(case.counter(), sequence + 1);
+        let records = case.records();
+        assert_eq!(records.len(), logged + 1);
+        let record = records.last().unwrap();
+        let event_id = format!("facility-queue-transition-{sequence}");
+        assert_eq!((&record["status"], &record["realized_minute"], &record["detail"]), (&json!("applied"), &json!(4), &Value::Null));
+        let event = &record["event"];
+        assert_eq!(
+            (&event["event_id"], &event["kind"], &event["due_minute"], &event["priority"], &event["sequence"]),
+            (&json!(event_id), &json!("endogenous"), &json!(4), &json!(0), &json!(sequence))
+        );
+        let policy = case.queues_json()["policy_version"].clone();
+        assert_eq!(event["event_type"], "facility_queue_transition");
+        assert_eq!(event["source_id"], policy);
+        assert_eq!(event["causation_id"], json!(cause));
+        assert_eq!(event["provenance"], json!({"source_type": "assumption", "source_id": "ASM-FACILITY-QUEUES-V1", "policy_version": policy}));
+        assert_eq!(
+            event["payload"],
+            json!({
+                "schema_version": 1,
+                "record_type": "operations",
+                "event_type": "facility_queue_transition",
+                "event_id": event_id,
+                "request_id": &*request.request_id,
+                "queue_id": LEFT,
+                "service_point_id": "toilet_01-left",
+                "facility_id": "toilet_01",
+                "agent_id": "A002",
+                "service_kind": "toilet",
+                "transition": transition,
+                "minute": 4,
+                "requested_minute": 0,
+                "task_id": tasks[1],
+                "queue_position": position,
+                "service_capacity_concurrent": 1,
+                "wait_minutes": wait,
+                "causation_id": cause,
+            })
+        );
+    }
+}
+
+#[test]
+fn a_fifo_keeps_its_order_and_only_a_wait_ends_it() {
+    let mut case = Case::queued();
+    let tasks = case.line_up("toilet_01", LEFT, &["A001", "A002"]);
+    let prepare = |case: &mut Case, queue: &str, minute: i64| case.tick(minute).prepare_independent(queue, false).map_err(|failed| failed.error).unwrap();
+    let minute = case.minute();
+    for queue in [LEFT, "none"] {
+        let before = case.fingerprint();
+        prepare(&mut case, queue, minute);
+        assert!(case.fingerprint() == before, "{queue}");
+    }
+    case.set_minute(119);
+    let before = case.fingerprint();
+    prepare(&mut case, LEFT, 119);
+    assert!(case.fingerprint() == before);
+    // Past the toilet's default wait, with a low need: this person leaves the queue.
+    case.with(|world| {
+        let mut rows = world.rows_mut().unwrap();
+        rows.agents.get_mut("A002").unwrap().needs.toilet_urgency = 0.1;
+        rows.active_tasks.get_mut(tasks[1].as_str()).unwrap().start_minute = 0;
+    });
+    case.set_minute(121);
+    let zone = case.zone_of("A002");
+    let center = case.plan().unwrap().layout.as_ref().unwrap().zones[zone.as_str()].center.unwrap().unwrap();
+    case.put_point("A002", Some(center));
+    let sequence = case.counter();
+    let logged = case.records().len();
+    prepare(&mut case, LEFT, 121);
+    let state = case.queues_json();
+    assert_eq!(state["queues"][LEFT]["queued_request_ids"], json!([tasks[0]]));
+    assert!(state["requests"].get(&tasks[1]).is_none());
+    let (queue, task_gone, agent) = case.with(|world| {
+        let rows = world.rows().unwrap();
+        let queue: Vec<String> = rows.facilities.get("toilet_01").unwrap().queue_agent_ids.iter().map(|id| id.to_string()).collect();
+        (queue, rows.active_tasks.get(tasks[1].as_str()).is_none(), rows.agents.get("A002").unwrap().clone())
+    });
+    assert_eq!(queue, ["A001"]);
+    assert!(task_gone);
+    // At the zone's anchor already: no walk.
+    assert_eq!((agent.activity, agent.target_id, agent.next_decision_at), (Activity::Idle, None, 136));
+    assert_eq!(case.with(|world| world.metric_state().unwrap().get("facility_queue_abandon_count").copied()), Some(1.0));
+    assert_eq!(case.counter(), sequence + 2);
+    // The request's end is logged first, under the next sequence; then the abandonment.
+    let records = case.records();
+    let [transition, abandon] = &records[logged..] else { panic!("two records: {}", records.len() - logged) };
+    assert_eq!(transition["event"]["event_id"], json!(format!("facility-queue-transition-{}", sequence + 1)));
+    let payload = &transition["event"]["payload"];
+    assert_eq!(
+        (&payload["transition"], &payload["agent_id"], &payload["request_id"], &payload["queue_position"], &payload["wait_minutes"]),
+        (&json!("abandoned"), &json!("A002"), &json!(tasks[1]), &Value::Null, &json!(121))
+    );
+    assert_eq!(transition["event"]["causation_id"], json!(tasks[1]));
+    assert_eq!(abandon["event"]["event_id"], json!(format!("facility-queue-abandon-{sequence}")));
+    assert_eq!(
+        abandon["event"]["payload"],
+        json!({
+            "facility_id": "toilet_01",
+            "agent_id": "A002",
+            "task_id": tasks[1],
+            "service": "toilet",
+            "start_minute": 0,
+            "wait_minutes": 121,
+            "retry_at_minute": 136,
+            "reason": "need_weighted_wait_threshold",
+        })
+    );
+    assert_eq!(abandon["detail"], "Agent left a prolonged low-urgency queue and will reconsider after a bounded delay");
+}
+
+/// The walk to the slots of a FIFO, and its walks to service, slots and approach. Recorded from the
+/// core in #225 lane M3; on the same kernel the pytest
+/// `test_overlay_rules.py::test_walks_of_a_fifo_are_the_python_rule_s` passed with the digests
+/// `walk toilet_01-left-fifo` (`723961dac125`) and `walk toilet_01-right-fifo` (`a39a0e59ab28`) of
+/// `RECORDED`, and `e9cd3a9fc6b9` and `e1eae6eeec33` of `FIFO_WALKS`.
+#[test]
+fn walks_of_a_fifo_are_the_python_rule_s() {
+    for (queue, walk_digest, walks_digest) in [(LEFT, "8a2989a052dde585d94556e9578e4d7a768f2888fece564097b9cfbd741bfa76", "51d6f1e575cc4d09871d06fa8bbdb6fcfc320e898ecf09e8526414b062675b8d"), (RIGHT, "e2c5eaaf44632def48a638109c4ce20a2247a2575b4f92f02fc7bbe3648bb981", "3aa438e53a2c5205a8b2fffd5e3b5c7c45135e8e63f2c83e501cc37d66fc90cf")] {
+        let mut case = Case::queued();
+        case.line_up("toilet_01", queue, &["A001", "A002", "A003"]);
+        let minute = case.minute();
+        let mut walk = Answers::default();
+        let snapshot = case.copy();
+        let first = case.tick(minute).progress("toilet_01", false, false, Some(queue)).map_err(|failed| failed.error).unwrap();
+        case.with(|world| walk.add(&format!("{first:?}"), world));
+        let journeys = case.with(|world| world.row::<MovementRow>(MOVEMENT).unwrap().journeys.values().map(|journey| journey.queue_id.clone()).collect::<Vec<_>>());
+        assert!(journeys.iter().all(|id| id.as_deref() == Some(queue)));
+        case.give_back(snapshot);
+        let mut answers = Answers::default();
+        for extra in [Some(queue), None] {
+            let snapshot = case.copy();
+            let result = case.tick(minute).progress("toilet_01", false, true, extra).map_err(|failed| failed.error);
+            case.with(|world| answers.add(&format!("{result:?}"), world));
+            case.give_back(snapshot);
+        }
+        let (plan, walking, movement, queues, _) = case.queue_walk();
+        let at = sheltersim_core::rules::movement::Where { geo: &plan, movement: movement.clone(), queues };
+        for agent in ["A001", "A002", "A003"] {
+            let slot = case.with(|world| sheltersim_core::rules::movement::queue_slot_position(world, &at, agent, "toilet_01", Some(queue))).unwrap();
+            answers.text(&format!("{slot:?}"));
+        }
+        let point = plan.layout.as_ref().unwrap().service_points.iter().find(|point| &*point.queue_id == queue).unwrap().id.clone();
+        let near = sheltersim_core::rules::movement::Where { geo: &plan, movement, queues: Held::Absent };
+        let route = |case: &Case, point: &str| case.with(|world| sheltersim_core::rules::movement::approach_route(world, &near, &walking.as_ref().unwrap().model, "A001", "toilet_01", Some(point))).unwrap();
+        answers.text(&format!("{:?}", route(&case, &point)));
+        assert_eq!(walk.hex(), walk_digest, "{queue}");
+        assert_eq!(answers.hex(), walks_digest, "{queue}");
+        assert_eq!(route(&case, "none"), None);
+    }
+}
+
+// ---- The toilet's FIFO -----------------------------------------------------------------------------
+
+impl Case {
+    /// `serve_independent_head` of a toilet manager of 2 to 4 minutes, with the world's random
+    /// source (`CounterRNG(world.seed)`), at the left queue.
+    fn serve_toilet(&mut self, minute: i64) -> toilet::Started {
+        let (plan, walking, movement, queues, metric_state_held) = self.queue_walk();
+        let model = &walking.as_ref().unwrap().model;
+        let placed = movement != Held::Absent && walking.as_ref().unwrap().has_geometry;
+        let walk = placed.then(|| queues::Walk { geo: &plan, model, movement: movement.clone(), queues: queues.clone(), metric_state_held });
+        let rng = toilet::Rng::Seed(self.entry["world"]["seed"].to_string());
+        let start = toilet::Start {
+            facility_id: "toilet_01",
+            minute,
+            queue_id: Some(LEFT),
+            lowest: 2,
+            highest: 4,
+            policy: text(self.entry["toilet_policy"].as_str().unwrap()),
+            rng: &rng,
+            queues: &queues,
+            geo: &plan,
+            walk: walk.as_ref(),
+            metric_state_held,
+        };
+        toilet::start(&self.cell, &mut self.host, &start).unwrap()
+    }
+
+    /// `same_head`: the pass on a copy, its answer chained; what it started, with the copy given to
+    /// `then` before it goes.
+    fn same_head<T>(&mut self, answers: &mut Answers, minute: i64, then: impl FnOnce(&mut Case, &toilet::Started) -> T) -> T {
+        let snapshot = self.copy();
+        let started = self.serve_toilet(minute);
+        self.with(|world| answers.add(&format!("{started:?}"), world));
+        let out = then(self, &started);
+        self.give_back(snapshot);
+        out
+    }
+}
+
+/// Recorded from the core in #225 lane M3; on the same kernel the pytest
+/// `test_overlay_rules.py::test_a_toilet_fifo_is_the_python_rule_s` passed with the digests of
+/// `RECORDED`: `toilet request queue` and `toilet request` (`c4f5d6d8b263`), `toilet head`
+/// (`98f439dc7b65`), `toilet head full` (`d76e169018dc`), `toilet head late` (`ab860141b3d1`),
+/// `toilet head unskilled` (`6b7473565ba7`) and `toilet head staffed` (`5508059c4680`).
+#[test]
+fn a_toilet_fifo_is_the_python_rule_s() {
+    let mut case = Case::queued();
+    let zone = case.facility_zone("toilet_01");
+    for agent in ["A001", "A002"] {
+        case.to_zone(agent, &zone);
+    }
+    let mut recorded = Vec::new();
+    // In the given queue, else the shortest accessible one: last in it, queued there.
+    for queue in [Some(LEFT), None] {
+        let mut answers = Answers::default();
+        let snapshot = case.copy();
+        let receipt = case.toilet_request("A001", "toilet_01", queue).unwrap();
+        let state = case.queues_json();
+        let mine: Vec<&String> = state["requests"].as_object().unwrap().iter().filter(|(_, row)| row["agent_id"] == "A001").map(|(key, _)| key).collect();
+        assert_eq!(mine.len(), 1);
+        if let Some(queue) = queue {
+            assert_eq!(state["requests"][mine[0]]["queue_id"], queue);
+        }
+        assert_eq!(case.with(|world| world.rows().unwrap().agents.get("A001").unwrap().activity), Activity::Queued);
+        case.with(|world| answers.add(&format!("{receipt:?}"), world));
+        case.give_back(snapshot);
+        recorded.push(answers.hex());
+    }
+    case.toilet_request("A001", "toilet_01", Some(LEFT)).unwrap();
+    case.toilet_request("A002", "toilet_01", Some(LEFT)).unwrap();
+    // Each stop: the walk, a point with no place, the Run's end, no skilled staff.
+    let minute = case.minute();
+    let mut head = Answers::default();
+    case.same_head(&mut head, minute, |_, _| ());
+    recorded.push(head.hex());
+    let point = case.entry["world"]["model_configs"]["facility_geometry"]["service_points"].as_array().unwrap().iter().find(|point| point["queue_id"] == LEFT).unwrap()["point_m"].clone();
+    case.put_point("A001", Some(Pt { x: point["x"].as_f64().unwrap(), y: point["y"].as_f64().unwrap() }));
+    let snapshot = case.copy();
+    case.with(|world| world.rows_mut().unwrap().facilities.get_mut("toilet_01").unwrap().working_units = 0);
+    let mut full = Answers::default();
+    assert_eq!(case.same_head(&mut full, minute, |_, started| started == &toilet::Started::Stopped), true);
+    case.give_back(snapshot);
+    recorded.push(full.hex());
+    let snapshot = case.copy();
+    let late = case.duration() - 1;
+    case.set_minute(late);
+    let mut late_answers = Answers::default();
+    assert!(case.same_head(&mut late_answers, late, |_, started| started == &toilet::Started::Stopped));
+    case.give_back(snapshot);
+    recorded.push(late_answers.hex());
+    let snapshot = case.copy();
+    left_access(&mut case, json!({"accessibility": "accessible", "required_access_tags": [], "required_staff_skills": ["no_such_skill"]}));
+    let mut unskilled = Answers::default();
+    assert!(case.same_head(&mut unskilled, minute, |_, started| started == &toilet::Started::Stopped));
+    recorded.push(unskilled.hex());
+    // With skilled staff here the service starts and holds the person.
+    let member = case.entry["order"]["staff"][0].as_str().unwrap().to_owned();
+    case.with(|world| {
+        let mut rows = world.rows_mut().unwrap();
+        let staff = rows.staff.get_mut(member.as_str()).unwrap();
+        staff.zone_id = zone.clone();
+        staff.skills.0.push(text("no_such_skill"));
+    });
+    let mut staffed = Answers::default();
+    case.same_head(&mut staffed, minute, |served, started| {
+        let toilet::Started::Event(event_id) = started else { panic!("the service did not start") };
+        let event = served.with(|world| {
+            let queue = world.queue().unwrap();
+            queue.ordered().iter().map(|(_, serial)| queue.slot(*serial).row.as_deref().unwrap().clone()).find(|event| event.event_id == *event_id).unwrap()
+        });
+        let payload = json_of(&event.payload);
+        assert_eq!(payload["staff_id"], json!(member));
+        // And the completion lets them go: the slot, the task and the staff member's reservation are
+        // freed, and the person is done (what the completion's Python rule did, gone in lane L10).
+        served.set_minute(event.due_minute);
+        let (plan, _, _, queues, metric_state_held) = served.queue_walk();
+        let body = served.held("body_state_v1");
+        let toilet::ScheduleReturn = served.with(|world| toilet::complete(world, &event, &queues, &plan, &body, metric_state_held)).unwrap();
+        let person = payload["agent_id"].as_str().unwrap().to_owned();
+        let task = payload["task_id"].as_str().unwrap().to_owned();
+        served.with(|world| {
+            let rows = world.rows().unwrap();
+            let staff = rows.staff.get(member.as_str()).unwrap();
+            assert_eq!((staff.active_task_id.as_deref(), staff.work_queue.len(), staff.busy_until), (None, 0, 0));
+            assert!(rows.active_tasks.get(task.as_str()).is_none());
+            assert!(!rows.facilities.get("toilet_01").unwrap().active_agent_ids.iter().any(|id| **id == *person));
+            let agent = rows.agents.get(person.as_str()).unwrap();
+            assert_eq!((agent.activity, agent.needs.toilet_urgency), (Activity::Idle, 0.0));
+        });
+    });
+    case.give_back(snapshot);
+    recorded.push(staffed.hex());
+    assert_eq!(
+        recorded,
+        [
+            "bb44649463581d884beb8d9c7120b063d722add6db43b56ea6127293aa4a214a",
+            "bb44649463581d884beb8d9c7120b063d722add6db43b56ea6127293aa4a214a",
+            "3a94e90d806c50bd40af0e4b07f7c4e4b9fa64a722e7718e9429af04556f3b0d",
+            "cfad5b2356505cd87339d18649f4545f7857a95a6cf89fbecba99797dd405ba8",
+            "6f04d56e2b1f296293268980e496ec74982e40c610f2ccb77ebe06f18547b240",
+            "b7dd51caa2a97696bcba156ce39fb39c9b988195dabe5e5ca4ff2e69b89f548c",
+            "908ac0966c46442bc3459700929767fa54105ba2a5ebcbdf1f1a01e7e3ecd0cb",
+        ]
+    );
+}
+
+// ---- The water and meal service's FIFO -------------------------------------------------------------
+
+/// The parts of the water and meal service's manager (`ResourceServiceManager(world)`), read as its
+/// PyO3 entries read them: its config (the export's), whether the world holds the service, the ledger
+/// and the queues, the plan, and whether `metric_state` is its slot's.
+struct ServiceIn {
+    config: indexmap::IndexMap<Arc<str>, V>,
+    service: Held,
+    ledger: Held,
+    queues: Held,
+    plan: Arc<Geo>,
+    metric_state_held: bool,
+}
+
+impl ServiceIn {
+    fn manager(&self) -> service::Manager<'_> {
+        service::Manager {
+            config: &self.config,
+            service: self.service.clone(),
+            ledger: self.ledger.clone(),
+            queues: self.queues.clone(),
+            geo: &self.plan,
+            metric_state_held: self.metric_state_held,
+        }
+    }
+}
+
+impl Case {
+    fn service_in(&self) -> ServiceIn {
+        let V::Map(config) = ordered(&self.entry["service_config"]) else { panic!("a map") };
+        ServiceIn {
+            config,
+            service: self.held("resource_service_v1"),
+            ledger: self.held("resource_ledger_v1"),
+            queues: self.held(QUEUES),
+            plan: self.plan().unwrap(),
+            metric_state_held: self.holding().field(sheltersim_core::world::METRIC_STATE),
+        }
+    }
+
+    /// `replace_resources` of the PyO3 crate: `world.resources` takes the operation's balance.
+    fn take_balance(&self, applied: Option<sheltersim_core::rules::resources::Applied>) {
+        let Some(applied) = applied else {
+            return;
+        };
+        self.with(|world| {
+            let id = sheltersim_core::state::resource_ledger::RESOURCE_IDS[applied.index];
+            world.row_mut::<sheltersim_core::world::ResourcesRow>(sheltersim_core::world::RESOURCES).unwrap().insert(text(id), applied.remaining);
+        });
+    }
+
+    /// `_resource_queues`: the first queue, by ID, of a water or meal facility, and its facility.
+    fn resource_queue(&self) -> (String, String) {
+        let state = self.queues_json();
+        let mut ids: Vec<&String> = state["queues"].as_object().unwrap().keys().collect();
+        ids.sort();
+        ids.into_iter()
+            .find_map(|id| {
+                let facility = state["queues"][id]["facility_id"].as_str().unwrap();
+                let kind = self.with(|world| world.rows().unwrap().facilities.get(facility).unwrap().kind.to_string());
+                ["water_station", "meal_distribution"].contains(&kind.as_str()).then(|| (facility.to_owned(), id.clone()))
+            })
+            .unwrap()
+    }
+
+    /// `ResourceServiceManager.request` without the world's validation.
+    fn service_request(&mut self, agent: &str, facility: &str) -> service::Requested {
+        let inputs = self.service_in();
+        let needs = self.needs();
+        let pending = self.with(|world| service::reserves_of(world)).unwrap();
+        let request = service::Request { agent_id: agent, facility_id: facility, minute: service::Minute::Absent, queue_id: None, needs: &needs };
+        service::request(&self.cell, &mut self.host, &inputs.manager(), &request, &pending, false).unwrap()
+    }
+
+    /// `ResourceServiceManager.arbitrate` at the world's minute, with the balances the host is told
+    /// of written.
+    fn arbitrate_service(&mut self) {
+        let minute = self.minute();
+        self.host.calls.clear();
+        service::arbitrate(&mut self.tick(minute)).map_err(|failed| failed.error).unwrap();
+        let changed: Vec<(usize, i64)> = self.host.calls.iter().filter_map(|call| match call {
+            Call::ResourcesChanged(index, remaining) => Some((*index, *remaining)),
+            _ => None,
+        }).collect();
+        for (index, remaining) in changed {
+            self.take_balance(Some(sheltersim_core::rules::resources::Applied { index, remaining }));
+        }
+    }
+
+    fn point_of_queue(&self, queue: &str) -> Pt {
+        let points = self.entry["world"]["model_configs"]["facility_geometry"]["service_points"].clone();
+        let point = points.as_array().unwrap().iter().find(|point| point["queue_id"] == queue).unwrap()["point_m"].clone();
+        Pt { x: point["x"].as_f64().unwrap(), y: point["y"].as_f64().unwrap() }
+    }
+
+    /// `_serving`: A001 in service at an independent queue, with every staff member in its zone: the
+    /// task's ID and the staff member's.
+    fn serving(&mut self) -> (String, String) {
+        let (facility, _) = self.resource_queue();
+        let zone = self.facility_zone(&facility);
+        for agent in ["A001", "A002"] {
+            self.to_zone(agent, &zone);
+        }
+        self.service_request("A001", &facility);
+        self.with(|world| {
+            let mut rows = world.rows_mut().unwrap();
+            for id in rows.staff.iter().map(|(id, _)| id.clone()).collect::<Vec<_>>() {
+                rows.staff.get_mut(&id).unwrap().zone_id = zone.clone();
+            }
+        });
+        let state = self.queues_json();
+        let queue = state["requests"].as_object().unwrap().values().next().unwrap()["queue_id"].as_str().unwrap().to_owned();
+        self.put_point("A001", Some(self.point_of_queue(&queue)));
+        for _ in 0..30 {
+            self.arbitrate_service();
+            let found = self.with(|world| {
+                world.rows().unwrap().active_tasks.iter().find(|(_, task)| ["resource_service_water", "resource_service_food"].contains(&&*task.kind)).map(|(id, task)| (id.to_string(), task.staff_id.as_deref().unwrap().to_owned()))
+            });
+            if let Some(found) = found {
+                return found;
+            }
+            self.set_minute(self.minute() + 1);
+        }
+        panic!("the service never started");
+    }
+
+    fn pending_events(&self) -> Vec<EventRow> {
+        self.with(|world| {
+            let queue = world.queue().unwrap();
+            queue.ordered().iter().map(|(_, serial)| queue.slot(*serial).row.as_deref().unwrap().clone()).collect()
+        })
+    }
+}
+
+/// An event of a test, due now: the handler is given it at once.
+fn test_event(case: &Case, event_id: &str, event_type: &str, payload: Value) -> EventRow {
+    EventRow {
+        event_id: text(event_id),
+        kind: EventKind::Endogenous,
+        due_minute: case.minute(),
+        priority: 0,
+        sequence: 900_000,
+        event_type: text(event_type),
+        payload: v(payload),
+        source_id: Some(text("ASM-TEST")),
+        causation_id: None,
+        provenance: v(json!({})),
+    }
+}
+
+/// The service of a FIFO: the request, then each stop and the start of a service, and the stall
+/// records. Recorded from the core in #225 lane M3; on the same kernel the pytest
+/// `test_overlay_rules.py::test_a_resource_fifo_serves_as_the_python_rule_does` with the digest
+/// `serves` (`55c19613d7506346`) of `RESOURCE_FIFO` passed.
+#[test]
+fn a_resource_fifo_serves_as_the_python_rule_does() {
+    let mut case = Case::queued();
+    let (facility, queue) = case.resource_queue();
+    let kind = case.with(|world| world.rows().unwrap().facilities.get(facility.as_str()).unwrap().kind.to_string());
+    let resource = if kind == "water_station" { "water_ml" } else { "food_meal_units" };
+    let zone = case.facility_zone(&facility);
+    case.to_zone("A001", &zone);
+    let mut answers = Answers::default();
+    // The request.
+    let snapshot = case.copy();
+    let service::Requested::Queued(receipt) = case.service_request("A001", &facility) else { panic!("refused") };
+    assert_eq!((&*receipt.agent_id, &*receipt.facility_id, receipt.queue_position), ("A001", facility.as_str(), 1));
+    case.with(|world| answers.add(&format!("{receipt:?}"), world));
+    case.give_back(snapshot);
+    case.service_request("A001", &facility);
+    // Each stop and the start of a service, on a world that walks no further.
+    let point = case.entry["world"]["model_configs"]["facility_geometry"]["facility_points"][&facility].clone();
+    case.put_point("A001", Some(Pt { x: point["x"].as_f64().unwrap(), y: point["y"].as_f64().unwrap() }));
+    let serve = |case: &mut Case, answers: &mut Answers, quantity: Option<i64>| {
+        let snapshot = case.copy();
+        let mut inputs = case.service_in();
+        if let Some(quantity) = quantity {
+            let key = if resource == "water_ml" { "water_ml_per_service" } else { "food_meal_units_per_service" };
+            inputs.config.insert(text(key), V::Int(quantity));
+        }
+        let (plan, walking, movement, queues, metric_state_held) = case.queue_walk();
+        let model = &walking.as_ref().unwrap().model;
+        let walk = queues::Walk { geo: &plan, model, movement, queues, metric_state_held };
+        let minute = case.minute();
+        let serve = service::Serve { facility_id: &facility, resource_id: resource, minute, queue_id: Some(&queue), walk: Some(&walk), placement: Some(&plan) };
+        let result = case.with(|world| {
+            let pending = service::reserves_of(world).unwrap();
+            service::serve(world, &inputs.manager(), &serve, &pending)
+        });
+        let result = match result {
+            Ok(result) => result,
+            Err(_) => panic!("the service failed"),
+        };
+        if let service::Served::Started(_, applied) = &result {
+            case.take_balance(Some(*applied));
+        }
+        case.with(|world| answers.add(&format!("{result:?}"), world));
+        case.give_back(snapshot);
+        result
+    };
+    let stalled = |served: &service::Served| match served {
+        service::Served::Stopped(Some((_, reason))) => *reason,
+        other => panic!("not a stall: {other:?}"),
+    };
+    serve(&mut case, &mut answers, None);
+    // No staff.
+    let snapshot = case.copy();
+    case.with(|world| {
+        let mut rows = world.rows_mut().unwrap();
+        for id in rows.staff.iter().map(|(id, _)| id.clone()).collect::<Vec<_>>() {
+            rows.staff.get_mut(&id).unwrap().zone_id = text("corridor");
+        }
+    });
+    assert_eq!(stalled(&serve(&mut case, &mut answers, None)), "staff");
+    case.give_back(snapshot);
+    // No stock.
+    assert_eq!(stalled(&serve(&mut case, &mut answers, Some(1_000_000_000_000))), "stock");
+    // The Run's end.
+    let snapshot = case.copy();
+    case.set_minute(case.duration() - 1);
+    assert_eq!(stalled(&serve(&mut case, &mut answers, None)), "run_end");
+    case.give_back(snapshot);
+    // Its stall records: the head's kept, or the first queue's new.
+    let stall = |agent: &str, reason: &str| sheltersim_core::state::resource_service::Stall { agent_id: text(agent), reason: text(reason) };
+    let stalls = vec![(text("A001"), text("staff"))];
+    for (wanted, known) in [(stalls.clone(), None), (stalls.clone(), Some(stall("A001", "staff"))), (Vec::new(), None), (stalls, Some(stall("A", "stock")))] {
+        let snapshot = case.copy();
+        let inputs = case.service_in();
+        // An empty list is no call (`if not waits: return`).
+        if !wanted.is_empty() {
+            case.with(|world| service::record_independent_stall(world, &inputs.manager(), &facility, &wanted, known.as_ref())).unwrap();
+        }
+        case.with(|world| answers.add("", world));
+        case.give_back(snapshot);
+    }
+    assert_eq!(answers.hex(), "7326f504cc21725fc04b41c7c67cae5ca4c30d6bf7cf017c033b0f0ce6f6af11");
+}
+
+/// Recorded from the core in #225 lane M3; on the same kernel the pytest
+/// `test_overlay_rules.py::test_a_service_interrupted_goes_back_first_in_its_fifo_as_the_python_rule_says`
+/// with the digest `interrupted` (`ac8f36a0687bd7e1`) of `RESOURCE_FIFO` passed.
+#[test]
+fn a_service_interrupted_goes_back_first_in_its_fifo_as_the_python_rule_says() {
+    let mut case = Case::queued();
+    let (_, staff_id) = case.serving();
+    let (facility, _) = case.resource_queue();
+    // Someone else waits, so going back first in line shows.
+    case.service_request("A002", &facility);
+    let snapshot = case.copy();
+    let inputs = case.service_in();
+    let cause = text("staff-away");
+    let applied = case.with(|world| {
+        let pending = service::reserves_of(world).unwrap();
+        service::interrupt(world, &inputs.manager(), &pending, &staff_id, Some(&cause))
+    });
+    let Ok(applied) = applied else { panic!("the interruption failed") };
+    case.take_balance(applied);
+    let mut answers = Answers::default();
+    case.with(|world| answers.add("", world));
+    let records: Vec<Value> = case.records().into_iter().filter(|record| record["event"]["event_type"] == "facility_queue_transition").map(|record| record["event"]["payload"].clone()).collect();
+    let last = &records[records.len() - 2..];
+    assert_eq!((&last[0]["transition"], &last[1]["transition"]), (&json!("interrupted"), &json!("requeued")));
+    assert_eq!(last[1]["queue_position"], json!(1));
+    case.give_back(snapshot);
+    assert_eq!(answers.hex(), "553eb71ee67032f8c6042837d355bf256655fb708ef9f3428c818dcfcf05b999");
+}
+
+/// Recorded from the core in #225 lane M3; on the same kernel the pytest
+/// `test_overlay_rules.py::test_a_cancelled_service_is_the_python_rule_s` with the digests
+/// `cancelled-operator_cancelled` and `cancelled-facility_stopped` (`4b945a95e866d703`) and
+/// `cancelled-staff_unavailable` (`204b6edeaad9429f`) of `RESOURCE_FIFO` passed.
+#[test]
+fn a_cancelled_service_is_the_python_rule_s() {
+    let mut recorded = Vec::new();
+    for reason in ["operator_cancelled", "facility_stopped", "staff_unavailable"] {
+        let mut case = Case::queued();
+        let (task_id, _) = case.serving();
+        let event = test_event(&case, "cancel-it", "resource_service_cancel", json!({"task_id": task_id, "reason": reason}));
+        let inputs = case.service_in();
+        let Ok(applied) = case.with(|world| service::cancel(world, &inputs.manager(), &event)) else { panic!("the cancellation failed") };
+        case.take_balance(applied);
+        let mut answers = Answers::default();
+        case.with(|world| answers.add("", world));
+        recorded.push(answers.hex());
+        let cancelled = case.with(|world| world.row::<sheltersim_core::state::resource_service::ServiceRow>("resource_service_v1").unwrap().cancelled_task_ids.iter().any(|id| **id == *task_id));
+        assert!(cancelled, "{reason}");
+        assert!(case.with(|world| world.rows().unwrap().active_tasks.get(task_id.as_str()).is_none()));
+    }
+    assert_eq!(recorded, [
+        "5d455a23d6ee409d27e18ce84939776f1cff48c0b9884ae03ec2f226497b65da",
+        "5d455a23d6ee409d27e18ce84939776f1cff48c0b9884ae03ec2f226497b65da",
+        "e33089836bf01a9da8578126ff3223e1cb58b9ba9ffd40ef0b02ad599fde2a4e",
+    ]);
+}
+
+/// Recorded from the core in #225 lane M3; on the same kernel the pytest
+/// `test_overlay_rules.py::test_a_cancelled_place_in_a_queue_is_the_python_rule_s` with the digest
+/// `cancelled-place` (`b4995ef04bb778fd`) of `RESOURCE_FIFO` passed.
+#[test]
+fn a_cancelled_place_in_a_queue_is_the_python_rule_s() {
+    let mut case = Case::queued();
+    let (facility, _) = case.resource_queue();
+    let zone = case.facility_zone(&facility);
+    case.to_zone("A001", &zone);
+    let service::Requested::Queued(receipt) = case.service_request("A001", &facility) else { panic!("refused") };
+    let event = test_event(&case, "cancel-place", "resource_service_cancel", json!({"task_id": &*receipt.queue_task_id, "reason": "operator_cancelled"}));
+    let inputs = case.service_in();
+    let Ok(applied) = case.with(|world| service::cancel(world, &inputs.manager(), &event)) else { panic!("the cancellation failed") };
+    case.take_balance(applied);
+    let mut answers = Answers::default();
+    case.with(|world| answers.add("", world));
+    assert!(!case.with(|world| world.rows().unwrap().facilities.get(facility.as_str()).unwrap().resource_queue_agent_ids.iter().any(|id| &**id == "A001")));
+    assert_eq!(answers.hex(), "374038b2fda4946eae0c16d2258478471467728579c01a3707b13a74af916420");
+}
+
+/// Recorded from the core in #225 lane M3; on the same kernel the pytest
+/// `test_overlay_rules.py::test_a_completed_service_leaves_its_fifo_as_the_python_rule_does` with the
+/// digest `completed` (`989cad4a9fe17255`) of `RESOURCE_FIFO` passed.
+#[test]
+fn a_completed_service_leaves_its_fifo_as_the_python_rule_does() {
+    let mut case = Case::queued();
+    let (facility, _) = case.resource_queue();
+    let zone = case.facility_zone(&facility);
+    for agent in ["A001", "A002"] {
+        case.to_zone(agent, &zone);
+    }
+    case.service_request("A001", &facility);
+    case.with(|world| {
+        let mut rows = world.rows_mut().unwrap();
+        for id in rows.staff.iter().map(|(id, _)| id.clone()).collect::<Vec<_>>() {
+            rows.staff.get_mut(&id).unwrap().zone_id = zone.clone();
+        }
+    });
+    let state = case.queues_json();
+    let queue = state["requests"].as_object().unwrap().values().next().unwrap()["queue_id"].as_str().unwrap().to_owned();
+    case.put_point("A001", Some(case.point_of_queue(&queue)));
+    let mut pending = Vec::new();
+    for _ in 0..30 {
+        case.arbitrate_service();
+        pending = case.pending_events().into_iter().filter(|event| &*event.event_type == "resource_service_complete").collect();
+        if !pending.is_empty() {
+            break;
+        }
+        case.set_minute(case.minute() + 1);
+    }
+    assert!(!pending.is_empty(), "the service never started");
+    let event = pending.remove(0);
+    case.set_minute(event.due_minute);
+    let inputs = case.service_in();
+    let Ok(applied) = case.with(|world| service::complete(world, &inputs.manager(), &event)) else { panic!("the completion failed") };
+    case.take_balance(Some(applied));
+    let mut answers = Answers::default();
+    case.with(|world| answers.add("", world));
+    assert_eq!(case.queues_json()["requests"], json!({}));
+    assert_eq!(answers.hex(), "030cf34b905fdd5928604b9661de1926f15fc5fbcb3a1236c198857f196c318f");
 }

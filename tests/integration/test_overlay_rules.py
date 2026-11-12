@@ -4,11 +4,10 @@ The 7-day Run reaches almost none of these, so what is compared here and by the 
 gate is all that is compared (docs/rust-port/lanes/m6-overlay.md). Values next to a limit or a
 coefficient are chosen so a change of 1% shows.
 
-The rules of temporary spaces, rooms, beds, installed facilities and changes of the floor plan are
-checked without Python in `native/core/tests/overlay_rules.rs`, on the same world
-(`support/core_fixtures_overlay.py`, #225). Here each of their Python entries keeps a test that it
-still reaches the kernel and gives its answer, beside the checks against the Python validators
-(decision D3) and the refusals of the boundary.
+The core's rules are checked without Python in `native/core/tests/overlay_rules.rs`, on the same
+worlds (`support/core_fixtures_overlay.py`, `support/core_fixtures_overlay_queues.py`, #225). Here
+each Python entry keeps a test that it still reaches the kernel and gives its answer, beside the
+checks against the Python validators (decision D3) and the refusals of the boundary.
 """
 
 from __future__ import annotations
@@ -133,8 +132,6 @@ def _plain(value: Any) -> Any:
 # same worlds with the namespace still attached (whose old digests passed) and from the detached
 # ones, and were the same.
 RECORDED = {
-    "walk toilet_01-left-fifo": "723961dac125c409eaa43b22c60ded783d384b6f2257dc5e7f68c840dc7fc7b8",
-    "walk toilet_01-right-fifo": "a39a0e59ab284d406c24446027b37d51bc0d29584aadb83fa31fc9954e45fb0c",
     "toilet request queue": "c4f5d6d8b263779c3486b488bae35b72b18871808dbb01e9765ad8950ab2b526",
     "toilet request": "c4f5d6d8b263779c3486b488bae35b72b18871808dbb01e9765ad8950ab2b526",
     "toilet head": "98f439dc7b6571d37a8ef60ffa986f53a6c5a973178c820749048dcec5bad3a4",
@@ -1053,27 +1050,6 @@ def _sleep_proposal(world: WorldState, agent_id: str) -> Any:
     )
 
 
-@pytest.mark.parametrize(
-    ("at_bed", "digest"), [(False, "a4f07608e1e04866"), (True, "2732f2f9b97629f9")]
-)
-def test_sleep_in_a_room_is_the_python_step_s(world: WorldState, at_bed: bool, digest: str) -> None:
-    """The result and the world (`world_digest`) of the Python step, recorded from it on 45a9bc9
-    before it went (lane L10), pinned on every OS."""
-    room = room_record(world, "room")
-    world.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["temporary_rooms"]["room"] = room
-    agent_id = _person_in_room_zone(world)
-    if at_bed:
-        world.model_state["movement_v1"]["positions"][agent_id]["point"] = dict(
-            room["bed_points_m"][0]
-        )
-    ours = _copy(world)
-    kernel = native.rules("proposals").apply_effect
-    result = kernel(_controller(ours), _sleep_proposal(ours, agent_id))
-    assert tuple(result) == ("bed-ec7532def0b0c01715ae0abb", 5, True)
-    assert ours.model_state[geometry_overlay.GEOMETRY_OVERLAY_KEY]["bed_reservations"]
-    assert world_digest(ours) == digest
-
-
 def test_sleep_past_the_run_s_end_releases_the_bed(world: WorldState) -> None:
     _room_world(world)
     agent_id = _person_in_room_zone(world)
@@ -1239,40 +1215,6 @@ def test_what_the_queue_rules_turn_down_is_the_python_rule_s_error(world: WorldS
     assert str(ours.value) == str(said.value)
 
 
-def test_the_shortest_accessible_queue(queued: WorldState) -> None:
-    choose = facility_queues.choose_queue_id
-    # A tie goes to the smaller queue ID.
-    assert choose(queued, "toilet_01", "A005") == "toilet_01-left-fifo"
-    _line_up(queued, "toilet_01", "toilet_01-left-fifo", ["A001"])
-    assert choose(queued, "toilet_01", "A005") == "toilet_01-right-fifo"
-    _line_up(queued, "toilet_01", "toilet_01-right-fifo", ["A002", "A003"])
-    assert choose(queued, "toilet_01", "A005") == "toilet_01-left-fifo"
-    # Without the access its point asks for, a person doesn't count that queue.
-    geometry = queued.model_configs["facility_geometry"]
-    for point in geometry["service_points"]:
-        if point["queue_id"] == "toilet_01-left-fifo":
-            point["access"] = {
-                "accessibility": "restricted",
-                "required_access_tags": ["key_holder"],
-                "required_staff_skills": [],
-            }
-    assert choose(queued, "toilet_01", "A005") == "toilet_01-right-fifo"
-    # A person's needs and mobility are the tags a point may ask for.
-    assert queued.agents["A005"].profile.mobility.value == "assisted"
-    for tags, chosen in (
-        (["mobility_support", "assisted"], "toilet_01-left-fifo"),
-        (["assisted", "key_holder"], "toilet_01-right-fifo"),
-    ):
-        for point in geometry["service_points"]:
-            if point["queue_id"] == "toilet_01-left-fifo":
-                point["access"]["required_access_tags"] = tags
-        assert choose(queued, "toilet_01", "A005") == chosen
-    assert choose(queued, "water_station_main", "A005") == "water_station_main-left-fifo"
-    assert choose(queued, "none", "A005") is None
-    queued.model_state.pop(facility_queues.FACILITY_QUEUES_STATE_KEY)
-    assert choose(queued, "toilet_01", "A005") is None
-
-
 def test_writes_of_the_queues(queued: WorldState) -> None:
     key = facility_queues.FACILITY_QUEUES_STATE_KEY
     queue = "toilet_01-left-fifo"
@@ -1363,73 +1305,6 @@ def test_writes_of_the_queues(queued: WorldState) -> None:
         before = _bytes(world)
         assert facility_queues.finish_service(world, "none", status="x") is None
         _same_bytes(_bytes(world), before)
-
-
-@pytest.mark.parametrize(
-    ("transition", "wait", "cause", "position"),
-    [("queued", None, None, 2), ("service_started", 0, "cause", 2), ("completed", 3, "c", None)],
-)
-def test_a_queue_transition_is_an_applied_record_of_the_log(
-    queued: WorldState, transition: str, wait: int | None, cause: str | None, position: int | None
-) -> None:
-    key = facility_queues.FACILITY_QUEUES_STATE_KEY
-    queue = "toilet_01-left-fifo"
-    tasks = _line_up(queued, "toilet_01", queue, ["A001", "A002"])
-    queued.minute_index = 4
-    request = dict(queued.model_state[key]["requests"][tasks[1]])
-    if position is None:
-        request["request_id"] = "gone"
-    sequence = queued.id_counters["event"]
-    logged = len(queued.event_log)
-    facility_queues.record_queue_transition(
-        queued,
-        request,
-        transition=transition,
-        task_id=tasks[1],
-        wait_minutes=wait,
-        causation_id=cause,
-    )
-    assert queued.id_counters["event"] == sequence + 1
-    assert len(queued.event_log) == logged + 1
-    record = queued.event_log.records[-1]
-    event_id = f"facility-queue-transition-{sequence}"
-    assert (record.status.value, record.realized_minute, record.detail) == ("applied", 4, None)
-    event = record.event
-    assert (event.event_id, event.kind, event.due_minute, event.priority, event.sequence) == (
-        event_id,
-        EventKind.ENDOGENOUS,
-        4,
-        0,
-        sequence,
-    )
-    assert event.event_type == "facility_queue_transition"
-    assert event.source_id == facility_queues.FACILITY_QUEUES_POLICY_VERSION
-    assert event.causation_id == cause
-    assert event.provenance == {
-        "source_type": "assumption",
-        "source_id": "ASM-FACILITY-QUEUES-V1",
-        "policy_version": facility_queues.FACILITY_QUEUES_POLICY_VERSION,
-    }
-    assert event.payload == {
-        "schema_version": 1,
-        "record_type": "operations",
-        "event_type": "facility_queue_transition",
-        "event_id": event_id,
-        "request_id": request["request_id"],
-        "queue_id": queue,
-        "service_point_id": "toilet_01-left",
-        "facility_id": "toilet_01",
-        "agent_id": "A002",
-        "service_kind": "toilet",
-        "transition": transition,
-        "minute": 4,
-        "requested_minute": 0,
-        "task_id": tasks[1],
-        "queue_position": position,
-        "service_capacity_concurrent": 1,
-        "wait_minutes": wait,
-        "causation_id": cause,
-    }
 
 
 def test_the_check_of_the_queues_takes_nothing_the_python_rule_refuses(queued: WorldState) -> None:
@@ -1530,53 +1405,6 @@ def test_a_fifo_keeps_its_order_and_only_a_wait_ends_it(queued: WorldState) -> N
     )
 
 
-# The deleted Python rules' walks to service, slots and approaches of each FIFO, recorded from
-# them: the results, and the whole world after a walk to service, by sha256.
-FIFO_WALKS = {
-    "toilet_01-left-fifo": "e9cd3a9fc6b9775b9ca03f45bbe8fb3c32218a1bc6bde5f704f1630c39cce095",
-    "toilet_01-right-fifo": "e1eae6eeec33fb20dd747df6cf6913b369f7da1fe5a2826157698925488573c6",
-}
-
-
-@pytest.mark.parametrize("queue_id", ["toilet_01-left-fifo", "toilet_01-right-fifo"])
-def test_walks_of_a_fifo_are_the_python_rule_s(queued: WorldState, queue_id: str) -> None:
-    import hashlib
-
-    from sheltersim.domain import movement
-
-    queues = _rules("queues")
-    _line_up(queued, "toilet_01", queue_id, ["A001", "A002", "A003"])
-    minute = queued.minute_index
-    options = {"resource": False, "minute": minute, "queue_id": queue_id}
-    first, after = _answer(queued, queues.progress_physical_queue_positions, "toilet_01", **options)
-    _recorded(f"walk {queue_id}", first, after)
-    journey_world = _copy(queued)
-    queues.progress_physical_queue_positions(journey_world, "toilet_01", **options)
-    journeys = journey_world.model_state["movement_v1"]["journeys"]
-    assert all(journey.get("queue_id") == queue_id for journey in journeys.values())
-    assert first in (True, False)
-    answers = []
-    for extra in ({"queue_id": queue_id}, {}):
-        walked = _copy(queued)
-        answers.append(
-            repr(
-                movement.progress_physical_queue_head_to_service(
-                    walked, "toilet_01", resource=False, minute=minute, **extra
-                )
-            )
-        )
-        answers.append(hashlib.sha256(_bytes(walked).encode()).hexdigest())
-    geometry = geometry_overlay.effective_geometry(queued)
-    for agent_id in ("A001", "A002", "A003"):
-        answers.append(
-            repr(movement._queue_slot_position(queued, geometry, agent_id, "toilet_01", queue_id))
-        )
-    point = next(item for item in geometry.service_points if item.queue_id == queue_id)
-    answers.append(repr(movement.facility_approach_route(queued, "A001", "toilet_01", point.id)))
-    assert hashlib.sha256("\n".join(answers).encode()).hexdigest() == FIFO_WALKS[queue_id]
-    assert movement.facility_approach_route(queued, "A001", "toilet_01", "none") is None
-
-
 def _resource_queues(world: WorldState) -> tuple[str, str] | None:
     for queue_id, row in sorted(
         world.model_state[facility_queues.FACILITY_QUEUES_STATE_KEY]["queues"].items()
@@ -1599,7 +1427,6 @@ RESOURCE_FIFO = {
     "cancelled-operator_cancelled": "4b945a95e866d703",
     "cancelled-facility_stopped": "4b945a95e866d703",
     "cancelled-staff_unavailable": "204b6edeaad9429f",
-    "cancelled-place": "b4995ef04bb778fd",
     "completed": "989cad4a9fe17255",
 }
 
@@ -1776,29 +1603,6 @@ def test_a_cancelled_service_is_the_python_rule_s(queued: WorldState, reason: st
     _is_the_python_rules([_bytes(ours)], f"cancelled-{reason}")
     assert task_id in ours.model_state["resource_service_v1"]["cancelled_task_ids"]
     assert task_id not in ours.active_tasks
-
-
-def test_a_cancelled_place_in_a_queue_is_the_python_rule_s(queued: WorldState) -> None:
-    facility_id, _ = _resource_queues(queued)
-    zone = queued.facilities[facility_id].zone_id
-    queued.agents["A001"].zone_id = zone
-    queued.model_state["movement_v1"]["positions"]["A001"]["zone_id"] = zone
-    receipt = ResourceServiceManager(queued).request("A001", facility_id, validate_state=False)
-    event = ScheduledEvent(
-        event_id="cancel-place",
-        kind=EventKind.ENDOGENOUS,
-        due_minute=queued.minute_index,
-        priority=0,
-        sequence=900_000,
-        event_type="resource_service_cancel",
-        payload={"task_id": receipt.queue_task_id, "reason": "operator_cancelled"},
-        source_id="ASM-TEST",
-    )
-    ours = _copy(queued)
-    _rules("handlers").cancel(ResourceServiceManager(ours), event)
-    _rows_follow(ours)
-    _is_the_python_rules([_bytes(ours)], "cancelled-place")
-    assert "A001" not in ours.facilities[facility_id].resource_queue_agent_ids
 
 
 def test_a_completed_service_leaves_its_fifo_as_the_python_rule_does(queued: WorldState) -> None:
