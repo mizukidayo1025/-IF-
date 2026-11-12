@@ -1,2212 +1,2335 @@
 {
- "expected": {
-  "event_types": [
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_travel_complete",
-   "agent_travel_complete",
-   "agent_travel_complete",
-   "agent_travel_complete",
-   "toilet_service_complete",
-   "agent_action_lifecycle",
-   "agent_travel_complete",
-   "staff_support_complete",
-   "staff_support_complete",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "facility_outage",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "staff_support_complete",
-   "staff_support_complete",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "facility_recovery",
-   "support_request_timeout",
-   "support_request_timeout",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_travel_complete",
-   "toilet_service_complete",
-   "agent_action_lifecycle",
-   "staff_support_complete",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_travel_complete",
-   "support_request_timeout",
-   "support_request_timeout",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "staff_support_complete",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "support_request_timeout",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "support_request_timeout",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "staff_support_complete",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_travel_complete",
-   "toilet_service_complete",
-   "agent_action_lifecycle",
-   "staff_support_complete",
-   "staff_support_complete",
-   "agent_travel_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "support_request_timeout",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_travel_complete",
-   "staff_support_complete",
-   "staff_support_complete",
-   "toilet_service_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_travel_complete",
-   "support_request_timeout",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_travel_complete",
-   "toilet_service_complete",
-   "agent_action_lifecycle",
-   "staff_support_complete",
-   "agent_travel_complete",
-   "agent_action_lifecycle",
-   "support_request_timeout",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_travel_complete",
-   "toilet_service_complete",
-   "agent_action_lifecycle",
-   "agent_travel_complete",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_travel_complete",
-   "agent_travel_complete",
-   "staff_support_complete",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "staff_support_complete",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "support_request_timeout",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_travel_complete",
-   "toilet_service_complete",
-   "agent_action_lifecycle",
-   "staff_support_complete",
-   "staff_support_complete",
-   "agent_travel_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "support_request_timeout",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_travel_complete",
-   "toilet_service_complete",
-   "agent_action_lifecycle",
-   "agent_travel_complete",
-   "staff_support_complete",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "support_request_timeout",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "staff_support_complete",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "support_request_timeout",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "staff_support_complete",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "support_request_timeout",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_travel_complete",
-   "agent_travel_complete",
-   "staff_support_complete",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "staff_support_complete",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "support_request_timeout",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "staff_support_complete",
-   "staff_support_complete",
-   "staff_support_complete",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "support_request_timeout",
-   "support_request_timeout",
-   "support_request_timeout",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "staff_support_complete",
-   "staff_support_complete",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "support_request_timeout",
-   "support_request_timeout",
-   "support_request_timeout",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_travel_complete",
-   "toilet_service_complete",
-   "agent_action_lifecycle",
-   "agent_travel_complete",
-   "staff_support_complete",
-   "staff_support_complete",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "support_request_timeout",
-   "support_request_timeout",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "staff_support_complete",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "support_request_timeout",
-   "support_request_timeout",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_travel_complete",
-   "staff_support_complete",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "support_request_timeout",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "staff_support_complete",
-   "staff_support_complete",
-   "staff_support_complete",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "support_request_timeout",
-   "support_request_timeout",
-   "support_request_timeout",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_travel_complete",
-   "agent_travel_complete",
-   "agent_travel_complete",
-   "toilet_service_complete",
-   "agent_action_lifecycle",
-   "toilet_service_complete",
-   "toilet_service_complete",
-   "agent_action_lifecycle",
-   "agent_action_lifecycle",
-   "agent_travel_complete",
-   "agent_travel_complete",
-   "agent_travel_complete",
-   "staff_support_complete",
-   "agent_action_lifecycle",
-   "support_request_timeout",
-   "support_request_timeout",
-   "support_request_timeout",
-   "support_request_timeout",
-   "support_request_timeout"
-  ],
-  "metric_count": 1440,
-  "metrics": "0153330f1723abbea7a7b087d142638c0f47cf8997f91582888fb37a16139e9a",
-  "ticks": 1440,
-  "world": {
-   "active_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-   "agents": "35dec3895043fcfc44e9277f28ebc177fe8e4dba378c3f789271f21035713c4d",
-   "event_log": "69307c4b3d264fc8d5c4be344562d4da05e4710362667b5b25fc6bb3f8dcf85e",
-   "event_queue": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-   "facilities": "db5004bcc560243f853d507b4a4efeab93808adf24bbabf4d3997eb31dc4a723",
-   "id_counters": "3540219e0ec618ad2ba28f1023b6697f7c67ff55962be3c627b25d4e5973986f",
-   "metric_state": "cac4f43ea0bf523512a8f3758080f63c4e36b1dcfaaed1ae1368e37e3e8d4c98",
-   "model_configs": "22db4320a1feccbadfcccc7d61d6c2796bc89daad73a2744b8a8785d8718ee99",
-   "model_state": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
-   "resources": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
-   "scalars": "ffa3ef383fe2e3a05f97d74bba147a05a159b43d14113b2fea85ceae0d3fe18c",
-   "staff": "36b86baab8bef79b77916dea098363d77ac162d090c9254235ade33b7b72ee71",
-   "support_requests": "be320ae95f7d5fe242cef61353d85e4a84933215c48bdfdd45ea9ea648e0c738",
-   "zone_edges": "f592860c80278b8f62184504b6640c4815ccef9aaf03797af5f2e4dbd2ee0b68",
-   "zones": "a3c90aead3db2458cd48b2962779308dbf2c2b8a07aa566f908045e7f2ff1f5f"
-  }
- },
- "initial": {
-  "active_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-  "agents": "020c341748b97ef90951a1b41aab77de1cdbc34555103036f4ddd4921c67832b",
-  "event_log": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-  "event_queue": "b74687259889fb84175bd0c6e27fd681768ced121a8233c36c8c9fa7506a8fbb",
-  "facilities": "db5004bcc560243f853d507b4a4efeab93808adf24bbabf4d3997eb31dc4a723",
-  "id_counters": "d823ff6c7c459b234d48931e0d02a0ccb571686fe673a4f569c43bacc9d12693",
-  "metric_state": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
-  "model_configs": "22db4320a1feccbadfcccc7d61d6c2796bc89daad73a2744b8a8785d8718ee99",
-  "model_state": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
-  "resources": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
-  "scalars": "067da303bb606bca9989776de2288b37c0f4a504e9da6844eec45a05faea5e73",
-  "staff": "36b86baab8bef79b77916dea098363d77ac162d090c9254235ade33b7b72ee71",
-  "support_requests": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-  "zone_edges": "f592860c80278b8f62184504b6640c4815ccef9aaf03797af5f2e4dbd2ee0b68",
-  "zones": "a3c90aead3db2458cd48b2962779308dbf2c2b8a07aa566f908045e7f2ff1f5f"
- },
- "run": {
-  "policies": {
-   "controller": {
-    "attrs": {
-     "artifacts": {
-      "object": {
-       "attrs": {
-        "trace_level": {
-         "text": "off"
+ "worlds": {
+  "small_replay": {
+   "expected": {
+    "event_types": [
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_travel_complete",
+     "agent_travel_complete",
+     "agent_travel_complete",
+     "agent_travel_complete",
+     "toilet_service_complete",
+     "agent_action_lifecycle",
+     "agent_travel_complete",
+     "staff_support_complete",
+     "staff_support_complete",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "facility_outage",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "staff_support_complete",
+     "staff_support_complete",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "facility_recovery",
+     "support_request_timeout",
+     "support_request_timeout",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_travel_complete",
+     "toilet_service_complete",
+     "agent_action_lifecycle",
+     "staff_support_complete",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_travel_complete",
+     "support_request_timeout",
+     "support_request_timeout",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "staff_support_complete",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "support_request_timeout",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "support_request_timeout",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "staff_support_complete",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_travel_complete",
+     "toilet_service_complete",
+     "agent_action_lifecycle",
+     "staff_support_complete",
+     "staff_support_complete",
+     "agent_travel_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "support_request_timeout",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_travel_complete",
+     "staff_support_complete",
+     "staff_support_complete",
+     "toilet_service_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_travel_complete",
+     "support_request_timeout",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_travel_complete",
+     "toilet_service_complete",
+     "agent_action_lifecycle",
+     "staff_support_complete",
+     "agent_travel_complete",
+     "agent_action_lifecycle",
+     "support_request_timeout",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_travel_complete",
+     "toilet_service_complete",
+     "agent_action_lifecycle",
+     "agent_travel_complete",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_travel_complete",
+     "agent_travel_complete",
+     "staff_support_complete",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "staff_support_complete",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "support_request_timeout",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_travel_complete",
+     "toilet_service_complete",
+     "agent_action_lifecycle",
+     "staff_support_complete",
+     "staff_support_complete",
+     "agent_travel_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "support_request_timeout",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_travel_complete",
+     "toilet_service_complete",
+     "agent_action_lifecycle",
+     "agent_travel_complete",
+     "staff_support_complete",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "support_request_timeout",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "staff_support_complete",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "support_request_timeout",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "staff_support_complete",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "support_request_timeout",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_travel_complete",
+     "agent_travel_complete",
+     "staff_support_complete",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "staff_support_complete",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "support_request_timeout",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "staff_support_complete",
+     "staff_support_complete",
+     "staff_support_complete",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "support_request_timeout",
+     "support_request_timeout",
+     "support_request_timeout",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "staff_support_complete",
+     "staff_support_complete",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "support_request_timeout",
+     "support_request_timeout",
+     "support_request_timeout",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_travel_complete",
+     "toilet_service_complete",
+     "agent_action_lifecycle",
+     "agent_travel_complete",
+     "staff_support_complete",
+     "staff_support_complete",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "support_request_timeout",
+     "support_request_timeout",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "staff_support_complete",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "support_request_timeout",
+     "support_request_timeout",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_travel_complete",
+     "staff_support_complete",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "support_request_timeout",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "staff_support_complete",
+     "staff_support_complete",
+     "staff_support_complete",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "support_request_timeout",
+     "support_request_timeout",
+     "support_request_timeout",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_travel_complete",
+     "agent_travel_complete",
+     "agent_travel_complete",
+     "toilet_service_complete",
+     "agent_action_lifecycle",
+     "toilet_service_complete",
+     "toilet_service_complete",
+     "agent_action_lifecycle",
+     "agent_action_lifecycle",
+     "agent_travel_complete",
+     "agent_travel_complete",
+     "agent_travel_complete",
+     "staff_support_complete",
+     "agent_action_lifecycle",
+     "support_request_timeout",
+     "support_request_timeout",
+     "support_request_timeout",
+     "support_request_timeout",
+     "support_request_timeout"
+    ],
+    "metric_count": 1440,
+    "metrics": "0153330f1723abbea7a7b087d142638c0f47cf8997f91582888fb37a16139e9a",
+    "ticks": 1440,
+    "world": {
+     "active_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "agents": "35dec3895043fcfc44e9277f28ebc177fe8e4dba378c3f789271f21035713c4d",
+     "event_log": "69307c4b3d264fc8d5c4be344562d4da05e4710362667b5b25fc6bb3f8dcf85e",
+     "event_queue": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+     "facilities": "db5004bcc560243f853d507b4a4efeab93808adf24bbabf4d3997eb31dc4a723",
+     "id_counters": "3540219e0ec618ad2ba28f1023b6697f7c67ff55962be3c627b25d4e5973986f",
+     "metric_state": "cac4f43ea0bf523512a8f3758080f63c4e36b1dcfaaed1ae1368e37e3e8d4c98",
+     "model_configs": "22db4320a1feccbadfcccc7d61d6c2796bc89daad73a2744b8a8785d8718ee99",
+     "model_state": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+     "resources": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+     "scalars": "ffa3ef383fe2e3a05f97d74bba147a05a159b43d14113b2fea85ceae0d3fe18c",
+     "staff": "36b86baab8bef79b77916dea098363d77ac162d090c9254235ade33b7b72ee71",
+     "support_requests": "be320ae95f7d5fe242cef61353d85e4a84933215c48bdfdd45ea9ea648e0c738",
+     "zone_edges": "f592860c80278b8f62184504b6640c4815ccef9aaf03797af5f2e4dbd2ee0b68",
+     "zones": "a3c90aead3db2458cd48b2962779308dbf2c2b8a07aa566f908045e7f2ff1f5f"
+    }
+   },
+   "initial": {
+    "active_tasks": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "agents": "020c341748b97ef90951a1b41aab77de1cdbc34555103036f4ddd4921c67832b",
+    "event_log": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "event_queue": "b74687259889fb84175bd0c6e27fd681768ced121a8233c36c8c9fa7506a8fbb",
+    "facilities": "db5004bcc560243f853d507b4a4efeab93808adf24bbabf4d3997eb31dc4a723",
+    "id_counters": "d823ff6c7c459b234d48931e0d02a0ccb571686fe673a4f569c43bacc9d12693",
+    "metric_state": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "model_configs": "22db4320a1feccbadfcccc7d61d6c2796bc89daad73a2744b8a8785d8718ee99",
+    "model_state": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "resources": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "scalars": "067da303bb606bca9989776de2288b37c0f4a504e9da6844eec45a05faea5e73",
+    "staff": "36b86baab8bef79b77916dea098363d77ac162d090c9254235ade33b7b72ee71",
+    "support_requests": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "zone_edges": "f592860c80278b8f62184504b6640c4815ccef9aaf03797af5f2e4dbd2ee0b68",
+    "zones": "a3c90aead3db2458cd48b2962779308dbf2c2b8a07aa566f908045e7f2ff1f5f"
+   },
+   "run": {
+    "policies": {
+     "controller": {
+      "attrs": {
+       "artifacts": {
+        "object": {
+         "attrs": {
+          "trace_level": {
+           "text": "off"
+          }
+         },
+         "class": [
+          "sheltersim.inspection.traces",
+          "RunArtifactWriter",
+          true
+         ],
+         "class_own": {
+          "decision_sink": {
+           "value": "artifacts"
+          }
+         },
+         "own": {}
         }
        },
-       "class": [
-        "sheltersim.inspection.traces",
-        "RunArtifactWriter",
-        true
-       ],
-       "class_own": {
-        "decision_sink": {
-         "value": "artifacts"
+       "decisions": {
+        "object": {
+         "attrs": {
+          "policy": {
+           "object": {
+            "attrs": {
+             "autonomy_enabled": {
+              "value": false
+             },
+             "decision_interval_minutes": {
+              "value": 60
+             },
+             "decision_interval_minutes_by_agent": {
+              "value": {}
+             },
+             "hunger_action_threshold": {
+              "value": 0.7
+             },
+             "hydration_action_threshold": {
+              "value": 0.25
+             },
+             "information_query_threshold": {
+              "value": 1.1
+             },
+             "information_query_utility_weight": {
+              "value": 0.0
+             },
+             "meal_utility_base": {
+              "value": 0.18
+             },
+             "meal_utility_need_weight": {
+              "value": 0.85
+             },
+             "policy_version": {
+              "value": "utility-softmax-v1"
+             },
+             "resource_service_enabled": {
+              "value": false
+             },
+             "scorer": {
+              "fault": [
+               "builtins.AttributeError",
+               "'UtilityBehaviorPolicy' object has no attribute 'scorer'"
+              ]
+             },
+             "sleep_debt_utility_weight": {
+              "value": 1.0
+             },
+             "temperature": {
+              "value": 0.2
+             },
+             "temperature_by_agent": {
+              "value": {}
+             },
+             "water_utility_base": {
+              "value": 0.18
+             },
+             "water_utility_need_weight": {
+              "value": 1.0
+             }
+            },
+            "class": [
+             "sheltersim.policies.behavior",
+             "UtilityBehaviorPolicy",
+             true
+            ],
+            "class_own": {},
+            "own": {}
+           }
+          }
+         },
+         "class": [
+          "sheltersim.policies.behavior",
+          "BehaviorDecisionRunner",
+          true
+         ],
+         "class_own": {},
+         "own": {}
         }
        },
-       "own": {}
-      }
+       "information_policy": {
+        "value": null
+       },
+       "llm_router": {
+        "value": null
+       },
+       "proximity_contact_config": {
+        "value": null
+       },
+       "proximity_policy": {
+        "object": {
+         "attrs": {
+          "config": {
+           "fault": [
+            "builtins.AttributeError",
+            "'DisabledProximityPolicy' object has no attribute 'config'"
+           ]
+          }
+         },
+         "class": [
+          "sheltersim.policies.proximity",
+          "DisabledProximityPolicy",
+          true
+         ],
+         "class_own": {},
+         "own": {}
+        }
+       },
+       "psychology": {
+        "object": {
+         "attrs": {
+          "base": {
+           "fault": [
+            "builtins.AttributeError",
+            "'SimplePsychologyPolicy' object has no attribute 'base'"
+           ]
+          },
+          "body_config": {
+           "fault": [
+            "builtins.AttributeError",
+            "'SimplePsychologyPolicy' object has no attribute 'body_config'"
+           ]
+          },
+          "body_formula": {
+           "fault": [
+            "builtins.AttributeError",
+            "'SimplePsychologyPolicy' object has no attribute 'body_formula'"
+           ]
+          },
+          "include_direct_rest_stress_recovery": {
+           "value": true
+          },
+          "parameters": {
+           "object": {
+            "attrs": {
+             "awake_fatigue_growth": {
+              "value": 0.0008
+             },
+             "awake_fatigue_growth_by_agent": {
+              "value": {}
+             },
+             "baseline_distress_by_agent": {
+              "value": {}
+             },
+             "chronic_acute_weight": {
+              "value": 0.08
+             },
+             "chronic_high_distress_weight": {
+              "value": 0.02
+             },
+             "chronic_retention": {
+              "value": 0.9
+             },
+             "high_distress_threshold": {
+              "value": 0.7
+             },
+             "hunger_growth": {
+              "value": 0.0005
+             },
+             "hunger_growth_by_agent": {
+              "value": {}
+             },
+             "hydration_growth": {
+              "value": 0.0
+             },
+             "natural_recovery_rate_by_agent": {
+              "value": {}
+             },
+             "natural_recovery_rate_per_minute": {
+              "value": 0.01
+             },
+             "need_pressure_threshold": {
+              "value": 0.35
+             },
+             "queued_stress": {
+              "value": 0.002
+             },
+             "resting_fatigue_recovery": {
+              "value": 0.004
+             },
+             "resting_stress_recovery": {
+              "value": 0.003
+             },
+             "sleeping_fatigue_recovery": {
+              "value": 0.01
+             },
+             "sleeping_stress_recovery": {
+              "value": 0.006
+             },
+             "stress_pressure": {
+              "value": 0.012
+             },
+             "support_wait_stress": {
+              "value": 0.001
+             },
+             "toilet_growth": {
+              "value": 0.001
+             },
+             "toilet_growth_by_agent": {
+              "value": {}
+             }
+            },
+            "class": [
+             "sheltersim.policies.psychology",
+             "PsychologyParameters",
+             true
+            ],
+            "class_own": {},
+            "own": {}
+           }
+          },
+          "policy_version": {
+           "value": "causal-stress-v1"
+          },
+          "source_id": {
+           "value": "ASM-H04-CAUSAL-STRESS-V1"
+          },
+          "update_long_term_state": {
+           "fault": [
+            "builtins.AttributeError",
+            "'SimplePsychologyPolicy' object has no attribute 'update_long_term_state'"
+           ]
+          },
+          "use_tick_start_stress_for_feedback": {
+           "fault": [
+            "builtins.AttributeError",
+            "'SimplePsychologyPolicy' object has no attribute 'use_tick_start_stress_for_feedback'"
+           ]
+          }
+         },
+         "class": [
+          "sheltersim.policies.psychology",
+          "SimplePsychologyPolicy",
+          true
+         ],
+         "class_own": {},
+         "own": {}
+        }
+       },
+       "resource_service": {
+        "value": null
+       },
+       "social_policy": {
+        "value": null
+       },
+       "staff_service": {
+        "object": {
+         "attrs": {
+          "cooldown_minutes": {
+           "value": 30
+          },
+          "fairness_after_minutes": {
+           "value": 30
+          },
+          "policy_version": {
+           "value": "staff-support-fifo-aging-v2"
+          },
+          "route_resolver": {
+           "method": "_route"
+          },
+          "task_duration_minutes": {
+           "value": 10
+          },
+          "travel_scheduler": {
+           "method": "_schedule_staff_support_travel"
+          },
+          "unresolved_after_minutes": {
+           "value": 90
+          }
+         },
+         "class": [
+          "sheltersim.domain.staff",
+          "StaffService",
+          true
+         ],
+         "class_own": {},
+         "own": {}
+        }
+       },
+       "stress_policy": {
+        "object": {
+         "attrs": {
+          "parameters": {
+           "object": {
+            "attrs": {
+             "cooldown_minutes": {
+              "value": 30
+             },
+             "enabled": {
+              "value": false
+             },
+             "family_channel_strength": {
+              "value": 1.0
+             },
+             "max_agent_stress_increase_per_minute": {
+              "value": 0.05
+             },
+             "max_contacts_per_agent": {
+              "value": 3
+             },
+             "max_pair_stress_increase": {
+              "value": 0.05
+             },
+             "minimum_contact_minutes": {
+              "value": 5
+             },
+             "natural_recovery_per_minute": {
+              "value": 0.0005
+             },
+             "nearby_zone_channel_strength": {
+              "value": 0.5
+             },
+             "same_zone_channel_strength": {
+              "value": 0.75
+             },
+             "source_expressiveness_by_agent": {
+              "value": {}
+             },
+             "source_id": {
+              "value": "ASM-SOCIAL-PROPAGATION-V1"
+             },
+             "stress_spread_per_minute": {
+              "value": 0.001
+             }
+            },
+            "class": [
+             "sheltersim.policies.social",
+             "SocialPropagationParameters",
+             true
+            ],
+            "class_own": {},
+            "own": {}
+           }
+          },
+          "policy_version": {
+           "value": "sparse-family-zone-contact-v1"
+          }
+         },
+         "class": [
+          "sheltersim.policies.social",
+          "StressPropagationPolicy",
+          true
+         ],
+         "class_own": {},
+         "own": {}
+        }
+       },
+       "toilet_service": {
+        "object": {
+         "attrs": {
+          "max_service_minutes": {
+           "value": 8
+          },
+          "min_service_minutes": {
+           "value": 4
+          },
+          "policy_version": {
+           "value": "toilet-service-uniform-v1"
+          }
+         },
+         "class": [
+          "sheltersim.domain.facilities",
+          "ToiletServiceManager",
+          true
+         ],
+         "class_own": {},
+         "own": {}
+        }
+       }
+      },
+      "class": [
+       "sheltersim.experiments.runner",
+       "OfflineSimulationController",
+       true
+      ],
+      "class_own": {},
+      "own": {}
      },
-     "decisions": {
-      "object": {
-       "attrs": {
-        "policy": {
-         "object": {
+     "dispatch": {
+      "handlers": {
+       "value": {
+        "agent_travel_complete": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "AgentTravelCompletionHandler"
+         ],
+         "handler": {
           "attrs": {
-           "autonomy_enabled": {
+           "resource_service": {
+            "value": null
+           },
+           "toilet_service": {
+            "object": {
+             "attrs": {},
+             "class": [
+              "sheltersim.domain.facilities",
+              "ToiletServiceManager",
+              true
+             ],
+             "class_own": {},
+             "own": {}
+            }
+           },
+           "validate_request_state": {
             "value": false
-           },
-           "decision_interval_minutes": {
-            "value": 60
-           },
-           "decision_interval_minutes_by_agent": {
-            "value": {}
-           },
-           "hunger_action_threshold": {
-            "value": 0.7
-           },
-           "hydration_action_threshold": {
-            "value": 0.25
-           },
-           "information_query_threshold": {
-            "value": 1.1
-           },
-           "information_query_utility_weight": {
-            "value": 0.0
-           },
-           "meal_utility_base": {
-            "value": 0.18
-           },
-           "meal_utility_need_weight": {
-            "value": 0.85
-           },
-           "policy_version": {
-            "value": "utility-softmax-v1"
-           },
-           "resource_service_enabled": {
-            "value": false
-           },
-           "scorer": {
-            "fault": [
-             "builtins.AttributeError",
-             "'UtilityBehaviorPolicy' object has no attribute 'scorer'"
-            ]
-           },
-           "sleep_debt_utility_weight": {
-            "value": 1.0
-           },
-           "temperature": {
-            "value": 0.2
-           },
-           "temperature_by_agent": {
-            "value": {}
-           },
-           "water_utility_base": {
-            "value": 0.18
-           },
-           "water_utility_need_weight": {
-            "value": 1.0
            }
           },
           "class": [
-           "sheltersim.policies.behavior",
-           "UtilityBehaviorPolicy",
+           "sheltersim.events.handlers",
+           "AgentTravelCompletionHandler",
            true
           ],
           "class_own": {},
           "own": {}
-         }
-        }
-       },
-       "class": [
-        "sheltersim.policies.behavior",
-        "BehaviorDecisionRunner",
-        true
-       ],
-       "class_own": {},
-       "own": {}
-      }
-     },
-     "information_policy": {
-      "value": null
-     },
-     "llm_router": {
-      "value": null
-     },
-     "proximity_contact_config": {
-      "value": null
-     },
-     "proximity_policy": {
-      "object": {
-       "attrs": {
-        "config": {
-         "fault": [
-          "builtins.AttributeError",
-          "'DisabledProximityPolicy' object has no attribute 'config'"
-         ]
-        }
-       },
-       "class": [
-        "sheltersim.policies.proximity",
-        "DisabledProximityPolicy",
-        true
-       ],
-       "class_own": {},
-       "own": {}
-      }
-     },
-     "psychology": {
-      "object": {
-       "attrs": {
-        "base": {
-         "fault": [
-          "builtins.AttributeError",
-          "'SimplePsychologyPolicy' object has no attribute 'base'"
-         ]
+         },
+         "own_managers": true
         },
-        "body_config": {
-         "fault": [
-          "builtins.AttributeError",
-          "'SimplePsychologyPolicy' object has no attribute 'body_config'"
-         ]
-        },
-        "body_formula": {
-         "fault": [
-          "builtins.AttributeError",
-          "'SimplePsychologyPolicy' object has no attribute 'body_formula'"
-         ]
-        },
-        "include_direct_rest_stress_recovery": {
-         "value": true
-        },
-        "parameters": {
-         "object": {
-          "attrs": {
-           "awake_fatigue_growth": {
-            "value": 0.0008
-           },
-           "awake_fatigue_growth_by_agent": {
-            "value": {}
-           },
-           "baseline_distress_by_agent": {
-            "value": {}
-           },
-           "chronic_acute_weight": {
-            "value": 0.08
-           },
-           "chronic_high_distress_weight": {
-            "value": 0.02
-           },
-           "chronic_retention": {
-            "value": 0.9
-           },
-           "high_distress_threshold": {
-            "value": 0.7
-           },
-           "hunger_growth": {
-            "value": 0.0005
-           },
-           "hunger_growth_by_agent": {
-            "value": {}
-           },
-           "hydration_growth": {
-            "value": 0.0
-           },
-           "natural_recovery_rate_by_agent": {
-            "value": {}
-           },
-           "natural_recovery_rate_per_minute": {
-            "value": 0.01
-           },
-           "need_pressure_threshold": {
-            "value": 0.35
-           },
-           "queued_stress": {
-            "value": 0.002
-           },
-           "resting_fatigue_recovery": {
-            "value": 0.004
-           },
-           "resting_stress_recovery": {
-            "value": 0.003
-           },
-           "sleeping_fatigue_recovery": {
-            "value": 0.01
-           },
-           "sleeping_stress_recovery": {
-            "value": 0.006
-           },
-           "stress_pressure": {
-            "value": 0.012
-           },
-           "support_wait_stress": {
-            "value": 0.001
-           },
-           "toilet_growth": {
-            "value": 0.001
-           },
-           "toilet_growth_by_agent": {
-            "value": {}
-           }
-          },
+        "delivery_delayed": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "DeliveryDelayHandler"
+         ],
+         "handler": {
+          "attrs": {},
           "class": [
-           "sheltersim.policies.psychology",
-           "PsychologyParameters",
+           "sheltersim.events.handlers",
+           "DeliveryDelayHandler",
            true
           ],
           "class_own": {},
           "own": {}
-         }
+         },
+         "own_managers": true
         },
-        "policy_version": {
-         "value": "causal-stress-v1"
+        "effect_program_apply": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramFacilityHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": false
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramFacilityHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
         },
-        "source_id": {
-         "value": "ASM-H04-CAUSAL-STRESS-V1"
+        "effect_program_environment": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramEnvironmentHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": false
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramEnvironmentHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
         },
-        "update_long_term_state": {
-         "fault": [
-          "builtins.AttributeError",
-          "'SimplePsychologyPolicy' object has no attribute 'update_long_term_state'"
-         ]
+        "effect_program_environment_expire": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramEnvironmentHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": true
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramEnvironmentHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
         },
-        "use_tick_start_stress_for_feedback": {
-         "fault": [
-          "builtins.AttributeError",
-          "'SimplePsychologyPolicy' object has no attribute 'use_tick_start_stress_for_feedback'"
-         ]
-        }
-       },
-       "class": [
-        "sheltersim.policies.psychology",
-        "SimplePsychologyPolicy",
-        true
-       ],
-       "class_own": {},
-       "own": {}
-      }
-     },
-     "resource_service": {
-      "value": null
-     },
-     "social_policy": {
-      "value": null
-     },
-     "staff_service": {
-      "object": {
-       "attrs": {
-        "cooldown_minutes": {
-         "value": 30
+        "effect_program_expire": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramFacilityHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": true
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramFacilityHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
         },
-        "fairness_after_minutes": {
-         "value": 30
+        "effect_program_geometry": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramGeometryHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": false
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramGeometryHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
         },
-        "policy_version": {
-         "value": "staff-support-fifo-aging-v2"
+        "effect_program_geometry_expire": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramGeometryHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": true
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramGeometryHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
         },
-        "route_resolver": {
-         "method": "_route"
+        "effect_program_population": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "EffectProgramPopulationHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "EffectProgramPopulationHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
         },
-        "task_duration_minutes": {
-         "value": 10
+        "effect_program_structure": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramStructureHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramStructureHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
         },
-        "travel_scheduler": {
-         "method": "_schedule_staff_support_travel"
+        "effect_program_temporary_space": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramTemporarySpaceHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": false
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramTemporarySpaceHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
         },
-        "unresolved_after_minutes": {
-         "value": 90
-        }
-       },
-       "class": [
-        "sheltersim.domain.staff",
-        "StaffService",
-        true
-       ],
-       "class_own": {},
-       "own": {}
-      }
-     },
-     "stress_policy": {
-      "object": {
-       "attrs": {
-        "parameters": {
-         "object": {
+        "effect_program_temporary_space_expire": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.effects",
+          "EffectProgramTemporarySpaceHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "expire": {
+            "value": true
+           }
+          },
+          "class": [
+           "sheltersim.events.effects",
+           "EffectProgramTemporarySpaceHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "environmental_stressor_end": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "equipment_failure": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "equipment_repaired": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "extreme_cold": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "extreme_heat": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "facility_outage": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "FacilityOutageHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "FacilityOutageHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "facility_recovery": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "FacilityRecoveryHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "FacilityRecoveryHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "information_contact_update": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InformationContactHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InformationContactHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "information_correction": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InformationCorrectionHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InformationCorrectionHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "information_rumor": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InformationRumorHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InformationRumorHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "population_approach_complete": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "EffectProgramPopulationHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "EffectProgramPopulationHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "power_outage": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "power_restored": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "proximity_contact_update": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ProximityContactHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "ProximityContactHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "resource_consume": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ResourceLedgerHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "operation": {
+            "value": "consume"
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "ResourceLedgerHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "resource_delivery": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ResourceLedgerHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "operation": {
+            "value": "delivery"
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "ResourceLedgerHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "resource_loss": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ResourceLedgerHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "operation": {
+            "value": "loss"
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "ResourceLedgerHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "resource_release": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ResourceLedgerHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "operation": {
+            "value": "release"
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "ResourceLedgerHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "resource_reserve": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ResourceLedgerHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "operation": {
+            "value": "reserve"
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "ResourceLedgerHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "social_interaction": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "SocialInteractionHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "SocialInteractionHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "staff_operation_arrive": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffOperationArrivalHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "StaffOperationArrivalHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "staff_operation_complete": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffOperationCompletionHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "StaffOperationCompletionHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "staff_operation_relief": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffOperationReliefHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "StaffOperationReliefHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "staff_restored": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffRestorationHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "StaffRestorationHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "staff_shift_change": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffUnavailabilityHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "StaffUnavailabilityHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "staff_support_complete": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffSupportCompletionHandler"
+         ],
+         "handler": {
           "attrs": {
            "cooldown_minutes": {
             "value": 30
            },
-           "enabled": {
-            "value": false
-           },
-           "family_channel_strength": {
-            "value": 1.0
-           },
-           "max_agent_stress_increase_per_minute": {
-            "value": 0.05
-           },
-           "max_contacts_per_agent": {
-            "value": 3
-           },
-           "max_pair_stress_increase": {
-            "value": 0.05
-           },
-           "minimum_contact_minutes": {
-            "value": 5
-           },
-           "natural_recovery_per_minute": {
-            "value": 0.0005
-           },
-           "nearby_zone_channel_strength": {
-            "value": 0.5
-           },
-           "same_zone_channel_strength": {
-            "value": 0.75
-           },
-           "source_expressiveness_by_agent": {
-            "value": {}
-           },
-           "source_id": {
-            "value": "ASM-SOCIAL-PROPAGATION-V1"
-           },
-           "stress_spread_per_minute": {
-            "value": 0.001
+           "require_colocated": {
+            "value": true
            }
           },
           "class": [
-           "sheltersim.policies.social",
-           "SocialPropagationParameters",
+           "sheltersim.events.handlers",
+           "StaffSupportCompletionHandler",
            true
           ],
           "class_own": {},
           "own": {}
-         }
+         },
+         "own_managers": true
         },
-        "policy_version": {
-         "value": "sparse-family-zone-contact-v1"
+        "staff_unavailable": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "StaffUnavailabilityHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "StaffUnavailabilityHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "supply_route_interruption": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "supply_route_restored": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "InfrastructureEventHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "InfrastructureEventHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "support_request_timeout": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "SupportRequestTimeoutHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "cooldown_minutes": {
+            "value": 30
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "SupportRequestTimeoutHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "toilet_service_complete": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "ToiletServiceCompletionHandler"
+         ],
+         "handler": {
+          "attrs": {
+           "after_complete": {
+            "method": "_schedule_return_to_initial_zone"
+           }
+          },
+          "class": [
+           "sheltersim.events.handlers",
+           "ToiletServiceCompletionHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "water_outage": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "WaterOutageHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "WaterOutageHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
+        },
+        "water_restored": {
+         "after_arrival_as_defined": true,
+         "class": [
+          "sheltersim.events.handlers",
+          "WaterRestorationHandler"
+         ],
+         "handler": {
+          "attrs": {},
+          "class": [
+           "sheltersim.events.handlers",
+           "WaterRestorationHandler",
+           true
+          ],
+          "class_own": {},
+          "own": {}
+         },
+         "own_managers": true
         }
-       },
-       "class": [
-        "sheltersim.policies.social",
-        "StressPropagationPolicy",
-        true
-       ],
-       "class_own": {},
-       "own": {}
-      }
-     },
-     "toilet_service": {
-      "object": {
-       "attrs": {
-        "max_service_minutes": {
-         "value": 8
-        },
-        "min_service_minutes": {
-         "value": 4
-        },
-        "policy_version": {
-         "value": "toilet-service-uniform-v1"
-        }
-       },
-       "class": [
-        "sheltersim.domain.facilities",
-        "ToiletServiceManager",
-        true
-       ],
-       "class_own": {},
-       "own": {}
+       }
+      },
+      "known": {
+       "value": true
       }
      }
     },
-    "class": [
-     "sheltersim.experiments.runner",
-     "OfflineSimulationController",
+    "route_capacities": {},
+    "zone_neighbors": {
+     "corridor": [
+      "information_desk",
+      "sleeping",
+      "toilet"
+     ],
+     "information_desk": [
+      "corridor"
+     ],
+     "sleeping": [
+      "corridor"
+     ],
+     "toilet": [
+      "corridor"
+     ]
+    }
+   },
+   "sections": {
+    "body_models": {
+     "value": {
+      "affect": "linear-positive-negative-v1",
+      "relationship": null
+     }
+    },
+    "care_outcome": {
+     "fault": [
+      "Refused",
+      "an input has no such attribute"
+     ]
+    },
+    "extensions_enabled": {
+     "value": false
+    },
+    "facility_geometry": {
+     "absent": true
+    },
+    "information_spread": {
+     "value": {
+      "correction_acceptance_probability": 0.7,
+      "correction_source_reliability_by_id": {},
+      "correction_source_sensitivity": 0.2,
+      "correction_trust_sensitivity": 0.2,
+      "default_source_reliability": 0.7,
+      "enabled": false,
+      "minimum_contact_minutes": 2,
+      "present": false,
+      "query_pressure_per_claim": 0.5,
+      "query_pressure_relief_per_correction": 0.5,
+      "rumor_belief_probability": 0.5,
+      "rumor_source_sensitivity": 0.2,
+      "rumor_trust_sensitivity": 0.2
+     }
+    },
+    "infrastructure": {
+     "fault": [
+      "Key",
+      "'infrastructure'"
+     ]
+    },
+    "overlay_rooms": {
+     "value": {
+      "is_dict": true,
+      "room_schema": {
+       "value": false
+      }
+     }
+    },
+    "proximity": {
+     "value": null
+    },
+    "selection": {
+     "value": [
+      [
+       "behavior",
+       "utility-softmax-v1"
+      ],
+      [
+       "psychology",
+       "causal-stress-v1"
+      ],
+      [
+       "social",
+       "sparse-family-zone-contact-v1"
+      ],
+      [
+       "information",
+       "sparse-information-contact-v1"
+      ]
+     ]
+    },
+    "spatial_constraints": {
+     "value": {
+      "accessible_facility_ids": [],
+      "equipment_footprints": [],
+      "obstacles": [],
+      "openings": [],
+      "planning_capacity_by_zone": {},
+      "schema_version": 1,
+      "walls": []
+     }
+    },
+    "staff_operations": {
+     "value": {
+      "model_id": "staff-urgency-first-v1",
+      "selected_source": null
+     }
+    },
+    "support_cooldown_minutes": {
+     "value": 30
+    },
+    "tick_plan": {
+     "value": {
+      "declared": [],
+      "environment_zones": null,
+      "independent_queues": false,
+      "information_enabled": false,
+      "infrastructure_configured": false,
+      "infrastructure_events": [
+       "environmental_stressor_end",
+       "equipment_failure",
+       "equipment_repaired",
+       "extreme_cold",
+       "extreme_heat",
+       "power_outage",
+       "power_restored",
+       "staff_shift_change",
+       "supply_route_interruption",
+       "supply_route_restored"
+      ],
+      "mean_reverting": false,
+      "operational_enabled": false,
+      "operational_events": [
+       "delivery_delayed",
+       "resource_delivery",
+       "staff_shift_change",
+       "staff_unavailable",
+       "water_outage",
+       "water_restored"
+      ],
+      "required": [],
+      "resource_config": null,
+      "shared_configured": false
+     }
+    },
+    "transit_capacities": {
+     "value": false
+    },
+    "zone_environment": {
+     "fault": [
+      "Key",
+      "'zone_environment'"
+     ]
+    }
+   },
+   "slots": [
+    [
+     "psychological_distress_v1",
+     false
+    ],
+    [
+     "staff_dynamics_v1",
+     false
+    ],
+    [
+     "information_spread_v1",
+     false
+    ],
+    [
+     "social_propagation_v1",
+     false
+    ],
+    [
+     "movement_v1",
+     false
+    ],
+    [
+     "body_state_v1",
+     false
+    ],
+    [
+     "social_network_v1",
+     false
+    ],
+    [
+     "agent_dynamics_v1",
+     false
+    ],
+    [
+     "staff_operations_v1",
+     false
+    ],
+    [
+     "shared_operations_v1",
+     false
+    ],
+    [
+     "resource_ledger_v1",
+     false
+    ],
+    [
+     "population_presence_v1",
+     false
+    ],
+    [
+     "population_lifecycle_v1",
+     false
+    ],
+    [
+     "population_dynamics_v1",
+     false
+    ],
+    [
+     "temporary_spaces_v1",
+     false
+    ],
+    [
+     "geometry_overlay_v1",
+     false
+    ],
+    [
+     "resource_service_v1",
+     false
+    ],
+    [
+     "effect_program_v1",
+     false
+    ],
+    [
+     "facility_queues_v1",
+     false
+    ],
+    [
+     "metric_state",
      true
     ],
-    "class_own": {},
-    "own": {}
-   },
-   "dispatch": {
-    "handlers": {
-     "value": {
-      "agent_travel_complete": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "AgentTravelCompletionHandler"
-       ],
-       "handler": {
-        "attrs": {
-         "resource_service": {
-          "value": null
-         },
-         "toilet_service": {
-          "object": {
-           "attrs": {},
-           "class": [
-            "sheltersim.domain.facilities",
-            "ToiletServiceManager",
-            true
-           ],
-           "class_own": {},
-           "own": {}
-          }
-         },
-         "validate_request_state": {
-          "value": false
-         }
-        },
-        "class": [
-         "sheltersim.events.handlers",
-         "AgentTravelCompletionHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
+    [
+     "model_configs",
+     true
+    ],
+    [
+     "resources",
+     true
+    ],
+    [
+     "id_counters",
+     true
+    ]
+   ],
+   "world": {
+    "active_tasks": [],
+    "agents": [
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.4976599457955883,
+       "hunger": 0.9794616646381298,
+       "toilet_urgency": 0.1866529940393592
       },
-      "delivery_delayed": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "DeliveryDelayHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "DeliveryDelayHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G001",
+       "id": "A001",
+       "initial_needs": {
+        "fatigue": 0.4976599457955883,
+        "hunger": 0.9794616646381298,
+        "toilet_urgency": 0.1866529940393592
        },
-       "own_managers": true
+       "initial_zone_id": "sleeping",
+       "mobility": "assisted",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A001",
+       "stress_sensitivity": 0.7435250194629027,
+       "support_need": 0.37387076915424183
       },
-      "effect_program_apply": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.effects",
-        "EffectProgramFacilityHandler"
-       ],
-       "handler": {
-        "attrs": {
-         "expire": {
-          "value": false
-         }
-        },
-        "class": [
-         "sheltersim.events.effects",
-         "EffectProgramFacilityHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.5684506322013796,
+       "hunger": 0.8271342046961999,
+       "toilet_urgency": 0.47906218480808616
       },
-      "effect_program_environment": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.effects",
-        "EffectProgramEnvironmentHandler"
-       ],
-       "handler": {
-        "attrs": {
-         "expire": {
-          "value": false
-         }
-        },
-        "class": [
-         "sheltersim.events.effects",
-         "EffectProgramEnvironmentHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G001",
+       "id": "A002",
+       "initial_needs": {
+        "fatigue": 0.5684506322013796,
+        "hunger": 0.8271342046961999,
+        "toilet_urgency": 0.47906218480808616
        },
-       "own_managers": true
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A002",
+       "stress_sensitivity": 0.2083001013072911,
+       "support_need": 0.28083414617585156
       },
-      "effect_program_environment_expire": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.effects",
-        "EffectProgramEnvironmentHandler"
-       ],
-       "handler": {
-        "attrs": {
-         "expire": {
-          "value": true
-         }
-        },
-        "class": [
-         "sheltersim.events.effects",
-         "EffectProgramEnvironmentHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.06249928486435384,
+       "hunger": 0.025615816358124276,
+       "toilet_urgency": 0.704628461624468
       },
-      "effect_program_expire": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.effects",
-        "EffectProgramFacilityHandler"
-       ],
-       "handler": {
-        "attrs": {
-         "expire": {
-          "value": true
-         }
-        },
-        "class": [
-         "sheltersim.events.effects",
-         "EffectProgramFacilityHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G001",
+       "id": "A003",
+       "initial_needs": {
+        "fatigue": 0.06249928486435384,
+        "hunger": 0.025615816358124276,
+        "toilet_urgency": 0.704628461624468
        },
-       "own_managers": true
+       "initial_zone_id": "sleeping",
+       "mobility": "independent",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A003",
+       "stress_sensitivity": 0.27645139337514474,
+       "support_need": 0.46795630236779584
       },
-      "effect_program_geometry": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.effects",
-        "EffectProgramGeometryHandler"
-       ],
-       "handler": {
-        "attrs": {
-         "expire": {
-          "value": false
-         }
-        },
-        "class": [
-         "sheltersim.events.effects",
-         "EffectProgramGeometryHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     },
+     {
+      "activity": "idle",
+      "needs": {
+       "fatigue": 0.288857036280807,
+       "hunger": 0.04849068202211752,
+       "toilet_urgency": 0.5559265558453603
       },
-      "effect_program_geometry_expire": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.effects",
-        "EffectProgramGeometryHandler"
-       ],
-       "handler": {
-        "attrs": {
-         "expire": {
-          "value": true
-         }
-        },
-        "class": [
-         "sheltersim.events.effects",
-         "EffectProgramGeometryHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
+      "next_decision_at": 0,
+      "profile": {
+       "group_id": "G001",
+       "id": "A004",
+       "initial_needs": {
+        "fatigue": 0.288857036280807,
+        "hunger": 0.04849068202211752,
+        "toilet_urgency": 0.5559265558453603
        },
-       "own_managers": true
+       "initial_zone_id": "sleeping",
+       "mobility": "wheelchair",
+       "provenance": {
+        "generator": "synthetic-balanced-v1",
+        "seed": 2026,
+        "source_kind": "synthetic"
+       },
+       "rng_key": "profile:A004",
+       "stress_sensitivity": 0.490539207381208,
+       "support_need": 0.4111610558633719
       },
-      "effect_program_population": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "EffectProgramPopulationHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "EffectProgramPopulationHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
+      "stress": 0.0,
+      "support_cooldown_until": 0,
+      "support_request_id": null,
+      "target_id": null,
+      "trust": 0.5,
+      "zone_id": "sleeping"
+     }
+    ],
+    "duration_minutes": 1440,
+    "event_log": [],
+    "event_queue": [
+     {
+      "causation_id": null,
+      "due_minute": 15,
+      "event_id": "h00-toilet-outage",
+      "event_type": "facility_outage",
+      "kind": "exogenous",
+      "payload": {
+       "facility_id": "toilet_1",
+       "units_out": 1
       },
-      "effect_program_structure": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.effects",
-        "EffectProgramStructureHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.effects",
-         "EffectProgramStructureHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
+      "priority": 0,
+      "provenance": {
+       "description": "Small regression fixture event using an existing outage event contract.",
+       "source_id": "ASM-H00-REGRESSION-OUTAGE-V1",
+       "source_type": "assumption"
       },
-      "effect_program_temporary_space": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.effects",
-        "EffectProgramTemporarySpaceHandler"
-       ],
-       "handler": {
-        "attrs": {
-         "expire": {
-          "value": false
-         }
-        },
-        "class": [
-         "sheltersim.events.effects",
-         "EffectProgramTemporarySpaceHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
+      "sequence": 0,
+      "source_id": "h00-small-replay"
+     },
+     {
+      "causation_id": null,
+      "due_minute": 90,
+      "event_id": "h00-toilet-recovery",
+      "event_type": "facility_recovery",
+      "kind": "exogenous",
+      "payload": {
+       "facility_id": "toilet_1",
+       "units_restored": 1
       },
-      "effect_program_temporary_space_expire": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.effects",
-        "EffectProgramTemporarySpaceHandler"
-       ],
-       "handler": {
-        "attrs": {
-         "expire": {
-          "value": true
-         }
-        },
-        "class": [
-         "sheltersim.events.effects",
-         "EffectProgramTemporarySpaceHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
+      "priority": 0,
+      "provenance": {
+       "description": "Small regression fixture event using an existing event contract.",
+       "source_id": "ASM-H00-REGRESSION-OUTAGE-V1",
+       "source_type": "assumption"
       },
-      "environmental_stressor_end": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "InfrastructureEventHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "InfrastructureEventHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "equipment_failure": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "InfrastructureEventHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "InfrastructureEventHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "equipment_repaired": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "InfrastructureEventHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "InfrastructureEventHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "extreme_cold": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "InfrastructureEventHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "InfrastructureEventHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "extreme_heat": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "InfrastructureEventHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "InfrastructureEventHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "facility_outage": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "FacilityOutageHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "FacilityOutageHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "facility_recovery": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "FacilityRecoveryHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "FacilityRecoveryHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "information_contact_update": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "InformationContactHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "InformationContactHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "information_correction": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "InformationCorrectionHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "InformationCorrectionHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "information_rumor": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "InformationRumorHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "InformationRumorHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "population_approach_complete": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "EffectProgramPopulationHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "EffectProgramPopulationHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "power_outage": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "InfrastructureEventHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "InfrastructureEventHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "power_restored": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "InfrastructureEventHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "InfrastructureEventHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "proximity_contact_update": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "ProximityContactHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "ProximityContactHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "resource_consume": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "ResourceLedgerHandler"
-       ],
-       "handler": {
-        "attrs": {
-         "operation": {
-          "value": "consume"
-         }
-        },
-        "class": [
-         "sheltersim.events.handlers",
-         "ResourceLedgerHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "resource_delivery": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "ResourceLedgerHandler"
-       ],
-       "handler": {
-        "attrs": {
-         "operation": {
-          "value": "delivery"
-         }
-        },
-        "class": [
-         "sheltersim.events.handlers",
-         "ResourceLedgerHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "resource_loss": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "ResourceLedgerHandler"
-       ],
-       "handler": {
-        "attrs": {
-         "operation": {
-          "value": "loss"
-         }
-        },
-        "class": [
-         "sheltersim.events.handlers",
-         "ResourceLedgerHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "resource_release": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "ResourceLedgerHandler"
-       ],
-       "handler": {
-        "attrs": {
-         "operation": {
-          "value": "release"
-         }
-        },
-        "class": [
-         "sheltersim.events.handlers",
-         "ResourceLedgerHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "resource_reserve": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "ResourceLedgerHandler"
-       ],
-       "handler": {
-        "attrs": {
-         "operation": {
-          "value": "reserve"
-         }
-        },
-        "class": [
-         "sheltersim.events.handlers",
-         "ResourceLedgerHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "social_interaction": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "SocialInteractionHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "SocialInteractionHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "staff_operation_arrive": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "StaffOperationArrivalHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "StaffOperationArrivalHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "staff_operation_complete": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "StaffOperationCompletionHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "StaffOperationCompletionHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "staff_operation_relief": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "StaffOperationReliefHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "StaffOperationReliefHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "staff_restored": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "StaffRestorationHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "StaffRestorationHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "staff_shift_change": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "StaffUnavailabilityHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "StaffUnavailabilityHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "staff_support_complete": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "StaffSupportCompletionHandler"
-       ],
-       "handler": {
-        "attrs": {
-         "cooldown_minutes": {
-          "value": 30
-         },
-         "require_colocated": {
-          "value": true
-         }
-        },
-        "class": [
-         "sheltersim.events.handlers",
-         "StaffSupportCompletionHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "staff_unavailable": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "StaffUnavailabilityHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "StaffUnavailabilityHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "supply_route_interruption": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "InfrastructureEventHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "InfrastructureEventHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "supply_route_restored": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "InfrastructureEventHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "InfrastructureEventHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "support_request_timeout": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "SupportRequestTimeoutHandler"
-       ],
-       "handler": {
-        "attrs": {
-         "cooldown_minutes": {
-          "value": 30
-         }
-        },
-        "class": [
-         "sheltersim.events.handlers",
-         "SupportRequestTimeoutHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "toilet_service_complete": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "ToiletServiceCompletionHandler"
-       ],
-       "handler": {
-        "attrs": {
-         "after_complete": {
-          "method": "_schedule_return_to_initial_zone"
-         }
-        },
-        "class": [
-         "sheltersim.events.handlers",
-         "ToiletServiceCompletionHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "water_outage": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "WaterOutageHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "WaterOutageHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      },
-      "water_restored": {
-       "after_arrival_as_defined": true,
-       "class": [
-        "sheltersim.events.handlers",
-        "WaterRestorationHandler"
-       ],
-       "handler": {
-        "attrs": {},
-        "class": [
-         "sheltersim.events.handlers",
-         "WaterRestorationHandler",
-         true
-        ],
-        "class_own": {},
-        "own": {}
-       },
-       "own_managers": true
-      }
+      "sequence": 1,
+      "source_id": "h00-small-replay"
+     }
+    ],
+    "facilities": [
+     {
+      "active_agent_ids": [],
+      "capacity": 1,
+      "id": "toilet_1",
+      "kind": "toilet",
+      "queue_agent_ids": [],
+      "working_units": 1,
+      "zone_id": "toilet"
+     },
+     {
+      "active_agent_ids": [],
+      "capacity": 1,
+      "id": "toilet_2",
+      "kind": "toilet",
+      "queue_agent_ids": [],
+      "working_units": 1,
+      "zone_id": "toilet"
+     },
+     {
+      "active_agent_ids": [],
+      "capacity": 1,
+      "id": "toilet_3",
+      "kind": "toilet",
+      "queue_agent_ids": [],
+      "working_units": 1,
+      "zone_id": "toilet"
+     },
+     {
+      "active_agent_ids": [],
+      "capacity": 1,
+      "id": "toilet_4",
+      "kind": "toilet",
+      "queue_agent_ids": [],
+      "working_units": 1,
+      "zone_id": "toilet"
+     }
+    ],
+    "id_counters": {
+     "agent": 4,
+     "event": 2
+    },
+    "metric_state": {},
+    "minute_index": 0,
+    "model_configs": {
+     "behavior": {
+      "decision_interval_minutes": 60,
+      "mode": "offline",
+      "policy": "utility-softmax-v1",
+      "source_id": "ASM-UTILITY-BEHAVIOR-V1",
+      "source_type": "assumption"
+     },
+     "social_propagation": {
+      "cooldown_minutes": 30,
+      "enabled": false,
+      "max_agent_stress_increase_per_minute": 0.05,
+      "max_contacts_per_agent": 3,
+      "max_pair_stress_increase": 0.05,
+      "minimum_contact_minutes": 5,
+      "natural_recovery_per_minute": 0.0005,
+      "source_id": "ASM-SOCIAL-PROPAGATION-V1",
+      "source_type": "assumption",
+      "stress_spread_per_minute": 0.001
+     },
+     "staff": {
+      "source_id": "ASM-STAFF-SUPPORT-LIFECYCLE-V1",
+      "source_type": "assumption",
+      "support_cooldown_minutes": 30,
+      "support_task_minutes": 10,
+      "unresolved_after_minutes": 90
+     },
+     "toilet_service": {
+      "duration_distribution": "discrete_uniform_inclusive",
+      "maximum_minutes": 8,
+      "minimum_minutes": 4,
+      "source_id": "ASM-TOILET-SERVICE-DURATION-V1",
+      "source_type": "assumption"
      }
     },
-    "known": {
-     "value": true
-    }
+    "model_state": {},
+    "resources": {},
+    "rng_state": {
+     "algorithm": "sha256-keyed-v1",
+     "seed": 2026
+    },
+    "scenario_id": "h00-small-replay",
+    "schema_version": 5,
+    "seed": 2026,
+    "staff": [
+     {
+      "active_task_id": null,
+      "busy_until": 0,
+      "id": "S01",
+      "skills": [
+       "support"
+      ],
+      "work_queue": [],
+      "zone_id": "information_desk"
+     },
+     {
+      "active_task_id": null,
+      "busy_until": 0,
+      "id": "S02",
+      "skills": [
+       "support"
+      ],
+      "work_queue": [],
+      "zone_id": "information_desk"
+     },
+     {
+      "active_task_id": null,
+      "busy_until": 0,
+      "id": "S03",
+      "skills": [
+       "support"
+      ],
+      "work_queue": [],
+      "zone_id": "information_desk"
+     },
+     {
+      "active_task_id": null,
+      "busy_until": 0,
+      "id": "S04",
+      "skills": [
+       "support"
+      ],
+      "work_queue": [],
+      "zone_id": "information_desk"
+     },
+     {
+      "active_task_id": null,
+      "busy_until": 0,
+      "id": "S05",
+      "skills": [
+       "support"
+      ],
+      "work_queue": [],
+      "zone_id": "information_desk"
+     }
+    ],
+    "support_requests": [],
+    "zone_edges": [
+     {
+      "closed": false,
+      "from_zone_id": "corridor",
+      "id": "corridor_desk",
+      "to_zone_id": "information_desk",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "corridor",
+      "id": "corridor_sleeping",
+      "to_zone_id": "sleeping",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "corridor",
+      "id": "corridor_toilet",
+      "to_zone_id": "toilet",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "information_desk",
+      "id": "desk_corridor",
+      "to_zone_id": "corridor",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "sleeping",
+      "id": "sleeping_corridor",
+      "to_zone_id": "corridor",
+      "travel_minutes": 1
+     },
+     {
+      "closed": false,
+      "from_zone_id": "toilet",
+      "id": "toilet_corridor",
+      "to_zone_id": "corridor",
+      "travel_minutes": 1
+     }
+    ],
+    "zones": [
+     {
+      "capacity": null,
+      "display_x": 1.0,
+      "display_y": 0.0,
+      "id": "corridor",
+      "name": "Corridor"
+     },
+     {
+      "capacity": 8,
+      "display_x": 1.0,
+      "display_y": 1.0,
+      "id": "information_desk",
+      "name": "Information desk"
+     },
+     {
+      "capacity": 120,
+      "display_x": 0.0,
+      "display_y": 0.0,
+      "id": "sleeping",
+      "name": "Sleeping area"
+     },
+     {
+      "capacity": 20,
+      "display_x": 2.0,
+      "display_y": 0.0,
+      "id": "toilet",
+      "name": "Toilets"
+     }
+    ]
    }
-  },
-  "route_capacities": {},
-  "zone_neighbors": {
-   "corridor": [
-    "information_desk",
-    "sleeping",
-    "toilet"
-   ],
-   "information_desk": [
-    "corridor"
-   ],
-   "sleeping": [
-    "corridor"
-   ],
-   "toilet": [
-    "corridor"
-   ]
   }
- },
- "selection": [
-  [
-   "behavior",
-   "utility-softmax-v1"
-  ],
-  [
-   "psychology",
-   "causal-stress-v1"
-  ],
-  [
-   "social",
-   "sparse-family-zone-contact-v1"
-  ],
-  [
-   "information",
-   "sparse-information-contact-v1"
-  ]
- ],
- "slots": [
-  [
-   "psychological_distress_v1",
-   false
-  ],
-  [
-   "staff_dynamics_v1",
-   false
-  ],
-  [
-   "information_spread_v1",
-   false
-  ],
-  [
-   "social_propagation_v1",
-   false
-  ],
-  [
-   "movement_v1",
-   false
-  ],
-  [
-   "body_state_v1",
-   false
-  ],
-  [
-   "social_network_v1",
-   false
-  ],
-  [
-   "agent_dynamics_v1",
-   false
-  ],
-  [
-   "staff_operations_v1",
-   false
-  ],
-  [
-   "shared_operations_v1",
-   false
-  ],
-  [
-   "resource_ledger_v1",
-   false
-  ],
-  [
-   "population_presence_v1",
-   false
-  ],
-  [
-   "population_lifecycle_v1",
-   false
-  ],
-  [
-   "population_dynamics_v1",
-   false
-  ],
-  [
-   "temporary_spaces_v1",
-   false
-  ],
-  [
-   "geometry_overlay_v1",
-   false
-  ],
-  [
-   "resource_service_v1",
-   false
-  ],
-  [
-   "effect_program_v1",
-   false
-  ],
-  [
-   "facility_queues_v1",
-   false
-  ],
-  [
-   "metric_state",
-   true
-  ],
-  [
-   "model_configs",
-   true
-  ],
-  [
-   "resources",
-   true
-  ],
-  [
-   "id_counters",
-   true
-  ]
- ],
- "world": {
-  "active_tasks": [],
-  "agents": [
-   {
-    "activity": "idle",
-    "needs": {
-     "fatigue": 0.4976599457955883,
-     "hunger": 0.9794616646381298,
-     "toilet_urgency": 0.1866529940393592
-    },
-    "next_decision_at": 0,
-    "profile": {
-     "group_id": "G001",
-     "id": "A001",
-     "initial_needs": {
-      "fatigue": 0.4976599457955883,
-      "hunger": 0.9794616646381298,
-      "toilet_urgency": 0.1866529940393592
-     },
-     "initial_zone_id": "sleeping",
-     "mobility": "assisted",
-     "provenance": {
-      "generator": "synthetic-balanced-v1",
-      "seed": 2026,
-      "source_kind": "synthetic"
-     },
-     "rng_key": "profile:A001",
-     "stress_sensitivity": 0.7435250194629027,
-     "support_need": 0.37387076915424183
-    },
-    "stress": 0.0,
-    "support_cooldown_until": 0,
-    "support_request_id": null,
-    "target_id": null,
-    "trust": 0.5,
-    "zone_id": "sleeping"
-   },
-   {
-    "activity": "idle",
-    "needs": {
-     "fatigue": 0.5684506322013796,
-     "hunger": 0.8271342046961999,
-     "toilet_urgency": 0.47906218480808616
-    },
-    "next_decision_at": 0,
-    "profile": {
-     "group_id": "G001",
-     "id": "A002",
-     "initial_needs": {
-      "fatigue": 0.5684506322013796,
-      "hunger": 0.8271342046961999,
-      "toilet_urgency": 0.47906218480808616
-     },
-     "initial_zone_id": "sleeping",
-     "mobility": "independent",
-     "provenance": {
-      "generator": "synthetic-balanced-v1",
-      "seed": 2026,
-      "source_kind": "synthetic"
-     },
-     "rng_key": "profile:A002",
-     "stress_sensitivity": 0.2083001013072911,
-     "support_need": 0.28083414617585156
-    },
-    "stress": 0.0,
-    "support_cooldown_until": 0,
-    "support_request_id": null,
-    "target_id": null,
-    "trust": 0.5,
-    "zone_id": "sleeping"
-   },
-   {
-    "activity": "idle",
-    "needs": {
-     "fatigue": 0.06249928486435384,
-     "hunger": 0.025615816358124276,
-     "toilet_urgency": 0.704628461624468
-    },
-    "next_decision_at": 0,
-    "profile": {
-     "group_id": "G001",
-     "id": "A003",
-     "initial_needs": {
-      "fatigue": 0.06249928486435384,
-      "hunger": 0.025615816358124276,
-      "toilet_urgency": 0.704628461624468
-     },
-     "initial_zone_id": "sleeping",
-     "mobility": "independent",
-     "provenance": {
-      "generator": "synthetic-balanced-v1",
-      "seed": 2026,
-      "source_kind": "synthetic"
-     },
-     "rng_key": "profile:A003",
-     "stress_sensitivity": 0.27645139337514474,
-     "support_need": 0.46795630236779584
-    },
-    "stress": 0.0,
-    "support_cooldown_until": 0,
-    "support_request_id": null,
-    "target_id": null,
-    "trust": 0.5,
-    "zone_id": "sleeping"
-   },
-   {
-    "activity": "idle",
-    "needs": {
-     "fatigue": 0.288857036280807,
-     "hunger": 0.04849068202211752,
-     "toilet_urgency": 0.5559265558453603
-    },
-    "next_decision_at": 0,
-    "profile": {
-     "group_id": "G001",
-     "id": "A004",
-     "initial_needs": {
-      "fatigue": 0.288857036280807,
-      "hunger": 0.04849068202211752,
-      "toilet_urgency": 0.5559265558453603
-     },
-     "initial_zone_id": "sleeping",
-     "mobility": "wheelchair",
-     "provenance": {
-      "generator": "synthetic-balanced-v1",
-      "seed": 2026,
-      "source_kind": "synthetic"
-     },
-     "rng_key": "profile:A004",
-     "stress_sensitivity": 0.490539207381208,
-     "support_need": 0.4111610558633719
-    },
-    "stress": 0.0,
-    "support_cooldown_until": 0,
-    "support_request_id": null,
-    "target_id": null,
-    "trust": 0.5,
-    "zone_id": "sleeping"
-   }
-  ],
-  "duration_minutes": 1440,
-  "event_log": [],
-  "event_queue": [
-   {
-    "causation_id": null,
-    "due_minute": 15,
-    "event_id": "h00-toilet-outage",
-    "event_type": "facility_outage",
-    "kind": "exogenous",
-    "payload": {
-     "facility_id": "toilet_1",
-     "units_out": 1
-    },
-    "priority": 0,
-    "provenance": {
-     "description": "Small regression fixture event using an existing outage event contract.",
-     "source_id": "ASM-H00-REGRESSION-OUTAGE-V1",
-     "source_type": "assumption"
-    },
-    "sequence": 0,
-    "source_id": "h00-small-replay"
-   },
-   {
-    "causation_id": null,
-    "due_minute": 90,
-    "event_id": "h00-toilet-recovery",
-    "event_type": "facility_recovery",
-    "kind": "exogenous",
-    "payload": {
-     "facility_id": "toilet_1",
-     "units_restored": 1
-    },
-    "priority": 0,
-    "provenance": {
-     "description": "Small regression fixture event using an existing event contract.",
-     "source_id": "ASM-H00-REGRESSION-OUTAGE-V1",
-     "source_type": "assumption"
-    },
-    "sequence": 1,
-    "source_id": "h00-small-replay"
-   }
-  ],
-  "facilities": [
-   {
-    "active_agent_ids": [],
-    "capacity": 1,
-    "id": "toilet_1",
-    "kind": "toilet",
-    "queue_agent_ids": [],
-    "working_units": 1,
-    "zone_id": "toilet"
-   },
-   {
-    "active_agent_ids": [],
-    "capacity": 1,
-    "id": "toilet_2",
-    "kind": "toilet",
-    "queue_agent_ids": [],
-    "working_units": 1,
-    "zone_id": "toilet"
-   },
-   {
-    "active_agent_ids": [],
-    "capacity": 1,
-    "id": "toilet_3",
-    "kind": "toilet",
-    "queue_agent_ids": [],
-    "working_units": 1,
-    "zone_id": "toilet"
-   },
-   {
-    "active_agent_ids": [],
-    "capacity": 1,
-    "id": "toilet_4",
-    "kind": "toilet",
-    "queue_agent_ids": [],
-    "working_units": 1,
-    "zone_id": "toilet"
-   }
-  ],
-  "id_counters": {
-   "agent": 4,
-   "event": 2
-  },
-  "metric_state": {},
-  "minute_index": 0,
-  "model_configs": {
-   "behavior": {
-    "decision_interval_minutes": 60,
-    "mode": "offline",
-    "policy": "utility-softmax-v1",
-    "source_id": "ASM-UTILITY-BEHAVIOR-V1",
-    "source_type": "assumption"
-   },
-   "social_propagation": {
-    "cooldown_minutes": 30,
-    "enabled": false,
-    "max_agent_stress_increase_per_minute": 0.05,
-    "max_contacts_per_agent": 3,
-    "max_pair_stress_increase": 0.05,
-    "minimum_contact_minutes": 5,
-    "natural_recovery_per_minute": 0.0005,
-    "source_id": "ASM-SOCIAL-PROPAGATION-V1",
-    "source_type": "assumption",
-    "stress_spread_per_minute": 0.001
-   },
-   "staff": {
-    "source_id": "ASM-STAFF-SUPPORT-LIFECYCLE-V1",
-    "source_type": "assumption",
-    "support_cooldown_minutes": 30,
-    "support_task_minutes": 10,
-    "unresolved_after_minutes": 90
-   },
-   "toilet_service": {
-    "duration_distribution": "discrete_uniform_inclusive",
-    "maximum_minutes": 8,
-    "minimum_minutes": 4,
-    "source_id": "ASM-TOILET-SERVICE-DURATION-V1",
-    "source_type": "assumption"
-   }
-  },
-  "model_state": {},
-  "resources": {},
-  "rng_state": {
-   "algorithm": "sha256-keyed-v1",
-   "seed": 2026
-  },
-  "scenario_id": "h00-small-replay",
-  "schema_version": 5,
-  "seed": 2026,
-  "staff": [
-   {
-    "active_task_id": null,
-    "busy_until": 0,
-    "id": "S01",
-    "skills": [
-     "support"
-    ],
-    "work_queue": [],
-    "zone_id": "information_desk"
-   },
-   {
-    "active_task_id": null,
-    "busy_until": 0,
-    "id": "S02",
-    "skills": [
-     "support"
-    ],
-    "work_queue": [],
-    "zone_id": "information_desk"
-   },
-   {
-    "active_task_id": null,
-    "busy_until": 0,
-    "id": "S03",
-    "skills": [
-     "support"
-    ],
-    "work_queue": [],
-    "zone_id": "information_desk"
-   },
-   {
-    "active_task_id": null,
-    "busy_until": 0,
-    "id": "S04",
-    "skills": [
-     "support"
-    ],
-    "work_queue": [],
-    "zone_id": "information_desk"
-   },
-   {
-    "active_task_id": null,
-    "busy_until": 0,
-    "id": "S05",
-    "skills": [
-     "support"
-    ],
-    "work_queue": [],
-    "zone_id": "information_desk"
-   }
-  ],
-  "support_requests": [],
-  "zone_edges": [
-   {
-    "closed": false,
-    "from_zone_id": "corridor",
-    "id": "corridor_desk",
-    "to_zone_id": "information_desk",
-    "travel_minutes": 1
-   },
-   {
-    "closed": false,
-    "from_zone_id": "corridor",
-    "id": "corridor_sleeping",
-    "to_zone_id": "sleeping",
-    "travel_minutes": 1
-   },
-   {
-    "closed": false,
-    "from_zone_id": "corridor",
-    "id": "corridor_toilet",
-    "to_zone_id": "toilet",
-    "travel_minutes": 1
-   },
-   {
-    "closed": false,
-    "from_zone_id": "information_desk",
-    "id": "desk_corridor",
-    "to_zone_id": "corridor",
-    "travel_minutes": 1
-   },
-   {
-    "closed": false,
-    "from_zone_id": "sleeping",
-    "id": "sleeping_corridor",
-    "to_zone_id": "corridor",
-    "travel_minutes": 1
-   },
-   {
-    "closed": false,
-    "from_zone_id": "toilet",
-    "id": "toilet_corridor",
-    "to_zone_id": "corridor",
-    "travel_minutes": 1
-   }
-  ],
-  "zones": [
-   {
-    "capacity": null,
-    "display_x": 1.0,
-    "display_y": 0.0,
-    "id": "corridor",
-    "name": "Corridor"
-   },
-   {
-    "capacity": 8,
-    "display_x": 1.0,
-    "display_y": 1.0,
-    "id": "information_desk",
-    "name": "Information desk"
-   },
-   {
-    "capacity": 120,
-    "display_x": 0.0,
-    "display_y": 0.0,
-    "id": "sleeping",
-    "name": "Sleeping area"
-   },
-   {
-    "capacity": 20,
-    "display_x": 2.0,
-    "display_y": 0.0,
-    "id": "toilet",
-    "name": "Toilets"
-   }
-  ]
  }
 }

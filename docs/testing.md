@@ -101,7 +101,7 @@ python -m coverage report --sort=cover
 | `support/world.py` | WorldState・イベント・検証の部品 | `make_event`、`record_handler`、`stress_delta`、`count_validations`、`live_checkpoint_world`、`keep_trees`（切り離す名前空間に木を持たせる。kernel が書く木を鍵の順まで固定したテストに） |
 | `support/python_rules.py` | `python_rules`の印：そのテストでは検証のRustの双子を切り、Pythonの検証（`validate_*`）にすべての名前空間を読ませる | `_python_rules`（自動）、`without_kernels` |
 
-`support/paths.py`（`fixtures/`のファイルのパス）、`support/receipts.py`（共有の運営の受領書と、その適用済みの記録をPythonで作る。`record_shared_operation`や受領書の取り込みのテストの入力。kernelが作るので、`domain/care_receipts.py`の`make_*_record`は#152 P8b-1で消しました）、`support/isolation.py`（隔離の処理）、`support/psychology.py`（心理の手順のkernelを世界の上で動かし、差分とtraceの文書を返す）、`support/world_order.py`（ゲートのScenarioの世界を決まった分まで進めるRunと、2つの世界をすべての辞書の順と値の型まで比べる指紋。世界の写しとトランザクションのテスト用）、`support/core_tick.py`（Pythonのない中核のtickのテスト`native/core/tests/tick_core.rs`の小さな世界と、世界の部分と指標のdigest。`integration/test_core_tick.py`が使い、`benchmarks/core_tick_fixture.py`が`native/core/tests/data/tick_core.json`を書き直します）、`support/core_typed_rows.py`（`model_state`の型のある名前空間をすべて持つ世界。中核の`native/core/tests/typed_rows.rs`が、各名前空間をJSONから型のある行に読み、同じbytesに書き戻すことを確かめます。`integration/test_core_typed_rows.py`が使い、`benchmarks/core_typed_rows_fixture.py`が`native/core/tests/data/typed_rows.json`を書き直します）は、fixtureを持たない部品です。テストで使う`fixtures/`のファイルが増えたら、`support/paths.py`に定数を足します。
+`support/paths.py`（`fixtures/`のファイルのパス）、`support/receipts.py`（共有の運営の受領書と、その適用済みの記録をPythonで作る。`record_shared_operation`や受領書の取り込みのテストの入力。kernelが作るので、`domain/care_receipts.py`の`make_*_record`は#152 P8b-1で消しました）、`support/isolation.py`（隔離の処理）、`support/psychology.py`（心理の手順のkernelを世界の上で動かし、差分とtraceの文書を返す）、`support/world_order.py`（ゲートのScenarioの世界を決まった分まで進めるRunと、2つの世界をすべての辞書の順と値の型まで比べる指紋。世界の写しとトランザクションのテスト用）、`support/core_tick.py`（Pythonのない中核のtickのテスト`native/core/tests/tick_core.rs`の小さな世界と、世界の部分と指標のdigest。`native/core/tests/data/tick_core.json`を作ります）、`support/core_typed_rows.py`（`model_state`の型のある名前空間をすべて持つ世界。中核の`native/core/tests/typed_rows.rs`が、各名前空間をJSONから型のある行に読み、同じbytesに書き戻すことを確かめます。`native/core/tests/data/typed_rows.json`を作ります）、`support/core_fixtures.py`（中核のテストが読む世界の書き出しと、そのfixtureの一覧。下の「中核のテストのfixture」）は、fixtureを持たない部品です。テストで使う`fixtures/`のファイルが増えたら、`support/paths.py`に定数を足します。
 
 `support/world.py`の`view_of`と`decisions_of`も、fixtureを持たない部品です。段階が作る`WorldView`と提案を、Runと同じkernel（`native/src/rules/world_view.rs`など）で作ります。PythonでWorldViewを作る規則（`WorldView.from_world`）はないので、Pythonの方策に渡すviewもこれで作ります。
 
@@ -114,6 +114,18 @@ tickの規則はRustのkernelだけで、Pythonの本体はありません（`ke
 `tests/unit/repo/test_world_swap_lint.py`は、`src/`で`<x>.__dict__.clear()`か`<x>.__dict__.update(`を、決めた場所（`state_mirror.transaction_or_copy`の差し替え、`WorldState._bare_world`、世界でないもの）の外に見つけると失敗します。世界を変えるときは、写して差し替えずに`state_mirror.transaction`で世界そのものを変えます。
 
 関数を返すfixtureは、呼ぶたびに新しいものを作るだけで状態を持ちません。そのうち`saved_timeline`、`add_toilets_program`、`demo_world_hash`、`recording_router`はsession単位にして、module単位のfixtureからも使えるようにしています。テストファイルの中のhelperがこれらを使うときは、テストが受け取ったfixtureを引数で渡します（例：`integration/test_intervention_outcomes.py`の`_main_and_child`）。
+
+### 中核のテストのfixture
+
+`native/core/tests/`（`cargo test -p sheltersim_core`）の規則のテストは、Pythonが作った世界を、Pythonなしで読みます（#225）。世界は`tests/support/core_fixtures.py`が書き出し、`native/core/tests/support/load.rs`と`sections.rs`が読みます。
+
+- `export_world(world, controller)`は、ある時点の世界を1つ書き出します。何分でも、Pythonで書き換えた後でもかまいません。中身は、世界の正規の文書、中核が持つslot、Runがコントローラーから読んだもの（`RunCore.policies_document`、経路の容量、区域の隣）、Pythonの契約と工場が解釈する設定の節（`SectionId::parser()`が`Parser::Host`のもの。施設の形と空間の制約は契約を通した後のJSON）です。中核が設定の`V`から自分で解釈する節は書き出しません。
+- 1つのファイルに、名前を付けた世界をいくつも入れます（`{"worlds": {名前: 書き出し}}`）。世界には、そのテストが期待する値（ネイティブの経路で読んだ値など）を足してかまいません。Pythonの`random.Random`で作った入力も、書き出しに入れます。
+- fixtureを足すときは、ファイルを作る関数を題材の合う`tests/support/`のモジュールに書き、`core_fixtures.py`の`FIXTURES`にファイル名（`native/core/tests/data/`の下の名前）と関数を足します。`python benchmarks/core_fixtures.py [名前 ...]`で書き直します。名前を省くと、すべて書き直します。
+- `tests/integration/test_core_fixtures.py`は、登録したファイルごとに、今の関数が作るものと同じであることを確かめます。世界、書き出し、ネイティブの経路の値のどれかが変わると失敗します。変えた理由をPull Requestに書いて、書き直します。`worlds`を持つファイルが`FIXTURES`にないときも失敗します。
+- ファイルは小さく保ちます。小さな生成Scenario（数人）を使い、テストのファイルの間で世界を共有します。
+- Rustのテストは、`load::entry(ファイル名, 世界の名前)`で書き出しを読み、`load::loaded`で世界とRunとその方策を、`load::host`でPythonが解釈する節と図面（`Geo`）を持つ`TestHost`を作ります。図面は書き出した時点の世界のものです。テストで重ね書き（`geometry_overlay_v1`）を変えたら、`sections::plan_of`で作り直します。
+- pytestがPythonの`json.dumps`の既定の書き方（区切り`", "`と`": "`、`ensure_ascii=True`）や、`ensure_ascii=False`、`sort_keys=True`、区切り`","`と`":"`で取ったdigestは、`native/core/tests/support/dumps.rs`の`Dumps`で同じ文字列を作って比べます。辞書の順は`V`が持つ順です。書き出したファイルの辞書は鍵の順に並ぶので、Pythonの順が要る値は、書き出しの中で組の列にします。
 
 ### 時刻を手で動かすテスト
 

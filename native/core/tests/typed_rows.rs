@@ -1,7 +1,7 @@
 //! The typed rows of `model_state` read from JSON without Python (Issue #225, F1; #214).
 //!
 //! `tests/data/typed_rows.json` holds worlds of `tests/support/core_typed_rows.py` (written by
-//! `benchmarks/core_typed_rows_fixture.py`, checked by `tests/integration/test_core_typed_rows.py`)
+//! `benchmarks/core_fixtures.py`, checked by `tests/integration/test_core_fixtures.py`)
 //! that together have every typed namespace: queues and their stalls, queue and staff support
 //! trips, a working and a finished staff task, a shift config with and without its optional keys,
 //! histories, receipts and audit records. Each namespace read into its row with `Field::from_value`

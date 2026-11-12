@@ -992,7 +992,7 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
 ### PR P10-1b：Python のない中核の tick のテスト（レーン P10-1b）
 
 - **何をしたか**：#152 の終わりの条件 4.1-(4)（設計 P8 §4）のテストを足しました。中核が Python なしで tick を進め、ネイティブの経路と同じバイトになることを確かめます。シミュレーションのコードは変えていません。
-  - **世界**：`tests/support/core_tick.py` の小さな世界です。h00_small_replay（4人、4区域、6辺、トイレ4、職員5）に、15分のトイレの停止と90分の復旧を足し、Run と同じに準備した 0 分の世界です。`benchmarks/core_tick_fixture.py` が、この世界の正規の文書、核が持つ slot の名前、Run がコントローラーから読んだもの、モデルの選択、ネイティブの経路で 1,440 tick 進めた後の digest を `native/core/tests/data/tick_core.json` に書きます。
+  - **世界**：`tests/support/core_tick.py` の小さな世界です。h00_small_replay（4人、4区域、6辺、トイレ4、職員5）に、15分のトイレの停止と90分の復旧を足し、Run と同じに準備した 0 分の世界です。`benchmarks/core_tick_fixture.py`（#225 で `benchmarks/core_fixtures.py` に統合）が、この世界の正規の文書、核が持つ slot の名前、Run がコントローラーから読んだもの、モデルの選択、ネイティブの経路で 1,440 tick 進めた後の digest を `native/core/tests/data/tick_core.json` に書きます。
   - **JSON から World**（オーケストレーターの決定 (b)）：`native/core/tests/support/load.rs`。crate には入れません。スカラー、実体の行、slot（4つの欄と名前空間）、列のイベント、記録を作ります。型のある行を持つ名前空間は読めません（この世界の `model_state` は空です。`ValueRow` の名前空間だけ読みます）。Run の `Policies` も、読んだものの文書から作り直します。
   - **窓口に1つ足したもの**：`RunCore.policies_document()`。Run がコントローラーと dispatcher から読んだもの（`Obj`、値、誤り、handler の表）を JSON の値で返します。テストの道具で、tick は呼びません。中核に足した公開の API はありません。
   - **tick**：`native/core/tests/tick_core.rs`。`TestHost`（決定 (c)：契約は入力のまま、外の handler は断り、sink は記録、LLM なし、`space_refreshed` は Ok）で、`tick::run_tick` を 1,440 回呼びます。`TickEngine.step` の分もテストがします。分を1つ進め、終わりの検査（`after_tick::check`）をします。検査が Python に聞くこと（登録した名前空間の検証と EffectProgram の検査）には、Python がないので「通る」と答えます（方針 E6）。ホストが埋める Python の節で tick が読むのは3つです。モデルの選択（fixture の値）、拡張が有効か（この設定にはないので false）、検査の計画（テストの値）です。床の図面は、施設の形も空間の制約もない設定の `Geo::new(None, None, None, None)` です。

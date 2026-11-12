@@ -23,6 +23,12 @@ from sheltersim import native
 
 def tick_plan(world: Any) -> Any:
     """The configs as the per-tick check reads them, or an error where it would turn them down."""
+    return native.rules("after_tick").Plan(**tick_plan_fields(world))
+
+
+def tick_plan_fields(world: Any) -> dict[str, Any]:
+    """The fields of `tick_plan`'s plan, or its error. The exporter of the core's test fixtures
+    (`tests/support/core_fixtures.py`) writes them as JSON."""
     from sheltersim.contracts.policies import selected_models
     from sheltersim.contracts.runtime import declared_states
     from sheltersim.domain.environment import (
@@ -78,21 +84,21 @@ def tick_plan(world: Any) -> Any:
             raise ValueError("infrastructure config is not an object")
         if raw != ScenarioInfrastructureSpec.model_validate(raw).model_dump(mode="json"):
             raise ValueError("infrastructure config is not canonical")
-    return native.rules("after_tick").Plan(
-        declared=[(name, item.schema_version) for name, item in declared.items()],
-        required=required,
-        independent_queues=independent_queues_required(configs),
-        information_enabled=information.enabled,
-        mean_reverting=psychology in MEAN_REVERTING_PSYCHOLOGY_POLICIES,
-        shared_configured="shared_operations" in configs,
-        operational_enabled=operational_enabled,
-        environment_zones=environment_zones,
-        infrastructure_configured=configs.get("infrastructure") is not None,
+    return {
+        "declared": [(name, item.schema_version) for name, item in declared.items()],
+        "required": required,
+        "independent_queues": independent_queues_required(configs),
+        "information_enabled": information.enabled,
+        "mean_reverting": psychology in MEAN_REVERTING_PSYCHOLOGY_POLICIES,
+        "shared_configured": "shared_operations" in configs,
+        "operational_enabled": operational_enabled,
+        "environment_zones": environment_zones,
+        "infrastructure_configured": configs.get("infrastructure") is not None,
         # "resource_delivery" opts in only with a shipment ID; the Python rule tells which.
-        operational_events=frozenset(H03_EVENT_TYPES | {"resource_delivery"}),
-        infrastructure_events=frozenset(INFRASTRUCTURE_EVENT_TYPES),
-        resource_config=resource_config,
-    )
+        "operational_events": frozenset(H03_EVENT_TYPES | {"resource_delivery"}),
+        "infrastructure_events": frozenset(INFRASTRUCTURE_EVENT_TYPES),
+        "resource_config": resource_config,
+    }
 
 
 def body_config_ids(world: Any) -> list[str]:

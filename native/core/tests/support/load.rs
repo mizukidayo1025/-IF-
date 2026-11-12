@@ -1,15 +1,17 @@
 //! A World and a Run from JSON, without Python (Issue #152, lane P10-1b; orchestrator decision (b)
 //! on design-p8.md section 4.3: a test-only loader, not part of the crate).
 //!
-//! `fixture` reads `tests/data/tick_core.json`, which `benchmarks/core_tick_fixture.py` writes from
-//! the small world of `tests/support/core_tick.py`: the world's canonical document at minute 0 (after
-//! the controller and `TickEngine` set it up), the slots its core owns, and what the Run read of the
-//! controller (`RunCore.policies_document`). `world` builds the World the PyO3 crate's core holds for
-//! that document: the scalars, the entity rows, one slot per owned name (the four fields with their
-//! rows, each namespace with the row its document has), the queue's events and the log's records.
-//! A namespace of `model_state` becomes its typed row where it has one (`support/typed.rs`, each
-//! read with `Field::from_value`), and a `ValueRow` otherwise (the population's, the temporary
-//! spaces', the overlay's, and keys no lane owns).
+//! A fixture file under `tests/data/` holds named worlds (`{"worlds": {name: entry}}`), which
+//! `tests/support/core_fixtures.py` exports and `benchmarks/core_fixtures.py` writes (Issue #225):
+//! each entry has the world's canonical document at its minute, the slots its core owns, what the
+//! Run read of the controller (`RunCore.policies_document`), and the Python-parsed sections of its
+//! configs (`sections.rs`). `entry` reads one; `fixture` is the small world of
+//! `tests/support/core_tick.py` at minute 0 (`tick_core.json`). `world` builds the World the PyO3
+//! crate's core holds for a document: the scalars, the entity rows, one slot per owned name (the
+//! four fields with their rows, each namespace with the row its document has), the queue's events
+//! and the log's records. A namespace of `model_state` becomes its typed row where it has one
+//! (`support/typed.rs`, each read with `Field::from_value`), and a `ValueRow` otherwise (the
+//! population's, the temporary spaces', the overlay's, and keys no lane owns).
 //!
 //! `policies` makes the Run's `Policies` again from the document of what was read: the objects, the
 //! values, the faults and the dispatch table, as the PyO3 crate read them.
@@ -35,10 +37,24 @@ use sheltersim_core::run::{Capacity, Policies, RouteCapacities, Run, RunConfig};
 use sheltersim_core::value::V;
 use sheltersim_core::world::{self, Fit, Place, World};
 
-/// The fixture of the core's tick test.
-pub fn fixture() -> Value {
-    let raw = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data/tick_core.json")).unwrap();
+/// A fixture file of `tests/data/` (`<name>.json`).
+pub fn data(name: &str) -> Value {
+    let path = format!("{}/tests/data/{name}.json", env!("CARGO_MANIFEST_DIR"));
+    let raw = std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("{path}: {error}"));
     serde_json::from_str(&raw).unwrap()
+}
+
+/// The named world of a fixture file, as `core_fixtures.export_world` wrote it (with the keys its
+/// builder added).
+pub fn entry(file: &str, world: &str) -> Value {
+    let mut data = data(file);
+    let names: Vec<String> = data["worlds"].as_object().unwrap_or_else(|| panic!("{file} has no worlds")).keys().cloned().collect();
+    data["worlds"].get_mut(world).unwrap_or_else(|| panic!("{file} has no world {world}: {names:?}")).take()
+}
+
+/// The world of the core's tick test (`tick_core.json`).
+pub fn fixture() -> Value {
+    entry("tick_core", "small_replay")
 }
 
 fn text(value: &str) -> Arc<str> {
@@ -323,7 +339,8 @@ pub fn world(document: &Value, slots: &Value) -> World {
 
 // ---- What the Run read of the controller ---------------------------------------------------------
 
-fn fault(value: &Value) -> Fault {
+/// A fault as the exporter writes it: `[class, text]`.
+pub fn fault(value: &Value) -> Fault {
     let class = match value[0].as_str().unwrap() {
         "Value" => FaultClass::Value,
         "Type" => FaultClass::Type,
@@ -459,26 +476,11 @@ pub fn loaded(fixture: &Value) -> Loaded {
     Loaded { cell: Shard::new(world), run: std::cell::RefCell::new(run), policies, neighbors: neighbors(&run_document["zone_neighbors"]), seed }
 }
 
-/// A `TestHost` whose Python-parsed sections are the fixture's where the fixture has them (the model
-/// selection `selected_models` gives), and the test host's fixed values elsewhere, with the floor
-/// plan of the fixture's configs.
+/// A `TestHost` whose Python-parsed sections are the exported world's (`sections::fill`) and whose
+/// floor plan is the world's as exported (`sections::floor_plan`; none where `Geo::of` refuses).
 pub fn host(fixture: &Value) -> super::TestHost {
-    let models: Vec<(Arc<str>, Arc<str>)> =
-        fixture["selection"].as_array().unwrap().iter().map(|pair| (text(pair[0].as_str().unwrap()), text(pair[1].as_str().unwrap()))).collect();
     let mut host = super::TestHost::default();
-    // The floor plan of configs without a facility geometry or spatial constraints (`Geo::of` of
-    // the PyO3 crate), and no overlay: no layout and no constraints.
-    let configs = &fixture["world"]["model_configs"];
-    assert!(configs.get("facility_geometry").is_none() && configs.get("spatial_constraints").is_none());
-    assert!(fixture["world"]["model_state"].get("geometry_overlay_v1").is_none());
-    host.plan = Some(Arc::new(sheltersim_core::geometry::Geo::new(None, None, None, None).unwrap()));
-    host.sections.push((
-        sheltersim_core::config::SectionId::Selection,
-        Box::new(move |configs| {
-            let _ = configs
-                .selection
-                .get_or_parse(|| sheltersim_core::config::Section::Ok(Arc::new(sheltersim_core::config::Selection::new(models.clone()))));
-        }),
-    ));
+    super::sections::fill(&mut host, fixture);
+    host.plan = super::sections::floor_plan(fixture).ok();
     host
 }
