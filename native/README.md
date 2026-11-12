@@ -285,6 +285,10 @@ split PR by PR; its last section sums up what is where.
   test records again from the core. `steps.rs` is for the tests that call one step of a tick on
   an exported world: `Case` (the world, its Run and a following host; the step's `Tick`; edits of
   the world's canonical document between steps) and the inputs a builder wrote down. The JSON under
+  ticks.rs` steps a loaded Run as `TickEngine.step` does
+  (`run_tick`, the minute moved on, the end-of-tick check); `contracts.rs` answers a
+  `TestHost`'s contracts as a fixture recorded pydantic's answers; `views.rs` makes the update and
+  the propose phases' views of a loaded world and writes every field of one. The JSON under
   `tests/data/` (worlds the Python side built) is written by the builders that
   `tests/support/core_fixtures.py` registers (`benchmarks/core_fixtures.py`), and
   `tests/integration/test_core_fixtures.py` checks that each file is what its builder makes
@@ -330,6 +334,11 @@ split PR by PR; its last section sums up what is where.
   `tests/population_rules.rs` checks the population rules' answers and the
   worlds they leave against the digests of what the Python rules gave
   (`tests/data/population_rules.json`).
+  .
+  `tests/effect_kernels.rs` and `tests/effect_guard_dispatch.rs` check the EffectProgram
+  handlers and the guard (alone, and in the dispatch phase); `tests/world_view_reads.rs` and
+  `tests/world_view_run.rs` the views; `tests/generated_run.rs` the metric snapshot and the entity
+  rules on the worlds of a Run the core steps; `tests/event_log_indexes.rs` the log's indexes.
   The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,

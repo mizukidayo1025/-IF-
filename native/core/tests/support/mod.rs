@@ -16,12 +16,15 @@
 pub mod answers;
 pub mod canonical;
 pub mod cases;
+pub mod contracts;
 pub mod dumps;
 pub mod load;
 pub mod sections;
 pub mod steps;
 pub mod texts;
+pub mod ticks;
 pub mod typed;
+pub mod views;
 
 use std::sync::Arc;
 
