@@ -114,6 +114,15 @@ split PR by PR; its last section sums up what is where.
   minute moved on, the end-of-tick check, as `TickEngine.step`) and gives the digests of the
   world's parts (`canonical::digests`) and of the samples; on the worlds of `tick_core.json` they
   are the native path's (`core/tests/tick_core.rs`).
+- **The core in WASM** (#244, PR 4-4): `wasm/` (`sheltersim_wasm`) is the JS boundary of a
+  `PlainRun`, made with wasm-bindgen (decision 8, pinned to the CLI's version): `Simulation`
+  reads an export's JSON bytes (or one world of a file of worlds, `fromWorlds`), runs ticks
+  (`advance`) and gives the digests of the world's parts as `core_tick.py` writes them
+  (`digests_json`, `canonical::run_digests`), of the samples (`metrics_digest`) and the contracts
+  it took as given (`contracts_json`); `memoryBytes` is the WASM memory's size. It builds the core
+  without the feature `parallel` (one thread, decision 5). `wasm/tests/node_digests.mjs` runs the
+  worlds of `core/tests/data/tick_core.json` in Node and checks the native path's digests; CI's
+  lint job runs it (docs/development.md has the commands).
 - **Out of the core** (decision 4): building a world from a Scenario and restoring a Checkpoint
   stay in Python and the wrapper. The whole-world validation texts (E6) and the pydantic
   contracts (E15) stay Python behind `Host`; a host without Python passes the validation and
@@ -121,6 +130,8 @@ split PR by PR; its last section sums up what is where.
 
 ## Layout for lanes
 
+- `wasm/` (`sheltersim_wasm`): the core for the browser through wasm-bindgen (#244); it depends
+  on `core/` alone, without its feature `parallel`.
 - `core/` (`sheltersim_core`): the simulation core without Python (Issue #152,
   `docs/rust-port/step5-plan.md`). It must never depend on pyo3; CI checks its `cargo tree`
   and runs `cargo test -p sheltersim_core`. It holds what moved so far: `json.rs` (JSON strings

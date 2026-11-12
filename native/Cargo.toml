@@ -10,7 +10,7 @@ name = "sheltersim_native"
 crate-type = ["cdylib"]
 
 [workspace]
-members = [".", "core"]
+members = [".", "core", "wasm"]
 
 [workspace.lints.clippy]
 # A loop over a HashMap or HashSet goes in an order that changes from process to process. Each one

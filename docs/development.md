@@ -6,7 +6,7 @@
 - Rust（stable）。Rustのkernelを作るのに使います
 - Git
 - ローカルWeb画面を使う場合はbrowser
-- Node.jsは任意。JavaScript構文をローカル確認するときだけ必要
+- Node.jsは任意。JavaScript構文をローカル確認するときと、WASMの中核を確かめるときだけ必要
 
 repository rootからpackage、test、lint用toolを導入します。
 
@@ -39,6 +39,20 @@ python -c "import sheltersim.native"
 ~~~
 
 kernelの構成と確認の道具は[native/README.md](../native/README.md)と[rust-port.md](rust-port.md)にあります。
+
+### ブラウザー向けのWASM（試作）
+
+中核（`sheltersim_core`）は、Pythonで作って書き出した世界のtickを、ブラウザーのWASMで進められます（#132の段階4、#244）。JSとの窓口は`native/wasm/`（`sheltersim_wasm`、wasm-bindgen）です。作るには、wasm32のtargetと、crateと同じ版のwasm-bindgenのCLI（`native/wasm/Cargo.toml`の`wasm-bindgen = "=…"`）が要ります。Node.jsで確かめるときはNode.jsも要ります。
+
+~~~shell
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli --version 0.2.129 --locked
+cargo build --manifest-path native/Cargo.toml -p sheltersim_wasm --target wasm32-unknown-unknown --release
+wasm-bindgen --target nodejs --out-dir wasm-pkg native/target/wasm32-unknown-unknown/release/sheltersim_wasm.wasm
+node native/wasm/tests/node_digests.mjs wasm-pkg
+~~~
+
+最後のcommandは、`native/core/tests/data/tick_core.json`の世界をWASMで進め、ネイティブの経路と同じdigestになることを確かめます。CIのlintのjobも同じことをします。
 
 ## 設定
 

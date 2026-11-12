@@ -31,6 +31,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use serde_json::Value;
+use sheltersim_core::canonical;
 use sheltersim_core::checkpoint::sha256_hex;
 use sheltersim_core::config::SectionId;
 use sheltersim_core::engine::StepError;
@@ -38,53 +39,17 @@ use sheltersim_core::host::Phase;
 use sheltersim_core::plain::PlainRun;
 use sheltersim_core::row::ValueRow;
 use sheltersim_core::state::movement::MovementRow;
-use sheltersim_core::world::{Place, World, WorldCell};
+use sheltersim_core::world::{Place, WorldCell};
 
-use support::canonical;
 use support::load::{self, Loaded};
 use support::ticks::{metric_line, run as run_ticks};
 use support::{Call, TestHost};
 
 // ---- Digests of the world, as `tests/support/core_tick.py` writes them -----------------------------
 
-/// The canonical JSON of each part of the world, by the names of `PARTS` in `core_tick.py`: the
-/// document's parts (`support/canonical.rs`), and the scalars as one list.
-fn parts(world: &World) -> Vec<(&'static str, Vec<u8>)> {
-    let mut all: HashMap<&'static str, Vec<u8>> = canonical::parts(world).into_iter().collect();
-    let mut take = |name: &str| all.remove(name).unwrap_or_else(|| panic!("no part {name}"));
-    let mut parts: Vec<(&'static str, Vec<u8>)> = [
-        "agents",
-        "zones",
-        "zone_edges",
-        "facilities",
-        "staff",
-        "support_requests",
-        "active_tasks",
-        "resources",
-        "event_queue",
-        "event_log",
-        "id_counters",
-        "metric_state",
-        "model_configs",
-        "model_state",
-    ]
-    .into_iter()
-    .map(|name| (name, take(name)))
-    .collect();
-    let mut scalars = vec![b'['];
-    for (index, name) in ["schema_version", "scenario_id", "seed", "duration_minutes", "minute_index"].into_iter().enumerate() {
-        if index > 0 {
-            scalars.push(b',');
-        }
-        scalars.extend_from_slice(&take(name));
-    }
-    scalars.push(b']');
-    parts.push(("scalars", scalars));
-    parts
-}
-
+/// The digests of the world's parts as `core_tick.py` writes them (`canonical::run_digests`).
 fn digests(loaded: &Loaded) -> Vec<(&'static str, String)> {
-    loaded.cell.with(|world| parts(world).into_iter().map(|(name, raw)| (name, sha256_hex(&raw))).collect()).unwrap()
+    loaded.cell.with(|world| canonical::run_digests(world)).unwrap().unwrap()
 }
 
 fn expected(document: &Value) -> Vec<(&'static str, String)> {
@@ -286,7 +251,7 @@ fn two_runs_of_the_core_give_the_same_bytes() {
             let loaded = Rc::new(load::loaded(&fixture));
             let mut host = load::following_host(&fixture, &loaded);
             run_ticks(&loaded, &mut host, 120, &mut |_, _| {});
-            let bytes: Vec<Vec<u8>> = loaded.cell.with(|world| parts(world).into_iter().map(|(_, raw)| raw).collect()).unwrap();
+            let bytes: Vec<Vec<u8>> = loaded.cell.with(|world| canonical::parts(world).unwrap().into_iter().map(|(_, raw)| raw).collect()).unwrap();
             seen.push((bytes, metric_lines(&host)));
         }
         assert!(seen[0] == seen[1], "{name}");
@@ -311,7 +276,7 @@ fn the_plain_host_runs_each_world_to_the_native_path_s_world() {
         }
         assert_eq!(run.minute().unwrap(), ticks, "{name}");
         assert_eq!(digests(&run.loaded), expected(&wanted["world"]), "{name}");
-        // The crate's digests of the document's parts are those of the parts `parts` covers.
+        // The crate's digests of the document's parts are those of the parts `RUN_PARTS` covers.
         let all: HashMap<&str, String> = run.digests().unwrap().into_iter().collect();
         for (part, digest) in digests(&run.loaded) {
             if part != "scalars" {
@@ -353,4 +318,21 @@ fn the_plain_run_refuses_what_is_not_an_exported_world() {
     }
     let fixture = load::entry("tick_core", "small_replay");
     assert!(PlainRun::of_json(fixture.to_string().as_bytes()).is_ok());
+}
+
+/// A world of a file of named worlds is read from the file's own bytes, as the WASM crate's Node
+/// test reads `tick_core.json`; a name the file does not hold is an error.
+#[test]
+fn the_plain_run_reads_a_world_of_a_file_of_worlds() {
+    let path = format!("{}/tests/data/tick_core.json", env!("CARGO_MANIFEST_DIR"));
+    let raw = std::fs::read(&path).unwrap();
+    let mut run = PlainRun::of_worlds_json(&raw, "small_replay").unwrap();
+    let mut from_entry = PlainRun::of_entry(&load::entry("tick_core", "small_replay")).unwrap();
+    for _ in 0..30 {
+        run.step().unwrap();
+        from_entry.step().unwrap();
+    }
+    assert_eq!(run.digests().unwrap(), from_entry.digests().unwrap());
+    assert!(PlainRun::of_worlds_json(&raw, "no_such_world").is_err());
+    assert!(PlainRun::of_worlds_json(b"{\"worlds\": 1}", "small_replay").is_err());
 }
