@@ -1003,6 +1003,7 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
   - 間取りの変更：経路を閉じて辺と上書きの状態を書き、トランザクションを残します（床の図面の読み、契約、世界の検証、commit）。期限で開き直し、2回目の期限は抑止の文です。承認のない modifier、ない経路、終わりのない閉鎖、上書きのない世界は、それぞれの文で失敗し、世界は前のままです（トランザクションが2回戻します）。
   - 職員の作業の指示と引き継ぎ：S01 に案内所の巡回を指示すると、移動なしで作業が始まり、作業と完了のイベントができます。1分後に S02 へ引き継ぐと、作業、職員の行、作業の記録、保留の完了イベントが S02 のものになり、共有の運営の受領記録ができます。忙しい職員への指示、同じ引き継ぎのやり直し、期日でない指示、登録のない作業の種類、ない作業の引き継ぎ、共有の運営のない世界は、それぞれの文で断ります。
 - **確かめたこと**（`main` `d15ab5b8` の上で）：`cargo test -p sheltersim_core`（471件）と `--no-default-features`（471件）、`wasm32-unknown-unknown` の `--no-default-features` のビルド、`cargo clippy --workspace --all-targets -- -A clippy::all -D clippy::disallowed_methods`、`cargo tree -p sheltersim_core -e normal,build` に `pyo3` がないこと、`ruff check .`、`ruff format --check .`、offline の pytest（`-m "not long_simulation"`：5321 passed、6 skipped。`native/pylib` にこのビルド。base の 5319 にこの PR の2件）、全経路のゲート（55 scenarios、0 problems。替わった行 1171 件、ホストの handler 102 件、その場の規則のトランザクション 390）。シミュレーションのコードを変えていないので、7日分は走らせていません。
+- **PR P9-3a の後に載せ直して**（`main` `84b3754d` の上で。衝突はこの文書だけ）：`cargo test -p sheltersim_core`（480件）と `--no-default-features`（480件）、`cargo check --workspace`、clippy、`cargo tree` に `pyo3` なし、wasm32 のビルド、`ruff`、交差のテスト（2件）。fixture を書き直してもバイトは同じでした。
 
 ### この後
 
