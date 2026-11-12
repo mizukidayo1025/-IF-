@@ -39,7 +39,6 @@ from sheltersim.domain.models import (
     Activity,
     InformationSpreadConfig,
     SupportRequestState,
-    SupportRequestStatus,
 )
 from sheltersim.domain.simulator_state import initialize_simulator_extensions
 from sheltersim.domain.staff import StaffService
