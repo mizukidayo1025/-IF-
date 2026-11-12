@@ -339,6 +339,10 @@ split PR by PR; its last section sums up what is where.
   handlers and the guard (alone, and in the dispatch phase); `tests/world_view_reads.rs` and
   `tests/world_view_run.rs` the views; `tests/generated_run.rs` the metric snapshot and the entity
   rules on the worlds of a Run the core steps; `tests/event_log_indexes.rs` the log's indexes.
+  `tests/social_steps.rs`, `tests/information_steps.rs` and
+  `tests/psychology_steps.rs` run the people models' steps (the social model, the information
+  model's contacts, each person's minute and its trace's document) on the worlds and the policies
+  of their pytest files (`tests/data/model_steps.json`) and reach the digests those files pinned.
   The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,

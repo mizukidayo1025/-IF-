@@ -7,6 +7,10 @@ reaches, was recorded once as digests (ANSWERS), which the kernel's answers must
 Model version 2 (step 4, L11: the pinned libm crate and the information events' draw keys)
 changed some of these results: those digests were re-recorded from the kernels of that model
 and are no longer the deleted Python rules'.
+
+The claims of each model and the seeds past 64 bits are the core's tests,
+`native/core/tests/information_steps.rs` (#225), with the same digests. The bits on random states,
+IDs and probabilities stay here: their inputs are too large for a fixture of the core's tests.
 """
 
 from __future__ import annotations
@@ -94,25 +98,10 @@ def _run_ticks(scenario: Any, minutes: int, check: Any = None) -> WorldState:
 # SHELTERSIM_RECORD_INFORMATION set, the tests wrote these digests of the Python rules' answers to
 # that file instead.
 ANSWERS: dict[str, str] = {
-    "claims-EvidenceAwareInformationPolicy": (
-        "7e17a31e26288bf5119da239fa024163dd67d7ad4a4fc8f90664d23dd75c2605"
-    ),
-    "claims-HazardInformationPolicy": (
-        "b8f50d81a075e2def89cdd61b085f16c64ed2a1cf6f5ff6bd3d1a74f73fe5f77"
-    ),
-    "claims-InformationSpreadPolicy": (
-        "950769ea58b9c61423b630b0b92245baa6534be789f95d1ed7ed23aa8c338be6"
-    ),
     "escapes": ("8e4d189e658c89306cd9b9ec67cf2e74abc14a8249d69474818c6309af23ab63"),
     "fewer": ("1e3044e56f64470972105590940135dc1bbdcc93993a34012e62da3f18dadf24"),
     "probability": ("b4a9dfa29e64cd80bc648b338f68108391249fae87cf68e6f1c6bb45682e8dba"),
     "random": ("31d66819725fb4d71435209ee29031af6c1ea99b4028133c2c521ee11ed2e4df"),
-    "seed-18446744073709551623": (
-        "dd2527a47cd6e7a981e2e309af5e6c1bf1375e0ef86d4727cd3a3e2988390b8e"
-    ),
-    "seed-9223372036854775808": (
-        "cfa1e5f6a6f20cc215da760e12079e097cd02c07c59e48f8609a6c5208b45cf8"
-    ),
     "ticks-evidence-aware-rumor-v1": (
         "0cb22fbfe15ed9e5c35f66b51267b238244c4ca1e5a33752cd8db5dd10e3d692"
     ),
@@ -477,49 +466,6 @@ def test_ninety_ticks_make_the_world_the_python_step_made(rumors: Any, model: st
 
 
 # ---- What the deleted Python rule answered ------------------------------------------------------
-
-
-@pytest.mark.parametrize("model", MODELS)
-def test_claims_pass_as_the_python_rule_passed_them(generated_scenario: Any, model: Any) -> None:
-    config = InformationSpreadConfig(
-        enabled=True,
-        minimum_contact_minutes=1,
-        contact_duration_scale_minutes=1,
-        base_transmission_probability=0.5,
-        forgetting_rate_per_minute=0.2,
-    )
-    texts = []
-    proposals = 0
-    for seed in range(8):
-        world = _world_with_claims(generated_scenario, believers=5)
-        neighbors = {zone: tuple(sorted(set(world.zones) - {zone})) for zone in world.zones}
-        text, contacts, _state = _answer(world, model(config), neighbors, seed)
-        texts.append(text)
-        assert contacts
-        proposals += len(json.loads(text)[4])
-    assert proposals > 0
-    _answers(f"claims-{model.__name__}", texts)
-
-
-@pytest.mark.parametrize("seed", [2**64 + 7, 2**63])
-def test_a_seed_past_64_bits_gives_the_python_rule_s_answers(
-    generated_scenario: Any, seed: int
-) -> None:
-    """A Scenario's seed is any int from 0. CounterRNG keys its draws with `str(seed)`, and the
-    kernel turned such a seed down before, so the Python rule ran."""
-    config = InformationSpreadConfig(
-        enabled=True,
-        minimum_contact_minutes=1,
-        contact_duration_scale_minutes=1,
-        base_transmission_probability=0.5,
-        forgetting_rate_per_minute=0.2,
-    )
-    texts = []
-    for model in MODELS:
-        world = _world_with_claims(generated_scenario, believers=5)
-        neighbors = {zone: tuple(sorted(set(world.zones) - {zone})) for zone in world.zones}
-        texts.append(_answer(world, model(config), neighbors, seed)[0])
-    _answers(f"seed-{seed}", texts)
 
 
 def test_random_states_have_the_python_rules_bits(generated_scenario: Any) -> None:
