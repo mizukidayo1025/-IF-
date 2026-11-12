@@ -2,8 +2,15 @@
  "worlds": {
   "add_staff": {
    "base": "generated",
-   "set": [
+   "changes": [
     [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
      [
       "world",
       "event_queue"
@@ -50,6 +57,7 @@
      ]
     ],
     [
+     "set",
      [
       "world",
       "id_counters",
@@ -58,16 +66,17 @@
      1
     ],
     [
+     "set",
      [
       "world",
       "model_configs",
-      "geometry_overlay"
+      "geometry_overlay",
+      "schema_version"
      ],
-     {
-      "schema_version": 3
-     }
+     3
     ],
     [
+     "set",
      [
       "world",
       "model_state",
@@ -102,17 +111,19 @@
       "schema_version": 1
      }
     ]
-   ],
-   "unset": [
-    [
-     "population"
-    ]
    ]
   },
   "add_toilet": {
    "base": "generated",
-   "set": [
+   "changes": [
     [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
      [
       "world",
       "event_queue"
@@ -159,6 +170,7 @@
      ]
     ],
     [
+     "set",
      [
       "world",
       "id_counters",
@@ -167,16 +179,17 @@
      1
     ],
     [
+     "set",
      [
       "world",
       "model_configs",
-      "geometry_overlay"
+      "geometry_overlay",
+      "schema_version"
      ],
-     {
-      "schema_version": 3
-     }
+     3
     ],
     [
+     "set",
      [
       "world",
       "model_state",
@@ -210,18 +223,20 @@
       },
       "schema_version": 1
      }
-    ]
-   ],
-   "unset": [
-    [
-     "population"
     ]
    ]
   },
   "add_toilet_plain": {
    "base": "generated",
-   "set": [
+   "changes": [
     [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
      [
       "world",
       "event_queue"
@@ -268,6 +283,7 @@
      ]
     ],
     [
+     "set",
      [
       "world",
       "id_counters",
@@ -276,6 +292,7 @@
      1
     ],
     [
+     "set",
      [
       "world",
       "model_state",
@@ -310,17 +327,19 @@
       "schema_version": 1
      }
     ]
-   ],
-   "unset": [
-    [
-     "population"
-    ]
    ]
   },
   "arrival_program": {
    "base": "generated",
-   "set": [
+   "changes": [
     [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
      [
       "world",
       "event_queue"
@@ -372,6 +391,7 @@
      ]
     ],
     [
+     "set",
      [
       "world",
       "id_counters",
@@ -380,6 +400,7 @@
      1
     ],
     [
+     "set",
      [
       "world",
       "model_state",
@@ -414,17 +435,19 @@
       "schema_version": 1
      }
     ]
-   ],
-   "unset": [
-    [
-     "population"
-    ]
    ]
   },
   "departure_program": {
    "base": "generated",
-   "set": [
+   "changes": [
     [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
      [
       "world",
       "event_queue"
@@ -471,6 +494,7 @@
      ]
     ],
     [
+     "set",
      [
       "world",
       "id_counters",
@@ -479,6 +503,7 @@
      1
     ],
     [
+     "set",
      [
       "world",
       "model_state",
@@ -513,17 +538,19 @@
       "schema_version": 1
      }
     ]
-   ],
-   "unset": [
-    [
-     "population"
-    ]
    ]
   },
   "environment": {
    "base": "generated",
-   "set": [
+   "changes": [
     [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
      [
       "world",
       "event_queue"
@@ -609,6 +636,7 @@
      ]
     ],
     [
+     "set",
      [
       "world",
       "id_counters",
@@ -617,6 +645,7 @@
      2
     ],
     [
+     "set",
      [
       "world",
       "model_state",
@@ -651,11 +680,6 @@
       },
       "schema_version": 1
      }
-    ]
-   ],
-   "unset": [
-    [
-     "population"
     ]
    ]
   },
@@ -9124,8 +9148,15 @@
   },
   "geometry": {
    "base": "generated",
-   "set": [
+   "changes": [
     [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
      [
       "world",
       "event_queue"
@@ -9216,6 +9247,7 @@
      ]
     ],
     [
+     "set",
      [
       "world",
       "id_counters",
@@ -9224,6 +9256,7 @@
      2
     ],
     [
+     "set",
      [
       "world",
       "model_state",
@@ -9259,17 +9292,19 @@
       "schema_version": 1
      }
     ]
-   ],
-   "unset": [
-    [
-     "population"
-    ]
    ]
   },
   "lighting": {
    "base": "generated",
-   "set": [
+   "changes": [
     [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
      [
       "world",
       "event_queue"
@@ -9355,6 +9390,7 @@
      ]
     ],
     [
+     "set",
      [
       "world",
       "id_counters",
@@ -9363,6 +9399,7 @@
      2
     ],
     [
+     "set",
      [
       "world",
       "model_state",
@@ -9398,105 +9435,70 @@
       "schema_version": 1
      }
     ]
-   ],
-   "unset": [
-    [
-     "population"
-    ]
    ]
   },
   "no_overlay_config": {
    "base": "generated",
-   "set": [
+   "changes": [
     [
+     "del",
      [
-      "sections",
-      "overlay_rooms",
-      "value"
-     ],
-     {
-      "is_dict": true,
-      "room_schema": {
-       "value": false
-      }
-     }
+      "population"
+     ]
     ],
     [
+     "del",
+     [
+      "world",
+      "model_configs",
+      "geometry_overlay"
+     ]
+    ],
+    [
+     "set",
      [
       "sections",
       "tick_plan",
-      "value"
+      "value",
+      "required"
      ],
-     {
-      "declared": [
-       [
-        "population_presence_v1",
-        1
-       ]
-      ],
-      "environment_zones": [],
-      "independent_queues": false,
-      "information_enabled": true,
-      "infrastructure_configured": false,
-      "infrastructure_events": [
-       "environmental_stressor_end",
-       "equipment_failure",
-       "equipment_repaired",
-       "extreme_cold",
-       "extreme_heat",
-       "power_outage",
-       "power_restored",
-       "staff_shift_change",
-       "supply_route_interruption",
-       "supply_route_restored"
-      ],
-      "mean_reverting": true,
-      "operational_enabled": true,
-      "operational_events": [
-       "delivery_delayed",
-       "resource_delivery",
-       "staff_shift_change",
-       "staff_unavailable",
-       "water_outage",
-       "water_restored"
-      ],
-      "required": [
-       "agent_dynamics_v1",
-       "body_state_v1",
-       "movement_v1",
-       "population_dynamics_v1",
-       "population_lifecycle_v1",
-       "shared_operations_v1",
-       "social_network_v1",
-       "staff_dynamics_v1",
-       "staff_operations_v1",
-       "temporary_spaces_v1"
-      ],
-      "resource_config": {
-       "food_meal_units_per_service": 1,
-       "meal_staff_skill": "meal_service",
-       "water_ml_per_service": 250,
-       "water_staff_skill": "water_service"
-      },
-      "shared_configured": true
-     }
-    ]
-   ],
-   "unset": [
-    [
-     "population"
+     [
+      "agent_dynamics_v1",
+      "body_state_v1",
+      "movement_v1",
+      "population_dynamics_v1",
+      "population_lifecycle_v1",
+      "shared_operations_v1",
+      "social_network_v1",
+      "staff_dynamics_v1",
+      "staff_operations_v1",
+      "temporary_spaces_v1"
+     ]
     ],
     [
-     "world",
-     "model_configs",
-     "geometry_overlay"
+     "set",
+     [
+      "sections",
+      "overlay_rooms",
+      "value",
+      "room_schema",
+      "value"
+     ],
+     false
     ]
    ]
   },
   "repair": {
    "base": "generated",
-   "set": [
+   "changes": [
     [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
      [
       "world",
       "event_queue"
@@ -9551,91 +9553,17 @@
      ]
     ],
     [
+     "set",
      [
       "world",
-      "facilities"
+      "facilities",
+      0,
+      "working_units"
      ],
-     [
-      {
-       "active_agent_ids": [],
-       "capacity": 1,
-       "id": "accessible_toilet_01",
-       "kind": "toilet",
-       "queue_agent_ids": [],
-       "resource_active_agent_ids": [],
-       "resource_queue_agent_ids": [],
-       "working_units": 0,
-       "zone_id": "toilet"
-      },
-      {
-       "active_agent_ids": [],
-       "capacity": 1,
-       "id": "intake_desk",
-       "kind": "intake",
-       "queue_agent_ids": [],
-       "resource_active_agent_ids": [],
-       "resource_queue_agent_ids": [],
-       "working_units": 1,
-       "zone_id": "intake"
-      },
-      {
-       "active_agent_ids": [],
-       "capacity": 1,
-       "id": "meal_distribution_main",
-       "kind": "meal_distribution",
-       "queue_agent_ids": [],
-       "resource_active_agent_ids": [],
-       "resource_queue_agent_ids": [],
-       "working_units": 1,
-       "zone_id": "food"
-      },
-      {
-       "active_agent_ids": [],
-       "capacity": 1,
-       "id": "medical_desk",
-       "kind": "medical_support",
-       "queue_agent_ids": [],
-       "resource_active_agent_ids": [],
-       "resource_queue_agent_ids": [],
-       "working_units": 1,
-       "zone_id": "medical"
-      },
-      {
-       "active_agent_ids": [],
-       "capacity": 1,
-       "id": "quiet_support",
-       "kind": "quiet_space",
-       "queue_agent_ids": [],
-       "resource_active_agent_ids": [],
-       "resource_queue_agent_ids": [],
-       "working_units": 1,
-       "zone_id": "quiet"
-      },
-      {
-       "active_agent_ids": [],
-       "capacity": 1,
-       "id": "toilet_01",
-       "kind": "toilet",
-       "queue_agent_ids": [],
-       "resource_active_agent_ids": [],
-       "resource_queue_agent_ids": [],
-       "working_units": 1,
-       "zone_id": "toilet"
-      },
-      {
-       "active_agent_ids": [],
-       "capacity": 1,
-       "id": "water_station_main",
-       "kind": "water_station",
-       "queue_agent_ids": [],
-       "resource_active_agent_ids": [],
-       "resource_queue_agent_ids": [],
-       "working_units": 1,
-       "zone_id": "food"
-      }
-     ]
+     0
     ],
     [
+     "set",
      [
       "world",
       "id_counters",
@@ -9644,6 +9572,7 @@
      1
     ],
     [
+     "set",
      [
       "world",
       "model_state",
@@ -9678,17 +9607,19 @@
       "schema_version": 1
      }
     ]
-   ],
-   "unset": [
-    [
-     "population"
-    ]
    ]
   },
   "role": {
    "base": "generated",
-   "set": [
+   "changes": [
     [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
      [
       "world",
       "event_queue"
@@ -9737,6 +9668,7 @@
      ]
     ],
     [
+     "set",
      [
       "world",
       "id_counters",
@@ -9745,6 +9677,7 @@
      1
     ],
     [
+     "set",
      [
       "world",
       "model_state",
@@ -9779,2176 +9712,115 @@
       "schema_version": 1
      }
     ]
-   ],
-   "unset": [
-    [
-     "population"
-    ]
    ]
   },
   "route_here": {
    "base": "generated",
-   "set": [
+   "changes": [
     [
+     "del",
      [
-      "sections",
-      "facility_geometry",
-      "value"
-     ],
-     {
-      "arrival_approach_routes": [
-       {
-        "destination_zone_id": "sleeping",
-        "distance_m": 7.291391873668903,
-        "points_m": [
-         {
-          "x": 3.887087810503355,
-          "y": 14.382783747337808
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 7.091391873668904
-         }
-        ],
-        "route_id": "arrival-route-test",
-        "schema_version": 1,
-        "source_ids": [
-         "SRC-TEST-APPROACH"
-        ],
-        "source_kind": "operator",
-        "travel_minutes": {
-         "value": 2
-        },
-        "walking_speed_m_per_min": 5.0
-       }
-      ],
-      "facility_points": {
-       "accessible_toilet_01": {
-        "x": 13.77417562100671,
-        "y": 10.477882672817003
-       },
-       "intake_desk": {
-        "x": 15.604175621006712,
-        "y": 10.477882672817003
-       },
-       "meal_distribution_main": {
-        "x": 11.97417562100671,
-        "y": 10.477882672817003
-       },
-       "medical_desk": {
-        "x": 10.20417562100671,
-        "y": 10.477882672817003
-       },
-       "quiet_support": {
-        "x": 8.40417562100671,
-        "y": 10.477882672817003
-       },
-       "toilet_01": {
-        "x": 14.374175621006712,
-        "y": 10.477882672817003
-       },
-       "water_station_main": {
-        "x": 12.574175621006711,
-        "y": 10.477882672817003
-       }
-      },
-      "height_m": 16.382783747337808,
-      "origin": "top_left",
-      "routes": [
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_food",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_intake",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 0.9
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_medical",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_quiet",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_sleeping",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 1.8
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_staff",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_toilet",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 0.9
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_food_corridor",
-        "points": [
-         {
-          "x": 12.27417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_intake_corridor",
-        "points": [
-         {
-          "x": 15.874175621006712,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_medical_corridor",
-        "points": [
-         {
-          "x": 10.47417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_quiet_corridor",
-        "points": [
-         {
-          "x": 8.67417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_sleeping_corridor",
-        "points": [
-         {
-          "x": 3.887087810503355,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 1.8
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_staff_corridor",
-        "points": [
-         {
-          "x": 17.67417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_toilet_corridor",
-        "points": [
-         {
-          "x": 14.074175621006711,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       }
-      ],
-      "schema_version": 1,
-      "service_points": [
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "accessible_toilet_01",
-        "id": "legacy-service:d34bc5076754a08e28331f68",
-        "point_m": {
-         "x": 13.77417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "accessible_toilet_01",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "intake_desk",
-        "id": "legacy-service:788cc82320ce4b6e07a59965",
-        "point_m": {
-         "x": 15.604175621006712,
-         "y": 10.477882672817003
-        },
-        "queue_id": "intake_desk",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "meal_distribution_main",
-        "id": "legacy-service:4483648d70d51dce47b29586",
-        "point_m": {
-         "x": 11.97417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "meal_distribution_main",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "medical_desk",
-        "id": "legacy-service:24a22dc837f7add348c91a46",
-        "point_m": {
-         "x": 10.20417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "medical_desk",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "quiet_support",
-        "id": "legacy-service:1a50d56190f3f558ae2e7fd5",
-        "point_m": {
-         "x": 8.40417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "quiet_support",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "toilet_01",
-        "id": "legacy-service:650608e8abd263c7ffed0b32",
-        "point_m": {
-         "x": 14.374175621006712,
-         "y": 10.477882672817003
-        },
-        "queue_id": "toilet_01",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "water_station_main",
-        "id": "legacy-service:efc8fc0c9793f65a86378d94",
-        "point_m": {
-         "x": 12.574175621006711,
-         "y": 10.477882672817003
-        },
-        "queue_id": "water_station_main",
-        "schema_version": 1,
-        "service_capacity": 1
-       }
-      ],
-      "source_ids": [
-       "ASM-SHELTER-AREA-HEURISTIC-V1",
-       "ASM-SHELTER-SERVICE-STATIONS-V1",
-       "ASM-SHELTER-STAFFING-HEURISTIC-V2",
-       "ASM-SHELTER-TOILET-HEURISTIC-V2",
-       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-      ],
-      "source_kind": "synthetic",
-      "units": "m",
-      "width_m": 18.57417562100671,
-      "zones": [
-       {
-        "polygon": [
-         {
-          "x": 0.0,
-          "y": 0.0
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 0.0
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 0.0,
-          "y": 1.8
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 30.09016450603087,
-        "zone_id": "corridor"
-       },
-       {
-        "polygon": [
-         {
-          "x": 0.0,
-          "y": 1.8
-         },
-         {
-          "x": 7.77417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 7.77417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 0.0,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 74.04517746984564,
-        "zone_id": "sleeping"
-       },
-       {
-        "polygon": [
-         {
-          "x": 7.77417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 9.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 9.57417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 7.77417562100671,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687246,
-        "zone_id": "quiet"
-       },
-       {
-        "polygon": [
-         {
-          "x": 9.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 11.37417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 11.37417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 9.57417562100671,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "medical"
-       },
-       {
-        "polygon": [
-         {
-          "x": 11.37417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 13.174175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 13.174175621006711,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 11.37417562100671,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "food"
-       },
-       {
-        "polygon": [
-         {
-          "x": 13.174175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 14.974175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 14.974175621006712,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 13.174175621006711,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "toilet"
-       },
-       {
-        "polygon": [
-         {
-          "x": 14.974175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 16.774175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 16.774175621006712,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 14.974175621006712,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "intake"
-       },
-       {
-        "polygon": [
-         {
-          "x": 16.774175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 16.774175621006712,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.14410967068722,
-        "zone_id": "staff"
-       }
-      ]
-     }
+      "population"
+     ]
     ],
     [
+     "set",
      [
       "world",
       "model_configs",
-      "facility_geometry"
+      "facility_geometry",
+      "arrival_approach_routes"
      ],
-     {
-      "arrival_approach_routes": [
-       {
-        "destination_zone_id": "sleeping",
-        "points_m": [
-         {
-          "x": 3.887087810503355,
-          "y": 14.382783747337808
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 7.091391873668904
-         }
-        ],
-        "route_id": "arrival-route-test",
-        "source_ids": [
-         "SRC-TEST-APPROACH"
-        ],
-        "source_kind": "operator",
-        "walking_speed_m_per_min": 5.0
-       }
-      ],
-      "facility_points": {
-       "accessible_toilet_01": {
-        "x": 13.77417562100671,
-        "y": 10.477882672817003
-       },
-       "intake_desk": {
-        "x": 15.604175621006712,
-        "y": 10.477882672817003
-       },
-       "meal_distribution_main": {
-        "x": 11.97417562100671,
-        "y": 10.477882672817003
-       },
-       "medical_desk": {
-        "x": 10.20417562100671,
-        "y": 10.477882672817003
-       },
-       "quiet_support": {
-        "x": 8.40417562100671,
-        "y": 10.477882672817003
-       },
-       "toilet_01": {
-        "x": 14.374175621006712,
-        "y": 10.477882672817003
-       },
-       "water_station_main": {
-        "x": 12.574175621006711,
-        "y": 10.477882672817003
-       }
-      },
-      "height_m": 16.382783747337808,
-      "origin": "top_left",
-      "routes": [
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_food",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_intake",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 0.9
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_medical",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_quiet",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_sleeping",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 1.8
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_staff",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_toilet",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 0.9
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_food_corridor",
-        "points": [
-         {
-          "x": 12.27417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_intake_corridor",
-        "points": [
-         {
-          "x": 15.874175621006712,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_medical_corridor",
-        "points": [
-         {
-          "x": 10.47417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_quiet_corridor",
-        "points": [
-         {
-          "x": 8.67417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_sleeping_corridor",
-        "points": [
-         {
-          "x": 3.887087810503355,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 1.8
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_staff_corridor",
-        "points": [
-         {
-          "x": 17.67417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_toilet_corridor",
-        "points": [
-         {
-          "x": 14.074175621006711,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       }
-      ],
-      "schema_version": 1,
-      "service_points": [
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
+     [
+      {
+       "destination_zone_id": "sleeping",
+       "points_m": [
+        {
+         "x": 3.887087810503355,
+         "y": 14.382783747337808
         },
-        "facility_id": "accessible_toilet_01",
-        "id": "legacy-service:d34bc5076754a08e28331f68",
-        "point_m": {
-         "x": 13.77417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "accessible_toilet_01",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "intake_desk",
-        "id": "legacy-service:788cc82320ce4b6e07a59965",
-        "point_m": {
-         "x": 15.604175621006712,
-         "y": 10.477882672817003
-        },
-        "queue_id": "intake_desk",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "meal_distribution_main",
-        "id": "legacy-service:4483648d70d51dce47b29586",
-        "point_m": {
-         "x": 11.97417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "meal_distribution_main",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "medical_desk",
-        "id": "legacy-service:24a22dc837f7add348c91a46",
-        "point_m": {
-         "x": 10.20417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "medical_desk",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "quiet_support",
-        "id": "legacy-service:1a50d56190f3f558ae2e7fd5",
-        "point_m": {
-         "x": 8.40417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "quiet_support",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "toilet_01",
-        "id": "legacy-service:650608e8abd263c7ffed0b32",
-        "point_m": {
-         "x": 14.374175621006712,
-         "y": 10.477882672817003
-        },
-        "queue_id": "toilet_01",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "water_station_main",
-        "id": "legacy-service:efc8fc0c9793f65a86378d94",
-        "point_m": {
-         "x": 12.574175621006711,
-         "y": 10.477882672817003
-        },
-        "queue_id": "water_station_main",
-        "schema_version": 1,
-        "service_capacity": 1
-       }
-      ],
-      "source_ids": [
-       "ASM-SHELTER-AREA-HEURISTIC-V1",
-       "ASM-SHELTER-SERVICE-STATIONS-V1",
-       "ASM-SHELTER-STAFFING-HEURISTIC-V2",
-       "ASM-SHELTER-TOILET-HEURISTIC-V2",
-       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-      ],
-      "source_kind": "synthetic",
-      "units": "m",
-      "width_m": 18.57417562100671,
-      "zones": [
-       {
-        "polygon": [
-         {
-          "x": 0.0,
-          "y": 0.0
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 0.0
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 0.0,
-          "y": 1.8
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 30.09016450603087,
-        "zone_id": "corridor"
-       },
-       {
-        "polygon": [
-         {
-          "x": 0.0,
-          "y": 1.8
-         },
-         {
-          "x": 7.77417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 7.77417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 0.0,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 74.04517746984564,
-        "zone_id": "sleeping"
-       },
-       {
-        "polygon": [
-         {
-          "x": 7.77417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 9.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 9.57417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 7.77417562100671,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687246,
-        "zone_id": "quiet"
-       },
-       {
-        "polygon": [
-         {
-          "x": 9.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 11.37417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 11.37417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 9.57417562100671,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "medical"
-       },
-       {
-        "polygon": [
-         {
-          "x": 11.37417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 13.174175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 13.174175621006711,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 11.37417562100671,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "food"
-       },
-       {
-        "polygon": [
-         {
-          "x": 13.174175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 14.974175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 14.974175621006712,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 13.174175621006711,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "toilet"
-       },
-       {
-        "polygon": [
-         {
-          "x": 14.974175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 16.774175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 16.774175621006712,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 14.974175621006712,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "intake"
-       },
-       {
-        "polygon": [
-         {
-          "x": 16.774175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 16.774175621006712,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.14410967068722,
-        "zone_id": "staff"
-       }
-      ]
-     }
-    ]
-   ],
-   "unset": [
+        {
+         "x": 3.887087810503355,
+         "y": 7.091391873668904
+        }
+       ],
+       "route_id": "arrival-route-test",
+       "source_ids": [
+        "SRC-TEST-APPROACH"
+       ],
+       "source_kind": "operator",
+       "walking_speed_m_per_min": 5.0
+      }
+     ]
+    ],
     [
-     "population"
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "height_m"
+     ],
+     16.382783747337808
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "height_m"
+     ],
+     16.382783747337808
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "arrival_approach_routes"
+     ],
+     [
+      {
+       "destination_zone_id": "sleeping",
+       "distance_m": 7.291391873668903,
+       "points_m": [
+        {
+         "x": 3.887087810503355,
+         "y": 14.382783747337808
+        },
+        {
+         "x": 3.887087810503355,
+         "y": 7.091391873668904
+        }
+       ],
+       "route_id": "arrival-route-test",
+       "schema_version": 1,
+       "source_ids": [
+        "SRC-TEST-APPROACH"
+       ],
+       "source_kind": "operator",
+       "travel_minutes": {
+        "value": 2
+       },
+       "walking_speed_m_per_min": 5.0
+      }
+     ]
     ]
    ]
   },
   "route_here_program": {
    "base": "generated",
-   "set": [
+   "changes": [
     [
+     "del",
      [
-      "sections",
-      "facility_geometry",
-      "value"
-     ],
-     {
-      "arrival_approach_routes": [
-       {
-        "destination_zone_id": "sleeping",
-        "distance_m": 7.291391873668903,
-        "points_m": [
-         {
-          "x": 3.887087810503355,
-          "y": 14.382783747337808
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 7.091391873668904
-         }
-        ],
-        "route_id": "arrival-route-test",
-        "schema_version": 1,
-        "source_ids": [
-         "SRC-TEST-APPROACH"
-        ],
-        "source_kind": "operator",
-        "travel_minutes": {
-         "value": 2
-        },
-        "walking_speed_m_per_min": 5.0
-       }
-      ],
-      "facility_points": {
-       "accessible_toilet_01": {
-        "x": 13.77417562100671,
-        "y": 10.477882672817003
-       },
-       "intake_desk": {
-        "x": 15.604175621006712,
-        "y": 10.477882672817003
-       },
-       "meal_distribution_main": {
-        "x": 11.97417562100671,
-        "y": 10.477882672817003
-       },
-       "medical_desk": {
-        "x": 10.20417562100671,
-        "y": 10.477882672817003
-       },
-       "quiet_support": {
-        "x": 8.40417562100671,
-        "y": 10.477882672817003
-       },
-       "toilet_01": {
-        "x": 14.374175621006712,
-        "y": 10.477882672817003
-       },
-       "water_station_main": {
-        "x": 12.574175621006711,
-        "y": 10.477882672817003
-       }
-      },
-      "height_m": 16.382783747337808,
-      "origin": "top_left",
-      "routes": [
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_food",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_intake",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 0.9
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_medical",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_quiet",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_sleeping",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 1.8
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_staff",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_toilet",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 0.9
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_food_corridor",
-        "points": [
-         {
-          "x": 12.27417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_intake_corridor",
-        "points": [
-         {
-          "x": 15.874175621006712,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_medical_corridor",
-        "points": [
-         {
-          "x": 10.47417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_quiet_corridor",
-        "points": [
-         {
-          "x": 8.67417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_sleeping_corridor",
-        "points": [
-         {
-          "x": 3.887087810503355,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 1.8
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_staff_corridor",
-        "points": [
-         {
-          "x": 17.67417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_toilet_corridor",
-        "points": [
-         {
-          "x": 14.074175621006711,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       }
-      ],
-      "schema_version": 1,
-      "service_points": [
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "accessible_toilet_01",
-        "id": "legacy-service:d34bc5076754a08e28331f68",
-        "point_m": {
-         "x": 13.77417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "accessible_toilet_01",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "intake_desk",
-        "id": "legacy-service:788cc82320ce4b6e07a59965",
-        "point_m": {
-         "x": 15.604175621006712,
-         "y": 10.477882672817003
-        },
-        "queue_id": "intake_desk",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "meal_distribution_main",
-        "id": "legacy-service:4483648d70d51dce47b29586",
-        "point_m": {
-         "x": 11.97417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "meal_distribution_main",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "medical_desk",
-        "id": "legacy-service:24a22dc837f7add348c91a46",
-        "point_m": {
-         "x": 10.20417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "medical_desk",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "quiet_support",
-        "id": "legacy-service:1a50d56190f3f558ae2e7fd5",
-        "point_m": {
-         "x": 8.40417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "quiet_support",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "toilet_01",
-        "id": "legacy-service:650608e8abd263c7ffed0b32",
-        "point_m": {
-         "x": 14.374175621006712,
-         "y": 10.477882672817003
-        },
-        "queue_id": "toilet_01",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "water_station_main",
-        "id": "legacy-service:efc8fc0c9793f65a86378d94",
-        "point_m": {
-         "x": 12.574175621006711,
-         "y": 10.477882672817003
-        },
-        "queue_id": "water_station_main",
-        "schema_version": 1,
-        "service_capacity": 1
-       }
-      ],
-      "source_ids": [
-       "ASM-SHELTER-AREA-HEURISTIC-V1",
-       "ASM-SHELTER-SERVICE-STATIONS-V1",
-       "ASM-SHELTER-STAFFING-HEURISTIC-V2",
-       "ASM-SHELTER-TOILET-HEURISTIC-V2",
-       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-      ],
-      "source_kind": "synthetic",
-      "units": "m",
-      "width_m": 18.57417562100671,
-      "zones": [
-       {
-        "polygon": [
-         {
-          "x": 0.0,
-          "y": 0.0
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 0.0
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 0.0,
-          "y": 1.8
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 30.09016450603087,
-        "zone_id": "corridor"
-       },
-       {
-        "polygon": [
-         {
-          "x": 0.0,
-          "y": 1.8
-         },
-         {
-          "x": 7.77417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 7.77417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 0.0,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 74.04517746984564,
-        "zone_id": "sleeping"
-       },
-       {
-        "polygon": [
-         {
-          "x": 7.77417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 9.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 9.57417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 7.77417562100671,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687246,
-        "zone_id": "quiet"
-       },
-       {
-        "polygon": [
-         {
-          "x": 9.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 11.37417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 11.37417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 9.57417562100671,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "medical"
-       },
-       {
-        "polygon": [
-         {
-          "x": 11.37417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 13.174175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 13.174175621006711,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 11.37417562100671,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "food"
-       },
-       {
-        "polygon": [
-         {
-          "x": 13.174175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 14.974175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 14.974175621006712,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 13.174175621006711,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "toilet"
-       },
-       {
-        "polygon": [
-         {
-          "x": 14.974175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 16.774175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 16.774175621006712,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 14.974175621006712,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "intake"
-       },
-       {
-        "polygon": [
-         {
-          "x": 16.774175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 16.774175621006712,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.14410967068722,
-        "zone_id": "staff"
-       }
-      ]
-     }
+      "population"
+     ]
     ],
     [
+     "set",
      [
       "world",
       "event_queue"
@@ -12000,6 +9872,7 @@
      ]
     ],
     [
+     "set",
      [
       "world",
       "id_counters",
@@ -12008,719 +9881,47 @@
      1
     ],
     [
+     "set",
      [
       "world",
       "model_configs",
-      "facility_geometry"
+      "facility_geometry",
+      "arrival_approach_routes"
      ],
-     {
-      "arrival_approach_routes": [
-       {
-        "destination_zone_id": "sleeping",
-        "points_m": [
-         {
-          "x": 3.887087810503355,
-          "y": 14.382783747337808
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 7.091391873668904
-         }
-        ],
-        "route_id": "arrival-route-test",
-        "source_ids": [
-         "SRC-TEST-APPROACH"
-        ],
-        "source_kind": "operator",
-        "walking_speed_m_per_min": 5.0
-       }
-      ],
-      "facility_points": {
-       "accessible_toilet_01": {
-        "x": 13.77417562100671,
-        "y": 10.477882672817003
-       },
-       "intake_desk": {
-        "x": 15.604175621006712,
-        "y": 10.477882672817003
-       },
-       "meal_distribution_main": {
-        "x": 11.97417562100671,
-        "y": 10.477882672817003
-       },
-       "medical_desk": {
-        "x": 10.20417562100671,
-        "y": 10.477882672817003
-       },
-       "quiet_support": {
-        "x": 8.40417562100671,
-        "y": 10.477882672817003
-       },
-       "toilet_01": {
-        "x": 14.374175621006712,
-        "y": 10.477882672817003
-       },
-       "water_station_main": {
-        "x": 12.574175621006711,
-        "y": 10.477882672817003
-       }
-      },
-      "height_m": 16.382783747337808,
-      "origin": "top_left",
-      "routes": [
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_food",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_intake",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 0.9
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_medical",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_quiet",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_sleeping",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 1.8
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_staff",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_toilet",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 0.9
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_food_corridor",
-        "points": [
-         {
-          "x": 12.27417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_intake_corridor",
-        "points": [
-         {
-          "x": 15.874175621006712,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_medical_corridor",
-        "points": [
-         {
-          "x": 10.47417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_quiet_corridor",
-        "points": [
-         {
-          "x": 8.67417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_sleeping_corridor",
-        "points": [
-         {
-          "x": 3.887087810503355,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 1.8
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_staff_corridor",
-        "points": [
-         {
-          "x": 17.67417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_toilet_corridor",
-        "points": [
-         {
-          "x": 14.074175621006711,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       }
-      ],
-      "schema_version": 1,
-      "service_points": [
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
+     [
+      {
+       "destination_zone_id": "sleeping",
+       "points_m": [
+        {
+         "x": 3.887087810503355,
+         "y": 14.382783747337808
         },
-        "facility_id": "accessible_toilet_01",
-        "id": "legacy-service:d34bc5076754a08e28331f68",
-        "point_m": {
-         "x": 13.77417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "accessible_toilet_01",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "intake_desk",
-        "id": "legacy-service:788cc82320ce4b6e07a59965",
-        "point_m": {
-         "x": 15.604175621006712,
-         "y": 10.477882672817003
-        },
-        "queue_id": "intake_desk",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "meal_distribution_main",
-        "id": "legacy-service:4483648d70d51dce47b29586",
-        "point_m": {
-         "x": 11.97417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "meal_distribution_main",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "medical_desk",
-        "id": "legacy-service:24a22dc837f7add348c91a46",
-        "point_m": {
-         "x": 10.20417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "medical_desk",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "quiet_support",
-        "id": "legacy-service:1a50d56190f3f558ae2e7fd5",
-        "point_m": {
-         "x": 8.40417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "quiet_support",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "toilet_01",
-        "id": "legacy-service:650608e8abd263c7ffed0b32",
-        "point_m": {
-         "x": 14.374175621006712,
-         "y": 10.477882672817003
-        },
-        "queue_id": "toilet_01",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "water_station_main",
-        "id": "legacy-service:efc8fc0c9793f65a86378d94",
-        "point_m": {
-         "x": 12.574175621006711,
-         "y": 10.477882672817003
-        },
-        "queue_id": "water_station_main",
-        "schema_version": 1,
-        "service_capacity": 1
-       }
-      ],
-      "source_ids": [
-       "ASM-SHELTER-AREA-HEURISTIC-V1",
-       "ASM-SHELTER-SERVICE-STATIONS-V1",
-       "ASM-SHELTER-STAFFING-HEURISTIC-V2",
-       "ASM-SHELTER-TOILET-HEURISTIC-V2",
-       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-      ],
-      "source_kind": "synthetic",
-      "units": "m",
-      "width_m": 18.57417562100671,
-      "zones": [
-       {
-        "polygon": [
-         {
-          "x": 0.0,
-          "y": 0.0
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 0.0
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 0.0,
-          "y": 1.8
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 30.09016450603087,
-        "zone_id": "corridor"
-       },
-       {
-        "polygon": [
-         {
-          "x": 0.0,
-          "y": 1.8
-         },
-         {
-          "x": 7.77417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 7.77417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 0.0,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 74.04517746984564,
-        "zone_id": "sleeping"
-       },
-       {
-        "polygon": [
-         {
-          "x": 7.77417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 9.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 9.57417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 7.77417562100671,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687246,
-        "zone_id": "quiet"
-       },
-       {
-        "polygon": [
-         {
-          "x": 9.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 11.37417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 11.37417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 9.57417562100671,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "medical"
-       },
-       {
-        "polygon": [
-         {
-          "x": 11.37417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 13.174175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 13.174175621006711,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 11.37417562100671,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "food"
-       },
-       {
-        "polygon": [
-         {
-          "x": 13.174175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 14.974175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 14.974175621006712,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 13.174175621006711,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "toilet"
-       },
-       {
-        "polygon": [
-         {
-          "x": 14.974175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 16.774175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 16.774175621006712,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 14.974175621006712,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "intake"
-       },
-       {
-        "polygon": [
-         {
-          "x": 16.774175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 16.774175621006712,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.14410967068722,
-        "zone_id": "staff"
-       }
-      ]
-     }
+        {
+         "x": 3.887087810503355,
+         "y": 7.091391873668904
+        }
+       ],
+       "route_id": "arrival-route-test",
+       "source_ids": [
+        "SRC-TEST-APPROACH"
+       ],
+       "source_kind": "operator",
+       "walking_speed_m_per_min": 5.0
+      }
+     ]
     ],
     [
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "height_m"
+     ],
+     16.382783747337808
+    ],
+    [
+     "set",
      [
       "world",
       "model_state",
@@ -12754,1459 +9955,161 @@
       },
       "schema_version": 1
      }
-    ]
-   ],
-   "unset": [
+    ],
     [
-     "population"
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "height_m"
+     ],
+     16.382783747337808
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "arrival_approach_routes"
+     ],
+     [
+      {
+       "destination_zone_id": "sleeping",
+       "distance_m": 7.291391873668903,
+       "points_m": [
+        {
+         "x": 3.887087810503355,
+         "y": 14.382783747337808
+        },
+        {
+         "x": 3.887087810503355,
+         "y": 7.091391873668904
+        }
+       ],
+       "route_id": "arrival-route-test",
+       "schema_version": 1,
+       "source_ids": [
+        "SRC-TEST-APPROACH"
+       ],
+       "source_kind": "operator",
+       "travel_minutes": {
+        "value": 2
+       },
+       "walking_speed_m_per_min": 5.0
+      }
+     ]
     ]
    ]
   },
   "route_other": {
    "base": "generated",
-   "set": [
+   "changes": [
     [
+     "del",
      [
-      "sections",
-      "facility_geometry",
-      "value"
-     ],
-     {
-      "arrival_approach_routes": [
-       {
-        "destination_zone_id": "corridor",
-        "distance_m": 13.482783747337807,
-        "points_m": [
-         {
-          "x": 9.287087810503355,
-          "y": 14.382783747337808
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "route_id": "arrival-route-test",
-        "schema_version": 1,
-        "source_ids": [
-         "SRC-TEST-APPROACH"
-        ],
-        "source_kind": "operator",
-        "travel_minutes": {
-         "value": 3
-        },
-        "walking_speed_m_per_min": 5.0
-       }
-      ],
-      "facility_points": {
-       "accessible_toilet_01": {
-        "x": 13.77417562100671,
-        "y": 10.477882672817003
-       },
-       "intake_desk": {
-        "x": 15.604175621006712,
-        "y": 10.477882672817003
-       },
-       "meal_distribution_main": {
-        "x": 11.97417562100671,
-        "y": 10.477882672817003
-       },
-       "medical_desk": {
-        "x": 10.20417562100671,
-        "y": 10.477882672817003
-       },
-       "quiet_support": {
-        "x": 8.40417562100671,
-        "y": 10.477882672817003
-       },
-       "toilet_01": {
-        "x": 14.374175621006712,
-        "y": 10.477882672817003
-       },
-       "water_station_main": {
-        "x": 12.574175621006711,
-        "y": 10.477882672817003
-       }
-      },
-      "height_m": 16.382783747337808,
-      "origin": "top_left",
-      "routes": [
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_food",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_intake",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 0.9
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_medical",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_quiet",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_sleeping",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 1.8
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_staff",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_toilet",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 0.9
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_food_corridor",
-        "points": [
-         {
-          "x": 12.27417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_intake_corridor",
-        "points": [
-         {
-          "x": 15.874175621006712,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_medical_corridor",
-        "points": [
-         {
-          "x": 10.47417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_quiet_corridor",
-        "points": [
-         {
-          "x": 8.67417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_sleeping_corridor",
-        "points": [
-         {
-          "x": 3.887087810503355,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 1.8
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_staff_corridor",
-        "points": [
-         {
-          "x": 17.67417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_toilet_corridor",
-        "points": [
-         {
-          "x": 14.074175621006711,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       }
-      ],
-      "schema_version": 1,
-      "service_points": [
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "accessible_toilet_01",
-        "id": "legacy-service:d34bc5076754a08e28331f68",
-        "point_m": {
-         "x": 13.77417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "accessible_toilet_01",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "intake_desk",
-        "id": "legacy-service:788cc82320ce4b6e07a59965",
-        "point_m": {
-         "x": 15.604175621006712,
-         "y": 10.477882672817003
-        },
-        "queue_id": "intake_desk",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "meal_distribution_main",
-        "id": "legacy-service:4483648d70d51dce47b29586",
-        "point_m": {
-         "x": 11.97417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "meal_distribution_main",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "medical_desk",
-        "id": "legacy-service:24a22dc837f7add348c91a46",
-        "point_m": {
-         "x": 10.20417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "medical_desk",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "quiet_support",
-        "id": "legacy-service:1a50d56190f3f558ae2e7fd5",
-        "point_m": {
-         "x": 8.40417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "quiet_support",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "toilet_01",
-        "id": "legacy-service:650608e8abd263c7ffed0b32",
-        "point_m": {
-         "x": 14.374175621006712,
-         "y": 10.477882672817003
-        },
-        "queue_id": "toilet_01",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "water_station_main",
-        "id": "legacy-service:efc8fc0c9793f65a86378d94",
-        "point_m": {
-         "x": 12.574175621006711,
-         "y": 10.477882672817003
-        },
-        "queue_id": "water_station_main",
-        "schema_version": 1,
-        "service_capacity": 1
-       }
-      ],
-      "source_ids": [
-       "ASM-SHELTER-AREA-HEURISTIC-V1",
-       "ASM-SHELTER-SERVICE-STATIONS-V1",
-       "ASM-SHELTER-STAFFING-HEURISTIC-V2",
-       "ASM-SHELTER-TOILET-HEURISTIC-V2",
-       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-      ],
-      "source_kind": "synthetic",
-      "units": "m",
-      "width_m": 18.57417562100671,
-      "zones": [
-       {
-        "polygon": [
-         {
-          "x": 0.0,
-          "y": 0.0
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 0.0
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 0.0,
-          "y": 1.8
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 30.09016450603087,
-        "zone_id": "corridor"
-       },
-       {
-        "polygon": [
-         {
-          "x": 0.0,
-          "y": 1.8
-         },
-         {
-          "x": 7.77417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 7.77417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 0.0,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 74.04517746984564,
-        "zone_id": "sleeping"
-       },
-       {
-        "polygon": [
-         {
-          "x": 7.77417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 9.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 9.57417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 7.77417562100671,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687246,
-        "zone_id": "quiet"
-       },
-       {
-        "polygon": [
-         {
-          "x": 9.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 11.37417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 11.37417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 9.57417562100671,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "medical"
-       },
-       {
-        "polygon": [
-         {
-          "x": 11.37417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 13.174175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 13.174175621006711,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 11.37417562100671,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "food"
-       },
-       {
-        "polygon": [
-         {
-          "x": 13.174175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 14.974175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 14.974175621006712,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 13.174175621006711,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "toilet"
-       },
-       {
-        "polygon": [
-         {
-          "x": 14.974175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 16.774175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 16.774175621006712,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 14.974175621006712,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "intake"
-       },
-       {
-        "polygon": [
-         {
-          "x": 16.774175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 16.774175621006712,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.14410967068722,
-        "zone_id": "staff"
-       }
-      ]
-     }
+      "population"
+     ]
     ],
     [
+     "set",
      [
       "world",
       "model_configs",
-      "facility_geometry"
+      "facility_geometry",
+      "arrival_approach_routes"
      ],
-     {
-      "arrival_approach_routes": [
-       {
-        "destination_zone_id": "corridor",
-        "points_m": [
-         {
-          "x": 9.287087810503355,
-          "y": 14.382783747337808
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "route_id": "arrival-route-test",
-        "source_ids": [
-         "SRC-TEST-APPROACH"
-        ],
-        "source_kind": "operator",
-        "walking_speed_m_per_min": 5.0
-       }
-      ],
-      "facility_points": {
-       "accessible_toilet_01": {
-        "x": 13.77417562100671,
-        "y": 10.477882672817003
-       },
-       "intake_desk": {
-        "x": 15.604175621006712,
-        "y": 10.477882672817003
-       },
-       "meal_distribution_main": {
-        "x": 11.97417562100671,
-        "y": 10.477882672817003
-       },
-       "medical_desk": {
-        "x": 10.20417562100671,
-        "y": 10.477882672817003
-       },
-       "quiet_support": {
-        "x": 8.40417562100671,
-        "y": 10.477882672817003
-       },
-       "toilet_01": {
-        "x": 14.374175621006712,
-        "y": 10.477882672817003
-       },
-       "water_station_main": {
-        "x": 12.574175621006711,
-        "y": 10.477882672817003
-       }
-      },
-      "height_m": 16.382783747337808,
-      "origin": "top_left",
-      "routes": [
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_food",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_intake",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 0.9
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_medical",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_quiet",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_sleeping",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 1.8
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_staff",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_corridor_toilet",
-        "points": [
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 0.9
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 7.091391873668904
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_food_corridor",
-        "points": [
-         {
-          "x": 12.27417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 12.27417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_intake_corridor",
-        "points": [
-         {
-          "x": 15.874175621006712,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 15.874175621006712,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_medical_corridor",
-        "points": [
-         {
-          "x": 10.47417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 10.47417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_quiet_corridor",
-        "points": [
-         {
-          "x": 8.67417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 8.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_sleeping_corridor",
-        "points": [
-         {
-          "x": 3.887087810503355,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 1.8
-         },
-         {
-          "x": 3.887087810503355,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_staff_corridor",
-        "points": [
-         {
-          "x": 17.67417562100671,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 17.67417562100671,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       },
-       {
-        "accessible": true,
-        "edge_id": "route_toilet_corridor",
-        "points": [
-         {
-          "x": 14.074175621006711,
-          "y": 7.091391873668904
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 14.074175621006711,
-          "y": 0.9
-         },
-         {
-          "x": 9.287087810503355,
-          "y": 0.9
-         }
-        ],
-        "width_m": 1.8
-       }
-      ],
-      "schema_version": 1,
-      "service_points": [
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
+     [
+      {
+       "destination_zone_id": "corridor",
+       "points_m": [
+        {
+         "x": 9.287087810503355,
+         "y": 14.382783747337808
         },
-        "facility_id": "accessible_toilet_01",
-        "id": "legacy-service:d34bc5076754a08e28331f68",
-        "point_m": {
-         "x": 13.77417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "accessible_toilet_01",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "intake_desk",
-        "id": "legacy-service:788cc82320ce4b6e07a59965",
-        "point_m": {
-         "x": 15.604175621006712,
-         "y": 10.477882672817003
-        },
-        "queue_id": "intake_desk",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "meal_distribution_main",
-        "id": "legacy-service:4483648d70d51dce47b29586",
-        "point_m": {
-         "x": 11.97417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "meal_distribution_main",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "medical_desk",
-        "id": "legacy-service:24a22dc837f7add348c91a46",
-        "point_m": {
-         "x": 10.20417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "medical_desk",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "quiet_support",
-        "id": "legacy-service:1a50d56190f3f558ae2e7fd5",
-        "point_m": {
-         "x": 8.40417562100671,
-         "y": 10.477882672817003
-        },
-        "queue_id": "quiet_support",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "toilet_01",
-        "id": "legacy-service:650608e8abd263c7ffed0b32",
-        "point_m": {
-         "x": 14.374175621006712,
-         "y": 10.477882672817003
-        },
-        "queue_id": "toilet_01",
-        "schema_version": 1,
-        "service_capacity": 1
-       },
-       {
-        "access": {
-         "accessibility": "unknown",
-         "required_access_tags": [],
-         "required_staff_skills": []
-        },
-        "facility_id": "water_station_main",
-        "id": "legacy-service:efc8fc0c9793f65a86378d94",
-        "point_m": {
-         "x": 12.574175621006711,
-         "y": 10.477882672817003
-        },
-        "queue_id": "water_station_main",
-        "schema_version": 1,
-        "service_capacity": 1
-       }
-      ],
-      "source_ids": [
-       "ASM-SHELTER-AREA-HEURISTIC-V1",
-       "ASM-SHELTER-SERVICE-STATIONS-V1",
-       "ASM-SHELTER-STAFFING-HEURISTIC-V2",
-       "ASM-SHELTER-TOILET-HEURISTIC-V2",
-       "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-      ],
-      "source_kind": "synthetic",
-      "units": "m",
-      "width_m": 18.57417562100671,
-      "zones": [
-       {
-        "polygon": [
-         {
-          "x": 0.0,
-          "y": 0.0
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 0.0
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 0.0,
-          "y": 1.8
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 30.09016450603087,
-        "zone_id": "corridor"
-       },
-       {
-        "polygon": [
-         {
-          "x": 0.0,
-          "y": 1.8
-         },
-         {
-          "x": 7.77417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 7.77417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 0.0,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 74.04517746984564,
-        "zone_id": "sleeping"
-       },
-       {
-        "polygon": [
-         {
-          "x": 7.77417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 9.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 9.57417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 7.77417562100671,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687246,
-        "zone_id": "quiet"
-       },
-       {
-        "polygon": [
-         {
-          "x": 9.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 11.37417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 11.37417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 9.57417562100671,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "medical"
-       },
-       {
-        "polygon": [
-         {
-          "x": 11.37417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 13.174175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 13.174175621006711,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 11.37417562100671,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "food"
-       },
-       {
-        "polygon": [
-         {
-          "x": 13.174175621006711,
-          "y": 1.8
-         },
-         {
-          "x": 14.974175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 14.974175621006712,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 13.174175621006711,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "toilet"
-       },
-       {
-        "polygon": [
-         {
-          "x": 14.974175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 16.774175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 16.774175621006712,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 14.974175621006712,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.144109670687257,
-        "zone_id": "intake"
-       },
-       {
-        "polygon": [
-         {
-          "x": 16.774175621006712,
-          "y": 1.8
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 1.8
-         },
-         {
-          "x": 18.57417562100671,
-          "y": 12.382783747337808
-         },
-         {
-          "x": 16.774175621006712,
-          "y": 12.382783747337808
-         }
-        ],
-        "source_ids": [
-         "ASM-STANDARD-SHELTER-GEOMETRY-V1"
-        ],
-        "usable_area_m2": 17.14410967068722,
-        "zone_id": "staff"
-       }
-      ]
-     }
-    ]
-   ],
-   "unset": [
+        {
+         "x": 9.287087810503355,
+         "y": 0.9
+        }
+       ],
+       "route_id": "arrival-route-test",
+       "source_ids": [
+        "SRC-TEST-APPROACH"
+       ],
+       "source_kind": "operator",
+       "walking_speed_m_per_min": 5.0
+      }
+     ]
+    ],
     [
-     "population"
+     "set",
+     [
+      "world",
+      "model_configs",
+      "facility_geometry",
+      "height_m"
+     ],
+     16.382783747337808
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "height_m"
+     ],
+     16.382783747337808
+    ],
+    [
+     "set",
+     [
+      "sections",
+      "facility_geometry",
+      "value",
+      "arrival_approach_routes"
+     ],
+     [
+      {
+       "destination_zone_id": "corridor",
+       "distance_m": 13.482783747337807,
+       "points_m": [
+        {
+         "x": 9.287087810503355,
+         "y": 14.382783747337808
+        },
+        {
+         "x": 9.287087810503355,
+         "y": 0.9
+        }
+       ],
+       "route_id": "arrival-route-test",
+       "schema_version": 1,
+       "source_ids": [
+        "SRC-TEST-APPROACH"
+       ],
+       "source_kind": "operator",
+       "travel_minutes": {
+        "value": 3
+       },
+       "walking_speed_m_per_min": 5.0
+      }
+     ]
     ]
    ]
   },
   "temporary_space": {
    "base": "generated",
-   "set": [
+   "changes": [
     [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
      [
       "world",
       "event_queue"
@@ -14293,6 +10196,7 @@
      ]
     ],
     [
+     "set",
      [
       "world",
       "id_counters",
@@ -14301,6 +10205,7 @@
      2
     ],
     [
+     "set",
      [
       "world",
       "model_state",
@@ -14336,17 +10241,19 @@
       "schema_version": 1
      }
     ]
-   ],
-   "unset": [
-    [
-     "population"
-    ]
    ]
   },
   "temporary_space_guard": {
    "base": "generated",
-   "set": [
+   "changes": [
     [
+     "del",
+     [
+      "population"
+     ]
+    ],
+    [
+     "set",
      [
       "world",
       "event_queue"
@@ -14439,6 +10346,7 @@
      ]
     ],
     [
+     "set",
      [
       "world",
       "id_counters",
@@ -14447,6 +10355,7 @@
      2
     ],
     [
+     "set",
      [
       "world",
       "model_state",
@@ -14481,11 +10390,6 @@
       },
       "schema_version": 1
      }
-    ]
-   ],
-   "unset": [
-    [
-     "population"
     ]
    ]
   }

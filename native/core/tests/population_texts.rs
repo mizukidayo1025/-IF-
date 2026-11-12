@@ -39,6 +39,7 @@ use sheltersim_core::value::V;
 use sheltersim_core::host::Contract;
 use sheltersim_core::world::{Fit, World, WorldCell};
 
+use support::cases;
 use support::load::{self, Loaded};
 use support::texts::{self, changed};
 use support::TestHost;
@@ -102,7 +103,7 @@ struct Case {
 }
 
 fn case(name: &str, test: &str) -> Case {
-    let entry = texts::entry(FILE, name);
+    let entry = cases::entry(FILE, name);
     let loaded = Rc::new(load::loaded(&entry));
     let host = load::host(&entry);
     let gave = PYTHON_GAVE.iter().find(|(name, _)| *name == test).unwrap_or_else(|| panic!("{test}")).1.iter();

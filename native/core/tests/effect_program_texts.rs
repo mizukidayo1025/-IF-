@@ -31,6 +31,7 @@ use sheltersim_core::state::staff_operations::{Phase, StaffOperationsRow, NAME a
 use sheltersim_core::value::V;
 use sheltersim_core::world::{self, Fit, World, WorldCell, ID_COUNTERS};
 
+use support::cases;
 use support::dumps::Dumps;
 use support::load;
 use support::texts::{self, big, changed, DROP};
@@ -55,7 +56,7 @@ struct Case {
 }
 
 fn case(file: &str, name: &str) -> Case {
-    let entry = texts::entry(file, name);
+    let entry = cases::entry(file, name);
     let cell = texts::cell(&entry);
     let host = load::host(&entry);
     Case { entry, cell, host }

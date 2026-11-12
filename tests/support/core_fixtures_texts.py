@@ -17,51 +17,27 @@ pytest files of the same names built. This module builds those worlds and export
   approach route.
 - `handoff_texts.json`: the world where a patrol is under way and its handoff is scheduled.
 
-A variant holds only what differs from its base world (`variant`): `{"base": name, "set": [[path,
-value], ...], "unset": [path, ...]}`, where a path is the keys from the entry down (at most to a
-namespace of `model_state` or a section of `model_configs`). `native/core/tests/support/texts.rs`
-puts the base and the changes together again. A builder adds its own keys to an entry: the IDs a
-test picked in Python's order, the commands `PopulationPresenceCommand` validated.
+A variant is stored as the changes from its base world, as `core_texts.py` stores its worlds
+(`{"base": name, "changes": [...]}`, `core_texts.changes`); `native/core/tests/support/cases.rs`
+(`cases::entry`) makes it again. A builder adds its own keys to an entry: the IDs a test picked in
+Python's order, the commands `PopulationPresenceCommand` validated.
 """
 
 from __future__ import annotations
 
 import copy
-import json
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any
 
 from support.core_fixtures import export_world
-
-# A path deeper than this is set whole: the entry's key, the world's key, the namespace.
-VARIANT_DEPTH = 3
-
-
-def _text(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, ensure_ascii=False)
+from support.core_texts import changes
 
 
 def variant(base_name: str, base: dict[str, Any], entry: dict[str, Any]) -> dict[str, Any]:
     """`entry` as the changes from `base`, the entry of `base_name` in the same file."""
-    sets: list[list[Any]] = []
-    unsets: list[list[str]] = []
-
-    def walk(path: list[str], old: Any, new: Any) -> None:
-        if isinstance(old, dict) and isinstance(new, dict) and len(path) < VARIANT_DEPTH:
-            for key in sorted(set(old) | set(new)):
-                if key not in new:
-                    unsets.append([*path, key])
-                elif key not in old:
-                    sets.append([[*path, key], new[key]])
-                elif _text(old[key]) != _text(new[key]):
-                    walk([*path, key], old[key], new[key])
-        else:
-            sets.append([path, new])
-
-    walk([], base, entry)
-    return {"base": base_name, "set": sets, "unset": unsets}
+    return {"base": base_name, "changes": changes(base, entry)}
 
 
 def _controller(world: Any) -> Any:

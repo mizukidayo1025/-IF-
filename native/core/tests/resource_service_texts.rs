@@ -39,6 +39,7 @@ use sheltersim_core::state::resource_service::{ServiceRow, NAME as SERVICE};
 use sheltersim_core::text::py_repr;
 use sheltersim_core::world::{Fit, World, WorldCell, METRIC_STATE};
 
+use support::cases;
 use support::dumps::Dumps;
 use support::load::{self, Loaded};
 use support::texts::{self, changed, DROP};
@@ -59,7 +60,7 @@ struct Case {
 }
 
 fn case(name: &str) -> Case {
-    let entry = texts::entry(FILE, name);
+    let entry = cases::entry(FILE, name);
     let loaded = load::loaded(&entry);
     let host = load::host(&entry);
     Case { entry, loaded, host }
