@@ -20,6 +20,7 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyFloat, PyString, PyTuple};
 
+use sheltersim_core::config::read::Read;
 use sheltersim_core::config::{Configs, Fault, Filled, Lazy, Section, SectionId};
 use sheltersim_core::error::Error as CoreError;
 use sheltersim_core::events::writer::WriteError;
@@ -33,6 +34,7 @@ use sheltersim_core::host::{
     Contract, Decision, DecisionSink, ErrorClass, Foreign, ForeignRecord, Holding, Host, HostFailure, Llm, Part, Phase, Stage, Trace,
     TraceLevel, TxnKind,
 };
+use sheltersim_core::rules::kit::Kept;
 use sheltersim_core::rules::metrics::MetricSample;
 use sheltersim_core::run::Policies;
 use sheltersim_core::value::V;
@@ -44,7 +46,7 @@ use crate::core::errors::{self, to_py_err, Outcome};
 use crate::core::row::{attribute, exact_dict, exact_list, exact_str};
 use crate::core::run::run_of;
 use crate::core::value::VPy;
-use crate::core::world_core::{attached_state, core_of, holding_of, mirror_of, raw_dict_get, raw_list_append};
+use crate::core::world_core::{attached_state, core_of, holding_of, mirror_of, raw_dict_get, raw_list_append, PyWorldCell};
 use crate::eventlog::EventStore;
 use crate::rules::movement_geometry::{Geo, GeoPy};
 use crate::state::information::{NAME as INFORMATION, SCHEMA_VERSION as INFORMATION_VERSION};
@@ -1102,6 +1104,69 @@ impl<'py> Host for PyHost<'py> {
             Err(_) => Err(HostError(Unsupported::new_err("a draw that is not a float"))),
         }
     }
+}
+
+// ---- What a Python entry reads of the world's outside (lane P10-1c) ------------------------------
+
+impl<'py> PyHost<'py> {
+    /// The host of a Python entry on `world` (the phase path, a test, a Python caller): no
+    /// controller, nothing a transaction keeps.
+    pub(crate) fn of_entry(world: &Bound<'py, PyAny>) -> Self {
+        Self::of_world(world, PyDict::new(world.py()))
+    }
+
+    /// What the world holds now (H1), through the core's reader (`kit::holding`), as the tick reads
+    /// it: read at every call, as an entry read each namespace and field at its own point.
+    pub(crate) fn holding_now(&mut self) -> PyResult<Arc<Holding>> {
+        self.ran_python();
+        let world = self.world.clone();
+        sheltersim_core::rules::kit::holding(&PyWorldCell(&world), self).map_err(|error| error.0)
+    }
+
+    /// A section the core parses from the configs' value (H2, `kit::section_value`): the value, or
+    /// the fault for the core to raise where its rule reads the section.
+    pub(crate) fn value_section<T>(&mut self, holding: &Holding, which: SectionId, get: fn(&Configs) -> &Lazy<T>, parse: fn(&V) -> Read<T>) -> PyResult<Kept<T>> {
+        let world = self.world.clone();
+        sheltersim_core::rules::kit::kept_section_value(&PyWorldCell(&world), self, holding, which, get, parse).map_err(|error| error.0)
+    }
+
+    /// `value_section`, raised here: a refusal its `Unsupported`, any other fault a corrupt
+    /// `model_configs` (`configs::read`).
+    #[track_caller]
+    pub(crate) fn value<T>(&mut self, holding: &Holding, which: SectionId, get: fn(&Configs) -> &Lazy<T>, parse: fn(&V) -> Read<T>) -> PyResult<Arc<T>> {
+        configs::read(self.value_section(holding, which, get, parse)?)
+    }
+
+    /// A section Python's contract parses (H2, `kit::section`): the value, or its fault.
+    pub(crate) fn host_section<T>(&mut self, holding: &Holding, which: SectionId, get: fn(&Configs) -> &Lazy<T>) -> PyResult<Kept<T>> {
+        let world = self.world.clone();
+        sheltersim_core::rules::kit::kept_section(&PyWorldCell(&world), self, holding, which, get).map_err(|error| error.0)
+    }
+
+    /// `host_section`, raised here: a refusal its `Unsupported`, any other fault what the parse
+    /// raises again (policy E14, `kit::raise_section`).
+    pub(crate) fn host_value<T>(&mut self, holding: &Holding, which: SectionId, get: fn(&Configs) -> &Lazy<T>) -> PyResult<Arc<T>> {
+        match self.host_section(holding, which, get)? {
+            Ok(value) => Ok(value),
+            Err(fault) => Err(self.raise_section(which, &fault)),
+        }
+    }
+
+    /// `namespace_is_absent` of the holding read now: the key is missing or None; the refusal of a
+    /// `model_state` that is not a plain dict.
+    pub(crate) fn absent_now(&mut self, name: &str) -> PyResult<bool> {
+        absent(&*self.holding_now()?, name)
+    }
+
+    /// The error a read site raises for a fault of a section Python parses (`kit::raise_section`).
+    pub(crate) fn raise_section(&mut self, which: SectionId, fault: &Fault) -> PyErr {
+        sheltersim_core::rules::kit::raise_section(self, which, fault).0
+    }
+}
+
+/// `Holding::is_absent`, its refusal raised (`Unsupported`).
+pub(crate) fn absent(holding: &Holding, name: &str) -> PyResult<bool> {
+    holding.is_absent(name).map_err(Unsupported::new_err)
 }
 
 // ---- For tests ---------------------------------------------------------------------------------
