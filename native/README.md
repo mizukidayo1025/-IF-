@@ -105,9 +105,19 @@ split PR by PR; its last section sums up what is where.
   of one world. Its input is untrusted (the browser reads it): a value that is not what the
   exporter writes is an `Error`, never a panic (`core/tests/load_input.rs`). The core's tests and
   a host without Python both use it; a Checkpoint's restore is to use it later (stage 6).
+- **A Run without Python** (#244, PR 4-3): `sheltersim_core::plain::PlainHost` is the host of a
+  loaded world with no Python behind it, which the WASM prototype runs: the sections and the floor
+  plan of the export (`load::Sections`, `load::FloorPlans`), the records of the world's log, the
+  contracts (E15) giving their input back (it counts what was asked by model), the whole-world
+  validation (E6) passing, no LLM, and the metric samples kept as lines for their digest.
+  `plain::PlainRun` reads an export, runs one tick at a time (`engine::step`: `run_tick`, the
+  minute moved on, the end-of-tick check, as `TickEngine.step`) and gives the digests of the
+  world's parts (`canonical::digests`) and of the samples; on the worlds of `tick_core.json` they
+  are the native path's (`core/tests/tick_core.rs`).
 - **Out of the core** (decision 4): building a world from a Scenario and restoring a Checkpoint
   stay in Python and the wrapper. The whole-world validation texts (E6) and the pydantic
-  contracts (E15) stay Python behind `Host` until stage 4.
+  contracts (E15) stay Python behind `Host`; a host without Python passes the validation and
+  takes each contract's input as given (`PlainHost`) until stage 6.
 
 ## Layout for lanes
 
@@ -304,11 +314,12 @@ split PR by PR; its last section sums up what is where.
   today. A test reads one exported world with `load::entry(file, world)`, then `load::loaded`
   (the World, the Run and its policies) and `load::host` (the sections and the floor plan), or
   `load::following_host` for a Run's ticks: a host that also does what the PyO3 crate's host does
-  to the world it owns (the floor plan of the overlay at each call, a namespace a rule starts,
-  `world.resources` after a ledger operation, the records of the world's log as `find_record`
-  finds them).
+  to the world it owns (the floor plan of the overlay at each call, the records of the world's log
+  as `find_record` finds them; the core writes the namespaces it starts and `world.resources`
+  itself and only tells the host).
   `tests/tick_core.rs` runs the ticks of each world of `tests/data/tick_core.json` with `TestHost`
-  alone and reaches the digests the native path gives on the same world;
+  and with the crate's `PlainHost`, and both reach the digests the native path gives on the same
+  world;
   `tests/typed_rows.rs` reads every typed namespace of `tests/data/typed_rows.json` and writes
   it back to the same bytes, and refuses what `from_py` refuses; `tests/fixtures.rs` checks the
   sections and the floor plan of an exported world against what the native path read of it, and

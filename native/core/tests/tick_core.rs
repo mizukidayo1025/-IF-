@@ -33,7 +33,9 @@ use std::rc::Rc;
 use serde_json::Value;
 use sheltersim_core::checkpoint::sha256_hex;
 use sheltersim_core::config::SectionId;
+use sheltersim_core::engine::StepError;
 use sheltersim_core::host::Phase;
+use sheltersim_core::plain::PlainRun;
 use sheltersim_core::row::ValueRow;
 use sheltersim_core::state::movement::MovementRow;
 use sheltersim_core::world::{Place, World, WorldCell};
@@ -291,3 +293,64 @@ fn two_runs_of_the_core_give_the_same_bytes() {
     }
 }
 
+
+/// The crate's host without Python (`plain::PlainRun`, #244 PR 4-3; the host of the WASM
+/// prototype) runs each world to the native path's world and samples, as the `TestHost` does: the
+/// same digests of the world's parts and of the samples, tick by tick until the fixture's last.
+#[test]
+fn the_plain_host_runs_each_world_to_the_native_path_s_world() {
+    for name in WORLDS {
+        let fixture = load::entry("tick_core", name);
+        let wanted = &fixture["expected"];
+        let ticks = wanted["ticks"].as_i64().unwrap();
+        let mut run = PlainRun::of_entry(&fixture).unwrap_or_else(|error| panic!("{name}: {error}"));
+        assert_eq!(run.minute().unwrap(), 0, "{name}");
+        for at in 0..ticks {
+            let minute = run.step().unwrap_or_else(|error| panic!("{name}: {error:?}"));
+            assert_eq!(minute, at, "{name}");
+        }
+        assert_eq!(run.minute().unwrap(), ticks, "{name}");
+        assert_eq!(digests(&run.loaded), expected(&wanted["world"]), "{name}");
+        // The crate's digests of the document's parts are those of the parts `parts` covers.
+        let all: HashMap<&str, String> = run.digests().unwrap().into_iter().collect();
+        for (part, digest) in digests(&run.loaded) {
+            if part != "scalars" {
+                assert_eq!(all[part], digest, "{name}: {part}");
+            }
+        }
+        assert_eq!(run.host.metric_lines.len() as u64, wanted["metric_count"].as_u64().unwrap(), "{name}");
+        assert_eq!(run.host.metrics_digest(), wanted["metrics"].as_str().unwrap(), "{name}");
+        assert_eq!(run.stepping.checks.asked.iter().filter(|question| *question == "effects").count() as i64, ticks, "{name}");
+    }
+    // The generated world's EffectProgram moved four facilities: the plan was built again after each.
+    let fixture = load::entry("tick_core", "generated");
+    let mut run = PlainRun::of_entry(&fixture).unwrap();
+    for _ in 0..fixture["expected"]["ticks"].as_i64().unwrap() {
+        run.step().unwrap();
+    }
+    assert_eq!(run.host.plan_builds(), 5);
+}
+
+/// A world's clock ends the Run: past its last minute a step says so and changes nothing.
+#[test]
+fn the_plain_run_stops_at_the_end_of_the_clock() {
+    let fixture = load::entry("tick_core", "small_replay");
+    let mut run = PlainRun::of_entry(&fixture).unwrap();
+    let duration = run.duration().unwrap();
+    while run.minute().unwrap() < duration {
+        run.step().unwrap_or_else(|error| panic!("{error:?}"));
+    }
+    let before = run.digests().unwrap();
+    assert!(matches!(run.step(), Err(StepError::Complete)));
+    assert_eq!(run.digests().unwrap(), before);
+}
+
+/// The JSON text of an entry that is not an exported world is an error, not a panic.
+#[test]
+fn the_plain_run_refuses_what_is_not_an_exported_world() {
+    for raw in [&b"not json"[..], b"{}", b"[]", br#"{"world": 1, "slots": [], "run": {}}"#] {
+        assert!(PlainRun::of_json(raw).is_err(), "{}", String::from_utf8_lossy(raw));
+    }
+    let fixture = load::entry("tick_core", "small_replay");
+    assert!(PlainRun::of_json(fixture.to_string().as_bytes()).is_ok());
+}
