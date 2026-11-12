@@ -26,7 +26,7 @@ ruff format --check .
 
 - `-n auto`（pytest-xdist）で並列に実行します。`pyproject.toml`の`--dist worksteal`で、手の空いたworkerが残りのテストを引き取ります。
 - `long_simulation`の印は、7日間のsimulationを実行するテストと、1件で30秒以上（直列）かかるテストに付けます。`tests/conftest.py`の`pytest_collection_modifyitems`が、並列のときにこれらを各workerの塊の先頭に1本ずつ置くので、長いテストは最初から並んで走ります。
-- 開発中は`-m "not long_simulation"`で長いテストを除けます。印のない`pytest`は全件を実行します。`オフラインCI`（`.github/workflows/ci.yml`）は、mainへのPull Requestごとに自動で、または手動で、Linux・Windows・macOSの3つでRustのkernelを作って導入し、長いテストを除いた全件を`-n auto`で実行します。3つのOSで動くことを確かめるためです（#48）。全経路のハッシュ（`benchmarks/gate_all_paths.py --expect`）も3つのOSで同じ`fixtures/gate-all-paths.json`と比べます。Linuxでは待ち時間が延びないよう別のjobとして並べ、WindowsとmacOSではテストの後の手順として動かします（テストが失敗しても動きます）。lint・format・clippyはLinuxだけの別のjobです。同じjobで、Rustの中核（`native/core`、#152）がpyo3に依存しないことを確かめ、その`cargo test`を実行します。続けて、中核を既定の機能`parallel`（rayon）なしで`wasm32-unknown-unknown`向けに作り、`parallel`なしの`cargo test`も実行します。手動実行の`長時間simulation回帰`（`.github/workflows/long-regression.yml`）の`long`は、長いテストだけを3つのOSで実行します。`オフラインCI`と同じく、Rustのkernelを作って導入してから実行します。
+- 開発中は`-m "not long_simulation"`で長いテストを除けます。印のない`pytest`は全件を実行します。`オフラインCI`（`.github/workflows/ci.yml`）は、mainへのPull Requestごとに自動で、または手動で、Linux・Windows・macOSの3つでRustのkernelを作って導入し、長いテストを除いた全件を`-n auto`で実行します。3つのOSで動くことを確かめるためです（#48）。全経路のハッシュ（`benchmarks/gate_all_paths.py --expect`）も3つのOSで同じ`fixtures/gate-all-paths.json`と比べます。Linuxでは待ち時間が延びないよう別のjobとして並べ、WindowsとmacOSではテストの後の手順として動かします（テストが失敗しても動きます）。lint・format・clippyはLinuxだけの別のjobです。同じjobで、Rustの中核（`native/core`、#152）がpyo3に依存しないことを確かめ、その`cargo test`を実行します。続けて、中核を既定の機能`parallel`（rayon）なしで`wasm32-unknown-unknown`向けに作り、`parallel`なしの`cargo test`も実行します。lintのjobは`benchmarks/rust_port/glue_check.py`も実行し、Rustの窓口の規則のファイル（`native/src/rules/*.rs`）がglueだけであること（#152）を確かめます。手動実行の`長時間simulation回帰`（`.github/workflows/long-regression.yml`）の`long`は、長いテストだけを3つのOSで実行します。`オフラインCI`と同じく、Rustのkernelを作って導入してから実行します。
 
 ### 結果の残り方と見方
 
@@ -108,6 +108,8 @@ python -m coverage report --sort=cover
 tickの規則はRustのkernelだけで、Pythonの本体はありません（`kernel_only`、`KERNEL_ONLY_SEGMENTS`）。Pythonの関数をpatchしても、kernelはそれを呼ばないので、patchは何にも届きません。振る舞いを変えたいテストは、状態やイベントでその場面を作ります。コントローラーの手順そのもの（`OfflineSimulationController._psychology_update`など）をpatchすると、driverはそのtickを断り、段階のPythonの手順（`phase_handler`）で進みます。手順はそれでもkernelです（`support/world.py`の`on_the_phases`）。Pythonに残した検証（`validate_*`、決定D3）を数えたりpatchしたりするテストには`@pytest.mark.python_rules`を付けます。印は検証のRustの双子（`register_rust_validator`と実体の規則のkernel）を切ります。
 
 `tests/unit/repo/test_tracked_write_lint.py`は、tick側のコードで、入れ物に入れた値を元の名前のまま書き換える書き方（`record = relationships[key] = {...}`のあとの`record["trust"] = x`）を見つけると失敗します。入れたあとは`record = relationships[key]`で読み直します。
+
+`benchmarks/rust_port/glue_check.py`は、`native/src/rules/*.rs`（除くファイルはスクリプトに理由つきで書きます）に、状態の窓口の読み書きや規則の計算（`namespace_held`、`EventWriter`、`py_fsum`など、設計P9の§6の禁止の表）、Pythonの呼び出し、1つの式でない`with_world(`のclosureを見つけると、スクリプトの`EXEMPTIONS`にファイルと種類ごとの数と理由がない限り失敗します。数が減ったときは`EXEMPTIONS`も減らします（数が合わないと失敗します）。消したPythonの規則とfallback（`care_source_ids_for_agent`など）が`src/sheltersim`に戻ること、中核に移した手順（`_sync_movement_after_events`、管理者の`arbitrate`、`EventDispatcher.settle`など）が本体のない`kernel_only`でなくなることでも失敗します。`tests/unit/repo/test_glue_check.py`がこの確かめと、見落とさないことを確かめます。
 
 `tests/unit/repo/test_world_swap_lint.py`は、`src/`で`<x>.__dict__.clear()`か`<x>.__dict__.update(`を、決めた場所（`state_mirror.transaction_or_copy`の差し替え、`WorldState._bare_world`、世界でないもの）の外に見つけると失敗します。世界を変えるときは、写して差し替えずに`state_mirror.transaction`で世界そのものを変えます。
 
