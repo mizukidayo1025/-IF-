@@ -5,6 +5,11 @@ core's (native/core/src/rules/dispatch.rs), and a handler it does not know is ru
 `apply` by the host. Each case runs events through it and compares everything saved with what the
 Python step saved from the same events: a digest of it, taken once from that step (45a9bc9) before
 it went, pinned on every OS, as the gate's hashes are. See docs/rust-port/lanes/m3-dispatch.md.
+
+The events of the core's handlers (a social action, a walk, an event no handler takes) and the
+travel completion's texts are checked without Python in `native/core/tests/dispatch_rows.rs`, on
+the same worlds (`support/core_fixtures_reads.py`, #225). Here are the Python handlers the host
+runs, what Python holds that the phase refuses, the entries, and a Run.
 """
 
 from __future__ import annotations
@@ -17,7 +22,14 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from support.paths import SCENARIO_100_AGENTS
+from support.core_fixtures_reads import (
+    SPOILED_WALKS,
+    dispatch_controller,
+    probe,
+    return_walk,
+    social_action,
+    toilet_walk,
+)
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine
@@ -29,22 +41,13 @@ from sheltersim.events.handlers import (
 )
 from sheltersim.events.models import (
     EventApplicationError,
-    EventKind,
     EventLogRecord,
     EventStatus,
     EventSuppressed,
     ScheduledEvent,
 )
 from sheltersim.experiments.runner import OfflineSimulationController
-from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.inspection.traces import RunArtifactWriter
-
-
-class Sink:
-    """What the controller writes to, which these tests don't read."""
-
-    def __getattr__(self, name: str) -> Callable[..., None]:
-        return lambda *arguments, **options: None
 
 
 def _counts() -> Counter[str]:
@@ -58,24 +61,11 @@ def _counts() -> Counter[str]:
 
 
 def _new_controller() -> OfflineSimulationController:
-    world = WorldState.from_scenario(ScenarioSpec.load(SCENARIO_100_AGENTS))
-    world.duration_minutes = 600
-    return OfflineSimulationController(world, Sink())
+    return dispatch_controller()
 
 
 def _event(name: str, sequence: int, event_type: str = "probe", **options: Any) -> ScheduledEvent:
-    return ScheduledEvent(
-        event_id=name,
-        kind=options.pop("kind", EventKind.ENDOGENOUS),
-        due_minute=options.pop("due", 0),
-        priority=options.pop("priority", 0),
-        sequence=sequence,
-        event_type=event_type,
-        payload=options.pop("payload", {}),
-        source_id=options.pop("source_id", "probe-1"),
-        causation_id=None,
-        provenance=options.pop("provenance", {"source_type": "assumption"}),
-    )
+    return probe(name, sequence, event_type, **options)
 
 
 def _document(world: Any) -> Any:
@@ -110,17 +100,19 @@ def _is_python_s(controller: OfflineSimulationController, python_saved: str) -> 
 
 def _dispatched(
     arrange: Callable[[OfflineSimulationController], Any],
-    python_saved: str,
+    python_saved: str | None,
     minute: int = 0,
 ) -> OfflineSimulationController:
-    """The arrangement run by the kernel: all it saved is what the Python step saved."""
+    """The arrangement run by the kernel: all it saved is what the Python step saved (unless
+    `python_saved` is None)."""
     controller = _new_controller()
     arrange(controller)
     before = _counts()["phases_ran"]
     controller.world.minute_index = minute
     controller._run_dispatch_phase(controller.world, minute)
     assert _counts()["phases_ran"] == before + 1, "the kernel did not run"
-    _is_python_s(controller, python_saved)
+    if python_saved is not None:
+        _is_python_s(controller, python_saved)
     return controller
 
 
@@ -198,15 +190,6 @@ def test_a_snapshot_entry_that_was_replaced_runs_only_if_it_is_the_same_event(
     assert (by_kernel.world.event_log.find("second") is not None) is same_values
 
 
-def test_an_event_type_without_a_handler_fails_with_python_s_text() -> None:
-    by_kernel = _dispatched(
-        lambda controller: controller.world.schedule_event(_event("x", 901)), "3363a241c396b9b0"
-    )
-    record = by_kernel.world.event_log.find("x")
-    assert record.status is EventStatus.FAILED
-    assert record.detail == "no handler registered for event type 'probe'"
-
-
 @pytest.mark.parametrize(
     ("error", "status", "python_saved"),
     [
@@ -272,97 +255,18 @@ def test_a_record_that_disagrees_with_the_outcome_raises_python_s_error() -> Non
 # ---- The table -----------------------------------------------------------------------------------
 
 
-def _social_action(controller: OfflineSimulationController, sequence: int = 901) -> ScheduledEvent:
-    world = controller.world
-    first, second = "A001", "A002"
-    world.agents[second].zone_id = world.agents[first].zone_id
-    return ScheduledEvent(
-        event_id=f"social-{sequence}",
-        kind=EventKind.ENDOGENOUS,
-        due_minute=0,
-        priority=0,
-        sequence=sequence,
-        event_type="social_interaction",
-        payload={
-            "interaction_type": "reassurance_exchange",
-            "agent_id": first,
-            "participant_agent_id": second,
-            "zone_id": world.agents[first].zone_id,
-            "topic_id": "emotional_check_in",
-            "action": "offer_reassurance",
-            "reason_short": "autonomous_need_choice",
-            "interaction_duration_minutes": 5,
-        },
-        source_id="social-policy-1",
-        causation_id=None,
-        provenance={
-            "source_type": "assumption",
-            "source_id": "ASM-EVENT-TRIGGERED-SOCIAL-INTERACTIONS-V1",
-            "policy_version": "social-policy-1",
-        },
-    )
-
-
 def test_a_social_action_runs_in_rust_with_python_s_results() -> None:
+    """The entry of the phase with a handler of the table: it ran in the kernel (the core's test of
+    the same name has the digest of what it saved, and the suppressed and failed actions)."""
     before = _counts()
     by_kernel = _dispatched(
-        lambda controller: controller.world.schedule_event(_social_action(controller)),
-        "db670ea5268dbb27",
+        lambda controller: controller.world.schedule_event(social_action(controller)), None
     )
     after = _counts()
     assert after["ran.social_interaction.apply"] > before["ran.social_interaction.apply"]
     assert after["settled_rows"] > before["settled_rows"]
     assert after["events_foreign"] == before["events_foreign"]
     assert by_kernel.world.event_log.find("social-901").status is EventStatus.APPLIED
-
-
-def test_a_suppressed_social_action_has_python_s_detail_in_its_record() -> None:
-    text = "social action participants are no longer co-located"
-
-    def arrange(controller: OfflineSimulationController) -> None:
-        event = _social_action(controller)
-        world = controller.world
-        zones = [zone for zone in world.zones if zone != world.agents["A001"].zone_id]
-        world.agents["A002"].zone_id = zones[0]
-        world.schedule_event(event)
-
-    before = _counts()
-    by_kernel = _dispatched(arrange, "f1b5249381ba1d0c")
-    after = _counts()
-    record = by_kernel.world.event_log.find("social-901")
-    assert (record.status, record.detail) == (EventStatus.SUPPRESSED, text)
-    assert after["outcomes_suppressed"] == before["outcomes_suppressed"] + 1
-    assert after["refused.social_interaction.apply"] == before["refused.social_interaction.apply"]
-
-
-def _social_action_with(controller: OfflineSimulationController, **change: Any) -> ScheduledEvent:
-    event = _social_action(controller)
-    return ScheduledEvent(
-        event_id=event.event_id,
-        kind=event.kind,
-        due_minute=0,
-        priority=0,
-        sequence=event.sequence,
-        event_type=event.event_type,
-        payload={**event.payload_dict(), **change},
-        source_id=event.source_id,
-        causation_id=None,
-        provenance=dict(event.provenance),
-    )
-
-
-def test_a_failed_social_action_has_python_s_detail_from_the_kernel() -> None:
-    def arrange(controller: OfflineSimulationController) -> None:
-        controller.world.schedule_event(_social_action_with(controller, reason_short="other"))
-
-    before = _counts()
-    by_kernel = _dispatched(arrange, "b0d258951174919c")
-    after = _counts()
-    assert after["refused.social_interaction.apply"] == before["refused.social_interaction.apply"]
-    assert after["events_foreign"] == before["events_foreign"]
-    record = by_kernel.world.event_log.find("social-901")
-    assert record.status is EventStatus.FAILED
-    assert record.detail == "social action reason code is not allowed"
 
 
 class _Code(str):
@@ -374,7 +278,7 @@ def test_an_event_no_row_holds_stops_the_phase_with_kernel_refusal_before_any_ev
     with no row, and the core runs only rows (H6 of design-p9.md, lane P9-1c): the phase raises
     KernelRefusal before its first event, with nothing changed."""
     controller = _new_controller()
-    event = _social_action_with(controller, reason_short=_Code("other"))
+    event = social_action(controller, reason_short=_Code("other"))
     controller.world.schedule_event(event)
     before = _saved(controller)
     with pytest.raises(
@@ -387,7 +291,7 @@ def test_an_event_no_row_holds_stops_the_phase_with_kernel_refusal_before_any_ev
 
 def test_a_patch_of_a_table_handler_s_apply_is_called(monkeypatch: pytest.MonkeyPatch) -> None:
     controller = _new_controller()
-    event = _social_action(controller)
+    event = social_action(controller)
     controller.world.schedule_event(event)
     seen: list[str] = []
     monkeypatch.setattr(
@@ -401,7 +305,7 @@ def test_a_patch_of_a_table_handler_s_apply_is_called(monkeypatch: pytest.Monkey
 
 def test_a_fake_handler_of_a_table_s_event_type_is_called() -> None:
     controller = _new_controller()
-    event = _social_action(controller)
+    event = social_action(controller)
     controller.world.schedule_event(event)
     seen: list[str] = []
     controller.event_dispatcher.handlers["social_interaction"] = Recording(seen)
@@ -411,7 +315,7 @@ def test_a_fake_handler_of_a_table_s_event_type_is_called() -> None:
 
 def test_an_effect_program_s_guard_is_python_s_to_read() -> None:
     controller = _new_controller()
-    event = _social_action(controller)
+    event = social_action(controller)
     controller.world.schedule_event(
         ScheduledEvent(
             event_id=event.event_id,
@@ -459,75 +363,6 @@ def test_a_dispatcher_of_another_kind_is_refused_with_nothing_changed() -> None:
 # ---- A walk --------------------------------------------------------------------------------------
 
 
-def _walk(
-    controller: OfflineSimulationController,
-    purpose: str,
-    facility_id: str | None,
-    destination: str,
-    agent_id: str = "A001",
-) -> ScheduledEvent:
-    world = controller.world
-    agent = world.agents[agent_id]
-    route = controller.space.route(agent.zone_id, destination, agent.id)
-    assert route is not None and route.travel_minutes > 0
-    assert controller._schedule_travel(
-        agent_id=agent.id,
-        route=route,
-        purpose=purpose,
-        facility_id=facility_id,
-        minute=world.minute_index,
-        validate_state=False,
-    )
-    return next(
-        event
-        for event in world.event_queue.pending()
-        if event.event_type == "agent_travel_complete" and event.payload["agent_id"] == agent_id
-    )
-
-
-def _facility_elsewhere(controller: OfflineSimulationController, kind: str) -> Any:
-    world = controller.world
-    zone = world.agents["A001"].zone_id
-    return next(
-        facility
-        for facility in world.facilities.values()
-        if facility.kind == kind and facility.zone_id != zone
-    )
-
-
-def _zone_elsewhere(controller: OfflineSimulationController) -> str:
-    world = controller.world
-    zone = world.agents["A001"].zone_id
-    return next(name for name in world.zones if name != zone)
-
-
-def _return_walk(controller: OfflineSimulationController) -> ScheduledEvent:
-    return _walk(controller, "return", None, _zone_elsewhere(controller))
-
-
-def _toilet_walk(controller: OfflineSimulationController) -> ScheduledEvent:
-    facility = _facility_elsewhere(controller, "toilet")
-    return _walk(controller, "toilet_request", facility.id, facility.zone_id)
-
-
-@pytest.mark.parametrize(
-    ("walk", "python_saved"),
-    [(_return_walk, "e7cc4860a63dc8ea"), (_toilet_walk, "d071ac8765838790")],
-)
-def test_a_walk_ends_in_rust_with_python_s_results(
-    walk: Callable[[OfflineSimulationController], ScheduledEvent], python_saved: str
-) -> None:
-    def arrange(controller: OfflineSimulationController) -> None:
-        walk(controller)
-
-    before = _counts()
-    by_kernel = _dispatched(arrange, python_saved, minute=_due_of(walk))
-    after = _counts()
-    assert after["ran.travel_completion.apply"] == before["ran.travel_completion.apply"] + 1
-    assert after["refused.travel_completion.apply"] == before["refused.travel_completion.apply"]
-    assert by_kernel.world.agents["A001"].target_id is None or walk is _toilet_walk
-
-
 def _due_of(walk: Callable[[OfflineSimulationController], ScheduledEvent]) -> int:
     return walk(_new_controller()).due_minute
 
@@ -539,11 +374,11 @@ def test_a_walk_s_request_that_fails_is_recorded_with_its_text_as_in_python(
         raise ValueError("the toilet refuses")
 
     def arrange(controller: OfflineSimulationController) -> None:
-        _toilet_walk(controller)
+        toilet_walk(controller)
         monkeypatch.setattr(controller.toilet_service, "request", refuse)
 
     before = _counts()
-    by_kernel = _dispatched(arrange, "f70d12763e33305a", minute=_due_of(_toilet_walk))
+    by_kernel = _dispatched(arrange, "f70d12763e33305a", minute=_due_of(toilet_walk))
     after = _counts()
     assert after["outcomes_failed"] == before["outcomes_failed"] + 1
     record = next(
@@ -560,32 +395,14 @@ def _stop_walking(world: Any, event: Any) -> None:
     agent.activity = type(agent.activity).IDLE
 
 
-# Each spoiled walk with the deleted Python rule's text, written down from it.
-SPOILED_WALKS: list[tuple[Callable[[Any, Any], None], str]] = [
-    (
-        lambda world, event: world.active_tasks.pop(event.payload["task_id"]),
-        "travel completion does not match an active task",
-    ),
-    (
-        lambda world, event: setattr(world.agents["A001"], "target_id", "x"),
-        "return travel completion does not match its target",
-    ),
-    (
-        lambda world, event: setattr(
-            world.agents["A001"], "activity", type(world.agents["A001"].activity).IDLE
-        ),
-        "travel completion Agent does not match its active task",
-    ),
-]
-
-
-@pytest.mark.parametrize(("spoil", "text"), SPOILED_WALKS)
-def test_a_walk_that_does_not_fit_changes_nothing_and_says_the_rule_s_text(
-    spoil: Callable[[Any, Any], None], text: str
-) -> None:
+def test_a_walk_that_does_not_fit_changes_nothing_and_says_the_rule_s_text() -> None:
+    """The entries of the travel completion's handler: the kernel's and the handler class's (the
+    core's test of the same name has every spoiled walk, and the walks named for another
+    purpose)."""
+    spoil, text = SPOILED_WALKS[0]
     controller = _new_controller()
     world = controller.world
-    event = _return_walk(controller)
+    event = return_walk(controller)
     world.minute_index = event.due_minute
     spoil(world, event)
     handler = controller.event_dispatcher.handlers["agent_travel_complete"]
@@ -600,37 +417,6 @@ def test_a_walk_that_does_not_fit_changes_nothing_and_says_the_rule_s_text(
     assert _document(world) == before
 
 
-@pytest.mark.parametrize(
-    ("purpose", "text"),
-    [
-        ("sleep_bed", "sleep-bed travel does not match its live reservation"),
-        ("presence_relocation", "presence relocation completion does not match its route"),
-        ("another", "unsupported travel purpose 'another'"),
-    ],
-)
-def test_a_walk_home_named_for_another_purpose_fails_with_the_rule_s_text_before_any_change(
-    purpose: str, text: str
-) -> None:
-    controller = _new_controller()
-    world = controller.world
-    event = _return_walk(controller)
-    payload = {**event.payload_dict(), "purpose": purpose}
-    other = _event(
-        "walk-other",
-        event.sequence + 5000,
-        "agent_travel_complete",
-        due=event.due_minute,
-        payload=payload,
-    )
-    handler = controller.event_dispatcher.handlers["agent_travel_complete"]
-    world.minute_index = event.due_minute
-    before = _document(world)
-    with pytest.raises(EventApplicationError) as made:
-        native.rules("travel_completion").apply(handler, world, other)
-    assert _document(world) == before
-    assert str(made.value) == text
-
-
 def test_a_walk_with_a_value_the_writer_refuses_is_refused_by_the_phase_and_alone() -> None:
     """A payload value the event writer refuses (a str subclass: no JSON payload holds one). The
     handler's own entry, with no Python rule behind it (lane L10), refuses it with nothing changed;
@@ -640,7 +426,7 @@ def test_a_walk_with_a_value_the_writer_refuses_is_refused_by_the_phase_and_alon
         pass
 
     def noted(controller: OfflineSimulationController) -> ScheduledEvent:
-        event = _return_walk(controller)
+        event = return_walk(controller)
         world = controller.world
         world.event_queue.remove(event.event_id)
         noted = ScheduledEvent(
@@ -681,7 +467,7 @@ def test_a_walk_with_a_value_the_writer_refuses_is_refused_by_the_phase_and_alon
 def test_a_walk_that_has_only_a_row_gets_its_object_only_if_python_reads_it() -> None:
     controller = _new_controller()
     state = native.state("events")
-    event = _return_walk(controller)
+    event = return_walk(controller)
     due = event.due_minute
     controller.world.event_queue.remove(event.event_id)
     state.schedule_row(controller.world, event)
