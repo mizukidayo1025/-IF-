@@ -281,7 +281,10 @@ split PR by PR; its last section sums up what is where.
   directly: the canonical text of a world in a cell, the outcome a rule raised, and events
   changed as the pytest files changed them. `answers.rs`
   chains a test's answers and the world's canonical parts after each, for the digests a moved
-  test records again from the core. The JSON under
+  test records again from the core. `ticks.rs` steps a loaded Run as `TickEngine.step` does
+  (`run_tick`, the minute moved on, the end-of-tick check); `contracts.rs` answers a
+  `TestHost`'s contracts as a fixture recorded pydantic's answers; `views.rs` makes the update and
+  the propose phases' views of a loaded world and writes every field of one. The JSON under
   `tests/data/` (worlds the Python side built) is written by the builders that
   `tests/support/core_fixtures.py` registers (`benchmarks/core_fixtures.py`), and
   `tests/integration/test_core_fixtures.py` checks that each file is what its builder makes
@@ -302,6 +305,10 @@ split PR by PR; its last section sums up what is where.
   check the texts the service's, the EffectProgram handlers' and the population's rules save, on
   the worlds of the pytest files of the same names, with the world unchanged where a check comes
   before any write.
+  `tests/effect_kernels.rs` and `tests/effect_guard_dispatch.rs` check the EffectProgram
+  handlers and the guard (alone, and in the dispatch phase); `tests/world_view_reads.rs` and
+  `tests/world_view_run.rs` the views; `tests/generated_run.rs` the metric snapshot and the entity
+  rules on the worlds of a Run the core steps; `tests/event_log_indexes.rs` the log's indexes.
   The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,

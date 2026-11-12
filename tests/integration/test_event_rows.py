@@ -351,21 +351,13 @@ def test_settling_says_the_log_s_errors_after_taking_the_event_off_as_python_doe
 @pytest.mark.parametrize(
     ("event_type", "payload", "status"),
     [
+        # Each type and outcome is native/core/tests/event_log_indexes.rs (Issue #225); this one
+        # goes through the entries of the rule's writer and of Python's log.
         (
             "care_support_transition",
             {"request_id": "r", "agent_id": "A", "support_kind": "k", "status": "completed"},
             "applied",
         ),
-        (
-            "care_support_transition",
-            {"request_id": "r", "agent_id": "A", "support_kind": "k", "status": "completed"},
-            "failed",
-        ),
-        ("facility_outage", {"facility_id": "f"}, "applied"),
-        ("facility_recovery", {"facility_id": "f"}, "failed"),
-        ("agent_action_lifecycle", {"agent_id": "A", "transition": "started"}, "applied"),
-        ("agent_action_lifecycle", {"agent_id": "A", "transition": "completed"}, "applied"),
-        ("other", {"agent_id": "A", "transition": "started", "facility_id": "f"}, "applied"),
     ],
 )
 def test_a_rules_record_fills_the_indexes_of_a_python_record(
@@ -563,14 +555,6 @@ def test_random_values_written_on_appending_restore_to_the_record() -> None:
         assert state.saved_row_copy(raw) == event
     assert log.all_encoded()
     assert _NativeEventLog.from_saved(log.items_bytes(0, 2000)).records_from(0) == records
-
-
-def test_a_rule_cannot_record_a_minute_the_record_refuses() -> None:
-    world = _world()
-    event = _event("minus", 0)
-    with pytest.raises(ValueError, match="realized_minute must be a non-negative integer"):
-        native.state("events").record_row(world, event, -1, "applied")
-    assert len(world.event_log) == 0
 
 
 def test_a_rule_does_not_start_from_a_counter_it_could_overflow() -> None:

@@ -119,26 +119,32 @@ pub fn host(entry: &Value) -> TestHost {
     host
 }
 
-/// What the handler of a case gives on a fresh load of its world, and the world's parts before and
-/// after.
-fn run(data: &Value, case: &Value) -> (Result<Option<(EventStatus, String)>, String>, Vec<(&'static str, Vec<u8>)>, Loaded) {
-    let entry = resolve(&data["worlds"], case["world"].as_str().unwrap());
-    let loaded = load::loaded(&entry);
-    let mut host = host(&entry);
-    let native = native(&loaded, &case["handler"]);
-    let event: EventRow = load::event(&case["event"]);
+/// What a handler (`handler`, as a case holds it) gives for an event on a loaded world with its
+/// host: `dispatch::apply_alone`, the kernel the handler's PyO3 entry calls, at the world's minute.
+pub fn apply_handler(loaded: &Loaded, host: &mut TestHost, handler: &Value, event: &EventRow) -> Result<Option<(EventStatus, String)>, String> {
+    let native = native(loaded, handler);
     let minute = loaded.cell.with(|world| world.minute_index().unwrap()).unwrap();
-    let before = loaded.cell.with(|world| parts(world)).unwrap();
     let mut tick = Tick {
         cell: &loaded.cell,
-        host: &mut host,
+        host,
         run: &loaded.run,
         policies: loaded.policies.clone(),
         minute,
         seed: loaded.seed.clone(),
         neighbors: loaded.neighbors.clone(),
     };
-    let result = dispatch::apply_alone(&mut tick, &native, &event).map_err(|error| format!("{error:?}"));
+    dispatch::apply_alone(&mut tick, &native, event).map_err(|error| format!("{error:?}"))
+}
+
+/// What the handler of a case gives on a fresh load of its world, and the world's parts before and
+/// after.
+fn run(data: &Value, case: &Value) -> (Result<Option<(EventStatus, String)>, String>, Vec<(&'static str, Vec<u8>)>, Loaded) {
+    let entry = resolve(&data["worlds"], case["world"].as_str().unwrap());
+    let loaded = load::loaded(&entry);
+    let mut host = host(&entry);
+    let event: EventRow = load::event(&case["event"]);
+    let before = loaded.cell.with(|world| parts(world)).unwrap();
+    let result = apply_handler(&loaded, &mut host, &case["handler"], &event);
     (result, before, loaded)
 }
 
