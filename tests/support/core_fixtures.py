@@ -64,6 +64,8 @@ FIXTURES: dict[str, str] = {
     "proximity": "support.core_fixtures_reads:proximity_fixture",
     "dispatch_rows": "support.core_fixtures_reads:dispatch_rows_fixture",
     "behavior_rows": "support.core_fixtures_reads:behavior_rows_fixture",
+    "staff_dynamics": "support.core_fixtures_staff_work:staff_dynamics_fixture",
+    "staff_order_texts": "support.core_fixtures_staff_work:staff_order_texts_fixture",
 }
 
 # The attributes of `InformationSpreadConfig` the PyO3 crate reads (`InformationSpread::FIELDS` of

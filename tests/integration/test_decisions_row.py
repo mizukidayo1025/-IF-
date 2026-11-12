@@ -4,7 +4,8 @@ The steps `_propose_due`, `_observed_state` and `_record_outcome` have no Python
 docs/rust-port/lanes/j-decisions.md). What a Run records is compared with what the Python steps
 recorded of the same Run, written down from them on 45a9bc9 before they went (digests, pinned on
 Linux as the gate's hashes are). What the rows don't take goes to the sink's own `record_decision`
-and the domain rules, as the Python step called them.
+and the domain rules, as the Python step called them. The records and the world of a Run's ticks
+are checked in the core (`native/core/tests/decisions_run.rs`, #225).
 
 Model version 2 (step 4, L11: the pinned libm crate and the information events' draw keys)
 changed some of these results: those digests were re-recorded from the kernels of that model
@@ -97,16 +98,6 @@ def _record(
 
 def _as_dict(row: Any) -> Any:
     return json.loads(row) if type(row) is bytes else row
-
-
-def test_a_run_gives_the_rows_and_world_of_python(generated_scenario: Any) -> None:
-    world, controller, sink = _indexed_controller(generated_scenario)
-    TickEngine(world, phase_handler=controller).run(steps=90)
-    rows = list(sink.observations)
-    assert any(type(row) is bytes for row in rows)
-    assert all(type(row) is bytes for row in rows if type(row) is not dict)
-    _python_s([_exact(_as_dict(row)) for row in rows], "33be50e2458c9bf3")
-    _python_s(world.canonical_json(), "9a356ae3bed7843c")
 
 
 def test_a_tick_makes_no_proposal_object(

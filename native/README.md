@@ -350,6 +350,11 @@ split PR by PR; its last section sums up what is where.
   `TestHost::on_phase`) against the digests of the deleted Python rules, on the worlds of
   `integration/test_resource_ledger_row.py`, `test_read_rules.py`, `test_dispatch_rows.py` and
   `test_behavior_row.py`.
+  `tests/psychology_run.rs`, `tests/decisions_run.rs` and `tests/after_tick_memo.rs` check the
+  psychology step's deltas, the long-term distress, the decision records and the end-of-tick
+  check's memo on the worlds of a Run the core steps; `tests/staff_dynamics_rules.rs` and
+  `tests/staff_order_texts.rs` the staff dynamics and an operator's staff order through its
+  handler (`tests/data/staff_dynamics.json`, `staff_order_texts.json`).
   The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,

@@ -1,6 +1,7 @@
 """The Rust kernels (feature/rust-port, native/) give the same values as the Python
 code they replace, bit for bit, at every tick of a generated Scenario. Where that Python code is
-gone (lane L10), against what it gave, recorded once.
+gone (lane L10), against what it gave, recorded once. The psychology step's deltas at each tick
+of a Run are checked in the core (`native/core/tests/psychology_run.rs`, #225).
 
 Skipped when the sheltersim_native extension is not installed; CI on the Rust port
 branch builds and installs it.
@@ -9,12 +10,10 @@ branch builds and installs it.
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 import struct
 
 import pytest
-from support.world import driven_ticks, watching_phases
 
 from sheltersim import native
 from sheltersim.core.engine import TraceLevel
@@ -26,49 +25,6 @@ def _same_float_bits(x: object, y: object) -> bool:
     if isinstance(x, float) and isinstance(y, float):
         return struct.pack("<d", x) == struct.pack("<d", y)
     return x == y and type(x) is type(y)
-
-
-# What the deleted Python step `_psychology_update` (experiments/phases/update.py at 45a9bc9) gave
-# at each minute of the Run below, as sha256 of the deltas' JSON, recorded once on Linux.
-PSYCHOLOGY_DELTAS = "842c8f23bf0c3e3ce2a8b971ca3bc742cc6c263cedaa52918c04e2e6d3ba7d9d"
-
-
-def test_the_psychology_kernel_gives_the_deltas_of_the_deleted_python_step(
-    generated_scenario, tmp_path
-) -> None:
-    """The step's kernel on the world as each tick's update phase finds it.
-
-    The driver gives the step the view after the movement. In this Run the movement replans no
-    trip, so it moves only the points of the walks, which the step doesn't read: the view before
-    it is the same for the step. The kernel reads the people's values from the world, so it is
-    asked before the phase writes them.
-    """
-    from sheltersim.core.engine import TickPhase
-
-    document = generated_scenario.model_dump(mode="json")
-    document["duration_minutes"] = 360
-    scenario = ScenarioSpec.model_validate(document)
-    compared = []
-    digest = hashlib.sha256()
-
-    def checked(engine, phase, before):
-        if phase is not TickPhase.UPDATE_AGENT_STATE or not before:
-            return
-        controller = engine.phase_handler
-        view = controller._view_after_movement(engine.world)
-        result = controller._psychology_update(view, view.minute_index)
-        for delta in result.deltas:
-            text = json.dumps([getattr(delta, name) for name in delta.__dataclass_fields__])
-            digest.update(text.encode() + b"\n")
-        compared.append(view.minute_index)
-
-    ticks = driven_ticks()
-    with watching_phases(checked):
-        world = run_scenario(scenario, tmp_path, trace_level=TraceLevel.OFF)
-    assert driven_ticks() - ticks == 360
-    assert world.metric_state.get("movement_replan_count", 0) == 0
-    assert compared == list(range(360))
-    assert digest.hexdigest() == PSYCHOLOGY_DELTAS
 
 
 def _outcome(validate, world) -> str:

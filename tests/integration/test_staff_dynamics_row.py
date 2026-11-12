@@ -6,6 +6,10 @@ rule gave, written down from it before it went (the rule's formula, or a digest 
 the same random inputs), and a value the kernels refuse is KernelRefusal. The checks of a config, of
 an override and of a saved namespace stay in Python and are the reference for the Rust ones.
 
+The update of a working minute and the availability of each shape of the staff operations are
+checked in the core (`native/core/tests/staff_dynamics_rules.rs`, #225). The digests of the rules'
+answers on random worlds stay here: their inputs are hundreds of `random.Random` draws.
+
 Model version 2 (step 4, L11: the pinned libm crate and the information events' draw keys)
 changed some of these results: those digests were re-recorded from the kernels of that model
 and are no longer the deleted Python rules'.
@@ -329,22 +333,6 @@ def test_update_writes_what_the_python_rule_wrote(seed: int) -> None:
     assert _digest(texts) == UPDATE_DIGESTS[seed]
 
 
-def test_a_working_minute_is_the_formula_s_fatigue() -> None:
-    """The linear formula's fatigue is `min(1.0, consecutive / maximum)`, 240 by default."""
-    world = _world()
-    world.staff["S01"].active_task_id = "t"
-    update_staff_dynamics(world, 0)
-    assert _state(world)["staff"]["S01"] == {
-        "consecutive_work_minutes": 1,
-        "total_work_minutes": 1,
-        "total_rest_minutes": 0,
-        "fatigue": 1 / 240,
-        "rest_until_minute": 0,
-        "last_activity": "working",
-    }
-    assert _state(world)["staff"]["S02"] == {**_new_record(), "total_rest_minutes": 0}
-
-
 @pytest.mark.parametrize("saturating", [False, True])
 def test_a_fatigue_value_has_the_bits_of_the_formula(saturating: bool) -> None:
     """`min(1.0, c / m)`, or `1.0 - exp(-c / m)` with the model's exp (the pinned libm)."""
@@ -541,25 +529,6 @@ def test_the_readers_answer_what_the_python_rules_answered(seed: int) -> None:
     answers = _reader_answers(seed)
     assert set(answers) == {"True", "False"}
     assert _digest(answers) == READER_DIGESTS[seed]
-
-
-@pytest.mark.parametrize(
-    ("operations", "available"),
-    [
-        # `operation is None or operation.get("phase") == "idle"`.
-        (_operations({"S01": _operation("idle")}), True),
-        (_operations({"S01": _operation("travel")}), False),
-        (_operations({"S01": _operation("working")}), False),
-        (_operations({}), True),
-        (None, True),
-    ],
-)
-def test_the_availability_reader_takes_each_shape_of_the_operations_state(
-    operations: Any, available: bool
-) -> None:
-    world = _world()
-    world.model_state["staff_operations_v1"] = operations
-    assert staff_dynamics_is_available(world, "S01", 0) is available
 
 
 @pytest.mark.parametrize(

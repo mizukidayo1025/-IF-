@@ -1,0 +1,301 @@
+{
+ "availability": [
+  [
+   {
+    "config": {},
+    "history": [],
+    "policy_version": "autonomous-routed-staff-v1",
+    "schema_version": 1,
+    "source_id": "ASM-STAFF-OPERATIONS-V1",
+    "staff": {
+     "S01": {
+      "arrival_minute": null,
+      "causation_event_ids": [],
+      "due_minute": null,
+      "phase": "idle",
+      "reason": null,
+      "route_edge_ids": [],
+      "route_zone_ids": [],
+      "started_minute": null,
+      "target_id": null,
+      "target_zone_id": null,
+      "task_id": null,
+      "task_kind": null,
+      "travel_due_minute": null,
+      "travel_minutes": 0
+     }
+    },
+    "zones": {}
+   },
+   true
+  ],
+  [
+   {
+    "config": {},
+    "history": [],
+    "policy_version": "autonomous-routed-staff-v1",
+    "schema_version": 1,
+    "source_id": "ASM-STAFF-OPERATIONS-V1",
+    "staff": {
+     "S01": {
+      "arrival_minute": null,
+      "causation_event_ids": [],
+      "due_minute": null,
+      "phase": "travel",
+      "reason": null,
+      "route_edge_ids": [],
+      "route_zone_ids": [],
+      "started_minute": null,
+      "target_id": null,
+      "target_zone_id": null,
+      "task_id": null,
+      "task_kind": null,
+      "travel_due_minute": null,
+      "travel_minutes": 0
+     }
+    },
+    "zones": {}
+   },
+   false
+  ],
+  [
+   {
+    "config": {},
+    "history": [],
+    "policy_version": "autonomous-routed-staff-v1",
+    "schema_version": 1,
+    "source_id": "ASM-STAFF-OPERATIONS-V1",
+    "staff": {
+     "S01": {
+      "arrival_minute": null,
+      "causation_event_ids": [],
+      "due_minute": null,
+      "phase": "working",
+      "reason": null,
+      "route_edge_ids": [],
+      "route_zone_ids": [],
+      "started_minute": null,
+      "target_id": null,
+      "target_zone_id": null,
+      "task_id": null,
+      "task_kind": null,
+      "travel_due_minute": null,
+      "travel_minutes": 0
+     }
+    },
+    "zones": {}
+   },
+   false
+  ],
+  [
+   {
+    "config": {},
+    "history": [],
+    "policy_version": "autonomous-routed-staff-v1",
+    "schema_version": 1,
+    "source_id": "ASM-STAFF-OPERATIONS-V1",
+    "staff": {},
+    "zones": {}
+   },
+   true
+  ],
+  [
+   null,
+   true
+  ]
+ ],
+ "worlds": {
+  "base": {
+   "slots": [
+    [
+     "psychological_distress_v1",
+     false
+    ],
+    [
+     "staff_dynamics_v1",
+     false
+    ],
+    [
+     "information_spread_v1",
+     false
+    ],
+    [
+     "social_propagation_v1",
+     false
+    ],
+    [
+     "movement_v1",
+     false
+    ],
+    [
+     "body_state_v1",
+     false
+    ],
+    [
+     "social_network_v1",
+     false
+    ],
+    [
+     "agent_dynamics_v1",
+     false
+    ],
+    [
+     "staff_operations_v1",
+     false
+    ],
+    [
+     "shared_operations_v1",
+     false
+    ],
+    [
+     "resource_ledger_v1",
+     false
+    ],
+    [
+     "population_presence_v1",
+     false
+    ],
+    [
+     "population_lifecycle_v1",
+     false
+    ],
+    [
+     "population_dynamics_v1",
+     false
+    ],
+    [
+     "temporary_spaces_v1",
+     false
+    ],
+    [
+     "geometry_overlay_v1",
+     false
+    ],
+    [
+     "resource_service_v1",
+     false
+    ],
+    [
+     "effect_program_v1",
+     false
+    ],
+    [
+     "facility_queues_v1",
+     false
+    ],
+    [
+     "metric_state",
+     true
+    ],
+    [
+     "model_configs",
+     true
+    ],
+    [
+     "resources",
+     true
+    ],
+    [
+     "id_counters",
+     true
+    ]
+   ],
+   "world": {
+    "active_tasks": [],
+    "agents": [],
+    "duration_minutes": 500,
+    "event_log": [],
+    "event_queue": [],
+    "facilities": [],
+    "id_counters": {},
+    "metric_state": {},
+    "minute_index": 0,
+    "model_configs": {
+     "staff_dynamics": {}
+    },
+    "model_state": {
+     "staff_dynamics_v1": {
+      "config": {
+       "max_continuous_work_minutes": 240,
+       "off_shift_fatigue_recovery_per_minute": 0.0,
+       "policy_version": "continuous-duty-fatigue-v1",
+       "rest_minutes": 30,
+       "schema_version": 1,
+       "shift_windows_by_staff": {},
+       "source_id": "ASM-STAFF-DYNAMICS-V1"
+      },
+      "policy_version": "continuous-duty-fatigue-v1",
+      "schema_version": 1,
+      "source_id": "ASM-STAFF-DYNAMICS-V1",
+      "staff": {
+       "S01": {
+        "consecutive_work_minutes": 0,
+        "fatigue": 0.0,
+        "last_activity": "off_duty",
+        "rest_until_minute": 0,
+        "total_rest_minutes": 0,
+        "total_work_minutes": 0
+       },
+       "S02": {
+        "consecutive_work_minutes": 0,
+        "fatigue": 0.0,
+        "last_activity": "off_duty",
+        "rest_until_minute": 0,
+        "total_rest_minutes": 0,
+        "total_work_minutes": 0
+       },
+       "S03": {
+        "consecutive_work_minutes": 0,
+        "fatigue": 0.0,
+        "last_activity": "off_duty",
+        "rest_until_minute": 0,
+        "total_rest_minutes": 0,
+        "total_work_minutes": 0
+       }
+      }
+     }
+    },
+    "resources": {},
+    "rng_state": null,
+    "scenario_id": "s",
+    "schema_version": 5,
+    "seed": 1,
+    "staff": [
+     {
+      "active_task_id": null,
+      "busy_until": 0,
+      "id": "S01",
+      "skills": [
+       "support"
+      ],
+      "work_queue": [],
+      "zone_id": "z"
+     },
+     {
+      "active_task_id": null,
+      "busy_until": 0,
+      "id": "S02",
+      "skills": [
+       "support"
+      ],
+      "work_queue": [],
+      "zone_id": "z"
+     },
+     {
+      "active_task_id": null,
+      "busy_until": 0,
+      "id": "S03",
+      "skills": [
+       "support"
+      ],
+      "work_queue": [],
+      "zone_id": "z"
+     }
+    ],
+    "support_requests": [],
+    "zone_edges": [],
+    "zones": []
+   }
+  }
+ }
+}

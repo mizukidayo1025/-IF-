@@ -6,7 +6,9 @@ the only rule of the distress monitor and the long-term distress
 and domain/distress_monitor.py are gone (lane L10). What they answered, on small worlds, on values
 no scenario reaches and on whole ticks, was recorded once as digests (ANSWERS), which the kernel's
 answers must equal on every OS. What their checks turned down, the step refuses (KernelRefusal)
-before anything changes.
+before anything changes. The world after a Run's ticks is checked in the core
+(`native/core/tests/psychology_run.rs`, #225); the answers on random inputs stay here, their inputs
+being thousands of `random.Random` draws.
 """
 
 from __future__ import annotations
@@ -55,7 +57,6 @@ ANSWERS: dict[str, str] = {
     "step-1438": ("244e196d97fbf1b30cdb8cce8ec02d75a1093a1a0b2f07a0ae7ff25b7a140043"),
     "step-1439": ("da61e7b244bcc19a6108ebc0e1f46e4a2f42651b4d358dc3726700418ef282aa"),
     "step-2879": ("8b5deb573505976332761cfc1061bd105df7f33397404b0fa0c4d0baa96a0f0a"),
-    "ticks": ("b8b2abdff9bf5cd8869cf24ed87f45c335bd6161d273e6684364b4eb9aa6ea15"),
 }
 
 
@@ -306,14 +307,6 @@ def test_ticks_write_values_in_place_and_never_the_whole_namespace(generated_sce
 
     world = _run_ticks(generated_scenario, 30, check)
     assert world.model_state[PSYCHOLOGICAL_STATE_KEY]["last_updated_minute"] == 29
-
-
-def test_ticks_make_the_world_of_the_deleted_rules(generated_scenario: Any) -> None:
-    world = _run_ticks(generated_scenario, 40)
-    _answers(
-        "ticks",
-        [_text(world.model_state[PSYCHOLOGICAL_STATE_KEY]["agents"]), world.canonical_json()],
-    )
 
 
 # ---- The rule, against what the deleted Python rule answered -----------------------------------

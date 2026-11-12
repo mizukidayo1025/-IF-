@@ -8,6 +8,11 @@ compared with the class and text that rule gave, written down from it, and its o
 order the rule made on a copy of the world. The arrival and the completion of a task whose worker
 became unavailable stop the operation and then are suppressed, as the Python rules do
 (docs/rust-port/lanes/l8-texts-events.md).
+
+The handler's own refusals of an order, a stale order, and both stops of a worker who became
+unavailable are checked in the core (`native/core/tests/staff_order_texts.rs`, #225). Here stay the
+comparisons with `order_staff_operation`, which is still Python, the contract's text, and one test
+through each handler's entry.
 """
 
 from __future__ import annotations
@@ -313,18 +318,6 @@ def _ordered_program(world: WorldState) -> Any:
     )
 
 
-def test_an_order_that_went_stale_fails_in_the_handler_with_python_s_text(
-    world: WorldState,
-) -> None:
-    event = _ordered_program(world)
-    world.duration_minutes = world.minute_index + 3
-    text = "staff task order would finish beyond the Run boundary"
-    said = kernel_says_python_s_text(
-        EffectProgramStructureHandler(), world, event, (EventApplicationError, text)
-    )
-    assert said == ("EventApplicationError", text)
-
-
 def _changed(event: Any, **changes: Any) -> Any:
     from sheltersim.events.models import ScheduledEvent
 
@@ -333,60 +326,6 @@ def _changed(event: Any, **changes: Any) -> Any:
     marker = {**document["provenance"]["effect_program_v1"], **changes.pop("marker", {})}
     provenance = {**document["provenance"], "effect_program_v1": marker}
     return ScheduledEvent(**{**document, **changes, "payload": payload, "provenance": provenance})
-
-
-@pytest.mark.parametrize(
-    ("changes", "expected"),
-    [
-        (
-            {"payload": {"modifier_id": "another"}},
-            (
-                "EventApplicationError",
-                "staff task order does not reference a current approved program",
-            ),
-        ),
-        (
-            {"marker": {"phase": "end"}},
-            (
-                "EventApplicationError",
-                "staff task order does not reference a current approved program",
-            ),
-        ),
-        (
-            {"payload": {"staff_id": 7}},
-            (
-                "EventApplicationError",
-                "staff task order does not reference a current approved program",
-            ),
-        ),
-        (
-            {"due_minute": 1},
-            (
-                "EventApplicationError",
-                "staff task order does not reference a current approved program",
-            ),
-        ),
-        (
-            {"marker": {"guard": {"operator": "lt", "field": "simulation.minute", "value": 0}}},
-            ("EventSuppressed", "EffectProgram guard evaluated false"),
-        ),
-        (
-            {"marker": {"guard": {"operator": "eq", "field": "target.capacity", "value": 1}}},
-            ("EventApplicationError", "guard field 'target.capacity' has no facility target"),
-        ),
-    ],
-)
-def test_an_order_the_handler_turns_down_is_python_s_text(
-    world: WorldState, changes: dict[str, Any], expected: tuple[str, str]
-) -> None:
-    """`EffectProgramStructureHandler`'s own checks of an order, and its guard, before the order."""
-    event = _changed(_ordered_program(world), **changes)
-    if "due_minute" in changes:
-        event = _changed(event, due_minute=world.minute_index + changes["due_minute"])
-    classes = {"EventApplicationError": EventApplicationError, "EventSuppressed": EventSuppressed}
-    outcome = (classes[expected[0]], expected[1])
-    handler = EffectProgramStructureHandler()
-    assert kernel_says_python_s_text(handler, world, event, outcome) == expected
 
 
 def test_an_order_whose_parameters_the_contract_turns_down_is_python_s_text(
@@ -462,23 +401,8 @@ def _away(world: WorldState) -> None:
     world.model_state["operational_events_v1"]["staff_status"]["staff_001"]["available"] = False
 
 
-def test_an_arrival_of_a_worker_who_became_unavailable_stops_the_task(world: WorldState) -> None:
-    order_staff_operation(world, **_order())
-    event = _pending(world, "staff_operation_arrive")
-    _away(world)
-    _stops_and_suppresses(
-        StaffOperationArrivalHandler(),
-        world,
-        event,
-        "staff became unavailable before reaching the assigned task",
-    )
-    # Its completion left the queue with the task.
-    assert not any(
-        item.event_type == "staff_operation_complete" for item in world.event_queue.pending()
-    )
-
-
 def test_a_completion_of_a_worker_who_became_unavailable_stops_the_task(world: WorldState) -> None:
+    """The entries of both handlers; the core checks the arrival's stop too."""
     order_staff_operation(world, **_order())
     StaffOperationArrivalHandler().apply(world, _pending(world, "staff_operation_arrive"))
     event = _pending(world, "staff_operation_complete")
