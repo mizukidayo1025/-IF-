@@ -84,10 +84,13 @@ split PR by PR; its last section sums up what is where.
   (`src/rules/tick.rs`) is the E10 check (a patched step or rule fails the tick with
   `KernelRefusal`; there is no Python path to run it instead, #221) and one call of the core's
   `run_phases` with a `PyHost`.
-- **A tick without Python**: `cargo test -p sheltersim_core --test tick_core` builds a small
-  World from `core/tests/data/tick_core.json` (`core/tests/support/load.rs`, test code only,
-  decision 4) and runs 1,440 ticks with a `TestHost` (no LLM; the whole-world validation answers
-  Ok, E6). Its digests are the native path's (`tests/integration/test_core_fixtures.py`).
+- **A tick without Python**: `cargo test -p sheltersim_core --test tick_core` builds the Worlds
+  of `core/tests/data/tick_core.json` (`core/tests/support/load.rs`, test code only, decision 4)
+  and runs their ticks with a `TestHost` (no LLM; the whole-world validation answers Ok, E6): a
+  small world without a floor plan for 1,440 ticks, and a generated world with a floor plan, every
+  extension, the typed namespaces and moved facilities for 360 ticks, in which people walk and
+  `update_movement` replans their trips (#214). Their digests are the native path's
+  (`tests/integration/test_core_fixtures.py`).
 - **Typed rows from JSON** (#225): every `Field` reads itself from the `V` of its canonical JSON
   (`Field::from_value`, written by `state_row!` and `str_enum!`, by hand for the leaf types and
   the hand-written fields), with the checks of the PyO3 crate's `from_py`. No tick uses it; the
@@ -277,9 +280,12 @@ split PR by PR; its last section sums up what is where.
   `tests/support/core_fixtures.py` registers (`benchmarks/core_fixtures.py`), and
   `tests/integration/test_core_fixtures.py` checks that each file is what its builder makes
   today. A test reads one exported world with `load::entry(file, world)`, then `load::loaded`
-  (the World, the Run and its policies) and `load::host` (the sections and the floor plan).
-  `tests/tick_core.rs` runs 1,440 ticks of a small world with `TestHost` alone and reaches the
-  digests the native path gives on the same world (`tests/data/tick_core.json`);
+  (the World, the Run and its policies) and `load::host` (the sections and the floor plan), or
+  `load::following_host` for a Run's ticks: a host that also does what the PyO3 crate's host does
+  to the world it owns (the floor plan of the overlay at each call, a namespace a rule starts,
+  `world.resources` after a ledger operation).
+  `tests/tick_core.rs` runs the ticks of each world of `tests/data/tick_core.json` with `TestHost`
+  alone and reaches the digests the native path gives on the same world;
   `tests/typed_rows.rs` reads every typed namespace of `tests/data/typed_rows.json` and writes
   it back to the same bytes, and refuses what `from_py` refuses; `tests/fixtures.rs` checks the
   sections and the floor plan of an exported world against what the native path read of it, and

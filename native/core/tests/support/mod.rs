@@ -78,6 +78,9 @@ pub enum Call {
     // ---- Lane P9-1a ----
     FindRecord(Arc<str>),
     FloorPlan,
+    // ---- #214 ----
+    StartNamespace(Arc<str>),
+    ResourcesChanged(usize, i64),
 }
 
 /// A host without Python that writes down what it was asked.
@@ -99,6 +102,11 @@ pub struct TestHost {
     pub records: IndexMap<Arc<str>, Logged>,
     /// The floor plan `floor_plan` gives; none means it refuses as a host without one does.
     pub plan: Option<Arc<Geo>>,
+    /// The loaded world this host is the owner of (`load::following_host`, #214): where set, the
+    /// floor plan is the world's as it is at each call (not `plan`), a namespace a rule starts is
+    /// put in the world, and the ledger's operations write `world.resources`. None: `plan`, and the
+    /// trait's defaults.
+    pub world: Option<load::Following>,
     /// Sections `fill_section` fills with these instead (a section's fault, a selection).
     pub sections: Vec<(SectionId, Box<dyn Fn(&Configs)>)>,
     /// What `apply_foreign` does (lane P9-1c): a test's handler; none refuses.
@@ -126,6 +134,7 @@ impl Default for TestHost {
             on_llm: None,
             records: IndexMap::new(),
             plan: None,
+            world: None,
             sections: Vec::new(),
             foreign: None,
             contracts: None,
@@ -352,7 +361,26 @@ impl Host for TestHost {
 
     fn floor_plan(&mut self) -> Result<Arc<Geo>, Error> {
         self.calls.push(Call::FloorPlan);
+        if let Some(world) = &mut self.world {
+            return world.floor_plan();
+        }
         self.plan.clone().ok_or_else(|| Error::unsupported(sheltersim_core::host::NO_PLAN))
+    }
+
+    fn start_namespace(&mut self, name: &str, value: &V) -> Result<(), Error> {
+        self.calls.push(Call::StartNamespace(text(name)));
+        match &self.world {
+            Some(world) => world.start_namespace(name, value),
+            None => Err(Error::unsupported(sheltersim_core::host::NO_NAMESPACE)),
+        }
+    }
+
+    fn resources_changed(&mut self, index: usize, remaining: i64) -> Result<(), Error> {
+        self.calls.push(Call::ResourcesChanged(index, remaining));
+        match &self.world {
+            Some(world) => world.resources_changed(index, remaining),
+            None => Ok(()),
+        }
     }
 
     fn apply_foreign(&mut self, event: &EventRow) -> Result<Foreign, Error> {
