@@ -202,22 +202,6 @@ pub(crate) fn kept_section<T>(
     kept(world, section, || parsed_value(world, parse))
 }
 
-/// A section that a Python expression of the configs gives (`parse`, on the world), evaluated at
-/// the first read after the stamp changed and kept: its value, or what it raised, raised here again
-/// by a second evaluation, with Python's own class and text (policy E14).
-#[track_caller]
-pub(crate) fn kept_python<T>(
-    world: &Bound<'_, PyAny>,
-    section: fn(&Configs) -> &Lazy<T>,
-    parse: impl Fn(&Bound<'_, PyAny>) -> PyResult<T>,
-) -> PyResult<Arc<T>> {
-    let py = world.py();
-    match kept(world, section, || Ok(parsed(py, parse(world))))? {
-        Ok(value) => Ok(value),
-        Err(fault) => Err(raise(&fault, || parse(world))),
-    }
-}
-
 /// The error a read site raises for a fault: a refusal its own `Unsupported`, any other what a
 /// second parse raises (policy E14).
 #[track_caller]
