@@ -927,6 +927,17 @@ Issue #152（#132 の段階3）の計画と記録です。Rust のコード（`n
     - `computation_mib`：898〜906 MiB。
     - load average は 1.7〜12.3 でした。
 
+### PR P10-1a：中核の wasm32 のビルド（レーン P10-1a）
+
+- **何をしたか**：中核（`native/core/Cargo.toml`）の `rayon` を、既定で入る機能 `parallel` の後ろに置きました（`optional`）。窓口の crate（`native/Cargo.toml`）は `features = ["parallel"]` を名前で求めるので、拡張は今までどおり手伝いのスレッドを使います。
+  - **`parallel.rs`**：プールと `run_parts` を `pool` という小さな module に入れ、機能のないビルドでは値のない `Helpers`（中身のない enum）とスレッド 0 の module にしました。`in_order` と `parts_in_order` は両方のビルドで同じ関数で、手伝いがないときの道（前から census・抽選の記録・少ない人数で通っていた道）を通ります。分け方（`set_people_per_helper` で決まる1つの部分の人数）も同じなので、結果は同じ順の同じバイトです。`parallel_state` は機能がないと `(0, 0)` です。
+  - **`checkpoint.rs`**：`chunk_hashes` は1つの塊のハッシュ `chunk_hash` に分け、機能がないと `iter().map()` で同じ順に集めます。`sensitive_candidates` は機能がないと `try_fold` で前から順に合わせます。返す2つの集合の中身は同じです。集合を回す順は、並列でも前から決まっていませんでした（Python は集合として読みます）。読めないテキストが2つ以上あるとき、並列ではどれの誤りが返るか決まらず、順に読むと最初のものです（文は同じ `unterminated JSON string` などです）。
+- **テスト**：中核の `native/core/tests/parallel.rs`（1件）：1,000人の `in_order`、`parts_in_order`、`chunk_hashes`、`sensitive_candidates`、読めないテキストの誤りを、同じ入力の素の繰り返しと比べ、全部のバイトの digest を凍結した値と比べます。CI は機能ありとなしの両方で動かすので、2つのビルドが同じバイトを出すことを確かめます（機能ありでは `parallel_state` で手伝いが動いたことも確かめます）。`native/core/tests/no_platform.rs`（2件）：中核の `src` に `std::time`・`fs`・`env`・`thread`（`use std::{...}` の形、`core::`、`Instant::`、`SystemTime` も）がないこと。`thread_local!`、`Mutex`、`OnceLock` は1つのスレッドで動くので許します。今の中核には1つもありませんでした。CI の手順を grep にせずテストにしたのは、手元の `cargo test` でも両方のビルドで動くためです。
+- **CI**：lint の job の「Rustの中核がPyO3なしで動くことを確認」の後に、`rustup target add wasm32-unknown-unknown`、`cargo build -p sheltersim_core --target wasm32-unknown-unknown --no-default-features`、`cargo test -p sheltersim_core --no-default-features` の手順を足しました。trigger とほかの job は変えていません。
+- **文書**：`native/README.md` に機能と wasm32 のビルドの節、`docs/testing.md` に CI の手順、`docs/rust-port.md` の手伝いのスレッドの節に機能のないビルドのこと。
+- **確かめたこと**（`main` `e481e446` の上で）：`cargo test -p sheltersim_core`（453件）と `--no-default-features`（453件）、`cargo check --workspace`、`cargo clippy --workspace --all-targets -- -A clippy::all -D clippy::disallowed_methods`、`cargo tree -p sheltersim_core -e normal,build` に `pyo3` がなく、`--no-default-features` では `rayon` もないこと、`wasm32-unknown-unknown` の `--no-default-features` のビルド、offline の pytest（`-m "not long_simulation"`：5322 passed、6 skipped。`native/pylib` にこのビルド）、全経路のゲート（55 scenarios、0 problems。1171・1171、その場で 390）。
+- **7日分**（100人、project の経路、生成 Scenario）：`main`（`e481e446`）のビルドと交互に3組、base、この PR、この PR、base、この PR、base の順。6回とも world、events、metrics のハッシュは同じです（69aba659…、5e4c7645…、94c8cbb2…）。初めの2組は他のレーンと重なり load average が 5〜18 で、thread は base 81.70・67.69 s、この PR 62.79・75.15 s と揺れました。load average 3.0・1.8 の3組目は、thread がこの PR 58.19 s、base 58.48 s（−0.5%）、Checkpoint の保存（`ProjectStore.save_captured_branch`、並列のハッシュを使います）の thread は 7.14 s と 7.12 s、`Checkpoint.capture` は 20.68 s と 20.94 s、`TickEngine.step` は 14.94 s と 15.05 s です。`computation_mib` は base 903.5〜909.2 MiB、この PR 899.2〜908.5 MiB です。100人の tick は前から手伝いを使わず、拡張は機能を持つので、速さは変わらないはずのとおりでした。
+
 ### この後
 
 残りの PR は、下の「レーン」の順に進めます。各レーンは、終わったときにこの節の前に記録を足します。
