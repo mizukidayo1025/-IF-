@@ -253,3 +253,50 @@ def test_swapped_configs_do_not_pile_up_in_the_controller(generated_scenario) ->
     assert len(controller._parsed_configs) == parsed
     assert [known for known, _ in controller._model_selections] == [world.model_configs]
     assert controller._model_selections[0][0] is world.model_configs
+
+
+def test_the_view_before_proposals_is_the_run_s_scratch(generated_scenario) -> None:
+    """`_view_before_proposals` reads and writes the Run's scratch (Issue #152 lane P9-2a,
+    decision D4): the update phase's snapshot comes back as a new `WorldView` of it at each read,
+    a view Python set comes back as itself, None empties it, and the controller keeps none of it."""
+    from dataclasses import replace
+
+    from sheltersim.core.engine import TickEngine, TickPhase
+    from sheltersim.core.world import WorldState
+    from sheltersim.experiments.metrics import MetricsRecorder
+    from sheltersim.experiments.runner import OfflineSimulationController
+    from sheltersim.experiments.timeline import _MetricSink
+
+    world = WorldState.from_scenario(generated_scenario)
+    controller = OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
+    assert controller._view_before_proposals is None
+    assert "_view_before_proposals" not in controller.__dict__
+
+    made = controller._view_after_movement(world)
+    controller._view_before_proposals = made
+    first = controller._view_before_proposals
+    second = controller._view_before_proposals
+    assert first is not made and first is not second
+    assert "_rust_view" in first.__dict__ and "agents" not in first.__dict__
+    assert first.__dict__["_rust_view"] is not made.__dict__["_rust_view"]
+    _assert_same_views(replace(first, state_hash=None), replace(made, state_hash=None))
+    assert "_view_before_proposals" not in controller.__dict__
+
+    python_view = replace(view_of(world, include_state_hash=False))
+    controller._view_before_proposals = python_view
+    assert controller._view_before_proposals is python_view
+    controller._view_before_proposals = None
+    assert controller._view_before_proposals is None
+
+    # A tick's update phase leaves its view in the scratch; the propose phase takes it.
+    engine = TickEngine(world, phase_handler=controller)
+    seen: list[tuple[TickPhase, bool]] = []
+
+    def watch(phase: TickPhase, before: bool) -> None:
+        if not before and phase in (TickPhase.UPDATE_AGENT_STATE, TickPhase.PROPOSE_ACTIONS):
+            view = controller._view_before_proposals
+            seen.append((phase, view is not None and view.minute_index == world.minute_index))
+
+    engine.phase_observer = watch
+    engine.step()
+    assert seen == [(TickPhase.UPDATE_AGENT_STATE, True), (TickPhase.PROPOSE_ACTIONS, False)]
