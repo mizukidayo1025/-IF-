@@ -1,15 +1,15 @@
-"""The Rust driver of a tick (rules/tick.rs): the phases' results, and what sends a tick to them.
+"""The Rust driver of a tick (rules/tick.rs): what it runs, and what it refuses.
 
 The shadows of benchmarks/rule_shadow go through Python entries, which the driver doesn't, so here
-the driver and the phases run the same scenario and all they saved is compared, also after each
-phase.
+what a Run on the driver saved is compared with a digest recorded from it (`_digest`). The digests
+were recorded when the phases' Python steps still ran the same Runs to the same bytes (#221).
 See docs/rust-port/lanes/m6-driver.md.
 """
 
 from __future__ import annotations
 
 import ast
-import contextlib
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -17,7 +17,6 @@ from typing import Any
 
 import pytest
 from support.paths import BENCHMARKS
-from support.world import on_the_phases
 
 from sheltersim import native
 from sheltersim.core.engine import (
@@ -86,6 +85,13 @@ def _run(scenario: Any, directory: Path, minutes: int, **options: Any) -> dict[s
     return _saved(world, controller)
 
 
+def _digest(value: Any) -> str:
+    """Of what a Run saved, or of what its hooks were asked: the same on every OS, as the gate's
+    hashes are."""
+    text = json.dumps(value, sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
 @pytest.fixture
 def short_scenario(generated_scenario: Any) -> Any:
     """Ends where these tests run to, so the Run's last minute is reached too."""
@@ -94,47 +100,6 @@ def short_scenario(generated_scenario: Any) -> Any:
 
 def test_the_rust_kernels_give_a_controller_a_driver() -> None:
     assert hasattr(OfflineSimulationController, "run_tick")
-
-
-def test_a_whole_run_is_the_same_through_the_driver_and_through_the_phases(
-    short_scenario: Any, tmp_path: Path
-) -> None:
-    minutes = short_scenario.duration_minutes
-    before = _ticks()
-    driven = _run(short_scenario, tmp_path / "driven", minutes)
-    assert _ticks() - before == minutes
-    with on_the_phases():
-        phases = _run(short_scenario, tmp_path / "phases", minutes)
-    assert _ticks() - before == minutes, "the phases' run went through the driver"
-    assert driven == phases
-    # The last minute closes what is open, and the run did something to compare.
-    assert len(driven["records"]) > 100
-
-
-def test_each_phase_ends_in_the_same_state_through_the_driver_and_the_phases(
-    generated_scenario: Any, tmp_path: Path
-) -> None:
-    def digests(directory: Path) -> list[tuple[str, bool, int, str]]:
-        world, _controller, engine = _build(generated_scenario, directory)
-        seen: list[tuple[str, bool, int, str]] = []
-
-        def watch(phase: TickPhase, before: bool) -> None:
-            seen.append(
-                (phase.value, before, world.minute_index, world.state_digest()),
-            )
-
-        engine.phase_observer = watch
-        engine.run(90)
-        return seen
-
-    before = _ticks()
-    driven = digests(tmp_path / "driven")
-    assert _ticks() - before == 90
-    with on_the_phases():
-        phases = digests(tmp_path / "phases")
-    assert driven == phases
-    assert len(driven) == 90 * 2 * len(TICK_PHASE_ORDER)
-    assert len({item[3] for item in driven}) > 90, "the digests did not see the phases' work"
 
 
 def _whole_run(
@@ -159,23 +124,20 @@ def _whole_run(
     return _saved(world, controller), loops
 
 
-def test_the_driver_serves_independent_queues_itself_as_the_phases_do(
+def test_the_driver_serves_independent_queues_itself(
     generated_scenario_with_split_queues: Any, tmp_path: Path
 ) -> None:
     before = _ticks()
     driven, loops = _whole_run(generated_scenario_with_split_queues, tmp_path / "driver")
     assert _ticks() == before + 180
     assert loops == set()
-    with on_the_phases():
-        phases, loops = _whole_run(generated_scenario_with_split_queues, tmp_path / "phases")
-    assert len(loops) == 2, loops
-    assert driven == phases
     requests = [
         event
-        for event in phases["records"]
+        for event in driven["records"]
         if '"facility_queue_transition"' in event and '"service_started"' in event
     ]
     assert requests, "nobody was served, so the queues were not tried"
+    assert _digest(driven) == "9aad665bb4e6bd3f"
 
 
 def test_the_driver_keeps_the_view_the_next_phase_builds_on(
@@ -210,17 +172,15 @@ def _without_contact_models(scenario: Any) -> Any:
     return type(scenario).model_validate(document)
 
 
-@pytest.mark.parametrize("phases", [False, True])
 def test_without_the_contact_models_the_decisions_refuse_another_rng(
-    generated_scenario: Any, tmp_path: Path, phases: bool
+    generated_scenario: Any, tmp_path: Path
 ) -> None:
     """The decisions are the kernel alone too (lane L10): with the social and information models
     off, an RNG no Run has fails the tick at `_propose_due`, not in a Python rule."""
     scenario = _without_contact_models(generated_scenario)
     world, controller, engine = _build(scenario, tmp_path, rng=_OtherRng(scenario.seed))
-    with on_the_phases() if phases else contextlib.nullcontext():
-        with pytest.raises(Exception) as raised:
-            engine.step()
+    with pytest.raises(Exception) as raised:
+        engine.step()
     chain = []
     error: BaseException | None = raised.value
     while error is not None:
@@ -230,18 +190,16 @@ def test_without_the_contact_models_the_decisions_refuse_another_rng(
     assert any("propose_rows" in str(item) for item in chain), chain
 
 
-@pytest.mark.parametrize("phases", [False, True])
 def test_a_refusal_of_a_step_without_a_python_rule_fails_the_tick(
-    generated_scenario: Any, tmp_path: Path, phases: bool
+    generated_scenario: Any, tmp_path: Path
 ) -> None:
     """The social step is the kernel alone (segments.py, KERNEL_ONLY_SEGMENTS). An RNG no Run has
-    is turned down, and neither the driver nor the phases have a Python rule to run instead."""
+    is turned down, and the driver has no Python rule to run instead."""
     world, controller, engine = _build(
         generated_scenario, tmp_path, rng=_OtherRng(generated_scenario.seed)
     )
-    with on_the_phases() if phases else contextlib.nullcontext():
-        with pytest.raises(Exception) as raised:
-            engine.step()
+    with pytest.raises(Exception) as raised:
+        engine.step()
     chain = []
     error: BaseException | None = raised.value
     while error is not None:
@@ -305,15 +263,25 @@ def test_a_step_patched_on_the_controller_itself_sends_the_tick_to_the_phases(
 def test_a_trace_runs_on_the_driver_and_keeps_its_files(
     level: TraceLevel, generated_scenario: Any, tmp_path: Path
 ) -> None:
+    world, controller, engine = _build(generated_scenario, tmp_path, trace=level)
     before = _ticks()
-    driven = _run(generated_scenario, tmp_path / "driven", 3, trace=level)
+    engine.run(3)
     assert _ticks() - before == 3
-    with on_the_phases():
-        phases = _run(generated_scenario, tmp_path / "phases", 3, trace=level)
-    assert driven == phases
-    assert (tmp_path / "driven/psychology_contributions.jsonl").read_bytes() == (
-        tmp_path / "phases/psychology_contributions.jsonl"
-    ).read_bytes()
+    driven = _saved(world, controller)
+    controller.artifacts.finalize(world)
+    files = {name: (tmp_path / name).read_text("utf-8") for name in TRACE_FILES}
+    assert all(files.values())
+    assert _digest([driven, files]) == TRACE_DIGESTS[level]
+
+
+# The files of a trace that the kernels write the documents of.
+TRACE_FILES = (
+    "decisions.jsonl",
+    "information_contacts.jsonl",
+    "psychology_contributions.jsonl",
+    "social_contacts.jsonl",
+)
+TRACE_DIGESTS = {TraceLevel.SUMMARY: "7453fe603338a482", TraceLevel.FULL: "b368a7c9a08a52b0"}
 
 
 def test_a_trace_of_the_engine_s_phases_runs_on_the_driver(
@@ -361,7 +329,7 @@ def _stressed(controller: OfflineSimulationController, world: WorldState) -> Non
     controller._run_core.refresh_policies(controller)
 
 
-def test_a_router_that_can_call_a_provider_runs_on_the_driver_as_through_the_phases(
+def test_a_router_that_can_call_a_provider_runs_on_the_driver(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     minutes = 240
@@ -389,16 +357,7 @@ def test_a_router_that_can_call_a_provider_runs_on_the_driver_as_through_the_pha
     driven, driven_calls = run(tmp_path / "driven", record)
     assert _ticks() - before == minutes
     assert provider.asked, "no Provider call was reached"
-
-    phase_provider = _KeepingProvider()
-    with on_the_phases():
-        phases, phases_calls = run(
-            tmp_path / "phases",
-            LLMRouter(_llm_settings(LLMMode.RECORD), provider=phase_provider, tape=ResponseTape()),
-        )
-    assert driven == phases
-    assert driven_calls == phases_calls
-    assert provider.asked == phase_provider.asked
+    assert _digest([driven, driven_calls, provider.asked]) == "cecea3cbbc10bddc"
 
     # The same recorded responses, from the tape alone: no Provider is given.
     before = _ticks()
@@ -411,7 +370,7 @@ def test_a_router_that_can_call_a_provider_runs_on_the_driver_as_through_the_pha
     assert replayed_calls == driven_calls
 
 
-def test_an_answer_the_schema_refuses_falls_back_on_the_driver_as_through_the_phases(
+def test_an_answer_the_schema_refuses_falls_back_on_the_driver(
     tmp_path: Path,
 ) -> None:
     """LLM output stays untrusted on either path: the router checks it, before any rule reads it."""
@@ -431,16 +390,15 @@ def test_an_answer_the_schema_refuses_falls_back_on_the_driver_as_through_the_ph
         engine.run(minutes)
         return _saved(world, controller), provider.asked
 
+    before = _ticks()
     driven, asked = run(tmp_path / "driven")
+    assert _ticks() - before == minutes
     assert asked
     assert "run this code" not in driven["world"]
-    with on_the_phases():
-        phases, phases_asked = run(tmp_path / "phases")
-    assert driven == phases
-    assert asked == phases_asked
+    assert _digest([driven, asked]) == "828ad5463a977fcf"
 
 
-def test_the_hooks_of_an_offline_router_run_where_they_run_through_the_phases(
+def test_the_hooks_of_an_offline_router_run_on_the_driver(
     generated_scenario: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     minutes = generated_scenario.duration_minutes
@@ -469,11 +427,8 @@ def test_the_hooks_of_an_offline_router_run_where_they_run_through_the_phases(
     before = _ticks()
     driven, driven_calls = run(tmp_path / "driven")
     assert _ticks() - before == minutes
-    with on_the_phases():
-        phases, phases_calls = run(tmp_path / "phases")
-    assert driven == phases
-    assert driven_calls == phases_calls
     assert any(call[0] == "consider_support_request" for call in driven_calls)
+    assert _digest([driven, driven_calls]) == "086773ea4b80e1e4"
 
 
 class _Seen:
@@ -490,31 +445,23 @@ class _Seen:
         self.phases.append((minute, phase.value, False))
 
 
-def test_a_tick_probe_watches_the_driver_and_a_patch_s_phases_alike(
-    generated_scenario: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_a_tick_probe_watches_the_driver_s_phases(generated_scenario: Any, tmp_path: Path) -> None:
     expected = [
         (minute, phase.value, stage)
         for minute in range(2)
         for phase in TICK_PHASE_ORDER
         for stage in (True, False)
     ]
-    results = {}
-    for patched, ticks in ((False, 2), (True, 0)):
-        seen = _Seen()
-        undo = tick_probe.install([seen])
-        before = _ticks()
-        try:
-            if patched:
-                with on_the_phases():
-                    results[patched] = _run(generated_scenario, tmp_path / str(patched), 2)
-            else:
-                results[patched] = _run(generated_scenario, tmp_path / str(patched), 2)
-        finally:
-            undo()
-        assert _ticks() - before == ticks
-        assert seen.phases == expected
-    assert results[False] == results[True]
+    seen = _Seen()
+    undo = tick_probe.install([seen])
+    before = _ticks()
+    try:
+        watched = _run(generated_scenario, tmp_path / "watched", 2)
+    finally:
+        undo()
+    assert _ticks() - before == 2
+    assert seen.phases == expected
+    assert watched == _run(generated_scenario, tmp_path / "unwatched", 2)
 
 
 def test_the_phase_profiler_leaves_the_driver_running(
