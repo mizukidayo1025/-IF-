@@ -508,7 +508,7 @@ impl<'py> Host for PyHost<'py> {
 
     /// `event_log.find(event_id)`, read as the core reads a record.
     fn find_record(&mut self, event_id: &str) -> Result<Option<Logged>, HostError> {
-        let found = crate::rules::common_operations::found_records(&self.world, vec![Arc::from(event_id)])?;
+        let found = crate::eventlog::found_records(&self.world, vec![Arc::from(event_id)])?;
         Ok(found.0.into_iter().next().and_then(|(_, logged)| logged))
     }
 
@@ -915,7 +915,7 @@ impl<'py> Host for PyHost<'py> {
         if let Some(returned) = returned.filter(|returned| returned.is_truthy().unwrap_or(true)) {
             for record in returned.try_iter()? {
                 let record = record?;
-                let logged = crate::rules::common_operations::logged_of(&record)?;
+                let logged = crate::eventlog::logged_of(&record)?;
                 let detail = attribute(&record, intern!(py, "detail"))?;
                 let detail = if detail.is_none() { None } else { Some(exact_str(&detail)?.to_owned()) };
                 records.push(ForeignRecord { event: logged.event, realized_minute: logged.realized_minute, status: logged.status, detail });
