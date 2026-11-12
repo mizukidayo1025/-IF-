@@ -496,6 +496,16 @@ impl<E: From<Error> + crate::host::HostFailure> StaffRead<E> {
     }
 }
 
+/// A section of configs the caller has, kept there or filled by the host: the read of a world the core
+/// does not hold (a save's world being validated before its core; lane P10-1c), whose configs no
+/// slot follows.
+pub fn section_in<H: Host, T>(host: &mut H, configs: Arc<Configs>, which: SectionId, get: fn(&Configs) -> &Lazy<T>) -> std::result::Result<Section<T>, H::Error> {
+    if let Some(section) = get(&configs).get() {
+        return Ok(section.clone());
+    }
+    filled(host, configs, which, get)
+}
+
 fn filled<H: Host, T>(host: &mut H, configs: Arc<Configs>, which: SectionId, get: fn(&Configs) -> &Lazy<T>) -> std::result::Result<Section<T>, H::Error> {
     let from = match host.fill_section(&configs, which)? {
         Filled::Kept => configs,

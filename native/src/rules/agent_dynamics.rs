@@ -7,11 +7,11 @@ use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyString};
 
-use sheltersim_core::config::agent_dynamics::Awareness;
+use sheltersim_core::config::agent_dynamics::{awareness, Awareness};
+use sheltersim_core::config::SectionId;
 use sheltersim_core::rules::agent_dynamics as rules;
 use sheltersim_core::rules::kit::Kept;
 
-use crate::core::configs;
 use crate::core::errors::OrPy;
 use crate::core::row::{attribute, exact_int, exact_str, str_value, PyField};
 use crate::core::world_core::{with_world, PyWorldCell};
@@ -26,10 +26,12 @@ pub(crate) fn policy_kept(world: &Bound<'_, PyAny>) -> PyResult<Kept<&'static st
 }
 
 /// `model_validate` of `model_configs["facility_awareness"]`, or None where it is absent or None,
-/// read through the core's reader (`rules::Configs::awareness`). Refused for what the model refuses
-/// or coerces.
+/// read through the core's reader (`kit::section_value`). Refused for what the model refuses or
+/// coerces.
 pub(crate) fn awareness_of(world: &Bound<'_, PyAny>) -> PyResult<std::sync::Arc<Option<Awareness>>> {
-    configs::read(rules::Configs::awareness(&PyWorldCell(world), &mut host_of(world)).map_err(|error| error.0)?)
+    let mut host = host_of(world);
+    let holding = host.holding_now()?;
+    host.value(&holding, SectionId::FacilityAwareness, |configs| &configs.facility_awareness, awareness)
 }
 
 /// The native host of an entry.

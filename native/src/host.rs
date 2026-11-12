@@ -1123,11 +1123,21 @@ impl<'py> PyHost<'py> {
         sheltersim_core::rules::kit::holding(&PyWorldCell(&world), self).map_err(|error| error.0)
     }
 
+    /// The configs of a world without a core (a save's world being validated before its core): new
+    /// ones no slot follows, which the host fills at each read, as `configs::current` gave them.
+    fn coreless_configs(&self) -> Option<Arc<Configs>> {
+        core_of(&self.world).is_err().then(|| Arc::new(Configs::new(None)))
+    }
+
     /// A section the core parses from the configs' value (H2, `kit::section_value`): the value, or
     /// the fault for the core to raise where its rule reads the section.
     pub(crate) fn value_section<T>(&mut self, holding: &Holding, which: SectionId, get: fn(&Configs) -> &Lazy<T>, parse: fn(&V) -> Read<T>) -> PyResult<Kept<T>> {
+        use sheltersim_core::rules::kit;
+        if let Some(configs) = self.coreless_configs() {
+            return Ok(kit::kept_of(kit::section_in(self, configs, which, get).map_err(|error| error.0)?));
+        }
         let world = self.world.clone();
-        sheltersim_core::rules::kit::kept_section_value(&PyWorldCell(&world), self, holding, which, get, parse).map_err(|error| error.0)
+        kit::kept_section_value(&PyWorldCell(&world), self, holding, which, get, parse).map_err(|error| error.0)
     }
 
     /// `value_section`, raised here: a refusal its `Unsupported`, any other fault a corrupt
@@ -1139,8 +1149,12 @@ impl<'py> PyHost<'py> {
 
     /// A section Python's contract parses (H2, `kit::section`): the value, or its fault.
     pub(crate) fn host_section<T>(&mut self, holding: &Holding, which: SectionId, get: fn(&Configs) -> &Lazy<T>) -> PyResult<Kept<T>> {
+        use sheltersim_core::rules::kit;
+        if let Some(configs) = self.coreless_configs() {
+            return Ok(kit::kept_of(kit::section_in(self, configs, which, get).map_err(|error| error.0)?));
+        }
         let world = self.world.clone();
-        sheltersim_core::rules::kit::kept_section(&PyWorldCell(&world), self, holding, which, get).map_err(|error| error.0)
+        kit::kept_section(&PyWorldCell(&world), self, holding, which, get).map_err(|error| error.0)
     }
 
     /// `host_section`, raised here: a refusal its `Unsupported`, any other fault what the parse
