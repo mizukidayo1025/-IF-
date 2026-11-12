@@ -291,7 +291,8 @@ split PR by PR; its last section sums up what is where.
   (the World, the Run and its policies) and `load::host` (the sections and the floor plan), or
   `load::following_host` for a Run's ticks: a host that also does what the PyO3 crate's host does
   to the world it owns (the floor plan of the overlay at each call, a namespace a rule starts,
-  `world.resources` after a ledger operation).
+  `world.resources` after a ledger operation, the records of the world's log as `find_record`
+  finds them).
   `tests/tick_core.rs` runs the ticks of each world of `tests/data/tick_core.json` with `TestHost`
   alone and reaches the digests the native path gives on the same world;
   `tests/typed_rows.rs` reads every typed namespace of `tests/data/typed_rows.json` and writes
@@ -307,7 +308,11 @@ split PR by PR; its last section sums up what is where.
   `tests/staff_assignment.rs` call `_apply_effect` (`tick::propose::apply_alone`), `_route`,
   `_schedule_travel`, the water and meal service and the staff's assignment, relief and support
   waits on the worlds of the pytest files of the same names (`tests/data/service_rules.json`,
-  `generated_texts.json`, `staff_assignment.json`).
+  `generated_texts.json`, `staff_assignment.json`); `tests/replan_journeys.rs`,
+  `tests/movement_walk_order.rs` and `tests/movement_rules.rs` call `_replan_journeys`
+  (`tick::update::replan_journeys`), the walk of `advance_movement` (`advance_through`) and the
+  other rules of `domain/movement.py` on the worlds of the pytest files of the same names
+  (`tests/data/replan_journeys.json`, `movement_walk_order.json`, `movement_rules.json`).
   The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,

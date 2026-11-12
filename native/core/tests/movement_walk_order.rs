@@ -6,7 +6,7 @@
 //! are all that checks them: a queue trip that replans, and a person placed in a slot in the walk.
 //! Each world is the pytest's just before its first call, read from
 //! `tests/data/movement_walk_order.json` (`tests/support/core_fixtures_movement.py` writes it): the
-//! generated Scenario (or the one with split queues, `with_split_queues`) with people sent to the
+//! generated Scenario (or the one with split queues, `split_queues`) with people sent to the
 //! toilet's queue by its service (`ToiletServiceManager`), their trips edited, and the toilet moved
 //! (or a wall put on a walk) as the pytest did. A test calls the core's walk through a host that
 //! follows the world (`rules::movement::advance_through`, the kernel `advance_movement` calls;
