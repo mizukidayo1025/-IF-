@@ -169,12 +169,15 @@ pub(crate) struct PyHost<'py> {
     holding: Option<Arc<Holding>>,
     /// How many times this host read the holding (for the tests).
     holding_reads: usize,
+    /// The handler a foreign event goes to, where the caller holds it (lane P9-1a: a travel
+    /// completion whose manager has its own `request`); else the dispatcher's registered one.
+    handler: Option<Bound<'py, PyAny>>,
 }
 
 impl<'py> PyHost<'py> {
     /// A transaction's host: the world and what the transaction keeps.
     pub(crate) fn of_world(world: &Bound<'py, PyAny>, kept: Bound<'py, PyDict>) -> Self {
-        Self { world: world.clone(), controller: None, policies: None, observer: None, rng: None, kept, in_flight: None, holding: None, holding_reads: 0 }
+        Self { world: world.clone(), controller: None, policies: None, observer: None, rng: None, kept, in_flight: None, holding: None, holding_reads: 0, handler: None }
     }
 
     /// A tick's host: the controller's world, its `Policies`, and nothing a transaction keeps.
@@ -185,7 +188,7 @@ impl<'py> PyHost<'py> {
             Ok(run) => Some(run.get().policies()?),
             Err(_) => None,
         };
-        Ok(Self { world, controller: Some(controller.clone()), policies, observer: None, rng: None, kept: PyDict::new(py), in_flight: None, holding: None, holding_reads: 0 })
+        Ok(Self { world, controller: Some(controller.clone()), policies, observer: None, rng: None, kept: PyDict::new(py), in_flight: None, holding: None, holding_reads: 0, handler: None })
     }
 
     /// The host of a holder of the update steps (lane P8 a3): its policies as given
@@ -194,7 +197,7 @@ impl<'py> PyHost<'py> {
     pub(crate) fn of_holder(controller: &Bound<'py, PyAny>, policies: Arc<Policies>) -> Self {
         let py = controller.py();
         let world = controller.getattr(intern!(py, "world")).unwrap_or_else(|_| py.None().into_bound(py));
-        Self { world, controller: Some(controller.clone()), policies: Some(policies), observer: None, rng: None, kept: PyDict::new(py), in_flight: None, holding: None, holding_reads: 0 }
+        Self { world, controller: Some(controller.clone()), policies: Some(policies), observer: None, rng: None, kept: PyDict::new(py), in_flight: None, holding: None, holding_reads: 0, handler: None }
     }
 
     /// With `TickEngine.phase_observer` (None for none).
@@ -206,6 +209,12 @@ impl<'py> PyHost<'py> {
     /// With the object of the event a handler applies.
     pub(crate) fn with_in_flight(mut self, event: &Bound<'py, PyAny>) -> Self {
         self.in_flight = Some(event.clone());
+        self
+    }
+
+    /// With the handler `apply_foreign` hands an event to (lane P9-1a).
+    pub(crate) fn with_handler(mut self, handler: &Bound<'py, PyAny>) -> Self {
+        self.handler = Some(handler.clone());
         self
     }
 
@@ -688,7 +697,21 @@ impl<'py> Host for PyHost<'py> {
         }
         let raw = || attribute(world, intern!(py, "model_configs"));
         Ok(match which {
-            SectionId::Selection => finish(configs, |c| &c.selection, configs::selection(world)?),
+            SectionId::Selection => {
+                let read = configs::selection(world)?;
+                if configs::selection_is_kept(py)? {
+                    finish(configs, |c| &c.selection, read)
+                } else {
+                    // A patched `selected_models` serves this read alone, also where the configs
+                    // kept the contract's selection before (lane P9-1a).
+                    let once = Arc::new(Configs::new(None));
+                    let _ = once.selection.get_or_parse(|| match read {
+                        Ok(value) => Section::Ok(value),
+                        Err(fault) => Section::Fault(fault),
+                    });
+                    Filled::Once(once)
+                }
+            }
             SectionId::TickPlan => {
                 rules::after_tick::fill_tick_plan(world, configs)?;
                 Filled::Kept
@@ -776,8 +799,13 @@ impl<'py> Host for PyHost<'py> {
     /// it gives back are read as the core reads the EventLog's.
     fn apply_foreign(&mut self, event: &EventRow) -> Result<Foreign, HostError> {
         let py = self.py();
-        let dispatcher = attribute(self.controller()?, intern!(py, "event_dispatcher"))?;
-        let handler = attribute(&dispatcher, intern!(py, "handlers"))?.call_method1(intern!(py, "get"), (&*event.event_type,))?;
+        let handler = match &self.handler {
+            Some(handler) => handler.clone(),
+            None => {
+                let dispatcher = attribute(self.controller()?, intern!(py, "event_dispatcher"))?;
+                attribute(&dispatcher, intern!(py, "handlers"))?.call_method1(intern!(py, "get"), (&*event.event_type,))?
+            }
+        };
         if handler.is_none() {
             return Err(HostError(Unsupported::new_err(NO_HANDLER)));
         }

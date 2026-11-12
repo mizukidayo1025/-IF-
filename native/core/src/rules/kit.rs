@@ -309,7 +309,7 @@ pub fn kept_of<T>(section: Section<T>) -> Kept<T> {
     match section {
         Section::Ok(value) => Ok(value),
         Section::Fault(fault) => Err(fault),
-        Section::Absent => Err(crate::config::Fault::refused("the configs have no such section")),
+        Section::Absent => Err(crate::config::Fault::refused(NO_SUCH_SECTION)),
     }
 }
 
@@ -467,6 +467,52 @@ fn filled<H: Host, T>(host: &mut H, configs: Arc<Configs>, which: SectionId, get
         None => Err(Error::unsupported(NOT_FILLED).into()),
     }
 }
+
+/// The model selection (`selected_models(model_configs)`), asked of the host at every read, as the
+/// PyO3 crate's `configs::selection` reads it: the host keeps it for the configs' stamp, unless a test
+/// patched `selected_models`, whose selection serves one read. The selection, and whether it is the
+/// kept one (lane P9-1a).
+pub fn selection<C: WorldCell, H: Host>(
+    cell: &C,
+    host: &mut H,
+    holding: &Holding,
+) -> std::result::Result<(Kept<crate::config::Selection>, bool), H::Error> {
+    let configs = cell.with(|world| configs_now(world, holding))??;
+    let (from, kept) = match host.fill_section(&configs, SectionId::Selection)? {
+        Filled::Kept => (configs, true),
+        Filled::Once(other) => (other, false),
+    };
+    match from.selection.get() {
+        Some(section) => Ok((kept_of(section.clone()), kept)),
+        None => Err(Error::unsupported(NOT_FILLED).into()),
+    }
+}
+
+/// `section` of a section the model selection decides (`BodyModels`, `CareOutcome`), read after the
+/// selection (`selection`): where the selection was not the kept one (a test patched
+/// `selected_models`), the section is parsed at every read too, in configs of its own, as the PyO3
+/// crate's `kept_with_selection` parses it (lane P9-1a).
+pub fn section_of_selection<C: WorldCell, H: Host, T>(
+    cell: &C,
+    host: &mut H,
+    holding: &Holding,
+    selection_kept: bool,
+    which: SectionId,
+    get: fn(&Configs) -> &Lazy<T>,
+) -> std::result::Result<Section<T>, H::Error> {
+    let configs = cell.with(|world| configs_now(world, holding))??;
+    if !selection_kept && configs.stamp.is_some() {
+        let own = Arc::new(Configs::new(configs.stamp));
+        return filled(host, own, which, get);
+    }
+    if let Some(section) = get(&configs).get() {
+        return Ok(section.clone());
+    }
+    filled(host, configs, which, get)
+}
+
+/// The refusal of a section the configs do not have, as the PyO3 crate's `configs::kept` says it.
+pub const NO_SUCH_SECTION: &str = "the configs have no such section";
 
 /// The refusal of a value of the Run's `Policies` whose read raised (policy E14): the PyO3 crate
 /// reads the attribute again where it meets it, and raises what that raises.

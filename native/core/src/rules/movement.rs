@@ -41,7 +41,8 @@ use crate::rules::queues::{plan_trip, slot_route, trip_id, write_plan, Fifo, Pla
 use crate::state::movement::{Journey, MovementRow, Point, Position};
 use crate::state::staff_operations::{Phase, StaffOperationsRow, NAME as STAFF_OPERATIONS};
 use crate::value::V;
-use crate::world::World;
+use crate::host::{Hold, Holding, Host, NOT_OWNED, TABLE_NOT_PLAIN};
+use crate::world::{World, WorldCell};
 
 pub use crate::rules::kit::movement::{EXACT_INT, KEY, POLICY_VERSION};
 
@@ -1345,4 +1346,120 @@ pub fn validate(world: &World, queues: &Held, geo: Option<&Geo>) -> Result<Valid
         }
     }
     Ok(Validated::Is(true))
+}
+
+// ---- The end of a stopped journey, through the host (lane P9-1a) ----------------------------------
+
+/// The refusal of a movement namespace the world holds another value of.
+pub const OTHER_MOVEMENT: &str = "the world holds another movement state";
+
+/// `mirror_held` as the host's `Holding` answers: `model_state` holds the namespace's tree or its
+/// detached row.
+pub fn check_held(holding: &Holding) -> Result<()> {
+    if !holding.table {
+        return Err(Error::unsupported(TABLE_NOT_PLAIN));
+    }
+    match holding.keys.get(KEY).map(|key| key.hold) {
+        Some(Hold::Held) => Ok(()),
+        Some(Hold::NotOwned) => Err(Error::unsupported(NOT_OWNED)),
+        _ => Err(Error::unsupported(OTHER_MOVEMENT)),
+    }
+}
+
+/// What `finish_movement` reads first: false where `model_state` has no movement state, which
+/// leaves nothing to finish; else the namespace must be held (`check_held`).
+pub fn finish_held(holding: &Holding) -> Result<bool> {
+    if !holding.table {
+        return Err(Error::unsupported(TABLE_NOT_PLAIN));
+    }
+    if !holding.contains(KEY) {
+        return Ok(false);
+    }
+    check_held(holding)?;
+    Ok(true)
+}
+
+/// `finish_movement` of a person, once `finish_held` said there is a movement state: the floor plan
+/// read through the host (`Host::floor_plan`), then `finish` on the world.
+pub fn finish_through<C: WorldCell, H: Host>(cell: &C, host: &mut H, agent_id: &str) -> std::result::Result<(), H::Error> {
+    let geo = host.floor_plan()?;
+    Ok(cell.with(|world| finish(world, &geo, agent_id))??)
+}
+
+/// Whether `model_state` holds the namespace detached: its key holds the placeholder of the slot's
+/// row, so that a rule writes the row (`place_at_bed`).
+pub fn held_detached(world: &World, holding: &Holding) -> Result<bool> {
+    if !holding.table || holding.keys.get(KEY).map(|key| key.hold) != Some(Hold::Held) {
+        return Ok(false);
+    }
+    Ok(match world.slots.get(KEY) {
+        Some(slot) => slot.try_borrow()?.detached,
+        None => false,
+    })
+}
+
+/// `Point2D.model_validate` of a plain record: only the case where it gives the same two floats.
+fn plain_point(value: &V) -> Option<Pt> {
+    let V::Map(record) = value else {
+        return None;
+    };
+    if record.len() != 2 {
+        return None;
+    }
+    let (Some(V::Float(x)), Some(V::Float(y))) = (record.get("x"), record.get("y")) else {
+        return None;
+    };
+    usable(*x, *y).then_some(Pt { x: *x, y: *y })
+}
+
+/// `state["positions"][agent_id].update(zone_id=..., point=bed, edge_id=None, progress=1.0,
+/// position_kind="physical")` of a bed's point (a `V`, as `reserved_bed_of` gives it) on the row of a
+/// detached namespace: false, having written nothing, unless the namespace is held detached, the
+/// row has the record and the point is two usable floats. The caller then writes through the tree.
+pub fn place_at_bed(world: &World, holding: &Holding, agent_id: &str, zone_id: &Arc<str>, bed: &V) -> Result<bool> {
+    if !held_detached(world, holding)? {
+        return Ok(false);
+    }
+    let Some(point) = plain_point(bed) else {
+        return Ok(false);
+    };
+    check_held(holding)?;
+    place_at_point(world, agent_id, zone_id, point)
+}
+
+/// The refusal of a part of the overlay that is not a dict.
+pub const OVERLAY_NOT_A_DICT: &str = "a part of the overlay is not a dict";
+
+/// `_reserved_bed_of` on the overlay's value (lane P9-1a, from the dispatch glue): `.get(key, {})`
+/// all the way down, a value of another kind refused where Python would raise. The bed's point as
+/// the overlay holds it, or None.
+pub fn reserved_bed_of(overlay: Option<&V>, agent_id: &str) -> Result<Option<V>> {
+    let empty = indexmap::IndexMap::new();
+    fn dict_or<'a>(value: Option<&'a V>, empty: &'a indexmap::IndexMap<Arc<str>, V>) -> Result<&'a indexmap::IndexMap<Arc<str>, V>> {
+        match value {
+            None => Ok(empty),
+            Some(V::Map(map)) => Ok(map),
+            Some(_) => Err(Error::unsupported(OVERLAY_NOT_A_DICT)),
+        }
+    }
+    let overlay = dict_or(overlay, &empty)?;
+    let reservation = dict_or(dict_or(overlay.get("bed_reservations"), &empty)?.get(agent_id), &empty)?;
+    let rooms = dict_or(overlay.get("temporary_rooms"), &empty)?;
+    let room = match reservation.get("room_id") {
+        Some(V::Str(room_id)) => rooms.get(&**room_id),
+        Some(V::List(_) | V::Map(_)) => return Err(Error::unsupported("a room ID is not hashable")),
+        _ => None,
+    };
+    let room = dict_or(room, &empty)?;
+    let beds: &[V] = match room.get("bed_points_m") {
+        None => &[],
+        Some(V::List(beds)) => beds,
+        Some(_) => return Err(Error::unsupported("the beds are not a list")),
+    };
+    let index = match reservation.get("bed_index") {
+        Some(V::Int(index)) => *index,
+        Some(V::Big(_)) => return Err(Error::unsupported("an int is too large")),
+        _ => return Ok(None),
+    };
+    Ok(usize::try_from(index).ok().and_then(|index| beds.get(index)).cloned())
 }

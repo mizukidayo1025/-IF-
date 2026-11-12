@@ -24,21 +24,21 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyTuple};
 use sheltersim_core::config::movement::Movement;
 use sheltersim_core::routes::{Edge, Router, Which};
-use sheltersim_core::rules::kit::{Events, Held, Kept};
+use sheltersim_core::rules::kit::{Held, Kept};
 use sheltersim_core::rules::overlay::PLAN_UNREAD;
 use sheltersim_core::rules::travel::{self as core, Graph, Routing, Walking};
 use sheltersim_core::world::World;
 
-pub(crate) use sheltersim_core::rules::travel::{PlannedTrip, Route, Trip};
+pub(crate) use sheltersim_core::rules::travel::{Route, Trip};
 
 use crate::core::configs;
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_int, exact_str, unsupported};
 use crate::core::run::{run_of, RunCore};
-use crate::core::world_core::{core_of, field_held, namespace_held, with_world};
+use crate::core::world_core::{core_of, namespace_held, with_world};
 use crate::rules::movement::{optional_str, route_points_of, str_tuple, KEY as MOVEMENT};
 use crate::rules::movement_geometry::{Geo, GeoPy};
-use crate::state::events::{write_result, EventRef, EventRow, EventRowPy, EventWriter};
+use crate::state::events::{write_result, EventRef, EventRow, EventRowPy};
 use crate::state::staff_operations::NAME as STAFF_OPERATIONS;
 use crate::Unsupported;
 
@@ -240,13 +240,6 @@ pub(crate) fn staff_router_rows(source: StaffRouter<'_, '_>) -> PyResult<Arc<Rou
 
 // ---- _route ---------------------------------------------------------------------------------------
 
-/// The world's writer, with what the caller's `EventWriter` reserved.
-fn events_of<'w>(world: &'w World, reserved: usize) -> sheltersim_core::error::Result<Events<'w>> {
-    let events = Events::of(world)?;
-    events.reserve(reserved);
-    Ok(events)
-}
-
 pub(crate) fn route_class(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
     py.import("sheltersim.policies.space")?.getattr("ZoneRoute")
 }
@@ -279,16 +272,6 @@ pub(crate) fn route<'py>(
 }
 
 // ---- _schedule_travel ---------------------------------------------------------------------------
-
-/// The writes of `_schedule_travel` and `_schedule_room_approach`.
-pub(crate) fn write_travel(world: &Bound<'_, PyAny>, writer: &EventWriter<'_>, trip: PlannedTrip) -> PyResult<()> {
-    let reserved = writer.reserved();
-    let written = with_world(world, |cell| -> sheltersim_core::events::writer::WriteResult<()> {
-        let events = events_of(cell, reserved)?;
-        core::write_travel(cell, &events, trip)
-    })?;
-    write_result(world.py(), written)
-}
 
 /// A `ZoneRoute` as a row.
 fn route_of_object(route: &Bound<'_, PyAny>) -> PyResult<Route> {
@@ -432,11 +415,6 @@ fn schedule_return_step<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, 
 }
 
 // ---- The choice of a facility -------------------------------------------------------------------
-
-/// Whether `world.metric_state` is still its slot's tree (`kit::check_metric_state`).
-pub(crate) fn metric_state_held(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    field_held(world, intern!(world.py(), "metric_state"))
-}
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(route, m)?)?;

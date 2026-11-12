@@ -1,36 +1,39 @@
 //! `_replan_journeys` of `experiments/phases/update.py`: the glue of the core's kernel
-//! (`sheltersim_core::rules::replan`, lane c6 of Issue #152). It reads what Python holds once
-//! (the Run's graph and `staff_service`, whether `model_state` holds the namespaces, the sections of
-//! the configs, the floor plan), and runs each person's two steps on the world borrowed whole: a
-//! refusal before the first stop says Unsupported, with nothing changed; past it, a stop is written,
-//! and a refusal is a RuntimeError.
+//! (`sheltersim_core::rules::replan`, lane c6 of Issue #152). It reads once what the steps read
+//! outside the world: the Run's graph and `staff_service`, and, through the native host (lane
+//! P9-1a), whether `model_state` holds the namespaces and the sections of the configs; the walking
+//! inputs and the floor plan are the travel glue's. It runs each person's two steps on the world
+//! borrowed whole: a refusal before the first stop says Unsupported, with nothing changed; past it,
+//! a stop is written, and a refusal is a RuntimeError.
 //!
 //! The Python objects of the events a step took out of the queue are let go here. A support whose
-//! staff the person can no longer reach ends in a continuity receipt the core recorded; the glue
-//! projects it into `shared_operations_v1` (`care_receipts::ingest_applied`, which reads the
-//! EventLog's records as Python holds them) and finishes the person's walk (`finish_movement`), each
-//! a KernelRefusal where it refuses, as the Python steps it called were, and the core counts the
-//! replan after them.
+//! staff the person can no longer reach ends in a continuity receipt the core recorded; the core
+//! projects it into `shared_operations_v1` (`care_receipts::ingest_applied`, which looks up the
+//! EventLog's records through `Host::find_record`) and finishes the person's walk
+//! (`movement::finish_through`), each a KernelRefusal where it refuses, as the Python steps it called
+//! were, and the core counts the replan after them.
 
 use std::sync::Arc;
 
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::PyString;
+use pyo3::types::PyDict;
 use sheltersim_core::config::overlay::overlay_schema as parse_overlay_schema;
-use sheltersim_core::rules::kit::{check_metric_state, POLICY_FAULT};
+use sheltersim_core::config::SectionId;
+use sheltersim_core::rules::kit::{self, check_metric_state, POLICY_FAULT};
+use sheltersim_core::rules::{care_receipts, movement};
+use sheltersim_core::world::METRIC_STATE;
 use sheltersim_core::rules::overlay::{Beds, OVERLAY_KEY};
 use sheltersim_core::rules::replan::{self as core, Replanning, Second};
 
 use crate::core::census;
-use crate::core::configs;
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_int, exact_str};
 use crate::core::run::policies_of;
-use crate::core::world_core::{namespace_held, with_world};
-use crate::rules::movement::mirror_held;
-use crate::rules::travel::{metric_state_held, read_queue_rows, rows_of, Inputs};
+use crate::core::world_core::{with_world, PyWorldCell};
+use crate::host::PyHost;
+use crate::rules::travel::{read_queue_rows, rows_of, Inputs};
 use crate::state::events::{write_result, EventWriter};
 use crate::Unsupported;
 
@@ -71,9 +74,14 @@ pub(crate) fn replan_journeys<'py>(
     let py = controller.py();
     let world = attribute(controller, intern!(py, "world"))?;
     let minute = exact_int(minute)?;
-    mirror_held(&world)?;
+    // What the world holds, read by the core's host once (lane P9-1a): no step adds or takes away a
+    // key of `model_state`.
+    let cell = PyWorldCell(&world);
+    let mut host = PyHost::of_world(&world, PyDict::new(py));
+    let holding = kit::holding(&cell, &mut host).map_err(|error| error.0)?;
+    movement::check_held(&holding).or_py()?;
     EventWriter::of(&world)?;
-    let metric_state = metric_state_held(&world)?;
+    let metric_state = holding.field(METRIC_STATE);
     with_world(&world, |cell| check_metric_state(cell, metric_state))?.or_py()?;
     let ids = agent_ids.try_iter()?.collect::<PyResult<Vec<_>>>()?;
     let ids = ids.iter().map(|id| Ok(Arc::<str>::from(exact_str(id)?))).collect::<PyResult<Vec<Arc<str>>>>()?;
@@ -85,8 +93,9 @@ pub(crate) fn replan_journeys<'py>(
     let graph = rows_of(controller)?;
     read_queue_rows(&world)?;
     let inputs = Inputs::of(&world)?;
-    let overlay = namespace_held(&world, intern!(py, OVERLAY_KEY), "the world holds another overlay state")?;
-    let schema = configs::kept_section(&world, |configs| &configs.overlay_schema, parse_overlay_schema)?;
+    let overlay = holding.held(OVERLAY_KEY, core::OTHER_OVERLAY);
+    let schema = kit::kept_section_value(&cell, &mut host, &holding, SectionId::OverlaySchema, |configs| &configs.overlay_schema, parse_overlay_schema)
+        .map_err(|error| error.0)?;
     let policies = policies_of(controller)?;
     let replanning = Replanning {
         routing: inputs.routing(&graph),
@@ -114,10 +123,18 @@ pub(crate) fn replan_journeys<'py>(
                 Second::Done(taken) => forget(&taken),
                 Second::Continuity { event, minute: realized, taken } => {
                     forget(&taken)?;
-                    crate::rules::care_receipts::ingest_applied(&world, &event, realized)
-                        .map_err(|error| errors::kernel_refusal(py, "care_receipts.ingest", error))?;
-                    crate::rules::movement::finish_movement(&world, PyString::new(py, agent_id).as_any())
-                        .map_err(|error| errors::kernel_refusal(py, "movement.finish_movement", error))?;
+                    // The receipt's projection and the end of the walk, the core's through the
+                    // host (`Host::find_record` for the records the receipt reads, lane P9-1a).
+                    care_receipts::ingest_applied(&cell, &mut host, &event, realized)
+                        .map_err(|error| errors::kernel_refusal(py, "care_receipts.ingest", error.0))?;
+                    let finished = (|| -> PyResult<()> {
+                        let holding = kit::holding(&cell, &mut host).map_err(|error| error.0)?;
+                        if movement::finish_held(&holding).or_py()? {
+                            movement::finish_through(&cell, &mut host, agent_id).map_err(|error| error.0)?;
+                        }
+                        Ok(())
+                    })();
+                    finished.map_err(|error| errors::kernel_refusal(py, "movement.finish_movement", error))?;
                     with_world(&world, |cell| core::after_continuity(cell))?.or_py()
                 }
             }

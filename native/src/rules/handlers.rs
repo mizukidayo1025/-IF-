@@ -82,10 +82,6 @@ pub(crate) fn get<'py>(map: &Bound<'py, PyAny>, key: &str) -> PyResult<Bound<'py
     map.call_method1(intern!(map.py(), "get"), (key,))
 }
 
-pub(crate) fn get_is(map: &Bound<'_, PyAny>, key: &str, wanted: &str) -> PyResult<bool> {
-    Ok(str_value(&get(map, key)?) == Some(wanted))
-}
-
 fn models(py: Python<'_>) -> PyResult<Bound<'_, PyModule>> {
     py.import(intern!(py, "sheltersim.events.models"))
 }

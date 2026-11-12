@@ -1,17 +1,20 @@
 //! `SocialInteractionHandler` of `events/handlers.py`: the glue of
 //! `sheltersim_core::rules::social_interaction` (lane P8 d1). The dispatch loop hands the event's row
 //! when the queue has one; the handler's `apply` makes it of the `ScheduledEvent`. What the rare
-//! types read outside the world is gathered first: the EventLog's record of the contact a
-//! cooperation or an information reaction answers, and the information model of a reaction.
+//! types read outside the world (the EventLog's record of the contact a cooperation or an
+//! information reaction answers, and the information model of a reaction) the core reads through
+//! the native host (`Inputs::read`, lane P9-1a).
 
 use pyo3::prelude::*;
 
-use sheltersim_core::rules::social_interaction::{self as rules, interaction_type, trigger_of, Inputs, Said};
+use pyo3::types::PyDict;
+
+use sheltersim_core::rules::social_interaction::{self as rules, Said};
 
 use crate::core::errors::{self, OrPy};
-use crate::core::world_core::with_world;
-use crate::rules::common_operations::found_records;
-use crate::rules::information_events::{event_row, information_spread, state_held};
+use crate::core::world_core::PyWorldCell;
+use crate::host::PyHost;
+use crate::rules::information_events::{event_row, information_spread};
 use crate::state::events::{EventRef, EventRow};
 
 /// `SocialInteractionHandler.apply`. Raises what the Python rule raises for an event that does not
@@ -34,14 +37,8 @@ pub(crate) fn apply_ref(world: &Bound<'_, PyAny>, event: EventRef<'_, '_>) -> Py
 }
 
 fn apply_row(world: &Bound<'_, PyAny>, event: &EventRow) -> PyResult<Said> {
-    let mut inputs = Inputs::default();
-    if let Some(trigger) = trigger_of(event) {
-        inputs.trigger = found_records(world, vec![trigger.clone()])?.0.pop();
-    }
-    if interaction_type(event) == Some("information_reaction") {
-        inputs.information = Some((information_spread(world)?, state_held(world)?));
-    }
-    with_world(world, |world| rules::apply_event(world, event, &inputs))?.or_py()
+    let mut host = PyHost::of_world(world, PyDict::new(world.py()));
+    rules::apply(&PyWorldCell(world), &mut host, event).map_err(|error| error.0)
 }
 
 /// `query_pressure_per_claim` as an information reaction reads it, for the configs' tests.

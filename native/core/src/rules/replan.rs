@@ -45,6 +45,10 @@ fn refuse<T>(reason: &'static str) -> Result<T> {
     Err(Error::unsupported(reason))
 }
 
+/// The refusal of an overlay namespace the world holds another value of (lane P9-1a: the host's
+/// `Holding` answers it).
+pub const OTHER_OVERLAY: &str = "the world holds another overlay state";
+
 /// What a replan reads beside the world.
 pub struct Replanning<'a> {
     pub routing: Routing<'a>,

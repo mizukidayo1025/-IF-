@@ -12,16 +12,17 @@ use pyo3::types::{PyDict, PyTuple};
 use sheltersim_core::events::writer::WriteError;
 use sheltersim_core::rules::care_receipts::{self as core, Made};
 use sheltersim_core::rules::common_operations::{self as operations, Receipt, RECEIPT_EVENTS};
+use sheltersim_core::rules::kit;
 
 pub(crate) use sheltersim_core::rules::care_receipts::{PlannedTransition, Transition};
 
 use crate::core::errors::{to_py_err, OrPy};
-use crate::core::row::{attribute, exact_dict, exact_int, exact_str, namespace_is_absent, unsupported};
-use crate::core::world_core::{mirror_of, with_world};
+use crate::core::row::{attribute, exact_int, exact_str, unsupported};
+use crate::core::world_core::{with_world, PyWorldCell};
+use crate::host::PyHost;
 use crate::rules::common_operations::record;
 use crate::rules::handlers::status_member;
 use crate::state::events::{EventRow, EventRowPy, EventWriter};
-use crate::state::shared_operations::NAME;
 use crate::Unsupported;
 
 /// A write's error as Python's: a core error's class, or `DuplicateEventError`.
@@ -50,15 +51,9 @@ pub(crate) fn made_record<'py>(py: Python<'py>, made: Made) -> PyResult<Bound<'p
     applied_record(py, &made.event, made.minute, &made.detail)
 }
 
-/// The world's `model_state` holds the tree (or the detached row) of `shared_operations_v1`.
-fn shared_held(world: &Bound<'_, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    let mirror = mirror_of(world, NAME)?;
-    let table = attribute(world, intern!(py, "model_state"))?;
-    match exact_dict(&table)?.get_item(NAME)? {
-        Some(state) if mirror.try_borrow()?.holds_state(&state) => Ok(()),
-        _ => unsupported("the world holds another document than the row's"),
-    }
+/// What the world holds, read by the core's host (lane P9-1a).
+fn holding(world: &Bound<'_, PyAny>) -> PyResult<std::sync::Arc<sheltersim_core::host::Holding>> {
+    kit::holding(&PyWorldCell(world), &mut PyHost::of_world(world, PyDict::new(world.py()))).map_err(|error| error.0)
 }
 
 // ---- A care transition ------------------------------------------------------------------------------
@@ -76,22 +71,8 @@ pub(crate) fn transition_record<'py>(py: Python<'py>, planned: &PlannedTransitio
 
 /// `append_applied_care_transition` once the namespace is known to be there.
 pub(crate) fn append(world: &Bound<'_, PyAny>, transition: Transition) -> PyResult<()> {
-    shared_held(world)?;
+    core::check_tree(&*holding(world)?).or_py()?;
     with_world(world, |world| core::append(world, transition))?.map_err(|error| write_error(world.py(), error))
-}
-
-/// Whether `append_applied_care_transition` has nothing to append to: no namespace. One that is None
-/// is refused.
-fn absent(world: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let py = world.py();
-    if !namespace_is_absent(world, intern!(py, NAME))? {
-        return Ok(false);
-    }
-    let table = attribute(world, intern!(py, "model_state"))?;
-    if exact_dict(&table)?.contains(intern!(py, NAME))? {
-        return unsupported("the namespace is None");
-    }
-    Ok(true)
 }
 
 fn optional_text(value: Option<&Bound<'_, PyAny>>) -> PyResult<Option<Arc<str>>> {
@@ -116,7 +97,7 @@ fn append_transition<'py>(
     causation_id: Option<&Bound<'py, PyAny>>,
     source_ids: Option<&Bound<'py, PyAny>>,
 ) -> PyResult<()> {
-    if absent(world)? {
+    if core::nothing_to_append(&*holding(world)?).or_py()? {
         return Ok(());
     }
     let mut sources = Vec::new();
@@ -150,13 +131,9 @@ fn append_transition<'py>(
 #[pyfunction]
 fn ingest<'py>(world: &Bound<'py, PyAny>, outcomes: &Bound<'py, PyAny>) -> PyResult<()> {
     let py = world.py();
-    let table = attribute(world, intern!(py, "model_state"))?;
-    // Past `_DetachingTable.__getitem__`: a detached namespace holds a dict, its row's.
-    let Some(held) = exact_dict(&table)?.get_item(intern!(py, NAME))? else {
+    // A detached namespace holds the row's placeholder, which the host's `Holding` reads as held.
+    if !core::has_namespace(&*holding(world)?).or_py()? {
         return Ok(());
-    };
-    if !crate::core::tracked::is_detached(&held) && !held.is_instance_of::<PyDict>() {
-        return unsupported("the namespace is another value");
     }
     let applied = status_member(py, "APPLIED")?;
     let mut first = true;
@@ -200,31 +177,6 @@ fn ingest<'py>(world: &Bound<'py, PyAny>, outcomes: &Bound<'py, PyAny>) -> PyRes
         first = false;
     }
     Ok(())
-}
-
-/// `ingest_applied_shared_operation_records(world, (record,))` of one APPLIED record a kernel of the
-/// core wrote at `realized_minute`, of an event it made (lane c6: the continuity receipt of a
-/// replanned support).
-pub(crate) fn ingest_applied(world: &Bound<'_, PyAny>, event: &EventRow, realized_minute: i64) -> PyResult<()> {
-    let py = world.py();
-    let table = attribute(world, intern!(py, "model_state"))?;
-    let Some(held) = exact_dict(&table)?.get_item(intern!(py, NAME))? else {
-        return Ok(());
-    };
-    if !crate::core::tracked::is_detached(&held) && !held.is_instance_of::<PyDict>() {
-        return unsupported("the namespace is another value");
-    }
-    if !RECEIPT_EVENTS.contains(&&*event.event_type) {
-        return Ok(());
-    }
-    let minute = exact_int(&attribute(world, intern!(py, "minute_index"))?)?;
-    let recent = realized_minute == minute;
-    let id = &*event.event_id;
-    if with_world(world, |world| operations::is_recorded(world, id, recent, minute))?.or_py()? {
-        return Ok(());
-    }
-    let receipt = Receipt::of(&event.payload).or_py()?;
-    record(world, &receipt)
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

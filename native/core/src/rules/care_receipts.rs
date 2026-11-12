@@ -22,11 +22,14 @@ use crate::error::{Error, Result};
 use crate::events::writer::{WriteError, WriteResult};
 use crate::events::{EventKind, EventRow, EventStatus};
 use crate::row::ValueRow;
-use crate::rules::common_operations::{plan_record, write_record, CareReceipt, Change, PlannedRecord, Receipt};
+use crate::host::{Hold, Holding, Host, TABLE_NOT_PLAIN};
+use crate::rules::common_operations::{self, plan_record, write_record, CareReceipt, Change, PlannedRecord, Receipt, RECEIPT_EVENTS};
+use crate::rules::kit;
+use crate::state::shared_operations::NAME;
 use crate::rules::kit::{assumption, log_record, DYNAMICS};
 use crate::state::shared_operations::{is_identifier, is_support_kind, CareStatus};
 use crate::value::V;
-use crate::world::{set_id_counter, World, ID_COUNTERS, MODEL_CONFIGS};
+use crate::world::{set_id_counter, World, WorldCell, ID_COUNTERS, MODEL_CONFIGS};
 
 const SOURCE: &str = "ASM-CARE-TRANSITION-PRODUCER-V1";
 const POLICY: &str = "applied-care-transition-v1";
@@ -612,4 +615,77 @@ pub fn staff_operation_record(world: &World, outcome: OperationOutcome) -> Resul
         policy: OPERATION_POLICY,
         detail,
     })
+}
+
+// ---- What the receipts read of the namespace, through the host (lane P9-1a) -------------------
+
+/// The refusal of a namespace that is None in `model_state`.
+pub const NAMESPACE_IS_NONE: &str = "the namespace is None";
+
+/// Whether `append_applied_care_transition` has nothing to append to, as the host's `Holding`
+/// answers: no namespace. One that is None is refused, as is a table that is not a plain dict.
+pub fn nothing_to_append(holding: &Holding) -> Result<bool> {
+    if !holding.is_absent(NAME).map_err(Error::unsupported)? {
+        return Ok(false);
+    }
+    if holding.contains(NAME) {
+        return Err(Error::unsupported(NAMESPACE_IS_NONE));
+    }
+    Ok(true)
+}
+
+/// The world's `model_state` holds the tree (or the detached row) of `shared_operations_v1`, as the
+/// host's `Holding` answers.
+pub fn check_tree(holding: &Holding) -> Result<()> {
+    if !holding.table {
+        return Err(Error::unsupported(TABLE_NOT_PLAIN));
+    }
+    match holding.keys.get(NAME).map(|key| key.hold) {
+        Some(Hold::Held) => Ok(()),
+        Some(Hold::NotOwned) => Err(Error::unsupported(crate::host::NOT_OWNED)),
+        _ => Err(Error::unsupported(common_operations::OTHER_DOCUMENT)),
+    }
+}
+
+// ---- ingest_applied_shared_operation_records, through the host (lane P9-1a) ---------------------
+
+/// The refusal of a namespace that is neither a dict nor the detached row's placeholder.
+pub const ANOTHER_VALUE: &str = "the namespace is another value";
+
+/// Whether `model_state` has the namespace for the ingest to project into, as the host's `Holding`
+/// answers: a value that is neither a dict nor the detached row's placeholder is refused, as is a
+/// table that is not a plain dict.
+pub fn has_namespace(holding: &Holding) -> Result<bool> {
+    if !holding.table {
+        return Err(Error::unsupported(TABLE_NOT_PLAIN));
+    }
+    match holding.keys.get(NAME) {
+        None => Ok(false),
+        Some(key) if key.hold != Hold::Held && !key.dict => Err(Error::unsupported(ANOTHER_VALUE)),
+        Some(_) => Ok(true),
+    }
+}
+
+/// `ingest_applied_shared_operation_records(world, (record,))` of one APPLIED record a kernel of the
+/// core wrote at `realized_minute`, of an event it made (lane c6: the continuity receipt of a
+/// replanned support): whether `model_state` has the namespace is the host's `Holding` (H1), and the
+/// EventLog's records the receipt reads are looked up through the host (`Host::find_record`).
+pub fn ingest_applied<C: WorldCell, H: Host>(cell: &C, host: &mut H, event: &EventRow, realized_minute: i64) -> std::result::Result<(), H::Error> {
+    let holding = kit::holding(cell, host)?;
+    if !has_namespace(&holding)? {
+        return Ok(());
+    }
+    if !RECEIPT_EVENTS.contains(&&*event.event_type) {
+        return Ok(());
+    }
+    let id = &*event.event_id;
+    let recorded = cell.with(|world| -> Result<bool> {
+        let minute = world.minute_index()?;
+        common_operations::is_recorded(world, id, realized_minute == minute, minute)
+    })??;
+    if recorded {
+        return Ok(());
+    }
+    let receipt = Receipt::of(&event.payload)?;
+    common_operations::record_through(cell, host, &receipt)
 }

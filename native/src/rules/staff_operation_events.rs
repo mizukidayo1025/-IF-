@@ -1,8 +1,8 @@
 //! The events of an autonomous staff operation (`domain/staff_operations.py`): the glue of
-//! `sheltersim_core::rules::staff_operation_events` (lane P8 b2). Each entry reads what Python holds
-//! (whether `model_state` holds `staff_operations_v1`, `movement_v1`, `body_state_v1`,
-//! `effect_program_v1` and `shared_operations_v1`; the floor plan; the staff operations formula of
-//! the configs), makes the event's row, calls the core with the world borrowed whole, lets go the
+//! `sheltersim_core::rules::staff_operation_events` (lane P8 b2). The core reads, through the native
+//! host (`core::Gathered`, lane P9-1a), whether `model_state` holds `staff_operations_v1`,
+//! `movement_v1`, `body_state_v1`, `effect_program_v1` and `shared_operations_v1`, the floor plan
+//! and the staff operations formula of the configs; each entry makes the event's row, calls the core with the world borrowed whole, lets go the
 //! objects of the queue's slots the core took out, and makes the Python values of what it returns:
 //! the applied records of the receipts, which the dispatcher appends.
 //!
@@ -16,85 +16,40 @@ use std::sync::Arc;
 
 use pyo3::intern;
 use pyo3::prelude::*;
-use pyo3::types::{PyDict, PyString, PyTuple};
-use sheltersim_core::config::staff::StaffOperations;
+use pyo3::types::{PyDict, PyTuple};
 use sheltersim_core::error::Result as CoreResult;
 use sheltersim_core::rules::care_receipts::Made;
-use sheltersim_core::rules::kit::Held;
 use sheltersim_core::rules::overlay::PLAN_UNREAD;
 use sheltersim_core::rules::staff_operation_events::{self as core, CompletePlan, Inputs, Planned, Stopping, Work, FORMULA_UNREAD, SNAPSHOTS, SNAPSHOT_PLAN_UNREAD};
 
 use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_int, exact_str};
-use crate::core::tracked::as_readable_dict;
-use crate::core::world_core::{namespace_held, raw_dict_get, with_world};
+use crate::core::world_core::{with_world, PyWorldCell};
+use crate::host::{HostError, PyHost};
 use crate::rules::care_receipts::made_record;
-use crate::rules::handlers::{counted, get_is};
+use crate::rules::handlers::counted;
 use crate::rules::information_events::event_row;
-use crate::rules::movement_geometry::{Geo, GeoPy};
-use crate::rules::travel::{movement_held, read_queue_rows};
+use crate::rules::travel::read_queue_rows;
 use crate::state::events::{write_result, EventRow, EventWriter};
-use crate::state::staff_operations::NAME;
 use crate::Unsupported;
 
-const SHARED_OPERATIONS: &str = "shared_operations_v1";
-
-/// What the rules read of the Python world, read once per entry before the core borrows it.
-pub(crate) struct Gathered {
-    staff: Held,
-    movement: Held,
-    body: Held,
-    program: Held,
-    shared_absent: bool,
-    /// The floor plan as `Geo::of` read it, where the entry may read it.
-    plan: Option<PyResult<Arc<Geo>>>,
-    /// The staff operations formula as the configs give it, where the entry may read it.
-    formula: Option<PyResult<Arc<StaffOperations>>>,
+/// What the rules read of the Python world, read once per entry by the core through the native host
+/// before it borrows the world (`core::Gathered`, lane P9-1a).
+pub(crate) struct Gathered<'py> {
+    world: Bound<'py, PyAny>,
+    read: core::Gathered<HostError>,
 }
 
-/// Whether `model_state` holds `staff_operations_v1`, as the rules take it: a value that is not a
-/// dict is no state (`Absent`); another dict than the row's is refused where a rule reads it.
-pub(crate) fn staff_held(world: &Bound<'_, PyAny>) -> PyResult<Held> {
-    let py = world.py();
-    let held = namespace_held(world, intern!(py, NAME), "the world holds another document than the row's")?;
-    if let Held::Other(_) = held {
-        let table = attribute(world, intern!(py, "model_state"))?;
-        if as_readable_dict(&table).is_some() {
-            let value = raw_dict_get(&table, PyString::new(py, NAME).as_any())?;
-            if !value.is_some_and(|value| value.is_instance_of::<PyDict>()) {
-                return Ok(Held::Absent);
-            }
-        }
-    }
-    Ok(held)
-}
-
-impl Gathered {
+impl<'py> Gathered<'py> {
     /// What the rules read, with the floor plan where `geo` and the formula where `formula`.
-    pub(crate) fn of(world: &Bound<'_, PyAny>, geo: bool, formula: bool) -> PyResult<Self> {
-        let py = world.py();
-        let table = attribute(world, intern!(py, "model_state"))?;
-        Ok(Self {
-            staff: staff_held(world)?,
-            movement: movement_held(world)?,
-            body: namespace_held(world, intern!(py, "body_state_v1"), "the world holds another body state")?,
-            program: namespace_held(world, intern!(py, "effect_program_v1"), "the world holds another effect_program_v1")?,
-            shared_absent: !table.contains(intern!(py, SHARED_OPERATIONS))?,
-            plan: geo.then(|| Geo::of(world)),
-            formula: formula.then(|| crate::rules::staff::staff_operations(world)),
-        })
+    pub(crate) fn of(world: &Bound<'py, PyAny>, geo: bool, formula: bool) -> PyResult<Self> {
+        let mut host = PyHost::of_world(world, PyDict::new(world.py()));
+        let read = core::Gathered::read(&PyWorldCell(world), &mut host, geo, formula).map_err(|error| error.0)?;
+        Ok(Self { world: world.clone(), read })
     }
 
     pub(crate) fn inputs(&self) -> Inputs<'_> {
-        Inputs {
-            staff: &self.staff,
-            movement: &self.movement,
-            body: &self.body,
-            program: &self.program,
-            shared_absent: self.shared_absent,
-            geo: self.plan.as_ref().and_then(|plan| plan.as_ref().ok()),
-            formula: self.formula.as_ref().and_then(|formula| formula.as_ref().ok()).map(|formula| &**formula),
-        }
+        self.read.inputs()
     }
 
     /// The core's result, with what a read raised where the core read what it could not get.
@@ -106,12 +61,16 @@ impl Gathered {
             return Err(error);
         }
         let text = error.value(py).to_string();
-        let plan = self.plan.as_ref().and_then(|plan| plan.as_ref().err());
-        let formula = self.formula.as_ref().and_then(|formula| formula.as_ref().err());
+        let plan = self.read.plan.as_ref().and_then(|plan| plan.as_ref().err()).map(|read| read.0.clone_ref(py));
+        let formula = self.read.formula.as_ref().and_then(|formula| formula.as_ref().err());
         match (&*text, plan, formula) {
-            (PLAN_UNREAD, Some(read), _) => Err(read.clone_ref(py)),
-            (SNAPSHOT_PLAN_UNREAD, Some(read), _) => Err(errors::kernel_refusal(py, SNAPSHOTS, read.clone_ref(py))),
-            (FORMULA_UNREAD, _, Some(read)) => Err(read.clone_ref(py)),
+            (PLAN_UNREAD, Some(read), _) => Err(read),
+            (SNAPSHOT_PLAN_UNREAD, Some(read), _) => Err(errors::kernel_refusal(py, SNAPSHOTS, read)),
+            // What reading the formula again raises (policy E14).
+            (FORMULA_UNREAD, _, Some(_)) => match crate::rules::staff::staff_operations(&self.world) {
+                Err(read) => Err(read),
+                Ok(_) => Err(error),
+            },
             _ => Err(error),
         }
     }
@@ -270,15 +229,11 @@ pub(crate) fn interrupt_trips<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py,
     PyTuple::new(py, interrupted.iter().map(|id| &**id))
 }
 
-/// `_interrupt_trips_of_event`: a route just closed stops the trips that use it.
+/// `_interrupt_trips_of_event`: a route just closed stops the trips that use it. Whether the event
+/// closes one is the core's reading of its row (`closes_a_route`, lane P9-1a); an event no row holds
+/// is refused, for the Python step.
 pub(crate) fn interrupt_trips_of_event<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    let payload = attribute(event, intern!(py, "payload"))?;
-    let parameters = payload.call_method1(intern!(py, "get"), ("parameters", PyDict::new(py)))?;
-    if get_is(&payload, "op", "set_route_access")?
-        && parameters.downcast::<pyo3::types::PyMapping>().is_ok()
-        && parameters.call_method1(intern!(py, "get"), ("accessible",))?.downcast_exact::<pyo3::types::PyBool>().is_ok_and(|flag| !flag.is_true())
-    {
+    if core::closes_a_route(&event_row(event)?) {
         interrupt_trips(world, event)?;
     }
     Ok(())

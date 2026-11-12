@@ -34,7 +34,9 @@ use sheltersim_core::events::EventRow;
 use sheltersim_core::host::{
     Contract, Decision, DecisionSink, Foreign, Holding, Host, Llm, Part, Phase, Stage, Trace, TraceLevel, TxnKind, NO_FOREIGN,
 };
+use sheltersim_core::geometry::Geo;
 use sheltersim_core::rules::behavior::Proposal;
+use sheltersim_core::rules::common_operations::Logged;
 use sheltersim_core::rules::decisions::Observed;
 use sheltersim_core::rules::metrics::MetricSample;
 use sheltersim_core::rules::world_view::ViewData;
@@ -67,6 +69,9 @@ pub enum Call {
     FillSection(SectionId),
     Foreign(Arc<str>),
     DecisionPython { agent: Arc<str>, target: Option<Arc<str>>, next: i64 },
+    // ---- Lane P9-1a ----
+    FindRecord(Arc<str>),
+    FloorPlan,
 }
 
 /// A host without Python that writes down what it was asked.
@@ -84,6 +89,12 @@ pub struct TestHost {
     /// Run at each LLM call (`consider_*`, `prioritize_support_request`), as an LLM hook of the
     /// native host writes the world.
     pub on_llm: Option<Box<dyn FnMut()>>,
+    /// The EventLog's records `find_record` finds, by event ID (lane P9-1a).
+    pub records: IndexMap<Arc<str>, Logged>,
+    /// The floor plan `floor_plan` gives; none means it refuses as a host without one does.
+    pub plan: Option<Arc<Geo>>,
+    /// Sections `fill_section` fills with these instead (a section's fault, a selection).
+    pub sections: Vec<(SectionId, Box<dyn Fn(&Configs)>)>,
 }
 
 impl std::fmt::Debug for TestHost {
@@ -103,6 +114,9 @@ impl Default for TestHost {
             source: Some(None),
             holding: None,
             on_llm: None,
+            records: IndexMap::new(),
+            plan: None,
+            sections: Vec::new(),
         }
     }
 }
@@ -309,8 +323,21 @@ impl Host for TestHost {
 
     fn fill_section(&mut self, configs: &Arc<Configs>, which: SectionId) -> Result<Filled, Error> {
         self.calls.push(Call::FillSection(which));
-        fill_section(configs, which);
+        match self.sections.iter().find(|(id, _)| *id == which) {
+            Some((_, fill)) => fill(configs),
+            None => fill_section(configs, which),
+        }
         Ok(Filled::Kept)
+    }
+
+    fn find_record(&mut self, event_id: &str) -> Result<Option<Logged>, Error> {
+        self.calls.push(Call::FindRecord(text(event_id)));
+        Ok(self.records.get(event_id).cloned())
+    }
+
+    fn floor_plan(&mut self) -> Result<Arc<Geo>, Error> {
+        self.calls.push(Call::FloorPlan);
+        self.plan.clone().ok_or_else(|| Error::unsupported(sheltersim_core::host::NO_PLAN))
     }
 
     fn apply_foreign(&mut self, event: &EventRow) -> Result<Foreign, Error> {

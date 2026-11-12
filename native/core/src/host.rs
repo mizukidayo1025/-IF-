@@ -243,16 +243,24 @@ pub enum Hold {
     NotOwned,
 }
 
-/// A key of `model_state`: what it holds, and whether the value is None.
+/// A key of `model_state`: what it holds, whether the value is None, and whether it is a dict
+/// (`isinstance(value, dict)`; the slot's tree is one, lane P9-1a).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Key {
     pub hold: Hold,
     pub none: bool,
+    pub dict: bool,
 }
 
 impl Key {
+    /// A key whose value is a dict where it holds the slot's tree.
     pub fn new(hold: Hold, none: bool) -> Self {
-        Self { hold, none }
+        Self { hold, none, dict: hold == Hold::Held && !none }
+    }
+
+    /// A key of a value that is a dict or not (lane P9-1a).
+    pub fn with_dict(hold: Hold, none: bool, dict: bool) -> Self {
+        Self { hold, none, dict }
     }
 }
 
@@ -325,6 +333,20 @@ impl Holding {
             return Err(TABLE_NOT_PLAIN);
         }
         Ok(self.keys.get(name).is_none_or(|key| key.none))
+    }
+
+    /// `held`, where a value that is not a dict is no state (`Absent`): the read of the information
+    /// and staff operations namespaces (lane P9-1a).
+    pub fn held_dict(&self, name: &str, other: &'static str) -> Held {
+        match self.held(name, other) {
+            Held::Other(_) if self.table && !self.keys.get(name).is_some_and(|key| key.dict) => Held::Absent,
+            held => held,
+        }
+    }
+
+    /// Whether `model_state` has the key, whatever its value (`name in model_state`).
+    pub fn contains(&self, name: &str) -> bool {
+        self.keys.contains_key(name)
     }
 
     /// `field_held(world, name)`: whether `world.<name>` is its slot's tree.
