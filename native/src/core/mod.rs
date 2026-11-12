@@ -1,6 +1,7 @@
 //! What every lane shares: JSON values, float operations with CPython's results, keyed draws
 //! and interned singletons (docs/rust-port/lanes/p3-skeleton.md).
 
+pub(crate) mod actions;
 pub(crate) mod census;
 pub(crate) mod configs;
 pub(crate) mod errors;

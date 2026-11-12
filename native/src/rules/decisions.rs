@@ -269,7 +269,7 @@ pub(crate) fn record_outcome<'py>(
         let committed = active
             .try_borrow_mut()
             .map_err(PyErr::from)
-            .and_then(|mut active| active.with_rows(py, |rows| with_world(&world, |cell| core::commit(cell, rows, &recording))?.or_py()));
+            .and_then(|mut active| active.on_world(&world, |cell, rows| core::commit(cell, rows, &recording)));
         committed.map_err(|error| kernel_refusal(py, LIFECYCLE, error))?;
     }
     with_world(&world, |cell| core::remember(cell, &recording))?.or_py().map_err(|error| kernel_refusal(py, MEMORY, error))

@@ -29,7 +29,6 @@ use crate::core::row::{attribute, exact_int};
 use crate::core::run::run_of;
 use crate::core::world_core::{raw_dict_get, PyWorldCell};
 use crate::host::{HostError, PyHost};
-use crate::state::events::EventWriter;
 use crate::Unsupported;
 use indexmap::IndexMap;
 
@@ -192,7 +191,7 @@ pub(crate) fn ready<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, PyAn
     if !dispatcher.get_type().is(table.dispatcher.bind(py)) {
         return Ok(Err("another kind of dispatcher".to_owned()));
     }
-    if let Err(error) = EventWriter::of(world) {
+    if let Err(error) = crate::state::events::writable(world) {
         return Ok(Err(error.value(py).to_string()));
     }
     let Ok(run) = run_of(controller) else {
@@ -207,7 +206,7 @@ pub(crate) fn ready<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, PyAn
     if !active.borrow().is_of(run.get()) {
         return Ok(Err("the open actions are not a store of the Run".to_owned()));
     }
-    if active.try_borrow_mut()?.with_rows(py, |_| Ok(())).is_err() {
+    if !active.try_borrow_mut()?.fits_rows(py) {
         return Ok(Err("the open actions do not fit their rows".to_owned()));
     }
     marks(table, controller, &dispatcher, run.get())?;
