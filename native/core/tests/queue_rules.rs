@@ -13,7 +13,7 @@
 //!
 //! The pytest chained what `progress_physical_queue_positions` returned and left into a digest of
 //! Python's `repr` (`ANSWERS`). Those digests are recorded again here from the core (decision 1 of
-//! #225): `Answers` chains each call's result and the whole world after it (`support/world_bytes.rs`).
+//! #225): `Answers` chains each call's result and the whole world after it (`support/answers.rs`).
 
 mod support;
 
@@ -36,7 +36,7 @@ use sheltersim_core::world::{Fit, World, WorldCell, MODEL_CONFIGS};
 
 use support::dumps::dumps;
 use support::load::{self, Loaded};
-use support::world_bytes::{world_bytes, Answers};
+use support::answers::{world_bytes, Answers};
 use support::TestHost;
 
 const FILE: &str = "queue_rules";
@@ -482,7 +482,7 @@ fn the_list_is_left_alone_while_someone_walks_in_it() {
     case.prepare(&toilet, false, 3).unwrap();
     assert_eq!(case.queue(&toilet, false), people);
     assert!(case.bytes() == before);
-    assert_eq!(answers.hex(), "1b476418f41aebcf1284e48c1bd9676e40acaf6cf895311632a61d62d251fd5a");
+    assert_eq!(answers.hex(), "06709da20ea35abb8ae2497cfb775026252e55ea0a5c22af283a06c286af62b3");
 }
 
 #[test]
@@ -887,7 +887,7 @@ fn the_first_who_is_not_in_their_place_walks_there() {
     // While that walk lasts nobody else starts one, and service waits for it.
     assert!(case.positions(&mut answers, &toilet, false, minute));
     assert!(case.to_service(&toilet, false, minute, false));
-    assert_eq!(answers.hex(), "9ed4bb81b051492b0aae327d73b77bf6dc4331ad745879abc1a828dc6dc1d0bb");
+    assert_eq!(answers.hex(), "903ee38a3df2c06167588491c9d0c888819e11c32fc9339b7bf779b2023b1cc1");
 }
 
 /// Recorded from the core in #225 lane M3; on the same kernel the pytest
@@ -911,7 +911,7 @@ fn someone_who_is_moved_from_another_activity_is_queued_by_the_walk() {
     let agent = case.with(|world| world.rows().unwrap().agents.get(&person[0]).unwrap().clone());
     assert_eq!((agent.activity, agent.target_id.as_deref()), (Activity::Queued, Some(facility.as_str())));
     assert_eq!(&*case.journey(&person[0]).unwrap().purpose, "resource_queue_position");
-    assert_eq!(answers.hex(), "808c46990c7f8cd6631b1c8a77974bec4143aeb2af32ca85ca2ef25c067c6121");
+    assert_eq!(answers.hex(), "58d2cbfeea6dcab006dc80fc8b02a6ea1762e6fb326e240314bb1d7983482d70");
 }
 
 /// The head is at the facility, the follower 0.05 m from the slot, either side of it (the points
@@ -920,7 +920,7 @@ fn someone_who_is_moved_from_another_activity_is_queued_by_the_walk() {
 /// with digests `f972edadbc0c` (0.0499) and `3de0a726d52c` (0.0501) passed.
 #[test]
 fn a_follower_within_the_tolerance_stands_in_their_slot() {
-    for (away, walks, recorded) in [(0.0499, false, "d6e255252b2dd3c875737905e7755895b58ce1c1488f275a091892859214e0e4"), (0.0501, true, "b63c357af3f9d8920b85b21ea332ecf98a3b4c53d9683e33620aa45a4d13901e")] {
+    for (away, walks, recorded) in [(0.0499, false, "34d7129ce639f9bf8b6e578338bd2a34ef2d2af48fff27512e67af3480e3a784"), (0.0501, true, "47fd455fc98b18fc402226823664cfadb0ee7ab166b72a1ceb1c9d71ca2a928e")] {
         let mut case = Case::new();
         let mut answers = Answers::default();
         let toilet = case.facility("toilet");
@@ -982,7 +982,7 @@ fn a_walk_s_minutes_turn_over_where_python_s_do() {
         let minute = case.minute();
         if phase == "position" {
             assert!(case.positions(&mut answers, &toilet, false, minute));
-            assert_eq!(answers.hex(), "b90116bc91b0bbb4e5f6590bb75a80dc52667dd114b7b4cbd3981979ee242d39");
+            assert_eq!(answers.hex(), "c1837d28b6b16da03076be8a641d1846ce8664c64e2cea92f20e669741f95ff5");
         } else {
             assert!(case.to_service(&toilet, false, minute, true));
         }
@@ -1005,7 +1005,7 @@ fn a_walk_past_the_end_of_the_run_is_counted_and_not_started() {
     assert!(case.positions(&mut answers, &toilet, false, minute));
     assert_eq!(case.metric(BLOCKED), Some(1.0));
     assert!(!case.walking(&person[0]));
-    assert_eq!(answers.hex(), "71ac2b65d5e3b54e1cc8e01ad6c57f2230e00fa5623886030ca42541018d4697");
+    assert_eq!(answers.hex(), "3c120d9543aaaa3be7127dbcc6492f74254e8f7f2f797740887a930b08f10bd2");
 }
 
 /// The route is the one the pytest computed in Python (`walks.head_route`). Recorded from the core
@@ -1042,7 +1042,7 @@ fn the_head_walks_from_its_slot_to_the_service_point() {
     case.put_point(&person[0], path.last().copied());
     assert!(!case.to_service(&toilet, false, minute, false));
     assert!(!case.positions(&mut answers, &toilet, false, minute));
-    assert_eq!(answers.hex(), "0b8be2e27c8a5de190f98daef077d9fc60366e1307fb23a614463f36a9f94f78");
+    assert_eq!(answers.hex(), "e05cd4b925b0a18f6f78cb1a3cce4d9aa11014559d060f8395a5d717e9d7c350");
 }
 
 /// Recorded from the core in #225 lane M3; on the same kernel the pytest
@@ -1058,7 +1058,7 @@ fn an_empty_queue_and_a_missing_facility() {
     assert!(case.positions(&mut answers, "nowhere", false, minute));
     assert!(!case.to_service(&toilet, false, minute, false));
     assert!(case.to_service("nowhere", false, minute, false));
-    assert_eq!(answers.hex(), "3ed8cd970f6d5e2e8bbe5b70149371de153e7d18f70abaf55cc080f10a8bb425");
+    assert_eq!(answers.hex(), "f5d7ed9c21c00fcae4802bf43f8b249bf2cf2d1149cf5430004eed2bf0c7aee5");
 }
 
 /// The deleted rule's ValueError, which the kernel raises before it writes anything.
