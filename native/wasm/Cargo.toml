@@ -1,0 +1,19 @@
+[package]
+name = "sheltersim_wasm"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The core of 避難所IF！ for the browser (Issue #244, stage 4 of #132): a Run of an exported world on the host without Python, through wasm-bindgen."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# One thread in the browser (decision 5 of #244): the core without its feature `parallel`.
+sheltersim_core = { path = "../core", default-features = false }
+# The JS boundary (decision 8 of #244). CI and docs/development.md install the wasm-bindgen CLI
+# of exactly this version: the two must match.
+wasm-bindgen = "=0.2.129"
+
+[lints]
+workspace = true

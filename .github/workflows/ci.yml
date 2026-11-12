@@ -157,3 +157,16 @@ jobs:
           rustup target add wasm32-unknown-unknown
           cargo build --manifest-path native/Cargo.toml -p sheltersim_core --target wasm32-unknown-unknown --no-default-features
           cargo test --manifest-path native/Cargo.toml -p sheltersim_core --no-default-features
+      # The core runs in WASM through wasm-bindgen and reaches the native path's digests (#244,
+      # PR 4-4): the CLI's version must be the crate's (`native/wasm/Cargo.toml`), and the release
+      # archive is checked against its sha256.
+      - name: Rustの中核がWASMでネイティブと同じdigestになることを確認
+        run: |
+          version=0.2.129
+          archive=wasm-bindgen-$version-x86_64-unknown-linux-musl
+          curl -sSfL -o "$RUNNER_TEMP/$archive.tar.gz" "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/$version/$archive.tar.gz"
+          echo "82d12bb940e2d4e72e0d5605387fc1b8ca179044e012b620f0ce4e7440e8320e  $RUNNER_TEMP/$archive.tar.gz" | sha256sum -c -
+          tar xzf "$RUNNER_TEMP/$archive.tar.gz" -C "$RUNNER_TEMP"
+          cargo build --manifest-path native/Cargo.toml -p sheltersim_wasm --target wasm32-unknown-unknown --profile ci
+          "$RUNNER_TEMP/$archive/wasm-bindgen" --target nodejs --out-dir "$RUNNER_TEMP/pkg" native/target/wasm32-unknown-unknown/ci/sheltersim_wasm.wasm
+          node native/wasm/tests/node_digests.mjs "$RUNNER_TEMP/pkg"

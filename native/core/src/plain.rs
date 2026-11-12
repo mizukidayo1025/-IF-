@@ -192,6 +192,16 @@ impl PlainRun {
         Self::of_entry(&entry)
     }
 
+    /// `of_entry` of the world `name` of a file of named worlds (`{"worlds": {name: entry}}`, as
+    /// `benchmarks/core_fixtures.py` writes `native/core/tests/data/`), from its JSON text: the
+    /// entry is read from the file's own bytes, its numbers as written (a JSON reader of another
+    /// language may write `1.0` back as `1`).
+    pub fn of_worlds_json(raw: &[u8], name: &str) -> Result<Self> {
+        let mut file: Value = serde_json::from_slice(raw).map_err(|error| Error::Value(format!("not a file of worlds: {error}")))?;
+        let entry = file.get_mut("worlds").and_then(|worlds| worlds.get_mut(name)).ok_or_else(|| Error::Value(format!("the file has no world {name}")))?;
+        Self::of_entry(&entry.take())
+    }
+
     /// The world's minute: the next tick's.
     pub fn minute(&self) -> Result<i64> {
         self.loaded.cell.with(|world| world.minute_index())?

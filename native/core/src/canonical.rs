@@ -135,6 +135,53 @@ pub fn digests(world: &World) -> Result<Vec<(&'static str, String)>> {
     Ok(parts(world)?.into_iter().map(|(name, raw)| (name, sha256_hex(&raw))).collect())
 }
 
+/// The parts `tests/support/core_tick.py` digests a Run's world by (`PARTS`), in its order; the
+/// scalars (`schema_version`, `scenario_id`, `seed`, `duration_minutes`, `minute_index`) are one
+/// more part, `scalars`, their JSON list.
+pub const RUN_PARTS: [&str; 14] = [
+    "agents",
+    "zones",
+    "zone_edges",
+    "facilities",
+    "staff",
+    "support_requests",
+    "active_tasks",
+    "resources",
+    "event_queue",
+    "event_log",
+    "id_counters",
+    "metric_state",
+    "model_configs",
+    "model_state",
+];
+
+/// The scalars of the `scalars` part, in its order.
+const SCALARS: [&str; 5] = ["schema_version", "scenario_id", "seed", "duration_minutes", "minute_index"];
+
+/// The digests of a Run's world as `tests/support/core_tick.py` writes them (`world_digests`):
+/// each part of `RUN_PARTS`, then `scalars`.
+pub fn run_digests(world: &World) -> Result<Vec<(&'static str, String)>> {
+    let mut all = parts(world)?;
+    let mut take = |name: &str| -> Result<Vec<u8>> {
+        let at = all.iter().position(|(part, _)| *part == name).ok_or_else(|| Error::unsupported(format!("no part {name}")))?;
+        Ok(all.remove(at).1)
+    };
+    let mut digests = Vec::with_capacity(RUN_PARTS.len() + 1);
+    for name in RUN_PARTS {
+        digests.push((name, sha256_hex(&take(name)?)));
+    }
+    let mut scalars = vec![b'['];
+    for (index, name) in SCALARS.into_iter().enumerate() {
+        if index > 0 {
+            scalars.push(b',');
+        }
+        scalars.extend_from_slice(&take(name)?);
+    }
+    scalars.push(b']');
+    digests.push(("scalars", sha256_hex(&scalars)));
+    Ok(digests)
+}
+
 /// `WorldState.canonical_json()` of the world, with its `rng_state` (the document's).
 pub fn canonical_json(world: &World, rng_state: &V) -> Result<Vec<u8>> {
     let mut rng = Encoder::with_capacity(64);
