@@ -21,13 +21,12 @@ use crate::core::run::RunCore;
 use crate::core::row::{attribute, exact_int, exact_str, py_row, unsupported, IdMap, PyField};
 use crate::core::world_core::with_world;
 use crate::eventlog::AppliedOutcome;
-use crate::state::events::{EventRef, EventRow, EventRowPy, EventWriter};
+use crate::state::events::{EventRow, EventRowPy, EventWriter};
 use crate::Unsupported;
 
 pub(crate) use sheltersim_core::rules::action_lifecycle::{ends_any_action, Proposal};
-use sheltersim_core::rules::action_lifecycle::{Ending, ENDING_KEYS};
+use sheltersim_core::rules::action_lifecycle::Ending;
 
-use crate::rules::social_dialogue::payload_fields;
 
 py_row! {
     ActiveAction {
@@ -240,33 +239,6 @@ fn record_applied_action_completion(
         return Ok(());
     };
     complete_row(world, active_actions, &row, exact_int(minute)?)
-}
-
-/// `record_applied_action_completion` of an event the caller knows the log holds applied. Says
-/// Unsupported before any change. The writer is the caller's check that the world's events are
-/// Rust's.
-pub(crate) fn complete_for_event(
-    world: &Bound<'_, PyAny>,
-    _writer: &EventWriter<'_>,
-    active_actions: &Bound<'_, PyAny>,
-    event: EventRef<'_, '_>,
-    minute: i64,
-) -> PyResult<()> {
-    match event {
-        EventRef::Row(row) => complete(world, active_actions, &Ending::of(row), minute),
-        EventRef::Object(object) => {
-            let event_type = event.event_type()?;
-            if !ends_any_action(&event_type) {
-                return Ok(());
-            }
-            // Only the fields the rule reads, as the row would hold them.
-            let py = world.py();
-            let payload = payload_fields(&attribute(object, intern!(py, "payload"))?, &ENDING_KEYS)?;
-            let event_id = event.event_id()?;
-            let ending = Ending { event_id: &event_id, event_type: &event_type, due_minute: event.due_minute()?, payload: &payload };
-            complete(world, active_actions, &ending, minute)
-        }
-    }
 }
 
 fn complete_row(world: &Bound<'_, PyAny>, active_actions: &Bound<'_, PyAny>, row: &EventRow, minute: i64) -> PyResult<()> {
