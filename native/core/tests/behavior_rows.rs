@@ -2,11 +2,12 @@
 //! observed state of a person (`behavior::observed_value`, of `observed_state`), on the worlds of
 //! `integration/test_behavior_row.py`, without Python (Issue #225, lane M10b).
 //!
-//! `data/behavior_rows.json` (`tests/support/core_fixtures_reads.py`) holds the worlds the drawn
-//! worlds start from (the generated Scenario and the small replay at minute 0, with their body
-//! state), the world of the requests' test, and what that file drew with `random.Random`: each
-//! drawn world's values (`draw_world`, numbers only) and its policies (the values the Run reads of
-//! them), with the seeds of their draws. A test writes the drawn values into the world (`drawn`),
+//! `data/behavior_rows.json` (`tests/support/core_fixtures_reads.py`) holds the world a drawn world
+//! starts from (the generated Scenario at minute 0, with its body state), the world of the
+//! requests' test, the world of a Run of 90 minutes, and what the test of seeds past 64 bits drew
+//! with `random.Random`: its world's values (`draw_world`, numbers only) and its policy (the values
+//! the Run reads of it). The pytest file's tests of many drawn worlds stay in pytest (decision 5 of
+//! #225: their inputs are too large to export). A test writes the drawn values into the world (`drawn`),
 //! makes the view the propose phase makes (`view_for_proposals` of a new controller: the core's
 //! `world_view::build` with a new cache, and its audit hash), and makes the policy's objects as the
 //! Run read them (`Behavior::of`).
@@ -406,70 +407,12 @@ fn start(name: &str) -> (Value, Shard<World>) {
     (entry, cell)
 }
 
-/// The world's people in the order of Python's dict (`world.agents`).
-fn agents_of(entry: &Value) -> Vec<String> {
-    entry["agents"].as_array().unwrap().iter().map(|id| id.as_str().unwrap().to_owned()).collect()
-}
-
 /// A drawn world on the world `name` starts from, and its view.
 fn drawn_view(name: &str, record: &str) -> (Value, ViewData, Arc<str>) {
     let (entry, cell) = start(name);
     cell.with(|world| drawn(world, record)).unwrap();
     let (data, hash) = view_of(&entry, &cell);
     (entry, data, hash)
-}
-
-#[test]
-fn each_proposal_of_a_drawn_world_has_the_bits_of_python() {
-    let digests = [
-        "2fae7a31edbc3c16",
-        "fd8741e8bc7a3693",
-        "4156e098c70b0e82",
-        "b84771aeec0cadd1",
-        "31140fd72ef0f3a3",
-        "69f5cb1c3f6cd3f6",
-        "758fadbbe877fb40",
-        "f365645fc57ad062",
-        "45a72a5cec4be3f5",
-        "015eba747f860aa6",
-        "295a09cee324245d",
-        "98b947d8e7144135",
-        "287fd8ba0f8f7cd0",
-        "34e963c729fc7d55",
-        "cfdcc5e644625650",
-        "57c04f8a579696f7",
-        "681c23730e464b81",
-        "8356521e966b2ce0",
-        "ed29383f6605becb",
-        "499c3c2d73cf4264",
-        "09f53e4bfb031ffb",
-        "89dc8cbe38936da4",
-        "96db2d073a3665a0",
-        "edcc9b9e0b1303c1",
-        "2e11073734139790",
-        "8339df839444504d",
-        "78447961a6b236d2",
-        "530c552f9d011ce4",
-        "e535c9405f0e2425",
-        "da5ecfb298102457",
-    ];
-    let data = load::data(FILE);
-    for (seed, digest) in digests.iter().enumerate() {
-        let case = &data["drawn"][seed.to_string()];
-        let name = case["scenario"].as_str().unwrap();
-        // The generated scenario has the water and meal actions, the small one doesn't.
-        assert_eq!(name == "small", seed % 3 == 0);
-        let (entry, view, hash) = drawn_view(name, case["world"].as_str().unwrap());
-        assert_eq!(view.resource_service_enabled, seed % 3 != 0);
-        let mut bits = Bits::default();
-        for policy in case["policies"].as_array().unwrap() {
-            proposals(&mut bits, &view, &hash, policy[0].as_str().unwrap(), &policy[1].to_string());
-        }
-        for agent_id in agents_of(&entry) {
-            observed(&mut bits, &view, &agent_id);
-        }
-        bits.check(digest);
-    }
 }
 
 #[test]
@@ -519,38 +462,6 @@ fn requests_cooldowns_and_queued_tasks_are_read_as_python_reads_them() {
     assert_eq!(get(&snapshots[8], &["queue"]), &queue);
     // The first of two queued tasks: the order they were added in.
     assert_eq!(get(&snapshots[9], &["queue", "task_id"]), &text("T3"));
-}
-
-#[test]
-fn drawn_worlds_reach_what_they_are_for() {
-    // The comparison above means little if the branches stay unreached.
-    let data = load::data(FILE);
-    let mut actions = std::collections::BTreeSet::new();
-    let mut with_target = std::collections::BTreeSet::new();
-    let (mut demand, mut ties) = (0, 0);
-    let mut bits = Bits::default();
-    for seed in 0..60 {
-        let case = &data["reach"][seed.to_string()];
-        let record = match case["world"].as_str() {
-            Some(record) => record,
-            None => data["drawn"][seed.to_string()]["world"].as_str().unwrap(),
-        };
-        let (_, view, hash) = drawn_view("generated", record);
-        for made in proposals(&mut bits, &view, &hash, case["policy"].as_str().unwrap(), "11") {
-            let name = made.outcome.action.value();
-            actions.insert(name);
-            if made.outcome.target.is_some() {
-                with_target.insert(name);
-            }
-            ties += usize::from(made.outcome.tie_broken);
-            demand += usize::from(made.outcome.candidates.iter().any(|item| made.trigger_of(&view, item).unwrap().contains("experimental zone")));
-        }
-    }
-    let wanted = ["wait", "request_toilet", "rest", "sleep", "seek_help", "seek_information", "socialize", "care_family", "help_others", "fetch_water", "collect_meal"];
-    assert!(wanted.iter().all(|name| actions.contains(name)), "{actions:?}");
-    assert_eq!(with_target.into_iter().collect::<Vec<_>>(), ["care_family", "help_others", "socialize"]);
-    assert!(ties > 0 && demand > 0);
-    bits.check("6057d790ccb496c7");
 }
 
 /// `proposal_view` of the pytest files at the world's minute, before the propose phase: the update

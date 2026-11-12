@@ -373,10 +373,6 @@ def dispatch_rows_fixture() -> dict[str, Any]:
 # ---- The proposals ------------------------------------------------------------------------------
 
 BEHAVIOR = "sheltersim.policies.behavior"
-# The seeds of the drawn worlds whose proposals are compared, and of those that show the branches
-# are reached.
-DRAWN_SEEDS = range(30)
-REACH_SEEDS = range(60)
 # The seed of the drawn world of the test of seeds past 64 bits.
 PAST_64_SEED = 5
 
@@ -764,54 +760,28 @@ def run_scenario_of(scenario: Any) -> Any:
 
 
 def behavior_rows_fixture() -> dict[str, Any]:
-    """The worlds the drawn worlds start from (`generated`, `small`), the requests' world, the
-    world of a Run of `RUN_MINUTES` set up as `run_scenario` sets it up (`run`), and what
-    each test drew: `drawn` (by seed: the scenario, the world, and four policies with their seeds),
-    `reach` (by seed: the world on the generated Scenario and one policy), `past_64` (a world and a
-    policy) and `requests` (the two policies). The people's order is Python's (`agents`)."""
-    from sheltersim.experiments.scenario import ScenarioSpec
+    """The world a drawn world starts from (`generated`), the requests' world, the world of a Run
+    of `RUN_MINUTES` set up as `run_scenario` sets it up (`run`), and what the tests drew:
+    `past_64` (a drawn world and a policy) and `requests` (the two policies). The tests of many
+    drawn worlds stay in pytest (#225, decision 5)."""
     from sheltersim.policies.behavior import UtilityBehaviorPolicy
     from support.core_fixtures_queues import generated
     from support.core_texts import Fixture
-    from support.paths import SMALL_REPLAY
 
-    scenarios = {"generated": generated(), "small": ScenarioSpec.load(SMALL_REPLAY)}
+    scenario = generated()
     fixture = Fixture()
-    for name, scenario in scenarios.items():
-        fixture.world(name, behavior_world(scenario)[0], None, full=True)
-    fixture.world("requests", requests_world(scenarios["generated"])[0], None)
-    world, controller, _ = run_world(run_scenario_of(scenarios["generated"]))
+    fixture.world("generated", behavior_world(scenario)[0], None, full=True)
+    fixture.world("requests", requests_world(scenario)[0], None)
+    world, controller, _ = run_world(run_scenario_of(scenario))
     fixture.world("run", world, controller)
-    worlds = fixture.worlds
-    for name, scenario in scenarios.items():
-        worlds[name]["agents"] = list(behavior_world(scenario)[0].agents)
-    policies = {name: PolicyRecords(scenario) for name, scenario in scenarios.items()}
-    drawn = {}
-    for seed in DRAWN_SEEDS:
-        name = "small" if seed % 3 == 0 else "generated"
-        record, made = _seeded(random.Random(seed), scenarios[name], policies[name], 4)
-        drawn[str(seed)] = {"scenario": name, "world": record, "policies": made}
-    reach = {}
-    for seed in REACH_SEEDS:
-        record, made = _seeded(
-            random.Random(seed), scenarios["generated"], policies["generated"], 1
-        )
-        known = drawn.get(str(seed))
-        if known is not None and known["world"] == record:
-            assert known["policies"][0][0] == made[0][0]
-            record = None
-        reach[str(seed)] = {"world": record, "policy": made[0][0]}
-    record, made = _seeded(
-        random.Random(PAST_64_SEED), scenarios["generated"], policies["generated"], 1
-    )
+    policies = PolicyRecords(scenario)
+    record, made = _seeded(random.Random(PAST_64_SEED), scenario, policies, 1)
     requests = [
-        policies["generated"].record(UtilityBehaviorPolicy(information_query_threshold=threshold))
+        policies.record(UtilityBehaviorPolicy(information_query_threshold=threshold))
         for threshold in (1.1, 0.0)
     ]
     return {
-        "worlds": worlds,
-        "drawn": drawn,
-        "reach": reach,
+        "worlds": fixture.worlds,
         "past_64": {"world": record, "policy": made[0][0]},
         "requests": requests,
     }
