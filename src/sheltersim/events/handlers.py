@@ -16,13 +16,11 @@ from sheltersim.events.effects import (
     EffectProgramGeometryHandler,
     EffectProgramStructureHandler,
     EffectProgramTemporarySpaceHandler,
-    effect_event_guard_or_suppress,
 )
 from sheltersim.events.models import (
     EventApplicationError,
     EventLogRecord,
     EventStatus,
-    EventSuppressed,
     ScheduledEvent,
 )
 
@@ -78,71 +76,37 @@ class EventDispatcher:
     ) -> list[EventLogRecord]:
         """Apply one event of a due snapshot; its outcomes, or none if it left the queue meanwhile.
 
-        native/src/rules/dispatch.rs calls this for each event it has no Rust function for.
+        The core does it (`_dispatch_one`); then `after_event` sees the outcomes.
         """
-        current = world.event_queue.find(event.event_id)
-        if current is None:
-            # A preceding event in this same due batch may cancel this
-            # snapshot entry (departure, shift interruption, or replacement).
-            # The cancellation path already emitted the single audit record.
-            return []
-        if current is not event and current.to_dict() != event.to_dict():
-            # A preceding due event may have replaced this item with a new schedule.
-            return []
-        handler = self.handlers.get(event.event_type)
-        additional_records: tuple[EventLogRecord, ...] = ()
-        if handler is None:
-            status = EventStatus.FAILED
-            detail = f"no handler registered for event type {event.event_type!r}"
-        else:
-            try:
-                effect_event_guard_or_suppress(world, event)
-                additional_records = handler.apply(world, event) or ()
-            except EventSuppressed as exc:
-                status = EventStatus.SUPPRESSED
-                detail = str(exc)
-            except EventApplicationError as exc:
-                status = EventStatus.FAILED
-                detail = str(exc)
-            else:
-                status = EventStatus.APPLIED
-                detail = None
-                if event.event_type in {
-                    "information_contact_update",
-                    "social_interaction",
-                    "information_correction",
-                    "proximity_contact_update",
-                }:
-                    from sheltersim.domain.body_state import record_social_event
-                    from sheltersim.domain.social_network import (
-                        SOCIAL_NETWORK_STATE_KEY,
-                        observe_event,
-                    )
+        outcomes = self._dispatch_one(world, event, minute)
+        if outcomes and after_event is not None:
+            after_event(tuple(outcomes))
+        return outcomes
 
-                    record_social_event(world, event, minute)
-                    if SOCIAL_NETWORK_STATE_KEY in world.model_state:
-                        observe_event(world, event, minute)
+    @kernel_only("dispatch", "dispatch_one")
+    def _dispatch_one(
+        self, world: WorldState, event: ScheduledEvent, minute: int
+    ) -> list[EventLogRecord]:
+        """`dispatch_one` without `after_event`: native/core/src/rules/dispatch.rs `one_alone`
+        (decision D3 of Issue #152, lane P9-3b).
 
-        record = self.settle(world, event, minute, status, detail)
-        event_outcomes = [record]
-        for additional in additional_records:
-            existing = world.event_log.find(additional.event.event_id)
-            if existing is not None:
-                if (
-                    existing.event.to_dict() != additional.event.to_dict()
-                    or existing.status is not additional.status
-                ):
-                    raise ValueError(
-                        "transactional follow-up record disagrees with dispatch result"
-                    )
-                event_outcomes.append(existing)
-            else:
-                world.event_log.append(additional)
-                event_outcomes.append(additional)
-        if after_event is not None:
-            after_event(tuple(event_outcomes))
-        return event_outcomes
+        Nothing when the queue no longer holds the event, or holds another of its ID whose
+        `to_dict()` differs (a preceding event of the same batch cancelled or replaced it: the
+        cancellation emitted its own record). Else the handler `self.handlers.get(event_type)`:
+        none is the FAILED outcome "no handler registered for event type 'T'". The EffectProgram's
+        guard runs first (`should_apply_effect_guard`; false is EventSuppressed "EffectProgram guard
+        evaluated false"); then `handler.apply(world, event)`.
+        Its EventSuppressed or EventApplicationError is the SUPPRESSED or FAILED outcome with
+        `str(exc)`; anything else it raises goes on. An applied information_contact_update,
+        social_interaction, information_correction or proximity_contact_update is recorded
+        (`record_social_event`, and `observe_event` with social_network_v1 in `model_state`).
+        Then `settle`, and the records `apply` returned: each one the log holds must be the same
+        event with the same status (ValueError "transactional follow-up record disagrees with
+        dispatch result"), and any other is appended. Returns the log's records of the event and
+        of those, in that order. An event no row can hold is a KernelRefusal.
+        """
 
+    @kernel_only("dispatch", "settle")
     def settle(
         self,
         world: WorldState,
@@ -151,24 +115,12 @@ class EventDispatcher:
         status: EventStatus,
         detail: str | None,
     ) -> EventLogRecord:
-        """Take a handled event off the queue and record its outcome, unless its handler did."""
-        if world.event_queue.find(event.event_id) is not None:
-            world.event_queue.remove(event.event_id)
-        record = world.event_log.find(event.event_id)
-        if record is not None:
-            if (
-                record.event is not event and record.event.to_dict() != event.to_dict()
-            ) or record.status is not status:
-                raise ValueError("transactional event record disagrees with its dispatch result")
-            return record
-        record = EventLogRecord(
-            event=event,
-            realized_minute=minute,
-            status=status,
-            detail=detail,
-        )
-        world.event_log.append(record)
-        return record
+        """Take a handled event off the queue and record its outcome, unless its handler did.
+
+        native/core/src/rules/dispatch.rs `settle_alone` (decision D3, lane P9-3b). A record the
+        log holds of its ID must be of the same event and status (ValueError "transactional event
+        record disagrees with its dispatch result"). Returns the log's record.
+        """
 
 
 @dataclass(frozen=True)

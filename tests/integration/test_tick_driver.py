@@ -140,20 +140,15 @@ def test_each_phase_ends_in_the_same_state_through_the_driver_and_the_phases(
 def _whole_run(
     scenario: Any, directory: Path, *, minutes: int = 180
 ) -> tuple[dict[str, Any], set[str]]:
-    """Run on the driver, noting which Python loops of the two managers ran."""
+    """Run on the driver, noting which entries of the two managers' loops Python called: the
+    managers' `arbitrate` is the core's loop since lane P9-3b (its body-less `kernel_only` entry
+    calls native/src/rules/toilet.rs and service.rs `arbitrate`)."""
     world, controller, engine = _build(scenario, directory)
     loops: set[str] = set()
 
-    def watch(frame: Any, event: str, _argument: Any) -> None:
-        code = frame.f_code
-        if (
-            event == "call"
-            and code.co_name in {"arbitrate", "_arbitrate_independent_facility"}
-            and Path(code.co_filename)
-            .as_posix()
-            .endswith(("domain/facilities.py", "domain/resource_service.py"))
-        ):
-            loops.add(code.co_name)
+    def watch(_frame: Any, event: str, argument: Any) -> None:
+        if event == "c_call" and getattr(argument, "__name__", None) == "arbitrate":
+            loops.add(f"{getattr(argument, '__module__', None)}.arbitrate")
 
     sys.setprofile(watch)
     try:
@@ -173,7 +168,7 @@ def test_the_driver_serves_independent_queues_itself_as_the_phases_do(
     assert loops == set()
     with on_the_phases():
         phases, loops = _whole_run(generated_scenario_with_split_queues, tmp_path / "phases")
-    assert "_arbitrate_independent_facility" in loops
+    assert len(loops) == 2, loops
     assert driven == phases
     requests = [
         event
@@ -581,7 +576,7 @@ def test_a_world_with_another_controller_is_refused_with_nothing_changed(
 # order of the phase's method.
 _PHASE_STEPS = {
     ("update", "UpdatePhase", "_run_update_phase", "pub fn update<"): {
-        "_update_movement": "movement(tick.host)",
+        "_update_movement": "update_movement(tick)",
         "_view_after_movement": "view_after_movement(tick)",
         "_psychology_update": "update_psychology(tick,",
         "_social_propagation": "update_social(tick,",
@@ -653,7 +648,7 @@ def test_the_driver_takes_the_phases_in_the_engine_s_order() -> None:
     names `TICK_PHASE_ORDER`'s members in their order."""
     driver = (ROOT / "native/src/rules/tick.rs").read_text("utf-8")
     run = driver.index("fn run_tick<'py>(")
-    assert driver.index("core::run_tick(&mut tick, &mut movement)", run) > run
+    assert driver.index("core::run_tick(&mut tick)", run) > run
     host = (ROOT / "native/core/src/host.rs").read_text("utf-8")
     order = host.index("pub const ORDER: [Phase; 7] = [")
     names = host.index("pub fn name(self)", order)

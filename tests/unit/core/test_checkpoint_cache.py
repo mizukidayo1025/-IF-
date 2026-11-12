@@ -18,23 +18,35 @@ from sheltersim.core.checkpoint_cache import CheckpointHistoryCache, canonical_b
 from sheltersim.core.saved_items import SavedItems
 from sheltersim.core.world import WorldState
 from sheltersim.events.handlers import EventDispatcher
-from sheltersim.events.models import EventKind, ScheduledEvent
+from sheltersim.events.models import EventKind, EventLogRecord, EventStatus, ScheduledEvent
 from sheltersim.experiments.metrics import MetricsRecorder
 
 
-def _realize(world: WorldState, name: str) -> None:
-    world.schedule_event(
-        ScheduledEvent(
-            event_id=name,
-            kind=EventKind.EXOGENOUS,
-            due_minute=world.minute_index,
-            priority=0,
-            sequence=world.allocate_event_sequence(),
-            event_type="unknown_checkpoint_test_event",
-            payload={"rows": [{"value": 1.5}], "label": "避難所"},
+def _realize(world: WorldState, name: str, *, in_python: bool = False) -> None:
+    event = ScheduledEvent(
+        event_id=name,
+        kind=EventKind.EXOGENOUS,
+        due_minute=world.minute_index,
+        priority=0,
+        sequence=world.allocate_event_sequence(),
+        event_type="unknown_checkpoint_test_event",
+        payload={"rows": [{"value": 1.5}], "label": "避難所"},
+    )
+    world.schedule_event(event)
+    if not in_python:
+        EventDispatcher().dispatch_due(world, world.minute_index)
+        return
+    # What the dispatcher recorded, written in Python: a log the core does not hold (one assigned
+    # whole) takes no record of the core's dispatcher (lane P9-3b of #152, decision D3).
+    world.event_queue.remove(name)
+    world.event_log.append(
+        EventLogRecord(
+            event=event,
+            realized_minute=world.minute_index,
+            status=EventStatus.FAILED,
+            detail=f"no handler registered for event type {event.event_type!r}",
         )
     )
-    EventDispatcher().dispatch_due(world, world.minute_index)
 
 
 def _sample(metrics: MetricsRecorder, minute: int) -> None:
@@ -372,7 +384,7 @@ def test_the_saved_bytes_of_a_replaced_event_log_are_read_anew(live_checkpoint_w
 
     restored = WorldState.from_dict(world.to_dict())
     world.event_log = restored.event_log
-    _realize(world, "replaced")
+    _realize(world, "replaced", in_python=True)
     again = Checkpoint.capture(world, history_cache=cache)
     assert again.checkpoint_hash == Checkpoint.capture(world).checkpoint_hash
 
