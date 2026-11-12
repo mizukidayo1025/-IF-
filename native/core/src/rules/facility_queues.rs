@@ -546,6 +546,22 @@ pub fn plan_record(
     Ok(Recording { sequence, minute, payload })
 }
 
+/// `record_queue_transition`: `plan_record`, then its writes (`write_record`), on one borrow.
+#[allow(clippy::too_many_arguments)]
+pub fn record_transition(
+    world: &World,
+    held: &Held,
+    geo: &Geo,
+    request: &QueueRequest,
+    transition: &str,
+    task_id: &str,
+    wait_minutes: Option<i64>,
+    causation_id: Option<&str>,
+) -> WriteResult<()> {
+    let recording = plan_record(world, held, geo, request, transition, task_id, wait_minutes, causation_id)?;
+    write_record(world, recording, causation_id)
+}
+
 /// `record_queue_transition`'s writes, of what `plan_record` read.
 pub fn write_record(world: &World, recording: Recording, causation_id: Option<&str>) -> WriteResult<()> {
     let events = Events::of(world)?;
