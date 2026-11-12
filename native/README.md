@@ -308,6 +308,13 @@ split PR by PR; its last section sums up what is where.
   `tests/data/handler_rules.json`, calling each kernel as its PyO3 entry does
   (`dispatch::apply_alone_made` for a handler's records, `tick::propose::apply_alone` for
   `_apply_effect`).
+  before any write; `tests/resource_ledger_ops.rs`, `tests/proximity_sampling.rs`,
+  `tests/dispatch_rows.rs` and `tests/behavior_rows.rs` check the ledger's operations, the
+  proximity sampling and its step, the dispatch phase and the travel completion's texts, and the
+  proposals and observed states (a Run's too, read before each propose phase through
+  `TestHost::on_phase`) against the digests of the deleted Python rules, on the worlds of
+  `integration/test_resource_ledger_row.py`, `test_read_rules.py`, `test_dispatch_rows.py` and
+  `test_behavior_row.py`.
   The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,
