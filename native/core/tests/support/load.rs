@@ -38,7 +38,6 @@ use sheltersim_core::rules::tick::{Seed, ZoneNeighbors};
 use sheltersim_core::run::dispatch::{Dispatch, Handler, HandlerKind, Native};
 use sheltersim_core::run::held::{Class, Held, Obj};
 use sheltersim_core::run::{Capacity, Policies, RouteCapacities, Run, RunConfig};
-use sheltersim_core::state::resource_ledger::RESOURCE_IDS;
 use sheltersim_core::value::V;
 use sheltersim_core::world::{self, Fit, Place, World, WorldCell};
 
@@ -498,9 +497,10 @@ pub fn host(fixture: &Value) -> super::TestHost {
     host
 }
 
-/// `host` on the loaded world, for a Run's ticks (#214): it does what the PyO3 crate's host does to
-/// the Python world it owns (`Following`), and finds the records of the world's log as it is at each
-/// call (`Following::find_record`, #225 lane M9).
+/// `host` on the loaded world, for a Run's ticks (#214): it builds the floor plan of the world as it
+/// is at each call (`Following::floor_plan`) and finds the records of the world's log
+/// (`Following::find_record`, #225 lane M9). It writes nothing of the world: the core writes
+/// `world.resources` and the namespaces it starts itself, and only tells the host (#244, decision 2).
 pub fn following_host(fixture: &Value, loaded: &Rc<Loaded>) -> super::TestHost {
     let mut host = host(fixture);
     // What `plan_of` reads of the export: the sections and the configs.
@@ -512,8 +512,8 @@ pub fn following_host(fixture: &Value, loaded: &Rc<Loaded>) -> super::TestHost {
     host
 }
 
-/// What a host does to the world it owns besides the core's writes, as the PyO3 crate's `PyHost`
-/// does to the Python world, on a loaded World (#214).
+/// What a host reads of the world it owns, as the PyO3 crate's `PyHost` reads the Python world, on
+/// a loaded World (#214).
 pub struct Following {
     loaded: Rc<Loaded>,
     /// The sections and the configs of the export, which the plan is built from.
@@ -547,12 +547,6 @@ impl Following {
         self.builds
     }
 
-    /// `model_state[name] = value`: the namespace's row in the world (`put_namespace`), as the PyO3
-    /// crate's mirror gives its slot the row.
-    pub fn start_namespace(&self, name: &str, value: &V) -> Result<(), Error> {
-        self.loaded.cell.with(|world| put_namespace(world, name, value.clone()))
-    }
-
     /// `event_log.find`: the record of an event in the world's log now, read back from the bytes
     /// the log wrote of it, as the native host finds a record the Python world's log holds (the
     /// ones a rule wrote in the same call too).
@@ -568,12 +562,5 @@ impl Following {
             }
             Ok(None)
         })?
-    }
-
-    /// `replace_resources`: `world.resources` with `remaining` for `RESOURCE_IDS[index]`.
-    pub fn resources_changed(&self, index: usize, remaining: i64) -> Result<(), Error> {
-        self.loaded.cell.with(|world| world.row_mut::<IdMap<i64>>(world::RESOURCES).map(|mut resources| {
-            resources.insert(text(RESOURCE_IDS[index]), remaining);
-        }))?
     }
 }

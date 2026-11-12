@@ -156,8 +156,9 @@ struct Ran {
 
 /// The world's ticks in the core, which reach what the native path gave: the log's event types, the
 /// metric samples, the digests of the world's parts and of the samples. Nothing went outside the
-/// core but the sinks, the observer, the contracts (which give their input back) and what the host
-/// does for the world it owns (the sections, the plan, a namespace started, `world.resources`).
+/// core but the sinks, the observer, the contracts (which give their input back), what the host
+/// reads for the world it owns (the sections, the plan) and the notices of what the core wrote (a
+/// namespace started, `world.resources`).
 fn reaches_the_native_path(name: &str) -> (Value, Ran) {
     let fixture = load::entry("tick_core", name);
     let wanted = &fixture["expected"];
@@ -264,6 +265,11 @@ fn the_core_walks_and_replans_the_generated_world_alone_and_reaches_the_native_p
     let moves = records(&ran.loaded).iter().filter(|record| record["event"]["event_type"] == "effect_program_geometry" && record["status"] == "applied").count();
     assert_eq!(moves, 4);
     assert_eq!(ran.host.world.as_ref().unwrap().builds(), 1 + moves);
+    // The core started the social model's namespace and wrote `world.resources` itself (Issue #244,
+    // decision 2): the host, which writes nothing of the world, was only told.
+    let started: Vec<&str> = ran.host.calls.iter().filter_map(|call| if let Call::StartNamespace(name) = call { Some(&**name) } else { None }).collect();
+    assert_eq!(started, ["social_propagation_v1"]);
+    assert!(ran.host.calls.iter().any(|call| matches!(call, Call::ResourcesChanged(..))));
     // The Python-parsed sections the ticks read through `fill_section`; the floor plan's (the facility
     // geometry and the spatial constraints) are read by `Following::floor_plan`.
     assert_eq!(filled(&ran.host), vec![SectionId::Selection, SectionId::ExtensionsEnabled, SectionId::TickPlan, SectionId::BodyModels]);

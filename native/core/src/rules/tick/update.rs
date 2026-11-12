@@ -301,7 +301,11 @@ fn update_social<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>
         state.insert(Arc::from("schema_version"), V::Int(crate::state::social_propagation::SCHEMA_VERSION));
         state.insert(Arc::from("contacts"), V::Map(IndexMap::new()));
         state.insert(Arc::from("agent_cooldown_until"), V::Map(IndexMap::new()));
-        tick.host.start_namespace(crate::state::social_propagation::NAME, &V::Map(state))?;
+        let state = V::Map(state);
+        let row = <crate::state::social_propagation::SocialRow as crate::row::Field>::from_value(&state)
+            .map_err(|misfit| Error::Runtime(format!("a new social state does not fit its row: {}", misfit.0)))?;
+        tick.world(|world| world.start_namespace(crate::state::social_propagation::NAME, Box::new(row)))?;
+        tick.host.start_namespace(crate::state::social_propagation::NAME, &state)?;
         tick.world(|world| social::write(world, &mut planned))?;
     }
     if traced {
