@@ -18,7 +18,6 @@ use std::sync::{Arc, OnceLock};
 
 use serde_json::{json, Value};
 use sheltersim_core::cell::Shard;
-use sheltersim_core::checkpoint::sha256_hex;
 use sheltersim_core::config::agent_dynamics::{
     awareness, canonical_policy, policy, MUST_CITE, UNSUPPORTED_FIELDS, UNSUPPORTED_VERSION, V1_SOURCE,
 };
@@ -33,7 +32,7 @@ use sheltersim_core::value::V;
 use sheltersim_core::world::{self, Fit, World, WorldCell};
 
 use support::dumps::Dumps;
-use support::{cases, load, TestHost};
+use support::{cases, load, texts, TestHost};
 
 const FILE: &str = "people_rows";
 /// `ANNOUNCED_FACILITY_AGENT_DYNAMICS_POLICY_VERSION`.
@@ -63,7 +62,7 @@ fn world(name: &str) -> World {
 /// A named world, held for the rules that read their sections through the host, and its host.
 fn held(name: &str) -> (Shard<World>, TestHost) {
     let entry = entry(name);
-    (Shard::new(load::world(&entry["world"], &entry["slots"])), load::host(&entry))
+    (texts::cell(&entry), load::host(&entry))
 }
 
 /// The people of the world, by ID.
@@ -80,7 +79,7 @@ fn facilities(world: &World) -> Vec<String> {
 }
 
 fn digest(text: &[u8]) -> String {
-    sha256_hex(text)[..16].to_owned()
+    texts::sha(std::str::from_utf8(text).unwrap())[..16].to_owned()
 }
 
 fn json_of<T: Field>(value: &T) -> Vec<u8> {

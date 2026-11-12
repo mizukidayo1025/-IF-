@@ -17,7 +17,6 @@ mod support;
 use std::sync::{Arc, OnceLock};
 
 use serde_json::{json, Value};
-use sheltersim_core::checkpoint::sha256_hex;
 use sheltersim_core::error::Error;
 use sheltersim_core::json::Encoder;
 use sheltersim_core::mathx::{py_max, py_min};
@@ -32,7 +31,7 @@ use sheltersim_core::value::V;
 use sheltersim_core::world::{World, WorldCell};
 
 use support::dumps::Dumps;
-use support::{cases, load};
+use support::{cases, load, texts};
 
 const FILE: &str = "people_rows";
 
@@ -69,7 +68,7 @@ fn minute(world: &World) -> i64 {
 }
 
 fn digest(text: &str) -> String {
-    sha256_hex(text.as_bytes())[..16].to_owned()
+    texts::sha(text)[..16].to_owned()
 }
 
 fn network_json(world: &World) -> Vec<u8> {

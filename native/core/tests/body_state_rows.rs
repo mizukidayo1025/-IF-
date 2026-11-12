@@ -20,7 +20,6 @@ use std::sync::{Arc, OnceLock};
 
 use serde_json::Value;
 use sheltersim_core::cell::Shard;
-use sheltersim_core::checkpoint::sha256_hex;
 use sheltersim_core::error::Error;
 use sheltersim_core::json::Encoder;
 use sheltersim_core::row::Field;
@@ -32,7 +31,7 @@ use sheltersim_core::value::V;
 use sheltersim_core::world::{World, WorldCell};
 
 use support::dumps::Dumps;
-use support::{cases, load};
+use support::{cases, load, texts};
 
 const FILE: &str = "people_rows";
 
@@ -50,7 +49,7 @@ fn inputs() -> &'static Value {
 /// A named world of the file, and what the PyO3 entry reads of its configs through the host.
 fn held(name: &str) -> (Shard<World>, Inputs) {
     let entry = cases::resolve(&data()["worlds"], name);
-    let cell = Shard::new(load::world(&entry["world"], &entry["slots"]));
+    let cell = texts::cell(&entry);
     let inputs = Inputs::read(&cell, &mut load::host(&entry)).unwrap();
     (cell, inputs)
 }
@@ -63,7 +62,7 @@ fn pair(world: &World) -> (String, String) {
 }
 
 fn digest(text: &str) -> String {
-    sha256_hex(text.as_bytes())[..16].to_owned()
+    texts::sha(text)[..16].to_owned()
 }
 
 fn body_json(world: &World) -> Vec<u8> {
