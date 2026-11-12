@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from support.core_fixtures import export_world
+from sheltersim.core.world_export import export_world
 from support.core_fixtures_texts import (
     _contract,
     _controller,

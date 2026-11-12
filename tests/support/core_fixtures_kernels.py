@@ -27,7 +27,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from support.core_fixtures import export_world
+from sheltersim.core.world_export import export_world
 from support.core_fixtures_texts import _action, _controller, _generated_scenario, variant
 
 # What test_effect_kernels.py names its programs' source.

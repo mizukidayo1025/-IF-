@@ -166,10 +166,10 @@ impl EventRow {
             priority: event.get("priority")?.as_i64()?,
             sequence: event.get("sequence")?.as_i64()?,
             event_type: text(event.get("event_type")?)?,
-            payload: from_json(event.get("payload")?)?,
+            payload: V::from_json(event.get("payload")?)?,
             source_id: optional(event.get("source_id")?)?,
             causation_id: optional(event.get("causation_id")?)?,
-            provenance: from_json(event.get("provenance")?)?,
+            provenance: V::from_json(event.get("provenance")?)?,
         };
         Some((
             row,
@@ -178,33 +178,4 @@ impl EventRow {
             optional(document.get("detail")?)?,
         ))
     }
-}
-
-/// What `json.loads` reads, as a `V`.
-fn from_json(value: &serde_json::Value) -> Option<V> {
-    use serde_json::Value;
-    Some(match value {
-        Value::Null => V::Null,
-        Value::Bool(flag) => V::Bool(*flag),
-        Value::String(text) => V::Str(Arc::from(text.as_str())),
-        Value::Number(number) => {
-            let text = number.to_string();
-            if text.contains(['.', 'e', 'E']) {
-                V::Float(text.parse().ok()?)
-            } else {
-                match text.parse::<i64>() {
-                    Ok(small) => V::Int(small),
-                    Err(_) => V::Big(text.into()),
-                }
-            }
-        }
-        Value::Array(items) => V::List(items.iter().map(from_json).collect::<Option<Vec<_>>>()?),
-        Value::Object(object) => {
-            let mut map = IndexMap::with_capacity(object.len());
-            for (key, item) in object {
-                map.insert(Arc::from(key.as_str()), from_json(item)?);
-            }
-            V::Map(map)
-        }
-    })
 }

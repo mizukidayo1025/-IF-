@@ -14,7 +14,7 @@ parameters the tests give, which the core's `TestHost` gives back as the PyO3 cr
 dict whose order the core's test reads is written as `{"pairs": [[key, value], ...]}`. The core's
 tests change the facility geometry and the spatial constraints of the configs the way the pytest
 did, on the configs and on their sections both: `_config_is_its_section` checks that each of those
-configs is what its contract makes of it (the sections `support/core_fixtures.py` exports).
+configs is what its contract makes of it (the sections `sheltersim.core.world_export` exports).
 """
 
 from __future__ import annotations
@@ -312,16 +312,19 @@ def _contracts(world: Any) -> list[list[Any]]:
 
 def _config_is_its_section(configs: dict[str, Any]) -> None:
     """The facility geometry and the spatial constraints of these configs are what their contracts
-    make of them (the sections `support/core_fixtures.py` exports), but each approach route's
+    make of them (the sections `sheltersim.core.world_export` exports), but each approach route's
     `travel_minutes`: so a test may change both the same way."""
-    from support.core_fixtures import _facility_geometry, _spatial_constraints
+    from sheltersim.core.world_export import (
+        facility_geometry_section,
+        spatial_constraints_section,
+    )
 
     raw = json.loads(json.dumps(configs["facility_geometry"]))
-    section = copy.deepcopy(_facility_geometry(configs)["value"])
+    section = copy.deepcopy(facility_geometry_section(configs)["value"])
     for route in section["arrival_approach_routes"]:
         route.pop("travel_minutes")
     assert section == raw
-    assert _spatial_constraints(configs)["value"] == configs["spatial_constraints"]
+    assert spatial_constraints_section(configs)["value"] == configs["spatial_constraints"]
 
 
 def _square(x: float, y: float, size: float) -> list[dict[str, float]]:
@@ -374,8 +377,8 @@ def _changed_configs(world: Any) -> None:
 
 def overlay_rules_fixture() -> dict[str, Any]:
     """`overlay_rules.json`: the world of the overlay tests, with what they read in Python."""
+    from sheltersim.core.world_export import export_world
     from sheltersim.domain import geometry_overlay, temporary_spaces
-    from support.core_fixtures import export_world
     from support.core_fixtures_queues import generated
 
     scenario = generated()

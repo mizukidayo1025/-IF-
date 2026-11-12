@@ -85,7 +85,7 @@ split PR by PR; its last section sums up what is where.
   `KernelRefusal`; there is no Python path to run it instead, #221) and one call of the core's
   `run_phases` with a `PyHost`.
 - **A tick without Python**: `cargo test -p sheltersim_core --test tick_core` builds the Worlds
-  of `core/tests/data/tick_core.json` (`core/tests/support/load.rs`, test code only, decision 4)
+  of `core/tests/data/tick_core.json` (the crate's loader `sheltersim_core::load`, below)
   and runs their ticks with a `TestHost` (no LLM; the whole-world validation answers Ok, E6): a
   small world without a floor plan for 1,440 ticks, and a generated world with a floor plan, every
   extension, the typed namespaces and moved facilities for 360 ticks, in which people walk and
@@ -94,9 +94,17 @@ split PR by PR; its last section sums up what is where.
 - **Typed rows from JSON** (#225): every `Field` reads itself from the `V` of its canonical JSON
   (`Field::from_value`, written by `state_row!` and `str_enum!`, by hand for the leaf types and
   the hand-written fields), with the checks of the PyO3 crate's `from_py`. No tick uses it; the
-  test loader reads each typed namespace of `model_state` with it (`core/tests/support/typed.rs`,
-  the namespace's row), and `cargo test -p sheltersim_core --test typed_rows` reads the worlds of
+  loader reads each typed namespace of `model_state` with it (`core/src/load/typed.rs`, the
+  namespace's row), and `cargo test -p sheltersim_core --test typed_rows` reads the worlds of
   `core/tests/data/typed_rows.json` and writes them back to the same bytes.
+- **A World from JSON** (#244, decision 3 of stage 4): `sheltersim_core::load` (`core/src/load/`)
+  builds a World, a Run's `Policies`, the zone neighbors and the tick's seed (`loaded`), the
+  Python-parsed sections a host fills (`Sections::fill`), the floor plan of the world's overlay
+  (`Sections::floor_plan`, rebuilt by `FloorPlans` when the overlay's key changes) and
+  `event_log.find` (`find_record`) from what `sheltersim.core.world_export.export_world` writes
+  of one world. Its input is untrusted (the browser reads it): a value that is not what the
+  exporter writes is an `Error`, never a panic (`core/tests/load_input.rs`). The core's tests and
+  a host without Python both use it; a Checkpoint's restore is to use it later (stage 6).
 - **Out of the core** (decision 4): building a world from a Scenario and restoring a Checkpoint
   stay in Python and the wrapper. The whole-world validation texts (E6) and the pydantic
   contracts (E15) stay Python behind `Host` until stage 4.
@@ -269,10 +277,10 @@ split PR by PR; its last section sums up what is where.
   lane P8-0b; `dispatch.rs`, the dispatcher's handlers by event type, each a `HandlerKind` the core
   runs with what it reads of the handler, or foreign, lane P9-0). `tests/support/` holds
   `TestHost`, the host of a build without Python, which fills every section of the configs from
-  outside the crate; `load.rs`, a test-only loader of a World and a Run's `Policies` from JSON
-  (lane P10-1b; not part of the crate), which puts each typed namespace of `model_state` in its
-  slot as the row `typed.rs` names for it; `sections.rs`, which gives a `TestHost` the
-  Python-parsed sections and the floor plan of an exported world (#225, #214); `dumps.rs`,
+  outside the crate; `load.rs`, which reads the files of `tests/data/` and calls the crate's
+  loader (`sheltersim_core::load`, #244) as the tests call it; `sections.rs`, which gives a
+  `TestHost` the Python-parsed sections and the floor plan of an exported world
+  (`load::Sections`, #225, #214); `dumps.rs`,
   the text of Python's `json.dumps` for the digests the pytest files took of it; `canonical.rs`,
   a World's `canonical_json()` bytes, part by part; and `cases.rs`, the files of events given to
   one handler of an exported world (worlds stored as the changes from another world of the file,
@@ -289,7 +297,8 @@ split PR by PR; its last section sums up what is where.
   (`run_tick`, the minute moved on, the end-of-tick check); `contracts.rs` answers a
   `TestHost`'s contracts as a fixture recorded pydantic's answers; `views.rs` makes the update and
   the propose phases' views of a loaded world and writes every field of one. The JSON under
-  `tests/data/` (worlds the Python side built) is written by the builders that
+  `tests/data/` (worlds the Python side built, each exported with
+  `sheltersim.core.world_export.export_world`) is written by the builders that
   `tests/support/core_fixtures.py` registers (`benchmarks/core_fixtures.py`), and
   `tests/integration/test_core_fixtures.py` checks that each file is what its builder makes
   today. A test reads one exported world with `load::entry(file, world)`, then `load::loaded`

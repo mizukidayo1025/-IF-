@@ -11,7 +11,7 @@ and the events are built here as those files built them.
 A fixture file is `{"worlds": {name: world}, "cases": {group: [case, ...]}}`, and what a test reads
 besides (`canonical_sha256`, the digest of a world's `canonical_json()`; `dispatched`):
 
-- A world is `core_fixtures.export_world`'s entry, or a variant of another world of the same file,
+- A world is `world_export.export_world`'s entry, or a variant of another world of the same file,
   `{"base": name, "changes": [...]}` (`changes`): a world that Python edited (a person moved, a
   request opened, a namespace taken out), or one of the same Scenario at another minute, written
   as the changes from the world that needs the fewest, to keep the file small.
@@ -38,7 +38,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from support.core_fixtures import export_world
+from sheltersim.core.world_export import export_world
 
 # The people of the gate's generated Scenario in these worlds (the pytest files had 20).
 EVACUEES = 8

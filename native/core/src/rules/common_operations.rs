@@ -55,35 +55,7 @@ pub const RECEIPT_EVENTS: [&str; 5] = [CARE_EVENT, CONTINUITY_EVENT, RECOVERY_EV
 /// What `json.loads` reads, as a `V`.
 pub fn json_value(bytes: &[u8]) -> Result<V> {
     let value: serde_json::Value = serde_json::from_slice(bytes).map_err(|_| Error::unsupported("bytes that are not JSON"))?;
-    of_json(&value).ok_or_else(|| Error::unsupported("a number that is not Python's"))
-}
-
-fn of_json(value: &serde_json::Value) -> Option<V> {
-    use serde_json::Value;
-    Some(match value {
-        Value::Null => V::Null,
-        Value::Bool(flag) => V::Bool(*flag),
-        Value::String(text) => V::Str(Arc::from(text.as_str())),
-        Value::Number(number) => {
-            let text = number.to_string();
-            if text.contains(['.', 'e', 'E']) {
-                V::Float(text.parse().ok()?)
-            } else {
-                match text.parse::<i64>() {
-                    Ok(small) => V::Int(small),
-                    Err(_) => V::Big(text.into()),
-                }
-            }
-        }
-        Value::Array(items) => V::List(items.iter().map(of_json).collect::<Option<Vec<_>>>()?),
-        Value::Object(object) => {
-            let mut map = IndexMap::with_capacity(object.len());
-            for (key, item) in object {
-                map.insert(Arc::from(key.as_str()), of_json(item)?);
-            }
-            V::Map(map)
-        }
-    })
+    V::from_json(&value).ok_or_else(|| Error::unsupported("a number that is not Python's"))
 }
 
 /// Whether an int and a float are equal as Python compares them: exactly.

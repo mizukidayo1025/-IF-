@@ -203,8 +203,8 @@ def _head_route(scenario: Any) -> dict[str, Any]:
 
 def queue_rules_fixture() -> dict[str, Any]:
     """`queue_rules.json`: the world the queue tests start from, with what they read in Python."""
+    from sheltersim.core.world_export import export_world, sections
     from sheltersim.domain import movement
-    from support.core_fixtures import export_world, sections
 
     scenario = generated()
     world, controller = run_minutes(scenario, QUEUE_TICKS)

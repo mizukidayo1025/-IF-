@@ -188,7 +188,7 @@ fn an_exported_world_with_typed_namespaces_loads_whole() {
                 let mut canonical = Encoder::with_capacity(1 << 16);
                 load::v(value).write_json(&mut canonical).unwrap();
                 assert!(written.out == canonical.out, "{name} wrote other bytes");
-                if support::typed::typed_row(name, &load::v(value)).is_some() {
+                if sheltersim_core::load::typed_row(name, &load::v(value)).is_some() {
                     assert!(row.as_any().downcast_ref::<ValueRow>().is_none(), "{name} is not its typed row");
                     typed += 1;
                 }

@@ -5,7 +5,7 @@ core's steps of `_apply_effect` (`propose::apply_alone`), `_route` and `_schedul
 water and meal service (`serve`, `complete`, `request`, the record of a request), the staff's
 assignment (`assign_operations`, `relief`, `assign_pending`) and the wait snapshot
 (`open_waits`) on the worlds the pytest files of the same names built. This module builds those
-worlds and exports them (`core_fixtures.export_world`), each world as the variant of the one
+worlds and exports them (`world_export.export_world`), each world as the variant of the one
 added before whose changes are the shortest (`core_texts.Fixture`; `cases::entry` makes it
 again):
 
@@ -34,7 +34,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from support.core_fixtures import export_world
+from sheltersim.core.world_export import export_world
 from support.core_texts import Fixture
 
 # ---- Shared pieces ------------------------------------------------------------------------------

@@ -3,7 +3,7 @@
 `native/core/tests/staff_dynamics_rules.rs` and `staff_order_texts.rs` check the rules that
 `integration/test_staff_dynamics_row.py` and `test_staff_operation_texts.py` checked through the
 PyO3 entries. This module builds the same worlds and inputs and exports them
-(`core_fixtures.export_world`):
+(`world_export.export_world`):
 
 - `staff_dynamics.json`: `base`, the small world of `test_staff_dynamics_row.py` (three staff
   members and the namespace `create_staff_dynamics_state` made for an empty config), and
@@ -25,7 +25,7 @@ import copy
 import json
 from typing import Any
 
-from support.core_fixtures import export_world
+from sheltersim.core.world_export import export_world
 from support.core_texts import Fixture, _gate, handler_of
 
 # ---- staff_dynamics.json -----------------------------------------------------------------------
