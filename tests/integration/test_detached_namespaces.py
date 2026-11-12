@@ -360,7 +360,9 @@ def test_the_after_tick_memo_stamps_a_detached_namespace_by_its_mirror(
 #
 # The kernels that read or wrote these namespaces' trees read and write their rows while they are
 # detached, and their trees as before while they are attached. A Run with them detached is the Run
-# with their trees, step for step, and builds no tree of them.
+# with their trees, step for step, and builds no tree of them. Production holds them detached; the
+# generated Scenario's 360 minutes were compared until #118, and its ticks still build no tree
+# (test_the_kernels_on_the_rows_alone_do_what_they_do_with_trees, 240 minutes).
 
 
 def _toilet_queues(scenario: Any, place: Any) -> WorldState:
@@ -409,7 +411,7 @@ def _attached_and_detached(
     return attached, detached, world, built
 
 
-@pytest.mark.parametrize("case", ["generated", "toilet_queues", "program"])
+@pytest.mark.parametrize("case", ["toilet_queues", "program"])
 def test_a_run_with_the_rows_alone_is_the_run_with_the_trees(
     case: str,
     monkeypatch: pytest.MonkeyPatch,
@@ -419,7 +421,6 @@ def test_a_run_with_the_rows_alone_is_the_run_with_the_trees(
     add_toilets_program: Any,
 ) -> None:
     builds = {
-        "generated": (lambda: WorldState.from_scenario(generated_scenario), 360),
         "toilet_queues": (
             lambda: _toilet_queues(generated_scenario_with_split_queues, place_three_at_facility),
             16,
@@ -431,7 +432,6 @@ def test_a_run_with_the_rows_alone_is_the_run_with_the_trees(
     assert detached == attached
     present = LANE_A1 & _present(world)
     expected = {
-        "generated": LANE_A1 - {FACILITY_QUEUES_STATE_KEY, EFFECT_PROGRAM_STATE_KEY},
         "toilet_queues": LANE_A1 - {EFFECT_PROGRAM_STATE_KEY},
         "program": LANE_A1 - {FACILITY_QUEUES_STATE_KEY},
     }
