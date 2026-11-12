@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 from support.paths import SCENARIO_100_AGENTS
+from support.receipts import care_source_ids
 
 from sheltersim.core.checkpoint import Checkpoint
 from sheltersim.core.engine import TickPhase, TraceLevel
@@ -21,7 +22,6 @@ from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.domain.care_receipts import (
     append_applied_care_transition,
-    care_source_ids_for_agent,
 )
 from sheltersim.domain.models import Activity, StaffState, SupportRequestStatus
 from sheltersim.domain.operational import OPERATIONAL_EVENTS_KEY
@@ -118,7 +118,7 @@ def _request_and_assign(controller: OfflineSimulationController) -> str:
         household_id=current_household_id(world, "A001"),
         support_kind="emotional_support",
         status="requested",
-        source_ids=care_source_ids_for_agent(world, "A001"),
+        source_ids=care_source_ids(world, "A001"),
     )
     assert controller.staff_service.assign_pending(0, validate_state=False) == (receipt.request_id,)
     request = world.support_requests[receipt.request_id]
@@ -131,7 +131,7 @@ def _request_and_assign(controller: OfflineSimulationController) -> str:
         status="assigned",
         staff_id=request.assigned_staff_id,
         causation_id=request.task_id,
-        source_ids=care_source_ids_for_agent(world, "A001"),
+        source_ids=care_source_ids(world, "A001"),
     )
     world.validate()
     return receipt.request_id
@@ -299,7 +299,7 @@ def test_support_wait_reasons_distinguish_unattempted_and_rejected_assignment(
         household_id=current_household_id(world, "A001"),
         support_kind="emotional_support",
         status="requested",
-        source_ids=care_source_ids_for_agent(world, "A001"),
+        source_ids=care_source_ids(world, "A001"),
     )
     # The controller's own trip turns it down while the staff's zone has no room left; the wait
     # then keeps the reason of that attempt (lane P8 b3: another travel scheduler than the

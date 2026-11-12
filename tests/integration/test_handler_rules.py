@@ -14,6 +14,7 @@ import hashlib
 from typing import Any
 
 import pytest
+from support.receipts import care_source_ids
 from support.world import kernel_says_python_s_text, world_digest
 
 from sheltersim import native
@@ -969,7 +970,7 @@ def test_a_timeout_records_the_interruption_of_a_care_request(generated_scenario
         support_kind="emotional_support",
         status="interrupted",
         causation_id=event.event_id,
-        source_ids=care_receipts.care_source_ids_for_agent(twin, agent_id),
+        source_ids=care_source_ids(twin, agent_id),
     )
     _same_world(world, twin)
 
@@ -1036,7 +1037,7 @@ def test_a_staff_arrival_records_the_start_of_care(generated_scenario: Any) -> N
         status="started",
         staff_id=staff_id,
         causation_id="staff-support-test",
-        source_ids=care_receipts.care_source_ids_for_agent(twin, agent_id),
+        source_ids=care_source_ids(twin, agent_id),
     )
     _same_world(world, twin)
 

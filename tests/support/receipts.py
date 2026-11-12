@@ -14,6 +14,7 @@ from sheltersim.contracts.operations import (
     FacilityRecoveryReceipt,
     NumericStateChange,
 )
+from sheltersim.contracts.population import population_context_people
 from sheltersim.core.world import WorldState
 from sheltersim.events.models import EventKind, EventLogRecord, EventStatus, ScheduledEvent
 
@@ -133,4 +134,22 @@ def facility_recovery_record(
             detail=f"facility {status} receipt recorded after working-unit update",
         ),
         receipt,
+    )
+
+
+def care_source_ids(world: WorldState, agent_id: str) -> tuple[str, ...]:
+    """The sources of a care receipt of `agent_id`: the staff support lifecycle's and the person's
+    own str sources of `population_context_v1`, sorted. What `care_source_ids_for_agent` of
+    domain/care_receipts.py gave before the kernels read them themselves (deleted in lane P9-3b of
+    #152: no rule called it).
+    """
+    person = population_context_people(world).get(agent_id, {})
+    sources = person.get("source_ids", ()) if isinstance(person, dict) else ()
+    return tuple(
+        sorted(
+            {
+                "ASM-STAFF-SUPPORT-LIFECYCLE-V1",
+                *(item for item in sources if isinstance(item, str)),
+            }
+        )
     )
