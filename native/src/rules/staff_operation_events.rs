@@ -229,16 +229,6 @@ pub(crate) fn interrupt_trips<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py,
     PyTuple::new(py, interrupted.iter().map(|id| &**id))
 }
 
-/// `_interrupt_trips_of_event`: a route just closed stops the trips that use it. Whether the event
-/// closes one is the core's reading of its row (`closes_a_route`, lane P9-1a); an event no row holds
-/// is refused, for the Python step.
-pub(crate) fn interrupt_trips_of_event<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>) -> PyResult<()> {
-    if core::closes_a_route(&event_row(event)?) {
-        interrupt_trips(world, event)?;
-    }
-    Ok(())
-}
-
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(interrupt_trips, m)?)?;
     m.add_function(wrap_pyfunction!(interrupt, m)?)?;
