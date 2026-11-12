@@ -1,23 +1,24 @@
 """resource_ledger_v1 owned by Rust, with its operations (docs/rust-port/lanes/m4-resources.md).
 
-The operation has no Python rule left (lane L10, `kernel_only`). Here, what it wrote and said is
-checked against what the Python rule gave, written down from it before it went: the ledger and
-resources after each sequence of operations (`_digest`), each `ResourceLedgerError` text, and the
-outcomes of random sequences with refusals. And what taints the row, and that the check takes
-nothing the Python rules refuse.
+The operation has no Python rule left (lane L10, `kernel_only`). What it writes and says, against
+what the deleted Python rule gave (the ledger and resources after each sequence of operations, each
+`ResourceLedgerError` text, the outcomes of random sequences with refusals), is checked without
+Python in `native/core/tests/resource_ledger_ops.rs`, on the same world
+(`support/core_fixtures_reads.py`, #225). Here are the entries: each still reaches the kernel and
+gives its answer, the texts with Python's `repr` of a payload value, what taints the row, and that
+the check takes nothing the Python rules refuse.
 """
 
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 import random
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from support.paths import SMALL_REPLAY
+from support.core_fixtures_reads import ledger_world
 
 from sheltersim import native
 from sheltersim.core.checkpoint import Checkpoint
@@ -39,7 +40,6 @@ from sheltersim.domain.resources import (
     validate_resource_ledger_state,
 )
 from sheltersim.events.models import EventKind, ScheduledEvent
-from sheltersim.experiments.scenario import ScenarioSpec
 
 SOURCE = "ASM-TEST-RESOURCE-OPERATION"
 SEQUENCE = [0]
@@ -54,19 +54,7 @@ def _trees(keep_trees: Any) -> None:
 
 def _world() -> WorldState:
     SEQUENCE[0] = 0
-    document = json.loads(SMALL_REPLAY.read_text(encoding="utf-8"))
-    document["schema_version"] = 3
-    document["duration_minutes"] = 300
-    document["scheduled_events"] = []
-    document["initial_stock"] = {
-        "schema_version": 1,
-        "warehouse_id": "warehouse-main",
-        "zone_id": "sleeping",
-        "water_ml": 1_000,
-        "food_meal_units": 4,
-        "source_ids": ["ASM-TEST-INITIAL-STOCK"],
-    }
-    return WorldState.from_scenario(ScenarioSpec.model_validate(document))
+    return ledger_world()
 
 
 def _event(operation: str, source: Any = SOURCE, event_id: Any = None, **payload: Any) -> Any:
@@ -89,16 +77,6 @@ def _kernel() -> Any:
 
 def _text(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False)
-
-
-def _digest(world: Any) -> str:
-    """A digest of the ledger and the resources, to pin what the Python rule wrote.
-
-    Since #152 P8b-1 the kernel writes the row and the tree follows it, so an audit record appended
-    to the tree has the row's key order (sorted, as a tree built again from the row always had):
-    the digests were recorded again then, with only that order changed."""
-    text = _text(world.model_state[KEY]) + _text(world.resources)
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
 def _apply(world: WorldState, event: Any, operation: str) -> None:
@@ -131,20 +109,11 @@ def _operate(world: WorldState) -> str:
     return agent
 
 
-def _whole_reservation_and_a_new_source(world: WorldState, agent: str) -> None:
-    meal = {"resource_id": "food_meal_units", "agent_id": agent}
-    _apply(world, _event("consume", reservation_id="r-1", quantity=1, **meal), "consume")
-    _apply(
-        world,
-        _event("delivery", source="ASM-ANOTHER-SOURCE", resource_id="water_ml", quantity=1),
-        "delivery",
-    )
-
-
 def test_each_operation_writes_what_the_python_rule_wrote() -> None:
+    """The entry of the operation (the core's test of the same name has the digest of what it
+    wrote)."""
     world = _world()
     _operate(world)
-    assert _digest(world) == "85afdc35f4831e99"
     account = world.model_state[KEY]["accounts"]["food_meal_units"]
     assert account["reservations"]["r-1"]["quantity"] == 1
     assert world.model_state[KEY]["used_reservation_ids"] == ["r-1", "r-2"]
@@ -152,16 +121,6 @@ def test_each_operation_writes_what_the_python_rule_wrote() -> None:
     validate_resource_ledger(
         world.model_state[KEY], world.resources, set(world.agents), set(world.zones)
     )
-
-
-def test_a_consume_of_the_whole_reservation_and_a_new_source() -> None:
-    world = _world()
-    agent = _operate(world)
-    _whole_reservation_and_a_new_source(world, agent)
-    assert _digest(world) == "6b42bdea996b6a19"
-    assert world.model_state[KEY]["accounts"]["food_meal_units"]["reservations"] == {}
-    assert world.model_state[KEY]["accounts"]["water_ml"]["source_ids"][-1] == "ASM-ANOTHER-SOURCE"
-    assert world.model_state[KEY]["audit"][-1]["source_ids"][-1] == "ASM-ANOTHER-SOURCE"
 
 
 def test_the_namespace_is_not_written_whole_and_the_resources_are_a_new_dict() -> None:
@@ -194,22 +153,9 @@ def test_the_public_rule_runs_the_kernel() -> None:
     assert world.model_state[KEY] is tree
 
 
-# name -> the event, the operation, and the Python rule's text.
+# name -> the event, the operation, and the Python rule's text: those with Python's `repr` of a
+# payload value, which the entry writes (the core's test of the same name has every refusal).
 REFUSED = {
-    "an unknown warehouse": (
-        lambda agent: ScheduledEvent(
-            event_id="bad-warehouse",
-            kind=EventKind.EXOGENOUS,
-            due_minute=0,
-            priority=0,
-            sequence=90_001,
-            event_type="resource_delivery",
-            payload={"warehouse_id": "elsewhere", "resource_id": "water_ml", "quantity": 1},
-            source_id=SOURCE,
-        ),
-        "delivery",
-        "unknown resource warehouse ID 'elsewhere'",
-    ),
     "a warehouse that is not a str": (
         lambda agent: ScheduledEvent(
             event_id="int-warehouse",
@@ -224,171 +170,10 @@ REFUSED = {
         "delivery",
         "unknown resource warehouse ID 7",
     ),
-    "an unknown resource": (
-        lambda agent: _event("delivery", resource_id="soap", quantity=1),
-        "delivery",
-        "unknown resource ID 'soap'",
-    ),
     "a resource that is not a str": (
         lambda agent: _event("delivery", resource_id=None, quantity=1),
         "delivery",
         "unknown resource ID None",
-    ),
-    "a quantity of zero": (
-        lambda agent: _event("delivery", resource_id="water_ml", quantity=0),
-        "delivery",
-        "resource quantity must be a positive integer",
-    ),
-    "a negative quantity past 64 bits": (
-        lambda agent: _event("loss", resource_id="water_ml", quantity=-(10**30)),
-        "loss",
-        "resource quantity must be a positive integer",
-    ),
-    "a bool quantity": (
-        lambda agent: _event("delivery", resource_id="water_ml", quantity=True),
-        "delivery",
-        "resource quantity must be a positive integer",
-    ),
-    "a float quantity": (
-        lambda agent: _event("delivery", resource_id="water_ml", quantity=1.0),
-        "delivery",
-        "resource quantity must be a positive integer",
-    ),
-    "no source": (
-        lambda agent: _event("delivery", source=None, resource_id="water_ml", quantity=1),
-        "delivery",
-        "resource events require a source_id",
-    ),
-    "no source before a bad quantity": (
-        lambda agent: _event("delivery", source=None, resource_id="water_ml", quantity=0),
-        "delivery",
-        "resource events require a source_id",
-    ),
-    "other payload fields": (
-        lambda agent: _event("delivery", resource_id="water_ml", quantity=1, extra=1),
-        "delivery",
-        "resource delivery payload fields do not match",
-    ),
-    "a missing payload field": (
-        lambda agent: _event("release", resource_id="food_meal_units", reservation_id="r-1"),
-        "release",
-        "resource release payload fields do not match",
-    ),
-    "a loss past what is free": (
-        lambda agent: _event("loss", resource_id="food_meal_units", quantity=4),
-        "loss",
-        "resource loss exceeds unreserved remaining inventory",
-    ),
-    "a loss past 64 bits": (
-        lambda agent: _event("loss", resource_id="water_ml", quantity=10**30),
-        "loss",
-        "resource loss exceeds unreserved remaining inventory",
-    ),
-    "a used ID": (
-        lambda agent: _event(
-            "reserve",
-            resource_id="food_meal_units",
-            agent_id=agent,
-            reservation_id="r-1",
-            quantity=1,
-        ),
-        "reserve",
-        "resource reservation ID 'r-1' was already used",
-    ),
-    "a used ID before a reservation past 64 bits": (
-        lambda agent: _event(
-            "reserve",
-            resource_id="food_meal_units",
-            agent_id=agent,
-            reservation_id="r-2",
-            quantity=10**30,
-        ),
-        "reserve",
-        "resource reservation ID 'r-2' was already used",
-    ),
-    "a reservation past what is free": (
-        lambda agent: _event(
-            "reserve",
-            resource_id="food_meal_units",
-            agent_id=agent,
-            reservation_id="r-9",
-            quantity=9,
-        ),
-        "reserve",
-        "resource reservation exceeds available inventory",
-    ),
-    "a reservation past 64 bits": (
-        lambda agent: _event(
-            "reserve",
-            resource_id="food_meal_units",
-            agent_id=agent,
-            reservation_id="r-9",
-            quantity=10**30,
-        ),
-        "reserve",
-        "resource reservation exceeds available inventory",
-    ),
-    "a bad reservation ID": (
-        lambda agent: _event(
-            "reserve",
-            resource_id="food_meal_units",
-            agent_id=agent,
-            reservation_id="r 9",
-            quantity=1,
-        ),
-        "reserve",
-        "resource reservation_id must be a stable ID",
-    ),
-    "someone unknown": (
-        lambda agent: _event(
-            "reserve",
-            resource_id="food_meal_units",
-            agent_id="nobody",
-            reservation_id="r 9",
-            quantity=1,
-        ),
-        "reserve",
-        "unknown resource Agent ID 'nobody'",
-    ),
-    "a bad quantity before someone unknown": (
-        lambda agent: _event(
-            "consume",
-            resource_id="food_meal_units",
-            agent_id="nobody",
-            reservation_id="r-1",
-            quantity=0,
-        ),
-        "consume",
-        "resource quantity must be a positive integer",
-    ),
-    "a reservation not there": (
-        lambda agent: _event(
-            "release", resource_id="food_meal_units", agent_id=agent, reservation_id="r-2"
-        ),
-        "release",
-        "unknown resource reservation 'r-2'",
-    ),
-    "a consume past the reservation": (
-        lambda agent: _event(
-            "consume",
-            resource_id="food_meal_units",
-            agent_id=agent,
-            reservation_id="r-1",
-            quantity=2,
-        ),
-        "consume",
-        "resource consume exceeds the reservation",
-    ),
-    "a consume past 64 bits": (
-        lambda agent: _event(
-            "consume",
-            resource_id="food_meal_units",
-            agent_id=agent,
-            reservation_id="r-1",
-            quantity=10**30,
-        ),
-        "consume",
-        "resource consume exceeds the reservation",
     ),
     "an unknown operation": (
         lambda agent: _event("delivery", resource_id="water_ml", quantity=1),
@@ -413,16 +198,6 @@ def test_a_refusal_changes_nothing_and_has_the_python_text(case: str) -> None:
     _assert_row_is_the_tree(world)
 
 
-def test_someone_else_s_reservation_has_the_python_text() -> None:
-    world = _world()
-    _operate(world)
-    other = sorted(world.agents)[1]
-    event = _event("release", resource_id="food_meal_units", agent_id=other, reservation_id="r-1")
-    with pytest.raises(ResourceLedgerError) as raised:
-        apply_resource_operation(world, event, "release")
-    assert str(raised.value) == "resource reservation belongs to a different Agent"
-
-
 def test_without_a_ledger_the_operation_says_so() -> None:
     world = _world()
     del world.model_state[KEY]
@@ -431,18 +206,6 @@ def test_without_a_ledger_the_operation_says_so() -> None:
             world, _event("delivery", resource_id="water_ml", quantity=1), "delivery"
         )
     assert str(raised.value) == "resource ledger is not enabled for this scenario"
-
-
-def test_a_delivery_past_64_bits_is_refused_with_nothing_changed() -> None:
-    """The Python rule took it into a ledger of ints past 64 bits, which the row doesn't hold."""
-    world = _world()
-    _operate(world)
-    before = world.canonical_json()
-    with pytest.raises(KernelRefusal, match="past 64 bits"):
-        apply_resource_operation(
-            world, _event("delivery", resource_id="water_ml", quantity=10**30), "delivery"
-        )
-    assert world.canonical_json() == before
 
 
 @pytest.mark.parametrize(
@@ -462,58 +225,6 @@ def test_ids_an_event_does_not_take_are_refused(source: str, event_id: str) -> N
     with pytest.raises(KernelRefusal, match="not a stable ID"):
         apply_resource_operation(world, event, "delivery")
     assert world.canonical_json() == before
-
-
-def test_an_older_minute_is_refused() -> None:
-    world = _world()
-    _operate(world)
-    world.minute_index = 4
-    with pytest.raises(native.Unsupported):
-        _kernel().apply_operation(
-            world, _event("delivery", resource_id="water_ml", quantity=1), "delivery"
-        )
-
-
-def _random_sequences() -> tuple[str, int, int]:
-    """Random operations with refusals: a digest of each outcome (the text of a refusal, else the
-    ledger and resources after it), and how many ran and were refused."""
-    randomizer = random.Random(20261101)
-    ran = refused = 0
-    outcomes = hashlib.sha256()
-    for _ in range(25):
-        world = _world()
-        people = sorted(world.agents)[:3]
-        reservations = [f"r-{index}" for index in range(12)]
-        for minute in range(1, 60):
-            world.minute_index = minute
-            operation = randomizer.choice(["delivery", "loss", "reserve", "release", "consume"])
-            payload: dict[str, Any] = {
-                "resource_id": randomizer.choice(["water_ml", "food_meal_units"])
-            }
-            if operation != "release":
-                payload["quantity"] = randomizer.choice([1, 1, 2, 3, 50, 2000])
-            if operation in {"reserve", "release", "consume"}:
-                payload["agent_id"] = randomizer.choice(people)
-                payload["reservation_id"] = randomizer.choice(reservations)
-            event = _event(
-                operation, source=randomizer.choice([SOURCE, "ASM-SECOND", "ASM-THIRD"]), **payload
-            )
-            before = world.canonical_json()
-            try:
-                apply_resource_operation(world, event, operation)
-            except ResourceLedgerError as error:
-                assert world.canonical_json() == before
-                outcomes.update(f"refused {error}\n".encode())
-                refused += 1
-                continue
-            outcomes.update(f"ran {_digest(world)}\n".encode())
-            ran += 1
-        _assert_row_is_the_tree(world)
-    return outcomes.hexdigest()[:16], ran, refused
-
-
-def test_random_sequences_with_refusals_are_the_python_rule_s() -> None:
-    assert _random_sequences() == ("8408b20f6024ef1b", 720, 755)
 
 
 def test_the_metric_columns_and_the_used_ids() -> None:

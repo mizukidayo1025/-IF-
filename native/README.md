@@ -343,6 +343,13 @@ split PR by PR; its last section sums up what is where.
   `tests/psychology_steps.rs` run the people models' steps (the social model, the information
   model's contacts, each person's minute and its trace's document) on the worlds and the policies
   of their pytest files (`tests/data/model_steps.json`) and reach the digests those files pinned.
+  `tests/resource_ledger_ops.rs`, `tests/proximity_sampling.rs`,
+  `tests/dispatch_rows.rs` and `tests/behavior_rows.rs` check the ledger's operations, the
+  proximity sampling and its step, the dispatch phase and the travel completion's texts, and the
+  proposals and observed states (a Run's too, read before each propose phase through
+  `TestHost::on_phase`) against the digests of the deleted Python rules, on the worlds of
+  `integration/test_resource_ledger_row.py`, `test_read_rules.py`, `test_dispatch_rows.py` and
+  `test_behavior_row.py`.
   The files
   of the same names in
   `src/core/` re-export them under their old paths and add only what needs Python (exceptions,

@@ -101,7 +101,7 @@ Policy の既定値（`temperature` など）は Python のままで、呼ぶた
 
 **枝に届いた数（ゲート）：** 選ばれた行動は11種類すべて（情報を求める 290、水 1,640、食事 1,235、世話 851、手助け 21,256）。優先順位の Policy の同点処理 224、需要の倍率の文 158、区域の環境の記録 399、相手あり 33,936。Policy の版は6種類です。7日分は1種類で、需要の倍率と同点処理は通りません。
 
-**ゲートが届かないもの：** 決定のときに依頼（`support_request_id`）か列のタスクを持つ人は、ゲートでも7日分でも0回でした（`observed_with_queue`、`observed_with_request`、`people_with_request`）。この枝は `tests/integration/test_behavior_row.py` が Python と比べます。
+**ゲートが届かないもの：** 決定のときに依頼（`support_request_id`）か列のタスクを持つ人は、ゲートでも7日分でも0回でした（`observed_with_queue`、`observed_with_request`、`people_with_request`）。この枝は `tests/integration/test_behavior_row.py` が Python と比べます（#225 で中核のテスト `native/core/tests/behavior_rows.rs` に移しました）。
 
 ゲートの行の網羅（マージ前の `6132710`。kernel ありだけ / kernel ありとなしの合計）：`policies/behavior.py` 44% / 89%、`experiments/phases/propose.py` 78% / 81%。Rust の行の網羅は測っていません。上の枝の件数で見ています。
 

@@ -121,6 +121,9 @@ pub struct TestHost {
     pub foreign: Option<Box<dyn FnMut(&EventRow) -> Result<Foreign, Error>>>,
     /// What `contract` does (lane P9-3a): a test's contract; none gives the input back.
     pub contracts: Option<Box<dyn FnMut(&Contract, &V) -> Result<V, Error>>>,
+    /// Run before (true) and after (false) each phase of a tick, as `TickEngine.phase_observer`
+    /// (Issue #225, lane M10b): a test reads the world and the Run there.
+    pub on_phase: Option<Box<dyn FnMut(Phase, bool)>>,
 }
 
 impl std::fmt::Debug for TestHost {
@@ -146,6 +149,7 @@ impl Default for TestHost {
             sections: Vec::new(),
             foreign: None,
             contracts: None,
+            on_phase: None,
         }
     }
 }
@@ -340,6 +344,9 @@ impl Host for TestHost {
 
     fn phase(&mut self, phase: Phase, before: bool) -> Result<(), Error> {
         self.calls.push(Call::Phase(phase, before));
+        if let Some(hook) = &mut self.on_phase {
+            hook(phase, before);
+        }
         Ok(())
     }
 

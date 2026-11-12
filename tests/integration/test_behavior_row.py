@@ -1,46 +1,46 @@
-"""The proposals of rules/behavior.rs: every field the bits of the deleted Python rule's.
+"""The entries of rules/behavior.rs: the proposals and the observed state of a person.
 
 The Python rules of `UtilityBehaviorPolicy.propose`, `PriorityRuleBehaviorPolicy.propose` and
 `_agent_view_snapshot` are gone (lane L10; docs/rust-port/lanes/h-behavior.md). Each case hashes the
 bits (`_exact`) of everything the kernel made, in order, and compares the digest with the one of
 what the Python rules made from the same inputs, recorded from them on 45a9bc9 before they went
-(`_Bits`, pinned on every OS, as the gate's hashes are). Here, on values no scenario reaches.
+(`_Bits`, pinned on every OS, as the gate's hashes are). Model version 2 (step 4, L11: the pinned
+libm crate and the information events' draw keys) changed some of these results: those digests
+were re-recorded from the kernels of that model and are no longer the deleted Python rules'.
 
-Model version 2 (step 4, L11: the pinned libm crate and the information events' draw keys)
-changed some of these results: those digests were re-recorded from the kernels of that model
-and are no longer the deleted Python rules'.
+The drawn worlds stay here (#225, decision 5: their inputs, drawn with `random.Random`, are too
+large to export), and are the entries of the proposals and the observed state. A seed past 64
+bits, requests and queued tasks, and a Run's proposals are checked without Python in
+`native/core/tests/behavior_rows.rs` (`support/core_fixtures_reads.py`). Here are also what the
+kernel refuses of what Python holds, and the ticks.
 """
 
 from __future__ import annotations
 
-import copy
 import hashlib
 import json
 import random
 from dataclasses import replace
 from enum import Enum
-from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from support.core_fixtures_reads import draw_policy, draw_world
 from support.paths import SMALL_REPLAY
-from support.world import driven_ticks, proposal_view, view_of, watching_phases
+from support.world import driven_ticks, view_of
 
 from sheltersim import native
-from sheltersim.core.engine import TickEngine, TickPhase, TraceLevel
+from sheltersim.core.engine import TickEngine, TickPhase
 from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.domain.body_state import create_body_state
 from sheltersim.domain.models import (
-    ActiveTask,
     Activity,
-    SupportRequestState,
-    SupportRequestStatus,
 )
 from sheltersim.experiments.metrics import MetricsRecorder
-from sheltersim.experiments.runner import OfflineSimulationController, run_scenario
+from sheltersim.experiments.runner import OfflineSimulationController
 from sheltersim.experiments.scenario import ScenarioSpec
 from sheltersim.experiments.timeline import _MetricSink
 from sheltersim.policies.behavior import (
@@ -109,119 +109,10 @@ def _observed(bits: _Bits, view: WorldView, agent_id: str) -> Any:
     return bits.add(_rules().observed_state(SimpleNamespace(), view, agent_id))
 
 
-def _draw_world(draws: random.Random, scenario: Any) -> tuple[WorldState, WorldView]:
-    """A world with values spread over each threshold of the rule, and most of it due, and its
-    view. The values are the rule's to read and need not make a world the validators accept, so
-    the controller is made before them."""
-    world = WorldState.from_scenario(scenario)
-    world.model_state.setdefault("body_state_v1", create_body_state(world))
-    controller = _controller(world)
-    world.minute_index = draws.randrange(0, 2880)
-
-    def value() -> float:
-        return draws.choice((0.0, 0.25, 0.5, 0.65, 0.8, 0.9, 1.0, draws.random(), draws.random()))
-
-    people = sorted(world.agents)
-    records = world.model_state["body_state_v1"]["agents"]
-    groups = (None, "", "G1", "G2")
-    context: dict[str, Any] = {}
-    for agent_id in people:
-        agent = world.agents[agent_id]
-        agent.needs.toilet_urgency = value()
-        agent.needs.hunger = value()
-        agent.needs.fatigue = value()
-        agent.needs.hydration_need = value()
-        agent.stress = value()
-        agent.trust = value()
-        agent.next_decision_at = draws.choice((0, 0, 0, world.minute_index + 1))
-        agent.activity = draws.choice(
-            (Activity.IDLE, Activity.RESTING, Activity.SLEEPING, Activity.MOVING)
-        )
-        record = records[agent_id]
-        record["sleep_debt_minutes"] = draws.choice((0.0, 240.0, draws.random() * 900.0))
-        for name in ("uncertainty", "reassurance", "discontent", "negative_affect", "hygiene_need"):
-            record[name] = value()
-        if draws.random() < 0.5:
-            others = draws.sample(people, min(9, len(people)))
-            context[agent_id] = {
-                "care_for_ids": others[:3] if draws.random() < 0.5 else [],
-                "caregiver_ids": others[3:6] if draws.random() < 0.5 else [],
-                "parent_ids": others[6:] if draws.random() < 0.5 else [],
-                "usual_wake_minute": draws.randrange(0, 1440),
-                "usual_sleep_minute": draws.randrange(0, 1440),
-                "required_sleep_minutes": draws.choice((60, 480, 600)),
-            }
-    world.model_state["population_presence_v1"] = {
-        "people": {
-            agent_id: {"household_id": draws.choice(groups)}
-            for agent_id in people
-            if draws.random() < 0.7
-        }
-    }
-    if context:
-        configs = world.model_configs.setdefault("population_context", {"people": {}})
-        configs["people"] = context
-    zones = sorted(world.zones)
-    environment = world.model_state.get("zone_environment_v1")
-    if isinstance(environment, dict):
-        for number, action in enumerate(("sleep", "rest", "wait", "sleep")):
-            if draws.random() < 0.5:
-                environment["modifiers"][f"m{number}"] = {
-                    "zone_id": draws.choice(zones),
-                    "start_minute": 0,
-                    "op": "modify_demand_rate",
-                    "parameters": {
-                        "action": action,
-                        "probability_multiplier": draws.choice((0.5, 1.0, 1.5, 2.0)),
-                        "duration_multiplier": (
-                            draws.choice((0.5, 1.0, 1.25, 2.0))
-                            if action in ("rest", "sleep")
-                            else 1.0
-                        ),
-                    },
-                    "start_event_id": f"e{number}",
-                    "source_id": "s",
-                    "assumption_ids": ["ASM-A", "ASM-B"][: number % 3],
-                }
+def _drawn(draws: random.Random, scenario: Any) -> tuple[WorldState, WorldView]:
+    """A drawn world (`support/core_fixtures_reads.py`'s `draw_world`) and its view."""
+    world, controller, _ = draw_world(draws, scenario)
     return world, _view(world, controller)
-
-
-def _draw_policy(draws: random.Random, ids: list[str]) -> Any:
-    def weight() -> float:
-        return draws.choice((0.0, 0.25, 1, 1.0, draws.random()))
-
-    autonomy = draws.random() < 0.7
-    parameters: dict[str, Any] = {
-        "temperature": draws.choice((0.2, 0.05, 1, 3.0, draws.random() + 0.01)),
-        "decision_interval_minutes": draws.choice((1, 15, 30)),
-        "decision_interval_minutes_by_agent": {ids[0]: 7} if draws.random() < 0.5 else {},
-        "temperature_by_agent": {ids[1]: draws.choice((0.35, 2))} if draws.random() < 0.5 else {},
-        "sleep_debt_utility_weight": draws.choice((1.0, 0.5, draws.random())),
-        "resource_service_enabled": draws.random() < 0.7,
-        "hydration_action_threshold": draws.choice((0.25, 0.30000000000000004, 1e-07, 1)),
-        "hunger_action_threshold": draws.choice((0.7, 0.123456789, 1.0)),
-        "water_utility_base": weight(),
-        "water_utility_need_weight": weight(),
-        "meal_utility_base": weight(),
-        "meal_utility_need_weight": weight(),
-        "information_query_threshold": draws.choice((1.1, 0.5, 1, 0.123456789)),
-        "information_query_utility_weight": weight(),
-        "autonomy_enabled": autonomy,
-    }
-    version = draws.choice(
-        (
-            "utility-softmax-v1",
-            "sleep-aware-utility-softmax-v2",
-            "sleep-aware-utility-softmax-v2-autonomy-v2",
-            'quote"\\version-é',
-        )
-    )
-    scorer = UtilityBehaviorPolicy(**parameters, policy_version=version)
-    if draws.random() < 0.3:
-        return PriorityRuleBehaviorPolicy(
-            scorer, policy_version=draws.choice((version, "priority-rule-v1"))
-        )
-    return scorer
 
 
 # What the Python rules made of each drawn world below, by its seed.
@@ -266,80 +157,15 @@ def test_each_proposal_of_a_drawn_world_has_the_bits_of_python(
     draws = random.Random(seed)
     # The generated scenario has the water and meal actions, the small one doesn't.
     scenario = ScenarioSpec.load(SMALL_REPLAY) if seed % 3 == 0 else generated_scenario
-    world, view = _draw_world(draws, scenario)
+    world, view = _drawn(draws, scenario)
     assert view.resource_service_enabled is (seed % 3 != 0)
     bits = _Bits()
     for _ in range(4):
-        policy = _draw_policy(draws, sorted(world.agents))
+        policy = draw_policy(draws, sorted(world.agents))
         _proposals(bits, policy, view, seed=draws.randrange(0, 2**40))
     for agent_id in world.agents:
         _observed(bits, view, agent_id)
     bits.check(DRAWN_WORLDS[seed])
-
-
-@pytest.mark.parametrize(
-    ("seed", "digest"),
-    [(2**63, "4eeb7955eaf7a746"), (2**64 + 7, "b05281eb8a1f1846"), (10**30, "09fcdfd963ea511b")],
-)
-def test_a_seed_past_64_bits_has_the_bits_of_python(
-    seed: int, digest: str, generated_scenario: Any
-) -> None:
-    """A Scenario's seed is any int from 0, and CounterRNG keys its draws with `str(seed)`. The
-    kernel turned such a seed down before, and the Python rule made the proposals."""
-    draws = random.Random(5)
-    world, view = _draw_world(draws, generated_scenario)
-    policy = _draw_policy(draws, sorted(world.agents))
-    bits = _Bits()
-    assert _proposals(bits, policy, view, seed=seed)
-    bits.check(digest)
-
-
-def test_requests_cooldowns_and_queued_tasks_are_read_as_python_reads_them(
-    generated_scenario: Any,
-) -> None:
-    """No gate scenario has someone due with a request or a queued task, so these are here."""
-    world = WorldState.from_scenario(generated_scenario)
-    controller = _controller(world)
-    _everyone_due(world)
-    people = sorted(world.agents)
-    world.minute_index = 40
-    for number, status in enumerate(SupportRequestStatus):
-        request = SupportRequestState(f"R{number}", people[number], 5, 10, status=status)
-        world.support_requests[request.id] = request
-        world.agents[people[number]].support_request_id = request.id
-        # Enough for the help candidate but for the request.
-        world.agents[people[number]].needs.fatigue = 0.9
-    world.agents[people[4]].support_request_id = "nothing"
-    world.agents[people[5]].support_cooldown_until = 55
-    world.agents[people[6]].support_cooldown_until = 25
-    world.active_tasks["T1"] = ActiveTask("T1", "toilet_queue", people[7], "F1", 10, 90)
-    world.active_tasks["T2"] = ActiveTask("T2", "resource_service_queue", people[8], None, 50, 90)
-    world.active_tasks["T3"] = ActiveTask("T3", "toilet_queue", people[9], "F1", 20, 90)
-    world.active_tasks["T4"] = ActiveTask("T4", "resource_service_queue", people[9], "F2", 30, 90)
-    view = _view(world, controller)
-    bits = _Bits()
-    for threshold in (1.1, 0.0):
-        policy = UtilityBehaviorPolicy(information_query_threshold=threshold)
-        made = _proposals(bits, policy, view)
-        assert {proposal.agent_id for proposal in made} == set(people)
-    snapshots = {}
-    for agent_id in people:
-        snapshots[agent_id] = _observed(bits, view, agent_id)
-    bits.check("58c69158d7eb36d8")
-    assert snapshots[people[0]]["support"]["status"] == "pending"
-    assert snapshots[people[0]]["support"]["wait_minutes"] == 35
-    assert snapshots[people[4]]["support"]["request_id"] == "nothing"
-    assert snapshots[people[5]]["support"]["cooldown_remaining_minutes"] == 15
-    assert snapshots[people[6]]["support"]["cooldown_remaining_minutes"] == 0
-    assert snapshots[people[7]]["queue"]["wait_minutes"] == 30
-    assert snapshots[people[8]]["queue"] == {
-        "task_id": "T2",
-        "kind": "resource_service_queue",
-        "target_id": None,
-        "wait_minutes": 0,
-    }
-    # The first of two queued tasks: the order they were added in.
-    assert snapshots[people[9]]["queue"]["task_id"] == "T3"
 
 
 def test_drawn_worlds_reach_what_they_are_for(generated_scenario: Any) -> None:
@@ -350,8 +176,8 @@ def test_drawn_worlds_reach_what_they_are_for(generated_scenario: Any) -> None:
     bits = _Bits()
     for seed in range(60):
         draws = random.Random(seed)
-        world, view = _draw_world(draws, generated_scenario)
-        policy = _draw_policy(draws, sorted(world.agents))
+        world, view = _drawn(draws, generated_scenario)
+        policy = draw_policy(draws, sorted(world.agents))
         for proposal in _proposals(bits, policy, view):
             actions.add(proposal.action.value)
             if proposal.target_id is not None:
@@ -374,36 +200,6 @@ def test_drawn_worlds_reach_what_they_are_for(generated_scenario: Any) -> None:
     assert with_target == {"socialize", "care_family", "help_others"}
     assert ties > 0 and demand > 0
     bits.check("6057d790ccb496c7")
-
-
-def test_each_proposal_of_a_run_has_the_bits_of_python(
-    generated_scenario: Any, tmp_path: Path
-) -> None:
-    """The steps' kernels on the view each tick's propose phase makes, before that phase."""
-    document = copy.deepcopy(generated_scenario.model_dump(mode="json"))
-    document["duration_minutes"] = 90
-    counts = {"calls": 0, "proposals": 0, "observed": 0}
-    bits = _Bits()
-
-    def propose(engine: Any, phase: TickPhase, before: bool) -> None:
-        if phase is not TickPhase.PROPOSE_ACTIONS or not before:
-            return
-        controller = engine.phase_handler
-        view = proposal_view(controller, engine.world)
-        made = bits.add(_rules().propose_due(controller, view, engine.rng))
-        counts["calls"] += 1
-        counts["proposals"] += len(made)
-        for proposal in made:
-            bits.add(_rules().observed_state(controller, view, proposal.agent_id))
-            counts["observed"] += 1
-
-    ticks = driven_ticks()
-    with watching_phases(propose):
-        run_scenario(ScenarioSpec.model_validate(document), tmp_path, trace_level=TraceLevel.OFF)
-    assert driven_ticks() - ticks == 90
-    assert counts["calls"] == 90
-    assert counts["proposals"] == counts["observed"] > 0
-    bits.check("39e0d6ea65c6015b")
 
 
 def test_a_tick_makes_no_python_view_of_the_people(

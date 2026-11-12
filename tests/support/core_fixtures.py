@@ -60,6 +60,10 @@ FIXTURES: dict[str, str] = {
     "staff_rules": "support.core_fixtures_staff:staff_rules_fixture",
     "population_rules": "support.core_fixtures_population:population_rules_fixture",
     "model_steps": "support.core_model_steps:model_steps_fixture",
+    "resource_ledger": "support.core_fixtures_reads:resource_ledger_fixture",
+    "proximity": "support.core_fixtures_reads:proximity_fixture",
+    "dispatch_rows": "support.core_fixtures_reads:dispatch_rows_fixture",
+    "behavior_rows": "support.core_fixtures_reads:behavior_rows_fixture",
 }
 
 # The attributes of `InformationSpreadConfig` the PyO3 crate reads (`InformationSpread::FIELDS` of
