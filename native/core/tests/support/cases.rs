@@ -4,7 +4,9 @@
 //! A world of such a file is an exported world, or a variant of another world of the same file
 //! (`{"base": name, "changes": [...]}`): `entry` (`resolve` of a file read already) makes the
 //! entry again, applying each change in order (`["set", path, value]`, where an index one past a
-//! list's end appends, and `["del", path]`). A case is one event for one handler of one world: the
+//! list's end appends, and `["del", path]`), then each of `set` (`{"a.0.b": value}`, the shorter
+//! form `core_texts.variant(dotted=True)` writes). `resolve` reads any such table of a file (lane
+//! M10a's policies too). A case is one event for one handler of one world: the
 //! outcome the Python rule raised (`[class, text]`), or `after`, the world it left when the event
 //! applied. `check` runs the core's handler (`dispatch::apply_alone`, the kernel the handler's
 //! PyO3 entry calls) on a fresh load of the world with its host (`load::loaded`, and `host`:
@@ -41,10 +43,35 @@ pub fn resolve(worlds: &Value, name: &str) -> Value {
         return world.clone();
     };
     let mut entry = resolve(worlds, base.as_str().unwrap());
-    for change in world["changes"].as_array().unwrap() {
+    for change in world.get("changes").and_then(Value::as_array).into_iter().flatten() {
         apply(&mut entry, change);
     }
+    for (path, value) in world.get("set").and_then(Value::as_object).into_iter().flatten() {
+        set_dotted(&mut entry, path, value);
+    }
     entry
+}
+
+/// A set of `core_texts.variant(dotted=True)`: the value at a path of keys and indexes joined with
+/// dots, which the entry has but for its last key of a dict.
+fn set_dotted(entry: &mut Value, path: &str, value: &Value) {
+    let keys: Vec<&str> = path.split('.').collect();
+    let (last, parents) = keys.split_last().unwrap();
+    let mut node = entry;
+    for key in parents {
+        node = match node {
+            Value::Array(items) => items.get_mut(key.parse::<usize>().unwrap()),
+            other => other.get_mut(*key),
+        }
+        .unwrap_or_else(|| panic!("no {key} on the path {path}"));
+    }
+    match node {
+        Value::Array(items) => items[last.parse::<usize>().unwrap()] = value.clone(),
+        Value::Object(map) => {
+            map.insert((*last).to_owned(), value.clone());
+        }
+        _ => panic!("not a dict or a list at {path}"),
+    }
 }
 
 fn apply(entry: &mut Value, change: &Value) {
