@@ -128,14 +128,6 @@ impl Plan {
         }
     }
 
-    /// What `Geo::of` raised, if the plan was read and could not be.
-    fn error(&self, py: Python<'_>) -> Option<PyErr> {
-        match self {
-            Plan::Read(Err(read)) => Some(read.clone_ref(py)),
-            _ => None,
-        }
-    }
-
     /// The kernel's result, with what `Geo::of` raised where the kernel read the plan.
     fn finish<T>(&self, py: Python<'_>, result: PyResult<T>) -> PyResult<T> {
         match (result, self) {
@@ -582,11 +574,6 @@ impl ChangeIn {
             overlay,
             plan,
         })
-    }
-
-    /// What `Geo::of` raised, where the change read the plan and could not (`PLAN_UNREAD`).
-    pub(crate) fn plan_error(&self, py: Python<'_>) -> Option<PyErr> {
-        self.plan.error(py)
     }
 
     pub(crate) fn change(&self) -> Change<'_> {
