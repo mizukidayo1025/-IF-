@@ -174,12 +174,8 @@ impl<C: WorldCell, H: Host, R: RunCell> Tick<'_, C, H, R> {
 
 /// One tick at `tick.minute`: the Run's scratch begins, then each phase in its order
 /// (`TICK_PHASE_ORDER`): the observer before, the phase, the check that the clock is the engine's,
-/// and the observer after. `movement` is the update phase's movement and replanning, which the caller
-/// runs.
-pub fn run_tick<C: WorldCell, H: Host, R: RunCell>(
-    tick: &mut Tick<'_, C, H, R>,
-    movement: &mut dyn FnMut(&mut H) -> Step<(), H::Error>,
-) -> Step<(), H::Error>
+/// and the observer after.
+pub fn run_tick<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>) -> Step<(), H::Error>
 where
     H::Error: From<WriteError>,
 {
@@ -192,7 +188,7 @@ where
             Phase::DispatchDueEvents => crate::rules::dispatch::run(tick).map_err(|error| propose::refused(crate::rules::dispatch::RUN_PHASE, error)).bare()?,
             // `complete_scheduled_tasks` has no step in the controller.
             Phase::CompleteScheduledTasks => {}
-            Phase::UpdateAgentState => update::update(tick, movement)?,
+            Phase::UpdateAgentState => update::update(tick)?,
             Phase::ProposeActions => propose::propose(tick)?,
             Phase::ArbitrateActions => arbitrate::arbitrate(tick)?,
             Phase::SampleEndogenousEvents => sample::sample(tick)?,

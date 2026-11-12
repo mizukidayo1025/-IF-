@@ -260,7 +260,22 @@ fn complete<'py>(handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: 
     Ok(())
 }
 
+/// `ToiletServiceManager.arbitrate`: the core's loop (lane P9-3b).
+#[pyfunction]
+#[pyo3(signature = (manager, minute, rng, *, validate_state=None))]
+fn arbitrate<'py>(
+    manager: &Bound<'py, PyAny>,
+    minute: &Bound<'py, PyAny>,
+    rng: &Bound<'py, PyAny>,
+    validate_state: Option<&Bound<'py, PyAny>>,
+) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+    let py = manager.py();
+    let validate_state = validate_state.cloned().unwrap_or_else(|| PyBool::new(py, true).to_owned().into_any());
+    crate::rules::tick::arbitrate_alone(manager, false, minute, Some(rng), &validate_state, "facility arbitration minute must match WorldState")
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(arbitrate, m)?)?;
     m.add_function(wrap_pyfunction!(request, m)?)?;
     m.add_function(wrap_pyfunction!(facilities_to_serve, m)?)?;
     m.add_function(wrap_pyfunction!(has_room, m)?)?;

@@ -721,17 +721,19 @@ pub fn complete(world: &World, event: &EventRow, queues: &Held, geo: &Geo, body:
 
 // ---- arbitrate (lane P9-2a: the tick driver's loop, moved from the PyO3 crate) ---------------------
 
-/// `ToiletServiceManager.arbitrate` of the tick: each facility with anyone queued, in ID order; a
-/// facility with independent queues serves each of them (`_arbitrate_independent_facility`), any
-/// other its shared queue while it has room. Nothing reads what it returns here, so the started
-/// events are not looked up. The manager is the controller's, of the class the driver was installed
-/// with (the driver refused another before the tick began).
-pub fn arbitrate<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(tick: &mut crate::rules::tick::Tick<'_, C, H, R>) -> crate::rules::tick::Step<(), H::Error> {
+/// `ToiletServiceManager.arbitrate`: each facility with anyone queued, in ID order; a facility with
+/// independent queues serves each of them (`_arbitrate_independent_facility`), any other its shared
+/// queue while it has room. Returns the IDs of the started events, in order. The manager is the one
+/// `tick.policies` read: the controller's, of the class the driver was installed with (the driver
+/// refused another before the tick began), or one a caller holds alone (lane P9-3b, its body-less
+/// Python entry).
+pub fn arbitrate<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(tick: &mut crate::rules::tick::Tick<'_, C, H, R>) -> crate::rules::tick::Step<Vec<Arc<str>>, H::Error> {
     use crate::rules::tick::Labelled;
     let due = facilities_of(tick).at("toilet.facilities_to_serve")?;
+    let mut started = Vec::new();
     for id in due {
         if let Some(queues) = tick.independent_queues(&id)? {
-            arbitrate_independent(tick, &id, &queues)?;
+            started.extend(arbitrate_independent(tick, &id, &queues)?);
             continue;
         }
         tick.prepare_queue(&id, false)?;
@@ -740,21 +742,24 @@ pub fn arbitrate<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(tick: &m
             if !room || tick.progress(&id, false, false, None)? || tick.progress(&id, false, true, None)? {
                 break;
             }
-            if start_of(tick, &id, None).at("toilet.start_head")? == Started::Stopped {
-                break;
+            match start_of(tick, &id, None).at("toilet.start_head")? {
+                Started::Event(event_id) => started.push(event_id),
+                Started::Stopped => break,
             }
         }
     }
-    Ok(())
+    Ok(started)
 }
 
-/// `_arbitrate_independent_facility`: each queue, with the check of its signed point.
-fn arbitrate_independent<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(
+/// `_arbitrate_independent_facility`: each queue, with the check of its signed point. Returns the
+/// IDs of the started events, in order.
+pub fn arbitrate_independent<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(
     tick: &mut crate::rules::tick::Tick<'_, C, H, R>,
     id: &str,
     queues: &[Arc<str>],
-) -> crate::rules::tick::Step<(), H::Error> {
+) -> crate::rules::tick::Step<Vec<Arc<str>>, H::Error> {
     use crate::rules::tick::Labelled;
+    let mut started = Vec::new();
     for queue in queues {
         tick.prepare_independent(queue, false)?;
         tick.check_signed_point(queue, "service")?;
@@ -762,12 +767,13 @@ fn arbitrate_independent<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(
             if tick.progress(id, false, false, Some(queue))? {
                 break;
             }
-            if start_of(tick, id, Some(queue)).at("toilet.serve_independent_head")? == Started::Stopped {
-                break;
+            match start_of(tick, id, Some(queue)).at("toilet.serve_independent_head")? {
+                Started::Event(event_id) => started.push(event_id),
+                Started::Stopped => break,
             }
         }
     }
-    Ok(())
+    Ok(started)
 }
 
 /// `facilities_to_serve` of the manager's world.

@@ -20,17 +20,16 @@ use pyo3::types::{PyDict, PyString, PyTuple, PyType};
 
 use sheltersim_core::config::movement::Movement;
 use sheltersim_core::rules::kit::{self, Held};
-use sheltersim_core::rules::movement::{self as core, Advanced, InOrder, StaffOps, Start, Tick, Validated, Where};
+use sheltersim_core::rules::movement::{self as core, StaffOps, Start, Validated, Where};
 
 pub(crate) use sheltersim_core::config::movement::EXACT_INT;
 
 use crate::core::configs;
 use crate::core::errors::OrPy;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_list, exact_str, unsupported, PyField};
-use crate::core::world_core::{field_held, mirror_of, namespace_held, raw_dict_get, with_world, NamespaceMirror, PyWorldCell};
+use crate::core::world_core::{mirror_of, namespace_held, raw_dict_get, with_world, NamespaceMirror, PyWorldCell};
 use crate::host::PyHost;
 use crate::rules::movement_geometry::{usable, Geo, GeoPy, Pt};
-use crate::state::events::{write_result, EventWriter};
 use crate::state::movement::{Journey, Point};
 use crate::state::staff_operations::NAME as STAFF_OPERATIONS;
 use crate::Unsupported;
@@ -425,41 +424,13 @@ fn staff_position_snapshots<'py>(world: &Bound<'py, PyAny>, boundary_minute: Opt
     Ok(result)
 }
 
-/// `advance_movement`.
+/// `advance_movement`: the core's walk, with what it reads besides the world through the native
+/// host (lane P9-3b).
 #[pyfunction]
 pub(crate) fn advance_movement<'py>(world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyTuple>> {
     let py = world.py();
     let minute = exact_int(minute)?;
-    if minute.abs() >= EXACT_INT {
-        return unsupported("a minute is too large");
-    }
-    mirror_held(world)?;
-    let geo = Geo::of(world)?;
-    let staff = staff_ops(world)?;
-    let tick = Tick { geo: &geo, staff: &staff };
-    let mut advanced = with_world(world, |world| core::advance(world, &tick, minute, None))?.or_py()?;
-    if matches!(advanced, Advanced::NeedsInOrder) {
-        // A branch reads the walk so far: what it needs, read as the kernel read it then.
-        let movement = movement_of(world)?;
-        let in_order = InOrder {
-            model: &movement.model,
-            queues: queues_held(world)?,
-            metric_state_held: field_held(world, intern!(py, "metric_state"))?,
-        };
-        advanced = with_world(world, |world| core::advance(world, &tick, minute, Some(&in_order)))?.or_py()?;
-    }
-    let replans = match advanced {
-        Advanced::Done(replans) => replans,
-        Advanced::NeedsInOrder => return unsupported("the walk in order asked for itself"),
-        Advanced::Planned(plan) => {
-            // The old events are read as rows from the world's queue, and settled there by the core.
-            crate::rules::travel::read_queue_rows(world)?;
-            let queue = EventWriter::of(world)?.queue().clone();
-            let (replans, taken) = write_result(py, with_world(world, |world| core::write_walk(world, plan, minute))?)?;
-            queue.get().forget(&taken)?;
-            replans
-        }
-    };
+    let replans = core::advance_through(&PyWorldCell(world), &mut host_of(world), minute).map_err(|error| error.0)?;
     PyTuple::new(py, replans.iter().map(|id| PyString::new(py, id)))
 }
 

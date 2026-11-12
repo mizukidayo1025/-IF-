@@ -2,6 +2,8 @@
 //! Python. The PyO3 crate's kernels of the same names are glue over these, so the gate and the
 //! offline tests run them on every Run; these say what each reads, decides and writes.
 
+mod support;
+
 use std::sync::Arc;
 
 use indexmap::IndexMap;
@@ -251,6 +253,36 @@ fn a_journey_walks_its_edge_to_the_next_boundary() {
     assert!(done(advance(&world, &geo, &StaffOps::None, 1).unwrap()).is_empty());
     assert_eq!(world.stamp_of(MOVEMENT).unwrap(), stamp);
     assert!(written(&mut world).is_empty());
+}
+
+/// `advance_movement` through the host (lane P9-3b): what the world holds and the floor plan are the
+/// host's, the walk is `advance`'s, and its refusals come before anything is read or written.
+#[test]
+fn the_walk_reads_what_it_needs_through_the_host() {
+    use sheltersim_core::host::{Hold, Holding, Key, NO_PLAN, TABLE_NOT_PLAIN};
+    use sheltersim_core::rules::movement::{advance_through, MINUTE_TOO_LARGE, OTHER_MOVEMENT};
+    use sheltersim_core::world::WorldCell;
+    let cell = sheltersim_core::cell::Shard::new(world());
+    let mut host = support::TestHost { plan: Some(Arc::new(geo())), ..support::TestHost::default() };
+    assert_eq!(advance_through(&cell, &mut host, 1), Ok(Vec::new()));
+    let walked = cell.with(|world| row(world)).unwrap();
+    assert_eq!(walked.last_updated_minute, 1);
+    assert_eq!(xy(&walked.positions["a1"]), Some((10.0, 5.0)));
+    assert_eq!(host.calls, vec![support::Call::Holding, support::Call::FloorPlan]);
+    // A minute a float does not hold exactly, before anything is read.
+    let mut host = support::TestHost::default();
+    assert_eq!(advance_through(&cell, &mut host, sheltersim_core::rules::movement::EXACT_INT), Err(unsupported(MINUTE_TOO_LARGE)));
+    assert!(host.calls.is_empty());
+    // The namespace held as another value, or a table that is not a plain dict.
+    let other = Holding { keys: IndexMap::from([(text(MOVEMENT), Key::new(Hold::Other, false))]), ..Holding::default() };
+    let mut host = support::TestHost { holding: Some(Arc::new(other)), ..support::TestHost::default() };
+    assert_eq!(advance_through(&cell, &mut host, 2), Err(unsupported(OTHER_MOVEMENT)));
+    let mut host = support::TestHost { holding: Some(Arc::new(Holding { table: false, ..Holding::default() })), ..support::TestHost::default() };
+    assert_eq!(advance_through(&cell, &mut host, 2), Err(unsupported(TABLE_NOT_PLAIN)));
+    // No floor plan: the host's refusal, with nothing written.
+    let mut host = support::TestHost::default();
+    assert_eq!(advance_through(&cell, &mut host, 2), Err(unsupported(NO_PLAN)));
+    assert_eq!(cell.with(|world| row(world).last_updated_minute).unwrap(), 1);
 }
 
 #[test]

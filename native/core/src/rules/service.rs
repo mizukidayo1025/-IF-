@@ -1906,16 +1906,19 @@ pub fn interrupt(world: &mut World, manager: &Manager<'_>, pending: &[Pending], 
 
 // ---- arbitrate (lane P9-2a: the tick driver's loop, moved from the PyO3 crate) ---------------------
 
-/// `ResourceServiceManager.arbitrate` of the tick: each facility with anything to do, in ID order;
-/// one with independent queues serves each of them and records the facility's stall
-/// (`_arbitrate_independent_facility`), any other its shared queue while it has people. The manager
-/// is the controller's, of the class the driver was installed with.
-pub fn arbitrate<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(tick: &mut crate::rules::tick::Tick<'_, C, H, R>) -> crate::rules::tick::Step<(), H::Error> {
+/// `ResourceServiceManager.arbitrate`: each facility with anything to do, in ID order; one with
+/// independent queues serves each of them and records the facility's stall
+/// (`_arbitrate_independent_facility`), any other its shared queue while it has people. Returns the
+/// IDs of the started events, in order. The manager is the one `tick.policies` read: the
+/// controller's, of the class the driver was installed with, or one a caller holds alone (lane
+/// P9-3b, its body-less Python entry).
+pub fn arbitrate<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(tick: &mut crate::rules::tick::Tick<'_, C, H, R>) -> crate::rules::tick::Step<Vec<Arc<str>>, H::Error> {
     use crate::rules::tick::Labelled;
     let due = facilities_of(tick).at("service.facilities_to_serve")?;
+    let mut started = Vec::new();
     for (id, resource) in due {
         if let Some(queues) = tick.independent_queues(&id)? {
-            arbitrate_independent(tick, &id, resource, &queues)?;
+            started.extend(arbitrate_independent(tick, &id, resource, &queues)?);
             continue;
         }
         tick.prepare_queue(&id, true)?;
@@ -1923,12 +1926,13 @@ pub fn arbitrate<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(tick: &m
             if tick.progress(&id, true, false, None)? {
                 break;
             }
-            if serve_of(tick, &id, resource, None).at("service.serve_head")?.0.is_none() {
-                break;
+            match serve_of(tick, &id, resource, None).at("service.serve_head")?.0 {
+                Some(event_id) => started.push(event_id),
+                None => break,
             }
         }
     }
-    Ok(())
+    Ok(started)
 }
 
 /// `facility.resource_queue_agent_ids` is not empty.
@@ -1946,15 +1950,16 @@ fn has_queue<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(tick: &mut c
 }
 
 /// `_arbitrate_independent_facility`: each queue, with the check of its signed point, then the
-/// facility's stall of the pass.
-fn arbitrate_independent<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(
+/// facility's stall of the pass. Returns the IDs of the started events, in order.
+pub fn arbitrate_independent<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(
     tick: &mut crate::rules::tick::Tick<'_, C, H, R>,
     id: &str,
-    resource: &'static str,
+    resource: &str,
     queues: &[Arc<str>],
-) -> crate::rules::tick::Step<(), H::Error> {
+) -> crate::rules::tick::Step<Vec<Arc<str>>, H::Error> {
     use crate::rules::tick::Labelled;
     let mut stalls: Vec<(Arc<str>, Arc<str>)> = Vec::new();
+    let mut started = Vec::new();
     let previous = previous_of(tick, id).bare()?;
     for queue in queues {
         tick.prepare_independent(queue, true)?;
@@ -1963,16 +1968,18 @@ fn arbitrate_independent<C: WorldCell, H: Host, R: crate::rules::tick::RunCell>(
             if tick.progress(id, true, false, Some(queue))? {
                 break;
             }
-            let (started, stall) = serve_of(tick, id, resource, Some(queue)).at("service.serve_independent_head")?;
+            let (event_id, stall) = serve_of(tick, id, resource, Some(queue)).at("service.serve_independent_head")?;
             if let Some((agent, reason)) = stall {
                 stalls.push((agent, Arc::from(reason)));
             }
-            if started.is_none() {
-                break;
+            match event_id {
+                Some(event_id) => started.push(event_id),
+                None => break,
             }
         }
     }
-    record_stall_of(tick, id, &stalls, previous.as_ref()).at("service.record_independent_stall")
+    record_stall_of(tick, id, &stalls, previous.as_ref()).at("service.record_independent_stall")?;
+    Ok(started)
 }
 
 /// What a kernel takes of the manager (`Inputs::of` of the service's glue): its config as the Run

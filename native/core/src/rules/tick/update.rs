@@ -10,9 +10,18 @@ use std::sync::Arc;
 
 use indexmap::IndexMap;
 
+use crate::config::movement::Movement;
+use crate::config::overlay::overlay_schema as parse_overlay_schema;
 use crate::config::SectionId;
 use crate::error::Error;
-use crate::host::{Host, Holding, TraceLevel};
+use crate::events::writer::WriteError;
+use crate::host::{Again, Host, Holding, TraceLevel};
+use crate::rules::care_receipts;
+use crate::rules::kit::{check_metric_state, POLICY_FAULT};
+use crate::rules::movement::{self, KEY as MOVEMENT};
+use crate::rules::overlay::{Beds, OVERLAY_KEY, PLAN_UNREAD};
+use crate::rules::replan::{self, Replanning, Second};
+use crate::rules::travel::{Routing, Walking};
 use crate::rules::psychology::{self, Applied, Delta, PsychologyResult};
 use crate::rules::social_propagation as social;
 use crate::rules::trace::{self, TraceInputs};
@@ -22,7 +31,14 @@ use crate::state::body_state::NAME as BODY_STATE;
 use crate::value::V;
 use crate::world::{WorldCell, METRIC_STATE, MODEL_CONFIGS};
 
+use super::propose::refused;
+use super::read::is_refusal;
 use super::{Labelled, Prior, RunCell, Seed, Step, Tick};
+
+pub const ADVANCE: &str = "movement.advance_movement";
+pub const REPLAN: &str = "replan.replan_journeys";
+const INGEST: &str = "care_receipts.ingest";
+const FINISH: &str = "movement.finish_movement";
 
 pub const VIEW: &str = "world_view.view_after_movement";
 pub const PSYCHOLOGY: &str = "psychology.update_psychology";
@@ -78,9 +94,12 @@ impl<C: WorldCell, H: Host, R: RunCell> Tick<'_, C, H, R> {
     }
 }
 
-/// The update phase. `movement` is `_update_movement`, which the caller runs.
-pub fn update<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>, movement: &mut dyn FnMut(&mut H) -> Step<(), H::Error>) -> Step<(), H::Error> {
-    movement(tick.host)?;
+/// The update phase.
+pub fn update<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>) -> Step<(), H::Error>
+where
+    H::Error: From<WriteError>,
+{
+    update_movement(tick)?;
     let data = view_after_movement(tick).at(VIEW)?;
     let result = update_psychology(tick, &data).at(PSYCHOLOGY)?;
     let finals = update_social(tick, &data, &result).at(SOCIAL)?;
@@ -90,6 +109,136 @@ pub fn update<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>, m
     let data = Arc::new(data);
     tick.on_run(|run| run.scratch.put(Prior::View(data))).bare()?;
     Ok(())
+}
+
+/// `_update_movement` (lane P9-3b): with a movement state in `model_state` (a key whose value is not
+/// None), the walk of the minute, and the replan of those whose route changed under them.
+pub fn update_movement<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>) -> Step<(), H::Error>
+where
+    H::Error: From<WriteError>,
+{
+    let holding = tick.holding().bare()?;
+    if !holding.keys.get(MOVEMENT).is_some_and(|key| !key.none) {
+        return Ok(());
+    }
+    let minute = tick.minute;
+    let moved = movement::advance_through(tick.cell, tick.host, minute).at(ADVANCE)?;
+    if !moved.is_empty() {
+        replan_journeys(tick, &moved).at(REPLAN)?;
+    }
+    Ok(())
+}
+
+/// `_replan_journeys` of the people `advance_movement` returned, in that order (lane c6; its inputs
+/// through the host since lane P9-3b): what the world holds, then the Run's graph, the rows of the
+/// queue, the floor plan, the movement section and the overlay's schema, read once. Each person is
+/// two steps; a refusal before the first stop of the call changes nothing, and one after it is a
+/// `RuntimeError`.
+pub fn replan_journeys<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>, ids: &[Arc<str>]) -> std::result::Result<(), H::Error>
+where
+    H::Error: From<WriteError>,
+{
+    let holding = tick.holding()?;
+    movement::check_held(&holding)?;
+    tick.world(|world| world.queue().map(drop))?;
+    let metric_state = holding.field(METRIC_STATE);
+    tick.world(|world| check_metric_state(world, metric_state))?;
+    if ids.is_empty() {
+        return Ok(());
+    }
+    // What the steps read besides the world, read once: no step changes it.
+    let graph = super::propose::graph(tick)?;
+    tick.host.read_queue_rows()?;
+    let plan = tick.plan();
+    let section = tick.value_section(&holding, SectionId::Movement, |configs| &configs.movement, Movement::parse)?;
+    let moving = holding.held(MOVEMENT, movement::OTHER_MOVEMENT);
+    let staff = holding.held(crate::state::staff_operations::NAME, "the world holds another document than the row's");
+    let overlay = holding.held(OVERLAY_KEY, replan::OTHER_OVERLAY);
+    let schema = tick.value_section(&holding, SectionId::OverlaySchema, |configs| &configs.overlay_schema, parse_overlay_schema)?;
+    let policies = tick.policies.clone();
+    let replanning = Replanning {
+        routing: Routing { graph: &graph, geo: plan.get(), movement: &section, staff: &staff },
+        walking: Walking { movement: &moving, geo: plan.get() },
+        beds: Beds { overlay: &overlay, movement: &moving, schema: &schema, walking: &section, geo: plan.get().map(|geo| &**geo) },
+        movement: &section,
+        staff_service: &policies.services.staff,
+    };
+    let mut written = false;
+    for agent_id in ids {
+        let result = replan_one(tick, &replanning, plan.get().is_some(), agent_id, &mut written);
+        match result {
+            // Say Unsupported no more: a stop has been written.
+            Err(error) if written => match is_refusal(&error) {
+                Some(reason) => {
+                    crate::census::caught("replan after a stop", reason.clone());
+                    return Err(Error::Runtime(format!("a kernel said Unsupported after a replan was written: {reason}")).into());
+                }
+                None => return Err(error),
+            },
+            result => result?,
+        }
+    }
+    Ok(())
+}
+
+/// The two steps of one person.
+fn replan_one<C: WorldCell, H: Host, R: RunCell>(
+    tick: &mut Tick<'_, C, H, R>,
+    replanning: &Replanning<'_>,
+    planned: bool,
+    agent_id: &Arc<str>,
+    written: &mut bool,
+) -> std::result::Result<(), H::Error>
+where
+    H::Error: From<WriteError>,
+{
+    let minute = tick.minute;
+    let Some(journey) = tick.world(|world| replan::journey_of(world, agent_id))? else {
+        return Ok(());
+    };
+    // Says Unsupported only before its first write.
+    let stopped = tick.cell.with(|world| replan::stop(world, agent_id, &journey, minute)).map_err(|error: Error| <H::Error as From<Error>>::from(error))?;
+    let taken = tick.written(stopped)?;
+    *written = true;
+    tick.host.slots_changed(&taken)?;
+    let second = tick.cell.with(|world| replan::second_step(world, replanning, agent_id, &journey, minute)).map_err(|error: Error| <H::Error as From<Error>>::from(error))?;
+    let second = tick.written(second);
+    // What reading the floor plan raised, where the step read it (`PLAN_UNREAD`): read again.
+    let second = match second {
+        Err(error) if !planned && is_refusal(&error).as_deref() == Some(PLAN_UNREAD) => match tick.host.floor_plan() {
+            Err(read) => Err(read),
+            Ok(_) => Err(error),
+        },
+        second => second,
+    };
+    // A refusal of the Run's `staff_service` whose read raised, as reading it again raises (policy
+    // E14).
+    let second = match second {
+        Err(error) if is_refusal(&error).as_deref() == Some(POLICY_FAULT) => {
+            tick.host.read_again(Again::Policy(&["staff_service", "policy_version"]))?;
+            tick.host.read_again(Again::Policy(&["staff_service", "cooldown_minutes"]))?;
+            Err(error)
+        }
+        second => second,
+    }?;
+    match second {
+        Second::Done(taken) => tick.host.slots_changed(&taken),
+        Second::Continuity { event, minute: realized, taken } => {
+            tick.host.slots_changed(&taken)?;
+            // The receipt's projection and the end of the walk (`Host::find_record` for the
+            // records the receipt reads, lane P9-1a), each its entry's KernelRefusal.
+            care_receipts::ingest_applied(tick.cell, tick.host, &event, realized).map_err(|error| refused(INGEST, error))?;
+            let finished = (|| -> std::result::Result<(), H::Error> {
+                let holding = tick.holding()?;
+                if movement::finish_held(&holding)? {
+                    movement::finish_through(tick.cell, tick.host, agent_id)?;
+                }
+                Ok(())
+            })();
+            finished.map_err(|error| refused(FINISH, error))?;
+            tick.world(|world| replan::after_continuity(world))
+        }
+    }
 }
 
 /// `_view_after_movement`.

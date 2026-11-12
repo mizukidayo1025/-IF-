@@ -104,6 +104,7 @@ counters!(
     contacts_considered,
     cooperation_asked,
     reaction_asked,
+    events_alone,
 );
 
 /// The handlers' kernels that ran and what they refused, by the label of their `kernel_only` entry.
@@ -321,6 +322,87 @@ where
         one_event(tick, &event_id, row, &mut outcomes)?;
     }
     after_events(tick, &outcomes)
+}
+
+// ---- A dispatcher a caller holds alone (decision D3, lane P9-3b) -------------------------------------
+
+/// `EventDispatcher.dispatch_one` of a dispatcher a caller holds alone (a test's, or a
+/// `TickEngine`'s `phase_handler`; decision D3 of design-p9.md): `row` is the event of a due
+/// snapshot, at `tick.minute`. None where it left the queue, or the queue's event of its ID is no
+/// longer equal to it (`current.to_dict() != event.to_dict()`, `same_event`). Else its handler, by
+/// the dispatcher's own table (`tick.policies.dispatch`, every handler the host's: `apply_foreign`
+/// calls its `apply`, as the Python method did), after the EffectProgram's guard; no handler is the
+/// FAILED outcome. An applied contact or interaction is recorded (`record_social_event`,
+/// `observe_event`); the event is settled; and the handler's records are compared with the log's or
+/// appended. None of the controller's steps after an event run here (the receipts of shared
+/// operations, the completions of actions, the movement), as the Python method ran none. Returns the
+/// IDs of the records, the event's first.
+pub fn one_alone<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>, row: &EventRow) -> std::result::Result<Option<Vec<Arc<str>>>, H::Error>
+where
+    H::Error: From<WriteError>,
+{
+    let now = match current(tick, &row.event_id)? {
+        None => return Ok(None),
+        Some(Some(now)) => now,
+        // A Python handler or hook scheduled it: its row is read now.
+        Some(None) => {
+            tick.host.read_queue_rows()?;
+            current(tick, &row.event_id)?.flatten().ok_or_else(|| Error::unsupported(NO_ROW))?
+        }
+    };
+    if !same_event(&now, row) {
+        return Ok(None);
+    }
+    count(&COUNTS.events_alone);
+    let handler = tick.policies.dispatch.handler(&row.event_type).map_err(|fault| Error::unsupported(fault.text.to_string()))?.cloned();
+    let handled = match handler {
+        None => Handled::Outcome(EventStatus::Failed, format!("no handler registered for event type {}", py_repr(&row.event_type))),
+        Some(_) => match guard(tick, row)? {
+            Some(stopped) => stopped,
+            None => {
+                let Foreign { status, detail, records } = tick.host.apply_foreign(row)?;
+                match status {
+                    EventStatus::Applied => Handled::records(records.into_iter().map(Record::from).collect()),
+                    status => Handled::Outcome(status, detail.unwrap_or_default()),
+                }
+            }
+        },
+    };
+    let (status, detail, records) = match handled {
+        Handled::Applied { records, .. } => (EventStatus::Applied, None, records),
+        Handled::Outcome(status, text) => (status, Some(text), Vec::new()),
+    };
+    if status == EventStatus::Applied && body_state::records_event(&row.event_type) {
+        social_records(tick, row)?;
+    }
+    settle(tick, row, status, detail.as_deref())?;
+    let mut ids = Vec::with_capacity(1 + records.len());
+    ids.push(row.event_id.clone());
+    for record in &records {
+        let id = record.event.event_id.clone();
+        let written = tick.cell.with(|world| -> crate::events::writer::WriteResult<bool> {
+            if world.log()?.has_event_id(&id) {
+                return Ok(false);
+            }
+            kit::log_record(world, &record.event, record.realized_minute, record.status, record.detail.as_deref())?;
+            Ok(true)
+        });
+        if !tick.written(written.map_err(core_err::<H::Error>)?)? {
+            match tick.host.find_record(&id)? {
+                Some(logged) if logged.status == record.status && same_event(&logged.event, &record.event) => {}
+                _ => return Err(Error::Value(FOLLOW_UP_DISAGREES.to_owned()).into()),
+            }
+        }
+        ids.push(id);
+    }
+    Ok(Some(ids))
+}
+
+/// `EventDispatcher.settle` of a dispatcher a caller holds alone (decision D3): the event leaves the
+/// queue if it is there, and its outcome is recorded at `tick.minute`, unless the log holds a record
+/// of its ID, which must then be of the same event and status (`RECORD_DISAGREES`).
+pub fn settle_alone<C: WorldCell, H: Host, R: RunCell>(tick: &mut Tick<'_, C, H, R>, row: &EventRow, status: EventStatus, detail: Option<&str>) -> std::result::Result<(), H::Error> {
+    settle(tick, row, status, detail)
 }
 
 /// What the queue holds of this ID now: None when it left, else its row (None for an object no

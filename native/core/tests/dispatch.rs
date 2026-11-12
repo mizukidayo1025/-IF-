@@ -424,3 +424,65 @@ fn a_due_event_without_a_row_refuses_before_any_event() {
     assert!(records(&cell).is_empty());
     assert!(!host.calls.iter().any(|call| matches!(call, Call::Foreign(_))));
 }
+
+// ---- A dispatcher a caller holds alone (decision D3, lane P9-3b) -------------------------------------
+
+/// `EventDispatcher.dispatch_one` and `settle` of a dispatcher alone, at `MINUTE`.
+fn alone<T>(cell: &Shard<World>, host: &mut TestHost, foreign: &[&str], f: impl FnOnce(&mut Tick<'_, Shard<World>, TestHost, RefCell<Run>>) -> T) -> T {
+    let (run, policies) = run(foreign);
+    let mut tick = Tick { cell, host, run: &run, policies, minute: MINUTE, seed: Seed::Other, neighbors: neighbors() };
+    f(&mut tick)
+}
+
+/// One event of a snapshot: none once it left the queue or the queue holds another event of its ID;
+/// else the handler's (the host's) outcome, the event settled, and its follow-up records appended or
+/// compared, without any of the phase's steps after the events (no receipts taken in, no space
+/// refreshed, nothing asked of the social policy). No handler is the FAILED outcome.
+#[test]
+fn an_event_of_a_dispatcher_alone_runs_as_python_s_dispatch_one() {
+    let row = event("first", 1, "probe", &[("n", V::Int(1))]);
+    let receipt = event("receipt-1", 9, "probe_receipt", &[]);
+    let cell = world(vec![row.clone(), event("second", 2, "unknown", &[])]);
+    let mut host = TestHost::default();
+    let given = receipt.clone();
+    host.foreign = Some(Box::new(move |_: &EventRow| {
+        let record = ForeignRecord { event: given.clone(), realized_minute: MINUTE, status: EventStatus::Applied, detail: Some("made".to_owned()) };
+        Ok(Foreign { status: EventStatus::Applied, detail: None, records: vec![record] })
+    }));
+    // Another event of the same ID (an unequal payload) is not this one.
+    let other = event("first", 1, "probe", &[("n", V::Int(2))]);
+    assert_eq!(alone(&cell, &mut host, &["probe"], |tick| dispatch::one_alone(tick, &other)), Ok(None));
+    assert!(records(&cell).is_empty());
+    // An equal one by value (an int and its float) is.
+    let equal = event("first", 1, "probe", &[("n", V::Float(1.0))]);
+    let ids = alone(&cell, &mut host, &["probe"], |tick| dispatch::one_alone(tick, &equal)).unwrap();
+    assert_eq!(ids, Some(vec![text("first"), text("receipt-1")]));
+    assert_eq!(records(&cell), vec![("first".to_owned(), EventStatus::Applied, MINUTE), ("receipt-1".to_owned(), EventStatus::Applied, MINUTE)]);
+    assert_eq!(pending(&cell), vec!["second".to_owned()]);
+    assert_eq!(foreign_calls(&host), vec![Call::Foreign(text("probe"))]);
+    // It left the queue: nothing.
+    assert_eq!(alone(&cell, &mut host, &["probe"], |tick| dispatch::one_alone(tick, &row)), Ok(None));
+    // No handler for its type.
+    let unknown = event("second", 2, "unknown", &[]);
+    assert_eq!(alone(&cell, &mut host, &["probe"], |tick| dispatch::one_alone(tick, &unknown)), Ok(Some(vec![text("second")])));
+    assert_eq!(detail_of(&cell, "second"), Some("no handler registered for event type 'unknown'".to_owned()));
+    assert!(pending(&cell).is_empty());
+}
+
+/// `settle` of a dispatcher alone: the event leaves the queue and is recorded, or the record its
+/// handler wrote is compared.
+#[test]
+fn a_dispatcher_alone_settles_as_python_s_settle() {
+    let row = event("first", 1, "probe", &[]);
+    let cell = world(vec![row.clone()]);
+    let mut host = TestHost::default();
+    alone(&cell, &mut host, &[], |tick| dispatch::settle_alone(tick, &row, EventStatus::Failed, Some("no"))).unwrap();
+    assert_eq!(records(&cell), vec![("first".to_owned(), EventStatus::Failed, MINUTE)]);
+    assert_eq!(detail_of(&cell, "first"), Some("no".to_owned()));
+    assert!(pending(&cell).is_empty());
+    host.records.insert(text("first"), Logged { status: EventStatus::Failed, realized_minute: MINUTE, event: row.clone() });
+    alone(&cell, &mut host, &[], |tick| dispatch::settle_alone(tick, &row, EventStatus::Failed, None)).unwrap();
+    let disagrees = alone(&cell, &mut host, &[], |tick| dispatch::settle_alone(tick, &row, EventStatus::Applied, None));
+    assert_eq!(disagrees, Err(Error::Value(RECORD_DISAGREES.to_owned())));
+    assert_eq!(records(&cell).len(), 1);
+}
