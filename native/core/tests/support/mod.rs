@@ -97,6 +97,8 @@ pub struct TestHost {
     pub sections: Vec<(SectionId, Box<dyn Fn(&Configs)>)>,
     /// What `apply_foreign` does (lane P9-1c): a test's handler; none refuses.
     pub foreign: Option<Box<dyn FnMut(&EventRow) -> Result<Foreign, Error>>>,
+    /// What `contract` does (lane P9-3a): a test's contract; none gives the input back.
+    pub contracts: Option<Box<dyn FnMut(&Contract, &V) -> Result<V, Error>>>,
 }
 
 impl std::fmt::Debug for TestHost {
@@ -120,6 +122,7 @@ impl Default for TestHost {
             plan: None,
             sections: Vec::new(),
             foreign: None,
+            contracts: None,
         }
     }
 }
@@ -240,7 +243,10 @@ impl Host for TestHost {
 
     fn contract(&mut self, which: &Contract, input: &V) -> Result<V, Error> {
         self.calls.push(Call::Contract(which.clone(), input.clone()));
-        Ok(input.clone())
+        match &mut self.contracts {
+            Some(contract) => contract(which, input),
+            None => Ok(input.clone()),
+        }
     }
 
     fn llm(&self) -> Result<Llm, Error> {
