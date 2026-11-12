@@ -21,7 +21,7 @@ from typing import Any
 import pytest
 
 from sheltersim import native
-from sheltersim.core import state_mirror, txn_checks
+from sheltersim.core import state_mirror
 from sheltersim.core.engine import TickEngine
 from sheltersim.core.world import WorldState
 from sheltersim.events.effects import _effect_candidate
@@ -135,17 +135,22 @@ def test_a_copy_that_holds_the_worlds_log_leaves_it_with_the_world() -> None:
     assert world.event_log is log and len(log) == 1
 
 
-def test_a_copy_that_takes_the_worlds_place_gives_its_core_to_the_world() -> None:
+def test_a_copy_that_takes_the_worlds_place_gives_its_core_to_the_world(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     world = _world()
     log = world.event_log
     old_core = world.__dict__["_core"]
-    txn_checks.refuse_transactions(True)
-    try:
+
+    def refused(_world: Any) -> None:
+        raise native.Unsupported("a view the transaction does not give back")
+
+    # A world whose views a transaction does not give back (state_mirror._txn_check) takes the copy.
+    with monkeypatch.context() as patched:
+        patched.setattr(state_mirror, "_txn_check", refused)
         with state_mirror.transaction_or_copy(world, "effect", _effect_candidate) as target:
             assert target is not world
             target.event_log.append(_record(target, "in-the-copy"))
-    finally:
-        txn_checks.refuse_transactions(False)
     core = world.__dict__["_core"]
     assert core is not old_core
     assert core.is_owned_by(world) and not old_core.is_owned_by(world)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from typing import Any
 
@@ -12,7 +13,6 @@ from support.psychology import psychology_step
 from support.world import view_of
 
 from sheltersim import native
-from sheltersim.core import txn_checks
 from sheltersim.core.checkpoint import Checkpoint
 from sheltersim.core.engine import TraceLevel
 from sheltersim.core.world import StateInvariantError, WorldState
@@ -566,41 +566,37 @@ def test_compound_supply_outage_and_heat_chain_survives_checkpoint_restore() -> 
     )
 
 
+# The digest of what the run below leaves, taken on main 60806a37 before lane P9-1b, where the copy
+# of the world the transaction stood for (txn_checks.refuse_transactions, since deleted) left the
+# same.
+_ROUTE_INTERRUPTION_DIGEST = "453b1037efba57bd7b9eb95a824b6b3812bd4e8c157080a8687e49e2f4d55b90"
+
+
 def test_a_route_interruption_leaves_what_its_copy_left() -> None:
-    """The delivery delay runs inside the interruption's transaction (rules/transaction.rs); with
-    transactions refused, both copy the world as the rules did before. Either way the states, the
-    EventLog's canonical JSON, and the pending events and the operational state in their order
-    are the same."""
-
-    def run(refuse: bool) -> list[Any]:
-        txn_checks.refuse_transactions(refuse)
-        try:
-            world, dispatcher = _compound_chain()
-            seen = []
-            for minute in range(1, 7):
-                _set_minute(world, minute)
-                dispatcher.dispatch_due(world, minute)
-                seen.append(
-                    (
-                        world.canonical_json(),
-                        json.dumps([event.to_dict() for event in world.event_queue.pending()]),
-                        # The records keep their objects (PR 6-2): canonical JSON is the same.
-                        json.dumps(
-                            [record.to_dict() for record in world.event_log.records],
-                            sort_keys=True,
-                        ),
-                        json.dumps(world.model_state["operational_events_v1"]),
-                    )
-                )
-            return seen
-        finally:
-            txn_checks.refuse_transactions(False)
-
+    """The delivery delay runs inside the interruption's transaction (the core's rule transaction,
+    policy E16). The states, the EventLog's canonical JSON, and the pending events and the
+    operational state in their order are what the copy of the world left before (their digest)."""
     counts = native.rules("transaction").counts
     before = counts()["nested"]
-    in_place = run(False)
+    world, dispatcher = _compound_chain()
+    seen = []
+    for minute in range(1, 7):
+        _set_minute(world, minute)
+        dispatcher.dispatch_due(world, minute)
+        seen.append(
+            (
+                world.canonical_json(),
+                json.dumps([event.to_dict() for event in world.event_queue.pending()]),
+                # The records keep their objects (PR 6-2): canonical JSON is the same.
+                json.dumps(
+                    [record.to_dict() for record in world.event_log.records],
+                    sort_keys=True,
+                ),
+                json.dumps(world.model_state["operational_events_v1"]),
+            )
+        )
     assert counts()["nested"] > before
-    assert in_place == run(True)
+    assert hashlib.sha256(json.dumps(seen).encode()).hexdigest() == _ROUTE_INTERRUPTION_DIGEST
 
 
 def test_infrastructure_config_is_strict_and_legacy_scenario_hash_is_unchanged() -> None:
@@ -670,3 +666,27 @@ def test_checkpoint_restore_rejects_corrupt_infrastructure_lifecycle_links() -> 
     toilet["working_units"] = 1
     with pytest.raises(StateInvariantError, match="capacity disagree"):
         WorldState.from_dict(capacity_corrupt)
+
+
+def test_a_rule_transaction_the_worlds_views_refuse_is_the_handlers_kernel_refusal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A world whose Python views a transaction does not give back (state_mirror._txn_check) took
+    a copy of the world before lane P9-1b; now the rule's transaction refuses it with that reason,
+    as the handler's KernelRefusal, and the world is as it was (policy E16)."""
+    from sheltersim.core import state_mirror
+    from sheltersim.core.kernels import KernelRefusal
+
+    world, _ = _compound_chain()
+    _set_minute(world, 1)
+    event = next(event for event in world.event_queue.pending() if event.event_id == "power-down")
+    before = world.canonical_json()
+
+    def refused(_world: Any) -> None:
+        raise native.Unsupported("the entity store is tainted")
+
+    with monkeypatch.context() as patched:
+        patched.setattr(state_mirror, "_txn_check", refused)
+        with pytest.raises(KernelRefusal, match=r"refused: the entity store is tainted$"):
+            InfrastructureEventHandler().apply(world, event)
+    assert world.canonical_json() == before
