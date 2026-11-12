@@ -47,8 +47,51 @@ def _isolated_local_state(
     _isolate(monkeypatch, tmp_path_factory.mktemp("local-state"))
 
 
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption(
+        "--shard",
+        default=None,
+        metavar="I/N",
+        help="run only part I of N (1 <= I <= N): the selected tests taken in turn (#118)",
+    )
+
+
+def _shard(config: pytest.Config) -> tuple[int, int] | None:
+    value = config.getoption("--shard")
+    if value is None:
+        return None
+    part, _, count = value.partition("/")
+    try:
+        index, total = int(part), int(count)
+    except ValueError:
+        index = total = 0
+    if not 1 <= index <= total:
+        raise pytest.UsageError(f"--shard takes I/N with 1 <= I <= N, not {value!r}")
+    return index, total
+
+
+def _take_shard(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Keep part I of N: the I-th of every N selected tests, in collection order.
+
+    Taken in turn, the parts get about the same share of each file, so a file of heavy tests
+    is split too, and each part runs a file's module fixtures only for the tests it keeps.
+    Every process collects in the same order, so the xdist workers of one part agree.
+    """
+    shard = _shard(config)
+    if shard is None:
+        return
+    index, total = shard
+    kept = [item for number, item in enumerate(items) if number % total == index - 1]
+    dropped = [item for number, item in enumerate(items) if number % total != index - 1]
+    if dropped:
+        config.hook.pytest_deselected(items=dropped)
+    items[:] = kept
+
+
+# Last, so that -m and -k have deselected first: the parts share what is left.
+@pytest.hookimpl(trylast=True)
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """Give each parallel worker one long simulation to start with.
+    """Keep this run's shard, then give each parallel worker one long simulation to start with.
 
     pytest-xdist's worksteal scheduler hands each worker a contiguous block of the
     collected items and lets idle workers steal from the end of other blocks. When
@@ -56,6 +99,7 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     others finish early; putting one at the head of each block starts them all at once.
     Every worker collects in this same order, so the blocks still agree.
     """
+    _take_shard(config, items)
     workers = getattr(config, "workerinput", {}).get("workercount", 1)
     long_runs = [item for item in items if item.get_closest_marker("long_simulation")]
     if workers < 2 or not long_runs:

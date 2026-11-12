@@ -26,7 +26,7 @@ ruff format --check .
 
 - `-n auto`（pytest-xdist）で並列に実行します。`pyproject.toml`の`--dist worksteal`で、手の空いたworkerが残りのテストを引き取ります。
 - `long_simulation`の印は、7日間のsimulationを実行するテストと、1件で30秒以上（直列）かかるテストに付けます。`tests/conftest.py`の`pytest_collection_modifyitems`が、並列のときにこれらを各workerの塊の先頭に1本ずつ置くので、長いテストは最初から並んで走ります。
-- 開発中は`-m "not long_simulation"`で長いテストを除けます。印のない`pytest`は全件を実行します。`オフラインCI`（`.github/workflows/ci.yml`）は、mainへのPull Requestごとに自動で、または手動で、Linux・Windows・macOSの3つでRustのkernelを作って導入し、長いテストを除いた全件を`-n auto`で実行します。3つのOSで動くことを確かめるためです（#48）。テストのjobは、kernelを`native/Cargo.toml`のprofile`ci`で作ります。releaseと最適化の水準は同じで、LTOをthinに、codegen unitを16にして、作る時間を短くしたものです。Runのbytesは変わりません（#217）。全経路のハッシュ（`benchmarks/gate_all_paths.py --expect`）も3つのOSで同じ`fixtures/gate-all-paths.json`と比べます。Linuxでは待ち時間が延びないよう別のjobとして並べ、配布と同じ`--release`で作ったkernelで確かめます。WindowsとmacOSではテストの後の手順として、profile`ci`のkernelで動かします（テストが失敗しても動きます）。lint・format・clippyはLinuxだけの別のjobです。同じjobで、Rustの中核（`native/core`、#152）がpyo3に依存しないことを確かめ、その`cargo test`を実行します。続けて、中核を既定の機能`parallel`（rayon）なしで`wasm32-unknown-unknown`向けに作り、`parallel`なしの`cargo test`も実行します。lintのjobは`benchmarks/rust_port/glue_check.py`も実行し、Rustの窓口の規則のファイル（`native/src/rules/*.rs`）がglueだけであること（#152）を確かめます。手動実行の`長時間simulation回帰`（`.github/workflows/long-regression.yml`）の`long`は、長いテストだけを3つのOSで実行します。`オフラインCI`と同じく、Rustのkernelを作って導入してから実行します。
+- 開発中は`-m "not long_simulation"`で長いテストを除けます。印のない`pytest`は全件を実行します。`オフラインCI`（`.github/workflows/ci.yml`）は、mainへのPull Requestごとに自動で、または手動で、Linux・Windows・macOSの3つでRustのkernelを作って導入し、長いテストを除いた全件を`-n auto`で実行します。3つのOSで動くことを確かめるためです（#48）。テストはCPUの量で時間が決まるので、OSごとに2つのjobに分け、それぞれ半分ずつ実行します（`--shard 1/2`と`--shard 2/2`、#118）。テストのjobは、kernelを`native/Cargo.toml`のprofile`ci`で作ります。releaseと最適化の水準は同じで、LTOをthinに、codegen unitを16にして、作る時間を短くしたものです。Runのbytesは変わりません（#217）。全経路のハッシュ（`benchmarks/gate_all_paths.py --expect`）も3つのOSで同じ`fixtures/gate-all-paths.json`と比べます。Linuxでは待ち時間が延びないよう別のjobとして並べ、配布と同じ`--release`で作ったkernelで確かめます。WindowsとmacOSでは、1つ目のjobのテストの後の手順として、profile`ci`のkernelで動かします（テストが失敗しても動きます）。lint・format・clippyはLinuxだけの別のjobです。同じjobで、Rustの中核（`native/core`、#152）がpyo3に依存しないことを確かめ、その`cargo test`を実行します。続けて、中核を既定の機能`parallel`（rayon）なしで`wasm32-unknown-unknown`向けに作り、`parallel`なしの`cargo test`も実行します。lintのjobは`benchmarks/rust_port/glue_check.py`も実行し、Rustの窓口の規則のファイル（`native/src/rules/*.rs`）がglueだけであること（#152）を確かめます。手動実行の`長時間simulation回帰`（`.github/workflows/long-regression.yml`）の`long`は、長いテストだけを3つのOSで実行します。`オフラインCI`と同じく、Rustのkernelを作って導入してから実行します。
 
 ### 結果の残り方と見方
 
@@ -44,7 +44,7 @@ test results: 1 failed, 967 passed, 4 skipped; failed: tests/unit/x/test_y.py::t
 
 失敗の原因は、もう一度実行せずに`summary.txt`で確かめます。`.pytest_cache`の失敗記録（`--lf`）は、次に全件が通ると消えるので、記録としては使いません。コーディングエージェントも、`| tail -1`などで集計行だけを見て判断しないでください。失敗があったら、この最後の行で名前を、`summary.txt`で原因を確かめ、テストの名前と原因を報告します。結果を残したくない実行では`-p no:results_log`を付けます。
 
-`オフラインCI`は、OSごとの`.test-results/`を`test-results-<OS>`のartifactとして7日間保存します。失敗したときは、そのartifactの`summary.txt`で原因を確かめます。WindowsとmacOSの全経路のハッシュは、`gate-<OS>`のartifact（`summary.json`）に残ります。
+`オフラインCI`は、jobごとの`.test-results/`を`test-results-<OS>-<1か2>`のartifactとして7日間保存します。失敗したときは、そのartifactの`summary.txt`で原因を確かめます。WindowsとmacOSの全経路のハッシュは、`gate-<OS>`のartifact（`summary.json`）に残ります。
 
 ### 網羅率の計測
 
@@ -84,7 +84,7 @@ python -m coverage report --sort=cover
 
 - 状態や後片付けがある準備（保存先、API、偽のサービス、保存済みRunなど）は、fixtureにします。テストファイルはfixtureとして受け取ります。
 - 状態を持たないものは、テストファイルから直接importしてかまいません。`fixtures/`のファイルのパス（`support/paths.py`の`SCENARIO_100_AGENTS`など。テストの中で`Path(__file__).parents[N]`から組み立てません）と、合成データの定数とそれを作る関数（`support/plans.py`の`SHELTER_TRACE`・`shelter_plan_png`、`support/public_data.py`の`MUNICIPALITY`など）です。
-- `tests/conftest.py`に残すのは、すべてのテストに効く設定（ローカルの状態の隔離と、並列実行のときの長いテストの並べ替え）と、結果を残すplugin `tests/results_log.py`の読み込みだけです。
+- `tests/conftest.py`に残すのは、すべてのテストに効く設定（ローカルの状態の隔離、`--shard`による分割、並列実行のときの長いテストの並べ替え）と、結果を残すplugin `tests/results_log.py`の読み込みだけです。
 - 新しい準備は、題材が合うモジュールに足します。合うモジュールがなければ、新しいモジュールを作って`pytest_plugins`に加え、下の表にも足します。
 
 | モジュール | 題材 | 主なfixture |

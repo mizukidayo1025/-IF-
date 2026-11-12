@@ -1,9 +1,10 @@
 # offline CI on Linux, Windows and macOS (#48), on every pull request to main and
 # by hand. Each OS builds and installs the Rust kernels (native/), runs the tests with
 # them and checks the hashes of every path against the same fixture: on Linux in a job
-# of its own beside the tests, on Windows and macOS as a step after them. The test jobs
-# build with the profile ci, the Linux gate job with release (#217). Lint runs on
-# Linux only.
+# of its own beside the tests, on Windows and macOS as a step after the tests of the
+# first part. Each OS runs its tests in two jobs, half each (pytest --shard, #118). The
+# test jobs build with the profile ci, the Linux gate job with release (#217). Lint runs
+# on Linux only.
 name: オフラインCI
 
 on:
@@ -24,13 +25,16 @@ env:
 
 jobs:
   python:
-    name: test (${{ matrix.os }})
+    name: test (${{ matrix.os }}, ${{ matrix.shard }}/2)
     runs-on: ${{ matrix.os }}
     strategy:
-      # Every platform reports, even when another fails.
+      # Every platform and part reports, even when another fails.
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+        # The tests are CPU-bound on a runner's cores, so two runners halve them; each part
+        # takes every other selected test (tests/conftest.py).
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -56,19 +60,20 @@ jobs:
           python -m pip install --no-index --find-links native-dist sheltersim-native
           python -c "import sheltersim.native"
       - name: 短時間offline test
-        run: python -m pytest -m "not long_simulation" -n auto
+        run: python -m pytest -m "not long_simulation" -n auto --shard ${{ matrix.shard }}/2
       # The same expected hashes as on Linux, where the gate job checks them (step 4, L13): a Run
-      # gives the same bytes on every OS. Runs even when a test failed, so both report.
+      # gives the same bytes on every OS. Runs even when a test failed, so both report; in the
+      # first part only.
       - name: 全経路のハッシュを確認
         id: gate
-        if: ${{ runner.os != 'Linux' && !cancelled() && steps.native.outcome == 'success' }}
+        if: ${{ runner.os != 'Linux' && matrix.shard == 1 && !cancelled() && steps.native.outcome == 'success' }}
         shell: bash
         run: python benchmarks/gate_all_paths.py --output "$RUNNER_TEMP/gate" --expect fixtures/gate-all-paths.json
       - name: test結果を保存
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-${{ matrix.os }}
+          name: test-results-${{ matrix.os }}-${{ matrix.shard }}
           path: .test-results/
           retention-days: 7
           if-no-files-found: ignore
