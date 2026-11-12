@@ -13,6 +13,8 @@
 
 #![allow(dead_code)]
 
+pub mod canonical;
+pub mod cases;
 pub mod dumps;
 pub mod load;
 pub mod sections;
