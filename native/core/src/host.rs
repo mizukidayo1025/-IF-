@@ -63,6 +63,12 @@ pub trait HostFailure {
     fn is_outcome(&self) -> bool {
         false
     }
+    /// Which outcome it is, if it is an `EventSuppressed` (`Suppressed`) or an
+    /// `EventApplicationError` (`Failed`), as `dispatch_one`'s `except` clauses ask in that order
+    /// (lane P9-1c).
+    fn outcome(&self) -> Option<crate::error::Outcome> {
+        None
+    }
 }
 
 /// The core's errors by the Python class each becomes: every `EventSuppressed`,
@@ -95,6 +101,13 @@ impl HostFailure for Error {
 
     fn is_outcome(&self) -> bool {
         matches!(self, Error::Outcome(..))
+    }
+
+    fn outcome(&self) -> Option<crate::error::Outcome> {
+        match self {
+            Error::Outcome(outcome, _) => Some(*outcome),
+            _ => None,
+        }
     }
 }
 
@@ -400,6 +413,8 @@ pub const NO_PLAN: &str = "the host has no floor plan";
 pub const NO_NAMESPACE: &str = "the host starts no namespace";
 /// The text of a host whose sink samples no metrics itself (`Host::capture_by_sink`).
 pub const NO_SINK: &str = "the host has no sink that samples";
+/// The text of a host without the population rules' inputs (`Host::admit_pending`).
+pub const NO_POPULATION: &str = "the host has no population rules";
 
 // ---- What a tick's phases 2-6 ask of the host (lane P9-2a) ----------------------------------------
 
@@ -656,6 +671,15 @@ pub trait Host {
     /// `artifacts.capture_metric(world, minute=)` of a sink that samples on its own.
     fn capture_by_sink(&mut self, _minute: i64) -> Result<(), Self::Error> {
         Err(Error::unsupported(NO_SINK).into())
+    }
+
+    // ---- The dispatch phase in the core (lane P9-1c) ---------------------------------------------
+
+    /// `admit_pending_returns(world, minute)` (`returns`) or `admit_pending_arrivals(world, minute)`
+    /// of the population rules, whose inputs the PyO3 crate still reads (P9-3). The core asks only
+    /// where someone waits. A host without them refuses.
+    fn admit_pending(&mut self, _returns: bool, _minute: i64) -> Result<(), Self::Error> {
+        Err(Error::unsupported(NO_POPULATION).into())
     }
 
     // ---- A test's hook ---------------------------------------------------------------------------

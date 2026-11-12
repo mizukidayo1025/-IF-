@@ -78,6 +78,13 @@ fn affect_of(world: &Bound<'_, PyAny>, selection: &Selection) -> PyResult<Arc<st
     }
 }
 
+/// What the read of the body's models raises again, for a fault of the section (the host's
+/// `read_again`, lane P9-1c): the affect model's read of the configs.
+pub(crate) fn raise_models(world: &Bound<'_, PyAny>) -> PyResult<()> {
+    let selection = selected_models(world)?;
+    affect_of(world, &selection).map(drop)
+}
+
 /// `models_of` without its raise: the section, or its fault (the host's `fill_section`, lane P9-0).
 pub(crate) fn models_section(world: &Bound<'_, PyAny>, selection: &Selection) -> PyResult<Kept<BodyModels>> {
     let py = world.py();

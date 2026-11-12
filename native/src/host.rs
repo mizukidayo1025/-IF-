@@ -100,6 +100,11 @@ impl HostFailure for HostError {
     fn is_outcome(&self) -> bool {
         Python::with_gil(|py| errors::is_outcome(py, &self.0))
     }
+
+    /// `except EventSuppressed`, then `except EventApplicationError`.
+    fn outcome(&self) -> Option<sheltersim_core::error::Outcome> {
+        Python::with_gil(|py| errors::outcome_of(py, &self.0))
+    }
 }
 
 /// A contract's input as the Python rule gave it to `model_validate`. A guard and an effect's
@@ -212,9 +217,9 @@ impl<'py> PyHost<'py> {
         self
     }
 
-    /// With the handler `apply_foreign` hands an event to (lane P9-1a).
-    pub(crate) fn with_handler(mut self, handler: &Bound<'py, PyAny>) -> Self {
-        self.handler = Some(handler.clone());
+    /// On this world rather than the controller's (the dispatch phase's, lane P9-1c).
+    pub(crate) fn on_world(mut self, world: &Bound<'py, PyAny>) -> Self {
+        self.world = world.clone();
         self
     }
 
@@ -241,6 +246,12 @@ impl<'py> PyHost<'py> {
         if let Some(object) = &self.in_flight {
             if attribute(object, intern!(py, "event_id"))?.eq(&*event.event_id)? {
                 return Ok(object.clone());
+            }
+        }
+        // The queue's object of a pending event, made once if Python had none (`object_of_due`).
+        if let Ok(writer) = crate::state::events::EventWriter::of(&self.world) {
+            if let Some(object) = writer.queue().get().object_of_id(py, &event.event_id)? {
+                return Ok(object.into_bound(py));
             }
         }
         event.to_py(py)
@@ -928,6 +939,24 @@ impl<'py> Host for PyHost<'py> {
             Again::Section(SectionId::StaffOperations) => {
                 crate::rules::staff::staff_operations(&self.world)?;
             }
+            Again::Section(SectionId::InformationSpread) => {
+                crate::rules::information_events::parse_spread(&self.world)?;
+            }
+            Again::Section(SectionId::BodyModels) => {
+                crate::rules::body_state::raise_models(&self.world)?;
+            }
+            Again::Section(SectionId::CareOutcome) => {
+                crate::rules::support::selected_care_formula(&self.world)?;
+            }
+            Again::Section(SectionId::ZoneEnvironment) => {
+                crate::rules::effects::zone_environment_spec(&self.world)?;
+            }
+            Again::Section(SectionId::SupportCooldownMinutes) => {
+                crate::rules::handlers::support_cooldown_minutes(&self.world)?;
+            }
+            Again::Section(SectionId::Proximity) => {
+                crate::rules::handlers::proximity_config(&self.world)?;
+            }
             Again::Section(_) => {}
             Again::Policy(path) => {
                 let mut found = self.controller()?.clone();
@@ -970,6 +999,20 @@ impl<'py> Host for PyHost<'py> {
         let options = PyDict::new(py);
         options.set_item(intern!(py, "minute"), minute)?;
         artifacts.call_method(intern!(py, "capture_metric"), (&self.world,), Some(&options))?;
+        Ok(())
+    }
+
+    /// `admit_pending_returns(world, minute)` or `admit_pending_arrivals(world, minute)` of the
+    /// population rules' kernels, whose inputs this crate reads (lane P9-1c).
+    fn admit_pending(&mut self, returns: bool, minute: i64) -> Result<(), HostError> {
+        let py = self.py();
+        self.ran_python();
+        let Ok(minute) = minute.into_pyobject(py).map(|minute| minute.into_any());
+        if returns {
+            crate::rules::population_lifecycle::admit_pending_returns(&self.world, &minute)?;
+        } else {
+            crate::rules::population::admit_pending_arrivals(&self.world, &minute)?;
+        }
         Ok(())
     }
 

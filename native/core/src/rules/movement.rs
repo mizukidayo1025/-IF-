@@ -1427,6 +1427,20 @@ pub fn place_at_bed(world: &World, holding: &Holding, agent_id: &str, zone_id: &
     place_at_point(world, agent_id, zone_id, point)
 }
 
+/// `positions[agent_id].update({... "point": bed ...})` of `_finish_stopped_journey` as a write of
+/// the row, held detached or attached (an attached tree follows the row, P8-0c; lane P9-1c): false,
+/// having written nothing, where the bed's point is not two floats, which the dispatch refuses.
+pub fn place_at_bed_held(world: &World, holding: &Holding, agent_id: &str, zone_id: &Arc<str>, bed: &V) -> Result<bool> {
+    let Some(point) = plain_point(bed) else {
+        return Err(Error::unsupported(BED_NOT_A_POINT));
+    };
+    check_held(holding)?;
+    place_at_point(world, agent_id, zone_id, point)
+}
+
+/// The refusal of a reserved bed whose point is not two floats.
+pub const BED_NOT_A_POINT: &str = "a bed's point is not two floats";
+
 /// The refusal of a part of the overlay that is not a dict.
 pub const OVERLAY_NOT_A_DICT: &str = "a part of the overlay is not a dict";
 

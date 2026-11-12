@@ -27,7 +27,6 @@ pub(crate) use sheltersim_core::config::movement::EXACT_INT;
 use crate::core::configs;
 use crate::core::errors::OrPy;
 use crate::core::row::{attribute, exact_dict, exact_float, exact_int, exact_list, exact_str, unsupported, PyField};
-use crate::core::value::{VPy, V};
 use crate::core::world_core::{field_held, mirror_of, namespace_held, raw_dict_get, with_world, NamespaceMirror, PyWorldCell};
 use crate::host::PyHost;
 use crate::rules::movement_geometry::{usable, Geo, GeoPy, Pt};
@@ -224,18 +223,6 @@ pub(crate) fn movement_of(world: &Bound<'_, PyAny>) -> PyResult<Arc<Movement>> {
 /// The native host of an entry, and what the world holds as it reads it.
 fn host_of<'py>(world: &Bound<'py, PyAny>) -> PyHost<'py> {
     PyHost::of_world(world, PyDict::new(world.py()))
-}
-
-/// `place_at_point` of a bed's point as Python holds it: false, having written nothing, unless
-/// the namespace is held detached, the row has the record and the point is two usable floats
-/// (`core::place_at_bed`, which reads the holding through the native host). The caller then writes
-/// through the tree as before.
-pub(crate) fn place_at_bed(world: &Bound<'_, PyAny>, agent_id: &str, zone_id: &Arc<str>, point: &Bound<'_, PyAny>) -> PyResult<bool> {
-    let holding = kit::holding(&PyWorldCell(world), &mut host_of(world)).map_err(|error| error.0)?;
-    let Ok(bed) = <V as VPy>::from_py(point) else {
-        return Ok(false);
-    };
-    with_world(world, |world| core::place_at_bed(world, &holding, agent_id, zone_id, &bed))?.or_py()
 }
 
 // ---- Where a person is -------------------------------------------------------------------------

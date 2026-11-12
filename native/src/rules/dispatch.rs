@@ -1,16 +1,16 @@
-//! The dispatch phase (`experiments/phases/dispatch.py`): the loop over what is due, then what follows
-//! from the applied events (docs/rust-port/lanes/m3-dispatch.md).
+//! The dispatch phase (`experiments/phases/dispatch.py`): the glue of the core's
+//! `sheltersim_core::rules::dispatch` (lane P9-1c of Issue #152).
 //!
-//! The table says which event types have a Rust function: `handlers.py` installs them with the class
-//! and `apply` they stand for. An event of another type, or whose handler is not that class with that
-//! `apply` (a test's fake or patch), goes to `controller._dispatch_one_event`, which is the Python
-//! dispatcher for one event: its `ScheduledEvent` is made then and not before. So is an event that a
-//! Rust function refuses: Unsupported means nothing changed, and the handler's `apply` (its kernel)
-//! says why. What follows the events is the kernels' too: a refusal there is `KernelRefusal`, which
-//! names the kernel (`errors::kernel_refusal`), as its Python entry raises it.
+//! `handlers.py` installs the table: the handler classes the core runs, each with its `apply` as
+//! defined. The Run reads the dispatcher's handlers by it (`read_dispatch`, `Policies.dispatch`, H3);
+//! before each phase the glue checks by identity that the dispatcher, its handlers, their classes'
+//! `apply` and the controller's managers are what the Run read, and reads them again where they are
+//! not (a test registers or patches a handler after the controller starts). The phase itself is one
+//! call of the core with one native host (`PyHost`): the core runs a handler it knows, and gives any
+//! other to the host (`Host::apply_foreign`, H4).
 //!
-//! No borrow is held across a call into Python. The writer is asked for again after each one, as it
-//! may find another queue. This takes Unsupported only before its first change.
+//! What the phase turns down before its first event is `Unsupported` (policy E10: the tick goes
+//! through `phase_handler`); past that, a refusal is `KernelRefusal` (`errors::kernel_refusal`).
 
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -19,36 +19,19 @@ use std::sync::{Arc, Mutex};
 use pyo3::intern;
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
-use pyo3::types::{PyDict, PyList, PyString, PyTuple, PyType};
+use pyo3::types::{PyBool, PyDict, PyString, PyTuple, PyType};
+
+use sheltersim_core::rules::dispatch as core;
+use sheltersim_core::rules::tick::{Seed, Tick, ZoneNeighbors};
 
 use crate::core::errors;
-use crate::core::row::{attribute, exact_int, str_value};
-use crate::core::value::{V, VPy};
-use crate::core::world_core::{mirror_of, raw_dict_get, with_state_value, NamespaceMirror};
-use indexmap::IndexMap;
-use crate::rules::action_lifecycle::{complete_for_event, ends_any_action};
-use crate::rules::agent_dynamics::learn_facility_of;
-use crate::rules::body_state::record_social_event;
-use crate::rules::care_receipts::{record_transition, PlannedTransition};
-use crate::rules::movement::finish_movement;
-use crate::rules::population::admit_pending_arrivals;
-use crate::rules::population_lifecycle::admit_pending_returns;
-use crate::rules::social_interaction::apply_ref;
-use crate::rules::social_network::observe_event;
-use crate::rules::{effects, service, support, toilet, travel_completion};
-use crate::state::entities::{entities_of, Activity, EntityStore};
-use crate::state::events::{DueEvent, DueState, EventRef, EventRow, EventRowPy, EventStatus, EventWriter};
-use crate::state::movement::MovementRow;
+use crate::core::row::{attribute, exact_int};
+use crate::core::run::run_of;
+use crate::core::world_core::{raw_dict_get, PyWorldCell};
+use crate::host::{HostError, PyHost};
+use crate::state::events::EventWriter;
 use crate::Unsupported;
-
-const SOCIAL_INTERACTION: &str = "social_interaction";
-const AGENT_TRAVEL_COMPLETE: &str = "agent_travel_complete";
-const TOILET_COMPLETE: &str = "toilet_service_complete";
-const RESOURCE_COMPLETE: &str = "resource_service_complete";
-const SUPPORT_TIMEOUT: &str = "support_request_timeout";
-const SUPPORT_COMPLETE: &str = "staff_support_complete";
-const MOVEMENT: &str = "movement_v1";
-const SOCIAL_NETWORK: &str = "social_network_v1";
+use indexmap::IndexMap;
 
 /// What Python gives once: the classes of the table's handlers and their `apply` as defined.
 struct Table {
@@ -64,13 +47,9 @@ struct Table {
     /// `AgentTravelCompletionHandler._after_arrival` as defined.
     after_arrival: Py<PyAny>,
     dispatcher: Py<PyType>,
-    suppressed: Py<PyType>,
-    failed: Py<PyType>,
-    statuses: [Py<PyAny>; 3],
 }
 
 static TABLE: GILOnceCell<Table> = GILOnceCell::new();
-static PHASE_MODULE: GILOnceCell<Py<PyModule>> = GILOnceCell::new();
 /// `DispatchPhase._schedule_return_to_initial_zone`, as `phases/dispatch.py` defines it.
 static RETURN_RULE: GILOnceCell<Py<PyAny>> = GILOnceCell::new();
 
@@ -114,6 +93,10 @@ pub(crate) fn read_dispatch(controller: &Bound<'_, PyAny>) -> sheltersim_core::r
             let Some(event_type) = event_type.downcast::<PyString>().ok().and_then(|text| text.to_str().ok().map(Arc::<str>::from)) else {
                 continue;
             };
+            // `handlers.get(event_type)` of None is no handler: the event fails with its text.
+            if handler.is_none() {
+                continue;
+            }
             read.insert(event_type, handler_of(table, controller, &handler)?);
         }
         Ok(Dispatch { known: Ok(known), handlers: Ok(Arc::new(read)) })
@@ -159,1048 +142,145 @@ fn handler_of(table: &Table, controller: &Bound<'_, PyAny>, handler: &Bound<'_, 
     Ok(Handler::Native(Native { kind: handler_kind, handler: Arc::new(read), own_managers, after_arrival_as_defined }))
 }
 
-// ---- What ran, for benchmarks/rule_shadow and its report ------------------------------------------
+// ---- The phase ---------------------------------------------------------------------------------------
 
-macro_rules! counters {
-    ($($name:ident),* $(,)?) => {
-        #[derive(Default)]
-        struct Counters { $($name: AtomicU64),* }
-        static COUNTS: Counters = Counters { $($name: AtomicU64::new(0)),* };
-        fn counts_of<'py>(py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
-            let out = PyDict::new(py);
-            $(out.set_item(stringify!($name), COUNTS.$name.load(Ordering::Relaxed))?;)*
-            Ok(out)
-        }
-    };
-}
-
-counters!(
-    phases_ran,
-    phases_refused,
-    events_rust,
-    events_python,
-    events_skipped,
-    events_replaced,
-    social_ran,
-    social_suppressed,
-    social_refused,
-    travel_ran,
-    travel_failed,
-    travel_refused,
-    toilet_ran,
-    toilet_refused,
-    toilet_return_ran,
-    toilet_return_refused,
-    resource_ran,
-    resource_refused,
-    timeout_ran,
-    timeout_suppressed,
-    timeout_refused,
-    support_ran,
-    support_refused,
-    others_applied,
-    others_suppressed,
-    others_failed,
-    guard_passed,
-    guard_suppressed,
-    guard_failed,
-    guard_refused,
-    finished_direct,
-    finished_python,
-    interrupted_ran,
-    interrupted_refused,
-    started_ran,
-    started_refused,
-    record_social_ran,
-    record_social_refused,
-    observe_ran,
-    observe_refused,
-    completion_ran,
-    completion_refused,
-    learn_ran,
-    learn_refused,
-    sync_ran,
-    sync_refused,
-    settled_rows,
-    settled_python,
-);
-
+static PHASES_REFUSED: AtomicU64 = AtomicU64::new(0);
 static REFUSALS: Mutex<BTreeMap<String, u64>> = Mutex::new(BTreeMap::new());
 
-fn count(counter: &AtomicU64) {
-    counter.fetch_add(1, Ordering::Relaxed);
-}
-
-fn refused(py: Python<'_>, label: &str, counter: &AtomicU64, error: &PyErr) {
-    count(counter);
-    let reason = format!("{label}: {}", error.value(py));
+/// Unsupported before the phase begins, counted by its reason.
+fn refuse<T>(reason: &str) -> PyResult<T> {
+    PHASES_REFUSED.fetch_add(1, Ordering::Relaxed);
     if let Ok(mut refusals) = REFUSALS.lock() {
-        *refusals.entry(reason).or_insert(0) += 1;
+        *refusals.entry(format!("phase: {reason}")).or_insert(0) += 1;
     }
+    Err(Unsupported::new_err(reason.to_owned()))
 }
 
-// ---- An event's outcome ---------------------------------------------------------------------------
-
-/// One record of the phase, as the steps after the loop read it.
-struct Outcome<'py> {
-    event_type: Arc<str>,
-    applied: bool,
-    row: Option<Arc<EventRow>>,
-    event: Option<Bound<'py, PyAny>>,
-}
-
-impl<'py> Outcome<'py> {
-    fn event(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        if let Some(event) = &self.event {
-            return Ok(event.clone());
-        }
-        let event = self.row.as_ref().expect("an outcome has a row or an object").to_py(py)?;
-        self.event = Some(event.clone());
-        Ok(event)
-    }
-
-    fn reference(&self) -> EventRef<'_, 'py> {
-        match (&self.row, &self.event) {
-            (Some(row), _) => EventRef::Row(row),
-            (None, Some(event)) => EventRef::Object(event),
-            (None, None) => unreachable!("an outcome has a row or an object"),
-        }
-    }
-}
-
-struct Phase<'a, 'py> {
-    controller: &'a Bound<'py, PyAny>,
-    world: &'a Bound<'py, PyAny>,
-    minute: &'a Bound<'py, PyAny>,
-    minute_value: i64,
-    dispatcher: Bound<'py, PyAny>,
-    table: &'static Table,
-    module: Bound<'py, PyModule>,
-    /// The driver has checked that nothing the phase calls is patched, so it calls the kernels of
-    /// what follows the events without their Python entries.
-    driver: bool,
-}
-
-/// What a Rust function made of an event; None when it left it for Python, with nothing changed.
-type Handled = Option<(EventStatus, Option<String>)>;
-
-impl<'py> Phase<'_, 'py> {
-    fn py(&self) -> Python<'py> {
-        self.world.py()
-    }
-
-    /// `except EventSuppressed` and `except EventApplicationError` of the Python dispatcher.
-    fn expected_outcome(&self, error: PyErr) -> PyResult<(EventStatus, Option<String>)> {
-        let py = self.py();
-        let status = if error.is_instance(py, self.table.suppressed.bind(py)) {
-            EventStatus::Suppressed
-        } else if error.is_instance(py, self.table.failed.bind(py)) {
-            EventStatus::Failed
-        } else {
-            return Err(error);
-        };
-        Ok((status, Some(error.value(py).str()?.to_str()?.to_owned())))
-    }
-
-    /// A suppressed or failed outcome of a direct call, as it is recorded.
-    fn checked(
-        &self,
-        handler: &Bound<'py, PyAny>,
-        object: &dyn Fn() -> PyResult<Bound<'py, PyAny>>,
-        done: (EventStatus, Option<String>),
-    ) -> PyResult<(EventStatus, Option<String>)> {
-        let _ = (handler, object);
-        Ok(done)
-    }
-
-    /// The handler this event's table entry stands for, or None for any other.
-    fn table_handler(&self, name: &str, entry: &(Py<PyType>, Py<PyAny>)) -> PyResult<Option<Bound<'py, PyAny>>> {
-        let py = self.py();
-        let handlers = attribute(&self.dispatcher, intern!(py, "handlers"))?;
-        let Some(handler) = raw_dict_get(&handlers, PyString::new(py, name).as_any())? else {
-            return Ok(None);
-        };
-        let class = entry.0.bind(py);
-        if !handler.get_type().is(class) || !class.getattr(intern!(py, "apply"))?.is(entry.1.bind(py)) {
-            return Ok(None);
-        }
-        Ok(Some(handler))
-    }
-
-    fn social(&self, handler: &Bound<'py, PyAny>, reference: EventRef<'_, 'py>, event: &Bound<'py, PyAny>) -> PyResult<Handled> {
-        let py = self.py();
-        let world = self.world;
-        let done = match apply_ref(world, reference) {
-            Ok(text) => {
-                count(&COUNTS.social_ran);
-                match text {
-                    Some((outcome, text)) => {
-                        let status = match outcome {
-                            crate::core::errors::Outcome::Suppressed => {
-                                count(&COUNTS.social_suppressed);
-                                EventStatus::Suppressed
-                            }
-                            crate::core::errors::Outcome::Failed => EventStatus::Failed,
-                        };
-                        let object = || Ok(event.clone());
-                        Some(self.checked(handler, &object, (status, Some(text.to_owned())))?)
-                    }
-                    None => None,
-                }
-            }
-            Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                refused(py, "social_interaction", &COUNTS.social_refused, &error);
-                return Ok(None);
-            }
-            Err(error) => return Err(error),
-        };
-        if let Some(done) = done {
-            return Ok(Some(done));
-        }
-        self.social_records(event)?;
-        Ok(Some((EventStatus::Applied, None)))
-    }
-
-    /// `record_social_event` and `observe_event` of an applied event; never left for later.
-    fn social_records(&self, event: &Bound<'py, PyAny>) -> PyResult<()> {
-        let py = self.py();
-        let world = self.world;
-        let minute = self.minute;
-        match record_social_event(world, event, minute) {
-            Ok(()) => count(&COUNTS.record_social_ran),
-            Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                refused(py, "record_social_event", &COUNTS.record_social_refused, &error);
-                return Err(errors::kernel_refusal(py, "body_state.record_social_event", error));
-            }
-            Err(error) => return Err(error),
-        }
-        if !attribute(world, intern!(py, "model_state"))?.contains(intern!(py, SOCIAL_NETWORK))? {
-            return Ok(());
-        }
-        match observe_event(world, event, minute) {
-            Ok(()) => count(&COUNTS.observe_ran),
-            Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                refused(py, "observe_event", &COUNTS.observe_refused, &error);
-                return Err(errors::kernel_refusal(py, "social_network.observe_event", error));
-            }
-            Err(error) => return Err(error),
-        }
-        Ok(())
-    }
-
-    fn travel(
-        &self,
-        handler: &Bound<'py, PyAny>,
-        event: EventRef<'_, 'py>,
-        object: &dyn Fn() -> PyResult<Bound<'py, PyAny>>,
-    ) -> PyResult<Handled> {
-        let py = self.py();
-        let table = self.table;
-        let direct = handler.get_type().getattr(intern!(py, "_after_arrival"))?.is(table.after_arrival.bind(py));
-        match travel_completion::apply_event(handler, self.world, event, object, direct) {
-            Ok(()) => {
-                count(&COUNTS.travel_ran);
-                Ok(Some((EventStatus::Applied, None)))
-            }
-            Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                refused(py, "agent_travel_complete", &COUNTS.travel_refused, &error);
-                Ok(None)
-            }
-            Err(error) => {
-                let checks = travel_completion::raised_before_writing(py, &error);
-                let done = self.expected_outcome(error)?;
-                count(&COUNTS.travel_failed);
-                if checks {
-                    // The rule's own checks, which raise before any change.
-                    return Ok(Some(self.checked(handler, object, done)?));
-                }
-                // From what the walk leads to, past the rule's own checks: the walk changed the
-                // world before this.
-                Ok(Some(done))
-            }
-        }
-    }
-
-    /// `toilet_service_complete`: the release, then the walk home, on one borrow of the world (the
-    /// core's `toilet::complete` and `travel::schedule_return`, lane c6). Another `after_complete`
-    /// than the controller's own step leaves the handler to Python.
-    fn toilet(
-        &self,
-        handler: &Bound<'py, PyAny>,
-        event: EventRef<'_, 'py>,
-        object: &dyn Fn() -> PyResult<Bound<'py, PyAny>>,
-    ) -> PyResult<Handled> {
-        let py = self.py();
-        let after = attribute(handler, intern!(py, "after_complete"))?;
-        // The controller's own step, or else the handler is for Python to run.
-        let goes_home = !after.is_none()
-            && match return_rule_owner(&after)? {
-                Some(owner) if owner.is(self.controller) => true,
-                _ => return Ok(None),
-            };
-        let returned = match toilet::complete_event(self.world, event, goes_home.then_some(self.controller)) {
-            Ok(returned) => {
-                count(&COUNTS.toilet_ran);
-                returned
-            }
-            Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                refused(py, TOILET_COMPLETE, &COUNTS.toilet_refused, &error);
-                return Ok(None);
-            }
-            // Its checks raise before any change.
-            Err(error) if errors::made_here(py, &error) => {
-                count(&COUNTS.toilet_ran);
-                let done = self.expected_outcome(error)?;
-                return Ok(Some(self.checked(handler, object, done)?));
-            }
-            Err(error) => return Err(error),
-        };
-        if goes_home {
-            match returned {
-                Ok(()) => count(&COUNTS.toilet_return_ran),
-                Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                    count(&COUNTS.toilet_return_refused);
-                    return Err(errors::kernel_refusal(py, "travel.schedule_return", error));
-                }
-                Err(error) => return Err(error),
-            }
-        }
-        Ok(Some((EventStatus::Applied, None)))
-    }
-
-    fn resource(
-        &self,
-        handler: &Bound<'py, PyAny>,
-        event: EventRef<'_, 'py>,
-        object: &dyn Fn() -> PyResult<Bound<'py, PyAny>>,
-    ) -> PyResult<Handled> {
-        let py = self.py();
-        // `ResourceServiceCompletionHandler.apply`'s check, before its manager's `complete`.
-        if attribute(self.world, intern!(py, "schema_version"))?.ne(6)? {
-            let error = errors::error(py, errors::Outcome::Failed, "resource service completion requires WorldState v6");
-            let done = self.expected_outcome(error)?;
-            return Ok(Some(self.checked(handler, object, done)?));
-        }
-        match service::complete_event(&attribute(handler, intern!(py, "service"))?, event) {
-            Ok(()) => {
-                count(&COUNTS.resource_ran);
-                Ok(Some((EventStatus::Applied, None)))
-            }
-            Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                refused(py, RESOURCE_COMPLETE, &COUNTS.resource_refused, &error);
-                Ok(None)
-            }
-            // Its checks raise before any change.
-            Err(error) if errors::made_here(py, &error) => {
-                count(&COUNTS.resource_ran);
-                let done = self.expected_outcome(error)?;
-                Ok(Some(self.checked(handler, object, done)?))
-            }
-            Err(error) => Err(error),
-        }
-    }
-
-    fn timeout(
-        &self,
-        handler: &Bound<'py, PyAny>,
-        event: EventRef<'_, 'py>,
-        object: &dyn Fn() -> PyResult<Bound<'py, PyAny>>,
-    ) -> PyResult<Handled> {
-        let py = self.py();
-        let cooldown = exact_int(&attribute(handler, intern!(py, "cooldown_minutes"))?)?;
-        match support::timeout_event(self.world, event, cooldown) {
-            Ok(None) => {
-                count(&COUNTS.timeout_ran);
-                Ok(Some((EventStatus::Applied, None)))
-            }
-            Ok(Some(text)) => {
-                count(&COUNTS.timeout_ran);
-                count(&COUNTS.timeout_suppressed);
-                Ok(Some(self.checked(handler, object, (EventStatus::Suppressed, Some(text.to_owned())))?))
-            }
-            Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                refused(py, SUPPORT_TIMEOUT, &COUNTS.timeout_refused, &error);
-                Ok(None)
-            }
-            Err(error) if errors::made_here(py, &error) => {
-                count(&COUNTS.timeout_ran);
-                let done = self.expected_outcome(error)?;
-                Ok(Some(self.checked(handler, object, done)?))
-            }
-            Err(error) => Err(error),
-        }
-    }
-
-    /// `staff_support_complete`. The receipt's record follows the event's own, once that is settled.
-    /// A suppressed or failed completion, with its text, is `Err`: it raised before any change.
-    #[allow(clippy::type_complexity)]
-    fn support(
-        &self,
-        handler: &Bound<'py, PyAny>,
-        event: EventRef<'_, 'py>,
-        object: &dyn Fn() -> PyResult<Bound<'py, PyAny>>,
-    ) -> PyResult<Option<Result<Option<PlannedTransition>, (EventStatus, Option<String>)>>> {
-        let py = self.py();
-        let writer = EventWriter::of(self.world)?;
-        match support::complete_support_event(handler, self.world, &writer, event) {
-            Ok(planned) => {
-                count(&COUNTS.support_ran);
-                Ok(Some(Ok(planned)))
-            }
-            Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                refused(py, SUPPORT_COMPLETE, &COUNTS.support_refused, &error);
-                Ok(None)
-            }
-            Err(error) if errors::made_here(py, &error) => {
-                count(&COUNTS.support_ran);
-                let done = self.expected_outcome(error)?;
-                Ok(Some(Err(self.checked(handler, object, done)?)))
-            }
-            Err(error) => Err(error),
-        }
-    }
-
-    /// A handler of `others`: this event's handler if it is that class with that `apply`.
-    fn other_handler(&self, event_type: &str) -> PyResult<Option<Bound<'py, PyAny>>> {
-        let py = self.py();
-        let handlers = attribute(&self.dispatcher, intern!(py, "handlers"))?;
-        let Some(handler) = raw_dict_get(&handlers, PyString::new(py, event_type).as_any())? else {
-            return Ok(None);
-        };
-        for entry in &self.table.others {
-            let class = entry.0.bind(py);
-            if handler.get_type().is(class) {
-                return Ok(class.getattr(intern!(py, "apply"))?.is(entry.1.bind(py)).then_some(handler));
-            }
-        }
-        Ok(None)
-    }
-
-    /// `dispatch_one` for a handler of `others`: its `apply` runs its kernel (`kernel_only`), whose
-    /// outcome texts are the deleted Python rule's.
-    fn other_event(
-        &self,
-        due: &DueEvent,
-        event_type: Arc<str>,
-        handler: &Bound<'py, PyAny>,
-        object: &dyn Fn() -> PyResult<Bound<'py, PyAny>>,
-        outcomes: &mut Vec<Outcome<'py>>,
-    ) -> PyResult<()> {
-        let py = self.py();
-        let event = object()?;
-        let mut additional = Vec::new();
-        let (status, detail) = match handler.call_method1(intern!(py, "apply"), (self.world, &event)) {
-            Ok(records) => {
-                if records.is_truthy()? {
-                    additional = records.try_iter()?.collect::<PyResult<Vec<_>>>()?;
-                }
-                if matches!(&*event_type, "information_contact_update" | "information_correction" | "proximity_contact_update") {
-                    self.social_records(&event)?;
-                }
-                count(&COUNTS.others_applied);
-                (EventStatus::Applied, None)
-            }
-            Err(error) => {
-                let done = self.expected_outcome(error)?;
-                count(if done.0 == EventStatus::Suppressed { &COUNTS.others_suppressed } else { &COUNTS.others_failed });
-                done
-            }
-        };
-        count(&COUNTS.events_rust);
-        self.settle(due, object, status, detail.as_deref())?;
-        // A record the handler wrote itself: `settle` found it there and compared it.
-        outcomes.push(Outcome { event_type, applied: status == EventStatus::Applied, row: None, event: Some(event) });
-        if additional.is_empty() {
-            return Ok(());
-        }
-        let log = attribute(self.world, intern!(py, "event_log"))?;
-        for record in &additional {
-            let recorded = attribute(record, intern!(py, "event"))?;
-            let existing = log.call_method1(intern!(py, "find"), (attribute(&recorded, intern!(py, "event_id"))?,))?;
-            let kept = if existing.is_none() {
-                log.call_method1(intern!(py, "append"), (record,))?;
-                record.clone()
-            } else {
-                let same_event = attribute(&existing, intern!(py, "event"))?.call_method0(intern!(py, "to_dict"))?.eq(recorded.call_method0(intern!(py, "to_dict"))?)?;
-                if !same_event || !attribute(&existing, intern!(py, "status"))?.is(&attribute(record, intern!(py, "status"))?) {
-                    return Err(pyo3::exceptions::PyValueError::new_err("transactional follow-up record disagrees with dispatch result"));
-                }
-                existing
-            };
-            let recorded = attribute(&kept, intern!(py, "event"))?;
-            let event_type = attribute(&recorded, intern!(py, "event_type"))?;
-            outcomes.push(Outcome {
-                event_type: Arc::from(event_type.downcast::<PyString>()?.to_str()?),
-                applied: attribute(&kept, intern!(py, "status"))?.is(self.table.statuses[0].bind(py)),
-                row: None,
-                event: Some(recorded),
-            });
-        }
-        let records = PyTuple::new(py, &additional)?;
-        self.module.getattr(intern!(py, "ingest_applied_shared_operation_records"))?.call1((self.world, records))?;
-        Ok(())
-    }
-
-    /// `dispatch_one` of an event with an EffectProgram's marker: `effect_event_guard_or_suppress`,
-    /// then the handler. A false guard or one that can't be read is the event's outcome, with the
-    /// Python rule's text; a guard that holds goes on to the handler as an unmarked event of `others`
-    /// does. The table's event types, a guard Rust can't decide, and a handler of no Rust route go to
-    /// the Python dispatcher, which asks the guard again (read only, so the same answer).
-    fn marked_event(
-        &self,
-        due: &DueEvent,
-        event_type: Arc<str>,
-        reference: EventRef<'_, 'py>,
-        object: &dyn Fn() -> PyResult<Bound<'py, PyAny>>,
-        outcomes: &mut Vec<Outcome<'py>>,
-    ) -> PyResult<()> {
-        let py = self.py();
-        let listed = matches!(
-            &*event_type,
-            SOCIAL_INTERACTION | AGENT_TRAVEL_COMPLETE | TOILET_COMPLETE | RESOURCE_COMPLETE | SUPPORT_TIMEOUT | SUPPORT_COMPLETE
-        );
-        if listed {
-            return self.dispatch_in_python(&object()?, outcomes);
-        }
-        // Without a handler the record says so, and no guard is asked.
-        let handlers = attribute(&self.dispatcher, intern!(py, "handlers"))?;
-        let registered = raw_dict_get(&handlers, PyString::new(py, &event_type).as_any())?;
-        if registered.is_none_or(|handler| handler.is_none()) {
-            return self.dispatch_in_python(&object()?, outcomes);
-        }
-        match effects::guard_or_suppress(self.world, reference) {
-            Ok(()) => count(&COUNTS.guard_passed),
-            Err(error) if errors::made_here(py, &error) => {
-                let done = self.expected_outcome(error)?;
-                count(if done.0 == EventStatus::Suppressed { &COUNTS.guard_suppressed } else { &COUNTS.guard_failed });
-                let done = self.checked(&py.None().into_bound(py), object, done)?;
-                count(&COUNTS.events_rust);
-                let event = due.object.as_ref().map(|object| object.bind(py).clone());
-                self.settle(due, object, done.0, done.1.as_deref())?;
-                outcomes.push(Outcome { event_type, applied: false, row: due.row.clone(), event });
-                return Ok(());
-            }
-            // The guard reads and never writes: the Python dispatcher asks it from the start.
-            Err(error) => {
-                refused(py, "effect_program_v1 guard", &COUNTS.guard_refused, &error);
-                return self.dispatch_in_python(&object()?, outcomes);
-            }
-        }
-        match self.other_handler(&event_type)? {
-            Some(handler) => self.other_event(due, event_type, &handler, object, outcomes),
-            None => self.dispatch_in_python(&object()?, outcomes),
-        }
-    }
-
-    /// The Python dispatcher for one event; its outcomes.
-    fn dispatch_in_python(&self, event: &Bound<'py, PyAny>, outcomes: &mut Vec<Outcome<'py>>) -> PyResult<()> {
-        let py = self.py();
-        count(&COUNTS.events_python);
-        let records = self
-            .controller
-            .call_method1(intern!(py, "_dispatch_one_event"), (self.world, event, self.minute))?;
-        for record in records.downcast::<PyList>()?.iter() {
-            let recorded = attribute(&record, intern!(py, "event"))?;
-            let event_type = attribute(&recorded, intern!(py, "event_type"))?;
-            outcomes.push(Outcome {
-                event_type: Arc::from(event_type.downcast::<PyString>()?.to_str()?),
-                applied: attribute(&record, intern!(py, "status"))?.is(self.table.statuses[0].bind(py)),
-                row: None,
-                event: Some(recorded),
-            });
-        }
-        Ok(())
-    }
-
-    /// `EventDispatcher.settle` of what a Rust function did.
-    fn settle(
-        &self,
-        due: &DueEvent,
-        object: &dyn Fn() -> PyResult<Bound<'py, PyAny>>,
-        status: EventStatus,
-        detail: Option<&str>,
-    ) -> PyResult<()> {
-        let py = self.py();
-        let settled = match EventWriter::of(self.world) {
-            Ok(writer) => match (&due.object, &due.row) {
-                (Some(event), _) => {
-                    writer.settle_object(&due.event_id, event.bind(py), self.minute_value, status, detail)?
-                }
-                (None, Some(row)) => writer.settle(row, self.minute_value, status, detail)?,
-                (None, None) => false,
-            },
-            Err(error) if error.is_instance_of::<Unsupported>(py) => false,
-            Err(error) => return Err(error),
-        };
-        if settled {
-            count(&COUNTS.settled_rows);
-            return Ok(());
-        }
-        count(&COUNTS.settled_python);
-        let index = match status {
-            EventStatus::Applied => 0,
-            EventStatus::Failed => 1,
-            EventStatus::Suppressed => 2,
-        };
-        self.dispatcher.call_method1(
-            intern!(py, "settle"),
-            (self.world, object()?, self.minute, self.table.statuses[index].bind(py), detail),
-        )?;
-        Ok(())
-    }
-
-    /// One event of the snapshot.
-    fn one_event(&self, due: DueEvent, outcomes: &mut Vec<Outcome<'py>>) -> PyResult<()> {
-        let py = self.py();
-        let writer = match EventWriter::of(self.world) {
-            Ok(writer) => Some(writer),
-            Err(error) if error.is_instance_of::<Unsupported>(py) => None,
-            Err(error) => return Err(error),
-        };
-        let state = match &writer {
-            Some(writer) => writer.queue().get().state_of_due(py, &due)?,
-            None => DueState::Changed,
-        };
-        let snapshot_object = |due: &DueEvent| -> PyResult<Bound<'py, PyAny>> {
-            match &due.object {
-                Some(object) => Ok(object.bind(py).clone()),
-                None => due.row.as_ref().expect("a slot has a row or an object").to_py(py),
-            }
-        };
-        match state {
-            DueState::Gone => {
-                count(&COUNTS.events_skipped);
-                return Ok(());
-            }
-            DueState::Changed => {
-                count(&COUNTS.events_replaced);
-                return self.dispatch_in_python(&snapshot_object(&due)?, outcomes);
-            }
-            DueState::Same => {}
-        }
-        let writer = writer.expect("the state came from it");
-        // The object the queue holds, made once if Python had none: Python then sees that one.
-        let object = || -> PyResult<Bound<'py, PyAny>> {
-            match &due.object {
-                Some(object) => Ok(object.bind(py).clone()),
-                None => match EventWriter::of(self.world) {
-                    Ok(writer) if writer.queue().get().state_of_due(py, &due)? == DueState::Same => {
-                        Ok(writer.queue().get().object_of_due(py, &due)?.into_bound(py))
-                    }
-                    _ => snapshot_object(&due),
-                },
-            }
-        };
-        let bound = due.object.as_ref().map(|object| object.bind(py));
-        let reference = match (&due.row, bound) {
-            (Some(row), _) => EventRef::Row(row),
-            (None, Some(object)) => EventRef::Object(object),
-            (None, None) => unreachable!("a slot has a row or an object"),
-        };
-        let event_type = match reference.event_type() {
-            Ok(event_type) => event_type,
-            Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                return self.dispatch_in_python(&object()?, outcomes);
-            }
-            Err(error) => return Err(error),
-        };
-        let table = self.table;
-        let handler = match &*event_type {
-            SOCIAL_INTERACTION => self.table_handler(SOCIAL_INTERACTION, &table.social)?,
-            AGENT_TRAVEL_COMPLETE => self.table_handler(AGENT_TRAVEL_COMPLETE, &table.travel)?,
-            TOILET_COMPLETE => self.table_handler(TOILET_COMPLETE, &table.toilet)?,
-            RESOURCE_COMPLETE => self.table_handler(RESOURCE_COMPLETE, &table.resource)?,
-            SUPPORT_TIMEOUT => self.table_handler(SUPPORT_TIMEOUT, &table.timeout)?,
-            // In Python it returns a record, for the dispatcher to append: only the direct call.
-            SUPPORT_COMPLETE => self.table_handler(SUPPORT_COMPLETE, &table.support)?,
-            _ => None,
-        };
-        drop(writer);
-        // A marker of an EffectProgram may hold a guard, which `dispatch_one` asks before the handler.
-        if reference.has_provenance("effect_program_v1")? {
-            return self.marked_event(&due, event_type, reference, &object, outcomes);
-        }
-        let handler = match handler {
-            Some(handler) => handler,
-            None => {
-                let is_listed = matches!(
-                    &*event_type,
-                    SOCIAL_INTERACTION | AGENT_TRAVEL_COMPLETE | TOILET_COMPLETE | RESOURCE_COMPLETE | SUPPORT_TIMEOUT | SUPPORT_COMPLETE
-                );
-                return match if is_listed { None } else { self.other_handler(&event_type)? } {
-                    Some(handler) => self.other_event(&due, event_type, &handler, &object, outcomes),
-                    None => self.dispatch_in_python(&object()?, outcomes),
-                };
-            }
-        };
-        let mut receipt = None;
-        let done = match &*event_type {
-            SUPPORT_COMPLETE => match self.support(&handler, reference, &object)? {
-                Some(Ok(planned)) => {
-                    receipt = planned;
-                    Some((EventStatus::Applied, None))
-                }
-                Some(Err(done)) => Some(done),
-                None => None,
-            },
-            SOCIAL_INTERACTION => self.social(&handler, reference, &object()?)?,
-            TOILET_COMPLETE => self.toilet(&handler, reference, &object)?,
-            RESOURCE_COMPLETE => self.resource(&handler, reference, &object)?,
-            SUPPORT_TIMEOUT => self.timeout(&handler, reference, &object)?,
-            _ => self.travel(&handler, reference, &object)?,
-        };
-        let Some((status, detail)) = done else {
-            return self.dispatch_in_python(&object()?, outcomes);
-        };
-        count(&COUNTS.events_rust);
-        // Before the slot goes, so that a record Python compares has the queue's object.
-        let event = due.object.as_ref().map(|object| object.bind(py).clone());
-        self.settle(&due, &object, status, detail.as_deref())?;
-        if let Some(receipt) = receipt {
-            // `dispatch_one` appends the handler's record, then `after_event` projects it.
-            record_transition(self.world, &EventWriter::of(self.world)?, receipt)?;
-        }
-        outcomes.push(Outcome { event_type, applied: status == EventStatus::Applied, row: due.row.clone(), event });
-        Ok(())
-    }
-
-    /// `_record_applied_outcomes`, an outcome at a time as the Python step goes.
-    fn record_applied(&self, outcome: &mut Outcome<'py>) -> PyResult<()> {
-        let py = self.py();
-        let world = self.world;
-        let event_type = outcome.event_type.clone();
-        if ends_any_action(&event_type) {
-            let active = attribute(self.controller, intern!(py, "active_actions"))?;
-            let writer = EventWriter::of(world).and_then(|writer| {
-                complete_for_event(world, &writer, &active, outcome.reference(), self.minute_value)
-            });
-            match writer {
-                Ok(()) => count(&COUNTS.completion_ran),
-                Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                    refused(py, "record_applied_action_completion", &COUNTS.completion_refused, &error);
-                    return Err(errors::kernel_refusal(py, "action_lifecycle.record_applied_action_completion", error));
-                }
-                Err(error) => return Err(error),
-            }
-        }
-        if &*event_type == "effect_program_population" {
-            let active = attribute(self.controller, intern!(py, "active_actions"))?;
-            let kwargs = PyDict::new(py);
-            kwargs.set_item(intern!(py, "active_actions"), &active)?;
-            self.module.getattr(intern!(py, "record_applied_population_exit"))?.call(
-                (world, outcome.event(py)?, self.minute),
-                Some(&kwargs),
-            )?;
-        }
-        if &*event_type == AGENT_TRAVEL_COMPLETE {
-            self.learn(outcome)?;
-            // A str subclass is compared by `==`, as in the Python step.
-            let staff_travel = match outcome.reference().text("purpose") {
-                Ok(purpose) => purpose.as_deref() == Some("staff_support_travel"),
-                Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                    let event = outcome.event(py)?;
-                    let purpose = attribute(&event, intern!(py, "payload"))?.call_method1(intern!(py, "get"), ("purpose",))?;
-                    purpose.eq("staff_support_travel")?
-                }
-                Err(error) => return Err(error),
-            };
-            if staff_travel {
-                match support::record_started(world, outcome.reference()) {
-                    Ok(()) => count(&COUNTS.started_ran),
-                    Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                        refused(py, "_record_staff_support_started", &COUNTS.started_refused, &error);
-                        return Err(errors::kernel_refusal(py, "support.record_started", error));
-                    }
-                    Err(error) => return Err(error),
-                }
-            }
-        }
-        if &*event_type == SUPPORT_TIMEOUT {
-            match support::record_interrupted(world, outcome.reference()) {
-                Ok(()) => count(&COUNTS.interrupted_ran),
-                Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                    refused(py, "_record_request_interrupted", &COUNTS.interrupted_refused, &error);
-                    return Err(errors::kernel_refusal(py, "support.record_interrupted", error));
-                }
-                Err(error) => return Err(error),
-            }
-        }
-        Ok(())
-    }
-
-    fn learn(&self, outcome: &mut Outcome<'py>) -> PyResult<()> {
-        let py = self.py();
-        let world = self.world;
-        // The step's reading of IDs a row can't hold: `isinstance(..., str)`, then the rule.
-        let python_rule = |outcome: &mut Outcome<'py>| -> PyResult<()> {
-            let event = outcome.event(py)?;
-            let payload = attribute(&event, intern!(py, "payload"))?;
-            let agent_id = payload.call_method1(intern!(py, "get"), ("agent_id",))?;
-            let facility_id = payload.call_method1(intern!(py, "get"), ("facility_id",))?;
-            if agent_id.is_instance_of::<PyString>() && facility_id.is_instance_of::<PyString>() {
-                self.module.getattr(intern!(py, "learn_facility"))?.call1((world, agent_id, facility_id))?;
-            }
-            Ok(())
-        };
-        let ids = (|| Ok::<_, PyErr>((outcome.reference().text("agent_id")?, outcome.reference().text("facility_id")?)))();
-        let ids = match ids {
-            Ok(ids) => ids,
-            Err(error) if error.is_instance_of::<Unsupported>(py) => return python_rule(outcome),
-            Err(error) => return Err(error),
-        };
-        let (Some(agent_id), Some(facility_id)) = ids else {
-            return Ok(());
-        };
-        match learn_facility_of(world, &agent_id, &facility_id) {
-            Ok(()) => {
-                count(&COUNTS.learn_ran);
-                Ok(())
-            }
-            Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                refused(py, "learn_facility", &COUNTS.learn_refused, &error);
-                Err(errors::kernel_refusal(py, "agent_dynamics.learn_facility", error))
-            }
-            Err(error) => Err(error),
-        }
-    }
-
-    /// `_sync_movement_after_events`. Only a stopped journey calls Python.
-    fn sync_movement(&self) -> PyResult<()> {
-        let py = self.py();
-        let table = attribute(self.world, intern!(py, "model_state"))?;
-        if raw_dict_get(&table, intern!(py, MOVEMENT).as_any())?.is_none() {
-            return Ok(());
-        }
-        match self.stopped_journeys() {
-            Ok(()) => {
-                count(&COUNTS.sync_ran);
-                Ok(())
-            }
-            Err(error) if error.is_instance_of::<Unsupported>(py) => {
-                // It goes over all journeys, and those finished above have left.
-                refused(py, "_sync_movement_after_events", &COUNTS.sync_refused, &error);
-                self.controller.call_method0(intern!(py, "_sync_movement_after_events"))?;
-                Ok(())
-            }
-            Err(error) => Err(error),
-        }
-    }
-
-    fn stopped_journeys(&self) -> PyResult<()> {
-        let mirror = mirror_of(self.world, MOVEMENT)?;
-        let mut ids: Vec<Arc<str>> =
-            NamespaceMirror::with_row::<MovementRow, _>(&mirror, |row| Ok(row.journeys.iter().map(|(id, _)| id.clone()).collect()))?;
-        // `sorted`: bytes of UTF-8 sort as code points do.
-        ids.sort_unstable();
-        let store = entities_of(self.world)?;
-        for id in ids {
-            let purpose = NamespaceMirror::with_row::<MovementRow, _>(&mirror_of(self.world, MOVEMENT)?, |row| {
-                Ok(row.journeys.get(&*id).map(|journey| journey.purpose.clone()))
-            })?;
-            let stopped = EntityStore::with_rows(&store, |rows| {
-                Ok(match rows.agents.get(&*id) {
-                    None => true,
-                    Some(agent) => {
-                        let queue_trip = agent.activity == Activity::Queued
-                            && matches!(
-                                purpose.as_deref(),
-                                Some("toilet_queue_position" | "resource_queue_position" | "toilet_queue_service" | "resource_queue_service")
-                            );
-                        agent.activity != Activity::Moving && !queue_trip
-                    }
-                })
-            })?;
-            if stopped {
-                self.finish_journey(&id, purpose.as_deref())?;
-            }
-        }
-        Ok(())
-    }
-
-    /// `_reserved_bed_of`: the bed point `_finish_stopped_journey` reads from the overlay, read as a
-    /// `V` (a detached one from its row).
-    fn bed_point_of(&self, key: &Bound<'py, PyString>) -> PyResult<Option<Bound<'py, PyAny>>> {
-        let agent_id = key.to_str()?;
-        let bed = with_state_value(self.world, "geometry_overlay_v1", |overlay| reserved_bed_of(overlay, agent_id))?;
-        bed.map(|bed| bed.to_py(self.py())).transpose()
-    }
-
-    /// `_finish_stopped_journey`.
-    fn finish_journey(&self, id: &Arc<str>, purpose: Option<&str>) -> PyResult<()> {
-        let py = self.py();
-        let key = PyString::new(py, id);
-        let bed = if purpose == Some("sleep_bed") { self.bed_point_of(&key) } else { Ok(None) };
-        // An overlay the reading above can't take is the Python step's to read, and to say why.
-        if let Ok(bed) = bed {
-            match finish_movement(self.world, key.as_any()) {
-                Ok(()) => {
-                    count(&COUNTS.finished_direct);
-                    if let Some(bed) = bed {
-                        let agent = raw_dict_get(&attribute(self.world, intern!(py, "agents"))?, key.as_any())?;
-                        // A detached namespace's row takes the bed's place; an attached one's tree.
-                        let zone_id = match &agent {
-                            Some(agent) => str_value(&attribute(agent, intern!(py, "zone_id"))?).map(Arc::<str>::from),
-                            None => None,
-                        };
-                        let placed = match &zone_id {
-                            Some(zone_id) => crate::rules::movement::place_at_bed(self.world, id, zone_id, &bed)?,
-                            None => false,
-                        };
-                        if let Some(agent) = agent.filter(|_| !placed) {
-                            let update = PyDict::new(py);
-                            update.set_item("zone_id", attribute(&agent, intern!(py, "zone_id"))?)?;
-                            update.set_item("point", bed)?;
-                            update.set_item("edge_id", py.None())?;
-                            update.set_item("progress", 1.0)?;
-                            update.set_item("position_kind", "physical")?;
-                            attribute(self.world, intern!(py, "model_state"))?
-                                .get_item(MOVEMENT)?
-                                .get_item("positions")?
-                                .get_item(key.as_any())?
-                                .call_method1(intern!(py, "update"), (update,))?;
-                        }
-                    }
-                    return Ok(());
-                }
-                Err(error) => return Err(errors::kernel_refusal(py, "movement.finish_movement", error)),
-            }
-        }
-        count(&COUNTS.finished_python);
-        self.controller.call_method1(intern!(py, "_finish_stopped_journey"), (key,))?;
-        Ok(())
-    }
-
-    fn admit_returns(&self) -> PyResult<()> {
-        let py = self.py();
-        if self.driver {
-            return admit_pending_returns(self.world, self.minute)
-                .map(|_| ())
-                .map_err(|error| errors::kernel_refusal(py, "population_lifecycle.admit_pending_returns", error));
-        }
-        self.controller.call_method1(intern!(py, "_admit_pending_returns"), (self.world, self.minute))?;
-        Ok(())
-    }
-
-    fn admit_arrivals(&self) -> PyResult<()> {
-        let py = self.py();
-        if self.driver {
-            return admit_pending_arrivals(self.world, self.minute)
-                .map(|_| ())
-                .map_err(|error| errors::kernel_refusal(py, "population.admit_pending_arrivals", error));
-        }
-        self.module.getattr(intern!(py, "admit_pending_arrivals"))?.call1((self.world, self.minute))?;
-        Ok(())
-    }
-
-    fn run(&self) -> PyResult<()> {
-        let py = self.py();
-        let world = self.world;
-        let controller = self.controller;
-        let due_events = {
-            let writer = EventWriter::of(world)?;
-            let due = writer.queue().get().due_events(py, self.minute_value)?;
-            due
-        };
-        let mut outcomes = Vec::with_capacity(due_events.len());
-        for due in due_events {
-            self.one_event(due, &mut outcomes)?;
-        }
-        for outcome in outcomes.iter_mut().filter(|outcome| outcome.applied) {
-            self.record_applied(outcome)?;
-        }
-        let applied = |outcome: &&mut Outcome<'py>| outcome.applied;
-        if outcomes.iter_mut().filter(applied).any(|outcome| {
-            matches!(&*outcome.event_type, "effect_program_geometry" | "effect_program_geometry_expire" | "effect_program_structure")
-        }) {
-            controller.call_method0(intern!(py, "_refresh_space"))?;
-        }
-        for outcome in outcomes.iter_mut().filter(applied) {
-            if &*outcome.event_type == "effect_program_geometry" {
-                let event = outcome.event(py)?;
-                let done = match crate::rules::staff_operation_events::interrupt_trips_of_event(world, &event) {
-                    Ok(()) => true,
-                    // Those already stopped are idle, and the step's own checks pass over them.
-                    Err(error) if error.is_instance_of::<Unsupported>(py) => false,
-                    Err(error) => return Err(error),
-                };
-                if !done {
-                    controller.call_method1(intern!(py, "_interrupt_trips_of_event"), (world, event))?;
-                }
-            }
-        }
-        self.admit_returns()?;
-        self.sync_movement()?;
-        self.admit_arrivals()?;
-        for outcome in outcomes.iter_mut().filter(applied) {
-            if &*outcome.event_type == "information_contact_update" {
-                controller.call_method1(intern!(py, "_consider_social_contact_event"), (outcome.event(py)?,))?;
-            }
-        }
-        Ok(())
-    }
-}
-
-/// `_run_dispatch_phase`.
+/// `_run_dispatch_phase` (the E10 phase path, a `KERNEL_ONLY_SEGMENTS` step).
 #[pyfunction]
-fn run_phase<'py>(
-    controller: &Bound<'py, PyAny>,
-    world: &Bound<'py, PyAny>,
-    minute: &Bound<'py, PyAny>,
-) -> PyResult<()> {
-    run_inner(controller, world, minute, false)
+fn run_phase<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<()> {
+    run_for_driver(controller, world, minute)
 }
 
-/// The phase for `rules/tick.rs`.
-pub(crate) fn run_for_driver<'py>(
-    controller: &Bound<'py, PyAny>,
-    world: &Bound<'py, PyAny>,
-    minute: &Bound<'py, PyAny>,
-) -> PyResult<()> {
-    run_inner(controller, world, minute, true)
-}
-
-fn run_inner<'py>(
-    controller: &Bound<'py, PyAny>,
-    world: &Bound<'py, PyAny>,
-    minute: &Bound<'py, PyAny>,
-    driver: bool,
-) -> PyResult<()> {
+/// The phase, for `run_phase` and `rules/tick.rs`.
+pub(crate) fn run_for_driver<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<()> {
     let py = world.py();
-    let refuse = |error: PyErr| -> PyErr {
-        refused(py, "phase", &COUNTS.phases_refused, &error);
-        error
-    };
     let Some(table) = TABLE.get(py) else {
-        return Err(refuse(Unsupported::new_err("events/handlers.py has not installed the table")));
+        return refuse("events/handlers.py has not installed the table");
     };
-    let minute_value = exact_int(minute).map_err(refuse)?;
+    let Ok(minute_value) = exact_int(minute) else {
+        return refuse("a minute is not an int");
+    };
     if minute_value < 0 {
-        return Err(refuse(Unsupported::new_err("a negative minute")));
+        return refuse("a negative minute");
     }
-    let dispatcher = attribute(controller, intern!(py, "event_dispatcher")).map_err(refuse)?;
+    let dispatcher = attribute(controller, intern!(py, "event_dispatcher"))?;
     if !dispatcher.get_type().is(table.dispatcher.bind(py)) {
-        return Err(refuse(Unsupported::new_err("another kind of dispatcher")));
+        return refuse("another kind of dispatcher");
     }
-    EventWriter::of(world).map_err(refuse)?;
-    let module = PHASE_MODULE
-        .get_or_try_init(py, || {
-            Ok::<_, PyErr>(py.import("sheltersim.experiments.phases.dispatch")?.unbind())
-        })?
-        .bind(py)
-        .clone();
-    let phase = Phase {
-        controller,
-        world,
-        minute,
-        minute_value,
-        dispatcher,
-        table,
-        module,
-        driver,
+    if let Err(error) = EventWriter::of(world) {
+        return refuse(&error.value(py).to_string());
+    }
+    let Ok(run) = run_of(controller) else {
+        return refuse("the controller has no run core");
     };
-    count(&COUNTS.phases_ran);
+    // The open actions the core closes are the Run's rows: a store that holds a plain dict is read
+    // into them first.
+    let active = attribute(controller, intern!(py, "active_actions"))?;
+    let Ok(active) = active.downcast::<crate::rules::action_lifecycle::ActiveActions>() else {
+        return refuse("the open actions are not a store of the Run");
+    };
+    if !active.borrow().is_of(run.get()) {
+        return refuse("the open actions are not a store of the Run");
+    }
+    if active.try_borrow_mut()?.with_rows(py, |_| Ok(())).is_err() {
+        return refuse("the open actions do not fit their rows");
+    }
+    marks(table, controller, &dispatcher, run.get())?;
+    let policies = run.get().policies()?;
+    let mut host = PyHost::of_controller(controller)?.on_world(world);
+    let cell = PyWorldCell(world);
+    let neighbors = Arc::new(ZoneNeighbors { social: Err(UNREAD), information: Err(UNREAD) });
+    let mut tick = Tick { cell: &cell, host: &mut host, run: run.get(), policies, minute: minute_value, seed: Seed::Other, neighbors };
     // The phase has begun: a refusal past its checks is KernelRefusal too.
-    phase.run().map_err(|error| errors::kernel_refusal(py, "dispatch.run_phase", error))
+    core::run(&mut tick).map_err(|error: HostError| errors::kernel_refusal(py, core::RUN_PHASE, error.0))
+}
+
+/// What the dispatch reads of the controller's neighbors: nothing.
+const UNREAD: &str = "the dispatch reads no neighbors";
+
+/// The controller's objects the Run read the dispatcher's handlers from: the dispatcher and its
+/// handlers, each handler's class's `apply`, the travel handler's class's `_after_arrival`, and the
+/// controller's managers with whether each has a `request` of its own. What they were when the Run
+/// last read them is the controller's `_dispatch_marks`; any other is read again.
+fn marks(table: &Table, controller: &Bound<'_, PyAny>, dispatcher: &Bound<'_, PyAny>, run: &crate::core::run::RunCore) -> PyResult<()> {
+    let py = controller.py();
+    let handlers = attribute(dispatcher, intern!(py, "handlers"))?;
+    let mut now: Vec<Bound<'_, PyAny>> = vec![dispatcher.clone(), handlers.clone()];
+    match crate::core::tracked::as_readable_dict(&handlers) {
+        Some(handlers) => {
+            for (event_type, handler) in handlers.iter() {
+                let apply = handler.get_type().getattr(intern!(py, "apply")).unwrap_or_else(|_| py.None().into_bound(py));
+                now.extend([event_type, handler, apply]);
+            }
+        }
+        None => now.push(py.None().into_bound(py)),
+    }
+    now.push(table.travel.0.bind(py).getattr(intern!(py, "_after_arrival"))?);
+    for name in [intern!(py, "toilet_service"), intern!(py, "resource_service")] {
+        let manager = attribute(controller, name)?;
+        let own = match manager.getattr(intern!(py, "__dict__")) {
+            Ok(fields) => raw_dict_get(&fields, intern!(py, "request").as_any())?.is_some(),
+            Err(_) => false,
+        };
+        now.push(manager);
+        now.push(PyBool::new(py, own).to_owned().into_any());
+    }
+    let fields = controller.getattr(intern!(py, "__dict__"))?;
+    let kept = raw_dict_get(&fields, intern!(py, "_dispatch_marks").as_any())?;
+    let same = kept.as_ref().and_then(|kept| kept.downcast::<PyTuple>().ok()).is_some_and(|kept| {
+        kept.len() == now.len() && now.iter().enumerate().all(|(index, item)| kept.get_item(index).is_ok_and(|held| held.is(item)))
+    });
+    if same {
+        return Ok(());
+    }
+    run.refresh_dispatch_of(controller)?;
+    fields.set_item(intern!(py, "_dispatch_marks"), PyTuple::new(py, now)?)
+}
+
+/// `_sync_movement_after_events`, a body-less `kernel_only` step of `phases/dispatch.py`.
+#[pyfunction]
+fn sync_movement(controller: &Bound<'_, PyAny>) -> PyResult<()> {
+    let py = controller.py();
+    let world = attribute(controller, intern!(py, "world"))?;
+    let run = run_of(controller)?;
+    let policies = run.get().policies()?;
+    let minute = exact_int(&attribute(&world, intern!(py, "minute_index"))?)?;
+    let mut host = PyHost::of_controller(controller)?;
+    let cell = PyWorldCell(&world);
+    let neighbors = Arc::new(ZoneNeighbors { social: Err(UNREAD), information: Err(UNREAD) });
+    let mut tick = Tick { cell: &cell, host: &mut host, run: run.get(), policies, minute, seed: Seed::Other, neighbors };
+    core::sync_movement(&mut tick).map_err(|error| error.0)
+}
+
+/// `_consider_social_contact_event(event)`, a body-less `kernel_only` step of `phases/dispatch.py`:
+/// nothing for another type of event.
+#[pyfunction]
+fn consider_contact(controller: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyResult<()> {
+    let py = controller.py();
+    let row = crate::rules::information_events::event_row(event)?;
+    if &*row.event_type != "information_contact_update" {
+        return Ok(());
+    }
+    let world = attribute(controller, intern!(py, "world"))?;
+    let run = run_of(controller)?;
+    let policies = run.get().policies()?;
+    let minute = exact_int(&attribute(&world, intern!(py, "minute_index"))?)?;
+    let mut host = PyHost::of_controller(controller)?;
+    let cell = PyWorldCell(&world);
+    let neighbors = Arc::new(ZoneNeighbors { social: Err(UNREAD), information: Err(UNREAD) });
+    let mut tick = Tick { cell: &cell, host: &mut host, run: run.get(), policies, minute, seed: Seed::Other, neighbors };
+    core::consider_contact(&mut tick, &row).map_err(|error| error.0)
 }
 
 /// What `events/handlers.py` gives once: the handlers the table stands for, as defined.
@@ -1218,8 +298,6 @@ fn install_table<'py>(
     after_arrival: Bound<'py, PyAny>,
     dispatcher: Bound<'py, PyType>,
 ) -> PyResult<()> {
-    let models = py.import("sheltersim.events.models")?;
-    let status = models.getattr("EventStatus")?;
     let table = Table {
         social: (social.0.unbind(), social.1.unbind()),
         travel: (travel.0.unbind(), travel.1.unbind()),
@@ -1230,16 +308,9 @@ fn install_table<'py>(
         others: others.into_iter().map(|(class, apply)| (class.unbind(), apply.unbind())).collect(),
         after_arrival: after_arrival.unbind(),
         dispatcher: dispatcher.unbind(),
-        suppressed: models.getattr("EventSuppressed")?.downcast_into::<PyType>()?.unbind(),
-        failed: models.getattr("EventApplicationError")?.downcast_into::<PyType>()?.unbind(),
-        statuses: [
-            status.getattr("APPLIED")?.unbind(),
-            status.getattr("FAILED")?.unbind(),
-            status.getattr("SUPPRESSED")?.unbind(),
-        ],
     };
     // A second import of the module, as `importlib.reload` makes, keeps the first table: the
-    // classes then differ from the handlers', which go to Python.
+    // classes then differ from the handlers', which go to the host.
     let _ = TABLE.set(py, table);
     Ok(())
 }
@@ -1254,59 +325,33 @@ fn install_return_rule(py: Python<'_>, rule: Bound<'_, PyAny>) -> PyResult<()> {
 /// What has run in this process: `(counts, refusals by reason)`.
 #[pyfunction]
 fn stats<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyDict>, Bound<'py, PyDict>)> {
+    let counts = PyDict::new(py);
+    for (name, times) in core::COUNTS.all() {
+        counts.set_item(name, times)?;
+    }
+    counts.set_item("phases_refused", PHASES_REFUSED.load(Ordering::Relaxed))?;
+    for (label, times) in core::KINDS.ran_counts() {
+        counts.set_item(format!("ran.{label}"), times)?;
+    }
     let reasons = PyDict::new(py);
     if let Ok(refusals) = REFUSALS.lock() {
         for (reason, times) in refusals.iter() {
             reasons.set_item(reason, *times)?;
         }
     }
-    let counts = counts_of(py)?;
-    let (ran, arrivals_refused, arrival_reasons) = travel_completion::arrival_counts();
-    counts.set_item("arrival_ran", ran)?;
-    counts.set_item("arrival_refused", arrivals_refused)?;
-    for (reason, times) in arrival_reasons {
-        reasons.set_item(format!("_after_arrival: {reason}"), times)?;
+    for (reason, times) in core::KINDS.refusal_counts() {
+        reasons.set_item(reason, times)?;
     }
     Ok((counts, reasons))
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run_phase, m)?)?;
+    m.add_function(wrap_pyfunction!(sync_movement, m)?)?;
+    m.add_function(wrap_pyfunction!(consider_contact, m)?)?;
     m.add_function(wrap_pyfunction!(install_table, m)?)?;
     m.add_function(wrap_pyfunction!(install_return_rule, m)?)?;
     m.add_function(wrap_pyfunction!(stats, m)?)?;
     Ok(())
 }
 
-/// `_reserved_bed_of` on the overlay: `.get(key, {})` all the way down, a value of another kind
-/// Unsupported where Python would raise.
-fn reserved_bed_of(overlay: Option<&V>, agent_id: &str) -> PyResult<Option<V>> {
-    let empty = IndexMap::new();
-    fn dict_or<'a>(value: Option<&'a V>, empty: &'a IndexMap<Arc<str>, V>) -> PyResult<&'a IndexMap<Arc<str>, V>> {
-        match value {
-            None => Ok(empty),
-            Some(V::Map(map)) => Ok(map),
-            Some(_) => Err(Unsupported::new_err("a part of the overlay is not a dict")),
-        }
-    }
-    let overlay = dict_or(overlay, &empty)?;
-    let reservation = dict_or(dict_or(overlay.get("bed_reservations"), &empty)?.get(agent_id), &empty)?;
-    let rooms = dict_or(overlay.get("temporary_rooms"), &empty)?;
-    let room = match reservation.get("room_id") {
-        Some(V::Str(room_id)) => rooms.get(&**room_id),
-        Some(V::List(_) | V::Map(_)) => return Err(Unsupported::new_err("a room ID is not hashable")),
-        _ => None,
-    };
-    let room = dict_or(room, &empty)?;
-    let beds: &[V] = match room.get("bed_points_m") {
-        None => &[],
-        Some(V::List(beds)) => beds,
-        Some(_) => return Err(Unsupported::new_err("the beds are not a list")),
-    };
-    let index = match reservation.get("bed_index") {
-        Some(V::Int(index)) => *index,
-        Some(V::Big(_)) => return Err(Unsupported::new_err("an int is too large")),
-        _ => return Ok(None),
-    };
-    Ok(usize::try_from(index).ok().and_then(|index| beds.get(index)).cloned())
-}

@@ -15,7 +15,7 @@ use crate::core::errors::{self, OrPy};
 use crate::core::world_core::PyWorldCell;
 use crate::host::PyHost;
 use crate::rules::information_events::{event_row, information_spread};
-use crate::state::events::{EventRef, EventRow};
+use crate::state::events::EventRow;
 
 /// `SocialInteractionHandler.apply`. Raises what the Python rule raises for an event that does not
 /// apply; the dispatch loop calls `apply_ref`, which has no exception to pay for.
@@ -24,15 +24,6 @@ fn apply<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &B
     match apply_row(world, &event_row(event)?)? {
         None => Ok(()),
         Some((outcome, text)) => errors::raise_noted(world.py(), outcome, text),
-    }
-}
-
-/// The rule of a due event: None for an applied event, or the outcome and text of one that does
-/// not apply.
-pub(crate) fn apply_ref(world: &Bound<'_, PyAny>, event: EventRef<'_, '_>) -> PyResult<Said> {
-    match event {
-        EventRef::Row(row) => apply_row(world, row),
-        EventRef::Object(event) => apply_row(world, &event_row(event)?),
     }
 }
 

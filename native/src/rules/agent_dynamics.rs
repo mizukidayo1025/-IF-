@@ -114,11 +114,6 @@ fn learn_facility(world: &Bound<'_, PyAny>, agent_id: &Bound<'_, PyAny>, facilit
     rules::learn_facility_through(&PyWorldCell(world), &mut host_of(world), agent_id, facility_id).map_err(|error| error.0)
 }
 
-/// The rule, for IDs a row holds.
-pub(crate) fn learn_facility_of(world: &Bound<'_, PyAny>, agent_id: &str, facility_id: &str) -> PyResult<()> {
-    rules::learn_facility_through(&PyWorldCell(world), &mut host_of(world), Some(agent_id), Some(facility_id)).map_err(|error| error.0)
-}
-
 /// `announce_installed_facility`.
 #[pyfunction]
 fn announce_installed_facility(world: &Bound<'_, PyAny>, facility_id: &Bound<'_, PyAny>) -> PyResult<()> {

@@ -1,15 +1,17 @@
-"""The Rust dispatch phase: the Python phase's order, records and errors, and its fallbacks.
+"""The Rust dispatch phase: the Python phase's order, records and errors.
 
-The phase has no Python step left (lane L10). Each case runs events through rules/dispatch.rs and
-compares everything saved with what the Python step saved from the same events: a digest of it,
-taken once from that step (45a9bc9) before it went, pinned on every OS, as the gate's hashes are.
-See docs/rust-port/lanes/m3-dispatch.md.
+The phase has no Python step left (lane L10), and since lane P9-1c no Python fallback: it is the
+core's (native/core/src/rules/dispatch.rs), and a handler it does not know is run through its
+`apply` by the host. Each case runs events through it and compares everything saved with what the
+Python step saved from the same events: a digest of it, taken once from that step (45a9bc9) before
+it went, pinned on every OS, as the gate's hashes are. See docs/rust-port/lanes/m3-dispatch.md.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -45,8 +47,14 @@ class Sink:
         return lambda *arguments, **options: None
 
 
-def _counts() -> dict[str, int]:
-    return dict(native.rules("dispatch").stats()[0])
+def _counts() -> Counter[str]:
+    """The dispatch's counts, with each handler kernel's refusals as `refused.<label>`."""
+    counts, reasons = native.rules("dispatch").stats()
+    counted = Counter(counts)
+    for reason, times in reasons.items():
+        label = reason.split(":", 1)[0]
+        counted[f"refused.{label}"] += times
+    return counted
 
 
 def _new_controller() -> OfflineSimulationController:
@@ -302,9 +310,9 @@ def test_a_social_action_runs_in_rust_with_python_s_results() -> None:
         "db670ea5268dbb27",
     )
     after = _counts()
-    assert after["social_ran"] > before["social_ran"]
+    assert after["ran.social_interaction.apply"] > before["ran.social_interaction.apply"]
     assert after["settled_rows"] > before["settled_rows"]
-    assert after["events_python"] == before["events_python"]
+    assert after["events_foreign"] == before["events_foreign"]
     assert by_kernel.world.event_log.find("social-901").status is EventStatus.APPLIED
 
 
@@ -323,8 +331,8 @@ def test_a_suppressed_social_action_has_python_s_detail_in_its_record() -> None:
     after = _counts()
     record = by_kernel.world.event_log.find("social-901")
     assert (record.status, record.detail) == (EventStatus.SUPPRESSED, text)
-    assert after["social_suppressed"] == before["social_suppressed"] + 1
-    assert after["social_refused"] == before["social_refused"]
+    assert after["outcomes_suppressed"] == before["outcomes_suppressed"] + 1
+    assert after["refused.social_interaction.apply"] == before["refused.social_interaction.apply"]
 
 
 def _social_action_with(controller: OfflineSimulationController, **change: Any) -> ScheduledEvent:
@@ -350,8 +358,8 @@ def test_a_failed_social_action_has_python_s_detail_from_the_kernel() -> None:
     before = _counts()
     by_kernel = _dispatched(arrange, "b0d258951174919c")
     after = _counts()
-    assert after["social_refused"] == before["social_refused"]
-    assert after["events_python"] == before["events_python"]
+    assert after["refused.social_interaction.apply"] == before["refused.social_interaction.apply"]
+    assert after["events_foreign"] == before["events_foreign"]
     record = by_kernel.world.event_log.find("social-901")
     assert record.status is EventStatus.FAILED
     assert record.detail == "social action reason code is not allowed"
@@ -361,17 +369,20 @@ class _Code(str):
     """A str whose comparison the kernel doesn't make: a payload is JSON, so no Run holds one."""
 
 
-def test_a_social_event_the_kernel_refuses_stops_the_phase_with_kernel_refusal() -> None:
-    """With no Python rule behind the kernel (lane L10), a value outside the contract is refused:
-    the handler raises KernelRefusal, which the dispatch phase does not take as an outcome."""
+def test_an_event_no_row_holds_stops_the_phase_with_kernel_refusal_before_any_event() -> None:
+    """A value outside the contract (a str subclass: no JSON payload holds one) leaves the event
+    with no row, and the core runs only rows (H6 of design-p9.md, lane P9-1c): the phase raises
+    KernelRefusal before its first event, with nothing changed."""
     controller = _new_controller()
     event = _social_action_with(controller, reason_short=_Code("other"))
     controller.world.schedule_event(event)
-    before = _counts()
-    with pytest.raises(KernelRefusal, match="social_interaction.apply refused"):
+    before = _saved(controller)
+    with pytest.raises(
+        KernelRefusal, match="dispatch.run_phase refused: an event a row cannot hold"
+    ):
         controller._run_dispatch_phase(controller.world, 0)
     assert controller.world.event_log.find("social-901") is None
-    assert _counts()["social_refused"] == before["social_refused"] + 1
+    assert _saved(controller) == before
 
 
 def test_a_patch_of_a_table_handler_s_apply_is_called(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -417,7 +428,8 @@ def test_an_effect_program_s_guard_is_python_s_to_read() -> None:
     )
     before = _counts()
     controller._run_dispatch_phase(controller.world, 0)
-    assert _counts()["events_python"] == before["events_python"] + 1
+    assert _counts()["guard_passed"] == before["guard_passed"] + 1
+    assert _counts()["events_foreign"] == before["events_foreign"]
     assert controller.world.event_log.find(event.event_id).status is EventStatus.APPLIED
 
 
@@ -511,8 +523,8 @@ def test_a_walk_ends_in_rust_with_python_s_results(
     before = _counts()
     by_kernel = _dispatched(arrange, python_saved, minute=_due_of(walk))
     after = _counts()
-    assert after["travel_ran"] == before["travel_ran"] + 1
-    assert after["travel_refused"] == before["travel_refused"]
+    assert after["ran.travel_completion.apply"] == before["ran.travel_completion.apply"] + 1
+    assert after["refused.travel_completion.apply"] == before["refused.travel_completion.apply"]
     assert by_kernel.world.agents["A001"].target_id is None or walk is _toilet_walk
 
 
@@ -533,7 +545,7 @@ def test_a_walk_s_request_that_fails_is_recorded_with_its_text_as_in_python(
     before = _counts()
     by_kernel = _dispatched(arrange, "f70d12763e33305a", minute=_due_of(_toilet_walk))
     after = _counts()
-    assert after["travel_failed"] == before["travel_failed"] + 1
+    assert after["outcomes_failed"] == before["outcomes_failed"] + 1
     record = next(
         record
         for record in by_kernel.world.event_log.records
@@ -619,11 +631,10 @@ def test_a_walk_home_named_for_another_purpose_fails_with_the_rule_s_text_before
     assert str(made.value) == text
 
 
-def test_a_walk_with_a_value_the_writer_refuses_is_applied_by_the_phase_but_not_alone() -> None:
+def test_a_walk_with_a_value_the_writer_refuses_is_refused_by_the_phase_and_alone() -> None:
     """A payload value the event writer refuses (a str subclass: no JSON payload holds one). The
-    phase reads the walk from the event object and applies it, settling its record in Python; the
-    handler's own entry, with no Python rule behind it (lane L10), refuses it with nothing changed.
-    """
+    handler's own entry, with no Python rule behind it (lane L10), refuses it with nothing changed;
+    so does the phase, which runs only rows (lane P9-1c), before its first event."""
 
     class Text(str):
         pass
@@ -658,19 +669,13 @@ def test_a_walk_with_a_value_the_writer_refuses_is_applied_by_the_phase_but_not_
 
     controller = _new_controller()
     event = noted(controller)
-    destination = event.payload["destination_zone_id"]
-    counted = _counts()
-    controller._run_dispatch_phase(controller.world, event.due_minute)
-    after = _counts()
-    assert after["travel_ran"] == counted["travel_ran"] + 1
-    assert after["settled_python"] == counted["settled_python"] + 1
-    world = controller.world
-    assert not world.event_log.all_encoded()
-    record = world.event_log.find(event.event_id)
-    assert (record.status, record.detail) == (EventStatus.APPLIED, None)
-    agent = world.agents["A001"]
-    assert (agent.zone_id, agent.activity.value, agent.target_id) == (destination, "idle", None)
-    assert event.payload["task_id"] not in world.active_tasks
+    before = _document(controller.world)
+    with pytest.raises(
+        KernelRefusal, match="dispatch.run_phase refused: an event a row cannot hold"
+    ):
+        controller._run_dispatch_phase(controller.world, event.due_minute)
+    assert _document(controller.world) == before
+    assert controller.world.event_log.find(event.event_id) is None
 
 
 def test_a_walk_that_has_only_a_row_gets_its_object_only_if_python_reads_it() -> None:
@@ -684,7 +689,7 @@ def test_a_walk_that_has_only_a_row_gets_its_object_only_if_python_reads_it() ->
     before = _counts()
     controller._run_dispatch_phase(controller.world, due)
     after = _counts()
-    assert after["travel_ran"] == before["travel_ran"] + 1
+    assert after["ran.travel_completion.apply"] == before["ran.travel_completion.apply"] + 1
     assert after["settled_rows"] == before["settled_rows"] + 1
     _is_python_s(controller, "e7cc4860a63dc8ea")
 
@@ -714,9 +719,10 @@ def test_a_run_through_the_kernel_is_what_the_python_step_made(
     direct = _run(generated_scenario, tmp_path / "direct", 240)
     after = _counts()
     assert after["phases_ran"] - before["phases_ran"] == 240
-    assert after["events_rust"] > before["events_rust"]
-    assert after["travel_refused"] == before["travel_refused"]
-    assert after["completion_refused"] == before["completion_refused"]
-    assert after["sync_refused"] == before["sync_refused"]
+    assert after["events_core"] > before["events_core"]
+    assert after["events_foreign"] == before["events_foreign"]
+    assert not [
+        label for label in after if label.startswith("refused.") and after[label] != before[label]
+    ]
     text = json.dumps(direct, sort_keys=True)
     assert hashlib.sha256(text.encode("utf-8")).hexdigest()[:16] == "9bea40ea3b5cd8b4"

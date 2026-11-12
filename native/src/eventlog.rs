@@ -532,46 +532,6 @@ impl EventStore {
         })
     }
 
-    /// `EventLog.append` of an outcome of an event object, with no record object: its bytes come
-    /// from the same writer as a record's, and Python makes the record when it reads one. 3, with
-    /// nothing changed, for a value the writer refuses, which needs Python's record and encoder.
-    pub(crate) fn append_outcome(
-        &self,
-        event: &Bound<'_, PyAny>,
-        realized_minute: i64,
-        status: EventStatus,
-        detail: Option<&str>,
-    ) -> PyResult<u8> {
-        let py = event.py();
-        let types = self.side.try_borrow().or_py()?.types.as_ref().map(|(record, event)| (record.clone_ref(py), event.clone_ref(py)));
-        let Some((record_type, event_type)) = types else {
-            return Ok(3);
-        };
-        if !event.get_type().is(event_type.bind(py)) || record_type.is_none(py) {
-            return Ok(3);
-        }
-        let fields = fields_of_outcome(event, realized_minute, status == EventStatus::Applied)?;
-        let refused = self.with_log(py, |log| log.refusal(&fields.event_id, fields.sequence))?;
-        if refused != 0 {
-            return Ok(refused);
-        }
-        let detail = match detail {
-            Some(detail) => PyString::new(py, detail).into_any(),
-            None => py.None().into_bound(py),
-        };
-        let written = crate::checkpoint::encode_outcome(
-            event,
-            realized_minute.into_pyobject(py)?.as_any(),
-            PyString::new(py, status.as_str()).as_any(),
-            &detail,
-        )
-        .unwrap_or(None);
-        let Some(written) = written else {
-            return Ok(3);
-        };
-        self.add(py, fields, Handles::default(), Some(written.into_boxed_slice()))
-    }
-
     /// The support kinds with applied completion records for one person.
     pub(crate) fn completed_kinds(&self, py: Python<'_>, agent_id: &str) -> PyResult<Vec<String>> {
         self.with_log(py, |log| log.completed_kinds(agent_id).to_vec())

@@ -215,14 +215,9 @@ fn start_one<'py>(
 /// nothing when it refuses; the inner the walk home's, after the completion is written.
 pub(crate) fn complete_event<'py>(world: &Bound<'py, PyAny>, event: EventRef<'_, 'py>, home: Option<&Bound<'py, PyAny>>) -> PyResult<PyResult<()>> {
     let py = world.py();
-    let owned;
-    let row = match event {
-        EventRef::Row(row) => row,
-        EventRef::Object(object) => {
-            owned = EventRow::from_event(object)?.ok_or_else(|| Unsupported::new_err("the event is not a row"))?;
-            &owned
-        }
-    };
+    let EventRef::Object(object) = event;
+    let owned = EventRow::from_event(object)?.ok_or_else(|| Unsupported::new_err("the event is not a row"))?;
+    let row = &owned;
     let queues = crate::state::facility_queues::held(world)?;
     let geo = Geo::of(world)?;
     let body = namespace_held(world, intern!(py, "body_state_v1"), "the world holds another body state")?;
