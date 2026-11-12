@@ -11,15 +11,16 @@ the same texts and keep those digests. This module builds the same worlds and in
 them to `native/core/tests/data/model_steps.json`:
 
 - `worlds`: the Project screen's generated Scenario at minute 0 (`plain`), and the worlds the
-  pytest files edited from it, as variants (`core_texts.changes`): the social model's world
-  (`_small`), with every stress sensitivity 0 (`insensitive`), the information model's claims
-  (`claims`), the psychology tests' shuffled worlds (`psychology-<seed>`) and the trace tests'
-  (`trace-<seed>`).
+  pytest files edited from it, as variants (`core_texts.variant(dotted=True)`): the social
+  model's world (`_small`), with every stress sensitivity 0 (`insensitive`), the information
+  model's claims (`claims`), the psychology tests' shuffled worlds (`psychology-<seed>`) and the
+  trace tests' (`trace-<seed>`).
 - `policies`: what the Run reads of each policy object a test made (`RunCore.policies_document`'s
   entry of the controller's attribute), the same way: `stress_policy`, `information_policy` or
-  `psychology`. A policy is a variant of the one before it that needs the fewest changes.
+  `psychology`. A policy is a variant of the one added before that needs the fewest changes.
 - `social`, `information`, `psychology`, `trace`: each test's cases, with the values it drew from
-  `random.Random` (each person's stress, the deltas' stress, the final stress of the trace).
+  `random.Random` (each person's stress and each delta's by minute, the stresses the social step
+  gave every other delta of the trace).
 
 The digests stay in the Rust tests, as they stood in the pytest files.
 """
