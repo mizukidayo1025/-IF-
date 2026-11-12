@@ -1,11 +1,12 @@
-"""The trace documents in Rust (rules/trace.rs), against the Python rules' documents, bit by bit.
+"""The trace documents in Rust (rules/trace.rs), against what the Python rules wrote, bit by bit.
 
 A Run with a trace goes through the driver and its kernels. Here each model writes its files on the
-driver and with the kernels removed, and random worlds reach values no scenario does. Decision D1 of
+driver, and random worlds reach values no scenario does. Decision D1 of
 docs/rust-port/step4-plan.md: the documents keep their shape. See docs/rust-port/lanes/l6-trace.md.
 The psychology, contact and information steps have no Python rule left (lane L10): what the
 deleted rules wrote was recorded once as digests (ANSWERS), which the kernels' must equal on every
-OS.
+OS. The decision file was compared with a second Run on the Python validators until #118; since
+then it is held to the digests of what both Runs wrote (DECISION_ANSWERS).
 
 Model version 2 (step 4, L11: the pinned libm crate and the information events' draw keys)
 changed some of these results: those digests were re-recorded from the kernels of that model
@@ -16,7 +17,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import random
 import sys
 from pathlib import Path
@@ -25,14 +25,12 @@ from typing import Any
 
 import pytest
 from support.paths import BENCHMARKS
-from support.python_rules import without_kernels
 
 from sheltersim import native
 from sheltersim.core.engine import TraceLevel
 from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.world import WorldState
 from sheltersim.domain.models import SupportRequestState, SupportRequestStatus
-from sheltersim.experiments.phases.update import UpdatePhase
 from sheltersim.experiments.runner import OfflineSimulationController, run_scenario
 from sheltersim.inspection.traces import RunArtifactWriter
 from sheltersim.policies.alternatives import BoundedStressPolicy
@@ -73,8 +71,7 @@ MODELS = (
 
 # What the deleted Python steps wrote (`_social_propagation` and `_sample_information_contacts` of
 # experiments/phases at 2d8fb46, on policies/social.py, information.py and alternatives.py), as
-# sha256 of the files, recorded once on Linux. With SHELTERSIM_RECORD_CONTACT_RUNS set, the tests
-# ran those Python steps and wrote their digests to that file instead.
+# sha256 of the files, recorded once on Linux.
 # The psychology steps' (`_psychology_update` and `_record_psychology_trace` at 45a9bc9, on
 # policies/psychology.py and alternatives.py) are in PSYCHOLOGY_ANSWERS.
 ANSWERS: dict[str, str] = {
@@ -124,7 +121,6 @@ ANSWERS: dict[str, str] = {
         "a0b6387140df3ebe9cfc641f7792062c9d84b877e1147a8f7261c40ccd99517c"
     ),
 }
-_RECORD = os.environ.get("SHELTERSIM_RECORD_CONTACT_RUNS")
 PSYCHOLOGY_ANSWERS: dict[str, str] = {
     "information-evidence-aware-rumor-v1-full": (
         "67c58f9b0ec9d181559d236c0b5798526509426d7067ad2ae5c94710a9e603dc"
@@ -188,14 +184,62 @@ PSYCHOLOGY_ANSWERS: dict[str, str] = {
 }
 
 
+# The sha256 of decisions.jsonl. Until #118 a second Run with the kernels' checks replaced by the
+# Python validators (support/python_rules.py without_kernels) had to write the same bytes; these
+# are the bytes both wrote, recorded on Linux at 77eef389.
+DECISION_ANSWERS: dict[str, str] = {
+    "information-evidence-aware-rumor-v1-full": (
+        "dbef166be2fa306e5079556406a998826cf83836c9a59dc02d4ce3d4aeb8ef54"
+    ),
+    "information-hazard-information-v1-full": (
+        "6e11f5681ea5b7d805c4b7385845f062c0d864d7536b8067673d25603c809e2b"
+    ),
+    "information-hazard-information-v1-summary": (
+        "1557169dd42caaadcc890596750aa9e19a7d51f2e9ab9fd53e988caed9509185"
+    ),
+    "information-sparse-information-contact-v1-full": (
+        "62094143ed697e09ee30ebbddbe969b59a82329752631aa8619a8002f4d7e170"
+    ),
+    "psychology-bounded-stress-v1-full": (
+        "0361f25c5ed030e0411a9b5cc33c7b9c41ac7455dc6813608f6a296f302677c0"
+    ),
+    "psychology-causal-stress-v1-full": (
+        "c45e87cdd119775d0288e2446e7f14c0d710806b362b5c1614e24171ac48c0c0"
+    ),
+    "psychology-causal-stress-v1-summary": (
+        "ca42dbf6929359c52bb8a3a63be2d5bb1ba0ff491d6ad4ac36f46479cb15e2ef"
+    ),
+    "psychology-life-state-feedback-v1-full": (
+        "be07f9a11db1f210f1b4fc39be95a9c68628d11d40853ed262473286724b033e"
+    ),
+    "psychology-mean-reverting-distress-v1-full": (
+        "0e64cfe9a860c1d043849a59fa40362f9724c974b31814f4acfd0bbf7d8c1765"
+    ),
+    "psychology-mean-reverting-life-state-v1-full": (
+        "dbef166be2fa306e5079556406a998826cf83836c9a59dc02d4ce3d4aeb8ef54"
+    ),
+    "psychology-mean-reverting-life-state-v1-summary": (
+        "4a9a4f42b9abd9588caa7cf5988b83b9a31cc3940d58c4f579bb69311b4016a5"
+    ),
+    "social-degroot-contact-v1-full": (
+        "9ad47625159fd43d463eb05e2902684f0693d8b6619e318c91b2374ceba45ade"
+    ),
+    "social-degroot-contact-v1-summary": (
+        "3bce01320aa79219e75f372c0aebb65c1e52fa2121906f13cd62cb450057a74b"
+    ),
+    "social-expressiveness-channel-openness-v1-full": (
+        "dbef166be2fa306e5079556406a998826cf83836c9a59dc02d4ce3d4aeb8ef54"
+    ),
+    "social-sparse-family-zone-contact-v1-full": (
+        "790197b97362f20f5b5f07badf4a668ec6a8af4b71d6e6427b3d228935ee997d"
+    ),
+}
+
+
 def _answers(name: str, texts: list[str]) -> None:
     digest = hashlib.sha256()
     for text in texts:
         digest.update(text.encode() + b"\n")
-    if _RECORD:
-        with open(_RECORD, "a", encoding="utf-8") as file:
-            file.write(json.dumps({name: digest.hexdigest()}) + "\n")
-        return
     assert digest.hexdigest() == ANSWERS[name], name
 
 
@@ -204,21 +248,6 @@ def _psychology_answers(name: str, texts: list[str]) -> None:
     for text in texts:
         digest.update(text.encode() + b"\n")
     assert digest.hexdigest() == PSYCHOLOGY_ANSWERS[name], name
-
-
-def _python_contact_steps(patch: pytest.MonkeyPatch) -> None:
-    """Only while recording: the deleted Python steps of the contact models."""
-    from sheltersim.experiments.phases.sample import SamplePhase
-    from sheltersim.experiments.runner import OfflineSimulationController
-
-    patch.setattr(
-        OfflineSimulationController, "_social_propagation", UpdatePhase._social_propagation
-    )
-    patch.setattr(
-        OfflineSimulationController,
-        "_sample_information_contacts",
-        SamplePhase._sample_information_contacts,
-    )
 
 
 def _ticks() -> int:
@@ -244,41 +273,25 @@ def _files(directory: Path) -> dict[str, bytes | None]:
     ],
     ids=str,
 )
-def test_a_run_with_a_trace_writes_the_bytes_of_the_python_rules(
+def test_a_run_with_a_trace_writes_the_recorded_bytes(
     domain: str, model: str, level: TraceLevel, tmp_path: Path
 ) -> None:
-    """The decision file against the Python rules of a Run without the kernels; the psychology
-    and contact files, whose Python steps are gone, against what those steps wrote."""
+    """The decision file against what a Run on the Python validators wrote; the psychology and
+    contact files, whose Python steps are gone, against what those steps wrote."""
     scenario = _model_scenario(domain, model)
     before = _ticks()
-    with pytest.MonkeyPatch.context() as patch:
-        if _RECORD:
-            _python_contact_steps(patch)
-        run_scenario(scenario, tmp_path / "driver", trace_level=level)
-    if not _RECORD:
-        assert _ticks() - before == scenario.duration_minutes
+    run_scenario(scenario, tmp_path / "driver", trace_level=level)
+    assert _ticks() - before == scenario.duration_minutes
     driven = _files(tmp_path / "driver")
-    view_step = OfflineSimulationController.__dict__["_view_after_movement"]
-    with pytest.MonkeyPatch.context() as patch:
-        without_kernels(patch)
-        # The psychology trace, which has no Python step, reads a view the kernel made.
-        patch.setattr(OfflineSimulationController, "_view_after_movement", view_step)
-        run_scenario(scenario, tmp_path / "python", trace_level=level)
     assert driven["psychology_contributions.jsonl"]
+    name = f"{domain}-{model}-{level.value}"
+    decisions = driven["decisions.jsonl"]
+    assert decisions is not None
+    assert hashlib.sha256(decisions).hexdigest() == DECISION_ANSWERS[name], name
     contacts = ("social_contacts.jsonl", "information_contacts.jsonl")
     psychology = ("psychology_contributions.jsonl", "psychology_contributions_hourly.jsonl")
-    python = _files(tmp_path / "python")
-    for name, raw in python.items():
-        if name not in contacts:
-            assert driven[name] == raw, name
-    _psychology_answers(
-        f"{domain}-{model}-{level.value}",
-        [(driven[name] or b"").decode("utf-8") for name in psychology],
-    )
-    _answers(
-        f"{domain}-{model}-{level.value}",
-        [(driven[name] or b"").decode("utf-8") for name in contacts],
-    )
+    _psychology_answers(name, [(driven[file] or b"").decode("utf-8") for file in psychology])
+    _answers(name, [(driven[file] or b"").decode("utf-8") for file in contacts])
 
 
 def _shuffle(world: WorldState, draws: random.Random) -> None:

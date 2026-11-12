@@ -14,7 +14,6 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
-import os
 from pathlib import Path
 
 import pytest
@@ -27,8 +26,7 @@ from sheltersim.experiments.scenario import ScenarioSpec
 
 # What the deleted Python steps wrote (`_social_propagation` and `_sample_information_contacts` of
 # experiments/phases at 2d8fb46, on policies/social.py, information.py and alternatives.py), as
-# sha256 of the files, recorded once on Linux. With SHELTERSIM_RECORD_CONTACT_RUNS set, the tests
-# ran those Python steps and wrote their digests to that file instead.
+# sha256 of the files, recorded once on Linux.
 ANSWERS: dict[str, str] = {
     "no-weight-channel_strength": (
         "5ec6d91e11f3631f0244f2033c3dc6c9abf9863a62c05e12eabcd48d42ddfb78"
@@ -40,34 +38,13 @@ ANSWERS: dict[str, str] = {
         "97a7979480990b8511a722764d4d623ae35ffac38bcfeb12806b50d62955f13e"
     ),
 }
-_RECORD = os.environ.get("SHELTERSIM_RECORD_CONTACT_RUNS")
 
 
 def _answers(name: str, texts: list[str]) -> None:
     digest = hashlib.sha256()
     for text in texts:
         digest.update(text.encode() + b"\n")
-    if _RECORD:
-        with open(_RECORD, "a", encoding="utf-8") as file:
-            file.write(json.dumps({name: digest.hexdigest()}) + "\n")
-        return
     assert digest.hexdigest() == ANSWERS[name], name
-
-
-def _python_contact_steps(patch: pytest.MonkeyPatch) -> None:
-    """Only while recording: the deleted Python steps of the contact models."""
-    from sheltersim.experiments.phases.sample import SamplePhase
-    from sheltersim.experiments.phases.update import UpdatePhase
-    from sheltersim.experiments.runner import OfflineSimulationController
-
-    patch.setattr(
-        OfflineSimulationController, "_social_propagation", UpdatePhase._social_propagation
-    )
-    patch.setattr(
-        OfflineSimulationController,
-        "_sample_information_contacts",
-        SamplePhase._sample_information_contacts,
-    )
 
 
 def test_enabled_policy_is_checkpointable_and_writes_compact_contact_trace(
@@ -194,10 +171,7 @@ def test_generated_scenario_without_contact_weight_runs_without_propagation(
             social[f"{basis}_channel_strength"] = 0.0
     scenario = ScenarioSpec.model_validate(document)
 
-    with pytest.MonkeyPatch.context() as patch:
-        if _RECORD:
-            _python_contact_steps(patch)
-        world = run_scenario(scenario, tmp_path / "run")
+    world = run_scenario(scenario, tmp_path / "run")
     written = (tmp_path / "run" / "social_contacts.jsonl").read_text(encoding="utf-8")
     _answers(f"no-weight-{case}", [world.canonical_json(), written])
     traces = [json.loads(line) for line in written.splitlines()]
