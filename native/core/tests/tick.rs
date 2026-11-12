@@ -1,7 +1,7 @@
 //! A tick of a Run in the core (lanes P9-2a and P9-2b, `sheltersim_core::rules::tick::run_tick`): the
 //! Run's scratch begins before the dispatch, the observer sees each phase through the host in
-//! `TICK_PHASE_ORDER`, the movement the caller gives runs first in the update phase, the steps'
-//! errors carry their labels, the dispatch's refusal is its entry's `KernelRefusal`, and a phase that
+//! `TICK_PHASE_ORDER`, the movement runs first in the update phase (the core's since lane P9-3b),
+//! the steps' errors carry their labels, the dispatch's refusal is its entry's `KernelRefusal`, and a phase that
 //! moves the clock is the engine's error, with its text, before the observer hears the phase end.
 
 mod support;
@@ -17,13 +17,16 @@ use sheltersim_core::error::{Error, CLOCK};
 use sheltersim_core::events::log::EventLog;
 use sheltersim_core::events::queue::Queue;
 use sheltersim_core::events::{EventKind, EventRow, EventStatus};
-use sheltersim_core::host::{Foreign, Phase};
+use sheltersim_core::host::{Foreign, Phase, NO_PLAN};
 use sheltersim_core::rules::dispatch::RUN_PHASE;
-use sheltersim_core::rules::tick::{self, update, Failed, Prior, Seed, Step, Tick, ZoneNeighbors, RUN_TICK};
+use sheltersim_core::row::IdMap;
+use sheltersim_core::rules::kit::movement::POLICY_VERSION;
+use sheltersim_core::rules::tick::{self, update, Prior, Seed, Step, Tick, ZoneNeighbors, RUN_TICK};
 use sheltersim_core::run::dispatch::{Dispatch, Handler};
 use sheltersim_core::run::{Policies, Run, RunConfig};
 use sheltersim_core::value::V;
-use sheltersim_core::world::{Fit, World, WorldCell};
+use sheltersim_core::state::movement::MovementRow;
+use sheltersim_core::world::{Fit, Place, World, WorldCell};
 
 use support::{Call, TestHost};
 
@@ -82,17 +85,11 @@ fn calls(host: &TestHost) -> Vec<Call> {
     host.calls.iter().filter(|call| !matches!(call, Call::Holding | Call::FillSection(_))).cloned().collect()
 }
 
-/// One tick at `MINUTE` with this host and movement.
-fn ticked(
-    cell: &Shard<World>,
-    run: &RefCell<Run>,
-    policies: Arc<Policies>,
-    host: &mut TestHost,
-    movement: &mut dyn FnMut(&mut TestHost) -> Step<(), Error>,
-) -> Step<(), Error> {
+/// One tick at `MINUTE` with this host.
+fn ticked(cell: &Shard<World>, run: &RefCell<Run>, policies: Arc<Policies>, host: &mut TestHost) -> Step<(), Error> {
     let seed = Seed::Counter { text: Some(Arc::from("7")), negative: false };
     let mut tick = Tick { cell, host, run, policies, minute: MINUTE, seed, neighbors: neighbors() };
-    tick::run_tick(&mut tick, movement)
+    tick::run_tick(&mut tick)
 }
 
 #[test]
@@ -111,18 +108,11 @@ fn the_tick_begins_the_scratch_dispatches_and_starts_the_update_phase_with_the_m
             Ok(Foreign { status: EventStatus::Applied, detail: None, records: Vec::new() })
         }));
     }
-    let mut moved = Vec::new();
-    let failed = {
-        let mut movement = |host: &mut TestHost| {
-            moved.push(calls(host).len());
-            Ok(())
-        };
-        ticked(&cell, &run, policies, &mut host, &mut movement).expect_err("a world without people refuses")
-    };
+    let failed = ticked(&cell, &run, policies, &mut host).expect_err("a world without people refuses");
     assert_eq!(*seen.borrow(), vec![(text("first"), Some(MINUTE), true)]);
     // The observer saw the dispatch, with the handler inside it, and the second phase whole, then
-    // the update phase begin; the movement ran first in it, and the next step failed with its
-    // kernel's label (a Run without a controller has no psychology model).
+    // the update phase begin; the movement had nothing to walk (no `movement_v1`), and the next step
+    // failed with its kernel's label (a Run without a controller has no psychology model).
     let expected = vec![
         Call::Phase(Phase::DispatchDueEvents, true),
         Call::Foreign(text("probe")),
@@ -133,7 +123,6 @@ fn the_tick_begins_the_scratch_dispatches_and_starts_the_update_phase_with_the_m
     ];
     let made = calls(&host);
     assert_eq!(&made[..expected.len().min(made.len())], &expected[..], "{made:?}");
-    assert_eq!(moved, vec![expected.len()]);
     assert!(matches!(failed.label, Some(update::VIEW) | Some(update::PSYCHOLOGY)), "{failed:?}");
     assert_eq!(run.borrow().scratch.minute(), Some(MINUTE));
     assert_eq!(&Phase::ORDER[..], &[
@@ -159,8 +148,7 @@ fn a_dispatch_that_moves_the_clock_is_the_engine_s_error_before_the_observer_hea
             Ok(Foreign { status: EventStatus::Applied, detail: None, records: Vec::new() })
         }));
     }
-    let mut movement = |_: &mut TestHost| -> Step<(), Error> { panic!("the update phase never begins") };
-    let failed = ticked(&cell, &run, policies, &mut host, &mut movement).expect_err("the clock moved");
+    let failed = ticked(&cell, &run, policies, &mut host).expect_err("the clock moved");
     assert_eq!(failed.label, None);
     assert_eq!(failed.error, Error::Clock);
     assert_eq!(failed.error.to_string(), "tick phase attempted to change the engine-owned clock");
@@ -176,8 +164,7 @@ fn a_refusal_of_the_dispatch_is_the_kernel_refusal_of_its_entry() {
     let cell = Shard::new(bare);
     let (run, policies) = run();
     let mut host = TestHost::default();
-    let mut movement = |_: &mut TestHost| -> Step<(), Error> { panic!("the update phase never begins") };
-    let failed = ticked(&cell, &run, policies, &mut host, &mut movement).expect_err("no queue");
+    let failed = ticked(&cell, &run, policies, &mut host).expect_err("no queue");
     assert_eq!(failed.label, None);
     match &failed.error {
         Error::Refused { label, .. } => assert_eq!(label, RUN_PHASE),
@@ -187,14 +174,30 @@ fn a_refusal_of_the_dispatch_is_the_kernel_refusal_of_its_entry() {
 }
 
 #[test]
-fn an_error_of_the_movement_goes_on_as_the_caller_gave_it() {
+fn the_update_phase_walks_first_and_its_error_is_the_walk_s() {
+    // A world with `movement_v1`: the walk reads the floor plan through the host, which this host
+    // does not have, so the update phase stops at the walk with its entry's label.
     let cell = world(MINUTE, Vec::new());
+    cell.with(|world| {
+        let index = world.slots.add(text("movement_v1"), Place::Namespace).unwrap();
+        world.slots.at(index).unwrap().try_borrow_mut().unwrap().row = Some(Box::new(MovementRow {
+            schema_version: 2,
+            policy_version: text(POLICY_VERSION),
+            positions: IdMap::default(),
+            staff_positions: IdMap::default(),
+            journeys: IdMap::default(),
+            edge_usage_minutes: IdMap::default(),
+            last_updated_minute: 0,
+        }));
+    })
+    .unwrap();
     let (run, policies) = run();
     let mut host = TestHost::default();
-    let mut movement = |_: &mut TestHost| Err(Failed { label: Some("movement.advance_movement"), error: Error::Value("moved".to_owned()) });
-    let failed = ticked(&cell, &run, policies, &mut host, &mut movement).expect_err("the movement failed");
-    assert_eq!(failed.label, Some("movement.advance_movement"));
-    assert_eq!(failed.error, Error::Value("moved".to_owned()));
+    let failed = ticked(&cell, &run, policies, &mut host).expect_err("the walk has no floor plan");
+    assert_eq!(failed.label, Some(update::ADVANCE));
+    assert_eq!(failed.error, Error::unsupported(NO_PLAN));
+    let made = calls(&host);
+    assert_eq!(&made[made.len() - 2..], &[Call::Phase(Phase::UpdateAgentState, true), Call::FloorPlan]);
 }
 
 #[test]

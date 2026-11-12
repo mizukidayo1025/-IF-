@@ -216,6 +216,68 @@ impl<'py> PyHost<'py> {
         Self { world, controller: Some(controller.clone()), policies: Some(policies), observer: None, rng: None, kept: PyDict::new(py), in_flight: None, holding: None, holding_reads: 0, handler: None }
     }
 
+    /// The host of a service manager a caller holds alone (lane P9-3b: the body-less `arbitrate` of
+    /// `ToiletServiceManager` and `ResourceServiceManager`): the manager's world, and the policies of
+    /// a holder whose `name` is the manager (`types.SimpleNamespace(name=manager)`), which a read
+    /// of a policy that raised reads again.
+    pub(crate) fn of_manager(manager: &Bound<'py, PyAny>, name: &str) -> PyResult<(Self, Arc<Policies>)> {
+        let py = manager.py();
+        let world = attribute(manager, intern!(py, "world"))?;
+        let fields = PyDict::new(py);
+        fields.set_item(name, manager)?;
+        fields.set_item(intern!(py, "world"), &world)?;
+        let holder = py.import(intern!(py, "types"))?.getattr(intern!(py, "SimpleNamespace"))?.call((), Some(&fields))?;
+        let policies = crate::core::run::manager_policies(&holder);
+        Ok((Self::of_holder(&holder, policies.clone()), policies))
+    }
+
+    /// The host of a dispatcher a caller holds alone (decision D3, lane P9-3b: `EventDispatcher`'s
+    /// `dispatch_one` and `settle`): `world`, a holder whose `event_dispatcher` is the dispatcher
+    /// (`apply_foreign` finds the handler there), and policies whose every read refuses as a Run's
+    /// without a controller, but the dispatcher's handlers: each registered one the host's
+    /// (`Handler::Foreign`), so that its `apply` runs as the Python method called it. `event` is the
+    /// object the handler is handed.
+    pub(crate) fn of_dispatcher(dispatcher: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>) -> PyResult<(Self, Arc<Policies>)> {
+        use sheltersim_core::run::dispatch::{Dispatch, Handler};
+        let py = dispatcher.py();
+        let fields = PyDict::new(py);
+        fields.set_item(intern!(py, "event_dispatcher"), dispatcher)?;
+        fields.set_item(intern!(py, "world"), world)?;
+        let holder = py.import(intern!(py, "types"))?.getattr(intern!(py, "SimpleNamespace"))?.call((), Some(&fields))?;
+        let handlers = attribute(dispatcher, intern!(py, "handlers"))?;
+        let mut read = indexmap::IndexMap::new();
+        // `self.handlers.get(event.event_type)`: a value of None is no handler.
+        for (event_type, handler) in handlers.downcast::<PyDict>()?.iter() {
+            if let (Ok(event_type), false) = (event_type.downcast::<PyString>(), handler.is_none()) {
+                read.insert(Arc::<str>::from(event_type.to_str()?), Handler::Foreign);
+            }
+        }
+        let mut policies = Policies::absent();
+        policies.dispatch = Dispatch { known: Ok(true), handlers: Ok(Arc::new(read)) };
+        let policies = Arc::new(policies);
+        let host = Self::of_holder(&holder, policies.clone()).on_world(world).with_in_flight(event);
+        Ok((host, policies))
+    }
+
+    /// `world.event_log.find(event_id)` of each: the log's records, for a Python caller.
+    pub(crate) fn records_of(&self, ids: &[Arc<str>]) -> PyResult<Vec<Bound<'py, PyAny>>> {
+        let py = self.py();
+        let log = attribute(&self.world, intern!(py, "event_log"))?;
+        ids.iter().map(|id| log.call_method1(intern!(py, "find"), (&**id,))).collect()
+    }
+
+    /// `world.event_queue.find(event_id)` of each: the queue's objects of pending events, for a
+    /// Python caller of a rule that returns the events it started.
+    pub(crate) fn pending_events(&self, ids: &[Arc<str>]) -> PyResult<Bound<'py, PyTuple>> {
+        let py = self.py();
+        let queue = attribute(&self.world, intern!(py, "event_queue"))?;
+        let mut found = Vec::with_capacity(ids.len());
+        for id in ids {
+            found.push(queue.call_method1(intern!(py, "find"), (&**id,))?);
+        }
+        PyTuple::new(py, found)
+    }
+
     /// With `TickEngine.phase_observer` (None for none).
     pub(crate) fn with_observer(mut self, observer: &Bound<'py, PyAny>) -> Self {
         self.observer = (!observer.is_none()).then(|| observer.clone());
@@ -661,8 +723,13 @@ impl<'py> Host for PyHost<'py> {
         Ok(())
     }
 
-    /// `observer(TickPhase(name), before)`.
+    /// `observer(TickPhase(name), before)`. What this host read of the holding goes as the update
+    /// phase begins: its walk reads what the world holds afresh, as its PyO3 entries read it before
+    /// lane P9-3b (the reads of the holding in a tick stay as many).
     fn phase(&mut self, phase: Phase, before: bool) -> Result<(), HostError> {
+        if before && phase == Phase::UpdateAgentState {
+            self.ran_python();
+        }
         let Some(observer) = self.observer.clone() else {
             return Ok(());
         };

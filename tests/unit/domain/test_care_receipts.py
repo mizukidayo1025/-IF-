@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 from support.paths import SCENARIO_100_AGENTS, SMALL_REPLAY
+from support.receipts import care_source_ids
 
 from sheltersim.contracts.population import PersonContext
 from sheltersim.core.checkpoint import Checkpoint
@@ -21,7 +22,6 @@ from sheltersim.domain.care_receipts import (
     append_applied_care_transition,
     care_history_by_agent,
     care_history_for_agent,
-    care_source_ids_for_agent,
     ingest_applied_shared_operation_records,
     support_kind_for_agent,
 )
@@ -118,7 +118,7 @@ def test_scenario_medication_need_selects_typed_care_and_skill_matched_staff() -
     assert typed_context.care_support_needs == ("medication_support", "medical_assessment")
     world = make_world()
     assert support_kind_for_agent(world, "A001") == "medication_support"
-    source_ids = care_source_ids_for_agent(world, "A001")
+    source_ids = care_source_ids(world, "A001")
     assert "ASM-TEST-CARE-NEED-V1" in source_ids
 
     service = StaffService(world, task_duration_minutes=4, unresolved_after_minutes=20)
@@ -237,7 +237,7 @@ def test_completed_hygiene_support_applies_bounded_experimental_need_relief() ->
 
     service = StaffService(world, task_duration_minutes=4, unresolved_after_minutes=20)
     request = service.request("A001", validate_state=False)
-    source_ids = care_source_ids_for_agent(world, "A001")
+    source_ids = care_source_ids(world, "A001")
     append_applied_care_transition(
         world,
         request_id=request.request_id,
@@ -326,7 +326,7 @@ def test_completed_emotional_support_uses_resident_specific_experimental_gain() 
     agent.trust = 0.3
     service = StaffService(world, task_duration_minutes=4, unresolved_after_minutes=20)
     request = service.request("A001", validate_state=False)
-    source_ids = care_source_ids_for_agent(world, "A001")
+    source_ids = care_source_ids(world, "A001")
     append_applied_care_transition(
         world,
         request_id=request.request_id,
@@ -434,7 +434,7 @@ def test_typed_care_support_records_and_restores_experimental_state_response(
 
     service = StaffService(world, task_duration_minutes=4, unresolved_after_minutes=20)
     request = service.request("A001", validate_state=False)
-    source_ids = care_source_ids_for_agent(world, "A001")
+    source_ids = care_source_ids(world, "A001")
     append_applied_care_transition(
         world,
         request_id=request.request_id,
@@ -558,7 +558,7 @@ def test_caregiver_support_updates_only_explicit_reviewed_dependents(tmp_path: P
         household_id="G001",
         support_kind="caregiver_assistance",
         status="requested",
-        source_ids=care_source_ids_for_agent(world, "A001"),
+        source_ids=care_source_ids(world, "A001"),
     )
     assert service.assign_pending(0, validate_state=False) == (request.request_id,)
     assigned = world.support_requests[request.request_id]

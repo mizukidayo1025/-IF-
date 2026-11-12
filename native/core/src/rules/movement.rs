@@ -1386,6 +1386,55 @@ pub fn finish_through<C: WorldCell, H: Host>(cell: &C, host: &mut H, agent_id: &
     Ok(cell.with(|world| finish(world, &geo, agent_id))??)
 }
 
+// ---- advance_movement, through the host (lane P9-3b) ---------------------------------------------
+
+/// The refusal of a minute a float does not hold exactly.
+pub const MINUTE_TOO_LARGE: &str = "a minute is too large";
+
+/// `advance_movement` at `minute`, with what it reads besides the world read through the host, in
+/// the order its glue read it: the namespace held (`check_held`), the floor plan, where the staff's
+/// operations are read (`kit::staff_ops`); for a walk that reads the others, the movement section
+/// (raised at once), whether `facility_queues_v1` is held and whether `metric_state` is its slot's
+/// tree; for queue trips that replan, the rows of the events Python scheduled (`read_queue_rows`)
+/// before anything is written, and the slots the writes took out (`slots_changed`). Returns the
+/// people whose route to replan.
+pub fn advance_through<C: WorldCell, H: Host>(cell: &C, host: &mut H, minute: i64) -> std::result::Result<Vec<Arc<str>>, H::Error> {
+    use crate::rules::kit;
+    if minute.abs() >= EXACT_INT {
+        return Err(Error::unsupported(MINUTE_TOO_LARGE).into());
+    }
+    let holding = kit::holding(cell, host)?;
+    check_held(&holding)?;
+    let geo = host.floor_plan()?;
+    let staff = kit::staff_ops(host, &holding)??;
+    let tick = Tick { geo: &geo, staff: &staff };
+    let mut advanced = cell.with(|world| advance(world, &tick, minute, None))??;
+    if matches!(advanced, Advanced::NeedsInOrder) {
+        // A branch reads the walk so far: what it needs, read as the walk read it then.
+        let section = kit::section_value(cell, host, &holding, crate::config::SectionId::Movement, |configs| &configs.movement, crate::config::movement::Movement::parse)?;
+        let movement = kit::kept_of(section);
+        let movement = kit::kept(&movement)?;
+        let in_order = InOrder {
+            model: &movement.model,
+            queues: holding.held(crate::state::facility_queues::NAME, "the world holds another queue state"),
+            metric_state_held: holding.field(crate::world::METRIC_STATE),
+        };
+        advanced = cell.with(|world| advance(world, &tick, minute, Some(&in_order)))??;
+    }
+    match advanced {
+        Advanced::Done(replans) => Ok(replans),
+        Advanced::NeedsInOrder => Err(Error::unsupported("the walk in order asked for itself").into()),
+        Advanced::Planned(plan) => {
+            // The old events are read as rows from the world's queue, and settled there.
+            host.read_queue_rows()?;
+            let written = cell.with(|world| write_walk(world, plan, minute))?;
+            let (replans, taken) = written.map_err(|error| host.write_error(error))?;
+            host.slots_changed(&taken)?;
+            Ok(replans)
+        }
+    }
+}
+
 /// Whether `model_state` holds the namespace detached: its key holds the placeholder of the slot's
 /// row, so that a rule writes the row (`place_at_bed`).
 pub fn held_detached(world: &World, holding: &Holding) -> Result<bool> {

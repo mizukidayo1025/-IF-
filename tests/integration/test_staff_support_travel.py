@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import json
 
+from support.receipts import care_source_ids
+
 from sheltersim.core.checkpoint import Checkpoint
 from sheltersim.core.engine import TickEngine
 from sheltersim.core.world import WorldState
 from sheltersim.domain.care_receipts import (
     append_applied_care_transition,
-    care_source_ids_for_agent,
 )
 from sheltersim.domain.models import SupportRequestStatus
 from sheltersim.domain.population_lifecycle import current_household_id
@@ -42,7 +43,7 @@ def _request_and_assign(controller: OfflineSimulationController) -> str:
         household_id=current_household_id(world, "A001"),
         support_kind="emotional_support",
         status="requested",
-        source_ids=care_source_ids_for_agent(world, "A001"),
+        source_ids=care_source_ids(world, "A001"),
     )
     assert controller.staff_service.assign_pending(0, validate_state=False) == (receipt.request_id,)
     request = world.support_requests[receipt.request_id]
@@ -55,7 +56,7 @@ def _request_and_assign(controller: OfflineSimulationController) -> str:
         status="assigned",
         staff_id=request.assigned_staff_id,
         causation_id=request.task_id,
-        source_ids=care_source_ids_for_agent(world, "A001"),
+        source_ids=care_source_ids(world, "A001"),
     )
     world.validate()
     return receipt.request_id

@@ -33,11 +33,9 @@ use crate::core::errors;
 use crate::core::row::{attribute, exact_int, unsupported};
 use crate::core::run::{run_of, RunCore};
 use crate::core::world_core::{raw_dict_get, PyWorldCell};
-use crate::host::{HostError, PyHost};
-use crate::rules::{dispatch, movement, replan};
+use crate::host::PyHost;
+use crate::rules::dispatch;
 use crate::Unsupported;
-
-const MOVEMENT: &str = "movement_v1";
 
 /// What Python gives once.
 struct Table {
@@ -84,22 +82,8 @@ fn only<T>(py: Python<'_>, label: &str, result: PyResult<T>) -> PyResult<T> {
     })
 }
 
-/// `_update_movement`: the update phase's first step, whose inputs are still read here; the core
-/// calls it through `movement` of `run_tick`.
-fn update_movement<'py>(controller: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, minute: &Bound<'py, PyAny>) -> PyResult<()> {
-    let py = world.py();
-    let table = attribute(world, intern!(py, "model_state"))?;
-    if let Some(state) = raw_dict_get(&table, intern!(py, MOVEMENT).as_any())?.filter(|state| !state.is_none()) {
-        let moved = only(py, "movement.advance_movement", movement::advance_movement(world, minute).map(Bound::into_any))?;
-        if moved.is_truthy()? {
-            only(py, "replan.replan_journeys", replan::replan_journeys(controller, &state, &moved, minute))?;
-        }
-    }
-    Ok(())
-}
-
 /// `str(rng.seed)` of the tick's `CounterRNG`, as the core's kernels read it.
-fn seed_of(rng: &Bound<'_, PyAny>) -> PyResult<Seed> {
+pub(crate) fn seed_of(rng: &Bound<'_, PyAny>) -> PyResult<Seed> {
     let py = rng.py();
     if !rng.get_type().is(crate::rules::social_propagation::counter_rng(py)?) {
         return Ok(Seed::Other);
@@ -207,6 +191,53 @@ fn marks(controller: &Bound<'_, PyAny>, run: &RunCore) -> PyResult<()> {
     fields.set_item(intern!(py, "_tick_marks"), PyTuple::new(py, now)?)
 }
 
+/// A manager's `arbitrate` called alone (lane P9-3b, its body-less Python entry): the core's loop
+/// `arbitrate`, on a tick of the manager's world at `minute` whose policies read the manager (a
+/// Run of its own, which the loops do not read), then `world.validate()` if asked. The minute must be
+/// the world's (`mismatch`, a ValueError); a step's refusal is its entry's `KernelRefusal`, as the
+/// Python loop raised it. Returns the started events, the queue's objects.
+pub(crate) fn arbitrate_alone<'py>(
+    manager: &Bound<'py, PyAny>,
+    resource: bool,
+    minute: &Bound<'py, PyAny>,
+    rng: Option<&Bound<'py, PyAny>>,
+    validate_state: &Bound<'py, PyAny>,
+    mismatch: &'static str,
+) -> PyResult<Bound<'py, PyTuple>> {
+    let name = if resource { "resource_service" } else { "toilet_service" };
+    let py = manager.py();
+    let world = attribute(manager, intern!(py, "world"))?;
+    if minute.ne(attribute(&world, intern!(py, "minute_index"))?)? {
+        return Err(errors::value_error(mismatch));
+    }
+    let minute = exact_int(minute)?;
+    let seed = match rng {
+        Some(rng) => seed_of(rng)?,
+        None => Seed::Other,
+    };
+    let (host, policies) = PyHost::of_manager(manager, name)?;
+    let mut host = match rng {
+        Some(rng) => host.with_rng(rng),
+        None => host,
+    };
+    let cell = PyWorldCell(&world);
+    let run = std::cell::RefCell::new(sheltersim_core::run::Run::new(sheltersim_core::run::RunConfig { route_capacities: Err("the manager has no run") }));
+    let neighbors = Arc::new(ZoneNeighbors { social: Ok(HashMap::new()), information: Ok(HashMap::new()) });
+    let mut tick = core::Tick { cell: &cell, host: &mut host, run: &run, policies, minute, seed, neighbors };
+    let started = match resource {
+        true => sheltersim_core::rules::service::arbitrate(&mut tick),
+        false => sheltersim_core::rules::toilet::arbitrate(&mut tick),
+    };
+    let started = started.map_err(|failed| match failed.label {
+        Some(label) => errors::kernel_refusal(py, label, failed.error.0),
+        None => failed.error.0,
+    })?;
+    if validate_state.is_truthy()? {
+        sheltersim_core::host::Host::validate_world(&mut host).map_err(|error| error.0)?;
+    }
+    host.pending_events(&started)
+}
+
 /// One tick, or Unsupported with nothing changed. `observer(phase, before)` is `TickEngine.phase_observer`.
 #[pyfunction]
 fn run_tick<'py>(
@@ -236,17 +267,12 @@ fn run_tick<'py>(
     let neighbors = run.get().seen()?.neighbors.clone().ok_or_else(|| PyRuntimeError::new_err("the tick read no neighbors"))?;
     TICKS.fetch_add(1, Ordering::Relaxed);
     // One host for the whole tick: what it read of the holding goes at each call of it that runs
-    // Python (the observer, the movement, an LLM hook, a foreign handler).
+    // Python (the observer, an LLM hook, a foreign handler) and as the update phase begins.
     let mut host = PyHost::of_controller(controller)?.on_world(world).with_observer(observer).with_rng(rng);
     let cell = PyWorldCell(world);
     let mut tick = core::Tick { cell: &cell, host: &mut host, run: run.get(), policies, minute: minute_value, seed, neighbors };
-    let mut movement = |host: &mut PyHost<'py>| -> core::Step<(), HostError> {
-        let moved = update_movement(controller, world, minute);
-        host.ran_python();
-        moved.map_err(|error| core::Failed { label: None, error: HostError(error) })
-    };
     // The tick has begun, so the Python path must not run over it: a refusal is KernelRefusal.
-    core::run_tick(&mut tick, &mut movement).map_err(|failed| {
+    core::run_tick(&mut tick).map_err(|failed| {
         let error = match failed.label {
             Some(label) => match only(py, label, Err::<(), _>(failed.error.0)) {
                 Err(error) => error,

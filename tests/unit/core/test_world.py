@@ -346,24 +346,38 @@ def test_canonical_json_is_the_text_of_each_record_encoded_from_its_document(
     write, which is encoded from the documents as before.
     """
     from sheltersim.core.checkpoint import Checkpoint
-    from sheltersim.events.models import EventKind, ScheduledEvent
+    from sheltersim.events.models import EventKind, EventLogRecord, EventStatus, ScheduledEvent
 
     class Text(str):
         pass
 
-    def realize(world: WorldState, name: str, payload: dict[str, object]) -> None:
-        world.schedule_event(
-            ScheduledEvent(
-                event_id=name,
-                kind=EventKind.EXOGENOUS,
-                due_minute=world.minute_index,
-                priority=0,
-                sequence=world.allocate_event_sequence(),
-                event_type="unknown_canonical_test_event",
-                payload=payload,
+    def realize(
+        world: WorldState, name: str, payload: dict[str, object], *, in_python: bool = False
+    ) -> None:
+        event = ScheduledEvent(
+            event_id=name,
+            kind=EventKind.EXOGENOUS,
+            due_minute=world.minute_index,
+            priority=0,
+            sequence=world.allocate_event_sequence(),
+            event_type="unknown_canonical_test_event",
+            payload=payload,
+        )
+        world.schedule_event(event)
+        if not in_python:
+            EventDispatcher().dispatch_due(world, world.minute_index)
+            return
+        # What the dispatcher recorded, written in Python: the core's dispatcher refuses an event
+        # no row can hold (lane P9-3b of #152, decision D3).
+        world.event_queue.remove(name)
+        world.event_log.append(
+            EventLogRecord(
+                event=event,
+                realized_minute=world.minute_index,
+                status=EventStatus.FAILED,
+                detail=f"no handler registered for event type {event.event_type!r}",
             )
         )
-        EventDispatcher().dispatch_due(world, world.minute_index)
 
     def per_record_text(world: WorldState) -> str:
         return WorldState._canonical_text(world._canonical_data())
@@ -386,7 +400,7 @@ def test_canonical_json_is_the_text_of_each_record_encoded_from_its_document(
     assert restored.event_log.all_encoded()
     assert restored.canonical_json() == per_record_text(restored) == world.canonical_json()
 
-    realize(world, "canonical-str-subclass", {"text": Text("not written by Rust")})
+    realize(world, "canonical-str-subclass", {"text": Text("not written by Rust")}, in_python=True)
     assert not world.event_log.all_encoded()
     assert world.canonical_json() == per_record_text(world)
 

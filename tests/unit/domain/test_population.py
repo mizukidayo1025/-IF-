@@ -15,6 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 from support.paths import SMALL_REPLAY
+from support.receipts import care_source_ids
 from support.world import view_of
 
 from sheltersim.core.checkpoint import Checkpoint
@@ -22,7 +23,7 @@ from sheltersim.core.engine import TickPhase, TraceLevel
 from sheltersim.core.rng import CounterRNG
 from sheltersim.core.world import WorldState
 from sheltersim.domain.action_lifecycle import record_action_proposal
-from sheltersim.domain.care_receipts import care_source_ids_for_agent, support_kind_for_agent
+from sheltersim.domain.care_receipts import support_kind_for_agent
 from sheltersim.domain.population import admit_pending_arrivals, schedule_population_retry
 from sheltersim.events.effects import (
     EffectProgram,
@@ -263,7 +264,7 @@ def test_dynamic_arrival_household_context_reaches_behavior_frames_and_checkpoin
     assert dependent_context["requires_review"] is True
     assert dependent_context["care_support_needs"] == ["hygiene_support"]
     assert support_kind_for_agent(world, dependent_id) == "hygiene_support"
-    assert "ASM-TEST-DYNAMIC-ARRIVAL-V1" in care_source_ids_for_agent(world, dependent_id)
+    assert "ASM-TEST-DYNAMIC-ARRIVAL-V1" in care_source_ids(world, dependent_id)
 
     view = view_of(world)
     assert view.agents[dependent_id].caregiver_ids == (caregiver_id,)

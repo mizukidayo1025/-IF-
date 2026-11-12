@@ -157,19 +157,6 @@ def support_kind_for_agent(world: WorldState, agent_id: str) -> str:
     return "emotional_support"
 
 
-def care_source_ids_for_agent(world: WorldState, agent_id: str) -> tuple[str, ...]:
-    person = population_context_people(world).get(agent_id, {})
-    sources = person.get("source_ids", ()) if isinstance(person, dict) else ()
-    return tuple(
-        sorted(
-            {
-                "ASM-STAFF-SUPPORT-LIFECYCLE-V1",
-                *(item for item in sources if isinstance(item, str)),
-            }
-        )
-    )
-
-
 def explicit_care_dependents(
     world: WorldState, caregiver_id: str, *, household_id: str | None = None
 ) -> tuple[str, ...]:

@@ -1,11 +1,12 @@
 """An EffectProgram marker's guard in the Rust dispatch loop: the Python dispatcher's outcome.
 
-`EventDispatcher.dispatch_one` asks `effect_event_guard_or_suppress` before an event's handler. The
-loop in native/core/src/rules/dispatch.rs asks it in Rust, for every handler (lane P9-1c): a false
-guard is a suppressed event, a guard the contract turns down or with no target a failed one, each
-with the Python rule's text (saved as the record's `detail`); a guard that holds goes on to the
-handler. Each case runs an event through the Rust loop, compares all that was saved with what the
-Python step saved from it, and checks the record against the outcome the guard's Python rule gave.
+`EventDispatcher.dispatch_one` asks the guard (`should_apply_effect_guard`) before an event's
+handler. The loop in native/core/src/rules/dispatch.rs asks it in Rust, for every handler (lane
+P9-1c): a false guard is a suppressed event, a guard the contract turns down or with no target a
+failed one, each with the Python rule's text (saved as the record's `detail`); a guard that holds
+goes on to the handler. Each case runs an event through the Rust loop, compares all that was saved
+with what the Python step saved from it, and checks the record against the outcome the guard's
+Python rule gave.
 Both are gone (`kernel_only`, docs/rust-port/lanes/l8-texts-events.md, and lane L10 for the step):
 the outcome is written down from the rule, and what the step saved is a digest taken once from it
 (45a9bc9), pinned on every OS, as the gate's hashes are.

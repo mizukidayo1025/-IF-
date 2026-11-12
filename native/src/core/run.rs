@@ -324,6 +324,18 @@ fn obj_document(object: &Obj) -> V {
     document(&[("class", class), ("attrs", V::Map(attrs)), ("class_own", named(&object.class_own)), ("own", named(&object.own))])
 }
 
+/// What a holder of the service managers is read for (`manager_policies`).
+const MANAGERS: Spec = Spec::of(&[sheltersim_core::run::services::TOILET, sheltersim_core::run::services::RESOURCE, sheltersim_core::run::services::STAFF]);
+
+/// The policies of a holder of a service manager a caller holds alone (lane P9-3b: the body-less
+/// `arbitrate` of `ToiletServiceManager` and `ResourceServiceManager`): its managers read as a
+/// controller's are, and every other read refusing as a Run's without a controller.
+pub(crate) fn manager_policies(holder: &Bound<'_, PyAny>) -> Arc<Policies> {
+    let mut policies = Policies::absent();
+    policies.services = sheltersim_core::run::services::Services::of(&read_object(holder, &MANAGERS, holder));
+    Arc::new(policies)
+}
+
 /// The policies of a controller, read now, with its dispatcher (lane P9-0).
 fn read_policies(controller: &Bound<'_, PyAny>) -> Policies {
     let mut policies = Policies::of(Arc::new(read_object(controller, &CONTROLLER, controller)));

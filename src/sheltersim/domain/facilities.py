@@ -3,22 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from sheltersim.core.kernels import kernel_only
 from sheltersim.core.rng import KeyedRandom
-from sheltersim.core.world import StateInvariantError, WorldState
-from sheltersim.domain.facility_queues import (
-    FACILITY_QUEUES_STATE_KEY,
-    facility_has_independent_queues,
-    point_for_queue,
-    queue_ids_for_facility,
-)
-from sheltersim.domain.movement import (
-    progress_physical_queue_head_to_service,
-    progress_physical_queue_positions,
-)
-from sheltersim.domain.queueing import prepare_facility_queue, prepare_independent_facility_queue
+from sheltersim.core.world import WorldState
 from sheltersim.events.models import ScheduledEvent
 
 TOILET_SERVICE_POLICY_VERSION = "toilet-service-uniform-v1"
@@ -98,6 +87,7 @@ class ToiletServiceManager:
         if phase == "arbitrate_actions":
             self.arbitrate(minute, rng)
 
+    @kernel_only("toilet", "arbitrate")
     def arbitrate(
         self,
         minute: int,
@@ -105,97 +95,38 @@ class ToiletServiceManager:
         *,
         validate_state: bool = True,
     ) -> tuple[ScheduledEvent, ...]:
-        """Start as many FIFO requests as operational capacity permits."""
-        world = self.world
-        if minute != world.minute_index:
-            raise ValueError("facility arbitration minute must match WorldState")
-        started: list[ScheduledEvent] = []
-        for facility in self._facilities_to_serve():
-            if facility_has_independent_queues(world, facility.id):
-                started.extend(self._arbitrate_independent_facility(facility, minute, rng))
-                continue
-            prepare_facility_queue(world, facility.id, resource=False, minute=minute)
-            while self._has_room(facility.id):
-                if progress_physical_queue_positions(
-                    world, facility.id, resource=False, minute=minute
-                ):
-                    break
-                if progress_physical_queue_head_to_service(
-                    world, facility.id, resource=False, minute=minute
-                ):
-                    break
-                event_id = self._start_head(facility.id, minute, rng)
-                if event_id is None:
-                    break
-                started.append(world.event_queue.find(event_id))
+        """Start as many FIFO requests as operational capacity permits; the started events.
 
-        if validate_state:
-            world.validate()
-        return tuple(started)
+        `minute` must equal `world.minute_index` (ValueError "facility arbitration minute must
+        match WorldState"). Then each toilet facility (kind folded) with someone in its shared queue
+        or one of its independent queues, in ID order:
 
-    @kernel_only("toilet", "has_room")
-    def _has_room(self, facility_id: str) -> bool:
-        """Whether someone is in the facility's shared queue and fewer are in service than its
-        `physical_service_capacity` of its working units. Not for independent queues."""
-
-    @kernel_only("toilet", "start_head")
-    def _start_head(self, facility_id: str, minute: int, rng: KeyedRandom) -> str | None:
-        """The head of the shared queue starts its service, if it can finish in the Run.
+        - A facility with independent queues serves each queue in turn: the queue is prepared, its
+          signed point must still exist (StateInvariantError "service queue 'Q' lost its signed
+          point"), and while it has someone queued its positions move on, then its head starts its
+          service, until either stops the queue. A full point (its `physical_service_capacity`) or
+          facility (its capacity and working units) marks a "capacity" stall; a head still walking
+          to the point stops the queue. A point that asks staff skills takes the first free,
+          available staff member of the facility's zone with them, by ID, else a "staff" stall.
+          The queue's request starts with its "service_started" transition.
+        - Any other facility's shared queue is prepared, and while someone is queued and fewer are
+          in service than its `physical_service_capacity` of its working units, the positions and
+          then the head move on, and the head starts its service.
 
         A head without exactly one toilet queue task at the facility, or one queued after `minute`,
         is refused (KernelRefusal): the world's validation keeps these out. The service lasts
         `min_service_minutes` + int(draw * span), at most `max_service_minutes`, with the draw of
-        `rng` at ("toilet-service", facility, agent, "minute", minute, policy_version, "duration");
-        a draw outside 0..1 is a ValueError ("keyed RNG draw must be between zero and one"). A
-        service that would end at or past the Run's end starts nothing: None, the queue in order.
-        Otherwise the head leaves the queue for the facility's active list, the queue task becomes a
-        toilet_service task "toilet-service-<sequence>" with its toilet_service_complete event
+        `rng` at ("toilet-service", facility, agent, "minute", minute, policy_version, "duration"),
+        the queue ID last for an independent queue; a draw outside 0..1 is a ValueError ("keyed RNG
+        draw must be between zero and one"). A service that would end at or past the Run's end
+        starts nothing (an independent queue marks a "run_end" stall). Otherwise the head leaves
+        the queue for the facility's active list, the queue task becomes a toilet_service task
+        "toilet-service-<sequence>" with its toilet_service_complete event
         "toilet-complete-<sequence>" (its provenance: the duration, the wait, the key and the draw),
         the person is in service, and the wait is counted in toilet_wait_count,
-        toilet_wait_total_minutes and toilet_wait_max_minutes. Returns the event's ID.
-        """
+        toilet_wait_total_minutes and toilet_wait_max_minutes. With `validate_state` the world is
+        validated after.
 
-    @kernel_only("toilet", "facilities_to_serve")
-    def _facilities_to_serve(self) -> list[Any]:
-        """The toilet facilities (kind folded) with someone in their shared queue or one of their
-        independent queues, in ID order: one with nobody queued does nothing in `arbitrate`."""
-
-    def _arbitrate_independent_facility(
-        self, facility: object, minute: int, rng: KeyedRandom
-    ) -> list[ScheduledEvent]:
-        world = self.world
-        queue_state = world.model_state[FACILITY_QUEUES_STATE_KEY]
-        started: list[ScheduledEvent] = []
-        for queue_id in queue_ids_for_facility(world, facility.id):
-            prepare_independent_facility_queue(world, queue_id, minute=minute, resource=False)
-            queue = queue_state["queues"][queue_id]
-            if point_for_queue(world, queue_id) is None:
-                raise StateInvariantError(f"service queue {queue_id!r} lost its signed point")
-            while queue["queued_request_ids"]:
-                if progress_physical_queue_positions(
-                    world, facility.id, resource=False, minute=minute, queue_id=queue_id
-                ):
-                    break
-                event_id = self._serve_independent_head(facility.id, queue_id, minute, rng)
-                if event_id is None:
-                    break
-                started.append(world.event_queue.find(event_id))
-        return started
-
-    @kernel_only("toilet", "serve_independent_head")
-    def _serve_independent_head(
-        self, facility_id: str, queue_id: str, minute: int, rng: KeyedRandom
-    ) -> str | None:
-        """The head of one independent queue starts its service: the event's ID, or None to stop.
-
-        A full point (its `physical_service_capacity`) or facility (its capacity and working units)
-        marks a "capacity" stall; a head still walking to the point stops the queue. A queue that
-        lost its toilet queue task, a wait in the future or a person missing from the facility's
-        list is refused (KernelRefusal): the world's validation keeps these out. The duration is
-        drawn as in `_start_head`, with the queue ID last in the key; a service past the Run's end
-        marks a "run_end" stall. A point that asks staff skills takes the first free, available
-        staff member of the facility's zone with them, by ID, else a "staff" stall. Then the person
-        leaves the facility's queue list for its active list, the task and its event are made as
-        in `_start_head` (with the staff member and the queue ID), the staff member works it, the
-        queue's request starts with its "service_started" transition, and the wait is counted.
+        The loop is the core's (native/core/src/rules/toilet.rs, lane P9-3b of #152); a step's
+        refusal raises KernelRefusal with the step's name ("toilet.start_head refused: ...").
         """

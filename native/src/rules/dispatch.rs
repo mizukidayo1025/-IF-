@@ -353,8 +353,73 @@ fn stats<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyDict>, Bound<'py, PyDic
     Ok((counts, reasons))
 }
 
+// ---- A dispatcher a caller holds alone (decision D3, lane P9-3b) -------------------------------------
+
+/// A tick of `minute` on `world` for the dispatcher alone: its host and policies
+/// (`PyHost::of_dispatcher`), and a Run of its own, which nothing reads.
+fn alone<'py, T>(
+    dispatcher: &Bound<'py, PyAny>,
+    world: &Bound<'py, PyAny>,
+    event: &Bound<'py, PyAny>,
+    minute: &Bound<'py, PyAny>,
+    f: impl FnOnce(&mut Tick<'_, PyWorldCell<'_, 'py>, PyHost<'py>, std::cell::RefCell<sheltersim_core::run::Run>>, &sheltersim_core::events::EventRow) -> Result<T, HostError>,
+) -> PyResult<(T, PyHost<'py>)> {
+    use crate::state::events::EventRowPy;
+    let minute = exact_int(minute)?;
+    let row = sheltersim_core::events::EventRow::from_event(event)?.ok_or_else(|| Unsupported::new_err(core::NO_ROW))?;
+    let (mut host, policies) = PyHost::of_dispatcher(dispatcher, world, event)?;
+    let cell = PyWorldCell(world);
+    let run = std::cell::RefCell::new(sheltersim_core::run::Run::new(sheltersim_core::run::RunConfig { route_capacities: Err("the dispatcher has no run") }));
+    let neighbors = Arc::new(ZoneNeighbors { social: Ok(Default::default()), information: Ok(Default::default()) });
+    let found = {
+        let mut tick = Tick { cell: &cell, host: &mut host, run: &run, policies, minute, seed: Seed::Other, neighbors };
+        f(&mut tick, &row)
+    };
+    Ok((found.map_err(|error| error.0)?, host))
+}
+
+/// `EventDispatcher.dispatch_one` without its `after_event`: the core's (`one_alone`). The records of
+/// the event, the event's first, or none where it left the queue or was replaced.
+#[pyfunction]
+fn dispatch_one<'py>(
+    dispatcher: &Bound<'py, PyAny>,
+    world: &Bound<'py, PyAny>,
+    event: &Bound<'py, PyAny>,
+    minute: &Bound<'py, PyAny>,
+) -> PyResult<Vec<Bound<'py, PyAny>>> {
+    let (ids, host) = alone(dispatcher, world, event, minute, |tick, row| core::one_alone(tick, row))?;
+    match ids {
+        Some(ids) => host.records_of(&ids),
+        None => Ok(Vec::new()),
+    }
+}
+
+/// `EventDispatcher.settle`: the core's (`settle_alone`). The log's record of the event.
+#[pyfunction]
+fn settle<'py>(
+    dispatcher: &Bound<'py, PyAny>,
+    world: &Bound<'py, PyAny>,
+    event: &Bound<'py, PyAny>,
+    minute: &Bound<'py, PyAny>,
+    status: &Bound<'py, PyAny>,
+    detail: &Bound<'py, PyAny>,
+) -> PyResult<Bound<'py, PyAny>> {
+    let py = dispatcher.py();
+    let status = crate::core::row::exact_str(&attribute(status, intern!(py, "value"))?)
+        .ok()
+        .and_then(sheltersim_core::events::EventStatus::parse)
+        .ok_or_else(|| Unsupported::new_err("a status is not an EventStatus"))?;
+    let detail = if detail.is_none() { None } else { Some(crate::core::row::exact_str(detail)?.to_owned()) };
+    let ((), host) = alone(dispatcher, world, event, minute, |tick, row| core::settle_alone(tick, row, status, detail.as_deref()))?;
+    let id: Arc<str> = Arc::from(crate::core::row::exact_str(&attribute(event, intern!(py, "event_id"))?)?);
+    let mut found = host.records_of(&[id])?;
+    found.pop().ok_or_else(|| Unsupported::new_err("the record went"))
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run_phase, m)?)?;
+    m.add_function(wrap_pyfunction!(dispatch_one, m)?)?;
+    m.add_function(wrap_pyfunction!(settle, m)?)?;
     m.add_function(wrap_pyfunction!(sync_movement, m)?)?;
     m.add_function(wrap_pyfunction!(consider_contact, m)?)?;
     m.add_function(wrap_pyfunction!(install_table, m)?)?;

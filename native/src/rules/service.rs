@@ -459,7 +459,24 @@ pub(crate) fn append_outcome(world: &Bound<'_, PyAny>, record: RequestRecord) ->
     with_world(world, |world| core::append_outcome(world, &service, record))?.or_py()
 }
 
+/// `ResourceServiceManager.arbitrate`: the core's loop (lane P9-3b). The random source is not read:
+/// a service's duration is a versioned fixed assumption.
+#[pyfunction]
+#[pyo3(signature = (manager, minute, rng=None, *, validate_state=None))]
+fn arbitrate<'py>(
+    manager: &Bound<'py, PyAny>,
+    minute: &Bound<'py, PyAny>,
+    rng: Option<&Bound<'py, PyAny>>,
+    validate_state: Option<&Bound<'py, PyAny>>,
+) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+    let _ = rng;
+    let py = manager.py();
+    let validate_state = validate_state.cloned().unwrap_or_else(|| pyo3::types::PyBool::new(py, true).to_owned().into_any());
+    crate::rules::tick::arbitrate_alone(manager, true, minute, None, &validate_state, "resource service arbitration minute must match WorldState")
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(arbitrate, m)?)?;
     m.add_function(wrap_pyfunction!(facilities_to_serve, m)?)?;
     m.add_function(wrap_pyfunction!(serve_head, m)?)?;
     m.add_function(wrap_pyfunction!(serve_independent_head, m)?)?;

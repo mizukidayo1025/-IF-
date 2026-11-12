@@ -6,9 +6,7 @@ each class by identity (`_sample_information_contacts` of experiments/phases/sam
 
 from __future__ import annotations
 
-from typing import Any
-
-from sheltersim.domain.models import InformationBeliefStatus, InformationSpreadConfig
+from sheltersim.domain.models import InformationSpreadConfig
 
 
 class InformationSpreadPolicy:
@@ -25,33 +23,6 @@ class InformationSpreadPolicy:
 
     def __init__(self, config: InformationSpreadConfig) -> None:
         self.config = config
-
-    def record_support_request(
-        self,
-        runtime_state: dict[str, Any],
-        *,
-        agent_id: str,
-        request_id: str,
-        minute: int,
-    ) -> None:
-        """Tie a real staff request to the unresolved information that raised its signal."""
-        message_ids = sorted(
-            message_id
-            for message_id, belief in runtime_state["beliefs"][agent_id].items()
-            if belief["belief"] == InformationBeliefStatus.HEARD.value
-        )
-        if not message_ids:
-            return
-        runtime_state["support_requests"].append(
-            {
-                "request_id": request_id,
-                "agent_id": agent_id,
-                "minute": minute,
-                "message_ids": message_ids,
-            }
-        )
-        runtime_state["counters"]["support_requests"] += 1
-        runtime_state["query_pressure"][agent_id] = 0.0
 
 
 class EvidenceAwareInformationPolicy(InformationSpreadPolicy):

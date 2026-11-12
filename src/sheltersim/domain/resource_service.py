@@ -3,20 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from sheltersim import native
 from sheltersim.core.kernels import kernel_only
 from sheltersim.core.state_mirror import register_rust_validator
-from sheltersim.core.world import StateInvariantError, WorldState
-from sheltersim.domain.facility_queues import (
-    FACILITY_QUEUES_STATE_KEY,
-    facility_has_independent_queues,
-    point_for_queue,
-    queue_ids_for_facility,
-)
-from sheltersim.domain.movement import progress_physical_queue_positions
-from sheltersim.domain.queueing import prepare_facility_queue, prepare_independent_facility_queue
+from sheltersim.core.world import WorldState
 from sheltersim.domain.resources import RESOURCE_LEDGER_KEY
 from sheltersim.events.models import ScheduledEvent
 
@@ -79,6 +71,7 @@ class ResourceServiceManager:
         target, the "queued" outcome is recorded, and the receipt gives the place in the queue.
         """
 
+    @kernel_only("service", "arbitrate")
     def arbitrate(
         self,
         minute: int,
@@ -86,36 +79,28 @@ class ResourceServiceManager:
         *,
         validate_state: bool = True,
     ) -> tuple[ScheduledEvent, ...]:
-        """Start available FIFO heads in stable facility and staff ID order."""
-        del rng  # Service duration is a versioned fixed assumption, not a random draw.
-        world = self.world
-        if minute != world.minute_index:
-            raise ValueError("resource service arbitration minute must match WorldState")
-        started: list[ScheduledEvent] = []
-        for facility, resource_id in self._facilities_to_serve():
-            if facility_has_independent_queues(world, facility.id):
-                started.extend(self._arbitrate_independent_facility(facility, resource_id, minute))
-                continue
-            prepare_facility_queue(world, facility.id, resource=True, minute=minute)
-            while facility.resource_queue_agent_ids:
-                if progress_physical_queue_positions(
-                    world, facility.id, resource=True, minute=minute
-                ):
-                    break
-                event_id = self._serve_head(facility.id, resource_id, minute)
-                if event_id is None:
-                    break
-                started.append(world.event_queue.find(event_id))
-        if validate_state:
-            world.validate()
-        return tuple(started)
+        """Start available FIFO heads in stable facility and staff ID order; the started events.
 
-    @kernel_only("service", "facilities_to_serve")
-    def _facilities_to_serve(self) -> list[tuple[Any, str]]:
-        """The resource facilities in ID order, with the resource of each.
+        `rng` is not read: a service's duration is a versioned fixed assumption. `minute` must
+        equal `world.minute_index` (ValueError "resource service arbitration minute must match
+        WorldState"). Then each resource facility in ID order, with the resource of each, that has
+        someone in its own list or in one of its independent queues:
 
-        Only those with someone in their own list or in one of their independent queues: an
-        empty queue starts nothing.
+        - A facility with independent queues serves each queue in turn: the queue is prepared, its
+          signed point must still exist (StateInvariantError "resource queue 'Q' lost its signed
+          point"), and while it has someone queued its positions move on, then its head is served
+          (`_serve_head`, with the point's capacity and required staff skills, and the queue's
+          request starting with a "service_started" transition), until either stops the queue.
+          Each queue's head may wait for its own reason ("outage", "capacity", "staff", "stock",
+          "run_end"); the facility keeps one: a still-waiting head's record, else the first stalled
+          queue's head (recording every queue's head in turn would log a new stall each minute
+          while two queues both wait, #118).
+        - Any other facility's own list is prepared, and while it has people its positions move
+          on, then its head is served (`_serve_head`).
+
+        With `validate_state` the world is validated after. The loop is the core's
+        (native/core/src/rules/service.rs, lane P9-3b of #152); a step's refusal raises
+        KernelRefusal with the step's name ("service.serve_head refused: ...").
         """
 
     @kernel_only("service", "serve_head")
@@ -129,58 +114,6 @@ class ResourceServiceManager:
         it for `service_minutes`: the completion event is scheduled ("resource event identity ... is
         not unique" if taken), the stock is reserved under the task's ID (its audit event
         "resource-reserve-N" is recorded applied), and the wait is counted.
-        """
-
-    def _arbitrate_independent_facility(
-        self, facility: object, resource_id: str, minute: int
-    ) -> list[ScheduledEvent]:
-        world = self.world
-        queue_state = world.model_state[FACILITY_QUEUES_STATE_KEY]
-        started: list[ScheduledEvent] = []
-        # Each queue's head may wait for its own reason; the facility keeps one of them.
-        stalls: list[tuple[str, str]] = []
-        previous = world.model_state[SERVICE_STATE_KEY]["stall_state"].get(facility.id)
-        for queue_id in queue_ids_for_facility(world, facility.id):
-            prepare_independent_facility_queue(world, queue_id, minute=minute, resource=True)
-            queue = queue_state["queues"][queue_id]
-            if point_for_queue(world, queue_id) is None:
-                raise StateInvariantError(f"resource queue {queue_id!r} lost its signed point")
-            while queue["queued_request_ids"]:
-                if progress_physical_queue_positions(
-                    world, facility.id, resource=True, minute=minute, queue_id=queue_id
-                ):
-                    break
-                event_id, stall = self._serve_independent_head(
-                    facility.id, resource_id, queue_id, minute
-                )
-                if stall is not None:
-                    stalls.append(stall)
-                if event_id is None:
-                    break
-                started.append(world.event_queue.find(event_id))
-        self._record_independent_queue_stall(facility.id, stalls, previous)
-        return started
-
-    @kernel_only("service", "serve_independent_head")
-    def _serve_independent_head(
-        self, facility_id: str, resource_id: str, queue_id: str, minute: int
-    ) -> tuple[str | None, tuple[str, str] | None]:
-        """The head of one independent queue starts its service, if nothing holds it.
-
-        The started event's ID or None to stop the queue, and why the head waits, if it does
-        (the queue's stall is marked: "outage", "capacity", "staff", "stock", "run_end"). The
-        point's capacity and required staff skills apply too. As `_serve_head` otherwise, and
-        the queue request starts its service with a "service_started" transition.
-        """
-
-    @kernel_only("service", "record_independent_stall")
-    def _record_independent_queue_stall(
-        self, facility_id: str, stalls: list[tuple[str, str]], previous: dict[str, str] | None
-    ) -> None:
-        """Keep a still-waiting head's record, else record the first stalled queue's head.
-
-        Recording every queue's head in turn would log a new stall each minute while
-        two queues both wait, and count each wait reason again every minute (#118).
         """
 
     @kernel_only("service", "complete")

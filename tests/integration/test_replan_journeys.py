@@ -13,13 +13,13 @@ import hashlib
 from typing import Any
 
 import pytest
+from support.receipts import care_source_ids
 
 from sheltersim import native
 from sheltersim.core.kernels import KernelRefusal
 from sheltersim.core.world import WorldState
 from sheltersim.domain.care_receipts import (
     append_applied_care_transition,
-    care_source_ids_for_agent,
 )
 from sheltersim.domain.geometry_overlay import GEOMETRY_OVERLAY_KEY, reserve_sleep_bed
 from sheltersim.domain.models import Activity, SupportRequestStatus, ZoneEdgeState
@@ -349,6 +349,14 @@ def _room_with_a_bed(world: WorldState) -> dict[str, float]:
     return bed
 
 
+# The worlds of the tests below have the room of `_room_with_a_bed`, whose event a dispatcher
+# alone records: since lane P9-3b of #152 the core does (`EventDispatcher.dispatch_one`, decision
+# D3), and the log's Python record is read back from its canonical bytes, so the effect's nested
+# `parameters` come in canonical key order there (as for the controller's dispatch since P9-1c).
+# Their digests were taken again for that; every other part of the data, and the saved bytes, are
+# what the Python step made.
+
+
 def _walk_to_a_bed(world: WorldState) -> dict[str, Any]:
     """A001 on the walk that `sleep` starts."""
     controller = _controller(world)
@@ -374,7 +382,7 @@ def test_a_walk_to_a_bed_has_a_new_path(generated_scenario: Any) -> None:
     _room_with_a_bed(world)
     old = dict(_walk_to_a_bed(world))
     world.model_state[KEY]["positions"]["A001"]["point"]["x"] += 0.2
-    _replanned(world, ("A001",), 1, "2bf07a168417f468")
+    _replanned(world, ("A001",), 1, "1a628ec8624f318d")
     journey = world.model_state[KEY]["journeys"]["A001"]
     assert journey["purpose"] == "sleep_bed"
     assert journey["event_id"] != old["event_id"]
@@ -385,7 +393,7 @@ def test_a_walk_to_a_bed_that_arrived_sleeps_there(generated_scenario: Any) -> N
     bed = _room_with_a_bed(world)
     _walk_to_a_bed(world)
     world.model_state[KEY]["positions"]["A001"]["point"] = dict(bed)
-    _replanned(world, ("A001",), 1, "d64b769f6a133e6b")
+    _replanned(world, ("A001",), 1, "039a4c6313929006")
     assert world.agents["A001"].activity is Activity.SLEEPING
     assert world.model_state[KEY]["positions"]["A001"]["progress"] == 1.0
 
@@ -395,7 +403,7 @@ def test_a_walk_to_a_bed_past_the_end_of_the_run_gives_it_up(generated_scenario:
     _room_with_a_bed(world)
     _walk_to_a_bed(world)
     world.duration_minutes = 3
-    _replanned(world, ("A001",), 1, "4ebefdf01c3c0bd7")
+    _replanned(world, ("A001",), 1, "57ef20709add8ba5")
     assert world.agents["A001"].activity is Activity.SLEEPING
     assert "A001" not in world.model_state[GEOMETRY_OVERLAY_KEY]["bed_reservations"]
     assert world.metric_state["movement_replan_blocked_count"] == 1.0
@@ -408,7 +416,7 @@ def test_a_walk_to_a_room_that_went_gives_it_up(generated_scenario: Any) -> None
     overlay = world.model_state[GEOMETRY_OVERLAY_KEY]
     overlay["bed_reservations"].clear()
     overlay["temporary_rooms"].clear()
-    _replanned(world, ("A001",), 1, "c0f2b22e1af2cd51")
+    _replanned(world, ("A001",), 1, "7ccab4a67ee1f02f")
     assert world.metric_state["movement_replan_blocked_count"] == 1.0
     assert world.agents["A001"].activity is Activity.SLEEPING
 
@@ -428,7 +436,7 @@ def _assigned_support(scenario: Any) -> tuple[WorldState, str]:
         household_id=current_household_id(world, "A001"),
         support_kind="emotional_support",
         status="requested",
-        source_ids=care_source_ids_for_agent(world, "A001"),
+        source_ids=care_source_ids(world, "A001"),
     )
     assert controller.staff_service.assign_pending(0, validate_state=False) == (receipt.request_id,)
     request = world.support_requests[receipt.request_id]
@@ -441,7 +449,7 @@ def _assigned_support(scenario: Any) -> tuple[WorldState, str]:
         status="assigned",
         staff_id=request.assigned_staff_id,
         causation_id=request.task_id,
-        source_ids=care_source_ids_for_agent(world, "A001"),
+        source_ids=care_source_ids(world, "A001"),
     )
     assert world.model_state[KEY]["journeys"]["A001"]["purpose"] == "staff_support_travel"
     world.minute_index = 1

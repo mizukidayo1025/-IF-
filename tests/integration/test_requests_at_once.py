@@ -348,9 +348,18 @@ def test_a_request_records_the_heard_claims_on_the_tree_as_the_python_rule_does(
         controller, _proposal(ActionKind.SEEK_INFORMATION, "A001", world)
     )
     assert committed is True
-    InformationSpreadPolicy(InformationSpreadConfig(enabled=True)).record_support_request(
-        expected, agent_id="A001", request_id=target, minute=world.minute_index
+    # What the deleted Python `record_support_request` wrote: the request tied to the heard claims
+    # in ID order, the counter, and the person's query pressure back to 0.0.
+    expected["support_requests"].append(
+        {
+            "request_id": target,
+            "agent_id": "A001",
+            "minute": world.minute_index,
+            "message_ids": ["m1", "m2"],
+        }
     )
+    expected["counters"]["support_requests"] += 1
+    expected["query_pressure"]["A001"] = 0.0
     assert world.model_state[INFORMATION] is tree
     assert json.dumps(tree) == json.dumps(expected)
     assert tree["support_requests"][-1]["message_ids"] == ["m1", "m2"]
