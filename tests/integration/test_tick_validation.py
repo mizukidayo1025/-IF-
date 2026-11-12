@@ -13,12 +13,13 @@ import copy
 from dataclasses import replace
 
 import pytest
+from support.world import driven_ticks, watching_phases
 
 from sheltersim.core import state_mirror
 from sheltersim.core.engine import TickEngine, TickPhase
 from sheltersim.core.world import StateInvariantError, WorldState
 from sheltersim.domain.models import SupportRequestState, SupportRequestStatus
-from sheltersim.experiments.runner import OfflineSimulationController, run_scenario
+from sheltersim.experiments.runner import run_scenario
 from sheltersim.experiments.scenario import ScenarioSpec
 
 
@@ -483,21 +484,24 @@ def _assert_scans_agree(world: WorldState) -> None:
 
 
 def test_the_unsettled_requests_equal_a_scan_in_every_tick_phase(
-    generated_scenario, tmp_path, monkeypatch
+    generated_scenario, tmp_path
 ) -> None:
     document = generated_scenario.model_dump(mode="json")
     document["duration_minutes"] = 480
-    original = OfflineSimulationController._run_phase
     open_seen = [0]
+    phases = [0]
 
-    def checked(self, phase, world, minute, rng):
-        original(self, phase, world, minute, rng)
-        _assert_scans_agree(world)
-        open_seen[0] += len(_unsettled_scan(world))
+    def checked(engine, phase, before):
+        if not before:
+            _assert_scans_agree(engine.world)
+            open_seen[0] += len(_unsettled_scan(engine.world))
+            phases[0] += 1
 
-    monkeypatch.setattr(OfflineSimulationController, "_run_phase", checked)
-    run_scenario(ScenarioSpec.model_validate(document), tmp_path)
-    assert open_seen[0] > 0
+    ticks = driven_ticks()
+    with watching_phases(checked):
+        run_scenario(ScenarioSpec.model_validate(document), tmp_path)
+    assert driven_ticks() - ticks == 480
+    assert phases[0] == 480 * 7 and open_seen[0] > 0
 
 
 def test_a_reopened_request_is_seen_in_the_order_of_the_dict(finished_world) -> None:

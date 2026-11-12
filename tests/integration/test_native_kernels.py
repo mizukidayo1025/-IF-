@@ -14,6 +14,7 @@ import json
 import struct
 
 import pytest
+from support.world import driven_ticks, watching_phases
 
 from sheltersim import native
 from sheltersim.core.engine import TraceLevel
@@ -33,27 +34,39 @@ PSYCHOLOGY_DELTAS = "842c8f23bf0c3e3ce2a8b971ca3bc742cc6c263cedaa52918c04e2e6d3b
 
 
 def test_the_psychology_kernel_gives_the_deltas_of_the_deleted_python_step(
-    generated_scenario, tmp_path, monkeypatch
+    generated_scenario, tmp_path
 ) -> None:
-    from sheltersim.experiments.runner import OfflineSimulationController
+    """The step's kernel on the world as each tick's update phase finds it.
+
+    The driver gives the step the view after the movement. In this Run the movement replans no
+    trip, so it moves only the points of the walks, which the step doesn't read: the view before
+    it is the same for the step. The kernel reads the people's values from the world, so it is
+    asked before the phase writes them.
+    """
+    from sheltersim.core.engine import TickPhase
 
     document = generated_scenario.model_dump(mode="json")
     document["duration_minutes"] = 360
     scenario = ScenarioSpec.model_validate(document)
     compared = []
     digest = hashlib.sha256()
-    kernel = OfflineSimulationController._psychology_update
 
-    def checked(self, view, minute):
-        result = kernel(self, view, minute)
+    def checked(engine, phase, before):
+        if phase is not TickPhase.UPDATE_AGENT_STATE or not before:
+            return
+        controller = engine.phase_handler
+        view = controller._view_after_movement(engine.world)
+        result = controller._psychology_update(view, view.minute_index)
         for delta in result.deltas:
             text = json.dumps([getattr(delta, name) for name in delta.__dataclass_fields__])
             digest.update(text.encode() + b"\n")
-        compared.append(minute)
-        return result
+        compared.append(view.minute_index)
 
-    monkeypatch.setattr(OfflineSimulationController, "_psychology_update", checked)
-    run_scenario(scenario, tmp_path, trace_level=TraceLevel.OFF)
+    ticks = driven_ticks()
+    with watching_phases(checked):
+        world = run_scenario(scenario, tmp_path, trace_level=TraceLevel.OFF)
+    assert driven_ticks() - ticks == 360
+    assert world.metric_state.get("movement_replan_count", 0) == 0
     assert compared == list(range(360))
     assert digest.hexdigest() == PSYCHOLOGY_DELTAS
 

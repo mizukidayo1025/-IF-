@@ -18,7 +18,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from support.world import view_of
+from support.world import driven_ticks, view_of
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine, TraceLevel
@@ -535,34 +535,15 @@ def test_a_body_namespace_without_a_row_is_refused(generated_scenario: Any) -> N
 # ---- Whole ticks ---------------------------------------------------------------------------------
 
 
-def _counted_ticks(scenario: Any, minutes: int) -> tuple[WorldState, dict[str, int]]:
-    world = WorldState.from_scenario(scenario)
-    controller = OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
-    engine = TickEngine(world, phase_handler=controller)
-    counts = {"update": 0, "apply": 0}
-    rules = _rules()
-    update, apply = rules.update_psychology, rules.apply_deltas
-
-    def counted_update(view: Any, minute: int) -> Any:
-        counts["update"] += 1
-        return update(controller, view, minute)
-
-    def counted_apply(target: Any, deltas: Any) -> None:
-        counts["apply"] += 1
-        apply(controller, target, deltas)
-
-    # The steps through Python, so the counts see each call.
-    controller._psychology_update = counted_update
-    controller._apply_state_deltas = counted_apply
-    for _ in range(minutes):
-        engine.step()
-    return world, counts
-
-
 def test_ticks_run_in_the_kernels_and_make_the_world_of_the_deleted_rules(
     generated_scenario: Any,
 ) -> None:
-    world, counts = _counted_ticks(generated_scenario, 40)
-    assert counts == {"update": 40, "apply": 40}
+    world = WorldState.from_scenario(generated_scenario)
+    controller = OfflineSimulationController(world, _MetricSink(MetricsRecorder()))
+    engine = TickEngine(world, phase_handler=controller)
+    ticks = driven_ticks()
+    engine.run(steps=40)
+    # The driver ran each tick, and its update phase the steps' kernels.
+    assert driven_ticks() - ticks == 40
     assert world._core.entities().verify(world) is None
     _answers("ticks", [world.canonical_json()])

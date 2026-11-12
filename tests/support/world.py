@@ -274,3 +274,45 @@ def on_the_phases() -> Iterator[None]:
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(OfflineSimulationController, "_run_metrics_phase", same_step)
         yield
+
+
+@contextmanager
+def watching_phases(watch: Callable[[Any, Any, bool], None]) -> Iterator[None]:
+    """Every TickEngine made inside watches its phases with `watch(engine, phase, before)`.
+
+    `watch` is the engine's `phase_observer`, told of each phase before (True) and after (False)
+    it, which the driver (native/src/rules/tick.rs) calls between its phases: the tick stays on
+    the driver. A test reads the controller (`engine.phase_handler`), the world and the RNG there.
+    """
+    from sheltersim.core.engine import TickEngine
+
+    made = TickEngine.__init__
+
+    def with_watch(self: Any, *arguments: Any, **options: Any) -> None:
+        made(self, *arguments, **options)
+        self.phase_observer = lambda phase, before: watch(self, phase, before)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(TickEngine, "__init__", with_watch)
+        yield
+
+
+def driven_ticks() -> int:
+    """How many ticks the driver (native/src/rules/tick.rs) has run in this process."""
+    from sheltersim import native
+
+    return native.rules("tick").stats()[0]["ticks"]
+
+
+def proposal_view(controller: Any, world: Any) -> Any:
+    """The view the propose phase makes at the world's minute, before that phase: the update
+    phase's view (`_view_before_proposals`) with what that phase wrote read again.
+
+    The controller's view stays where it is, for the driver's propose phase to take.
+    """
+    from types import SimpleNamespace
+
+    from sheltersim import native
+
+    prior = SimpleNamespace(_view_before_proposals=controller._view_before_proposals)
+    return native.rules("world_view").view_for_proposals(prior, world, world.minute_index)

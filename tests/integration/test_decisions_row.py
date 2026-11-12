@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from support.world import view_of
+from support.world import driven_ticks, view_of
 
 from sheltersim import native
 from sheltersim.core.engine import TickEngine, TraceLevel
@@ -112,20 +112,37 @@ def test_a_run_gives_the_rows_and_world_of_python(generated_scenario: Any) -> No
 def test_a_tick_makes_no_proposal_object(
     generated_scenario: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    world, controller, sink = _indexed_controller(generated_scenario)
+    """The decisions of a tick reach a sink of rows without an `ActionProposal`, which a sink of
+    objects records (`with_outcome`)."""
     made: list[Any] = []
-    propose = OfflineSimulationController._propose_due
+    record = ActionProposal.with_outcome
 
-    def keep(self: Any, view: Any, rng: Any) -> Any:
-        rows = propose(self, view, rng)
-        made.extend(rows)
-        return rows
+    def counted(self: Any, *arguments: Any) -> Any:
+        made.append(self)
+        return record(self, *arguments)
 
-    monkeypatch.setattr(OfflineSimulationController, "_propose_due", keep)
+    monkeypatch.setattr(ActionProposal, "with_outcome", counted)
+    world, controller, sink = _indexed_controller(generated_scenario)
+    ticks = driven_ticks()
     TickEngine(world, phase_handler=controller).run(steps=20)
-    assert made
-    assert not any(row.has_object for row in made)
+    assert driven_ticks() - ticks == 20
+    assert any(type(row) is bytes for row in sink.observations)
     assert all(type(row) is bytes for row in sink.observations if type(row) is not dict)
+    assert not made
+    # A sink whose own class declares no `decision_sink` gets the proposals.
+    world = WorldState.from_scenario(generated_scenario)
+    objects = OfflineSimulationController(world, _ObjectSink(MetricsRecorder()))
+    TickEngine(world, phase_handler=objects).run(steps=20)
+    assert made and len(objects.artifacts.proposals) == len(made)
+
+
+class _ObjectSink(_MetricSink):
+    def __init__(self, metrics: MetricsRecorder) -> None:
+        super().__init__(metrics)
+        self.proposals: list[Any] = []
+
+    def record_decision(self, proposal: Any, *, observed_state: Any = None) -> None:
+        self.proposals.append(proposal)
 
 
 def test_a_row_answers_as_its_proposal_and_makes_it_once(generated_scenario: Any) -> None:
