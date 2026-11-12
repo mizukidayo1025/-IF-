@@ -319,6 +319,8 @@ split PR by PR; its last section sums up what is where.
   `tests/data/handler_rules.json`, calling each kernel as its PyO3 entry does
   (`dispatch::apply_alone_made` for a handler's records, `tick::propose::apply_alone` for
   `_apply_effect`).
+  `tests/staff_rules.rs` checks the staff's rules of a tick and the shared
+  operations' receipts on the worlds of `tests/data/staff_rules.json`.
   `tests/service_rules.rs`, `tests/requests_at_once.rs` and
   `tests/staff_assignment.rs` call `_apply_effect` (`tick::propose::apply_alone`), `_route`,
   `_schedule_travel`, the water and meal service and the staff's assignment, relief and support
