@@ -155,6 +155,12 @@ def ui_project_api(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[
 
 @pytest.fixture
 def generated_scenario_with_split_queues(generated_scenario):
+    """The generated Scenario with two service points, each its own queue, at two facilities
+    (`split_queues`)."""
+    return split_queues(generated_scenario)
+
+
+def split_queues(generated_scenario: Any) -> Any:
     """The generated Scenario with two service points, each its own queue, at two facilities.
 
     The generator gives every facility one service point. toilet_01 and
