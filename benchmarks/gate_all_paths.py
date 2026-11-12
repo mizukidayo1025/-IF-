@@ -9,8 +9,9 @@ and that every attached tree of a slot holds what its row holds (core/state_mirr
 watch_entity_rows); a tick where they differ is a problem.
 With --poison, every object a rule's transaction takes out of the world gets a class that raises on
 any use (core/txn_checks.py); a use is a problem. Each result.json also holds the dispatcher's
-counts (how many due events went to the Python dispatcher because a transaction replaced them) and
-how many rule transactions ran in place and inside another (in the core only: policy E16).
+counts (how many due events another row of their ID replaced, and of those how many were the same
+event by value and ran; how many went to a handler the core does not run) and how many rule
+transactions ran in place and inside another (in the core only: policy E16).
 
     python benchmarks/gate_all_paths.py --output DIR --expect fixtures/gate-all-paths.json
     python benchmarks/gate_all_paths.py --output DIR --determinism
@@ -495,9 +496,11 @@ def main() -> int:
     dispatch = [result.get("dispatch") or {} for result in results.values()]
     transactions = [result.get("transactions") or {} for result in results.values()]
     print(
-        "events to the Python dispatcher: "
-        f"{sum(row.get('events_python', 0) for row in dispatch)}, of which replaced: "
-        f"{sum(row.get('events_replaced', 0) for row in dispatch)}; rule transactions in place: "
+        "events replaced: "
+        f"{sum(row.get('events_replaced', 0) for row in dispatch)}, of which the same and run: "
+        f"{sum(row.get('replaced_dispatched', 0) for row in dispatch)}; events to the host's "
+        f"handlers: {sum(row.get('events_foreign', 0) for row in dispatch)}; "
+        "rule transactions in place: "
         f"{sum(row.get('in_place', 0) for row in transactions)}, inside another: "
         f"{sum(row.get('nested', 0) for row in transactions)}"
     )

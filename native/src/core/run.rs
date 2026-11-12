@@ -298,6 +298,17 @@ impl RunCore {
         Ok(self.lock()?.policies.clone())
     }
 
+    /// Read the controller's dispatcher again (`Policies::dispatch`, H3): at the controller's start
+    /// and where the dispatch phase finds its handlers changed (lane P9-1c).
+    pub(crate) fn refresh_dispatch_of(&self, controller: &Bound<'_, PyAny>) -> PyResult<()> {
+        let dispatch = crate::rules::dispatch::read_dispatch(controller);
+        let mut run = self.lock()?;
+        let mut policies = Policies::clone(&run.policies);
+        policies.dispatch = dispatch;
+        run.policies = Arc::new(policies);
+        Ok(())
+    }
+
     /// Run f on the values of the tick under way (`Run::scratch`, lane P8 a3), with the Run locked:
     /// f must not reach this Run again.
     pub(crate) fn with_scratch<R>(&self, f: impl FnOnce(&mut Scratch) -> R) -> PyResult<R> {
@@ -430,12 +441,7 @@ impl RunCore {
     /// Read the controller's dispatcher again (`Policies::dispatch`): the controller makes it after
     /// its Run's core, and calls this then (lane P9-0).
     fn refresh_dispatch(&self, controller: &Bound<'_, PyAny>) -> PyResult<()> {
-        let dispatch = crate::rules::dispatch::read_dispatch(controller);
-        let mut run = self.lock()?;
-        let mut policies = Policies::clone(&run.policies);
-        policies.dispatch = dispatch;
-        run.policies = Arc::new(policies);
-        Ok(())
+        self.refresh_dispatch_of(controller)
     }
 
     /// What the policies say, by part, as text: for tests. A fault is `"!"` and its text, a

@@ -15,9 +15,9 @@ from sheltersim import native
 from sheltersim.core.engine import TICK_PHASE_ORDER, TickExecutionError
 from sheltersim.core.rng import KeyedRandom
 from sheltersim.core.world import WorldState
-from sheltersim.domain import facilities, population_lifecycle, resource_service, staff
+from sheltersim.domain import facilities, resource_service, staff
 from sheltersim.experiments import metrics
-from sheltersim.experiments.phases import arbitrate, dispatch, update
+from sheltersim.experiments.phases import arbitrate, update
 
 # The controller's steps the driver calls no entry of, or that it stands for. A patch of one sends
 # the tick through `phase_handler`. A step that the driver calls through Python is not here.
@@ -50,7 +50,6 @@ DRIVEN_STEPS = (
     "_sample_information_contacts",
     "_sample_proximity_contacts",
     "_run_metrics_phase",
-    "_admit_pending_returns",
 )
 
 # What those steps call, which the driver calls the kernels of.
@@ -60,8 +59,6 @@ DRIVEN_RULES = (
     (arbitrate, "update_staff_operations"),
     (arbitrate, "assign_staff_operations"),
     (arbitrate, "schedule_staff_operation_relief"),
-    (dispatch, "admit_pending_arrivals"),
-    (population_lifecycle, "admit_pending_returns"),
     (facilities.ToiletServiceManager, "arbitrate"),
     (facilities.ToiletServiceManager, "_facilities_to_serve"),
     (facilities.ToiletServiceManager, "_has_room"),

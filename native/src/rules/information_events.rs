@@ -35,7 +35,7 @@ use crate::state::events::{EventRow, EventRowPy};
 
 /// `InformationSpreadConfig.from_mapping(model_configs.get("information_spread"))`, as the rules
 /// read it.
-fn parse_spread(world: &Bound<'_, PyAny>) -> PyResult<InformationSpread> {
+pub(crate) fn parse_spread(world: &Bound<'_, PyAny>) -> PyResult<InformationSpread> {
     let py = world.py();
     let configs = attribute(world, intern!(py, "model_configs"))?;
     let config = py

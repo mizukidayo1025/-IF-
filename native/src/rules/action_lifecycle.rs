@@ -76,6 +76,11 @@ impl ActiveActions {
         self.rows(f)?
     }
 
+    /// Whether the rows are this Run's (`Run::actions`), which the core's dispatch closes.
+    pub(crate) fn is_of(&self, run: &RunCore) -> bool {
+        self.run.as_ref().is_some_and(|own| std::ptr::eq(own.get(), run))
+    }
+
     fn rows_as_dict<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let plain = self.rows(|rows| PyField::to_py(&rows.rows, py))??;
         Ok(plain.downcast_into::<PyDict>()?)

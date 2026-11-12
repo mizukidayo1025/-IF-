@@ -606,6 +606,14 @@ impl QueueStore {
         })
     }
 
+    /// The object of the pending event of this ID, made if it has none; None when none is pending.
+    pub(crate) fn object_of_id(&self, py: Python<'_>, event_id: &str) -> PyResult<Option<Py<PyAny>>> {
+        let Some(serial) = self.with_queue(py, |queue| queue.serial_of(event_id))? else {
+            return Ok(None);
+        };
+        self.object(py, serial).map(Some)
+    }
+
     /// The object of a pending event of a due snapshot, made if it has none: Python then sees it.
     pub(crate) fn object_of_due(&self, py: Python<'_>, due: &DueEvent) -> PyResult<Py<PyAny>> {
         self.object(py, due.serial)

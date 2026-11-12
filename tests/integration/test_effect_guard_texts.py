@@ -1,14 +1,14 @@
 """An EffectProgram marker's guard in the Rust dispatch loop: the Python dispatcher's outcome.
 
 `EventDispatcher.dispatch_one` asks `effect_event_guard_or_suppress` before an event's handler. The
-loop in rules/dispatch.rs asks it in Rust: a false guard is a suppressed event, a guard the contract
-turns down or with no target a failed one, each with the Python rule's text (saved as the record's
-`detail`); a guard that holds goes on to the handler. Each case runs an event through the Rust
-loop, compares all that was saved with what the Python step saved from it, and checks the record
-against the outcome the guard's Python rule gave. Both are gone (`kernel_only`,
-docs/rust-port/lanes/l8-texts-events.md, and lane L10 for the step): the outcome is written down
-from the rule, and what the step saved is a digest taken once from it (45a9bc9), pinned on every
-OS, as the gate's hashes are.
+loop in native/core/src/rules/dispatch.rs asks it in Rust, for every handler (lane P9-1c): a false
+guard is a suppressed event, a guard the contract turns down or with no target a failed one, each
+with the Python rule's text (saved as the record's `detail`); a guard that holds goes on to the
+handler. Each case runs an event through the Rust loop, compares all that was saved with what the
+Python step saved from it, and checks the record against the outcome the guard's Python rule gave.
+Both are gone (`kernel_only`, docs/rust-port/lanes/l8-texts-events.md, and lane L10 for the step):
+the outcome is written down from the rule, and what the step saved is a digest taken once from it
+(45a9bc9), pinned on every OS, as the gate's hashes are.
 """
 
 from __future__ import annotations
@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -60,8 +61,14 @@ def scenario() -> Any:
     return _gate().generated(evacuees=20, minutes=120)
 
 
-def _counts() -> dict[str, int]:
-    return dict(native.rules("dispatch").stats()[0])
+def _counts() -> Counter[str]:
+    """The dispatch's counts, with the guard's refusals (`effects.stats`) as `guard_refused`."""
+    counts = Counter(native.rules("dispatch").stats()[0])
+    reasons = native.rules("effects").stats()[1]
+    counts["guard_refused"] = sum(
+        times for reason, times in reasons.items() if reason.startswith("dispatch_guard:")
+    )
+    return counts
 
 
 def _saved(controller: OfflineSimulationController) -> dict[str, Any]:
@@ -135,7 +142,7 @@ def _scheduled(guard: dict[str, Any]) -> Callable[[WorldState], str]:
 
 def _dispatched(
     scenario: Any, event: ScheduledEvent | Callable[[WorldState], str], python_saved: str
-) -> tuple[Any, dict[str, int], dict[str, int]]:
+) -> tuple[Any, Counter[str], Counter[str]]:
     """The event's record from the Rust loop, which saves what the Python step saved: the digest
     `python_saved` of `_saved`.
 
@@ -158,7 +165,7 @@ def _dispatched(
     return record, before, after
 
 
-def _grew(before: dict[str, int], after: dict[str, int], *names: str) -> None:
+def _grew(before: Counter[str], after: Counter[str], *names: str) -> None:
     for name in names:
         assert after[name] == before[name] + 1, name
 
@@ -175,8 +182,8 @@ def test_a_false_guard_suppresses_the_event_in_rust(scenario: Any) -> None:
         EventStatus.SUPPRESSED,
         "EffectProgram guard evaluated false",
     )
-    _grew(before, after, "guard_suppressed", "events_rust")
-    assert after["events_python"] == before["events_python"]
+    _grew(before, after, "guard_stopped")
+    assert after["events_foreign"] == before["events_foreign"]
 
 
 @pytest.mark.parametrize(
@@ -206,7 +213,7 @@ def test_a_guard_the_contract_turns_down_fails_with_its_text(
     )
     assert record.status is EventStatus.FAILED
     assert record.detail.startswith("EffectProgram guard is invalid: ")
-    _grew(before, after, "guard_failed", "events_rust")
+    _grew(before, after, "guard_stopped", "outcomes_failed")
 
 
 @pytest.mark.parametrize(
@@ -290,7 +297,7 @@ def test_a_guard_without_its_target_fails_with_python_s_text(
         scenario, _marked("effect_program_apply", payload, guard), python_saved
     )
     assert (record.status, record.detail) == (EventStatus.FAILED, text)
-    _grew(before, after, "guard_failed", "events_rust")
+    _grew(before, after, "guard_stopped", "outcomes_failed")
 
 
 def test_a_later_operand_is_read_only_after_those_before_it(scenario: Any) -> None:
@@ -321,8 +328,8 @@ def test_a_guard_that_holds_goes_on_to_the_handler(scenario: Any) -> None:
     guard = {"operator": "gte", "field": "target.working_units", "value": 1}
     record, before, after = _dispatched(scenario, _scheduled(guard), "af71b64a3089f6b2")
     assert (record.status, record.detail) == (EventStatus.APPLIED, None)
-    _grew(before, after, "guard_passed", "others_applied", "events_rust")
-    assert after["events_python"] == before["events_python"]
+    _grew(before, after, "guard_passed", "outcomes_applied", "events_core")
+    assert after["events_foreign"] == before["events_foreign"]
 
 
 def test_a_false_guard_of_a_scheduled_program_suppresses_its_start(scenario: Any) -> None:
@@ -332,10 +339,10 @@ def test_a_false_guard_of_a_scheduled_program_suppresses_its_start(scenario: Any
         EventStatus.SUPPRESSED,
         "EffectProgram guard evaluated false",
     )
-    _grew(before, after, "guard_suppressed", "events_rust")
+    _grew(before, after, "guard_stopped")
 
 
-def test_an_event_without_a_handler_is_python_s_to_record(scenario: Any) -> None:
+def test_an_event_without_a_handler_fails_before_any_guard(scenario: Any) -> None:
     guard = {"operator": "lt", "field": "simulation.minute", "value": 0}
     record, before, after = _dispatched(
         scenario, _marked("no_such_event", {}, guard), "8a9bb286b8074ae8"
@@ -344,11 +351,11 @@ def test_an_event_without_a_handler_is_python_s_to_record(scenario: Any) -> None
         EventStatus.FAILED,
         "no handler registered for event type 'no_such_event'",
     )
-    _grew(before, after, "events_python")
-    assert after["guard_suppressed"] == before["guard_suppressed"]
+    _grew(before, after, "events_unregistered")
+    assert after["guard_stopped"] == before["guard_stopped"]
 
 
-def test_a_marked_event_of_the_table_is_python_s(scenario: Any) -> None:
+def test_a_marked_event_of_the_table_is_guarded_in_rust(scenario: Any) -> None:
     guard = {"operator": "lt", "field": "simulation.minute", "value": 0}
     record, before, after = _dispatched(
         scenario, _marked("support_request_timeout", {}, guard), "5141dc1f7e535ad5"
@@ -357,8 +364,8 @@ def test_a_marked_event_of_the_table_is_python_s(scenario: Any) -> None:
         EventStatus.SUPPRESSED,
         "EffectProgram guard evaluated false",
     )
-    _grew(before, after, "events_python")
-    assert after["guard_suppressed"] == before["guard_suppressed"]
+    _grew(before, after, "guard_stopped")
+    assert after["events_foreign"] == before["events_foreign"]
 
 
 @pytest.mark.parametrize(
@@ -378,11 +385,11 @@ def test_a_guard_value_past_64_bits_compares_by_value_in_rust(
     record, before, after = _dispatched(scenario, _scheduled(guard), python_saved)
     if applies:
         assert (record.status, record.detail) == (EventStatus.APPLIED, None)
-        _grew(before, after, "guard_passed", "events_rust")
+        _grew(before, after, "guard_passed", "events_core")
     else:
         assert (record.status, record.detail) == (
             EventStatus.SUPPRESSED,
             "EffectProgram guard evaluated false",
         )
-        _grew(before, after, "guard_suppressed", "events_rust")
+        _grew(before, after, "guard_stopped")
     assert after["guard_refused"] == before["guard_refused"]
