@@ -20,7 +20,7 @@ use crate::core::row::{attribute, exact_int, exact_str};
 use crate::core::world_core::{with_world, PyWorldCell};
 use crate::host::PyHost;
 use crate::rules::care_receipts::{transition_record, PlannedTransition};
-use crate::state::events::{write_result, EventRef, EventWriter};
+use crate::state::events::{writable, write_result, EventRef};
 
 // ---- What the rules read of the Python world -----------------------------------------------------
 
@@ -140,7 +140,6 @@ pub(crate) fn record_assigned<'py>(world: &Bound<'py, PyAny>, assigned: &Bound<'
 pub(crate) fn complete_support_event<'py>(
     handler: &Bound<'py, PyAny>,
     world: &Bound<'py, PyAny>,
-    writer: &EventWriter<'py>,
     event: EventRef<'_, 'py>,
 ) -> PyResult<Option<PlannedTransition>> {
     let py = world.py();
@@ -152,7 +151,8 @@ pub(crate) fn complete_support_event<'py>(
     let cell = PyWorldCell(world);
     let mut host = host_of(world);
     let inputs = Inputs::read(&cell, &mut host).map_err(|error| error.0)?;
-    let reserved = writer.reserved();
+    // A writer made for this event has no sequence reserved before what it plans.
+    let reserved = 0;
     let complete = |formula: Formula<'_>| with_world(world, |cell| core::complete_support(cell, &inputs, &event, handler, formula, reserved))?.or_py();
     match complete(Formula::Unread)? {
         Completion::Done(planned) => Ok(planned),
@@ -171,8 +171,8 @@ pub(crate) fn complete_support_event<'py>(
 #[pyfunction]
 fn complete_support<'py>(handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &Bound<'py, PyAny>) -> PyResult<Option<Bound<'py, PyTuple>>> {
     let py = world.py();
-    let writer = EventWriter::of(world)?;
-    let Some(planned) = complete_support_event(handler, world, &writer, EventRef::Object(event))? else {
+    writable(world)?;
+    let Some(planned) = complete_support_event(handler, world, EventRef::Object(event))? else {
         return Ok(None);
     };
     Ok(Some(PyTuple::new(py, [transition_record(py, &planned)?])?))

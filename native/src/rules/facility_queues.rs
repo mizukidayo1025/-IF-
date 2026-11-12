@@ -27,7 +27,7 @@ use crate::core::errors::{self, OrPy};
 use crate::core::row::{attribute, exact_dict, exact_int, exact_str, PyField};
 use crate::core::world_core::with_world;
 use crate::core::geometry::{self, Geo, GeoPy};
-use crate::state::events::{write_result, EventWriter};
+use crate::state::events::{writable, write_result};
 use crate::state::facility_queues::{held, held_mirror, request_node, QueueRequest};
 use crate::Unsupported;
 
@@ -224,7 +224,7 @@ fn record_queue_transition(
 ) -> PyResult<()> {
     let request: QueueRequest = PyField::from_py(request).map_err(|_| Unsupported::new_err("not a queue request"))?;
     // The refusals of a world whose events are not Rust's, as before.
-    EventWriter::of(world)?;
+    writable(world)?;
     exact_int(&attribute(world, intern!(world.py(), "minute_index"))?)?;
     let wait = match wait_minutes {
         Some(wait) if !wait.is_none() => Some(exact_int(wait)?),

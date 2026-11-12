@@ -20,8 +20,7 @@ use crate::core::errors::OrPy;
 use crate::core::run::RunCore;
 use crate::core::row::{attribute, exact_int, exact_str, py_row, unsupported, IdMap, PyField};
 use crate::core::world_core::with_world;
-use crate::eventlog::AppliedOutcome;
-use crate::state::events::{EventRow, EventRowPy, EventWriter};
+use crate::state::events::{applied_row, EventRow};
 use crate::Unsupported;
 
 pub(crate) use sheltersim_core::rules::action_lifecycle::{ends_any_action, Proposal};
@@ -197,26 +196,6 @@ pub(crate) fn record_action_proposal(
 
 // ---- The applied events ------------------------------------------------------------------------------
 
-/// The event's row: Unsupported for an event a row does not hold.
-fn row_of(event: &Bound<'_, PyAny>) -> PyResult<EventRow> {
-    EventRow::from_event(event)?.ok_or_else(|| Unsupported::new_err("the event is not a row"))
-}
-
-/// The row of the event if the log holds it applied, as the Python rules ask. The event must be the
-/// object the record holds, or one whose row is what the record's bytes say: a value a row cannot
-/// tell from another (`1` and `1.0`) is the Python rule's to compare.
-fn applied_row(writer: &EventWriter<'_>, event_id: &str, event: &Bound<'_, PyAny>) -> PyResult<Option<EventRow>> {
-    match writer.log().borrow().applied_outcome(event_id, event)? {
-        AppliedOutcome::No => Ok(None),
-        AppliedOutcome::ThisEvent => row_of(event).map(Some),
-        AppliedOutcome::AnotherObject => unsupported("the record holds another object of the event"),
-        AppliedOutcome::SavedRow(saved) => match EventRow::from_event(event)? {
-            Some(row) if row == saved => Ok(Some(row)),
-            _ => unsupported("the record is of another row of the event"),
-        },
-    }
-}
-
 /// `record_applied_action_completion`.
 #[pyfunction]
 #[pyo3(signature = (world, event, minute, *, active_actions))]
@@ -234,8 +213,7 @@ fn record_applied_action_completion(
     }
     store_of(active_actions)?;
     let event_id = attribute(event, intern!(py, "event_id"))?;
-    let writer = EventWriter::of(world)?;
-    let Some(row) = applied_row(&writer, exact_str(&event_id)?, event)? else {
+    let Some(row) = applied_row(world, exact_str(&event_id)?, event)? else {
         return Ok(());
     };
     complete_row(world, active_actions, &row, exact_int(minute)?)
@@ -278,8 +256,7 @@ fn record_applied_population_exit(
     let active = store_of(active_actions)?;
     let event_id = attribute(event, intern!(py, "event_id"))?;
     let event_id = exact_str(&event_id)?;
-    let writer = EventWriter::of(world)?;
-    if applied_row(&writer, event_id, event)?.is_none() {
+    if applied_row(world, event_id, event)?.is_none() {
         return Ok(());
     }
     let minute = exact_int(minute)?;

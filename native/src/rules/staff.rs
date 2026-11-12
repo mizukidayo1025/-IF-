@@ -38,7 +38,7 @@ use crate::host::{absent, PyHost};
 use crate::core::geometry::{Geo, GeoPy};
 use crate::rules::staff_operation_events::Gathered;
 use crate::rules::travel::{self, read_queue_rows, rows_of, staff_router_rows, StaffRouter};
-use crate::state::events::{write_result, EventWriter};
+use crate::state::events::{forget_taken, write_result};
 use crate::Unsupported;
 
 // ---- What the rules read of the Python world -----------------------------------------------------
@@ -66,14 +66,6 @@ fn finish<T>(world: &Bound<'_, PyAny>, result: WriteResult<T>, tasks: Option<&Ga
         Some(tasks) => tasks.finish(py, result),
         None => result,
     }
-}
-
-/// Let go the objects of the queue's slots the core took out (`QueueStore::forget`).
-fn forget(world: &Bound<'_, PyAny>, taken: &[u64]) -> PyResult<()> {
-    if taken.is_empty() {
-        return Ok(());
-    }
-    EventWriter::of(world)?.queue().get().forget(taken)
 }
 
 // ---- StaffService.assign_pending -----------------------------------------------------------------
@@ -121,7 +113,7 @@ fn assign(world: &Bound<'_, PyAny>, controller: Option<&Bound<'_, PyAny>>, servi
             let travel = graph.as_ref().map(|graph| Travel { routing: routing.routing(graph), walking: routing.walking() });
             let full = Full { travel };
             let result = with_world(world, |cell| core::assign_pending(cell, &inputs, service, minute, Some(&full), &mut taken))?;
-            forget(world, &taken)?;
+            forget_taken(world, &taken)?;
             match finish(world, result, Some(&tasks))? {
                 Assigned::Done(assigned) => assigned,
                 Assigned::NeedsAll => return Err(pyo3::exceptions::PyRuntimeError::new_err("the assignment asked for its inputs again")),

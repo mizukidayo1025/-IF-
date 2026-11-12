@@ -30,7 +30,7 @@ use crate::core::value::VPy;
 use crate::core::world_core::{state_value, with_world, PyWorldCell};
 use crate::host::HostError;
 use crate::rules::population::{as_refusal, event_row, host_of, optional_text, plan_read, planning, schedule_population_retry, text};
-use crate::state::events::{EventRow, EventWriter, QueueStore};
+use crate::state::events::{forget_taken, EventRow, QueueStore};
 use crate::Unsupported;
 
 const EFFECT_PROGRAM: &str = "effect_program_v1";
@@ -96,10 +96,7 @@ fn act(world: &Bound<'_, PyAny>, candidate: &Bound<'_, PyAny>, row: &EventRow, c
 /// What a command wrote, made Python's: the queue's objects of the events it settled let go, and
 /// its receipt.
 fn written<'py>(candidate: &Bound<'py, PyAny>, written: core::Written) -> PyResult<Bound<'py, PyAny>> {
-    if !written.taken.is_empty() {
-        let queue = EventWriter::of(candidate)?.queue().clone();
-        queue.get().forget(&written.taken)?;
-    }
+    forget_taken(candidate, &written.taken)?;
     written.receipt.to_py(candidate.py())
 }
 

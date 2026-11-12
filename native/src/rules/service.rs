@@ -23,7 +23,7 @@ use sheltersim_core::config::SectionId;
 use sheltersim_core::world::METRIC_STATE;
 use sheltersim_core::rules::kit::{Held, Kept};
 use sheltersim_core::rules::resources::Applied;
-use sheltersim_core::rules::service::{self as core, Failure, Manager, Minute, Pending, Request, Requested, Serve, Served};
+use sheltersim_core::rules::service::{self as core, Failure, Manager, Minute, Request, Requested, Serve, Served};
 
 
 use crate::core::errors::{self, to_py_err, OrPy};
@@ -34,9 +34,8 @@ use crate::host::PyHost;
 use crate::core::geometry::{Geo, GeoPy};
 use crate::rules::queues::Walking;
 use crate::rules::resources::{raised, replace_resources};
-use crate::rules::social_network::mapping_get;
-use crate::state::events::{write_error, EventRef, EventRow, EventRowPy, EventWriter};
-use crate::state::resource_service::{RequestRecord, Stall};
+use crate::state::events::{write_error, EventRef, EventRow, EventRowPy};
+use crate::state::resource_service::{pending_reserves, RequestRecord, Stall};
 use crate::Unsupported;
 
 const SERVICE_KEY: &str = "resource_service_v1";
@@ -105,30 +104,6 @@ impl<'py> Inputs<'py> {
             metric_state_held: self.metric_state_held,
         }
     }
-}
-
-/// The `reservation_id` of each pending `resource_reserve` event, in the queue's order: read through
-/// the queue's tuple, the same objects the Python rule reads.
-fn pending_reserves(world: &Bound<'_, PyAny>) -> PyResult<Vec<Pending>> {
-    let writer = EventWriter::of(world)?;
-    let py = world.py();
-    let pending = writer.queue().call_method0(intern!(py, "pending"))?;
-    let pending = pending.downcast_exact::<PyTuple>().map_err(|_| Unsupported::new_err("the pending events are not a tuple"))?;
-    let mut found = Vec::new();
-    for event in pending.iter() {
-        if exact_str(&attribute(&event, intern!(py, "event_type"))?)? != "resource_reserve" {
-            continue;
-        }
-        let payload = attribute(&event, intern!(py, "payload"))?;
-        found.push(match mapping_get(&payload, intern!(py, "reservation_id"))? {
-            Some(id) => match str_value(&id) {
-                Some(id) => Pending::Id(Arc::from(id)),
-                None => Pending::Other,
-            },
-            None => Pending::Missing,
-        });
-    }
-    Ok(found)
 }
 
 /// The error of a kernel: the ledger's text inside its rule's error, or what the world or a write

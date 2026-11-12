@@ -29,7 +29,7 @@ use crate::rules::care_receipts::made_record;
 use crate::rules::handlers::counted;
 use crate::rules::information_events::event_row;
 use crate::rules::travel::read_queue_rows;
-use crate::state::events::{write_result, EventRow, EventWriter};
+use crate::state::events::{forget_taken, write_result, EventRow};
 use crate::Unsupported;
 
 /// What the rules read of the Python world, read once per entry by the core through the native host
@@ -75,14 +75,6 @@ impl<'py> Gathered<'py> {
     }
 }
 
-/// Let go the objects of the queue's slots the core took out (`QueueStore::forget`).
-fn forget(world: &Bound<'_, PyAny>, taken: &[u64]) -> PyResult<()> {
-    if taken.is_empty() {
-        return Ok(());
-    }
-    EventWriter::of(world)?.queue().get().forget(taken)
-}
-
 /// The receipts as the handler returns them: a tuple of applied records, or None.
 fn receipts<'py>(py: Python<'py>, made: Vec<Made>) -> PyResult<Option<Bound<'py, PyTuple>>> {
     if made.is_empty() {
@@ -104,7 +96,7 @@ pub(crate) fn interrupt_operation<'py>(world: &Bound<'py, PyAny>, staff_id: &str
     let mut taken = Vec::new();
     let stopping = Stopping { event_id: &event_id, due_minute };
     let result = with_world(world, |cell| core::interrupt(cell, &gathered.inputs(), staff_id, &stopping, current_event_id, &mut taken))?;
-    forget(world, &taken)?;
+    forget_taken(world, &taken)?;
     gathered.finish(py, write_result(py, result))
 }
 
@@ -123,7 +115,7 @@ fn stop_and_suppress<T>(world: &Bound<'_, PyAny>, staff_id: &str, row: &EventRow
     let gathered = Gathered::of(world, true, false)?;
     let mut taken = Vec::new();
     let result = with_world(world, |cell| core::stop_and_suppress(cell, &gathered.inputs(), staff_id, row, text, &mut taken))?;
-    forget(world, &taken)?;
+    forget_taken(world, &taken)?;
     gathered.finish(py, write_result(py, result))?;
     Err(pyo3::exceptions::PyRuntimeError::new_err("a stop that did not suppress"))
 }
@@ -156,7 +148,7 @@ fn relief<'py>(_handler: &Bound<'py, PyAny>, world: &Bound<'py, PyAny>, event: &
     let gathered = Gathered::of(world, true, true)?;
     let mut taken = Vec::new();
     let result = with_world(world, |cell| core::relief(cell, &gathered.inputs(), &row, &mut taken))?;
-    forget(world, &taken)?;
+    forget_taken(world, &taken)?;
     let made = counted(py, "relief", gathered.finish(py, write_result(py, result)))?;
     receipts(py, made.into_iter().collect())
 }
@@ -199,7 +191,7 @@ pub(crate) fn interrupt_trips<'py>(world: &Bound<'py, PyAny>, event: &Bound<'py,
     let mut taken = Vec::new();
     let stopping = Stopping { event_id: &event_id, due_minute };
     let result = with_world(world, |cell| core::interrupt_trips(cell, &gathered.inputs(), &stopping, &mut taken))?;
-    forget(world, &taken)?;
+    forget_taken(world, &taken)?;
     let interrupted = gathered.finish(py, write_result(py, result))?;
     PyTuple::new(py, interrupted.iter().map(|id| &**id))
 }

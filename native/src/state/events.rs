@@ -1150,3 +1150,44 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(saved_rows, m)?)?;
     Ok(())
 }
+
+// ---- What the rules' entries ask of the world's events (H6, lane P10-1c) ---------------------------
+//
+// The queue's Python objects of the pending events (`QueueStore`) and the EventLog's records are
+// Python's: an entry of `native/src/rules/` that needs them asks here, and its core rule reads the rows.
+
+/// That the world's events are Rust's (`EventWriter::of`'s refusals, with nothing changed), for an
+/// entry whose core rule writes events and refused such a world before it read anything else.
+pub(crate) fn writable(world: &Bound<'_, PyAny>) -> PyResult<()> {
+    EventWriter::of(world).map(drop)
+}
+
+/// Let go the queue's objects of the slots the core took out (`QueueStore::forget`).
+pub(crate) fn forget_taken(world: &Bound<'_, PyAny>, taken: &[u64]) -> PyResult<()> {
+    if taken.is_empty() {
+        return Ok(());
+    }
+    EventWriter::of(world)?.queue().get().forget(taken)
+}
+
+/// The row of an event a rule reads: Unsupported for an object a row does not hold.
+fn row_of(event: &Bound<'_, PyAny>) -> PyResult<EventRow> {
+    EventRow::from_event(event)?.ok_or_else(|| Unsupported::new_err("the event is not a row"))
+}
+
+/// The row of the event if the log holds it applied, as the Python rules ask. The event must be the
+/// object the record holds, or one whose row is what the record's bytes say: a value a row cannot
+/// tell from another (`1` and `1.0`) is the Python rule's to compare.
+pub(crate) fn applied_row(world: &Bound<'_, PyAny>, event_id: &str, event: &Bound<'_, PyAny>) -> PyResult<Option<EventRow>> {
+    use crate::eventlog::AppliedOutcome;
+    let writer = EventWriter::of(world)?;
+    match writer.log().borrow().applied_outcome(event_id, event)? {
+        AppliedOutcome::No => Ok(None),
+        AppliedOutcome::ThisEvent => row_of(event).map(Some),
+        AppliedOutcome::AnotherObject => Err(Unsupported::new_err("the record holds another object of the event")),
+        AppliedOutcome::SavedRow(saved) => match EventRow::from_event(event)? {
+            Some(row) if row == saved => Ok(Some(row)),
+            _ => Err(Unsupported::new_err("the record is of another row of the event")),
+        },
+    }
+}
