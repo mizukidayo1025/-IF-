@@ -36,7 +36,7 @@ use crate::host::PyHost;
 use crate::rules::care_receipts::made_record;
 use crate::rules::information_events::event_row;
 use crate::rules::travel::read_queue_rows;
-use crate::state::events::{EventRef, EventRow};
+use crate::state::events::EventRow;
 use crate::Unsupported;
 
 
@@ -123,27 +123,6 @@ fn should_apply_guard(world: &Bound<'_, PyAny>, event: &Bound<'_, PyAny>) -> PyR
         raised(core::guard(&PyWorldCell(world), &mut host_of(world), &guarded.ins(), &row))
     })();
     counted(py, "guard", result)
-}
-
-/// `effect_event_guard_or_suppress`, as `EventDispatcher.dispatch_one` asks it before the handler of
-/// an event with an EffectProgram's marker: Ok when the effect goes on, else the outcome
-/// (`EventSuppressed` for a false guard, `EventApplicationError` for one that can't be read). Read
-/// only; Unsupported or a Python call's exception leaves the event to the Python dispatcher.
-pub(crate) fn guard_or_suppress<'py>(world: &Bound<'py, PyAny>, event: EventRef<'_, 'py>) -> PyResult<()> {
-    let py = world.py();
-    let result = (|| {
-        let made;
-        let row = match event {
-            EventRef::Row(row) => row,
-            EventRef::Object(event) => {
-                made = event_row(event)?;
-                &made
-            }
-        };
-        let guarded = Guarded::of(world)?;
-        raised(core::guard_or_suppress(&PyWorldCell(world), &mut host_of(world), &guarded.ins(), row))
-    })();
-    counted(py, "dispatch_guard", result)
 }
 
 // ---- What other modules ask ----------------------------------------------------------------------
