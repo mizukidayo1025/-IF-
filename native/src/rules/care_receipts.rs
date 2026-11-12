@@ -22,7 +22,7 @@ use crate::core::world_core::{with_world, PyWorldCell};
 use crate::host::PyHost;
 use crate::rules::common_operations::record;
 use crate::rules::handlers::status_member;
-use crate::state::events::{EventRow, EventRowPy, EventWriter};
+use crate::state::events::{EventRow, EventRowPy};
 use crate::Unsupported;
 
 /// A write's error as Python's: a core error's class, or `DuplicateEventError`.
@@ -57,11 +57,6 @@ fn holding(world: &Bound<'_, PyAny>) -> PyResult<std::sync::Arc<sheltersim_core:
 }
 
 // ---- A care transition ------------------------------------------------------------------------------
-
-/// The record of an allocated transition, and its receipt.
-pub(crate) fn record_transition(world: &Bound<'_, PyAny>, _writer: &EventWriter<'_>, planned: PlannedTransition) -> PyResult<()> {
-    with_world(world, |world| core::record_transition(world, planned))?.map_err(|error| write_error(world.py(), error))
-}
 
 /// The record of an allocated transition as Python's object, which the dispatcher then appends and
 /// projects. Nothing is written.
