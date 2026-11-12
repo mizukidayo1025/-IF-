@@ -310,3 +310,70 @@ pub fn sample(world: &World, inputs: &Inputs<'_>) -> Result<Option<MetricSample>
         support_wait_staff_off_shift_request_minutes: read("support_wait_staff_off_shift_request_minutes"),
     }))
 }
+
+// ---- `operational_kpi_values` (lane P10-1c) ---------------------------------------------------------
+
+/// The names of a service's waits in `metric_state`: the count, the total, the mean and the
+/// longest.
+pub const KPI_WAITS: [(&str, &str, &str, &str); 2] = [
+    ("water_service_wait_count", "water_service_wait_total_minutes", "water_service_wait_mean_minutes", "water_service_wait_max_minutes"),
+    ("meal_service_wait_count", "meal_service_wait_total_minutes", "meal_service_wait_mean_minutes", "meal_service_wait_max_minutes"),
+];
+
+/// What `operational_kpi_values` reads of the rows, each part with what its read refused, in the
+/// order the rule reads them: the people's needs and the facilities' queues, then the ledger's
+/// reserved amounts, then the waits and stalls of `metric_state`.
+pub struct KpiRows {
+    /// The means of `toilet_urgency`, `hunger` and `hydration_need` over `world.agents` in their
+    /// order (`py_sum`), or None for no one (the Python rule's mean divides by zero).
+    pub means: Option<[f64; 3]>,
+    /// The water and meal queues' lengths, then their active services.
+    pub queues: [usize; 4],
+    /// `reserved` of the water and the meal accounts.
+    pub reserved: Result<[i64; 2]>,
+    /// Each service's `(count, total, longest)` wait, the outage stalls and the stock stalls.
+    pub metrics: Result<([(f64, f64, f64); 2], f64, f64)>,
+}
+
+/// `operational_kpi_values`' reads of the rows. `ledger` is whether the world holds the ledger's
+/// namespace, and `metric_state_held` whether `world.metric_state` is its slot's tree.
+pub fn kpi_rows(world: &World, ledger: &crate::rules::kit::Held, metric_state_held: bool) -> Result<KpiRows> {
+    use crate::rules::kit::Held;
+    let (means, queues) = {
+        let rows = world.rows()?;
+        let count = rows.agents.len();
+        let means = (count != 0).then(|| {
+            let mean = |need: fn(&crate::entities::NeedRow) -> f64| {
+                let values: Vec<f64> = rows.agents.iter().map(|(_, agent)| need(&agent.needs)).collect();
+                py_sum(&values) / count as f64
+            };
+            [mean(|needs| needs.toilet_urgency), mean(|needs| needs.hunger), mean(|needs| needs.hydration_need)]
+        });
+        let mut queues = [0; 4];
+        for (_, facility) in rows.facilities.iter() {
+            let (queue, active) = match &*facility.kind {
+                "water_station" => (0, 2),
+                "meal_distribution" => (1, 3),
+                _ => continue,
+            };
+            queues[queue] += facility.resource_queue_agent_ids.len();
+            queues[active] += facility.resource_active_agent_ids.len();
+        }
+        (means, queues)
+    };
+    let reserved = match ledger {
+        Held::Held => world.row::<crate::state::resource_ledger::LedgerRow>(crate::state::resource_ledger::NAME).map(|row| [row.accounts.of(0).reserved, row.accounts.of(1).reserved]),
+        Held::Absent => Err(Error::unsupported("the world holds another ledger")),
+        Held::Other(reason) => Err(Error::unsupported(*reason)),
+    };
+    let metrics = if !metric_state_held {
+        Err(Error::unsupported("the field holds another dict"))
+    } else {
+        world.metric_state().map(|row| {
+            let read = |name: &str| row.get(name).copied().unwrap_or(0.0);
+            let wait = |names: &(&str, &str, &str, &str)| (read(names.0), read(names.1), read(names.3));
+            ([wait(&KPI_WAITS[0]), wait(&KPI_WAITS[1])], read("resource_service_wait_water_outage_count"), read("resource_service_wait_stock_count"))
+        })
+    };
+    Ok(KpiRows { means, queues, reserved, metrics })
+}
