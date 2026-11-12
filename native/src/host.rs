@@ -1229,30 +1229,39 @@ pub(crate) fn host_calls<'py>(controller: &Bound<'py, PyAny>, calls: Vec<(String
 
 /// What `Holding` answers and what the per-call reads answer, for each name: `{name: (holding,
 /// read now)}` of `held`/`namespace_held` (with the refusal "other"), `is_absent`/`namespace_is_absent`
-/// and, for `fields`, `field`/`field_held` (lane P9-0).
+/// and, for `fields`, `field`/`field_held` (lane P9-0). The holding read for these names alone
+/// (`holding_of_names`, lane P10-1c) must answer as the whole one; where it does not, its answer is
+/// given instead.
 #[pyfunction]
 pub(crate) fn holding_and_reads<'py>(world: &Bound<'py, PyAny>, names: Vec<String>, fields: Vec<String>) -> PyResult<Bound<'py, PyDict>> {
     use crate::core::row::namespace_is_absent;
-    use crate::core::world_core::{field_held, namespace_held};
+    use crate::core::world_core::{field_held, holding_of_names, namespace_held};
     let py = world.py();
     let holding = holding_of(world)?;
+    let asked: Vec<&str> = names.iter().map(String::as_str).collect();
+    let asked_fields: Vec<&str> = fields.iter().map(String::as_str).collect();
+    let partial = holding_of_names(world, &asked, &asked_fields)?;
     let out = PyDict::new(py);
     let said = |answer: PyResult<bool>| match answer {
         Ok(flag) => flag.to_string(),
         Err(error) => format!("raises {}", error.value(py)),
     };
+    let answers = |holding: &Holding, name: &str| {
+        (held_text(&holding.held(name, "other")), match holding.is_absent(name) {
+            Ok(flag) => flag.to_string(),
+            Err(reason) => format!("raises {reason}"),
+        })
+    };
     for name in &names {
         let key = PyString::new(py, name);
         let now = (held_text(&namespace_held(world, &key, "other")?), said(namespace_is_absent(world, &key)));
-        let kept = (held_text(&holding.held(name, "other")), match holding.is_absent(name) {
-            Ok(flag) => flag.to_string(),
-            Err(reason) => format!("raises {reason}"),
-        });
-        out.set_item(name, (kept, now))?;
+        let (kept, alone) = (answers(&holding, name), answers(&partial, name));
+        out.set_item(name, (if kept == alone { kept } else { alone }, now))?;
     }
     for name in &fields {
         let key = PyString::new(py, name);
-        out.set_item(name, (holding.field(name), field_held(world, &key)?))?;
+        let kept = if holding.field(name) == partial.field(name) { holding.field(name) } else { partial.field(name) };
+        out.set_item(name, (kept, field_held(world, &key)?))?;
     }
     Ok(out)
 }
