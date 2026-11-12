@@ -22,12 +22,10 @@ use sheltersim_core::error::Error;
 use sheltersim_core::events::EventRow;
 use sheltersim_core::geometry::Geo;
 use sheltersim_core::load::{self as core_load, FloorPlans, Sections};
-use sheltersim_core::row::IdMap;
 use sheltersim_core::rules::common_operations::Logged;
 use sheltersim_core::run::held::Obj;
-use sheltersim_core::state::resource_ledger::RESOURCE_IDS;
 use sheltersim_core::value::V;
-use sheltersim_core::world::{self, World, WorldCell};
+use sheltersim_core::world::{World, WorldCell};
 
 pub use sheltersim_core::load::Loaded;
 
@@ -48,10 +46,6 @@ pub fn entry(file: &str, world: &str) -> Value {
 /// The small world of the core's tick test (`tick_core.json`'s `small_replay`).
 pub fn fixture() -> Value {
     entry("tick_core", "small_replay")
-}
-
-fn text(value: &str) -> Arc<str> {
-    Arc::from(value)
 }
 
 /// `load::value`: a JSON value as the core's `V`.
@@ -98,9 +92,10 @@ pub fn host(fixture: &Value) -> super::TestHost {
     host
 }
 
-/// `host` on the loaded world, for a Run's ticks (#214): it does what the PyO3 crate's host does to
-/// the Python world it owns (`Following`), and finds the records of the world's log as it is at each
-/// call (`Following::find_record`, #225 lane M9).
+/// `host` on the loaded world, for a Run's ticks (#214): it builds the floor plan of the world as it
+/// is at each call (`Following::floor_plan`) and finds the records of the world's log
+/// (`Following::find_record`, #225 lane M9). It writes nothing of the world: the core writes
+/// `world.resources` and the namespaces it starts itself, and only tells the host (#244, decision 2).
 pub fn following_host(fixture: &Value, loaded: &Rc<Loaded>) -> super::TestHost {
     let mut host = host(fixture);
     let sections = Sections::of_entry(fixture).unwrap_or_else(|error| panic!("{error}"));
@@ -108,8 +103,8 @@ pub fn following_host(fixture: &Value, loaded: &Rc<Loaded>) -> super::TestHost {
     host
 }
 
-/// What a host does to the world it owns besides the core's writes, as the PyO3 crate's `PyHost`
-/// does to the Python world, on a loaded World (#214).
+/// What a host reads of the world it owns, as the PyO3 crate's `PyHost` reads the Python world, on
+/// a loaded World (#214).
 pub struct Following {
     loaded: Rc<Loaded>,
     /// The sections of the export, which the plan is built from.
@@ -133,21 +128,8 @@ impl Following {
         self.plans.builds()
     }
 
-    /// `model_state[name] = value`: the namespace's row in the world (`put_namespace`), as the PyO3
-    /// crate's mirror gives its slot the row.
-    pub fn start_namespace(&self, name: &str, value: &V) -> Result<(), Error> {
-        self.loaded.cell.with(|world| put_namespace(world, name, value.clone()))
-    }
-
     /// `event_log.find` on the world's log now (`load::find_record`).
     pub fn find_record(&self, event_id: &str) -> Result<Option<Logged>, Error> {
         self.loaded.cell.with(|world| core_load::find_record(world, event_id))?
-    }
-
-    /// `replace_resources`: `world.resources` with `remaining` for `RESOURCE_IDS[index]`.
-    pub fn resources_changed(&self, index: usize, remaining: i64) -> Result<(), Error> {
-        self.loaded.cell.with(|world| world.row_mut::<IdMap<i64>>(world::RESOURCES).map(|mut resources| {
-            resources.insert(text(RESOURCE_IDS[index]), remaining);
-        }))?
     }
 }

@@ -457,6 +457,33 @@ impl World {
         self.slots.try_row::<ResourcesRow>(RESOURCES)
     }
 
+    /// `world.resources[resource] = remaining`, written by the core where an operation of the
+    /// ledger took a stock (Issue #244, decision 2). The slot gets a new stamp but no mark
+    /// (`written`): a host with Python views gives the field a new tree (the PyO3 crate's new dict,
+    /// `Host::resources_changed`), so a holder of the old one keeps its old values.
+    #[track_caller]
+    pub fn set_resource(&self, resource: &str, remaining: i64) -> Result<()> {
+        let slot = self.slots.get(RESOURCES).ok_or_else(|| Error::unsupported("the namespace is not owned"))?;
+        let mut slot = slot.try_borrow_mut()?;
+        slot.row_mut::<ResourcesRow>()?.insert(Arc::from(resource), remaining);
+        slot.touch();
+        Ok(())
+    }
+
+    /// `model_state[name] = row` for an owned namespace a rule starts (Issue #244, decision 2): the
+    /// slot holds the row, untainted, with a new stamp. A namespace the world does not own is
+    /// Unsupported. A host with Python views stores the same value in `model_state`
+    /// (`Host::start_namespace`), which loads the row again from it.
+    #[track_caller]
+    pub fn start_namespace(&self, name: &str, row: Box<dyn Row>) -> Result<()> {
+        let slot = self.slots.get(name).ok_or_else(|| Error::unsupported("the namespace is not owned"))?;
+        let mut slot = slot.try_borrow_mut()?;
+        slot.row = Some(row);
+        slot.taint = None;
+        slot.touch();
+        Ok(())
+    }
+
     /// `world.id_counters.get(name)` from its row.
     #[track_caller]
     pub fn id_counter(&self, name: &str) -> Result<Option<i64>> {

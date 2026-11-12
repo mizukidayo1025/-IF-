@@ -467,3 +467,38 @@ fn kernels_on_threads_mark_the_slots_they_write() {
     });
     assert_eq!(world.slots.take_written(), [1, 3, 5, 7]);
 }
+
+// ---- What the core writes itself (Issue #244, decision 2) -----------------------------------------
+
+#[test]
+fn the_core_writes_a_stock_of_resources_with_a_new_stamp_and_no_mark() {
+    let mut world = World::default();
+    world.slots.add(Arc::from(RESOURCES), Place::Field).unwrap();
+    // A field without its row: Unsupported, as every read of it.
+    assert!(matches!(world.set_resource("water_ml", 5), Err(Error::Unsupported(_))));
+    let mut stocks = ResourcesRow::default();
+    stocks.insert(Arc::from("water_ml"), 10);
+    stocks.insert(Arc::from("food_meal_units"), 3);
+    world.slots.get(RESOURCES).unwrap().try_borrow_mut().unwrap().row = Some(Box::new(stocks));
+    let before = world.stamp_of(RESOURCES).unwrap().unwrap();
+    world.set_resource("water_ml", 7).unwrap();
+    world.set_resource("blankets", 2).unwrap();
+    let held: Vec<(String, i64)> = world.resources().unwrap().iter().map(|(key, value)| (key.to_string(), *value)).collect();
+    assert_eq!(held, [("water_ml".to_owned(), 7), ("food_meal_units".to_owned(), 3), ("blankets".to_owned(), 2)]);
+    assert_ne!(world.stamp_of(RESOURCES).unwrap().unwrap(), before);
+    // No mark: a host with Python views gives the field a new tree itself.
+    assert!(world.slots.take_written().is_empty());
+}
+
+#[test]
+fn the_core_starts_an_owned_namespace_and_refuses_one_it_does_not_own() {
+    let mut world = World::default();
+    world.slots.add(Arc::from("population_dynamics_v1"), Place::Namespace).unwrap();
+    let state = V::Map([(Arc::from("schema_version"), V::Int(1))].into_iter().collect());
+    let before = world.stamp_of("population_dynamics_v1").unwrap().unwrap();
+    world.start_namespace("population_dynamics_v1", Box::new(ValueRow(state.clone()))).unwrap();
+    assert_eq!(world.row::<ValueRow>("population_dynamics_v1").unwrap().0, state);
+    assert_ne!(world.stamp_of("population_dynamics_v1").unwrap().unwrap(), before);
+    assert!(matches!(world.start_namespace("not_owned_v1", Box::new(ValueRow(state))), Err(Error::Unsupported(_))));
+    assert!(world.slots.get("not_owned_v1").is_none());
+}

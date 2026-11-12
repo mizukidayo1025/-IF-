@@ -793,7 +793,7 @@ where
             let manager = service::manager_in(tick)?;
             let done = tick.cell.with(|world| service::complete(world, &manager.manager(), row)).map_err(core_err::<H::Error>)?;
             match done {
-                Ok(balance) => tick.host.resources_changed(balance.index, balance.remaining)?,
+                Ok(balance) => tick.resources_taken(balance)?,
                 Err(failure) => return Err(service::failure_of::<H>(failure)),
             }
             Ok(Handled::applied())
@@ -804,7 +804,7 @@ where
             let done = tick.cell.with(|world| service::cancel(world, &manager.manager(), row)).map_err(core_err::<H::Error>)?;
             let done = counted(&handlers::COUNTS, "resource_service_cancel", done.map_err(|failure| service::failure_of::<H>(failure)));
             if let Some(balance) = done? {
-                tick.host.resources_changed(balance.index, balance.remaining)?;
+                tick.resources_taken(balance)?;
             }
             Ok(Handled::applied())
         }
@@ -868,7 +868,7 @@ where
                 let inputs = handlers::LedgerIn { operational: &operational, service: &service_held, ledger: &ledger };
                 let done = tick.cell.with(|world| handlers::resource_ledger(world, &inputs, row, &operation)).map_err(core_err::<H::Error>)?;
                 match done {
-                    Ok(applied) => tick.host.resources_changed(applied.index, applied.remaining),
+                    Ok(applied) => tick.resources_taken(applied),
                     // The handler's `except ResourceLedgerError as exc: raise EventApplicationError(str(exc))`.
                     Err(crate::rules::resources::Fail::Ledger(fault)) => Err(Error::failed(fault.text(service::repr_of)).into()),
                     Err(crate::rules::resources::Fail::Error(error)) => Err(error.into()),
