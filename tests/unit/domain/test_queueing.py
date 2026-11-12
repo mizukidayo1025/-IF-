@@ -1,8 +1,8 @@
 """A resource-queue stall record follows the Agent at the head of the queue.
 
 `prepare_facility_queue` drops the record once its Agent no longer heads the queue: after the
-queue's new order, and after someone gives up. The orders themselves are checked in
-tests/integration/test_queue_rules.py; that a generated Scenario with entered stock then runs a
+queue's new order, and after someone gives up. The orders themselves are checked in the core's
+native/core/tests/queue_rules.rs; that a generated Scenario with entered stock then runs a
 whole day, in tests/integration/test_entered_stock.py.
 """
 
