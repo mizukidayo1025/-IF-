@@ -35,6 +35,12 @@ impl Answers {
         self.raw.extend_from_slice(&world_bytes(world));
     }
 
+    /// An answer that leaves no world behind (a read).
+    pub fn text(&mut self, result: &str) {
+        self.raw.extend_from_slice(result.as_bytes());
+        self.raw.push(b'\n');
+    }
+
     /// The sha256 of the answers so far.
     pub fn hex(&self) -> String {
         sha256_hex(&self.raw)
