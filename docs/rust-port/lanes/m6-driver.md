@@ -2,6 +2,21 @@
 
 `native/src/rules/tick.rs` が1回の tick の段階を順に動かします。kernel は直接呼び、Python の部分は部分ごとに1つの入口で呼びます。`TickEngine.step` から届き、`SHELTERSIM_NATIVE=0` は今までの Python の経路のままです。**結果は変わりません。係数は1つも増えていません。**
 
+## #221 の後（今の形）
+
+この文書はレーンを入れたときの記録です。今の形は次のとおりです。
+
+- **Python の段階の経路は消しました。** `OfflineSimulationController.__call__`、`_run_phase`、dispatch 以外の `_run_*_phase`、`_update_movement`、`_apply_due_proposals`、`_apply_proposal`、`_arbitrate_services` はありません。controller の tick は driver だけで動きます。
+- **driver が断ったら、tick は失敗します。** `TickEngine.step` は `run_tick` を持つ handler の tick を `run_tick` に任せ、断られても代わりに段階を回しません。断る理由は2つあります。
+  - patch した手順や規則（`DRIVEN_STEPS`、`DRIVEN_RULES`）、別のクラスの管理者：`tick.run_tick` の `KernelRefusal`
+  - dispatch の段階の確かめ：段階の入口と同じ文の `dispatch.run_phase` の `KernelRefusal`
+
+  どちらも何も変える前です。`run_tick` を持たない handler（`no_op_phase_handler` など）は、今までどおり `TickEngine` が段階ごとに呼びます。
+- **段階の手順の並び**は、各段階の mixin（`experiments/phases/*.py`）の docstring に書きます。本体のない手順のメソッドは、契約の文書と kernel の入口として残します。
+- **テストの道具**
+  - tick の途中の値は `TickEngine.phase_observer` で段階の前後に見ます（`tests/support/world.py` の `watching_phases`）。
+  - tick の一部の段階だけを動かすには、`run_tick` に `phases` を渡します（`tick_phases`）。中核では `run_phases` です。
+
 ## 7日分で得になるか（結論）
 
 **ほとんど得になりません。** 7日分では tick で約 1〜2%、Run 全体で 0.3% 以下で、揺れの中です。tick の時間の大半は kernel の本体で、境界そのものの費用は小さいからです。このレーンの価値は速さではなく、段階の順序を Rust に置いて、手順4で Python の段階を消せるようにしたことです。
