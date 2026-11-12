@@ -109,7 +109,7 @@ fn apply(entry: &mut Value, change: &Value) {
 
 /// The handler of a case: a class with the values the Run reads of it, or the controller's handler
 /// of an event type, with some of those values replaced.
-fn native(loaded: &Loaded, handler: &Value) -> Native {
+pub fn native(loaded: &Loaded, handler: &Value) -> Native {
     let mut native = match (handler.get("class"), handler.get("table")) {
         (Some(class), _) => {
             let (module, qualname) = (class[0].as_str().unwrap(), class[1].as_str().unwrap());
